@@ -487,6 +487,7 @@ namespace CodexAutoResume
             gates.Padding = Pad(0, 0, 6, 0);
             gates.Controls.Add(explainList);
             gates.Scrolls = true;
+            explainPage = gates;
             explain.Controls.Add(gates);
             explain.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             explain.RowStyles.Add(new RowStyle(SizeType.AutoSize));

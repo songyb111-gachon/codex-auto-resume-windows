@@ -23,6 +23,8 @@ is replaced by `values[name]`, so one storyboard serves both READMEs. Each step 
     {"press": target, "frames": n, "step": ms}     ...its pressed face, and a ripple where the pointer is
     {"card": "enter" | "shown" | "leave", "frames": n, "step": ms}   ("shown": already at rest)
     {"wheel": notches, "frames": n, "step": ms}    the page scrolls as SoftPage glides it
+    {"wheel": 1, "on": "explain", ...}             the same turn over Pending's Why it is waiting, which scrolls its
+                                                   checks on a soft page of its own
     {"open": "setting.<field>", "frames": n, "step": ms, "hold": ms}   the field's drop list fades in, then holds
     {"rows": [value, ...], "step": ms}             the pointer's row in the open list, one after another
     {"choose": value, "hold": ms}                  the list closes with `value` shown (not saved)
@@ -37,8 +39,10 @@ is replaced by `values[name]`, so one storyboard serves both READMEs. Each step 
                                                    (ui.popup.motion.glide_amount, brand's transition time and curve)
 
 A target is a name the window answers with bounds (`page.<name>`, `section.<name>`, `save`, `setting.<field>`,
-`row.<value>` in an open drop list, `task.<n>` - the Pending list's row n - and `menu.<n>` - item n of the open row
-menu, which a hover in it names), a button of the card (`card.<target>`), `{"at": [x, y]}` on the canvas, or
+`row.<value>` in an open drop list, `task.<n>` - the Pending list's row n - `menu.<n>` - item n of the open row
+menu, which a hover in it names - `pending.retry`, `pending.timeline` and `pending.explain` - Pending's own buttons and
+its Why it is waiting card - `overview.toggle` - the Overview's Pause or Resume - and `dialog.close` - the Close of a
+dialog the window has open), a button of the card (`card.<target>`), `{"at": [x, y]}` on the canvas, or
 `{"by": [dx, dy]}` from where the pointer is. Window states use the keys `STATE_KEYS`; the render mode refuses any
 other. Every frame is a moment `t` in ms from the start, and everything that moves by itself - the window's lights,
 the card's light, the tray icon - is drawn at that moment, so a plan only says what a person does.
@@ -58,7 +62,8 @@ HERE = Path(__file__).resolve().parent
 PLANS = HERE / "motion"
 
 # The window state a frame may set (gui/WindowRender.cs reads exactly these).
-STATE_KEYS = ("locale", "page", "section", "scroll", "hover", "pressed", "combo", "droplist", "selected", "menu")
+STATE_KEYS = ("locale", "page", "section", "scroll", "hover", "pressed", "combo", "droplist", "selected", "menu",
+              "busy", "variant", "explain", "dialog")
 PAGES = ("overview", "pending", "history", "statistics", "diagnostics", "settings")
 SECTIONS = ("general", "recovery", "continuation", "appearance", "advanced")
 STEPS = ("hold", "set", "move", "hover", "press", "card", "wheel", "open", "rows", "choose", "right", "dismiss",
@@ -75,7 +80,7 @@ CLOSEST = 2 * SHORTEST
 # How long a click's ripple lasts (TOOLING 2.3), in ms.
 RIPPLE_MS = 240
 NAME = re.compile(r"(page\.(%s)|section\.(%s)|save|restore|start|close|setting\.[a-z_]+|row\.[A-Za-z_-]+|card\.[a-z_]+"
-                  r"|task\.[0-9]+|menu\.[0-9]+)\Z"
+                  r"|task\.[0-9]+|menu\.[0-9]+|pending\.(retry|timeline|explain)|overview\.toggle|dialog\.close)\Z"
                   % ("|".join(PAGES), "|".join(SECTIONS)))
 
 
@@ -174,7 +179,7 @@ def check(plan: dict) -> None:
             if len(actions) > 1 or (not actions and "hold" not in step) or (
                     actions and "hold" in step and actions[0] not in HOLDING):
                 raise PlanError("%s: a step does one thing: %r" % (name, step))
-            unknown = set(step) - set(STEPS) - {"frames", "step", "to"}
+            unknown = set(step) - set(STEPS) - {"frames", "step", "to", "on"}
             if unknown:
                 raise PlanError("%s: a step has keys no step has: %s" % (name, sorted(unknown)))
             if "frames" in step and (not isinstance(step["frames"], int) or step["frames"] < 1):
@@ -186,6 +191,9 @@ def check(plan: dict) -> None:
                     _check_target(name, step[key])
             if "right" in step and not str(step["right"]).startswith("task."):
                 raise PlanError("%s: a right click opens a Pending row's menu, on task.<n>, not %r" % (name, step["right"]))
+            if "on" in step and not ("wheel" in step and step["on"] == "explain"):
+                raise PlanError("%s: only a turn of the wheel says what it is over, and only Why it is waiting: %r"
+                                % (name, step))
             if "dismiss" in step and step["dismiss"] != "menu":
                 raise PlanError("%s: only the row menu is dismissed, not %r" % (name, step["dismiss"]))
             if "set" in step:
@@ -213,6 +221,14 @@ def _check_state(scene: str, state: dict) -> None:
     unknown = set(state) - set(STATE_KEYS)
     if unknown:
         raise PlanError("%s: the window's render mode has no state %s" % (scene, sorted(unknown)))
+    if "busy" in state and state["busy"] is not None and state["busy"] is not True:
+        raise PlanError("%s: an action is in flight or it is not: busy is true, or left out" % scene)
+    if state.get("variant") not in (None, "paused"):
+        raise PlanError("%s: the window has no other state of the installation than paused: %r" % (scene, state["variant"]))
+    if state.get("dialog") is not None and (not isinstance(state["dialog"], dict)
+                                            or state["dialog"].get("kind") != "timeline"
+                                            or state["dialog"].get("list", "pending") not in ("pending", "history")):
+        raise PlanError("%s: the window opens the Timeline from Pending or History: %r" % (scene, state["dialog"]))
     if "page" in state and state["page"] not in PAGES:
         raise PlanError("%s: the window has no page %r" % (scene, state["page"]))
     if "section" in state and state["section"] not in SECTIONS:
@@ -305,6 +321,8 @@ def _step(run, step):
             run.window.pop("selected", None)
         if ("page" in state or "section" in state or "locale" in state) and "scroll" not in state:
             run.window.pop("scroll", None)
+        if "page" in state and state["page"] != run.window.get("page") and "explain" not in state:
+            run.window.pop("explain", None)
         for key, value in state.items():
             if value is None:
                 run.window.pop(key, None)
@@ -374,9 +392,10 @@ def _step(run, step):
         return
     if "wheel" in step:
         count, gap = run.frames_of(step, 4)
-        notches = (run.window.get("scroll") or {}).get("notches", 0) + int(step["wheel"])
+        key = "explain" if step.get("on") == "explain" else "scroll"
+        notches = (run.window.get(key) or {}).get("notches", 0) + int(step["wheel"])
         for index in range(count):
-            run.window["scroll"] = {"notches": notches, "glide_ms": index * gap}
+            run.window[key] = {"notches": notches, "glide_ms": index * gap}
             run.emit(run.t + index * gap)
         run.t += count * gap
         return
@@ -486,9 +505,10 @@ def _step(run, step):
 
 def _settle_scroll(run):
     """A wheel's glide is over once anything else happens."""
-    scroll = run.window.get("scroll")
-    if scroll and "glide_ms" in scroll:
-        run.window["scroll"] = {"notches": scroll["notches"]}
+    for key in ("scroll", "explain"):
+        scroll = run.window.get(key)
+        if scroll and "glide_ms" in scroll:
+            run.window[key] = {"notches": scroll["notches"]}
 
 
 # ---------------------------------------------------------------------------------------------------- the clock

@@ -7,6 +7,11 @@ page's committed still (assets/screenshot-<page>[-<locale>].png), client area on
 - every pixel that is not within TEXT_LEVELS levels a channel and within TEXT_REACH px of glyph ink in the still - a
   ClearType edge drawn into a memory bitmap instead of on the screen - and none in a fill, a border or a shadow.
 
+The dialog the window opens over itself (Timeline, v0.6.20) has no still of its own - nothing of the screen is ever
+captured here - so it is held to the stills of what it is made of (`compare_dialog`): its ground is the window's
+ground, its Close button the face of the window's own primary button, its title bar the still's title bar, each read
+at the same control in the committed still, exactly.
+
 Two kinds of pixel are left out, and why is recorded with the result: the corners Windows rounds, which the capture
 leaves clear (the motion lays them from the still, motion_compose.WindowChrome); and the status light, which the
 pictures' `--breathe` step paints again over every capture with the generator's own drawing (make_screenshots.
@@ -101,8 +106,48 @@ def pages_at_rest(locale: str) -> list:
     return frames
 
 
+def dialog_frame(locale: str) -> dict:
+    """The render job's frame for the Timeline dialog over Pending, its first task chosen as the window chooses it."""
+    return {"index": len(PAGES), "locale": locale, "page": "pending", "light": 0, "dialog": {"kind": "timeline"}}
+
+
+def compare_dialog(picture: bytes, bounds: dict, client: tuple, still: tuple) -> dict:
+    """The dialog drawn over the window (RGB client area `picture`, its parts' `bounds`) held to the pending still:
+    three probes - the dialog's ground, the face of its Close button and its title bar - each exactly the colour the
+    still has at the control it is made of. `exact` is the share that match, `worst` the largest difference in levels,
+    `outside` how many do not."""
+    width, height, rgb, _alpha = still
+    client_w, client_h = client
+    top = height - client_h
+
+    def colour(data, x, y, wide):
+        at = (int(y) * wide + int(x)) * 3
+        return tuple(data[at:at + 3])
+
+    window = bounds["dialog.window"]
+    close = bounds["dialog.close"]
+    retry = bounds["pending.retry"]
+    probes = (
+        ("ground", colour(picture, window[0] + 1 + 4, window[1] + top + 4, client_w), colour(rgb, 8, top + 200, width)),
+        ("close", colour(picture, close[0] + 10, close[1] + close[3] // 2, client_w),
+         colour(rgb, retry[0] + 10, top + retry[1] + retry[3] // 2, width)),
+        ("title bar", colour(picture, window[0] + window[2] // 2, window[1] + 6, client_w),
+         colour(rgb, width // 2, 8, width)),
+    )
+    worst = 0
+    wrong = []
+    for name, drawn, wanted in probes:
+        level = max(abs(a - b) for a, b in zip(drawn, wanted))
+        worst = max(worst, level)
+        if level:
+            wrong.append(name)
+    return {"exact": round((len(probes) - len(wrong)) / float(len(probes)), 6), "worst": worst, "outside": len(wrong),
+            "light": 0, "passed": not wrong, "probes": [name for name, _a, _b in probes], "wrong": wrong}
+
+
 def check(exe: Path, work: Path, locales=("en", "ko"), forms=None) -> dict:
-    """{"<locale>/<page>": comparison} for each page in each locale, drawn now by the render mode at `exe`."""
+    """{"<locale>/<page>": comparison} for each page in each locale, drawn now by the render mode at `exe`, and
+    {"<locale>/dialog": comparison} for the Timeline dialog over Pending (compare_dialog)."""
     import make_screenshots
     import motion_window
     manifest = json.loads(make_screenshots.MANIFEST.read_text(encoding="utf-8"))
@@ -110,10 +155,18 @@ def check(exe: Path, work: Path, locales=("en", "ko"), forms=None) -> dict:
     for locale in locales:
         answers = (forms or {}).get(locale) or {"answers": motion_window.answers(locale)}
         out = Path(work) / ("fidelity-" + locale)
+        overview = still_path("overview", locale)
+        frame = make_screenshots.read_png(overview)
         job = {"out": str(out / "frames"), "theme": "light", "design": "soft", "forms": {locale: answers},
-               "targets": [], "frames": pages_at_rest(locale)}
+               "targets": ["dialog.window", "dialog.close", "pending.retry"], "outer": [frame[0], frame[1]],
+               "chrome": motion_window.chrome({"window": {"still": str(overview.relative_to(make_screenshots.ROOT))}}),
+               "frames": pages_at_rest(locale) + [dialog_frame(locale)]}
         result = motion_window.render(exe, job, out)
-        for (_index, picture, _bounds), (page, _section) in zip(motion_window.pictures(result, out / "frames"), PAGES):
+        pictures = list(motion_window.pictures(result, out / "frames"))
+        _index, picture, bounds = pictures[-1]
+        results["%s/dialog" % locale] = compare_dialog(picture, bounds, tuple(result["client"]),
+                                                       make_screenshots.read_png(still_path("pending", locale)))
+        for (_index, picture, _bounds), (page, _section) in zip(pictures, PAGES):
             path = still_path(page, locale)
             key = str(path.relative_to(make_screenshots.ROOT)).replace("\\", "/")
             lights = (manifest.get("lights", {}).get(key) or {}).get("lights") or [None]
