@@ -1289,7 +1289,7 @@ OPEN_TO_SEND = CapabilityDef(
 # core's own five a conversation a day, and two dozen a day in all.
 STOP_HOOK = CapabilityDef(
     id="stop_hook_continuation",
-    points=frozenset({Point.GATES}),
+    points=frozenset({Point.GATES, Point.TICK}),
     revision=1,
     departs_from=("A2", "A5", "A26", "B3", "F6"),
     compat="recovery_turn_tracking",
