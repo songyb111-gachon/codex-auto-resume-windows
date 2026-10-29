@@ -828,6 +828,19 @@ namespace CodexAutoResume
             get { return Mirror.Display(this, base.DisplayRectangle); }
         }
 
+        // v0.6.20: a row that flows from the right (FlowDirection.RightToLeft: the window's button rows) stands, left to right,
+        // its padding's whole width in from its right edge - Windows lays such a row out with both its left and its right
+        // padding at the right. Mirrored, Windows flows it from the left past its (mirrored) left padding alone. Each control is
+        // moved by the other padding, so the row is its left-to-right self mirrored (Mirror; MirrorAudit, measured on the
+        // dialogs' button rows). Windows lays the row out anew each time, so this is the same each time.
+        protected override void OnLayout(LayoutEventArgs levent)
+        {
+            base.OnLayout(levent);
+            if (!Mirror.Of(this) || FlowDirection != FlowDirection.RightToLeft || Padding.Left == 0) return;
+            foreach (Control child in Controls)
+                if (Soft.OwnVisible(child)) child.Left += Padding.Left;
+        }
+
         protected override void OnPaintBackground(PaintEventArgs e)
         {
             Ground.Paint(this, e);

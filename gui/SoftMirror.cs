@@ -111,7 +111,8 @@ namespace CodexAutoResume
                 if (most <= 0 || child.Width != most || !Soft.OwnVisible(child)) continue;
                 if ((child.Anchor & (AnchorStyles.Left | AnchorStyles.Right)) != (AnchorStyles.Left | AnchorStyles.Right)) continue;
                 if (child.Dock != DockStyle.None) continue;
-                int column = table.GetColumn(child);
+                // Where the table put it - GetColumn answers -1 for a control placed in the next free cell.
+                int column = table.GetPositionFromControl(child).Column;
                 if (column < 0 || column >= widths.Length) continue;
                 // The first column stands at the right of a mirrored table.
                 int right = display.Right;

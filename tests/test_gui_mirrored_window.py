@@ -105,7 +105,8 @@ class MirrorSourceTests(unittest.TestCase):
                          "Mirror.Caps(this);"),                                                  # a capped line at the right
             "SoftStack": ("Mirror.Display(this, base.DisplayRectangle)",),
             "SoftRows": ("Mirror.Display(this, base.DisplayRectangle)",),
-            "SoftFlow": ("Mirror.Display(this, base.DisplayRectangle)",),
+            "SoftFlow": ("Mirror.Display(this, base.DisplayRectangle)",                         # its padding mirrored
+                         "if (Soft.OwnVisible(child)) child.Left += Padding.Left;"),             # a row from the right
             "SoftListHost": ("clip.SetBounds(mirrored ? Width - rows : 0", "Mirror.Box(Mirror.Of(this), Width,",
                              "MirrorColumns();"),
             "SoftButton": ("Mirror.Words(Mirror.Of(this),",),

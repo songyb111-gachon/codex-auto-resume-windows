@@ -1438,6 +1438,9 @@ namespace CodexAutoResume
                 mirrored = null;
                 mirroredOrder = null;
             }
+            // What shows only right to left is not the left-to-right window mirrored either.
+            foreach (string key in back.Keys)
+                if (!across.ContainsKey(key)) findings.Add(key + " :: shows only right to left, at " + Box(back[key]));
             foreach (string key in order)
             {
                 int[] ltr = across[key], rtl;
