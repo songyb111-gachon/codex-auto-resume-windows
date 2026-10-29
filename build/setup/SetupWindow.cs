@@ -368,14 +368,19 @@ namespace CodexAutoResume
                     string.IsNullOrEmpty(control.AccessibleName) && string.IsNullOrEmpty(control.Text))
                     findings.Add(where + " :: " + name + " has no name a screen reader says");
             }
-            int left = int.MaxValue;
+            // v0.6.20: mirrored (Mirror), the buttons run from the left - Next first - and its twin checks the other side.
+            bool mirrored = Mirror.Of(window);
+            int left = int.MaxValue, right = int.MinValue;
             foreach (Control button in window.Buttons())
             {
                 Size wanted = button.GetPreferredSize(Size.Empty);
                 if (wanted.Width > button.Width) findings.Add(where + " :: button '" + button.Text + "' needs " + wanted.Width + " px and has " + button.Width);
-                if (button.Left < Soft.Px(16)) findings.Add(where + " :: button '" + Short(button.Text) + "' runs past the window's left side");
-                if (button.Right > left) findings.Add(where + " :: button '" + button.Text + "' overlaps the one beside it");
+                if (mirrored ? button.Right > window.ClientSize.Width - Soft.Px(16) : button.Left < Soft.Px(16))
+                    findings.Add(where + " :: button '" + Short(button.Text) + "' runs past the window's " + (mirrored ? "right" : "left") + " side");
+                if (mirrored ? button.Left < right : button.Right > left)
+                    findings.Add(where + " :: button '" + button.Text + "' overlaps the one beside it");
                 left = Math.Min(left, button.Left);
+                right = Math.Max(right, button.Right);
                 if (button.Bottom > window.ClientSize.Height) findings.Add(where + " :: button '" + button.Text + "' is below the window");
             }
             foreach (Label line in window.HeaderLines())
