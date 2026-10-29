@@ -462,6 +462,41 @@ class PauseBesideResetCreditTests(UsageCase):
         self.assertFalse(all(held), "some minute of the credit's early window is not held")
 
 
+class AnalyticsBesideMeterAndPauseTests(UsageCase):
+    """v0.6.20, usage_analytics (observe-only): on beside the meter it requires and the stop near a limit, each still
+    does all it did alone - the meter keeps its reading and warns once, the stop holds a record at its percentage -
+    and the analytics keep that same reading as their samples. Nothing of theirs is an answer at any point."""
+
+    def setUp(self):
+        ac.AdvancedCase.setUp(self)
+        from codex_auto_resume_advanced.registry import USAGE_ANALYTICS
+        self.compat = {"status": "ok", "engine": {"found": True, "version": ac.ENGINE},
+                       "capabilities": {name: {"state": "COMPATIBLE", "reason": "local_checks_passed"}
+                                        for name in ("usage_probe", "exact_thread_recovery")}}
+        self.rt = self.runtime(USAGE_METER, USAGE_PAUSE, USAGE_ANALYTICS)
+        self.rt.arming.catalogs = statement.CATALOGS
+        self.answer, self.calls, self.app = reply(), [], True
+        code = self.rt._code_of(USAGE_METER)
+        code._session = lambda: Session(self.answer, self.calls)
+        code._app_running = lambda: self.app
+        self.rt._code_of(USAGE_ANALYTICS)._homes = lambda: []
+
+    def test_both_apply_to_the_same_reading(self):
+        self.on("usage_pause")
+        self.on("usage_analytics")
+        self.answer = reply(five=99)
+        self.look()
+        self.look()                                   # the stop's own tick marks the window
+        rows = self.rt.state.meter()
+        self.assertEqual(rows[("codex", 300)]["used_percent"], 99.0)
+        self.assertEqual(rows[("codex", 300)]["warned_reset_at"], rows[("codex", 300)]["reset_at"])
+        record = {"interruption_id": ac.KEY, "thread_id": ac.THREAD, "category": "usage_limit",
+                  "state": "waiting_reset"}
+        self.assertIs(self.rt.ask(Point.GATES, "submission_safe", record, {}), Alternative.HOLD)
+        samples = self.rt.state.usage_samples()
+        self.assertIn((300, 99.0), [(row["minutes"], row["used_percent"]) for row in samples])
+
+
 # v0.6.19 W4 (plans/v0619-design/D-watcher-ops.md): the watcher operations beside what they meet.
 class CrashRestartBesideStartWithCodexTests(ac.AdvancedCase):
     """crash_restart and start_with_codex: COMPOSE. Start with Codex starts this installation's launcher through WMI,

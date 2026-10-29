@@ -72,6 +72,7 @@ from codex_auto_resume.domain.plug import Point
 from .control.codexstart import make as make_start_with_codex
 from .control.opencodex import make as make_open_codex_button
 from .control.sendnow import make as make_send_now
+from .engine.analytics import DAYS as ANALYTICS_DAYS, DEFAULT_DAYS as ANALYTICS_DEFAULT_DAYS, make as make_usage_analytics
 from .engine.admitted import (ATTEMPTS, DEFAULT_ATTEMPTS, make_codex_gave_up, make_sign_in_retry,
                               make_structured_rules, make_unknown_failure_budget)
 from .engine.capacity import CEILING_HOURS, DEFAULT_HOURS, make as make_capacity_retry
@@ -1129,6 +1130,34 @@ IDLE_UPDATE_CHECK = CapabilityDef(
     codes=("checked", "offered", "unanswered"),
 )
 
+# Usage and token analytics (v0.6.20, plans/v0619-design/D-analytics.md). At P8, at most every ten minutes and only as
+# the tick's errand, it reads what the watched Codex homes' rollouts added since its last pass - the four numbers of each
+# token_count event and the turns begun, nothing else of a line, at most 2 MiB of a file and 8 MiB a pass
+# (codex/tokens.py) - and keeps them by local day under each conversation's project key (state/analytics.py, token_days
+# and token_files, 90 days); while it stands on, the usage meter keeps each of its readings as a sample too, for the
+# pace (engine/usage.py). The card on the Advanced features page shows each window's pace and each project's tokens over
+# the days a person picks, and saves them as CSV where the person chooses (control/analytics.py). Where MTOK failed on
+# the Codex in force, no rollout is read: the card shows each conversation's lifetime total alone (threads.tokens_used,
+# core's reader) - the narrower route, never a reason to withhold it. It departs from B6 (rollouts read beyond the
+# first line and the usage-limit scan), C4 (it reads on its own, on a schedule), C9 (usage readings kept when no
+# recovery is due), D2 (per-project digests and token counts kept 90 days) and F3 (the CSV written where the person
+# chooses); stands on usage_probe, as the meter it requires, and rests on MTOK and MU. No gate reads any of it, and it
+# sends nothing: its ceilings are the schema's floor and never bind.
+USAGE_ANALYTICS = CapabilityDef(
+    id="usage_analytics",
+    points=frozenset({Point.TICK}),
+    revision=1,
+    departs_from=("B6", "C4", "C9", "D2", "F3"),
+    compat="usage_probe",
+    ceilings=Ceilings(per_day=1, per_conversation=1),
+    journal_prefix="analytic",
+    make=make_usage_analytics,
+    codes=("ingested", "capped", "unreadable"),
+    measurements=(Measurement.MTOK, Measurement.MU),
+    options=(Option(OptionKey.ANALYTICS_DAYS, ANALYTICS_DAYS, ANALYTICS_DEFAULT_DAYS),),
+    requires=("usage_meter",),
+)
+
 # Wake this PC for a reset (v0.6.19, plans/v0619-design/D-watcher-ops.md B). At P8 it finds the earliest time something
 # waits for - core's waiting usage-limit records, the reset actions' pending rules, the forced stop's held window - and
 # sets a waitable timer of the watcher's own, with fResume, for that time less the lead a person chose (1, 2 or 5
@@ -1271,8 +1300,8 @@ DEFINITIONS = (START_WITH_CODEX, CRASH_RESTART, GOAL_CONTINUATION, QUEUE_FOR_OPE
                UNKNOWN_FAILURE_BUDGET, CODEX_GAVE_UP, SIGN_IN_RETRY, RESET_CREDIT, RESET_MESSAGE, EARLY_RESET,
                ONCE_MORE, SEND_NOW, PARALLEL_DISPATCH, PROMPT_QUEUE, EMPTY_RESPONSE, SUBAGENT_PARENT, KEEP_GOING,
                USAGE_METER, USAGE_WRAP_UP, USAGE_PAUSE, EVERY_CONVERSATION, SILENT_CONTINUATION, CODEX_CHAT, IDLE_UPDATE_CHECK,
-               # v0.6.20 (the courier), before the wake timer, whose errand reads last at P8.
-               PUSH_NOTICES, STATUS_FEED,
+               # v0.6.20 (the courier; the usage and token analytics), before the wake timer, whose errand reads last at P8.
+               PUSH_NOTICES, STATUS_FEED, USAGE_ANALYTICS,
                WAKE_FOR_RESET,
                OPEN_CODEX_BUTTON, LONG_RESET_MESSAGE,
                COMPAT_REPORT)
@@ -1367,6 +1396,8 @@ SHOWN_ORDER = ("compat_report", "start_with_codex",
                "early_reset", "parallel_dispatch", "reset_message", "long_reset_message",
                # v0.6.16-beta.3 (issue #29): the usage meter and what it serves, beside the other usage-limit features.
                "usage_meter", "usage_wrap_up", "usage_pause", "keep_going",
+               # v0.6.20: the usage and token analytics, after keep going (the owner's approved order, 2026-10-22).
+               "usage_analytics",
                "prompt_queue",
                # v0.6.19: chat with a conversation, beside the queued messages (stage 4's Q12).
                "codex_chat", "empty_response", "once_more_when_unsure", "send_now",

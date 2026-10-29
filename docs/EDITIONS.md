@@ -1171,6 +1171,43 @@ reading) and [H6](STANDARDS.md#h-user-control) (a running turn is stopped).
 0.162.0-alpha.17.2, app 26.1007.9446.0; again on 0.163.0-alpha.10.2, app 26.1013.3656.0, with the stop that
 names its turn - f16c9ca2 on measure-20261017); **MU: passed** (codex-cli 0.162.0-alpha.17.2, 2026-10-10).
 
+### Usage and token analytics
+
+**What it does.** Needs the usage meter, which turns on with it. At most every ten minutes, while recovery is not
+paused, it reads what Codex added to its conversations' rollout files (under each watched Codex home's `sessions`
+folder) since it last looked - only each model call's token counts (input, cached input, output and reasoning) and
+when each turn began, nothing else of any line - at most 2 MiB of a file and 8 MiB in one look, and adds them up by
+day for each project. While it is on, each reading of the usage meter is kept as well. Its cards on the Advanced
+features page show, for the five-hour and the weekly window, how full it is, the change over the last hour and -
+with three readings over fifteen minutes at least, and only when the window would fill before it resets - around
+when it would be full at that pace, beside the reset time. A flat list shows each project's input, cached input,
+output, reasoning and turns over the last 7, 30 or 90 days (**Days shown**; 7 by default), a total line, and each
+project's conversations on demand; a project is named as Codex names it, else by its folder's name, read when the
+page is shown and never kept. **Save as CSV...** writes the numbers - day, project, the five counts, and lifetime
+totals where only those are known - to a file you choose in the save dialog. A conversation the rollout files gave
+nothing for shows its lifetime total, as Codex keeps it. Where these counts failed their measurement (MTOK) on your
+Codex, no rollout file is read at all and the list shows each conversation's lifetime total instead.
+
+**When it helps.** When you want to see which projects use your tokens, and how soon a window fills at the
+current pace.
+
+**What it risks.** A first look at a long history takes many looks, and the card says while older conversations
+are still being read. Codex may change what its rollout files hold; the numbers would then stop growing. The pace
+is an estimate, never a promise. What is kept - numbers by day, under a digest of each project's key and of each
+file's path, and the meter's readings - stays in the advanced state for 90 days. Nothing here changes what is
+recovered or when, no gate reads it, and nothing leaves this PC.
+
+**Departs from** [B6](STANDARDS.md#b-what-it-reads-and-how) (a rollout file is read only for its first line and,
+after a usage limit, the reset time), [C4](STANDARDS.md#c-network) (nothing happens on its own, on a schedule),
+[C9](STANDARDS.md#c-network) (usage is read only when a recovery is due), [D2](STANDARDS.md#d-privacy-and-the-data-it-keeps)
+(the state holds no token counts) and [F3](STANDARDS.md#f-footprint-on-the-machine) (files are written only in the
+product's own folders: the CSV goes where you choose).
+
+**Ceilings.** None come into play: it sends nothing to Codex. **Measurement MTOK: not made yet** - what Codex's
+rollout files carry of token counts; until it passes, the statement carries the warning that it was not measured,
+and where it fails, the narrower route above. **MU: passed** (codex-cli 0.162.0-alpha.17.2, 2026-10-10) for the
+meter's readings.
+
 ### Continue with no words
 
 **What it does.** When a conversation is run here while Codex is closed, its continuation is started with no

@@ -105,11 +105,14 @@ ARGUMENTS = {
 # until the writer of its capability builds it: that writer gives it its arguments here, takes it out of this set, and
 # answers it in `bridge`.
 UNANSWERED = frozenset({
-    BridgeCommand.ADVANCED_ANALYTICS, BridgeCommand.ADVANCED_ANALYTICS_CSV, BridgeCommand.ADVANCED_API, BridgeCommand.ADVANCED_API_TOKEN_NEW,
+    BridgeCommand.ADVANCED_API, BridgeCommand.ADVANCED_API_TOKEN_NEW,
     BridgeCommand.ADVANCED_REMOTE_PAIR_START, BridgeCommand.ADVANCED_REMOTE_PAIR_STATE, BridgeCommand.ADVANCED_FLEET,
     BridgeCommand.ADVANCED_FLEET_SAVE,
     BridgeCommand.ADVANCED_ACCOUNT, BridgeCommand.ADVANCED_ACCOUNT_SWITCH})
 ARGUMENTS.update({command: frozenset() for command in UNANSWERED})
+# usage_analytics (v0.6.20, control/analytics.py): its card read, and its CSV saved where the person chose.
+ARGUMENTS.update({BridgeCommand.ADVANCED_ANALYTICS: frozenset({"days"}),
+                  BridgeCommand.ADVANCED_ANALYTICS_CSV: frozenset({"days", "path", "replace"})})
 # #50 (v0.6.19): the completed prompts the Dashboard showed, deleted from the list (control/prompts.clear_done).
 ARGUMENTS[BridgeCommand.ADVANCED_PROMPTS_CLEAR_DONE] = frozenset({"prompts", "generation"})
 # and one waiting edited (control/prompts.edit): its id, and what advanced-prompt-add takes but the conversation.
@@ -451,6 +454,11 @@ def bridge(runtime, command, argument):
         return prompts.go_on(runtime, argument.get("prompt"), argument.get("generation"))
     if command in COURIER_COMMANDS:
         return courier(runtime, command, argument)
+    if command in (BridgeCommand.ADVANCED_ANALYTICS, BridgeCommand.ADVANCED_ANALYTICS_CSV):
+        from .control import analytics
+        if command == BridgeCommand.ADVANCED_ANALYTICS:
+            return analytics.view(runtime, argument.get("days"))
+        return analytics.save_csv(runtime, argument)
     if command in KEEP_GOING_COMMANDS:
         from .control import keepgoing
         if command == BridgeCommand.ADVANCED_KEEP_GOING:

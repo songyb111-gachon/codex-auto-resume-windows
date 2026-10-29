@@ -46,7 +46,9 @@ BUILT = {"advanced-prompts-clear-done": "#50, Delete completed (control/prompts.
          # v0.6.20, the courier (control/courier.py).
          "advanced-courier": "the courier's card read", "advanced-courier-save": "one channel saved, or Telegram paired",
          "advanced-courier-forget": "one channel forgotten", "advanced-courier-test": "a test notice",
-         "advanced-feed-refresh": "the status feed read now"}
+         "advanced-feed-refresh": "the status feed read now",
+         "advanced-analytics": "usage_analytics, its card (control/analytics.view)",
+         "advanced-analytics-csv": "usage_analytics, its CSV (control/analytics.save_csv)"}
 
 
 class WordTests(unittest.TestCase):

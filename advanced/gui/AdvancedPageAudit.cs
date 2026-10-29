@@ -153,6 +153,8 @@ namespace CodexAutoResume
                 form.advancedSamples = Map(kept, "advanced-samples");
                 form.advancedPending = Items(kept, "pending");
                 form.advancedResets = Map(kept, "advanced-resets");
+                // v0.6.20: the usage and token analytics' cards at their fullest (AdvancedAnalytics.cs).
+                form.advancedAnalytics = Map(kept, "advanced-analytics");
                 Dictionary<string, object> shot = Map(kept, "snapshot");
                 form.AdoptAdvancedWords(Json.Parse(wordsJson) as Dictionary<string, object>);
                 // The conversations the reset forms offer, and Pending's list, are the snapshot's.
@@ -610,6 +612,7 @@ namespace CodexAutoResume
         ///   {"do": "rule", "tag": ..., "sampled": ...,        a new rule's fields filled - its code typed, or taken from the
         ///    "from": ..., "to": ..., "kind": ...}             samples' drop-down - and Add rule pressed, if it can be
         ///   {"do": "remove", "rule": n}                       that rule's Remove pressed, if it can be
+        ///   {"do": "analytics_toggle", "project": key}        a project's Show or Hide conversations pressed ("" for Other)
         ///   {"do": "wording", "key": ..., "text": ...}         a wrap-up wording box filled and its Save words pressed
         ///   {"do": "custom_option", "key": ...,               Custom... chosen in that choice's drop-down, and its dialog -
         ///    "value": n | "cancel": true}                     built, never shown - given n and Use this value pressed, or
@@ -677,7 +680,8 @@ namespace CodexAutoResume
                                       : name == "let_go" ? form.letGoButton
                                       : name == "report_write" ? form.reportWrite : name == "report_save" ? form.reportSave
                                       : name == "report_check" ? form.reportCheck : name == "report_send" ? form.reportSend
-                                      : name == "queue_go" ? form.queueAdd : null;
+                                      : name == "queue_go" ? form.queueAdd
+                                      : name == "analytics_save" ? form.analyticsSave : null;
                         if (button == null || !button.Enabled || !OwnVisible(button)) disabled.Add(name);
                         else Pressed.Invoke(button, new object[] { EventArgs.Empty });
                     }
@@ -1002,6 +1006,13 @@ namespace CodexAutoResume
                         Button stop = form.runStops.Find(delegate(Button each) { return Equals(each.Tag, Str(step, "key")); });
                         if (stop == null || !stop.Enabled) disabled.Add("run_stop");
                         else Pressed.Invoke(stop, new object[] { EventArgs.Empty });
+                    }
+                    else if (what == "analytics_toggle")
+                    {
+                        // v0.6.20: a project's Show conversations or Hide conversations pressed (AdvancedAnalytics.cs).
+                        Button toggle = form.analyticsToggles.Find(delegate(Button each) { return Equals(each.Tag, Str(step, "project") ?? ""); });
+                        if (toggle == null || !toggle.Enabled) disabled.Add("analytics_toggle");
+                        else Pressed.Invoke(toggle, new object[] { EventArgs.Empty });
                     }
                     else if (what == "remove")
                     {
