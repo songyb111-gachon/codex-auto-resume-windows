@@ -102,6 +102,10 @@ from .engine.oncemore import make as make_once_more
 from .engine.parallel import DEFAULT_WORKERS, WORKERS, make as make_parallel
 from .engine.updatecheck import make as make_idle_update_check
 from .engine.wake import DEFAULT_LEAD as WAKE_DEFAULT_LEAD, LEADS as WAKE_LEADS, make as make_wake_for_reset
+# v0.6.20 (the courier): push notices and the status feed.
+from .engine.push import DEFAULT_EVENTS, EVENT_CHOICES, make as make_push_notices, SWITCH as PUSH_SWITCH
+from .engine.feed import DEFAULT_MINUTES as FEED_DEFAULT_MINUTES, MINUTES as FEED_MINUTES, make as make_status_feed
+from .courier.outbox import codes as push_codes
 from .engine.usage import (DEFAULT_PAUSE, DEFAULT_POLL, DEFAULT_STOP_WORDS, DEFAULT_STYLE, DEFAULT_WARN,
                            DEFAULT_WRAP, ON, PERCENT_RANGE, PERCENTS, POLL_RANGE, SWITCH,
                            POLL_CHOICES, STYLES, make_meter, make_pause, make_wrap_up)
@@ -1150,6 +1154,50 @@ WAKE_FOR_RESET = CapabilityDef(
     options=(Option(OptionKey.WAKE_LEAD_MINUTES, WAKE_LEADS, WAKE_DEFAULT_LEAD),),
 )
 
+# Send notices to your phone or inbox (v0.6.20, plans/v0619-design/D-courier.md): at P20 a notice core raises is mapped
+# to a closed event and, for the events a person picked and each channel they switched on and saved - ntfy, a webhook,
+# Telegram, e-mail - written to the outbox (engine/push.py); at P8 the courier is started to send it (courier/), the
+# advanced edition's only network code: HTTPS with verification, no redirect, at most 30 an hour across channels, three
+# tries, dropped after seven days, never a title, a path, an id or a word of a conversation. Its secrets are Credential
+# Manager's alone (credentials.py). It departs from C1 and C2 (network code, in a second shipped file), C3 (hosts the
+# person types), C8 (each service sees this PC's address and the courier's User-Agent), D1 (event codes leave the PC, to
+# a service the person chose), D6 (a channel that is not a Windows notice), F6 (a process of its own besides the listed
+# ones) and F8 (a second process while it runs). It keeps A1 - nothing it does reaches Codex - E11, never deciding or
+# delaying a recovery, and K5: paused, nothing is written or sent. It stands on engine_present as the update check does;
+# its ceilings are the schema's floor and never bind: it sends nothing to Codex.
+PUSH_NOTICES = CapabilityDef(
+    id="push_notices",
+    points=frozenset({Point.NOTICE, Point.TICK}),
+    revision=1,
+    departs_from=("C1", "C2", "C3", "C8", "D1", "D6", "F6", "F8"),
+    compat="engine_present",
+    ceilings=Ceilings(per_day=1, per_conversation=1),
+    journal_prefix="push",
+    make=make_push_notices,
+    codes=push_codes(),
+    options=(Option(OptionKey.PUSH_EVENTS, EVENT_CHOICES, DEFAULT_EVENTS),
+             Option(OptionKey.NTFY, PUSH_SWITCH, PUSH_SWITCH[1]), Option(OptionKey.WEBHOOK, PUSH_SWITCH, PUSH_SWITCH[1]),
+             Option(OptionKey.TELEGRAM, PUSH_SWITCH, PUSH_SWITCH[1]), Option(OptionKey.EMAIL, PUSH_SWITCH, PUSH_SWITCH[1])),
+)
+
+# Show OpenAI's service status (v0.6.20, D-courier.md): while a recovery waits in a usage limit or a connection failure,
+# the courier reads status.openai.com's summary every 10, 30 or 60 minutes (the person's choice) and once when
+# the Dashboard opens, and keeps two words and a count (courier/feed.py); the Overview shows a line while it says degraded
+# or an outage. A word to show, never a gate's input. It departs from C1, C2, C3 (status.openai.com), C4 (it reads on its
+# own) and C8 (the page sees this PC's address); it keeps A1, E11 and K5 - paused, nothing is read.
+STATUS_FEED = CapabilityDef(
+    id="status_feed",
+    points=frozenset({Point.TICK}),
+    revision=1,
+    departs_from=("C1", "C2", "C3", "C4", "C8"),
+    compat="engine_present",
+    ceilings=Ceilings(per_day=1, per_conversation=1),
+    journal_prefix="feed",
+    make=make_status_feed,
+    codes=("checked", "unknown", "refused"),
+    options=(Option(OptionKey.FEED_MINUTES, FEED_MINUTES, FEED_DEFAULT_MINUTES),),
+)
+
 # Longer reset messages (v0.6.14, the owner's answer of 2026-10-08): a message sent at a reset may be up to what one
 # continuation carries (continuation.PROMPT_LIMIT, 8,154 characters) instead of A27's 2,000 - a separate opt-in, off
 # until a person turns it on after its statement, which names A27. An action: it answers at no point and sends
@@ -1223,6 +1271,8 @@ DEFINITIONS = (START_WITH_CODEX, CRASH_RESTART, GOAL_CONTINUATION, QUEUE_FOR_OPE
                UNKNOWN_FAILURE_BUDGET, CODEX_GAVE_UP, SIGN_IN_RETRY, RESET_CREDIT, RESET_MESSAGE, EARLY_RESET,
                ONCE_MORE, SEND_NOW, PARALLEL_DISPATCH, PROMPT_QUEUE, EMPTY_RESPONSE, SUBAGENT_PARENT, KEEP_GOING,
                USAGE_METER, USAGE_WRAP_UP, USAGE_PAUSE, EVERY_CONVERSATION, SILENT_CONTINUATION, CODEX_CHAT, IDLE_UPDATE_CHECK,
+               # v0.6.20 (the courier), before the wake timer, whose errand reads last at P8.
+               PUSH_NOTICES, STATUS_FEED,
                WAKE_FOR_RESET,
                OPEN_CODEX_BUTTON, LONG_RESET_MESSAGE,
                COMPAT_REPORT)
@@ -1321,7 +1371,11 @@ SHOWN_ORDER = ("compat_report", "start_with_codex",
                # v0.6.19: chat with a conversation, beside the queued messages (stage 4's Q12).
                "codex_chat", "empty_response", "once_more_when_unsure", "send_now",
                # v0.6.18: Open Codex on a notice, beside Send now - both what a person does about one conversation.
-               "open_codex_button", "capacity_retry",
+               "open_codex_button",
+               # v0.6.20 (the courier; the owner's order of 2026-10-22): push notices and the status feed, beside Open Codex
+               # on a notice - what a person is told, and where.
+               "push_notices", "status_feed",
+               "capacity_retry",
                # v0.6.16-beta.4: what a failure of Codex's own is taken up with, beside the capacity retry (Q12).
                "compact_continue", "model_fallback",
                "codex_gave_up", "goal_continuation", "subagent_parent", "sign_in_retry", "unknown_failure_budget",

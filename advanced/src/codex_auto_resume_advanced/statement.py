@@ -111,6 +111,8 @@ PAGE_KEYS = tuple(PAGE_PREFIX + name for name in (
     "watchlog.answer.silent",
     # v0.6.19 (the groundwork): P13's two words, which a watched supervisor would answer.
     "watchlog.answer.supervise", "watchlog.answer.restart",
+    # v0.6.20 (push_notices): a notice it would have pushed.
+    "watchlog.answer.notice",
     # v0.6.16-beta.3: a message a watched capability would have sent.
     "watchlog.answer.records",
     "watchlog.answer.other",
@@ -235,6 +237,66 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
 # line's Check now and settings button went with the line (the owner's decision of 2026-10-24), and their words.
 PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "early.none", "early.available_first", "early.lifted", "early.limited", "early.unknown", "early.not_read"))
+# v0.6.20 (push_notices, status_feed - the courier): what a push says (its event in words and the edition, also the card's
+# event switches), the courier's card - its channels, fields, buttons, outcomes and refusals - and the status feed's line
+# on the Overview with its choice.
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
+    "push.usage_limit_detected",
+    "push.recovered",
+    "push.failed",
+    "push.needs_you",
+    "push.stopped_unexpectedly",
+    "push.restarted",
+    "push.update_offered",
+    "push.test",
+    "push.edition",
+    "courier.title",
+    "courier.events",
+    "courier.channel.ntfy",
+    "courier.channel.webhook",
+    "courier.channel.telegram",
+    "courier.channel.email",
+    "courier.saved",
+    "courier.not_saved",
+    "courier.tripped",
+    "courier.secret_note",
+    "courier.field.url",
+    "courier.field.token",
+    "courier.field.bot_token",
+    "courier.field.host",
+    "courier.field.port",
+    "courier.field.user",
+    "courier.field.password",
+    "courier.field.from",
+    "courier.field.to",
+    "courier.save",
+    "courier.replace",
+    "courier.forget",
+    "courier.test",
+    "courier.pair",
+    "courier.pair_code",
+    "courier.paired",
+    "courier.not_paired",
+    "courier.result.sent",
+    "courier.result.refused",
+    "courier.result.server_error",
+    "courier.result.timed_out",
+    "courier.result.tls",
+    "courier.result.busy",
+    "courier.result.not_saved",
+    "courier.result.no_answer",
+    "refused.address_refused",
+    "refused.secret_unavailable",
+    "refused.not_saved",
+    "refused.courier_unavailable",
+    "done.courier_saved",
+    "done.courier_forgotten",
+    "confirm.courier_forget",
+    "feed.label",
+    "feed.degraded",
+    "feed.outage",
+    "option.feed_minutes",
+))
 # The edition's own continuations' words (v0.6.15-beta): what empty_response, subagent_parent and keep_going send -
 # fixed, each passing core's continuation.validate_continuation in every language (nothing is filled in but, for a
 # subagent's line, its id and a closed kind word).

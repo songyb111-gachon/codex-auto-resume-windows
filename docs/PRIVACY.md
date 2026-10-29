@@ -806,11 +806,26 @@ reads more only when its capabilities are listed or one is being turned on - and
 that takes up failures is on or watched, from Codex's history the failures the standard edition
 leaves alone: their kind, Codex's error code and status number, and whether an error message exists,
 never the message; for the one that retries failures it cannot classify, also how many items of each
-kind the failed turn left - and Codex's tools learn which edition it is and that none is on. It adds no network code: its package imports no networking
-module, which a test checks as it checks the standard edition's code
-(`tests/test_privacy_claims.py`), and what its capabilities ask of anything, they ask of the Codex
-already on this machine - but for the compatibility report, which asks gh, the GitHub CLI you
-installed, to reach GitHub, and only when you start it (*What it sends to GitHub*, below).
+kind the failed turn left - and Codex's tools learn which edition it is and that none is on. Its
+package imports no networking module but in its courier's own folder, which a test checks as it
+checks the standard edition's code (`tests/test_privacy_claims.py`), and what its capabilities ask of
+anything, they ask of the Codex already on this machine - but for the compatibility report, which asks
+gh, the GitHub CLI you installed, to reach GitHub, and only when you start it (*What it sends to
+GitHub*, below); and, from v0.6.20, the courier, the advanced edition's only network code, which runs
+only while push notices or the status feed is on (*What the courier sends*, below).
+
+- **What the courier sends** (v0.6.20). With *Send notices to your phone or inbox* on, a notice you
+  picked - a usage limit detected, a recovery done or failed, a conversation that needs you, the
+  watcher stopped unexpectedly or restarted, an update offered - goes as a short message to the
+  services you set up on its card and nowhere else: an ntfy topic, a webhook, a Telegram bot
+  (api.telegram.org) or an SMTP server. It says what happened, the task's place in Pending
+  (`task 3`), the failure's category word and the time, and the edition - never a conversation's
+  title or words, a project, a path, an id, an error's text or an account. Each service sees this PC's
+  address and the courier's User-Agent. With *Show OpenAI's service status* on, the courier reads
+  status.openai.com's public summary while a recovery waits for a usage limit or a connection failure,
+  and keeps two words and a count; that page sees this PC's address and the time. The addresses,
+  tokens and passwords you type are kept in Windows Credential Manager, never in a file, a log or
+  the diagnostics. While recovery is paused nothing is sent or read.
 
 - **What it reads.** Three values an administrator may set under
   `Software\Policies\CodexAutoResume`, in `HKEY_LOCAL_MACHINE` and `HKEY_CURRENT_USER` -
@@ -926,9 +941,15 @@ practices, as any download would be.
 **OpenAI**, only through the official Codex app and CLI already signed in on your machine:
 the usage check, which Codex identifies as coming from this tool; the resumed turn; and
 whatever the plugin's tools and commands return inside a Codex conversation. This tool has
-no connection to OpenAI of its own; that traffic is Codex's, under your own account. If you
+no connection to OpenAI of its own - but for the advanced edition's status feed, once you turn it
+on, which reads OpenAI's public status page (status.openai.com) and sends nothing about you; the rest
+of that traffic is Codex's, under your own account. If you
 have configured Codex to use a different model provider, the conversation goes there
 instead, as all your Codex conversations do.
+
+**The services you choose for push notices**, in the advanced edition, once you turn *Send notices
+to your phone or inbox* on: the ntfy topic, the webhook, the Telegram bot or the e-mail server you
+set up, each sent only the short closed message described under *What the courier sends*, above.
 
 **Other marketplace hosts**, through Codex's marketplace refresh at install: a surviving
 registration named `codex-auto-resume-windows` is refreshed from wherever it points, and the

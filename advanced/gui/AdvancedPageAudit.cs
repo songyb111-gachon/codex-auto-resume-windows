@@ -626,6 +626,9 @@ namespace CodexAutoResume
         ///   {"do": "answer", "with": [...]}                   what the person answers the next questions
         ///   {"do": "busy", "on": bool}                        another action under way, or over (SetBusy), as a request
         ///                                                     in flight holds the page
+        ///   {"do": "courier", "button": "save ntfy"}          a courier card's button pressed, if it can be (v0.6.20)
+        ///   {"do": "courier_type", "into": "ntfy.url",       one of the courier card's boxes filled
+        ///    "text": ...}
         ///   {"do": "look"}                                    what the page shows now, into "looks"
         ///   {"do": "reopen"}                                  the arguments a reopen would start the next window with,
         ///                                                     here (ReopenArguments), into "reopened"
@@ -980,6 +983,20 @@ namespace CodexAutoResume
                         form.SetBusy(Equals(Get(step, "on"), true));
                         form.UpdateAdvancedButtons();
                     }
+                    else if (what == "courier")
+                    {
+                        // v0.6.20: one of the courier card's buttons by its tag ("save ntfy", "test ntfy", "pair telegram").
+                        Button found = form.courierButtons.Find(delegate(Button each) { return Equals(each.Tag, Str(step, "button")); });
+                        if (found == null || !found.Enabled) disabled.Add("courier " + Str(step, "button"));
+                        else Pressed.Invoke(found, new object[] { EventArgs.Empty });
+                    }
+                    else if (what == "courier_type")
+                    {
+                        // and one of its boxes, "<channel>.<field>", filled whole.
+                        SoftTextArea box;
+                        if (!form.courierBoxes.TryGetValue(Str(step, "into") ?? "", out box)) disabled.Add("courier_type " + Str(step, "into"));
+                        else box.Box.Text = Str(step, "text") ?? "";
+                    }
                     else if (what == "run_stop")
                     {
                         Button stop = form.runStops.Find(delegate(Button each) { return Equals(each.Tag, Str(step, "key")); });
@@ -1331,6 +1348,9 @@ namespace CodexAutoResume
             // The turns run here: what each Stop... names (v0.6.16-beta.4); and Pending's and History's rows as the
             // lists draw them - each cell's text - where those pages are built.
             look["run_stops"] = Tags(runStops);
+            // v0.6.20: the Overview's OpenAI status line, while it is shown (AdvancedCourier.cs), and the courier card's buttons.
+            look["feed"] = feedValue != null && OwnVisible(feedValue) ? feedValue.Text : null;
+            look["courier_buttons"] = Tags(courierButtons);
             look["pending_rows"] = ListCells(pendingList);
             // Each cell of Pending's list past the conversation's that is drawn cut short, as "row/column": none while the
             // list has room for them whole (the owner, 2026-10-25: "5시간 한…", "매일 09:…"). Measured here from the words the

@@ -166,6 +166,13 @@ class Refusal(StrEnum):
     # v0.6.16-beta.4 (j): a near-limit percentage out of order - a window's warning above its wrap-up, or the wrap-up at
     # or above the stop its words ask for.
     OPTION_ORDER = "option_order"
+    # v0.6.20 (push_notices, status_feed - the courier): an address the courier may not keep or send to (its own closed
+    # word beside it, courier/address.py); Windows Credential Manager that would not keep or give back a secret; a channel
+    # whose address or secret is not saved; and a courier that could not be started.
+    ADDRESS_REFUSED = "address_refused"
+    SECRET_UNAVAILABLE = "secret_unavailable"
+    NOT_SAVED = "not_saved"
+    COURIER_UNAVAILABLE = "courier_unavailable"
 
 
 class JournalCode(StrEnum):

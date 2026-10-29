@@ -87,6 +87,11 @@ class AdvancedPlug(Plug):
     def moved(self, record, state):
         return self.runtime.moved(record, state)
 
+    def notice(self, facts):
+        """P20 (v0.6.20): a notice core raised, told to push_notices (engine/push.py) - only while the plug wants it, as
+        core's Guarded.notice asks first; its answer is not read."""
+        return self.runtime.ask(Point.NOTICE, facts)
+
     def delivery(self, record):
         return self.runtime.ask(Point.DELIVERY, record)
 

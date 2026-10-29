@@ -175,6 +175,8 @@ namespace CodexAutoResume
             advancedPending = Items(reply, "pending");
             // The turns run here now, which the running capabilities' card lists (AdvancedRuns.cs, v0.6.16-beta.4).
             RunsApplied(reply);
+            // v0.6.20: OpenAI's status on the Overview, while the status feed says something is wrong (AdvancedCourier.cs).
+            FeedApplied(reply);
             // early_reset's line on Pending, while the status carries it (AdvancedEarly.cs, v0.6.19 #50).
             EarlyApplied(reply);
             // The reset rules waiting, read again when the status's counts of them change (AdvancedResets.cs).
@@ -676,6 +678,12 @@ namespace CodexAutoResume
                 MethodInvoker after = done;
                 done = delegate { ReadPrompts(after); };
             }
+            // v0.6.20: the courier's card (AdvancedCourier.cs).
+            if (id == PushId)
+            {
+                MethodInvoker after = done;
+                done = delegate { ReadCourier(after); };
+            }
             // v0.6.16-beta.4: the wrap-up's own wordings (AdvancedUsage.cs).
             if (id == WrapUpId)
             {
@@ -916,7 +924,7 @@ namespace CodexAutoResume
                            KeptShown(item) + "|" +
                            (IsReport(item) ? ReportShown() : "") + "|" +
                            ResetsShown(item) + "|" + KeepGoingShown(item) + "|" + QueueShown(item) + "|" +
-                           WordingsShown(item) + "|" + RunsShown(item);
+                           WordingsShown(item) + "|" + RunsShown(item) + "|" + CourierShown(item);
             if (shown == advancedShown)
             {
                 UpdateAdvancedButtons();
@@ -944,6 +952,7 @@ namespace CodexAutoResume
             ForgetReportCard();
             ForgetResetCard();
             ForgetKeepGoingCard();
+            ForgetCourierCard();
             ForgetQueueCard();
             if (item == null)
             {
@@ -1091,11 +1100,14 @@ namespace CodexAutoResume
             // and the queued prompts (v0.6.15-beta) - each while its capability is on or, from v0.6.16-beta.3, watched.
             BuildResets(item);
             BuildKeepGoing(item);
+            // v0.6.20: where notices go and which (AdvancedCourier.cs).
+            BuildCourier(item);
             BuildQueue(item);
 
             // Its own choices, the rules a person writes for Codex's error codes and the samples of what nothing classified,
             // each only for a capability that has them - the last two once they have been read.
-            List<object> options = Items(item, "options");
+            // v0.6.20: less push_notices' channel and event switches, which the courier's card shows (AdvancedCourier.cs).
+            List<object> options = WithoutCourierChoices(Items(item, "options"));
             if (options != null && options.Count > 0) BuildAdvancedChoices(id, options);
             if (Equals(Get(item, "rules_editor"), true) && advancedRules != null) BuildAdvancedRules();
             if (Equals(Get(item, "samples"), true) && advancedSamples != null) BuildAdvancedSamples();
@@ -1210,7 +1222,7 @@ namespace CodexAutoResume
         {
             if (key == "ceiling_hours") return Word("page.option.hours", "{n} h", "n", value);
             // v0.6.16-beta.3 (issue #29): the meter's spacing, a stage's percentage, the wrap-up's wording.
-            if (key == "poll_minutes" || key == "open_idle_minutes") return Word("page.option.minutes", "{n} min", "n", value);
+            if (key == "poll_minutes" || key == "open_idle_minutes" || key == "feed_minutes") return Word("page.option.minutes", "{n} min", "n", value);
             if (key == "wrap_style")
                 return Word("page.option.style." + value.ToString(CultureInfo.InvariantCulture),
                             value == 1 ? "Short" : value == 3 ? "Detailed" : value == 4 ? "With the numbers" :
@@ -1587,6 +1599,7 @@ namespace CodexAutoResume
             UpdateWordingButtons(idle);
             UpdateResetButtons(idle);
             UpdateKeepGoingButtons(idle);
+            UpdateCourierButtons(idle);
             UpdateQueueButtons(idle);
             UpdateReportButtons();
         }

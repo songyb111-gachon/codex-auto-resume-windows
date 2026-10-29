@@ -57,7 +57,9 @@ WINDOW_DAYS = RECENT_DAYS                      # 30, as the samples and the rule
 # The points whose answer is a value, not a word: the journal writes the point's name instead.
 VALUE_POINTS = (Point.TEXT, Point.SENDER, Point.TICK, Point.START_ROUTE, Point.UNLOADED, Point.CONCURRENCY,
                 # v0.6.16-beta.3: a watched capability's message that would have been sent (runtime._watched_records).
-                Point.RECORDS)
+                Point.RECORDS,
+                # v0.6.20: a notice push_notices would have pushed (P20, told; engine/push.py answers the point's name).
+                Point.NOTICE)
 # Every answer the log names; anything else reads as null.
 WORDS = tuple(Alternative) + VALUE_POINTS
 _WORDS = frozenset(str(word) for word in WORDS)
