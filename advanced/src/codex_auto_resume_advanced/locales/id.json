@@ -556,6 +556,7 @@
   "page.watchlog.answer.concurrency": "Beberapa dikirim sekaligus",
   "page.watchlog.answer.early": "Memeriksa sebelum waktu reset",
   "page.watchlog.answer.hold": "Membuatnya tetap menunggu",
+  "page.watchlog.answer.notice": "Mengirim notifikasi ke ponsel atau kotak masuk Anda",
   "page.watchlog.answer.other": "Hal lain",
   "page.watchlog.answer.queue_for_open": "Mengantrekannya untuk saat percakapan dibuka",
   "page.watchlog.answer.records": "Pesan Anda yang akan dikirimnya",

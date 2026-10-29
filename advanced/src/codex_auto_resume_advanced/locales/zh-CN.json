@@ -556,6 +556,7 @@
   "page.watchlog.answer.concurrency": "同时发送了多个",
   "page.watchlog.answer.early": "在重置时间之前查看",
   "page.watchlog.answer.hold": "让它继续等待",
+  "page.watchlog.answer.notice": "把通知发到了你的手机或邮箱",
   "page.watchlog.answer.other": "其他",
   "page.watchlog.answer.queue_for_open": "已排队，待对话打开时运行",
   "page.watchlog.answer.records": "本会发送的你的消息",

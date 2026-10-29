@@ -556,6 +556,7 @@
   "page.watchlog.answer.concurrency": "Надіслано кілька одночасно",
   "page.watchlog.answer.early": "Перевірено раніше часу скидання",
   "page.watchlog.answer.hold": "Залишено чекати",
+  "page.watchlog.answer.notice": "Надіслало сповіщення на телефон або пошту",
   "page.watchlog.answer.other": "Щось інше",
   "page.watchlog.answer.queue_for_open": "Поставлено в чергу до відкриття розмови",
   "page.watchlog.answer.records": "Ваше повідомлення, яке було б надіслано",

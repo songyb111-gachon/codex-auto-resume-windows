@@ -556,6 +556,7 @@
   "page.watchlog.answer.concurrency": "Mehrere gleichzeitig gesendet",
   "page.watchlog.answer.early": "Vor dem Rücksetzzeitpunkt nachsehen",
   "page.watchlog.answer.hold": "Warten lassen",
+  "page.watchlog.answer.notice": "Den Hinweis an Ihr Telefon oder Ihr Postfach gesendet",
   "page.watchlog.answer.other": "Etwas anderes",
   "page.watchlog.answer.queue_for_open": "Für das Öffnen der Unterhaltung eingereiht",
   "page.watchlog.answer.records": "Eine Nachricht von Ihnen, die es gesendet hätte",

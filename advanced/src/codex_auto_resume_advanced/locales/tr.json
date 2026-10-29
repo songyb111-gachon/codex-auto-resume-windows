@@ -556,6 +556,7 @@
   "page.watchlog.answer.concurrency": "Birkaçını aynı anda göndermek",
   "page.watchlog.answer.early": "Sıfırlanma saatinden önce bakmak",
   "page.watchlog.answer.hold": "Bekletmek",
+  "page.watchlog.answer.notice": "Bildirimi telefonunuza veya e-postanıza gönderdi",
   "page.watchlog.answer.other": "Başka bir şey",
   "page.watchlog.answer.queue_for_open": "Sohbet açıldığında çalışmak üzere sıraya koymak",
   "page.watchlog.answer.records": "Göndereceği bir mesajınız",

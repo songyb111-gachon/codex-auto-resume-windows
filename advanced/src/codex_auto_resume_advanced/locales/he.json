@@ -556,6 +556,7 @@
   "page.watchlog.answer.concurrency": "נשלחו כמה בבת אחת",
   "page.watchlog.answer.early": "לבדוק לפני זמן האיפוס",
   "page.watchlog.answer.hold": "להשאיר בהמתנה",
+  "page.watchlog.answer.notice": "שלח את ההתראה לטלפון או לתיבת הדואר",
   "page.watchlog.answer.other": "משהו אחר",
   "page.watchlog.answer.queue_for_open": "להכניס לתור עד שהשיחה תיפתח",
   "page.watchlog.answer.records": "הודעה שלך שהייתה נשלחת",

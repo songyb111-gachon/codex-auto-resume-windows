@@ -556,6 +556,7 @@
   "page.watchlog.answer.concurrency": "複数を同時に送った",
   "page.watchlog.answer.early": "リセット時刻より前に確かめた",
   "page.watchlog.answer.hold": "待たせた",
+  "page.watchlog.answer.notice": "通知をスマートフォンやメールに送った",
   "page.watchlog.answer.other": "その他",
   "page.watchlog.answer.queue_for_open": "会話が開かれたときのためにキューに入れた",
   "page.watchlog.answer.records": "送っていたはずのあなたのメッセージ",

@@ -556,6 +556,7 @@
   "page.watchlog.answer.concurrency": "Wysłano kilka naraz",
   "page.watchlog.answer.early": "Sprawdzono przed godziną odnowienia",
   "page.watchlog.answer.hold": "Zostawiono w oczekiwaniu",
+  "page.watchlog.answer.notice": "Wysłało powiadomienie na telefon lub pocztę",
   "page.watchlog.answer.other": "Coś innego",
   "page.watchlog.answer.queue_for_open": "Dodano do kolejki na chwilę otwarcia rozmowy",
   "page.watchlog.answer.records": "Twoja wiadomość, którą by wysłała",

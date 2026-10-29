@@ -556,6 +556,7 @@
   "page.watchlog.answer.concurrency": "여러 개를 동시에 보냄",
   "page.watchlog.answer.early": "재설정 시각 전에 확인함",
   "page.watchlog.answer.hold": "기다리게 함",
+  "page.watchlog.answer.notice": "알림을 휴대폰이나 메일로 보냄",
   "page.watchlog.answer.other": "기타",
   "page.watchlog.answer.queue_for_open": "대화를 열 때 실행되도록 대기열에 넣음",
   "page.watchlog.answer.records": "보냈을 사용자의 메시지",

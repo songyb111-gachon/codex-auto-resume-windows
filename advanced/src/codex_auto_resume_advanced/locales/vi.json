@@ -556,6 +556,7 @@
   "page.watchlog.answer.concurrency": "Đã gửi nhiều cái cùng lúc",
   "page.watchlog.answer.early": "Xem trước thời điểm đặt lại",
   "page.watchlog.answer.hold": "Để nó tiếp tục chờ",
+  "page.watchlog.answer.notice": "Đã gửi thông báo đến điện thoại hoặc hộp thư của bạn",
   "page.watchlog.answer.other": "Điều khác",
   "page.watchlog.answer.queue_for_open": "Đưa vào hàng đợi cho đến khi cuộc trò chuyện được mở",
   "page.watchlog.answer.records": "Một tin nhắn của bạn mà nó lẽ ra đã gửi",

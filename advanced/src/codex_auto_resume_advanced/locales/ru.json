@@ -556,6 +556,7 @@
   "page.watchlog.answer.concurrency": "Отправлено несколько сразу",
   "page.watchlog.answer.early": "Проверить раньше времени сброса",
   "page.watchlog.answer.hold": "Оставить ждать",
+  "page.watchlog.answer.notice": "Отправило уведомление на телефон или почту",
   "page.watchlog.answer.other": "Что-то другое",
   "page.watchlog.answer.queue_for_open": "Поставлено в очередь до открытия беседы",
   "page.watchlog.answer.records": "Ваше сообщение, которое было бы отправлено",

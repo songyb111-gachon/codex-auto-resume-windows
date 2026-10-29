@@ -781,5 +781,6 @@
   "page.feed.label": "OpenAI status",
   "page.feed.degraded": "OpenAI reports degraded service",
   "page.feed.outage": "OpenAI reports an outage",
-  "page.option.feed_minutes": "Read the status every"
+  "page.option.feed_minutes": "Read the status every",
+  "page.watchlog.answer.notice": "Pushed the notice to your phone or inbox"
 }

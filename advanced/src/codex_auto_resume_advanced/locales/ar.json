@@ -556,6 +556,7 @@
   "page.watchlog.answer.concurrency": "أُرسلت عدة رسائل معًا",
   "page.watchlog.answer.early": "النظر قبل وقت إعادة التعيين",
   "page.watchlog.answer.hold": "إبقاؤها في الانتظار",
+  "page.watchlog.answer.notice": "أرسل الإشعار إلى هاتفك أو بريدك",
   "page.watchlog.answer.other": "شيء آخر",
   "page.watchlog.answer.queue_for_open": "وضعها في قائمة الانتظار إلى أن تُفتح المحادثة",
   "page.watchlog.answer.records": "رسالة منك كان سيرسلها",

@@ -111,6 +111,8 @@ PAGE_KEYS = tuple(PAGE_PREFIX + name for name in (
     "watchlog.answer.silent",
     # v0.6.19 (the groundwork): P13's two words, which a watched supervisor would answer.
     "watchlog.answer.supervise", "watchlog.answer.restart",
+    # v0.6.20 (push_notices): a notice it would have pushed.
+    "watchlog.answer.notice",
     # v0.6.16-beta.3: a message a watched capability would have sent.
     "watchlog.answer.records",
     "watchlog.answer.other",

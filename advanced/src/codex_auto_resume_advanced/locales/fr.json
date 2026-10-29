@@ -556,6 +556,7 @@
   "page.watchlog.answer.concurrency": "Plusieurs envoyés à la fois",
   "page.watchlog.answer.early": "Regarder avant l'heure de réinitialisation",
   "page.watchlog.answer.hold": "Laisser en attente",
+  "page.watchlog.answer.notice": "A envoyé la notification sur votre téléphone ou par e-mail",
   "page.watchlog.answer.other": "Autre chose",
   "page.watchlog.answer.queue_for_open": "Mise en file pour l'ouverture de la conversation",
   "page.watchlog.answer.records": "Un message de votre part qu’il aurait envoyé",

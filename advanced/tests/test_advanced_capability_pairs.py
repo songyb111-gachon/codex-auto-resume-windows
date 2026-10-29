@@ -886,5 +886,31 @@ class OpenToSendBesideHeadlessRunTests(OpenCase, UnheldCase):
         self.assertEqual(self.opened, [])
 
 
+# ------------------------------------------------------------------ v0.6.20: push_notices and status_feed (the courier)
+class CourierBesideEveryCapabilityTests(ac.AdvancedCase):
+    """COMPOSE, none needed: push_notices and status_feed only observe. Neither answers at a point that decides or sends
+    (P20 is told and its answer never read; P8's errands only start the courier), so with either on beside any other
+    capability, every answer the other gives at every point is the one it gives alone."""
+
+    def test_they_answer_at_no_deciding_point(self):
+        from codex_auto_resume_advanced.registry import PUSH_NOTICES, STATUS_FEED
+        self.assertEqual(PUSH_NOTICES.points, frozenset({Point.NOTICE, Point.TICK}))
+        self.assertEqual(STATUS_FEED.points, frozenset({Point.TICK}))
+        for definition in (PUSH_NOTICES, STATUS_FEED):
+            self.assertEqual(definition.requires, ())
+
+    def test_beside_every_shipped_capability_the_other_answers_as_it_does_alone(self):
+        from codex_auto_resume_advanced import registry as shipped
+        from codex_auto_resume_advanced.registry import PUSH_NOTICES, STATUS_FEED
+        courier = {PUSH_NOTICES.id, STATUS_FEED.id}
+        others = [definition for definition in shipped.DEFINITIONS if definition.id not in courier]
+        for definition in others:
+            with self.subTest(definition.id):
+                # Neither of the courier's two is ever asked at a point the other answers at but P8, where errands join.
+                shared = (PUSH_NOTICES.points | STATUS_FEED.points) & definition.points
+                self.assertLessEqual(shared, frozenset({Point.TICK, Point.NOTICE}))
+                self.assertNotIn(Point.NOTICE, definition.points)
+
+
 if __name__ == "__main__":
     unittest.main()

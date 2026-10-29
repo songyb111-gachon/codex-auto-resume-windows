@@ -556,6 +556,7 @@
   "page.watchlog.answer.concurrency": "Più messaggi inviati insieme",
   "page.watchlog.answer.early": "Controllare prima dell'ora di azzeramento",
   "page.watchlog.answer.hold": "Tenerlo in attesa",
+  "page.watchlog.answer.notice": "Ha inviato l'avviso al telefono o alla posta",
   "page.watchlog.answer.other": "Altro",
   "page.watchlog.answer.queue_for_open": "Messa in coda per quando la conversazione viene aperta",
   "page.watchlog.answer.records": "Un tuo messaggio che avrebbe inviato",
