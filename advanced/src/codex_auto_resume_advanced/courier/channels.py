@@ -101,7 +101,7 @@ def send(channel, row, secrets, *, opener=None, smtp=None, locale=None) -> str:
         checked_token(chat, shape=TELEGRAM_CHAT)
         body = json.dumps({"chat_id": int(chat), "text": text, "disable_web_page_preview": True},
                           ensure_ascii=False).encode("utf-8")
-        return http.post(TELEGRAM_API + token + "/sendMessage", body, {"Content-Type": "application/json"},
+        return http.post("%s%s/sendMessage" % (TELEGRAM_API, token), body, {"Content-Type": "application/json"},
                          opener=opener)
     if channel == "email":
         blob = _read(secrets, "smtp")

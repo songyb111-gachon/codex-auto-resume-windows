@@ -1271,9 +1271,9 @@ DEFINITIONS = (START_WITH_CODEX, CRASH_RESTART, GOAL_CONTINUATION, QUEUE_FOR_OPE
                UNKNOWN_FAILURE_BUDGET, CODEX_GAVE_UP, SIGN_IN_RETRY, RESET_CREDIT, RESET_MESSAGE, EARLY_RESET,
                ONCE_MORE, SEND_NOW, PARALLEL_DISPATCH, PROMPT_QUEUE, EMPTY_RESPONSE, SUBAGENT_PARENT, KEEP_GOING,
                USAGE_METER, USAGE_WRAP_UP, USAGE_PAUSE, EVERY_CONVERSATION, SILENT_CONTINUATION, CODEX_CHAT, IDLE_UPDATE_CHECK,
-               WAKE_FOR_RESET,
-               # v0.6.20 (the courier).
+               # v0.6.20 (the courier), before the wake timer, whose errand reads last at P8.
                PUSH_NOTICES, STATUS_FEED,
+               WAKE_FOR_RESET,
                OPEN_CODEX_BUTTON, LONG_RESET_MESSAGE,
                COMPAT_REPORT)
 # Codex's own retry settings (stage 4's item 6): Attempts (6, 8, 10 or 12; 8 by default) for both of its built-in

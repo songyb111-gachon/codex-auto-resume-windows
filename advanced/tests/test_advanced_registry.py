@@ -92,9 +92,9 @@ class ShippedTests(unittest.TestCase):
                # v0.6.18: the weekly update check; and Open Codex on a notice, an action, before the other two.
                "idle_update_check",
                # v0.6.19: the wake timer, last at P8, so it reads the due times the others' errands just kept.
-               "wake_for_reset",
-               # v0.6.20: the courier's two - push notices and the status feed.
+               # v0.6.20: the courier's two - push notices and the status feed - before the wake timer.
                "push_notices", "status_feed",
+               "wake_for_reset",
                "open_codex_button",
                "long_reset_message", "compat_report")
 
@@ -117,7 +117,7 @@ class ShippedTests(unittest.TestCase):
                      Point.SCHEDULE: ("reset_credit", "early_reset", "once_more_when_unsure", "send_now"),
                      Point.TICK: ("compact_continue", "model_fallback", "headless_run", "reset_credit", "reset_message", "empty_response", "subagent_parent",
                                   "keep_going", "usage_meter", "usage_wrap_up", "usage_pause", "idle_update_check",
-                                  "wake_for_reset", "push_notices", "status_feed"),
+                                  "push_notices", "status_feed", "wake_for_reset"),
                      # v0.6.20: a notice core raised, told to the courier's push notices.
                      Point.NOTICE: ("push_notices",),
                      Point.RECORDS: ("reset_message", "prompt_queue", "empty_response", "subagent_parent",

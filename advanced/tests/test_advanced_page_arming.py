@@ -334,7 +334,7 @@ class PageTests(PageCase):
         # v0.6.16-beta.3: every conversation, the usage meter, the wrap-up, the pause; beta.4: a conversation run here,
         # other sessions, compacting, the model fallback, no words; v0.6.18: Open Codex on a notice, the weekly update
         # check; v0.6.19: the crash restart, the wake timer, chat with a conversation.
-        self.assertEqual(len(IDS), 35)
+        self.assertEqual(len(IDS), 37)
         self.assertEqual(result["page"], "advanced")
         # The row chosen is the capability open, and nothing else is.
         self.assertEqual(result["open"], IDS[1])
