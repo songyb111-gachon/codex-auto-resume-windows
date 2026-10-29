@@ -122,6 +122,17 @@ namespace CodexAutoResume
             }
         }
 
+        /// A key with Left and Right swapped when `mirrored` - the arrow that points the way the window reads next -
+        /// and its modifiers kept; any other key is itself.
+        internal static Keys Arrow(bool mirrored, Keys keyData)
+        {
+            if (!mirrored) return keyData;
+            Keys key = keyData & Keys.KeyCode, modifiers = keyData & Keys.Modifiers;
+            if (key == Keys.Left) return Keys.Right | modifiers;
+            if (key == Keys.Right) return Keys.Left | modifiers;
+            return keyData;
+        }
+
         /// Padding with its left and right swapped when `mirrored`.
         internal static Padding Sides(bool mirrored, Padding padding)
         {

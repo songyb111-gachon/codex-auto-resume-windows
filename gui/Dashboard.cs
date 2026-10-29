@@ -347,6 +347,13 @@ namespace CodexAutoResume
         protected override void OnGotFocus(EventArgs e) { Invalidate(); base.OnGotFocus(e); }
         protected override void OnLostFocus(EventArgs e) { Invalidate(); base.OnLostFocus(e); }
 
+        /// v0.6.20: the arrow keys along a mirrored strip of tabs go the way it reads - Left to the next tab, which stands
+        /// left of this one, and Right back to the one before - as they go the way it reads left to right (Mirror).
+        protected override bool ProcessDialogKey(Keys keyData)
+        {
+            return base.ProcessDialogKey(Vertical ? keyData : Mirror.Arrow(Mirror.Of(this), keyData));
+        }
+
         /// The tab's body. Room is kept around it for the focus ring, which a child window cannot
         /// draw outside itself.
         internal Rectangle Face

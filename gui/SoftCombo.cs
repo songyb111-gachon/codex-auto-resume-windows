@@ -270,6 +270,10 @@ namespace CodexAutoResume
             bool plain = m.Msg == WM_KEYDOWN && (ModifierKeys & (Keys.Control | Keys.Alt)) == Keys.None;
             if (!Open)
             {
+                // v0.6.20: closed and mirrored, Left takes the next choice and Right the one before - the way the window
+                // reads - where Windows' own drop-down takes them the other way round (Mirror).
+                if (plain && (key == Keys.Left || key == Keys.Right) && Mirror.Of(this))
+                    m.WParam = (IntPtr)(int)Mirror.Arrow(true, key);
                 bool opens = (alt && (key == Keys.Down || key == Keys.Up)) || (plain && (key == Keys.F4 || key == Keys.Space));
                 if (!opens) return false;
                 if (key == Keys.Space) swallow = ' ';

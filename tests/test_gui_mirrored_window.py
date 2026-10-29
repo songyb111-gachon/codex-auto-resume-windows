@@ -251,5 +251,84 @@ class MirrorAuditTests(unittest.TestCase):
         self.assertFalse(self.answer["english"]["window"])
 
 
+KEYS = r"""
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.Windows.Forms
+[System.Windows.Forms.Application]::SetUnhandledExceptionMode('ThrowException')
+Add-Type -Namespace W8a -Name Native -MemberDefinition '[DllImport("user32.dll")] public static extern System.IntPtr SendMessage(System.IntPtr w, int m, System.IntPtr p, System.IntPtr l);'
+$assembly = [Reflection.Assembly]::LoadFile($env:CAR_EXE)
+$any = [Reflection.BindingFlags]'Static,Instance,NonPublic,Public'
+$mirror = $assembly.GetType('CodexAutoResume.Mirror', $true)
+$arrow = $mirror.GetMethod('Arrow', $any)
+$combo = $assembly.GetType('CodexAutoResume.SoftCombo', $true)
+$out = @{ arrow = @(); combo = @{} }
+foreach ($key in @('Left', 'Right', 'Up', 'Shift, Left')) {
+    $out.arrow += ,@([string]$arrow.Invoke($null, [object[]]@($false, [Windows.Forms.Keys]$key)),
+                     [string]$arrow.Invoke($null, [object[]]@($true, [Windows.Forms.Keys]$key)))
+}
+foreach ($rtl in @('No', 'Yes')) {
+    $out.combo[$rtl] = @()
+    foreach ($key in @(0x25, 0x27)) {
+        $form = New-Object Windows.Forms.Form
+        $form.RightToLeft = $rtl
+        $form.TopLevel = $false
+        $box = $combo.GetConstructors($any)[0].Invoke(@())
+        foreach ($item in @('a', 'b', 'c')) { $null = $box.Items.Add($item) }
+        $form.Controls.Add($box)
+        $null = $form.Handle; $null = $box.Handle
+        $box.SelectedIndex = 1
+        $null = [W8a.Native]::SendMessage($box.Handle, 0x0100, [IntPtr]$key, [IntPtr]::Zero)
+        $out.combo[$rtl] += $box.SelectedIndex
+        $form.Dispose()
+    }
+}
+$out | ConvertTo-Json -Depth 4 -Compress
+"""
+
+
+class MirrorKeyTests(unittest.TestCase):
+    """The arrow keys go the way a mirrored window reads (v0.6.20, phase B): along a strip of tabs and in a closed drop-down,
+    Left is the next and Right the one before; left to right nothing changes. Built and never shown."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.folder = tempfile.TemporaryDirectory()
+        work = Path(cls.folder.name)
+        exe = work / "CodexAutoResumeSettings.exe"
+        subprocess.run([str(CSC), "/nologo", "/target:winexe", "/platform:x64", "/out:" + str(exe),
+                        "/reference:System.dll", "/reference:System.Drawing.dll",
+                        "/reference:System.Windows.Forms.dll",
+                        *[str(path) for path in guiscan.sources()]],
+                       check=True, capture_output=True, timeout=300)
+        script = work / "keys.ps1"
+        script.write_text(KEYS, encoding="utf-8")
+        result = subprocess.run(
+            [str(POWERSHELL), "-STA", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", str(script)],
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300, env=dict(os.environ, CAR_EXE=str(exe)))
+        cls.result = result
+        cls.answer = json.loads(result.stdout) if result.returncode == 0 and result.stdout.strip() else {}
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.folder.cleanup()
+
+    def setUp(self):
+        if not self.answer:
+            self.fail("the probe did not run: " + (self.result.stderr or self.result.stdout)[-3000:])
+
+    def test_left_and_right_trade_places_only_when_mirrored(self):
+        self.assertEqual(self.answer["arrow"], [["Left", "Right"], ["Right", "Left"], ["Up", "Up"],
+                                                ["Left, Shift", "Right, Shift"]])
+
+    def test_a_closed_drop_down_takes_the_next_choice_the_way_it_reads(self):
+        # Left, then Right, from the middle choice of three.
+        self.assertEqual(self.answer["combo"]["No"], [0, 2], "left to right: Left the one before, Right the next")
+        self.assertEqual(self.answer["combo"]["Yes"], [2, 0], "mirrored: Left the next, Right the one before")
+
+    def test_a_strip_of_tabs_hands_its_arrows_on_mirrored(self):
+        body = guiscan.member_body("NavButton", "ProcessDialogKey")
+        self.assertIn("Vertical ? keyData : Mirror.Arrow(Mirror.Of(this), keyData)", body)
+
+
 if __name__ == "__main__":
     unittest.main()
