@@ -138,7 +138,7 @@ codex plugin add codex-auto-resume@codex-auto-resume-windows
 
 <p align="center">
 <img src="docs/images/notification-card-motion-ko.png" alt="제품이 보여 주는 그대로의 알림 카드. 제품의 코드가 예시 데이터로 그렸습니다: example-project, Codex 사용량 한도 도달, 이 작업은 08:42에 다시 이어집니다. 카드가 사라졌다가 알림 영역 옆에 다시 떠오릅니다" width="388" align="top">
-<img src="docs/images/tray-popup-motion-ko.png" alt="제품이 보여 주는 그대로의 알림 영역 팝업. 제품의 코드가 예시 데이터로 그렸습니다: 대기 중 상태, 약 1분 30초 뒤 다음 확인, 대기 중인 작업 두 개가 각각 중단 종류, 다음 확인 시각, 자동 재개 스위치와 함께 보이고, 자동 복구 일시 정지와 대시보드 열기 버튼이 있습니다. 상태 표시등이 숨 쉬듯 움직이고, 마우스 포인터가 들어와 첫 작업의 자동 재개 스위치를 껐다 켜고 둘째 작업의 스위치도 껐다 켠 뒤 나가며, 팝업이 닫혔다가 다시 열립니다" width="360" align="top"><br>
+<img src="docs/images/tray-popup-motion-ko.png" alt="제품이 보여 주는 그대로의 알림 영역 팝업. 제품의 코드가 예시 데이터로 그렸습니다: 대기 중 상태, 약 1분 30초 뒤 다음 확인, 대기 중인 작업 두 개가 각각 중단 종류, 다음 확인 시각, 자동 재개 스위치와 함께 보이고, 자동 복구 일시 정지와 대시보드 열기 버튼이 있습니다. 상태 표시등이 숨 쉬듯 움직이고, 마우스 포인터가 들어와 첫 작업의 자동 재개 스위치를 껐다 켜고 둘째 작업의 스위치도 껐다 켠 뒤 나가며, 팝업은 내내 그 자리에 있습니다" width="360" align="top"><br>
 <sub>왼쪽: 제품이 그리는 알림 카드 · 오른쪽: 알림 영역 아이콘을 누르면 열리는 창</sub>
 </p>
 
