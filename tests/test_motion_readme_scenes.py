@@ -228,6 +228,27 @@ class PauseTests(unittest.TestCase):
                 motion_plan.check(dict(base, scenes=[{"id": "A", "steps": [{"set": state_, "hold": 100}]}]))
 
 
+class LightTickTests(unittest.TestCase):
+    def test_a_frame_between_two_ticks_of_the_lights_timer_shows_the_light_as_the_last_tick_left_it(self):
+        """The window's light moves on its own timer (HaloDot, 33 ms), not with a glide or the pointer: a frame the
+        pointer draws between two ticks does not move it - nor the bytes of a picture round it and the pointer."""
+        import motion_window
+        for name in PLANS:
+            with self.subTest(name):
+                plan = plan_of(name)
+                frames, _delays, _end = make_motion.schedule(plan)
+                job = motion_window.job(plan, frames, Path("out"), forms={"en": {"answers": []}, "ko": {"answers": []}})
+                step = plan["light_step_ms"]
+                lights = [frame["light"] for frame in job["frames"]]
+                self.assertEqual(lights[0], 0)
+                for frame, light in zip(frames, lights):
+                    self.assertEqual(light, (frame.t // step) * step)
+                    self.assertLessEqual(light, frame.t)
+                    self.assertLess(frame.t - light, step)
+                self.assertTrue(any(frame.t != light for frame, light in zip(frames, lights)), "some frames are between ticks")
+                self.assertEqual(lights, sorted(lights), "the light never goes back")
+
+
 class CadenceTests(unittest.TestCase):
     def test_every_new_move_hover_and_press_is_at_the_pointer_s_cadence_and_the_light_at_the_windows(self):
         for name in PLANS:

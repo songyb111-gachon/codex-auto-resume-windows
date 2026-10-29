@@ -119,11 +119,14 @@ def answers(locale: str, stored: dict | None = None, paused: bool = False) -> li
     return out
 
 
-def frame_state(frame: motion_plan.Frame, index: int) -> dict:
-    """What the render mode is told for one frame: its window state and the moment of its lights."""
+def frame_state(frame: motion_plan.Frame, index: int, light_step: int = 0) -> dict:
+    """What the render mode is told for one frame: its window state and the moment of its lights - the last tick of
+    the light's own timer (`light_step` ms, HaloDot's) at or before the frame, as on a screen: a frame the pointer or a
+    glide draws between two ticks shows the light as the last tick left it, and does not move it. Without a step the
+    light is at the frame's own moment."""
     state = motion_plan.thawed(frame.window)
     state["index"] = index
-    state["light"] = frame.t
+    state["light"] = (frame.t // light_step) * light_step if light_step else frame.t
     return state
 
 
@@ -152,7 +155,8 @@ def job(plan: dict, frames: list, out: Path, forms: dict | None = None) -> dict:
     # as big, motion_compose.WindowChrome).
     return {"out": str(out), "theme": canvas.get("theme", "light"), "design": canvas.get("design", "soft"),
             "forms": forms, "targets": targets, "outer": list(canvas.get("size") or []), "chrome": chrome(plan),
-            "frames": [frame_state(frame, index) for index, frame in enumerate(frames)]}
+            "frames": [frame_state(frame, index, int(plan.get("light_step_ms") or 0))
+                       for index, frame in enumerate(frames)]}
 
 
 def render(exe: Path, job_data: dict, folder: Path) -> dict:
