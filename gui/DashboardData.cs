@@ -379,7 +379,7 @@ namespace CodexAutoResume
                 double used = Number(window, "used_percent"), reset = Number(window, "reset_at");
                 string share = (used >= 100 ? 100 : (int)Math.Floor(used)).ToString(CultureInfo.InvariantCulture);
                 string text = reset > 0
-                    ? S("usage.window_resets", "{window} {percent}%, resets {time}").Replace("{time}", ClockTime(reset))
+                    ? S("usage.window_resets", "{window} {percent}%, resets {time}").Replace("{time}", Mirror.Embed(ClockTime(reset)))
                     : S("usage.window", "{window} {percent}%");
                 parts.Add(text.Replace("{window}", WindowName(Get(window, "window_minutes"))).Replace("{percent}", share));
             }

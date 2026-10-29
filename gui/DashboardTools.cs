@@ -836,6 +836,9 @@ namespace CodexAutoResume
                 bool known = (watcherState == "outside" || watcherState == "not_running") && windowState == "outside";
                 return new[] { known ? no : unknown, "" };
             }
+            // v0.6.20: an app's id one run in a sentence written right to left (Mirror.Embed).
+            watcherApp = Mirror.Embed(watcherApp);
+            windowApp = Mirror.Embed(windowApp);
             string line = watcherIn && windowIn && watcherApp == windowApp ? bothInside.Replace("{app}", watcherApp)
                         : watcherIn && windowIn ? watcherInside.Replace("{app}", watcherApp) + Environment.NewLine
                                                   + windowInside.Replace("{app}", windowApp)

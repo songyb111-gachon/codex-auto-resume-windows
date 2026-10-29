@@ -85,6 +85,42 @@ namespace CodexAutoResume
             return mirrored ? new Rectangle(within.Left + within.Right - box.Right, box.Y, box.Width, box.Height) : box;
         }
 
+        /// The rectangle a container lays what it holds out in, `display` as Windows gives it, with its padding mirrored:
+        /// a table or a flowing row mirrors its cells inside its padding, but leaves the padding where it is, so a card
+        /// whose left padding is wider than its right had its content that much off (MirrorAudit, measured).
+        internal static Rectangle Display(Control container, Rectangle display)
+        {
+            if (!Of(container)) return display;
+            Padding padding = container.Padding;
+            display.X += padding.Right - padding.Left;
+            return display;
+        }
+
+        /// After a mirrored table has laid out what it holds: each control stretched across its cell (anchored left and
+        /// right) but capped narrower than it by its MaximumSize - a help line, 600 px at most - moved to the cell's right
+        /// edge. Windows' table trims such a control to its maximum and keeps it at the cell's left, mirrored or not
+        /// (MirrorAudit, measured). The table lays everything out anew each time, so this is the same each time.
+        internal static void Caps(TableLayoutPanel table)
+        {
+            if (!Of(table)) return;
+            int[] widths = table.GetColumnWidths();
+            Rectangle display = table.DisplayRectangle;
+            foreach (Control child in table.Controls)
+            {
+                int most = child.MaximumSize.Width;
+                if (most <= 0 || child.Width != most || !Soft.OwnVisible(child)) continue;
+                if ((child.Anchor & (AnchorStyles.Left | AnchorStyles.Right)) != (AnchorStyles.Left | AnchorStyles.Right)) continue;
+                if (child.Dock != DockStyle.None) continue;
+                int column = table.GetColumn(child);
+                if (column < 0 || column >= widths.Length) continue;
+                // The first column stands at the right of a mirrored table.
+                int right = display.Right;
+                for (int i = 0; i < column; i++) right -= widths[i];
+                int x = right - child.Margin.Right - child.Width;
+                if (child.Left != x && x >= display.Left) child.Left = x;
+            }
+        }
+
         /// Padding with its left and right swapped when `mirrored`.
         internal static Padding Sides(bool mirrored, Padding padding)
         {
@@ -103,6 +139,34 @@ namespace CodexAutoResume
                 else flags |= TextFormatFlags.Right;
             }
             return flags | TextFormatFlags.RightToLeft;
+        }
+
+        /// `value` kept one run in a sentence of the window's language (Window): in a language written right to left,
+        /// embedded in its own first strong direction - left to right when it has none, as a number, a version, an id or a
+        /// time - as l10n.embedded does for the popup and the card. GDI draws Unicode's isolates (U+2066-2069) as boxes,
+        /// so it is the older embedding, LRE or RLE and then PDF. Otherwise `value` itself.
+        internal static string Embed(string value)
+        {
+            return Embed(Window, value);
+        }
+
+        internal static string Embed(bool mirrored, string value)
+        {
+            if (!mirrored || string.IsNullOrEmpty(value)) return value;
+            return (Strong(value) == 'R' ? "\u202B" : "\u202A") + value + "\u202C";
+        }
+
+        /// 'R' when the first character of `value` with a direction of its own is written right to left (Hebrew,
+        /// Arabic and their presentation forms), 'L' when it is any other letter, and 'L' when there is none.
+        internal static char Strong(string value)
+        {
+            foreach (char c in value)
+            {
+                if ((c >= '\u0590' && c <= '\u08FF') || (c >= '\uFB1D' && c <= '\uFDFF') || (c >= '\uFE70' && c <= '\uFEFF'))
+                    return 'R';
+                if (char.IsLetter(c)) return 'L';
+            }
+            return 'L';
         }
 
         /// An alignment's left and right swapped when `mirrored`; a centred one is itself.

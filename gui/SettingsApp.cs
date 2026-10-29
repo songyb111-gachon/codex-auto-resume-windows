@@ -451,8 +451,9 @@ namespace CodexAutoResume
 
         private string S(string key, string fallback, string token, object replacement)
         {
-            return S(key, fallback).Replace("{" + token + "}", Convert.ToString(replacement,
-                                                                               CultureInfo.InvariantCulture));
+            // v0.6.20: the value one run in a sentence written right to left (Mirror.Embed).
+            return S(key, fallback).Replace("{" + token + "}", Mirror.Embed(Convert.ToString(replacement,
+                                                                                            CultureInfo.InvariantCulture)));
         }
 
         /// How long a window with no words cached for it waits for them before it opens (v0.6.18), in English, its own

@@ -446,7 +446,7 @@ namespace CodexAutoResume
             string now = Str(row, "tier") ?? DefaultTier(), next = tier ?? DefaultTier();
             if (Array.IndexOf(TierOrder, next) < Array.IndexOf(TierOrder, now) &&
                 !Confirm(S("confirm.tier", "Change how \"{name}\" resumes to \"{tier}\"? It asks you less before a continuation is sent. Nothing is sent now.",
-                           "tier", TierLabel(next)).Replace("{name}", Conversation(row)),
+                           "tier", TierLabel(next)).Replace("{name}", Mirror.Embed(Conversation(row))),
                          TierLabel(next)))
                 return;
             string key = Str(row, "interruption_id");

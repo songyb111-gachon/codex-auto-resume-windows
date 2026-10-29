@@ -25,6 +25,12 @@ namespace CodexAutoResume
             BackColor = Palette.Canvas;
         }
 
+        // v0.6.20: its padding mirrored in a mirrored window (Mirror.Display).
+        public override Rectangle DisplayRectangle
+        {
+            get { return Mirror.Display(this, base.DisplayRectangle); }
+        }
+
         protected override void OnPaintBackground(PaintEventArgs e)
         {
             Ground.Paint(this, e);
@@ -66,6 +72,12 @@ namespace CodexAutoResume
             RowCount = rows;
             for (int i = 0; i < columns; i++) ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / columns));
             for (int i = 0; i < rows; i++) RowStyles.Add(new RowStyle(SizeType.Percent, 100f / rows));
+        }
+
+        // v0.6.20: its padding mirrored in a mirrored window (Mirror.Display).
+        public override Rectangle DisplayRectangle
+        {
+            get { return Mirror.Display(this, base.DisplayRectangle); }
         }
 
         /// How tall it must be, `width` wide, for every row to hold its own tallest card, margins and all.
@@ -253,11 +265,12 @@ namespace CodexAutoResume
         {
             get
             {
-                if (!scrolls) return base.DisplayRectangle;
+                if (!scrolls) return Mirror.Display(this, base.DisplayRectangle);
                 Size client = ClientSize;
                 int gutter = overflow ? SoftBar.Gutter : 0;
-                // v0.6.20: mirrored, the bar stands at the left (Mirror), and what the page holds starts past its gutter.
-                return new Rectangle(Padding.Left + (Mirror.Of(this) ? gutter : 0), Padding.Top - offset,
+                // v0.6.20: mirrored, the bar stands at the left (Mirror), and what the page holds starts past its gutter,
+                // inside its right padding where it would start inside its left.
+                return new Rectangle(Mirror.Of(this) ? Padding.Right + gutter : Padding.Left, Padding.Top - offset,
                                      Math.Max(0, client.Width - Padding.Horizontal - gutter),
                                      Math.Max(0, Math.Max(client.Height, extent) - Padding.Vertical));
             }
@@ -809,6 +822,12 @@ namespace CodexAutoResume
             BackColor = Palette.Canvas;
         }
 
+        // v0.6.20: its padding mirrored in a mirrored window (Mirror.Display).
+        public override Rectangle DisplayRectangle
+        {
+            get { return Mirror.Display(this, base.DisplayRectangle); }
+        }
+
         protected override void OnPaintBackground(PaintEventArgs e)
         {
             Ground.Paint(this, e);
@@ -828,6 +847,19 @@ namespace CodexAutoResume
                      ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
             BackColor = Palette.Card;
             tracker = new LiftTracker(this, "card");
+        }
+
+        // v0.6.20: a capped line at its cell's right in a mirrored window (Mirror.Caps).
+        protected override void OnLayout(LayoutEventArgs levent)
+        {
+            base.OnLayout(levent);
+            Mirror.Caps(this);
+        }
+
+        // v0.6.20: its padding mirrored in a mirrored window (Mirror.Display).
+        public override Rectangle DisplayRectangle
+        {
+            get { return Mirror.Display(this, base.DisplayRectangle); }
         }
 
         /// Zero. A card keeps no band inside itself for its shadow any more - the ground around
