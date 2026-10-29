@@ -2,6 +2,9 @@
   {"id": "S0", "steps": [{"hold": 2500}]},
   {"id": "S1", "steps": [{"move": "page.pending", "frames": 25, "step": 16}, {"hover": "page.pending", "frames": 10, "step": 16}, {"press": "page.pending", "frames": 8, "step": 16}, {"set": {"page": "pending"}, "hold": 1220}]},
   {"id": "S1m", "steps": [{"move": "task.0", "frames": 25, "step": 16}, {"right": "task.0", "frames": 8, "step": 16, "hold": 500}, {"move": "menu.4", "frames": 20, "step": 16}, {"hover": "menu.4", "frames": 10, "step": 16}, {"hold": 340}, {"move": "menu.5", "frames": 12, "step": 16}, {"hover": "menu.5", "frames": 10, "step": 16}, {"hold": 1040}, {"dismiss": "menu", "hold": 700}]},
+  {"id": "S2a", "steps": [{"move": "pending.retry", "frames": 25, "step": 16}, {"hover": "pending.retry", "frames": 10, "step": 16}, {"press": "pending.retry", "frames": 8, "step": 16}, {"set": {"busy": true}, "hold": 1100}, {"set": {"busy": null}, "hold": 700}]},
+  {"id": "S2b", "steps": [{"move": "pending.explain", "frames": 20, "step": 16}, {"wheel": 1, "on": "explain", "frames": 12, "step": 15}, {"hold": 400}, {"wheel": 1, "on": "explain", "frames": 12, "step": 15}, {"hold": 1000}]},
+  {"id": "S2c", "steps": [{"move": "pending.timeline", "frames": 25, "step": 16}, {"hover": "pending.timeline", "frames": 10, "step": 16}, {"press": "pending.timeline", "frames": 8, "step": 16}, {"set": {"dialog": {"kind": "timeline"}}, "hold": 1600}, {"move": "dialog.close", "frames": 20, "step": 16}, {"hover": "dialog.close", "frames": 10, "step": 16}, {"press": "dialog.close", "frames": 8, "step": 16}, {"set": {"dialog": null}, "hold": 600}]},
   {"id": "S5", "steps": [{"move": "page.history", "frames": 25, "step": 16}, {"hover": "page.history", "frames": 10, "step": 16}, {"press": "page.history", "frames": 8, "step": 16}, {"set": {"page": "history"}, "hold": 1220}]},
   {"id": "S6", "steps": [{"move": "page.statistics", "frames": 25, "step": 16}, {"hover": "page.statistics", "frames": 10, "step": 16}, {"press": "page.statistics", "frames": 8, "step": 16}, {"set": {"page": "statistics"}, "hold": 1220}]},
   {"id": "S7", "steps": [{"move": "page.diagnostics", "frames": 25, "step": 16}, {"hover": "page.diagnostics", "frames": 10, "step": 16}, {"press": "page.diagnostics", "frames": 8, "step": 16}, {"set": {"page": "diagnostics"}, "hold": 1220}]},
@@ -14,5 +17,6 @@
   {"id": "S13", "steps": [{"set": {"locale": "${second}", "page": "settings", "section": "general", "combo": null}, "hold": 100}]},
   {"id": "S14", "steps": [{"hold": 2200}]},
   {"id": "S15", "steps": [{"move": "page.overview", "frames": 25, "step": 16}, {"hover": "page.overview", "frames": 10, "step": 16}, {"press": "page.overview", "frames": 8, "step": 16}, {"set": {"page": "overview"}, "hold": 720}]},
+  {"id": "S15b", "steps": [{"move": "overview.toggle", "frames": 25, "step": 16}, {"hover": "overview.toggle", "frames": 10, "step": 16}, {"press": "overview.toggle", "frames": 8, "step": 16}, {"set": {"busy": true}, "hold": 900}, {"set": {"busy": null, "variant": "paused"}, "hold": 1800}, {"hover": "overview.toggle", "frames": 10, "step": 16}, {"press": "overview.toggle", "frames": 8, "step": 16}, {"set": {"busy": true}, "hold": 900}, {"set": {"busy": null, "variant": null}, "hold": 1000}]},
   {"id": "S16", "steps": [{"hold": 5100}]}
 ]
