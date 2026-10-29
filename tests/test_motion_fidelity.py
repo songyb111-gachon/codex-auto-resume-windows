@@ -120,7 +120,8 @@ class LiveTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as name:
             work = Path(name)
             results = motion_fidelity.check(motion_window.compile_window(work), work)
-        self.assertEqual(len(results), 2 * len(motion_fidelity.PAGES))
+        # Each page, and the Timeline dialog over Pending (held to the stills of what it is made of), in each language.
+        self.assertEqual(len(results), 2 * (len(motion_fidelity.PAGES) + 1))
         failed = {key: result for key, result in results.items() if not result["passed"]}
         self.assertEqual(failed, {})
 
