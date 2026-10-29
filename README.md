@@ -20,7 +20,7 @@
 <p align="center"><sub>🇰🇷 <a href="https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/ko/README.md">한국어 README</a> · The app speaks sixteen languages: English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) · Русский · Italiano · Türkçe · Polski · Українська · Tiếng Việt · Bahasa Indonesia</sub></p>
 
 <p align="center">
-<img src="docs/images/readme-motion.png" alt="The Codex Auto Resume Dashboard at work, drawn by the product's own code from synthetic sample data: the Overview with two recoveries waiting; the pointer opens Pending, right-clicks a waiting task to open its menu and closes it, then opens History, Statistics and Diagnostics, opens Settings and scrolls; it changes the interface language to Korean, saves, and the window opens again in Korean" width="750"><br>
+<img src="docs/images/readme-motion.png" alt="The Codex Auto Resume Dashboard at work, drawn by the product's own code from synthetic sample data: the Overview with two recoveries waiting; the pointer opens Pending, right-clicks a waiting task to open its menu and closes it, presses Retry now while the header's light shows work in progress, scrolls Why it is waiting to its last check, opens the task's Timeline and closes it, then opens History, Statistics and Diagnostics, opens Settings and scrolls; it changes the interface language to Korean, saves, and the window opens again in Korean, where the pointer pauses recovery and resumes it" width="750"><br>
 <sub>The exact conversation, by UUID · the reset time Codex reports · fails closed · no telemetry · standard and advanced editions</sub>
 </p>
 
