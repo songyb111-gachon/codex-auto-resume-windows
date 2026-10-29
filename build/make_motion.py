@@ -241,6 +241,7 @@ def make(plan: dict, exe: Path | None, work: Path, forms=None) -> object:
             popup.close()
             raise SystemExit("the popup is drawn %dx%d and the canvas is %dx%d: make the stills again, or the "
                              "canvas the size of the popup's still" % (tuple(popup.size) + (width, height)))
+        seen_bounds_at_start = popup.bounds()
         if not popup.is_the_still(frames[0], plain, ROOT / popup_plan["still"]):
             popup.close()
             raise SystemExit("the popup's first frame is not %s as it is committed: make the stills again first "
@@ -255,11 +256,13 @@ def make(plan: dict, exe: Path | None, work: Path, forms=None) -> object:
     accent = tuple(brand.rgb(brand.palette(theme, design)["accent"]))
     scale = float((plan.get("pointer") or {}).get("scale", 1.5))
     seen_bounds, standing = {}, {}
+    if popup is not None:
+        seen_bounds.update(seen_bounds_at_start)      # the popup's switches, where its own layout puts them
 
     def draw(frame):
         if popup is not None:
-            return popup.drawn(frame, plain)          # nobody points, and no window, strip or card
-        if pictures is not None:
+            picture = bytearray(popup.drawn(frame, plain))     # no window, strip or card
+        elif pictures is not None:
             _index, client, bounds = next(pictures)
             seen_bounds.update(bounds)
             picture = chrome.frame(client)

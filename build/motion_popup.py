@@ -10,6 +10,8 @@ The popup is drawn as the product draws it (`ui/popup/renderer.py`), from the sa
   picture whose length is whole breaths loops without a jump.
 - Its countdowns are drawn again every second it is open (TIMER_TICK, 1000 ms): the picture's `ticks` since it was
   opened, one more second of the sample's clock each.
+- Nothing of the popup is drawn for a pointer over a switch or a row (the renderer's hover face is a button's only,
+  and a press has none on a switch), so the pointer is all a viewer sees of it.
 - A press on a row's switch only fades the switch (PopupModel.begin: busy) while the control layer's answer is
   awaited; the answer (PopupModel.apply_outcome) changes the row and the switch then glides, knob and track, in
   brand's transition time on its curve (`glide_amount`) - at the popup's own 33 ms frame timer.
@@ -74,6 +76,14 @@ class PopupFrames:
             self._views[key] = (vm, self.renderer.layout(vm, self.scale, self.locale), tasks)
         vm, plan, _tasks = self._views[key]
         return vm, plan
+
+    def bounds(self) -> dict:
+        """{"popup.switch.<n>": (left, top, width, height)} of each row's Auto-resume switch, rows counted from 1, in
+        the canvas's pixels - where the popup's own layout puts them (the popup is the whole picture)."""
+        plan = self.view()[1]
+        rects = [item["rect"] for item in plan["items"] if item["kind"] == "switch"]
+        return {"popup.switch.%d" % (index + 1): (rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1])
+                for index, rect in enumerate(rects)}
 
     def drawn(self, frame, closed: bytes) -> bytes:
         """The RGB picture at `frame`: `closed` while no popup is open."""
