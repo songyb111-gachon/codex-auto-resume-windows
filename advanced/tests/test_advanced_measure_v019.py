@@ -94,9 +94,10 @@ class AllowListTests(V019Case):
             with self.subTest(measurement):
                 self.assertIn(measurement, measure.PROBES)
                 self.assertIn(measurement, protocol.MEASUREMENT_METHODS)
-        self.assertEqual(protocol.methods_for(Measurement.MOPEN), {"initialize", "initialized", "thread/loaded/list"})
+        self.assertEqual(protocol.methods_for(Measurement.MOPEN), {"initialize", "initialized"},
+                         "no method: who holds a conversation is core's loaded check, not a list from our session")
         self.assertEqual(protocol.methods_for(Measurement.MAL), {"initialize", "initialized", "account/read"})
-        for measurement in (Measurement.MTOK, Measurement.MWAKE, Measurement.MHK):
+        for measurement in (Measurement.MTOK, Measurement.MWAKE, Measurement.MHK, Measurement.MOPEN):
             with self.subTest(measurement), self.assertRaises(measure.EvidenceUnavailable):
                 measure.Context(measurement, session_factory=self.factory({})).open()
 
@@ -158,35 +159,62 @@ class TokenTests(V019Case):
 
 
 class OpenTests(V019Case):
+    """MOPEN looks at who holds the conversation - core's loaded check and Restart Manager (measure._look) - and opens
+    no session: on codex-cli 0.165 a session of the product's own never lists what the Desktop loads, and the first run
+    (2026-10-29) called a conversation the Desktop had loaded "never loaded"."""
+
+    def looking(self, *looks):
+        """`measure._look` answering each of `looks` in turn (the last again): (held by the app, holders)."""
+        left = list(looks)
+        return patch.object(measure, "_look", lambda ctx, thread: left.pop(0) if len(left) > 1 else left[0])
+
     def test_loaded_soon_after_its_link_is_left_to_the_person_for_the_window(self):
         opened = []
-        replies = {"thread/loaded/list": sequence({"data": []}, {"data": []}, {"data": [THREAD]})}
-        record = self.run_one(Measurement.MOPEN, replies=replies,
-                              hands={"open_link": lambda thread: opened.append(thread) or True})
+        with self.looking((False, 0), (False, 0), (True, 1)):
+            record = self.run_one(Measurement.MOPEN, hands={"open_link": lambda thread: opened.append(thread) or True})
         self.assertEqual(record["verdict"], "blocked", record)
         self.assertEqual(opened, [THREAD], "opened once")
         observed = record["observed"]
-        self.assertEqual((observed["link_opened"], observed["loaded_seconds"], observed["held_before"]),
-                         (True, "under_2s", False))
+        self.assertEqual((observed["link_opened"], observed["loaded_seconds"], observed["held_before"],
+                          observed["loaded_by_app"], observed["holders"]), (True, "under_2s", False, True, 1))
+        self.assertEqual(self.sessions, [], "no session, so no list of ours is asked")
 
-    def test_never_loaded_is_a_fail(self):
-        record = self.run_one(Measurement.MOPEN, replies={"thread/loaded/list": {"data": []}},
-                              hands={"open_link": lambda thread: True})
-        self.assertEqual((record["verdict"], record["observed"]["loaded_seconds"]), ("fail", "never"))
+    def test_never_loaded_with_no_holder_is_a_fail(self):
+        with self.looking((False, 0)):
+            record = self.run_one(Measurement.MOPEN, hands={"open_link": lambda thread: True})
+        self.assertEqual((record["verdict"], record["observed"]["loaded_seconds"], record["observed"]["holders"]),
+                         ("fail", "never", 0))
+
+    def test_a_holder_core_does_not_find_to_be_the_app_is_left_to_the_person_not_failed(self):
+        with self.looking((False, 0), (False, 1)):
+            record = self.run_one(Measurement.MOPEN, hands={"open_link": lambda thread: True})
+        self.assertEqual((record["verdict"], record["observed"]["loaded_by_app"], record["observed"]["holders"]),
+                         ("blocked", False, 1))
 
     def test_one_the_app_holds_already_is_never_opened(self):
         opened = []
-        record = self.run_one(Measurement.MOPEN, replies={"thread/loaded/list": {"data": [THREAD]}},
-                              hands={"open_link": lambda thread: opened.append(thread) or True})
+        with self.looking((True, 1)):
+            record = self.run_one(Measurement.MOPEN, hands={"open_link": lambda thread: opened.append(thread) or True})
         self.assertEqual((record["verdict"], record["observed"]["held_before"], opened), ("blocked", True, []))
 
+    def test_one_some_other_process_holds_is_never_opened_either(self):
+        opened = []
+        with self.looking((False, 1)):
+            record = self.run_one(Measurement.MOPEN, hands={"open_link": lambda thread: opened.append(thread) or True})
+        self.assertEqual((record["verdict"], record["observed"]["held_before"], opened), ("blocked", True, []))
+
+    def test_who_holds_it_unreadable_opens_nothing(self):
+        opened = []
+        with self.looking((False, None)):
+            record = self.run_one(Measurement.MOPEN, hands={"open_link": lambda thread: opened.append(thread) or True})
+        self.assertEqual((record["verdict"], record["observed"]["holders_read"], opened), ("blocked", False, []))
+
     def test_a_link_not_handed_over_or_no_conversation_is_left_to_the_person(self):
-        record = self.run_one(Measurement.MOPEN, replies={"thread/loaded/list": {"data": []}},
-                              hands={"open_link": lambda thread: False})
-        self.assertEqual((record["verdict"], record["observed"]["link_opened"]), ("blocked", False))
-        before = len(self.sessions)
-        record = self.run_one(Measurement.MOPEN, thread=None)
-        self.assertEqual((record["verdict"], len(self.sessions)), ("blocked", before), "no session for none")
+        with self.looking((False, 0)):
+            record = self.run_one(Measurement.MOPEN, hands={"open_link": lambda thread: False})
+            self.assertEqual((record["verdict"], record["observed"]["link_opened"]), ("blocked", False))
+            record = self.run_one(Measurement.MOPEN, thread=None)
+        self.assertEqual((record["verdict"], self.sessions), ("blocked", []), "no session for none")
 
 
 class AccountTests(V019Case):

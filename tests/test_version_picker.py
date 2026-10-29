@@ -519,7 +519,7 @@ class ListingTests(unittest.TestCase):
         self.assertEqual(c["StateSchemaSince"], [["0.6.16-beta", 5], ["0.6.15", 4], ["0.6.15-beta", 5], ["0.6.11-beta", 4], ["0.6.0", 3]])
         self.assertEqual(c["StateSchemaSince"][0][1], SCHEMA_VERSION, "the first row is this version's own schema")
         # The advanced settings' form likewise: v0.6.15 is v0.6.14's (form 3) between two form-4 pre-releases.
-        self.assertEqual(c["AdvancedStateSince"], [["0.6.19-beta", 8], ["0.6.16-beta.4", 7], ["0.6.16-beta.3", 5],
+        self.assertEqual(c["AdvancedStateSince"], [["0.6.20-beta.3", 9], ["0.6.19-beta", 8], ["0.6.16-beta.4", 7], ["0.6.16-beta.3", 5],
                                                    ["0.6.16-beta", 4],
                                                    ["0.6.15", 3],
                                                    ["0.6.15-beta", 4], ["0.6.14", 3], ["0.6.11-beta.2", 2],

@@ -25,7 +25,7 @@ from pathlib import Path
 
 from codex_auto_resume import l10n
 
-from .vocabulary import ArmingState, ArmingWarning, Field, ReportRefusal, ReportWrite, WebReason
+from .vocabulary import ArmingState, ArmingWarning, Field, ReportRefusal, ReportWrite, SteerReason, WebReason
 
 DIRECTORY = Path(__file__).resolve().parent / "locales"
 FIELDS = tuple(Field)
@@ -163,6 +163,15 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "queue.at", "queue.series", "queue.state.waiting", "queue.state.held", "queue.state.in_codex",
     "queue.state.being_sent", "queue.state.refused", "queue.unproven", "queue.go_on", "confirm.prompt",
     "done.prompt_added", "refused.prompt_refused", "refused.queue_full", "refused.dependency_unknown",))
+# Steer the running turn (v0.6.20, issue #50 - steer_send): the editor's When choice, its warning and its button, what a
+# steer refused at once says, and History's row for a steer - its kind, its states, the words sent and what each outcome
+# and each refusal means (advanced/gui/AdvancedEditor.cs, AdvancedSchedule.cs; vocabulary.SteerState, SteerReason).
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
+    "editor.when.steer", "editor.steer.warning", "editor.steer.send", "done.steer_sent", "refused.no_turn_running",
+    "refused.steer_waiting", "refused.steer_full",
+    "pending.kind.steer", "steer.state.waiting", "steer.state.accepted", "steer.state.unconfirmed", "steer.state.refused",
+    "steer.sent", "steer.note.waiting", "steer.note.accepted", "steer.note.unconfirmed")) + tuple(
+    PAGE_PREFIX + "steer.reason." + str(reason) for reason in SteerReason)
 # A capability that needs another (v0.6.16-beta.3, registry.CapabilityDef.requires): what its card says it needs, the
 # one confirmation that turns on what it needs too, what turning a requirement off turned off first, and the words for
 # a dependent read down because what it needs is off.

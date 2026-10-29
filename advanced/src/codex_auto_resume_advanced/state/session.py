@@ -40,7 +40,8 @@ from .schema import (ADD_RESETS, ATTACHED, FILE_NAME, SCHEMA_VERSION, STATEMENTS
                      UPGRADE_FROM_2, UPGRADE_FROM_3, UPGRADE_FROM_4, UPGRADE_FROM_5, STAGE4_VERSION,
                      TABLES_BEFORE_STAGE4, UPGRADE_TO_STAGE4, WINDOW_CHOICES, WINDOW_FOLLOWERS, WINDOW_LEADER,
                      WINDOW_OFF, WINDOW_ON, FREE_OPTIONS, MARKED, READABLE_FROM, holds, names_checked,
-                     readable_from, TABLES_V7, UPGRADE_TO_V019, FREE_WORDINGS, wordings_checked)
+                     readable_from, TABLES_V7, UPGRADE_TO_V019, FREE_WORDINGS, wordings_checked, TABLES_V8,
+                     UPGRADE_TO_V020, V019_VERSION)
 
 
 class StateError(RuntimeError):
@@ -205,7 +206,9 @@ class SessionMixin:
                                       (4, TABLES_V4, UPGRADE_FROM_4), (5, TABLES_V5, UPGRADE_FROM_5),
                                       (STAGE4_VERSION - 1, TABLES_BEFORE_STAGE4, UPGRADE_TO_STAGE4),
                                       # v0.6.19 (the groundwork): version 8, readable from 7.
-                                      (STAGE4_VERSION, TABLES_V7, UPGRADE_TO_V019)):
+                                      (STAGE4_VERSION, TABLES_V7, UPGRADE_TO_V019),
+                                      # v0.6.20 (steer_send): version 9, one table added, still readable from 7.
+                                      (V019_VERSION, TABLES_V8, UPGRADE_TO_V020)):
                 if version == old and tables == shape:
                     for statement in steps:
                         connection.execute(statement)

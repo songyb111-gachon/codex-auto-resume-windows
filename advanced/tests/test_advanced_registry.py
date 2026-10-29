@@ -59,8 +59,8 @@ READS = READS | {"model/list"}
 READS = READS | {"account/read"}
 # v0.6.16-beta.4: the capabilities that change Codex's state through the Codex app's IPC pipe (codex/ipc.py) - and,
 # v0.6.20, through a `codex exec` of their own: window_anchor starts the account's 5-hour window, as a reset credit spent
-# changes the account's state (engine/anchor.py).
-IPC_CHANGES = frozenset({"usage_pause", "window_anchor"})
+# changes the account's state (engine/anchor.py); and the steer (thread-follower-steer-turn), which adds to a running turn.
+IPC_CHANGES = frozenset({"usage_pause", "window_anchor", "steer_send"})
 
 
 def standards_text(rule) -> str:
@@ -104,6 +104,8 @@ class ShippedTests(unittest.TestCase):
                # v0.6.20: the courier's two - push notices and the status feed - and switching the Codex account, before the
                # wake timer.
                "push_notices", "status_feed", "account_switch",
+               # v0.6.20 (#50): steering the running turn, at P8 before the wake timer.
+               "steer_send",
                "wake_for_reset",
                "open_codex_button",
                "long_reset_message", "compat_report")
@@ -128,6 +130,8 @@ class ShippedTests(unittest.TestCase):
                      Point.TICK: ("compact_continue", "model_fallback", "headless_run", "reset_credit", "reset_message", "empty_response", "subagent_parent",
                                   "keep_going", "usage_meter", "usage_wrap_up", "usage_pause", "idle_update_check",
                                   "usage_analytics", "window_anchor", "push_notices", "status_feed", "account_switch",
+                                  # v0.6.20 (#50): the steer, before the wake timer.
+                                  "steer_send",
                                   "wake_for_reset"),
                      # v0.6.20: a notice core raised, told to the courier's push notices.
                      Point.NOTICE: ("push_notices",),
@@ -164,6 +168,8 @@ class ShippedTests(unittest.TestCase):
              "usage_meter", "usage_wrap_up", "usage_pause", "window_anchor", "keep_going", "usage_analytics", "prompt_queue",
              # v0.6.19: chat with a conversation, beside the queued messages.
              "codex_chat",
+             # v0.6.20 (#50): steering the running turn, written in the queue's editor.
+             "steer_send",
              "empty_response", "once_more_when_unsure", "send_now", "open_codex_button",
              # v0.6.20: the courier's two, beside Open Codex on a notice.
              "push_notices", "status_feed", "capacity_retry",
@@ -378,11 +384,11 @@ class ShippedTests(unittest.TestCase):
     def test_a_capability_that_moves_an_engine_constant_departs_from_h2(self):
         """H2: no setting moves an engine constant, and A20's caps are engine constants (the standards
         file says so). A capability that departs from A20 lets a person's choice move them, so it names
-        H2 as well: the capacity retries, Send now and (v0.6.19) the chat, paced on its own."""
+        H2 as well: the capacity retries, Send now, (v0.6.19) the chat and (v0.6.20) the steer, paced on their own."""
         self.assertIn("engine constants", standards_text("A20"))
         self.assertIn("move an engine constant", standards_text("H2"))
         moving = [definition.id for definition in registry.DEFINITIONS if "A20" in definition.departs_from]
-        self.assertEqual(moving, ["capacity_retry", "send_now", "codex_chat"])
+        self.assertEqual(moving, ["capacity_retry", "send_now", "codex_chat", "steer_send"])
         for definition in registry.DEFINITIONS:
             if "A20" in definition.departs_from:
                 with self.subTest(definition.id):

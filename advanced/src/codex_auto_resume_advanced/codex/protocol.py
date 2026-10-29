@@ -95,27 +95,37 @@ MEASUREMENT_METHODS = {
     Measurement.MB: ("config/read", "config/value/write"),
     Measurement.MC1: ("thread/queue/add", "thread/queue/list"),
     Measurement.MC2: (),
-    # v0.6.17: MQO lists what the app holds, adds one item with no marker to a conversation it does not hold - M7's
+    # v0.6.17: MQO looks who holds the conversation (core's loaded check and Restart Manager - no method), adds one item
+    # with no marker to a conversation it does not hold - M7's
     # call - and follows that conversation's queue until the person opens it; the history is read from its database.
-    Measurement.MQO: ("thread/loaded/list", "thread/queue/add", "thread/queue/list"),
+    Measurement.MQO: ("thread/queue/add", "thread/queue/list"),
     # MQP does MQO's calls for two to four conversations at once, each add in a session of its own; MQG adds M2's goal
     # read and set before MQO's add, and reads the turns from the history database.
-    Measurement.MQP: ("thread/loaded/list", "thread/queue/add", "thread/queue/list"),
-    Measurement.MQG: ("thread/loaded/list", "thread/goal/get", "thread/goal/set", "thread/queue/add",
+    Measurement.MQP: ("thread/queue/add", "thread/queue/list"),
+    Measurement.MQG: ("thread/goal/get", "thread/goal/set", "thread/queue/add",
                       "thread/queue/list"),
     # v0.6.19 (the groundwork). MTOK reads a rollout and the history's database and runs the engine's own schema
-    # generation on a scratch home - no session; MOPEN lists what the app holds before and after it opens a link; MAL
+    # generation on a scratch home - no session; MOPEN looks who holds the conversation before and after it opens a link
+    # (core's loaded check and Restart Manager; a session of ours never lists what the Desktop loads) - no session; MAL
     # reads the account, MA's call, while the person signs out and in; MWAKE reads power settings and sets a wake timer
     # - no session; MHK runs the engine on a scratch home - no session; M4B lists the hooks, M4's call, and is the Stop
     # hook's writer's to finish.
     Measurement.MTOK: (),
-    Measurement.MOPEN: ("thread/loaded/list",),
+    Measurement.MOPEN: (),
     Measurement.MAL: ("account/read",),
     Measurement.MWAKE: (),
     Measurement.MHK: (),
     Measurement.M4B: ("hooks/list",),
     # v0.6.20: MANCHOR reads usage before and after one `codex exec` (window_anchor) - the exec is a process, not a call.
     Measurement.MANCHOR: ("account/rateLimits/read",),
+    # v0.6.20 (issue #50). MIMG adds an item with an image to a queue the app holds, as MC1 added one with words, and
+    # follows that queue; the history is read from its database. MSTEER looks whether the app holds the conversation (as
+    # MOPEN does) and calls turn/steer
+    # for the exact active turn of one conversation - once, whatever the answer - and reads the history afterwards.
+    Measurement.MIMG: ("thread/queue/add", "thread/queue/list"),
+    Measurement.MSTEER: ("turn/steer",),
+    # MSTEER2 uses the Desktop's IPC pipe (codex/ipc.py), not an app-server session: no protocol method.
+    Measurement.MSTEER2: (),
 }
 
 # The methods a capability's own route may call, beyond `initialize` - each one a measurement

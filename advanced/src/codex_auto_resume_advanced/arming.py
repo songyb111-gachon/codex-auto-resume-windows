@@ -76,7 +76,7 @@ from .state import Refused, StaleGeneration, StateError
 from .state.spend import CHANNELS
 from .state.choices import DAY, RECENT_DAYS, RULES_LIMIT, aggregated, tag_problem
 from .statement import CATALOGS
-from .vocabulary import ContinuationReason, PromptReason  # noqa: E402  (v0.6.15-beta)
+from .vocabulary import ContinuationReason, PromptReason, SteerReason  # noqa: E402  (v0.6.15-beta; v0.6.20)
 from .vocabulary import (KEPT_NOTICES, TRIPWIRES, Actor, ArmingState, ArmingWarning, CapabilityKind,
                          KeepOn, Measurement, OffReason, OverrideKind, RecordState, Refusal, RuleReason,
                          RuleState, Verdict)
@@ -618,6 +618,11 @@ class Arming:
             # continuation still waiting of one that does not stand on (state/continuations).
             if states.get("prompt_queue", ArmingState.OFF) == ArmingState.OFF:
                 self.state.end_prompts(PromptReason.TURNED_OFF, at=self.clock())
+            # v0.6.20 (#50): every steer still waiting to be sent while steer_send does not stand on - watched included:
+            # a steer is for the turn running now, and is never held for a later arm.
+            if (self.registry.get("steer_send") is not None
+                    and states.get("steer_send", ArmingState.OFF) != ArmingState.ARMED):
+                self.state.end_requested_steers(SteerReason.TURNED_OFF, at=self.clock())
             for row in self.state.continuations(pending=True):
                 if (states.get(row["capability"], ArmingState.OFF) != ArmingState.ARMED
                         and row["record_state"] == RecordState.WAITING):

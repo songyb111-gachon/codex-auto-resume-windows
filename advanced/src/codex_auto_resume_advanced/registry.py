@@ -57,7 +57,8 @@ of a sign-in failure (engine/admitted.py); at P8 and P7, a reset credit used at 
 (engine/resetmessage.py); and, at P7 and P3, the notice of a usage limit that lifts early (engine/earlyreset.py); at P7, an uncertain continuation sent once more (engine/oncemore.py),
 and one waiting recovery a person asks to send now (control/sendnow.py); at P12, several conversations at once
 (engine/parallel.py); at P16, a conversation queued in Codex for when it is opened (engine/foropen.py); from v0.6.18,
-at P8, the weekly update check while idle (engine/updatecheck.py); and, at no point, three actions: longer
+at P8, the weekly update check while idle (engine/updatecheck.py); from v0.6.20, at P8, a line a person steers into
+the running turn over the Codex app's own pipe (engine/steer.py); and, at no point, three actions: longer
 reset messages, Open Codex on a notice (control/opencodex.py), and the compatibility report (report/). The tests define
 one of their own to hold every rule here.
 """
@@ -102,6 +103,7 @@ from .engine.hookclaims import make as make_stop_hook
 from .engine.retries import (ATTEMPTS as RETRY_ATTEMPTS, DEFAULT_ATTEMPTS as RETRY_DEFAULT_ATTEMPTS,
                              make as make_retry_settings)
 from .engine.sessions import make as make_other_sessions
+from .engine.steer import make as make_steer_send
 from .engine.silent import make as make_silent_continuation
 from .engine.oncemore import make as make_once_more
 from .engine.parallel import DEFAULT_WORKERS, WORKERS, make as make_parallel
@@ -938,6 +940,36 @@ PROMPT_QUEUE = CapabilityDef(
     measurements=(Measurement.MT,),
 )
 
+# Steer the running turn (v0.6.20, issue #50 item 2; the owner's decision of 2026-10-29, "경고와 함께 만들기"). A person
+# writes a line in the prompt queue's editor, choosing Now, into the turn that is running (steer) as its When; the
+# Dashboard's request writes it `requested` (control/steer.py) and at P8 the watcher's errand alone checks and writes it,
+# once, through the Desktop's own IPC pipe (codex/ipc.steer_turn, inside core's errand guard): only while Codex's history
+# says the conversation's latest turn is running and the app holds it (the holder count, then core's loaded check with
+# the app's identity), claimed before the write and never written again once it may have been (engine/steer.py). The
+# Codex app never shows the steered line (MSTEER2 failed not_as_expected on codex-cli 0.165.0-alpha.1.2: delivered once,
+# into the same turn, obeyed, never shown) - its statement says so first, and every steer is kept with its words for
+# History (state/steers.py). It departs from A4 (a send not shown as the person's message, with no marker, its arrival
+# unprovable in the conversation), A2 and B3 (an undocumented route, not codex queue), A1 (handed on by the watcher's
+# errand, not Engine.dispatch), A8 (its own checks, not core's gates), A17 (it joins the running turn), A20 (its own
+# caps, and so H2), A26 (a person's words, no continuation), D2 (the words kept after the send) and H6 (nothing takes it
+# back). It
+# needs the prompt queue, whose editor is where it is written, and stands on loaded_state_detection; its route rests on
+# MIPC and MSTEER2 - the failed MSTEER2 is the warning its statement shows and the person confirms. Ceilings: 30 a
+# conversation and 60 a day, the request's own caps (A20 departed).
+STEER_SEND = CapabilityDef(
+    id="steer_send",
+    points=frozenset({Point.TICK}),
+    revision=1,
+    departs_from=("A1", "A2", "A4", "A8", "A17", "A20", "A26", "B3", "D2", "H2", "H6"),
+    compat="loaded_state_detection",
+    ceilings=Ceilings(per_day=60, per_conversation=30),
+    journal_prefix="steer",
+    make=make_steer_send,
+    codes=("accepted", "unconfirmed", "refused"),
+    measurements=(Measurement.MIPC, Measurement.MSTEER2),
+    requires=("prompt_queue",),
+)
+
 # Empty-response recovery (v0.6.15-beta; the plan's item 3). At P8, at most once a minute, it looks at the
 # conversations with a turn completed in the last hour: one switched on whose latest turn Codex completed with no
 # error, no final agent item and only a message of the person's and Codex's reasoning in it - judged by kinds alone
@@ -1361,9 +1393,9 @@ DEFINITIONS = (START_WITH_CODEX, CRASH_RESTART, GOAL_CONTINUATION, QUEUE_FOR_OPE
                UNKNOWN_FAILURE_BUDGET, CODEX_GAVE_UP, SIGN_IN_RETRY, RESET_CREDIT, RESET_MESSAGE, EARLY_RESET,
                ONCE_MORE, SEND_NOW, PARALLEL_DISPATCH, PROMPT_QUEUE, EMPTY_RESPONSE, SUBAGENT_PARENT, KEEP_GOING,
                USAGE_METER, USAGE_WRAP_UP, USAGE_PAUSE, EVERY_CONVERSATION, SILENT_CONTINUATION, CODEX_CHAT, IDLE_UPDATE_CHECK,
-               # v0.6.20 (the usage and token analytics; the 5-hour window started early; the courier; the account switch),
-               # before the wake timer, whose errand reads last at P8.
-               USAGE_ANALYTICS, WINDOW_ANCHOR, PUSH_NOTICES, STATUS_FEED, ACCOUNT_SWITCH,
+               # v0.6.20 (the usage and token analytics; the 5-hour window started early; the courier; the account switch;
+               # #50's steer), before the wake timer, whose errand reads last at P8.
+               USAGE_ANALYTICS, WINDOW_ANCHOR, PUSH_NOTICES, STATUS_FEED, ACCOUNT_SWITCH, STEER_SEND,
                WAKE_FOR_RESET,
                OPEN_CODEX_BUTTON, LONG_RESET_MESSAGE,
                COMPAT_REPORT)
@@ -1497,7 +1529,9 @@ SHOWN_ORDER = ("compat_report", "start_with_codex",
                "usage_analytics",
                "prompt_queue",
                # v0.6.19: chat with a conversation, beside the queued messages (stage 4's Q12).
-               "codex_chat", "empty_response", "once_more_when_unsure", "send_now",
+               "codex_chat",
+               # v0.6.20 (#50): steering the running turn, written in the prompt queue's editor, after the chat.
+               "steer_send", "empty_response", "once_more_when_unsure", "send_now",
                # v0.6.18: Open Codex on a notice, beside Send now - both what a person does about one conversation.
                "open_codex_button",
                # v0.6.20 (the courier; the owner's order of 2026-10-22): push notices and the status feed, beside Open Codex

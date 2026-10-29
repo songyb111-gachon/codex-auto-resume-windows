@@ -1143,6 +1143,14 @@ namespace CodexAutoResume
             if (Str(step, "mode") != null) editorMode.Value = Str(step, "mode");
             record["mode_shown"] = OwnVisible(editorMode);
             record["after_turn_shown"] = OwnVisible(editorAfterTurn);
+            // v0.6.20 (#50): When's choices, the steer's warning and what the buttons and fields say once filled.
+            record["whens"] = ItemsOf(editorWhen);
+            record["steer_shown"] = OwnVisible(editorSteerWarning);
+            record["steer_warning"] = editorSteerWarning.Text;
+            record["steer_colour"] = editorSteerWarning.ForeColor == Palette.Danger;
+            record["buttons_after"] = new List<object> { editorSave.Text, editorCancel.Text };
+            record["hour_enabled"] = editorHour.Enabled;
+            record["depends_enabled"] = editorDepends.Enabled;
             record["blank"] = (double)EditorBlank();
             if (Str(step, "press") == "save")
             {

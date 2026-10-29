@@ -1,0 +1,31 @@
+{
+  "format": "codex-auto-resume-measurement/1",
+  "step": "msteer2",
+  "verdict": "blocked",
+  "recorded_at": "2026-10-29T09:19Z",
+  "product_version": "0.6.20-beta.2",
+  "codex_version": "codex-cli 0.165.0-alpha.1.2",
+  "windows_build": "10.0.26300",
+  "observed": {
+    "history_read": true,
+    "turn_in_progress": true,
+    "steer_calls": 1,
+    "held_by_app": false,
+    "holders": 1,
+    "steer_accepted": true,
+    "answer_uncertain": false,
+    "pipe_reached": true,
+    "owner_found": true,
+    "app_refused": false,
+    "version_mismatch": false,
+    "client_id_on_user_item": true,
+    "latest_turn_unchanged": true,
+    "thread_given": true
+  },
+  "note": "confirm the line showed in Codex inside the turn that was running, as your own message, once, with no new turn begun by it and nothing else sent, then set the verdict",
+  "completion": {
+    "verdict": "fail",
+    "note": "not_as_expected",
+    "recorded_at": "2026-10-29T09:21Z"
+  }
+}

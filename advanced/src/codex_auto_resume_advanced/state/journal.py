@@ -38,6 +38,8 @@ OUTBOX_MAX_AGE, OUTBOX_LIMIT = 7 * _DAY, 500
 OPENS_MAX_AGE, OPENS_LIMIT = 7 * _DAY, 1000
 RESTARTS_MAX_AGE = 7 * _DAY
 HOOK_CLAIMS_MAX_AGE = 90 * _DAY
+# v0.6.20 (advanced state version 9): the steers, 30 days and 1,000 rows - never one still waiting.
+STEERS_MAX_AGE, STEERS_LIMIT = 30 * _DAY, 1000
 
 
 def prune_every(row_id) -> bool:
@@ -238,6 +240,9 @@ class JournalMixin:
         bound(connection, "opens", "at", now - OPENS_MAX_AGE, OPENS_LIMIT)
         bound(connection, "restarts", "at", now - RESTARTS_MAX_AGE)
         bound(connection, "hook_claims", "at", now - HOOK_CLAIMS_MAX_AGE)
+        # And v0.6.20's steers (version 9).
+        from . import steers
+        steers.prune(connection, now, STEERS_MAX_AGE, STEERS_LIMIT)
 
     @staticmethod
     def _bound(connection, table, column, before, limit=None, first="") -> None:

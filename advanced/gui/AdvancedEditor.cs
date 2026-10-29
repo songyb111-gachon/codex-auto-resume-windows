@@ -15,6 +15,12 @@
 // at. Taken, the dialog closes, the list is read again and the saved row is the one chosen there; refused, the dialog
 // stays with every field as typed and the refusal's words above the buttons.
 //
+// v0.6.20 (issue #50, steer_send): for a new message, while Steer the running turn stands on, When offers a fifth
+// choice - Now, into the turn that is running (steer). Chosen, the hour, the count and the wait for the one before are
+// not asked, the two while-running cards and the after-this-turn line give way to the steer's warning in the danger
+// colour (the Codex app does not show a steered line - only History does), and the accent button reads Steer now and
+// sends the bridge's advanced-steer instead; the watcher alone writes it, and History shows what came of it.
+//
 // C# 5 (the in-box compiler), as the rest of the window.
 
 using System;
@@ -32,6 +38,9 @@ namespace CodexAutoResume
         private SoftCombo editorConversation, editorWhen, editorHour, editorTimes, editorDepends;
         private SoftTextArea editorWords;
         private Label editorCount, editorAfterTurn, editorSaid;
+        // v0.6.20: the steer's warning, shown while When is the steer; and whether the last save was a steer.
+        private Label editorSteerWarning;
+        private bool editorSteered;
         private ChoiceGroup editorMode;
         private Button editorSave, editorCancel;
         // What FitEditor measures - the fields' stack and the buttons under it - and what it last fitted the dialog to.
@@ -57,10 +66,11 @@ namespace CodexAutoResume
                 if (editorAnswer != null) editorAnswer(dialog);
                 else if (!auditing) dialog.ShowDialog(this);
             }
-            bool taken = editorTaken;
+            bool taken = editorTaken, steered = editorSteered;
             ForgetEditor();
             if (!taken) return;
-            ResetNote(Word("page.done.prompt_saved", "Saved."));
+            ResetNote(steered ? Word("page.done.steer_sent", "Handed to the watcher. History shows what came of it.")
+                              : Word("page.done.prompt_saved", "Saved."));
             // The list as the save answered it, the saved row chosen (AdvancedSchedule.cs), then read again.
             FillScheduled();
             ReadAdvanced(null);
@@ -74,6 +84,8 @@ namespace CodexAutoResume
             editorFind = null;
             editorWords = null;
             editorCount = editorAfterTurn = editorSaid = null;
+            editorSteerWarning = null;
+            editorSteered = false;
             editorMode = null;
             editorSave = editorCancel = null;
             editorBody = editorButtons = null;
@@ -166,6 +178,9 @@ namespace CodexAutoResume
             editorWhen.Items.Add(new Choice("at_time", Word("page.queue.when.at_time", "At a time")));
             editorWhen.Items.Add(new Choice("day", Word("page.queue.when.daily", "Every day")));
             editorWhen.Items.Add(new Choice("week", Word("page.queue.when.weekly", "Every week")));
+            // v0.6.20: the steer, for a new message while Steer the running turn stands on.
+            if (!editing && SteerOn())
+                editorWhen.Items.Add(new Choice("steer", Word("page.editor.when.steer", "Now, into the turn that is running (steer)")));
             string trigger = editing ? Str(row, "trigger") : null;
             SelectChoice(editorWhen, trigger == "recurring" ? Str(row, "every") : trigger ?? "after_turn");
             card.Controls.Add(NewRow(when, editorWhen));
@@ -210,6 +225,11 @@ namespace CodexAutoResume
             editorAfterTurn = HelpText(Word("page.editor.mode.after_turn",
                 "\"After this turn\" goes into Codex's queue: Codex runs it when the turn now running ends."));
             card.Controls.Add(editorAfterTurn);
+            editorSteerWarning = HelpText(Word("page.editor.steer.warning",
+                "A steer goes into the turn running now, through the Codex app's own connection. The Codex app does not show the steered line anywhere - only History here shows what was sent."));
+            editorSteerWarning.ForeColor = Palette.Danger;
+            editorSteerWarning.Visible = false;
+            card.Controls.Add(editorSteerWarning);
             if (Equals(Get(advancedPrompts, "after_turn_unproven"), true))
                 card.Controls.Add(HelpText(Word("page.queue.unproven",
                     "After this turn is unproven on this Codex until it has been measured.")));
@@ -269,7 +289,8 @@ namespace CodexAutoResume
         private void FitEditor()
         {
             if (editorDialog == null || editorBody == null || editorButtons == null) return;
-            string showing = Soft.OwnVisible(editorMode) + "|" + Soft.OwnVisible(editorAfterTurn) + "|" + editorSaid.Text;
+            string showing = Soft.OwnVisible(editorMode) + "|" + Soft.OwnVisible(editorAfterTurn) + "|" +
+                             Soft.OwnVisible(editorSteerWarning) + "|" + editorSaid.Text;
             if (showing == editorFitFor) return;
             editorFitFor = showing;
             int width = editorDialog.ClientSize.Width;
@@ -315,11 +336,16 @@ namespace CodexAutoResume
             if (editorWhen == null) return;
             var when = editorWhen.SelectedItem as Choice;
             string value = when == null ? "after_turn" : when.Value;
-            bool later = value != "after_turn";
+            bool steer = value == "steer";
+            bool later = value != "after_turn" && !steer;
             editorHour.Enabled = later;
             editorTimes.Enabled = value == "day" || value == "week";
+            editorDepends.Enabled = !steer;
             editorMode.Visible = later;
-            editorAfterTurn.Visible = !later;
+            editorAfterTurn.Visible = value == "after_turn";
+            editorSteerWarning.Visible = steer;
+            string save = steer ? Word("page.editor.steer.send", "Steer now") : Word("page.editor.save", "Save and return");
+            if (editorSave.Text != save) editorSave.Text = save;
             editorCount.Text = Word("page.resets.count", "{n} of {most} characters", "n", editorWords.Box.Text.Length)
                 .Replace("{most}", EditorWordsMost().ToString(CultureInfo.CurrentCulture));
             editorSave.Enabled = busy == 0 && editorConversation.SelectedItem != null && editorWords.Box.Text.Trim().Length > 0;
@@ -333,6 +359,11 @@ namespace CodexAutoResume
             var when = editorWhen.SelectedItem as Choice;
             if (conversation == null || when == null) return null;
             var argument = new System.Text.StringBuilder("{");
+            // v0.6.20: a steer names its conversation and its words alone; it goes now, or not at all.
+            if (when.Value == "steer")
+                return argument.Append("\"thread_id\":").Append(Json.Escape(conversation.Value))
+                               .Append(",\"words\":").Append(Json.Escape(editorWords.Box.Text.Replace("\r\n", "\n")))
+                               .Append(",\"generation\":").Append(AdvancedGeneration()).Append('}').ToString();
             if (editorPrompt >= 0) argument.Append("\"prompt\":").Append(editorPrompt.ToString(CultureInfo.InvariantCulture));
             else argument.Append("\"thread_id\":").Append(Json.Escape(conversation.Value));
             argument.Append(",\"words\":").Append(Json.Escape(editorWords.Box.Text.Replace("\r\n", "\n")));
@@ -367,9 +398,11 @@ namespace CodexAutoResume
             string argument = EditorArgument();
             if (argument == null) return;
             bool editing = editorPrompt >= 0;
+            var chosen = editorWhen.SelectedItem as Choice;
+            bool steer = !editing && chosen != null && chosen.Value == "steer";
             editorSave.Enabled = false;
             editorSaid.Text = "";
-            AdvancedCall(editing ? "advanced-prompt-edit" : "advanced-prompt-add", argument, true,
+            AdvancedCall(steer ? "advanced-steer" : editing ? "advanced-prompt-edit" : "advanced-prompt-add", argument, true,
                          delegate(Dictionary<string, object> reply)
             {
                 Dictionary<string, object> result = AdvancedResult(reply);
@@ -377,18 +410,43 @@ namespace CodexAutoResume
                 if (AdvancedDone(result))
                 {
                     editorTaken = true;
-                    editorSaved = Get(result, "prompt") is double ? Whole(Get(result, "prompt")) : -1;
+                    editorSteered = steer;
+                    editorSaved = !steer && Get(result, "prompt") is double ? Whole(Get(result, "prompt")) : -1;
                     advancedPrompts = result;
                     dialog.DialogResult = DialogResult.OK;
                     if (dialog.Visible) dialog.Close();
                     return;
                 }
                 string refusal = Str(result, "refusal");
-                editorSaid.Text = editing && refusal == "invalid_request"
+                editorSaid.Text = steer ? SteerRefusal(refusal)
+                    : editing && refusal == "invalid_request"
                     ? Word("page.refused.prompt_moved", "It is no longer waiting, so it can no longer be changed.")
                     : PromptRefusal(refusal);
                 ShowEditorState();
             });
+        }
+
+        // ---------------------------------------------------------------- the steer (v0.6.20)
+        private const string SteerId = "steer_send";
+
+        /// Whether Steer the running turn stands on now - on, not watched: a watched steer would never be sent.
+        private bool SteerOn()
+        {
+            Dictionary<string, object> steer = advancedListing == null ? null : AdvancedItem(SteerId);
+            return steer != null && Str(steer, "state") == StateArmed;
+        }
+
+        /// What a refused steer says above the buttons: no turn running, one still waiting there, its caps - else as a
+        /// message's refusal says it.
+        private string SteerRefusal(string refusal)
+        {
+            if (refusal == "no_turn_running")
+                return Word("page.refused.no_turn_running", "No turn is running in that conversation, so there is nothing to steer. Nothing was sent.");
+            if (refusal == "being_sent")
+                return Word("page.refused.steer_waiting", "A steer for that conversation still waits to go. Wait until History shows what came of it.");
+            if (refusal == "queue_full")
+                return Word("page.refused.steer_full", "As many steers were asked for as may: 30 in a conversation and 60 in all in a day.");
+            return PromptRefusal(refusal);
         }
     }
 }

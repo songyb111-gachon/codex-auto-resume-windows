@@ -229,6 +229,7 @@ class Scoped:
         from .prompts import PromptsHandle
         from .resets import ResetsHandle
         from .restarts import RestartsHandle
+        from .steers import SteersHandle
         self._reads.update({
             "resets": ResetsHandle(state, capability, on),
             # v0.6.15-beta: a continuation capability's own continuations (state/continuations.py).
@@ -248,6 +249,8 @@ class Scoped:
             "chat": ChatHandle(state, capability, on),
             # v0.6.19 (#50): open_to_send's opens (state/opens.py).
             "opens": OpensHandle(state, capability, on),
+            # v0.6.20 (#50): steer_send's steers (state/steers.py).
+            "steers": SteersHandle(state, capability, on),
             "passed": lambda measurement: verdict is not None and verdict(measurement) == "pass",
             "failed": lambda measurement: verdict is not None and verdict(measurement) == "fail",
             "armed": lambda other: armed is not None and armed(other) is True,

@@ -19,6 +19,12 @@
 // recoveries as it always did, sends the ids of the messages it shows and the generation it read
 // (advanced-prompts-clear-done), and says how many were deleted and how many kept because they changed.
 //
+// v0.6.20 (issue #50, steer_send): each steer of the last 30 days is a row of History's list too, newest first among the
+// completed messages - its conversation, where it stands (waiting to go, accepted, may have been delivered, refused: three
+// outcomes never folded into one, and never "seen", which cannot be observed), Steer, when it was asked and when it
+// settled. Chosen, the note under History says the words that were sent and what its outcome means - the one place the
+// person can see them, since the Codex app does not show a steered line. Clear history leaves the steers as they are.
+//
 // C# 5 (the in-box compiler), as the rest of the window.
 
 using System;
@@ -33,6 +39,8 @@ namespace CodexAutoResume
     {
         // The kinds of row this edition joins to Pending and History (RowKindKey).
         private const string KindMessage = "message", KindRule = "rule", KindDone = "message_done";
+        // v0.6.20: a steer's row in History.
+        private const string KindSteer = "steer";
         // The cells of a joined row, as CellsWritten writes them (AdvancedRuns.cs).
         private const string RowCellsKey = "row_cells", RowSourceKey = "row_source";
         // The chosen row's own buttons: a recovery's (core's, moved in here) and a message's or a rule's (this edition's).
@@ -198,8 +206,9 @@ namespace CodexAutoResume
             List<object> rules = ResetRules(null, true);
             List<Dictionary<string, object>> prompts = PendingPrompts();
             List<Dictionary<string, object>> done = CompletedPrompts();
+            List<object> steers = Items(advancedPrompts, "steers") ?? new List<object>();
             string shown = AdvancedWritten(rules) + "|" + AdvancedWritten(new List<object>(prompts.ToArray())) + "|" +
-                           AdvancedWritten(new List<object>(done.ToArray())) + "|" +
+                           AdvancedWritten(new List<object>(done.ToArray())) + "|" + AdvancedWritten(steers) + "|" +
                            AdvancedWritten(ConversationsWritten()) + "|" + (advancedWords == null);
             if (shown != scheduledShown || editorSaved >= 0)
             {
@@ -209,6 +218,16 @@ namespace CodexAutoResume
                 foreach (Dictionary<string, object> row in prompts) joinedPending.Add(PromptRow(row));
                 joinedDone.Clear();
                 foreach (Dictionary<string, object> row in done) joinedDone.Add(DoneRow(row));
+                // v0.6.20: the steers among them, newest first by when each was asked or finished.
+                foreach (object entry in steers)
+                {
+                    var row = entry as Dictionary<string, object>;
+                    if (row != null) joinedDone.Add(SteerRow(row));
+                }
+                joinedDone.Sort(delegate(Dictionary<string, object> a, Dictionary<string, object> b)
+                {
+                    return JoinedAt(b).CompareTo(JoinedAt(a));
+                });
                 RefillLists();
                 // The saved row chosen once Pending's list is there to choose it in; kept until then.
                 if (editorSaved >= 0 && pendingList != null)
@@ -321,6 +340,69 @@ namespace CodexAutoResume
                           row, cells, outcome);
         }
 
+        /// When a History row of this edition's own happened, for its order: a steer when it was asked, a message when it
+        /// finished.
+        private static double JoinedAt(Dictionary<string, object> row)
+        {
+            Dictionary<string, object> source = Map(row, RowSourceKey);
+            return Str(row, RowKindKey) == KindSteer ? Number(source, "created_at") : Number(source, "finished_at");
+        }
+
+        /// A steer's row in History (v0.6.20): its conversation, where it stands, Steer, when it was asked and when it
+        /// settled.
+        private Dictionary<string, object> SteerRow(Dictionary<string, object> row)
+        {
+            string state = Str(row, "state");
+            string code = state == "accepted" ? "submitted" : state == "unconfirmed" ? "submission_unknown"
+                        : state == "refused" ? "failed_terminal" : "scheduled";
+            string stands = SteerState(state);
+            double finished = Number(row, "finished_at");
+            var cells = new[] { ConversationOf(Str(row, "thread_id")), stands, Word("page.pending.kind.steer", "Steer"),
+                                When(Number(row, "created_at")), finished > 0 ? When(finished) : "" };
+            return Joined(KindSteer, "steer " + Whole(Get(row, "steer_id")).ToString(CultureInfo.InvariantCulture), code,
+                          row, cells, SteerNote(row));
+        }
+
+        /// Where a steer stands, in a word for History's Outcome column: three outcomes and the wait before them.
+        private string SteerState(string state)
+        {
+            if (state == "accepted") return Word("page.steer.state.accepted", "accepted");
+            if (state == "unconfirmed") return Word("page.steer.state.unconfirmed", "may have been delivered");
+            if (state == "refused") return Word("page.steer.state.refused", "refused");
+            return Word("page.steer.state.waiting", "waiting to go");
+        }
+
+        /// What the note under History says of a chosen steer: the words that were sent, then what its outcome means - for a
+        /// refusal, why, and that nothing was sent.
+        private string SteerNote(Dictionary<string, object> row)
+        {
+            string state = Str(row, "state"), reason = Str(row, "reason");
+            string meaning;
+            if (state == "accepted")
+                meaning = Word("page.steer.note.accepted", "The Codex app took it into the running turn. Codex does not show the line, so whether it was seen in the conversation cannot be observed here.");
+            else if (state == "unconfirmed")
+                meaning = Word("page.steer.note.unconfirmed", "It was written and no answer came, so it may have been delivered. It was not sent again.");
+            else if (state == "refused")
+                meaning = SteerReasonWords(reason);
+            else
+                meaning = Word("page.steer.note.waiting", "It waits for the watcher, which sends it within two minutes or refuses it.");
+            string words = (Str(row, "words") ?? "").Replace("\r\n", " ").Replace("\n", " ");
+            return Word("page.steer.sent", "Sent: {words}").Replace("{words}", words) + " " + meaning;
+        }
+
+        /// Why a steer was refused, as History says it (vocabulary.SteerReason).
+        private string SteerReasonWords(string reason)
+        {
+            if (reason == "no_turn") return Word("page.steer.reason.no_turn", "Refused: no turn was running in that conversation. Nothing was sent.");
+            if (reason == "not_held") return Word("page.steer.reason.not_held", "Refused: the Codex app did not have that conversation open. Nothing was sent.");
+            if (reason == "no_pipe") return Word("page.steer.reason.no_pipe", "Refused: the Codex app's connection was not there - is Codex running? Nothing was sent.");
+            if (reason == "held") return Word("page.steer.reason.held", "Refused: recovery was paused, Observe only was on or it was quiet hours. Nothing was sent.");
+            if (reason == "expired") return Word("page.steer.reason.expired", "Refused: it was not sent within two minutes of being asked. Nothing was sent.");
+            if (reason == "conversation_off") return Word("page.steer.reason.conversation_off", "Refused: that conversation is switched off. Nothing was sent.");
+            if (reason == "turned_off") return Word("page.steer.reason.turned_off", "Refused: Steer the running turn was turned off before it went. Nothing was sent.");
+            return Word("page.steer.reason.app_refused", "Refused: the Codex app refused it - an update of the app may have changed this route. Nothing was sent.");
+        }
+
         // ---------------------------------------------------------------- offered
         /// The chosen Pending row's own buttons, by its kind: a message's Edit..., Go on and Cancel, a rule's Go on and
         /// Cancel, shown only for them (core's four only for a recovery).
@@ -357,9 +439,20 @@ namespace CodexAutoResume
         partial void HistoryButtonsUpdated(Dictionary<string, object> row, bool idle)
         {
             if (historyClear == null) return;
-            if (joinedDone.Count > 0 && advancedListing != null && advancedPrompts != null) historyClear.Enabled = idle;
+            if (CompletedCount() > 0 && advancedListing != null && advancedPrompts != null) historyClear.Enabled = idle;
             if (doneNote != null && ListRowId(Selected(historyList)) != doneNoteFor) doneNote = null;
             if (doneNote != null && historyNote != null) SetNote(historyNote, doneNote);
+            // v0.6.20: a chosen steer - the words that were sent, and what its outcome means.
+            if (Str(row, RowKindKey) == KindSteer && historyNote != null) SetNote(historyNote, Str(row, RowSaidKey) ?? "");
+        }
+
+        /// How many completed messages History lists - what Clear history deletes; a steer is never one (v0.6.20).
+        private int CompletedCount()
+        {
+            int found = 0;
+            foreach (Dictionary<string, object> row in joinedDone)
+                if (Str(row, RowKindKey) == KindDone) found++;
+            return found;
         }
 
         /// Shown or hidden by its own bit, so nothing is laid out again while it stays as it was.
@@ -415,7 +508,7 @@ namespace CodexAutoResume
         /// or failed, and nothing of Codex's, is touched.
         partial void ClearHistoryPressed(ref bool handled)
         {
-            if (joinedDone.Count == 0 || advancedListing == null || advancedPrompts == null) return;
+            if (CompletedCount() == 0 || advancedListing == null || advancedPrompts == null) return;
             handled = true;
             if (busy > 0) return;
             int recoveries = 0;
@@ -426,7 +519,8 @@ namespace CodexAutoResume
             }
             var ids = new List<string>();
             foreach (Dictionary<string, object> row in joinedDone)
-                ids.Add(Whole(Get(Map(row, RowSourceKey), "prompt_id")).ToString(CultureInfo.InvariantCulture));
+                if (Str(row, RowKindKey) == KindDone)
+                    ids.Add(Whole(Get(Map(row, RowSourceKey), "prompt_id")).ToString(CultureInfo.InvariantCulture));
             string question = recoveries > 0
                 ? Word("page.confirm.clear_both",
                        "Hide {recoveries} finished recoveries from the history and delete {n} delivered messages? Messages that changed since, and waiting, held, cancelled and failed ones, are kept, and nothing in Codex changes.",

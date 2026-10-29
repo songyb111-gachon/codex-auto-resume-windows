@@ -12,6 +12,9 @@ core to take it back out (the owner's answer of 2026-10-09), which says on its r
 sent, Cancel no longer reaches. Delete completed takes off the list only the finished prompts it is named that are still
 completed work (state/prompts.COMPLETED), and says how many it deleted and how many it kept because they changed;
 nothing of Codex's and no row the caps count is ever touched.
+
+From v0.6.20 (#50, steer_send) the list carries the steers of the last 30 days too (control/steer.rows), which History
+shows, and the status counts the steers still waiting for the watcher, so the page reads the list again when one settles.
 """
 from __future__ import annotations
 
@@ -37,7 +40,13 @@ def counts(runtime) -> dict:
         rows = runtime.state.prompts()
     except Exception:
         return {}
-    return {"prompts": len(rows)} if rows else {}
+    found = {"prompts": len(rows)} if rows else {}
+    # v0.6.20: the steers waiting for the watcher (control/steer.py), a count.
+    from .steer import waiting
+    steers = waiting(runtime)
+    if steers:
+        found["steers_waiting"] = steers
+    return found
 
 
 def words_limit(runtime) -> int:
@@ -69,7 +78,10 @@ def view(runtime) -> dict:
         unproven = runtime.arming.verdict(Measurement.MT) != "pass"
     except Exception:
         unproven = True
+    from .steer import rows as steers
     return {"done": True, "refusal": None, "generation": generation, "prompts": shown, "after_turn_unproven": unproven,
+            # v0.6.20 (#50): the steers History lists, with their words and outcomes (control/steer.py).
+            "steers": steers(runtime),
             "limits": {"prompts": PROMPTS_LIMIT, "per_conversation": PER_CONVERSATION, "words": words_limit(runtime),
                        "occurrences": 30, "days": 30}}
 

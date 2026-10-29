@@ -177,6 +177,9 @@ class Refusal(StrEnum):
     # card offers no button then - and asked again while one is still waiting for the browser.
     SWITCH_UNMEASURED = "switch_unmeasured"
     SWITCH_RUNNING = "switch_running"
+    # v0.6.20 (steer_send): a steer asked for a conversation whose latest turn is not running in Codex's history - there
+    # is nothing to steer, so nothing waits.
+    NO_TURN_RUNNING = "no_turn_running"
 
 
 class JournalCode(StrEnum):
@@ -435,6 +438,9 @@ class BridgeCommand(StrEnum):
     # v0.6.20 (issue #50): the person's own conversations and their names, for the pickers' Find a conversation
     # (control/conversations.py) - read-only, the Dashboard's alone, never MCP.
     ADVANCED_CONVERSATIONS = "advanced-conversations"
+    # v0.6.20 (issue #50, steer_send): a line the person wrote, to be added to the turn running in one conversation -
+    # the Dashboard's editor asks, and the watcher alone sends it (control/steer.py, engine/steer.py).
+    ADVANCED_STEER = "advanced-steer"
     # v0.6.19 (the groundwork): every command the stage's designs name, in one block, each the Dashboard's alone and
     # reached by no MCP tool. Until the capability that answers one is built, the bridge passes it over as it passes a
     # command this edition does not have (surfaces.UNANSWERED). The analytics' aggregates and their CSV
@@ -566,6 +572,18 @@ class Measurement(StrEnum):
     # v0.6.20 (window_anchor): one ephemeral, read-only, low-effort `codex exec` on an idle 5-hour window starts it -
     # its reset fixed five hours after the request - and leaves no conversation, rollout or history line.
     MANCHOR = "manchor"
+    # v0.6.20 (issue #50, plans/v0619-design/D-issue50.md): the two measured before they are built. MIMG: Codex's queue
+    # (thread/queue/add) takes an image beside the words - a local image file, or an image by its data address - for a
+    # throwaway conversation the app holds idle, and the app delivers it as the person's own message with the image
+    # (image_attachments). MSTEER: turn/steer reaches the exact active turn of a throwaway conversation from a connection
+    # this product may use - accepted or refused with a code, shown in the conversation or not, and called exactly once,
+    # never again after an answer that did not come (steer_send_mode).
+    MIMG = "mimg"
+    MSTEER = "msteer"
+    # v0.6.20: MSTEER failed from our own app-server session (-32600, codex-cli 0.165), so MSTEER2 asks the same of the
+    # Desktop's own IPC pipe - the connection this product already uses for the forced stop (MIPC): one line added to the
+    # running turn of a throwaway conversation the app holds (thread-follower-steer-turn), called once, never again.
+    MSTEER2 = "msteer2"
 
 
 class ObservedWord(StrEnum):
@@ -985,3 +1003,31 @@ class PlanWord(StrEnum):
     ENTERPRISE = "enterprise"
     EDU = "edu"
     OTHER = "other"
+
+
+class SteerState(StrEnum):
+    """Where one steer stands (steer_send, v0.6.20, state `steers`): asked for and waiting for the watcher (requested),
+    claimed by the watcher's errand just before its one write (sending), and then one of three outcomes that are never
+    collapsed: the Codex app took it into the running turn (accepted), it was written and no answer came, so it may have
+    been delivered (unconfirmed), or it was not written (refused, with its SteerReason). Whether it was seen in the
+    conversation is never a state: the Codex app does not show a steered line (MSTEER2)."""
+    REQUESTED = "requested"
+    SENDING = "sending"
+    ACCEPTED = "accepted"
+    UNCONFIRMED = "unconfirmed"
+    REFUSED = "refused"
+
+
+class SteerReason(StrEnum):
+    """Why a steer was refused - never written - (SteerState.REFUSED): no turn running in that conversation, the Codex app
+    not holding it, the app's connection (its IPC pipe) not there, the app refusing it (or its build checking another
+    version of the request), recovery paused, Observe only or quiet hours holding it (core's errand guard), not sent
+    within two minutes of being asked, the conversation switched off, or the capability turned off before it went."""
+    NO_TURN = "no_turn"
+    NOT_HELD = "not_held"
+    NO_PIPE = "no_pipe"
+    APP_REFUSED = "app_refused"
+    HELD = "held"
+    EXPIRED = "expired"
+    CONVERSATION_OFF = "conversation_off"
+    TURNED_OFF = "turned_off"
