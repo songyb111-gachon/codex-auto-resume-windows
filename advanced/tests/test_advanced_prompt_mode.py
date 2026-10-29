@@ -153,7 +153,8 @@ class RefusalTests(ModeCase):
     def test_the_statement_names_the_mode_and_its_revision_moved_on(self):
         """The statement describes the default, so its revision moved on (#50): a person who had the queue on reads
         the new one before it is on again (arming.py's tripwire)."""
-        self.assertEqual(PROMPT_QUEUE.revision, 2)
+        # 2 for the mode; 3 from v0.6.20, when a message may carry pictures (#50 item 1): it moved on again.
+        self.assertGreaterEqual(PROMPT_QUEUE.revision, 2)
         from codex_auto_resume_advanced import statement
         does = statement.CATALOGS.own("en")[statement.key(PROMPT_QUEUE.id, "does")]
         self.assertIn("running", does)

@@ -1035,8 +1035,13 @@ class Runtime:
         """P5 and P15 for a record of this edition's own (v0.6.19): a chat message goes through chat's own
         channel with no marker while chat is on (engine/chat.py), and one in flight is proven by its client id whatever
         chat stands at now - it was sent with no marker; everything else of the edition's own is asked nothing there,
-        as before - NULL's answer."""
+        as before - NULL's answer. v0.6.20 (#50 item 1): a scheduled message with pictures goes through the prompt
+        queue's own channel while it is on, and one in flight is proven by its client id whatever it stands at now
+        (engine/promptqueue.py)."""
         record = arguments[0]
+        pictured = self._pictured_answer(point, arguments)
+        if pictured is not None:
+            return pictured
         armed = self.states().get(chat.CAPABILITY) == ArmingState.ARMED
         if point == Point.DELIVERY or (point == Point.SENDER and armed):
             definition = self.registry.get(chat.CAPABILITY)
@@ -1048,6 +1053,25 @@ class Runtime:
                 code = self._code_of(definition)
                 return code.sender(record, arguments[-1]) if point == Point.SENDER else code.delivery(record)
         return getattr(NULL, HOOKS[point])(*arguments)
+
+    def _pictured_answer(self, point, arguments):
+        """P5 and P15 for a scheduled message with pictures (v0.6.20): the prompt queue's picture channel while it is on,
+        CLIENT_ID whatever it stands at; None for any other record, and at any other point."""
+        if point not in (Point.SENDER, Point.DELIVERY):
+            return None
+        from .engine import promptqueue
+        definition = self.registry.get(promptqueue.CAPABILITY)
+        if definition is None:
+            return None
+        if point == Point.SENDER and self.states().get(promptqueue.CAPABILITY) != ArmingState.ARMED:
+            return None
+        try:
+            code = self._code_of(definition)
+            if not code.images_of(arguments[0]):
+                return None
+            return code.sender(arguments[0], arguments[-1]) if point == Point.SENDER else code.delivery(arguments[0])
+        except Exception:
+            return None
 
     def _not_dispatched_by_session(self, record, state) -> bool:
         """The tripwire NOT_DISPATCHED_BY_SESSION (v0.6.16-beta.4): core took back a continuation sent to a

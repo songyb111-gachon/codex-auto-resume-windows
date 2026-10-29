@@ -158,6 +158,15 @@ namespace CodexAutoResume
                 return Word("page.refused.queue_full", "As many messages are queued as may: five for a conversation, twenty in all. Cancel one to queue another.");
             if (refusal == "dependency_unknown")
                 return Word("page.refused.dependency_unknown", "No message is queued before it in that conversation, so it cannot wait for one.");
+            // v0.6.20 (#50 item 1): a picture of the message.
+            if (refusal == "image_refused")
+                return Word("page.refused.image_refused", "That file is not a picture this can send - a PNG, JPEG, GIF or WebP - or it could not be read.");
+            if (refusal == "image_too_large")
+                return Word("page.refused.image_too_large", "That picture is larger than 5 MB.");
+            if (refusal == "images_full")
+                return Word("page.refused.images_full", "A message holds at most 4 pictures.");
+            if (refusal == "images_unavailable")
+                return Word("page.refused.images_unavailable", "Pictures cannot be sent on this Codex: a measurement found that its queue does not take them.");
             return ResetRefusal(refusal);
         }
     }

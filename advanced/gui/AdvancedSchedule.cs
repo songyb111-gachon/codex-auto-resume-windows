@@ -321,9 +321,13 @@ namespace CodexAutoResume
             string stands = PromptState(row), when = PromptWhen(row);
             var cells = new[] { ConversationOf(Str(row, "thread_id")), stands, Word("page.pending.kind.message", "Scheduled message"),
                                 when, "", "" };
-            // What it does while a turn runs is said in Why it is waiting, beside where it stands and when it goes.
+            // What it does while a turn runs is said in Why it is waiting, beside where it stands and when it goes - and
+            // (v0.6.20, #50 item 1) how many pictures it carries, a count and nothing else.
+            List<object> pictures = Items(row, "images");
+            string carries = pictures == null || pictures.Count == 0 ? ""
+                : " · " + Word("page.queue.images", "Pictures: {n}", "n", pictures.Count);
             return Joined(KindMessage, "prompt " + Whole(Get(row, "prompt_id")).ToString(CultureInfo.InvariantCulture), code, row,
-                          cells, stands + " · " + when + " · " + mode);
+                          cells, stands + " · " + when + " · " + mode + carries);
         }
 
         /// A completed message's row in History: its conversation, delivered or handed over, a message, when it was due and

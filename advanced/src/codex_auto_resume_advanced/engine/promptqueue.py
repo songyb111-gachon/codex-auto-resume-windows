@@ -27,6 +27,15 @@ send: while Codex holds it they are kept, so a Pause that takes it back can send
 prompt_moved) - and at a series' end, at a cancel, at expiry, when the conversation is switched off and when this is
 turned off (watched, they are kept - v0.6.16-beta.3). They never reach a log, the journal, diagnostics, a
 notification, the status, MCP or a golden.
+
+v0.6.20 (#50 item 1, MIMG): a message may carry pictures - the product's own copies (images.py), kept while it is
+still to go and swept at each P2 once it is not. An occurrence of one goes by this capability's own channel, P5
+(`sender`): `thread/queue/add` with its words first and then each picture as a `localImage` item naming the copy, in
+the person's order, under the client id core derives - and P15 (`delivery`) answers CLIENT_ID, so core proves it by
+that id and no marker, as a chat message (engine/chat.py). A message with no pictures goes exactly as before, through
+core's backend with its marker. One whose copies are no longer sendable (one gone, or not a picture any more), or any
+with pictures while MIMG failed on the Codex in force, is not handed: it waits, and a day after it fell due it is used
+as expired, as any occurrence. Neither the copies' paths nor a picture reach a log, the journal or diagnostics.
 """
 from __future__ import annotations
 
@@ -34,9 +43,11 @@ import secrets
 
 from codex_auto_resume import continuation
 from codex_auto_resume.domain import ids
-from codex_auto_resume.domain.plug import DEFER
+from codex_auto_resume.domain.plug import DEFER, Alternative
 
-from ..vocabulary import PromptEvery, PromptReason, PromptState, PromptTrigger, RecordState, WhileRunning
+from .. import images as copies
+from ..vocabulary import Measurement, PromptEvery, PromptReason, PromptState, PromptTrigger, RecordState, WhileRunning
+from .markerfree import MarkerFreeContinuation
 
 CAPABILITY = "prompt_queue"
 LONG = "long_reset_message"
@@ -84,6 +95,32 @@ def holds_for_turn(paths, row):
     return True if running is None else running
 
 
+def _ours(record) -> bool:
+    """Whether `record` is a record of this edition's own (P2) - a record id and no interruption id."""
+    return isinstance(record, dict) and isinstance(record.get("record_id"), str) and "interruption_id" not in record
+
+
+class ImageChannel(MarkerFreeContinuation):
+    """The one call a message with pictures goes by (v0.6.20, MIMG): thread/queue/add with its words, then a localImage
+    item for each copy in order, under its client id - over a session restricted to this capability's one method
+    (codex/protocol.CAPABILITY_METHODS)."""
+    __slots__ = ("images",)
+
+    def __init__(self, paths, images, *, session=None):
+        super().__init__(paths, session=session)
+        self.images = tuple(images)
+
+    def _input(self, prompt):
+        return [{"type": "text", "text": prompt}] + [{"type": "localImage", "path": path} for path in self.images]
+
+    def _session(self):
+        if self._open is not None:
+            return self._open()
+        from ..codex import inuse
+        from ..codex.protocol import Session
+        return Session(inuse.backend(self.paths), capability=CAPABILITY)
+
+
 def words_problem(words, long_on) -> bool:
     """Whether `words` are no message of a person's that core sends: empty, product text, a marker, or longer than
     2,000 characters while Longer messages is off (what one continuation carries while it is on)."""
@@ -96,11 +133,12 @@ def words_problem(words, long_on) -> bool:
 
 class PromptQueue:
     """The capability's code: its hook at P2. `bind` gives it its view of the state (state.Scoped)."""
-    __slots__ = ("paths", "_scoped")
+    __slots__ = ("paths", "_scoped", "_session")
 
-    def __init__(self, paths):
+    def __init__(self, paths, *, session=None):
         self.paths = paths
         self._scoped = None
+        self._session = session
 
     def bind(self, scoped):
         self._scoped = scoped
@@ -118,6 +156,7 @@ class PromptQueue:
         except Exception:
             return DEFER
         now = handle.now()
+        self._sweep(rows)
         long_on = scoped.armed(LONG)
         found, by_thread = [], {}
         for row in rows:
@@ -182,7 +221,7 @@ class PromptQueue:
         if row["state"] == PromptState.READY:
             if row["due_at"] is not None and now - row["due_at"] >= DUE_FOR:
                 return self._expired(handle, row, now)
-            if self._held_for_turn(handle, row):
+            if self._held_for_turn(handle, row) or self._images_held(row):
                 return None
             return handed(row)
         if row["depends"]:
@@ -197,7 +236,7 @@ class PromptQueue:
         due = row["due_at"] if row["due_at"] is not None else now
         if now < due:
             return None
-        if self._held_for_turn(handle, row):
+        if self._held_for_turn(handle, row) or self._images_held(row):
             if row["trigger"] != PromptTrigger.RECURRING and now - due >= DUE_FOR:
                 return self._expired(handle, row, now)
             return None
@@ -211,6 +250,52 @@ class PromptQueue:
         self._count("due")
         fresh = handle.prompt(row["prompt_id"])
         return handed(fresh) if fresh is not None else None
+
+    def _images_held(self, row) -> bool:
+        """Whether `row`'s pictures keep it from being handed this tick (v0.6.20): a copy no longer sendable, or MIMG
+        failed on the Codex in force. False for a message with none."""
+        found = copies.of(self.paths, row["prompt_id"])
+        if not found:
+            return False
+        try:
+            failed = self._scoped.failed(Measurement.MIMG)
+        except Exception:
+            failed = False
+        return failed is True or copies.problem(self.paths, row["prompt_id"])
+
+    def _sweep(self, rows) -> None:
+        """Every copy whose prompt is no longer still to go removed (images.sweep) - at start, and after each
+        delivery, cancel and end."""
+        pending = [row["prompt_id"] for row in rows if row["state"] in (PromptState.WAITING, PromptState.READY,
+                                                                        PromptState.HELD)]
+        try:
+            copies.sweep(self.paths, pending)
+        except Exception:
+            pass
+
+    def images_of(self, record) -> list:
+        """The copies' paths of the message whose occurrence is `record`, in order - [] for a record that is no prompt's
+        still to go, or one with no pictures."""
+        if not _ours(record) or self._scoped is None:
+            return []
+        try:
+            rows = self._scoped.prompts.prompts(pending=True)
+        except Exception:
+            return []
+        for row in rows:
+            if row.get("record_id") == record["record_id"]:
+                return [image["path"] for image in copies.of(self.paths, row["prompt_id"])]
+        return []
+
+    def sender(self, record, backend):
+        """P5 (v0.6.20): the picture channel for an occurrence of a message with pictures, and nothing for anything
+        else - a message with none goes through core's backend with its marker, as before."""
+        found = self.images_of(record)
+        return ImageChannel(self.paths, found, session=self._session) if found else DEFER
+
+    def delivery(self, record):
+        """P15 (v0.6.20): no marker for a message with pictures; core proves it by the client id it derives."""
+        return Alternative.CLIENT_ID if self.images_of(record) else DEFER
 
     def _held_for_turn(self, handle, row) -> bool:
         """Whether `row` waits for its conversation's running turn this tick (#50, holds_for_turn): its reason says so

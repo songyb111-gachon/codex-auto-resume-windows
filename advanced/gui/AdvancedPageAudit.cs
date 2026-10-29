@@ -1101,7 +1101,8 @@ namespace CodexAutoResume
 
         /// The editor (AdvancedEditor.cs), built and never shown: what it opened with written into `record`, its fields filled
         /// as `step` says - "thread", "words", "when", "hour", "times", "depends", "mode" - and "press" save or cancel; then
-        /// what it said, and whether it saved.
+        /// what it said, and whether it saved. v0.6.20 (#50 item 1): "images", files Add a picture... chooses - handed to it,
+        /// never a file dialog shown - and "remove", the place of a thumbnail whose Remove is pressed then.
         private void AnswerEditor(Form dialog, Dictionary<string, object> step, Dictionary<string, object> record)
         {
             record["title"] = dialog.Text;
@@ -1141,6 +1142,30 @@ namespace CodexAutoResume
                 }
             if (Str(step, "words") != null) editorWords.Box.Text = Str(step, "words");
             if (Str(step, "mode") != null) editorMode.Value = Str(step, "mode");
+            record["images_before"] = (double)editorImages.Count;
+            record["add_image"] = editorAddImage.Text;
+            List<object> chosen = Items(step, "images");
+            if (chosen != null)
+            {
+                var files = new List<string>();
+                foreach (object file in chosen) files.Add(file as string);
+                editorChoose = delegate { return files.ToArray(); };
+                try { Pressed.Invoke(editorAddImage, new object[] { EventArgs.Empty }); }
+                finally { editorChoose = null; }
+                record["said_on_add"] = editorSaid.Text;
+            }
+            record["thumbs_added"] = ThumbNames();
+            if (Get(step, "remove") != null)
+            {
+                int place = Whole(Get(step, "remove"));
+                Control tile = place < editorThumbs.Controls.Count ? editorThumbs.Controls[place] : null;
+                Button remove = tile == null ? null : tile.Controls[1] as Button;
+                if (remove != null) Pressed.Invoke(remove, new object[] { EventArgs.Empty });
+            }
+            record["thumbs"] = ThumbNames();
+            record["thumbs_shown"] = OwnVisible(editorThumbs);
+            record["thumbs_fit"] = editorThumbs.Width <= editorThumbs.Parent.ClientSize.Width;
+            record["add_enabled"] = editorAddImage.Enabled;
             record["mode_shown"] = OwnVisible(editorMode);
             record["after_turn_shown"] = OwnVisible(editorAfterTurn);
             // v0.6.20 (#50): When's choices, the steer's warning and what the buttons and fields say once filled.
@@ -1161,12 +1186,25 @@ namespace CodexAutoResume
             record["taken"] = dialog.DialogResult == DialogResult.OK;
             record["said"] = editorSaid.Text;
             record["blank_after"] = (double)EditorBlank();
-            record["said_fits"] = editorSaid.Text.Length == 0 ||
+            // A dialog Cancel closed has let go of its controls: what it said on the way (a picture refused) fits nowhere now.
+            record["said_fits"] = editorSaid.Text.Length == 0 || editorBody.Parent == null ||
                 editorSaid.Top + editorSaid.Height <= editorBody.Height && editorBody.Height <= editorBody.Parent.ClientSize.Height;
             // Where all of it is taller than the screen lets the editor be (a CI runner's 1024 by 768), it stands at that
             // height and what does not fit is scrolled to.
             record["at_most"] = editorDialog.ClientSize.Height >= EditorMost();
             record["words_after"] = editorWords.Box.Text;
+        }
+
+        /// The thumbnails' names, in order, each with whether it holds a drawn picture: "Picture 1:drawn".
+        private List<object> ThumbNames()
+        {
+            var names = new List<object>();
+            foreach (Control tile in editorThumbs.Controls)
+            {
+                var picture = tile.Controls[0] as PictureBox;
+                names.Add(picture.AccessibleName + (picture.Image != null ? ":drawn" : ":blank"));
+            }
+            return names;
         }
 
         /// Find a conversation's dialog (AdvancedFind.cs), built and never shown, answered as `step` says - "search" typed into

@@ -156,6 +156,9 @@ CAPABILITY_METHODS = {
     # v0.6.19: a chat message (engine/chat.py) is added to its conversation's queue under its client id, as
     # MC1 added one - nothing else, and never a read: the page reads Codex's history (codex/conversation.py).
     "codex_chat": ("thread/queue/add",),
+    # v0.6.20 (#50 item 1): a scheduled message with pictures (engine/promptqueue.py) is added to its conversation's
+    # queue, words then localImage items, under its client id, as MIMG added one - nothing else, and never a read.
+    "prompt_queue": ("thread/queue/add",),
     # The usage meter (engine/usage.py, v0.6.16-beta.3) reads usage on its schedule, and nothing else.
     "usage_meter": ("account/rateLimits/read",),
     # v0.6.20: starting an idle 5-hour window early (engine/anchor.py) reads usage, as MU and MANCHOR did, and whether an

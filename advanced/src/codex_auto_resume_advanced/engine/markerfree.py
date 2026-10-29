@@ -151,7 +151,7 @@ class MarkerFreeContinuation:
                 or len(prompt) > MAX_PROMPT or "\0" in prompt
                 or not (client_id is None or ids.is_uuid(client_id))):
             return {"outcome": "not_started", "error_code": "queue_preflight_failed"}
-        params = {"threadId": thread_id, "input": [{"type": "text", "text": prompt}],
+        params = {"threadId": thread_id, "input": self._input(prompt),
                   "clientUserMessageId": client_id or str(uuid.uuid4())}
         session, opened, pending = None, False, None
         try:
@@ -184,6 +184,11 @@ class MarkerFreeContinuation:
         finally:
             _close(session)
         return {"outcome": "accepted", "queue_id": _queue_id(result)}
+
+    def _input(self, prompt):
+        """The add's `input`: the words alone (v0.6.20: the prompt queue's picture channel adds its pictures after them,
+        engine/promptqueue.ImageChannel)."""
+        return [{"type": "text", "text": prompt}]
 
     def _session(self):
         if self._open is not None:

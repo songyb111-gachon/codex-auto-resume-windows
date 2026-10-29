@@ -158,8 +158,9 @@ class ShippedTests(unittest.TestCase):
                      Point.ADMISSION: ("compact_continue", "capacity_retry", "structured_rules", "unknown_failure_budget",
                                        "codex_gave_up", "sign_in_retry"),
                      # v0.6.19: and the chat, for its own messages alone (engine/chat.py).
-                     Point.SENDER: ("goal_continuation", "marker_free_continuation", "codex_chat"),
-                     Point.DELIVERY: ("marker_free_continuation", "silent_continuation", "codex_chat"),
+                     # v0.6.20 (#50 item 1): prompt_queue's own channel for a message with pictures, at P5 and P15.
+                     Point.SENDER: ("goal_continuation", "marker_free_continuation", "prompt_queue", "codex_chat"),
+                     Point.DELIVERY: ("marker_free_continuation", "prompt_queue", "silent_continuation", "codex_chat"),
                      # v0.6.15-beta: several sends waiting for their receipts at once.
                      Point.CONCURRENCY: ("parallel_dispatch",),
                      # v0.6.16-beta.3: which conversations core takes up.
@@ -479,13 +480,16 @@ class ShippedTests(unittest.TestCase):
 
     def test_the_prompt_queue_departs_and_rests_on_what_the_design_says(self):
         """A8, A17, A26, A27, C4, D2, H4 and H6 - A20 kept (the owner's answer); exact_thread_recovery and MT; core's
-        five a conversation, thirty a day; at P2 alone. And Longer messages is revision 2, naming queued prompts."""
+        five a conversation, thirty a day; at P2. And Longer messages is revision 2, naming queued prompts. v0.6.20 (#50
+        item 1): a message with pictures goes by its own channel through thread/queue/add with no marker, so it names
+        A2, A4, B3 and B4 too and answers at P5 and P15 as well (revision 3)."""
         found = registry.REGISTRY.get("prompt_queue")
-        self.assertEqual(found.departs_from, ("A8", "A17", "A26", "A27", "C4", "D2", "H4", "H6"))
+        self.assertEqual(found.departs_from, ("A2", "A4", "A8", "A17", "A26", "A27", "B3", "B4", "C4", "D2", "H4",
+                                              "H6"))
         self.assertNotIn("A20", found.departs_from)
         self.assertEqual((found.compat, found.measurements, found.journal_prefix),
                          ("exact_thread_recovery", (Measurement.MT,), "queue"))
-        self.assertEqual(found.points, frozenset({Point.RECORDS}))
+        self.assertEqual(found.points, frozenset({Point.RECORDS, Point.SENDER, Point.DELIVERY}))
         self.assertEqual((found.ceilings.per_day, found.ceilings.per_conversation), (30, registry.CORE_DAILY_CAP))
         self.assertEqual(registry.LONG_RESET_MESSAGE.revision, 2)
 
