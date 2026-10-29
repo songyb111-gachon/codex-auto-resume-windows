@@ -505,10 +505,7 @@ namespace CodexAutoResume
                 if (new FileInfo(path).Length > ImageBytesMost) return "image_too_large";
                 return ImageKind(path) == null ? "image_refused" : null;
             }
-            catch (IOException) { return "image_refused"; }
-            catch (UnauthorizedAccessException) { return "image_refused"; }
-            catch (ArgumentException) { return "image_refused"; }
-            catch (NotSupportedException) { return "image_refused"; }
+            catch (Exception) { return "image_refused"; }   // unreadable, or no path Windows takes
         }
 
         /// The kind a file's first bytes say - png, jpg, gif or webp - or null: never its name (images.py's kind).
@@ -521,10 +518,7 @@ namespace CodexAutoResume
                 using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                     read = stream.Read(head, 0, head.Length);
             }
-            catch (IOException) { return null; }
-            catch (UnauthorizedAccessException) { return null; }
-            catch (ArgumentException) { return null; }
-            catch (NotSupportedException) { return null; }
+            catch (Exception) { return null; }              // unreadable, or no path Windows takes
             if (read >= 8 && head[0] == 0x89 && head[1] == 0x50 && head[2] == 0x4E && head[3] == 0x47
                 && head[4] == 0x0D && head[5] == 0x0A && head[6] == 0x1A && head[7] == 0x0A) return "png";
             if (read >= 3 && head[0] == 0xFF && head[1] == 0xD8 && head[2] == 0xFF) return "jpg";
@@ -566,7 +560,9 @@ namespace CodexAutoResume
         {
             if (editorThumbs == null) return;
             editorThumbs.SuspendLayout();
-            foreach (Control old in new List<Control>(ChildrenOf(editorThumbs.Controls))) { editorThumbs.Controls.Remove(old); old.Dispose(); }
+            var shown = new List<Control>();
+            foreach (Control tile in editorThumbs.Controls) shown.Add(tile);
+            foreach (Control old in shown) { editorThumbs.Controls.Remove(old); old.Dispose(); }
             for (int i = 0; i < editorImages.Count; i++)
             {
                 EditorImage image = editorImages[i];
@@ -603,11 +599,6 @@ namespace CodexAutoResume
             }
             editorThumbs.Visible = editorImages.Count > 0;
             editorThumbs.ResumeLayout(true);
-        }
-
-        private static IEnumerable<Control> ChildrenOf(Control.ControlCollection controls)
-        {
-            foreach (Control control in controls) yield return control;
         }
 
         /// Remove under a thumbnail: that picture taken off the message (its copy, if it had one, goes when it is saved).
