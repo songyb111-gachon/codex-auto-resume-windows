@@ -719,7 +719,10 @@ namespace CodexAutoResume
                 IntPtr made = list.Handle;
                 int bottom = list.GetItemRect(list.Items.Count - 1).Bottom;
                 Control card = ground.Controls.Count > 0 ? ground.Controls[0] : null;
-                int tall = bottom + Px(4) + (card == null ? 0 : card.Padding.Vertical) + ground.Padding.Vertical;
+                // With room for the soft bar along the bottom too, where the columns are wider than a narrow pane: the rows
+                // then still fit, and the list never takes a bar beside them that would narrow it again.
+                int tall = bottom + Px(4) + SoftBar.Gutter + SystemInformation.HorizontalScrollBarHeight +
+                           (card == null ? 0 : card.Padding.Vertical) + ground.Padding.Vertical;
                 ground.MinimumSize = new Size(0, tall);
                 ground.Height = tall;
                 MeasureCells(list);
