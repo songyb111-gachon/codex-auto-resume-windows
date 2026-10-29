@@ -38,6 +38,13 @@ class MqoCase(unittest.TestCase):
             patcher.start()
             self.addCleanup(patcher.stop)
         self.sessions, self.looked_for = [], []
+        # Who holds a conversation is core's loaded check and Restart Manager on its writer lock (measure._look), never a
+        # list from the probe's own session: the conversations `held_now` names are held, by the app, by one process.
+        self.held_now = ()
+        patcher = patch.object(measure, "_look", lambda ctx, thread: (thread in self.held_now,
+                                                                      1 if thread in self.held_now else 0))
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def run_one(self, *, held=(), lists=None, recorded=True):
         """MQO against a fake: the app holds `held`; each thread/queue/list answers the next of `lists` (the last
@@ -46,8 +53,8 @@ class MqoCase(unittest.TestCase):
 
         def queue_list(_params):
             return {"data": answers.pop(0) if len(answers) > 1 else answers[0]}
-        replies = {"thread/loaded/list": {"data": list(held)}, "thread/queue/add": {"queuedSubmissionId": "q"},
-                   "thread/queue/list": queue_list}
+        self.held_now = tuple(held)
+        replies = {"thread/queue/add": {"queuedSubmissionId": "q"}, "thread/queue/list": queue_list}
 
         def factory(measurement):
             self.sessions.append(FakeSession(measurement, replies))
@@ -67,8 +74,7 @@ class MqoCase(unittest.TestCase):
 
 class ShapeTests(MqoCase):
     def test_it_declares_its_three_methods_and_has_a_probe(self):
-        self.assertEqual(protocol.MEASUREMENT_METHODS[MQO], ("thread/loaded/list", "thread/queue/add",
-                                                             "thread/queue/list"))
+        self.assertEqual(protocol.MEASUREMENT_METHODS[MQO], ("thread/queue/add", "thread/queue/list"))
         self.assertIs(measure.PROBES[MQO], measure._mqo)
         self.assertEqual(measured.MEASURED[MQO][0], Verdict.PASS, "the run of 2026-10-20 passed")
 
@@ -145,8 +151,8 @@ class MqpTests(MqoCase):
             mine = measure._SAMPLE_MQP_CLIENT_IDS[index]
             other = measure._SAMPLE_MQP_CLIENT_IDS[(index + 1) % len(threads)]
             return {"data": [{"clientUserMessageId": mine}] + ([{"clientUserMessageId": other}] if crossed else [])}
-        replies = {"thread/loaded/list": {"data": list(held)}, "thread/queue/add": {"queuedSubmissionId": "q"},
-                   "thread/queue/list": queue_list}
+        self.held_now = tuple(held)
+        replies = {"thread/queue/add": {"queuedSubmissionId": "q"}, "thread/queue/list": queue_list}
 
         def factory(measurement):
             self.sessions.append(FakeSession(measurement, replies))
@@ -165,7 +171,7 @@ class MqpTests(MqoCase):
 
     def test_it_declares_its_methods_and_has_a_probe(self):
         self.assertEqual(protocol.MEASUREMENT_METHODS[Measurement.MQP],
-                         ("thread/loaded/list", "thread/queue/add", "thread/queue/list"))
+                         ("thread/queue/add", "thread/queue/list"))
         self.assertIs(measure.PROBES[Measurement.MQP], measure._mqp)
         self.assertEqual(measured.MEASURED[Measurement.MQP][0], Verdict.PASS, "the run of 2026-10-20 passed")
 
@@ -225,7 +231,8 @@ class MqgTests(MqoCase):
         def queue_list(_params):
             looks.append(1)
             return {"data": [{"clientUserMessageId": measure._SAMPLE_MQG_CLIENT_ID}] if len(looks) == 1 else []}
-        replies = {"thread/loaded/list": {"data": list(held)}, "thread/goal/get": goal_get, "thread/goal/set": {},
+        self.held_now = tuple(held)
+        replies = {"thread/goal/get": goal_get, "thread/goal/set": {},
                    "thread/queue/add": {"queuedSubmissionId": "q"}, "thread/queue/list": queue_list}
 
         def factory(measurement):
@@ -240,8 +247,7 @@ class MqgTests(MqoCase):
 
     def test_it_declares_its_methods_and_has_a_probe(self):
         self.assertEqual(protocol.MEASUREMENT_METHODS[Measurement.MQG],
-                         ("thread/loaded/list", "thread/goal/get", "thread/goal/set", "thread/queue/add",
-                          "thread/queue/list"))
+                         ("thread/goal/get", "thread/goal/set", "thread/queue/add", "thread/queue/list"))
         self.assertIs(measure.PROBES[Measurement.MQG], measure._mqg)
         self.assertEqual(measured.MEASURED[Measurement.MQG][0], Verdict.PASS, "the second run of 2026-10-20 passed")
 
@@ -272,8 +278,8 @@ class MqgTests(MqoCase):
     def test_held_and_nothing_is_read_set_or_added(self):
         record = self.run_mqg(held=(THREAD,))
         self.assertEqual(record["observed"]["held_before"], True)
-        self.assertEqual([method for session in self.sessions for method, _params in session.calls],
-                         ["thread/loaded/list"])
+        self.assertEqual([method for session in self.sessions for method, _params in session.calls], [],
+                         "who holds it is read before any session is opened")
 
 
 if __name__ == "__main__":

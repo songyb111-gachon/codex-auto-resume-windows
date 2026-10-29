@@ -29,7 +29,7 @@ from codex_auto_resume_advanced.codex import protocol, turns  # noqa: E402
 from codex_auto_resume_advanced.vocabulary import Measurement, Verdict  # noqa: E402
 from test_advanced_measure_stage4 import THREAD, TURN, VERSIONS, Backend, FakeSession, refused  # noqa: E402
 
-MIMG, MSTEER = Measurement.MIMG, Measurement.MSTEER
+MIMG, MSTEER, MOPEN = Measurement.MIMG, Measurement.MSTEER, Measurement.MOPEN
 OTHER_TURN = "deadbeef-0000-7000-8000-00000000cafe"
 PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
@@ -80,8 +80,7 @@ class AllowListTests(Case):
         self.assertIs(measure.PROBES[MSTEER], measure._msteer)
         self.assertEqual(protocol.methods_for(MIMG), {"initialize", "initialized", "thread/queue/add",
                                                       "thread/queue/list"})
-        self.assertEqual(protocol.methods_for(MSTEER), {"initialize", "initialized", "thread/loaded/list",
-                                                        "turn/steer"})
+        self.assertEqual(protocol.methods_for(MSTEER), {"initialize", "initialized", "turn/steer"})
         self.assertIn("turn/steer", protocol.ADVANCED_METHODS)
 
     def test_no_capability_may_call_what_only_these_two_declared(self):
@@ -211,6 +210,66 @@ class ImageTests(Case):
         self.assertTrue(record["note"].startswith("not reached"))
 
 
+class LookTests(Case):
+    """Who holds a conversation: core's loaded check and Restart Manager, never thread/loaded/list on our own session
+    (codex-cli 0.165, 2026-10-29: the Desktop held the conversation, its writer lock was taken, core's check showed one
+    holder - and the list stayed empty, which made MOPEN fail on a conversation the Desktop had loaded)."""
+
+    class Core:
+        """Core's Backend as _look reads it: the paired app identity, and its loaded check's word."""
+        def __init__(self, word, identity=("server",)):
+            self.codex_home, self.word, self.identity, self.asked = Path("C:/scratch-codex-home"), word, identity, []
+
+        def app_identity(self):
+            return self.identity
+
+        def loaded(self, thread, identity):
+            self.asked.append((thread, identity))
+            return self.word
+
+    def look(self, backend, users):
+        with patch("codex_auto_resume.windows.resource_users", lambda path, *more: users(path)):
+            return measure._look(measure.Context(MOPEN, backend=backend, thread=THREAD), THREAD)
+
+    def test_the_app_holding_the_lock_is_core_loaded_and_one_holder(self):
+        core = self.Core("loaded")
+        seen = []
+        self.assertEqual(self.look(core, lambda path: seen.append(path) or [{"pid": 1, "created": 2}]), (True, 1))
+        self.assertEqual(core.asked, [(THREAD, ("server",))], "core's own check, with the app paired")
+        self.assertEqual(seen[0].name, THREAD + ".lock")
+        self.assertEqual(seen[0].parent.name, "thread-writer-locks")
+
+    def test_every_other_word_of_core_is_not_the_app(self):
+        for word in ("notLoaded", "elsewhere", "unknown"):
+            with self.subTest(word):
+                self.assertEqual(self.look(self.Core(word), lambda path: []), (False, 0))
+
+    def test_a_lock_held_by_some_other_process_counts_as_a_holder_not_as_the_app(self):
+        self.assertEqual(self.look(self.Core("elsewhere"), lambda path: [{"pid": 7}]), (False, 1))
+
+    def test_an_app_that_is_not_paired_is_not_asked_and_the_lock_is_still_read(self):
+        core = self.Core("loaded", identity=None)
+        self.assertEqual(self.look(core, lambda path: [{"pid": 7}]), (False, 1))
+        self.assertEqual(core.asked, [])
+
+    def test_a_lock_that_cannot_be_read_is_none_and_never_a_guess(self):
+        def broken(path):
+            raise OSError("x")
+        self.assertEqual(self.look(self.Core("notLoaded"), broken), (False, None))
+        self.assertEqual(measure._look(measure.Context(MOPEN, thread=THREAD), THREAD), (False, None),
+                         "no backend, no Codex home")
+
+    def test_no_probe_asks_our_own_session_for_the_conversations_the_app_holds(self):
+        """Fails with a probe back on thread/loaded/list: the list never shows what the Desktop loads on 0.165."""
+        import inspect
+        for probe in (measure._mopen, measure._mqo, measure._mqp, measure._mqg, measure._msteer):
+            with self.subTest(probe.__name__):
+                self.assertNotIn("loaded/list", inspect.getsource(probe))
+        for measurement in (Measurement.MOPEN, Measurement.MQO, Measurement.MQP, Measurement.MQG, MSTEER):
+            with self.subTest(measurement):
+                self.assertNotIn("thread/loaded/list", protocol.MEASUREMENT_METHODS[measurement])
+
+
 class RunningTurn:
     """A stand-in for the history's latest turn: only what MSTEER reads of it."""
 
@@ -234,8 +293,8 @@ class SteerTests(Case):
         def answer(params):
             asked.append(params)
             return steer(params) if steer is not None else {"turnId": params["expectedTurnId"]}
-        replies = {"thread/loaded/list": {"data": [THREAD] if held else []}, "turn/steer": answer}
-        with patch.object(turns.Turns, "latest", newest):
+        replies = {"turn/steer": answer}
+        with patch.object(turns.Turns, "latest", newest),                 patch.object(measure, "_look", lambda ctx, thread: (held, 1 if held else 0)):
             return self.run_probe(MSTEER, replies, thread=thread, recorded=recorded)
 
     def steers(self):
@@ -269,7 +328,7 @@ class SteerTests(Case):
                           observed["answer_names_same_turn"], observed["client_id_on_user_item"],
                           observed["latest_turn_unchanged"], observed["held_by_app"]),
                          (1, True, False, True, True, True, True))
-        self.assertEqual(self.methods(), ["thread/loaded/list", "turn/steer"])
+        self.assertEqual(self.methods(), ["turn/steer"], "who holds it is core's check, never a list from our session")
         steer, = self.steers()
         self.assertEqual((steer["threadId"], steer["expectedTurnId"], steer["clientUserMessageId"]),
                          (THREAD, TURN, measure._SAMPLE_MSTEER_CLIENT_ID))
@@ -317,7 +376,8 @@ class SteerTests(Case):
     def test_a_conversation_the_app_does_not_hold_is_recorded_not_stopped_on(self):
         """The call still is made once: the answer to it is what is measured."""
         record = self.run_steer(held=False)
-        self.assertEqual((record["observed"]["held_by_app"], record["observed"]["steer_calls"]), (False, 1))
+        self.assertEqual((record["observed"]["held_by_app"], record["observed"]["holders"],
+                          record["observed"]["steer_calls"]), (False, 0, 1))
 
     def test_the_record_is_content_free(self):
         record = self.run_steer()
