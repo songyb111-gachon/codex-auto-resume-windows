@@ -55,7 +55,8 @@ class DefinitionTests(unittest.TestCase):
                          ((), (), ()))
         self.assertIn(CAP, registry.REGISTRY.ids)
         order = registry.SHOWN_ORDER
-        self.assertEqual(order[order.index("structured_rules") - 1], CAP)
+        # v0.6.20: switching the Codex account comes between it and structured_rules (the order the owner approved).
+        self.assertEqual(order[order.index("structured_rules") - 2:order.index("structured_rules")], (CAP, "account_switch"))
         self.assertEqual(statement.CATALOGS.missing(IDLE_UPDATE_CHECK), [])
 
 

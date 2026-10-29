@@ -107,8 +107,10 @@ ARGUMENTS = {
 UNANSWERED = frozenset({
     BridgeCommand.ADVANCED_API, BridgeCommand.ADVANCED_API_TOKEN_NEW,
     BridgeCommand.ADVANCED_REMOTE_PAIR_START, BridgeCommand.ADVANCED_REMOTE_PAIR_STATE, BridgeCommand.ADVANCED_FLEET,
-    BridgeCommand.ADVANCED_FLEET_SAVE,
-    BridgeCommand.ADVANCED_ACCOUNT, BridgeCommand.ADVANCED_ACCOUNT_SWITCH})
+    BridgeCommand.ADVANCED_FLEET_SAVE})
+# v0.6.20 (account_switch): the account card's read and its Codex sign-out and sign-in, answered (control/account.py).
+ARGUMENTS[BridgeCommand.ADVANCED_ACCOUNT] = frozenset()
+ARGUMENTS[BridgeCommand.ADVANCED_ACCOUNT_SWITCH] = frozenset()
 ARGUMENTS.update({command: frozenset() for command in UNANSWERED})
 # usage_analytics (v0.6.20, control/analytics.py): its card read, and its CSV saved where the person chose.
 ARGUMENTS.update({BridgeCommand.ADVANCED_ANALYTICS: frozenset({"days"}),
@@ -188,7 +190,8 @@ def answer(runtime, name, facts):
     if name == Surface.STATUS:
         return status(runtime)
     if name == Surface.TRAY:
-        return dict(badge(runtime), **meter_view(runtime), **notice_view(runtime), **update_view(runtime))
+        return dict(badge(runtime), **meter_view(runtime), **notice_view(runtime), **update_view(runtime),
+                    **account_view(runtime))
     if name in BADGE_SURFACES:
         return badge(runtime)
     if not isinstance(facts, dict):
@@ -337,6 +340,21 @@ def update_view(runtime) -> dict:
     return {"update": {"notices": [{"key": "update:" + version, "version": version, "prerelease": prerelease}]}}
 
 
+def account_view(runtime) -> dict:
+    """What account_switch asks the watcher to show once (v0.6.20): {"account": {"notices": [{"key", "count"}]}} while it
+    stands on and its last change of account in this process held something, {} otherwise. A key and a count, read back
+    by core before anything is shown."""
+    from .engine import account
+    try:
+        definition = runtime.registry.get(account.CAPABILITY)
+        if definition is None or runtime.states().get(account.CAPABILITY) != ArmingState.ARMED:
+            return {}
+        found = runtime._code_of(definition).notice()
+    except Exception:
+        return {}
+    return {"account": {"notices": [dict(found)]}} if found else {}
+
+
 def diagnostics(runtime) -> dict:
     """The badge, and - only where there are any - the samples of the last 30 days of failures nothing
     classified, aggregated: Codex's code, a status number, the error's form, how many times and the last
@@ -469,6 +487,14 @@ def bridge(runtime, command, argument):
         if command == BridgeCommand.ADVANCED_KEEP_GOING_SET:
             return keepgoing.set_one(runtime, argument)
         return keepgoing.stop(runtime, argument)
+    if command == BridgeCommand.ADVANCED_ACCOUNT:
+        # v0.6.20 (account_switch): which account is signed in, for the card - the Dashboard's alone.
+        from .control import account as account_card
+        return account_card.view(runtime)
+    if command == BridgeCommand.ADVANCED_ACCOUNT_SWITCH:
+        # and Codex's own sign-out and sign-in, after the window asked first - never MCP's, the icon's or a card's.
+        from .control import account as account_card
+        return account_card.switch(runtime)
     if command == BridgeCommand.ADVANCED_KEEP_ON:
         return arming.set_keep_on(argument.get("capability"), argument.get("keep_on"),
                                   send_again=argument.get("send_again", False),

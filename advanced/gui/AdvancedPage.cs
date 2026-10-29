@@ -692,6 +692,13 @@ namespace CodexAutoResume
                 MethodInvoker after = done;
                 done = delegate { ReadAnalytics(after); };
             }
+            // v0.6.20: the account signed in (AdvancedAccount.cs) - asked only while the capability is on or watched, so
+            // off, Codex is not asked which account is signed in.
+            if (id == AccountId && Standing(item))
+            {
+                MethodInvoker after = done;
+                done = delegate { ReadAccount(after); };
+            }
             // v0.6.16-beta.4: the wrap-up's own wordings (AdvancedUsage.cs).
             if (id == WrapUpId)
             {
@@ -933,7 +940,7 @@ namespace CodexAutoResume
                            (IsReport(item) ? ReportShown() : "") + "|" +
                            ResetsShown(item) + "|" + KeepGoingShown(item) + "|" + QueueShown(item) + "|" +
                            WordingsShown(item) + "|" + RunsShown(item) + "|" + CourierShown(item) + "|" + AnalyticsShown(item)
-                           + "|" + AnchorShownText(item);
+                           + "|" + AnchorShownText(item) + "|" + AccountShown(item);
             if (shown == advancedShown)
             {
                 UpdateAdvancedButtons();
@@ -1117,6 +1124,8 @@ namespace CodexAutoResume
             BuildQueue(item);
             // v0.6.20: the usage and token analytics' pace and tokens, and Save as CSV... (AdvancedAnalytics.cs).
             BuildAnalytics(item);
+            // v0.6.20: the Codex account signed in, and how to switch it (AdvancedAccount.cs).
+            BuildAccount(item);
 
             // Its own choices, the rules a person writes for Codex's error codes and the samples of what nothing classified,
             // each only for a capability that has them - the last two once they have been read.
@@ -1619,6 +1628,7 @@ namespace CodexAutoResume
             UpdateCourierButtons(idle);
             UpdateAnalyticsButtons(idle);
             UpdateQueueButtons(idle);
+            UpdateAccountButtons(idle);
             UpdateReportButtons();
         }
 

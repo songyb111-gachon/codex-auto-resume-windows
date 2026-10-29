@@ -151,6 +151,10 @@ CAPABILITY_METHODS = {
     # v0.6.20: starting an idle 5-hour window early (engine/anchor.py) reads usage, as MU and MANCHOR did, and whether an
     # account is signed in, MA's read - never anything more; the start itself is a `codex exec`, not a call.
     "window_anchor": ("account/rateLimits/read", "account/read"),
+    # v0.6.20: which account is signed in (engine/account.py, control/account.py), as MA and MAL read it - and nothing
+    # else: a sign-out and a sign-in are Codex's own `codex logout` and `codex login` (codex/account.switch), never a
+    # method of this session; FORBIDDEN_METHODS refuses every one of those whatever this row said.
+    "account_switch": ("account/read",),
 }
 
 # Every method some measurement declared: what a capability's own route may be given, and nothing

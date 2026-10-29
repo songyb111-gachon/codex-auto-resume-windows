@@ -1115,9 +1115,11 @@ namespace CodexAutoResume
                 if (code == "PASS") continue;
                 string reason = result != null && result.Count > 1 ? Convert.ToString(result[1], CultureInfo.InvariantCulture) : null;
                 if (reason == "observe_only" && observed == null) { observed = reason; continue; }
-                // v0.6.11: a hold a guard or a long sleep put on it says what it found, not only that it waits.
+                // v0.6.11: a hold a guard or a long sleep put on it says what it found, not only that it waits - and
+                // (v0.6.20) another Codex account signed in, the advanced edition's account switch's hold.
                 string hold = Str(row, "hold");
-                if (reason == "held" && (hold == "workspace_changed" || hold == "context_cost" || hold == "after_sleep"))
+                if (reason == "held" && (hold == "workspace_changed" || hold == "context_cost" || hold == "after_sleep" ||
+                                         hold == "account_changed"))
                     return S("why." + hold, null);
                 return reason == null ? null : S("why." + reason, null);
             }

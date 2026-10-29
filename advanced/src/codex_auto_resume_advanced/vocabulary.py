@@ -173,6 +173,10 @@ class Refusal(StrEnum):
     SECRET_UNAVAILABLE = "secret_unavailable"
     NOT_SAVED = "not_saved"
     COURIER_UNAVAILABLE = "courier_unavailable"
+    # v0.6.20 (account_switch): Codex's own sign-out and sign-in asked for before MAL passed on the Codex in force - the
+    # card offers no button then - and asked again while one is still waiting for the browser.
+    SWITCH_UNMEASURED = "switch_unmeasured"
+    SWITCH_RUNNING = "switch_running"
 
 
 class JournalCode(StrEnum):

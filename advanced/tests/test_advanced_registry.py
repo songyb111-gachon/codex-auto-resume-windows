@@ -54,7 +54,8 @@ CHANGES = frozenset({"thread/queue/add", "thread/goal/set",
                      "thread/compact/start", "thread/settings/update"})
 # v0.6.16-beta.4: Codex's models listed (engine/fallback.py).
 READS = READS | {"model/list"}
-# v0.6.20: whether an account is signed in (window_anchor's look before it starts a window; MA's read).
+# v0.6.20: whether an account is signed in (window_anchor's look before it starts a window; MA's read) and which one
+# (account_switch, codex/account.py) - read, never changed: a sign-in is Codex's own CLI.
 READS = READS | {"account/read"}
 # v0.6.16-beta.4: the capabilities that change Codex's state through the Codex app's IPC pipe (codex/ipc.py) - and,
 # v0.6.20, through a `codex exec` of their own: window_anchor starts the account's 5-hour window, as a reset credit spent
@@ -99,8 +100,9 @@ class ShippedTests(unittest.TestCase):
                # stays last at P8.
                "usage_analytics", "window_anchor",
                # v0.6.19: the wake timer, last at P8, so it reads the due times the others' errands just kept.
-               # v0.6.20: the courier's two - push notices and the status feed - before the wake timer.
-               "push_notices", "status_feed",
+               # v0.6.20: the courier's two - push notices and the status feed - and switching the Codex account, before the
+               # wake timer.
+               "push_notices", "status_feed", "account_switch",
                "wake_for_reset",
                "open_codex_button",
                "long_reset_message", "compat_report")
@@ -124,7 +126,8 @@ class ShippedTests(unittest.TestCase):
                      Point.SCHEDULE: ("reset_credit", "early_reset", "once_more_when_unsure", "send_now"),
                      Point.TICK: ("compact_continue", "model_fallback", "headless_run", "reset_credit", "reset_message", "empty_response", "subagent_parent",
                                   "keep_going", "usage_meter", "usage_wrap_up", "usage_pause", "idle_update_check",
-                                  "usage_analytics", "window_anchor", "push_notices", "status_feed", "wake_for_reset"),
+                                  "usage_analytics", "window_anchor", "push_notices", "status_feed", "account_switch",
+                                  "wake_for_reset"),
                      # v0.6.20: a notice core raised, told to the courier's push notices.
                      Point.NOTICE: ("push_notices",),
                      Point.RECORDS: ("reset_message", "prompt_queue", "empty_response", "subagent_parent",
@@ -163,7 +166,7 @@ class ShippedTests(unittest.TestCase):
              "compact_continue", "model_fallback",
              "codex_gave_up",
              "goal_continuation", "subagent_parent", "sign_in_retry", "unknown_failure_budget", "idle_update_check",
-             "structured_rules")
+             "account_switch", "structured_rules")
 
     def test_the_shown_order_names_every_capability_of_the_registry_exactly_once(self):
         order, ids = registry.SHOWN_ORDER, registry.REGISTRY.ids

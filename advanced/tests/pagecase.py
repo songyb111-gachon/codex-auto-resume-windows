@@ -379,7 +379,12 @@ def audit_data(locale: str, bridge: Bridge) -> dict:  # noqa: C901 - one layout'
             "kept": {"advanced-rules": rules, "advanced-samples": samples, "advanced-watch-log": watch,
                      "pending": shot["pending"], "advanced-resets": fullest_resets(shot, listing["generation"]),
                      "advanced-prompts": fullest_prompts(shot, listing["generation"]),
-                     "advanced-analytics": fullest_analytics(), "snapshot": shot},
+                     "advanced-analytics": fullest_analytics(), "snapshot": shot,
+                     # v0.6.20: the account card at its fullest - the plan, the masked address, the button and the
+                     # longest way a sign-in can end (advanced/gui/AdvancedAccount.cs).
+                     "advanced-account": {"done": True, "refusal": None, "present": True, "plan": "enterprise",
+                                          "kind": "chatgpt", "mask": "s•••@e•••.com",
+                                          "button": True, "switch": "failed"}},
             "reports": report_states()}
 
 

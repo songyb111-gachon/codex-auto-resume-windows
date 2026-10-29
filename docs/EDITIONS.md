@@ -142,12 +142,12 @@ file or a log. That is the package's one way to keep a secret, and it never read
 
 ## Today's capabilities
 
-Thirty-nine: twenty-two that change how a recovery is made, which conversations are recovered or what
+Forty: twenty-two that change how a recovery is made, which conversations are recovered or what
 follows a turn, two that tell you elsewhere - notices sent to your phone or inbox, and OpenAI's service status
 on the Overview (v0.6.20) - one that shows where your usage and tokens go (v0.6.20), three that send at a time you
 pick - the two at a usage reset, and queued messages - three
 before a usage limit is reached - the usage meter, and the wrap-up and the forced stop that need it - one that
-starts the 5-hour window early when it is idle (v0.6.20), one that
+starts the 5-hour window early when it is idle (v0.6.20), one that switches the Codex account (v0.6.20), one that
 checks for updates once a week, two that look after the watcher and the PC - restart the watcher if it stops unexpectedly,
 and wake this PC for a reset (v0.6.19) - and four actions: Longer messages, which only lets a message be longer, Open Codex on a notice, which only makes a click on a notice
 show a conversation, chat with a conversation in the Dashboard (v0.6.19), which sends a message of yours, and the
@@ -155,8 +155,8 @@ compatibility report, which only you start. Four rest on a measurement each that
 is opened. All five added in v0.6.16-beta.4 rest on measurements that were made - running a conversation
 here, the other sessions, compacting a full conversation, another model at capacity and a continuation with
 no words - and four more (the reset credit, the reset message, the usage meter and the forced stop) rest on
-measurements made on `codex-cli 0.162.0-alpha.17.2` and, for the forced stop, again on the newer one. Eight rest on
-measurements not made yet - wake this PC for a reset, on MWAKE, and the usage and token analytics, on MTOK, are the new ones - the chat rests on M7, MC1 and MC2, which were made, as its own
+measurements made on `codex-cli 0.162.0-alpha.17.2` and, for the forced stop, again on the newer one. Nine rest on
+measurements not made yet - wake this PC for a reset, on MWAKE, the usage and token analytics, on MTOK, and switching the Codex account, on MAL (its MA passed), are the new ones - the chat rests on M7, MC1 and MC2, which were made, as its own
 section below says, starting the 5-hour window early on MANCHOR, made on `codex-cli 0.165.0-alpha.1.2` on 2026-10-29, and the other
 sixteen on none. Each measurement made was made by hand, on the
 owner's machine, first on `codex-cli 0.158.0-alpha.2.1`, again on `codex-cli 0.162.0-alpha.17.2` and, for those this release's
@@ -1297,6 +1297,46 @@ off.
 [C7](STANDARDS.md#c-network) (the compatibility data is refreshed only on request, never by the watcher).
 
 **Ceilings.** None come into play: it sends nothing to Codex. It rests on no measurement.
+
+### Switch the Codex account
+
+**What it does.** Its card on the Advanced features page shows which Codex account this PC is signed in to:
+the plan and a masked e-mail address such as `s•••@e•••.com`, read from Codex (`account/read`) while the card is
+open and never stored. **Sign out and sign in with another account...** asks first, then runs Codex's own
+`codex logout` and `codex login`, with no window: your browser opens Codex's own sign-in page, you sign in
+there, and the card says how it ended - signed in, cancelled, not finished after ten minutes, or failed. The
+product never asks Codex to sign anyone in or out by a route of its own, never reads Codex's sign-in file, a
+token or a cookie, and never lists, remembers or picks an account. While it is on, the watcher reads which
+account is signed in when it starts and every 30 minutes, and keeps only a keyed digest of it (HMAC-SHA256,
+its key in Windows Credential Manager). When another account is signed in, every recovery waiting for a usage
+limit waits for you - Pending says *Another Codex account was signed in after it stopped*, with **Let it
+continue** and **Cancel** - every reset rule still counting is held until you press **Go on counting**, and
+one notification, a kind of its own in **Keep on screen until clicked**, says how many wait. A plan that
+changed is the same account; a reading that failed, or found no one signed in, changes nothing.
+
+**When it helps.** When you use more than one ChatGPT account with Codex and switch between them at a limit.
+
+**What it risks.** `codex login` is Codex's own sign-in: it opens your default browser and listens on this PC
+for the answer. Cancelled there, Codex stays signed out, and recoveries wait - usage cannot be read - until
+you sign in in Codex. A change of account is noticed at the watcher's next reading, up to 30 minutes later.
+The terms of your ChatGPT plan apply to the accounts you use. Until MAL - the running Codex app follows a
+sign-in made with `codex login` without a restart - has passed on the Codex in force, the card offers no
+button: it says to sign out in Codex (Settings > Account) and sign in there with the other account, and a
+change is held for you all the same. Turned off, the digest and its key are deleted the next time the
+watcher runs.
+
+**Departs from** [B4](STANDARDS.md#b-what-it-reads-and-how) (`account/read` beyond core's calls),
+[B10](STANDARDS.md#b-what-it-reads-and-how) (an account's plan and address are read),
+[B11](STANDARDS.md#b-what-it-reads-and-how) (it starts Codex's own sign-in, which handles your credentials),
+[C4](STANDARDS.md#c-network) (it reads on a schedule), [C9](STANDARDS.md#c-network) (Codex is asked when no
+recovery is due), [D2](STANDARDS.md#d-privacy-and-the-data-it-keeps) (a digest of the account is kept),
+[F6](STANDARDS.md#f-footprint-on-the-machine) (`codex logout` and `codex login` are not listed processes) and
+[H7](STANDARDS.md#h-user-control) (a change of account holds recoveries for you). It keeps
+[A12](STANDARDS.md#a-what-it-may-send-to-codex-and-when): a recovery you let continue still reads live usage.
+
+**Ceilings.** None come into play: it sends nothing to Codex. **Measurements MA: passed** on
+`codex-cli 0.162.0-alpha.17.2`, and **MAL: not made yet**; on any version where one has not passed, a warning,
+and the button waits for MAL.
 
 ### Compatibility report
 

@@ -48,7 +48,9 @@ BUILT = {"advanced-prompts-clear-done": "#50, Delete completed (control/prompts.
          "advanced-courier-forget": "one channel forgotten", "advanced-courier-test": "a test notice",
          "advanced-feed-refresh": "the status feed read now",
          "advanced-analytics": "usage_analytics, its card (control/analytics.view)",
-         "advanced-analytics-csv": "usage_analytics, its CSV (control/analytics.save_csv)"}
+         "advanced-analytics-csv": "usage_analytics, its CSV (control/analytics.save_csv)",
+         "advanced-account": "account_switch, the account card's read (control/account.view)",
+         "advanced-account-switch": "account_switch, Codex's own sign-out and sign-in (control/account.switch)"}
 
 
 class WordTests(unittest.TestCase):

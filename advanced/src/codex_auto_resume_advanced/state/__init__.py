@@ -22,11 +22,13 @@ it at all: a secret goes to Windows Credential Manager (credentials.py).
     analytics the tokens each conversation used a day, the rollouts read, and the meter's samples (v0.6.20)
     restarts  the watcher's restarts after it stopped unexpectedly (v0.6.19, crash_restart)
     opens     the conversations opened in Codex for a waiting message to be sent (v0.6.19, #50)
+    account   the account the watcher last saw signed in, as a keyed digest (v0.6.20, account_switch)
 """
 from __future__ import annotations
 
 from ..registry import REGISTRY
 from .analytics import AnalyticsMixin
+from .account import AccountMixin
 from .arming import ArmingMixin
 from .choices import ChoicesMixin, Refused, Scoped  # noqa: F401
 from .continuations import ContinuationsMixin
@@ -46,7 +48,7 @@ from .spend import SpendMixin
 
 class AdvancedState(SessionMixin, ArmingMixin, SpendMixin, RecordsMixin, JournalMixin, ChoicesMixin,
                     ResetsMixin, ContinuationsMixin, PromptsMixin, PromptMovesMixin, MeterMixin, RunsMixin,
-                    ChatMixin, RestartsMixin, OpensMixin, AnalyticsMixin):
+                    ChatMixin, RestartsMixin, OpensMixin, AnalyticsMixin, AccountMixin):
     """One installation's advanced state, for one process: opened when first needed."""
 
     def __init__(self, paths, *, registry=REGISTRY, **options):

@@ -257,6 +257,9 @@ class Scoped:
         from ..courier.feed import read as feed_read
         from ..courier.outbox import OutboxHandle
         self._reads.update({"outbox": OutboxHandle(state, capability, on), "feed": lambda: feed_read(state)})
+        # v0.6.20: the account account_switch last saw signed in (state/account.py) - its alone.
+        from .account import AccountHandle
+        self._reads["account"] = AccountHandle(state, capability, on)
 
     def __getattr__(self, name):
         reads = object.__getattribute__(self, "_reads")
