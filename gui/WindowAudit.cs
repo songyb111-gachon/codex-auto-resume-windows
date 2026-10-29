@@ -83,6 +83,7 @@ namespace CodexAutoResume
             AuditedSpoken = 0;
             AuditedPins = 0;
             AuditedLists = 0;
+            AuditedCards = "";
             AuditedNotes = 0;
             AuditedShortest = 0;
             AuditedHero = 0;
@@ -980,8 +981,27 @@ namespace CodexAutoResume
                     findings.Add(place + " :: is " + combo.Height + " high, not a field's " + SoftCombo.FieldHeight);
                 string fit = Fits(child, scrolls);
                 if (fit != null) findings.Add(place + " :: " + fit);
+                string band = EmptyBand(child);
+                if (band != null) findings.Add(place + " :: " + band);
                 Walk(child, place, findings);
             }
+        }
+
+        /// v0.6.19: a row of controls that sizes itself (an AutoSize FlowLayoutPanel - SoftFlow) taller than what it holds,
+        /// or null. Its preferred height is worked out at a width of its own choosing, and a row that wraps there and not
+        /// at the width it is given keeps the wrapped height: an empty band under its last control (beta.2's early_reset
+        /// line on Pending stood over one, 2026-10-24). Nothing laid out by itself is taller than its content.
+        internal static string EmptyBand(Control c)
+        {
+            var flow = c as FlowLayoutPanel;
+            if (flow == null || !flow.AutoSize || flow.Dock == DockStyle.Fill || flow.Height <= 0) return null;
+            int bottom = flow.Padding.Top;
+            foreach (Control child in flow.Controls)
+                if (OwnVisible(child)) bottom = Math.Max(bottom, child.Bottom + child.Margin.Bottom);
+            int needs = bottom + flow.Padding.Bottom;
+            return flow.Height > needs + Soft.Px(1)
+                ? "is " + flow.Height + " high where what it holds needs " + needs + ": an empty band of " + (flow.Height - needs) + " px"
+                : null;
         }
 
         /// What a control needs and does not have, or null.
@@ -1048,6 +1068,29 @@ namespace CodexAutoResume
             return text.Width > room.Width ? "text needs " + text.Width + " wide, has " + room.Width : null;
         }
 
+        /// The first place in each audited list's name (pending, history, timeline, logs, versions) whose list stood on a card
+        /// on a ground, `;` after each - so that a quiet report is known to have looked at the dialogs' lists.
+        internal static string AuditedCards = "";
+
+        /// Why `list` is not on a card on a ground, as History's is (ListCard) - null where it is: its soft list host sits in a
+        /// SoftCard, the card in a ground (ISoftGround), and no plain Panel stands anywhere between that ground and the form.
+        internal static string ListOffCard(ListView list)
+        {
+            if (list == null) return "there is no list";
+            // The list stands in the host's clip (SoftListHost).
+            Control inside = list.Parent;
+            if (inside != null && !(inside is SoftListHost)) inside = inside.Parent;
+            var host = inside as SoftListHost;
+            if (host == null) return "its parent is not the soft list host";
+            var card = host.Parent as SoftCard;
+            if (card == null) return "its host is not on a SoftCard";
+            if (!(card.Parent is ISoftGround)) return "its card does not stand on a ground";
+            // A page is the ground its cards stand on (SoftPage); a dialog's list has its form to reach, by grounds alone.
+            for (Control each = card.Parent; each != null && !(each is SoftPage); each = each.Parent)
+                if (each.GetType() == typeof(Panel)) return "a plain Panel stands between its card and the dialog";
+            return null;
+        }
+
         /// How many lists the last LayoutAudit held to their width (AuditLists, AuditTimeline), so that a quiet report is
         /// known to have looked at them.
         internal static int AuditedLists;
@@ -1070,6 +1113,10 @@ namespace CodexAutoResume
         private static void AuditList(string place, ListView list, List<string> findings)
         {
             AuditedLists++;
+            // v0.6.20: and on History's card, standing on a ground, as every list here is (ListCard, DialogListCard).
+            string off = ListOffCard(list);
+            if (off != null) findings.Add(place + " :: its list is not on a card: " + off);
+            else AuditedCards += place.Split('/')[0] + ";";
             int total = 0;
             foreach (ColumnHeader column in list.Columns) total += column.Width;
             if (total > list.ClientSize.Width)
@@ -1144,6 +1191,14 @@ namespace CodexAutoResume
                 Materialise(dialog);
                 dialog.PerformLayout();
                 AuditSpoken("detection_check", dialog, findings);
+            }
+            // v0.6.19: this PC's own compatibility report, as it stands before its answer.
+            using (Form dialog = BuildOwnReport())
+            {
+                dialog.TopLevel = false;
+                Materialise(dialog);
+                dialog.PerformLayout();
+                AuditSpoken("own_report", dialog, findings);
             }
         }
 

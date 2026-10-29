@@ -18,7 +18,7 @@ from __future__ import annotations
 from .errors import SourceError  # noqa: F401
 from .history import HistoryMixin
 from .labels import MAX_LABEL_CHARS, _label  # noqa: F401
-from .values import (KNOWN_STATUSES, MAX_ITEM_BYTES, MAX_META_BYTES,  # noqa: F401
+from .values import (AGENT_CREATED_THREAD, COMPOSER, KNOWN_STATUSES, MAX_ITEM_BYTES, MAX_META_BYTES,  # noqa: F401
                      MAX_SCAN_BYTES, PROGRESS_ITEM_TYPES, _json, _turn_status,
                      epoch, normalize)
 from .paths import DB_KINDS, _safe_path  # noqa: F401
@@ -53,6 +53,21 @@ class LocalSource(SchemaMixin, HistoryMixin):
         payload = None if path is None else rollout.session_meta(path)
         version = payload.get("cli_version") if isinstance(payload, dict) else None
         return version if isinstance(version, str) else None
+
+    def _composed(self, thread_id: str, row, turn_id=None, strict=False) -> bool:
+        """Whether a conversation an agent made (thread_source agent_created_thread) is the person's in the turn
+        `turn_id` - else its latest, the one a recovery is about - which they started from the input box, by the
+        trigger the rollout records for it (issue #54, rollout.turn_trigger). Unknown, and any other kind, is False; a
+        strict read that cannot read raises SourceError, so the engine defers."""
+        if row["thread_source"] != AGENT_CREATED_THREAD:
+            return False
+        try:
+            path = rollout.confined(self.home, thread_id, row["rollout_path"])
+            return path is not None and rollout.turn_trigger(path, turn_id) == COMPOSER
+        except OSError:
+            if strict:
+                raise SourceError("Codex local state unavailable or unsupported") from None
+            return False
 
     def rescan_evidence(self, thread_id: str, turn_id: str) -> str:
         """What the conversation's current file says of the failed turn `turn_id` (rollout.superseded_in), for a person's

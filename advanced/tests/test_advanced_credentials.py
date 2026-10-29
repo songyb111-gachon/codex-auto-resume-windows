@@ -140,9 +140,10 @@ class NowhereElseTests(unittest.TestCase):
                 self.assertFalse([column for column in columns if word in column])
 
     def test_nothing_calls_the_seam_yet(self):
-        """No capability has a secret: nothing outside the seam and its tests names it."""
+        """Only a capability with a secret names the seam: from v0.6.20 account_switch's salt (engine/account.py), and
+        nothing else outside the seam and its tests."""
         for path in sorted(PACKAGE.rglob("*.py")):
-            if path.name == "credentials.py":
+            if path.name == "credentials.py" or path.relative_to(PACKAGE).as_posix() == "engine/account.py":
                 continue
             tree = ast.parse(path.read_text(encoding="utf-8"))
             imported = {alias.name for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)

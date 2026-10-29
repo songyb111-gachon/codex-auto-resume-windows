@@ -37,6 +37,18 @@ _MOVES = {RecordState.WAITING: {RecordState.CANCELLED},
           RecordState.IN_FLIGHT: {RecordState.WAITING, RecordState.FINISHED, RecordState.CANCELLED}}
 
 
+def own_paced(registry) -> tuple:
+    """The capabilities whose records keep a pace of their own (v0.6.19): those that depart from A20 and keep records
+    of their own - the chat. Each is one in flight in a conversation like any other record, and counts in nobody
+    else's five a day or fifteen minutes, as their claims count in none of its own."""
+    return tuple(sorted(definition.id for definition in registry if "A20" in definition.departs_from))
+
+
+def not_among(capabilities) -> str:
+    """The SQL test that a records row is of none of `capabilities` (each bound as a parameter)."""
+    return "capability NOT IN (%s)" % ", ".join("?" * len(capabilities)) if capabilities else "1"
+
+
 class RecordsMixin:
     def _capability(self, capability):
         if self.registry.get(capability) is None:
@@ -73,7 +85,7 @@ class RecordsMixin:
                                 else None, record_id))
             return True
 
-    def claim_record(self, connection, record_id, now) -> bool:
+    def claim_record(self, connection, record_id, now, *, own_pace=False) -> bool:
         """Put a waiting record of this edition's in flight: its claim, counted and timed.
 
         Only on core's connection, inside its claim's BEGIN IMMEDIATE, with this file attached
@@ -96,20 +108,24 @@ class RecordsMixin:
         if any(machine.may_be_queued(state, queue_id) for state, queue_id in connection.execute(
                 "SELECT state, queue_id FROM main.interruptions WHERE thread_id=?", (thread_id,))):
             return False
+        # v0.6.19: a record of a capability with a pace of its own (one that departs A20, the chat) is one in flight
+        # like any, and is counted in neither the five a day nor the fifteen minutes of the others (own_paced).
+        own = own_paced(self.registry)
         ours = connection.execute(
             "SELECT coalesce(sum(state=?), 0), "
-            "coalesce(sum(CASE WHEN claimed_at > ? THEN max(claims, 1) ELSE 0 END), 0), "
-            "max(claimed_at) FROM %s.records WHERE thread_id=?" % ATTACHED,
-            (RecordState.IN_FLIGHT, now - DAY, thread_id)).fetchone()
+            "coalesce(sum(CASE WHEN claimed_at > ? AND %s THEN max(claims, 1) ELSE 0 END), 0), "
+            "max(CASE WHEN %s THEN claimed_at END) FROM %s.records WHERE thread_id=?"
+            % (not_among(own), not_among(own), ATTACHED),
+            (RecordState.IN_FLIGHT, now - DAY, *own, *own, thread_id)).fetchone()
         cores = connection.execute(
             "SELECT coalesce(sum(CASE WHEN coalesce(submitted_at, last_claim_at) > ? "
             "THEN max(attempt_count, 1) ELSE 0 END), 0), "
             "max(coalesce(submitted_at, last_claim_at)) FROM main.interruptions WHERE thread_id=?",
             (now - DAY, thread_id)).fetchone()
         last = max((at for at in (ours[2], cores[1]) if at is not None), default=None)
-        if (ours[0] or ours[1] + cores[0] >= CORE_DAILY_CAP
-                or (last is not None and now - last < CORE_COOLDOWN_SECONDS)):
-            return False
+        if ours[0] or (not own_pace and (ours[1] + cores[0] >= CORE_DAILY_CAP
+                                         or (last is not None and now - last < CORE_COOLDOWN_SECONDS))):
+            return False                     # v0.6.19: `own_pace` - one that departs A20 - keeps only the first
         connection.execute("UPDATE %s.records SET state=?, claimed_at=?, claims=claims+1 "
                            "WHERE record_id=?" % ATTACHED, (RecordState.IN_FLIGHT, now, record_id))
         return True

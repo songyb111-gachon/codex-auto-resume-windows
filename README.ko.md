@@ -20,8 +20,8 @@
 <p align="center"><sub>🇺🇸 <a href="README.md">English README</a> · 프로그램은 열여섯 개 언어로 표시됩니다: English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) · Русский · Italiano · Türkçe · Polski · Українська · Tiếng Việt · Bahasa Indonesia</sub></p>
 
 <p align="center">
-<img src="docs/images/readme-motion-ko.png" alt="합성한 예시 데이터로 제품 자신의 그리기 코드가 그린 Codex Auto Resume 대시보드의 동작. 복구 2건이 대기 중인 개요, 포인터가 대기 중을 열고 기록·통계·진단을 차례로 누른 뒤 설정을 열어 스크롤, 화면 언어를 English로 바꿔 저장하자 창이 영어로 다시 열림" width="750"><br>
-<sub>UUID로 찾는 바로 그 대화 · Codex가 알려 주는 초기화 시각 · 확실하지 않으면 기다림 · 텔레메트리 없음 · 표준판과 고급판</sub>
+<img src="docs/images/readme-motion-ko.png" alt="합성한 예시 데이터로 제품 자신의 그리기 코드가 그린 Codex Auto Resume 대시보드의 동작. 복구 2건이 대기 중인 개요, 포인터가 대기 중을 열어 대기 중인 작업을 우클릭해 그 메뉴를 열었다 닫고, 기록·통계·진단을 차례로 누른 뒤 설정을 열어 스크롤, 화면 언어를 English로 바꿔 저장하자 창이 영어로 다시 열림" width="750"><br>
+<sub>UUID로 찾는 바로 그 대화 · Codex가 알려 주는 재설정 시각 · 확실하지 않으면 기다림 · 텔레메트리 없음 · 표준판과 고급판</sub>
 </p>
 
 Codex가 작업 도중에 멈추고 오전 6시 34분에 다시 해 보라고 말합니다. 오전 6시 34분에 사용자는
@@ -31,12 +31,12 @@ Codex가 작업 도중에 멈추고 오전 6시 34분에 다시 해 보라고 �
 흔히 "Codex 5시간 한도"라고 부르는 한도나 주간 한도에 걸렸을 때, 한도가 풀리면 같은 대화에서 하던 작업을
 이어서 실행하는 것입니다.
 
-Codex Auto Resume는 정해 둔 몇 시간이 아니라 Codex가 직접 알려 주는 사용량 한도 초기화 시각까지
+Codex Auto Resume은 정해 둔 몇 시간이 아니라 Codex가 직접 알려 주는 사용량 한도 재설정 시각까지
 기다렸다가, 이어 가도 정말 안전한지 확인한 뒤 공식 `codex queue` 명령으로 이어서 하기 메시지 한 건을 보내
 **바로 그 대화**를 자동으로 재개합니다. 대화는 스레드 UUID로 찾으며 `--last`로 짐작하지 않고, Codex 창에
 대신 입력하지도 않습니다.
 
-일시적인 rate limit(HTTP 429), 네트워크 장애, 시간 초과, 서버 오류, 끊긴 스트림도 복구하지만, 이름을 댈 수
+일시적인 요청 제한(HTTP 429), 네트워크 장애, 시간 초과, 서버 오류, 끊긴 스트림도 복구하지만, 이름을 댈 수
 있고 다시 시도해도 안전한 장애일 때만 그렇게 합니다. **모든 실패를 재시도하지는 않습니다.** 확실하지 않으면
 보내지 않고 기다리는 fail-closed 방식이며, 이미 전달됐을 수도 있는 메시지는 다시 보내지 않습니다.
 
@@ -45,12 +45,12 @@ Codex Auto Resume는 정해 둔 몇 시간이 아니라 Codex가 직접 알려 �
 
 |  |  |
 | --- | --- |
-| **복구합니다** | Codex 사용량 한도, 그리고 Codex가 구체적인 오류를 기록한 경우의 rate limit(HTTP 429) · 네트워크 장애 · 타임아웃 · 일시적 서버 오류(5xx) · 스트림 끊김 |
+| **복구합니다** | Codex 사용량 한도, 그리고 Codex가 구체적인 오류를 기록한 경우의 요청 제한(HTTP 429) · 네트워크 장애 · 시간 초과 · 일시적 서버 오류(5xx) · 스트림 중단 |
 | **손대지 않습니다** | 사용자 취소 · 권한 · 승인 필요 · 콘텐츠 정책 · 잘못된 요청 · 컨텍스트 길이 초과 · 영구 인증 실패 · 분류되지 않은 모든 것 |
 | **식별 방식** | 정확한 대화 UUID 하나. `--last`도, "가장 최근 것"도, 제목이나 폴더 이름도 쓰지 않습니다 |
 | **설정 방법** | 시작 메뉴에서 여는 대시보드, Codex 안의 설정 패널, 명령줄 |
 | **언어** | English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) · Русский · Italiano · Türkçe · Polski · Українська · Tiếng Việt · Bahasa Indonesia |
-| **개인정보** | 텔레메트리 없음, 분석 없음, 자동 업데이트 확인 없음. Codex에서 설치하면 GitHub에서 릴리스를 내려받고, 창의 *업데이트 확인*은 눌렀을 때만 GitHub에 가장 최근 릴리스를 묻고, 더 새로운 사전 릴리스가 있는지 api.github.com에서 릴리스 목록을 읽습니다. *다른 버전 설치...*는 열 때와 버전을 확인할 때 그 목록 전체를 api.github.com에서 읽고, 확인한 버전만 내려받습니다. 워처에는 네트워크 코드가 없으며, 사용량 확인과 재개된 턴은 여느 Codex 통신처럼 Codex를 통해 OpenAI로 갑니다 |
+| **개인정보** | 텔레메트리 없음, 분석 없음, 자동 업데이트 확인 없음. Codex에서 설치하면 GitHub에서 릴리스를 내려받고, 창의 *업데이트 확인*은 눌렀을 때만 GitHub에 가장 최근 릴리스를 묻고, 더 새로운 사전 릴리스가 있는지 api.github.com에서 릴리스 목록을 읽으며, 그때 Codex 호환성 데이터도 raw.githubusercontent.com에서 새로 받아 오는데 이 컴퓨터에 대해서는 아무것도 보내지 않습니다. *다른 버전 설치...*는 열 때와 버전을 확인할 때 그 목록 전체를 api.github.com에서 읽고, 확인한 버전만 내려받습니다. 워처에는 네트워크 코드가 없으며, 사용량 확인과 재개된 턴은 여느 Codex 통신처럼 Codex를 통해 OpenAI로 갑니다 |
 
 > [!IMPORTANT]
 > **먼저 알아두실 제한 하나.** 복구 메시지가 전달되려면 Codex가 그 대화를 열어 둔 상태여야 합니다.
@@ -69,22 +69,22 @@ Codex Auto Resume는 정해 둔 몇 시간이 아니라 Codex가 직접 알려 �
 지금 판 안에서 이뤄지고, 다른 판을 그 위에 설치하면 설정과 기다리는 모든 것을 그대로 둔 채 판이 바뀝니다.
 기능마다 무엇을 하고 무엇을 감수하는지는 [docs/EDITIONS.ko.md](docs/EDITIONS.ko.md)에 있습니다.
 
-### 설치 프로그램으로 설치 (권장)
+### 설치 마법사로 설치 (권장)
 
 `CodexAutoResume-Setup-vX.Y.Z.exe`를 받아 더블클릭합니다. 링크는
 [릴리스 페이지](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/latest) 맨 위에 있습니다.
 설치 창이 이 Windows 계정에만 설치하며, 압축을 풀 필요가 없습니다. 예전 버전 위에서 실행하면 업데이트 전에
-바뀐 점을 먼저 보여 주고, 업데이트 뒤에는 감시기를 다시 시작하고 열려 있던 대시보드를 다시 엽니다. 같은 버전
+바뀐 점을 먼저 보여 주고, 업데이트 뒤에는 워처를 다시 시작하고 열려 있던 대시보드를 다시 엽니다. 같은 버전
 위에서 실행하면 **복구**와 **제거**를 고를 수 있습니다. 코드 서명이 없어 *Windows의 PC 보호*(Windows protected
 your PC) 창이 뜰 수 있는데, 그때는 **추가 정보**를 누른 뒤 **실행**을 누릅니다. 먼저 확인하는 방법은
-[docs/VERIFY.ko.md](docs/VERIFY.ko.md#내려받은-설치-파일을-실행하기-전에)에 있습니다.
+[docs/VERIFY.ko.md](docs/VERIFY.ko.md#내려받은-설치-마법사를-실행하기-전에)에 있습니다.
 
-<p align="center"><img src="docs/images/install-motion-ko.png" alt="설치 창이 Codex Auto Resume을 설치하는 모습. 창 자신의 그리기 코드가 그렸습니다. 환영 페이지에서 다음, 설치하기 전에 고르는 것, 설치를 누르면 막대가 차오르며 설치 단계가 차례로 바뀌고, 감시기가 실행 중이고 대시보드 열기가 켜진 완료 페이지" width="450"></p>
+<p align="center"><img src="docs/images/install-motion-ko.png" alt="설치 창이 Codex Auto Resume을 설치하는 모습. 창 자신의 그리기 코드가 그렸습니다. 환영 페이지에서 다음, 설치하기 전에 고르는 것, 설치를 누르면 막대가 차오르며 설치 단계가 차례로 바뀌고, 워처가 실행 중이고 대시보드 열기가 켜진 완료 페이지" width="450"></p>
 
 <details>
 <summary><b>Codex에서 설치</b></summary>
 
-플러그인을 추가한 뒤, Codex에게 **auto resume 설정해줘** 라고 말하면 됩니다.
+플러그인을 추가한 뒤, Codex에게 **자동 재개 설정해 줘**라고 말하면 됩니다.
 
 ```
 codex plugin marketplace add songyb111-gachon/codex-auto-resume-windows
@@ -92,7 +92,7 @@ codex plugin add codex-auto-resume@codex-auto-resume-windows
 ```
 
 플러그인의 설치 스크립트가 이 저장소의 릴리스에서 해당 버전 압축 파일을 HTTPS로 내려받아,
-[`scripts/release.json`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/scripts/release.json)에 그 버전용으로 기록된 digest와 SHA-256을
+[`scripts/release.json`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/scripts/release.json)에 그 버전용으로 기록된 다이제스트와 SHA-256을
 대조한 뒤 이 Windows 계정에만 설치합니다.
 
 </details>
@@ -108,7 +108,7 @@ codex plugin add codex-auto-resume@codex-auto-resume-windows
    (Get-FileHash .\CodexAutoResume-vX.Y.Z-win-x64.zip -Algorithm SHA256).Hash
    ```
 
-   출력된 값이 압축 파일 옆에 게시된 `.sha256` 파일의 값, 그리고
+   출력된 값이 압축 파일 옆에 공개된 `.sha256` 파일의 값, 그리고
    [`scripts/release.json`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/scripts/release.json)에 그 버전용으로 기록된 값과 같아야 합니다.
    자세한 확인 방법은 [docs/VERIFY.ko.md](docs/VERIFY.ko.md)에 있습니다.
 3. 압축을 풀고 `Install.cmd`를 실행합니다.
@@ -137,8 +137,8 @@ codex plugin add codex-auto-resume@codex-auto-resume-windows
 그렇고, 아래 그림들도 함께 숨 쉽니다.
 
 <p align="center">
-<img src="docs/images/notification-card-motion-ko.png" alt="제품이 보여 주는 그대로의 알림 카드. 제품의 코드가 예시 데이터로 그렸습니다: example-project, Codex 사용 한도 도달, 이 작업은 08:42에 다시 이어집니다. 카드가 사라졌다가 알림 영역 옆에 다시 떠오릅니다" width="388" align="top">
-<img src="docs/images/tray-popup-ko.png" alt="알림 영역 팝업. 대기 중 상태, 약 1분 30초 뒤 다음 확인, 대기 중인 작업 세 개가 각각 중단 종류, 다음 확인 시각, 자동 이어 가기 스위치와 함께 보이고, 자동 복구 일시 정지와 대시보드 열기 버튼" width="360" align="top"><br>
+<img src="docs/images/notification-card-motion-ko.png" alt="제품이 보여 주는 그대로의 알림 카드. 제품의 코드가 예시 데이터로 그렸습니다: example-project, Codex 사용량 한도 도달, 이 작업은 08:42에 다시 이어집니다. 카드가 사라졌다가 알림 영역 옆에 다시 떠오릅니다" width="388" align="top">
+<img src="docs/images/tray-popup-motion-ko.png" alt="제품이 보여 주는 그대로의 알림 영역 팝업. 제품의 코드가 예시 데이터로 그렸습니다: 대기 중 상태, 약 1분 30초 뒤 다음 확인, 대기 중인 작업 세 개가 각각 중단 종류, 다음 확인 시각, 자동 재개 스위치와 함께 보이고, 자동 복구 일시 정지와 대시보드 열기 버튼이 있습니다. 상태 표시등이 숨 쉬듯 움직이고, 첫 작업의 자동 재개 스위치가 꺼졌다 켜지며, 팝업이 닫혔다가 다시 열립니다" width="360" align="top"><br>
 <sub>왼쪽: 제품이 그리는 알림 카드 · 오른쪽: 알림 영역 아이콘을 누르면 열리는 창</sub>
 </p>
 
@@ -146,7 +146,7 @@ codex plugin add codex-auto-resume@codex-auto-resume-windows
 <summary><b>대시보드와 아이콘, 정지 그림</b></summary>
 
 <p align="center">
-<img src="docs/images/notification-card-ko.png" alt="밝은 테마의 알림 카드. 청록색 상태 불빛과 사용량 제한 칩이 달린 Codex Auto Resume, 작업 이름 example-project, 'Codex 사용량 한도에 도달했습니다. 08:42에 이 작업을 자동으로 재개합니다.'라는 줄, 대화의 정확한 식별자, 재개하지 않음과 대시보드 열기 버튼" width="388">
+<img src="docs/images/notification-card-ko.png" alt="밝은 테마의 알림 카드. 청록색 상태 불빛과 사용량 한도 칩이 달린 Codex Auto Resume, 작업 이름 example-project, 'Codex 사용량 한도에 도달했습니다. 08:42에 이 작업을 자동으로 재개합니다.'라는 줄, 대화의 정확한 식별자, 재개하지 않음과 대시보드 열기 버튼" width="388">
 </p>
 
 시작 메뉴에서 여는 대시보드입니다. 합성한 예시 데이터로 그렸으며, 그림 속 대화는 누구의 작업도 아닌
@@ -154,15 +154,15 @@ codex plugin add codex-auto-resume@codex-auto-resume-windows
 
 <img src="docs/images/dashboard-overview-ko.png" alt="Codex Auto Resume 대시보드 개요. 자동 복구 켜짐, 워처 실행 중, Codex 엔진 호환됨, 복구 2건 대기와 약 1분 30초 뒤 다음 확인, 최근 7일의 중단·보낸 이어서 하기·복구·성공률, 최근에 끝난 복구 4건" width="680">
 
-<img src="docs/images/dashboard-pending-ko.png" alt="대시보드의 대기 중 페이지. 사용량 초기화를 기다리는 대화와 재시도가 예약된 대화가 각각 상태 칩과 자동 이어 가기 스위치와 함께 보이고, 선택한 작업의 기다리는 이유 목록, 지금 다시 확인·취소·진행 기록·이 대화는 끄기·모두 취소 버튼" width="680">
+<img src="docs/images/dashboard-pending-ko.png" alt="대시보드의 대기 중 페이지. 사용량 재설정을 기다리는 대화와 재시도가 예약된 대화가 각각 상태 칩과 자동 재개 스위치와 함께 보이고, 선택한 작업의 기다리는 이유 목록, 지금 다시 확인·취소·진행 기록·이 대화는 끄기·모두 취소 버튼" width="680">
 
 <img src="docs/images/settings-window-ko.png" alt="대시보드 설정 페이지의 이어서 하기 메시지 부분. 이어서 하기 언어, 기본이 선택된 네 가지 메시지 스타일, 사용량 한도에 보낼 메시지의 미리보기" width="680">
 
-움직이는 알림 영역 아이콘입니다.
-
 Codex 안의 패널입니다(대시보드보다 덜 쓰여서 여기 접어 둡니다). Codex 창을 찍은 사진이 아니라 플러그인이 Codex에 넘기는 바로 그 리소스를 그린 것입니다.
 
-<img src="docs/images/settings-panel-ko.png" alt="Codex Auto Resume 패널. 복구 2건이 대기 중이라는 상태 카드, 자동 이어 가기 스위치가 달린 대기 중인 대화 두 개, 화면 언어, 복구할 장애 종류, 접힌 한도와 알림, 이어서 하기 언어와 메시지 스타일, 사용량 한도에 보낼 기본 메시지의 미리보기" width="388">
+<img src="docs/images/settings-panel-ko.png" alt="Codex Auto Resume 패널. 복구 2건이 대기 중이라는 상태 카드, 자동 재개 스위치가 달린 대기 중인 대화 두 개, 화면 언어, 복구할 장애 종류, 접힌 제한과 알림, 이어서 하기 언어와 메시지 스타일, 사용량 한도에 보낼 기본 메시지의 미리보기" width="388">
+
+움직이는 알림 영역 아이콘입니다.
 
 <img src="docs/images/icon-motion.png" alt="알림 영역 아이콘의 움직임을 아이콘 자신의 프레임으로 그린 모습(밝은 작업 표시줄). 왼쪽부터 감시 중(밝은 머리가 숨 쉰 뒤 가장 밝은 채로 고리의 흰 획을 따라 시계 방향으로 쓸고 갔다가 돌아옵니다), 복구 중(계속 나갔다 돌아옵니다), 확인 필요(주황색으로 제자리에서 천천히 숨 쉽니다), 실패(빨간색으로 복구 중보다 두 배 빠르게 나갔다 돌아오면서 깜빡입니다), 일시 정지(회색으로 멈춰 있습니다)" width="360">
 
@@ -178,7 +178,7 @@ Codex 안의 패널입니다(대시보드보다 덜 쓰여서 여기 접어 둡�
 도구는 방금 불러와 있음을 확인한 대화에만 메시지를 넣고, 불러오지 않은 대화는 **사용자가 앱에서 그 대화를
 직접 열어야만** 이어 갑니다. 화면 자동 조작을 쓰거나, 대화를 억지로 열거나, 혹시나 해서 메시지를 넣지
 않습니다. 그 근거가 된 측정은 [전체 안내서](docs/GUIDE.ko.md#먼저-읽어야-할-제한-사항)에 있습니다. 이것은 표준판의 규칙입니다. 고급판은 켜 두면
-Codex 앱이 닫혀 있을 때 그 턴을 직접 실행하거나, 대화를 열 때 실행되도록 이어가기 메시지를 Codex 대기열에 넣어
+Codex 앱이 닫혀 있을 때 그 턴을 직접 실행하거나, 대화를 열 때 실행되도록 이어서 하기 메시지를 Codex 대기열에 넣어
 둘 수 있습니다. 둘 다 [docs/EDITIONS.ko.md](docs/EDITIONS.ko.md#codex가-닫혀-있을-때-여기서-대화-실행하기)에 있습니다.
 
 ## 안전과 개인정보
@@ -194,15 +194,15 @@ Codex 앱이 닫혀 있을 때 그 턴을 직접 실행하거나, 대화를 열 
 ## 요구 사항
 
 - Windows 10/11, 그리고 실행 중인 공식 Windows ChatGPT/Codex 데스크톱 앱.
-- 두 설치 경로 모두 Python이 필요하지 않습니다. 설치본이 자체 런타임을 함께 가져옵니다. Python 3.12
+- 두 설치 경로 모두 Python이 필요하지 않습니다. 설치본이 자체 런타임을 함께 가져옵니다. Python 3.13
   이상은 소스 체크아웃에서 직접 실행할 때만 필요합니다.
 
 ## 제거
 
-Windows **설정 > 앱**에서 제거하거나, 설치 프로그램을 다시 실행해 **제거**를 고르거나, 릴리스 압축 파일의
-`Uninstall.cmd`를 실행하거나, Codex에게 auto resume 제거를 요청하면 됩니다.
+Windows **설정 > 앱**에서 제거하거나, 설치 마법사를 다시 실행해 **제거**를 고르거나, 릴리스 압축 파일의
+`Uninstall.cmd`를 실행하거나, Codex에게 자동 재개 제거를 요청하면 됩니다.
 기본적으로 설정과 대기 중인 재개는 남겨 두므로 다시 설치해도 잃지 않고, `Uninstall.cmd -Purge`는 이것까지
-지웁니다. 자기 것임을 증명할 수 있는 것만 지웁니다. 이 도구의 provenance marker가 있는 디렉터리와, 이
+지웁니다. 자기 것임을 증명할 수 있는 것만 지웁니다. 이 도구의 소유 표시 파일(provenance marker)이 있는 디렉터리와, 이
 설치본에 속한 Windows 등록만 지웁니다.
 
 ## 더 알아보기
@@ -223,13 +223,13 @@ Windows **설정 > 앱**에서 제거하거나, 설치 프로그램을 다시 �
 | [CONTRIBUTING.ko.md](docs/CONTRIBUTING.ko.md) | 테스트, 릴리스 빌드, 그리고 변경이 지켜야 하는 안전 속성. |
 | [CHANGELOG.ko.md](docs/CHANGELOG.ko.md) | 릴리스마다 바뀐 것. |
 | [CONTRIBUTORS.ko.md](docs/CONTRIBUTORS.ko.md) | 만든 사람과 도운 도구, 그리고 문제를 알려 주고 기능을 제안하고 시험해 준 분들. |
-| [codex-compat-reporter](https://github.com/songyb111-gachon/codex-compat-reporter) | 이 제품이 내 PC와 내 Codex 버전에서 어떻게 동작했는지 보고하는 별도 도구. 횟수와 상태와 시각만 담은 파일 하나를 쓰고(대화 내용도 식별자도 경로도 없음), 보내기 전에 내가 먼저 읽습니다. 그렇게 온 보고는 **보고됨**이라는 별도 등급으로만 세며, 어떤 버전도 검증됨이나 점검됨으로 올리지 않습니다. |
+| [codex-compat-reporter](https://github.com/songyb111-gachon/codex-compat-reporter) | 이 제품이 사용자의 PC와 Codex 버전에서 어떻게 동작했는지 보고하는 별도 도구. 횟수와 상태와 시각만 담은 파일 하나를 쓰고(대화 내용도 식별자도 경로도 없음), 보내기 전에 사용자가 먼저 읽습니다. 그렇게 온 보고는 **다른 사람들의 보고**라는 별도 등급으로만 세며, 어떤 버전도 검증됨이나 점검됨으로 올리지 않습니다. |
 
 ## 만든 사람과 라이선스
 
 **songyb111-gachon**이 두 AI 개발 도구, OpenAI Codex와 Anthropic Claude Code의 도움을 받아 만들었습니다. 자세한 내용은
 [CONTRIBUTORS.ko.md](docs/CONTRIBUTORS.ko.md)에 있습니다. 문제를 알려 주시고, 기능을 제안하고, 고친 버전을 시험하거나 직접 고쳐 주신
-모든 분께 감사드립니다([@cervinho](https://github.com/cervinho), [@barkshah2002-pixel](https://github.com/barkshah2002-pixel), [@ZionZhang42](https://github.com/ZionZhang42), [@aca22jy](https://github.com/aca22jy), [@Hunweibyn](https://github.com/Hunweibyn), [@Zephreo](https://github.com/Zephreo), [@Kdevaulo](https://github.com/Kdevaulo), [@weng-wen-jun](https://github.com/weng-wen-jun) 님 등). 각자 무엇을 도와주셨는지는 [CONTRIBUTORS.ko.md](docs/CONTRIBUTORS.ko.md)에 적었고,
-그로 인해 바뀐 것은 [변경 기록](docs/CHANGELOG.ko.md)의 그 항목 옆에 이름과 함께 적어 두었습니다.
+모든 분께 감사드립니다([@cervinho](https://github.com/cervinho), [@barkshah2002-pixel](https://github.com/barkshah2002-pixel), [@ZionZhang42](https://github.com/ZionZhang42), [@aca22jy](https://github.com/aca22jy), [@Hunweibyn](https://github.com/Hunweibyn), [@Zephreo](https://github.com/Zephreo), [@Kdevaulo](https://github.com/Kdevaulo), [@weng-wen-jun](https://github.com/weng-wen-jun), [@kano0222](https://github.com/kano0222) 님 등). 각자 무엇을 도와주셨는지는 [CONTRIBUTORS.ko.md](docs/CONTRIBUTORS.ko.md)에 적었고,
+그로 인해 바뀐 것은 [변경 이력](docs/CHANGELOG.ko.md)의 그 항목 옆에 이름과 함께 적어 두었습니다.
 
 MIT. [LICENSE](LICENSE)를 참고하세요.

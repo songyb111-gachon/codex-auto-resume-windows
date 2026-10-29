@@ -26,9 +26,19 @@ is replaced by `values[name]`, so one storyboard serves both READMEs. Each step 
     {"open": "setting.<field>", "frames": n, "step": ms, "hold": ms}   the field's drop list fades in, then holds
     {"rows": [value, ...], "step": ms}             the pointer's row in the open list, one after another
     {"choose": value, "hold": ms}                  the list closes with `value` shown (not saved)
+    {"right": "task.<n>", "frames": n, "step": ms, "hold": ms}   a right click on a Pending row: it is chosen, a
+                                                   ripple where the pointer is, and the row's own menu opens there
+    {"dismiss": "menu", "hold": ms}                the menu closes with nothing chosen (Escape)
+    {"popup": "open" | "close", "hold": ms}        the notification-area popup is shown at once, or hidden at once (it
+                                                   has no entrance of its own: ShowWindow, SW_HIDE)
+    {"ask": row, "frames": n, "step": ms}          the popup's row n (1 is the first) has had its switch pressed: it
+                                                   is drawn half faded while the control layer's answer is awaited
+    {"switch": row, "to": "off" | "on", "frames": n, "step": ms}   the answer came: the switch glides to its new place
+                                                   (ui.popup.motion.glide_amount, brand's transition time and curve)
 
 A target is a name the window answers with bounds (`page.<name>`, `section.<name>`, `save`, `setting.<field>`,
-`row.<value>` in an open drop list), a button of the card (`card.<target>`), `{"at": [x, y]}` on the canvas, or
+`row.<value>` in an open drop list, `task.<n>` - the Pending list's row n - and `menu.<n>` - item n of the open row
+menu, which a hover in it names), a button of the card (`card.<target>`), `{"at": [x, y]}` on the canvas, or
 `{"by": [dx, dy]}` from where the pointer is. Window states use the keys `STATE_KEYS`; the render mode refuses any
 other. Every frame is a moment `t` in ms from the start, and everything that moves by itself - the window's lights,
 the card's light, the tray icon - is drawn at that moment, so a plan only says what a person does.
@@ -48,12 +58,13 @@ HERE = Path(__file__).resolve().parent
 PLANS = HERE / "motion"
 
 # The window state a frame may set (gui/WindowRender.cs reads exactly these).
-STATE_KEYS = ("locale", "page", "section", "scroll", "hover", "pressed", "combo", "droplist")
+STATE_KEYS = ("locale", "page", "section", "scroll", "hover", "pressed", "combo", "droplist", "selected", "menu")
 PAGES = ("overview", "pending", "history", "statistics", "diagnostics", "settings")
 SECTIONS = ("general", "recovery", "continuation", "appearance", "advanced")
-STEPS = ("hold", "set", "move", "hover", "press", "card", "wheel", "open", "rows", "choose")
+STEPS = ("hold", "set", "move", "hover", "press", "card", "wheel", "open", "rows", "choose", "right", "dismiss",
+         "popup", "ask", "switch")
 # The steps that may say how long their one frame holds.
-HOLDING = ("set", "open", "choose")
+HOLDING = ("set", "open", "choose", "right", "dismiss", "popup")
 # The shortest a frame is held, in ms: the product's own quickest step (a scroll's glide and a drop list's fade tick
 # every 15 ms, the card's every 16). Delays are whole milliseconds, exact; browsers show 10 ms or less as 100 ms.
 SHORTEST = 15
@@ -63,7 +74,8 @@ SHORTEST = 15
 CLOSEST = 2 * SHORTEST
 # How long a click's ripple lasts (TOOLING 2.3), in ms.
 RIPPLE_MS = 240
-NAME = re.compile(r"(page\.(%s)|section\.(%s)|save|restore|start|close|setting\.[a-z_]+|row\.[A-Za-z_-]+|card\.[a-z_]+)\Z"
+NAME = re.compile(r"(page\.(%s)|section\.(%s)|save|restore|start|close|setting\.[a-z_]+|row\.[A-Za-z_-]+|card\.[a-z_]+"
+                  r"|task\.[0-9]+|menu\.[0-9]+)\Z"
                   % ("|".join(PAGES), "|".join(SECTIONS)))
 
 
@@ -79,6 +91,8 @@ class Frame(NamedTuple):
     card: tuple            # () with no card, else (("born", ms), ("hover", name), ("pressed", name), ("leave", ms))
     pointer: tuple         # ("at", target) or ("move", from target, to target, eased fraction)
     ripple: tuple          # () or (target the press was on, ms it began)
+    popup: tuple = ()      # () with no popup open, else (("busy", rows), ("glides", ((row, (start, from, to)), ...)),
+                           # ("off", rows), ("opened", ms)): rows are the popup's, counted from 1
 
 
 def _frozen(value):
@@ -167,9 +181,13 @@ def check(plan: dict) -> None:
                 raise PlanError("%s: a step draws at least one frame: %r" % (name, step))
             if "step" in step and step["step"] < SHORTEST:
                 raise PlanError("%s: %d ms is shorter than a browser shows a frame for" % (name, step["step"]))
-            for key in ("move", "hover", "press"):
+            for key in ("move", "hover", "press", "right"):
                 if key in step:
                     _check_target(name, step[key])
+            if "right" in step and not str(step["right"]).startswith("task."):
+                raise PlanError("%s: a right click opens a Pending row's menu, on task.<n>, not %r" % (name, step["right"]))
+            if "dismiss" in step and step["dismiss"] != "menu":
+                raise PlanError("%s: only the row menu is dismissed, not %r" % (name, step["dismiss"]))
             if "set" in step:
                 _check_state(name, step["set"])
     run = _walk(plan)
@@ -214,13 +232,19 @@ class _Run:
         self.card = None
         self.pointer = ("at", {"at": list((plan.get("pointer") or {}).get("rest", [0, 0]))})
         self.ripple = ()
+        self.popup = None
         self.frames = []
         self.scene = ""
 
     def emit(self, at=None):
         at = self.t if at is None else at
+        if self.popup:
+            # A glide that is over is let go, as the popup lets go of its own (window._glide_amounts).
+            from codex_auto_resume import brand
+            self.popup["glides"] = {row: glide for row, glide in self.popup["glides"].items()
+                                    if at < glide[0] + brand.MOTION["transition_ms"]}
         frame = Frame(int(at), self.scene, _frozen(self.window), _frozen(self.card) if self.card else (),
-                      _frozen(self.pointer), self.ripple)
+                      _frozen(self.pointer), self.ripple, _frozen(self.popup) if self.popup else ())
         if self.frames and self.frames[-1].t == frame.t:
             self.frames[-1] = frame              # a later state at the same moment is the one shown
         else:
@@ -275,6 +299,10 @@ def _step(run, step):
         state = copy.deepcopy(step["set"])
         if "page" in state and "section" not in state and state["page"] != run.window.get("page"):
             run.window.pop("section", None)
+        # The Pending row a right click chose shows only on Pending: another page leaves it behind, and the window that
+        # opens again in another language has chosen nothing.
+        if ("page" in state and state["page"] != "pending") or "locale" in state:
+            run.window.pop("selected", None)
         if ("page" in state or "section" in state or "locale" in state) and "scroll" not in state:
             run.window.pop("scroll", None)
         for key, value in state.items():
@@ -311,6 +339,8 @@ def _step(run, step):
     if "hover" in step or "press" in step:
         kind = "hover" if "hover" in step else "pressed"
         target = step.get("hover", step.get("press"))
+        if isinstance(target, str) and target.startswith("menu.") and ("menu" not in run.window or kind != "hover"):
+            raise PlanError("%s: %s is an item of the row menu, which is not open (or is pressed)" % (run.scene, target))
         count, gap = run.frames_of(step, 1, 200 if kind == "hover" else 40)
         _set_face(run, "hover", target)
         if kind == "pressed":
@@ -387,6 +417,69 @@ def _step(run, step):
         run.pointer = ("at", "setting." + listed["field"])
         run.emit()
         run.t += int(step.get("hold", 40))
+        return
+    if "right" in step:
+        # A right press on a Pending row, as the list takes it (DashboardPages: MouseDown chooses the row under the
+        # pointer), a ripple where the pointer is; on letting go the row's own menu opens with its card's corner there.
+        target = step["right"]
+        count, gap = run.frames_of(step, 1, 40)
+        _clear_faces(run)
+        run.window["selected"] = {"pending": int(target[len("task."):])}
+        run.pointer = run.resting()
+        run.ripple = (_frozen(run.resting()[1]), run.t)
+        for index in range(count):
+            run.emit(run.t + index * gap)
+        run.t += count * gap
+        run.window["menu"] = {"at": target}
+        run.emit()
+        run.t += int(step.get("hold", 40))
+        return
+    if "dismiss" in step:
+        if "menu" not in run.window:
+            raise PlanError("%s: no menu is open to dismiss" % run.scene)
+        run.window.pop("menu")
+        if str(run.window.get("hover", "")).startswith("menu."):
+            run.window.pop("hover")
+        run.pointer = run.resting()
+        run.emit()
+        run.t += int(step.get("hold", 40))
+        return
+    if "popup" in step:
+        if step["popup"] == "open":
+            if run.popup is not None:
+                raise PlanError("%s: the popup is open already" % run.scene)
+            run.popup = {"opened": run.t, "off": [], "busy": [], "glides": {}}
+        elif step["popup"] == "close":
+            if run.popup is None:
+                raise PlanError("%s: there is no popup to close" % run.scene)
+            run.popup = None
+        else:
+            raise PlanError("%s: the popup opens or closes, not %r" % (run.scene, step["popup"]))
+        run.emit()
+        run.t += int(step.get("hold", 40))
+        return
+    if "ask" in step or "switch" in step:
+        kind = "ask" if "ask" in step else "switch"
+        row = step[kind]
+        if run.popup is None:
+            raise PlanError("%s: the popup is not open" % run.scene)
+        if not isinstance(row, int) or isinstance(row, bool) or row < 1:
+            raise PlanError("%s: a popup row is counted from 1, not %r" % (run.scene, row))
+        count, gap = run.frames_of(step, 3 if kind == "ask" else 5, 33)
+        if kind == "ask":
+            run.popup["busy"] = sorted(set(run.popup["busy"]) | {row})
+        else:
+            if step.get("to") not in ("off", "on"):
+                raise PlanError("%s: a switch goes to off or on, not %r" % (run.scene, step.get("to")))
+            end = 1.0 if step["to"] == "on" else 0.0
+            if (row in run.popup["off"]) == (end == 0.0):
+                raise PlanError("%s: row %d is %s already" % (run.scene, row, step["to"]))
+            run.popup["off"] = sorted(set(run.popup["off"]) ^ {row})
+            run.popup["busy"] = sorted(set(run.popup["busy"]) - {row})
+            run.popup["glides"][row] = [run.t, 1.0 - end, end]
+        for index in range(count):
+            run.emit(run.t + index * gap)
+        run.t += count * gap
         return
     raise PlanError("%s: no step does %r" % (run.scene, step))
 

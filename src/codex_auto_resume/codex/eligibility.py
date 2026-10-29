@@ -41,13 +41,14 @@ def source_taken(source, kinds=frozenset()) -> bool:
     return any(source == shape[0] for _kind, shape in _shapes(kinds))
 
 
-def row_problem(row, kinds=frozenset(), widened=frozenset()):
+def row_problem(row, kinds=frozenset(), widened=frozenset(), composed=False):
     """Why a `threads` row (source, archived, thread_source, history_mode) is not one taken up, as the word
     domain/skips.py says it in - or None: a source of the app's or of `kinds`, not archived, a person's own (or, while
-    the plug widens to them, P19, another label - values.taken_thread_source), paginated."""
+    the plug widens to them, P19, another label - or an agent-made conversation whose failed turn the person started from
+    the input box, `composed`, issue #54 - values.taken_thread_source), paginated."""
     for wrong, word in ((not source_taken(row["source"], kinds), "source " + skips.kind(row["source"])),
                         (row["archived"] != 0, "archived"),
-                        (not taken_thread_source(row["thread_source"], widened),
+                        (not taken_thread_source(row["thread_source"], widened, composed),
                          "thread_source " + skips.kind(row["thread_source"])),
                         (row["history_mode"] != "paginated", "history_mode " + skips.kind(row["history_mode"]))):
         if wrong:

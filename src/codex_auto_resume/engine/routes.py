@@ -145,6 +145,8 @@ class RoutesMixin:
             self._release(key, claim, target, why, delay)
             self.log(current["thread_id"], target, why)
             return
+        if words is not None and self._once_words_moved(claim):     # given back (engine/delivery.py)
+            return
         thread_id = claim["thread_id"]
         if once is not None and not self._spend_once_words(claim, once):
             message = plain                 # never sent twice (the words for this time, as a send's)

@@ -902,7 +902,8 @@ class ObserveTests(unittest.TestCase):
                 unittest.mock.patch.object(popup, "high_contrast", lambda: asked.append("contrast") or contrast), \
                 unittest.mock.patch.object(animation, "battery_saver", \
                                            lambda: asked.append("saver") or saver), \
-                unittest.mock.patch.object(popup, "icon_rect", rect_of):
+                unittest.mock.patch.object(popup, "icon_rect", rect_of), \
+                unittest.mock.patch.object(animation, "overflow_open", lambda: False):   # a closed flyout, never this desktop's
             icon._observe(snapshot)
         return icon, asked
 

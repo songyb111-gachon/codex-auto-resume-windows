@@ -1,5 +1,5 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
-"""The Dashboard's account card (account_switch, v0.6.19): which Codex account is signed in.
+"""The Dashboard's account card (account_switch, v0.6.20): which Codex account is signed in.
 
 `advanced-account` is the long-lived bridge's, the Dashboard's alone (surfaces.py, K3) - no MCP tool, the icon, a
 card or anything remote reaches it. Only while account_switch stands on or is watched: off, nothing is read. It reads

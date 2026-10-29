@@ -100,8 +100,8 @@ namespace CodexAutoResume
             // default form icon there (owner, 2026-10-10).
             dialog.Icon = Icon;
 
-            // Flat hairline rows, owner-drawn as every list here is (DrawCell): 660 px of columns in the 716 the
-            // padding leaves, shared out by FitColumns.
+            // Flat hairline rows, owner-drawn as every list here is (DrawCell): 660 px of columns in the 691 the
+            // card's room and padding leave, shared out by FitColumns.
             var view = List(S("pick.title", "Install another version"),
                             Col(S("pick.col_version", "Version"), 120),
                             Col(S("pick.col_kind", "Kind"), 130),
@@ -109,13 +109,8 @@ namespace CodexAutoResume
                             Col(S("pick.col_note", "What it means"), 300));
             // After FitColumns, which List asked first: held to the list's width however narrow Windows makes the dialog.
             view.ClientSizeChanged += delegate { HoldVersionColumns(view); };
-            var host = new SoftListHost(view);
-            host.Dock = DockStyle.Fill;
-            var padding = new Panel();
-            padding.BackColor = Canvas;
-            padding.Dock = DockStyle.Fill;
-            padding.Padding = Pad(12, 12, 12, 0);
-            padding.Controls.Add(host);
+            // On History's card, on the soft scroll bar, as the lists in the window are (DialogListCard).
+            Control listGround = DialogListCard(view);
 
             var footer = new SoftStack();
             footer.Dock = DockStyle.Bottom;
@@ -123,20 +118,20 @@ namespace CodexAutoResume
             footer.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             footer.ColumnCount = 1;
             footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-            footer.Padding = Pad(12, 8, 12, 0);
+            footer.Padding = Pad(16, 0, 17, 0);
             footer.BackColor = Canvas;
             var said = Value(S("pick.asking", "Asking GitHub for the list of releases..."));
             said.ForeColor = Secondary;
-            said.MaximumSize = new Size(Px(716), 0);
+            said.MaximumSize = new Size(Px(707), 0);
             footer.Controls.Add(said);
             var notes = Value("");
             notes.ForeColor = Secondary;
-            notes.MaximumSize = new Size(Px(716), 0);
+            notes.MaximumSize = new Size(Px(707), 0);
             footer.Controls.Add(notes);
 
             FlowLayoutPanel buttons = ButtonRow();
             buttons.FlowDirection = FlowDirection.RightToLeft;
-            buttons.Padding = Pad(12, 8, 12, 12);
+            buttons.Padding = Pad(16, 8, 17, 12);
             Button install = MakeButton(S("pick.install", "Install..."), true, delegate
             {
                 string[] row = ChosenVersion();
@@ -149,7 +144,7 @@ namespace CodexAutoResume
             buttons.Controls.Add(install);
             buttons.Controls.Add(close);
 
-            dialog.Controls.Add(padding);
+            dialog.Controls.Add(listGround);
             dialog.Controls.Add(footer);
             dialog.Controls.Add(buttons);
             // No AcceptButton: Enter installs nothing.
@@ -458,6 +453,15 @@ namespace CodexAutoResume
         /// The confirmed row installed through the installed bootstrap's -Pick: its version, held to the version rule
         /// before it reaches the command line, its edition, and -Force exactly when the row is older or of the other
         /// edition, which the bootstrap requires then and refuses otherwise.
+        ///
+        /// v0.6.18 acceptance (the owner): in the installer window, as an update runs (InstallUpdate) - the download's
+        /// share and the steps on the bar from the lines as they come (Heard, with the progress lines asked for), then the
+        /// finished page with its exit code (PickCode) and the log - headed as an install of another version
+        /// (InstallerFlow.Another), never as an update. The bootstrap prints no notes for a pick (-AskFirst is the
+        /// update's alone), so there is no Notes page. What it printed still reaches PickLine whole, and once the window
+        /// has closed AfterPick or ReportPick says what it always said - except where the pick installed and the window
+        /// opens the new Dashboard: then this one, still running from its renamed .old file, closes, as after an update
+        /// (saying first what the conversion did, where there was one).
         private void InstallPick(string root, string script, string[] row)
         {
             if (!VersionRule.IsMatch(row[0]) || (row[1] != "standard" && row[1] != "advanced")) return;
@@ -473,36 +477,85 @@ namespace CodexAutoResume
             // would close mid-pick, its result never said.
             updatingHere = true;
             diagUpdate.Text = S("diag.update_installing", "installing...");
-            System.Threading.ThreadPool.QueueUserWorkItem(delegate
-            {
-                string printed, errors, reason, installed;
-                int code;
-                int[] converted = null;
-                string ran = StartBootstrap(root, script, flag, UpdateMilliseconds, out printed, out errors, out code);
-                string releases = ran == "done" ? ReleasesLine(printed) : null;
-                string outcome = ran;
-                reason = null;
-                installed = null;
-                if (ran == "done")
+            string outcome = "failed", reason = null, installed = null, detail = "", releases = null;
+            int[] converted = null;
+            string app = Path.Combine(root, "app");
+            var flow = new InstallerFlow(InstallerFlow.Update, root, edition,
+                                         InstallerFlow.EditionOfSource(Path.Combine(app, "src")), version);
+            flow.Another = true;
+            flow.From = InstallerFlow.VersionOf(ReadText(Path.Combine(Path.Combine(app, ".codex-plugin"), "plugin.json")));
+            var window = new InstallerWindow(flow, new InstallerWords(strings, openedLanguage), null,
+                delegate(InstallerFlow answered, Action<string> line, Action<double> unpacked)
                 {
-                    outcome = PickLine(printed, code, out reason, out converted, out installed);
-                    if (outcome == "installed" && installed != version + " " + edition) outcome = "failed";
-                }
-                string detail = Tail(printed + "\n" + errors);
-                MethodInvoker finish = delegate
-                {
-                    updatingHere = false;
-                    SetBusy(false);
-                    if (outcome == "installed") AfterPick(before, version, converted);
-                    else
+                    string printed, errors, ran;
+                    int code;
+                    Heard = line;
+                    try { ran = StartBootstrap(root, script, flag, UpdateMilliseconds, out printed, out errors, out code); }
+                    finally { Heard = null; }
+                    releases = ran == "done" ? ReleasesLine(printed) : null;
+                    outcome = ran;
+                    if (ran == "done")
                     {
-                        diagUpdate.Text = shown;
-                        ReportPick(outcome, reason, converted, detail, releases);
+                        outcome = PickLine(printed, code, out reason, out converted, out installed);
+                        if (outcome == "installed" && installed != version + " " + edition) outcome = "failed";
                     }
-                };
-                try { if (IsHandleCreated && !IsDisposed) BeginInvoke(finish); }
-                catch (Exception) { }
-            });
+                    detail = Tail(printed + "\n" + errors);
+                    return PickCode(ran, outcome, code);
+                }, null, Font);
+            window.ShowDialog(this);
+            // WinForms ends a modal window's loop once the window is hidden, with no close asked - the Dashboard
+            // minimized under it hid it (v0.6.18 acceptance, B2). The pick follows its run to the end all the same: this
+            // window back as it was, and the setup window shown again, until the installer has ended.
+            while (window.Running && !window.IsDisposed)
+            {
+                if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal;
+                window.ShowDialog(this);
+            }
+            if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal;
+            updatingHere = false;
+            SetBusy(false);
+            // The window stays until the run has ended (InstallerWindow.OnFormClosing); only Windows ending the session
+            // closes it sooner, and then the bootstrap may still be at work: said so, never as a failure with nothing
+            // under it (v0.6.18 acceptance).
+            if (window.Code == int.MinValue) outcome = "running";
+            // A failure always says what it can: what the bootstrap printed, else the window's log, else its ending.
+            if (string.IsNullOrEmpty(detail)) detail = Tail(window.Log);
+            if (string.IsNullOrEmpty(detail))
+                detail = new InstallerWords(strings, openedLanguage).Outcome(InstallerFlow.Update, window.Code);
+            // An update's rule (InstallUpdate): what ran before runs again on the version installed, this Dashboard too.
+            if (outcome == "installed" && window.OpenDashboard &&
+                File.Exists(Path.Combine(root, "CodexAutoResumeSettings.exe")))
+            {
+                if (converted != null)
+                {
+                    var told = new StringBuilder(S("pick.done_converted", "Your state was converted for it, and a copy of it as it was is kept in the state folder."));
+                    AppendConverted(told, converted);
+                    Tell(told.ToString());
+                }
+                if (OpenNewDashboard(root))
+                {
+                    Close();
+                    return;
+                }
+            }
+            if (outcome == "installed") AfterPick(before, version, converted);
+            else
+            {
+                diagUpdate.Text = shown;
+                ReportPick(outcome, reason, converted, detail, releases);
+            }
+        }
+
+        /// The installer window's code for a pick (InstallerWindow.Runner): 0 where it installed; the window's own codes
+        /// where the bootstrap could not be started (NotStarted) or has not finished (StillRunning); otherwise the
+        /// bootstrap's exit code - 15 for a refusal, 12 for a list it could not read - and 1 for an exit code 0 whose
+        /// answer PickLine did not take as installed, which is no success. Pure.
+        internal static int PickCode(string ran, string outcome, int code)
+        {
+            if (outcome == "installed") return 0;
+            if (ran == "running") return InstallerFlow.StillRunning;
+            if (ran == "incomplete" || ran == "failed") return InstallerFlow.NotStarted;
+            return code == 0 ? 1 : code;
         }
 
         /// Installed: said as an update is, with whether the watcher changed hands (the pid and start time WatcherIdentity

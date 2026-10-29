@@ -624,7 +624,12 @@ class BridgeTests(ControlTestCase):
             # every other one left to wait as it was. It can only reduce what runs; nothing is sent.
             "rescan",
             # v0.6.17: Diagnostics' read of whether the watcher and the bridge run inside another app - nothing sent.
-            "host-app"]))
+            "host-app",
+            # v0.6.18: the Codex home Settings > Advanced offers to watch too - read only - and Not now, a settings
+            # write that sets that folder aside. Nothing is added or sent.
+            "home-suggestion", "home-dismiss",
+            # v0.6.19: Diagnostics' compatibility report from this PC's own records - read only, sent nowhere.
+            "own-report"]))
 
     def test_serve_answers_every_line_with_exactly_one_line(self):
         requests = "\n".join([
@@ -1007,7 +1012,9 @@ class StartWatcherTests(ControlTestCase):
             result = self.control.start_watcher()
         self.assertIs(result["started"], True)
         argv = popen.call_args.args[0]
-        self.assertEqual(Path(argv[1]).name, "watcher-launcher.py")
+        # Remote debugging off right after the interpreter (v0.6.19-beta.3, tests/test_remote_debug_off.py).
+        self.assertEqual(argv[1:3], ["-X", "disable-remote-debug"])
+        self.assertEqual(Path(argv[3]).name, "watcher-launcher.py")
         self.assertEqual(argv[-1], "run")
 
     def test_it_refuses_to_start_a_second_watcher(self):

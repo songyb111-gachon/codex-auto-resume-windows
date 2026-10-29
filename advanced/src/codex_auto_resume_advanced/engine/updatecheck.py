@@ -23,9 +23,15 @@ one button opens the Dashboard's Diagnostics page, where an update is installed 
 runtime/app.py). It never downloads or installs anything. The time of the last check is kept in this edition's own
 state (state/choices.py, `stamp`, under OptionKey.LAST_CHECK), written before the check starts, so a check that fails,
 is refused by GitHub or never finishes waits for the next week like one that answered.
+
+Each check that ends says what it did in the watcher's log (logs\\auto-resume.log), one English line (v0.6.18
+acceptance; `said`): checked and nothing newer, a newer version offered and which, or could not check and why - in the
+words the Dashboard's Check for updates says the same with (its English catalog: diag.update_could_not_ask and the
+rest). The line names versions only, never a path, a name or what the check printed.
 """
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 import re
@@ -52,6 +58,24 @@ PRERELEASE = re.compile(r"(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9
 # The variables the window sets, or takes away, for the check: this installation, and nothing of an install.
 HOME_VARIABLE = "CODEX_AUTO_RESUME_PLUGIN_HOME"
 INSTALL_VARIABLES = ("CODEX_AUTO_RESUME_UPDATING_DASHBOARD", "CODEX_AUTO_RESUME_PROGRESS_LINES")
+# Why a check could not answer, as run_check puts it on its `said` list: the script or Windows PowerShell not there,
+# the check not started, or not finished within CHECK_SECONDS.
+MISSING, NOT_STARTED, RUNNING = "missing", "not_started", "running"
+# The Dashboard's words for a check that did not answer (gui/DashboardMaintenance.cs UpdateWords): their keys in the
+# English catalog, with the English beside each for a catalog that cannot be read. `running` is said up to the
+# Dashboard's advice to look at its page again, which a log line has no page for.
+COULD_NOT = {
+    "unavailable": ("diag.update_could_not_ask",
+                    "GitHub could not be asked just now. This says nothing about whether an update exists."),
+    MISSING: ("diag.update_incomplete",
+              "Files this installation is made of are missing, so it could not be checked. Install it again from the "
+              "release archive."),
+    RUNNING: ("diag.update_running",
+              "It is taking longer than usual and is still working. It carries on in the background; look at this page "
+              "again in a few minutes."),
+    "failed": ("diag.update_failed", "The update check did not finish."),
+}
+LOG_PREFIX = "weekly update check: "
 # Core's states of a recovery that is waiting, being sent or being watched: none may be, for a check to start.
 BUSY = ("WAITING", "CLAIMED", "IN_FLIGHT", "OBSERVING")
 
@@ -85,18 +109,60 @@ def offer(code, printed):
     return None
 
 
+def english(why) -> str:
+    """The Dashboard's English words for a check that did not answer, for `why` (COULD_NOT; anything else: "failed")."""
+    key, fallback = COULD_NOT.get(why, COULD_NOT["failed"])
+    try:
+        from codex_auto_resume import l10n
+        text = l10n.text(key, "en")
+    except Exception:
+        text = fallback
+    if why == RUNNING:
+        text = text.split(";")[0].rstrip(".") + "."
+    return text
+
+
+def said(answered, why=None) -> str:
+    """The watcher's log line for a check that ended: `answered` as run_check returns it - (code, printed), or None and
+    `why` it did not answer. One line that names versions only. Pure, but for the English catalog it reads."""
+    if answered is None:
+        return LOG_PREFIX + "could not check: " + english(why if why in (MISSING, RUNNING) else "failed")
+    code, printed = answered
+    found = offer(code, printed)
+    if found is not None:
+        version, prerelease = found
+        return LOG_PREFIX + ("pre-release v%s offered" if prerelease else "v%s offered") % version
+    line = _last(printed, "update: ")
+    words = line.split(" ") if line is not None else []
+    answer = words[0] if words and words[0] in ANSWERS and ANSWERS[words[0]] == code else None
+    shown = [word if RELEASE.match(word) else "?" for word in words[1:3]] + ["?", "?"]
+    if answer == "current":
+        return LOG_PREFIX + "checked, nothing newer: v%s is the newest published release" % shown[0]
+    if answer == "newer-local":
+        return LOG_PREFIX + "checked, nothing newer: this build is ahead of the newest published release, v%s" % shown[1]
+    if answer == "unavailable":
+        return LOG_PREFIX + "could not check: " + english("unavailable")
+    return LOG_PREFIX + "could not check: " + english("failed")
+
+
 def script_of(paths) -> Path:
     """This installation's bootstrap, as the window finds it beside itself: <home>\\app\\scripts\\bootstrap.ps1."""
     return Path(paths.home) / "app" / "scripts" / "bootstrap.ps1"
 
 
-def run_check(script, home, seconds=CHECK_SECONDS):
+def run_check(script, home, seconds=CHECK_SECONDS, said=None):
     """Run `script` -CheckOnly as the Dashboard does and wait for it at most `seconds`: (exit code, what it printed), or
     None where Windows PowerShell or the script is not there, it could not be started, or it has not finished - then it
-    is left to finish on its own, never killed."""
+    is left to finish on its own, never killed. Where it returns None it puts why on the list `said`, when one is given:
+    MISSING, NOT_STARTED or RUNNING."""
     from codex_auto_resume import pwsh
+    why = said if isinstance(said, list) else []
     powershell = pwsh.executable()
-    if powershell is None or not Path(script).is_file():
+    if not Path(script).is_file():
+        why.append(MISSING)
+        return None
+    if powershell is None:
+        why.append(NOT_STARTED)
         return None
     environment = dict(os.environ)
     environment[HOME_VARIABLE] = str(home)
@@ -109,12 +175,14 @@ def run_check(script, home, seconds=CHECK_SECONDS):
             stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=environment,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     except OSError:
+        why.append(NOT_STARTED)
         return None
     try:
         printed, _errors = process.communicate(timeout=seconds)
     except subprocess.TimeoutExpired:
         # Left to finish, as the window leaves a check it calls "running": what it prints is read and dropped.
         threading.Thread(target=process.communicate, daemon=True).start()
+        why.append(RUNNING)
         return None
     return process.returncode, printed.decode("utf-8", "replace")
 
@@ -145,9 +213,9 @@ class IdleUpdateCheck:
     later check answers that nothing is newer, or a person turns the capability off: an offer found before it last stood
     on is one they put away."""
     __slots__ = ("paths", "_scoped", "_run", "_managed", "_start", "_installed", "_lock", "_offered", "_offered_at",
-                 "_found", "_said", "_running", "_looked", "_loaded")
+                 "_found", "_said", "_line", "_running", "_looked", "_loaded", "_log")
 
-    def __init__(self, paths, *, run=None, managed=None, start=None, installed=None):
+    def __init__(self, paths, *, run=None, managed=None, start=None, installed=None, log=None):
         self.paths = paths
         self._scoped = None
         self._run = run or run_check
@@ -159,6 +227,8 @@ class IdleUpdateCheck:
         self._offered_at = None                # when it was found, whole seconds
         self._found = None                     # (version, prerelease) a check found, not yet kept
         self._said = None                      # the journal word of a check that ended, not yet counted
+        self._line = None                      # its line for the watcher's log (`said`), not yet written
+        self._log = log or _log_line
         self._running = False
         self._looked = None
         self._loaded = False
@@ -228,16 +298,23 @@ class IdleUpdateCheck:
         """The check, on its own thread: what it offers, shown at once, and its word, for the next tick to keep and
         count - the thread writes nothing."""
         try:
-            answered = self._run(script_of(self.paths), self.paths.home)
+            why = []
+            if self._run is run_check:
+                answered = run_check(script_of(self.paths), self.paths.home, said=why)
+            else:
+                answered = self._run(script_of(self.paths), self.paths.home)
             found = offer(*answered) if answered is not None else None
-            said = "unanswered" if answered is None else "offered" if found is not None else "checked"
+            word = "unanswered" if answered is None else "offered" if found is not None else "checked"
+            line = said(answered, why[0] if why else None)
         except Exception:
-            found, said = None, "unanswered"
+            found, word = None, "unanswered"
+            line = LOG_PREFIX + "could not check: " + english("failed")
         with self._lock:
             if found is not None:
                 self._offered = found
             self._found = found
-            self._said = said
+            self._said = word
+            self._line = line
             self._running = False
 
     def _settle(self) -> None:
@@ -247,6 +324,12 @@ class IdleUpdateCheck:
         scoped = self._scoped
         with self._lock:
             said, found, self._said, self._found = self._said, self._found, None, None
+            line, self._line = self._line, None
+        if line is not None:
+            try:
+                self._log(line)
+            except Exception:
+                pass
         if said is not None:
             try:
                 scoped.count(said)
@@ -292,6 +375,12 @@ class IdleUpdateCheck:
         """(version, prerelease) offered and not put away, or None."""
         with self._lock:
             return self._offered
+
+
+def _log_line(line) -> None:
+    """One line in the watcher's log (core's logbook: logs\\auto-resume.log), written as its other lines are."""
+    from codex_auto_resume.logbook import LOGGER_NAME
+    logging.getLogger(LOGGER_NAME).info("%s", line)
 
 
 def _installed_version():

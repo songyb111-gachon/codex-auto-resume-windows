@@ -276,12 +276,70 @@ class BackendTests(unittest.TestCase):
             result = self.backend.send(THREAD, prompt)
         self.assertEqual(result, {"outcome": "accepted", "queue_id": QUEUE})
         argv = popen.call_args.args[0]
-        self.assertEqual(argv[-5:], ["queue", "--thread", THREAD, "--message", prompt])
+        self.assertEqual(argv[-4:], ["queue", "--thread", THREAD, "--message=" + prompt])
         self.assertIs(popen.call_args.kwargs["shell"], False)
         self.assertEqual(popen.call_args.kwargs["stderr"], subprocess.DEVNULL)
         self.assertNotIn("--last", argv)
         self.assertIn("analytics.enabled=false", argv)
         self.assertIn('otel.metrics_exporter="none"', argv)
+
+    def test_running_managed_daemon_uses_remote_without_losing_privacy_flags(self):
+        """No -c option can be used by an embedded queue client beside the daemon.
+
+        --remote unix:// avoids that conflict without dropping analytics and
+        OpenTelemetry restrictions. A fake subprocess is the only send here.
+        """
+        self.backend.queue_remote_supported = True
+        daemon = str(self.backend.codex_home / "packages" / "app-server-daemon" /
+                     "releases" / "0.164.0-x86_64-pc-windows-msvc" / "bin" / "codex.exe")
+        process = MagicMock(returncode=0)
+        process.communicate.return_value = (f"Queued message {QUEUE} for thread {THREAD}.\n", None)
+        with patch.object(transport, "inventory", return_value=[{"pid": 300, "path": daemon}]), \
+             patch.object(subprocess, "Popen", return_value=process) as popen:
+            result = self.backend.send(THREAD, "harmless")
+        self.assertEqual(result, {"outcome": "accepted", "queue_id": QUEUE})
+        argv = popen.call_args.args[0]
+        self.assertEqual(argv[-6:], ["queue", "--thread", THREAD, "--message=harmless",
+                                     "--remote", "unix://"])
+        self.assertIn("analytics.enabled=false", argv)
+        self.assertIn('otel.metrics_exporter="none"', argv)
+        self.assertIs(popen.call_args.kwargs["shell"], False)
+
+    def test_remote_not_used_for_other_home_or_unproven_daemon(self):
+        """Wrong home, stale process, old CLI or unreadable inventory keeps old behavior."""
+        self.backend.queue_remote_supported = True
+        own = str(self.backend.codex_home / "packages" / "app-server-daemon" /
+                  "releases" / "0.164.0" / "bin" / "codex.exe")
+        foreign = str(self.backend.codex_home / "other" / "bin" / "codex.exe")
+        for version_support, rows, error in (
+                (False, [{"pid": 10, "path": own}], None),
+                (True, [{"pid": 10, "path": foreign}], None),
+                (True, [{"pid": 0, "path": own}], None),
+                (True, [{"pid": 10, "path": own + ".old"}], None),
+                (True, None, w.AdapterError("process_inventory_unavailable"))):
+            with self.subTest(version_support=version_support, rows=rows, error=error):
+                self.backend.queue_remote_supported = version_support
+                process = MagicMock(returncode=0)
+                process.communicate.return_value = (f"Queued message {QUEUE} for thread {THREAD}.\n", None)
+                source = patch.object(transport, "inventory", side_effect=error) if error else \
+                    patch.object(transport, "inventory", return_value=rows)
+                with source, patch.object(subprocess, "Popen", return_value=process) as popen:
+                    self.assertEqual(self.backend.send(THREAD, "harmless")["outcome"], "accepted")
+                self.assertEqual(popen.call_args.args[0][-4:],
+                                 ["queue", "--thread", THREAD, "--message=harmless"])
+
+    def test_daemon_remote_failure_remains_unknown_never_falls_back_to_second_send(self):
+        self.backend.queue_remote_supported = True
+        daemon = str(self.backend.codex_home / "packages" / "app-server-daemon" /
+                     "releases" / "0.164.0" / "bin" / "codex.exe")
+        process = MagicMock(returncode=1)
+        process.communicate.return_value = ("", None)
+        with patch.object(transport, "inventory", return_value=[{"pid": 10, "path": daemon}]), \
+             patch.object(subprocess, "Popen", return_value=process) as popen:
+            result = self.backend.send(THREAD, "harmless")
+        self.assertEqual(result["outcome"], "unknown")
+        self.assertEqual(result["receipt_detail"], "nonzero_exit")
+        self.assertEqual(popen.call_count, 1)
 
     def test_spawn_failure_is_only_retryable_send_failure(self):
         with patch.object(subprocess, "Popen", side_effect=OSError("secret diagnostic")):
@@ -342,6 +400,39 @@ class BackendTests(unittest.TestCase):
                 result = self.backend.send(THREAD, "harmless")
             self.assertEqual(result["outcome"], "unknown")
             self.assertNotIn("secret", repr(result))
+
+    def test_queue_receipt_diagnostics_are_closed_words_not_cli_output(self):
+        """Failure classification must not report user text, stderr or Codex output.
+
+        No uncertain response becomes not_started: even a nonzero return may follow a
+        queued send. The owner may have enabled Once more when unsure separately.
+        """
+        cases = (
+            (2, "secret diagnostic", "nonzero_exit", 2),
+            (0, "", "empty_stdout", None),
+            (0, f"Queued message {QUEUE} for thread {QUEUE}.", "unrecognized_stdout", None),
+            (0, "secret prompt\nQueued message " + QUEUE + " for thread " + THREAD + ".",
+             "unrecognized_stdout", None),
+            (-1, "secret diagnostic", "nonzero_exit", None),
+        )
+        for returncode, stdout, kind, exit_code in cases:
+            with self.subTest(code=returncode, kind=kind):
+                process = MagicMock(returncode=returncode)
+                process.communicate.return_value = (stdout, None)
+                with patch.object(subprocess, "Popen", return_value=process):
+                    result = self.backend.send(THREAD, "secret prompt")
+                self.assertEqual(result["outcome"], "unknown")
+                self.assertEqual(result["error_code"], "queue_response_unconfirmed")
+                self.assertEqual(result["receipt_detail"], kind)
+                self.assertEqual(result.get("exit_code"), exit_code)
+                self.assertNotIn("secret", repr(result))
+
+    def test_successful_receipt_is_not_reclassified_or_logged(self):
+        process = MagicMock(returncode=0)
+        process.communicate.return_value = (f"Queued message {QUEUE} for thread {THREAD}.\n", None)
+        with patch.object(subprocess, "Popen", return_value=process):
+            self.assertEqual(self.backend.send(THREAD, "secret prompt"),
+                             {"outcome": "accepted", "queue_id": QUEUE})
 
     def test_timeout_after_start_is_unknown_even_if_kill_fails(self):
         process = MagicMock()

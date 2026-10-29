@@ -141,9 +141,12 @@ CAPABILITY_METHODS = {
     # conversation's own model put back.
     "model_fallback": ("thread/resume", "model/list", "turn/start", "turn/interrupt", "thread/settings/update",
                        "thread/unsubscribe"),
+    # v0.6.19: a chat message (engine/chat.py) is added to its conversation's queue under its client id, as
+    # MC1 added one - nothing else, and never a read: the page reads Codex's history (codex/conversation.py).
+    "codex_chat": ("thread/queue/add",),
     # The usage meter (engine/usage.py, v0.6.16-beta.3) reads usage on its schedule, and nothing else.
     "usage_meter": ("account/rateLimits/read",),
-    # v0.6.19: which account is signed in (engine/account.py, control/account.py), as MA and MAL read it - and nothing
+    # v0.6.20: which account is signed in (engine/account.py, control/account.py), as MA and MAL read it - and nothing
     # else: a sign-out and a sign-in are Codex's own `codex logout` and `codex login` (codex/account.switch), never a
     # method of this session; FORBIDDEN_METHODS refuses every one of those whatever this row said.
     "account_switch": ("account/read",),
@@ -279,6 +282,25 @@ def methods_for_capability(capability) -> frozenset:
     capability with no row may call nothing."""
     allowed = set(CAPABILITY_METHODS.get(capability, ())) & MEASURED_METHODS - FORBIDDEN_METHODS
     return frozenset(allowed | {"initialize", "initialized"})
+
+
+def submitted(session, method, params=None):
+    """v0.6.18: one request written now - inside a guard its caller holds (core's launch guard around a channel's first
+    change of state) - and its answer awaited later, outside it: a callable that gives the answer, or raises what the
+    request raised. A session with no `submit` (a test's) is called whole, now. Never raises itself."""
+    try:
+        submit, receive = getattr(session, "submit", None), getattr(session, "receive", None)
+        if callable(submit) and callable(receive):
+            sequence = submit(method, params)
+            return lambda: receive(method, sequence, params)
+        result = session.call(method, params)
+        return lambda: result
+    except Exception as exc:
+        failure = exc
+
+        def again():
+            raise failure
+        return again
 
 
 class Session:

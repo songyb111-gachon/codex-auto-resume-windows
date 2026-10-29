@@ -1,6 +1,6 @@
 """Continue with no words (v0.6.16-beta.4): P15's SILENT while on, until Codex refuses a turn with no input - then
-DEFER in this process, so the next attempt carries words, and the capability turns off (REFUSED_BY_CODEX); never
-kept on, listed last.
+DEFER in this process, so the next attempt carries words, and the capability turns off (REFUSED_BY_CODEX) - or, kept
+on (v0.6.19-beta.3), notes it and stays on, still answering DEFER; listed beside marker-free continuation.
 """
 from __future__ import annotations
 
@@ -17,8 +17,8 @@ from codex_auto_resume_advanced import registry  # noqa: E402
 from codex_auto_resume_advanced.codex import headless, protocol  # noqa: E402
 from codex_auto_resume_advanced.engine.silent import SilentContinuation  # noqa: E402
 from codex_auto_resume_advanced.registry import SILENT_CONTINUATION  # noqa: E402
-from codex_auto_resume_advanced.vocabulary import (Actor, ArmingState, ArmingWarning, Measurement,  # noqa: E402
-                                                   OffReason, Refusal, Verdict)
+from codex_auto_resume_advanced.vocabulary import (Actor, ArmingState, ArmingWarning, JournalCode,  # noqa: E402
+                                                   Measurement, OffReason, Refusal, Verdict)
 from test_advanced_headless import CLIENT, RouteCase  # noqa: E402
 
 
@@ -87,14 +87,40 @@ class TripTests(TakingCase):
         self.assertEqual(plug.runtime.states(fresh=True).get(self.cap, ArmingState.OFF), ArmingState.OFF)
         self.assertEqual(plug.runtime.state.arming()[self.cap]["reason"], OffReason.REFUSED_BY_CODEX)
 
-    def test_it_may_not_be_kept_on_and_is_listed_beside_marker_free_continuation(self):
-        """DECISIONS Q12: beside the other continuation that goes without a marker. Fails with it listed last again."""
-        plug = self.on()
-        refused = plug.runtime.arming.set_keep_on(self.cap, True, generation=plug.runtime.state.meta()["generation"],
-                                                  confirmed=["keep_on"], actor=Actor.DASHBOARD)
-        self.assertEqual((refused["done"], refused["refusal"]), (False, Refusal.INVALID_REQUEST))
+    def kept(self, plug):
+        kept = plug.runtime.arming.set_keep_on(self.cap, True, generation=plug.runtime.state.meta()["generation"],
+                                               confirmed=["keep_on"], actor=Actor.DASHBOARD)
+        self.assertEqual((kept["done"], kept["refusal"]), (True, None))
+        plug.runtime.states(fresh=True)
+        return plug
+
+    def test_it_may_be_kept_on_and_is_listed_beside_marker_free_continuation(self):
+        """The owner's word of 2026-10-24 (v0.6.19-beta.3): Keep on is offered for it. Fails with Keep on refused for it
+        again. DECISIONS Q12: beside the other continuation that goes without a marker."""
+        plug = self.kept(self.on())
+        self.assertTrue(plug.runtime.state.arming()[self.cap]["keep_on"])
         shown = registry.SHOWN_ORDER
         self.assertEqual(shown.index(self.cap), shown.index("marker_free_continuation") + 1)
+
+    def test_kept_on_codex_refusing_no_input_is_a_note_and_the_next_attempt_carries_words(self):
+        """Fails with the refusal turning it off whatever Keep on says: kept on, it stays on with the note journalled
+        once, and it answers DEFER from then on, so no empty turn is tried again."""
+        plug = self.kept(self.on())
+        code = plug.runtime._code_of(plug.runtime.registry.get(self.cap))
+        self.assertIs(code.delivery({}), Alternative.SILENT)
+        self.h.now += 5                                  # Codex refuses after it was kept on
+        headless.EMPTY_REFUSED = True
+        plug.runtime.moved({"interruption_id": "%064x" % 1, "state": "submitting"}, "waiting_retry")
+        plug.runtime.moved({"interruption_id": "%064x" % 2, "state": "submitting"}, "waiting_retry")
+        self.h.now += 5
+        self.assertEqual(plug.runtime.states(fresh=True)[self.cap], ArmingState.ARMED)
+        row = plug.runtime.state.arming()[self.cap]
+        self.assertEqual((row["state"], row["keep_on"], row["reason"]),
+                         (ArmingState.ARMED, True, OffReason.REFUSED_BY_CODEX))
+        kept = [line for line in plug.runtime.state.journal(capability=self.cap) if line["code"] == JournalCode.KEPT]
+        self.assertEqual(len(kept), 1)
+        self.assertTrue(headless.EMPTY_REFUSED, "kept on is no new choice: the refusal is remembered")
+        self.assertIs(code.delivery({}), DEFER)
 
     def test_unmeasured_on_this_codex_is_a_warning_never_a_refusal(self):
         plug = self.advanced()

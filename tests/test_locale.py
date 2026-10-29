@@ -335,8 +335,9 @@ class ReachTests(unittest.TestCase):
         # Nor does a string that is only placeholders and a percent sign (usage.window, v0.6.11).
         # Nor check.held, a conversation's alias and a reason (v0.6.16-beta.3).
         # Nor installer.update.heading, two version numbers and an arrow between them (v0.6.16).
-        self.assertEqual(sorted(same), ["check.held", "group.windows", "installer.update.heading", "tray.title",
-                                        "usage.window"],
+        # Nor ownreport.sha, a digest's name and the digest (v0.6.19).
+        self.assertEqual(sorted(same), ["check.held", "group.windows", "installer.update.heading", "ownreport.sha",
+                                        "tray.title", "usage.window"],
                          "these are identical in both languages")
 
 

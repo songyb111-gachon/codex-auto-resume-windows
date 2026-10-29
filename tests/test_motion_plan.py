@@ -101,7 +101,8 @@ class CardPlanTests(unittest.TestCase):
     def test_the_card_on_its_own_is_planned_in_both_languages_and_drawn_only_when_named(self):
         self.assertEqual(make_motion.CARD_PLANS, ("card-en", "card-ko"))
         self.assertEqual(make_motion.ALL_PLANS,
-                         make_motion.PLAN_NAMES + make_motion.CARD_PLANS + make_motion.LOGO_PLANS)
+                         make_motion.PLAN_NAMES + make_motion.CARD_PLANS + make_motion.POPUP_PLANS
+                         + make_motion.LOGO_PLANS)
         for name, output in (("card-en", "docs/images/notification-card-motion.png"),
                              ("card-ko", "docs/images/notification-card-motion-ko.png")):
             with self.subTest(name):

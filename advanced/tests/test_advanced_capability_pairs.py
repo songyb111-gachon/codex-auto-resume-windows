@@ -462,8 +462,431 @@ class PauseBesideResetCreditTests(UsageCase):
         self.assertFalse(all(held), "some minute of the credit's early window is not held")
 
 
+# v0.6.19 W4 (plans/v0619-design/D-watcher-ops.md): the watcher operations beside what they meet.
+class CrashRestartBesideStartWithCodexTests(ac.AdvancedCase):
+    """crash_restart and start_with_codex: COMPOSE. Start with Codex starts this installation's launcher through WMI,
+    outside Codex's job (P9); the launcher it started asks P13, and crash_restart supervises the watcher from there - one
+    answers at P9, the other at P13, about one launcher, and neither stands aside."""
 
-# ---------------------------------------------------------------- v0.6.19: account_switch (plans/v0619-design/D-account.md)
+    def setUp(self):
+        super().setUp()
+        from codex_auto_resume_advanced.registry import CRASH_RESTART, START_WITH_CODEX
+        self.compat = ac.view(capability="engine_present")
+        self.rt = self.runtime(START_WITH_CODEX, CRASH_RESTART)
+        self.rt.arming.catalogs = statement.CATALOGS
+        code = self.rt._code_of(CRASH_RESTART)
+        code._stop = type("Stop", (), {"hold": lambda self: True, "signalled": lambda self: False,
+                                       "wait": lambda self, seconds: False})()
+        code._notify = lambda paths: None
+
+    def on(self, capability):
+        definition = self.rt.registry.get(capability)
+        result = self.rt.arming.arm(capability, state="armed", revision=definition.revision,
+                                    generation=self.rt.state.meta()["generation"], acknowledged_version=ac.ENGINE,
+                                    warnings=[str(w) for w in self.rt.arming.warnings(definition)], actor=Actor.DASHBOARD)
+        self.assertTrue(result["done"], result)
+
+    def test_both_on_the_launcher_started_with_codex_supervises_the_watcher(self):
+        from codex_auto_resume_advanced.control.codexstart import StartWithCodex
+        self.on("start_with_codex")
+        self.on("crash_restart")
+        self.assertIsInstance(self.rt.start_route({"in_job": True, "kill_on_close": True, "breakaway_ok": False,
+                                                   "silent_breakaway_ok": False}), StartWithCodex)
+        self.assertIs(self.rt.supervise({"phase": "start"}), Alternative.SUPERVISE)
+        self.assertIs(self.rt.supervise({"phase": "ended", "exit_code": 1, "clean": False}), Alternative.RESTART)
+        overruled = [line for line in self.rt.state.journal() if line["code"] == JournalCode.OVERRULED]
+        self.assertEqual(overruled, [])
+
+
+class WakeBesideTheResetCapabilitiesTests(ac.AdvancedCase):
+    """wake_for_reset beside reset_credit, reset_message and usage_pause: COMPOSE. Each keeps its own due time - a
+    credit's or a message's rule (`due_at`), the forced stop's held window (the meter's `paused_reset_at`) - and core
+    keeps its waiting usage-limit records'; the wake timer is set for the earliest of them all, read through the same
+    view, so whichever acts first finds the PC awake, and none of them is changed by it."""
+
+    class Timer:
+        def __init__(self):
+            self.due = None
+
+        def allowed(self):
+            return True
+
+        def set(self, when):
+            self.due = when
+            return True
+
+        def cancel(self):
+            found, self.due = self.due is not None, None
+            return found
+
+    class View:
+        def __init__(self, rows):
+            self.rows = rows
+
+        def records_in(self, states):
+            return [row for row in self.rows if row["state"] in states]
+
+    def setUp(self):
+        super().setUp()
+        from codex_auto_resume_advanced.registry import WAKE_FOR_RESET
+        self.compat = {"status": "ok", "engine": {"found": True, "version": ac.ENGINE},
+                       "capabilities": {name: {"state": "COMPATIBLE", "reason": "local_checks_passed"}
+                                        for name in ("engine_present", "usage_probe")}}
+        self.rt = self.runtime(WAKE_FOR_RESET, RESET_CREDIT)
+        self.rt.arming.catalogs = statement.CATALOGS
+        self.code = self.rt._code_of(WAKE_FOR_RESET)
+        self.code._timer = self.timer = self.Timer()
+        self.code._start = lambda target: None
+
+    def on(self, capability):
+        definition = self.rt.registry.get(capability)
+        result = self.rt.arming.arm(capability, state="armed", revision=definition.revision,
+                                    generation=self.rt.state.meta()["generation"], acknowledged_version=ac.ENGINE,
+                                    warnings=[str(w) for w in self.rt.arming.warnings(definition)], actor=Actor.DASHBOARD)
+        self.assertTrue(result["done"], result)
+        self.rt.states(fresh=True)
+
+    def errand(self, rows):
+        self.code.tick(self.View(rows)).run(lambda: None)
+
+    def test_the_timer_is_set_for_the_earliest_due_time_of_them_all(self):
+        self.on("wake_for_reset")
+        self.on("reset_credit")
+        core = {"state": "waiting_reset", "category": "usage_limit", "next_check_at": self.now + 3 * 3600}
+        self.errand([core])
+        self.assertEqual(self.timer.due, self.now + 3 * 3600 - 120)
+        rule = self.rt.state.add_reset_rule("reset_credit", "codex", 300, 1)
+        self.assertTrue(self.rt.state.change_rule(rule, due_at=self.now + 2 * 3600))
+        self.errand([core])
+        self.assertEqual(self.timer.due, self.now + 2 * 3600 - 120, "the credit's rule comes first")
+        self.rt.state.save_meter([{"bucket": "codex", "window_minutes": 10080, "used_percent": 97.0,
+                                   "reset_at": int(self.now + 3600)}])
+        self.assertTrue(self.rt.state.mark_meter("codex", 10080, paused_reset_at=int(self.now + 3600)))
+        self.errand([core])
+        self.assertEqual(self.timer.due, int(self.now + 3600) - 120, "the forced stop's held window comes first")
+        self.assertEqual([row["due_at"] for row in self.rt.state.reset_rules()], [self.now + 2 * 3600],
+                         "the credit's rule is unchanged")
+
+
+# ------------------------------------------------------------------------------ the in-app chat (v0.6.19)
+from test_advanced_chat import ChatCase, FakeSession  # noqa: E402
+from codex_auto_resume_advanced.engine import chat as chat_engine  # noqa: E402
+from codex_auto_resume_advanced.ledger import held_by_records  # noqa: E402
+from codex_auto_resume_advanced.state.records import own_paced  # noqa: E402
+from codex_auto_resume_advanced.registry import (CODEX_CHAT, CRASH_RESTART, KEEP_GOING,  # noqa: E402
+                                                 LONG_RESET_MESSAGE, PROMPT_QUEUE, RESET_MESSAGE, SEND_NOW,
+                                                 USAGE_WRAP_UP, WAKE_FOR_RESET)
+from codex_auto_resume_advanced.vocabulary import BridgeCommand, ChatReason, ChatState, Refusal  # noqa: E402
+from codex_auto_resume_advanced import surfaces  # noqa: E402
+
+
+def _core_connection(test, plug, with_queue=True):
+    """A connection of core's shape - an interruptions table, the edition's file attached - as core's claim has."""
+    import sqlite3
+    connection = sqlite3.connect(":memory:", isolation_level=None)
+    test.addCleanup(connection.close)
+    connection.execute("CREATE TABLE interruptions (thread_id TEXT, state TEXT, queue_id TEXT, submitted_at REAL, "
+                       "last_claim_at REAL, attempt_count INTEGER)")
+    test.assertTrue(plug.runtime.state.attach(connection))
+    return connection
+
+
+class _ChatPair(ChatCase):
+    """The chat beside one other capability: both shipped definitions armed, against core's own engine and store."""
+
+    def chat_record(self, plug, key):
+        return chat_engine.handed(plug.runtime.state.chat_by_record(key))
+
+    def claim(self, plug, key, now):
+        """`key` claimed as core's claim claims a record of the edition's: True where it may go now."""
+        connection = _core_connection(self, plug)
+        connection.execute("BEGIN IMMEDIATE")
+        try:
+            return plug.runtime.state.claim_record(connection, key, now)
+        finally:
+            connection.execute("COMMIT")
+
+    def delivered_chat(self, plug):
+        """A chat message sent and delivered, then a minute on: its claim is a minute old."""
+        key = self.waiting(plug)
+        self.h.tick()
+        self.h.home.dispatch(T1)
+        self.h.tick(advance=2)
+        self.assertEqual(plug.runtime.state.chat_by_record(key)["reason"], ChatReason.DELIVERED)
+        self.h.now += 60
+        return key
+
+
+class ChatBesidePromptQueueTests(_ChatPair):
+    """codex_chat and prompt_queue: COMPOSE. Two kinds of a person's own message for one conversation: one in flight
+    at a time across both (whichever is claimed first goes, the other waits for it), each sent once, and neither
+    paces the other - a queued prompt keeps core's fifteen minutes and five a day among the prompts and recoveries, and
+    a chat message is counted in none of them (state/records.own_paced; fixed here: it was)."""
+    BESIDE = (PROMPT_QUEUE,)
+
+    def add_prompt(self, plug):
+        argument = dict(thread_id=T1, words="Then run the linter too.", trigger="after_turn",
+                        generation=plug.runtime.state.meta()["generation"])
+        result = surfaces.bridge(plug.runtime, "advanced-prompt-add", argument)
+        self.assertTrue(result["done"], result)
+
+    def test_a_prompt_after_a_chat_message_is_not_held_fifteen_minutes_by_it(self):
+        """Fails with own_paced reverted: the prompt would wait core's fifteen minutes after the chat's claim."""
+        plug = self.armed()
+        self.delivered_chat(plug)
+        self.add_prompt(plug)
+        self.h.tick(advance=30)
+        self.assertEqual(len(self.h.backend.send_calls), 1, "the prompt went at once")
+
+    def test_both_waiting_one_goes_at_a_time_and_each_once(self):
+        plug = self.armed()
+        self.waiting(plug)
+        self.add_prompt(plug)
+        self.h.tick()
+        self.assertEqual(len(self.calls) + len(self.h.backend.send_calls), 1, "one in flight in the conversation")
+        for _ in range(2):
+            self.h.home.dispatch(T1)
+            for _ in range(4):
+                self.h.tick(advance=30)
+        self.assertEqual((len(self.calls), len(self.h.backend.send_calls)), (1, 1), "both went, each once")
+
+
+class ChatBesideMarkerFreeTests(_ChatPair):
+    """codex_chat and marker_free_continuation: COMPOSE. Both carry words with no marker through thread/queue/add; a
+    chat message goes through the chat's own channel under the id core derives from its record (P5 and P15 for the
+    edition's own records are the chat's alone, runtime._own_record_answer), and marker-free keeps every recovery."""
+    BESIDE = (MARKER_FREE,)
+
+    def test_a_chat_message_goes_through_the_chat_s_channel_under_its_own_id(self):
+        plug = self.armed()
+        other = []
+        plug.runtime._code_of(MARKER_FREE)._open = lambda: FakeSession(self.h, other)
+        key = self.waiting(plug)
+        self.h.tick()
+        self.assertEqual(other, [], "marker-free's channel carried nothing of the chat's")
+        ((method, params),) = self.calls
+        self.assertEqual(params["clientUserMessageId"], ids.continuation_client_id(key))
+        recovery = {"interruption_id": "ab" * 32, "thread_id": T1}
+        self.assertIs(plug.runtime.ask(Point.SENDER, recovery, object()), plug.runtime._code_of(MARKER_FREE))
+
+
+class ChatBesideSilentTests(_ChatPair):
+    """codex_chat and silent_continuation: COMPOSE. SILENT is a route's answer at P15; a chat message is asked P15
+    as the chat's own record and is CLIENT_ID - its words always go, with no marker."""
+    BESIDE = (SILENT_CONTINUATION,)
+
+    def test_a_chat_message_keeps_its_words(self):
+        plug = self.armed()
+        key = self.waiting(plug, words="Explain the failing test.")
+        self.assertIs(plug.runtime.ask(Point.DELIVERY, self.chat_record(plug, key)), Alternative.CLIENT_ID)
+        self.h.tick()
+        self.assertEqual(self.calls[0][1]["input"][0]["text"], "Explain the failing test.")
+
+
+class ChatBesideQueueForOpenTests(_ChatPair):
+    """codex_chat and queue_for_open: COMPOSE. Both wait for the app to hold the conversation: queue_for_open queues a
+    usage-limited recovery for the moment it is opened (P16, never asked for the edition's own records), and a chat
+    message waits - never queued for opening - and goes once the app holds the conversation."""
+    BESIDE = (QUEUE_FOR_OPEN,)
+
+    def test_a_chat_message_waits_for_the_app_and_is_never_queued_for_opening(self):
+        plug = self.armed()
+        self.h.backend.loaded_map[T1] = "notLoaded"
+        self.waiting(plug)
+        for _ in range(5):
+            self.h.tick(advance=60)
+        self.assertEqual((self.calls, self.h.backend.send_calls), ([], []))
+        self.h.backend.loaded_map[T1] = "loaded"
+        self.h.tick(advance=60)
+        self.assertEqual(len(self.calls), 1)
+
+
+class ChatBesideGoalTests(_ChatPair):
+    """codex_chat and goal_continuation: COMPOSE. The goal's route, hold and channel (P16, P3, P5) are a recovery's;
+    a chat message is the person's own and goes through the chat's channel beside an active goal, as a message typed
+    in Codex would."""
+    BESIDE = (GOAL_CONTINUATION,)
+
+    def test_a_chat_message_goes_through_the_chat_s_channel_with_the_goal_on(self):
+        plug = self.armed()
+        key = self.waiting(plug)
+        self.assertIs(plug.runtime.ask(Point.SENDER, self.chat_record(plug, key), object()),
+                      plug.runtime._code_of(CODEX_CHAT).channel)
+        self.h.tick()
+        self.assertEqual(len(self.calls), 1)
+
+
+class ChatBesideRecordsTests(_ChatPair):
+    """codex_chat beside keep_going, usage_wrap_up, reset_message (with long_reset_message) and send_now: COMPOSE.
+    One in flight in a conversation across every record and core's rows - a chat message in flight holds the others,
+    and theirs hold it - and a chat message's claim counts in nobody else's five a day or fifteen minutes (fixed
+    here): a continuation kept going, a wrap-up, a reset message or a recovery sent now goes a minute after a chat
+    message as it would with the chat off."""
+    BESIDE = (KEEP_GOING, USAGE_METER, USAGE_WRAP_UP, RESET_MESSAGE, LONG_RESET_MESSAGE, SEND_NOW)
+
+    def test_another_record_is_not_paced_by_a_chat_message(self):
+        """Fails with own_paced reverted: each would be held fifteen minutes by the chat's claim."""
+        plug = self.armed()
+        self.delivered_chat(plug)
+        for index, capability in enumerate(("keep_going", "usage_wrap_up", "reset_message")):
+            key = "%064x" % (index + 7)
+            self.assertTrue(plug.runtime.state.add_record(key, capability, T1, at=self.h.now))
+            with self.subTest(capability=capability):
+                self.assertTrue(self.claim(plug, key, self.h.now), "claimed a minute after the chat's")
+                self.assertTrue(plug.runtime.state.move_record(key, "finished", at=self.h.now))
+            with plug.runtime.state._transaction() as connection:     # its own claim aged out, for the next one
+                connection.execute("UPDATE records SET claimed_at=? WHERE record_id=?", (self.h.now - 3 * 86400, key))
+
+    def test_a_recovery_sent_now_waits_only_while_a_chat_message_is_in_flight(self):
+        """Fails with own_paced reverted: the chat's finished claim would hold core's recovery fifteen minutes."""
+        plug = self.armed()
+        key = self.waiting(plug)
+        self.h.tick()
+        connection = _core_connection(self, plug)
+        own = own_paced(plug.runtime.registry)
+        self.assertTrue(held_by_records(connection, T1, self.h.now, own), "one in flight")
+        self.h.home.dispatch(T1)
+        self.h.tick(advance=2)
+        self.assertEqual(plug.runtime.state.chat_by_record(key)["state"], ChatState.DONE)
+        self.assertFalse(held_by_records(connection, T1, self.h.now + 60, own))
+
+    def test_longer_messages_does_not_lengthen_a_chat_message(self):
+        """SPLIT: Longer messages lengthens a reset message and a queued prompt; a chat message stays at A27's 2,000
+        characters, all the state's chat table holds (state/schema.CHAT_WORDS) - a longer one would need its table
+        made again, for one capability's limit. The page shows it as its words_limit."""
+        from codex_auto_resume_advanced.control import chat as control
+        plug = self.armed()
+        argument = dict(thread_id=T1, words="x" * 2001, generation=plug.runtime.state.meta()["generation"])
+        with patch.object(control, "switched_off", lambda runtime, thread: False):
+            refused = surfaces.bridge(plug.runtime, BridgeCommand.ADVANCED_CHAT_SEND, argument)
+        self.assertEqual(refused["refusal"], Refusal.PROMPT_REFUSED)
+        self.assertEqual(control.WORDS, 2000)
+
+
+class ChatBesideUsagePauseTests(_ChatPair):
+    """codex_chat and usage_pause: COMPOSE. The forced stop near a limit holds the edition's continuations, never a
+    person's message (engine/usage.holds): a chat message is the person's own instruction, as one typed in Codex is."""
+    BESIDE = (USAGE_METER, USAGE_PAUSE)
+
+    def test_a_chat_message_is_not_held_by_the_forced_stop(self):
+        plug = self.armed()
+        key = self.waiting(plug)
+        pause = plug.runtime._code_of(USAGE_PAUSE)
+        with patch.object(type(pause), "holding", lambda self: True):
+            self.assertFalse(pause.holds(self.chat_record(plug, key)))
+            self.assertTrue(pause.holds(dict(self.chat_record(plug, key), purpose="continuation")))
+
+
+class ChatBesideWakeForResetTests(_ChatPair):
+    """codex_chat and wake_for_reset: COMPOSE, the chat not counted. A chat message written while the limit is full
+    has no due time of its own: it waits at core's usage gate with no schedule (the house rule: no second scheduler),
+    so the wake timer is set for the reset rules, the forced stop's window and core's usage-limit records alone, and a
+    waiting chat message goes at the first look once the PC is awake."""
+    BESIDE = (WAKE_FOR_RESET,)
+
+    def test_a_waiting_chat_message_sets_no_wake_timer(self):
+        plug = self.armed()
+        self.waiting(plug)
+        wake = plug.runtime._code_of(WAKE_FOR_RESET)
+        due = []
+        wake._timer = type("Timer", (), {"allowed": lambda s: True, "set": lambda s, when: due.append(when) or True,
+                                         "cancel": lambda s: False})()
+        wake._start = lambda target: None
+        errand = wake.tick(type("View", (), {"records_in": lambda s, states: []})())
+        if errand is not DEFER and errand is not None:
+            errand.run(lambda: None)
+        self.assertEqual(due, [], "nothing of the chat's has a time to wake for")
+
+
+class ChatBesideCrashRestartTests(_ChatPair):
+    """codex_chat and crash_restart: COMPOSE. A watcher restarted while a chat message is in flight finds it in the
+    state with no words, follows it by its client id and never sends it again: delivered once Codex shows it, or
+    unproven a day on. (Codex's queue id is in the first watcher's memory alone, so one Codex never took is not taken
+    back after a restart - it ends unproven, never resent.)"""
+    BESIDE = (CRASH_RESTART,)
+
+    def test_a_restart_while_a_message_is_in_flight_never_sends_it_again(self):
+        plug = self.armed()
+        key = self.waiting(plug)
+        self.h.tick()
+        self.assertEqual(len(self.calls), 1)
+        again = self.advanced(self.h)                     # the restarted watcher: the same state, nothing in memory
+        again.runtime._code_of(CODEX_CHAT).channel._open = lambda: FakeSession(self.h, self.calls)
+        self.plugged(again, self.h)
+        for _ in range(5):
+            self.h.tick(advance=60)
+        self.assertEqual(len(self.calls), 1, "never sent again")
+        self.h.home.dispatch(T1)
+        self.h.tick(advance=2)
+        self.assertEqual(again.runtime.state.chat_by_record(key)["reason"], ChatReason.DELIVERED)
+
+
+# ---------------------------------------------------------------- open_to_send (v0.6.19, issue #50)
+from test_advanced_open_target import OpenCase  # noqa: E402
+from codex_auto_resume_advanced.registry import OPEN_TO_SEND  # noqa: E402,F401
+from codex_auto_resume_advanced.engine import opentarget  # noqa: E402
+
+
+class OpenToSendBesideQueueForOpenTests(OpenCase):
+    """COMPOSE (memory capabilities-compose): queue_for_open queues the continuation for when the conversation is opened,
+    and open_to_send opens it - the open is the trigger, as M1 and MQO measured, so the one queued item is all that is
+    ever sent for it."""
+    BESIDE = (QUEUE_FOR_OPEN,)
+
+    def test_opening_delivers_what_queue_for_opening_queued_and_nothing_is_sent_twice(self):
+        self.armed()
+        self.ready_after_reset(loaded=False)
+        self.h.backend.loaded_map[T1] = "notLoaded"
+        self.h.backend.after_accept = "queue"
+        self.h.tick()
+        row = self.h.record()
+        self.assertEqual(row["state"], "queued", row["last_error"])
+        self.assertEqual(len(self.h.backend.send_calls), 1)
+        self.h.tick(advance=5)
+        self.assertEqual(self.opened, [T1], "the queued conversation opened")
+        for _ in range(3):
+            self.h.tick(advance=61)
+        self.assertEqual(len(self.h.backend.send_calls), 1, "no second send")
+
+
+class OpenToSendBesideOtherSessionsTests(OpenCase):
+    """EXCLUSIVE by its rule: a conversation another session holds (a terminal's, VS Code's) is never opened in the app -
+    core waits for it with held_by_other_session, never notLoaded, and other_sessions is the one to act on it."""
+    BESIDE = (OTHER_SESSIONS,)
+
+    def test_a_conversation_another_session_holds_is_not_opened(self):
+        self.armed()
+        self.ready_after_reset(loaded=False)
+        self.h.backend.loaded_map[T1] = "elsewhere"
+        for _ in range(4):
+            self.h.tick(advance=61)
+        self.assertEqual(self.opened, [])
+
+
+class OpenToSendBesideHeadlessRunTests(OpenCase, UnheldCase):
+    """EXCLUSIVE where headless_run takes it: with Codex closed and nothing holding the conversation, headless_run's route
+    runs it at P16, before P8's errand - so even with Also start Codex on the conversation is not opened as well
+    (headless first; the owner may change that)."""
+    BESIDE = (HEADLESS_RUN,)
+
+    def setUp(self):
+        super().setUp()
+        self.compat = _compat(*{definition.compat for definition in (*self.BESIDE, self.DEFINITION)})
+
+    def test_a_conversation_headless_run_takes_is_not_opened(self):
+        plug = self.armed()
+        self.choose(plug, "open_start_codex", opentarget.ON)
+        route = Silent(self.h)
+        plug.runtime._code[HEADLESS_RUN.id] = _RouteOnly(route)
+        self.running = False
+        self.closed()
+        for _ in range(3):
+            self.h.tick(advance=61)
+        self.assertEqual(len(route.calls), 1, "headless_run ran it")
+        self.assertEqual(self.opened, [])
+
+
+# ---------------------------------------------------------------- v0.6.20: account_switch (plans/v0619-design/D-account.md)
 class AccountBesideResetsAndPauseTests(UsageCase):
     """account_switch beside reset_credit, reset_message and usage_pause: COMPOSE, each still doing its own. Another
     account signed in holds core's waiting usage-limit records and every reset rule still counting - held in the reset

@@ -45,7 +45,7 @@ def _row(record: dict) -> dict:
         "not_before": None, "postponed_until": None, "hold": None, "would_send_at": None,
         "context_tokens": None,
         "thread_enabled": True, "tier": None, "attempt_limit": None,
-        "name": None, "project": None, "cwd_basename": None, "home": None, "once_words": False,
+        "name": None, "project": None, "cwd_basename": None, "home": None, "once_words": False, "usage_check": None,
         "demo": True,
     }
 

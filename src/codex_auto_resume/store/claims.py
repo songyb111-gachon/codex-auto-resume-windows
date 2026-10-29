@@ -110,7 +110,7 @@ class ClaimsMixin:
                 return False, "identity", "unknown_record"
             if resend is not None:
                 return self._resend_claim(connection, settings, row, now, limits, gates, ledger, carried,
-                                          quiet_until, resend)
+                                          quiet_until, resend, caps)
             vector = dict(gates or {})
             vector["consent"] = machine.gate_consent(
                 settings["enabled"], self._thread_enabled(connection, row["thread_id"]),
@@ -196,10 +196,9 @@ class ClaimsMixin:
                       next_retry_at: float | None = None, actor: str = "engine") -> bool:
         """Undo a claim whose send never started.
 
-        Only the engine calls this, and only between the claim and starting the queue
-        process, so nothing can have reached Codex. The claim time is kept - the daily
-        cap and cooldown still count it - but the attempt counters are given back,
-        because no attempt happened.
+        Only the engine calls this, and only between the claim and starting the queue process, so nothing can have
+        reached Codex. The claim time is kept - the daily cap and cooldown still count it - but the attempt counters are
+        given back, because no attempt happened. One that ends the record gives it its outcome time (v0.6.18).
         """
         _timestamp(now, "now")
         if target not in WAITING | {"cancelled", "superseded", "superseded_by_user"}:
@@ -211,9 +210,10 @@ class ClaimsMixin:
                 return False             # v0.6.14: a resent one never waits, nor gets back what it never paid
             connection.execute(
                 "UPDATE interruptions SET state=?, submitted_at=NULL, last_error=?, next_retry_at=?, %s, "
-                "cancel_requested=CASE WHEN ?='cancelled' THEN 1 ELSE cancel_requested END "
-                "WHERE interruption_id=?" % _claim_cost(row, refund=True),
-                (target, reason, now if next_retry_at is None else next_retry_at, target, interruption_id))
+                "cancel_requested=CASE WHEN ?='cancelled' THEN 1 ELSE cancel_requested END, "
+                "outcome_at=coalesce(?, outcome_at) WHERE interruption_id=?" % _claim_cost(row, refund=True),
+                (target, reason, now if next_retry_at is None else next_retry_at, target,
+                 None if target in WAITING else now, interruption_id))
             self._event(connection, now, "release_claim", record=row, from_state="submitting",
                         to_state=target, reason=reason, actor=actor)
             return True

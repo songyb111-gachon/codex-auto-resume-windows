@@ -130,6 +130,11 @@ class RecordsMixin:
             worded = oncewords.OnceWords.of(self.paths).held()
         except Exception:
             worded = {}
+        # v0.6.19 (issue #50): what the last usage reading a person's Retry now asked for said of each record, a day back.
+        try:
+            checked = store.usage_checks_shown(time.time() - 86400)
+        except Exception:
+            checked = {}
         listed = []
         for row in rows:
             identity = {}
@@ -155,7 +160,8 @@ class RecordsMixin:
                          "name": identity.get("name"), "project": identity.get("project"),
                          "cwd_basename": identity.get("cwd_basename"),
                          "home": home[0] if home is not None else None,
-                         "once_words": row["interruption_id"] in worded})
+                         "once_words": row["interruption_id"] in worded,
+                         "usage_check": _usage_check(checked.get(row["interruption_id"]), row)})
             listed.append(item)
         return listed
 
@@ -215,3 +221,12 @@ class RecordsMixin:
             result = store.statistics(since)
         result["period_days"] = days
         return result
+
+
+def _usage_check(check, row):
+    """A row's usage check (store.usage_checks_shown), with whether the recovery has been continued since it lifted the
+    reset: sent - claimed and submitted - at or after the reading (v0.6.19, issue #50)."""
+    if not check:
+        return None
+    sent = row.get("submitted_at")
+    return dict(check, continued=bool(check.get("lifted") and isinstance(sent, (int, float)) and sent >= check["at"]))

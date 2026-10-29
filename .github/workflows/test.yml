@@ -69,20 +69,31 @@ jobs:
     # holds the faster layout audits: its 5 parts are 1478 s each, the advanced lane's 5 are 1634 s and the
     # standard lane's 3 are 1921 s. A dev run is 12 + 20 + 5 = 37 jobs: 3 standard parts and 5 advanced parts
     # for each of 3 Pythons and the next one, and the 5 of the main-tree job.
+    #
+    # Four standard parts and six advanced (2026-10-24). The owner dropped Python 3.12 from CI and kept 3.13 and
+    # 3.14 blocking and 3.15 advisory, which frees the 8 jobs of 3.12's lanes; the jobs freed went to more
+    # parts. By tests/data/durations.json as CI run 40084551770 left it, the standard lane is 5465 s (3 parts
+    # 1822 s each, 4 parts 1366 s), the advanced lane 8296 s (5 parts 1659 s, 6 parts 1383 s, its floor one file,
+    # advanced/tests/test_advanced_page_layout_1.py at 753 s) and the release lane 7453 s (5 parts 1491 s, 6 parts
+    # 1242 s). The longest part of a run was the standard lane's third at 1822 s; with the release lane in 6 - the
+    # main-tree job's count is release.yml's (MainTreeTests holds the two equal) - the longest is the advanced lane's
+    # 1383 s. A dev run is 10 + 10 + 10 + 6 = 36 jobs: 4 standard parts and 6 advanced parts for each of 2 Pythons
+    # and the next one, and the 6 of the main-tree job - under the 37 a run may take, so a dev run and part of another
+    # still fit GitHub's 40 jobs at once.
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.12", "3.13", "3.14"]
+        python-version: ["3.13", "3.14"]
         experimental: [false]
         edition: [standard, advanced]
         # The longest lane's parts; PARTS below is this list for the advanced lane and two fewer for the
-        # standard, whose parts 4 and 5 are excluded. tests/test_split_runs.py holds each lane's list (this one
+        # standard, whose parts 5 and 6 are excluded. tests/test_split_runs.py holds each lane's list (this one
         # without what is excluded) to 1..its PARTS, so no part of a lane can be dropped by changing one of them.
-        part: [1, 2, 3, 4, 5]
-        # The standard lane has no parts 4 and 5 (see its three parts above). A quick run (workflow_dispatch input
+        part: [1, 2, 3, 4, 5, 6]
+        # The standard lane has no parts 5 and 6 (see its four parts above). A quick run (workflow_dispatch input
         # `quick`) keeps 3.13 alone: the others and the pre-release lane are excluded as well. Without the input
-        # only the standard parts 4 and 5 are.
-        exclude: '${{ fromJSON(inputs.quick && ''[{"python-version":"3.12"},{"python-version":"3.14"},{"python-version":"3.15"},{"edition":"standard","part":4},{"edition":"standard","part":5}]'' || ''[{"edition":"standard","part":4},{"edition":"standard","part":5}]'') }}'
+        # only the standard parts 5 and 6 are.
+        exclude: '${{ fromJSON(inputs.quick && ''[{"python-version":"3.14"},{"python-version":"3.15"},{"edition":"standard","part":5},{"edition":"standard","part":6}]'' || ''[{"edition":"standard","part":5},{"edition":"standard","part":6}]'') }}'
         include:
           # The next Python, while it is still a release candidate. It is not decoration:
           # it compiles the sources and runs the same suite, and a failure is annotated
@@ -96,11 +107,13 @@ jobs:
           - {python-version: "3.15", experimental: true, edition: standard, part: 1}
           - {python-version: "3.15", experimental: true, edition: standard, part: 2}
           - {python-version: "3.15", experimental: true, edition: standard, part: 3}
+          - {python-version: "3.15", experimental: true, edition: standard, part: 4}
           - {python-version: "3.15", experimental: true, edition: advanced, part: 1}
           - {python-version: "3.15", experimental: true, edition: advanced, part: 2}
           - {python-version: "3.15", experimental: true, edition: advanced, part: 3}
           - {python-version: "3.15", experimental: true, edition: advanced, part: 4}
           - {python-version: "3.15", experimental: true, edition: advanced, part: 5}
+          - {python-version: "3.15", experimental: true, edition: advanced, part: 6}
     # Only the pre-release lane is allowed to fail the job without failing the run.
     continue-on-error: ${{ matrix.experimental }}
 
@@ -117,10 +130,10 @@ jobs:
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          # The 3.13 lane runs the exact Python a release bundles (build/make_release.py PYTHON_VERSION), not
-          # the newest 3.13 the runner has: a newer 3.13 patch arrived on the runners in October 2026, the suite had
-          # never run on it, and no user runs it (tests/test_python_support.py holds the two together).
-          python-version: ${{ matrix.python-version == '3.13' && '3.13.15' || matrix.python-version }}
+          # The 3.14 lane runs the exact Python a release bundles (build/make_release.py PYTHON_VERSION), not
+          # the newest 3.14 the runner has: a newer 3.13 patch that arrived on the runners in October 2026 had never
+          # had the suite run on it, and no user runs it (tests/test_python_support.py holds the two together).
+          python-version: ${{ matrix.python-version == '3.14' && '3.14.9' || matrix.python-version }}
           # Needed for the future lane, and harmless for the others: a stable release
           # is still preferred where one exists, so this does not quietly move a
           # blocking version onto a release candidate. It also means the day the next
@@ -185,8 +198,8 @@ jobs:
           # RefusalTests.test_the_refusals_match_a_generated_schema).
           CODEX_AR_SCHEMA_DIR: ${{ matrix.edition == 'advanced' && format('{0}/advanced/tests/data/app-server-schema', github.workspace) || '' }}
           PART: ${{ matrix.part }}
-          # The standard lane's three parts and the advanced lane's five (the matrix's `exclude`).
-          PARTS: ${{ matrix.edition == 'standard' && '3' || '5' }}
+          # The standard lane's four parts and the advanced lane's six (the matrix's `exclude`).
+          PARTS: ${{ matrix.edition == 'standard' && '4' || '6' }}
         run: python scripts/test_parts.py --lane $env:CODEX_AR_EDITION --part "$env:PART/$env:PARTS" -v --annotate --seconds "$env:RUNNER_TEMP\seconds.json"
 
       - name: Keep this part's seconds per file
@@ -233,7 +246,7 @@ jobs:
       fail-fast: false
       matrix:
         # PARTS below is the length of this list; tests/test_split_runs.py holds the two together.
-        part: [1, 2, 3, 4, 5]
+        part: [1, 2, 3, 4, 5, 6]
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -245,7 +258,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: "3.13.15"
+          python-version: "3.14.9"
 
       - name: Take every Korean source off, as a promotion to main does
         # Removed from the index too: the suite lists files with `git ls-files`, and main's index has
@@ -262,7 +275,7 @@ jobs:
         env:
           CODEX_AR_TREE: main
           PART: ${{ matrix.part }}
-          PARTS: "5"
+          PARTS: "6"
         run: python scripts/test_parts.py --lane release --part "$env:PART/$env:PARTS" -v --annotate --seconds "$env:RUNNER_TEMP\seconds.json"
 
       - name: Keep this part's seconds per file

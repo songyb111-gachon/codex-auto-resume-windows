@@ -892,14 +892,19 @@ class ConvertedStateUnderTheInstallLockTests(unittest.TestCase):
         cancel and a pause work through the older watcher's store; the status is refused, as it is
         under an older watcher; nothing is upgraded, and the older version opens what is left."""
         from unittest import mock
-        from codex_auto_resume import cli, notify
+        from codex_auto_resume import cli, notifier, notify
         self.install_lock()
         home = ["--home", str(self.paths.home), "--quiet"]
-        with mock.patch.object(notify, "show_content", return_value=True), \
+        # The notice the cancel announces is caught where it is handed on (notifier.deliver), so no real
+        # toast is raised: a patch of notify.show_content alone once missed it (2026-10-22).
+        with mock.patch.object(notifier, "deliver", return_value=("toast", True)) as delivered, \
                 redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
             cancelled = cli.main(home + ["activate", notify.cancel_uri(released.key(0))])
             status = cli.main(home + ["status"])
             paused = cli.main(home + ["disable"])
+        self.assertEqual([call.args[0].kind for call in delivered.call_args_list], ["cancelled"],
+                         "exactly one notice, the cancel's")
+        self.assertEqual(delivered.call_args_list[0].args[0].key, THREAD)
         self.assertEqual((cancelled, paused), (0, 0), "both work through the older watcher's store")
         self.assertNotEqual(status, 0, "a status is refused, as under an older watcher")
         self.assertEqual((self.schema(), self.upgraded()), (3, []))

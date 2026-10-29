@@ -44,8 +44,6 @@ asked to agree to and everything the plug holds it to:
   one off turns off what requires it; a required one an administrator's policy forbids, or whose
   compatibility is Failed here, keeps the dependent off, with that reason (arming.py). Never names
   itself, and the registry is acyclic (Registry rejects a cycle when it is made);
-* `keepable` - whether a person may keep it on (K8; v0.6.16-beta.4): False for one whose tripwire is what stops it
-  doing harm, which Keep on would turn into a note (arming.py refuses it);
 * `make` - the factory for its code: given the installation's paths, it returns an object whose
   methods are the plug's hooks for its points, each answering as a plug would.
 
@@ -78,6 +76,7 @@ from .engine.account import make as make_account_switch
 from .engine.admitted import (ATTEMPTS, DEFAULT_ATTEMPTS, make_codex_gave_up, make_sign_in_retry,
                               make_structured_rules, make_unknown_failure_budget)
 from .engine.capacity import CEILING_HOURS, DEFAULT_HOURS, make as make_capacity_retry
+from .engine.chat import make as make_codex_chat
 from .engine.compact import make as make_compact_continue
 from .engine.credits import make as make_reset_credit
 from .engine.resetmessage import make as make_reset_message, make_long as make_long_messages
@@ -85,9 +84,12 @@ from .engine.earlyreset import make as make_early_reset
 from .engine.emptyreply import make as make_empty_response
 from .engine.everyconversation import make as make_every_conversation
 from .engine.subagent import make as make_subagent_parent
+from .engine.supervise import make as make_crash_restart
 from .engine.keepgoing import make as make_keep_going
 from .engine.promptqueue import make as make_prompt_queue
 from .engine.foropen import CODES as FOROPEN_CODES, DAYS, DEFAULT_DAYS, make as make_queue_for_open
+from .engine.opentarget import (DEFAULT_IDLE as OPEN_DEFAULT_IDLE, IDLE_MINUTES as OPEN_IDLE_MINUTES, OFF as OPEN_OFF,
+                               make as make_open_to_send)
 from .engine.fallback import (ATTEMPTS as FALLBACK_ATTEMPTS, DEFAULT_ATTEMPTS as FALLBACK_DEFAULT_ATTEMPTS,
                               NOT_RESTORED, make as make_model_fallback)
 from .engine.goal import make as make_goal_continuation
@@ -100,6 +102,7 @@ from .engine.silent import make as make_silent_continuation
 from .engine.oncemore import make as make_once_more
 from .engine.parallel import DEFAULT_WORKERS, WORKERS, make as make_parallel
 from .engine.updatecheck import make as make_idle_update_check
+from .engine.wake import DEFAULT_LEAD as WAKE_DEFAULT_LEAD, LEADS as WAKE_LEADS, make as make_wake_for_reset
 from .engine.usage import (DEFAULT_PAUSE, DEFAULT_POLL, DEFAULT_STOP_WORDS, DEFAULT_STYLE, DEFAULT_WARN,
                            DEFAULT_WRAP, ON, PERCENT_RANGE, PERCENTS, POLL_RANGE, SWITCH,
                            POLL_CHOICES, STYLES, make_meter, make_pause, make_wrap_up)
@@ -174,7 +177,8 @@ class CapabilityDef:
     kind: CapabilityKind = CapabilityKind.ROUTE
     # v0.6.16-beta.4: the WordingKeys of a person's own text it keeps (state `wordings`): the wrap-up's Custom text.
     wordings: tuple = ()
-    keepable: bool = True
+    # No `keepable` (v0.6.16-beta.4 to v0.6.19-beta.2): the owner's word of 2026-10-24 is that a person may keep every
+    # capability on (K8) - the choice is offered on each, and none is kept on unless the person chose it there.
 
     def option(self, key) -> Option | None:
         """The choice of `key` this capability offers, or None."""
@@ -268,8 +272,6 @@ def problems(definition) -> list:
     if type(definition.resends) is not bool or (
             definition.resends is True and Point.SCHEDULE not in (points if isinstance(points, frozenset) else ())):
         found.append("resends")
-    if type(definition.keepable) is not bool:
-        found.append("keepable")
     requires = definition.requires
     if (not isinstance(requires, tuple)
             or not all(isinstance(other, str) for other in requires)
@@ -390,6 +392,29 @@ START_WITH_CODEX = CapabilityDef(
            "refused", "failed", "ended"),
     make=make_start_with_codex,
     measurements=(Measurement.MW,),
+)
+
+# Restart the watcher if it stops unexpectedly (v0.6.19, plans/v0619-design/D-watcher-ops.md A). At P13 it answers
+# SUPERVISE before the launcher runs the watcher, so the launcher runs it as a child - itself again, under pythonw.exe,
+# with no window - and stays; and once that child ended, RESTART only for an abnormal end: not clean in the heartbeat,
+# an exit code that is none of 0, EXIT_BUSY 3, EXIT_SCHEMA_NEWER 4 (whose relaunch-once path is unchanged) and
+# EXIT_MEMORY_GUARD 5, no stop asked through the stop event, and fewer than three restarts in the hour before, each a
+# row of `restarts` written before it is made (engine/supervise.py). After the third in an hour the watcher is left
+# stopped - the standard "stopped unexpectedly" - with one notice of its own kind, restart_gave_up. It departs from F6 (a
+# second pythonw.exe of the product's own, the supervisor beside the watcher) and F8 (a resident helper: the launcher
+# stays as the watcher's parent); it never kills anything (E8 kept), and a restarted watcher reconciles before it sends
+# as every watcher does (E2, A5-A7 kept). It sends nothing and reads nothing of Codex, and stands on engine_present, the
+# installation every recovery stands on; its ceilings are the schema's floor and never bind.
+CRASH_RESTART = CapabilityDef(
+    id="crash_restart",
+    points=frozenset({Point.SUPERVISION}),
+    revision=1,
+    departs_from=("F6", "F8"),
+    compat="engine_present",
+    ceilings=Ceilings(per_day=1, per_conversation=1),
+    journal_prefix="crash",
+    make=make_crash_restart,
+    codes=("restarted", "gave_up"),
 )
 
 # The marker-free continuation (v0.6.11 stage 3a, the owner's request of 2026-09-26): each
@@ -513,7 +538,9 @@ HEADLESS_RUN = CapabilityDef(
 # Codex session holds (`holder="session"`), it answers TO_SESSION: core's ordinary send through `codex queue`, with
 # its marker, for that session to take (M5) - taken back when that session lets go of it, and given back to waiting;
 # taken back because the session did not take it within core's delivery window, it turns off
-# (NOT_DISPATCHED_BY_SESSION), and so it may not be kept on (keepable). It departs from A15 (only the app's
+# (NOT_DISPATCHED_BY_SESSION). A person may keep it on (K8; the owner's word of 2026-10-24, v0.6.19-beta.3, before
+# it could not be): kept on, that tripwire - and a new Codex version - is a note and it stays on, while what was sent
+# is still taken back and given back to waiting, and its ceilings and every gate hold. It departs from A15 (only the app's
 # conversations are detected), A11 (sent while a session other than the app holds the conversation) and B6 (the
 # version skew guard reads which Codex wrote such a conversation off its file's first line, core's engine/kinds.py,
 # and waits while that is newer than the engine), keeps A2, A3,
@@ -529,7 +556,6 @@ OTHER_SESSIONS = CapabilityDef(
     journal_prefix="sess",
     make=make_other_sessions,
     measurements=(Measurement.M5, Measurement.MO),
-    keepable=False,
 )
 
 # Compact a full conversation, then continue (v0.6.16-beta.4, stage 4). At P17 it takes up Codex's own
@@ -585,8 +611,10 @@ MODEL_FALLBACK = CapabilityDef(
 # only through a route that takes words - headless_run's turn, compact_continue's continuation - calling it with no
 # words at all under the client id it derives, its proof (core's engine/routes.py); through codex queue or a channel
 # core ignores it (M3: Codex refuses an empty queue item). It continues nothing by itself. Where Codex refuses a turn
-# with no input it answers DEFER from then on in this process, so the next attempt carries words, and it turns off
-# (REFUSED_BY_CODEX) - so it may not be kept on (keepable). It departs from A4 (no marker) and A26 (no words), stands
+# with no input it answers DEFER from then on in this process, so the next attempt carries words - it never tries an
+# empty turn again in a loop - and it turns off (REFUSED_BY_CODEX). A person may keep it on (K8; the owner's word of
+# 2026-10-24, v0.6.19-beta.3, before it could not be): kept on, that refusal is a note and it stays on, still answering
+# DEFER for the rest of the process. It departs from A4 (no marker) and A26 (no words), stands
 # on recovery_turn_tracking and rests on M3B. Ceilings: five a conversation, two dozen a day.
 SILENT_CONTINUATION = CapabilityDef(
     id="silent_continuation",
@@ -598,7 +626,27 @@ SILENT_CONTINUATION = CapabilityDef(
     journal_prefix="silent",
     make=make_silent_continuation,
     measurements=(Measurement.M3B,),
-    keepable=False,
+)
+
+# Chat with a conversation in the Dashboard (v0.6.19, stage 4's item 7; the owner's of 2026-10-02). A person
+# reads a conversation the Codex app has open on the Dashboard's Chat page - its messages and replies, read on demand
+# (codex/conversation.py; MC2: in progress until Codex records the turn finished, approvals answered in Codex) - and
+# sends a message of up to 2,000 characters (control/chat.py). At P2 its oldest waiting message in a conversation is
+# core's MESSAGE record; at P5 and P15 it is the channel and CLIENT_ID: the words go into the conversation exactly as
+# typed through thread/queue/add under the client id core derives (MC1), proven by it (core's
+# engine/recordchannel.py). Its own pace (A20, H2): one in flight in a conversation, thirty a conversation and sixty a
+# day. It departs from A2, A4, A8, A17, A20, A26, A27, B3, B4, B7, D2, H2, H4 and H6; stands on
+# recovery_turn_tracking; rests on M7, MC1 and MC2 (MC2 a warning: partial).
+CODEX_CHAT = CapabilityDef(
+    id="codex_chat",
+    points=frozenset({Point.RECORDS, Point.SENDER, Point.DELIVERY}),
+    revision=1,
+    departs_from=("A2", "A4", "A8", "A17", "A20", "A26", "A27", "B3", "B4", "B7", "D2", "H2", "H4", "H6"),
+    compat="recovery_turn_tracking",
+    ceilings=Ceilings(per_day=60, per_conversation=30),
+    journal_prefix="chat",
+    make=make_codex_chat,
+    measurements=(Measurement.M7, Measurement.MC1, Measurement.MC2),
 )
 
 # Short retries when Codex is at capacity (v0.6.14 stage 3b; the plan's row: serverOverloaded alone,
@@ -865,11 +913,14 @@ PARALLEL_DISPATCH = CapabilityDef(
 # where asked, paced like every recovery (A20 kept, the owner's answer). Cancel and a Pause take back one Codex already
 # holds (the owner's answer of 2026-10-09). It departs from A8, A17, A26, A27, C4, D2, H4 and H6 as its statement says,
 # and stands on exact_thread_recovery. Its after_turn route rests on MT. Ceilings: core's five a conversation, thirty a
-# day. Before the edition's own continuations, so a person's message is handed first (P2's eight).
+# day. Before the edition's own continuations, so a person's message is handed first (P2's eight). Revision 2 (v0.6.19,
+# issue #50): a message at a time or on a schedule waits while a turn of its conversation runs, or goes into Codex's
+# queue at once, as the person chooses (engine/promptqueue.py) - the statement describes the default, so a person who
+# had it on reads the new one before it is on again.
 PROMPT_QUEUE = CapabilityDef(
     id="prompt_queue",
     points=frozenset({Point.RECORDS}),
-    revision=1,
+    revision=2,
     departs_from=("A8", "A17", "A26", "A27", "C4", "D2", "H4", "H6"),
     compat="exact_thread_recovery",
     ceilings=Ceilings(per_day=30, per_conversation=CORE_DAILY_CAP),
@@ -1075,7 +1126,7 @@ IDLE_UPDATE_CHECK = CapabilityDef(
     codes=("checked", "offered", "unanswered"),
 )
 
-# Switch the Codex account (v0.6.19, plans/v0619-design/D-account.md): its card in the Dashboard shows the account this
+# Switch the Codex account (v0.6.20, plans/v0619-design/D-account.md): its card in the Dashboard shows the account this
 # PC is signed in to - its plan and a masked address, read by account/read in the Dashboard's process and never stored -
 # and, once MAL passed on the Codex in force, offers Codex's own `codex logout` then `codex login` (codex/account.py);
 # until then it says how to switch in Codex instead (the narrower route, K6: a warning, never a refusal). The product
@@ -1099,6 +1150,31 @@ ACCOUNT_SWITCH = CapabilityDef(
     make=make_account_switch,
     codes=("changed", "held", "switch_asked", "signed_in", "not_signed_in", "switch_failed"),
     measurements=(Measurement.MA, Measurement.MAL),
+)
+
+# Wake this PC for a reset (v0.6.19, plans/v0619-design/D-watcher-ops.md B). At P8 it finds the earliest time something
+# waits for - core's waiting usage-limit records, the reset actions' pending rules, the forced stop's held window - and
+# sets a waitable timer of the watcher's own, with fResume, for that time less the lead a person chose (1, 2 or 5
+# minutes; 2), only where Windows' Allow wake timers already allows it for the power source in use - read, never
+# written; moved when that time changes, cancelled when nothing waits, recovery is paused, it is turned off or the
+# watcher stops (engine/wake.py, win/waketimer.py). Waking only lets the watcher's ordinary tick run sooner; every gate
+# is unchanged. Last of the capabilities at P8, so its errand reads the due times the others' errands just kept. It
+# departs from C4 (it acts on a schedule of its own) and B16 (Windows is asked the power scheme's Allow wake timers
+# value, a question not on the list); F1 is kept. It rests on MWAKE - whether such a timer wakes this PC - which the
+# measurement session makes; until then the statement says it is unmeasured. It sends nothing to Codex and stands on
+# engine_present; its ceilings are the schema's floor and never bind.
+WAKE_FOR_RESET = CapabilityDef(
+    id="wake_for_reset",
+    points=frozenset({Point.TICK}),
+    revision=1,
+    departs_from=("B16", "C4"),
+    compat="engine_present",
+    ceilings=Ceilings(per_day=1, per_conversation=1),
+    journal_prefix="wake",
+    make=make_wake_for_reset,
+    codes=("set", "cancelled", "not_allowed"),
+    measurements=(Measurement.MWAKE,),
+    options=(Option(OptionKey.WAKE_LEAD_MINUTES, WAKE_LEADS, WAKE_DEFAULT_LEAD),),
 )
 
 # Longer reset messages (v0.6.14, the owner's answer of 2026-10-08): a message sent at a reset may be up to what one
@@ -1170,11 +1246,12 @@ COMPAT_REPORT = CapabilityDef(
 
 # In this order, which is also which answers first where two answer at one point; the action, which
 # answers at none, last.
-DEFINITIONS = (START_WITH_CODEX, GOAL_CONTINUATION, QUEUE_FOR_OPEN, COMPACT_CONTINUE, MODEL_FALLBACK, HEADLESS_RUN, OTHER_SESSIONS, MARKER_FREE, CAPACITY_RETRY, STRUCTURED_RULES,
+DEFINITIONS = (START_WITH_CODEX, CRASH_RESTART, GOAL_CONTINUATION, QUEUE_FOR_OPEN, COMPACT_CONTINUE, MODEL_FALLBACK, HEADLESS_RUN, OTHER_SESSIONS, MARKER_FREE, CAPACITY_RETRY, STRUCTURED_RULES,
                UNKNOWN_FAILURE_BUDGET, CODEX_GAVE_UP, SIGN_IN_RETRY, RESET_CREDIT, RESET_MESSAGE, EARLY_RESET,
                ONCE_MORE, SEND_NOW, PARALLEL_DISPATCH, PROMPT_QUEUE, EMPTY_RESPONSE, SUBAGENT_PARENT, KEEP_GOING,
-               USAGE_METER, USAGE_WRAP_UP, USAGE_PAUSE, EVERY_CONVERSATION, SILENT_CONTINUATION, IDLE_UPDATE_CHECK,
-               ACCOUNT_SWITCH, OPEN_CODEX_BUTTON, LONG_RESET_MESSAGE,
+               USAGE_METER, USAGE_WRAP_UP, USAGE_PAUSE, EVERY_CONVERSATION, SILENT_CONTINUATION, CODEX_CHAT, IDLE_UPDATE_CHECK,
+               ACCOUNT_SWITCH, WAKE_FOR_RESET,
+               OPEN_CODEX_BUTTON, LONG_RESET_MESSAGE,
                COMPAT_REPORT)
 # Codex's own retry settings (stage 4's item 6): Attempts (6, 8, 10 or 12; 8 by default) for both of its built-in
 # provider's retry keys, written at P8 and put back (engine/retries.py). MB failed on codex-cli 0.162.0-alpha.17.2 -
@@ -1192,11 +1269,42 @@ CODEX_RETRY_SETTINGS = CapabilityDef(
     measurements=(Measurement.MB,),
 )
 
+# Open a waiting conversation in Codex (v0.6.19, issue #50). At P8, as an errand, a recovery or a scheduled message
+# that waits only because the Codex app does not have its conversation open - core's record failing thread_available
+# alone with the conversation known not loaded, one queue_for_open queued for when it is opened, or a message of the
+# edition's own waiting at that gate - gets that exact conversation opened through Codex's own link (core's
+# codex_link), once, only while the PC has been idle for the minutes chosen (2, 5 or 15; 5 by default), Windows has a
+# `codex:` handler and the Codex app is running - unless Also start Codex is on (off by default). Nothing is sent here:
+# the next check finds it loaded and sends as always. The caps are kept in `opens` (state/opens.py): ten minutes
+# between opens, an hour a conversation, three a record, twelve a day (engine/opentarget.py). It departs from 0.5 (it
+# wakes a conversation the app does not hold, through the app's own link), B16 (it asks Windows the last input time and
+# reads the `codex:` handler), C4 (it acts on its own) and F6 (explorer opens the link); it keeps B13 - it simulates no
+# input and drives no UI - and A11, since nothing is sent until core's own loaded check passes. It stands on
+# loaded_state_detection, what says a conversation is not loaded, and rests on MOPEN: until opening is measured to load
+# a conversation on the Codex in force it waits in WAITING, hidden - with no narrower route, since opening that loads
+# nothing does nothing. It composes with queue_for_open (opening delivers what that queued) and leaves a conversation
+# another session holds alone. Ceilings: the schema's, beside its own caps; it spends nothing.
+OPEN_TO_SEND = CapabilityDef(
+    id="open_to_send",
+    points=frozenset({Point.TICK}),
+    revision=1,
+    departs_from=("0.5", "B16", "C4", "F6"),
+    compat="loaded_state_detection",
+    ceilings=Ceilings(per_day=12, per_conversation=3),
+    journal_prefix="open",
+    make=make_open_to_send,
+    codes=("opened", "loaded", "not_loaded"),
+    options=(Option(OptionKey.OPEN_IDLE_MINUTES, OPEN_IDLE_MINUTES, OPEN_DEFAULT_IDLE),
+             Option(OptionKey.OPEN_START_CODEX, SWITCH, OPEN_OFF)),
+    measurements=(Measurement.MOPEN,),
+)
+
 # The one gate for a capability that cannot work on any Codex measured so far (the owner's rule of 2026-10-16): each
 # here, with the measurement that must pass first, is hidden - not in the registry this edition runs, so no row, no
 # statement and no switch anywhere - until that measurement passes (measured.MEASURED), and then offered after
-# DEFINITIONS. Its code and its probe stay in the tree.
-WAITING = ((CODEX_RETRY_SETTINGS, Measurement.MB),)
+# DEFINITIONS. Its code and its probe stay in the tree. (v0.6.19: open_to_send's statement is written already, so a
+# pass offers it whole; codex_retry_settings' is not.)
+WAITING = ((CODEX_RETRY_SETTINGS, Measurement.MB), (OPEN_TO_SEND, Measurement.MOPEN))
 
 
 def offered(measured) -> tuple:
@@ -1218,10 +1326,16 @@ REGISTRY = _registry()
 # 호환성 보고서를 제일 위로 해줘"): the compatibility report at the top, then 1) what gets work going again
 # after a usage limit with no hands, 2) what saves the person work, 3) the other common failures, 4) rare
 # cases and expert settings. A measurement's warning never pushes a capability down. Every capability of
-# DEFINITIONS appears here exactly once (test_advanced_registry holds it).
+# DEFINITIONS appears here exactly once, and so may one waiting in WAITING, at the place it takes once offered
+# (test_advanced_registry holds it).
 SHOWN_ORDER = ("compat_report", "start_with_codex",
+               # v0.6.19 (the order the owner approved on 2026-10-22): what keeps the watcher itself going, after what
+               # starts it.
+               "crash_restart", "wake_for_reset",
                # v0.6.16-beta.3: which conversations are recovered at all, beside what starts the recovering.
                "every_conversation", "queue_for_open",
+               # v0.6.19 (#50): opening a waiting conversation, beside queueing for its opening - shown once MOPEN passes.
+               "open_to_send",
                # v0.6.16-beta.4: what gets a conversation going when nothing holds it, beside queue for opening (Q12).
                "headless_run", "other_sessions", "marker_free_continuation",
                # v0.6.16-beta.4: how a turn run here starts, beside the other continuation that goes without a marker
@@ -1230,7 +1344,9 @@ SHOWN_ORDER = ("compat_report", "start_with_codex",
                "early_reset", "parallel_dispatch", "reset_message", "long_reset_message",
                # v0.6.16-beta.3 (issue #29): the usage meter and what it serves, beside the other usage-limit features.
                "usage_meter", "usage_wrap_up", "usage_pause", "keep_going",
-               "prompt_queue", "empty_response", "once_more_when_unsure", "send_now",
+               "prompt_queue",
+               # v0.6.19: chat with a conversation, beside the queued messages (stage 4's Q12).
+               "codex_chat", "empty_response", "once_more_when_unsure", "send_now",
                # v0.6.18: Open Codex on a notice, beside Send now - both what a person does about one conversation.
                "open_codex_button", "capacity_retry",
                # v0.6.16-beta.4: what a failure of Codex's own is taken up with, beside the capacity retry (Q12).
@@ -1238,7 +1354,7 @@ SHOWN_ORDER = ("compat_report", "start_with_codex",
                "codex_gave_up", "goal_continuation", "subagent_parent", "sign_in_retry", "unknown_failure_budget",
                # v0.6.18: the weekly update check, which recovers nothing, among the expert settings.
                "idle_update_check",
-               # v0.6.19: switching the Codex account, among the expert settings (the order the owner approved on 2026-10-22).
+               # v0.6.20: switching the Codex account, among the expert settings (the order the owner approved on 2026-10-22).
                "account_switch",
                "structured_rules")
 

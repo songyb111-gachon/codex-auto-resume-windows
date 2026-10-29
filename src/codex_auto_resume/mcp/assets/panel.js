@@ -971,16 +971,26 @@ function numberField(entry, onChange) {
   input.type = 'number';
   input.id = 'car-' + entry.name;
   if (entry.min !== undefined) input.min = entry.min;
-  if (entry.max !== undefined) input.max = entry.max;
-  input.value = value(entry.name);
-  input.disabled = !HOST || !!entry.managed;
+  // v0.6.19: a key that is a ceiling (the schema's `ceiling`, managed.ceilings) holds the most the field
+  // takes and leaves it editable below; any other key greys it, as the Dashboard does.
+  var ceiling = entry.managed && typeof entry.ceiling === 'number' ? entry.ceiling : null;
+  var most = ceiling !== null && (entry.max === undefined || ceiling < entry.max) ? ceiling : entry.max;
+  if (most !== undefined) input.max = most;
+  input.value = ceiling !== null ? Math.min(Number(value(entry.name)), ceiling) : value(entry.name);
+  input.disabled = !HOST || (!!entry.managed && ceiling === null);
+  var held = function () {
+    var number = Number(input.value);
+    return ceiling !== null && number > ceiling ? ceiling : number;
+  };
   input.addEventListener('input', function () {
-    DRAFT[entry.name] = Number(input.value);
+    DRAFT[entry.name] = held();
     edited(entry.name);
     if (onChange) onChange();
   });
-  EDITORS[entry.name] = function () { return Number(input.value); };
-  return settingRow(label(entry.name), entry.managed ? t('settings.managed', 'Set by your administrator.') : '', input).row;
+  EDITORS[entry.name] = held;
+  var note = ceiling !== null ? fill('settings.managed_ceiling', 'Your administrator allows at most {n}.', {n: ceiling})
+    : entry.managed ? t('settings.managed', 'Set by your administrator.') : '';
+  return settingRow(label(entry.name), note, input).row;
 }
 
 // A select whose stored value is the untranslated choice and whose label is whatever the

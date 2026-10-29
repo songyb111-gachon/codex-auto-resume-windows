@@ -1,6 +1,6 @@
 // ADVANCED-EDITION-CODE: in the advanced edition's window, never the standard one's.
 //
-// Codex Auto Resume - the Codex account card on the Advanced features page (v0.6.19, account_switch).
+// Codex Auto Resume - the Codex account card on the Advanced features page (v0.6.20, account_switch).
 //
 // While account_switch is on or watched, its column has a card under its limits: the account this PC is signed in to -
 // "Signed in: Plus · s•••@e•••.com", read by the bridge (advanced-account) with Codex's account/read in the Dashboard's

@@ -345,6 +345,76 @@ def _refuse_if_squatted(handle, existed: bool) -> None:
     make recovery run while the squatter is alive; nothing at this level can, and the
     alternative is a watcher controlled by a process with fewer rights than the user.
     """
-    if existed and _integrity_rid(handle) < SECURITY_MANDATORY_MEDIUM_RID:
+    if existed and (_integrity_rid(handle) < SECURITY_MANDATORY_MEDIUM_RID
+                    or not trusted_owner(_owner_sid(handle), _user_sid())):
         _kernel().CloseHandle(handle)
         raise AdapterError("named_object_squatted")
+
+
+# Owners an existing object may have and still be this account's own (v0.6.18, security M2): this
+# account, and the two that only someone with more rights than it can set - the computer's
+# administrators, which an elevated process of this account makes its objects with, and Windows itself.
+TRUSTED_OWNERS = frozenset({"S-1-5-32-544", "S-1-5-18"})
+
+
+def trusted_owner(owner: str | None, user: str | None) -> bool:
+    """Whether a named object whose owner is `owner` was made by this account `user` (or by someone
+    with more rights). Another account of the same integrity - a sandbox account Codex runs commands
+    under in this session, say - can create the same predictable name first with a DACL that lets it
+    signal or hold the object later; its owner then is that account. An owner or user that could not
+    be read is not trusted. Pure."""
+    if not owner or not user:
+        return False
+    return owner == user or owner in TRUSTED_OWNERS
+
+
+def _owner_sid(handle) -> str | None:
+    """The owner of a kernel object, as SID text; None where Windows would not say."""
+    advapi = C.WinDLL("advapi32", use_last_error=True)
+    advapi.GetSecurityInfo.argtypes = [W.HANDLE, C.c_int, W.DWORD, C.POINTER(C.c_void_p), C.c_void_p,
+                                       C.c_void_p, C.c_void_p, C.POINTER(C.c_void_p)]
+    advapi.GetSecurityInfo.restype = W.DWORD
+    owner, descriptor = C.c_void_p(), C.c_void_p()
+    # SE_KERNEL_OBJECT, OWNER_SECURITY_INFORMATION
+    if advapi.GetSecurityInfo(handle, 6, 0x1, C.byref(owner), None, None, None, C.byref(descriptor)) != 0:
+        return None
+    try:
+        return _sid_text(advapi, owner.value) if owner.value else None
+    finally:
+        if descriptor.value:
+            _local_free(descriptor)
+
+
+def _user_sid() -> str | None:
+    """This account's SID text, from this process's own token (TokenUser); None where it is unreadable."""
+    advapi = C.WinDLL("advapi32", use_last_error=True)
+    advapi.GetTokenInformation.argtypes = [W.HANDLE, C.c_int, C.c_void_p, W.DWORD, C.POINTER(W.DWORD)]
+    advapi.GetTokenInformation.restype = W.BOOL
+    token = W.HANDLE(-4)                     # GetCurrentProcessToken(): a pseudo-handle, never closed
+    needed = W.DWORD(0)
+    advapi.GetTokenInformation(token, 1, None, 0, C.byref(needed))
+    if not needed.value or needed.value > 4096:
+        return None
+    buffer = C.create_string_buffer(needed.value)
+    if not advapi.GetTokenInformation(token, 1, buffer, needed, C.byref(needed)):
+        return None
+    return _sid_text(advapi, C.c_void_p.from_buffer(buffer).value)
+
+
+def _sid_text(advapi, sid) -> str | None:
+    advapi.ConvertSidToStringSidW.argtypes = [C.c_void_p, C.POINTER(W.LPWSTR)]
+    advapi.ConvertSidToStringSidW.restype = W.BOOL
+    text = W.LPWSTR()
+    if not advapi.ConvertSidToStringSidW(sid, C.byref(text)):
+        return None
+    try:
+        return text.value
+    finally:
+        _local_free(text)
+
+
+def _local_free(pointer) -> None:
+    k = _kernel()
+    k.LocalFree.argtypes = [C.c_void_p]
+    k.LocalFree.restype = C.c_void_p
+    k.LocalFree(pointer)

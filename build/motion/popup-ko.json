@@ -1,0 +1,31 @@
+{
+  "format": "car-motion/1",
+  "name": "popup-ko",
+  "output": "docs/images/tray-popup-motion-ko.png",
+  "locale": "ko",
+  "scenes_from": "popup-scenes.json",
+  "values": {},
+  "canvas": {
+    "size": [
+      752,
+      883
+    ],
+    "ground": "canvas",
+    "theme": "light",
+    "design": "soft"
+  },
+  "popup": {
+    "scale": 2.0,
+    "locale": "ko",
+    "still": "docs/images/tray-popup-ko.png"
+  },
+  "pointer": null,
+  "length": [
+    8800,
+    8800
+  ],
+  "budget": {
+    "cap": 4000000
+  },
+  "light_step_ms": 33
+}

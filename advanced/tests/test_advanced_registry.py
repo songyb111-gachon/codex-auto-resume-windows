@@ -54,6 +54,8 @@ CHANGES = frozenset({"thread/queue/add", "thread/goal/set",
                      "thread/compact/start", "thread/settings/update"})
 # v0.6.16-beta.4: Codex's models listed (engine/fallback.py).
 READS = READS | {"model/list"}
+# v0.6.20: which account is signed in (account_switch, codex/account.py) - read, never changed: a sign-in is Codex's own CLI.
+READS = READS | {"account/read"}
 # v0.6.16-beta.4: the capabilities that change Codex's state through the Codex app's IPC pipe (codex/ipc.py).
 IPC_CHANGES = frozenset({"usage_pause"})
 
@@ -65,8 +67,16 @@ def standards_text(rule) -> str:
             return line
     raise AssertionError(f"{rule} is not in the standards file")
 
+
+# v0.6.19: the capabilities waiting in registry.WAITING whose statement is written already, so that a measurement's pass
+# offers them whole (open_to_send, MOPEN) - their names and statements are in every catalog while they wait.
+STATED_WAITING = (registry.OPEN_TO_SEND,)
+
 class ShippedTests(unittest.TestCase):
-    SHIPPED = ("start_with_codex", "goal_continuation", "queue_for_open",
+    SHIPPED = ("start_with_codex",
+               # v0.6.19: the watcher started again after it stopped unexpectedly, beside what starts it.
+               "crash_restart",
+               "goal_continuation", "queue_for_open",
                # v0.6.16-beta.4: a full conversation compacted, then continued; a conversation nothing holds, run here
                # while Codex is closed.
                "compact_continue", "model_fallback", "headless_run", "other_sessions", "marker_free_continuation", "capacity_retry",
@@ -79,10 +89,14 @@ class ShippedTests(unittest.TestCase):
                "every_conversation",
                # v0.6.16-beta.4: how a turn run here starts.
                "silent_continuation",
+               # v0.6.19: chat with a conversation in the Dashboard.
+               "codex_chat",
                # v0.6.18: the weekly update check; and Open Codex on a notice, an action, before the other two.
                "idle_update_check",
-               # v0.6.19: switching the Codex account.
-               "account_switch", "open_codex_button",
+               # v0.6.19: the wake timer, last at P8, so it reads the due times the others' errands just kept.
+               # v0.6.20: switching the Codex account, before the wake timer.
+               "account_switch", "wake_for_reset",
+               "open_codex_button",
                "long_reset_message", "compat_report")
 
     def test_the_registry_this_edition_ships_is_its_capabilities_in_their_order(self):
@@ -99,12 +113,14 @@ class ShippedTests(unittest.TestCase):
         # are on and the goal applies its channel carries the send. Those that take failures up (v0.6.14)
         # answer at P17 and again at P3, in the order that is precedence where two would answer.
         answering = {Point.START_ROUTE: ("start_with_codex",),
+                     # v0.6.19: the launcher's two questions about the watcher.
+                     Point.SUPERVISION: ("crash_restart",),
                      Point.SCHEDULE: ("reset_credit", "early_reset", "once_more_when_unsure", "send_now"),
                      Point.TICK: ("compact_continue", "model_fallback", "headless_run", "reset_credit", "reset_message", "empty_response", "subagent_parent",
                                   "keep_going", "usage_meter", "usage_wrap_up", "usage_pause", "idle_update_check",
-                                  "account_switch"),
+                                  "account_switch", "wake_for_reset"),
                      Point.RECORDS: ("reset_message", "prompt_queue", "empty_response", "subagent_parent",
-                                     "keep_going", "usage_wrap_up"),
+                                     "keep_going", "usage_wrap_up", "codex_chat"),
                      # v0.6.15-beta: the lines a parent's continuation is given of its subagents' stops (5a).
                      Point.TEXT: ("subagent_parent",),
                      Point.UNLOADED: ("goal_continuation", "queue_for_open", "compact_continue", "model_fallback",
@@ -115,8 +131,9 @@ class ShippedTests(unittest.TestCase):
                                    "early_reset", "usage_pause"),
                      Point.ADMISSION: ("compact_continue", "capacity_retry", "structured_rules", "unknown_failure_budget",
                                        "codex_gave_up", "sign_in_retry"),
-                     Point.SENDER: ("goal_continuation", "marker_free_continuation"),
-                     Point.DELIVERY: ("marker_free_continuation", "silent_continuation"),
+                     # v0.6.19: and the chat, for its own messages alone (engine/chat.py).
+                     Point.SENDER: ("goal_continuation", "marker_free_continuation", "codex_chat"),
+                     Point.DELIVERY: ("marker_free_continuation", "silent_continuation", "codex_chat"),
                      # v0.6.15-beta: several sends waiting for their receipts at once.
                      Point.CONCURRENCY: ("parallel_dispatch",),
                      # v0.6.16-beta.3: which conversations core takes up.
@@ -125,10 +142,13 @@ class ShippedTests(unittest.TestCase):
             self.assertEqual(tuple(d.id for d in registry.REGISTRY.at(point)), answering.get(point, ()))
 
     # The order a person reads them in (the owner's, 2026-10-10): the compatibility report first, then by importance.
-    SHOWN = ("compat_report", "start_with_codex", "every_conversation", "queue_for_open", "headless_run",
+    SHOWN = ("compat_report", "start_with_codex", "crash_restart", "wake_for_reset", "every_conversation", "queue_for_open",
+             "open_to_send", "headless_run",
              "other_sessions", "marker_free_continuation", "silent_continuation", "reset_credit",
              "early_reset", "parallel_dispatch", "reset_message", "long_reset_message",
              "usage_meter", "usage_wrap_up", "usage_pause", "keep_going", "prompt_queue",
+             # v0.6.19: chat with a conversation, beside the queued messages.
+             "codex_chat",
              "empty_response", "once_more_when_unsure", "send_now", "open_codex_button", "capacity_retry",
              "compact_continue", "model_fallback",
              "codex_gave_up",
@@ -141,12 +161,15 @@ class ShippedTests(unittest.TestCase):
         self.assertEqual(twice, [], "named more than once in SHOWN_ORDER: %s" % twice)
         missing = sorted(set(ids) - set(order))
         self.assertEqual(missing, [], "in the registry but not in SHOWN_ORDER: %s" % missing)
-        unknown = sorted(set(order) - set(ids))
+        # v0.6.19: one waiting in WAITING (hidden until its measurement passes) may hold the place it takes once offered.
+        waiting = {definition.id for definition, _measurement in registry.WAITING}
+        unknown = sorted(set(order) - set(ids) - waiting)
         self.assertEqual(unknown, [], "in SHOWN_ORDER but not in the registry: %s" % unknown)
 
     def test_the_capabilities_are_shown_in_the_owner_s_order_and_answer_in_the_registry_s(self):
         self.assertEqual(registry.SHOWN_ORDER, self.SHOWN)
-        self.assertEqual(tuple(d.id for d in registry.shown(registry.REGISTRY)), self.SHOWN)
+        self.assertEqual(tuple(d.id for d in registry.shown(registry.REGISTRY)),
+                         tuple(capability for capability in self.SHOWN if capability in registry.REGISTRY.ids))
         # Presentation only: the registry itself, which decides who answers first, keeps its own order.
         self.assertEqual(registry.REGISTRY.ids, self.SHIPPED)
         # A registry of some of them (one a test makes) shows those in the owner's order too.
@@ -338,11 +361,11 @@ class ShippedTests(unittest.TestCase):
     def test_a_capability_that_moves_an_engine_constant_departs_from_h2(self):
         """H2: no setting moves an engine constant, and A20's caps are engine constants (the standards
         file says so). A capability that departs from A20 lets a person's choice move them, so it names
-        H2 as well: the capacity retries and Send now."""
+        H2 as well: the capacity retries, Send now and (v0.6.19) the chat, paced on its own."""
         self.assertIn("engine constants", standards_text("A20"))
         self.assertIn("move an engine constant", standards_text("H2"))
         moving = [definition.id for definition in registry.DEFINITIONS if "A20" in definition.departs_from]
-        self.assertEqual(moving, ["capacity_retry", "send_now"])
+        self.assertEqual(moving, ["capacity_retry", "send_now", "codex_chat"])
         for definition in registry.DEFINITIONS:
             if "A20" in definition.departs_from:
                 with self.subTest(definition.id):
@@ -841,7 +864,7 @@ class ShippedCatalogTests(unittest.TestCase):
         english = set(tables["en"])
         # The fixed words, plus the five statement fields of every capability the edition ships.
         shipped_statements = {statement.key(definition.id, field)
-                              for definition in registry.DEFINITIONS for field in statement.FIELDS}
+                              for definition in registry.DEFINITIONS + STATED_WAITING for field in statement.FIELDS}
         self.assertEqual(english, {statement.SENTINEL_KEY, statement.ALL_OFF_KEY}
                          | set(statement.EDITION_KEYS)
                          | {statement.title_key(field) for field in statement.FIELDS}
@@ -849,7 +872,7 @@ class ShippedCatalogTests(unittest.TestCase):
                          | set(statement.WARNING_KEYS)
                          | set(statement.PAGE_KEYS)
                          | set(statement.CONTINUATION_KEYS)
-                         | {statement.name_key(definition.id) for definition in registry.DEFINITIONS}
+                         | {statement.name_key(definition.id) for definition in registry.DEFINITIONS + STATED_WAITING}
                          | shipped_statements)
         self.assertEqual(len(statement.WARNING_KEYS), 2 + len(ArmingWarning))
         for locale, table in tables.items():
@@ -865,7 +888,7 @@ class ShippedCatalogTests(unittest.TestCase):
         capability the edition ships and the three states' words - in the person's language, each language's own."""
         english = statement.CATALOGS.words("en")
         wanted = (set(statement.PAGE_KEYS) | {"state.off", "state.shadow", "state.armed"}
-                  | {statement.name_key(definition.id) for definition in registry.DEFINITIONS})
+                  | {statement.name_key(definition.id) for definition in registry.DEFINITIONS + STATED_WAITING})
         self.assertEqual(set(english), wanted)
         for locale in l10n.LOCALES:
             with self.subTest(locale):
@@ -931,7 +954,7 @@ class ShippedCatalogTests(unittest.TestCase):
                 self.assertNotIn("Standardedition", value)
         for definition in registry.DEFINITIONS:
             self.assertIn("Schalten Sie", tables["de"][statement.key(definition.id, Field.STOP)])
-        for locale, edition, other in (("ko", "표준판", "표준 에디션"), ("ja", "標準版", "標準エディション")):
+        for locale, edition, other in (("ko", "표준판", "표준 에디션"), ("ja", "スタンダード版", "標準版")):
             with self.subTest(locale=locale):
                 self.assertIn(edition, tables[locale][statement.title_key(Field.INSTEAD)])
                 self.assertFalse([key for key, value in tables[locale].items() if other in value])

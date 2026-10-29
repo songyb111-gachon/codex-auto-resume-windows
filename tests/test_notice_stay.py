@@ -75,10 +75,11 @@ class RegistryTests(unittest.TestCase):
         covered = [notice for kind in notice_kinds.kinds() for notice in kind.notices]
         self.assertEqual(len(covered), len(set(covered)), "a notice is one kind's")
         # The advanced edition's usage notices - the warning and (v0.6.16) the forced stop's three - are its own kinds.
-        # v0.6.18: and its weekly update check's offer; v0.6.19: and another account signed in.
+        # v0.6.18: and its weekly update check's offer; v0.6.19: the crash restart's notice that it left the watcher stopped.
+        # v0.6.20: and another Codex account signed in.
         edition_notices = ({"near_limit"} | {"near_limit_" + said for said in notify.NEAR_LIMIT_KINDS}
-                           | {"update_offered", "account_changed"})
-        self.assertEqual(len(edition_notices), 6)
+                           | {"update_offered", "restart_gave_up", "account_changed"})
+        self.assertEqual(len(edition_notices), 7)
         self.assertEqual(set(covered), set(notifier.STATUS) - {"demo"} - edition_notices)
         self.assertIsNone(notice_kinds.kind_of("demo"))
         for notice in sorted(edition_notices):

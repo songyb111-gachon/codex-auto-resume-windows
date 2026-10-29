@@ -1,5 +1,5 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
-"""The watcher's side of account_switch (v0.6.19): which account is signed in, and what waits when it changes.
+"""The watcher's side of account_switch (v0.6.20): which account is signed in, and what waits when it changes.
 
 At P8, as an errand, on the watcher's first tick and then at most every LOOK_EVERY seconds while the capability stands
 on, the account is read (codex/account.read: account/read through a finite session of the capability's own). What is

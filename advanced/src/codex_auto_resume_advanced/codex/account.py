@@ -1,5 +1,5 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
-"""Which Codex account is signed in, and Codex's own sign-out and sign-in (account_switch, v0.6.19).
+"""Which Codex account is signed in, and Codex's own sign-out and sign-in (account_switch, v0.6.20).
 
 `read` asks the app server account/read through a finite session of this capability's own (codex/protocol.py, its one
 row of CAPABILITY_METHODS) and answers {present, plan_word, email, kind}: whether an account is signed in - None where

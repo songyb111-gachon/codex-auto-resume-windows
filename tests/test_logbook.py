@@ -150,6 +150,17 @@ class PrivacyTests(unittest.TestCase):
         logbook.EngineLog(recorder)(THREAD, "reset_expected", "1788645827")
         self.assertIn(logbook.format_local(1788645827), recorder.lines[0])
 
+    def test_queue_receipt_diagnostics_never_include_prompt_or_error_text(self):
+        recorder = Recorder()
+        log = logbook.EngineLog(recorder)
+        for kind in ("queue_receipt_exit_nonzero", "queue_receipt_empty_stdout",
+                     "queue_receipt_unrecognized_stdout"):
+            log(THREAD, kind, "secret text\\npath C:\\Users\\Hidden")
+        self.assertEqual(len(recorder.lines), 3)
+        self.assertTrue(all("secret" not in line and "Hidden" not in line for line in recorder.lines))
+        log(THREAD, "queue_receipt_exit_nonzero", "2")
+        self.assertIn("exit code 2", recorder.lines[-1])
+
 
 if __name__ == "__main__":
     unittest.main()

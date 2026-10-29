@@ -42,6 +42,9 @@ namespace CodexAutoResume
         /// offer of a pre-release asks this way, so a reflex Enter keeps the version that is installed.
         private bool Dialog(string text, string affirm, string away)
         {
+            // The tests' answers to the window's questions, in place of the dialog (null for every window a person opens):
+            // a test that drives a click through its handler must never show a dialog on anyone's desktop.
+            if (DialogAnswers != null) return DialogAnswers(text, affirm);
             using (var dialog = new Form())
             {
                 dialog.Text = "Codex Auto Resume";
@@ -205,11 +208,28 @@ namespace CodexAutoResume
                 }
                 var result = Map(reply, "result");
                 pendingNoteFor = key;
-                pendingNoteText = Number(result, "eligible_at") > Now() + 1
+                // v0.6.19 (issue #50): for a usage reset still ahead the click asks for one usage reading - or says the
+                // watcher is not running to take it; a later time a person chose is said apart from the quota's.
+                string check = Str(result, "usage_check");
+                double eligible = Number(result, "eligible_at");
+                pendingNoteText = check == "asked"
+                    ? S("retry.checking_usage", "Checking usage now. If Codex says the limit has lifted, the recovery goes on through every check; otherwise it waits for the reset Codex gave.")
+                    : check == "not_running"
+                    ? S("retry.not_running", "The watcher is not running, so usage was not checked. It waits for the reset Codex gave.")
+                    : check != null
+                    ? NotCheckedText(check)
+                    : eligible > Now() + 1 && Number(row, "reset_at") >= eligible
                     ? S("retry.later", "The usage reset is later; the watcher checks then.")
+                    : eligible > Now() + 1
+                    ? S("retry.postponed", "It waits until a later time you chose; Retry now does not shorten that and reads no usage.")
                     : Equals(Get(result, "woke"), true)
                     ? S("retry.checking", "Checking now. Every safety check still applies.")
                     : S("retry.next_poll", "The watcher checks at its next poll. Every safety check still applies.");
+                // The advanced edition: with early_reset on, this reading counts as one of its two (AdvancedEarly.cs).
+                if (check == "asked")
+                {
+                    UsageAsked();
+                }
                 ShowPendingNote();
                 RefreshAfterChange();
             });
@@ -288,6 +308,41 @@ namespace CodexAutoResume
                 unsay.Enabled = idle;
                 pendingMenu.Items.Add(unsay);
             }
+            return true;
+        }
+
+        /// The row the menu is for, as it opens: the one a double-click opened it on, else - opened by the right button -
+        /// the row under the pointer, else - from the keyboard - the chosen row; then filled for it (FillRowMenu).
+        private bool PrepareRowMenu()
+        {
+            Dictionary<string, object> task;
+            if (menuRow != null) task = menuRow;
+            else if (menuByMouse)
+            {
+                Point at = pendingList.PointToClient(Cursor.Position);
+                ListViewItem under = pendingList.GetItemAt(at.X, at.Y);
+                task = under == null ? null : under.Tag as Dictionary<string, object>;
+            }
+            else task = Selected(pendingList);
+            menuRow = null;
+            menuByMouse = false;
+            return FillRowMenu(task);
+        }
+
+        /// v0.6.19 (the owner, 2026-10-23): a double left-click on a row opens the same menu a right click does, at the
+        /// pointer, for the row double-clicked - which becomes the chosen one, as a right click makes it. On empty space
+        /// (`under` null) nothing opens. A window no one sees (the audits) fills the menu and shows nothing.
+        private bool OpenRowMenu(ListViewItem under, Point at)
+        {
+            var task = under == null ? null : under.Tag as Dictionary<string, object>;
+            if (task == null) return false;
+            foreach (ListViewItem other in pendingList.Items)
+                if (other != under && other.Selected) other.Selected = false;
+            under.Selected = true;
+            under.Focused = true;
+            menuRow = task;
+            if (auditing) return PrepareRowMenu();
+            pendingMenu.Show(pendingList, at);
             return true;
         }
 
@@ -513,16 +568,19 @@ namespace CodexAutoResume
             });
         }
 
-        /// Rescan and reconcile (v0.6.16, issue #39): every waiting recovery looked at again by the watcher's own
-        /// rules, once the person says yes. One is retired only where Codex's history proves a person's newer work
-        /// came after it; every other one waits as it did, under every check. The note says how many were retired,
-        /// rechecked, left unresolved and changed meanwhile - the bridge's `rescan`, which sends nothing.
+        /// Rescan (v0.6.16, issue #39; "check all" from v0.6.19, the owner's decision of 2026-10-24): every waiting recovery
+        /// looked at again by the watcher's own rules, once the person says yes. One is retired only where Codex's history
+        /// proves a person's newer work came after it; every other one waits as it did, under every check. And Codex's
+        /// usage is read once for every recovery that waits for a usage reset (the bridge's `rescan`, which reads it only
+        /// for this click): one whose limit Codex says lifted goes on through every check, as with Retry now. The note says
+        /// how many were retired, rechecked, left unresolved and changed meanwhile, then that usage is being read - or why
+        /// it was not - and, once the watcher has read it, what it read (ShowPendingNote, RescanReadText).
         private void Rescan()
         {
             if (busy > 0 || pendingList.Items.Count == 0) return;
             if (!Confirm(S("confirm.rescan",
-                           "Look at every waiting recovery again? One is retired only where Codex's history proves newer work of yours came after it; every other one keeps waiting, with every check, and nothing is sent."),
-                         S("action.rescan", "Rescan and reconcile")))
+                           "Look at every waiting recovery again, and read Codex's usage once for those waiting for a usage reset? One is retired only where Codex's history proves newer work of yours came after it; one whose limit Codex says has lifted goes on through every check; every other one keeps waiting. Nothing is sent now."),
+                         S("action.rescan", "Rescan")))
                 return;
             CallAsync("rescan", null, delegate(Dictionary<string, object> reply)
             {
@@ -537,9 +595,58 @@ namespace CodexAutoResume
                 pendingNoteText = RescanNote(S("result.rescan",
                     "Retired: {retired} \u00B7 Rechecked: {rechecked} \u00B7 Unresolved: {unresolved} \u00B7 Changed meanwhile: {changed}"),
                     result);
+                string check = Str(result, "usage_check");
+                rescanNoteText = pendingNoteText;
+                rescanAskedAt = check == "asked" ? Now() : 0;
+                rescanUsageNote = RescanUsageText(check, Number(result, "usage_asked"));
+                // The advanced edition: with early_reset on, this reading counts as one of its two (AdvancedEarly.cs).
+                if (check == "asked")
+                {
+                    UsageAsked();
+                }
                 ShowPendingNote();
                 RefreshAfterChange();
             });
+        }
+
+        /// What a Rescan's click did about Codex's usage, in words: reading it now for so many, the watcher not running, or
+        /// why nothing was read (NotCheckedText) - nothing where nothing waits for a usage reset.
+        internal string RescanUsageText(string check, double asked)
+        {
+            if (string.IsNullOrEmpty(check)) return null;
+            if (check == "asked")
+                return S("rescan.usage_asked", "Reading Codex's usage once now for the recoveries waiting for a usage reset ({n}).")
+                    .Replace("{n}", Count(asked));
+            if (check == "not_running")
+                return S("retry.not_running", "The watcher is not running, so usage was not checked. It waits for the reset Codex gave.");
+            return NotCheckedText(check);
+        }
+
+        /// What the reading a Rescan asked for said, once the watcher has made it: the newest reading a Rescan asked for, at
+        /// or after the click, of any row the snapshot's Pending or History holds - one reading answers them all - or null before it.
+        internal string RescanReadText(double since)
+        {
+            if (snapshot == null || since <= 0) return null;
+            double at = 0;
+            string read = null;
+            var rows = new List<object>(Items(snapshot, "pending") ?? new List<object>());
+            rows.AddRange(Items(snapshot, "history") ?? new List<object>());
+            foreach (object listed in rows)
+            {
+                var row = listed as Dictionary<string, object>;
+                var check = Map(row, "usage_check");
+                if (check == null || Str(check, "source") != "rescan" || !(Get(check, "at") is double)) continue;
+                if (Str(check, "read") == "not_checked" || Number(check, "at") < since || Number(check, "at") <= at) continue;
+                at = Number(check, "at");
+                read = Str(check, "read");
+            }
+            if (read == null) return null;
+            string time = ClockTime(at);
+            return read == "available"
+                ? S("rescan.read_available", "Usage read at {time}: available. Each recovery it lifted goes on through every check.", "time", time)
+                : read == "still_limited"
+                ? S("rescan.read_limited", "Usage read at {time}: still limited. They wait for the reset Codex gave.", "time", time)
+                : S("rescan.read_unknown", "Usage read at {time}: it could not be told. Nothing changed.", "time", time);
         }
 
         /// The rescan's result line: each of its four counts in its place, each read by its own name and written as Count writes it (DashboardCompat.cs). Pure.
@@ -607,6 +714,16 @@ namespace CodexAutoResume
         internal static string HeaderLight(Dictionary<string, object> status, List<object> pending, string word)
         {
             return KnownRunning(status, pending) ? word : "idle";
+        }
+
+        /// The header's light while an action is in flight (v0.6.20, the owner's decision of 2026-10-28: a light that does
+        /// not move while work runs reads as broken or idle): the working light the installer shows for its run,
+        /// "checking", over the light the watcher's state gives - except a watcher not known to be running (idle) or one
+        /// that needs a person (attention), whose light is true whatever the window is doing. One rule for every action
+        /// the window counts in `busy` (SetBusy: Retry now, Rescan, the advanced page's calls, ...).
+        internal static string BusyLight(string light, bool working)
+        {
+            return working && light != "idle" && light != "attention" ? "checking" : light;
         }
 
         /// Whether what was read says the watcher runs: the status says so, and no row is held for a watcher that is
@@ -884,6 +1001,13 @@ namespace CodexAutoResume
                 explainList.SetRows(rows, S("explain.none_selected", "Select a task to see why it is waiting."));
                 return;
             }
+            // v0.6.19: a row of the edition's own is no recovery and has no checks; it says what it is waiting for.
+            if (EditionRow(row))
+            {
+                explainAsOf.Text = "";
+                explainList.SetRows(rows, Str(row, RowSaidKey) ?? "");
+                return;
+            }
             var gates = Map(row, "gates");
             double at = Number(row, "gates_at");
             // Said once: either when the checks were last run, or - in the list's own place -
@@ -920,6 +1044,11 @@ namespace CodexAutoResume
         /// when a weekly limit is what it waits for, the day and time that one resets, and the one fixed sentence that
         /// Codex's /usage can redeem a reset credit (decision C13: the standard edition keeps no credit, so it never says
         /// whether there is one). Any other task's note is as it was.
+        ///
+        /// v0.6.19 (the owner's decision of 2026-10-24): this panel is the one place on Pending that says the usage
+        /// readings. After the watcher's last reading, the one a person's Retry now or Rescan asked for this recovery,
+        /// with who asked it (UsageReadText) - and, in the advanced edition, early_reset's own (UsageNoted). The note under
+        /// the buttons says only what a click just did.
         private string WithUsage(Dictionary<string, object> row, string note)
         {
             if (Str(row, "category") != "usage_limit" || snapshot == null) return note;
@@ -933,7 +1062,20 @@ namespace CodexAutoResume
                 said.Add(S("usage.weekly_credit", "If your account has a reset credit, /usage in Codex can redeem it."));
             }
             if (line != null) said.Add(line);
+            string asked = UsageReadText(Map(row, "usage_check"));
+            if (asked != null) said.Add(asked);
+            UsageNoted(row, said);
             return said.Count == 0 ? null : string.Join("\n", said.ToArray());
+        }
+
+        /// The reading a person's Retry now or Rescan asked for this recovery (the row's `usage_check`), led by the button
+        /// that asked it - "Retry now · Usage checked at 23:31: still limited. ..." - or null where none was asked.
+        internal string UsageReadText(Dictionary<string, object> check)
+        {
+            string text = UsageCheckText(check);
+            if (text == null) return null;
+            string by = Str(check, "source") == "rescan" ? S("action.rescan", "Rescan") : S("action.retry_now", "Retry now");
+            return by + " \u00B7 " + text;
         }
 
         /// v0.6.11: the sentence under the checks. Observe only's "would have been sent", or why the first check that
@@ -955,7 +1097,7 @@ namespace CodexAutoResume
                 string reason = result != null && result.Count > 1 ? Convert.ToString(result[1], CultureInfo.InvariantCulture) : null;
                 if (reason == "observe_only" && observed == null) { observed = reason; continue; }
                 // v0.6.11: a hold a guard or a long sleep put on it says what it found, not only that it waits - and
-                // (v0.6.19) another Codex account signed in, the advanced edition's account switch's hold.
+                // (v0.6.20) another Codex account signed in, the advanced edition's account switch's hold.
                 string hold = Str(row, "hold");
                 if (reason == "held" && (hold == "workspace_changed" || hold == "context_cost" || hold == "after_sleep" ||
                                          hold == "account_changed"))
@@ -1001,6 +1143,11 @@ namespace CodexAutoResume
 
         private void ClearHistory()
         {
+            // v0.6.19 (the owner's decision of 2026-10-24): one Clear history, which the advanced edition widens to the
+            // completed messages History lists beside the recoveries.
+            bool handled = false;
+            ClearHistoryPressed(ref handled);
+            if (handled) return;
             if (!Confirm(S("confirm.clear", "Hide finished recoveries from the history?"),
                          S("action.clear_history", "Clear history"))) return;
             Send("clear-history", null);
@@ -1184,19 +1331,12 @@ namespace CodexAutoResume
                 }
                 // Each column's widest cell, so the columns share the dialog's width by what they hold (FitColumns).
                 MeasureCells(view);
-                var padding = new Panel();
-                padding.BackColor = Canvas;
-                padding.Dock = DockStyle.Fill;
-                padding.Padding = Pad(12, 12, 12, 12);
-                // On the soft scroll bar, as the lists in the window are (see SoftListHost).
-                var host = new SoftListHost(view);
-                host.Dock = DockStyle.Fill;
-                padding.Controls.Add(host);
-                dialog.Controls.Add(padding);
+                // On History's card, on the soft scroll bar, as the lists in the window are (DialogListCard).
+                dialog.Controls.Add(DialogListCard(view));
                 var close = MakeButton(S("action.close", "Close"), true, delegate { dialog.Close(); });
                 var buttons = ButtonRow();
                 buttons.FlowDirection = FlowDirection.RightToLeft;
-                buttons.Padding = Pad(12, 0, 12, 12);
+                buttons.Padding = Pad(16, 0, 17, 12);
                 buttons.Controls.Add(close);
                 dialog.Controls.Add(buttons);
                 dialog.AcceptButton = close;

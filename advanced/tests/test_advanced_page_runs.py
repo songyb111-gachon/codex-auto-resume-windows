@@ -51,6 +51,22 @@ class PageTests(PageCase):
             "pending": reply["pending"], "words": script["advanced-words"][0]["result"]["words"]}
 
     @classmethod
+    def scenario_runs_busy(cls, bridge):
+        """On, while another action is under way: Stop... is greyed and cannot be pressed; over, it can (v0.6.19-beta.3,
+        the controls audit: it stayed live and a click was silently ignored)."""
+        cls.watched(bridge, RUNNING, state="armed")
+        script = cls.opening(bridge, "en")
+        reply = snapshot()
+        reply["status"]["advanced"]["runs"] = runs(reply)
+        first = reply["pending"][0]["interruption_id"]
+        steps = [{"do": "snapshot", "reply": reply}, {"do": "show"}, {"do": "choose", "id": RUNNING},
+                 {"do": "busy", "on": True}, {"do": "run_stop", "key": first}, {"do": "busy", "on": False},
+                 {"do": "reply", "key": "advanced-headless-stop", "with": [{"ok": True, "result": {"done": True,
+                                                                                                    "refusal": None}}]},
+                 {"do": "run_stop", "key": first}]
+        return "en", {"answers": [True], "script": script, "steps": steps}, {"first": first}
+
+    @classmethod
     def scenario_runs_off(cls, bridge):
         """Off: no card, whatever the status carries."""
         script = cls.opening(bridge, "en")
@@ -98,6 +114,12 @@ class PageTests(PageCase):
         self.assertEqual(sent(result, "advanced-headless-stop"), [{"interruption_id": pending[0]["interruption_id"]}])
         self.assertEqual(after["note"], words["page.done.run_stop"])
         self.assertEqual(result["disabled"], ["run_stop"])
+
+    def test_stop_is_greyed_while_another_action_is_under_way(self):
+        """Fails with the runs' Stop... left out of the page's buttons again: pressed while busy, it was live."""
+        result, expected = self.of("scenario_runs_busy")
+        self.assertEqual(result["disabled"], ["run_stop"])
+        self.assertEqual(sent(result, "advanced-headless-stop"), [{"interruption_id": expected["first"]}])
 
     def test_turned_off_there_is_no_card(self):
         result, expected = self.of("scenario_runs_off")

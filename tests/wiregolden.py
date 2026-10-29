@@ -293,6 +293,18 @@ def _state_access(word):
     return using
 
 
+@contextmanager
+def _own_report_pinned(_workspace):
+    """The Windows build the own report names (v0.6.19, ownreport/document.py windows_version), for this one case: a
+    stand-in for the one question asked of this process, so the answer is the same on every machine. The product
+    version it names is pinned too: the reply carries the report's SHA-256 and size, which `<version>` cannot stand in
+    for, so without it every release would be a wire change."""
+    from codex_auto_resume.ownreport import document
+
+    with patch.object(document, "windows_version", return_value="10.0.26100"),             patch.object(document.config, "version", return_value="0.0.0"):
+        yield
+
+
 def _host_app(watcher_inside):
     """Where the watcher and the bridge run, for this one case (v0.6.17, win/kernel.py host_app): a stand-in for the
     one function that walks the live process table, so the answer is the same on every machine - outside, or, with
@@ -312,6 +324,27 @@ def _host_app(watcher_inside):
             with patch.object(control.Control, "_watcher",
                               lambda self, store: {"running": True, "pid": 4242, "started_at": 1.0e9}):
                 yield
+    return using
+
+
+def _home_found():
+    """A Codex home this PC's Codex uses beside the watched one (v0.6.18, homefind.py), for this one case: the copy
+    looks as an installed one does, the account's CODEX_HOME names a folder of the scratch workspace holding a Codex
+    state, and the Codex app's list names that folder and the watched home again - never this machine's registry
+    or Codex app."""
+    @contextmanager
+    def using(workspace):
+        from codex_auto_resume import config, homefind
+        from codex_auto_resume.win import userenv
+
+        other = workspace / "other-codex"
+        other.mkdir(exist_ok=True)
+        (other / "state_5.sqlite").write_bytes(b"")
+        app = [str(config.codex_home()), str(other) + "\\"]
+        with patch.object(homefind, "looks", return_value=True), \
+                patch.object(userenv, "codex_home", return_value=str(other)), \
+                patch.object(homefind, "app_homes", return_value=app):
+            yield
     return using
 
 
@@ -563,6 +596,11 @@ BRIDGE_CASES = {
         Case("the watcher and the bridge outside every app", using=_host_app(False)),
         Case("the watcher inside the Codex app, the bridge outside", using=_host_app(True))],
     "demo": [Case("the made-up rows, and no watcher's icon to ask for the card")],
+    # v0.6.19: Diagnostics' compatibility report from this PC's own records, read only and sent nowhere (ownreport/):
+    # with no Codex version named anywhere, and with the watcher's report naming the pictures' Codex.
+    "own-report": [Case("no Codex version is named yet"),
+                   Case("the pinned records, on the Codex the watcher's report names", engine=True,
+                        using=_own_report_pinned)],
     # v0.6.16-beta.3: Diagnostics' check of why a failure was not taken up, read only (checkup.py).
     "detection-check": [Case("the recent conversations, the homes, usage, notices and Codex", using=_check_pinned)],
     # v0.6.11: Diagnostics compares the edition installed with Codex's copy of the plugin, read only.
@@ -760,6 +798,15 @@ BRIDGE_CASES = {
         Case("a finished task", {"interruption_id": RECOVERED, "thread_id": T3, "always": False})],
     # v0.6.12: the power action after usage-limit recoveries - what Windows offers here (a stand-in port),
     # armed only from the Dashboard, and turned off.
+    # v0.6.18: the Codex home Settings > Advanced offers to watch too - none from a checkout, which looks nowhere -
+    # and Not now, after which that folder is never offered again.
+    "home-suggestion": [
+        Case("a copy run from a checkout looks nowhere"),
+        Case("a folder the account's CODEX_HOME names, not watched yet", using=_home_found())],
+    "home-dismiss": [
+        Case("set aside with Not now: nothing else to offer", lambda workspace: {"path": str(workspace / "other-codex")},
+             using=_home_found()),
+        Case("no folder named is refused", {}, using=_home_found())],
     "power-action": [
         Case("nothing armed, and every action offered", using=_power()),
         Case("hibernation off in Windows", using=_power(NO_HIBERNATION)),
@@ -1145,9 +1192,23 @@ def expected_files() -> dict:
 
 
 def generate(names=None) -> dict:
-    """Relative path -> the golden text the code makes now, for `names` (default: all)."""
-    files = expected_files()
-    return {name: files[name]() for name in (names if names is not None else files)}
+    """Relative path -> the golden text the code makes now, for `names` (default: all).
+
+    The goldens record core's kinds of notice alone. codex_auto_resume.notice_kinds keeps the kinds an edition registered for
+    the life of a process, so an advanced test run earlier in the same process left the plug's kinds in `describe`
+    (dev CI 40761286107, advanced part 3, after the parts were dealt again): they are held aside while the goldens are made
+    and put back after, as build/make_screenshots.edition_notice_kinds does for the pictures."""
+    from codex_auto_resume import notice_kinds
+    with notice_kinds._lock:
+        held = dict(notice_kinds._registered)
+        notice_kinds._registered.clear()
+    try:
+        files = expected_files()
+        return {name: files[name]() for name in (names if names is not None else files)}
+    finally:
+        with notice_kinds._lock:
+            notice_kinds._registered.clear()
+            notice_kinds._registered.update(held)
 
 
 def recorded(name: str):

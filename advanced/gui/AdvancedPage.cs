@@ -155,9 +155,11 @@ namespace CodexAutoResume
             settings.Parent.Controls.Add(tab);
             navButtons[AdvancedPageName] = tab;
             advancedTab = tab;
+            // v0.6.19: the Chat tab right of it, shown only while chat is on (AdvancedChat.cs).
+            AddChatTab(tab);
             // A window that replaces one with this page on screen opens on the Overview, as the standard window opens
             // on a page it does not have, and comes back here once the page can be shown (ReturnToAdvanced).
-            advancedReturning = firstPage == AdvancedPageName;
+            advancedReturning = firstPage == AdvancedPageName || firstPage == ChatPageName;
             // The strip as tall as its rows where it has had to take two (HoldTabs): again whenever the window's width
             // or font changes, after the standard window's own fitting of it to one row.
             nav.SizeChanged += delegate { FitTabs(); };
@@ -173,6 +175,8 @@ namespace CodexAutoResume
             advancedPending = Items(reply, "pending");
             // The turns run here now, which the running capabilities' card lists (AdvancedRuns.cs, v0.6.16-beta.4).
             RunsApplied(reply);
+            // early_reset's line on Pending, while the status carries it (AdvancedEarly.cs, v0.6.19 #50).
+            EarlyApplied(reply);
             // The reset rules waiting, read again when the status's counts of them change (AdvancedResets.cs).
             ResetCountsApplied(reply);
             if (advancedWords == null)
@@ -269,6 +273,7 @@ namespace CodexAutoResume
         {
             if (words == null) return;
             advancedWords = words;
+            RewordPendingButtons();
             if (advancedTab == null) return;
             advancedTab.Text = Word("page.nav", "Advanced features");
             advancedTab.AccessibleName = advancedTab.Text;
@@ -293,20 +298,21 @@ namespace CodexAutoResume
         {
             Control strip = advancedTab == null ? null : advancedTab.Parent;
             if (strip == null) return MinimumSize.Width;
-            // The strip as it is now, less what the chosen tab's heavier words add to it, plus the most any tab's would:
-            // whichever page is on screen, its tab is set in nav_current (ShowPage).
-            int now = 0, heaviest = 0;
-            var any = new Size(int.MaxValue, int.MaxValue);
+            // One row of the tabs as the strip lays them out: each shown tab at the width a button of its words, padding
+            // and the regular tab font prefers, with its margins - and the most any one of them grows when it is the
+            // chosen tab, in nav_current (ShowPage) - measured on buttons of their own, never added to any control
+            // (TabWidth). v0.6.19: TextRenderer's widths of the words, which this was reckoned from before, were a few
+            // pixels short of the buttons' own on GitHub's runner, and Spanish's Chat tab was cut off there.
+            int row = 0, heaviest = 0;
             foreach (Control control in strip.Controls)
             {
                 var tab = control as NavButton;
-                if (tab == null) continue;
-                int regular = TextRenderer.MeasureText(tab.Text, Soft.RoleFont("nav"), any, TextFormatFlags.SingleLine).Width;
-                now += TextRenderer.MeasureText(tab.Text, tab.Font, any, TextFormatFlags.SingleLine).Width - regular;
-                heaviest = Math.Max(heaviest, TextRenderer.MeasureText(tab.Text, Soft.RoleFont("nav_current"), any,
-                                                                       TextFormatFlags.SingleLine).Width - regular);
+                if (tab == null || !Soft.OwnVisible(tab)) continue;
+                int regular = TabWidth(tab, Soft.RoleFont("nav"));
+                row += regular + tab.Margin.Horizontal;
+                heaviest = Math.Max(heaviest, TabWidth(tab, Soft.RoleFont("nav_current")) - regular);
             }
-            int least = strip.PreferredSize.Width - now + heaviest + nav.Padding.Horizontal + FrameWidth;
+            int least = row + heaviest + strip.Padding.Horizontal + nav.Padding.Horizontal + FrameWidth;
             int room = ScreenRoom();
             bool rows = least > room;
             if (rows) least = room;
@@ -317,7 +323,32 @@ namespace CodexAutoResume
                 FitTabs();
             }
             if (MinimumSize.Width < least) MinimumSize = new Size(least, MinimumSize.Height);
+            // The layout audit stands in a screen as wide as anything needs (advancedScreen), but Windows still holds a
+            // form's Width to the largest window this machine's screen allows (SystemInformation.MaxWindowTrackSize): on
+            // GitHub's runner, whose screen is small, the window stayed narrower than its tabs, the Chat tab 3 px past the
+            // strip (v0.6.19-beta's CI) - a window no screen of that size shows, where the tabs take a second row. As
+            // AuditNarrowestOn does, the audit asks for the client area itself, which Windows keeps as asked.
+            if (auditing && advancedScreen > 0 && ClientSize.Width < least - FrameWidth)
+                ClientSize = new Size(least - FrameWidth, ClientSize.Height);
             return least;
+        }
+
+        /// The width `tab` prefers in `font`: a button of its own with the tab's words and padding, set as every tab is
+        /// (DashboardBuilt), asked as the strip asks a tab - and disposed, never added to any control.
+        private static int TabWidth(NavButton tab, Font font)
+        {
+            using (var scratch = new NavButton())
+            {
+                scratch.Font = font;
+                scratch.Text = tab.Text;
+                scratch.Padding = tab.Padding;
+                scratch.AutoSize = true;
+                scratch.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+                scratch.FlatStyle = FlatStyle.Flat;
+                scratch.FlatAppearance.BorderSize = 0;
+                scratch.UseVisualStyleBackColor = false;
+                return scratch.GetPreferredSize(Size.Empty).Width;
+            }
         }
 
         /// What the window's frame adds to its width, as Windows works it out from the window's style
@@ -362,6 +393,8 @@ namespace CodexAutoResume
             NavButton opened;
             bool keyed = request.Focus == "page." + AdvancedPageName && navButtons.TryGetValue(PageOrder[0], out opened) &&
                          FocusedControl() == opened;
+            // v0.6.19: a notice's click to a conversation's chat (`--chat=`), or a window reopened on the Chat page.
+            if (OpenAskedChat()) return;
             ShowAdvanced();
             if (keyed && advancedTab.CanFocus) ActiveControl = advancedTab;
         }
@@ -372,7 +405,9 @@ namespace CodexAutoResume
         static partial void ArgumentParsed(string argument, OpenRequest request)
         {
             if (argument == "--page=" + AdvancedPageName) request.Page = AdvancedPageName;
+            else if (argument == "--page=" + ChatPageName) request.Page = ChatPageName;      // v0.6.19: the Chat page
             else if (argument == "--focus=page." + AdvancedPageName) request.Focus = "page." + AdvancedPageName;
+            else if (ChatArgumentParsed(argument)) { }      // v0.6.19: the chat at one conversation (AdvancedChat.cs)
             else if (argument.StartsWith(CapabilityArgument, StringComparison.Ordinal))
             {
                 string id = argument.Substring(CapabilityArgument.Length);
@@ -392,6 +427,7 @@ namespace CodexAutoResume
         static partial void ReopenArgumentsWritten(string page, string focus, List<string> arguments)
         {
             if (page == AdvancedPageName) arguments.Insert(0, "--page=" + AdvancedPageName);
+            else if (page == ChatPageName) arguments.Insert(0, "--page=" + ChatPageName);
             if (focus == "page." + AdvancedPageName) arguments.Add("--focus=" + focus);
         }
 
@@ -640,7 +676,7 @@ namespace CodexAutoResume
                 MethodInvoker after = done;
                 done = delegate { ReadPrompts(after); };
             }
-            // v0.6.19: the account signed in (AdvancedAccount.cs).
+            // v0.6.20: the account signed in (AdvancedAccount.cs).
             if (id == AccountId)
             {
                 MethodInvoker after = done;
@@ -729,6 +765,8 @@ namespace CodexAutoResume
             }
             FillAdvancedList();
             ShowAdvancedDetail();
+            // v0.6.19 (#50): Pending's tabs follow whether the prompt queue stands (AdvancedSchedule.cs).
+            ScheduleListingApplied();
         }
 
         /// A statement as advanced-statement answers it; one that could not be read is none, and nothing can be turned
@@ -785,6 +823,7 @@ namespace CodexAutoResume
         /// state in a chip. Rows are only rewritten where they changed, so the selection and the focus stay where the person left them.
         private void FillAdvancedList()
         {
+            UpdateChatTab();
             if (advancedList == null) return;
             var rows = new List<Dictionary<string, object>>();
             foreach (object entry in Items(advancedListing, "capabilities") ?? new List<object>())
@@ -1050,14 +1089,16 @@ namespace CodexAutoResume
 
             // Under its limits (v0.6.14): Send now's waiting recoveries. Keep it on is in the head card (v0.6.16-beta.3).
             BuildSendNow(item);
-            // The turns run here now, each with its Stop (v0.6.16-beta.4, AdvancedRuns.cs).
+            // The turns run here now, each with its Stop (v0.6.16-beta.4, AdvancedRuns.cs), and the button to the Chat page
+            // (v0.6.19, AdvancedChat.cs: the chat is a page of its own).
             BuildRuns(item);
+            BuildChatLink(item);
             // The reset actions' rules and the form they are added with (AdvancedResets.cs); the conversations kept going
             // and the queued prompts (v0.6.15-beta) - each while its capability is on or, from v0.6.16-beta.3, watched.
             BuildResets(item);
             BuildKeepGoing(item);
             BuildQueue(item);
-            // v0.6.19: the Codex account signed in, and how to switch it (AdvancedAccount.cs).
+            // v0.6.20: the Codex account signed in, and how to switch it (AdvancedAccount.cs).
             BuildAccount(item);
 
             // Its own choices, the rules a person writes for Codex's error codes and the samples of what nothing classified,
@@ -1140,7 +1181,9 @@ namespace CodexAutoResume
         /// acted on or not.
         private static bool IsSwitchChoice(string key)
         {
-            return key == "wrap_reset_time" || key == "wrap_after_reset" || key.StartsWith("window_", StringComparison.Ordinal);
+            // v0.6.19 (#50): and open_to_send's Also start Codex.
+            return key == "wrap_reset_time" || key == "wrap_after_reset" || key == "open_start_codex" ||
+                   key.StartsWith("window_", StringComparison.Ordinal);
         }
 
         /// An on/off choice as the Dashboard's own switch (NewCheck, as Settings draws its switches), in the row a drop-down
@@ -1175,7 +1218,7 @@ namespace CodexAutoResume
         {
             if (key == "ceiling_hours") return Word("page.option.hours", "{n} h", "n", value);
             // v0.6.16-beta.3 (issue #29): the meter's spacing, a stage's percentage, the wrap-up's wording.
-            if (key == "poll_minutes") return Word("page.option.minutes", "{n} min", "n", value);
+            if (key == "poll_minutes" || key == "open_idle_minutes") return Word("page.option.minutes", "{n} min", "n", value);
             if (key == "wrap_style")
                 return Word("page.option.style." + value.ToString(CultureInfo.InvariantCulture),
                             value == 1 ? "Short" : value == 3 ? "Detailed" : value == 4 ? "With the numbers" :
@@ -1548,6 +1591,7 @@ namespace CodexAutoResume
             foreach (Button remove in ruleRemoves) remove.Enabled = listed;
             if (ruleAdd != null) ruleAdd.Enabled = listed;
             UpdateKeptButtons(idle);
+            UpdateRunButtons(idle);
             UpdateWordingButtons(idle);
             UpdateResetButtons(idle);
             UpdateKeepGoingButtons(idle);
@@ -1957,6 +2001,7 @@ namespace CodexAutoResume
         /// A notice in the window's own dialog (Tell); written down in a window a test drives.
         private void TellAdvanced(string text)
         {
+            if (advancedQuiet) return;
             if (advancedScript == null) Tell(text);
             else advancedTold.Add(text);
         }
@@ -1986,7 +2031,9 @@ namespace CodexAutoResume
         {
             if (advancedScript != null)
             {
-                done(AdvancedScripted(command, argument));
+                Dictionary<string, object> scripted = AdvancedScripted(command, argument);
+                if (Str(scripted, "error_code") == PersistentBridge.ReconnectingCode) AdvancedReconnecting(action, done, scripted);
+                else done(scripted);
                 UpdateAdvancedButtons();
                 return;
             }
@@ -1996,17 +2043,43 @@ namespace CodexAutoResume
             System.Threading.ThreadPool.QueueUserWorkItem(delegate
             {
                 Dictionary<string, object> reply;
-                try { reply = bridge.Call(command, argument); }
+                // v0.6.19: only the long-lived bridge carries this edition's calls (PersistentBridge.CallAdvanced).
+                try { reply = bridge.CallAdvanced(command, argument, action); }
                 catch (Exception error) { reply = Failure(error); }
                 MethodInvoker finish = delegate
                 {
                     if (action) SetBusy(false);
-                    done(reply);
+                    if (Str(reply, "error_code") == PersistentBridge.ReconnectingCode) AdvancedReconnecting(action, done, reply);
+                    else
+                    {
+                        advancedReconnectTold = false;
+                        done(reply);
+                    }
                     UpdateAdvancedButtons();
                 };
                 try { if (IsHandleCreated && !IsDisposed) BeginInvoke(finish); }
                 catch (Exception) { }
             });
+        }
+
+        // v0.6.19: whether the reconnecting note has been said since the last call the long-lived bridge answered.
+        private bool advancedReconnectTold;
+        // While a reconnecting answer is handed to its page: the page's own refusal is not said over it.
+        private bool advancedQuiet;
+
+        /// The long-lived bridge could not be reached for this call (PersistentBridge.CallAdvanced), so nothing was
+        /// carried out by this call. The page is handed the answer as any refusal, with its own words held back, and
+        /// the person is told once in the one note every page shares - after an action every time, since a click is
+        /// what tries the connection again.
+        private void AdvancedReconnecting(bool action, Action<Dictionary<string, object>> done, Dictionary<string, object> reply)
+        {
+            string words = S("note.reconnecting", "The connection to this product's service is being restored. Try again in a moment.");
+            advancedQuiet = true;
+            try { done(reply); }
+            finally { advancedQuiet = false; }
+            if (advancedNote != null) SetNote(advancedNote, words);
+            if (action || !advancedReconnectTold) TellAdvanced(words);
+            advancedReconnectTold = true;
         }
 
         /// A reply's part written out, to compare with what was shown; "" for one that cannot be.

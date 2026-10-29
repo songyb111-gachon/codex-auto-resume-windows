@@ -219,6 +219,8 @@ namespace CodexAutoResume
         // The dialog's controls, for the layout audit.
         private Control ownEditor;
         private Label ownHint;
+        // The open dialog fitted again to what it says (BuildOwnValue): after a refusal is said, and by the audit.
+        private Action ownFit;
 
         /// The dialog for a value of the person's own, built and not shown: the range above, the editor, and Use this
         /// value and Cancel. `taken` is handed the value as the bridge will store it, once the bridge has taken it.
@@ -440,6 +442,7 @@ namespace CodexAutoResume
                     // Refused by the value's own rule: said with the range, in the dialog, and nothing changes.
                     hint.Text = S("own.refused", "This value can't be used. {hint}", "hint", hintText);
                     hint.ForeColor = Palette.Danger;
+                    ownFit();
                 });
             });
             Button cancel = MakeButton(S("action.cancel", "Cancel"), false, delegate { dialog.Close(); });
@@ -452,11 +455,15 @@ namespace CodexAutoResume
                                    ? ((SoftFlow)editor).Controls[0] : editor;
             if (kind != "days") dialog.ActiveControl = ((SoftNumber)((SoftFlow)editor).Controls[0]).Spin;
 
-            // As tall as the refusal needs, which says the range too: the dialog never grows under a person's hand.
-            hint.Text = S("own.refused", "This value can't be used. {hint}", "hint", hintText);
-            int tall = body.GetPreferredSize(new Size(width, 0)).Height;
-            hint.Text = hintText;
-            dialog.ClientSize = new Size(width, tall + buttons.GetPreferredSize(new Size(width, 0)).Height);
+            // As tall as what it says now - the range, and once a value is refused the refusal, which says the range too,
+            // taller then where it takes another line. Up to v0.6.19-beta.3 it stood as tall as the refusal from the
+            // start, and the line it held was empty above the buttons (the owner, 2026-10-25).
+            ownFit = delegate
+            {
+                int tall = body.GetPreferredSize(new Size(width, 0)).Height;
+                dialog.ClientSize = new Size(width, tall + buttons.GetPreferredSize(new Size(width, 0)).Height);
+            };
+            ownFit();
             return dialog;
         }
 
@@ -497,8 +504,13 @@ namespace CodexAutoResume
             if (whole)
             {
                 Walk(dialog, where, findings);
-                // And with the refusal said above it, the longest the line gets.
+                // No empty band above the buttons at its opening size (the owner, 2026-10-25).
+                int opening = dialog.Controls[0].GetPreferredSize(new Size(dialog.ClientSize.Width, 0)).Height;
+                int held = dialog.ClientSize.Height - dialog.Controls[1].Height;
+                if (held - opening > Px(2)) findings.Add(where + " :: " + (held - opening) + " px empty above the buttons");
+                // And with the refusal said above it, the longest the line gets, fitted as a refusal fits it.
                 ownHint.Text = S("own.refused", "This value can't be used. {hint}", "hint", hintText);
+                if (ownFit != null) ownFit();
                 dialog.PerformLayout();
                 int needs = dialog.Controls[0].GetPreferredSize(new Size(dialog.ClientSize.Width, 0)).Height;
                 int room = dialog.ClientSize.Height - dialog.Controls[1].Height;

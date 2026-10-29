@@ -550,15 +550,28 @@ namespace CodexAutoResume
         }
 
         // States: 0 resting, 1 under the pointer, 2 dragged. The brand half is the theme's (Tokens).
-        /// The well the bar runs in, for the ground it is drawn on. Everywhere but in a well that is the
-        /// `inset` groove the design gives a track; in one - the message box, whose own ground is `inset` -
-        /// an inset track is the ground, and the bar would be a pill floating on nothing. There it is the
-        /// card's colour instead, so the groove is still a step away from what surrounds it.
+        /// The well the bar runs in, decided by the ground it is drawn on, whatever that ground is (v0.6.6, the owner:
+        /// "스크롤바는 스크롤바가 생기는 곳에 따라 색이 쫌 달라져야"): one step deeper than it - the step from a card's ground
+        /// to a well in the design and theme in effect - so the groove always stands a step below what surrounds it and
+        /// the pill, raised, above the groove. Over a card that is `inset`, as it always was; in a well that is itself
+        /// `inset` - the setup window's log and notes, the message box - a step deeper than the well, and on the window's
+        /// canvas a step deeper than the canvas. Up to v0.6.19-beta.4 a well's groove was `surface`, a step the other
+        /// way, where the pill, `raised`, stood on it in one colour (the owner, 2026-10-26: "색상이 하나 뿐이네").
         internal static Color TrackFill(bool contrast, Color ground)
         {
             if (contrast) return SystemColors.Window;
-            return Soft.Near(ground, Tokens.Inset) ? Tokens.Surface : Tokens.Inset;
+            return Deeper(ground);
         }
+
+        /// `ground` one card-to-well step deeper (Tokens.Card to Tokens.Inset), each channel kept in range.
+        internal static Color Deeper(Color ground)
+        {
+            return Color.FromArgb(Channel(ground.R + Tokens.Inset.R - Tokens.Card.R),
+                                  Channel(ground.G + Tokens.Inset.G - Tokens.Card.G),
+                                  Channel(ground.B + Tokens.Inset.B - Tokens.Card.B));
+        }
+
+        private static int Channel(int value) { return Math.Max(0, Math.Min(255, value)); }
 
         internal static Color TrackEdge(bool contrast) { return contrast ? SystemColors.WindowFrame : Tokens.Line; }
 

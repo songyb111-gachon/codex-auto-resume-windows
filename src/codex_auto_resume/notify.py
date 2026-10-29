@@ -25,6 +25,7 @@ import time
 from . import l10n, machine, needsyou, pwsh
 # Moved to codex_link.py in v0.6.18; read here as `notify.<name>` by the notifier, the watcher and the advanced edition.
 from .codex_link import CODEX_THREAD_LINK, codex_thread_uri, open_in_codex, parse_codex_thread_uri  # noqa: F401
+from .codex_link import chat_uri, parse_chat_uri  # noqa: F401  (v0.6.19: the chat at one conversation)
 from .domain import ids
 
 SCHEME = "codex-auto-resume"
@@ -501,6 +502,26 @@ def stopped(thread_id: str, identity=None, *, reason: str | None = None) -> bool
     return show_content(stopped_content(thread_id, identity, reason=reason))
 
 
+# 2026-10-22: a record born already stopped although nothing gave up - the person took the conversation over (a message
+# of theirs reached the turn a continuation started, or their own turn ran before ours: domain/gates.birth_stop's
+# parent_handed_over), or the task's recovery had been cancelled (parent_cancelled) - is said as that, under the new
+# failure's reason, never as "stopped trying". The retry budgets' stops keep stopped_content's words.
+NOT_RESUMED = {"parent_handed_over": "toast_handed_over_body", "parent_cancelled": "toast_parent_cancelled_body"}
+
+
+def not_resumed_message(reason) -> str:
+    """The sentence for a record born stopped for `reason`, one of NOT_RESUMED's."""
+    return l10n.message(NOT_RESUMED[reason])
+
+
+def not_resumed_content(thread_id: str, identity=None, *, reason: str, category: str = "usage_limit") -> dict:
+    """What a new failure of a conversation the person took over, or whose recovery was cancelled, says: its name,
+    then the failure's reason and why nothing will be sent, then where it lives - no button, as stopped_content."""
+    title = headline(identity)
+    return _content(title, _origin_line(identity, title, thread_id),
+                    extra=[_reason_label(category) + " · " + not_resumed_message(reason)])
+
+
 # ------------------------------------------------------------ needs-you notices (v0.6.11)
 # A conversation that needs a person (needsyou.py): a failure this product will never resume, or a
 # turn that has recorded nothing new for a while. Said once, with one next step from the catalog, and
@@ -561,19 +582,6 @@ def after_sleep_content(slept, count) -> dict:
     return _content(l10n.message("toast_after_sleep").replace("{time}", slept_for(slept)),
                     l10n.message("toast_after_sleep_next"),
                     extra=[l10n.message("toast_after_sleep_count").replace("{n}", str(waiting))],
-                    more=[(l10n.message("toast_button_open"), open_uri("pending"))])
-
-
-def account_changed_content(count) -> dict:
-    """v0.6.19, the advanced edition's account switch: another Codex account is signed in, how many recoveries waiting
-    for a usage limit now wait for a person, what to do next, and Open Dashboard at Pending. Only that capability's
-    surface ever asks for it."""
-    try:
-        waiting = max(1, int(count))
-    except (TypeError, ValueError, OverflowError):
-        waiting = 1
-    return _content(l10n.message("toast_account_changed"), l10n.message("toast_after_sleep_next"),
-                    extra=[l10n.message("toast_account_changed_count").replace("{n}", str(waiting))],
                     more=[(l10n.message("toast_button_open"), open_uri("pending"))])
 
 
@@ -644,6 +652,12 @@ def update_offered_content(version, prerelease=False):
     body = l10n.message("toast_update_offered_prerelease_body" if prerelease else "toast_update_offered_body")
     return _content(l10n.message("toast_update_offered"), body.replace("{version}", version),
                     more=[(l10n.message("toast_button_open"), open_uri("diagnostics"))])
+
+
+def restart_gave_up_content():
+    """v0.6.19: the advanced crash restart left the watcher stopped (three ends in an hour); one button opens Overview."""
+    return _content(l10n.message("toast_restart_gave_up"), l10n.message("toast_restart_gave_up_body"),
+                    more=[(l10n.message("toast_button_open"), open_uri("overview"))])
 
 
 # ------------------------------------------------- the power action after recoveries (v0.6.12)

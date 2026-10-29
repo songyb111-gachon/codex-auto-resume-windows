@@ -1,4 +1,4 @@
-"""Switch the Codex account (v0.6.19, plans/v0619-design/D-account.md): the watcher's side.
+"""Switch the Codex account (v0.6.20, plans/v0619-design/D-account.md): the watcher's side.
 
 While account_switch stands on, the watcher reads which account is signed in at its start and every 30 minutes and
 keeps only a keyed digest of it - never the address, never the mask - under a salt of its own in Credential Manager;
@@ -326,7 +326,7 @@ class ResetRuleTests(AccountCase):
     signed in, is held as over a gap in the count - Go on counting is the person's - and core's records are held."""
 
     def test_a_counting_rule_is_held_with_what_it_had_left_to_count(self):
-        self.on(RESET_MESSAGE)
+        self.on("reset_message")
         self.on()
         rule = self.rt.state.add_reset_rule("reset_message", "codex", 300, 3, thread_id=T1, words="go on",
                                             record_id="d" * 64, at=self.now)

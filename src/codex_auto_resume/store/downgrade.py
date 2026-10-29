@@ -16,7 +16,7 @@ from .. import machine
 from ..domain import ids
 from .columns import _SCHEMA_4_COLUMNS, _SCHEMA_5_COLUMNS, _V2_COLUMNS
 from .errors import StoreError
-from .schema import SchemaMixin, _TABLES_V4, _TABLES_V5
+from .schema import MARK, SchemaMixin, _TABLES_V4, _TABLES_V5
 from .validate import _validated_record
 
 
@@ -86,6 +86,10 @@ def downgrade_state(state_dir: Path, target: int) -> dict:
             else:
                 report["rows"] = connection.execute("SELECT count(*) FROM interruptions").fetchone()[0]
             connection.execute("PRAGMA user_version=%d" % target)
+            # The readable-from mark (schema.READABLE_FROM, v0.6.18) taken off with the schema it named: the state is
+            # an older release's now, readable from its own version alone, as every state that release wrote.
+            if connection.execute("PRAGMA application_id").fetchone()[0] & 0xFFFF0000 == MARK:
+                connection.execute("PRAGMA application_id=0")
             connection.execute("COMMIT")
         except Exception:
             if connection.in_transaction:

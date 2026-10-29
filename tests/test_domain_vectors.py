@@ -18,7 +18,7 @@ later version of it:
 
 The vectors were computed from the code as it was before v0.6.5 gathered the identifiers into
 `domain/ids.py`, and they are literal: a change that moves any byte of any of them fails here.
-The Rust core of v0.6.21 has to reproduce every one.
+The Rust core of v0.6.22 has to reproduce every one.
 
 The acceptance tables pin the other half: call site by call site, which spellings each reader
 of an identifier takes and how it refuses the rest. They do not agree - the control layer reads
@@ -241,6 +241,8 @@ DEFAULT_FILE = """{
   "default_tier": "automatic",
   "design": "soft",
   "detection_lookback_hours": 6.0,
+  "home_suggestions": true,
+  "home_suggestions_dismissed": [],
   "interface_language": "system",
   "keep_awake": "off",
   "keep_awake_hours": "h6",

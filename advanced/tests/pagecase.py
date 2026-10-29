@@ -3,7 +3,7 @@
 The page's tests are split by what they drive, so that no one file bounds a CI part (scripts/test_parts.py deals the
 suite by file): test_advanced_page_arming (the list, Turn on, Watch, Turn off, the hourly limit, the policy, the
 keys and the reopen), test_advanced_page_options (a capability's choices, the rules, the samples, the watch log,
-Keep it on and Send now), test_advanced_page_resets (the reset actions and Pending's scheduled group),
+Keep it on and Send now), test_advanced_page_resets (the reset actions and Pending's Scheduled tab),
 test_advanced_page_report (the compatibility report's card), test_advanced_page_layout_1 to _5 (the audit of every
 language at every scaling, each module its share dealt by cost, every audit in one of them) and test_advanced_page_standard
 (the standard window holds nothing of the page).
@@ -55,7 +55,8 @@ SCALES = (1.0, 1.25, 1.5, 1.75, 2.0)
 IDS = [definition.id for definition in registry.DEFINITIONS]
 # The order the rows are in (the owner's, 2026-10-10): the compatibility report first, and so the one open before any
 # is chosen - an action, so a scenario that turns the first route on or off chooses it.
-SHOWN = list(registry.SHOWN_ORDER)
+# v0.6.19: less any capability waiting hidden in registry.WAITING, which holds its place there but has no row yet.
+SHOWN = [capability for capability in registry.SHOWN_ORDER if capability in IDS]
 # The capability the turn-on scenario opens: one whose statement carries a warning (M7 unmeasured there), named
 # rather than counted, since the registry grew (v0.6.15-beta put queue_for_open third).
 MARKER_FREE = "marker_free_continuation"
@@ -377,7 +378,7 @@ def audit_data(locale: str, bridge: Bridge) -> dict:  # noqa: C901 - one layout'
     return {"words": words, "listing": listing, "statements": statements,
             "kept": {"advanced-rules": rules, "advanced-samples": samples, "advanced-watch-log": watch,
                      "pending": shot["pending"], "advanced-resets": fullest_resets(shot, listing["generation"]),
-                     "snapshot": shot},
+                     "advanced-prompts": fullest_prompts(shot, listing["generation"]), "snapshot": shot},
             "reports": report_states()}
 
 
@@ -390,8 +391,10 @@ AUDIT_SECONDS = 30
 
 def audited_views() -> int:
     """The views each audit lays out: each capability open, then unread, the narrowest window on two screens, the
-    action's card in each report state, and Pending with the reset rules scheduled under its list."""
-    return len(IDS) + 3 + len(report_states()) + 1
+    action's card in each report state, (v0.6.19, #50; the owner's decision of 2026-10-24) Pending's one list with a row
+    of each kind chosen in turn and History with the completed messages, early_reset's reading in Why it is waiting,
+    and the Chat page."""
+    return len(IDS) + 3 + len(report_states()) + 4
 
 
 def audit_timeout(costs: list, workers: int) -> int:
@@ -430,6 +433,40 @@ def fullest_resets(shot, generation) -> dict:
             "reading": {"read_at": now, "credits": 12, "nearest_expiry": now + 3 * 86400, "expiry_known": True},
             "last_spend": {"outcome": "reset", "at": now - 3600}, "count_unproven": True,
             "limits": {"messages": 10, "credit_rules": 4, "words": 2000, "ordinals": 9, "use_now_minutes": 15}}
+
+
+def fullest_prompts(shot, generation) -> dict:
+    """advanced-prompts at its fullest (v0.6.19, #50), as control/prompts.view answers: a message for each place it can
+    stand - waiting at a time and waiting for a running turn, a series, held, in Codex's queue, being sent, refused back,
+    after this turn - and three completed ones for the Done section, one handed over."""
+    now = int(ac.NOW)
+    pending = shot["pending"]
+
+    def prompt(prompt_id, thread, trigger, state, *, reason=None, every=None, occurrences=1, sent=0, mode="queue",
+               due=None, finished=None, in_codex=False, being_sent=False, completed=False):
+        return {"prompt_id": prompt_id, "thread_id": pending[thread % len(pending)]["thread_id"], "trigger": trigger,
+                "at": None if trigger == "after_turn" else due, "every": every, "occurrences": occurrences,
+                "sent_count": sent, "until": None, "depends": False, "position": prompt_id, "state": state,
+                "reason": reason, "gate": None, "gate_reason": None, "created_at": now - 7200,
+                "due_at": due if due is not None else now, "sent_at": None, "finished_at": finished,
+                "while_running": mode, "words": None if state == "done" else "Carry on.", "in_codex": in_codex,
+                "being_sent": being_sent, "completed": completed}
+
+    return {"done": True, "refusal": None, "generation": generation, "after_turn_unproven": True,
+            "prompts": [prompt(1, 0, "at_time", "waiting", mode="wait", due=now + 3600, reason="turn_running"),
+                        prompt(2, 1, "recurring", "waiting", every="week", occurrences=30, sent=12, due=now + 86400),
+                        prompt(3, 2, "at_time", "held", reason="dependency_failed", due=now - 60),
+                        prompt(4, 0, "after_turn", "ready", in_codex=True),
+                        prompt(5, 1, "at_time", "ready", being_sent=True, due=now - 30),
+                        prompt(6, 2, "recurring", "waiting", every="day", occurrences=3, reason="withdraw_refused",
+                               due=now + 600, mode="wait"),
+                        prompt(7, 0, "after_turn", "waiting"),
+                        prompt(8, 1, "at_time", "done", reason="delivered", due=now - 7000, finished=now - 6900,
+                               completed=True),
+                        prompt(9, 2, "recurring", "done", every="day", occurrences=30, sent=30, reason="delivered",
+                               due=now - 5000, finished=now - 4900, completed=True),
+                        prompt(10, 0, "after_turn", "done", reason="handed_over", finished=now - 100, completed=True)],
+            "limits": {"prompts": 20, "per_conversation": 5, "words": 2000, "occurrences": 30, "days": 30}}
 
 
 # The modules the layout audit is dealt over (test_advanced_page_layout_1 to _5), each running its audits in

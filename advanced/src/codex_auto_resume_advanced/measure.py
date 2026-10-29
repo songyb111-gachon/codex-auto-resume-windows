@@ -2192,10 +2192,17 @@ def _ipc_look(found):
     NOT_FOUND, IO_PENDING, WAIT_OBJECT_0 = (2, 3), 997, 0
     invalid = wintypes.HANDLE(-1).value
     # Opened for reading alone; closed below whatever happens. Nothing is ever written to the pipe.
-    pipe = k32.CreateFileW(_IPC_PIPE, GENERIC_READ, 0, None, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, None)
+    from .codex import ipc as channel
+    pipe = k32.CreateFileW(_IPC_PIPE, GENERIC_READ, 0, None, OPEN_EXISTING,
+                           FILE_FLAG_OVERLAPPED | channel.SECURITY_SQOS, None)
     if pipe in (None, invalid):
         if ctypes.get_last_error() not in NOT_FOUND:
             found["exists"] = True              # the pipe is there but could not be opened now
+        return found
+    if not channel.server_trusted(channel.server_pid(k32, pipe)):
+        # v0.6.18 (S5): served by a process that is not this account's own - looked at no further.
+        k32.CloseHandle(pipe)
+        found["exists"] = True
         return found
     found["exists"] = found["opened"] = True
     event = k32.CreateEventW(None, True, False, None)
