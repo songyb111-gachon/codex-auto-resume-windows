@@ -63,7 +63,7 @@ NOTICE_STATUS = {
     "stopped": "attention",         # recovery stopped for good
     "cancelled": "paused",          # a person switched it off
     "needs_you": "attention",       # v0.6.11: it needs a person, and is never resumed
-    "after_sleep": "paused",        # v0.6.11: what fell due during a long sleep waits for a person
+    "after_sleep": "attention",     # v0.6.11: what fell due during a long sleep waits for a person (v0.6.20: attention, as every header)
     "memory_warning": "attention",  # v0.6.11: the watcher uses more memory than the guard allows
     "memory_stopped": "attention",  # v0.6.11: and stopped for it
     "demo": "waiting",              # v0.6.11: Show me what happens - made-up words, inert buttons

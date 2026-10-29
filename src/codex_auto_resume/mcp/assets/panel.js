@@ -445,6 +445,10 @@ function attentionCause(status, rows) {
       if (overlays.indexOf(held[j]) >= 0) return held[j];
     }
   }
+  // v0.6.20: and last, a record held for a person: nothing is sent for it until they let it continue.
+  for (var k = 0; k < list.length; k++) {
+    if ((list[k].overlays || []).indexOf('held') >= 0) return 'held';
+  }
   return null;
 }
 
@@ -1337,6 +1341,7 @@ function heroFacts(status, state, rows) {
             : cause === 'compatibility_blocked' ? t('overlay.compatibility_blocked', 'Codex version not supported')
             : cause === 'compatibility_failed_here'
               ? t('overlay.compatibility_failed_here', 'Codex checks failed on this computer')
+            : cause === 'held' ? t('popup.held', 'Waiting for you to let it continue')
             : cause === 'engine_unavailable' ? t('status.not_running', 'Watcher not running')
             : t('status.not_responding', 'Watcher not responding');
     return [why, pending];

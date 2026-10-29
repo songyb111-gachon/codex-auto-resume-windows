@@ -775,6 +775,14 @@ namespace CodexAutoResume
                     foreach (string held in HeldFor)
                         if (HasOverlay(row, held)) return held;
                 }
+            // v0.6.20: and last, a record held for a person (overlay `held`): nothing is sent for it until they let it
+            // continue, so the header asks for their attention (tray_popup.HELD_OVERLAY, panel.js attentionCause).
+            if (pending != null)
+                foreach (object entry in pending)
+                {
+                    var row = entry as Dictionary<string, object>;
+                    if (row != null && HasOverlay(row, "held")) return "held";
+                }
             return null;
         }
 
@@ -817,6 +825,8 @@ namespace CodexAutoResume
                 recovery = Said(strings, "overlay.compatibility_blocked", "Codex version not supported");
             else if (cause == "compatibility_failed_here")
                 recovery = Said(strings, "overlay.compatibility_failed_here", "Codex checks failed on this computer");
+            else if (cause == "held")
+                recovery = Said(strings, "popup.held", "Waiting for you to let it continue");
             else if (cause != null)
                 recovery = Said(strings, "status.not_responding", "Watcher not responding");
             else
@@ -867,7 +877,8 @@ namespace CodexAutoResume
                     // tray_popup.ATTENTION_OVERLAYS: a record held for one of the above, or for a watcher not running.
                     if (row != null && (HasOverlay(row, "compatibility_blocked") || HasOverlay(row, "compatibility_failed_here") ||
                                         HasOverlay(row, "engine_unavailable") ||
-                                        HasOverlay(row, "watcher_not_ticking")))
+                                        HasOverlay(row, "watcher_not_ticking") ||
+                                        HasOverlay(row, "held")))      // v0.6.20: waiting for a person
                         return "attention";
                 }
             object enabled;
