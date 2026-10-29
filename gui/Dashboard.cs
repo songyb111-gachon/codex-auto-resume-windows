@@ -347,6 +347,13 @@ namespace CodexAutoResume
         protected override void OnGotFocus(EventArgs e) { Invalidate(); base.OnGotFocus(e); }
         protected override void OnLostFocus(EventArgs e) { Invalidate(); base.OnLostFocus(e); }
 
+        /// v0.6.20: the arrow keys along a mirrored strip of tabs go the way it reads - Left to the next tab, which stands
+        /// left of this one, and Right back to the one before - as they go the way it reads left to right (Mirror).
+        protected override bool ProcessDialogKey(Keys keyData)
+        {
+            return base.ProcessDialogKey(Vertical ? keyData : Mirror.Arrow(Mirror.Of(this), keyData));
+        }
+
         /// The tab's body. Room is kept around it for the focus ring, which a child window cannot
         /// draw outside itself.
         internal Rectangle Face
@@ -366,7 +373,8 @@ namespace CodexAutoResume
                 Rectangle bounds = Face;
                 if (Vertical)
                 {
-                    bounds.X += Soft.Px(12);
+                    // v0.6.20: indented from the right in a mirrored window (Mirror).
+                    bounds.X += Mirror.Of(this) ? Soft.Px(4) : Soft.Px(12);
                     bounds.Width = Math.Max(0, bounds.Width - Soft.Px(16));
                 }
                 return bounds;
@@ -399,8 +407,9 @@ namespace CodexAutoResume
             else if (hover) Soft.Body(g, face, radius, Palette.Raised, Palette.Line, false);
             Color text = !current ? Palette.Secondary : Palette.Contrast ? SystemColors.HighlightText : Palette.Accent;
             TextRenderer.DrawText(g, Text, Font, TextBounds, text,
-                                  TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis |
-                                  (Vertical ? TextFormatFlags.Left : TextFormatFlags.HorizontalCenter));
+                                  Mirror.Words(Mirror.Of(this),
+                                               TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis |
+                                               (Vertical ? TextFormatFlags.Left : TextFormatFlags.HorizontalCenter)));
             if (Focused && ShowFocusCues) Soft.Ring(g, face, radius);
         }
 
@@ -410,8 +419,9 @@ namespace CodexAutoResume
         internal void Underline(Graphics g, Rectangle face)
         {
             int bar = Soft.Px(Brand.AccentBar), inset = Soft.Px(Brand.SpaceXs);
+            // v0.6.20: a section's bar at the right in a mirrored window (Mirror).
             Rectangle line = Vertical
-                ? new Rectangle(face.X, face.Y + inset, bar, face.Height - 2 * inset)
+                ? new Rectangle(Mirror.Of(this) ? face.Right - bar : face.X, face.Y + inset, bar, face.Height - 2 * inset)
                 : new Rectangle(face.X + inset, face.Bottom - bar, face.Width - 2 * inset, bar);
             if (line.Width > 0 && line.Height > 0) g.FillRectangle(Soft.Fill(Palette.Accent), line);
         }
@@ -505,10 +515,12 @@ namespace CodexAutoResume
 
         protected override void OnPaint(PaintEventArgs e)
         {
-            var bounds = new Rectangle(Padding.Left, Padding.Top, Math.Max(0, Width - Padding.Horizontal), Math.Max(0, Height - Padding.Vertical));
+            bool mirrored = Mirror.Of(this);
+            var bounds = new Rectangle(mirrored ? Padding.Right : Padding.Left, Padding.Top, Math.Max(0, Width - Padding.Horizontal),
+                                       Math.Max(0, Height - Padding.Vertical));
             TextRenderer.DrawText(e.Graphics, Text, Font, bounds, ForeColor,
-                                  TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix |
-                                  TextFormatFlags.Left | TextFormatFlags.Top);
+                                  Mirror.Words(mirrored, TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix |
+                                                         TextFormatFlags.Left | TextFormatFlags.Top));
         }
     }
 
@@ -537,7 +549,8 @@ namespace CodexAutoResume
                 using (var pen = new Pen(Palette.Line))
                     e.Graphics.DrawRectangle(pen, e.Bounds.X, e.Bounds.Y, e.Bounds.Width - 1, e.Bounds.Height - 1);
                 TextRenderer.DrawText(e.Graphics, e.ToolTipText, Soft.BaseFont,
-                                      Rectangle.Inflate(e.Bounds, -Soft.Px(Inset), -Soft.Px(Inset)), Palette.Ink, Flags);
+                                      Rectangle.Inflate(e.Bounds, -Soft.Px(Inset), -Soft.Px(Inset)), Palette.Ink,
+                                      Mirror.Words(Mirror.Of(e.AssociatedControl), Flags));
             };
         }
     }
@@ -587,9 +600,15 @@ namespace CodexAutoResume
             using (var text = new SolidBrush(TextColor))
             using (var fill = new SolidBrush(BarColor))
             {
+                // v0.6.20: mirrored, each word at the right, its bar growing left from beside it and its number past the
+                // bar's end (Mirror).
+                bool mirrored = Mirror.Of(this);
                 if (max == 0)
                 {
-                    e.Graphics.DrawString(EmptyText, Font, text, 0, 0);
+                    if (mirrored)
+                        TextRenderer.DrawText(e.Graphics, EmptyText, Font, ClientRectangle, TextColor,
+                                              Mirror.Words(true, TextFormatFlags.Top | TextFormatFlags.WordBreak));
+                    else e.Graphics.DrawString(EmptyText, Font, text, 0, 0);
                     return;
                 }
                 int row = RowHeight();
@@ -601,11 +620,25 @@ namespace CodexAutoResume
                 int y = 0;
                 foreach (var bar in Bars)
                 {
-                    TextRenderer.DrawText(e.Graphics, bar.Key, Font, new Point(0, y), TextColor);
                     int length = (int)Math.Round(track * (bar.Value / (double)max));
-                    e.Graphics.FillRectangle(fill, labelWidth + Px(12), y + Px(3), Math.Max(Px(2), length), row - Px(12));
-                    TextRenderer.DrawText(e.Graphics, bar.Value.ToString(CultureInfo.CurrentCulture), Font,
-                                          new Point(labelWidth + Px(18) + length, y), TextColor);
+                    string number = bar.Value.ToString(CultureInfo.CurrentCulture);
+                    if (mirrored)
+                    {
+                        var word = new Rectangle(Width - labelWidth, y, labelWidth, row);
+                        TextRenderer.DrawText(e.Graphics, bar.Key, Font, word, TextColor,
+                                              Mirror.Words(true, TextFormatFlags.Top | TextFormatFlags.SingleLine));
+                        int bodyWidth = Math.Max(Px(2), length);
+                        e.Graphics.FillRectangle(fill, Width - labelWidth - Px(12) - bodyWidth, y + Px(3), bodyWidth, row - Px(12));
+                        int numberWide = TextRenderer.MeasureText(number, Font).Width;
+                        TextRenderer.DrawText(e.Graphics, number, Font, new Point(Width - labelWidth - Px(18) - length - numberWide, y),
+                                              TextColor);
+                    }
+                    else
+                    {
+                        TextRenderer.DrawText(e.Graphics, bar.Key, Font, new Point(0, y), TextColor);
+                        e.Graphics.FillRectangle(fill, labelWidth + Px(12), y + Px(3), Math.Max(Px(2), length), row - Px(12));
+                        TextRenderer.DrawText(e.Graphics, number, Font, new Point(labelWidth + Px(18) + length, y), TextColor);
+                    }
                     y += row;
                 }
             }
@@ -722,10 +755,12 @@ namespace CodexAutoResume
             Graphics g = e.Graphics;
             Color ground = Parent != null ? Parent.BackColor : Palette.Card;
             g.Clear(ground);
+            // v0.6.20: mirrored, each check's name from the right and its chip at the row's left end (Mirror).
+            bool mirrored = Mirror.Of(this);
             if (rows.Count == 0)
             {
                 TextRenderer.DrawText(g, Soft.Wrap(empty, Font, Width, EmptyFormat), Font, ClientRectangle, Palette.Secondary,
-                                      EmptyFormat);
+                                      Mirror.Words(mirrored, EmptyFormat));
                 return;
             }
             int y = 0, height = RowHeight;
@@ -738,17 +773,18 @@ namespace CodexAutoResume
                                : row[2] == "BLOCK" ? Palette.Danger : Palette.Paused;
                     if (y > 0) g.FillRectangle(rule, 0, y, Width, Soft.Hairline);
                     Size chip = Soft.ChipSize(row[1], Font);
-                    var label = new Rectangle(0, y, Math.Max(0, Width - chip.Width - Soft.Px(8)), height);
+                    var label = Mirror.Box(mirrored, Width, new Rectangle(0, y, Math.Max(0, Width - chip.Width - Soft.Px(8)), height));
                     TextRenderer.DrawText(g, row[0], Font, label, Palette.Ink,
-                                          TextFormatFlags.VerticalCenter | TextFormatFlags.Left |
-                                          TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
-                    Soft.Chip(g, new Rectangle(Math.Max(0, Width - chip.Width), y, chip.Width, height), row[1], Font, tone, ground);
+                                          Mirror.Words(mirrored, TextFormatFlags.VerticalCenter | TextFormatFlags.Left |
+                                                                 TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis));
+                    Soft.Chip(g, Mirror.Box(mirrored, Width, new Rectangle(Math.Max(0, Width - chip.Width), y, chip.Width, height)),
+                              row[1], Font, tone, ground, mirrored);
                     y += height;
                 }
             if (note.Length > 0)
                 TextRenderer.DrawText(g, Soft.Wrap(note, Font, Width, EmptyFormat), Font,
                                       new Rectangle(0, y + Soft.Px(8), Width, Math.Max(0, Height - y - Soft.Px(8))),
-                                      Palette.Secondary, EmptyFormat);
+                                      Palette.Secondary, Mirror.Words(mirrored, EmptyFormat));
         }
     }
 
@@ -1528,16 +1564,39 @@ namespace CodexAutoResume
         {
             e.Graphics.FillRectangle(Soft.Fill(Card), e.Bounds);
             e.Graphics.FillRectangle(Soft.Fill(Line), e.Bounds.Left, e.Bounds.Bottom - Soft.Hairline, e.Bounds.Width, Soft.Hairline);
-            var bounds = new Rectangle(e.Bounds.X + Px(10), e.Bounds.Y, Math.Max(0, e.Bounds.Width - Px(14)), e.Bounds.Height);
+            // v0.6.20: mirrored, the heading from its column's right, read right to left (Mirror; the columns themselves are
+            // in the other order, SoftListHost.MirrorColumns).
+            bool mirrored = ListMirrored(sender as ListView);
+            var bounds = new Rectangle(e.Bounds.X + (mirrored ? Px(4) : Px(10)), e.Bounds.Y, Math.Max(0, e.Bounds.Width - Px(14)),
+                                       e.Bounds.Height);
             TextRenderer.DrawText(e.Graphics, e.Header.Text, e.Font, bounds, Secondary,
-                                  TextFormatFlags.VerticalCenter | TextFormatFlags.Left |
-                                  TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
+                                  Mirror.Words(mirrored, TextFormatFlags.VerticalCenter | TextFormatFlags.Left |
+                                                         TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis));
+        }
+
+        /// Whether a list's rows are drawn mirrored (v0.6.20): its host's window is (Mirror). The list itself never is
+        /// (SoftListHost), so its own RightToLeft says nothing.
+        private static bool ListMirrored(ListView list)
+        {
+            return list != null && Mirror.Of(list.Parent);
+        }
+
+        /// A cell's bounds, worked out from the columns' order rather than asked of Windows: for the first column Windows
+        /// answers the whole row from its left edge, wherever that column stands - at the right, in a mirrored window.
+        private static Rectangle CellBounds(ListView list, DrawListViewSubItemEventArgs e)
+        {
+            int x = e.Item.Bounds.Left, at = list.Columns[e.ColumnIndex].DisplayIndex;
+            foreach (ColumnHeader column in list.Columns)
+                if (column.DisplayIndex < at) x += column.Width;
+            return new Rectangle(x, e.Bounds.Y, list.Columns[e.ColumnIndex].Width, e.Bounds.Height);
         }
 
         private void DrawCell(object sender, DrawListViewSubItemEventArgs e)
         {
             var list = (ListView)sender;
             bool selected = e.Item.Selected;
+            bool mirrored = ListMirrored(list);
+            Rectangle bounds = mirrored ? CellBounds(list, e) : e.Bounds;
             // Rows on the card's surface with a full hairline between them, as the panel's setting
             // rows have; the chosen row is pressed into the inset colour. High Contrast keeps
             // Highlight for it.
@@ -1545,10 +1604,10 @@ namespace CodexAutoResume
             // Brushes from Soft.Fill, which keeps one per colour: a list of twenty rows across six columns
             // allocated two hundred and forty brushes every time it repainted, and it repaints on every
             // scroll, selection and refresh.
-            e.Graphics.FillRectangle(Soft.Fill(back), e.Bounds);
-            e.Graphics.FillRectangle(Soft.Fill(Line), e.Bounds.Left, e.Bounds.Bottom - Soft.Hairline, e.Bounds.Width, Soft.Hairline);
+            e.Graphics.FillRectangle(Soft.Fill(back), bounds);
+            e.Graphics.FillRectangle(Soft.Fill(Line), bounds.Left, bounds.Bottom - Soft.Hairline, bounds.Width, Soft.Hairline);
             var row = e.Item.Tag as Dictionary<string, object>;
-            var cell = new Rectangle(e.Bounds.X + Px(10), e.Bounds.Y, Math.Max(0, e.Bounds.Width - Px(14)), e.Bounds.Height);
+            var cell = new Rectangle(bounds.X + (mirrored ? Px(4) : Px(10)), bounds.Y, Math.Max(0, bounds.Width - Px(14)), bounds.Height);
             string text = e.SubItem == null ? "" : e.SubItem.Text;
             // v0.6.12: a version Install another version... refused keeps its row, and its words go quiet (PickRefusedRow).
             Color ink = Palette.Contrast && selected ? SystemColors.HighlightText : PickRefusedRow(row) ? Secondary : Ink;
@@ -1556,17 +1615,18 @@ namespace CodexAutoResume
             // Highlight, and anything mixed away from HighlightText fell to about 2.4:1 on it.
             Color quiet = Palette.Contrast && selected ? ink : Soft.Mix(ink, Secondary, 0.4);
             if (e.ColumnIndex == 1 && row != null)
-                Soft.Chip(e.Graphics, cell, text, list.Font, Palette.Contrast && selected ? ink : ToneFor(row), back);
+                Soft.Chip(e.Graphics, cell, text, list.Font, Palette.Contrast && selected ? ink : ToneFor(row), back, mirrored);
             else if (list == pendingList && e.ColumnIndex == ResumeColumn && row != null && !EditionRow(row))
-                DrawResumeBox(e.Graphics, cell, row, back);
+                DrawResumeBox(e.Graphics, cell, row, back, mirrored);
             else
                 TextRenderer.DrawText(e.Graphics, text, list.Font, cell, e.ColumnIndex == 0 ? ink : quiet,
-                                      TextFormatFlags.VerticalCenter | TextFormatFlags.Left |
-                                      TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
+                                      Mirror.Words(mirrored, TextFormatFlags.VerticalCenter | TextFormatFlags.Left |
+                                                             TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis));
+            // The focus mark at the row's start: its left end, or its right end where the first column stands mirrored.
+            int mark = mirrored ? bounds.Right - Px(2) : e.Item.Bounds.Left + Px(2);
             if (e.ColumnIndex == 0 && selected && list.Focused)
                 using (var pen = new Pen(Palette.Contrast ? ink : Palette.Focus, Soft.PxF(2)))
-                    e.Graphics.DrawLine(pen, e.Item.Bounds.Left + Px(2), e.Item.Bounds.Top + Px(6),
-                                        e.Item.Bounds.Left + Px(2), e.Item.Bounds.Bottom - Px(6));
+                    e.Graphics.DrawLine(pen, mark, e.Item.Bounds.Top + Px(6), mark, e.Item.Bounds.Bottom - Px(6));
         }
 
         /// The Auto-resume box, drawn as the switch every other on-or-off setting in the window is,
@@ -1574,13 +1634,19 @@ namespace CodexAutoResume
         /// (FollowResumeSwitches).
         private void DrawResumeBox(Graphics g, Rectangle cell, Dictionary<string, object> row, Color ground)
         {
+            DrawResumeBox(g, cell, row, ground, false);
+        }
+
+        private void DrawResumeBox(Graphics g, Rectangle cell, Dictionary<string, object> row, Color ground, bool mirrored)
+        {
             int width = Px(Brand.SwitchWidth), height = Px(Brand.SwitchHeight);
-            var track = new Rectangle(cell.X + Px(2), cell.Y + (cell.Height - height) / 2, width, height);
+            var track = new Rectangle(mirrored ? cell.Right - Px(2) - width : cell.X + Px(2), cell.Y + (cell.Height - height) / 2,
+                                      width, height);
             double on = ThreadOn(row) ? 1.0 : 0.0;
             Transition glide;
             string id = Str(row, "interruption_id");
             if (id != null && resumeGlides.TryGetValue(id, out glide) && glide.Running) on = glide.Value;
-            Soft.SwitchAt(g, track, on, true, ground);
+            Soft.SwitchAt(g, track, on, true, ground, mirrored);
         }
 
         // Pending's Auto-resume switches (v0.6.5): each row's as it was last drawn, by its record's id, and the glide of

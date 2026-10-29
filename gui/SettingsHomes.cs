@@ -254,7 +254,8 @@ namespace CodexAutoResume
         {
             var kept = new List<string>();
             foreach (string part in parts)
-                if (!string.IsNullOrEmpty(part) && part.Trim().Length > 0) kept.Add(part);
+                // v0.6.20: each part one run in a line written right to left - a folder's path above all (Mirror.Embed).
+                if (!string.IsNullOrEmpty(part) && part.Trim().Length > 0) kept.Add(Mirror.Embed(part));
             return string.Join(" · ", kept.ToArray());
         }
 

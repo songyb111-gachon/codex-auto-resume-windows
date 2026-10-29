@@ -451,8 +451,9 @@ namespace CodexAutoResume
 
         private string S(string key, string fallback, string token, object replacement)
         {
-            return S(key, fallback).Replace("{" + token + "}", Convert.ToString(replacement,
-                                                                               CultureInfo.InvariantCulture));
+            // v0.6.20: the value one run in a sentence written right to left (Mirror.Embed).
+            return S(key, fallback).Replace("{" + token + "}", Mirror.Embed(Convert.ToString(replacement,
+                                                                                            CultureInfo.InvariantCulture)));
         }
 
         /// How long a window with no words cached for it waits for them before it opens (v0.6.18), in English, its own
@@ -834,6 +835,10 @@ namespace CodexAutoResume
                 Font = whole;
                 Soft.BaseFont = Font;
             }
+            // v0.6.20: in a language written right to left the window is mirrored (Mirror), and so is every dialog it
+            // opens (Soft.TitleBar). Before anything is built, so what is built inherits it.
+            Mirror.Window = Mirror.Language(wordsLanguage);
+            Mirror.Apply(this);
 
             BuildFooter();
             BuildHeader();

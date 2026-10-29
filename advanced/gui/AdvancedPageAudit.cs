@@ -139,6 +139,17 @@ namespace CodexAutoResume
         /// (AuditReopenNote), or as wide as the tabs, this page's among them, where they need more (HoldTabs); and the
         /// narrowest screen the window opens on at this scaling, TextScale.NarrowestWidth wide - the text size is fitted
         /// so that one holds the standard window - where the tabs take a second row rather than be cut off.
+        /// v0.6.20: the page laid out right to left against the page laid out left to right, mirrored (SettingsForm.MirrorCompare):
+        /// every view AdvancedLayoutAudit lays out, in a language written right to left. One line for each place that differs.
+        internal static string AdvancedMirrorAudit(string stringsJson, string wordsJson, string listingJson, string statementsJson,
+                                                   string keptJson, string reportsJson, double scale)
+        {
+            return MirrorCompare(delegate
+            {
+                return AdvancedLayoutAudit(stringsJson, wordsJson, listingJson, statementsJson, keptJson, reportsJson, scale);
+            });
+        }
+
         internal static string AdvancedLayoutAudit(string stringsJson, string wordsJson, string listingJson, string statementsJson,
                                                    string keptJson, string reportsJson, double scale)
         {

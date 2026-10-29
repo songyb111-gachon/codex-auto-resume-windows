@@ -428,7 +428,7 @@ namespace CodexAutoResume
             string save = steer ? Word("page.editor.steer.send", "Steer now") : Word("page.editor.save", "Save and return");
             if (editorSave.Text != save) editorSave.Text = save;
             editorCount.Text = Word("page.resets.count", "{n} of {most} characters", "n", editorWords.Box.Text.Length)
-                .Replace("{most}", EditorWordsMost().ToString(CultureInfo.CurrentCulture));
+                .Replace("{most}", Mirror.Embed(EditorWordsMost().ToString(CultureInfo.CurrentCulture)));
             editorSave.Enabled = busy == 0 && editorConversation.SelectedItem != null && editorWords.Box.Text.Trim().Length > 0;
             if (editorAddImage != null) editorAddImage.Enabled = busy == 0 && editorImages.Count < ImagesMost;
             FitEditor();

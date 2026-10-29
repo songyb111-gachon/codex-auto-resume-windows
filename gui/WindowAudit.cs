@@ -786,10 +786,14 @@ namespace CodexAutoResume
                 findings.Add(where + " :: the light's centre is at " + cy + ", the pair's at " + pair);
             if (hero.ColumnStyles.Count == 0 || (int)hero.ColumnStyles[0].Width != Px(28))
                 findings.Add(where + " :: the light's column is not 28 px wide");
-            if (Math.Abs(cx - (hero.Padding.Left + Px(28) / 2f)) > 1)
-                findings.Add(where + " :: the light's centre is " + (cx - hero.Padding.Left) + " from the card's content, not " +
-                             Px(28) / 2f);
-            if (headline.Left < stateDot.Right || detail.Left < stateDot.Right)
+            // v0.6.20: mirrored (Mirror), the light stands at the card's right and the words end left of it - its twin.
+            bool mirrored = Mirror.Of(hero);
+            float from = mirrored ? hero.ClientSize.Width - hero.Padding.Left - cx : cx - hero.Padding.Left;
+            if (Math.Abs(from - Px(28) / 2f) > 1)
+                findings.Add(where + " :: the light's centre is " + from + " from the card's content" + (mirrored ? " at its right" : "") +
+                             ", not " + Px(28) / 2f);
+            if (mirrored ? headline.Right > stateDot.Left || detail.Right > stateDot.Left
+                         : headline.Left < stateDot.Right || detail.Left < stateDot.Right)
                 findings.Add(where + " :: the words start inside the light's column");
             if (2 * HaloDot.Extent > Math.Min(stateDot.Width, stateDot.Height))
                 findings.Add(where + " :: the light's box is " + stateDot.Size + ", too small for its glow");
@@ -854,7 +858,14 @@ namespace CodexAutoResume
                                       block.ClientSize.Height - block.Padding.Vertical);
             var bounds = new Rectangle(Point.Empty, control.Size);
             for (Control c = control; c != null && c != block; c = c.Parent) bounds.Offset(c.Left, c.Top);
-            if (Math.Abs(bounds.Right - inner.Right) > 1 || Math.Abs(bounds.Bottom - inner.Bottom) > 1)
+            // v0.6.20: mirrored (Mirror), its twin: the bottom LEFT corner, inside the mirrored padding (Mirror.Display).
+            if (Mirror.Of(block))
+            {
+                inner = Mirror.Box(true, block.ClientSize.Width, inner);
+                if (Math.Abs(bounds.Left - inner.Left) > 1 || Math.Abs(bounds.Bottom - inner.Bottom) > 1)
+                    findings.Add(place + " :: is not at the bottom left of its mirrored " + AuditName(block) + ", " + bounds + " in " + inner);
+            }
+            else if (Math.Abs(bounds.Right - inner.Right) > 1 || Math.Abs(bounds.Bottom - inner.Bottom) > 1)
                 findings.Add(place + " :: is not at the bottom right of its " + AuditName(block) + ", " + bounds + " in " + inner);
             Covered(place, control, block, Point.Empty, bounds, findings);
         }
@@ -869,7 +880,14 @@ namespace CodexAutoResume
                                       block.ClientSize.Height - block.Padding.Vertical);
             var bounds = new Rectangle(Point.Empty, control.Size);
             for (Control c = control; c != null && c != block; c = c.Parent) bounds.Offset(c.Left, c.Top);
-            if (Math.Abs(bounds.Left - inner.Left) > 1 || Math.Abs(bounds.Bottom - inner.Bottom) > 1)
+            // v0.6.20: mirrored (Mirror), its twin: the bottom RIGHT corner, inside the mirrored padding (Mirror.Display).
+            if (Mirror.Of(block))
+            {
+                inner = Mirror.Box(true, block.ClientSize.Width, inner);
+                if (Math.Abs(bounds.Right - inner.Right) > 1 || Math.Abs(bounds.Bottom - inner.Bottom) > 1)
+                    findings.Add(place + " :: is not at the bottom right of its mirrored " + AuditName(block) + ", " + bounds + " in " + inner);
+            }
+            else if (Math.Abs(bounds.Left - inner.Left) > 1 || Math.Abs(bounds.Bottom - inner.Bottom) > 1)
                 findings.Add(place + " :: is not at the bottom left of its " + AuditName(block) + ", " + bounds + " in " + inner);
             Covered(place, control, block, Point.Empty, bounds, findings);
             // The band above it, across the card: no line of text ends in it.
@@ -912,7 +930,8 @@ namespace CodexAutoResume
             int width = Math.Min(text.Width + label.Padding.Horizontal, bounds.Width);
             int height = Math.Min(text.Height + label.Padding.Vertical, bounds.Height);
             int x = bounds.X, y = bounds.Y;
-            ContentAlignment align = label.TextAlign;
+            // v0.6.20: a mirrored label puts its words where Label mirrors them (Mirror).
+            ContentAlignment align = Mirror.Align(Mirror.Of(label), label.TextAlign);
             if ((align & (ContentAlignment.TopCenter | ContentAlignment.MiddleCenter | ContentAlignment.BottomCenter)) != 0)
                 x += (bounds.Width - width) / 2;
             else if ((align & (ContentAlignment.TopRight | ContentAlignment.MiddleRight | ContentAlignment.BottomRight)) != 0)
@@ -1340,18 +1359,168 @@ namespace CodexAutoResume
         /// runs in, so a control named by a word some catalog lacks is found in that language.
         internal static void AuditSpoken(string where, Control parent, List<string> findings)
         {
-            foreach (Control child in parent.Controls)
+            // v0.6.20: and where everything it walks stands, while MirrorAudit is recording (MirrorRecord) - once, from the top.
+            if (mirrored != null && spokenDepth == 0) MirrorRecord(where, parent);
+            spokenDepth++;
+            try
+            {
+                foreach (Control child in parent.Controls)
+                {
+                    if (!OwnVisible(child)) continue;
+                    if (AuditLines) AuditTextLine(where, child, findings);
+                    if (Actionable(child))
+                    {
+                        AuditedSpoken++;
+                        if (SpokenName(child).Trim().Length == 0)
+                            findings.Add(where + "/" + AuditName(child) + " :: has no name a screen reader can say");
+                    }
+                    AuditSpoken(where, child, findings);
+                }
+            }
+            finally { spokenDepth--; }
+        }
+
+        // ------------------------------------------------------------------ the window mirrored (v0.6.20)
+        // How deep AuditSpoken is in its own walk, and what MirrorAudit is recording: for each control every page, Settings
+        // section and dialog shows, by where it was audited and its place among its parents' controls, its bounds and its
+        // parent's width. Null while nothing records.
+        private static int spokenDepth;
+        private static Dictionary<string, int[]> mirrored;
+        private static List<string> mirroredOrder;
+
+        /// How many controls the last MirrorAudit compared, so that a quiet report is known to have looked.
+        internal static int AuditedMirror;
+
+        /// Every place where the window laid out right to left is not the window laid out left to right, mirrored: at
+        /// `scale`, in the language of `stringsJson` (one written right to left), one line each, and "" when there is none.
+        ///
+        /// The window is laid out twice by LayoutAudit, every page, Settings section and dialog it builds: once as if its
+        /// language were written left to right (Mirror.Never) and once as it is. Each control the screen-reader walk
+        /// reaches (AuditSpoken) must stand, the second time, where the first had it mirrored across its parent - as far
+        /// from the right as it stood from the left, within a pixel - as tall and as wide, and in the same parent. What a
+        /// list's clip holds is the list itself, which Windows does not mirror (SoftListHost): its columns' order is
+        /// checked instead - the first at the right. And in every row of buttons that flows from the right, its first
+        /// button - the primary action, or Close beside it - stands at its left.
+        internal static string MirrorAudit(string schemaJson, string settingsJson, string stringsJson, string snapshotJson, double scale)
+        {
+            return MirrorCompare(delegate { return LayoutAudit(schemaJson, settingsJson, stringsJson, snapshotJson, scale); });
+        }
+
+        /// The comparison itself, of whatever `audit` lays out - a layout audit, which builds its window from the strings
+        /// it is given, so twice: once with every language taken as written left to right, once as it is. The advanced
+        /// edition's page is compared by it too (AdvancedMirrorAudit).
+        internal static string MirrorCompare(Func<string> audit)
+        {
+            var findings = new List<string>();
+            AuditedMirror = 0;
+            Dictionary<string, int[]> across, back;
+            List<string> order;
+            bool never = Mirror.Never;
+            double held = Mirror.HeldNow;
+            try
+            {
+                // One moment for both layouts (Mirror.HeldNow).
+                Mirror.HeldNow = (DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
+                Mirror.Never = true;
+                mirrored = new Dictionary<string, int[]>();
+                mirroredOrder = new List<string>();
+                audit();
+                across = mirrored;
+                order = mirroredOrder;
+                Mirror.Never = false;
+                mirrored = new Dictionary<string, int[]>();
+                mirroredOrder = new List<string>();
+                string report = audit();
+                back = mirrored;
+                if (!Mirror.Window) findings.Add("the language is not written right to left: nothing was mirrored");
+                if (report.Length > 0) findings.Add("laid out right to left, the layout audit reports: " + report.Replace("\n", " | "));
+            }
+            finally
+            {
+                Mirror.Never = never;
+                Mirror.HeldNow = held;
+                mirrored = null;
+                mirroredOrder = null;
+            }
+            // What shows only right to left is not the left-to-right window mirrored either.
+            foreach (string key in back.Keys)
+                if (!across.ContainsKey(key)) findings.Add(key + " :: shows only right to left, at " + Box(back[key]));
+            foreach (string key in order)
+            {
+                int[] ltr = across[key], rtl;
+                if (!back.TryGetValue(key, out rtl))
+                {
+                    findings.Add(key + " :: is not there right to left");
+                    continue;
+                }
+                AuditedMirror++;
+                if (rtl[5] != 0)
+                {
+                    // A list: its first column at the right, every other in the order before it.
+                    if (rtl[6] == 0) findings.Add(key + " :: its columns are not mirrored, the first not at the right");
+                    continue;
+                }
+                if (rtl[7] != 0) findings.Add(key + " :: its first button does not stand at its left, as it stands at its right left to right");
+                int expected = ltr[4] - ltr[0] - ltr[2];
+                // A line of words measured right to left can come out a few pixels narrower or wider than the same words
+                // measured left to right: such a label is held to its leading edge - its right edge where its left was.
+                bool words = rtl[8] != 0 && Math.Abs(rtl[2] - ltr[2]) > 1;
+                bool aside = words ? Math.Abs(rtl[0] + rtl[2] - (ltr[4] - ltr[0])) > 1
+                                    : Math.Abs(rtl[0] - expected) > 1 || Math.Abs(rtl[2] - ltr[2]) > 1;
+                if (ltr[4] != rtl[4] || aside || Math.Abs(rtl[1] - ltr[1]) > 1 || Math.Abs(rtl[3] - ltr[3]) > 1)
+                    findings.Add(key + " :: stands at " + Box(rtl) + " in " + rtl[4] + ", not mirrored from " + Box(ltr) + " in " + ltr[4] +
+                                 " (x " + expected + ")");
+            }
+            return string.Join("\n", findings.ToArray());
+        }
+
+        private static string Box(int[] bounds)
+        {
+            return bounds[0] + "," + bounds[1] + "," + bounds[2] + "," + bounds[3];
+        }
+
+        /// Records where everything under `parent` stands (MirrorAudit), under `where`.
+        private static void MirrorRecord(string where, Control parent)
+        {
+            MirrorRecordOf(where + " ", parent);
+        }
+
+        private static void MirrorRecordOf(string path, Control parent)
+        {
+            for (int index = 0; index < parent.Controls.Count; index++)
+            {
+                Control child = parent.Controls[index];
+                if (!OwnVisible(child)) continue;
+                string here = path + "/" + index.ToString(CultureInfo.InvariantCulture) + ":" + child.GetType().Name;
+                Rectangle bounds = child.Bounds;
+                var host = child as SoftListHost;
+                // [x, y, width, height, the parent's width, a list?, its columns mirrored?, a row whose first button is wrong?,
+                //  a line of words?]
+                var record = new[] { bounds.X, bounds.Y, bounds.Width, bounds.Height, parent.ClientSize.Width,
+                                     host != null ? 1 : 0, host != null && host.ColumnsMirrored ? 1 : 0,
+                                     FirstOutOfPlace(child as FlowLayoutPanel) ? 1 : 0, child is Label ? 1 : 0 };
+                if (!mirrored.ContainsKey(here)) mirroredOrder.Add(here);
+                mirrored[here] = record;
+                // A list's clip holds the list, which Windows does not mirror; a number's parts are Windows' own.
+                if (host != null || child is UpDownBase || child is ListClip) continue;
+                MirrorRecordOf(here, child);
+            }
+        }
+
+        /// Whether a row of buttons that flows from the right - the window's button rows, whose first button (the primary
+        /// action, or Close beside it) stands at the right - has, mirrored, its first button anywhere but at its left.
+        private static bool FirstOutOfPlace(FlowLayoutPanel row)
+        {
+            if (row == null || !Mirror.Of(row) || row.FlowDirection != FlowDirection.RightToLeft) return false;
+            Control first = null;
+            int leftmost = int.MaxValue;
+            foreach (Control child in row.Controls)
             {
                 if (!OwnVisible(child)) continue;
-                if (AuditLines) AuditTextLine(where, child, findings);
-                if (Actionable(child))
-                {
-                    AuditedSpoken++;
-                    if (SpokenName(child).Trim().Length == 0)
-                        findings.Add(where + "/" + AuditName(child) + " :: has no name a screen reader can say");
-                }
-                AuditSpoken(where, child, findings);
+                leftmost = Math.Min(leftmost, child.Left);
+                if (first == null) first = child;
             }
+            return first != null && first.Left != leftmost;
         }
 
         /// Every text box that shows shows at least one whole line of its text (issue #34): the part of it its parents

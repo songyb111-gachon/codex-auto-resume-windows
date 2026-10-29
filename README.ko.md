@@ -14,10 +14,10 @@
 <a href="https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/latest"><img src="https://img.shields.io/github/v/release/songyb111-gachon/codex-auto-resume-windows?label=release" alt="latest release"></a>
 <a href="#설치"><img src="https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078d4" alt="platform: Windows 10/11"></a>
 <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="license: MIT"></a>
-<a href="docs/GUIDE.ko.md#언어"><img src="https://img.shields.io/badge/languages-16-0891b2" alt="languages: 16"></a>
+<a href="docs/GUIDE.ko.md#언어"><img src="https://img.shields.io/badge/languages-18-0891b2" alt="languages: 18"></a>
 </p>
 
-<p align="center"><sub>🇺🇸 <a href="README.md">English README</a> · 프로그램은 열여섯 개 언어로 표시됩니다: English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) · Русский · Italiano · Türkçe · Polski · Українська · Tiếng Việt · Bahasa Indonesia</sub></p>
+<p align="center"><sub>🇺🇸 <a href="README.md">English README</a> · 프로그램은 열여덟 개 언어로 표시됩니다: English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) · Русский · Italiano · Türkçe · Polski · Українська · Tiếng Việt · Bahasa Indonesia · العربية · עברית</sub></p>
 
 <p align="center">
 <img src="docs/images/readme-motion-ko.png" alt="합성한 예시 데이터로 제품 자신의 그리기 코드가 그린 Codex Auto Resume 대시보드의 동작. 복구 2건이 대기 중인 개요, 포인터가 대기 중을 열어 대기 중인 작업을 우클릭해 그 메뉴를 열었다 닫고, 지금 다시 확인을 눌러 머리말의 표시등이 작업 중을 보이게 하고, 기다리는 이유를 마지막 검사까지 스크롤하고, 그 작업의 진행 기록을 열었다 닫은 뒤 기록·통계·진단을 차례로 누른 뒤 설정을 열어 스크롤, 화면 언어를 English로 바꿔 저장하자 창이 영어로 다시 열리고, 거기서 포인터가 복구를 일시 정지했다 다시 시작함" width="750"><br>
@@ -49,7 +49,7 @@ Codex Auto Resume은 정해 둔 몇 시간이 아니라 Codex가 직접 알려 �
 | **손대지 않습니다** | 사용자 취소 · 권한 · 승인 필요 · 콘텐츠 정책 · 잘못된 요청 · 컨텍스트 길이 초과 · 영구 인증 실패 · 분류되지 않은 모든 것 |
 | **식별 방식** | 정확한 대화 UUID 하나. `--last`도, "가장 최근 것"도, 제목이나 폴더 이름도 쓰지 않습니다 |
 | **설정 방법** | 시작 메뉴에서 여는 대시보드, Codex 안의 설정 패널, 명령줄 |
-| **언어** | English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) · Русский · Italiano · Türkçe · Polski · Українська · Tiếng Việt · Bahasa Indonesia |
+| **언어** | English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) · Русский · Italiano · Türkçe · Polski · Українська · Tiếng Việt · Bahasa Indonesia · العربية · עברית |
 | **개인정보** | 텔레메트리 없음, 분석 없음, 자동 업데이트 확인 없음. Codex에서 설치하면 GitHub에서 릴리스를 내려받고, 창의 *업데이트 확인*은 눌렀을 때만 GitHub에 가장 최근 릴리스를 묻고, 더 새로운 사전 릴리스가 있는지 api.github.com에서 릴리스 목록을 읽으며, 그때 Codex 호환성 데이터도 raw.githubusercontent.com에서 새로 받아 오는데 이 컴퓨터에 대해서는 아무것도 보내지 않습니다. *다른 버전 설치...*는 열 때와 버전을 확인할 때 그 목록 전체를 api.github.com에서 읽고, 확인한 버전만 내려받습니다. 워처에는 네트워크 코드가 없으며, 사용량 확인과 재개된 턴은 여느 Codex 통신처럼 Codex를 통해 OpenAI로 갑니다 |
 
 > [!IMPORTANT]

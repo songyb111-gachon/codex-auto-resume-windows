@@ -1568,6 +1568,7 @@ headings as the last four bullets below.
 - **Compatibility data for the advanced edition** - verdicts for each Codex engine in a file of its own, which
   installed advanced editions fetch, and the compatibility reporter counting the advanced edition's outcomes as
   "reported" without ever raising a verdict.
-- **Also moved here** - a continuation inside the turn through a Codex Stop hook, and Arabic and Hebrew. Watching
+- **Also moved here** - a continuation inside the turn through a Codex Stop hook, and Arabic and Hebrew (offered from
+  v0.6.20, every surface mirrored for them). Watching
   several Codex homes, which the standard edition gains, was built in v0.6.16-beta, and the winget manifests for both
   editions in v0.6.16 ([WINGET.md](WINGET.md)).

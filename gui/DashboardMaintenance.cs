@@ -274,7 +274,7 @@ namespace CodexAutoResume
         {
             if (!Confirm(S("confirm.update",
                            "Version {latest} has been published. Download and install it? Your settings, your pause and everything waiting are kept.",
-                           "latest", latest).Replace("{current}", current ?? ""),
+                           "latest", latest).Replace("{current}", Mirror.Embed(current ?? "")),
                          S("action.install", "Install")))
             {
                 ReportUpdate("available", current, latest, null, null);

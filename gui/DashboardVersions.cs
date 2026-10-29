@@ -383,7 +383,7 @@ namespace CodexAutoResume
             text.Add(S("pick.confirm.head", "Install {version} ({edition}) in place of the version you have, {installed} ({installed_edition})?", "version", row[0])
                          .Replace("{edition}", EditionName(row[1]))
                          .Replace("{installed_edition}", EditionName(listed[1]))
-                         .Replace("{installed}", listed[0]));
+                         .Replace("{installed}", Mirror.Embed(listed[0])));
             if (HasWord(row, "prerelease"))
                 text.Add(S("pick.confirm.prerelease", "It is a pre-release: published before its release is finished, and tested less than a release."));
             if (older)
@@ -591,7 +591,7 @@ namespace CodexAutoResume
                     AppendConverted(text, converted);
                 }
                 text.Append(Environment.NewLine).Append(Environment.NewLine)
-                    .Append(S("pick.reopen", "Close this window and open it again so it runs version {version}.").Replace("{version}", version));
+                    .Append(S("pick.reopen", "Close this window and open it again so it runs version {version}.").Replace("{version}", Mirror.Embed(version)));
                 Tell(text.ToString());
                 RefreshAfterChange();
             });

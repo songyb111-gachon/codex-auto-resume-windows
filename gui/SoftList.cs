@@ -35,7 +35,8 @@ namespace CodexAutoResume
                 if (AutoEllipsis) flags |= TextFormatFlags.EndEllipsis;
                 if (!UseMnemonic) flags |= TextFormatFlags.NoPrefix;
                 else if (!ShowKeyboardCues) flags |= TextFormatFlags.HidePrefix;
-                return flags;
+                // v0.6.20: mirrored as Label mirrors itself (RtlTranslateAlignment), read right to left (Mirror).
+                return Mirror.Words(Mirror.Of(this), flags);
             }
         }
 
@@ -47,7 +48,7 @@ namespace CodexAutoResume
 
         public override Size GetPreferredSize(Size proposedSize)
         {
-            if (!Soft.SplitsWords(Text)) return Remembered(proposedSize);
+            if (!Soft.SplitsWords(Text)) return Mirror.Of(this) ? Agreed(proposedSize) : Remembered(proposedSize);
             // As Label answers - a width of 0 or 1 is none - measured in the lines it is drawn in.
             int width = proposedSize.Width > 1 ? proposedSize.Width : int.MaxValue;
             if (MaximumSize.Width > 0) width = Math.Min(width, MaximumSize.Width);
@@ -57,6 +58,24 @@ namespace CodexAutoResume
             if (MaximumSize.Width > 0) size.Width = Math.Min(size.Width, MaximumSize.Width);
             if (MaximumSize.Height > 0) size.Height = Math.Min(size.Height, MaximumSize.Height);
             return new Size(Math.Max(size.Width, MinimumSize.Width), Math.Max(size.Height, MinimumSize.Height));
+        }
+
+        /// v0.6.20: Label's answer for a mirrored label, held to agree with itself. Measured right to left, GDI can say a
+        /// line is so wide unbounded and yet wrap it to one more line at exactly that width: Arabic help.theme came out 590
+        /// px wide and two lines high unbounded, and three lines high at 590 (measured). A table sizes a column by the first
+        /// answer and its row by the second, and the Appearance card kept a line's height of nothing under its last line.
+        /// So the unbounded answer is widened, a pixel at a time and never past its maximum - a line held to one, to the width at which
+        /// the label really is that high - the width it is then drawn at - as Label's answers agree left to right.
+        private Size Agreed(Size proposedSize)
+        {
+            Size free = Remembered(proposedSize);
+            // Only a line held to a maximum width (a help line): one that takes its cell's width is measured at that width,
+            // and widening its unbounded answer past the cell changed the width it was measured at (the Advanced page's
+            // other_sessions card at 200%, measured).
+            if (proposedSize.Width > 1 || MaximumSize.Width <= 0) return free;
+            for (int width = free.Width; width <= Math.Min(MaximumSize.Width, free.Width + 8); width++)
+                if (Remembered(new Size(width, 0)).Height <= free.Height) return new Size(width, free.Height);
+            return free;
         }
 
         // ---------------------------------------------------------------- Label's own answer, remembered
@@ -354,14 +373,20 @@ namespace CodexAutoResume
             var face = new Rectangle(Padding.Left, Padding.Top, Math.Max(0, ClientSize.Width - Padding.Horizontal),
                                      Math.Max(0, ClientSize.Height - Padding.Vertical));
             Size block = Arrange(face.Width, out versionBox, out editionBox, out below);
+            // v0.6.20: mirrored, the version stands at the block's right and the edition left of it, and the block where
+            // Label puts its text (Mirror).
+            bool mirrored = Mirror.Of(this);
+            versionBox = Mirror.Box(mirrored, block.Width, versionBox);
+            editionBox = Mirror.Box(mirrored, block.Width, editionBox);
+            ContentAlignment align = Mirror.Align(mirrored, TextAlign);
             const ContentAlignment middle = ContentAlignment.MiddleLeft | ContentAlignment.MiddleCenter | ContentAlignment.MiddleRight;
             const ContentAlignment bottom = ContentAlignment.BottomLeft | ContentAlignment.BottomCenter | ContentAlignment.BottomRight;
             const ContentAlignment centre = ContentAlignment.TopCenter | ContentAlignment.MiddleCenter | ContentAlignment.BottomCenter;
             const ContentAlignment right = ContentAlignment.TopRight | ContentAlignment.MiddleRight | ContentAlignment.BottomRight;
-            int x = (TextAlign & centre) != 0 ? face.X + (face.Width - block.Width) / 2
-                  : (TextAlign & right) != 0 ? face.Right - block.Width : face.X;
-            int y = (TextAlign & middle) != 0 ? face.Y + (face.Height - block.Height) / 2
-                  : (TextAlign & bottom) != 0 ? face.Bottom - block.Height : face.Y;
+            int x = (align & centre) != 0 ? face.X + (face.Width - block.Width) / 2
+                  : (align & right) != 0 ? face.Right - block.Width : face.X;
+            int y = (align & middle) != 0 ? face.Y + (face.Height - block.Height) / 2
+                  : (align & bottom) != 0 ? face.Bottom - block.Height : face.Y;
             versionBox.Offset(x, y);
             editionBox.Offset(x, y);
         }
@@ -383,7 +408,7 @@ namespace CodexAutoResume
             Color ink = Enabled ? ForeColor : disabled;
             Color quiet = Enabled ? EditionColor : disabled;
             TextRenderer.DrawText(e.Graphics, version, Font, versionBox, ink, LineFormat);
-            TextFormatFlags format = EditionFormat(below);
+            TextFormatFlags format = Mirror.Words(Mirror.Of(this), EditionFormat(below));
             string word = below ? Soft.Wrap(edition, AsideFont, Math.Max(1, editionBox.Width), format) : edition;
             TextRenderer.DrawText(e.Graphics, word, AsideFont, editionBox, quiet, format);
             EditionDrawn = quiet;
@@ -565,6 +590,9 @@ namespace CodexAutoResume
         private readonly Sideways sideways;
         private ScrollInfo scroll, sideScroll;
         private bool native, nativeAcross, queued;
+        // v0.6.20: whether a mirrored list wider than it is has been scrolled to its first column, at the right
+        // (StartAtFirstColumn); let go when its columns fit again.
+        private bool startedRight;
 
         internal SoftListHost(ListView list)
         {
@@ -579,6 +607,9 @@ namespace CodexAutoResume
             clip.BackColor = list.BackColor;
             list.Dock = DockStyle.None;
             list.Margin = new Padding(0);
+            // v0.6.20: never mirrored by Windows, in a mirrored window too: Windows would move its own bar to the left, where
+            // the clip shows it. Its columns go the other way instead (MirrorColumns), and its rows are drawn mirrored.
+            list.RightToLeft = RightToLeft.No;
             clip.Controls.Add(list);
             Controls.Add(clip);
             var soft = list as SoftList;
@@ -687,12 +718,41 @@ namespace CodexAutoResume
             return new ScrollInfo();
         }
 
+        /// Whether the list's columns stand in the other order, the first at the right: in a mirrored window (Mirror).
+        internal bool ColumnsMirrored
+        {
+            get
+            {
+                int count = List.Columns.Count;
+                // One column, or none, has no other order: it is the same either way.
+                return count <= 1 || List.Columns[0].DisplayIndex == count - 1;
+            }
+        }
+
+        /// The list's columns in the order its window reads: the first at the left, or in a mirrored window at the right
+        /// (v0.6.20). The order they are declared and filled in, and every width, stay as they are.
+        internal void MirrorColumns()
+        {
+            bool mirrored = Mirror.Of(this);
+            int count = List.Columns.Count;
+            for (int i = 0; i < count; i++)
+            {
+                int wanted = mirrored ? count - 1 - i : i;
+                if (List.Columns[i].DisplayIndex != wanted) List.Columns[i].DisplayIndex = wanted;
+            }
+        }
+
         protected override void OnLayout(LayoutEventArgs levent)
         {
             base.OnLayout(levent);
+            if (Mirror.Of(this) || List.Columns.Count > 1 && ColumnsMirrored) MirrorColumns();
             native = NativeBar;
             nativeAcross = NativeAcross;
             int rows = Math.Max(0, Width - (native ? SoftBar.Gutter : 0));
+            // v0.6.20: mirrored, the soft bar stands at the left and the rows start past its gutter (Mirror). The list
+            // itself is not mirrored by Windows - its own bar would move to the left, into the clip - and its columns are
+            // put in the other order by the window instead (SettingsForm.MirrorColumns).
+            bool mirrored = Mirror.Of(this);
             int tall = Math.Max(0, Height - (nativeAcross ? SoftBar.Gutter : 0));
             // The list's own bar is as wide as the list is wider than its rows; before it has one,
             // Windows' measure of a scroll bar. The same below, for its bar across the bottom.
@@ -700,11 +760,46 @@ namespace CodexAutoResume
             if (native && beside == 0) beside = SystemInformation.VerticalScrollBarWidth;
             int below = nativeAcross ? Math.Max(0, List.Height - List.ClientSize.Height) : 0;
             if (nativeAcross && below == 0) below = SystemInformation.HorizontalScrollBarHeight;
-            clip.SetBounds(0, 0, rows, tall);
+            clip.SetBounds(mirrored ? Width - rows : 0, 0, rows, tall);
             List.SetBounds(0, 0, rows + beside, tall + below);
             Read();
             bar.Track = native ? TrackBounds() : Rectangle.Empty;
             acrossBar.Track = nativeAcross ? AcrossBounds() : Rectangle.Empty;
+            StartAtFirstColumn();
+        }
+
+        /// Whether the list now shows its first column: at the left, scrolled not at all, or at the right where it stands
+        /// mirrored, scrolled sideways as far as it goes. True for a list whose columns fit.
+        internal bool AtFirstColumn
+        {
+            get
+            {
+                Read();
+                int range = Math.Max(0, sideScroll.Max - sideScroll.Min + 1 - Math.Max(1, sideScroll.Page));
+                int at = Math.Max(0, sideScroll.Position - sideScroll.Min);
+                // Left to right the first column is at the left: scrolled not at all.
+                return !nativeAcross || range == 0 || (ColumnsMirrored && List.Columns.Count > 1 ? at >= range : at == 0);
+            }
+        }
+
+        /// v0.6.20: a mirrored list whose columns are wider than it is - in a window narrower than they shrink to - starts
+        /// scrolled to its first column, which stands at the right of its columns (MirrorColumns), as a list left to right
+        /// starts at its first column at the left. Once each time its columns stop fitting; the person scrolls it after that.
+        private void StartAtFirstColumn()
+        {
+            if (!nativeAcross)
+            {
+                startedRight = false;
+                return;
+            }
+            if (startedRight || !Mirror.Of(this) || !List.IsHandleCreated) return;
+            startedRight = true;
+            Read();
+            int range = Math.Max(0, sideScroll.Max - sideScroll.Min + 1 - Math.Max(1, sideScroll.Page));
+            int by = range - Math.Max(0, sideScroll.Position - sideScroll.Min);
+            if (by > 0) SendMessage(List.Handle, LVM_SCROLL, new IntPtr(by), IntPtr.Zero);
+            Read();
+            acrossBar.Track = AcrossBounds();
         }
 
         // Beside the rows: from under the column headings to the bottom, or to the bar along it.
@@ -713,8 +808,9 @@ namespace CodexAutoResume
             int margin = Soft.Px(SoftBar.TrackMargin);
             int top = List.Items.Count > 0 && List.View == View.Details ? Math.Max(0, List.GetItemRect(List.TopItem != null ? List.TopItem.Index : 0).Top) : 0;
             int bottom = Height - (nativeAcross ? SoftBar.Gutter : 0);
-            return new Rectangle(Width - margin - Soft.Px(SoftBar.TrackWidth), top + margin, Soft.Px(SoftBar.TrackWidth),
-                                 Math.Max(0, bottom - top - 2 * margin));
+            return Mirror.Box(Mirror.Of(this), Width,
+                              new Rectangle(Width - margin - Soft.Px(SoftBar.TrackWidth), top + margin, Soft.Px(SoftBar.TrackWidth),
+                                            Math.Max(0, bottom - top - 2 * margin)));
         }
 
         // Along the bottom, under the rows: from the left edge to the bar beside them, if that shows.
@@ -722,8 +818,9 @@ namespace CodexAutoResume
         {
             int margin = Soft.Px(SoftBar.TrackMargin);
             int right = Width - (native ? SoftBar.Gutter : 0);
-            return new Rectangle(margin, Height - margin - Soft.Px(SoftBar.TrackWidth), Math.Max(0, right - 2 * margin),
-                                 Soft.Px(SoftBar.TrackWidth));
+            return Mirror.Box(Mirror.Of(this), Width,
+                              new Rectangle(margin, Height - margin - Soft.Px(SoftBar.TrackWidth), Math.Max(0, right - 2 * margin),
+                                            Soft.Px(SoftBar.TrackWidth)));
         }
 
         // Called from inside the list's own messages, so what it changes waits until they are done.
@@ -787,7 +884,8 @@ namespace CodexAutoResume
         {
             using (var brush = new SolidBrush(BackColor))
             {
-                if (native) g.FillRectangle(brush, Width - SoftBar.Gutter, 0, SoftBar.Gutter, Height);
+                if (native) g.FillRectangle(brush, Mirror.X(Mirror.Of(this), Width, Width - SoftBar.Gutter, SoftBar.Gutter), 0,
+                                            SoftBar.Gutter, Height);
                 if (nativeAcross) g.FillRectangle(brush, 0, Height - SoftBar.Gutter, Width, SoftBar.Gutter);
             }
             if (native) bar.Paint(g);

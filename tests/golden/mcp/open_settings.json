@@ -513,7 +513,9 @@
                   "pl",
                   "uk",
                   "vi",
-                  "id"
+                  "id",
+                  "ar",
+                  "he"
                 ],
                 "group": "general"
               },
@@ -538,7 +540,9 @@
                   "pl",
                   "uk",
                   "vi",
-                  "id"
+                  "id",
+                  "ar",
+                  "he"
                 ],
                 "group": "continuation"
               },
@@ -1509,7 +1513,9 @@
               "pl": "Polski",
               "uk": "Українська",
               "vi": "Tiếng Việt",
-              "id": "Bahasa Indonesia"
+              "id": "Bahasa Indonesia",
+              "ar": "العربية",
+              "he": "עברית"
             },
             "system_language": "en"
           },

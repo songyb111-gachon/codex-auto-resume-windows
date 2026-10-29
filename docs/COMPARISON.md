@@ -97,7 +97,7 @@ architecture, from its own reading of Codex's local state.
 | Classification | message and wrapper matching | structured `codexErrorInfo`, then HTTP status |
 | Unloaded threads | woken through a shared app-server | left alone until you open them |
 | Long-lived processes | supervisor, worker, optional app-server, MCP server | one watcher, plus an MCP server while Codex runs and one control process while the window is open |
-| Interface | tray icon, settings window, Codex panel | Start Menu Dashboard (Overview, Pending, History, Statistics, Diagnostics, Settings), notification-area icon with a popup, Codex panel, notifications with Don't resume and Open Dashboard; sixteen interface languages |
+| Interface | tray icon, settings window, Codex panel | Start Menu Dashboard (Overview, Pending, History, Statistics, Diagnostics, Settings), notification-area icon with a popup, Codex panel, notifications with Don't resume and Open Dashboard; eighteen interface languages |
 
 Neither column is a criticism. Retrying an unknown failure is a reasonable choice for a tool whose
 goal is to recover as much as possible. It is the wrong choice for this one, whose promise is

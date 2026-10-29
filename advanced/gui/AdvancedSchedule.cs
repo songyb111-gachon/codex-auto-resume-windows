@@ -305,7 +305,7 @@ namespace CodexAutoResume
             object counted = Get(rule, "counted");
             if (state == "counting" && counted is double)
                 return Word("page.resets.state.counting", "{n} of {of} counted", "n", Whole(counted))
-                    .Replace("{of}", Whole(Get(rule, "ordinal")).ToString(CultureInfo.CurrentCulture));
+                    .Replace("{of}", Mirror.Embed(Whole(Get(rule, "ordinal")).ToString(CultureInfo.CurrentCulture)));
             return Word("page.queue.state.waiting", "waiting");
         }
 
@@ -528,7 +528,7 @@ namespace CodexAutoResume
             string question = recoveries > 0
                 ? Word("page.confirm.clear_both",
                        "Hide {recoveries} finished recoveries from the history and delete {n} delivered messages? Messages that changed since, and waiting, held, cancelled and failed ones, are kept, and nothing in Codex changes.",
-                       "n", ids.Count).Replace("{recoveries}", recoveries.ToString(CultureInfo.CurrentCulture))
+                       "n", ids.Count).Replace("{recoveries}", Mirror.Embed(recoveries.ToString(CultureInfo.CurrentCulture)))
                 : Word("page.confirm.clear",
                        "Delete {n} completed messages from this list? Waiting, held, cancelled and failed ones are kept, and nothing in Codex changes.",
                        "n", ids.Count);
@@ -546,7 +546,7 @@ namespace CodexAutoResume
                         int deleted = Whole(Get(result, "deleted")), skipped = Whole(Get(result, "skipped"));
                         doneNote = skipped > 0
                             ? Word("page.done.cleared_kept", "Deleted {deleted}, kept {skipped} that changed.", "deleted", deleted)
-                                  .Replace("{skipped}", skipped.ToString(CultureInfo.CurrentCulture))
+                                  .Replace("{skipped}", Mirror.Embed(skipped.ToString(CultureInfo.CurrentCulture)))
                             : Word("page.done.cleared", "Deleted {deleted}.", "deleted", deleted);
                         doneNoteFor = ListRowId(Selected(historyList));
                         advancedPrompts = result;

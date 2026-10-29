@@ -790,8 +790,8 @@ still only while it is closed. It reads these and changes none of them; any answ
 ## Languages
 
 From v0.6.3 the interface - the Dashboard, the popup and menu, notifications and the panel in
-Codex - and the continuation message are available in nine languages, and from v0.6.11 in
-sixteen. The translations ship
+Codex - and the continuation message are available in nine languages, from v0.6.11 in
+sixteen and from v0.6.20 in eighteen. The translations ship
 inside the release, one JSON file per language, and are read from disk: no language data is
 fetched and no translation service is used. The default, *System*, follows the first
 language Windows lists on this machine; a language you choose is stored in

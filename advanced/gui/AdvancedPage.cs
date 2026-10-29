@@ -231,7 +231,8 @@ namespace CodexAutoResume
 
         private string Word(string key, string fallback, string token, object replacement)
         {
-            return Word(key, fallback).Replace("{" + token + "}", Convert.ToString(replacement, CultureInfo.CurrentCulture));
+            // v0.6.20: the value one run in a sentence written right to left (Mirror.Embed).
+            return Word(key, fallback).Replace("{" + token + "}", Mirror.Embed(Convert.ToString(replacement, CultureInfo.CurrentCulture)));
         }
 
         /// A capability's name as the page lists it; its id where no catalog has one.
