@@ -1628,9 +1628,13 @@ function Open-ClosedDashboard {
     # Only the words the window's own ParseArguments takes (gui/WindowReopen.cs): its pages, sections, themes and
     # designs by name, the bounds and the frame as numbers, a generation from 1 to 9 and a place for the keyboard it
     # gives - nothing else, such as the window's --uninstall. The numbers' ranges are the window's to check again.
-    $pages = 'overview|pending|history|statistics|diagnostics|settings'
+    # The advanced edition's window writes its own pages too - Advanced features and Chat (advanced/gui/AdvancedPage.cs,
+    # ReopenArgumentsWritten) - and a window that could not leave another app's view adds --outside (gui/HostApp.cs,
+    # Outside), which every window takes: a record with either was refused here and the window, closed for a repair or
+    # an update, never opened again (v0.6.19 live acceptance A8). A standard window ignores the advanced pages' names.
+    $pages = 'overview|pending|history|statistics|diagnostics|settings|advanced|chat'
     $sections = 'general|recovery|continuation|appearance|advanced'
-    $word = '--settings|--maximized|--page=(' + $pages + ')|--section=(' + $sections + ')' +
+    $word = '--settings|--maximized|--outside|--page=(' + $pages + ')|--section=(' + $sections + ')' +
             '|--theme=(system|light|dark)|--design=(soft|classic|plain)' +
             '|--bounds=(-[0-9]{1,5}|[0-9]{1,6}),(-[0-9]{1,5}|[0-9]{1,6}),[0-9]{1,6},[0-9]{1,6}' +
             '|--frame=[0-9]{1,2},[0-9]{1,2},[0-9]{1,2},[0-9]{1,2}|--reopened=[1-9]' +
