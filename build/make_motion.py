@@ -6,7 +6,7 @@
     python -X utf8 build/make_motion.py --fidelity      # only the window held to today's stills, recorded
     python -X utf8 build/make_motion.py card-en card-ko # the notification card appearing, on its own
     python -X utf8 build/make_motion.py logo-light logo-dark   # the README's logo, moving (build/motion_logo.py)
-    python -X utf8 build/make_motion.py popup-en popup-ko   # the notification-area popup opened, used and closed
+    python -X utf8 build/make_motion.py popup-en popup-ko   # the notification-area popup used by a pointer
     python -X utf8 build/make_motion.py --all           # all ten: the final's picture pass
 
 The README's two show the Dashboard alone, the window bare, with no shadow (RGBA, its rounded corners clear);
