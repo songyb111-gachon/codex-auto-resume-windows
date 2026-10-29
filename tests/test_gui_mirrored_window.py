@@ -122,7 +122,8 @@ class MirrorSourceTests(unittest.TestCase):
             "SoftCombo": ("Mirror.X(mirrored, face.Width, left, room)", "left1 = Mirror.X(true, (float)face.Width, left1, wedge);"),
             "SoftDropList": ("mirrored = Mirror.Of(combo);", "int left = scrolls ? TrackRect.Right + Soft.Px(Brand.SpaceXs) : pad;",
                              "mirrored ? field.Right + pad - width : field.X - pad"),
-            "WrapLabel": ("return Mirror.Words(Mirror.Of(this), flags);",),
+            "WrapLabel": ("return Mirror.Words(Mirror.Of(this), flags);",                          # aligned as Label is
+                          "return Mirror.Of(this) ? Agreed(proposedSize) : Remembered(proposedSize);"),  # its answers agree
             "VersionLabel": ("versionBox = Mirror.Box(mirrored, block.Width, versionBox);",),
             "NavButton": ("Mirror.Words(Mirror.Of(this),",),
             "GateList": ("row[1], Font, tone, ground, mirrored);",),

@@ -48,7 +48,7 @@ namespace CodexAutoResume
 
         public override Size GetPreferredSize(Size proposedSize)
         {
-            if (!Soft.SplitsWords(Text)) return Remembered(proposedSize);
+            if (!Soft.SplitsWords(Text)) return Mirror.Of(this) ? Agreed(proposedSize) : Remembered(proposedSize);
             // As Label answers - a width of 0 or 1 is none - measured in the lines it is drawn in.
             int width = proposedSize.Width > 1 ? proposedSize.Width : int.MaxValue;
             if (MaximumSize.Width > 0) width = Math.Min(width, MaximumSize.Width);
@@ -58,6 +58,22 @@ namespace CodexAutoResume
             if (MaximumSize.Width > 0) size.Width = Math.Min(size.Width, MaximumSize.Width);
             if (MaximumSize.Height > 0) size.Height = Math.Min(size.Height, MaximumSize.Height);
             return new Size(Math.Max(size.Width, MinimumSize.Width), Math.Max(size.Height, MinimumSize.Height));
+        }
+
+        /// v0.6.20: Label's answer for a mirrored label, held to agree with itself. Measured right to left, GDI can say a
+        /// line is so wide unbounded and yet wrap it to one more line at exactly that width: Arabic help.theme came out 590
+        /// px wide and two lines high unbounded, and three lines high at 590 (measured). A table sizes a column by the first
+        /// answer and its row by the second, and the Appearance card kept a line's height of nothing under its last line.
+        /// So the unbounded answer is widened, a pixel at a time and never past the label's maximum, to the width at which
+        /// the label really is that high - the width it is then drawn at - as Label's answers agree left to right.
+        private Size Agreed(Size proposedSize)
+        {
+            Size free = Remembered(proposedSize);
+            if (proposedSize.Width > 1) return free;
+            int most = MaximumSize.Width > 0 ? MaximumSize.Width : free.Width + 8;
+            for (int width = free.Width; width <= Math.Min(most, free.Width + 8); width++)
+                if (Remembered(new Size(width, 0)).Height <= free.Height) return new Size(width, free.Height);
+            return free;
         }
 
         // ---------------------------------------------------------------- Label's own answer, remembered
