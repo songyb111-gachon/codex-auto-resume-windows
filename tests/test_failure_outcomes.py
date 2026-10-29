@@ -11,16 +11,19 @@ Every test runs against an isolated home; nothing touches the real install, its 
 """
 from __future__ import annotations
 
+import io
 from pathlib import Path
 import sqlite3
 import sys
 import unittest
+from unittest import mock
 
 _HERE = str(Path(__file__).resolve().parent)
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
-from codex_auto_resume import control, l10n  # noqa: E402
+from codex_auto_resume import control, l10n, startup  # noqa: E402
+from codex_auto_resume.win import homelock  # noqa: E402
 from codex_auto_resume.store import Store  # noqa: E402
 from codex_auto_resume.ui import tray  # noqa: E402
 from codex_auto_resume.ui.tray import model as tray_model, words as tray_words  # noqa: E402
@@ -34,6 +37,13 @@ THREAD = "0a1b2c3d-0001-7000-8000-%012d"
 
 
 class OutcomeCase(ControlTestCase):
+    def fresh(self):
+        """A home of its own for the next sub-test: the last one's patches undone first. Calling setUp again without
+        tearDown left Control.watcher_running patched for the rest of the process, so a later module's start_watcher
+        saw a watcher that was not there (the order leak of tests/test_wire_goldens, 2026-10-30)."""
+        self.tearDown()
+        self.setUp()
+
     def ended(self, state, outcome_at=300.0, **more):
         """A record that ended in `state`, as the store keeps it; its key."""
         self.register()
@@ -77,7 +87,7 @@ class RedTests(OutcomeCase):
         """Fails with the old rule (`failed` alone): the other four are no failure."""
         for state in RED:
             with self.subTest(state=state):
-                self.setUp()
+                self.fresh()
                 self.ended(state)
                 self.assertEqual(self.marks()["failed_at"], 300.0)
                 self.assertIsNone(self.marks()["unconfirmed_at"])
@@ -88,7 +98,7 @@ class RedTests(OutcomeCase):
     def test_the_icon_is_red_for_each(self):
         for state in RED:
             with self.subTest(state=state):
-                self.setUp()
+                self.fresh()
                 self.ended(state)
                 snapshot = self.snapshot()
                 self.assertEqual(snapshot["failures"]["failed_at"], 300.0)
@@ -116,7 +126,7 @@ class AmberTests(OutcomeCase):
     def test_each_unconfirmed_ending_asks_for_attention_and_is_no_failure(self):
         for state in AMBER:
             with self.subTest(state=state):
-                self.setUp()
+                self.fresh()
                 self.ended(state)
                 self.assertIsNone(self.marks()["failed_at"])
                 self.assertEqual(self.marks()["unconfirmed_at"], 300.0)
@@ -127,7 +137,7 @@ class AmberTests(OutcomeCase):
     def test_the_icon_asks_for_attention_for_each_and_is_what_it_was_without(self):
         for state in AMBER:
             with self.subTest(state=state):
-                self.setUp()
+                self.fresh()
                 self.ended(state)
                 snapshot = self.snapshot()
                 self.assertEqual(snapshot["failures"]["unconfirmed_at"], 300.0)
@@ -160,9 +170,33 @@ class NeitherTests(OutcomeCase):
     def test_no_other_ending_lights_either(self):
         for state in NOT_EITHER:
             with self.subTest(state=state):
-                self.setUp()
+                self.fresh()
                 self.ended(state)
                 self.assertEqual((self.marks()["failed_at"], self.marks()["unconfirmed_at"]), (None, None))
+
+
+class LeakGuardTests(unittest.TestCase):
+    """The module's own cases leave the process as they found it."""
+
+    WATCHED = (("Control.watcher_running", lambda: control.Control.watcher_running),
+               ("Control.startup_enabled", lambda: control.Control.startup_enabled),
+               ("startup._winreg", lambda: startup._winreg),
+               ("homelock.INSTALL_LOCK", lambda: homelock.INSTALL_LOCK))
+
+    def test_running_the_cases_restores_every_patch_they_make(self):
+        """Fails with a case that calls setUp again without tearDown: the patches stack, and the last tearDown puts
+        back the previous patch instead of the original."""
+        before = [(name, read()) for name, read in self.WATCHED]
+        suite = unittest.TestSuite()
+        for case in (RedTests, AmberTests, NeitherTests):
+            suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(case))
+        result = unittest.TextTestRunner(stream=io.StringIO(), verbosity=0).run(suite)
+        self.assertTrue(result.wasSuccessful(), result.errors + result.failures)
+        for name, value in before:
+            with self.subTest(name):
+                self.assertIs(dict((key, read()) for key, read in self.WATCHED)[name], value)
+        self.assertFalse(isinstance(control.Control.watcher_running, mock.Mock),
+                         "the watcher probe is still a mock after the cases")
 
 
 if __name__ == "__main__":
