@@ -53,7 +53,7 @@ def lines(event, category=None, task=None, at=None, locale=None) -> list:
     words; `task N`, the category word and the local time; the edition."""
     from ..statement import CATALOGS
     event = str(event)
-    said = CATALOGS.text("push.event." + event, locale) or event
+    said = CATALOGS.text("page.push." + event, locale) or event
     detail = [part for part in (task if isinstance(task, str) else None,
                                 category if isinstance(category, str) else None) if part]
     if isinstance(at, (int, float)) and not isinstance(at, bool):
@@ -61,7 +61,7 @@ def lines(event, category=None, task=None, at=None, locale=None) -> list:
     found = [said]
     if detail:
         found.append(" · ".join(detail))
-    found.append(CATALOGS.text("push.edition", locale) or "%s (%s)" % (PRODUCT, EDITION))
+    found.append(CATALOGS.text("page.push.edition", locale) or "%s (%s)" % (PRODUCT, EDITION))
     return found[:3]
 
 

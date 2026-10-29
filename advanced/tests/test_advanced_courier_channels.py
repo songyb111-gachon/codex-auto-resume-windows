@@ -109,12 +109,12 @@ class LinesTests(ChannelCase):
     def test_at_most_three_lines_the_event_the_task_and_kind_and_time_and_the_edition(self):
         said = channels.lines("recovered", "usage_limit", "task 3", ac.NOW, "en")
         self.assertEqual(len(said), 3)
-        self.assertEqual(said[0], statement.CATALOGS.text("push.event.recovered", "en"))
+        self.assertEqual(said[0], statement.CATALOGS.text("page.push.recovered", "en"))
         self.assertTrue(said[1].startswith("task 3 · usage_limit · "), said)
-        self.assertEqual(said[2], statement.CATALOGS.text("push.edition", "en"))
+        self.assertEqual(said[2], statement.CATALOGS.text("page.push.edition", "en"))
         self.assertEqual(channels.lines("update_offered", None, None, None, "en"),
-                         [statement.CATALOGS.text("push.event.update_offered", "en"),
-                          statement.CATALOGS.text("push.edition", "en")])
+                         [statement.CATALOGS.text("page.push.update_offered", "en"),
+                          statement.CATALOGS.text("page.push.edition", "en")])
 
     def test_every_event_has_its_words_in_every_language(self):
         from codex_auto_resume import l10n
@@ -123,8 +123,8 @@ class LinesTests(ChannelCase):
             table = statement.CATALOGS.own(locale)
             for event in CourierEvent:
                 with self.subTest(locale=locale, event=event):
-                    self.assertTrue(table.get("push.event.%s" % event), "push.event.%s" % event)
-            self.assertTrue(table.get("push.edition"))
+                    self.assertTrue(table.get("page.push.%s" % event), "page.push.%s" % event)
+            self.assertTrue(table.get("page.push.edition"))
 
 
 class ShapeTests(ChannelCase):

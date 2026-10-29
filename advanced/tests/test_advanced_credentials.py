@@ -139,10 +139,12 @@ class NowhereElseTests(unittest.TestCase):
             with self.subTest(word):
                 self.assertFalse([column for column in columns if word in column])
 
-    def test_nothing_calls_the_seam_yet(self):
-        """No capability has a secret: nothing outside the seam and its tests names it."""
+    def test_only_the_courier_calls_the_seam(self):
+        """The one capability with secrets is push_notices (v0.6.20, the courier): only what it keeps (courier/keep.py)
+        and its card's bridge commands (control/courier.py) name the seam; nothing else does."""
+        users = {"courier/keep.py", "control/courier.py"}
         for path in sorted(PACKAGE.rglob("*.py")):
-            if path.name == "credentials.py":
+            if path.name == "credentials.py" or path.relative_to(PACKAGE).as_posix() in users:
                 continue
             tree = ast.parse(path.read_text(encoding="utf-8"))
             imported = {alias.name for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)

@@ -93,6 +93,8 @@ class ShippedTests(unittest.TestCase):
                "idle_update_check",
                # v0.6.19: the wake timer, last at P8, so it reads the due times the others' errands just kept.
                "wake_for_reset",
+               # v0.6.20: the courier's two - push notices and the status feed.
+               "push_notices", "status_feed",
                "open_codex_button",
                "long_reset_message", "compat_report")
 
@@ -115,7 +117,9 @@ class ShippedTests(unittest.TestCase):
                      Point.SCHEDULE: ("reset_credit", "early_reset", "once_more_when_unsure", "send_now"),
                      Point.TICK: ("compact_continue", "model_fallback", "headless_run", "reset_credit", "reset_message", "empty_response", "subagent_parent",
                                   "keep_going", "usage_meter", "usage_wrap_up", "usage_pause", "idle_update_check",
-                                  "wake_for_reset"),
+                                  "wake_for_reset", "push_notices", "status_feed"),
+                     # v0.6.20: a notice core raised, told to the courier's push notices.
+                     Point.NOTICE: ("push_notices",),
                      Point.RECORDS: ("reset_message", "prompt_queue", "empty_response", "subagent_parent",
                                      "keep_going", "usage_wrap_up", "codex_chat"),
                      # v0.6.15-beta: the lines a parent's continuation is given of its subagents' stops (5a).
@@ -146,7 +150,9 @@ class ShippedTests(unittest.TestCase):
              "usage_meter", "usage_wrap_up", "usage_pause", "keep_going", "prompt_queue",
              # v0.6.19: chat with a conversation, beside the queued messages.
              "codex_chat",
-             "empty_response", "once_more_when_unsure", "send_now", "open_codex_button", "capacity_retry",
+             "empty_response", "once_more_when_unsure", "send_now", "open_codex_button",
+             # v0.6.20: the courier's two, beside Open Codex on a notice.
+             "push_notices", "status_feed", "capacity_retry",
              "compact_continue", "model_fallback",
              "codex_gave_up",
              "goal_continuation", "subagent_parent", "sign_in_retry", "unknown_failure_budget", "idle_update_check",

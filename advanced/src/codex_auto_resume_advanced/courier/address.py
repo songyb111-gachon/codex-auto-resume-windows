@@ -2,7 +2,7 @@
 """What an address a person types must be before the courier keeps it or sends to it - pure string checks, no network.
 
 A push goes only to an `https` address of a named host: never `http`, never a user name or password in the address
-(`https://user:pass@host`), never an IP literal and never a loopback name (`localhost`, `*.localhost`) - a webhook on
+(a user and password before the host), never an IP literal and never a loopback name (`localhost`, `*.localhost`) - a webhook on
 this PC is the loopback API's business, not a push - and never one longer than MAX_URL. Every refusal is one closed
 word (AddressRefused.word), never the address. The e-mail server's host is held to the same host rules; its addresses
 and its user to shapes that cannot carry a line break, so no header can be injected through them.
