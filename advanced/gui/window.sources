@@ -33,5 +33,6 @@ advanced/gui/AdvancedReport.cs
 advanced/gui/AdvancedUsage.cs
 advanced/gui/AdvancedRuns.cs
 advanced/gui/AdvancedChat.cs
+advanced/gui/AdvancedCourier.cs
 advanced/gui/AdvancedPageAudit.cs
 advanced/gui/AdvancedRender.cs
