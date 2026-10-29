@@ -203,8 +203,10 @@ _LOCAL = {
     # v0.6.16: the render mode's job (build/motion_window.py writes it, not the bridge): the job, its forms and
     # frames, and a frame's own parts - never a reply's.
     # v0.6.18: and a frame's chosen Pending row and its open row menu.
+    # v0.6.20: and what a frame's other states are made of: the answers of a paused installation (`variant`), the
+    # chrome round a dialog, the dialog a frame has open, and Why it is waiting turned.
     "gui/WindowRender.cs": {"job", "forms", "frame", "answer", "combo", "listed", "scroll", "Map(forms, locale)",
-                            "selected", "menu"},
+                            "selected", "menu", "Map(forms, answersOf)", "chrome", "dialog", "explain"},
 }
 
 # The window was two files until v0.6.10-alpha, when each became several. The three tables above
@@ -240,7 +242,10 @@ LOCAL = _spread(_LOCAL)
 
 # Reads by a name computed from nothing literal, which no golden can check, each with its reason.
 UNCHECKED = {
-    ("gui/WindowRender.cs", "forms", "locale"): "the render job's replies for each language its frames are in",
+    ("gui/WindowRender.cs", "forms", "answersOf"): "the render job's replies for each language and state of the "
+                                                   "installation its frames are in (v0.6.20: paused)",
+    ("gui/WindowRender.cs", "chrome", "key"): "the colours of the title bar round a dialog, by their names in the job "
+                                               "(v0.6.20)",
     ("gui/DashboardData.cs", "map", "key"): "the accessor helpers themselves (Number, Str, Items, Map)",
     ("gui/DashboardCompat.cs", "capabilities", "name"): "each capability the report carries, in the "
                                                    "order the window lists them",
