@@ -102,6 +102,8 @@ ARGUMENTS = {
     # v0.6.20 (issue #50, steer_send): one line asked to be added to the turn running in a conversation - the watcher
     # alone sends it (control/steer.py).
     BridgeCommand.ADVANCED_STEER: frozenset({"thread_id", "words", "generation"}),
+    # v0.6.20 (issue #50): a delivered message followed to the end of its work (control/follow.py) - read-only.
+    BridgeCommand.ADVANCED_PROMPT_FOLLOW: frozenset({"prompt"}),
 }
 # v0.6.19 (the groundwork): the stage's commands, in the vocabulary before any capability that answers one is built.
 # Each is passed over - DEFER, so core says "unknown command" exactly as for a command this edition does not have -
@@ -157,7 +159,9 @@ KEEP_GOING_COMMANDS = frozenset({BridgeCommand.ADVANCED_KEEP_GOING, BridgeComman
 PROMPT_COMMANDS = frozenset({BridgeCommand.ADVANCED_PROMPTS, BridgeCommand.ADVANCED_PROMPT_ADD,
                              BridgeCommand.ADVANCED_PROMPT_CANCEL, BridgeCommand.ADVANCED_PROMPT_GO_ON,
                              # v0.6.19 (#50): Delete completed, and an edit.
-                             BridgeCommand.ADVANCED_PROMPTS_CLEAR_DONE, BridgeCommand.ADVANCED_PROMPT_EDIT})
+                             BridgeCommand.ADVANCED_PROMPTS_CLEAR_DONE, BridgeCommand.ADVANCED_PROMPT_EDIT,
+                             # v0.6.20 (#50): a delivered one followed to the end of its work, read-only.
+                             BridgeCommand.ADVANCED_PROMPT_FOLLOW})
 
 _NO_ARGUMENTS = {"type": "object", "properties": {}, "additionalProperties": False}
 _OFF_ONLY = ("Turning a capability on is not something any tool does: the user does it in the "
@@ -481,6 +485,9 @@ def bridge(runtime, command, argument):
             return prompts.clear_done(runtime, argument)
         if command == BridgeCommand.ADVANCED_PROMPT_EDIT:
             return prompts.edit(runtime, argument)
+        if command == BridgeCommand.ADVANCED_PROMPT_FOLLOW:
+            from .control import follow
+            return follow.view(runtime, argument.get("prompt"))
         return prompts.go_on(runtime, argument.get("prompt"), argument.get("generation"))
     if command in COURIER_COMMANDS:
         return courier(runtime, command, argument)
