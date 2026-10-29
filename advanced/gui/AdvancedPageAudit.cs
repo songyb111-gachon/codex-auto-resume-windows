@@ -1140,7 +1140,8 @@ namespace CodexAutoResume
             record["taken"] = dialog.DialogResult == DialogResult.OK;
             record["said"] = editorSaid.Text;
             record["blank_after"] = (double)EditorBlank();
-            record["said_fits"] = editorSaid.Text.Length == 0 ||
+            // A dialog Cancel closed has let go of its controls: what it said on the way (a picture refused) fits nowhere now.
+            record["said_fits"] = editorSaid.Text.Length == 0 || editorBody.Parent == null ||
                 editorSaid.Top + editorSaid.Height <= editorBody.Height && editorBody.Height <= editorBody.Parent.ClientSize.Height;
             // Where all of it is taller than the screen lets the editor be (a CI runner's 1024 by 768), it stands at that
             // height and what does not fit is scrolled to.
