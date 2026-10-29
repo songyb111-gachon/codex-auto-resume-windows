@@ -18,6 +18,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import advancedcase as ac  # noqa: E402
 from takingcase import TakingCase  # noqa: E402
 from codex_auto_resume import machine  # noqa: E402
 from codex_auto_resume_advanced import measured, registry, statement  # noqa: E402
@@ -46,6 +47,32 @@ class HiddenTests(unittest.TestCase):
         made = Registry(registry.DEFINITIONS + let_out)
         shown = [definition.id for definition in registry.shown(made)]
         self.assertEqual(shown[shown.index("queue_for_open") + 1], "open_to_send", "placed after queue for opening")
+
+    def test_its_statement_no_longer_waits_for_a_measurement_and_it_warns_on_any_other_engine(self):
+        """MOPEN passed on one Codex: the statement says so in every language, and any other engine shows UNMEASURED, as
+        every capability resting on a measurement does (arming.warnings_for). Fails with the old sentence ("offered only
+        on a Codex where opening was measured") back, and with the pass counted for every engine."""
+        from codex_auto_resume_advanced import arming
+        from codex_auto_resume_advanced.vocabulary import ArmingWarning
+        engine = measured.MEASURED[Measurement.MOPEN][1]
+        self.assertEqual(engine, "codex-cli 0.165.0-alpha.1.2")
+        for locale in l10n.LOCALES:
+            with self.subTest(locale):
+                risks = statement.CATALOGS.own(locale)[statement.key("open_to_send", "risks")]
+                self.assertIn("MOPEN", risks)
+        english = statement.CATALOGS.own("en")[statement.key("open_to_send", "risks")]
+        self.assertNotIn("offered only", english)
+        self.assertIn("measured on one Codex version", english)
+        measured_on = lambda version: arming.warnings_for(OPEN_TO_SEND, ac.view("COMPATIBLE", version=version,
+                                                                              capability="loaded_state_detection"),
+                                                          measured.MEASURED)
+        self.assertEqual(measured_on(engine), (), "no warning where it was measured")
+        for other in ("codex-cli 0.164.0-alpha.11.1", "codex-cli 0.166.0"):
+            with self.subTest(other):
+                self.assertEqual(measured_on(other), (ArmingWarning.UNMEASURED,))
+        self.assertEqual(arming.warnings_for(OPEN_TO_SEND, ac.view("COMPATIBLE", version=engine,
+                                                                   capability="loaded_state_detection"), {}),
+                         (ArmingWarning.UNMEASURED,), "with no verdict at all")
 
     def test_its_definition_and_statement_are_complete(self):
         self.assertEqual(problems(OPEN_TO_SEND), [])
