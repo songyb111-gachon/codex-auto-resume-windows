@@ -122,6 +122,8 @@ MEASUREMENT_METHODS = {
     # for the exact active turn of one conversation - once, whatever the answer - and reads the history afterwards.
     Measurement.MIMG: ("thread/queue/add", "thread/queue/list"),
     Measurement.MSTEER: ("turn/steer",),
+    # MSTEER2 uses the Desktop's IPC pipe (codex/ipc.py), not an app-server session: no protocol method.
+    Measurement.MSTEER2: (),
 }
 
 # The methods a capability's own route may call, beyond `initialize` - each one a measurement

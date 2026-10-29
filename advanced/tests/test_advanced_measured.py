@@ -181,7 +181,9 @@ class TableTests(unittest.TestCase):
                           # v0.6.19's groundwork probes, made while its stage is built: not made yet (MOPEN's
                           # 2026-10-29 run is held back - its own look cannot see what the Desktop loads).
                           Measurement.MTOK, Measurement.MOPEN, Measurement.MAL, Measurement.MWAKE, Measurement.MHK,
-                          Measurement.M4B})
+                          Measurement.M4B,
+                          # v0.6.20: MSTEER failed from our own session; MSTEER2 asks the Desktop's IPC pipe: not made yet.
+                          Measurement.MSTEER2})
 
 
 if __name__ == "__main__":

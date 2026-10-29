@@ -29,8 +29,9 @@ from codex_auto_resume_advanced.codex import protocol, turns  # noqa: E402
 from codex_auto_resume_advanced.vocabulary import Measurement, Verdict  # noqa: E402
 from test_advanced_measure_stage4 import THREAD, TURN, VERSIONS, Backend, FakeSession, refused  # noqa: E402
 
-MIMG, MSTEER, MOPEN = Measurement.MIMG, Measurement.MSTEER, Measurement.MOPEN
+MIMG, MSTEER, MOPEN, MSTEER2 = Measurement.MIMG, Measurement.MSTEER, Measurement.MOPEN, Measurement.MSTEER2
 OTHER_TURN = "deadbeef-0000-7000-8000-00000000cafe"
+MESSAGE_ID = "00000000-0000-7000-8000-0000000000ff"
 PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
 
@@ -227,6 +228,136 @@ class ImageTests(Case):
         self.assertTrue(record["note"].startswith("not reached"))
 
 
+class RunningTurn:
+    """A stand-in for the history's latest turn: only what MSTEER reads of it."""
+
+    def __init__(self, turn_id, status):
+        self.turn_id, self.status = turn_id, status
+
+
+class Steer2Tests(Case):
+    """MSTEER2: the same steer through the Desktop's IPC pipe (codex/ipc.steer_turn, the connection the forced stop uses),
+    after MSTEER's refusal from our own session. The hand is a fake: no pipe is touched."""
+
+    def run_ipc(self, word="steered", *, latest=(RunningTurn(TURN, "inProgress"),), held=True, thread=THREAD,
+                recorded=True, wired=True, history_error=False):
+        order = list(latest)
+        self.hand_calls = calls = []
+
+        def newest(self_, thread_id):
+            if history_error:
+                raise turns.TurnsUnavailable("the turn history cannot be read")
+            return order.pop(0) if len(order) > 1 else order[0]
+
+        def hand(thread_id, text, message):
+            calls.append((thread_id, text, message))
+            if isinstance(word, Exception):
+                raise word
+            return word
+
+        def factory(measured_one):
+            self.sessions.append(FakeSession(measured_one, {}))
+            return self.sessions[-1]
+
+        def history(ctx, client_id):
+            self.looked_for.append(client_id)
+            return recorded
+        with patch.object(turns.Turns, "latest", newest), patch.object(measure, "_client_recorded", history), \
+                patch.object(measure, "_look", lambda ctx, t: (held, 1 if held else 0)):
+            summary = measure.run(MSTEER2, session_factory=factory, backend=Backend(self.dir), versions=VERSIONS,
+                                  thread=thread, clock=lambda: 1_800_000_000.0, directory=self.dir,
+                                  hands={"steer_ipc": hand} if wired else None)
+        text = Path(summary["recorded"]).read_text(encoding="utf-8")
+        for private in (THREAD, TURN, OTHER_TURN):
+            self.assertNotIn(private, text)
+        return json.loads(text)
+
+    def test_it_is_registered_with_no_protocol_method_and_opens_no_session(self):
+        self.assertIs(measure.PROBES[MSTEER2], measure._msteer2)
+        self.assertEqual(protocol.MEASUREMENT_METHODS[MSTEER2], ())
+        self.assertEqual(str(MSTEER2), "msteer2")
+        self.assertNotIn(MSTEER2, measured.MEASURED)
+        self.run_ipc()
+        self.assertEqual(self.sessions, [])
+
+    def test_an_accepted_steer_is_called_once_with_the_sample_client_id_and_looked_for_in_the_history(self):
+        record = self.run_ipc()
+        self.assertEqual(record["verdict"], "blocked", "that it showed in the running turn is the person's to confirm")
+        observed = record["observed"]
+        self.assertEqual((observed["steer_calls"], observed["steer_accepted"], observed["answer_uncertain"],
+                          observed["pipe_reached"], observed["owner_found"], observed["app_refused"],
+                          observed["client_id_on_user_item"], observed["latest_turn_unchanged"],
+                          observed["held_by_app"]), (1, True, False, True, True, False, True, True, True))
+        self.assertEqual(self.hand_calls, [(THREAD, measure._MSTEER_TEXT, measure._SAMPLE_MSTEER2_CLIENT_ID)])
+        self.assertEqual(self.looked_for[0], measure._SAMPLE_MSTEER2_CLIENT_ID)
+
+    def test_a_refusal_or_a_version_mismatch_is_a_fail_and_the_hand_is_called_once(self):
+        for word in ("refused", "version_mismatch"):
+            with self.subTest(word):
+                record = self.run_ipc(word)
+                self.assertEqual(record["verdict"], Verdict.FAIL)
+                self.assertEqual((record["observed"]["steer_calls"], record["observed"]["app_refused"],
+                                  record["observed"]["steer_accepted"], record["observed"]["version_mismatch"]),
+                                 (1, True, False, word == "version_mismatch"))
+                self.assertEqual(len(self.hand_calls), 1)
+                self.assertEqual(self.looked_for, [])
+
+    def test_an_answer_that_did_not_come_is_uncertain_and_the_hand_is_never_called_again(self):
+        """The line may be in the turn. Fails with the retry rule back."""
+        for word in ("unconfirmed", "broken", None, RuntimeError("the hand raised")):
+            with self.subTest(word=word):
+                record = self.run_ipc(word)
+                self.assertEqual(record["verdict"], "blocked")
+                self.assertEqual((record["observed"]["steer_calls"], record["observed"]["answer_uncertain"],
+                                  record["observed"]["steer_accepted"]), (1, True, False))
+                self.assertEqual(len(self.hand_calls), 1, "called once, whatever came back")
+                self.assertIn("not sent again", record["note"])
+                self.assertEqual(self.looked_for, [], "no history is read for a line that may or may not be there")
+
+    def test_no_app_or_no_owner_wrote_nothing_and_is_left_to_the_person(self):
+        for word, owner in (("no_pipe", False), ("no_client", False), ("no_answer", True)):
+            with self.subTest(word):
+                record = self.run_ipc(word)
+                self.assertEqual(record["verdict"], "blocked")
+                observed = record["observed"]
+                self.assertEqual((observed["steer_accepted"], observed["answer_uncertain"], observed["owner_found"]),
+                                 (False, False, owner))
+                self.assertEqual(observed["pipe_reached"], word != "no_pipe")
+                self.assertNotIn("not sent again", record["note"])
+
+    def test_unless_the_history_says_the_turn_runs_the_hand_is_never_called(self):
+        for latest in ((RunningTurn(TURN, "completed"),), (None,)):
+            with self.subTest(latest=latest):
+                record = self.run_ipc(latest=latest)
+                self.assertEqual((record["verdict"], record["observed"]["steer_calls"], self.hand_calls),
+                                 ("blocked", 0, []))
+        record = self.run_ipc(history_error=True)
+        self.assertEqual((record["observed"]["history_read"], self.hand_calls), (False, []))
+        record = self.run_ipc(thread=None)
+        self.assertEqual((record["verdict"], record["observed"]["steer_calls"], self.hand_calls), ("blocked", 0, []))
+
+    def test_an_unwired_hand_calls_nothing_and_says_so(self):
+        record = self.run_ipc(wired=False)
+        self.assertEqual((record["verdict"], record["observed"]["steer_calls"]), ("blocked", 0))
+        self.assertIn("not wired", record["note"])
+
+    def test_a_new_turn_after_the_steer_or_a_line_never_shown_is_recorded(self):
+        record = self.run_ipc(latest=(RunningTurn(TURN, "inProgress"), RunningTurn(OTHER_TURN, "inProgress")),
+                              recorded=False)
+        self.assertEqual((record["observed"]["latest_turn_unchanged"], record["observed"]["client_id_on_user_item"]),
+                         (False, False))
+
+    def test_the_live_hand_is_the_channels_steer_and_answers_its_word(self):
+        from codex_auto_resume_advanced.codex import ipc
+        with patch.object(ipc, "steer_turn", lambda thread, text, message=None, **kw: ipc.Steer.STEERED):
+            hands = measure.live_hands(backend=Backend(self.dir))
+            self.assertEqual(hands["steer_ipc"](THREAD, "x", MESSAGE_ID), "steered")
+
+    def test_the_record_is_content_free(self):
+        for value in self.run_ipc()["observed"].values():
+            self.assertTrue(isinstance(value, (bool, int)) or value is None, value)
+
+
 class LookTests(Case):
     """Who holds a conversation: core's loaded check and Restart Manager, never thread/loaded/list on our own session
     (codex-cli 0.165, 2026-10-29: the Desktop held the conversation, its writer lock was taken, core's check showed one
@@ -285,13 +416,6 @@ class LookTests(Case):
         for measurement in (Measurement.MOPEN, Measurement.MQO, Measurement.MQP, Measurement.MQG, MSTEER):
             with self.subTest(measurement):
                 self.assertNotIn("thread/loaded/list", protocol.MEASUREMENT_METHODS[measurement])
-
-
-class RunningTurn:
-    """A stand-in for the history's latest turn: only what MSTEER reads of it."""
-
-    def __init__(self, turn_id, status):
-        self.turn_id, self.status = turn_id, status
 
 
 class SteerTests(Case):

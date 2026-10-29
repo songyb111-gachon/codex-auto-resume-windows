@@ -96,6 +96,8 @@ class FakeApp:
             return {"resultType": "success", "result": {}}
         if method == "thread-follower-start-turn":
             return {"resultType": "success", "result": {"result": {"turn": {}}}}
+        if method == "thread-follower-steer-turn":
+            return {"resultType": "success", "result": {"result": {}}}
         return {"resultType": "error", "error": "no-handler-for-request"}
 
     def close(self):

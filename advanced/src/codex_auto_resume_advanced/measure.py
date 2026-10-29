@@ -140,6 +140,18 @@ class Context:
         """Whether the conversation's link was handed to Windows (MOPEN)."""
         return self._hand("open_link", thread) is True
 
+    def steer_over_ipc(self, thread, text, message):
+        """(whether the steer hand was there to call, the closed word of what came of it - codex/ipc.steer_turn's - or None
+        where the hand raised). The hand is called at most once and this never calls it again (MSTEER2)."""
+        hand = self._hands.get("steer_ipc")
+        if not callable(hand):
+            return False, None
+        try:
+            word = hand(thread, text, message)
+        except Exception:
+            return True, None
+        return True, word if isinstance(word, str) else None
+
     def power_look(self) -> dict:
         """The power settings read (MWAKE): a dict, empty where there is no hand or it failed."""
         found = self._hand("power")
@@ -1994,6 +2006,13 @@ _MIMG_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8
 _MIMG_IMAGE_TYPES = ("image", "localImage")
 # MSTEER's words: one short, harmless line for the running turn to take in. What the turn answers is never read.
 _MSTEER_TEXT = "Also end your reply with the single word: ok."
+_SAMPLE_MSTEER2_CLIENT_ID = "00000000-0000-7000-8000-00000000000e"
+# What codex/ipc.steer_turn answers, by what it means for MSTEER2: the steer was accepted; the answer did not come or the
+# pipe failed after the request may have been written (the line may be in the turn); the app answered no; no app or no
+# client holding the conversation (nothing was written).
+_IPC_STEERED = "steered"
+_IPC_UNCERTAIN = ("unconfirmed", "broken")
+_IPC_REFUSED = ("refused", "version_mismatch")
 _MSTEER_LOOK_SECONDS = 10.0                   # how long MSTEER looks in the history for its client id after an accept
 _MSTEER_POLL_SECONDS = 0.5
 
@@ -2078,6 +2097,76 @@ def _mimg(ctx):
                     **observed)
 
 
+def _running_turn(ctx, turns):
+    """`(the latest turn of the probe's conversation, None)` when Codex's history says it is running, else
+    `(None, the probe's blocked result)`. The history is Codex's own database, read only."""
+    home = getattr(ctx.backend, "codex_home", None)
+    try:
+        running = turns.Turns(home).latest(ctx.probe_thread) if home is not None else None
+    except Exception:
+        return None, _blocked("the history could not be read", history_read=False, steer_calls=0)
+    if running is None or running.status != "inProgress":
+        return None, _blocked("start a long turn in the throwaway conversation in the Codex app and run again while it "
+                              "runs", history_read=True, turn_in_progress=False, steer_calls=0)
+    return running, None
+
+
+def _msteer2(ctx):
+    """A direct steer send through the Desktop's own IPC pipe (steer_send_mode, after MSTEER failed from our own
+    app-server session): the owner names a throwaway conversation the app holds with a long turn running. The harness
+    reads the conversation's latest turn from Codex's history and goes on only if it is running; it records whether the
+    app holds the conversation (core's loaded check and Restart Manager), then makes ONE steer over the pipe
+    (codex/ipc.steer_turn: initialize, the owner of the conversation, thread-follower-steer-turn to that owner) with one
+    short line under a client id of no one's. The pipe's steer names no turn, so the history is read again afterwards: the
+    latest turn must be the one that was running, and the client id on a person's message. A word that says the app
+    refused, or that no app or owner was there, is a fail or a precondition left to the person; a request that may have been
+    written with no answer is recorded as uncertain and is NEVER made again. That the line showed in the running turn as the
+    person's own, once, with no new turn, is what the person watching confirms. `steer_calls` is 1 on every path that
+    reached the pipe, 0 on every other."""
+    if not ctx.thread_given:
+        return _blocked("name a throwaway conversation the app holds with a long turn running", steer_calls=0)
+    from .codex import turns
+    running, stop = _running_turn(ctx, turns)
+    if stop is not None:
+        return stop
+    observed = {"history_read": True, "turn_in_progress": True, "steer_calls": 0}
+    look = _look(ctx, ctx.probe_thread)
+    observed.update({"held_by_app": look[0], "holders": look[1]})
+    called, word = ctx.steer_over_ipc(ctx.probe_thread, _MSTEER_TEXT, _SAMPLE_MSTEER2_CLIENT_ID)
+    if not called:
+        return _blocked("the IPC hand was not wired: run this from the Dashboard's runtime", **observed)
+    observed["steer_calls"] = 1
+    uncertain = word is None or word in _IPC_UNCERTAIN
+    observed.update({"steer_accepted": word == _IPC_STEERED, "answer_uncertain": uncertain,
+                     "pipe_reached": word not in ("no_pipe",), "owner_found": word not in ("no_pipe", "no_client"),
+                     "app_refused": word in _IPC_REFUSED, "version_mismatch": word == "version_mismatch"})
+    if word in _IPC_REFUSED:
+        return Verdict.FAIL, observed, "the Desktop's IPC pipe refused the steer for the conversation"
+    if uncertain:
+        return _blocked("the steer may have been written and no answer came: look in Codex whether the line showed in "
+                        "the running turn - it was not sent again - and do not run msteer2 again before you have looked; "
+                        "then set the verdict", **observed)
+    if word != _IPC_STEERED:
+        return _blocked("the Desktop's IPC pipe was not reached or the app does not hold the conversation, and nothing "
+                        "was written: start Codex, open the throwaway conversation with its long turn, then run msteer2 "
+                        "again", **observed)
+    seen = False
+    deadline = time.monotonic() + _MSTEER_LOOK_SECONDS
+    while True:
+        seen = _client_recorded(ctx, _SAMPLE_MSTEER2_CLIENT_ID)
+        if seen or time.monotonic() >= deadline:
+            break
+        time.sleep(_MSTEER_POLL_SECONDS)
+    try:
+        latest = turns.Turns(getattr(ctx.backend, "codex_home", None)).latest(ctx.probe_thread)
+    except Exception:
+        latest = None
+    observed.update({"client_id_on_user_item": seen,
+                     "latest_turn_unchanged": latest is not None and latest.turn_id == running.turn_id})
+    return _blocked("confirm the line showed in Codex inside the turn that was running, as your own message, once, with "
+                    "no new turn begun by it and nothing else sent, then set the verdict", **observed)
+
+
 def _msteer(ctx):
     """A direct steer send (steer_send_mode): the owner names a throwaway conversation the app holds with a long turn
     running (for example "count from 1 to 300 with a pause of two seconds between the numbers, using the shell"). The
@@ -2153,7 +2242,7 @@ PROBES = {
     Measurement.MQO: _mqo, Measurement.MQP: _mqp, Measurement.MQG: _mqg,
     Measurement.MTOK: _mtok, Measurement.MOPEN: _mopen, Measurement.MAL: _mal, Measurement.MWAKE: _mwake,
     Measurement.MHK: _mhk, Measurement.M4B: _m4b,
-    Measurement.MIMG: _mimg, Measurement.MSTEER: _msteer,
+    Measurement.MIMG: _mimg, Measurement.MSTEER: _msteer, Measurement.MSTEER2: _msteer2,
 }
 
 # A conversation and a message id of no one's: the shape a call takes, never a real id. A probe
@@ -2455,7 +2544,12 @@ def live_hands(backend=None, paths=None) -> dict:
             return None
         return result.stdout if result.returncode == 0 else None
 
-    return {"open_link": open_link, "power": _power_look, "wake_after": _wake_after, "scratch_cli": scratch_cli}
+    def steer_ipc(thread, text, message):
+        from .codex import ipc
+        return str(ipc.steer_turn(thread, text, message=message))
+
+    return {"open_link": open_link, "power": _power_look, "wake_after": _wake_after, "scratch_cli": scratch_cli,
+            "steer_ipc": steer_ipc}
 
 
 def _guid(text):

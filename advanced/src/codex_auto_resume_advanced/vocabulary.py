@@ -545,6 +545,10 @@ class Measurement(StrEnum):
     # never again after an answer that did not come (steer_send_mode).
     MIMG = "mimg"
     MSTEER = "msteer"
+    # v0.6.20: MSTEER failed from our own app-server session (-32600, codex-cli 0.165), so MSTEER2 asks the same of the
+    # Desktop's own IPC pipe - the connection this product already uses for the forced stop (MIPC): one line added to the
+    # running turn of a throwaway conversation the app holds (thread-follower-steer-turn), called once, never again.
+    MSTEER2 = "msteer2"
 
 
 class ObservedWord(StrEnum):
