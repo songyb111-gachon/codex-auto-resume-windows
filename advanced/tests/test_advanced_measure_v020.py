@@ -143,6 +143,23 @@ class ImageTests(Case):
         self.assertFalse(Path(self.seen["path"]).exists(), "the picture is removed when the run ends")
         self.assertFalse(Path(self.seen["path"]).parent.exists(), "and so is its scratch folder")
 
+    def test_the_picture_is_one_half_transparent_red_pixel(self):
+        """RGBA 255, 0, 0, 127 - not white, whatever the note once called it. Fails with the comment's picture changed."""
+        import struct
+        import zlib
+        png = base64.b64decode(measure._MIMG_PNG_BASE64)
+        self.assertTrue(png.startswith(PNG_MAGIC))
+        chunks, at = {}, 8
+        while at < len(png):
+            size, kind = struct.unpack(">I4s", png[at:at + 8])
+            chunks[kind] = png[at + 8:at + 8 + size]
+            at += 12 + size
+        width, height, depth, color = struct.unpack(">IIBB", chunks[b"IHDR"][:10])
+        self.assertEqual((width, height, depth, color), (1, 1, 8, 6), "one RGBA pixel")
+        scanline = zlib.decompress(chunks[b"IDAT"])
+        self.assertEqual(list(scanline), [1, 255, 0, 0, 127], "filter Sub on a single pixel: red, half transparent")
+        self.assertIn("red pixel", self.run_probe(MIMG, self.replies())["note"])
+
     def test_the_record_holds_neither_the_picture_nor_where_it_was(self):
         record = self.run_probe(MIMG, self.replies())
         text = json.dumps(record)

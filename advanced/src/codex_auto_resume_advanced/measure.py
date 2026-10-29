@@ -1989,7 +1989,7 @@ def _m4b(ctx):
 # left to them, the verdict blocked.
 _SAMPLE_MIMG_CLIENT_IDS = ("00000000-0000-7000-8000-00000000000b", "00000000-0000-7000-8000-00000000000c")
 _SAMPLE_MSTEER_CLIENT_ID = "00000000-0000-7000-8000-00000000000d"
-# One white pixel as a PNG: the picture MIMG queues. Nothing in it says anything.
+# One half-transparent red pixel (RGBA 255, 0, 0, 127) as a PNG: the picture MIMG queues. Nothing in it says anything.
 _MIMG_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
 _MIMG_IMAGE_TYPES = ("image", "localImage")
 # MSTEER's words: one short, harmless line for the running turn to take in. What the turn answers is never read.
@@ -2072,7 +2072,7 @@ def _mimg(ctx):
                          "client_id_on_user_item": _client_recorded(ctx, taken_id)})
     finally:
         shutil.rmtree(scratch, ignore_errors=True)
-    return _blocked("confirm the message showed in Codex at once as your own, with the picture in it (one white pixel) "
+    return _blocked("confirm the message showed in Codex at once as your own, with the picture in it (one half-transparent red pixel) "
                     "and its line of words, nothing marked it as sent by a program, and the turn ran as one you typed, "
                     "then set the verdict; if it was not taken, remove it from the conversation's queue in Codex",
                     **observed)
