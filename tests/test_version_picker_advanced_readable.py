@@ -82,7 +82,8 @@ class ReadableFromTests(unittest.TestCase):
         readable = int(re.search(r"^READABLE_FROM = (\d+)$", text, re.M).group(1))
         self.assertEqual(c["AdvancedReadableFrom"], readable)
         self.assertEqual(c["AdvancedMarkSince"], "0.6.17", "the first release whose reader honours the mark")
-        self.assertEqual(c["AdvancedStateSince"][0], ["0.6.19-beta", 8])
+        # v0.6.20: form 9 adds the steers table and stays readable from 7, after v0.6.19's form 8.
+        self.assertEqual(c["AdvancedStateSince"][:2], [["0.6.20-beta.3", 9], ["0.6.19-beta", 8]])
 
 
 if __name__ == "__main__":
