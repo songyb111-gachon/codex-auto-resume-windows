@@ -54,6 +54,8 @@
 - [@aca22jy](https://github.com/aca22jy) 님은 Codex가 턴을 다른 ID로 기록하는 대화를 알렸고, 그에 앞서 데스크톱 대화에서 감지가 빠진 경우도 알렸습니다([#27](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/27), [#30](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/30)).
 - [@Hunweibyn](https://github.com/Hunweibyn) 님은 사용량 한도를 미리 지켜보고 안전하게 멈췄다가 다시
   시작하자고 제안했습니다([#29](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/29)).
+- [@TheEleage](https://github.com/TheEleage) 님은 자신의 포크에서 러시아어 문구를 검토해 주셨고, 러시아어 *지금 다시 확인* 버튼과
+  그 버튼을 인용하는 두 문구는 그 표현을 따릅니다.
 - [@Zephreo](https://github.com/Zephreo) 님은 실행 중이던 목표를 이어서 하자고 제안했습니다([#36](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/36)).
 - [@Kdevaulo](https://github.com/Kdevaulo) 님은 Codex Desktop에서 이어 간 터미널 대화가 복구에서 빠지는 문제([#37](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/37))와
   GitHub에 닿지 못할 때 잘못 알려 주는 업데이트 상태([#41](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/41))를 알렸고,
@@ -64,6 +66,8 @@
   사용량 확인, 그리고 대화 찾기가 된 검색할 수 있는 대화 선택을 제안했습니다([#50](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/50)).
 - [@kano0222](https://github.com/kano0222) 님은 에이전트가 만든 대화를 사람이 입력창에서 이어 써도 복구하지 않는 문제를 알리고,
   그 원인을 코드의 정확한 규칙까지 짚어 주셨습니다([#54](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/54)).
+- [@CuuuuteBrainGoo](https://github.com/CuuuuteBrainGoo) 님은 알림 영역에서 대시보드를 열 때마다 창이 하나 더 열리는 문제를
+  알려 주셨습니다([#55](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/55)).
 
 ## AI 기여자에 대한 참고
 
