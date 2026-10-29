@@ -119,3 +119,43 @@ def read(paths, *, session=None) -> dict:
             return parse(opened.call(READ, {}))
     except Exception:
         return parse(None)
+
+
+def _run_codex(run, argv, backend, seconds):
+    """One `codex` child in the job: its exit code, or the outcome word where it could not run or did not end."""
+    from ..report.github import GhTimeout
+    try:
+        code, _out, _err = run(argv, env=backend._environment(), cwd=str(backend.codex_home), stdin=None,
+                               timeout=seconds)
+    except GhTimeout:
+        return TIMED_OUT
+    except (OSError, ValueError):
+        return FAILED
+    return code if type(code) is int else FAILED
+
+
+def switch(paths, *, backend=None, runner=None, reader=None, login_seconds=LOGIN_SECONDS) -> str:
+    """Codex's own `codex logout`, then `codex login` - the engine this installation drives, never anything the person
+    typed - and what it came to, read back with account/read: SIGNED_IN, CANCELLED (left signed out), TIMED_OUT or
+    FAILED. `backend`, `runner` and `reader` are a test's: core's Backend, report/github.run_process's shape and
+    `read`'s."""
+    try:
+        if backend is None:
+            from . import inuse
+            backend = inuse.backend(paths)
+        argv = list(backend._argv())
+    except Exception:
+        return FAILED
+    if runner is None:
+        from ..report.github import run_process as runner
+    out = _run_codex(runner, argv + ["logout"], backend, LOGOUT_SECONDS)
+    if out in (TIMED_OUT, FAILED):
+        return FAILED
+    # A logout that says no one was signed in is not a failure: the sign-in follows all the same.
+    signed = _run_codex(runner, argv + ["login"], backend, login_seconds)
+    if signed in (TIMED_OUT, FAILED):
+        return signed
+    found = (reader or read)(paths)
+    if found.get("present") is True:
+        return SIGNED_IN
+    return CANCELLED if found.get("present") is False else FAILED

@@ -1596,6 +1596,7 @@ namespace CodexAutoResume
             UpdateResetButtons(idle);
             UpdateKeepGoingButtons(idle);
             UpdateQueueButtons(idle);
+            UpdateAccountButtons(idle);
             UpdateReportButtons();
         }
 

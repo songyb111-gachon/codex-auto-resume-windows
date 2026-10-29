@@ -602,10 +602,12 @@ namespace CodexAutoResume
         ///   {"do": "page", "name": ...}                       another page's tab pressed
         ///   {"do": "choose", "id": ...}                       that capability's row chosen in the list
         ///   {"do": "press", "button": on|watch|off|all_off|   a button pressed, if it can be: the page's, Keep it on's
-        ///    keep_on|send_again|let_go|report_write|          or the report card's
-        ///    report_save|report_check|report_send}
+        ///    keep_on|send_again|let_go|report_write|          or the report card's - or (v0.6.20) the account card's
+        ///    report_save|report_check|report_send|
+        ///    account_switch}
         ///   {"do": "type", "into": login|word, "text": ...}  text typed into one of the report's boxes, whole
         ///   {"do": "poll"}                                    the running report job read, as the page's clock reads it
+        ///   {"do": "poll_account"}                            the account card read again, as its timer reads it (v0.6.20)
         ///   {"do": "save_to", "path": ...}                    the file the save dialog would answer with
         ///   {"do": "hourly", "value": n}                      the hourly limit chosen, and the pause after it over
         ///   {"do": "set_option", "key": ..., "value": n}      a choice made in that choice's drop-down
@@ -674,6 +676,7 @@ namespace CodexAutoResume
                                       : name == "off" ? form.advancedOff : name == "all_off" ? form.advancedAllOff
                                       : name == "keep_on" ? form.keepOnButton : name == "send_again" ? form.sendAgainButton
                                       : name == "let_go" ? form.letGoButton
+                                      : name == "account_switch" ? form.accountSwitch
                                       : name == "report_write" ? form.reportWrite : name == "report_save" ? form.reportSave
                                       : name == "report_check" ? form.reportCheck : name == "report_send" ? form.reportSend
                                       : name == "queue_go" ? form.queueAdd : null;
@@ -1008,6 +1011,7 @@ namespace CodexAutoResume
                         else box.Box.Text = Str(step, "text") ?? "";
                     }
                     else if (what == "poll") form.PollReport();
+                    else if (what == "poll_account") form.ReadAccount(null);    // v0.6.20: the account card read again
                     else if (what == "save_to") form.advancedSaveTo = Str(step, "path");
                     else if (what == "reply")
                         form.advancedScript[Str(step, "key") ?? ""] = new List<object>(Items(step, "with") ?? new List<object>());
@@ -1333,6 +1337,8 @@ namespace CodexAutoResume
             // The turns run here: what each Stop... names (v0.6.16-beta.4); and Pending's and History's rows as the
             // lists draw them - each cell's text - where those pages are built.
             look["run_stops"] = Tags(runStops);
+            // v0.6.20: the account card's button - whether it can be pressed, or null where it is not offered.
+            look["account_switch"] = accountSwitch == null ? (object)null : accountSwitch.Enabled;
             look["pending_rows"] = ListCells(pendingList);
             // Each cell of Pending's list past the conversation's that is drawn cut short, as "row/column": none while the
             // list has room for them whole (the owner, 2026-10-25: "5시간 한…", "매일 09:…"). Measured here from the words the

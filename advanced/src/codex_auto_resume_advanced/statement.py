@@ -235,6 +235,13 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
 # line's Check now and settings button went with the line (the owner's decision of 2026-10-24), and their words.
 PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "early.none", "early.available_first", "early.lifted", "early.limited", "early.unknown", "early.not_read"))
+# The Codex account card (v0.6.20, account_switch: advanced/gui/AdvancedAccount.cs): the account signed in, how to switch in
+# Codex, the button that runs Codex's own sign-out and sign-in, its question, its wait, how it ended and its refusals.
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
+    "account.title", "account.signed_in", "account.signed_in_only", "account.api_key", "account.plan_other",
+    "account.signed_out", "account.unknown", "account.guidance", "account.waiting", "account.button",
+    "account.button_help", "confirm.account_switch", "account.result.signed_in", "account.result.cancelled",
+    "account.result.timed_out", "account.result.failed", "refused.switch_unmeasured", "refused.switch_running"))
 # The edition's own continuations' words (v0.6.15-beta): what empty_response, subagent_parent and keep_going send -
 # fixed, each passing core's continuation.validate_continuation in every language (nothing is filled in but, for a
 # subagent's line, its id and a closed kind word).

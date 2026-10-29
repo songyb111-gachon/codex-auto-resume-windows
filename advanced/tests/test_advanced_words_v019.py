@@ -43,7 +43,8 @@ COMMANDS = ("advanced-analytics", "advanced-analytics-csv", "advanced-courier", 
 # The commands whose capability has been built since, each with what answers it now: no longer passed over.
 BUILT = {"advanced-prompts-clear-done": "#50, Delete completed (control/prompts.clear_done)",
          "advanced-prompt-edit": "#50, the editor's Save and return on a waiting message (control/prompts.edit)",
-         "advanced-account": "account_switch, the account card's read (control/account.view)"}
+         "advanced-account": "account_switch, the account card's read (control/account.view)",
+         "advanced-account-switch": "account_switch, Codex's own sign-out and sign-in (control/account.switch)"}
 
 
 class WordTests(unittest.TestCase):

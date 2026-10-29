@@ -166,6 +166,10 @@ class Refusal(StrEnum):
     # v0.6.16-beta.4 (j): a near-limit percentage out of order - a window's warning above its wrap-up, or the wrap-up at
     # or above the stop its words ask for.
     OPTION_ORDER = "option_order"
+    # v0.6.20 (account_switch): Codex's own sign-out and sign-in asked for before MAL passed on the Codex in force - the
+    # card offers no button then - and asked again while one is still waiting for the browser.
+    SWITCH_UNMEASURED = "switch_unmeasured"
+    SWITCH_RUNNING = "switch_running"
 
 
 class JournalCode(StrEnum):

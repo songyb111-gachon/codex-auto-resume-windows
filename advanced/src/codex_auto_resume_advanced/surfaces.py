@@ -109,10 +109,10 @@ UNANSWERED = frozenset({
     BridgeCommand.ADVANCED_COURIER_SAVE, BridgeCommand.ADVANCED_COURIER_FORGET, BridgeCommand.ADVANCED_COURIER_TEST,
     BridgeCommand.ADVANCED_FEED_REFRESH, BridgeCommand.ADVANCED_API, BridgeCommand.ADVANCED_API_TOKEN_NEW,
     BridgeCommand.ADVANCED_REMOTE_PAIR_START, BridgeCommand.ADVANCED_REMOTE_PAIR_STATE, BridgeCommand.ADVANCED_FLEET,
-    BridgeCommand.ADVANCED_FLEET_SAVE,
-    BridgeCommand.ADVANCED_ACCOUNT_SWITCH})
-# v0.6.20 (account_switch): the account card's read, answered (control/account.py).
+    BridgeCommand.ADVANCED_FLEET_SAVE})
+# v0.6.20 (account_switch): the account card's read and its Codex sign-out and sign-in, answered (control/account.py).
 ARGUMENTS[BridgeCommand.ADVANCED_ACCOUNT] = frozenset()
+ARGUMENTS[BridgeCommand.ADVANCED_ACCOUNT_SWITCH] = frozenset()
 ARGUMENTS.update({command: frozenset() for command in UNANSWERED})
 # #50 (v0.6.19): the completed prompts the Dashboard showed, deleted from the list (control/prompts.clear_done).
 ARGUMENTS[BridgeCommand.ADVANCED_PROMPTS_CLEAR_DONE] = frozenset({"prompts", "generation"})
@@ -465,6 +465,10 @@ def bridge(runtime, command, argument):
         # v0.6.20 (account_switch): which account is signed in, for the card - the Dashboard's alone.
         from .control import account as account_card
         return account_card.view(runtime)
+    if command == BridgeCommand.ADVANCED_ACCOUNT_SWITCH:
+        # and Codex's own sign-out and sign-in, after the window asked first - never MCP's, the icon's or a card's.
+        from .control import account as account_card
+        return account_card.switch(runtime)
     if command == BridgeCommand.ADVANCED_KEEP_ON:
         return arming.set_keep_on(argument.get("capability"), argument.get("keep_on"),
                                   send_again=argument.get("send_again", False),
