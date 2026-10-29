@@ -29,6 +29,8 @@ CLI_0162_ALPHA_17_2 = "codex-cli 0.162.0-alpha.17.2"
 CLI_0163_ALPHA_10_2 = "codex-cli 0.163.0-alpha.10.2"
 # The Codex of 2026-10-26: M2b made again on it (PR #53 asked; the goal on a held thread rests on it).
 CLI_0164_ALPHA_11_1 = "codex-cli 0.164.0-alpha.11.1"
+# The Codex of 2026-10-29: issue #50's MIMG and MSTEER made on it.
+CLI_0165_ALPHA_1_2 = "codex-cli 0.165.0-alpha.1.2"
 
 MEASURED = {
     Measurement.M1: (Verdict.PASS, CLI_0163_ALPHA_10_2),
@@ -76,4 +78,9 @@ MEASURED = {
     Measurement.MQO: (Verdict.PASS, CLI_0163_ALPHA_10_2),
     Measurement.MQP: (Verdict.PASS, CLI_0163_ALPHA_10_2),
     Measurement.MQG: (Verdict.PASS, CLI_0163_ALPHA_10_2),
+    # 2026-10-29 (v0.6.20, issue #50), the measurement session: a queued message with a local image file was shown at once
+    # as the person's own with its picture and ran (MIMG); turn/steer from the product's own app-server session was
+    # refused (-32600) for a turn the Desktop was running (MSTEER).
+    Measurement.MIMG: (Verdict.PASS, CLI_0165_ALPHA_1_2),
+    Measurement.MSTEER: (Verdict.FAIL, CLI_0165_ALPHA_1_2),
 }
