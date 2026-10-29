@@ -93,6 +93,7 @@ class Tray(MenuMixin, StoredMixin, CardsMixin, ClicksMixin, AnimationMixin):
         self._icon = None
         self._icon_owned = False
         self._failed = False        # the icon shows a failure nobody has seen (_failure_unseen)
+        self._unconfirmed = False   # v0.6.20: or, in amber, a sending nobody has confirmed (_unconfirmed_unseen)
         self._shown_icon = None
         self._last_tip = None
         self._taskbar_created = None
@@ -282,6 +283,7 @@ class Tray(MenuMixin, StoredMixin, CardsMixin, ClicksMixin, AnimationMixin):
         with self._lock:
             snapshot = dict(self._snapshot)
         snapshot["failed"] = self._failed
+        snapshot["unconfirmed"] = self._unconfirmed
         return snapshot
 
     def _notify(self, action):
@@ -302,7 +304,9 @@ class Tray(MenuMixin, StoredMixin, CardsMixin, ClicksMixin, AnimationMixin):
         with self._lock:
             snapshot = dict(self._snapshot)
         self._failed = self._failure_unseen(snapshot)
+        self._unconfirmed = self._unconfirmed_unseen(snapshot)
         snapshot["failed"] = self._failed
+        snapshot["unconfirmed"] = self._unconfirmed
         text = tooltip(snapshot, self.strings, time.time(), self.edition)
         changed, replaced = False, []
         if self._frames:

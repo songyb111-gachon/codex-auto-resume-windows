@@ -375,6 +375,7 @@ class StatusSnapshot(TypedDict):
     startup_enabled: bool
     upgrade_pending: bool
     failure_unseen: bool
+    unconfirmed_unseen: bool
     codes: dict[str, int]
     states: dict[str, int]
     settings: dict[str, object]

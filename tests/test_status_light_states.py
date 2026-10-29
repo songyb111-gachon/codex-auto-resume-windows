@@ -71,7 +71,7 @@ class PopupTests(unittest.TestCase):
 class IconTests(unittest.TestCase):
     def snapshot(self, **fields):
         return dict({"enabled": True, "waiting": 1, "running": 0, "held": 0, "next_at": None,
-                     "failures": {"failed_at": None, "started_at": None}}, **fields)
+                     "failures": {"failed_at": None, "started_at": None, "unconfirmed_at": None}}, **fields)
 
     def test_the_icon_asks_for_attention_while_a_record_waits_for_a_person(self):
         self.assertEqual(popup.snapshot_activity(self.snapshot(held=1), NOW), "attention")

@@ -143,7 +143,8 @@ def snapshot_activity(snapshot, now, *, attention=False) -> str:
     if attention:
         return "attention"
     # v0.6.20: a record held for a person (snapshot_from counts them), as every header asks for their attention.
-    if snapshot.get("held"):
+    # v0.6.20: and a sending nobody has confirmed, unseen (tray._unconfirmed_unseen): amber and not red (J14).
+    if snapshot.get("held") or snapshot.get("unconfirmed"):
         return "attention"
     if snapshot and not snapshot.get("enabled", True):
         return "paused"
