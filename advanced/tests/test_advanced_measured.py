@@ -153,7 +153,9 @@ class TableTests(unittest.TestCase):
         The same evening, two more: MOPEN failed - a conversation the app did not hold, opened through its link, came to
         the front in about 7 s but was held by the app only after about 13 s, over the ten allowed; MSTEER2 failed - a
         steer over the Desktop's IPC pipe was accepted and reached the running turn once, with no new turn, and the reply
-        followed it, but the app never showed the line as the person's message."""
+        followed it, but the app never showed the line as the person's message. That night MOPEN was made again against
+        the owner's limit of thirty seconds, its load timed by the lock's holder count alone: the window came to the
+        front and the app held the conversation within 2-10 s, so it passed."""
         passed = {m for m, (verdict, _v) in measured.MEASURED.items() if verdict == Verdict.PASS}
         failed = {m for m, (verdict, _v) in measured.MEASURED.items() if verdict == Verdict.FAIL}
         self.assertEqual(passed, {Measurement.MW, Measurement.M1, Measurement.M2B, Measurement.M5,
@@ -162,10 +164,10 @@ class TableTests(unittest.TestCase):
                                   Measurement.MN, Measurement.MU, Measurement.MIPC, Measurement.MC1,
                                   Measurement.MXA, Measurement.MX, Measurement.MF, Measurement.MO,
                                   Measurement.M3B, Measurement.M6B, Measurement.MQO, Measurement.MQP,
-                                  Measurement.MQG, Measurement.MIMG})
+                                  Measurement.MQG, Measurement.MIMG, Measurement.MOPEN})
         self.assertEqual(failed, {Measurement.M2, Measurement.M3, Measurement.M4, Measurement.MAWS,
                                   Measurement.MCLOUD, Measurement.MB, Measurement.MC2, Measurement.MSTEER,
-                                  Measurement.MOPEN, Measurement.MSTEER2})
+                                  Measurement.MSTEER2})
         new = "codex-cli 0.163.0-alpha.10.2"
         again = {Measurement.MW, Measurement.M1, Measurement.M5, Measurement.M6,
                  Measurement.M7, Measurement.MP1, Measurement.MP2, Measurement.MP3, Measurement.MIPC,

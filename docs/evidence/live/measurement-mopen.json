@@ -1,8 +1,8 @@
 {
   "format": "codex-auto-resume-measurement/1",
   "step": "mopen",
-  "verdict": "fail",
-  "recorded_at": "2026-10-29T09:07Z",
+  "verdict": "blocked",
+  "recorded_at": "2026-10-29T12:06Z",
   "product_version": "0.6.20-beta.2",
   "codex_version": "codex-cli 0.165.0-alpha.1.2",
   "windows_build": "10.0.26300",
@@ -13,8 +13,13 @@
     "link_opened": true,
     "loaded_by_app": true,
     "holders": 1,
-    "loaded_seconds": "over_10s",
+    "loaded_seconds": "s2_to_10",
     "thread_given": true
   },
-  "note": "the conversation was not loaded within ten seconds of opening its link"
+  "note": "the app held it within the limit: confirm whether the Codex window came to the front, then set the verdict",
+  "completion": {
+    "verdict": "pass",
+    "note": "as_expected",
+    "recorded_at": "2026-10-29T12:07Z"
+  }
 }

@@ -29,7 +29,7 @@ CLI_0162_ALPHA_17_2 = "codex-cli 0.162.0-alpha.17.2"
 CLI_0163_ALPHA_10_2 = "codex-cli 0.163.0-alpha.10.2"
 # The Codex of 2026-10-26: M2b made again on it (PR #53 asked; the goal on a held thread rests on it).
 CLI_0164_ALPHA_11_1 = "codex-cli 0.164.0-alpha.11.1"
-# The Codex of 2026-10-29: issue #50's MIMG and MSTEER made on it.
+# The Codex of 2026-10-29: issue #50's MIMG, MSTEER, MOPEN and MSTEER2 made on it.
 CLI_0165_ALPHA_1_2 = "codex-cli 0.165.0-alpha.1.2"
 
 MEASURED = {
@@ -83,9 +83,11 @@ MEASURED = {
     # refused (-32600) for a turn the Desktop was running (MSTEER).
     Measurement.MIMG: (Verdict.PASS, CLI_0165_ALPHA_1_2),
     Measurement.MSTEER: (Verdict.FAIL, CLI_0165_ALPHA_1_2),
-    # The same evening, the measurement session again: a conversation opened through its link came to the front in about
-    # 7 s but the app held it only after about 13 s, over the ten allowed (MOPEN); a steer over the Desktop's IPC pipe was
-    # accepted and reached the running turn once, but the app never showed the line as the person's message (MSTEER2).
-    Measurement.MOPEN: (Verdict.FAIL, CLI_0165_ALPHA_1_2),
+    # The same evening, the measurement session again: a steer over the Desktop's IPC pipe was accepted and reached the
+    # running turn once, but the app never showed the line as the person's message (MSTEER2). MOPEN first failed against
+    # ten seconds (the app held a conversation opened through its link after about 13 s); made again that night against
+    # the owner's thirty, its load timed by the lock's holder count alone, the window came to the front and the app held
+    # the conversation within 2-10 s, so it passed - and open_to_send is offered.
+    Measurement.MOPEN: (Verdict.PASS, CLI_0165_ALPHA_1_2),
     Measurement.MSTEER2: (Verdict.FAIL, CLI_0165_ALPHA_1_2),
 }
