@@ -62,6 +62,8 @@ METHODS = {
     "_start_through_route", "_paused",
     "cancel_interruption", "cancel_thread", "clear_history", "describe_settings",
     "failure_seen_at", "failure_unseen", "get_settings", "get_status", "history",
+    # v0.6.20 (standard J14): whether a sending nobody can confirm is still unseen - amber, not red (control/seen.py).
+    "unconfirmed_unseen",
     "launch_ends_with_job",
     # v0.6.11: a task's row menu - postpone it, let a held one continue, a conversation's tier.
     "_postpone_until", "postpone", "release_hold", "set_thread_tier",

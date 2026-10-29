@@ -62,6 +62,8 @@ METHODS = {
     "_open_demo", "_look_for_demo",
     # v0.6.12: whether the power action after usage-limit recoveries is armed, as the menu opens.
     "_power_armed",
+    # v0.6.20 (standard J14): a sending nobody can confirm, unseen, holds the icon amber and not red (clicks.py).
+    "_unconfirmed_unseen",
 }
 
 
