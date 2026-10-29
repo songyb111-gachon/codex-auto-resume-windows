@@ -64,14 +64,16 @@ namespace CodexAutoResume
         /// line is so wide unbounded and yet wrap it to one more line at exactly that width: Arabic help.theme came out 590
         /// px wide and two lines high unbounded, and three lines high at 590 (measured). A table sizes a column by the first
         /// answer and its row by the second, and the Appearance card kept a line's height of nothing under its last line.
-        /// So the unbounded answer is widened, a pixel at a time and never past the label's maximum, to the width at which
+        /// So the unbounded answer is widened, a pixel at a time and never past its maximum - a line held to one, to the width at which
         /// the label really is that high - the width it is then drawn at - as Label's answers agree left to right.
         private Size Agreed(Size proposedSize)
         {
             Size free = Remembered(proposedSize);
-            if (proposedSize.Width > 1) return free;
-            int most = MaximumSize.Width > 0 ? MaximumSize.Width : free.Width + 8;
-            for (int width = free.Width; width <= Math.Min(most, free.Width + 8); width++)
+            // Only a line held to a maximum width (a help line): one that takes its cell's width is measured at that width,
+            // and widening its unbounded answer past the cell changed the width it was measured at (the Advanced page's
+            // other_sessions card at 200%, measured).
+            if (proposedSize.Width > 1 || MaximumSize.Width <= 0) return free;
+            for (int width = free.Width; width <= Math.Min(MaximumSize.Width, free.Width + 8); width++)
                 if (Remembered(new Size(width, 0)).Height <= free.Height) return new Size(width, free.Height);
             return free;
         }
