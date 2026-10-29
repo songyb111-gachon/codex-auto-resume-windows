@@ -95,12 +95,17 @@ class MirrorSourceTests(unittest.TestCase):
 
     def test_every_painter_and_layout_engine_of_the_controls_asks_it(self):
         asked = {
-            "SoftPage": ("Padding.Left + (Mirror.Of(this) ? gutter : 0)",        # what it holds past the bar's gutter
+            "SoftPage": ("Mirror.Of(this) ? Padding.Right + gutter : Padding.Left",  # what it holds past the bar's gutter
                          "Mirror.Box(Mirror.Of(this), ClientSize.Width,",         # the bar at the left
                          "if (Mirror.Of(this)) PlaceMirrored();"),               # a placed child at the right
             "SoftPin": ("Mirror.X(Mirror.Of(this), width, width - size.Width, size.Width)",),   # pinned at the bottom left
             "SoftCard": ("Bar(e.Graphics, ClientRectangle, radius, Mirror.Of(this))",            # Classic's bar inside
-                         "mirrored ? inner.Right - wide : inner.X"),                             # the right hairline
+                         "mirrored ? inner.Right - wide : inner.X",                              # the right hairline
+                         "Mirror.Display(this, base.DisplayRectangle)",                          # its padding mirrored
+                         "Mirror.Caps(this);"),                                                  # a capped line at the right
+            "SoftStack": ("Mirror.Display(this, base.DisplayRectangle)",),
+            "SoftRows": ("Mirror.Display(this, base.DisplayRectangle)",),
+            "SoftFlow": ("Mirror.Display(this, base.DisplayRectangle)",),
             "SoftListHost": ("clip.SetBounds(mirrored ? Width - rows : 0", "Mirror.Box(Mirror.Of(this), Width,",
                              "MirrorColumns();"),
             "SoftButton": ("Mirror.Words(Mirror.Of(this),",),
