@@ -753,6 +753,14 @@ ownership information. It never acquires a lock on the app's file.
   check and nothing the watcher sends moves with them, and Codex is never handed them - the
   compatibility card in the Codex panel points to the Dashboard instead.
 
+  In the advanced edition, a capability whose route rests on a measurement says in its statement when that
+  measurement failed, or has not passed on the Codex you have. From v0.6.20 the maintainer's measurements reach
+  installed advanced editions between releases too: the same refresh (the Diagnostics button, or an update check)
+  also fetches the edition's own measurement data, a file of its own, never the standard data above. It is trusted
+  only so far: a measurement this release says failed stays failed, data for any Codex but your exact version is
+  passed over, a failure in it adds the warning, a pass in it removes the "not measured" warning only for your exact
+  version, and data that has expired or is malformed anywhere is ignored whole. It hides and shows no capability.
+
   From v0.6.19 the Dashboard writes such a report of your own as well, in either edition:
   **Diagnostics > Compatibility report from this PC...** reads this installation's own records -
   its state, the engine lines of its log and the watcher's own compatibility report, never

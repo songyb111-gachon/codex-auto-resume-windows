@@ -1082,8 +1082,14 @@ class WriteStepTests(unittest.TestCase):
 
     def test_a_commit_touching_anything_else_is_refused(self):
         path = reader.canonical_path("User7", VERSION)
-        self.tamper({path: reader.encode(sample(login="User7")), "README.md": b"# taken over\n"})
+        self.tamper({path: reader.encode(sample(login="User7")), "docs/GUIDE.md": b"# taken over\n"})
         self.assertRefusedWrite("touches a path the filer does not write")
+
+    def test_a_readme_changed_but_by_a_credit_is_refused(self):
+        """README.md is a path a credit may change (CREDITED), and only as the planner changes it."""
+        path = reader.canonical_path("User7", VERSION)
+        self.tamper({path: reader.encode(sample(login="User7")), "README.md": b"# taken over\n"})
+        self.assertRefusedWrite("a credit is not the filer's thanks")
 
     def test_a_commit_that_changes_a_filed_report_is_refused(self):
         world = self.fresh()
@@ -1173,7 +1179,8 @@ class WritableTests(unittest.TestCase):
                      reader.canonical_path("a-b-c" + "d" * 34, "codex-cli 999999.999999.999999"),
                      filer.INDEX, filer.README, filer.COUNTS):
             self.assertTrue(filer.writable(path), path)
-        for path in (filer.WITHDRAWN, "README.md", filer.COMPAT_DATA, ".github/workflows/test.yml",
+        # README.md is a credit's (CREDITED, v0.6.20) and checked by its own shape; docs/GUIDE.md is no one's.
+        for path in (filer.WITHDRAWN, "docs/GUIDE.md", filer.COMPAT_DATA, ".github/workflows/test.yml",
                      "docs/evidence/community/ExampleUser/codex-cli-00.1.0.json",
                      "docs/evidence/community/ExampleUser/codex-cli-0.1.0-alpha.9.0.json",
                      "docs/evidence/community/-x/codex-cli-0.1.0.json",
@@ -1241,6 +1248,10 @@ class WorkflowAgreementTests(unittest.TestCase):
         self.assertIn("report_add='%s'" % filer.REPORT_ADD, self.write)
         self.assertIn("regenerated='%s'" % filer.REGENERATED, self.write)
         self.assertIn("reserved='%s'" % filer.RESERVED_LOGIN, self.write)
+        self.assertIn("credited='%s'" % filer.CREDITED, self.write)
+        self.assertIn("korean_credited='%s'" % filer.KOREAN_CREDITED, self.write)
+        self.assertIn('[ "$login_lower" != %s ] || fail "a filing credits the owner"' % filer.NEVER_CREDITED[0],
+                      self.write)
         self.assertIn('[ "${#login}" -le %d ]' % filer.MAX_LOGIN, self.write)
         self.assertIn('-le %d ] || fail "a text is missing or too long"' % filer.MAX_TEXT, self.write)
 
@@ -1342,6 +1353,8 @@ class FixedModulesTests(unittest.TestCase):
         "test_screenshots": "reads the frozen stand-in (tests/frozen_registry.py)",
         "test_wire_types": "writes its own reported.json",
         "test_community_file": "builds its own scratch world",
+        "test_community_credit": "builds its own scratch worlds (test_community_file's)",
+        "test_community_advanced_records": "reads its own copies of the fixture report",
         "test_workflow_privilege": "reads the workflows, not the data",
     }
     # The files, the reader that writes them, and the one module that reads the counts in the product.

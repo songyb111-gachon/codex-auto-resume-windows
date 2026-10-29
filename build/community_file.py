@@ -107,7 +107,8 @@ WITHDRAWN_FORMAT = "codex-auto-resume-compat-withdrawn/1"
 # anything is written. tests/test_community_file.py holds that every test module naming those files
 # is here or says why it need not be.
 FIXED_MODULES = ("tests.test_community_report", "tests.test_community_check", "tests.test_reported_data",
-                 "tests.test_reported_counts", "tests.test_reported_isolation", "tests.test_compat")
+                 "tests.test_reported_counts", "tests.test_reported_isolation", "tests.test_compat",
+                 "tests.test_credited_tree")
 TEST_TIMEOUT = 20 * 60
 FETCH_TIMEOUT = 120
 
@@ -122,6 +123,22 @@ REGENERATED = (r"^(docs/evidence/community/index[.]json|docs/evidence/community/
                r"|src/codex_auto_resume/data/reported[.]json)$")
 RESERVED_LOGIN = r"^(con|prn|aux|nul|com[0-9]|lpt[0-9])$"
 MAX_LOGIN = 39
+# CREDIT (v0.6.20): a report whose sender chose `credit` (build/community_report.py credited) names its pull request's
+# author - the login the survey has for the account's numeric id, which community_check holds equal to the report's
+# folder - in the contributors list and the README's thanks line, once per person, in the order they first helped, in
+# a fixed sentence. Nothing from the file is written there. The write job lets a filing set these files only as these
+# shapes allow (community-file.yml holds the two patterns verbatim; tests/test_workflow_privilege.py holds them equal).
+CREDITED = r"^(README[.]md|docs/CONTRIBUTORS[.]md|scripts[/]ko_branch[.]json)$"
+KOREAN_CREDITED = r"^(README[.]ko[.]md|docs/CONTRIBUTORS[.]ko[.]md)$"
+CONTRIBUTORS, THANKS, KO_BRANCH = "docs/CONTRIBUTORS.md", "README.md", "scripts/ko_branch.json"
+CONTRIBUTORS_KO, THANKS_KO = "docs/CONTRIBUTORS.ko.md", "README.ko.md"
+CREDIT_LOGIN = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})")
+NEVER_CREDITED = ("songyb111-gachon",)          # the owner: his own evidence goes in through the admin, uncredited
+CREDIT_SECTION = {False: "## People who reported, suggested and tested", True: "## 문제를 알리고, 제안하고, 시험해 주신 분들"}
+CREDIT_LINE = {False: "- [@{login}](https://github.com/{login}) reported compatibility on Codex {version}.",
+               True: "- [@{login}](https://github.com/{login}) 님은 Codex {version}에서 호환성을 보고해 주셨습니다."}
+THANKS_LAST = re.compile(r" and (\[@[A-Za-z0-9-]{1,39}\]\(https://github\.com/[A-Za-z0-9-]{1,39}\)) among them;")
+THANKS_KO_END = " 님 등)"
 
 # The commit that files a report, word for word; the write job rebuilds it from the trailers and
 # refuses a commit whose message is anything else. No quotation mark, backslash, percent sign,
@@ -225,10 +242,10 @@ def moment(text):
 
 
 def writable(path) -> bool:
-    """Whether the write job would put this path on main: REPORT_ADD or REGENERATED, as it reads them."""
+    """Whether the write job would put this path on main: REPORT_ADD, REGENERATED or CREDITED, as it reads them."""
     if not isinstance(path, str):
         return False
-    if re.fullmatch(REGENERATED, path):
+    if re.fullmatch(REGENERATED, path) or re.fullmatch(CREDITED, path):
         return True
     if not re.fullmatch(REPORT_ADD, path):
         return False
@@ -419,6 +436,91 @@ def withdrawal(filed, path, reporter_id, withdrawn_raw, now) -> dict:
     files = regenerated({name: kept for name, kept in filed.items() if name != path}, now)
     files[path] = None
     files[WITHDRAWN] = reader.encode(document)
+    return files
+
+
+def credit_login(login) -> bool:
+    """Whether a login may be credited: GitHub's spelling of a person's login, never a bot's ([bot] cannot match)
+    and never the owner's."""
+    return (isinstance(login, str) and bool(CREDIT_LOGIN.fullmatch(login)) and bool(reader.LOGIN.fullmatch(login))
+            and login.lower() not in NEVER_CREDITED)
+
+
+def _listed(text, login) -> bool:
+    """Whether the document already links that person, in any letter case: a person is credited once."""
+    return re.search(r"\]\(https://github\.com/%s/?\)" % re.escape(login), text, re.IGNORECASE) is not None
+
+
+def credit_contributors(text, login, version, *, korean=False):
+    """The contributors list with one line for `login` at the end of its list of people who helped, or `text` itself
+    where the person is listed already, or None where the list is not there to add to."""
+    if _listed(text, login):
+        return text
+    lines = text.split("\n")
+    try:
+        start = lines.index(CREDIT_SECTION[korean])
+    except ValueError:
+        return None
+    end = next((number for number in range(start + 1, len(lines)) if lines[number].startswith("## ")), len(lines))
+    last = next((number for number in range(end - 1, start, -1) if lines[number].strip()), None)
+    if last is None or not any(lines[number].startswith("- ") for number in range(start + 1, last + 1)):
+        return None
+    lines.insert(last + 1, CREDIT_LINE[korean].format(login=login, version=version))
+    return "\n".join(lines)
+
+
+def credit_thanks(text, login, *, korean=False):
+    """The README's thanks line with `login` added last, or `text` itself where the person is linked already, or None
+    where the line is not there to add to."""
+    if _listed(text, login):
+        return text
+    link = "[@%s](https://github.com/%s)" % (login, login)
+    if korean:
+        return text.replace(THANKS_KO_END, ", %s%s" % (link, THANKS_KO_END), 1) if text.count(THANKS_KO_END) == 1 else None
+    found = THANKS_LAST.findall(text)
+    if len(found) != 1:
+        return None
+    return THANKS_LAST.sub(lambda match: ", %s and %s among them;" % (match.group(1), link), text, count=1)
+
+
+def _digest(text) -> str:
+    import hashlib
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def credit_files(show, login, version, *, korean=False) -> dict:
+    """{path: bytes}: what crediting `login` for a report on `version` sets, read from a tree through `show(path)`
+    (bytes, or None). Main's English documents, and scripts/ko_branch.json's reviewed digest of each one that was fresh
+    before (so dev's Korean twins, credited by heal_dev in the same move, stay reviewed); with `korean`, dev's Korean
+    twins instead. Empty where the login may not be credited, the person is listed already, or a document has no place
+    for the line - never a part of a credit."""
+    if not credit_login(login) or not reader.engine_version(version):
+        return {}
+    names = (CONTRIBUTORS_KO, THANKS_KO) if korean else (CONTRIBUTORS, THANKS)
+    before, after = {}, {}
+    for name, change in zip(names, (lambda text: credit_contributors(text, login, version, korean=korean),
+                                    lambda text: credit_thanks(text, login, korean=korean))):
+        raw = show(name)
+        if raw is None:
+            return {}
+        text = raw.decode("utf-8").replace("\r\n", "\n")
+        changed = change(text)
+        if changed is None:
+            return {}
+        before[name], after[name] = text, changed
+    files = {name: after[name].encode("utf-8") for name in names if after[name] != before[name]}
+    if korean or not files:
+        return files
+    mapping = show(KO_BRANCH)
+    if mapping is not None:
+        moved = mapping.decode("utf-8")
+        for name in files:
+            old, new = _digest(before[name]), _digest(after[name])
+            pair = '"%s": "%s"' % (name, old)
+            if moved.count(pair) == 1:
+                moved = moved.replace(pair, '"%s": "%s"' % (name, new))
+        if moved.encode("utf-8") != mapping:
+            files[KO_BRANCH] = moved.encode("utf-8")
     return files
 
 
@@ -899,12 +1001,17 @@ class Planner:
             return action
         return None
 
-    def filing_files(self, filed, path, report):
-        return filing(filed, path, report, self.now)
+    def filing_files(self, filed, path, report, login=None):
+        """What one filing writes on the tip: the report and the files regenerated with it, and - where the sender
+        chose credit - the credit for `login`, the pull request's author (CREDIT), never a login from the file."""
+        files = filing(filed, path, report, self.now)
+        if login is not None and reader.credited(report) and path == reader.canonical_path(login, report["codex_version"]):
+            files.update(credit_files(lambda name: self.git.show(self.tip, name), login, report["codex_version"]))
+        return files
 
     def file(self, pull, report, sticky):
         path = reader.canonical_path(pull["login"], report["codex_version"])
-        files = self.filing_files(self.reports(), path, report)
+        files = self.filing_files(self.reports(), path, report, pull["login"])
         if not all(writable(name) for name in files):
             return Action(pull, REFUSED, check.RESERVED_NAME, self.now, sticky=sticky,
                           text=refusal([(check.RESERVED_NAME, "this report's path is not one this project keeps")]))
@@ -961,7 +1068,7 @@ class Planner:
         kept, self.tip, dropped = [], self.main, None
         for index, filing in enumerate(self.filings):
             path, report, pull = filing["path"], filing["report"], filing["pull"]
-            files = self.filing_files(self.reports(), path, report)
+            files = self.filing_files(self.reports(), path, report, pull["login"])
             commit = self.git.commit(self.tip, files, filing["message"], self.now)
             if self._passes(commit):
                 self.tip = commit
@@ -1000,7 +1107,7 @@ class Planner:
         base = self.git.must("merge-base", self.dev, self.tip)
         changed = [line for line in self.git.must("diff", "--name-only", "--no-renames", base, self.tip).splitlines()
                    if line]
-        if not changed or not all(writable(path) for path in changed):
+        if not changed or not all(self._takes(path, base) for path in changed):
             self.summary.append("dev was left as it is: main changed more than the filer writes since dev last "
                                 "took it (python scripts/promote.py into-dev, on dev)")
             return
@@ -1011,12 +1118,54 @@ class Planner:
                 self.summary.append("dev was left as it is: dev changed a file the filer writes")
                 return
             blobs[path] = new
+        # CREDIT: each person main credited since the two last met is credited in dev's Korean twins too.
+        if CONTRIBUTORS in changed:
+            korean = self._korean_credits(base)
+            if korean is None:
+                self.summary.append("dev was left as it is: a credit could not be put in its Korean documents "
+                                    "(python scripts/promote.py into-dev, on dev)")
+                return
+            for path, data in korean.items():
+                blobs[path] = self.git.must("hash-object", "-w", "--no-filters", "--stdin", data=data)
         tree = self.git.tree_with(self.dev, blobs)
         merge = self.git.merge_commit(tree, [self.dev, self.tip], DEV_MESSAGE, self.now)
         if not self._passes(merge):
             self.summary.append("dev was left as it is: its own tests do not pass with main's filings")
             return
         self.dev_plan = merge
+
+    def _takes(self, path, base) -> bool:
+        """Whether dev may take main's copy of `path`: a path the filer writes - and one a credit writes (CREDITED) only
+        where every commit that changed it on main since the two last met was a filing, so a change made on main by
+        anything else is left for promote.py, as it always was."""
+        if not writable(path):
+            return False
+        if not re.fullmatch(CREDITED, path):
+            return True
+        subjects = self.git.must("log", "--format=%s", "%s..%s" % (base, self.tip), "--", path).splitlines()
+        return all(subject.startswith("Community report: codex-cli ") for subject in subjects if subject)
+
+    def _korean_credits(self, base):
+        """{path: bytes} for dev's Korean twins with every credit line main's contributors list gained since `base`,
+        or None where one could not be put there."""
+        def lines(ref):
+            raw = self.git.show(ref, CONTRIBUTORS)
+            return (raw or b"").decode("utf-8").replace("\r\n", "\n").split("\n")
+        pattern = re.compile(r"- \[@([A-Za-z0-9-]{1,39})\]\(https://github\.com/\1\) reported compatibility on Codex "
+                             r"(codex-cli \S{1,40})\.$")
+        added = [pattern.fullmatch(line) for line in lines(self.tip) if line not in set(lines(base))]
+        texts = {}
+        for found in added:
+            if found is None:
+                continue
+            def show(name):
+                return texts[name] if name in texts else self.git.show(self.dev, name)
+            files = credit_files(show, found.group(1), found.group(2), korean=True)
+            if not files and not all(_listed((show(name) or b"").decode("utf-8"), found.group(1))
+                                     for name in (CONTRIBUTORS_KO, THANKS_KO)):
+                return None
+            texts.update(files)
+        return texts
 
     # -------------------------------------------------------------- what is handed to the write job
     def write(self, out: Path):

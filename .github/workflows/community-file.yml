@@ -238,6 +238,11 @@ jobs:
           report_add='^docs/evidence/community/[A-Za-z0-9](-?[A-Za-z0-9]){0,38}/codex-cli-(0|[1-9][0-9]{0,5})[.](0|[1-9][0-9]{0,5})[.](0|[1-9][0-9]{0,5})(-alpha[.](0|[1-9][0-9]{0,8})([.][1-9][0-9]{0,8})?)?[.]json$'
           regenerated='^(docs/evidence/community/index[.]json|docs/evidence/community/README[.]md|src/codex_auto_resume/data/reported[.]json)$'
           reserved='^(con|prn|aux|nul|com[0-9]|lpt[0-9])$'
+          # A credit the sender chose (build/community_file.py CREDIT): main's two English documents and the reviewed
+          # digests of their Korean twins in a filing, and dev's two Korean twins in dev's merge - each only in the
+          # shape the planner writes, holding the login of the report folder, which is the pull request's author.
+          credited='^(README[.]md|docs/CONTRIBUTORS[.]md|scripts[/]ko_branch[.]json)$'
+          korean_credited='^(README[.]ko[.]md|docs/CONTRIBUTORS[.]ko[.]md)$'
           commit_body='Filed by .github/workflows/community-file.yml from the pull request named below: the counts, states and times the sender measured, with every conclusion recomputed from its records and every sentence replaced by ours. It raises the tier of no version.'
           dev_subject='Take the community reports on main into dev; the Korean documents stay'
           dev_body='Made by .github/workflows/community-file.yml: dev with the reports main has filed, their index, README and counts, and nothing else. Every Korean document dev has is as it was.'
@@ -246,6 +251,10 @@ jobs:
 
           fail() { echo "::error::$1; nothing more was written"; exit 1; }
           g() { "$git" -c core.hooksPath=/dev/null -c core.fsmonitor=false -C "$work" "$@"; }
+          # The lines a path gained and lost between two commits, without the diff's own header lines.
+          gained() { g diff --no-renames --no-color -U0 "$1" "$2" -- "$3" | sed -n '/^+++ /d; s/^+//p'; }
+          lost() { g diff --no-renames --no-color -U0 "$1" "$2" -- "$3" | sed -n '/^--- /d; s/^-//p'; }
+          counted() { g diff --no-renames --numstat "$1" "$2" -- "$3" | cut -f1,2 | tr '\t' ' '; }
           api() { "$gh" api "$@"; }
 
           # Paused since the plan was made: nothing is written. Anything but unset or `on` pauses.
@@ -305,7 +314,7 @@ jobs:
             remote_parent="$main"
             for commit in "${chain[@]}"; do
               [ "$(g rev-list --parents -n 1 "$commit")" = "$commit $local_parent" ] || fail "a filing is not on the one before it"
-              report="" entries=()
+              report="" entries=() credits=()
               while IFS= read -r -d '' meta && IFS= read -r -d '' path; do
                 read -r _old_mode new_mode _old_blob new_blob status <<< "${meta#:}"
                 [ "$new_mode" = 100644 ] || fail "a filing holds something other than an ordinary file"
@@ -316,6 +325,9 @@ jobs:
                 elif [[ $path =~ $report_add ]]; then
                   [ "$status" = A ] && [ -z "$report" ] || fail "a filing adds exactly one new report"
                   report="$path"
+                elif [[ $path =~ $credited ]]; then
+                  [ "$status" = M ] || fail "a filing's credit does more than change a document"
+                  credits+=("$path")
                 else
                   fail "a filing touches a path the filer does not write"
                 fi
@@ -329,6 +341,31 @@ jobs:
               [ "${#login}" -le 39 ] || fail "a report folder longer than a login"
               login_lower="${login,,}"
               [[ ! $login_lower =~ $reserved ]] || fail "a report folder no Windows checkout can hold"
+              # A credit: for the report folder's login alone, in the planner's one sentence and place.
+              link="[@$login](https://github.com/$login)"
+              for path in "${credits[@]}"; do
+                [ "$login_lower" != songyb111-gachon ] || fail "a filing credits the owner"
+                case "$path" in
+                  docs/CONTRIBUTORS.md)
+                    [ "$(counted "$local_parent" "$commit" "$path")" = "1 0" ] || fail "a credit is not one added line"
+                    [ "$(gained "$local_parent" "$commit" "$path")" = "- $link reported compatibility on Codex codex-cli $version." ] \
+                      || fail "a credit is not the filer's sentence"
+                    ;;
+                  README.md)
+                    [ "$(counted "$local_parent" "$commit" "$path")" = "1 1" ] || fail "a credit is not one changed line"
+                    was=$(lost "$local_parent" "$commit" "$path")
+                    head_part="${was%% among them;*}"
+                    [ "$(gained "$local_parent" "$commit" "$path")" = "${head_part% and *}, ${head_part##* and } and $link among them;${was#* among them;}" ] \
+                      || fail "a credit is not the filer's thanks"
+                    ;;
+                  scripts[/]ko_branch.json)
+                    while IFS= read -r line; do
+                      [[ $line =~ ^\ {4}\"(README[.]md|docs/CONTRIBUTORS[.]md)\":\ \"[0-9a-f]{64}\",?$ ]] \
+                        || fail "a credit changes more of the language map than a reviewed digest"
+                    done < <(gained "$local_parent" "$commit" "$path"; lost "$local_parent" "$commit" "$path")
+                    ;;
+                esac
+              done
               # The message: the filer's, rebuilt from its own trailers and nothing else.
               message=$(g cat-file commit "$commit" | sed '1,/^$/d')
               number=$(sed -n 's/^Pull-request: #\([0-9]\{1,7\}\)$/\1/p' <<< "$message")
@@ -376,9 +413,39 @@ jobs:
             dev_entries=""
             while IFS= read -r -d '' meta && IFS= read -r -d '' path; do
               read -r _old_mode new_mode _old_blob new_blob status <<< "${meta#:}"
-              [[ $path =~ $regenerated || $path =~ $report_add ]] || fail "dev's merge touches a path the filer does not write"
               [[ $new_mode == 100644 && ( $status == A || $status == M ) ]] || fail "dev's merge does more than set files"
-              [ "$(g rev-parse "$local_main:$path")" = "$new_blob" ] || fail "dev's merge is not main's files"
+              if [[ $path =~ $korean_credited ]]; then
+                # dev's own Korean twin, credited as main credited the English one: only the planner's lines, for
+                # logins whose report folder main has.
+                [ "$status" = M ] || fail "dev's merge does more than change a Korean document"
+                if [ "$path" = docs/CONTRIBUTORS.ko.md ]; then
+                  [ "$(counted "$dev_base" "$dev_merge" "$path" | cut -d' ' -f2)" = 0 ] || fail "dev's credit removes a line"
+                  while IFS= read -r line; do
+                    [[ $line =~ ^-\ \[@([A-Za-z0-9-]{1,39})\]\(https://github\.com/([A-Za-z0-9-]{1,39})\)\ 님은\ Codex\ codex-cli\ [0-9A-Za-z.-]{1,40}에서\ 호환성을\ 보고해\ 주셨습니다\.$ ]] \
+                      && [ "${BASH_REMATCH[1]}" = "${BASH_REMATCH[2]}" ] || fail "dev's credit is not the filer's sentence"
+                    g rev-parse --verify --quiet "$local_main:docs/evidence/community/${BASH_REMATCH[1]}" > /dev/null \
+                      || fail "dev's credit names no one main filed"
+                  done < <(gained "$dev_base" "$dev_merge" "$path")
+                else
+                  [ "$(counted "$dev_base" "$dev_merge" "$path")" = "1 1" ] || fail "dev's credit is not one changed line"
+                  was=$(lost "$dev_base" "$dev_merge" "$path")
+                  now=$(gained "$dev_base" "$dev_merge" "$path")
+                  [[ $was == *" 님 등)"* && ${now#* 님 등)} == "${was#* 님 등)}" && ${now%% 님 등)*} == "${was%% 님 등)*}"* ]] \
+                    || fail "dev's credit is not the filer's thanks"
+                  added="${now%% 님 등)*}"
+                  added="${added#"${was%% 님 등)*}"}"
+                  [[ $added =~ ^(,\ \[@([A-Za-z0-9-]{1,39})\]\(https://github\.com/[A-Za-z0-9-]{1,39}\))+$ ]] \
+                    || fail "dev's credit is not the filer's thanks"
+                fi
+                # A blob main never had: GitHub's hash for it must be the one tested, as a filing's are.
+                [ "$(g cat-file -s "$new_blob")" -le 1000000 ] || fail "dev's credit is a file over 1 MB"
+                { printf '{"encoding":"base64","content":"'; g cat-file blob "$new_blob" | base64 -w0; printf '"}'; } > "$scratch/blob.json"
+                [ "$(api -X POST "repos/$repo/git/blobs" --input "$scratch/blob.json" --jq .sha)" = "$new_blob" ] \
+                  || fail "GitHub stored a file other than the one tested"
+              else
+                [[ $path =~ $regenerated || $path =~ $report_add || $path =~ $credited ]] || fail "dev's merge touches a path the filer does not write"
+                [ "$(g rev-parse "$local_main:$path")" = "$new_blob" ] || fail "dev's merge is not main's files"
+              fi
               dev_entries="$dev_entries${dev_entries:+,}{\"path\":\"$path\",\"mode\":\"100644\",\"type\":\"blob\",\"sha\":\"$new_blob\"}"
             done < <(g diff-tree -r -z --no-renames --raw --no-abbrev "$dev_base" "$dev_merge")
             if [ -z "$dev_entries" ]; then
