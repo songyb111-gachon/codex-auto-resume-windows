@@ -114,6 +114,11 @@ MEASUREMENT_METHODS = {
     Measurement.MWAKE: (),
     Measurement.MHK: (),
     Measurement.M4B: ("hooks/list",),
+    # v0.6.20 (issue #50). MIMG adds an item with an image to a queue the app holds, as MC1 added one with words, and
+    # follows that queue; the history is read from its database. MSTEER lists what the app holds and calls turn/steer
+    # for the exact active turn of one conversation - once, whatever the answer - and reads the history afterwards.
+    Measurement.MIMG: ("thread/queue/add", "thread/queue/list"),
+    Measurement.MSTEER: ("thread/loaded/list", "turn/steer"),
 }
 
 # The methods a capability's own route may call, beyond `initialize` - each one a measurement

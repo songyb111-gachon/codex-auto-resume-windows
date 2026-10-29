@@ -537,6 +537,14 @@ class Measurement(StrEnum):
     MWAKE = "mwake"
     MHK = "mhk"
     M4B = "m4b"
+    # v0.6.20 (issue #50, plans/v0619-design/D-issue50.md): the two measured before they are built. MIMG: Codex's queue
+    # (thread/queue/add) takes an image beside the words - a local image file, or an image by its data address - for a
+    # throwaway conversation the app holds idle, and the app delivers it as the person's own message with the image
+    # (image_attachments). MSTEER: turn/steer reaches the exact active turn of a throwaway conversation from a connection
+    # this product may use - accepted or refused with a code, shown in the conversation or not, and called exactly once,
+    # never again after an answer that did not come (steer_send_mode).
+    MIMG = "mimg"
+    MSTEER = "msteer"
 
 
 class ObservedWord(StrEnum):

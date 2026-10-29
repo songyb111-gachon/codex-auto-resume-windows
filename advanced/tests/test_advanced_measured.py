@@ -174,7 +174,9 @@ class TableTests(unittest.TestCase):
                          {Measurement.MQ, Measurement.ME, Measurement.MS, Measurement.MK, Measurement.MT,
                           # v0.6.19's groundwork probes, made while its stage is built: not made yet.
                           Measurement.MTOK, Measurement.MOPEN, Measurement.MAL, Measurement.MWAKE, Measurement.MHK,
-                          Measurement.M4B})
+                          Measurement.M4B,
+                          # v0.6.20's (issue #50), made by the measurement session before the features are built.
+                          Measurement.MIMG, Measurement.MSTEER})
 
 
 if __name__ == "__main__":
