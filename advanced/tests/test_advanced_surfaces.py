@@ -552,9 +552,10 @@ class ShownOrderTests(SurfaceCase):
     def test_the_list_answers_in_the_owner_s_order_the_report_first(self):
         """Fails with arming.listing walking the registry again: the report would be last."""
         listed = [item["id"] for item in self.bridge("advanced-list", {})["result"]["capabilities"]]
-        # v0.6.20: the owner's order in full - open_to_send, which waited in registry.WAITING for MOPEN, is offered.
+        # v0.6.20: the owner's order in full - open_to_send, which waited in registry.WAITING for MOPEN, is offered -
+        # but for Continue inside the turn, still waiting hidden on MHK, M4 and M4B.
         shown = [capability for capability in registry.SHOWN_ORDER if capability in registry.REGISTRY.ids]
-        self.assertEqual(shown, list(registry.SHOWN_ORDER))
+        self.assertEqual([each for each in registry.SHOWN_ORDER if each not in shown], ["stop_hook_continuation"])
         self.assertEqual(shown.index("open_to_send"), shown.index("queue_for_open") + 1)
         self.assertEqual(listed, shown)
         self.assertEqual(listed[0], "compat_report")
