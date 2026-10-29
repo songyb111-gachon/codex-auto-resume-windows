@@ -46,7 +46,12 @@ STAMPS = {"idle_update_check": (str(OptionKey.LAST_CHECK), str(OptionKey.OFFERED
           "usage_analytics": (str(OptionKey.LAST_INGEST),),
           # v0.6.19 (issue #50): early_reset's times for Pending's Why it is waiting, and a person's click's probe.
           "early_reset": (str(OptionKey.CHECKED_AT), str(OptionKey.AVAILABLE_AT), str(OptionKey.LIFTED_AT),
-                          str(OptionKey.CHECK_ASKED), str(OptionKey.FOUND_AT))}
+                          str(OptionKey.CHECK_ASKED), str(OptionKey.FOUND_AT)),
+          # v0.6.20: window_anchor's times and the last request's token counts (engine/anchor.py).
+          "window_anchor": (str(OptionKey.ANCHOR_STARTED_AT), str(OptionKey.ANCHOR_FIXED_AT),
+                            str(OptionKey.ANCHOR_SEEN_RESET), str(OptionKey.ANCHOR_SLOT_DONE),
+                            str(OptionKey.ANCHOR_RESET_DONE), str(OptionKey.ANCHOR_INPUT_TOKENS),
+                            str(OptionKey.ANCHOR_OUTPUT_TOKENS))}
 RULES_LIMIT = 10
 STATUS_RANGE = (100, 599)
 # How far back the Dashboard counts a rule's hits and shows samples.

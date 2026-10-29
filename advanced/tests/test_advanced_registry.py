@@ -54,8 +54,12 @@ CHANGES = frozenset({"thread/queue/add", "thread/goal/set",
                      "thread/compact/start", "thread/settings/update"})
 # v0.6.16-beta.4: Codex's models listed (engine/fallback.py).
 READS = READS | {"model/list"}
-# v0.6.16-beta.4: the capabilities that change Codex's state through the Codex app's IPC pipe (codex/ipc.py).
-IPC_CHANGES = frozenset({"usage_pause"})
+# v0.6.20: whether an account is signed in (window_anchor's look before it starts a window; MA's read).
+READS = READS | {"account/read"}
+# v0.6.16-beta.4: the capabilities that change Codex's state through the Codex app's IPC pipe (codex/ipc.py) - and,
+# v0.6.20, through a `codex exec` of their own: window_anchor starts the account's 5-hour window, as a reset credit spent
+# changes the account's state (engine/anchor.py).
+IPC_CHANGES = frozenset({"usage_pause", "window_anchor"})
 
 
 def standards_text(rule) -> str:
@@ -91,8 +95,9 @@ class ShippedTests(unittest.TestCase):
                "codex_chat",
                # v0.6.18: the weekly update check; and Open Codex on a notice, an action, before the other two.
                "idle_update_check",
-               # v0.6.20: the usage and token analytics.
-               "usage_analytics",
+               # v0.6.20: the usage and token analytics; starting the 5-hour window early, before the wake timer, which
+               # stays last at P8.
+               "usage_analytics", "window_anchor",
                # v0.6.19: the wake timer, last at P8, so it reads the due times the others' errands just kept.
                # v0.6.20: the courier's two - push notices and the status feed - before the wake timer.
                "push_notices", "status_feed",
@@ -119,7 +124,7 @@ class ShippedTests(unittest.TestCase):
                      Point.SCHEDULE: ("reset_credit", "early_reset", "once_more_when_unsure", "send_now"),
                      Point.TICK: ("compact_continue", "model_fallback", "headless_run", "reset_credit", "reset_message", "empty_response", "subagent_parent",
                                   "keep_going", "usage_meter", "usage_wrap_up", "usage_pause", "idle_update_check",
-                                  "push_notices", "status_feed", "usage_analytics", "wake_for_reset"),
+                                  "usage_analytics", "window_anchor", "push_notices", "status_feed", "wake_for_reset"),
                      # v0.6.20: a notice core raised, told to the courier's push notices.
                      Point.NOTICE: ("push_notices",),
                      Point.RECORDS: ("reset_message", "prompt_queue", "empty_response", "subagent_parent",
@@ -149,7 +154,7 @@ class ShippedTests(unittest.TestCase):
              "open_to_send", "headless_run",
              "other_sessions", "marker_free_continuation", "silent_continuation", "reset_credit",
              "early_reset", "parallel_dispatch", "reset_message", "long_reset_message",
-             "usage_meter", "usage_wrap_up", "usage_pause", "keep_going", "usage_analytics", "prompt_queue",
+             "usage_meter", "usage_wrap_up", "usage_pause", "window_anchor", "keep_going", "usage_analytics", "prompt_queue",
              # v0.6.19: chat with a conversation, beside the queued messages.
              "codex_chat",
              "empty_response", "once_more_when_unsure", "send_now", "open_codex_button",

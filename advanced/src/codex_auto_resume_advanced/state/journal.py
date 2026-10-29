@@ -25,7 +25,7 @@ from codex_auto_resume.domain.plug import Alternative, Point
 from ..vocabulary import Actor, ArmingWarning, JournalCode, OffReason, RecordState
 
 EVENT_LIMIT = 5000
-WATCH_LIMIT = 130                 # would_have lines kept a capability, its newest (250; 200; 180; 150 until v0.6.19: 34 fit; 140 until v0.6.20: 38 fit at 130 - the courier's two, usage_analytics)
+WATCH_LIMIT = 120                 # would_have lines kept a capability, its newest (250; 200; 180; 150 until v0.6.19: 34 fit; 140 until v0.6.20: 35; 130 at v0.6.20's 38; 120 from its 39th, the window anchor: 41 fit)
 EVENT_MAX_AGE = 90 * 86400
 _PRUNE_EVERY = 256
 _DAY = 86400

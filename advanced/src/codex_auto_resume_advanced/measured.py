@@ -29,6 +29,8 @@ CLI_0162_ALPHA_17_2 = "codex-cli 0.162.0-alpha.17.2"
 CLI_0163_ALPHA_10_2 = "codex-cli 0.163.0-alpha.10.2"
 # The Codex of 2026-10-26: M2b made again on it (PR #53 asked; the goal on a held thread rests on it).
 CLI_0164_ALPHA_11_1 = "codex-cli 0.164.0-alpha.11.1"
+# The Codex of 2026-10-29 (the app's bundled engine): MANCHOR made on it, the start of an idle 5-hour window early.
+CODEX_0165_ALPHA_1_2 = "codex-cli 0.165.0-alpha.1.2"
 
 MEASURED = {
     Measurement.M1: (Verdict.PASS, CLI_0163_ALPHA_10_2),
@@ -76,4 +78,8 @@ MEASURED = {
     Measurement.MQO: (Verdict.PASS, CLI_0163_ALPHA_10_2),
     Measurement.MQP: (Verdict.PASS, CLI_0163_ALPHA_10_2),
     Measurement.MQG: (Verdict.PASS, CLI_0163_ALPHA_10_2),
+    # 2026-10-29 (v0.6.20, window_anchor): one ephemeral, read-only, low-effort `codex exec` on an idle 5-hour window
+    # fixed its reset five hours after the request and left no conversation, rollout or history line; a second request
+    # in the running window did not move the reset.
+    Measurement.MANCHOR: (Verdict.PASS, CODEX_0165_ALPHA_1_2),
 }

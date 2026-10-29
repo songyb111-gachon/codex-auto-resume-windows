@@ -239,6 +239,9 @@ def status(runtime) -> dict:
     # (control/earlycheck.py).
     from .control import earlycheck
     shown.update(earlycheck.view(runtime))
+    # v0.6.20: the reset window_anchor's start fixed, for its line on the Advanced page, only while it stands on.
+    from .engine import anchor
+    shown.update(anchor.view(runtime))
     return shown
 
 

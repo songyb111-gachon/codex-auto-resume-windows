@@ -292,6 +292,21 @@ class OptionKey(StrEnum):
     LAST_INGEST = "last_ingest"
     LAST_FEED = "last_feed"
     LAST_FLEET_WRITE = "last_fleet_write"
+    # v0.6.20 (window_anchor, the owner's request of 2026-10-28): the times of day it starts an idle 5-hour window at
+    # (three, each off or a time - TIME_OFF, or the minute of the day plus two), and whether it starts one right after
+    # a reset. And its stamps: when it last started one, the reset that start fixed, the running reset it last saw, the
+    # time and the reset it last handled, and the last request's input and output token counts.
+    ANCHOR_AT_1 = "anchor_at_1"
+    ANCHOR_AT_2 = "anchor_at_2"
+    ANCHOR_AT_3 = "anchor_at_3"
+    ANCHOR_AFTER_RESET = "anchor_after_reset"
+    ANCHOR_STARTED_AT = "anchor_started_at"
+    ANCHOR_FIXED_AT = "anchor_fixed_at"
+    ANCHOR_SEEN_RESET = "anchor_seen_reset"
+    ANCHOR_SLOT_DONE = "anchor_slot_done"
+    ANCHOR_RESET_DONE = "anchor_reset_done"
+    ANCHOR_INPUT_TOKENS = "anchor_input_tokens"
+    ANCHOR_OUTPUT_TOKENS = "anchor_output_tokens"
 
 
 class WordingKey(StrEnum):
@@ -544,6 +559,9 @@ class Measurement(StrEnum):
     MWAKE = "mwake"
     MHK = "mhk"
     M4B = "m4b"
+    # v0.6.20 (window_anchor): one ephemeral, read-only, low-effort `codex exec` on an idle 5-hour window starts it -
+    # its reset fixed five hours after the request - and leaves no conversation, rollout or history line.
+    MANCHOR = "manchor"
 
 
 class ObservedWord(StrEnum):
