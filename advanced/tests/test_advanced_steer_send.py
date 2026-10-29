@@ -50,12 +50,12 @@ class DefinitionTests(unittest.TestCase):
     def test_it_is_offered_whole_and_names_what_it_departs_from(self):
         self.assertEqual(problems(STEER_SEND), [])
         self.assertIs(registry.REGISTRY.get("steer_send"), STEER_SEND, "offered, not hidden: the owner's decision")
-        for standard in ("A4", "B3", "A2", "A1", "A8", "A17", "A20", "A26", "D2", "H6"):
+        for standard in ("A4", "B3", "A2", "A1", "A8", "A17", "A20", "A26", "D2", "H2", "H6"):
             self.assertIn(standard, STEER_SEND.departs_from)
         self.assertEqual(STEER_SEND.measurements, (Measurement.MIPC, Measurement.MSTEER2))
         self.assertEqual(STEER_SEND.requires, ("prompt_queue",), "written in the prompt queue's editor")
         shown = [definition.id for definition in registry.shown(registry.REGISTRY)]
-        self.assertEqual(shown[shown.index("prompt_queue") + 1], "steer_send")
+        self.assertEqual(shown[shown.index("prompt_queue") + 2], "steer_send", "after the chat, beside the queue")
 
     def test_its_statement_and_words_are_in_every_language(self):
         self.assertEqual(statement.CATALOGS.missing(STEER_SEND), [])
@@ -327,7 +327,7 @@ class SendTests(SteerCase):
         written = []
         with mock.patch.object(steer_engine.ipc, "steer_turn", lambda *a, gate=None, **k: (
                 written.append(1) if gate is None else None) or REAL_STEER(*a, gate=gate, channel=_Channel(), **k)):
-            ac.code_of(runtime, "steer_send").send(mock.MagicMock(thread_enabled=lambda thread: True), refused)
+            ac.code_of(runtime, "steer_send").steer_waiting(mock.MagicMock(thread_enabled=lambda thread: True), refused)
         (row,) = self.rows(runtime)
         self.assertEqual((row["state"], row["reason"]), (SteerState.REFUSED, SteerReason.HELD))
         self.assertEqual(written, [])

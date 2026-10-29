@@ -412,6 +412,9 @@ class BridgeCommand(StrEnum):
     # v0.6.20 (issue #50): the person's own conversations and their names, for the pickers' Find a conversation
     # (control/conversations.py) - read-only, the Dashboard's alone, never MCP.
     ADVANCED_CONVERSATIONS = "advanced-conversations"
+    # v0.6.20 (issue #50, steer_send): a line the person wrote, to be added to the turn running in one conversation -
+    # the Dashboard's editor asks, and the watcher alone sends it (control/steer.py, engine/steer.py).
+    ADVANCED_STEER = "advanced-steer"
     # v0.6.19 (the groundwork): every command the stage's designs name, in one block, each the Dashboard's alone and
     # reached by no MCP tool. Until the capability that answers one is built, the bridge passes it over as it passes a
     # command this edition does not have (surfaces.UNANSWERED). The analytics' aggregates and their CSV
@@ -436,9 +439,6 @@ class BridgeCommand(StrEnum):
     ADVANCED_PROMPTS_CLEAR_DONE = "advanced-prompts-clear-done"
     ADVANCED_ACCOUNT = "advanced-account"
     ADVANCED_ACCOUNT_SWITCH = "advanced-account-switch"
-    # v0.6.20 (issue #50, steer_send): a line the person wrote, to be added to the turn running in one conversation -
-    # the Dashboard's editor asks, and the watcher alone sends it (control/steer.py, engine/steer.py).
-    ADVANCED_STEER = "advanced-steer"
 
 
 class Measurement(StrEnum):

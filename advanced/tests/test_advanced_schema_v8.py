@@ -105,7 +105,8 @@ class V8Case(StateCase):
 
 class UpgradeTests(V8Case):
     def assert_upgraded(self, path, before):
-        self.assertEqual(header(path), (8, MARKED_7), "version 8, still marked readable from 7")
+        self.assertEqual(header(path), (schema_module.SCHEMA_VERSION, MARKED_7),
+                         "version 8 and every later step (v0.6.20: 9), still marked readable from 7")
         after = dump(path)
         for name, rows in before.items():
             with self.subTest(table=name):
@@ -146,28 +147,30 @@ class UpgradeTests(V8Case):
                                (self.now, ac.THREAD))
             connection.commit()
         self.opened()
-        self.assertEqual(header(path), (8, MARKED_7))
+        self.assertEqual(header(path), (schema_module.SCHEMA_VERSION, MARKED_7))
         self.assertEqual(len(dump(path)["spend"]), 1)
 
     def test_a_new_file_is_version_8_free_and_marked(self):
         state = self.state()
         state.move("test_wake", ArmingState.SHADOW, actor=Actor.DASHBOARD, revision=1)
         state.close()
-        self.assertEqual(header(state.path), (8, MARKED_7))
+        self.assertEqual(header(state.path), (schema_module.SCHEMA_VERSION, MARKED_7))
         with contextlib.closing(sqlite3.connect(state.path)) as connection:
             self.assertEqual(AdvancedState._tables(connection), schema_module.TABLES)
             self.assertFalse(schema_module.wordings_checked(connection))
         self.assertIn("turn_running", sql_of(state.path, "prompts"))
 
     def test_the_step_adds_ten_tables_and_one_column_and_remakes_only_prompts(self):
-        self.assertEqual(set(schema_module.TABLES) - set(schema_module.TABLES_V7), set(schema_module.V019_TABLES))
+        self.assertEqual(set(schema_module.TABLES_V8) - set(schema_module.TABLES_V7), set(schema_module.V019_TABLES))
         self.assertEqual(len(schema_module.V019_TABLES), 10)
         self.assertEqual(schema_module.TABLES["prompts"], schema_module.TABLES_V7["prompts"] + ("while_running",))
         self.assertEqual({name for name in schema_module.TABLES_V7 if name != "prompts"
                           and schema_module.TABLES[name] != schema_module.TABLES_V7[name]}, set())
         dropped = [s for s in schema_module.UPGRADE_TO_V019 if s.startswith("DROP TABLE")]
         self.assertEqual(dropped, ["DROP TABLE prompts"])
-        self.assertEqual((schema_module.SCHEMA_VERSION, schema_module.READABLE_FROM), (8, 7))
+        self.assertEqual((schema_module.V019_VERSION, schema_module.READABLE_FROM), (8, 7))
+        # v0.6.20 adds one table on top (version 9, steer_send) and keeps the mark.
+        self.assertEqual(schema_module.SCHEMA_VERSION, 9)
 
     def test_a_run_cut_short_leaves_the_version_7_file_whole(self):
         """The step and the freeing run in the opening's one transaction: cut short after `prompts` was dropped, the
@@ -338,7 +341,7 @@ class SimulatedReaderTests(V8Case):
             prompt = older.add_prompt(ac.THREAD, "from an older reader", PromptTrigger.AFTER_TURN)
             older.move("test_wake", ArmingState.OFF, actor=Actor.DASHBOARD)
             older.close()
-        self.assertEqual(header(made.path), (8, MARKED_7))
+        self.assertEqual(header(made.path), (schema_module.SCHEMA_VERSION, MARKED_7))
         with contextlib.closing(sqlite3.connect(made.path)) as connection:
             self.assertEqual(AdvancedState._tables(connection), schema_module.TABLES)
             self.assertEqual(connection.execute("SELECT count(*) FROM outbox").fetchone()[0], 1)
@@ -417,7 +420,7 @@ class OlderReleaseTests(V8Case):
             connection.execute("INSERT INTO wordings VALUES ('fleet_view', 'fleet_alias', 'desk', 1.0)")
             connection.execute("UPDATE prompts SET while_running='wait'")
             connection.commit()
-        self.assertEqual(header(path), (8, MARKED_7))
+        self.assertEqual(header(path), (schema_module.SCHEMA_VERSION, MARKED_7))
         return path
 
     def test_each_reader_of_the_mark_uses_a_version_8_file_and_refuses_nothing(self):
@@ -432,7 +435,7 @@ class OlderReleaseTests(V8Case):
                 self.assertEqual(found["arming"]["queue_for_open"], "armed")
                 self.assertEqual(found["wordings"], ["wrap_custom_weekly"])
                 self.assertEqual(found["prompts"], ["my words"])
-                self.assertEqual(header(path), (8, MARKED_7), "its version and mark left as they are")
+                self.assertEqual(header(path), (schema_module.SCHEMA_VERSION, MARKED_7), "its version and mark left as they are")
                 self.assertEqual(dump(path, without=("prompts", "options", "journal", "arming", "meta", "spend")),
                                  before, "version 8's tables and rows left as they are")
                 with contextlib.closing(sqlite3.connect(path)) as connection:

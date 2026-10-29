@@ -942,7 +942,8 @@ PROMPT_QUEUE = CapabilityDef(
 # History (state/steers.py). It departs from A4 (a send not shown as the person's message, with no marker, its arrival
 # unprovable in the conversation), A2 and B3 (an undocumented route, not codex queue), A1 (handed on by the watcher's
 # errand, not Engine.dispatch), A8 (its own checks, not core's gates), A17 (it joins the running turn), A20 (its own
-# caps), A26 (a person's words, no continuation), D2 (the words kept after the send) and H6 (nothing takes it back). It
+# caps, and so H2), A26 (a person's words, no continuation), D2 (the words kept after the send) and H6 (nothing takes it
+# back). It
 # needs the prompt queue, whose editor is where it is written, and stands on loaded_state_detection; its route rests on
 # MIPC and MSTEER2 - the failed MSTEER2 is the warning its statement shows and the person confirms. Ceilings: 30 a
 # conversation and 60 a day, the request's own caps (A20 departed).
@@ -950,7 +951,7 @@ STEER_SEND = CapabilityDef(
     id="steer_send",
     points=frozenset({Point.TICK}),
     revision=1,
-    departs_from=("A1", "A2", "A4", "A8", "A17", "A20", "A26", "B3", "D2", "H6"),
+    departs_from=("A1", "A2", "A4", "A8", "A17", "A20", "A26", "B3", "D2", "H2", "H6"),
     compat="loaded_state_detection",
     ceilings=Ceilings(per_day=60, per_conversation=30),
     journal_prefix="steer",
@@ -1254,11 +1255,11 @@ DEFINITIONS = (START_WITH_CODEX, CRASH_RESTART, GOAL_CONTINUATION, QUEUE_FOR_OPE
                UNKNOWN_FAILURE_BUDGET, CODEX_GAVE_UP, SIGN_IN_RETRY, RESET_CREDIT, RESET_MESSAGE, EARLY_RESET,
                ONCE_MORE, SEND_NOW, PARALLEL_DISPATCH, PROMPT_QUEUE, EMPTY_RESPONSE, SUBAGENT_PARENT, KEEP_GOING,
                USAGE_METER, USAGE_WRAP_UP, USAGE_PAUSE, EVERY_CONVERSATION, SILENT_CONTINUATION, CODEX_CHAT, IDLE_UPDATE_CHECK,
+               # v0.6.20 (#50): the steer, at P8 before the wake timer, which reads the due times last.
+               STEER_SEND,
                WAKE_FOR_RESET,
                OPEN_CODEX_BUTTON, LONG_RESET_MESSAGE,
-               COMPAT_REPORT,
-               # v0.6.20 (#50): last, so it answers after every capability that was there before it.
-               STEER_SEND)
+               COMPAT_REPORT)
 # Codex's own retry settings (stage 4's item 6): Attempts (6, 8, 10 or 12; 8 by default) for both of its built-in
 # provider's retry keys, written at P8 and put back (engine/retries.py). MB failed on codex-cli 0.162.0-alpha.17.2 -
 # Codex refuses any write under model_providers.openai - so it waits in WAITING: hidden, its statement unwritten.
@@ -1351,10 +1352,10 @@ SHOWN_ORDER = ("compat_report", "start_with_codex",
                # v0.6.16-beta.3 (issue #29): the usage meter and what it serves, beside the other usage-limit features.
                "usage_meter", "usage_wrap_up", "usage_pause", "keep_going",
                "prompt_queue",
-               # v0.6.20 (#50): steering the running turn, written in the prompt queue's editor, beside it.
-               "steer_send",
                # v0.6.19: chat with a conversation, beside the queued messages (stage 4's Q12).
-               "codex_chat", "empty_response", "once_more_when_unsure", "send_now",
+               "codex_chat",
+               # v0.6.20 (#50): steering the running turn, written in the prompt queue's editor, after the chat.
+               "steer_send", "empty_response", "once_more_when_unsure", "send_now",
                # v0.6.18: Open Codex on a notice, beside Send now - both what a person does about one conversation.
                "open_codex_button", "capacity_retry",
                # v0.6.16-beta.4: what a failure of Codex's own is taken up with, beside the capacity retry (Q12).

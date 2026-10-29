@@ -107,7 +107,7 @@ class CarryOverTests(WindowSwitchCase):
         second.close()
         with contextlib.closing(sqlite3.connect(second.path)) as connection:
             self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], schema_module.SCHEMA_VERSION)
-        self.assertEqual(schema_module.SCHEMA_VERSION, 8)                # v0.6.19's, not this carry-over's
+        self.assertEqual(schema_module.SCHEMA_VERSION, 9)                # v0.6.20's, not this carry-over's
 
     def rows(self, state):
         with state._read() as connection:

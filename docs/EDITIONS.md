@@ -998,8 +998,9 @@ undocumented route: the Codex app's own IPC pipe, not `codex queue`),
 dispatch), [A8](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (its own checks in place of the 13 gates),
 [A17](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (it joins a running turn),
 [A20](STANDARDS.md#a-what-it-may-send-to-codex-and-when), [A26](STANDARDS.md#a-what-it-may-send-to-codex-and-when),
-[D2](STANDARDS.md#d-privacy-and-the-data-it-keeps) (the words kept after the send, for History) and
-[H6](STANDARDS.md#h-user-control) (nothing takes a written line back). It keeps A3, A6 and B13.
+[D2](STANDARDS.md#d-privacy-and-the-data-it-keeps) (the words kept after the send, for History),
+[H2](STANDARDS.md#h-user-control) (its own limits, not the engine's) and [H6](STANDARDS.md#h-user-control) (nothing
+takes a written line back). It keeps A3, A6 and B13.
 
 **Ceilings.** 30 in one conversation and 60 a day. **Measurement MSTEER2: failed** on `codex-cli
 0.165.0-alpha.1.2` - the line reached the running turn once and the model obeyed it, but the app never showed it -

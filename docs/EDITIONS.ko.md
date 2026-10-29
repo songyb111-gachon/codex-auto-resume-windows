@@ -850,6 +850,7 @@ Codex 앱 자체의 연결(앱 창들이 쓰는 파이프)로 보냅니다. 메�
 [A17](STANDARDS.ko.md#a-codex에-무엇을-언제-보내는가)(실행 중인 턴에 끼어듦),
 [A20](STANDARDS.ko.md#a-codex에-무엇을-언제-보내는가), [A26](STANDARDS.ko.md#a-codex에-무엇을-언제-보내는가),
 [D2](STANDARDS.ko.md#d-개인정보와-보관하는-데이터)(기록을 위해 보낸 뒤에도 말을 보관함),
+[H2](STANDARDS.ko.md#h-사용자의-제어)(엔진의 상한이 아닌 자체 상한),
 [H6](STANDARDS.ko.md#h-사용자의-제어)(쓴 줄은 되돌릴 수 없음). A3, A6, B13은 지킵니다.
 
 **상한.** 대화 하나에 30번, 하루 60번. **측정 MSTEER2: 실패** (`codex-cli 0.165.0-alpha.1.2`) - 그 줄은 실행 중인 턴에

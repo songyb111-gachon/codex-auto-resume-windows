@@ -102,7 +102,7 @@ class _Errand:
         self.code, self.view = code, view
 
     def run(self, guard):
-        self.code.send(self.view, guard)
+        self.code.steer_waiting(self.view, guard)
         return None
 
 
@@ -142,7 +142,7 @@ class SteerSend:
         return _Errand(self, view)
 
     # ------------------------------------------------------------------ the errand
-    def send(self, view, guard) -> None:
+    def steer_waiting(self, view, guard) -> None:
         """Each steer still requested, checked and - where every check passes - claimed and written once."""
         handle = self._scoped.steers
         try:
