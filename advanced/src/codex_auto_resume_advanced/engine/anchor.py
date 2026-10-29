@@ -244,10 +244,10 @@ def ready_folder(folder) -> bool:
         return False
 
 
-def start_request(backend, folder, popen=subprocess.Popen):
+def start_request(backend, folder):
     """The request started: the codex.exe and the Codex home of `backend` (Backend's environment), in `folder`,
     windowless, no shell, no input. The process."""
-    return popen(argv_for(backend), cwd=str(folder), stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+    return subprocess.Popen(argv_for(backend), cwd=str(folder), stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                  stderr=subprocess.DEVNULL, env=backend._environment(), creationflags=NO_WINDOW, shell=False)
 
 
@@ -280,19 +280,18 @@ class _Errand:
 class WindowAnchor:
     """window_anchor's code: its P8 tick and errand. Its seams are the tests': `session` opens a usage session (None:
     the advanced Session against the Codex the watcher told), `told` answers (codex.exe, Codex home) as the watcher told
-    them (None: codex/inuse.told), `backend` makes core's Backend for that pair (None: codex/inuse.backend), `popen`
-    starts the request, `begin` starts the waiting thread (`begin(target)`), `log` writes the watcher's log line and
+    them (None: codex/inuse.told), `backend` makes core's Backend for that pair (None: codex/inuse.backend), `begin`
+    starts the waiting thread (`begin(target)`), `log` writes the watcher's log line and
     `local` is the local clock (time.localtime)."""
-    __slots__ = ("paths", "_scoped", "_session", "_told", "_make_backend", "_popen", "_begin", "_log", "_local",
+    __slots__ = ("paths", "_scoped", "_session", "_told", "_make_backend", "_begin", "_log", "_local",
                  "_lock", "_pending", "_running", "_ended", "_looked", "_learned")
 
-    def __init__(self, paths, *, session=None, told=None, backend=None, popen=None, begin=None, log=None, local=None):
+    def __init__(self, paths, *, session=None, told=None, backend=None, begin=None, log=None, local=None):
         self.paths = paths
         self._scoped = None
         self._session = session
         self._told = told or (lambda: inuse.told(paths))
         self._make_backend = backend or (lambda: inuse.backend(paths))
-        self._popen = popen or subprocess.Popen
         self._begin = begin or (lambda target: threading.Thread(target=target, daemon=True).start())
         self._log = log or _log_line
         self._local = local or time.localtime
@@ -434,7 +433,7 @@ class WindowAnchor:
         with guard() as permitted:
             if permitted is True and self._scoped.stamp(OptionKey.ANCHOR_STARTED_AT, max(1, int(now))) is True:
                 try:
-                    process = start_request(backend, folder, self._popen)
+                    process = start_request(backend, folder)
                 except Exception:
                     process = None
                     self._scoped.unstamp(OptionKey.ANCHOR_STARTED_AT)

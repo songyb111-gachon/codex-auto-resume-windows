@@ -220,6 +220,10 @@ class AnchorCase(ac.AdvancedCase):
         self.told = (Path("C:/fake/codex.exe"), self.home / "codex")
         self.rt = self.runtime(WINDOW_ANCHOR)
         self.rt.arming.catalogs = statement.CATALOGS
+        # The one start of the request is subprocess.Popen's (test_no_console_windows follows every start): a stub here.
+        patched = patch.object(subprocess, "Popen", self.world.popen)
+        patched.start()
+        self.addCleanup(patched.stop)
         self.wire()
 
     def wire(self):
@@ -227,7 +231,6 @@ class AnchorCase(ac.AdvancedCase):
         code._session = self.world.session
         code._told = lambda: self.told
         code._make_backend = lambda: Backend(self.home / "codex", Path("C:/fake/codex.exe"))
-        code._popen = self.world.popen
         code._begin = lambda target: target()
         code._log = self.lines.append
         self.code = code
@@ -565,7 +568,7 @@ class OnlyTheWatcherStartsItTests(unittest.TestCase):
                        if path.name != "anchor.py" and "start_request" in path.read_text(encoding="utf-8"))
         self.assertEqual(users, ["measure.py"])
         source = Path(anchor.__file__).read_text(encoding="utf-8")
-        self.assertEqual(source.count("start_request(backend, folder, self._popen)"), 1)
+        self.assertEqual(source.count("= start_request(backend, folder)"), 1)
 
 
 if __name__ == "__main__":
