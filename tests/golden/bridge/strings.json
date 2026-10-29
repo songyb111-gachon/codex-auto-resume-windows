@@ -1281,7 +1281,9 @@
           "pl": "Polski",
           "uk": "Українська",
           "vi": "Tiếng Việt",
-          "id": "Bahasa Indonesia"
+          "id": "Bahasa Indonesia",
+          "ar": "العربية",
+          "he": "עברית"
         }
       }
     }
