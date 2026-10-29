@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from takingcase import TakingCase  # noqa: E402
 from codex_auto_resume import machine  # noqa: E402
-from codex_auto_resume_advanced import registry, statement  # noqa: E402
+from codex_auto_resume_advanced import measured, registry, statement  # noqa: E402
 from codex_auto_resume_advanced.engine import opentarget  # noqa: E402
 from codex_auto_resume_advanced.registry import OPEN_TO_SEND, Registry, offered, problems  # noqa: E402
 from codex_auto_resume_advanced.vocabulary import Actor, Measurement, OpenOutcome, OptionKey, Verdict  # noqa: E402
@@ -29,9 +29,14 @@ from test_engine import T1  # noqa: E402
 
 
 class HiddenTests(unittest.TestCase):
-    def test_it_waits_hidden_on_mopen_and_is_offered_whole_on_a_pass(self):
-        """Fails with the gate reverted: a capability whose route is not measured would be offered."""
-        self.assertIsNone(registry.REGISTRY.get("open_to_send"))
+    def test_it_is_offered_whole_now_that_mopen_passed_and_stays_gated_on_it(self):
+        """MOPEN passed on codex-cli 0.165.0-alpha.1.2 (2026-10-29), so the registry this edition runs offers it. Fails
+        with the gate reverted (a capability whose route is not measured would be offered) and with it forgotten
+        (a pass would not offer it)."""
+        self.assertIs(registry.REGISTRY.get("open_to_send"), OPEN_TO_SEND)
+        self.assertEqual(measured.MEASURED[Measurement.MOPEN][0], Verdict.PASS)
+        self.assertEqual(offered(measured.MEASURED), (OPEN_TO_SEND,))
+        self.assertEqual(registry.REGISTRY.ids[-1], "open_to_send", "offered after DEFINITIONS")
         self.assertNotIn(OPEN_TO_SEND, registry.DEFINITIONS)
         self.assertIn((OPEN_TO_SEND, Measurement.MOPEN), registry.WAITING)
         self.assertEqual(offered({}), ())

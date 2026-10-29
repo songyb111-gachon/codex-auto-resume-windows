@@ -21,7 +21,7 @@ import advancedcase as ac  # noqa: E402
 import languages  # noqa: E402
 from codex_auto_resume import l10n  # noqa: E402
 from codex_auto_resume.domain.plug import Point  # noqa: E402
-from codex_auto_resume_advanced import registry, standards, statement  # noqa: E402
+from codex_auto_resume_advanced import measured, registry, standards, statement  # noqa: E402
 from codex_auto_resume_advanced.registry import (CAPABILITY_POINTS, Ceilings, Registry,  # noqa: E402
                                                  RegistryError, problems)
 from codex_auto_resume_advanced.vocabulary import ArmingWarning, CapabilityKind, Field, Measurement, OptionKey, Verdict  # noqa: E402
@@ -66,8 +66,9 @@ def standards_text(rule) -> str:
     raise AssertionError(f"{rule} is not in the standards file")
 
 
-# v0.6.19: the capabilities waiting in registry.WAITING whose statement is written already, so that a measurement's pass
-# offers them whole (open_to_send, MOPEN) - their names and statements are in every catalog while they wait.
+# v0.6.19: the capabilities of registry.WAITING whose statement was written before their measurement passed
+# (open_to_send, MOPEN): their names and statements are in every catalog, waiting or offered. MOPEN passed on
+# codex-cli 0.165.0-alpha.1.2 (2026-10-29), so open_to_send is offered - and already in registry.DEFINITIONS + this.
 STATED_WAITING = (registry.OPEN_TO_SEND,)
 
 class ShippedTests(unittest.TestCase):
@@ -96,10 +97,17 @@ class ShippedTests(unittest.TestCase):
                "open_codex_button",
                "long_reset_message", "compat_report")
 
+    # v0.6.20: open_to_send passed its measurement (MOPEN, codex-cli 0.165.0-alpha.1.2, 2026-10-29) and is offered whole,
+    # after the 35 of DEFINITIONS (registry.offered): 36 in the registry this edition runs.
+    OFFERED = ("open_to_send",)
+
     def test_the_registry_this_edition_ships_is_its_capabilities_in_their_order(self):
         self.assertEqual([d.id for d in registry.DEFINITIONS], list(self.SHIPPED))
-        self.assertEqual(len(registry.REGISTRY), len(self.SHIPPED))
-        self.assertEqual(registry.REGISTRY.ids, self.SHIPPED)
+        self.assertEqual(len(registry.DEFINITIONS), 35)
+        self.assertEqual(len(registry.REGISTRY), len(self.SHIPPED) + len(self.OFFERED))
+        self.assertEqual(len(registry.REGISTRY), 36)
+        self.assertEqual(registry.REGISTRY.ids, self.SHIPPED + self.OFFERED)
+        self.assertEqual([definition.id for definition in registry.offered(measured.MEASURED)], list(self.OFFERED))
         # The compatibility report is an action, last: it answers at no point, so it is in no list below.
         self.assertEqual([d.id for d in registry.DEFINITIONS if d.kind == CapabilityKind.ACTION],
                          ["open_codex_button", "long_reset_message", "compat_report"])
@@ -115,7 +123,9 @@ class ShippedTests(unittest.TestCase):
                      Point.SCHEDULE: ("reset_credit", "early_reset", "once_more_when_unsure", "send_now"),
                      Point.TICK: ("compact_continue", "model_fallback", "headless_run", "reset_credit", "reset_message", "empty_response", "subagent_parent",
                                   "keep_going", "usage_meter", "usage_wrap_up", "usage_pause", "idle_update_check",
-                                  "wake_for_reset"),
+                                  "wake_for_reset",
+                                  # v0.6.20: offered after the 35, so it answers last (registry.offered).
+                                  "open_to_send"),
                      Point.RECORDS: ("reset_message", "prompt_queue", "empty_response", "subagent_parent",
                                      "keep_going", "usage_wrap_up", "codex_chat"),
                      # v0.6.15-beta: the lines a parent's continuation is given of its subagents' stops (5a).
@@ -168,7 +178,7 @@ class ShippedTests(unittest.TestCase):
         self.assertEqual(tuple(d.id for d in registry.shown(registry.REGISTRY)),
                          tuple(capability for capability in self.SHOWN if capability in registry.REGISTRY.ids))
         # Presentation only: the registry itself, which decides who answers first, keeps its own order.
-        self.assertEqual(registry.REGISTRY.ids, self.SHIPPED)
+        self.assertEqual(registry.REGISTRY.ids, self.SHIPPED + self.OFFERED)
         # A registry of some of them (one a test makes) shows those in the owner's order too.
         made = [registry.REGISTRY.get(capability) for capability in ("structured_rules", "compat_report")]
         self.assertEqual([d.id for d in registry.shown(made)], ["compat_report", "structured_rules"])
