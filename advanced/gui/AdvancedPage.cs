@@ -1081,7 +1081,11 @@ namespace CodexAutoResume
                 // v0.6.16-beta.3: what it needs on (registry.CapabilityDef.requires), which turning it on turns on too.
                 string needs = NamesOf(Items(item, "requires"));
                 if (needs.Length > 0) about.Controls.Add(HelpText(Word("page.requires", "Needs: {names}", "names", needs)));
+                // v0.6.20 (the owner, 2026-10-29): its before and after, drawn by this window from sample data
+                // (AdvancedExamples.cs) - the last thing in the card, in one place for every capability.
+                BuildExampleButton(about, id);
             }
+            else exampleButton = null;
 
             // The report's card - what a person starts it doing - under its statement (AdvancedReport.cs).
             if (IsReport(item)) BuildReportCard(item);

@@ -922,10 +922,12 @@ class ShippedCatalogTests(unittest.TestCase):
 
     def test_the_page_s_words_are_every_page_key_every_name_and_the_three_states(self):
         """What advanced-words hands the Dashboard's Advanced features page: its own words, a name for every
-        capability the edition ships and the three states' words - in the person's language, each language's own."""
+        capability the edition ships and the three states' words - in the person's language, each language's own - and
+        (v0.6.20) the edition's own continuations, which See an example shows as what is sent."""
         english = statement.CATALOGS.words("en")
         wanted = (set(statement.PAGE_KEYS) | {"state.off", "state.shadow", "state.armed"}
-                  | {statement.name_key(definition.id) for definition in registry.DEFINITIONS + STATED_WAITING})
+                  | {statement.name_key(definition.id) for definition in registry.DEFINITIONS + STATED_WAITING}
+                  | set(statement.CONTINUATION_KEYS))
         self.assertEqual(set(english), wanted)
         for locale in l10n.LOCALES:
             with self.subTest(locale):

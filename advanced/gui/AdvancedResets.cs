@@ -227,6 +227,8 @@ namespace CodexAutoResume
         private string ConversationOf(string thread)
         {
             string label;
+            // v0.6.20: a sample's conversation, while See an example's view is built (AdvancedExamples.cs).
+            if (thread != null && exampleNames != null && exampleNames.TryGetValue(thread, out label)) return label;
             if (thread != null && Conversations().TryGetValue(thread, out label)) return label;
             return thread != null && thread.Length >= 8 ? thread.Substring(0, 8) : (thread ?? "");
         }
