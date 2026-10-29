@@ -142,8 +142,9 @@ that will need one; nothing calls it, and it never reads Codex's own credentials
 
 ## Today's capabilities
 
-Thirty-five: twenty-two that change how a recovery is made, which conversations are recovered or what
-follows a turn, three that send at a time you pick - the two at a usage reset, and queued messages - three
+Thirty-six: twenty-two that change how a recovery is made, which conversations are recovered or what
+follows a turn, three that send at a time you pick - the two at a usage reset, and queued messages - one that
+adds a line to the turn running now (v0.6.20; the Codex app does not show that line, only History does) - three
 before a usage limit is reached - the usage meter, and the wrap-up and the forced stop that need it - one that
 checks for updates once a week, two that look after the watcher and the PC - restart the watcher if it stops unexpectedly,
 and wake this PC for a reset (v0.6.19) - and four actions: Longer messages, which only lets a message be longer, Open Codex on a notice, which only makes a click on a notice
@@ -956,6 +957,54 @@ A20.
 **Ceilings.** 30 a day, and core's 5 in any one conversation. **Measurement MT: not made yet** - "after this
 turn" says it is unproven until it is. Its statement is at revision 2 since the send mode (v0.6.19): if it was on,
 you read the new statement once and turn it on again.
+
+### Steer the running turn
+
+> **Warning: the Codex app does not show a steered line.** Not while the turn runs, and not after you open the
+> conversation again (measured on `codex-cli 0.165.0-alpha.1.2`). Only this product's **History** shows what was
+> sent - the words, when, to which conversation, and what came of it.
+
+**What it does.** Adds a line you write to the turn that is running now in a conversation the Codex app has open -
+at once, not after the turn ends - through the Codex app's own connection, the pipe its windows use. You write it in
+the prompt queue's editor (**Schedule...**), choosing **Now, into the turn that is running (steer)** as **When**; the
+hour, the count and the wait for the one before are not asked, the warning above stands in the editor in red, and
+the button reads **Steer now**. Only the watcher sends it, once: only while Codex's history says that conversation's
+latest turn is running and the app has the conversation open (who holds its lock file, then the same loaded check
+every recovery passes), inside the same guard a send passes - a Pause, Observe only, an administrator's
+DisableAutoResume and quiet hours hold it - and claimed before it is written, so it is never written twice. Asked
+while no turn runs there, it is refused at once and nothing waits; a steer not sent within two minutes is refused.
+It needs **Queue messages for later**, whose editor it is written in: turning it on turns that on too.
+
+**What History says.** Each steer is a row of History - its conversation, **accepted**, **may have been delivered**
+or **refused**, Steer, when it was asked and when it settled. Chosen, the note under the list says the words that
+were sent and what the outcome means: accepted - the Codex app took it into the running turn; may have been
+delivered - it was written and no answer came, and it was not sent again; refused - why (no turn running, the app
+did not have the conversation open, the app's connection was not there, the app refused it, recovery paused or
+quiet hours, not sent within two minutes, the conversation or this feature switched off) and that nothing was sent.
+Whether it was seen in the conversation is never said: the app does not show it, so that cannot be observed. The
+words are kept in the advanced edition's state for History for 30 days; Clear history leaves them.
+
+**When it helps.** When a long turn is going the wrong way and you want to correct it without stopping it.
+
+**What it risks.** You cannot check in Codex what was sent; whether the model used the line cannot be observed
+here. The pipe is not documented by Codex: an update of the app may refuse it or change what it does. A turn that
+ends between the check and the write may not take the line. Once written, nothing takes it back.
+
+**Departs from** [A4](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (the line is not shown as your message and
+carries no marker, so nothing in the conversation shows or proves it arrived),
+[A2](STANDARDS.md#a-what-it-may-send-to-codex-and-when) and [B3](STANDARDS.md#b-what-it-reads-and-how) (an
+undocumented route: the Codex app's own IPC pipe, not `codex queue`),
+[A1](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (the watcher's own step hands it on, not the one
+dispatch), [A8](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (its own checks in place of the 13 gates),
+[A17](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (it joins a running turn),
+[A20](STANDARDS.md#a-what-it-may-send-to-codex-and-when), [A26](STANDARDS.md#a-what-it-may-send-to-codex-and-when),
+[D2](STANDARDS.md#d-privacy-and-the-data-it-keeps) (the words kept after the send, for History) and
+[H6](STANDARDS.md#h-user-control) (nothing takes a written line back). It keeps A3, A6 and B13.
+
+**Ceilings.** 30 in one conversation and 60 a day. **Measurement MSTEER2: failed** on `codex-cli
+0.165.0-alpha.1.2` - the line reached the running turn once and the model obeyed it, but the app never showed it -
+which its statement shows as a warning you confirm when you turn it on; MIPC (the pipe the forced stop uses) passed
+on `codex-cli 0.163.0-alpha.10.2`. MSTEER, the same steer from this product's own connection to Codex, was refused.
 
 ### Chat with a conversation in the Dashboard
 

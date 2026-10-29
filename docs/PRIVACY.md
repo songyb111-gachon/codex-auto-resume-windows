@@ -867,7 +867,7 @@ installed, to reach GitHub, and only when you start it (*What it sends to GitHub
   counts, a time rounded to the minute and a duration - never a word of the error or the
   conversation, and kept 90 days at most. A message you wrote for a reset (from v0.6.14) or queue (from
   v0.6.16-beta) is kept there until it is sent - a series until its last occurrence - cancelled or ended,
-  and then deleted; the edition's own continuations, in its fixed words, until they are sent; and which
+  and then deleted; from v0.6.20, a line you steer into a running turn, with its conversation and what came of it, kept 30 days so History can show you exactly what was sent (the Codex app does not show it); the edition's own continuations, in its fixed words, until they are sent; and which
   conversations you keep going, with their counts. No reply, error text, title, path or secret. `Uninstall.cmd -Purge` removes it
   with the rest of `config\`. A diagnostics export you ask for adds, for each capability watched or
   with answers in the last 30 days, the capability's own id, the minute it has been watched since,
