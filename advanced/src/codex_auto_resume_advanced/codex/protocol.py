@@ -114,6 +114,8 @@ MEASUREMENT_METHODS = {
     Measurement.MWAKE: (),
     Measurement.MHK: (),
     Measurement.M4B: ("hooks/list",),
+    # v0.6.20: MANCHOR reads usage before and after one `codex exec` (window_anchor) - the exec is a process, not a call.
+    Measurement.MANCHOR: ("account/rateLimits/read",),
 }
 
 # The methods a capability's own route may call, beyond `initialize` - each one a measurement
@@ -146,6 +148,9 @@ CAPABILITY_METHODS = {
     "codex_chat": ("thread/queue/add",),
     # The usage meter (engine/usage.py, v0.6.16-beta.3) reads usage on its schedule, and nothing else.
     "usage_meter": ("account/rateLimits/read",),
+    # v0.6.20: starting an idle 5-hour window early (engine/anchor.py) reads usage, as MU and MANCHOR did, and whether an
+    # account is signed in, MA's read - never anything more; the start itself is a `codex exec`, not a call.
+    "window_anchor": ("account/rateLimits/read", "account/read"),
 }
 
 # Every method some measurement declared: what a capability's own route may be given, and nothing

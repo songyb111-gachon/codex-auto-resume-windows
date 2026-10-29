@@ -155,7 +155,7 @@ class TableTests(unittest.TestCase):
                                   Measurement.MN, Measurement.MU, Measurement.MIPC, Measurement.MC1,
                                   Measurement.MXA, Measurement.MX, Measurement.MF, Measurement.MO,
                                   Measurement.M3B, Measurement.M6B, Measurement.MQO, Measurement.MQP,
-                                  Measurement.MQG})
+                                  Measurement.MQG, Measurement.MANCHOR})
         self.assertEqual(failed, {Measurement.M2, Measurement.M3, Measurement.M4, Measurement.MAWS,
                                   Measurement.MCLOUD, Measurement.MB, Measurement.MC2})
         new = "codex-cli 0.163.0-alpha.10.2"
@@ -169,6 +169,9 @@ class TableTests(unittest.TestCase):
         self.assertEqual({m for m, (_v, version) in measured.MEASURED.items()
                           if version == "codex-cli 0.164.0-alpha.11.1"}, v0164)
         self.assertTrue(all(measured.MEASURED[m][0] == Verdict.PASS for m in v0164))
+        # v0.6.20: MANCHOR, on the Codex app's bundled engine of 2026-10-29.
+        self.assertEqual({m for m, (_v, version) in measured.MEASURED.items()
+                          if version == "codex-cli 0.165.0-alpha.1.2"}, {Measurement.MANCHOR})
         self.assertEqual(set(Measurement) - passed - failed,
                          # v0.6.15-beta's own, for several conversations at once: not made yet.
                          {Measurement.MQ, Measurement.ME, Measurement.MS, Measurement.MK, Measurement.MT,

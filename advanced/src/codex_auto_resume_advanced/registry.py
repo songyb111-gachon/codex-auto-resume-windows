@@ -72,6 +72,8 @@ from codex_auto_resume.domain.plug import Point
 from .control.codexstart import make as make_start_with_codex
 from .control.opencodex import make as make_open_codex_button
 from .control.sendnow import make as make_send_now
+from .engine.anchor import (CODES as ANCHOR_CODES, TIME_CHOICES as ANCHOR_TIMES, TIME_OFF as ANCHOR_OFF,
+                             TIME_RANGE as ANCHOR_RANGE, make as make_window_anchor)
 from .engine.admitted import (ATTEMPTS, DEFAULT_ATTEMPTS, make_codex_gave_up, make_sign_in_retry,
                               make_structured_rules, make_unknown_failure_budget)
 from .engine.capacity import CEILING_HOURS, DEFAULT_HOURS, make as make_capacity_retry
@@ -1150,6 +1152,37 @@ WAKE_FOR_RESET = CapabilityDef(
     options=(Option(OptionKey.WAKE_LEAD_MINUTES, WAKE_LEADS, WAKE_DEFAULT_LEAD),),
 )
 
+# Start the 5-hour window early (v0.6.20, the owner's request of 2026-10-28; plans/v0620-anchor-design.md). At P8,
+# when Codex's 5-hour window is idle - 0 % in two reads STEADY_GAP apart, its reset ~5 h ahead and moving with the
+# clock, as MANCHOR found an idle window reports - its errand starts one near-free request, the measured
+# `codex exec --ephemeral -s read-only` "Reply with OK" from an empty folder of its own, so the window starts now and
+# its reset is fixed five hours on: at the times of day a person picks (up to three, off by default), right after a
+# reset it has seen (a switch, on by default), or both. One start a window at most, inside core's errand guard; never
+# while a window runs, the weekly window is full, recovery is paused or only observed, no account is signed in, or for
+# any Codex but the one the watcher told its plug. Every start and every skip is a journal word; the reset it fixed is
+# on the Advanced page and in the watcher's log. It departs from A1 and A2 (a request beside core's one send, through
+# `codex exec`), A13 and A26 (nothing failed, and its words are no continuation's), A25 (it opens a usage window),
+# B3 (`codex exec` changes Codex's usage), B4 (it asks account/read), C4 (it acts on a schedule), C9 (it reads usage
+# when no recovery is due) and F6 (`codex exec` is not a process the product starts). It stands on usage_probe and
+# rests on MANCHOR. Ceilings: five starts a day (a day holds fewer than five windows), one a conversation (it sends to
+# none). Before wake_for_reset, which stays last at P8.
+WINDOW_ANCHOR = CapabilityDef(
+    id="window_anchor",
+    points=frozenset({Point.TICK}),
+    revision=1,
+    departs_from=("A1", "A2", "A13", "A25", "A26", "B3", "B4", "C4", "C9", "F6"),
+    compat="usage_probe",
+    ceilings=Ceilings(per_day=5, per_conversation=1),
+    journal_prefix="anchor",
+    make=make_window_anchor,
+    codes=ANCHOR_CODES,
+    measurements=(Measurement.MANCHOR,),
+    options=(Option(OptionKey.ANCHOR_AT_1, ANCHOR_TIMES, ANCHOR_OFF, custom=ANCHOR_RANGE),
+             Option(OptionKey.ANCHOR_AT_2, ANCHOR_TIMES, ANCHOR_OFF, custom=ANCHOR_RANGE),
+             Option(OptionKey.ANCHOR_AT_3, ANCHOR_TIMES, ANCHOR_OFF, custom=ANCHOR_RANGE),
+             Option(OptionKey.ANCHOR_AFTER_RESET, SWITCH, ON)),
+)
+
 # Longer reset messages (v0.6.14, the owner's answer of 2026-10-08): a message sent at a reset may be up to what one
 # continuation carries (continuation.PROMPT_LIMIT, 8,154 characters) instead of A27's 2,000 - a separate opt-in, off
 # until a person turns it on after its statement, which names A27. An action: it answers at no point and sends
@@ -1223,7 +1256,7 @@ DEFINITIONS = (START_WITH_CODEX, CRASH_RESTART, GOAL_CONTINUATION, QUEUE_FOR_OPE
                UNKNOWN_FAILURE_BUDGET, CODEX_GAVE_UP, SIGN_IN_RETRY, RESET_CREDIT, RESET_MESSAGE, EARLY_RESET,
                ONCE_MORE, SEND_NOW, PARALLEL_DISPATCH, PROMPT_QUEUE, EMPTY_RESPONSE, SUBAGENT_PARENT, KEEP_GOING,
                USAGE_METER, USAGE_WRAP_UP, USAGE_PAUSE, EVERY_CONVERSATION, SILENT_CONTINUATION, CODEX_CHAT, IDLE_UPDATE_CHECK,
-               WAKE_FOR_RESET,
+               WINDOW_ANCHOR, WAKE_FOR_RESET,
                OPEN_CODEX_BUTTON, LONG_RESET_MESSAGE,
                COMPAT_REPORT)
 # Codex's own retry settings (stage 4's item 6): Attempts (6, 8, 10 or 12; 8 by default) for both of its built-in
@@ -1316,7 +1349,9 @@ SHOWN_ORDER = ("compat_report", "start_with_codex",
                "silent_continuation", "reset_credit",
                "early_reset", "parallel_dispatch", "reset_message", "long_reset_message",
                # v0.6.16-beta.3 (issue #29): the usage meter and what it serves, beside the other usage-limit features.
-               "usage_meter", "usage_wrap_up", "usage_pause", "keep_going",
+               "usage_meter", "usage_wrap_up", "usage_pause",
+               # v0.6.20: starting the 5-hour window early, beside what reads and keeps the usage windows.
+               "window_anchor", "keep_going",
                "prompt_queue",
                # v0.6.19: chat with a conversation, beside the queued messages (stage 4's Q12).
                "codex_chat", "empty_response", "once_more_when_unsure", "send_now",

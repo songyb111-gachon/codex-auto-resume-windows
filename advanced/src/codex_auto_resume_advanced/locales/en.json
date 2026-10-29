@@ -714,5 +714,17 @@
   "page.pending.kind.message": "Scheduled message",
   "page.pending.kind.rule": "Reset rule",
   "page.pending.rule.held": "held",
-  "page.confirm.clear_both": "Hide {recoveries} finished recoveries from the history and delete {n} delivered messages? Messages that changed since, and waiting, held, cancelled and failed ones, are kept, and nothing in Codex changes."
+  "page.confirm.clear_both": "Hide {recoveries} finished recoveries from the history and delete {n} delivered messages? Messages that changed since, and waiting, held, cancelled and failed ones, are kept, and nothing in Codex changes.",
+  "name.window_anchor": "Start the 5-hour window early",
+  "statement.window_anchor.does": "When Codex's 5-hour window is idle - nothing used, and its reset not counting down - sends Codex one tiny request so that the window starts now and its reset is fixed five hours later: at the times of day you pick (up to three; none by default), right after a reset it has seen (on by default), or both. The request is codex exec with the words \"Reply with OK\", read-only, leaving no conversation, from an empty folder of its own and with no window. At most one start a window, and never while a window runs, the weekly limit is reached, recovery is paused, Codex is not signed in, or for any Codex but the one the watcher drives. Each start and each skip is written to its journal, and the reset it fixed is shown here. Until this has been measured on the Codex you have (MANCHOR), it says it is unmeasured.",
+  "statement.window_anchor.instead": "The standard edition sends nothing on its own and never opens a usage window: the 5-hour window starts when you first use Codex.",
+  "statement.window_anchor.departs": "A1 and A2 (only the one send, through codex queue: this request goes through codex exec), A13 and A26 (only a failure is recovered, in shipped words: nothing failed here), A25 (no usage window is opened: opening one is what it does), B3 (Codex's state changes only through the listed interfaces), B4 (the app server is asked only the listed methods: it also asks whether an account is signed in), C4 (nothing happens on its own, on a schedule), C9 (usage is read only when a recovery is due) and F6 (codex exec is not one of the processes the product starts).",
+  "statement.window_anchor.risks": "Each start uses a little of your usage: about 24,000 input tokens, half of them cached, and a few output tokens - under 1% of the 5-hour window when it was measured - and the weekly window counts it too. A window started early also ends early, so if you begin work late in it, less of it is left. Codex may change how an idle window reports itself; then nothing is started, and the journal says why.",
+  "statement.window_anchor.stop": "Turn it off here or turn every advanced feature off; nothing more is started. A window already started runs until its reset.",
+  "page.option.anchor_at_1": "Start at (1)",
+  "page.option.anchor_at_2": "Start at (2)",
+  "page.option.anchor_at_3": "Start at (3)",
+  "page.option.anchor_after_reset": "Start right after a reset",
+  "page.option.off": "Off",
+  "page.anchor.fixed": "Next reset fixed at {time}."
 }

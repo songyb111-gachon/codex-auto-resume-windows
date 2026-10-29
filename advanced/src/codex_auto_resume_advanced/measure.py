@@ -155,6 +155,12 @@ class Context:
         found = self._hand("scratch_cli", home, tuple(arguments))
         return found if isinstance(found, str) else None
 
+    def anchor_request(self) -> dict:
+        """window_anchor's request run once from a new empty folder (MANCHOR): {"code", "input", "cached", "output",
+        "folder_empty_after"}, empty where there is no hand or it failed."""
+        found = self._hand("anchor_request")
+        return found if isinstance(found, dict) else {}
+
     def ipc_look(self) -> dict:
         """What a read-only look at the Desktop's own IPC pipe found (v0.6.16-beta.3, MIPC): a dict of
         booleans, or empty where there is no seam or the look raised. Nothing is ever written to the pipe."""
@@ -1948,6 +1954,60 @@ def _m4b(ctx):
                     "trust prompt appeared once, then set the verdict", **observed)
 
 
+# MANCHOR (v0.6.20): the two reads that tell an idle window from a running one stand this far apart, and how close to
+# five hours after the request its reset must be.
+_MANCHOR_GAP = 20
+_MANCHOR_EARLY, _MANCHOR_LATE = 300, 60
+
+
+def _manchor_read(session):
+    """One usage read as window_anchor keeps it: {"at", "windows"}."""
+    return {"at": time.time(), "windows": credits.parse(session.call(credits.READ, {}))["windows"]}
+
+
+def _manchor(ctx):
+    """Starting an idle 5-hour window early (window_anchor, v0.6.20): two usage reads _MANCHOR_GAP apart must show the
+    window idle (0 %, its reset ~5 h ahead and moving with the clock); then the capability's own request runs once
+    from a new empty folder (`anchor_request`), and two more reads show whether the window now runs with its reset
+    about five hours after the request. What the harness cannot see is the person's: Codex's /usage showing that reset,
+    and no new conversation in the app's list.
+
+    How the owner runs it: with the 5-hour window idle (no Codex use for five hours, or since its reset), `measure
+    manchor`; then look at /usage and the sidebar, and record with `measure-verdict manchor pass as_expected`."""
+    from .engine import anchor
+    with ctx.open() as session:
+        first = _manchor_read(session)
+        time.sleep(_MANCHOR_GAP)
+        second = _manchor_read(session)
+    found = anchor.judge(first, second)
+    observed = {"windows_read": first["windows"] is not None and second["windows"] is not None,
+                "idle_before": found == anchor.IDLE}
+    if found != anchor.IDLE:
+        return _blocked("wait until the 5-hour window is idle - no Codex use since its reset - then run manchor "
+                        "again", **observed)
+    asked_at = time.time()
+    ran = ctx.anchor_request()
+    with ctx.open() as session:
+        after = _manchor_read(session)
+        time.sleep(_MANCHOR_GAP)
+        later = _manchor_read(session)
+    five, _weekly = anchor.windows_of(later["windows"])
+    reset = five.get("reset_at") if five is not None else None
+    near = (type(reset) is int
+            and asked_at + anchor.WINDOW_SECONDS - _MANCHOR_EARLY <= reset <= asked_at + anchor.WINDOW_SECONDS + _MANCHOR_LATE)
+    observed.update({"request_exit_zero": ran.get("code") == 0,
+                     "window_started": anchor.judge(after, later) == anchor.RUNNING,
+                     "reset_near_five_hours": near,
+                     "folder_empty_after": ran.get("folder_empty_after") is True})
+    for key in ("input", "cached", "output"):
+        value = ran.get(key)
+        observed[key + "_tokens"] = value if type(value) is int else None
+    if not (observed["request_exit_zero"] and observed["window_started"] and observed["reset_near_five_hours"]):
+        return Verdict.FAIL, observed, "the request did not start the idle 5-hour window with its reset five hours on"
+    return _blocked("confirm in Codex's /usage that the 5-hour reset is five hours after the request, and that the "
+                    "app's list has no new conversation, then set the verdict", **observed)
+
+
 PROBES = {
     Measurement.M1: _m1, Measurement.M2: _m2, Measurement.M2B: _m2b, Measurement.M3: _m3,
     Measurement.M4: _m4, Measurement.M5: _m5, Measurement.M6: _m6, Measurement.M7: _m7,
@@ -1962,6 +2022,7 @@ PROBES = {
     Measurement.MQO: _mqo, Measurement.MQP: _mqp, Measurement.MQG: _mqg,
     Measurement.MTOK: _mtok, Measurement.MOPEN: _mopen, Measurement.MAL: _mal, Measurement.MWAKE: _mwake,
     Measurement.MHK: _mhk, Measurement.M4B: _m4b,
+    Measurement.MANCHOR: _manchor,
 }
 
 # A conversation and a message id of no one's: the shape a call takes, never a real id. A probe
@@ -2263,7 +2324,21 @@ def live_hands(backend=None, paths=None) -> dict:
             return None
         return result.stdout if result.returncode == 0 else None
 
-    return {"open_link": open_link, "power": _power_look, "wake_after": _wake_after, "scratch_cli": scratch_cli}
+    def anchor_request():
+        # MANCHOR (v0.6.20): window_anchor's own request, once, from a new empty folder made for it - windowless, its
+        # exit code and token counts answered and nothing it printed; the folder is looked at again and left.
+        import tempfile
+        from .engine import anchor
+        used = backend if backend is not None else live_backend(paths)
+        folder = Path(tempfile.mkdtemp(prefix="car-manchor-"))
+        try:
+            answered = anchor.finish_request(anchor.start_request(used, folder))
+        except Exception:
+            return None
+        return dict(answered, folder_empty_after=not any(folder.iterdir()))
+
+    return {"open_link": open_link, "power": _power_look, "wake_after": _wake_after, "scratch_cli": scratch_cli,
+            "anchor_request": anchor_request}
 
 
 def _guid(text):
