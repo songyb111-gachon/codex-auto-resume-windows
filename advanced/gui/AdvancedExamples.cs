@@ -697,9 +697,15 @@ namespace CodexAutoResume
                 foreach (Dictionary<string, object> row in rows)
                 {
                     string[] cells = Cells(row, pending);
-                    int[] shown = pending ? new[] { 0, 1, 2 } : report ? new[] { 1, 2, 4 } : new[] { 0, 1, 2, 4 };
+                    // Built a cell at a time: a constant array here would be a class the compiler names at random, and the
+                    // build could not be made reproducible (build/normalize_pe.py).
+                    var shown = new List<int>();
+                    if (!report) shown.Add(0);
+                    shown.Add(1);
+                    shown.Add(2);
+                    if (!pending) shown.Add(4);
                     var item = new ListViewItem(cells[shown[0]] ?? "");
-                    for (int c = 1; c < shown.Length; c++) item.SubItems.Add(cells[shown[c]] ?? "");
+                    for (int c = 1; c < shown.Count; c++) item.SubItems.Add(cells[shown[c]] ?? "");
                     item.Tag = row;
                     list.Items.Add(item);
                 }
