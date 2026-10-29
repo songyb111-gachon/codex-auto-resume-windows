@@ -84,10 +84,12 @@ namespace CodexAutoResume
         /// The status's counts of the reset rules waiting (surfaces.status), written to compare: "" where none waits.
         private static string ResetCounts(Dictionary<string, object> advanced)
         {
+            // v0.6.20: and the steers waiting for the watcher, so History is read again when one settles.
             if (advanced == null || !(Get(advanced, "messages") is double || Get(advanced, "credit_rules") is double ||
-                                      Get(advanced, "prompts") is double)) return "";
+                                      Get(advanced, "prompts") is double || Get(advanced, "steers_waiting") is double)) return "";
             return AdvancedWritten(Get(advanced, "messages")) + "," + AdvancedWritten(Get(advanced, "credit_rules")) + "," +
-                   AdvancedWritten(Get(advanced, "ready")) + "," + AdvancedWritten(Get(advanced, "prompts"));
+                   AdvancedWritten(Get(advanced, "ready")) + "," + AdvancedWritten(Get(advanced, "prompts")) + "," +
+                   AdvancedWritten(Get(advanced, "steers_waiting"));
         }
 
         /// A snapshot's counts read: the rules read again when they changed - one added, due or ended, here or anywhere.

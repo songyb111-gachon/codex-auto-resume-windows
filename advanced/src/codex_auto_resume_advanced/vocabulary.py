@@ -166,6 +166,9 @@ class Refusal(StrEnum):
     # v0.6.16-beta.4 (j): a near-limit percentage out of order - a window's warning above its wrap-up, or the wrap-up at
     # or above the stop its words ask for.
     OPTION_ORDER = "option_order"
+    # v0.6.20 (steer_send): a steer asked for a conversation whose latest turn is not running in Codex's history - there
+    # is nothing to steer, so nothing waits.
+    NO_TURN_RUNNING = "no_turn_running"
 
 
 class JournalCode(StrEnum):
@@ -433,6 +436,9 @@ class BridgeCommand(StrEnum):
     ADVANCED_PROMPTS_CLEAR_DONE = "advanced-prompts-clear-done"
     ADVANCED_ACCOUNT = "advanced-account"
     ADVANCED_ACCOUNT_SWITCH = "advanced-account-switch"
+    # v0.6.20 (issue #50, steer_send): a line the person wrote, to be added to the turn running in one conversation -
+    # the Dashboard's editor asks, and the watcher alone sends it (control/steer.py, engine/steer.py).
+    ADVANCED_STEER = "advanced-steer"
 
 
 class Measurement(StrEnum):
@@ -968,3 +974,31 @@ class PlanWord(StrEnum):
     ENTERPRISE = "enterprise"
     EDU = "edu"
     OTHER = "other"
+
+
+class SteerState(StrEnum):
+    """Where one steer stands (steer_send, v0.6.20, state `steers`): asked for and waiting for the watcher (requested),
+    claimed by the watcher's errand just before its one write (sending), and then one of three outcomes that are never
+    collapsed: the Codex app took it into the running turn (accepted), it was written and no answer came, so it may have
+    been delivered (unconfirmed), or it was not written (refused, with its SteerReason). Whether it was seen in the
+    conversation is never a state: the Codex app does not show a steered line (MSTEER2)."""
+    REQUESTED = "requested"
+    SENDING = "sending"
+    ACCEPTED = "accepted"
+    UNCONFIRMED = "unconfirmed"
+    REFUSED = "refused"
+
+
+class SteerReason(StrEnum):
+    """Why a steer was refused - never written - (SteerState.REFUSED): no turn running in that conversation, the Codex app
+    not holding it, the app's connection (its IPC pipe) not there, the app refusing it (or its build checking another
+    version of the request), recovery paused, Observe only or quiet hours holding it (core's errand guard), not sent
+    within two minutes of being asked, the conversation switched off, or the capability turned off before it went."""
+    NO_TURN = "no_turn"
+    NOT_HELD = "not_held"
+    NO_PIPE = "no_pipe"
+    APP_REFUSED = "app_refused"
+    HELD = "held"
+    EXPIRED = "expired"
+    CONVERSATION_OFF = "conversation_off"
+    TURNED_OFF = "turned_off"

@@ -99,6 +99,9 @@ ARGUMENTS = {
     BridgeCommand.ADVANCED_EARLY_CHECK: frozenset(),
     # v0.6.20 (issue #50): the person's own conversations and their names, for Find a conversation; names no row.
     BridgeCommand.ADVANCED_CONVERSATIONS: frozenset(),
+    # v0.6.20 (issue #50, steer_send): one line asked to be added to the turn running in a conversation - the watcher
+    # alone sends it (control/steer.py).
+    BridgeCommand.ADVANCED_STEER: frozenset({"thread_id", "words", "generation"}),
 }
 # v0.6.19 (the groundwork): the stage's commands, in the vocabulary before any capability that answers one is built.
 # Each is passed over - DEFER, so core says "unknown command" exactly as for a command this edition does not have -
@@ -423,6 +426,9 @@ def bridge(runtime, command, argument):
         return watchlog.view(runtime, argument.get("capability"))
     if command in RESET_COMMANDS:
         return resets(runtime, command, argument)
+    if command == BridgeCommand.ADVANCED_STEER:
+        from .control import steer
+        return steer.request(runtime, argument)
     if command in PROMPT_COMMANDS:
         from .control import prompts
         if command == BridgeCommand.ADVANCED_PROMPTS:

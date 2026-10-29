@@ -10,8 +10,8 @@ its restart. And, after the window resets, `thread-follower-start-turn` - a turn
 continuation, which goes past that paused queue - for a conversation it stopped (start_turn); measured 2026-10-16,
 once that turn completes the app sends what was queued by itself and the pause is gone, so nothing else is asked of
 the queue (`thread-follower-set-queued-follow-ups-state` is not needed). v0.6.20 adds `steer_turn`, a line added to the
-running turn, for the MSTEER2 measurement alone (issue #50): no capability calls it until that measurement has passed and
-the steer send mode is built. Every frame is 4 bytes of little-endian
+running turn, for the MSTEER2 measurement and - from v0.6.20, by the owner's decision of 2026-10-29 after MSTEER2 found the
+line delivered but never shown - the steer_send capability's errand (engine/steer.py), which only the watcher runs. Every frame is 4 bytes of little-endian
 length and UTF-8 JSON. Each request has one deadline for its whole answer, READ_SECONDS from when it is written,
 however many broadcasts come first (an overlapped read, cancelled and waited out, then the pipe closed - as the MIPC
 look does); nothing here waits for good.
@@ -449,8 +449,9 @@ def start_turn(thread_id, text, *, channel=None, gate=None):
 def steer_turn(thread_id, text, *, message=None, channel=None, gate=None):
     """Add `text` to the turn the app is running for `thread_id` (MSTEER2, v0.6.20): Steer.STEERED, or the Stop word of
     what failed - NO_PIPE (no app), NO_CLIENT (the app does not hold the conversation), VERSION_MISMATCH, REFUSED, HELD,
-    UNCONFIRMED where the request was written and no answer came in time (it may be in the turn), BROKEN. One request is
-    written, once: nothing here asks again, whatever the answer. `message` is the client id the line carries (the history
+    UNCONFIRMED where the request was written and no answer came in time, or the pipe failed after it was written (it
+    may be in the turn), BROKEN where nothing of it was written. One request is written, once: nothing here asks again,
+    whatever the answer. `message` is the client id the line carries (the history
     shows it on the person's message). `gate` is core's errand guard, around the one writing (HELD where it refuses).
     `channel` is a seam (a Channel of a test's own pipe)."""
     try:
@@ -473,9 +474,13 @@ def steer_turn(thread_id, text, *, message=None, channel=None, gate=None):
                      {"thread": thread_id, "message": message or str(uuid.uuid4()), "text": text}, target=owner,
                      gate=gate)
         except _Failed as failed:
-            if failed.word == Stop.NO_ANSWER:
+            # v0.6.20 (steer_send): a pipe that fails while the steer is written or its answer read leaves it possibly
+            # written, as an answer that never came does - UNCONFIRMED, never a failure a caller might write it again for.
+            if failed.word in (Stop.NO_ANSWER, Stop.BROKEN):
                 return Stop.UNCONFIRMED
             raise
+        except Exception:
+            return Stop.UNCONFIRMED
         return Steer.STEERED
     except _Failed as failed:
         return failed.word

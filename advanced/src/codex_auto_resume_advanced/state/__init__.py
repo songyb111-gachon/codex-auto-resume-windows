@@ -21,6 +21,7 @@ it at all: a secret goes to Windows Credential Manager (credentials.py).
     chat      the Dashboard's chat messages (v0.6.16-beta.4)
     restarts  the watcher's restarts after it stopped unexpectedly (v0.6.19, crash_restart)
     opens     the conversations opened in Codex for a waiting message to be sent (v0.6.19, #50)
+    steers    the lines a person asked to be added to a running turn, and what came of each (v0.6.20, #50)
 """
 from __future__ import annotations
 
@@ -40,11 +41,12 @@ from .chat import ChatMixin
 from .schema import ATTACHED, FILE_NAME, SCHEMA_VERSION, TABLES  # noqa: F401
 from .session import SessionMixin, StaleGeneration, StateError  # noqa: F401
 from .spend import SpendMixin
+from .steers import SteersMixin
 
 
 class AdvancedState(SessionMixin, ArmingMixin, SpendMixin, RecordsMixin, JournalMixin, ChoicesMixin,
                     ResetsMixin, ContinuationsMixin, PromptsMixin, PromptMovesMixin, MeterMixin, RunsMixin,
-                    ChatMixin, RestartsMixin, OpensMixin):
+                    ChatMixin, RestartsMixin, OpensMixin, SteersMixin):
     """One installation's advanced state, for one process: opened when first needed."""
 
     def __init__(self, paths, *, registry=REGISTRY, **options):
