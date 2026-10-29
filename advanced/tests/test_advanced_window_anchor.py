@@ -15,6 +15,7 @@ from pathlib import Path
 import subprocess
 import sys
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -22,7 +23,7 @@ import advancedcase as ac  # noqa: E402
 from codex_auto_resume.codex.transport import Backend  # noqa: E402
 from codex_auto_resume.domain.plug import DEFER, Point  # noqa: E402
 from codex_auto_resume.win.kernel import NO_WINDOW  # noqa: E402
-from codex_auto_resume_advanced import measured, registry, statement, surfaces  # noqa: E402
+from codex_auto_resume_advanced import measure, measured, registry, statement, surfaces  # noqa: E402
 from codex_auto_resume_advanced.codex import protocol  # noqa: E402
 from codex_auto_resume_advanced.engine import anchor  # noqa: E402
 from codex_auto_resume_advanced.registry import WINDOW_ANCHOR  # noqa: E402
@@ -497,6 +498,62 @@ class RequestTests(AnchorCase):
         self.world.running_until = None
         self.run_through()
         self.assertEqual(len(self.world.started), 1)
+
+
+class ProbeTests(unittest.TestCase):
+    """MANCHOR's probe: two reads that find the window idle, the capability's own request once (a hand, faked here),
+    and two reads that find it started with its reset five hours on - left blocked for the person's /usage look."""
+
+    def setUp(self):
+        self.now = 1_800_000_000.0
+        self.world = World(self)
+        self.asked = []
+        for patched in (patch.object(measure.time, "time", lambda: self.now),
+                        patch.object(measure.time, "sleep", self.sleep)):
+            patched.start()
+            self.addCleanup(patched.stop)
+
+    def sleep(self, seconds):
+        self.now += seconds
+
+    def request(self):
+        self.asked.append(self.now)
+        process = self.world.popen(["codex"])
+        printed, _ = process.communicate(timeout=anchor.TIMEOUT)
+        return dict(anchor.tokens_of(printed), code=process.returncode, folder_empty_after=True)
+
+    def run_probe(self):
+        ctx = measure.Context(Measurement.MANCHOR, session_factory=lambda _measurement: self.world.session(),
+                              hands={"anchor_request": self.request})
+        return measure.probe(ctx)
+
+    def test_an_idle_window_started_by_the_request_is_left_for_the_person_to_confirm(self):
+        verdict, observed, note = self.run_probe()
+        self.assertEqual(verdict, Verdict.BLOCKED)
+        self.assertEqual({key: observed[key] for key in ("idle_before", "request_exit_zero", "window_started",
+                                                          "reset_near_five_hours", "folder_empty_after")},
+                         dict.fromkeys(("idle_before", "request_exit_zero", "window_started", "reset_near_five_hours",
+                                        "folder_empty_after"), True))
+        self.assertEqual((observed["input_tokens"], observed["cached_tokens"], observed["output_tokens"]),
+                         (24138, 12416, 5))
+        self.assertIn("/usage", note)
+        self.assertEqual(len(self.asked), 1)
+
+    def test_a_window_that_runs_is_not_started_and_the_probe_asks_to_wait(self):
+        self.world.running_until, self.world.used = int(self.now) + 3600, 5.0
+        verdict, observed, note = self.run_probe()
+        self.assertEqual((verdict, observed["idle_before"], self.asked), (Verdict.BLOCKED, False, []))
+        self.assertIn("idle", note)
+
+    def test_a_request_that_leaves_the_window_idle_fails(self):
+        self.world.code = 1
+        verdict, observed, _note = self.run_probe()
+        self.assertEqual((verdict, observed["request_exit_zero"], observed["window_started"]),
+                         (Verdict.FAIL, False, False))
+
+    def test_its_session_reads_usage_and_nothing_else(self):
+        self.assertEqual(protocol.methods_for(Measurement.MANCHOR) - {"initialize", "initialized"},
+                         frozenset({"account/rateLimits/read"}))
 
 
 class OnlyTheWatcherStartsItTests(unittest.TestCase):
