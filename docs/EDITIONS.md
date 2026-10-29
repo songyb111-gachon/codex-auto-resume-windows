@@ -142,9 +142,10 @@ that will need one; nothing calls it, and it never reads Codex's own credentials
 
 ## Today's capabilities
 
-Thirty-five: twenty-two that change how a recovery is made, which conversations are recovered or what
+Thirty-six: twenty-two that change how a recovery is made, which conversations are recovered or what
 follows a turn, three that send at a time you pick - the two at a usage reset, and queued messages - three
 before a usage limit is reached - the usage meter, and the wrap-up and the forced stop that need it - one that
+starts the 5-hour window early when it is idle (v0.6.20), one that
 checks for updates once a week, two that look after the watcher and the PC - restart the watcher if it stops unexpectedly,
 and wake this PC for a reset (v0.6.19) - and four actions: Longer messages, which only lets a message be longer, Open Codex on a notice, which only makes a click on a notice
 show a conversation, chat with a conversation in the Dashboard (v0.6.19), which sends a message of yours, and the
@@ -154,7 +155,8 @@ here, the other sessions, compacting a full conversation, another model at capac
 no words - and four more (the reset credit, the reset message, the usage meter and the forced stop) rest on
 measurements made on `codex-cli 0.162.0-alpha.17.2` and, for the forced stop, again on the newer one. Seven rest on
 measurements not made yet - wake this PC for a reset is the new one, on MWAKE - the chat rests on M7, MC1 and MC2, which were made, as its own
-section below says, and the other fourteen on none. Each measurement made was made by hand, on the
+section below says, starting the 5-hour window early on MANCHOR, made on `codex-cli 0.165.0-alpha.1.2` on 2026-10-29, and the other
+fourteen on none. Each measurement made was made by hand, on the
 owner's machine, first on `codex-cli 0.158.0-alpha.2.1`, again on `codex-cli 0.162.0-alpha.17.2` and, for those this release's
 capabilities rest on, once more on `codex-cli 0.163.0-alpha.10.2` (2026-10-17) - and MQO, MQP and MQG, which decide how
 the continuation with no marker, several conversations at once and the goal continuation sit beside the queue for
@@ -1110,6 +1112,44 @@ reading) and [H6](STANDARDS.md#h-user-control) (a running turn is stopped).
 **Ceilings.** One stop and one continuation a conversation a window. **Measurement MIPC: passed** (codex-cli
 0.162.0-alpha.17.2, app 26.1007.9446.0; again on 0.163.0-alpha.10.2, app 26.1013.3656.0, with the stop that
 names its turn - f16c9ca2 on measure-20261017); **MU: passed** (codex-cli 0.162.0-alpha.17.2, 2026-10-10).
+
+### Start the 5-hour window early
+
+**What it does.** Codex's 5-hour window starts at your first use, so a late first use gives a late reset. When
+the window is idle - nothing used, and its reset not counting down - the watcher sends Codex one tiny request so
+that the window starts now and its reset is fixed five hours later: at the times of day you pick (**Start at
+(1)**, **(2)** and **(3)**: Off or any time, every half hour in the list and any minute through Custom...; none by
+default), right after a reset it has seen (**Start right after a reset**, a switch, on by default), or both. An
+idle window still reports a reset five hours ahead, so it reads usage twice, twenty seconds apart, and takes the
+window as idle only when it is at 0% and that reset moved forward with the clock. The request is
+`codex exec --skip-git-repo-check --ephemeral --json -s read-only -c model_reasoning_effort="low" "Reply with OK"`,
+run with no window from an empty folder of its own, on the Codex the watcher drives and its home; only its exit
+code and its token counts are read, never what it printed. Then it reads usage again, and the reset it fixed is
+shown on its card (**Next reset fixed at ...**) and said in the watcher's log. At most one start a window; never
+while a window runs, the weekly limit is reached, recovery is paused or only observed, or Codex is not signed in.
+Right after a reset acts only on a reset it has seen - the reset of a running window it read, or the one its own
+start fixed - so started once, the window is kept back to back. Every start and every skip is a word in its
+journal.
+
+**When it helps.** When you start work late in the day and would rather the window had begun earlier - say at
+07:00, so that it resets at 12:00 rather than in the middle of the afternoon.
+
+**What it risks.** Each start uses a little of your usage: about 24,000 input tokens, half of them cached, and
+five output tokens - under 1% of the 5-hour window when measured - and the weekly window counts it too. A window
+started early also ends early: if you begin late in it, less of it is left. Codex may change how an idle window
+reports itself; then nothing is started, and the journal says why.
+
+**Departs from** [A1 and A2](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (a request beside the one send,
+through `codex exec`), [A13 and A26](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (nothing failed, and its
+words are no continuation's), [A25](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (it opens a usage
+window), [B3 and B4](STANDARDS.md#b-what-it-reads-and-how) (it changes the account's usage, and asks whether an
+account is signed in), [C4 and C9](STANDARDS.md#c-network) (it acts on a schedule, and reads usage when no
+recovery is due) and [F6](STANDARDS.md#f-footprint-on-the-machine) (`codex exec` is not a process the product
+starts).
+
+**Ceilings.** Five starts a day, one a window. **Measurement MANCHOR: passed** (`codex-cli 0.165.0-alpha.1.2`,
+2026-10-29): on an idle window the request fixed the reset five hours after it and left no conversation, rollout
+or history line; a second request in the running window did not move the reset.
 
 ### Continue with no words
 
