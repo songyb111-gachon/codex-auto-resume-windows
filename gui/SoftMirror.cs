@@ -33,6 +33,11 @@ namespace CodexAutoResume
         /// ways (SettingsForm.MirrorAudit). Never set by the window itself.
         internal static bool Never;
 
+        /// The clock held at one moment, in seconds since 1970, while the layout audit lays a window out twice to compare
+        /// the two (SettingsForm.MirrorCompare): a line that says how long ago something was must say the same both
+        /// times, or it wraps differently a minute later and the comparison measures the clock. 0: the clock runs.
+        internal static double HeldNow;
+
         /// Whether `locale` - the language a window's words are in - is written right to left (l10n.RIGHT_TO_LEFT).
         internal static bool Language(string locale)
         {

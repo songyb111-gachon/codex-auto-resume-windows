@@ -1416,8 +1416,11 @@ namespace CodexAutoResume
             Dictionary<string, int[]> across, back;
             List<string> order;
             bool never = Mirror.Never;
+            double held = Mirror.HeldNow;
             try
             {
+                // One moment for both layouts (Mirror.HeldNow).
+                Mirror.HeldNow = (DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
                 Mirror.Never = true;
                 mirrored = new Dictionary<string, int[]>();
                 mirroredOrder = new List<string>();
@@ -1435,6 +1438,7 @@ namespace CodexAutoResume
             finally
             {
                 Mirror.Never = never;
+                Mirror.HeldNow = held;
                 mirrored = null;
                 mirroredOrder = null;
             }

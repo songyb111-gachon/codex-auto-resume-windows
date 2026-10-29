@@ -262,6 +262,7 @@ namespace CodexAutoResume
         private static double Now()
         {
             if (Soft.StillNow > 0) return Soft.StillNow;        // held still for a picture
+            if (Mirror.HeldNow > 0) return Mirror.HeldNow;      // held still for the mirror audit's two layouts
             return (DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
         }
 

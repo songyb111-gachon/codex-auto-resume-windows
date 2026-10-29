@@ -23,6 +23,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -76,7 +77,12 @@ class AdvancedMirrorTests(unittest.TestCase):
         bridge = pagecase.Bridge(work / "home")
         try:
             for locale in RIGHT_TO_LEFT:
-                data = pagecase.audit_data(locale, bridge)
+                # In the page's own words, as a person will see it once Arabic and Hebrew are offered: while they are
+                # held (l10n.HELD) the bridge answers them in English, and English read right to left wraps otherwise
+                # than read left to right - a comparison of the reading direction, not of the layout (measured: the
+                # other_sessions card a line taller at 200%).
+                with patch.object(l10n, "HELD", frozenset()), patch.object(l10n, "OFFERED", tuple(l10n.LOCALES)):
+                    data = pagecase.audit_data(locale, bridge)
                 for part in ("words", "listing", "statements", "kept", "reports"):
                     (work / ("%s-%s.json" % (part, locale))).write_text(json.dumps(data[part], ensure_ascii=False),
                                                                          encoding="utf-8")
