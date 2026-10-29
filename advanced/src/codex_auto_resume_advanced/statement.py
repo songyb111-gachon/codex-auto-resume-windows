@@ -247,6 +247,13 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
 # with its search box and its list, and what it says when nothing matches or the list could not be read.
 PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "find.button", "find.title", "find.search", "find.use", "find.none", "find.failed"))
+# A delivered message followed through (v0.6.20, #50: advanced/gui/AdvancedFollow.cs): History's Follow through..., the
+# dialog's title, its rows - sent, delivered, each cut-off, the reset waited for, where the recovery stands - how the work
+# ended, how the turn was tied to the message, a series' last occurrence, and the line for an answer that did not come.
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + "follow." + name for name in (
+    "button", "title", "failed", "sent", "delivered_turn", "delivered", "cut", "reset", "recovery", "end.still_running",
+    "end.finished", "end.waiting", "end.recovering", "end.recovered", "end.ended", "end.unknown", "link.exact", "link.time",
+    "link.ambiguous", "link.no_record", "link.not_found", "series"))
 # Pictures in a scheduled message (v0.6.20, #50 item 1: advanced/gui/AdvancedEditor.cs, AdvancedSchedule.cs): the editor's
 # block - its caption, Add a picture..., the line on what it takes, each thumbnail's name and Remove - the count a row
 # says, and each word the bridge refuses a picture with.

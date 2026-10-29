@@ -17,7 +17,8 @@
 # the page in the render mode the documentation's pictures are drawn in - (v0.6.19) chat with a conversation, behind
 # a Chat tab of its own - and (v0.6.19, #50) the prompt queue's editor, Pending's Recoveries | Scheduled tabs and
 # early_reset's line with its Check now - and (v0.6.20) window_anchor's line and its times of day, and See an
-# example, each capability's before and after drawn from sample data.
+# example, each capability's before and after drawn from sample data - and (v0.6.20, #50) a delivered message followed
+# through from History.
 
 [advanced]
 advanced/gui/AdvancedPage.cs
@@ -30,6 +31,7 @@ advanced/gui/AdvancedEditor.cs
 advanced/gui/AdvancedFind.cs
 advanced/gui/AdvancedExamples.cs
 advanced/gui/AdvancedSchedule.cs
+advanced/gui/AdvancedFollow.cs
 advanced/gui/AdvancedEarly.cs
 advanced/gui/AdvancedAnchor.cs
 advanced/gui/AdvancedReport.cs
