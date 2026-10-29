@@ -24,7 +24,7 @@ COURIER = "advanced/src/codex_auto_resume_advanced/courier/"
 # One line found in one shipped advanced file alone, standing in for a networking import or verb.
 ONLY_HERE = "advanced/src/codex_auto_resume_advanced/report/github.py"
 LINE = r"^\s*from \.\.codex\.wmi_escape import _ExtendedLimits\b"
-REACHING = "test_exactly_the_bootstrap_and_the_courier_reach_the_network"
+REACHING = "test_exactly_one_shipped_file_reaches_the_network"
 
 
 def outcome(test_name, **patched) -> bool:

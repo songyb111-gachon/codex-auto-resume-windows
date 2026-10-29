@@ -153,7 +153,9 @@ class CodePropertyTests(unittest.TestCase):
                 offenders.append("%s: %s" % (path.relative_to(ROOT), match.group().strip()))
         self.assertEqual(offenders, [], "the watcher would now be able to open a connection")
 
-    def test_exactly_the_bootstrap_and_the_courier_reach_the_network(self):
+    def test_exactly_one_shipped_file_reaches_the_network(self):
+        """Exactly one in the standard edition, the bootstrap; and, in the advanced edition from v0.6.20, the
+        courier's files that send beside it (COURIER_REACHING). The name stays as FEATURE_MATRIX cites it."""
         # build/ is developer-only and excluded from the release payload, so it may
         # download the pinned interpreter. Everything that ships may not, except the
         # bootstrap - which is the whole point of the bootstrap - and, in the advanced

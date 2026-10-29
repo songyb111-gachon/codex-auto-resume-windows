@@ -130,20 +130,21 @@ interruption, the samples of failures it could not classify, the reset rules and
 the usage windows - and, until each is sent, cancelled or ended, the words of a message you wrote for a
 reset - are kept in
 `config/advanced/advanced.sqlite`, in fixed words, ids, numbers and Codex's own error codes - never a
-word of an error or a conversation, and of yours only a message waiting for a reset - and nothing of it is written into the standard edition's state. It adds no network code. Two capabilities cause GitHub traffic: the compatibility report asks gh - the GitHub CLI you
+word of an error or a conversation, and of yours only a message waiting for a reset - and nothing of it is written into the standard edition's state. Its only network code is the courier, which runs only while *Send notices to your phone or inbox* or *Show OpenAI's service status* is on (below). Two capabilities cause GitHub traffic: the compatibility report asks gh - the GitHub CLI you
 installed - to reach GitHub, and only when you start it in the Dashboard (below), and
 *Check for updates once a week* runs the installed `bootstrap.ps1 -CheckOnly` once a week (below). Its archive also carries
 the harness the project uses to measure whether a capability's route works on a given version of
 Codex; nothing runs it unless a person asks, and [SECURITY.md](SECURITY.md) says what it does.
 
-No capability stores a secret today. The package carries one way to keep a capability's secret, in Windows'
-Credential Manager under a name of its own and never in its database, a settings file or a log, for a capability
-that will need one; nothing calls it, and it never reads Codex's own credentials.
+One capability stores secrets: *Send notices to your phone or inbox* keeps the addresses, tokens and passwords
+you type for it in Windows' Credential Manager, under names of its own, and never in its database, a settings
+file or a log. That is the package's one way to keep a secret, and it never reads Codex's own credentials.
 
 ## Today's capabilities
 
-Thirty-five: twenty-two that change how a recovery is made, which conversations are recovered or what
-follows a turn, three that send at a time you pick - the two at a usage reset, and queued messages - three
+Thirty-seven: twenty-two that change how a recovery is made, which conversations are recovered or what
+follows a turn, two that tell you elsewhere - notices sent to your phone or inbox, and OpenAI's service status
+on the Overview (v0.6.20) - three that send at a time you pick - the two at a usage reset, and queued messages - three
 before a usage limit is reached - the usage meter, and the wrap-up and the forced stop that need it - one that
 checks for updates once a week, two that look after the watcher and the PC - restart the watcher if it stops unexpectedly,
 and wake this PC for a reset (v0.6.19) - and four actions: Longer messages, which only lets a message be longer, Open Codex on a notice, which only makes a click on a notice
@@ -154,7 +155,7 @@ here, the other sessions, compacting a full conversation, another model at capac
 no words - and four more (the reset credit, the reset message, the usage meter and the forced stop) rest on
 measurements made on `codex-cli 0.162.0-alpha.17.2` and, for the forced stop, again on the newer one. Seven rest on
 measurements not made yet - wake this PC for a reset is the new one, on MWAKE - the chat rests on M7, MC1 and MC2, which were made, as its own
-section below says, and the other fourteen on none. Each measurement made was made by hand, on the
+section below says, and the other sixteen on none. Each measurement made was made by hand, on the
 owner's machine, first on `codex-cli 0.158.0-alpha.2.1`, again on `codex-cli 0.162.0-alpha.17.2` and, for those this release's
 capabilities rest on, once more on `codex-cli 0.163.0-alpha.10.2` (2026-10-17) - and MQO, MQP and MQG, which decide how
 the continuation with no marker, several conversations at once and the goal continuation sit beside the queue for
@@ -592,6 +593,65 @@ is asked only the listed questions; whether something is registered for Codex's 
 its listed uses: showing the logs folder).
 
 **Ceilings.** None: it is an action, and sends nothing. It rests on no measurement of its own.
+
+### Send notices to your phone or inbox
+
+**What it does.** When the watcher shows one of the notices you pick on its card - a usage limit detected, a
+recovery done or failed, a conversation that needs you, the watcher stopped unexpectedly or restarted, an
+update offered - it also sends a short message to the services you set up there: an ntfy topic, a webhook, a
+Telegram bot (paired with your chat by a one-time code of six digits you send it) or an e-mail address over
+SMTP on port 465 or 587. The message says what happened, the task's place in Pending (`task 3`), the
+failure's category word and the time, and the edition - never a conversation's title or words, a project, a
+path, an id, an error's text or an account. A separate courier process sends it: started by the watcher at
+most once a minute, windowless, ending with the watcher, sending and then exiting. At most 30 messages an
+hour across every channel; each is tried up to three times and dropped after seven days. **Send a test** on
+each channel sends a fixed test message and says whether it went. Addresses, tokens and passwords are typed
+into the card once and kept in Windows Credential Manager, never shown again and never in a file; **Forget**
+takes them out.
+
+**When it helps.** When you are away from the PC and want to know that a limit was hit, that work went on,
+or that something needs you.
+
+**What it risks.** Whoever runs a service you choose, and anyone who can read your topic, webhook or chat,
+sees when your recoveries happen; each service sees this PC's address and the courier's name. An ntfy topic
+can be read by anyone who knows its name. Every request is HTTPS with the certificate checked and no
+redirect followed; a server that wants another way of signing in, or a network that inspects secure
+connections, refuses the message, which is tried again and dropped, never sent another way. Twenty refusals
+in a day on one channel switch that channel off, and its card says so. While recovery is paused nothing is
+written or sent.
+
+**Departs from** [C1](STANDARDS.md#c-network) and [C2](STANDARDS.md#c-network) (no network code, and one
+shipped file reaching the network: the courier is a second), [C3](STANDARDS.md#c-network) (only the listed
+hosts: here also the ones you type, and api.telegram.org), [C8](STANDARDS.md#c-network) (each service sees
+this PC's address and the courier's name), [D1](STANDARDS.md#d-privacy-and-the-data-it-keeps) (an event,
+its kind and the time leave the PC, to services you chose), [D6](STANDARDS.md#d-privacy-and-the-data-it-keeps)
+(notices are Windows notices only), [F6](STANDARDS.md#f-footprint-on-the-machine) (the courier is a process
+of its own beside the listed ones) and [F8](STANDARDS.md#f-footprint-on-the-machine) (a second process
+while it sends).
+
+**Ceilings.** None come into play: it sends nothing to Codex. Its own bounds are 30 messages an hour, three
+tries and seven days. It rests on no measurement.
+
+### Show OpenAI's service status
+
+**What it does.** While a recovery waits for a usage limit or a connection failure, the courier reads
+OpenAI's public status page (status.openai.com) every 10, 30 or 60 minutes - your choice - and once when the
+Dashboard opens. While the page reports degraded service or an outage, for the whole service or for Codex,
+the Overview says so in one line under **Right now**. It keeps two words and the number of incidents,
+nothing else, and they never decide anything: the line only explains a wait.
+
+**When it helps.** When a recovery waits and you wonder whether the trouble is OpenAI's.
+
+**What it risks.** Whoever runs the status page sees this PC's address and the time of each reading. The
+page can be late or wrong, and a change to its format leaves the line empty. While recovery is paused
+nothing is read.
+
+**Departs from** [C1](STANDARDS.md#c-network) and [C2](STANDARDS.md#c-network) (no network code, and one
+shipped file reaching the network: the courier is a second), [C3](STANDARDS.md#c-network) (only the listed
+hosts: status.openai.com is one more), [C4](STANDARDS.md#c-network) (nothing happens on its own: it reads on
+a schedule) and [C8](STANDARDS.md#c-network) (the status page sees this PC's address and the courier's name).
+
+**Ceilings.** None come into play: it sends nothing to Codex. It rests on no measurement.
 
 ### Use a reset credit at the limit you pick
 

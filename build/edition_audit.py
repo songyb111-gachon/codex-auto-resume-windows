@@ -147,9 +147,10 @@ class Inventory:
             path = Path(name)
             if path.suffix == ".py":
                 declared |= python_declared(data.decode("utf-8"))
-                # Its module's name, and its packages': `__init__` names none of them.
+                # Its module's name, and its packages': `__init__` names none of them, and nor does `__main__` (v0.6.20,
+                # the courier's), which every runnable Python module spells.
                 declared |= {part for part in path.with_suffix("").parts
-                             if part not in ("advanced", "src", "__init__")}
+                             if part not in ("advanced", "src", "__init__", "__main__")}
             elif path.suffix == ".cs":
                 words, literals = csharp(data.decode("utf-8"))
                 cs_words |= words
