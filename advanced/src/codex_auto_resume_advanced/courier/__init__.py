@@ -1,5 +1,5 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
-"""The courier (v0.6.19, plans/v0619-design/D-courier.md): the advanced edition's only network code.
+"""The courier (v0.6.20, plans/v0619-design/D-courier.md): the advanced edition's only network code.
 
 One short-lived process, `pythonw.exe -m codex_auto_resume_advanced.courier --home <home>`, started by the watcher at
 P8 (launch.py) - windowless, suspended until it is in the starting process's job object made KILL_ON_JOB_CLOSE, so it

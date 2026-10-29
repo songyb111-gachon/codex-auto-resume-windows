@@ -109,16 +109,19 @@ PAGE_KEYS = tuple(PAGE_PREFIX + name for name in (
     "watchlog.answer.sender", "watchlog.answer.tick", "watchlog.answer.start_route", "watchlog.answer.unloaded",
     "watchlog.answer.concurrency", "watchlog.answer.queue_for_open", "watchlog.answer.to_session",
     "watchlog.answer.silent",
+    # v0.6.19 (the groundwork): P13's two words, which a watched supervisor would answer.
+    "watchlog.answer.supervise", "watchlog.answer.restart",
     # v0.6.16-beta.3: a message a watched capability would have sent.
     "watchlog.answer.records",
     "watchlog.answer.other",
     # v0.6.14: the reset actions (advanced/gui/AdvancedResets.cs) - the rules of a reset credit and of a message at a
     # reset, the form they are added with, each word a rule's state and reason can be said in, the questions, notes
-    # and refusals, Pending's Scheduled group - and Longer reset messages' words in place of the limits.
+    # and refusals - and Longer reset messages' words in place of the limits. (Pending's Scheduled group's title went with
+    # it: the rules are rows of Pending's one list from v0.6.19.)
     "confirm.reset_credit", "confirm.reset_message", "done.reset_added", "done.reset_cancelled", "done.go_on",
     "confirm.credit_now", "done.credit_now", "refused.occasion_invalid", "refused.resets_full",
     "refused.message_refused", "refused.already_scheduled", "refused.being_sent", "refused.conversation_off",
-    "scheduled", "long_limits"))
+    "long_limits"))
 # The reset actions' own words, `page.resets.<name>`.
 RESETS_PREFIX = PAGE_PREFIX + "resets."
 RESETS_KEYS = tuple(RESETS_PREFIX + name for name in (
@@ -169,12 +172,19 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
 PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "tripped.not_dispatched_by_session", "kept.not_dispatched_by_session", "tripped.refused_by_codex",
     "kept.refused_by_codex",
-    # The turns run here, each with its Stop (advanced/gui/AdvancedRuns.cs), and a capability never kept on.
+    # The turns run here, each with its Stop (advanced/gui/AdvancedRuns.cs).
     "runs.title", "runs.none", "runs.until", "runs.stopping", "runs.stop", "runs.conversation", "confirm.run_stop",
-    "done.run_stop", "keep_on.never",
+    "done.run_stop",
     # What Pending and History say beside a row this edition had a hand in (AdvancedRuns.cs, CellsWritten).
     "row.kind.cli", "row.kind.ide", "row.compact", "row.model_not_restored",
     "row.silent"))
+# Chat with a conversation (v0.6.19, advanced/gui/AdvancedChat.cs): its tab, its card, a message's states, the limit it
+# waits for, and where a click on a notice goes while it is on.
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
+    "chat.nav", "chat.title", "chat.open", "chat.none", "chat.unread", "chat.you", "chat.codex", "chat.counts",
+    "chat.in_progress",
+    "chat.sending", "chat.sent", "chat.not_taken", "chat.words", "chat.send", "chat.cancel", "confirm.chat",
+    "done.chat", "chat.limit", "chat.click", "chat.click.page", "chat.click.chat", "chat.click.codex"))
 # The usage meter's, the wrap-up's and the pause's choices (v0.6.16-beta.3, issue #29): each OptionKey's label, and
 # how its values are said.
 PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
@@ -200,6 +210,31 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "option.custom",
     # (j) the percentages of a window in order, and the forced stop below the words' stop only said.
     "refused.option_order", "warn.stop_before_words"))
+# v0.6.19 (wake_for_reset): its one choice's label, how many minutes before a reset the PC is woken.
+PAGE_KEYS = PAGE_KEYS + (PAGE_PREFIX + "option.wake_lead_minutes",)
+# open_to_send's two choices (v0.6.19, #50): how long the PC has been idle first, and Also start Codex (a switch).
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in ("option.open_idle_minutes", "option.open_start_codex"))
+# The prompt queue's editor (v0.6.19, #50: advanced/gui/AdvancedEditor.cs): Schedule a message..., Edit..., the dialog's
+# titles, its send mode, Save and return, and what it says.
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
+    "scheduled.add", "queue.edit", "editor.title_new", "editor.title_edit",
+    "editor.mode", "editor.mode.wait", "editor.mode.queue", "editor.mode.after_turn", "editor.save", "done.prompt_saved",
+    "refused.prompt_moved"))
+# Find a conversation (v0.6.20, #50: advanced/gui/AdvancedFind.cs): the button beside a conversation picker, the dialog it opens
+# with its search box and its list, and what it says when nothing matches or the list could not be read.
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
+    "find.button", "find.title", "find.search", "find.use", "find.none", "find.failed"))
+# Pending's one list (v0.6.19, #50; the owner's decision of 2026-10-24: advanced/gui/AdvancedSchedule.cs): the Kind of a
+# message's and a rule's row, what a message does while a turn runs, History's completed messages and Delete completed,
+# and the prompt queue's card pointing to Pending. The tab strip's words went with the strip.
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
+    "pending.kind.message", "pending.kind.rule", "pending.rule.held", "confirm.clear_both",
+    "confirm.clear", "done.cleared", "done.cleared_kept", "scheduled.state.delivered",
+    "scheduled.state.handed_over", "scheduled.mode.wait", "scheduled.mode.queue", "queue.moved"))
+# early_reset on Pending (v0.6.19, #50: advanced/gui/AdvancedEarly.cs): what Why it is waiting says of its last reading. Its
+# line's Check now and settings button went with the line (the owner's decision of 2026-10-24), and their words.
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
+    "early.none", "early.available_first", "early.lifted", "early.limited", "early.unknown", "early.not_read"))
 # The edition's own continuations' words (v0.6.15-beta): what empty_response, subagent_parent and keep_going send -
 # fixed, each passing core's continuation.validate_continuation in every language (nothing is filled in but, for a
 # subagent's line, its id and a closed kind word).

@@ -9,9 +9,9 @@ applied after the settings are read, never written into the file.
 """
 from __future__ import annotations
 
-from .. import config, homes, managed, notice_kinds, settings
+from .. import config, homefind, homes, managed, notice_kinds, settings
 from ..store import StoreError
-from ..win import folderid, policykeys
+from ..win import folderid, policykeys, userenv
 from .errors import ControlError, _thread_id
 
 
@@ -138,11 +138,28 @@ class SettingsMixin:
         except ValueError as exc:
             raise settings.SettingsError(str(exc)) from None
 
+    def home_suggestion(self) -> dict:
+        """v0.6.18: the Codex home Settings > Advanced offers to watch too (homefind.offer) - one this PC's Codex
+        uses that is not watched yet and was not set aside - and whether it looks at all and every home is added.
+        Read only: nothing is added here; Add writes `codex_homes` through update_settings, as the card's own Add."""
+        values = self.get_settings()
+        looked = homefind.on(values)
+        named = homefind.found(userenv.codex_home, installed=config.installed_home()) if looked else []
+        return homefind.offer(values, config.codex_home(), named, folderid.identity)
+
+    def dismiss_home_suggestion(self, path) -> dict:
+        """v0.6.18: Not now - `path` is never offered again (homefind.DISMISSED) - and what is offered next."""
+        if not isinstance(path, str) or not path.strip():
+            raise ControlError("name the folder to set aside", code="request_failed")
+        stored = settings.load(self.settings_path()).get(homefind.DISMISSED)
+        self.update_settings({homefind.DISMISSED: homefind.dismissed_with(stored, path.strip())})
+        return self.home_suggestion()
+
     def restore_defaults(self) -> dict:
         try:
             # The Codex homes are where to watch, not a preference: Restore defaults keeps them, and with them
-            # every recovery waiting there (removing a home cancels those, homes.py).
-            kept = {homes.FIELD: settings.load(self.settings_path())[homes.FIELD]}
+            # every recovery waiting there (removing a home cancels those, homes.py) - never through a read that failed.
+            kept = {homes.FIELD: settings.kept(self.settings_path())[homes.FIELD]}
             saved = settings.save(self.settings_path(), dict(settings.defaults(), **kept))
         except settings.SettingsError as exc:
             # Generic for the same reason as `update_settings` above.
@@ -164,13 +181,19 @@ class SettingsMixin:
 
     def describe_settings(self) -> list:
         """settings.describe(), with `"managed": true` on each setting a policy key decides while
-        one does - which every surface draws greyed, as set by your administrator. With no key set,
+        one does - which every surface draws greyed, as set by your administrator - and, on one the key
+        holds only under a ceiling, `"ceiling": <the most it may be>`, which stays editable up to there. With no key set,
         exactly settings.describe(). The edition's plug is taken first (v0.6.16): making it is when an edition registers
         its kinds of notice (notice_kinds.register), which the schema lists among the ones that may stay on screen."""
         self.plug
         described = settings.describe()
-        decided = managed.fields(self.managed())
+        held = self.managed()
+        decided, ceilings = managed.fields(held), managed.ceilings(held)
         if decided:
-            described = [dict(entry, managed=True) if entry["name"] in decided else entry
+            # v0.6.19: a setting a key holds under a ceiling (managed.ceilings) also carries the
+            # ceiling, and a surface keeps it editable up to there instead of greying it.
+            described = [dict(entry, managed=True, **({"ceiling": ceilings[entry["name"]]}
+                                                      if entry["name"] in ceilings else {}))
+                         if entry["name"] in decided else entry
                          for entry in described]
         return described

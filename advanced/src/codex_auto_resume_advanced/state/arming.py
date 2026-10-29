@@ -28,6 +28,7 @@ from ..vocabulary import (KEPT_NOTICES, Actor, ArmingState, ArmingWarning, Journ
 from .choices import Refused
 from .continuations import end_pending as end_continuations
 from .prompts import end_pending as end_prompts
+from .chat import end_pending as end_chats
 from .meter import METER, end_meter
 from .resets import end_pending
 from .schema import CONTINUATION_CAPABILITIES
@@ -150,6 +151,7 @@ class ArmingMixin:
                 end_continuations(connection, (capability,), now, kept=state == ArmingState.OFF)
                 if capability == METER:
                     end_meter(connection)                          # (v0.6.16-beta.3) and the meter's reading
+                end_chats(connection, (capability,), now)          # (v0.6.19) and chat's waiting messages
             connection.execute("UPDATE meta SET generation = generation + 1")
             code = _CODES.get(state) or (JournalCode.TRIPPED if actor == Actor.TRIPWIRE
                                          else JournalCode.RESET if actor in (Actor.EDITION_ENTRY, Actor.ENGINE_CHANGE)
@@ -231,6 +233,7 @@ class ArmingMixin:
             end_continuations(connection, CONTINUATION_CAPABILITIES, now)
             end_prompts(connection, ("prompt_queue",), now)
             end_meter(connection)
+            end_chats(connection, ("codex_chat",), now)
             connection.execute("UPDATE meta SET generation = generation + 1")
             self._note(connection, now, JournalCode.RESET if actor == Actor.EDITION_ENTRY
                        else JournalCode.ALL_OFF, reason=reason, actor=actor)

@@ -41,7 +41,10 @@ CARRIED = frozenset((capability, choice) for capability in WINDOW_FOLLOWERS for 
 # v0.6.18: the times a capability's own code keeps in `options` beside its choices (ChoicesMixin.stamp): the weekly update
 # check's last run, and the newest version it offered and when. Nothing else is ever written so.
 STAMPS = {"idle_update_check": (str(OptionKey.LAST_CHECK), str(OptionKey.OFFERED_VERSION),
-                                str(OptionKey.OFFERED_AT))}
+                                str(OptionKey.OFFERED_AT)),
+          # v0.6.19 (issue #50): early_reset's times for Pending's Why it is waiting, and a person's click's probe.
+          "early_reset": (str(OptionKey.CHECKED_AT), str(OptionKey.AVAILABLE_AT), str(OptionKey.LIFTED_AT),
+                          str(OptionKey.CHECK_ASKED), str(OptionKey.FOUND_AT))}
 RULES_LIMIT = 10
 STATUS_RANGE = (100, 599)
 # How far back the Dashboard counts a rule's hits and shows samples.
@@ -213,8 +216,11 @@ class Scoped:
         from .continuations import ContinuationsHandle
         from .meter import MeterHandle
         from .runs import RunsHandle
+        from .chat import ChatHandle
+        from .opens import OpensHandle
         from .prompts import PromptsHandle
         from .resets import ResetsHandle
+        from .restarts import RestartsHandle
         self._reads.update({
             "resets": ResetsHandle(state, capability, on),
             # v0.6.15-beta: a continuation capability's own continuations (state/continuations.py).
@@ -225,11 +231,18 @@ class Scoped:
             "meter": MeterHandle(state, capability, on),
             # v0.6.16-beta.4: a headless capability's own runs (state/runs.py).
             "runs": RunsHandle(state, capability, on),
+            # v0.6.19: the watcher's restarts after it stopped unexpectedly, written by crash_restart alone
+            # (state/restarts.py).
+            "restarts": RestartsHandle(state, capability, on),
+            # v0.6.19: codex_chat's messages (state/chat.py).
+            "chat": ChatHandle(state, capability, on),
+            # v0.6.19 (#50): open_to_send's opens (state/opens.py).
+            "opens": OpensHandle(state, capability, on),
             "passed": lambda measurement: verdict is not None and verdict(measurement) == "pass",
             "failed": lambda measurement: verdict is not None and verdict(measurement) == "fail",
             "armed": lambda other: armed is not None and armed(other) is True,
         })
-        # v0.6.19 (push_notices, status_feed - the courier, plans/v0619-design/D-courier.md): push_notices' outbox, written
+        # v0.6.20 (push_notices, status_feed - the courier, plans/v0619-design/D-courier.md): push_notices' outbox, written
         # only while it is on, and the status feed's last reading, read always. Neither loads a networking module.
         from ..courier.feed import read as feed_read
         from ..courier.outbox import OutboxHandle

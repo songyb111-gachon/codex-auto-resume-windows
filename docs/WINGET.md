@@ -49,7 +49,7 @@ From v0.6.16 both Setup programs meet what the community repository asks of an i
 
 1. The release is published and its archives are pinned in `scripts/release.json` (CONTRIBUTING, "After a release
    is published: pin its digest"). The generator refuses a version whose archive has no pin, and a pre-release.
-2. Download the four small files `CodexAutoResume-Setup-vX.Y.Z.exe.sha256` and
+2. Download the two small files `CodexAutoResume-Setup-vX.Y.Z.exe.sha256` and
    `CodexAutoResume-Advanced-Setup-vX.Y.Z.exe.sha256` into an empty folder (the Setup programs themselves are
    not needed), for instance with `gh release download vX.Y.Z --pattern "*Setup*.sha256" --dir <folder>`.
 3. `python build/winget_manifests.py --version X.Y.Z --from-dir <folder>` writes
@@ -77,8 +77,9 @@ itself.
 
 ## Where the files come from
 
-The manifest schema (1.28.0 is the repository's current one) and the community repository's rules were read on
-2026-10-16 from the
+The files are written to manifest schema 1.12.0 (`SCHEMA` in `build/winget_manifests.py`: it has every field used
+here, and the repository's current schema, 1.28.0, only adds two this does not write, so the files satisfy both).
+The schema and the community repository's rules were read on 2026-10-16 from the
 [Learn page on manifests](https://learn.microsoft.com/windows/package-manager/package/manifest), the repository's
 [schema notes](https://github.com/microsoft/winget-pkgs/tree/master/doc/manifest/schema/1.28.0) and
 [Authoring.md](https://github.com/microsoft/winget-pkgs/blob/master/doc/Authoring.md). `tests/test_winget_manifests.py`

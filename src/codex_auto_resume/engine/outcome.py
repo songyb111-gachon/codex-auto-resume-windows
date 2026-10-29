@@ -25,7 +25,18 @@ class OutcomeMixin:
                 self.transition(row, "outcome_unverified", "outcome_deadline")
             return
         status = seen["status"]
-        if seen["foreign_user_messages"] > 0:
+        if seen["foreign_user_messages"] > 0 and seen.get("progress_before_foreign") is True:
+            # Our continuation worked, then a person's message entered the turn - one they had queued in the Codex
+            # app, or an answer to a question Codex asked them (2026-10-22, the owner's 04:24 and 16:38): a recovery,
+            # through turn_completed as every outcome goes, decided while the turn may still run. Not handed over, so
+            # the turn's own next failure - a usage limit, which stops the person too - is a chain child that is
+            # recovered (gates.birth_stop), not one born superseded that nobody resumes.
+            if row["state"] == "turn_started":
+                self.transition(row, "turn_completed", None, recovery_turn_status=status)
+            else:
+                self.transition(row, "recovered", "progress_then_user_joined", recovery_turn_status=status)
+        elif seen["foreign_user_messages"] > 0:
+            # A person joined before the turn did anything: theirs, handed over at once.
             self.transition(row, "handed_over", "user_joined", user_joined=True,
                             recovery_turn_status=status)
         elif status == "other":

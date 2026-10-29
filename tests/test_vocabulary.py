@@ -3,7 +3,7 @@
 A record's state, a public code, a reason, a gate, a failure category, an error code, a
 setting's choice, a registry state - each is a string from a closed list, and each list is
 also a contract: the store validates against it, the window and the panel look words up by it,
-the catalogs carry a sentence for each member, and the Rust core of v0.6.21 has to write the same
+the catalogs carry a sentence for each member, and the Rust core of v0.6.22 has to write the same
 strings. v0.6.5 gives every list one home, `domain/vocabulary.py`, as an `enum.StrEnum`, and
 keeps each old constant under its old name so that every `x in STATES` still works.
 
@@ -73,14 +73,15 @@ LISTS = {
     # version_newer_than_engine, one of those a newer Codex wrote than the engine here (the version skew guard).
     # 2026-10-21: progress_then_turn_cut_off - a recovery turn that did work and that Codex closing, or the PC going
     # off, left inProgress for good (engine/outcome.py).
-    "machine.REASONS": ("set", 80, "51cd45279887543c"),
+    # 2026-10-22: progress_then_user_joined - a recovery turn that did work before a person's message entered it.
+    "machine.REASONS": ("set", 81, "9768467e207d7669"),
     # v0.6.11: postponed, held, hold_released and tier_set - a person's (or the objection window's)
     # later time, a hold, letting it go, and a conversation's tier - and observe only's would_send.
     # And dispatched_while_observing and unpostponed: one taken back for Observe only that ran all the
     # same, and a person's own postponement taken away.
     # v0.6.16 (issue #39): rescan_retired, rescan_rechecked, rescan_unresolved and rescan_changed - what a
     # person's Rescan and reconcile found of each waiting record, one journal word for each outcome.
-    "machine.EVENT_CODES": ("set", 32, "405d5c00a0cd7440"),
+    "machine.EVENT_CODES": ("set", 33, "43847d96aef72657"),
     "machine.WAITING_CODES": ("set", 5, "aef153e5808afe46"),
     "machine.PUBLIC_CODES": ("set", 22, "33761768f9d99cd0"),
     "machine.PAGES": ("tuple", 6, "ffad1c9f0521398d"),
@@ -98,7 +99,8 @@ LISTS = {
     # v0.6.15-beta: and home_removed and home_not_watched, as every reason is.
     # v0.6.16-beta.4: and held_by_other_session and version_newer_than_engine.
     # 2026-10-21: and progress_then_turn_cut_off, as every reason is.
-    "machine.GATE_REASONS": ("set", 98, "efef3661b38c49f9"),
+    # 2026-10-22: and progress_then_user_joined, as every reason is.
+    "machine.GATE_REASONS": ("set", 99, "b69124d1a9eca7a0"),
     "machine.PASS": "PASS",
     "machine.WAIT": "WAIT",
     "machine.BLOCK": "BLOCK",
@@ -198,13 +200,13 @@ LISTS = {
     # v0.6.11: and the needs-you notice's light, attention; and a long sleep's, paused (power.py).
     # and Show me what happens' card, waiting.
     # v0.6.16-beta.3: near_limit; v0.6.16: the forced stop's three notices near a limit, each a kind of its own.
-    # v0.6.18: the weekly update check's offer.
-    "notifier.NOTICE_STATUS": ("dict", 17, "0b1f0983ec85da07"),
+    # v0.6.18: the weekly update check's offer; v0.6.19: the crash restart's notice that it left the watcher stopped.
+    "notifier.NOTICE_STATUS": ("dict", 18, "74bf5830649a542d"),
     # v0.6.12: the power action's five notices follow them, in a table of their own (PowerNotice), and the
     # whole table is both.
     "notifier.POWER_STATUS": ("dict", 5, "d403490eeafa7732"),
     "notifier.POWER_EVENTS": ("tuple", 5, "e5a05bae37eb8e45"),
-    "notifier.STATUS": ("dict", 22, "b4ac13dcfeeee6c9"),
+    "notifier.STATUS": ("dict", 23, "f9f6a61a367203b7"),
     "mcpserver.Server.START_WORDING": ("dict", 4, "f15e04a780f57870"),
     # v0.6.11: the two editions, and the plug that is the whole difference between them.
     "edition.EDITIONS": ("tuple", 2, "49cc206af3867704"),

@@ -23,6 +23,7 @@ Whatever goes wrong with another home costs that home alone: the default home's 
 """
 from __future__ import annotations
 
+import os
 import time
 from pathlib import Path
 
@@ -34,6 +35,11 @@ from ..windows import AdapterError, HomeLock
 # ChatGPT app runs on it.
 RETRY_SECONDS = 600
 REMOVED = "home_removed"
+
+
+def _spelling(path) -> str:
+    """A home's path as Settings spell it, case-folded: the same whether or not its folder can be reached now."""
+    return os.path.normcase(os.path.abspath(str(path)))
 
 
 class HomeRun:
@@ -82,12 +88,20 @@ class Homes:
         can be started (each at most every RETRY_SECONDS), and rebuild every engine on a new codex.exe."""
         wanted = self.configured()
         now = self.clock()
+        # v0.6.18: a home's key hashes its resolved path, which can change with the folder's reach - a mapped network
+        # drive resolves to its UNC form online and to its letter offline. A key that no longer matches is never a
+        # removal alone: a run whose path Settings still name is kept, and while a named folder is out of reach the
+        # start's sweep waits, since that home may be known by another key once it is back.
+        named = {_spelling(path) for path, _alias in wanted.values()}
         if not self._swept:
-            self._swept = True
-            for key in store.home_keys():
-                if key not in wanted:
+            orphans = [key for key in store.home_keys() if key not in wanted]
+            if not orphans or not any(configured.problem(path) == configured.MISSING for path, _ in wanted.values()):
+                self._swept = True
+                for key in orphans:
                     store.cancel_home(key, time.time(), REMOVED)
         for key, run in list(self.runs.items()):
+            if key not in wanted and not run.retiring and _spelling(run.path) in named:
+                continue
             if key not in wanted and not run.retiring:
                 run.retiring = run.engine.retiring = True
                 cancelled = store.cancel_home(key, time.time(), REMOVED)

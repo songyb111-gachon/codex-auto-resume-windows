@@ -21,7 +21,8 @@
             "state": "waiting_reset",
             "eligible_at": 1800002540.0,
             "woke": false,
-            "note": "the usage reset is at a later time; the watcher checks then, and every safety check still applies"
+            "note": "the usage reset is at a later time; the watcher checks then, and every safety check still applies",
+            "usage_check": null
           }
         }
       }

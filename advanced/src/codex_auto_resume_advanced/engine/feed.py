@@ -1,5 +1,5 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
-"""Show OpenAI's service status (status_feed, v0.6.19, plans/v0619-design/D-courier.md).
+"""Show OpenAI's service status (status_feed, v0.6.20, plans/v0619-design/D-courier.md).
 
 At P8, while a recovery core holds waits in a usage limit or a connection failure (USAGE_LIMIT and failures.TRANSIENT),
 the courier is started with `--feed` once the last reading is FEED_MINUTES old (10, 30 or 60, the person's choice) -

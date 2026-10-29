@@ -82,13 +82,10 @@ class AdvancedPlug(Plug):
         return self.runtime.partition(records)
 
     def supervise(self, facts):
-        return self.runtime.ask(Point.SUPERVISION, facts)
+        return self.runtime.supervise(facts)
 
     def moved(self, record, state):
         return self.runtime.moved(record, state)
-
-    def notice(self, facts):
-        return self.runtime.ask(Point.NOTICE, facts)
 
     def delivery(self, record):
         return self.runtime.ask(Point.DELIVERY, record)
@@ -143,7 +140,9 @@ NOTICE_KINDS = (("near_limit", ("near_limit",), "msg.toast_near_limit"),
                 ("near_limit_press_resume", ("near_limit_press_resume",), "msg.toast_near_limit_press_resume"),
                 ("near_limit_not_continued", ("near_limit_not_continued",), "msg.toast_near_limit_not_continued"),
                 # v0.6.18: the weekly update check's offer of a newer version.
-                ("update_offered", ("update_offered",), "msg.toast_update_offered"))
+                ("update_offered", ("update_offered",), "msg.toast_update_offered"),
+                # v0.6.19: the crash restart left the watcher stopped after its third restart in an hour.
+                ("restart_gave_up", ("restart_gave_up",), "msg.toast_restart_gave_up"))
 
 
 def register_notice_kinds():

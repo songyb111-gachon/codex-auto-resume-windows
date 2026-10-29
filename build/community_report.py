@@ -62,6 +62,7 @@ if _SRC not in sys.path:
 
 from codex_auto_resume import compat, machine  # noqa: E402
 from codex_auto_resume.compat import reported as product_reported  # noqa: E402
+from codex_auto_resume.ownreport import evidence as product_evidence  # noqa: E402
 from codex_auto_resume.domain import vocabulary as words  # noqa: E402
 
 FORMAT = "codex-auto-resume-compat-evidence/1"
@@ -90,8 +91,9 @@ REPORTABLE = ("engine_present", "exact_thread_recovery", "loaded_state_detection
 GATE = tuple(compat.SEND_GATE)
 # An outcome the product observed. `outcome_unverified` says it could not observe one.
 OUTCOMES = frozenset(machine.OUTCOMES) - {"outcome_unverified"}
-WORKED = frozenset({"recovered"})
-FAILED = frozenset({"recovery_turn_failed", "failed", "terminal_failure"})
+# The counting rule is the product's own (v0.6.19: ownreport/evidence.py graded, which the Dashboard's own report
+# counts this PC's records by): one rule, so a report filed here and one read on the PC are counted alike.
+WORKED, FAILED = product_evidence.WORKED, product_evidence.FAILED
 VERIFIED, CHECKED = compat.VERIFIED, compat.CHECKED
 LEVELS = (VERIFIED, CHECKED, None)
 VERDICTS = ("PASS", "CHECKED", "NONE")
@@ -480,10 +482,7 @@ def graded(report) -> dict:
 
     Only delivered records speak. Neither is neither of them - nothing delivered, or every
     delivered record ended some other way - and both is both at once, shown, not resolved."""
-    delivered = [record for record in report["records"] if record["delivered_at"]]
-    worked = any(record["state"] in WORKED for record in delivered)
-    failed = any(record["state"] in FAILED for record in delivered)
-    return {"worked": worked, "failed": failed, "neither": not (worked or failed), "both": worked and failed}
+    return product_evidence.graded(report["records"])
 
 
 def tally(graded_reports) -> dict:

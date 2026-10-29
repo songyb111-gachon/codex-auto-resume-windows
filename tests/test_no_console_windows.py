@@ -226,10 +226,16 @@ class PythonStartTests(unittest.TestCase):
         ("scripts/plugin_setup.py", "start_watcher"): "setup and enable, from the installer and the skill",
         ("scripts/watcher_launcher.py", "_relaunch_once"):
             "the launcher again, once, when the state is newer than its engine",
+        # v0.6.19-beta.3: the one start of themselves a pythonw.exe entry point makes when Windows started it with
+        # remote debugging on (PEP 768) - a sign-in or notification-button value an older version wrote.
+        ("scripts/watcher_launcher.py", "_again_without_remote_debug"):
+            "the launcher again, once, with remote debugging off",
+        ("src/codex_auto_resume/startup.py", "again_without_remote_debug"):
+            "src/auto_resume.py or setup again, once, with remote debugging off",
     }
     INTERPRETERS = {"startup.python_launcher()", "python_for_watcher(home)",
                     "Path(sys.executable).resolve().with_name('pythonw.exe')"}
-    OWN_CODE = ("entry", "LAUNCHER_NAME", "__file__")
+    OWN_CODE = ("entry", "LAUNCHER_NAME", "__file__", "script")
 
     @classmethod
     def setUpClass(cls):
@@ -292,8 +298,10 @@ class PythonStartTests(unittest.TestCase):
                 self.assertEqual(ast.unparse(argv.elts[0]), "str(interpreter)")
                 chosen = {ast.unparse(value) for value in _assigned(start.function, "interpreter")}
                 self.assertTrue(chosen and chosen <= self.INTERPRETERS, chosen)
-                self.assertTrue(any(word in ast.unparse(argv.elts[1]) for word in self.OWN_CODE),
-                                ast.unparse(argv.elts[1]))
+                # Remote debugging off right after the interpreter (PEP 768; tests/test_remote_debug_off.py).
+                self.assertIn("NO_REMOTE_DEBUG", ast.unparse(argv.elts[1]))
+                self.assertTrue(any(word in ast.unparse(argv.elts[2]) for word in self.OWN_CODE),
+                                ast.unparse(argv.elts[2]))
 
     def test_the_no_window_constant_is_the_one_windows_defines(self):
         if os.name == "nt":
@@ -362,7 +370,7 @@ class InterpreterTests(unittest.TestCase):
 class StdlibTests(unittest.TestCase):
     # Standard-library modules that start a program by themselves, and why none may be imported
     # by anything the release ships. Every other module the product loads was read for this on
-    # 3.13.15 (the bundled runtime) and starts nothing on Windows.
+    # 3.13.15 (the bundled runtime until v0.6.19-beta.3) and starts nothing on Windows.
     BANNED = {
         "platform": "uname() - and version(), release(), machine(), system(), node(), platform() and "
                     "win32_ver(), which are built on it - asks WMI and, when that fails, runs `cmd /c "

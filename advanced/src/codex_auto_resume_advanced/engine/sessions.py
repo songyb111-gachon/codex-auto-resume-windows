@@ -15,8 +15,8 @@ another Codex session holds one (core's held_by_other_session). With this on:
 
 What Codex writes to tell these conversations apart (their originators) is what MO measures; until it passes for the
 Codex in force its statement carries the UNMEASURED warning, and a wrong word detects nothing. A continuation it sent
-that the session did not take within the window trips it (NOT_DISPATCHED_BY_SESSION, runtime.moved). Keep on is
-refused for it while that tripwire would only note (registry.CapabilityDef.keepable).
+that the session did not take within the window trips it (NOT_DISPATCHED_BY_SESSION, runtime.moved): off, or - kept
+on (K8, since v0.6.19-beta.3) - a note, with what was sent taken back and given back to waiting either way.
 """
 from __future__ import annotations
 

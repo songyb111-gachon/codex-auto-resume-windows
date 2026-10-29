@@ -441,7 +441,7 @@ namespace CodexAutoResume
             top.RowCount = 1;
             top.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
             top.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-            top.Padding = Pad(12, 12, 12, 0);
+            top.Padding = Pad(16, 12, 17, 0);
             top.BackColor = Canvas;
             var query = new SoftTextArea();
             query.Dock = DockStyle.Fill;
@@ -459,13 +459,8 @@ namespace CodexAutoResume
             var view = List(S("logs.title", "Log"),
                             Col(S("logs.col_time", "Time"), 150),
                             Col(S("logs.col_entry", "Entry"), 560));
-            var host = new SoftListHost(view);
-            host.Dock = DockStyle.Fill;
-            var padding = new Panel();
-            padding.BackColor = Canvas;
-            padding.Dock = DockStyle.Fill;
-            padding.Padding = Pad(12, 12, 12, 0);
-            padding.Controls.Add(host);
+            // On History's card, on the soft scroll bar, as the lists in the window are (DialogListCard).
+            Control listGround = DialogListCard(view);
 
             var footer = new SoftStack();
             footer.Dock = DockStyle.Bottom;
@@ -473,7 +468,7 @@ namespace CodexAutoResume
             footer.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             footer.ColumnCount = 1;
             footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-            footer.Padding = Pad(12, 8, 12, 0);
+            footer.Padding = Pad(16, 0, 17, 0);
             footer.BackColor = Canvas;
             var count = Value("");
             footer.Controls.Add(count);
@@ -484,11 +479,11 @@ namespace CodexAutoResume
 
             FlowLayoutPanel buttons = ButtonRow();
             buttons.FlowDirection = FlowDirection.RightToLeft;
-            buttons.Padding = Pad(12, 8, 12, 12);
+            buttons.Padding = Pad(16, 8, 17, 12);
             var close = MakeButton(S("action.close", "Close"), false, delegate { dialog.Close(); });
             buttons.Controls.Add(close);
 
-            dialog.Controls.Add(padding);
+            dialog.Controls.Add(listGround);
             dialog.Controls.Add(top);
             dialog.Controls.Add(footer);
             dialog.Controls.Add(buttons);
@@ -496,10 +491,16 @@ namespace CodexAutoResume
             dialog.CancelButton = close;
 
             int token = 0;
+            // v0.6.18: how many looks are on their way. The five-second look waits while one is, so a slow bridge does
+            // not gather a worker behind its lock every five seconds; a search goes as ever, and the token drops the
+            // older answer.
+            int looking = 0;
             // `lookingAgain`: the five-second look, which keeps the list where the person left it (ShowLogLines); a
             // search, or the first look, shows the newest line.
             Action<bool> look = delegate(bool lookingAgain)
             {
+                if (lookingAgain && looking > 0) return;
+                looking++;
                 int mine = ++token;
                 string argument = "{\"query\":" + Json.Escape(query.Box.Text ?? "") + "}";
                 System.Threading.ThreadPool.QueueUserWorkItem(delegate
@@ -509,9 +510,11 @@ namespace CodexAutoResume
                     catch (Exception) { reply = null; }
                     MethodInvoker apply = delegate
                     {
+                        looking = Math.Max(0, looking - 1);
                         if (mine != token || dialog.IsDisposed) return;
                         ShowLogLines(view, count, Ok(reply) ? Map(reply, "result") : null, lookingAgain);
                     };
+                    // A dialog closed meanwhile looks no more, so what is left on its way is not counted.
                     try { if (dialog.IsHandleCreated && !dialog.IsDisposed) dialog.BeginInvoke(apply); }
                     catch (Exception) { }
                 });

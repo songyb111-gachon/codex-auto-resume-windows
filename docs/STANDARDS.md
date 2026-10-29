@@ -42,7 +42,7 @@ changed).
 **0.6** The deciding line: keep the engine small, local, conservative and fail-closed; spend complexity on install and control.  
 *docs*
 
-**0.7** The Rust core (v0.6.21) replaces the implementation, not the behaviour: exact-thread, fail-closed, the registry's semantics and both editions are kept (amended by the owner on 2026-10-21).  
+**0.7** The Rust core (v0.6.22) replaces the implementation, not the behaviour: exact-thread, fail-closed, the registry's semantics and both editions are kept (amended by the owner on 2026-10-21 and 2026-10-26).  
 *planned*
 
 ## A. What it may send to Codex, and when
@@ -80,8 +80,8 @@ changed).
 **A11** It sends only while the desktop app is running and the exact thread is loaded. notLoaded or unknown waits at waiting_for_loaded_thread; nothing is queued on the off chance.  
 *tested*: `test_engine.py`
 
-**A12** Never before the real reset time, and live usage is re-checked.  
-*tested*: `test_engine.py`
+**A12** Never before the real reset time, and live usage is re-checked. The real reset is the newest one Codex reports, read when a recovery is due or when a person asks for it (Retry now); a reading that says the limit has not lifted, or cannot be told, or fails, changes nothing (amended by the owner on 2026-10-24).  
+*tested*: `test_engine.py`, `test_retry_now_usage.py`
 
 **A13** Only classified kinds are recovered: usage limit, connection failure, timeout (408/425), rate limit (429, including responseTooManyFailedAttempts carrying 429), 5xx, and stream disconnect. The structured code comes first; message text is used only when there is no code, against a fixed phrase list.  
 *tested*: `test_failures.py`, `test_plug_points.py`
@@ -89,9 +89,9 @@ changed).
 **A14** Never retried: anything unclassified, user cancellation, permission, approval, content policy, invalid request, context length, 401/403, badRequest, sandboxError, and responseTooManyFailedAttempts without a 429.  
 *tested*: `test_recovery.py`, `test_failures.py`, `test_settings.py`, `test_plug_points.py`
 
-**A15** Only desktop-app user conversations. Codex's `thread_source` label is not required: a desktop conversation with no label, or with ChatGPT's handoff label, is the person's own. Subagent, archived and non-desktop threads, and threads an agent made, are never detected (clarified on 2026-10-15).  
+**A15** Only desktop-app user conversations. Codex's `thread_source` label is not required: a desktop conversation with no label, or with ChatGPT's handoff label, is the person's own. Subagent, archived and non-desktop threads, and threads an agent made, are never detected (clarified on 2026-10-15) - except a thread an agent made whose failed turn the person started from the input box, which is theirs (amended by the owner on 2026-10-28, issue #54).  
 *tested*: `test_engine.py`, `test_source.py`
-<!-- A15 clarified, not changed, at the owner's word after issue #27 (2026-10-13): the label is Codex's analytics classification, not a mark of whose a conversation is. -->
+<!-- A15 clarified, not changed, at the owner's word on 2026-10-15, after issue #27 (2026-10-13): the label is Codex's analytics classification, not a mark of whose a conversation is. -->
 
 **A16** A failure is eligible only while it is the thread's latest turn and completed after arming minus the look-back (default 6 h, at most 7 days).  
 *tested*: `test_engine.py`
@@ -114,7 +114,7 @@ changed).
 **A22** Waits are bounded. A transient wait comes only from a preset ladder or from Custom's five waits, each picked from a closed list and never typed; a Retry-After or jitter only lengthens a wait, and a rate limit's first wait is at least a minute.  
 *tested*: `test_recovery.py`, `test_ladder_and_guards.py`
 
-**A23** One failure is recovered once. The same Codex turn under a new identity is refused. A chain child inherits its counters, and is created already stopped if its parent was cancelled, handed over or out of budget.  
+**A23** One failure is recovered once. The same Codex turn under a new identity is refused. A chain child inherits its counters, and is created already stopped if its parent was cancelled or out of budget, or handed over by a person who joined before the recovery turn made any progress (amended by the owner on 2026-10-22).  
 *tested*: `test_store.py`, `test_recovery.py`
 
 **A24** Give attempts back: only for exhausted records, at most 3 per task, never for cancelled or possibly-sent ones. It sends nothing and never switches a conversation on.  
@@ -158,7 +158,7 @@ changed).
 **B5** Only the newest database generation is read, and only if every column it reads exists; paths must stay inside the Codex home.  
 *tested*: `test_source.py`
 
-**B6** Rollout files only under <home>\sessions. It reads the first line (at most 256 KiB: id and origin), and for a usage limit only, up to 8 MiB before the failure, in memory, keeping only the reset time and the limit id.  
+**B6** Rollout files only under <home>\sessions. It reads the first line (at most 256 KiB: id and origin), and for a usage limit only, up to 8 MiB before the failure, in memory, keeping only the reset time and the limit id. Only when a person presses *Rescan and reconcile*, and only for a waiting recovery whose history has not caught up, it reads that conversation's rollout file from start to end, a line at a time, up to 32 MiB (a larger file is not read): each line is parsed in memory and dropped, and only whether a message of the person's that carries no marker of its own follows the failed turn's end is kept. It also lists the file names under <home>\sessions, opening none, to follow a conversation Codex split across files (corrected to match the code on 2026-10-22).  
 *tested for the path; code for the byte caps*: `test_source.py`
 
 **B7** Queries that return message content are bounded by instr(col, marker)>0; other people's rows come back only as counts or booleans.  
@@ -188,7 +188,7 @@ changed).
 **B15** Compatibility probes read only the schema's table and column names and whether folders exist, never a row.  
 *code*
 
-**B16** Windows is asked only content-free questions, and AppsUseLightTheme and TrayNotify are read, never written. The power action asks three more. Whether this account holds SeShutdownPrivilege and which sleep states the PC offers is asked when the Dashboard shows the power action's card or turns it on, and while it is armed; how long ago the last input came (a time, never what it was, with no hook) and how many other sessions are signed in (a count, never a user name) only while it is armed.  
+**B16** Windows is asked only content-free questions, and AppsUseLightTheme, TrayNotify and the notification-area icons' own settings (NotifyIconSettings) are read, never written. To find its own icon among them it reads every entry's icon number and GUID and, for an entry that could be its own, the program path, and keeps none of it. The power action asks three more. Whether this account holds SeShutdownPrivilege and which sleep states the PC offers is asked when the Dashboard shows the power action's card or turns it on, and while it is armed; how long ago the last input came (a time, never what it was, with no hook) and how many other sessions are signed in (a count, never a user name) only while it is armed (corrected to match the code on 2026-10-22). To suggest a Codex home this PC's Codex uses and the watcher does not yet watch, an installed copy's Dashboard also reads the account's CODEX_HOME value (HKEY_CURRENT_USER\Environment), read-only and never written, when it shows Settings > Advanced and its suggestion switch is on (extended on 2026-10-22 for the Codex homes suggestion the owner asked for).  
 *tested partly*: `test_power_action_windows.py`
 
 **B17** Layering: the engine imports no sqlite3, ctypes or subprocess and reaches Codex only through its injected adapters; the UI and MCP never import Codex's readers; the domain layer is pure standard library; only listed modules import subprocess.  
@@ -208,7 +208,7 @@ changed).
 **C4** Nothing happens on its own: no update polling, no schedule, nothing at start, no automatic compatibility refresh.  
 *tested*: `test_convergence.py`, `test_gui_update.py`
 
-**C5** The update check runs only when a person presses the button. It sends one HEAD to a constant releases/latest URL and reads the version from the redirect under this exact repository, rebuilt from its integers. It also reads this repository's list of releases to find a newer pre-release, which it offers with a question and installs only on a yes. The version picker (*Install another version...*) reads this repository's whole list of releases, paged, only when a person opens it and again when they confirm, and installs the version and edition they picked - a release or a pre-release, older or newer - only after that confirmation, which is the yes (amended by the owner on 2026-09-28 and 2026-10-03).  
+**C5** The update check runs only when a person presses the button. It sends one HEAD to a constant releases/latest URL and reads the version from the redirect under this exact repository, rebuilt from its integers. It also reads this repository's list of releases to find a newer pre-release, which it offers with a question and installs only on a yes. Once github.com has answered, it also refreshes the compatibility data as C7 says. The version picker (*Install another version...*) reads this repository's whole list of releases, paged, only when a person opens it and again when they confirm, and installs the version and edition they picked - a release or a pre-release, older or newer - only after that confirmation, which is the yes (amended by the owner on 2026-09-28 and 2026-10-03; corrected to match the code on 2026-10-22).  
 *tested*: `test_update_check.py`, `test_convergence.py`, `test_prerelease_offer.py`, `test_version_picker.py`, `test_gui_versions.py`
 
 **C6** Setup download: HTTPS, at most 5 redirects, URL built from constants and the manifest version - or a version from the list of releases, rebuilt from its integers - final host one of three GitHub hosts (checked after the download, which is disclosed), at most the archive and its .sha256 (amended by the owner on 2026-10-03).  
@@ -255,7 +255,7 @@ changed).
 **D6** Notifications: up to 2 one-line labels of at most 72 chars plus the UUID, no error or account text, at most 3 lines, XML-escaped; the card shows what the toast shows.  
 *tested*: `test_notify.py`
 
-**D7** get_status carries the compatibility summary as codes only and no install path. It does return the settings, including the Custom text and the codex_exe path, read-only, which is disclosed.  
+**D7** get_status carries the compatibility summary as codes only and no install path. It does return the settings, including the Custom text and whether a codex_exe path is set (never the path), read-only, which is disclosed (amended by the owner on 2026-10-22).  
 *tested*: `test_mcp.py`, `test_compat_surfaces.py`
 
 **D8** Values that reach PowerShell travel as environment variables to constant scripts, and PowerShell is run by its full System32 path.  
@@ -337,7 +337,7 @@ changed).
 **F5** Nothing is destroyed without proven ownership; the disclosed exceptions are per-user singletons replaced by name and the marketplace repointed.  
 *tested*: `test_installer_ownership.py`
 
-**F6** Processes it starts: its own - the watcher, the settings window and the bundled Python behind them; codex app-server --stdio, codex queue, and the --version and queue --help probes; the codex plugin commands when it installs and uninstalls; and PowerShell by its full path with constant scripts - always as argument lists.  
+**F6** Processes it starts: its own - the watcher, the settings window and the bundled Python behind them; codex app-server --stdio, codex queue, and the --version and queue --help probes; the codex plugin commands when it installs and uninstalls; and PowerShell by its full path with constant scripts - always as argument lists. On a person's click it also starts explorer.exe to show the logs folder, hands the guide link to the default browser, and starts a copy of its own setup program from a temporary folder to remove the installation (corrected to match the code on 2026-10-22).  
 *tested*: `test_structural_invariants.py`, `test_pwsh.py`
 
 **F7** Single instance: a per-user, per-state-directory mutex, a stop event and a per-Codex-home lock; a second watcher exits, the send gate requires the lock, and a second installation is refused.  
@@ -416,7 +416,7 @@ changed).
 **H2** Settings are policy only. None can retry unknown failures, resolve by title, resend an uncertain submission, force a send, skip revalidation or move an engine constant. Writes are strict: refused, never clamped.  
 *tested*: `test_engine.py`, `test_settings.py`
 
-**H3** Three surfaces write one settings file through one validator, and only the Dashboard writes the Custom text. update_settings does not offer the engine path, look-back, tray icon, Reduce motion, card or Custom text, and refuses them even if the schema is ignored.  
+**H3** Three surfaces write one settings file through one validator, and only the Dashboard writes the Custom text. update_settings does not offer the engine path, look-back, tray icon, Reduce motion, card, Design or Custom text, and refuses them even if the schema is ignored.  
 *tested*: `test_mcp.py`
 
 **H4** Global pause is an immediate kill switch that keeps pending records. It withdraws a queued continuation; a confirmed withdrawal returns the record to waiting with its attempt back; a pause over an uncertain submission ends it final.  
@@ -446,7 +446,7 @@ changed).
 **H12** Each recoverable category has its own switch, and a switched-off category is never recorded.  
 *tested*: `test_engine.py`
 
-**H13** An explicit interface-language choice wins over Windows and CODEX_AUTO_RESUME_LANG and survives restarts, repairs and updates; motion stops under Reduce motion, Windows' animation setting, High Contrast, battery saver, a locked session and the overflow area.  
+**H13** An explicit interface-language choice wins over Windows and CODEX_AUTO_RESUME_LANG and survives restarts, repairs and updates; motion stops under Reduce motion, Windows' animation setting, High Contrast, battery saver, a locked session and a closed overflow flyout (amended by the owner on 2026-10-22).  
 *tested*: `test_locale.py`, `test_tray_icon_motion.py`
 
 **H14** The power action after usage-limit recoveries is off by default and armed only in the Dashboard, once or always. MCP, the icon and a notice may only turn it off or stop it for its batch, and a stop is honoured before anything else is looked at. It acts only when every usage-limit recovery of its batch has ended as the person chose, no recovery is open or followed, Codex's history has caught up, no Codex turn runs, no input is queued, nobody has used the PC for two minutes and a notice's countdown has run out. Anything it cannot read means it does nothing, and it sends nothing.  
@@ -554,11 +554,13 @@ changed).
 **K1** The standard edition's archive and setup program hold no advanced code. The archive is built from trees that do not name advanced/, and build/edition_audit.py proves it from the two archives' and the two setup programs' bytes in every release build, before anything is kept: no advanced path, file, name or marker in any entry, a text file, a binary or a zip inside the zip; the standard archive built again from `git archive` with advanced/ deleted is the same file; every standard entry is in the advanced archive unchanged, but the settings window, which each edition builds for itself, and the manifest's display name. The publish job checks the listings again.  
 *tested*: `build/edition_audit.py`, `test_edition_audit.py`, `test_edition_build.py`, `test_edition.py`
 
-**K2** Updates stay within an edition. An update, and a pre-release the update check offers, fetch the installed edition's archive and check it against the digest the installed copy pins for that edition and version where it has one, and otherwise against the .sha256 published beside it (today every pre-release and every advanced archive); a bootstrap or installer that meets the other edition refuses before anything moves unless the change was asked for and confirmed, and says it first; a change of edition is a reinstall that keeps settings and pending recoveries and starts every advanced capability off. Installing the same edition again over the state an uninstall kept is not a change of edition: like an update, it keeps what is on, what is kept on and every choice. [AMENDED by the owner 2026-10-18: "같은 판 재설치는 그대로 유지" - after an uninstall that kept the data, the same edition installed again keeps the advanced edition's choices; only entering the advanced edition from the standard edition, or installing it over advanced state that no uninstall of the advanced edition left, turns every capability off.]  
+**K2** Updates stay within an edition. An update, and a pre-release the update check offers, fetch the installed edition's archive and check it against the digest the installed copy pins for that edition and version where it has one, and otherwise against the .sha256 published beside it (today every pre-release and every advanced archive); a bootstrap or installer that meets the other edition refuses before anything moves unless the change was asked for and confirmed, and says it first; a change of edition is a reinstall that keeps settings and pending recoveries and starts every advanced capability off. Installing the same edition again over the state an uninstall kept is not a change of edition: like an update, it keeps what is on, what is kept on and every choice. After an uninstall that kept the data, the same edition installed again keeps the advanced edition's choices; only entering the advanced edition from the standard edition, or installing it over advanced state that no uninstall of the advanced edition left, turns every capability off (amended by the owner on 2026-10-18).  
 *tested*: `test_edition_bootstrap.py`, `test_edition_installer.py`, `test_prerelease_offer.py`
+<!-- K2 amended at the owner's word, 2026-10-18: "같은 판 재설치는 그대로 유지" -->
 
-**K3** Arming only in the Dashboard. Arming.arm refuses every actor but the Dashboard, one capability at a time - or one together with the capabilities it requires that are not on, in the same confirmation, every statement involved shown and each confirmed as one capability alone is, a policy on any of them refusing the whole - and needs the statement revision, the generation, the warnings and, for on, the Codex version the Dashboard showed, each still holding; turning a required capability off turns off first what requires it, and a capability whose requirement is not on is off; every other surface (MCP, the icon, a card) may only turn capabilities off; no MCP tool arms, whatever a client sends, and the one-shot bridge never reaches the plug. [AMENDED by the owner 2026-10-15: "다른 기능도 같이 켜져야 하거나 켜지게 하는 경우 있으면 둘 다 켜지게" - a capability that needs another turns it on in the same confirmation, and turning the needed one off turns off what needs it, named first.]  
+**K3** Arming only in the Dashboard. Arming.arm refuses every actor but the Dashboard, one capability at a time - or one together with the capabilities it requires that are not on, in the same confirmation, every statement involved shown and each confirmed as one capability alone is, a policy on any of them refusing the whole - and needs the statement revision, the generation, the warnings and, for on, the Codex version the Dashboard showed, each still holding; turning a required capability off turns off first what requires it, and a capability whose requirement is not on is off; every other surface (MCP, the icon, a card) may only turn capabilities off; no MCP tool arms, whatever a client sends, and the one-shot bridge never reaches the plug. A capability that needs another turns it on in the same confirmation, and turning the needed one off turns off what needs it, named first (amended by the owner on 2026-10-15).  
 *tested*: `test_advanced_arming.py`, `test_advanced_surfaces.py`
+<!-- K3 amended at the owner's word, 2026-10-15: "다른 기능도 같이 켜져야 하거나 켜지게 하는 경우 있으면 둘 다 켜지게" -->
 
 **K4** Off by default, and advanced only by departing. Every capability starts off, entering the edition turns every one off, and a watched one never promotes itself; departs_from is never empty and names only standards the standard edition keeps (0.1-0.7, A-J), so a capability that keeps every standard belongs in the standard edition.  
 *tested*: `test_advanced_arming.py`, `test_advanced_registry.py`
@@ -569,7 +571,7 @@ changed).
 **K6** A failed measurement is a warning the person confirms, and only policy keys refuse. A measurement a route rests on that failed or has no pass for the Codex in force, a grade of FAILED_HERE, INCOMPATIBLE or UNKNOWN, or no Codex version known is shown in the statement and confirmed by arming, never a refusal (the owner, 2026-09-26, replacing decision C7). What refuses is ForbidAdvanced, AllowedCapabilities and ForceShadow (for on) under Software\Policies\CodexAutoResume, HKLM and HKCU, read and never written, together the stricter, the strictest where unreadable.  
 *tested*: `test_advanced_arming.py`, `test_advanced_goal.py`, `test_advanced_marker_free.py`
 
-**K7** Tripwires switch a capability off, and re-arming is always possible. A new statement revision, a warning the person did not confirm that says what it stands on went wrong (failed here, a local check failed, incompatible, a measurement failed), one of its hooks raising, a send it paid for gone submission_unknown, and, for one that is on, a new Codex version each turn it off; whatever turned it off, the Dashboard can turn it on again with the statement as it then reads. [AMENDED by the owner 2026-10-03: a capability kept on (K8) is not turned off by these five; a resent continuation found twice turns off what sent it again - the once-more capability, or Keep on's Send again.]  
+**K7** Tripwires switch a capability off, and re-arming is always possible. A new statement revision, a warning the person did not confirm that says what it stands on went wrong (failed here, a local check failed, incompatible, a measurement failed), one of its hooks raising, a send it paid for gone submission_unknown, and, for one that is on, a new Codex version each turn it off; whatever turned it off, the Dashboard can turn it on again with the statement as it then reads. A capability kept on (K8) is not turned off by these five; a resent continuation found twice turns off what sent it again - the once-more capability, or Keep on's Send again (amended by the owner on 2026-10-03).  
 *tested*: `test_advanced_arming.py`, `test_advanced_goal.py`, `test_advanced_marker_free.py`, `test_advanced_keep_on.py`, `test_advanced_once_more.py`
 
 **K8** Keep on (the owner, 2026-10-03). Per capability, off by default, set only in the Dashboard for one that is on or watched, after its warning; Send again only with it, after its own. Kept on, K7's five are shown and do not turn it off: a new revision, an unconfirmed warning and a new Codex version are noted; a hook that raises costs that one record; a paid send gone submission_unknown is held as core holds one, or with Send again sent once more under the once-more rules. A Codex version or a grade that cannot be read still holds it back (E1). Each is noted once, the most serious kept, until the person confirms again. The person's off, from any surface, always works and clears it; the ceilings stay; ForbidAdvanced, AllowedCapabilities and ForceShadow read it down first, and Send again only where AllowedCapabilities also admits the once-more capability.  

@@ -113,4 +113,4 @@ from .menu import (APP_MODE_DEFAULT,
                    menu_app_mode,
                    prefer_app_mode)  # noqa: F401
 from .icon import Tray  # noqa: F401
-from .dashboard import PAGES, open_dashboard  # noqa: F401
+from .dashboard import PAGES, open_chat, open_dashboard  # noqa: F401

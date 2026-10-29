@@ -1,6 +1,6 @@
 """Other sessions (v0.6.16-beta.4): the conversations of a terminal's Codex TUI and of VS Code are watched and
 recovered too while a person has it on - sent through the queue where another Codex session holds one - and the
-capability turns off where such a session did not take what was sent to it.
+capability turns off where such a session did not take what was sent to it, or, kept on (v0.6.19-beta.3), notes it.
 
 Held against the shipped definition and statement and against core's own engine, store and simulated Codex home
 (takingcase.py; the conversations of the other kinds as tests/test_session_kinds writes them).
@@ -23,7 +23,7 @@ from codex_auto_resume_advanced import registry  # noqa: E402
 from codex_auto_resume_advanced.engine.sessions import OtherSessions  # noqa: E402
 from codex_auto_resume_advanced.registry import OTHER_SESSIONS  # noqa: E402
 from codex_auto_resume_advanced.vocabulary import (Actor, ArmingState, ArmingWarning, JournalCode,  # noqa: E402
-                                                   Measurement, OffReason, Refusal, Verdict)
+                                                   Measurement, OffReason, Verdict)
 from test_engine import T1, T2  # noqa: E402
 from test_session_kinds import CLI, IDE, add_thread  # noqa: E402
 from sessionsim import holding_sessions  # noqa: E402
@@ -139,24 +139,52 @@ class TripwireTests(SessionsCase):
         self.assertEqual(self.h.record()["withdraw_reason"], "window_ended")
         self.assertEqual(plug.runtime.states(fresh=True)[self.cap], ArmingState.ARMED)
 
-    def test_it_may_not_be_kept_on(self):
-        """Fails with keepable reverted: Keep on would make the tripwire a note."""
-        plug = self.armed()
+    def kept(self, plug):
+        """Kept on (K8) from the Dashboard, as a person keeps it on."""
         runtime = plug.runtime
-        refused = runtime.arming.set_keep_on(self.cap, True, generation=runtime.state.meta()["generation"],
-                                             confirmed=["keep_on"], actor=Actor.DASHBOARD)
-        self.assertEqual((refused["done"], refused["refusal"]), (False, Refusal.INVALID_REQUEST))
-        self.assertIs(OTHER_SESSIONS.keepable, False)
-        # Nor by the arm's own Keep it on, which turns a capability on as it keeps it on (v0.6.16-beta.4): refused
-        # whole, as design 4's review decided (DECISIONS: Keep on is refused while the tripwire would only note).
+        kept = runtime.arming.set_keep_on(self.cap, True, generation=runtime.state.meta()["generation"],
+                                          confirmed=["keep_on"], actor=Actor.DASHBOARD)
+        self.assertEqual((kept["done"], kept["refusal"]), (True, None))
+        runtime.states(fresh=True)
+        return plug
+
+    def test_it_may_be_kept_on(self):
+        """The owner's word of 2026-10-24 (v0.6.19-beta.3). Fails with Keep on refused for it again."""
+        plug = self.kept(self.armed())
+        self.assertTrue(plug.runtime.state.arming()[self.cap]["keep_on"])
+        # And by the arm's own Keep it on, which turns a capability on as it keeps it on (v0.6.16-beta.4).
+        runtime = self.advanced().runtime
         definition = runtime.registry.get(self.cap)
-        refused = runtime.arming.arm(self.cap, state="armed", revision=definition.revision,
-                                     generation=runtime.state.meta()["generation"], acknowledged_version=ENGINE,
-                                     warnings=[str(word) for word in runtime.arming.warnings(definition)],
-                                     keep_on=True, actor=Actor.DASHBOARD)
-        self.assertEqual((refused["done"], refused["refusal"]), (False, Refusal.INVALID_REQUEST))
-        self.assertFalse(runtime.state.arming()[self.cap].get("keep_on"))
+        done = runtime.arming.arm(self.cap, state="armed", revision=definition.revision,
+                                  generation=runtime.state.meta()["generation"], acknowledged_version=ENGINE,
+                                  warnings=[str(word) for word in runtime.arming.warnings(definition)],
+                                  keep_on=True, actor=Actor.DASHBOARD)
+        self.assertEqual((done["done"], done["refusal"]), (True, None))
+        self.assertTrue(runtime.state.arming()[self.cap]["keep_on"])
         self.assertIn(OffReason.NOT_DISPATCHED_BY_SESSION, registry_tripwires())
+
+    def test_kept_on_not_taken_in_time_is_a_note_and_it_stays_on(self):
+        """Fails with the tripwire turning it off whatever Keep on says: kept on, it stays on, the reason is a note
+        journalled once, and what was sent is still taken back as it is when it is not kept on."""
+        plug, row = self.queued(self.kept(self.armed()))
+        self.h.watch(advance=6)
+        self.h.watch(advance=200)
+        self.assertEqual(self.h.record()["withdraw_reason"], "not_delivered_on_open")
+        self.assertEqual(plug.runtime.states(fresh=True)[self.cap], ArmingState.ARMED)
+        stored = plug.runtime.state.arming()[self.cap]
+        self.assertEqual((stored["state"], stored["keep_on"], stored["reason"]),
+                         (ArmingState.ARMED, True, OffReason.NOT_DISPATCHED_BY_SESSION))
+        kept = [line for line in plug.runtime.state.journal(capability=self.cap) if line["code"] == JournalCode.KEPT]
+        self.assertEqual(len(kept), 1)
+
+    def test_kept_on_a_new_codex_version_is_a_note_as_for_every_kept_capability(self):
+        """The Advanced page showed it turned off when the Codex version changed: kept on, that is a note."""
+        plug = self.kept(self.armed())
+        self.compat = dict(self.compat, engine={"found": True, "version": ENGINE + ".1"})
+        self.assertEqual(plug.runtime.states(fresh=True)[self.cap], ArmingState.ARMED)
+        self.assertEqual(plug.runtime.state.arming()[self.cap]["reason"], OffReason.ENGINE_CHANGED)
+        plug.runtime.arming.set_keep_on(self.cap, False, generation=None, actor=Actor.DASHBOARD)
+        self.assertEqual(plug.runtime.states(fresh=True).get(self.cap, ArmingState.OFF), ArmingState.OFF)
 
     def test_unmeasured_on_this_codex_is_a_warning_to_confirm_never_a_refusal(self):
         plug = self.advanced()

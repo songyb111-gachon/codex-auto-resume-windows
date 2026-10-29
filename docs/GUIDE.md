@@ -51,46 +51,7 @@ them, re-surveyed on 2026-09-12, saying what each does better than this one.
 
 **Windows 10/11. No Python needed. No administrator rights.**
 
-### From Codex (recommended)
-
-Add the plugin, then ask Codex to **set up auto resume**.
-
-```
-codex plugin marketplace add songyb111-gachon/codex-auto-resume-windows
-codex plugin add codex-auto-resume@codex-auto-resume-windows
-```
-
-Codex will run the plugin's setup script, which downloads the matching release from this
-repository's releases over HTTPS and checks its SHA-256 against the digest recorded for that
-version in the plugin's
-[`scripts/release.json`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/scripts/release.json).
-That digest is committed to this repository after the release is published; it does not come
-from the release itself. A version with no digest in the plugin's copy of `release.json` is
-checked against the `.sha256` published with the release instead, and the script says so. That
-covers a version newer than the last recorded digest, and always the installed plugin's own
-version, because a release cannot contain its own digest and after installation the plugin runs
-from the installed copy. It then checks the contents really are this product at this version,
-and only then installs, for your Windows user only: files in the installation folder (by
-default `%USERPROFILE%\.codex-auto-resume`), a Start Menu entry (when notifications are on, as
-they are by default), per-user registry values, and
-this plugin's marketplace and plugin registration in Codex, pointed at that installation. The
-plugin's instructions have Codex tell you before it does any of that.
-
-This route downloads the matching published archive. Archives v0.5.0 through
-v0.5.7 were built by the earlier single-job release workflow, with GitHub Actions referred to
-by floating tags and executables that cannot be rebuilt byte for byte. Step 2 of [From the
-release archive](#from-the-release-archive) lists what replaces that; those changes are new in
-v0.6.0.
-
-The plugin as added from GitHub carries the skills, that setup script and the engine's Python
-source, but no interpreter to run that source, and its manifest declares no MCP server (the
-`.mcp.json` it carries points at an executable that only the release contains); the running
-watcher, the settings window, the panel's own server and the Windows runtime all come from
-that release. That is why there is a download, and why it is worth reading
-[`docs/PLUGIN.md`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/PLUGIN.md)
-if you would rather know exactly what the script will and will not do before running it.
-
-### With the setup program
+### With the setup program (recommended)
 
 Download `CodexAutoResume-Setup-vX.Y.Z.exe` from the
 [latest release](https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/latest) (every release
@@ -149,7 +110,10 @@ its attestation do. In PowerShell, in the folder you downloaded it to:
 
 ```powershell
 (Get-FileHash .\CodexAutoResume-Setup-vX.Y.Z.exe -Algorithm SHA256).Hash
-gh attestation verify .\CodexAutoResume-Setup-vX.Y.Z.exe --repo songyb111-gachon/codex-auto-resume-windows
+gh attestation verify .\CodexAutoResume-Setup-vX.Y.Z.exe `
+    --repo songyb111-gachon/codex-auto-resume-windows `
+    --signer-workflow songyb111-gachon/codex-auto-resume-windows/.github/workflows/release.yml `
+    --source-ref refs/tags/vX.Y.Z
 ```
 
 The first value must match the `.sha256` file. `scripts/release.json` pins archives, not setup
@@ -160,6 +124,45 @@ download, not a replaced one: whoever could change the archive inside could chan
 beside it. Where Smart App Control is turned on, it may block the setup program outright, with no
 **Run anyway**, as it may block the unsigned files the other routes run; this project does not ask
 you to turn it off.
+
+### From Codex
+
+Add the plugin, then ask Codex to **set up auto resume**.
+
+```
+codex plugin marketplace add songyb111-gachon/codex-auto-resume-windows
+codex plugin add codex-auto-resume@codex-auto-resume-windows
+```
+
+Codex will run the plugin's setup script, which downloads the matching release from this
+repository's releases over HTTPS and checks its SHA-256 against the digest recorded for that
+version in the plugin's
+[`scripts/release.json`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/scripts/release.json).
+That digest is committed to this repository after the release is published; it does not come
+from the release itself. A version with no digest in the plugin's copy of `release.json` is
+checked against the `.sha256` published with the release instead, and the script says so. That
+covers a version newer than the last recorded digest, and always the installed plugin's own
+version, because a release cannot contain its own digest and after installation the plugin runs
+from the installed copy. It then checks the contents really are this product at this version,
+and only then installs, for your Windows user only: files in the installation folder (by
+default `%USERPROFILE%\.codex-auto-resume`), a Start Menu entry (when notifications are on, as
+they are by default), per-user registry values, and
+this plugin's marketplace and plugin registration in Codex, pointed at that installation. The
+plugin's instructions have Codex tell you before it does any of that.
+
+This route downloads the matching published archive. Archives v0.5.0 through
+v0.5.7 were built by the earlier single-job release workflow, with GitHub Actions referred to
+by floating tags and executables that cannot be rebuilt byte for byte. Step 2 of [From the
+release archive](#from-the-release-archive) lists what replaces that; those changes are new in
+v0.6.0.
+
+The plugin as added from GitHub carries the skills, that setup script and the engine's Python
+source, but no interpreter to run that source, and its manifest declares no MCP server (the
+`.mcp.json` the release adds points at an executable that only the release contains); the running
+watcher, the settings window, the panel's own server and the Windows runtime all come from
+that release. That is why there is a download, and why it is worth reading
+[`docs/PLUGIN.md`](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/PLUGIN.md)
+if you would rather know exactly what the script will and will not do before running it.
 
 ### From the release archive
 
@@ -187,7 +190,10 @@ If you would rather download the release yourself instead of having the plugin's
    built the archive (archives from v0.5.4 on carry an attestation):
 
    ```powershell
-   gh attestation verify .\CodexAutoResume-vX.Y.Z-win-x64.zip --repo songyb111-gachon/codex-auto-resume-windows
+   gh attestation verify .\CodexAutoResume-vX.Y.Z-win-x64.zip `
+       --repo songyb111-gachon/codex-auto-resume-windows `
+       --signer-workflow songyb111-gachon/codex-auto-resume-windows/.github/workflows/release.yml `
+       --source-ref refs/tags/vX.Y.Z
    ```
 
    If anything does not match, delete the file and do not run it.
@@ -312,20 +318,20 @@ published checksum before anything runs.
 
 Saying yes reads the list again - a version no longer offered as it was shown installs nothing - then
 downloads that version's archive (and its `.sha256` where no digest is pinned for it), checks it and its
-contents as every install does, and only then takes the install lock. A version from v0.6.2 to
-v0.6.11-alpha reads a state one schema older, so for one of those it then asks the watcher to stop,
-waits up to a minute and never kills it, and converts the state as `downgrade-state --to 3` does: a copy
+contents as every install does, and only then takes the install lock. A version that reads an older state - v0.6.11-beta to v0.6.14 and the v0.6.15 hotfix (schema 4), or v0.6.2 to
+v0.6.11-alpha (schema 3) - gets the state converted: it then asks the watcher to stop,
+waits up to a minute and never kills it, and converts the state as `downgrade-state --to 4` or `--to 3` does: a copy
 of the state as it is now is kept beside it, a continuation that may already have gone to Codex becomes
 final and is never sent again, a conversation that waited for you or whose continuation Codex may still
 deliver is switched off, and Observe only, if it is on, becomes a pause. A watcher that does not stop
 within the minute gets nothing installed and its state left as it was, but it was asked to stop and may
 still do so afterwards, and nothing starts it again then: if the header says it is not running, press
-**Start watcher**. A conversion that fails starts the watcher again and installs nothing. Then the version's own installer runs, keeping every record, your pause and the
+**Start watcher**. A conversion that fails starts the watcher again and installs nothing. Then the version's own installer runs in the setup window, headed as an install of another version, with the download and the steps filling its bar, and ends with its exit code and its log; it keeps every record, your pause and the
 sign-in choice. A version older than v0.6.16 knows neither the entry in Settings > Apps nor the uninstaller kept
 for it, so picking one over an installation that has them first removes both. While all this runs, every action button on the page is greyed, **Start watcher**
 included.
 
-Afterwards the window says whether the watcher now runs the version installed, and, where the state was
+Where it installed and *Open the Dashboard* is ticked, the new Dashboard opens and this one closes, as after an update. Otherwise the window says whether the watcher now runs the version installed, and, where the state was
 converted, how many continuations were made final and how many conversations were switched off. Close
 the window and open it again so it runs the version installed. For an older version of the edition you
 have, the question also says to come back with *Check for updates* in that version - but only where that
@@ -425,14 +431,27 @@ task's conversation. The click carries the exact interruption and conversation t
 drawn from, and a click that reaches a task which has since finished, disappeared or turned
 out to belong to another conversation is refused and changes nothing; either way the switch sends
 nothing. **Retry now** only asks the watcher to look again now — every check still applies, and
-nothing is sent unless they all pass. **Cancel** stops recovering that interruption and
+nothing is sent unless they all pass. On a task waiting for a usage reset it also has the watcher read
+your usage once, at that moment: if Codex says the limit has lifted, the newer reset replaces the one
+recorded and the task goes on through every check as usual; still limited, unknown or a failed read
+changes nothing. **Why it is waiting** then says, under the watcher's last reading, when it checked, what it
+read and whether the task went on, led by the button that asked for it ("Retry now · ..."); the note
+under the buttons says only what the click just did - and if the watcher is not running Retry now says so
+and reads nothing. Retry now is not offered while recovery is paused or switched off for that
+conversation - the pause and the row's switch already say why - nor on a task held for you or postponed
+by you. While Observe only is on, it is quiet hours or Windows reports no internet (with **Wait for an
+internet connection** on), nothing is read and Retry now says why. The watcher reads at its next look or
+not at all: a check it cannot make then is never made later, and Why it is waiting says why it was not
+made. A reading from the last 30 seconds answers the click, and nothing is read on a schedule. Why it is
+waiting is the one place on Pending that says the usage readings: the watcher's last one, the one a
+Retry now or a Rescan asked for, and, in the advanced edition, an early check's. **Cancel** stops recovering that interruption and
 everything that continues it: a record that was never sent is cancelled outright, one that may
 already be in Codex is marked and taken back if it is still queued, and a finished one is
 marked too, so no later failure of that task can start a new chain from it. A turn already
 running in Codex is not stopped, and the confirmation says so. **Cancel all** does the same to
 every waiting recovery, one exact record at a time; there is deliberately no way to retry them
-all at once. From v0.6.16 **Rescan and reconcile**, after Cancel all, looks at every waiting recovery
-again by the watcher's own rules, once you confirm. One is retired - stopped as replaced by your own
+all at once. **Rescan** (from v0.6.16; it was called Rescan and reconcile until v0.6.19), after Cancel
+all, looks at every waiting recovery again by the watcher's own rules, once you confirm. One is retired - stopped as replaced by your own
 work - only on proof: its exact failed turn in Codex's history followed by a turn you started (a
 continuation of this tool's never counts), or, while that history has not caught up with the
 conversation's file, the same in the file itself, where nothing after a rollback counts. One that is still its conversation's latest failure
@@ -442,7 +461,14 @@ decide stays as it is and is counted as unresolved, and a recovery that changed 
 skipped. It sends nothing, writes nothing to Codex, gives no attempts back and brings nothing forward,
 and it leaves cancelled, finished and in-flight recoveries and History as they are; the note beside the
 buttons says how many were retired, rechecked, unresolved and changed meanwhile, and each one's
-Timeline says which. **Turn off for this conversation** cancels its waiting recoveries and keeps
+Timeline says which. From v0.6.19 it also has the watcher read your usage once for every recovery that
+still waits for a usage reset - one reading for all of them, with Retry now's rules: one whose limit
+Codex says has lifted goes on through every check; still limited, unknown or a failed read changes
+nothing; its confirmation says it reads usage, and its note says it is reading and then what it read.
+Retry now checks one task, Rescan checks them all. While recovery is paused, Observe only is on, it is
+quiet hours or Windows reports no internet, nothing is read and the note says why (a conversation
+switched off is passed over); with no watcher running nothing is read and it says so. Only your click in
+the Dashboard reads: a rescan asked any other way reads nothing. **Turn off for this conversation** cancels its waiting recoveries and keeps
 automatic recovery off for that conversation until you turn it back on — the Pending and History
 pages then offer **Turn on for this conversation**. From v0.6.11 each row also has a menu of its own,
 on a right click, Shift+F10 or the menu key: **Postpone** holds that task back 30 minutes, an hour,
@@ -510,8 +536,8 @@ breathes slowly in its place, every 5.6 seconds, for as long as it lasts; after 
 turns red and sweeps out and back like a recovery, twice as quickly - once every 1.98 seconds -
 blinking as it goes, every 1.2 seconds, and stays red until you have seen it: click the icon to open the popup, or bring the Dashboard to the
 front. A recovery that starts afterwards clears it as well. Nothing moves under Reduce motion, Windows' animation setting, High Contrast or battery
-saver, while the session is locked, or while Windows keeps the icon in the overflow area, where
-nobody would see it. While the Dashboard is open, its taskbar button moves the same way and
+saver, while the session is locked, or while Windows keeps the icon in the overflow flyout and the flyout is closed,
+where nobody would see it; it moves while you have the flyout open. While the Dashboard is open, its taskbar button moves the same way and
 stops for the same reasons.
 
 <img src="images/status-light.png" alt="The status light breathing on a card: a cyan dot that dims to about two thirds of its colour and comes back over 4.4 seconds, with a soft glow that grows out from under it as it brightens and is gone at the bottom of the breath" width="112">
@@ -603,8 +629,12 @@ One that needs another turns that one on with it, in the same confirmation and w
 shown, and turning the needed one off turns off first what needs it.
 You turn one on in the Dashboard, on the page that edition adds, **Advanced features**, and nowhere
 else; from v0.6.14 that page can also send one waiting recovery now, while Send now is on, and have a
-reset credit used, or a message of your own sent, at a usage reset you pick, each shown on Pending
-under Scheduled until it acts. Their code is left
+reset credit used, or a message of your own sent, at a usage reset you pick, each shown as a row of
+Pending's list until it acts (a queued message is scheduled from that page's card or from Pending's Schedule..., and managed on Pending) - and, from v0.6.19, while chat with a conversation is on, a **Chat** tab beside
+**Advanced features** opens a page of its own that reads a conversation the Codex app has open and sends it a message
+of yours: the reply shows
+once its turn ends ("in progress" until then), approvals are still answered in Codex, and a message written while
+the usage limit is full waits and goes when it resets. Their code is left
 out of the standard edition's archive, and `build/edition_audit.py` proves from the archive's own
 bytes, in every release build, that none of it is there. An installation updates within its edition;
 moving to the other is a reinstall. The [roadmap](ROADMAP.md) says what each has, and what is still
@@ -633,8 +663,7 @@ it, and `Uninstall.cmd -Purge` removes it with the rest of `config\`.
 - Single-instance protection, optional per-user Windows autostart, and a conservative uninstall.
 - Three ways to change a setting — the Dashboard from the Start Menu, a panel inside Codex, and
   the command line — all writing the same file through the same validator, so they cannot disagree.
-- Nine interface languages: English, Korean, Japanese, Simplified and Traditional Chinese,
-  Spanish, German, French and Brazilian Portuguese. It follows Windows unless you choose one.
+- Sixteen interface languages (see [Languages](#languages)). It follows Windows unless you choose one.
 - Light and dark themes: the Dashboard and the popup follow Windows, and the panel follows Codex,
   unless you choose one. High Contrast is always honoured.
 - A continuation message you can shape: its language, a Minimal, Standard or Detailed style, or
@@ -724,8 +753,23 @@ ownership information. It never acquires a lock on the app's file.
   check and nothing the watcher sends moves with them, and Codex is never handed them - the
   compatibility card in the Codex panel points to the Dashboard instead.
 
+  From v0.6.19 the Dashboard writes such a report of your own as well, in either edition:
+  **Diagnostics > Compatibility report from this PC...** reads this installation's own records -
+  its state, the engine lines of its log and the watcher's own compatibility report, never
+  Codex's files - and shows, for every version of Codex the log names, how many records it holds,
+  how many were delivered and how the rule above counts them (worked, failed, neither, or worked
+  and failed), what was left out and why, the report's SHA-256, and the whole report under them.
+  *Copy report* copies exactly the text the SHA-256 is of, and *Write again* reads the records
+  anew. Each version's part is the body codex-compat-reporter writes, except that its progress
+  counts are left empty, because the Dashboard does not read Codex's history. Nothing is sent and
+  nothing is kept: the report lives in that window, and *Export diagnostics* puts one written for
+  the file into the file, under `compatibility_report`. To have it counted, send it with
+  codex-compat-reporter as above. An installation that once held the advanced edition's state
+  leaves out the records that edition's features may have carried, since only that edition can
+  tell them apart.
+
 **Python is not required by either install route** — the installation brings its own runtime
-(Python 3.13.15), and the plugin's setup script is PowerShell. Python 3.12 or newer is needed only if
+(Python 3.14.9), and the plugin's setup script is PowerShell. Python 3.13 or newer is needed only if
 you run the engine from a source checkout; see [Testing](#testing) for the versions CI runs.
 
 ## What is recovered, and what is not
@@ -781,7 +825,7 @@ task", "show auto resume statistics", "show the timeline for that recovery", "tr
 now", "give that recovery its attempts back", "start the watcher", "clear auto resume history",
 "preview the auto resume message", "uninstall auto resume".
 
-"Preview the auto resume message" uses `preview_recovery_message`, one of the plugin's 19 tools. It
+"Preview the auto resume message" uses `preview_recovery_message`, one of the plugin's 20 tools. It
 is read-only: it shows the exact text the watcher would send for one kind of interruption, under the
 current language and style or under ones named for the preview alone, and it saves nothing and sends
 nothing. Codex can change the interface language, the continuation language, the message style,
@@ -824,7 +868,7 @@ as in the conversation itself.
   keyboard on the control it was on. It runs no timer.
 
 Measurements MP1 to MP3, that the Codex app shows the panel there as it should, passed on
-`codex-cli 0.162` ([docs/LIVE_ACCEPTANCE.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/LIVE_ACCEPTANCE.md)).
+`codex-cli 0.162` and `codex-cli 0.163` ([docs/LIVE_ACCEPTANCE.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/LIVE_ACCEPTANCE.md)).
 
 > There is one installation, and both routes converge on it. If you also run a source checkout,
 > keep only one: separate state means two watchers, and two watchers could resume the same task
@@ -834,7 +878,7 @@ Measurements MP1 to MP3, that the Codex app shows the panel there as it should, 
 
 For development, or if you would rather run it yourself. This is not a third way to install the
 product — it is the engine on its own, with no settings window, no panel and no bundled runtime,
-and it needs **Python 3.12 or newer** on your PATH (CI runs it on 3.12, 3.13 and 3.14).
+and it needs **Python 3.13 or newer** on your PATH (CI runs it on 3.13 and 3.14).
 
 ```bash
 git clone https://github.com/songyb111-gachon/codex-auto-resume-windows.git
@@ -847,7 +891,7 @@ cd codex-auto-resume-windows
 There is nothing to build. Verify your environment first:
 
 ```bash
-python src\auto_resume.py doctor
+python src/auto_resume.py doctor
 ```
 
 `doctor` queues no message and opens none of Codex's files for writing; the only things it may
@@ -858,15 +902,15 @@ the Restart Manager probe works, and whether the local history is readable.
 ## Quick start
 
 ```bash
-python src\auto_resume.py doctor
+python src/auto_resume.py doctor
 ```
 
 ```bash
-python src\auto_resume.py enable
+python src/auto_resume.py enable
 ```
 
 ```bash
-python src\auto_resume.py run
+python src/auto_resume.py run
 ```
 
 `run` stays in the foreground and polls. Leave it running in a terminal while you work.
@@ -874,25 +918,25 @@ python src\auto_resume.py run
 Check what it is doing:
 
 ```bash
-python src\auto_resume.py status
+python src/auto_resume.py status
 ```
 
 ```bash
-python src\auto_resume.py pending
+python src/auto_resume.py pending
 ```
 
 ```bash
-python src\auto_resume.py logs
+python src/auto_resume.py logs
 ```
 
 Stop it:
 
 ```bash
-python src\auto_resume.py disable
+python src/auto_resume.py disable
 ```
 
 ```bash
-python src\auto_resume.py stop
+python src/auto_resume.py stop
 ```
 
 `disable` is the kill switch: it immediately prevents any further resume while keeping your pending
@@ -914,6 +958,7 @@ records. `stop` asks a running watcher process to exit.
 | `install` | Create the owned directories and state (`--startup`). |
 | `uninstall` | Remove autostart and owned state/logs (`--keep-logs`, `--keep-state`). |
 | `diagnostics` | Write one redacted diagnostics file, to read before you share it (`--out`). |
+| `downgrade-state --to 4` | Rewrite the state file for a v0.6.11 to v0.6.14 release or the v0.6.15 hotfix; stop the watcher first, or use `--stop-watcher` as below. The conversion is the same as `--to 3`'s; *Install another version...* uses it. |
 | `downgrade-state --to 3` | Rewrite the state file for a v0.6.0 to v0.6.10 release; stop the watcher first. A continuation that may already have gone out is marked final, and a conversation that waited for you to say so, or whose continuation Codex may still deliver, is switched off. With `--stop-watcher` it asks the watcher to stop instead, waits up to a minute and never kills it, and says what it did on one line; *Install another version...* uses it. |
 | `downgrade-state --to 2` | Rewrite the state file for a v0.5 release; stop the watcher first. |
 | `compat` | What the Codex Compatibility Registry says about this Codex, from the watcher's last report (`--live` to check now and write nothing, `--json`, `--import FILE` to validate a data file and keep it only if it passes). |
@@ -960,6 +1005,11 @@ notification - opens the Dashboard on the page the notification is about: the pa
 Dashboard** button opens, or, for a notification without that button, Pending while a continuation is
 being sent, History once it has ended, Settings for the power action's, and otherwise the Overview. The card then goes, as a click always made it go; a right
 click only puts it away, and the buttons do what they always did.
+
+In the advanced edition, while **Chat with a conversation in the Dashboard** is on (v0.6.19), you pick where
+that click goes, under the chat on the Advanced features page: the notification's page as above, that
+conversation's chat in the Dashboard, or Codex itself at that conversation. A notification about no
+conversation opens its page whichever you pick, and with the chat off every click opens the page.
 
 A notification goes away by itself after a while. **Keep on screen until clicked**, under Settings >
 General > Notifications, lists each kind of notification - an interruption detected, a recovery
@@ -1072,7 +1122,7 @@ The Settings page is split into five sections:
 | Automatic recovery | Which classified kinds of interruption are recovered, one check box each, and from v0.6.11 Observe only |
 | Continuation message | The language and style of the message sent to Codex, your own Custom message, and a Preview of the exact text |
 | Appearance | The theme - Use system setting, Light or Dark - the panel's Theme in Codex, the Design - Soft, Classic (v0.6.2) or Plain - and Reduce motion |
-| Advanced | Attempts per interruption, when to give up after recoveries that produce nothing, continuations per task, retry timing, and from v0.6.11 quiet hours, how a conversation resumes, what a conversation seen for the first time gets, which projects may resume, the Custom retry waits and jitter, a time ceiling, the task-changed and context-cost guards, what waits after a long sleep, and waiting for an internet connection - and from v0.6.15-beta the [Codex homes](#several-codex-homes) it watches |
+| Advanced | Attempts per interruption, when to give up after recoveries that produce nothing, continuations per task, retry timing, and from v0.6.11 quiet hours, how a conversation resumes, what a conversation seen for the first time gets, which projects may resume, the Custom retry waits and jitter, a time ceiling, the task-changed and context-cost guards, what waits after a long sleep, and waiting for an internet connection - and from v0.6.16 (first published as v0.6.15-beta) the [Codex homes](#several-codex-homes) it watches |
 
 Every kind of interruption the watcher recovers has a check box, ticked by default. From v0.6.3 to
 v0.6.9 there was one more, **Sign-in service failures**, for a sign-in service that is temporarily
@@ -1425,11 +1475,13 @@ A value that is there and cannot be read - access is denied, say, to it or to th
 taken for one that is not there: it holds the most it could. A switch is set, the ceiling is 1, and quiet
 hours whose times cannot be read send nothing at any hour, as `ForceObserveOnly` does.
 The watcher reads them at every check, the Dashboard and the panel whenever they read the settings.
-While any of the six values above is there, in either place, **Install another version...** offers no
+While any of these values but `DisablePowerAction` is there, in either place, **Install another version...** offers no
 version before v0.6.11-beta, the first that reads them: an older one would stop keeping them.
 
 What a value decides is drawn greyed, with **Set by your administrator** under it, in the Dashboard's
-Settings and in the panel in Codex. The Overview says **managed by your administrator** beside
+Settings and in the panel in Codex. **Attempts per interruption** under `MaxRecoveryAttempts` is the
+exception: it stays yours to change up to the ceiling, which it will not go past, with **Your administrator
+allows at most** and the ceiling under it. The Overview says **managed by your administrator** beside
 Automatic recovery - or **paused by your administrator** - and Diagnostics names the values in force. A change to a setting a value decides is refused, except a number of attempts within the
 ceiling. Your own choices stay in the settings file: nothing a value holds is written there, and they
 apply again once the value is removed. A pause is the one exception: removing `DisableAutoResume` does
@@ -1442,7 +1494,7 @@ list of versions, not a `bootstrap.ps1` you run yourself.
 
 ### Several Codex homes
 
-From v0.6.15-beta one watcher can recover in up to three more Codex homes besides the one it finds
+From v0.6.16 (first published as v0.6.15-beta) one watcher can recover in up to three more Codex homes besides the one it finds
 first (`CODEX_HOME`, or `%USERPROFILE%\.codex`). *Settings > Advanced > Codex homes* lists them: add a
 folder - a Codex home with its `state_<N>.sqlite` in it - and give it a short alias. A home is refused
 when it is a network (UNC) path, a link, a folder with no state database, or the same folder as one
@@ -1461,6 +1513,14 @@ Pending, History, the Codex panel and the cards show the alias beside a record o
 - **Measured up to 0.162.** That the desktop app reaches a second home (measurement MH) passed on
   `codex-cli 0.158` and again on `codex-cli 0.162`. On a Codex newer than 0.162 the card says it is
   unmeasured until it is measured again.
+- **A home it finds is suggested, never added.** From v0.6.18 the card says *Codex also uses <folder>.
+  Watch it too?* when this PC's Codex uses a Codex home that is not watched yet. It looks in two places
+  only: the `CODEX_HOME` variable of your Windows account, and the Codex app's own list of where it has
+  run (`%LOCALAPPDATA%\OpenAI\Codex\chrome-native-hosts-v2.json`). A folder is offered only if it could be
+  added - a local Codex home with its state database, not the default home or one already listed, under
+  any spelling. **Add** adds it as *Add a Codex home...* does, with the same limit of three; with three
+  added the card says so instead. **Not now** sets that folder aside for good. The switch *Suggest Codex
+  homes found on this PC*, on by default, turns the looking off.
 
 ### Languages
 
@@ -1562,7 +1622,7 @@ recovery the watcher has already decided to make.
 Optional, per-user, and never required:
 
 ```bash
-python src\auto_resume.py install --startup
+python src/auto_resume.py install --startup
 ```
 
 This writes a single value under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`. It needs no
@@ -1577,7 +1637,8 @@ real resume happen.
 
 ## Uninstall
 
-Run `Uninstall.cmd` from a release archive, or ask Codex to uninstall auto resume.
+Remove it from Windows **Settings > Apps**, run the setup program again and choose **Remove**, run
+`Uninstall.cmd` from a release archive, or ask Codex to uninstall auto resume.
 `Uninstall.cmd` keeps your settings and pending recoveries by default (it deletes its main and
 error logs; `logs\launcher.log` and `logs\codex-start.log` stay), so reinstalling picks them up; `Uninstall.cmd -Purge` deletes those too, or you can delete the installation folder
 (by default `%USERPROFILE%\.codex-auto-resume\`) yourself. Asking Codex stops the watcher,
@@ -1593,11 +1654,11 @@ From a source checkout, the same command-line tool also deletes this tool's own 
 (`--keep-logs` keeps the logs; `--keep-state` keeps settings and pending recoveries):
 
 ```bash
-python src\auto_resume.py uninstall
+python src/auto_resume.py uninstall
 ```
 
 ```bash
-python src\auto_resume.py uninstall --keep-logs
+python src/auto_resume.py uninstall --keep-logs
 ```
 
 Uninstall is deliberately conservative:
@@ -1790,22 +1851,21 @@ changing a language makes no network request. [PRIVACY.md](PRIVACY.md) has the d
   `codex queue`, and delivery was independently confirmed 30 seconds later. That is one run, not a
   track record. Transient-failure recovery has been exercised by tests, not yet by a real outage.
 - The notification-area popup has not been exercised with a real click on its icon in Explorer.
-- The Japanese, Simplified and Traditional Chinese, Spanish, German, French and Brazilian
-  Portuguese translations have not been reviewed by native speakers.
+- No translation has been reviewed by a native speaker: tests check that each one is complete, keeps its
+  placeholders and is current, and wording is not checked.
 
 ## Testing
 
 Run the automated suite:
 
-```bash
+```powershell
+$env:PYTHONPATH = 'src'
 python -m unittest discover -s tests
 ```
 
-Set `PYTHONPATH=src` first (or use `set PYTHONPATH=src` on Windows).
-
 These tests use fakes and temporary directories. They never contact the ChatGPT app and never send a
 message to any conversation, so they are safe to run anywhere and are what CI runs. CI runs every one
-of them on Python 3.12, 3.13 and 3.14, each of which has to pass, and on the 3.15 pre-release as an
+of them on Python 3.13 and 3.14, each of which has to pass, and on Python 3.15 as an experimental,
 advisory job whose result is shown but does not block.
 
 There is also an opt-in live check against your real environment. It verifies binary discovery,
@@ -1813,8 +1873,8 @@ app pairing, loaded-state classification, and usage reading. It sends no message
 conversation; reading usage does ask OpenAI for your current usage through Codex, as the watcher
 does before a resume:
 
-```bash
-set CODEX_AR_LIVE=1 && python -m unittest tests.test_integration_live
+```powershell
+$env:CODEX_AR_LIVE = '1'; $env:PYTHONPATH = 'src'; python -m unittest tests.test_integration_live
 ```
 
 ## Security
@@ -1847,6 +1907,8 @@ issue; diagnosing a problem does not need them.
 
 | | |
 | --- | --- |
+| [docs/EDITIONS.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/EDITIONS.md) | The standard and the advanced edition: what each is, what each advanced capability does and risks, and how to choose and switch. |
+| [docs/STANDARDS.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/STANDARDS.md) | Every rule the product keeps, by id, with how each is held and the tests that hold it. |
 | [docs/PLUGIN.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/PLUGIN.md) | The Codex plugin layer: what the setup script may fetch and what it checks, the update and removal lifecycle, and why the usage-limit notice cannot get a checkbox. |
 | [docs/VERIFY.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/VERIFY.md) | How to check that a downloaded archive is the one this project published, how to rebuild a release, and what those checks do and do not prove. |
 | [docs/FEATURE_MATRIX.md](https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/FEATURE_MATRIX.md) | Every capability this product claims, beside the evidence it has actually earned - what is tested through the real store and engine, what is only implemented, and what nobody has watched work. |
@@ -1859,6 +1921,7 @@ issue; diagnosing a problem does not need them.
 | [PRIVACY.md](PRIVACY.md) | What is read, what is stored, and what is sent anywhere. |
 | [SECURITY.md](SECURITY.md) | The threat model and how to report a vulnerability. |
 | [SUPPORT.md](SUPPORT.md) | Where to report each kind of problem, and what not to paste into a public issue. |
+| [CONTRIBUTORS.md](CONTRIBUTORS.md) | Who built it, the tools that helped, and the people who reported, suggested and tested. |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Tests, the release build, fixture conventions, and the safety properties a change has to keep. |
 
 ## Development and credits

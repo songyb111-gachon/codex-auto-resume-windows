@@ -303,7 +303,7 @@ class WatcherMixin:
         if os.name == "nt":
             flags = (getattr(subprocess, "DETACHED_PROCESS", 0)
                      | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) | extra_flags)
-        arguments = [str(interpreter), str(entry)]
+        arguments = [str(interpreter), *startup.NO_REMOTE_DEBUG, str(entry)]
         if entry != launcher:
             # The stable launcher already knows its home; the raw entry point does not.
             arguments += ["--home", str(self.paths.home), "--quiet"]

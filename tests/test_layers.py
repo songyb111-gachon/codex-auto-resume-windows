@@ -96,6 +96,9 @@ LAYER = {_q(name): layer for layer, names in {
                # v0.6.15-beta: the Codex homes a watcher is set to watch, as Settings keep them - pure
                # but for the look at a folder; its identity is handed in from win/folderid.py.
                "homes",
+               # v0.6.18: a Codex home this PC's Codex uses that is not watched yet - the rules, and the Codex app's
+               # list read; the account's variable is handed in from win/userenv.py.
+               "homefind",
                # v0.6.16: the kinds of notice that may stay on screen until clicked - pure but for the catalogs.
                "notice_kinds"),
     "adapters": ("store", "openstate", "codex", "windows", "compat", "compatio", "startup", "shortcut",
@@ -128,6 +131,8 @@ LAYER = {_q(name): layer for layer, names in {
                  "win", "win.dll", "win.homelock", "win.inventory", "win.kernel", "win.sync",
                  # v0.6.11: the administrator's policy keys, read and never written.
                  "win.policykeys",
+                 # v0.6.18: and the account's own CODEX_HOME, read and never written.
+                 "win.userenv",
                  # and what Windows says of power and of the internet, and the one power request.
                  "win.power", "win.network",
                  # and what it says of the watcher's own process and of this sign-in.
@@ -142,6 +147,8 @@ LAYER = {_q(name): layer for layer, names in {
                  "win.powerdown",
                  # v0.6.15-beta: which folder a path names, whatever its spelling (the home's second lock).
                  "win.folderid",
+                 # v0.6.20 (#55): asking the settings window that is open to come forward on a page.
+                 "win.handover",
                  # v0.6.10-alpha: source.py became source/, and every part of it reads Codex;
                  # windows.py's other half - the CLI, the App Server, the pairing - joined it.
                  "codex.appserver", "codex.errors", "codex.history", "codex.labels",
@@ -178,7 +185,7 @@ LAYER = {_q(name): layer for layer, names in {
                "engine.routes",
                # and which conversations besides the app's are watched (P18), one sent to another session (P16),
                # and a full context window's compaction turns.
-               "engine.kinds", "engine.tosession", "engine.compaction"),
+               "engine.kinds", "engine.tosession", "engine.compaction", "engine.recordchannel"),
     # v0.6.10-alpha: control.py became control/, ten files, `Control` composed from eight
     # mixins. `layer` is where the composition lives, so that the front holds no code.
     "control": ("control", "control.actions", "control.codexstart", "control.errors",
@@ -199,10 +206,15 @@ LAYER = {_q(name): layer for layer, names in {
               "runtime.afterwork",
               # v0.6.15-beta: and the other Codex homes it holds, each with an engine of its own.
               "runtime.homes",
+              # v0.6.18: and what an update set aside and could not delete, swept as it starts.
+              "runtime.setaside",
               # v0.6.16-beta.3: and its own decisions asked on request, for Diagnostics' check (issue #27).
               "checkup",
               # v0.6.16: and its own rules asked again of every waiting recovery, for Rescan and reconcile (issue #39).
               "rescan",
+              # v0.6.19: this PC's own compatibility report, for Diagnostics and the export - with the watcher's own
+              # engine lines (runtime/app.py), read only when a report is written.
+              "ownreport", "ownreport.document", "ownreport.evidence", "ownreport.reading",
               # v0.6.10-alpha: cli.py's command bodies became commands/; cli.py is the parser.
               "commands", "commands.base", "commands.install", "commands.records",
               "commands.status", "commands.watcher",
@@ -307,6 +319,15 @@ LAZY_IMPORTS = {(_q(importer), _q(imported)): (kind, reason) for (importer, impo
     # v0.6.16-beta.3: Diagnostics' check, which builds an engine, only when it is asked for or exported.
     ("controlcli", "checkup"): ("cost", "Diagnostics' check and the engine it asks, only when it runs"),
     ("commands.install", "checkup"): ("cost", "Diagnostics' check, only while a bundle is exported"),
+    # v0.6.19: this PC's own compatibility report, written only when Diagnostics or the export asks for one.
+    ("controlcli", "ownreport"): ("cost", "the own-report command and the export only"),
+    ("commands.install", "ownreport"): ("cost", "this PC's own compatibility report, only while a bundle is exported"),
+    ("ownreport", "ownreport.document"): ("cost", "the report's code, imported only when one is written"),
+    ("ownreport", "ownreport.reading"): ("cost", "the report's code, imported only when one is written"),
+    ("ownreport.evidence", "runtime.app"): ("cost", "the watcher's engine lines, only when a report reads the log"),
+    ("ownreport.evidence", "runtime"): ("cost", "the package runtime/app.py is in, which Python loads first"),
+    ("ownreport.reading", "compatio"): ("cost", "the watcher's own report, read only when a report is written"),
+    ("ownreport.reading", "settings"): ("cost", "the settings that report is read with, only when a report is written"),
     # v0.6.16: Rescan and reconcile, which builds an engine for each Codex home, only when a person asks for it.
     ("controlcli", "rescan"): ("cost", "Rescan and reconcile and the engines it asks, only when it runs"),
     # v0.6.15-beta: the Codex version in force, read only while another Codex home is added (homes.unmeasured).
@@ -318,6 +339,7 @@ LAZY_IMPORTS = {(_q(importer), _q(imported)): (kind, reason) for (importer, impo
     ("commands.install", "diagnostics"): ("cost", "only the diagnostics command writes the export"),
     ("commands.watcher", "ui.tray"): ("cost", "activate opens the settings window through the icon's helper"),
     ("commands.watcher", "control"): ("cost", "only a power action's stop button goes through the control layer"),
+    ("commands.watcher", "control.actions"): ("cost", "a toast's Cancel reads how long a busy state is tried again"),
     ("compat.probes", "windows"): ("cost", "the registry's API and discovery checks read the "
                                            "adapter, only when they run"),
     ("config", "settings"): ("cost", "nearly everything imports config; the settings schema, and the "

@@ -97,10 +97,11 @@ from codex_auto_resume.domain.plughands import RECORDS_LIMIT, kinds_of, widening
 
 from .arming import Arming
 from .codex import headless
-from .engine import foropen, sessions, silent
+from .engine import chat, foropen, sessions, silent
 from .ledger import ClaimLedger, ceiling_reached
 from .registry import REGISTRY
 from .state import AdvancedState, StateError
+from .state.schema import HEADLESS_CAPABILITIES
 from .vocabulary import (TRIPWIRES, ArmingState, ArmingWarning, CapabilityKind, ContinuationReason, JournalCode,
                          KeepReason, OffReason, OverrideKind, PromptReason)
 
@@ -311,6 +312,8 @@ class Runtime:
         # {record: (capability, ...)}: the capabilities at P12 a claim that pooled the record paid, journalled as
         # acted once that claim is known to have committed (`moved`, v0.6.17).
         self._pooled = {}
+        # v0.6.18: the capabilities whose words (P4) a committed claim carries, told once core moves it on (`moved`).
+        self._texted = {}
         self._noted = set()
         # (capability, record) a kept-on capability's hook raised for: passed over for it (K8).
         self._skipped = set()
@@ -340,7 +343,19 @@ class Runtime:
                 for capability in self._since:
                     if self._states.get(capability, ArmingState.OFF) != ArmingState.ARMED:
                         self._down_at[capability] = now
+                self._rearmed_silent()
         return self._states
+
+    def _rearmed_silent(self) -> None:
+        """v0.6.18: silent_continuation turned on again after REFUSED_BY_CODEX turned it off - a person's choice made
+        since - is asked again: the process's refusal is forgotten, so it is not shown on while it answers DEFER until
+        the watcher restarts. A refusal met again trips it again."""
+        tripped = self.__dict__.get("_refused_tripped")
+        since = self._since.get(silent.CAPABILITY)
+        if (type(tripped) is float and self._states.get(silent.CAPABILITY) == ArmingState.ARMED
+                and isinstance(since, (int, float)) and since >= tripped):
+            headless.EMPTY_REFUSED = False
+            self._refused_tripped = None
 
     def _code_of(self, definition):
         """A capability's code, made once. One that reads the state is given its own view of it
@@ -411,6 +426,17 @@ class Runtime:
         """Why the last start route asked named none, or None (core's Plug.start_held)."""
         return self._start_held
 
+    def supervise(self, facts):
+        """P13, asked by the launcher before it runs the watcher and once a watcher it ran has ended (v0.6.19,
+        crash_restart). As at P9, what every capability here stands at is read afresh, with a fresh check of Codex
+        where the watcher's report cannot be used - at sign-in no watcher has run for a while, and the watcher not
+        running is the one case the start question is asked in (Arming.read's `live`)."""
+        definitions = self.registry.at(Point.SUPERVISION)
+        if not definitions:
+            return NULL.supervise(facts)
+        self.states(fresh=True, live=frozenset(definition.id for definition in definitions))
+        return self.ask(Point.SUPERVISION, facts)
+
     def _held_start(self, definitions):
         """Why no capability at P9 named a route, as one word, for the first stored on or watched at
         the read; None where every one was stored off. A capability turned off on the way - at the
@@ -443,7 +469,9 @@ class Runtime:
         The first capability to answer is the one taken, in registry order, with one exception (`_preferred`):
         a person's Send now is preferred to an early look at P7 where core would carry it out (v0.6.17)."""
         definitions = self.registry.at(point)
-        if not definitions or (point in OWN_RECORD_POINTS and _own_record(arguments[0])):
+        if point in OWN_RECORD_POINTS and _own_record(arguments[0]):
+            return self._own_record_answer(point, arguments)
+        if not definitions:
             return getattr(NULL, HOOKS[point])(*arguments)
         states = self.states()
         record = arguments[SENDING[point]] if point in SENDING else None
@@ -748,6 +776,7 @@ class Runtime:
         (`_Errands`, v0.6.14); a watched one's is only journalled, never run."""
         self._acted.clear()
         self._pooled.clear()
+        self._texted.clear()
         if not len(self.registry):
             return DEFER
         self.arming.sweep(view)
@@ -755,6 +784,20 @@ class Runtime:
         errands = []
         for definition in self.registry.at(Point.TICK):
             state = states.get(definition.id, ArmingState.OFF)
+            tend = (_own(self._code_of(definition), "tend")
+                    if state != ArmingState.ARMED and definition.id in HEADLESS_CAPABILITIES else None)
+            if tend is not None:
+                # v0.6.18: what a run kind turned off or watched still owes what it started - a live run's Stop
+                # handed on and its end written, a model put back (engine/headless.follow_up, engine/fallback.py):
+                # its clean-up alone, never a turn of its own, whatever it stands at.
+                try:
+                    answer = tend(view)
+                    run = None if answer is DEFER else getattr(answer, "run", None)
+                except Exception:
+                    continue                             # already off or watched; the next tick tends it again
+                if callable(run):
+                    errands.append((definition, answer))
+                continue
             if state == ArmingState.OFF:
                 continue
             try:
@@ -786,12 +829,15 @@ class Runtime:
             self.state.release_unlaunched(at=self.clock())
             self.state.release_unlaunched_continuations(UNLAUNCHED_AFTER, at=self.clock())
             self.state.release_unlaunched_prompts(UNLAUNCHED_AFTER, at=self.clock())
+            self.state.release_unlaunched_chats(UNLAUNCHED_AFTER, at=self.clock())
         except StateError:
             pass                                         # tried again at the next P2
         try:
             flying = [handed(rule) for rule in self.state.messages_in_flight()]
             flying += [continued.handed(row) for row in self.state.continuations_in_flight()]
             flying += [promptqueue.handed(row) for row in self.state.prompts_in_flight()]
+            # v0.6.19: and the chat's messages in flight, each taken back once three minutes pass untaken.
+            flying += [chat.watched(row, self.clock()) for row in self.state.chats_in_flight()]
         except StateError:
             flying = []
         # P2's eight (v0.6.15-beta): those in flight first, the longest in flight first, from a place that moves on
@@ -938,12 +984,28 @@ class Runtime:
             return self._record_moved(record, RecordMove(state))
         if state == SUBMITTING and isinstance(record, dict):
             self._pooled_acted(record)
+            self._words_sent(record)
         if (self._not_delivered_on_open(record, state) or self._not_dispatched_by_session(record, state)
                 or self._refused_by_codex()):
             self.states(fresh=True)
         if self.arming.moved(record, state):
             self.states(fresh=True)
         return DEFER
+
+    def _words_sent(self, record) -> None:
+        """v0.6.18: a claim that carried a capability's words (P4) committed - core moved it to submitting - so the
+        capability is told, through its optional `words_sent`, what it may now take as said (subagent_parent's lines:
+        told once only when they go, never when a claim held after P4 sent core's own words instead)."""
+        for capability in self._texted.pop(record.get("interruption_id"), ()):
+            definition = self.registry.get(capability)
+            if definition is None:
+                continue
+            told = _own(self._code_of(definition), "words_sent")
+            if told is not None:
+                try:
+                    told(record)
+                except Exception:
+                    pass                                 # nothing kept: the lines are told again at the next send
 
     def _pooled_acted(self, record) -> None:
         """v0.6.17 (#47 P-7): a claim that pooled `record` committed - core moved it to submitting - so the
@@ -969,12 +1031,30 @@ class Runtime:
             return False
         return self.arming.trip(foropen.CAPABILITY, OffReason.NOT_DELIVERED_ON_OPEN)
 
+    def _own_record_answer(self, point, arguments):
+        """P5 and P15 for a record of this edition's own (v0.6.19): a chat message goes through chat's own
+        channel with no marker while chat is on (engine/chat.py), and one in flight is proven by its client id whatever
+        chat stands at now - it was sent with no marker; everything else of the edition's own is asked nothing there,
+        as before - NULL's answer."""
+        record = arguments[0]
+        armed = self.states().get(chat.CAPABILITY) == ArmingState.ARMED
+        if point == Point.DELIVERY or (point == Point.SENDER and armed):
+            definition = self.registry.get(chat.CAPABILITY)
+            try:
+                owned = definition is not None and self.state.chat_by_record(record.get("record_id")) is not None
+            except Exception:
+                owned = False
+            if owned:
+                code = self._code_of(definition)
+                return code.sender(record, arguments[-1]) if point == Point.SENDER else code.delivery(record)
+        return getattr(NULL, HOOKS[point])(*arguments)
+
     def _not_dispatched_by_session(self, record, state) -> bool:
         """The tripwire NOT_DISPATCHED_BY_SESSION (v0.6.16-beta.4): core took back a continuation sent to a
         conversation another Codex session held (its gate vector's `session` pass, core's own column) because that
         session did not take it within the delivery window - stored as not_delivered_on_open, the word every schema-5
-        reader knows (core's engine/tosession.py). other_sessions, whose answer sent it, turns off, or - never kept
-        on (keepable) - would note it. Whether it was turned off."""
+        reader knows (core's engine/tosession.py). other_sessions, whose answer sent it, turns off, or - kept on
+        (K8, v0.6.19-beta.3) - notes it and stays on. Whether it was turned off."""
         if (state != WITHDRAWN_UNCONFIRMED or not isinstance(record, dict)
                 or record.get("withdraw_reason") != NOT_DELIVERED_ON_OPEN):
             return False
@@ -988,12 +1068,13 @@ class Runtime:
 
     def _refused_by_codex(self) -> bool:
         """The tripwire REFUSED_BY_CODEX (v0.6.16-beta.4): a route met Codex refusing a turn with no input
-        (codex/headless.EMPTY_REFUSED) - silent_continuation turns off, once, where it is registered and on. Whether it
-        was turned off."""
+        (codex/headless.EMPTY_REFUSED) - silent_continuation turns off, once, where it is registered and on, or - kept
+        on (K8, v0.6.19-beta.3) - notes it and stays on, answering DEFER for the rest of the process. Whether it was
+        turned off."""
         if not headless.EMPTY_REFUSED or self.__dict__.get("_refused_tripped") or self.registry.get(
                 silent.CAPABILITY) is None:
             return False
-        self._refused_tripped = True
+        self._refused_tripped = float(self.clock())
         return self.arming.trip(silent.CAPABILITY, OffReason.REFUSED_BY_CODEX)
 
     def _record_moved(self, record, move):
@@ -1011,7 +1092,12 @@ class Runtime:
             if moved is None:
                 # or a queued prompt's occurrence (state/prompts.py).
                 moved = self.state.prompt_moved(record.get("record_id"), move, at=self.clock(),
-                                                queue_id=record.get("queue_id"))
+                                                queue_id=record.get("queue_id"), gate=record.get("gate"),
+                                                reason=record.get("reason"))
+            if moved is None:
+                # or (v0.6.19) a chat message (state/chat.py).
+                moved = self.state.chat_moved(record.get("record_id"), move, reason=record.get("reason"),
+                                              at=self.clock())
         except StateError:
             return DEFER                                 # repaired from the next P2 (resetmessage.records)
         if moved is None:
@@ -1103,6 +1189,8 @@ class Runtime:
             if acted:
                 return Alternative.HOLD
             raise
+        if Point.TEXT in carried and answer is not Alternative.HOLD:
+            self._texted[key] = tuple(capability for point, capability, _w in entries if point == Point.TEXT)
         if Point.CONCURRENCY in carried and answer is not Alternative.HOLD:
             # Journalled once the claim committed (`moved`): this runs inside its transaction.
             self._pooled[key] = tuple(capability for point, capability, _w in entries if point == Point.CONCURRENCY)

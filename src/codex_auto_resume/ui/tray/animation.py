@@ -11,7 +11,7 @@ import ctypes as C
 import threading
 import time
 
-from ...tray_place import IconPlacement, battery_saver
+from ...tray_place import IconPlacement, battery_saver, overflow_open
 from .motion import (ICON_MOTION,
                      build_icon_frames,
                      icon_frame,
@@ -95,10 +95,12 @@ class AnimationMixin:
     def _overflowed(self) -> bool:
         """Whether Windows says the icon is in the overflow flyout, where nobody would see it move. Its own setting
         for the icon, because Windows 11 gives an icon there the overflow button's rectangle and `icon_rect` cannot
-        tell (IconPlacement); where Windows does not say, the rectangle decides as it did before."""
+        tell (IconPlacement); where Windows does not say, the rectangle decides as it did before. While the flyout
+        is open somebody does see it there, so it moves then, from the tick after the flyout opened until the tick
+        after it closed (overflow_open)."""
         if self._placement is None:
             self._placement = IconPlacement()
-        return self._placement.overflowed() is True
+        return self._placement.overflowed() is True and not overflow_open()
 
     def _frame_for(self, now):
         """Show the frame this moment wants. Returns (changed, [icons to destroy once shown])."""

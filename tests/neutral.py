@@ -81,10 +81,18 @@ MODULES = ("test_compat_characterization", "test_compat_io", "test_correlation",
            # waiting record and applies what they find - an advanced installation with nothing on finds the same.
            "test_rescan")
 NOT_SCENARIOS = {
+    "test_retry_now_usage": "asks the engine for the usage reading a person's Retry now requests (v0.6.19-beta.2), "
+                            "which no scenario requests - their engines read usage only when a recovery is due",
+    "test_retry_now_usage_review": "test_retry_now_usage's review proofs (v0.6.19-beta.2), the same requests",
+    "test_rescan_usage": "asks the engine for the usage reading a person's Rescan requests (v0.6.19, the owner's decision "
+                         "of 2026-10-24), which no scenario requests",
     "test_codex_schema": "reads a Codex home through the source alone; it builds no engine",
     "test_source": "reads a Codex home through the source alone; it builds no engine",
+    "test_agent_thread_trigger": "reads a Codex home through the source alone for #54's composer-turn rule (v0.6.20-beta); "
+                                 "it builds no engine",
     "test_screenshots": "draws the settings window's pictures, one GUI module at a time",
     "test_plug_points": "gives every engine a plug of its own, to hold each point where it stands",
+    "test_plug_points_2": "test_plug_points' second half (the capabilities that move a record's waits), its plugs the same",
     "test_plug_records": "gives every engine a plug with records of its own (P2), to hold each of their moves",
     "test_queue_for_open": "gives every engine a plug that answers QUEUE_FOR_OPEN at P16, which the neutral plug never "
                            "answers - a conversation the app does not hold waits there",
@@ -100,6 +108,9 @@ NOT_SCENARIOS = {
                         "(v0.6.16-beta.4), which the neutral plug never does - every continuation carries its words there",
     "test_plug_record_purposes": "gives every engine a plug with continuations and messages of its own (P2), to hold "
                                  "what each purpose may and may not be sent as",
+    "test_record_channel": "gives every engine a plug that names a channel at P5 and CLIENT_ID at P15 for a message of "
+                           "its own (P2, v0.6.19), which the neutral plug never does - every record carries its marker "
+                           "through core's backend there",
     "test_power_action": "builds an engine with no store or backend only to ask engine.activity, which reads a "
                          "codexsim home through the source alone; it ticks, dispatches and claims nothing",
     "test_released_calls": "runs the scenarios above against v0.6.10's tagged package and this one, "
@@ -114,6 +125,14 @@ NOT_SCENARIOS = {
     "test_downgrade": "sends one continuation with this version's engine only to leave it queued, then "
                       "downgrades the state and runs v0.6.10's tagged watcher on it in a process of its "
                       "own, which no plug of this version reaches",
+    "test_once_words_race": "drives the engine over codexsim homes with words for this time changed between the read "
+                            "and the claim (v0.6.18, audit R1) - a race v0.6.10's watcher lost, so its calls cannot be "
+                            "the tag's",
+    "test_core_audit_minors": "holds the core audit's minor fixes (v0.6.18, M1-M7) over codexsim homes, one with its own "
+                              "plug for a resend's claim - behaviour v0.6.10's package does not have",
+    "test_progress_then_user_joined": "drives a recovery turn a person joined after it made progress (v0.6.18, the "
+                                      "owner's amendment of A23) - v0.6.10's engine handed it over, so its calls "
+                                      "cannot be the tag's",
 }
 # The module whose scenarios simulate days of ticks, handed out first (run_all).
 FIRST = ("test_outcomes",)

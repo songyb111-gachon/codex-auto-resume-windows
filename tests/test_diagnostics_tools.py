@@ -159,7 +159,7 @@ class DemoModuleTests(unittest.TestCase):
                       cancel_requested=False, recovery_turn_status=None, user_joined=False, after_user_work=False,
                       outcome_at=None, first_queued_at=None, gate_eval=None, gate_eval_at=None, last_error=None)
         listed = set(describe_record(record)) | {"thread_enabled", "tier", "attempt_limit", "name", "project",
-                                                 "cwd_basename", "home", "once_words"}
+                                                 "cwd_basename", "home", "once_words", "usage_check"}
         for name in ("pending", "history"):
             with self.subTest(name):
                 self.assertEqual(set(rows[name]) - {"demo"}, listed)

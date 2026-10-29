@@ -157,7 +157,7 @@ class CodePropertyTests(unittest.TestCase):
         # build/ is developer-only and excluded from the release payload, so it may
         # download the pinned interpreter. Everything that ships may not, except the
         # bootstrap - which is the whole point of the bootstrap - and, in the advanced
-        # edition, the courier's files that send (COURIER_REACHING, v0.6.19).
+        # edition, the courier's files that send (COURIER_REACHING, v0.6.20).
         reaching = set()
         for path in (tracked("scripts/*") + tracked("build/install/*") + tracked("src/*") + tracked("gui/*")
                      + tracked("advanced/src/*") + tracked("advanced/gui/*")):
@@ -367,7 +367,7 @@ class WordingTests(unittest.TestCase):
                    "v0.4.0", "v0.4.1", "v0.5.0", "v0.5.1", "v0.5.2", "v0.5.3", "v0.5.4", "v0.5.5",
                    "v0.5.6", "v0.5.7", "v0.6.0", "v0.6.1", "v0.6.2", "v0.6.3", "v0.6.4", "v0.6.5",
                    "v0.6.6", "v0.6.7", "v0.6.8", "v0.6.9", "v0.6.10", "v0.6.11", "v0.6.12",
-                   "v0.6.13", "v0.6.14", "v0.6.15", "v0.6.16", "v0.6.17")
+                   "v0.6.13", "v0.6.14", "v0.6.15", "v0.6.16", "v0.6.17", "v0.6.18", "v0.6.19-beta", "v0.6.19-beta.2", "v0.6.19-beta.3", "v0.6.19-beta.4", "v0.6.19", "v0.6.20-beta")
         text = (ROOT / "docs" / "CHANGELOG.md").read_text(encoding="utf-8")
         missing = [tag for tag in shipped
                    if not re.search(r"^##\s+%s\b" % re.escape(tag), text, re.M)]

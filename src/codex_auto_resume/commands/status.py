@@ -149,7 +149,8 @@ def cmd_doctor(args) -> int:
             _print("notification action: not registered (the button would do nothing)")
         else:
             argv = startup.parse_command(registered)
-            target = Path(argv[1]) if len(argv) >= 2 else None
+            script = startup.script_index(argv)
+            target = Path(argv[script]) if len(argv) > script else None
             if target is not None and not target.exists():
                 ok = False
                 _print("notification action: registered, but its target is missing")

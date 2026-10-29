@@ -1,6 +1,6 @@
-# Codex Auto Resume roadmap: v0.6.7 → v0.6.22
+# Codex Auto Resume roadmap: v0.6.3 → v0.6.23
 
-This is the current development direction for Codex Auto Resume after v0.6.6.
+This is the current development direction for Codex Auto Resume from v0.6.3.
 
 This is a **planned roadmap, not a promise**. Details may change as Codex evolves or as testing
 reveals better or safer implementation paths.
@@ -12,8 +12,9 @@ advanced features, more than any program like this, in two editions → stabiliz
 core with Rust and make it Rust-native → stabilize Rust**
 
 The default recovery behavior stays as conservative as it has always been, through every release
-here: what v0.6.11, v0.6.12, v0.6.14, v0.6.15, v0.6.16, v0.6.18 and v0.6.19 add to it is there for a person to turn on, never
-on by itself.
+here: what v0.6.11, v0.6.12, v0.6.14, v0.6.16, v0.6.18, v0.6.19 and v0.6.20 add to it is there for a person to turn on, never
+on by itself - except fixes: v0.6.15's detection of the conversations Codex hands over, and v0.6.18's judgment of a
+cut-off recovery turn, are on by themselves.
 
 ---
 
@@ -327,7 +328,7 @@ The repository's landing page on GitHub is tidied in the same stage, while paths
 anyway, so that fewer files sit at its root.
 
 Bugs discovered during this refactor will be fixed with regression tests, but the alpha is
-**not intended to be the full repository-wide bug hunt**; v0.6.20 is. It is the modularization and
+**not intended to be the full repository-wide bug hunt**; v0.6.21 is. It is the modularization and
 nothing else: no feature, and no change anybody could see.
 
 What it carries: the modules that were over their ceiling are packages in the plan's layout -
@@ -569,7 +570,7 @@ and released at the same time, with the same version:
 
 Each has its own archive and pinned digest, and one build attestation names both. An installation
 updates within its edition only; moving between them is a deliberate reinstall, never an update.
-The Rust core carries both (v0.6.21).
+The Rust core carries both (v0.6.22).
 
 ---
 
@@ -767,13 +768,32 @@ carries for a person coming from v0.6.15 is its entry in [CHANGELOG.md](CHANGELO
 What v0.6.14 still planned when the owner released it as a final (2026-10-10), moved whole: stage 3c,
 then stages 4, 5 and 6. It was first in v0.6.11's later stages, then v0.6.12's, v0.6.13's and
 v0.6.14's. The owner moved stage 5 out of v0.6.16 on 2026-10-16 so that the v0.6.16 final comes sooner; it was v0.6.18 from
-here and is v0.6.19 since 2026-10-21 (see v0.6.17 and v0.6.18). v0.6.16
+here and is v0.6.19 since 2026-10-21, with what v0.6.19 did not build v0.6.20 since 2026-10-26 (see v0.6.17, v0.6.18 and
+v0.6.19). v0.6.16
 comes in as many pre-releases as it needs, from **v0.6.16-beta** on: each finished
 stage is published as a numbered beta while the next is built, and the final v0.6.16 follows the
 last. Every advanced capability here is the advanced edition's alone, off until a person turns it on, with a
 statement that names the standards it departs from, as v0.6.11's and v0.6.14's are. Some rest on a
 measurement of the real Codex; one that fails narrows the route, or becomes a warning the person
 confirms, and does not drop the capability.
+
+### v0.6.16-beta ✅ — Stage 3c
+
+### Recovery through the channels already in use
+
+- several conversations at once, still one send in flight in each,
+- empty-response recovery, recognised by the kinds of item a turn left and never by its words,
+- an unloaded conversation, through a queue that waits until it is opened (measurement M1),
+- a subagent recovered through its parent, never written to directly,
+- keep going after a normal completion, a set number of times,
+- a prompt queue and recurring wakes, carrying the person's own words only (its *at the next reset*
+  part is v0.6.14's Send your own message when a limit resets).
+
+  **Built for v0.6.16-beta (first published as v0.6.15-beta; stage 3c):** these six, as Several conversations at once, Queue for when a
+  conversation is opened, Continue a turn that ended with no reply, Tell a parent which of its subagents
+  stopped, Keep a conversation going and Queue messages for later - each described in
+  [EDITIONS.md](EDITIONS.md#todays-capabilities). The measurements they rest on that are new - MQ, ME, MS,
+  MK and MT - are not made yet, and each capability says so as a warning.
 
 ### v0.6.16-beta.3 ✅ — Words for this time (standard edition)
 
@@ -792,22 +812,6 @@ finish its step, and a pause that holds our continuations until the reset
 ([#29](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/29)). The
 [changelog](CHANGELOG.md) has the rest.
 
-### Recovery through the channels already in use
-
-- several conversations at once, still one send in flight in each,
-- empty-response recovery, recognised by the kinds of item a turn left and never by its words,
-- an unloaded conversation, through a queue that waits until it is opened (measurement M1),
-- a subagent recovered through its parent, never written to directly,
-- keep going after a normal completion, a set number of times,
-- a prompt queue and recurring wakes, carrying the person's own words only (its *at the next reset*
-  part is v0.6.14's Send your own message when a limit resets).
-
-  **Built for v0.6.15-beta (stage 3c):** these six, as Several conversations at once, Queue for when a
-  conversation is opened, Continue a turn that ended with no reply, Tell a parent which of its subagents
-  stopped, Keep a conversation going and Queue messages for later - each described in
-  [EDITIONS.md](EDITIONS.md#todays-capabilities). The measurements they rest on that are new - MQ, ME, MS,
-  MK and MT - are not made yet, and each capability says so as a warning.
-
 ### v0.6.16-beta.4 ✅ — A route of its own, and other kinds of session
 
 - a conversation nothing holds, run headless through Codex's app server with the settings Codex
@@ -820,7 +824,7 @@ finish its step, and a pause that holds our continuations until the reset
 
 Codex's own retry settings are not offered until Codex allows changing its built-in provider's retry settings
 (measured on 2026-10-16, MB). A continuation inside the turn, through a Codex Stop hook, and chatting with a
-Codex conversation inside the Dashboard were on this list; both are v0.6.19's.
+Codex conversation inside the Dashboard were on this list; the chat went out in v0.6.19 and the Stop hook is v0.6.20's.
 
 #### The usage capabilities, finished
 
@@ -850,7 +854,7 @@ Also in the final, and what the owner asked for as the beta line went on:
   kinds too (the usage meter's warning and each of its three notices about a stop near a limit), set in the
   Dashboard alone,
 - **an installer wizard**: the setup program is a window of its own in the Dashboard's design and the
-  product's eighteen languages, with *Repair* and *Remove* offered when the same version is already
+  product's sixteen languages, with *Repair* and *Remove* offered when the same version is already
   installed, no console window, and `-Silent` as before; the installation is listed in Settings > Apps, and
   its Uninstall button shows the same window,
 - **an update that explains itself**: a notes page before the update, from what version to what and what is
@@ -870,9 +874,9 @@ Also in the final, and what the owner asked for as the beta line went on:
 ### Also moved here
 
 - **Watching several Codex homes**, a standard-edition addition that waited on measurement MH, which
-  passed on 2026-09-28. Built for v0.6.15-beta: up to three more homes, in the
+  passed on 2026-09-28. Built for v0.6.16-beta (first published as v0.6.15-beta): up to three more homes, in the
   [guide](GUIDE.md#several-codex-homes); MH passed again on codex-cli 0.162.0-alpha.17.2 on 2026-10-10.
-- **winget** manifests for both editions, pointing at the pinned archives; submitting them is a
+- **winget** manifests for both editions, pointing at each edition's setup program; submitting them is a
   public pull request the owner makes.
 
 ---
@@ -883,7 +887,7 @@ A final on v0.6.16, with no pre-release of its own. It began on the owner's deci
 the owner then put all ten findings of the capability-pair audit
 ([#42](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/42) to [#47](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/47)) into it. What this roadmap planned as v0.6.17 -
 stage 5 and the chat inside the Dashboard, begun with a pre-release - was v0.6.18 from here, and is v0.6.19 since
-2026-10-21, and every release after it moved one on.
+2026-10-21 (v0.6.20 for what v0.6.19 left, since 2026-10-26), and every release after it moved one on.
 
 In both editions:
 
@@ -921,12 +925,12 @@ messages in any Windows language; and a timing test measures the icon's own work
 
 ---
 
-## v0.6.18 — A final on v0.6.17: a cut-off recovery turn that worked is recovered, a setup bar that fills by real counts, a streamed update download, and two small advanced capabilities 🚧
+## v0.6.18 — A final on v0.6.17: a cut-off recovery turn that worked is recovered, a setup bar that fills by real counts, a streamed update download, and two small advanced capabilities ✅
 
 A final on v0.6.17, with no pre-release of its own. On 2026-10-21 the owner took the simple parts of what this roadmap
 had planned for v0.6.18 and put them into a release of their own now, with the fixes made meanwhile. The rest of that
 stage - the larger capabilities, the chat inside the Dashboard, the compatibility data, the Stop hook, Arabic and
-Hebrew - is v0.6.19, and every release after it moved one on.
+Hebrew - is v0.6.19 (v0.6.20 for what v0.6.19 left, since 2026-10-26), and every release after it moved one on.
 
 In both editions:
 
@@ -943,20 +947,28 @@ In both editions:
   and a download cut short named and resumed. Nothing else about it changed - the same words, codes, proxy and TLS. The
   installed version's own updater does the download, so the bytes show from the update after v0.6.18.
 - **The install picture in the README** shows the bar filling by those counts.
+- **Install another version... runs in the setup window**, headed as an install of another version, with the
+  download and the steps filling its bar, as an update does; where it installed, the new Dashboard opens.
 
 In the advanced edition, each off until a person turns it on:
 
 - **Open Codex on a notice**: a button beside *Open Dashboard* opens that conversation in the Codex app, where Windows
   has a handler for `codex:` links.
 - **A weekly update check while idle**: at most once in seven days, only while nothing waits or runs, the Dashboard's own
-  check; a newer version is offered in a notice of its own, kept across restarts, and nothing is downloaded.
+  check; a newer version is offered in a notice of its own, kept across restarts, and nothing is downloaded. Each
+  check writes one line in the watcher's log: nothing newer, the version it offered, or why it could not check.
 
 For developers: `test_released_calls` records the four scenarios the owner amended, and the streamed download has a test
 seam of its own.
 
 ---
 
-## v0.6.19 — The advanced edition's last stage
+## v0.6.19 — The advanced edition's last stage, as far as it was built ✅
+
+**Four pre-releases and a final that carries all of them. v0.6.19 carries the groundwork, the chat inside the Dashboard,
+the watcher's restart after an unexpected stop, the wake for a reset, a compatibility report from this PC, the usage
+checks of Retry now and Rescan, Python 3.14.9, one Pending list, Keep it on for every capability, the managed daemon's
+queue route and the fixed-word receipt diagnostics. The rest of the stage is v0.6.20.**
 
 Stage 5, moved out of v0.6.16 by the owner on 2026-10-16 so that the v0.6.16 final comes sooner, is a release
 of its own, and the owner moved the in-app chat here the same day. Two of its small capabilities - a weekly update
@@ -966,23 +978,73 @@ on, with a statement that names the standards it departs from; some rest on a me
 and one that fails narrows the route, or becomes a warning the person confirms, and does not drop the
 capability.
 
-### v0.6.19-alpha — The last stage's first pre-release (a pre-release)
+On 2026-10-26 the owner decided to release v0.6.19 as a final with what was built, to carry what had been begun and what
+remained to the next version, and to number that version v0.6.20 and move every later release back by one. What v0.6.19
+did not build - usage analytics, the courier process, the loopback API and remote control, account switching, the
+Stop-hook continuation, Arabic and Hebrew, and the before and after examples with a *See an example* link for every
+advanced capability - is v0.6.20 below.
 
-The two changes to how the advanced edition stores its choices and how state files are read, which this alpha
-was to make first, are v0.6.17's now (the options table checks names in code only, and state files carry a
-"readable from" marker), so every capability below adds an option or a stored field without a rebuild. The
-alpha is the first of the last stage's capabilities, published as a pre-release while the rest is built.
+### v0.6.19-beta ✅ — The last stage's first visible parts (a pre-release)
+
+The two changes to how the advanced edition stores its choices and how state files are read, which the stage's first
+pre-release was to make first, are v0.6.17's now (the options table checks names in code only, and state files carry a
+"readable from" marker), so every capability below adds an option or a stored field without a rebuild. The owner chose
+a beta, with no alpha before it, for the first parts a person can see. It carries, in the advanced edition, the stored
+format of the whole stage (state version 8, readable from 7), the chat inside the Dashboard, the watcher's restart after
+an unexpected stop and the wake for a reset; and, in both editions, the compatibility report from this PC. It is
+published as a pre-release while the rest is built.
+
+It also carries the rework of Pending that [#50](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/50) asked for: in the advanced edition, a Scheduled tab beside
+Recoveries with an editor, Delete completed and, for each message, whether it waits for a running turn; opening a
+waiting conversation in Codex, built and hidden until measurement MOPEN passes; and, in both editions, a double-click
+on a Pending row that opens its menu.
+
+### v0.6.19-beta.2 ✅ — Retry now checks usage (a pre-release)
+
+The follow-up to [#50](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/50). In both editions, a
+person's *Retry now* on a recovery that waits for a usage reset has the watcher read Codex's usage once, and the recovery
+goes on, through every check, only if Codex says the limit lifted; the row says when it checked, what it read and
+whether the recovery was continued, and the owner amended standard A12 for it on 2026-10-24 (the real reset is the newest
+one Codex reports, read when a recovery is due or when a person asks). In the advanced edition, the early look at a usage
+limit shows on Pending when it last read and what that did, and a **Check now** takes one reading at once; every other
+check still runs. (Its line and its Check now are replaced in v0.6.19-beta.3 by the readings of Retry now and Rescan.)
+
+### v0.6.19-beta.3 ✅ — Python 3.14.9, one Pending list, and Keep it on for every capability (a pre-release)
+
+In both editions: the bundled Python is 3.14.9, since 3.13 gets no more Windows builds, with remote debugging off in
+every process the product starts; the source needs Python 3.13 or newer. Retry now is offered on a recovery whose usage
+reset is still ahead, where its click reads usage once; **Rescan** (once Rescan and reconcile) also reads usage once for
+every recovery that waits for a reset; every reading is said in Why it is waiting, with who asked it; and Attempts per
+interruption stays editable up to an administrator's ceiling. In the advanced edition: Pending is one list of
+recoveries, queued messages and reset rules, with buttons that follow the row's kind and **Schedule...** in a fixed
+place; delivered messages are history and Clear history clears them; the early-reset line and its Check now are gone,
+Retry now and Rescan readings counting toward its two readings; the Chat is a page of its own; and Keep it on is offered
+for every capability - never on by default - by the owner's word of 2026-10-24.
+
+### v0.6.19-beta.4 ✅ — Pending's buttons one gap apart, its Next check whole, dialogs as tall as what they show (a pre-release)
+
+The owner's reports of 2026-10-25 on v0.6.19-beta.3. In both editions: the conversation switch under Pending's list is as
+wide as the wider of its two words, so the gap before Cancel all is the gap between any two buttons; where a list has no
+room for every cell whole, a time, a kind or a count stays whole and a long state or a name gives way; and the dialog for
+a value of your own is as tall as what it says. In the advanced edition: a message's or a rule's buttons share the room
+of the group they stand in; a reset rule's Next check says its limit, the whole sentence staying in Why it is waiting,
+and a scheduled message's is measured by its own words; and the message editor is as tall as what it shows.
+
+### v0.6.19 — The final: what came after the fourth pre-release
+
+The final's changelog entry tells the whole line, every item of the four pre-releases in the form it has now; what
+reached it after v0.6.19-beta.4 is this. In both editions: a recovery's continuation reaches Codex's managed app-server
+daemon of the same Codex home, with the product's privacy overrides kept, where such a daemon runs - Codex refused the
+queue with the overrides there, so every recovery stayed unconfirmed - measured on this PC on 2026-10-26 with codex-cli
+0.164.0, and a queue answer with no receipt is logged in fixed words and never sent again (both sent by
+[@Kdevaulo](https://github.com/Kdevaulo),
+[#53](https://github.com/songyb111-gachon/codex-auto-resume-windows/pull/53)); and a scroll bar's groove is a step
+deeper than wherever it stands, the pictures drawing the soft bar beside a list. In the advanced edition: M2b, a goal on
+a conversation the app holds continued by a queued turn, measured again on codex-cli 0.164.0-alpha.11.1.
 
 ### Around recovery
 
-- usage and token analytics (the live usage meter and the wrap-up near a limit are v0.6.16's; reset credits
-  are v0.6.14's, used at the limit a person picks),
-- a provider status feed and push notifications - ntfy, a webhook, Telegram, e-mail - through one
-  courier process, the advanced edition's only outbound network code,
-- a loopback API and web view on 127.0.0.1, remote control over Telegram, and a read-only view of
-  other PCs through a folder the person syncs,
-- switching the active Codex account on the person's command (measurement MA),
-- crash supervision and a wake timer for a reset.
+- crash supervision and a wake timer for a reset, both built in v0.6.19-beta (the wake waits on measurement MWAKE).
 
 ### The chat inside the Dashboard
 
@@ -994,6 +1056,45 @@ alpha is the first of the last stage's capabilities, published as a pre-release 
 - where a click on a popup's body goes, when the chat is on: the person picks that conversation's chat here, or
   Codex at that conversation,
 - a message written while the limit is full, sent when it resets.
+
+All four are built in v0.6.19-beta; where a click on a popup's body goes is chosen on the chat's page, and the
+measurements MC1 and MC2 behind the chat are on `codex-cli 0.162.0-alpha.17.2`, MC2 recorded as a fail, which the
+chat's statement carries as its warning.
+
+---
+
+## v0.6.20 — The rest of the advanced edition's last stage
+
+On 2026-10-26 the owner released v0.6.19 as a final with what was built and moved what had been begun and what remained
+to a version of its own, v0.6.20, so that every later release moved back by one: the final Python audit is v0.6.21, the
+Rust core v0.6.22 and its audit v0.6.23. As in v0.6.19, every capability here is the advanced edition's alone, off until
+a person turns it on, with a statement that names the standards it departs from; some rest on a measurement of the real
+Codex, and one that fails narrows the route, or becomes a warning the person confirms, and does not drop the capability.
+
+### v0.6.20-beta ✅ — Two small things the issues asked for (a pre-release)
+
+The owner asked on 2026-10-28 for a quick pre-release with two small parts, ahead of the rest:
+[#54](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/54), in both editions - a conversation an agent made is taken up as the person's own when the failed
+turn was started from the input box (Codex records it as `turn_attribution.turn_trigger` = `composer`, measured on
+codex-cli 0.164), and only then; and, in the advanced edition, *Find a conversation...* beside the conversation pickers,
+the searchable list of a person's own conversations that [#50](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/50) asked for. #50's image attachments, steer send mode and
+follow-through view stay with the rest of v0.6.20.
+
+### v0.6.20-beta.2 🚧 — The tray reuses the open window, status lights for work in progress, lists on cards (a pre-release)
+
+[#55](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/55)'s window reuse from the notification area (both editions); the status light's first slices of the owner's
+audit of 2026-10-26 (an action in progress, a chat message on its way); every dialog's list on History's card; the design help line
+naming the neumorphic design; and, in the advanced edition, a click on a notice opening Codex in place of the Open Codex button.
+
+### Around recovery
+
+- usage and token analytics (the live usage meter and the wrap-up near a limit are v0.6.16's; reset credits
+  are v0.6.14's, used at the limit a person picks),
+- a provider status feed and push notifications - ntfy, a webhook, Telegram, e-mail - through one
+  courier process, the advanced edition's only outbound network code,
+- a loopback API and web view on 127.0.0.1, remote control over Telegram, and a read-only view of
+  other PCs through a folder the person syncs,
+- switching the active Codex account on the person's command (measurement MA).
 
 ### Compatibility data for the advanced edition
 
@@ -1008,21 +1109,33 @@ alpha is the first of the last stage's capabilities, published as a pre-release 
 - **Arabic and Hebrew**, translated and held since v0.6.11-beta, offered once the window is mirrored
   for right-to-left.
 
+### An example for every capability
+
+- before and after pictures or example texts for every advanced capability, in the editions page in both languages, with
+  a test that none is missing and a *See an example* link on the Advanced features page that opens the editions page at
+  it. The owner asked for them on 2026-10-24 for the v0.6.19 final; the work begun then goes on here.
+
 ---
 
-## v0.6.20 — The final Python audit, both editions
+## v0.6.21 — The final Python audit, both editions
 
-v0.6.20 is the last Python release: the whole repository, both editions, through its bug hunt, and
-the Python reference implementation the Rust migration reproduces. It comes after v0.6.16, v0.6.18 and v0.6.19 so that
+v0.6.21 is the last Python release: the whole repository, both editions, through its bug hunt, and
+the Python reference implementation the Rust migration reproduces. It comes after v0.6.16, v0.6.18, v0.6.19 and v0.6.20 so that
 the last features written in Python - the rest of the advanced edition - are audited with the rest,
 and the reference the Rust core reproduces holds them.
 
-v0.6.20 is planned as the final comprehensive audit of the Python implementation, in both editions.
+v0.6.21 is planned as the final comprehensive audit of the Python implementation, in both editions.
+
+Right after the final v0.6.21 is published and verified, the last Python version is kept as a repository of its own - its
+history and tags up to v0.6.21 - before the Rust core replaces it (the owner, 2026-10-24).
 
 Unlike v0.6.10-alpha's refactoring, it is intentionally a broad bug hunt.
 
 Expected areas include:
 
+- a design audit (the owner, 2026-10-28): every window, dialog, page, popup, setup window and panel surface checked for anything
+  not drawn in the one neumorphic design - cards on grounds, lifts, radii, soft controls, the soft scroll bar - each fixed through
+  one shared helper, with a check that finds new ones,
 - state machine behavior,
 - race conditions and concurrency,
 - retry and recovery-chain accounting,
@@ -1035,7 +1148,7 @@ Expected areas include:
 - malformed, stale, or corrupted state,
 - fault injection,
 - real Codex integration,
-- Advanced / Experimental recovery paths: every capability of v0.6.11, v0.6.14, v0.6.16, v0.6.18 and v0.6.19, each with its
+- Advanced / Experimental recovery paths: every capability of v0.6.11, v0.6.14, v0.6.16, v0.6.18, v0.6.19 and v0.6.20, each with its
   warnings, tripwires and ceilings,
 - responsiveness, in every language: whatever lag v0.6.9 left,
 - both editions, and that the standard one still holds none of the advanced code,
@@ -1052,14 +1165,14 @@ for the Rust migration.
 
 ---
 
-## v0.6.21 — Rust: the core replaced as it is, then made Rust-native
+## v0.6.22 — Rust: the core replaced as it is, then made Rust-native
 
-v0.6.21 arrives in two stages too: **v0.6.21-alpha**, a pre-release, replaces the production Python
-core with Rust as it is; the final **v0.6.21** is that core made naturally Rust-oriented. The alpha is
+v0.6.22 arrives in two stages too: **v0.6.22-alpha**, a pre-release, replaces the production Python
+core with Rust as it is; the final **v0.6.22** is that core made naturally Rust-oriented. The alpha is
 a pre-release because the core swapped as it is is a stage on the way to the Rust-native one, not a
 release worth having on its own.
 
-### v0.6.21-alpha — Complete Rust core replacement (a pre-release)
+### v0.6.22-alpha — Complete Rust core replacement (a pre-release)
 
 The alpha is planned to replace the production Python core with Rust, as it is.
 
@@ -1070,7 +1183,7 @@ The rule is:
 
 > **Replace the implementation, not the behavior.**
 
-The Rust implementation should reproduce the final v0.6.20 as closely as practical.
+The Rust implementation should reproduce the final v0.6.21 as closely as practical.
 
 Goals include:
 
@@ -1112,13 +1225,13 @@ Rust
 PowerShell may remain as a thin layer for bootstrap, installation, updating, or similar Windows
 deployment work.
 
-### v0.6.21 — Rust-native restructuring and optimization
+### v0.6.22 — Rust-native restructuring and optimization
 
 The alpha prioritizes behavioral parity.
 
 That may leave some Python-shaped architecture inside the first Rust implementation.
 
-The final v0.6.21 is planned to make the codebase more naturally Rust-oriented.
+The final v0.6.22 is planned to make the codebase more naturally Rust-oriented.
 
 Potential work includes:
 
@@ -1138,9 +1251,9 @@ This is not intended to be the final full-system bug hunt.
 
 ---
 
-## v0.6.22 — Final Rust audit and stabilization: the Rust bug hunt
+## v0.6.23 — Final Rust audit and stabilization: the Rust bug hunt
 
-v0.6.22 is planned as the final comprehensive stabilization pass.
+v0.6.23 is planned as the final comprehensive stabilization pass.
 
 Expected focus includes:
 
@@ -1156,7 +1269,7 @@ Expected focus includes:
 - installer / update / repair / uninstall,
 - malformed or corrupted state,
 - Compatibility Registry cache/offline/failure behavior,
-- Advanced / Experimental capabilities: every capability of v0.6.11, v0.6.14, v0.6.16, v0.6.18 and v0.6.19,
+- Advanced / Experimental capabilities: every capability of v0.6.11, v0.6.14, v0.6.16, v0.6.18, v0.6.19 and v0.6.20,
 - real Codex recovery,
 - fuzz or property testing where useful.
 
@@ -1178,7 +1291,7 @@ The intended final stack is:
 
 There is currently **no planned v0.7.0 feature cycle**.
 
-After v0.6.22, the project is expected to move primarily into maintenance:
+After v0.6.23, the project is expected to move primarily into maintenance:
 
 - Codex compatibility updates,
 - Compatibility Registry updates,
@@ -1290,33 +1403,60 @@ from working
 
         ↓
 
-v0.6.18  🚧 In development
+v0.6.18  ✅ Released
 A final on v0.6.17: a recovery turn that worked and was cut off is recovered, a setup bar that fills by real
 counts, a streamed update download
 + Open Codex on a notice and a weekly update check while idle, in the advanced edition
 
         ↓
 
-v0.6.19-alpha → v0.6.19
-The advanced edition's last stage, begun in a pre-release: analytics, the courier, the loopback API and remote control,
-account switching, crash supervision, the chat inside the Dashboard, the Stop hook continuation,
-Arabic and Hebrew
+v0.6.19-beta  ✅ Released
+The advanced edition's last stage, begun in a pre-release that has the chat inside the Dashboard, crash supervision and
+the wake for a reset, and a compatibility report from this PC in both editions
+
+        ↓
+
+v0.6.19-beta.2  ✅ Released
+The second pre-release: Retry now checks usage in both editions, and the early look at a usage limit shows what it read
+
+        ↓
+
+v0.6.19-beta.3  ✅ Released
+The third pre-release: Python 3.14.9 with remote debugging off, Retry now and Rescan check usage, Pending as one list,
+the chat on a page of its own, Keep it on for every capability
+
+        ↓
+
+v0.6.19-beta.4  ✅ Released
+The fourth pre-release: Pending's buttons one gap apart, its Next check whole, dialogs as tall as what they show
+
+        ↓
+
+v0.6.19  ✅ Released
+The final, with everything the four pre-releases carried, the managed daemon's queue route with fixed-word receipt
+diagnostics, the scroll bar's groove, and M2b measured again
 
         ↓
 
 v0.6.20
+The rest of the advanced edition's last stage: analytics, the courier, the loopback API and remote control, account
+switching, the Stop hook continuation, Arabic and Hebrew, and an example for every capability
+
+        ↓
+
+v0.6.21
 The final Python audit, both editions
 → freeze Python reference behavior
 
         ↓
 
-v0.6.21-alpha → v0.6.21
+v0.6.22-alpha → v0.6.22
 Complete Rust core replacement, in a pre-release
 + Rust-native restructuring and optimization, in the final
 
         ↓
 
-v0.6.22
+v0.6.23
 Final Rust audit and stabilization: the Rust bug hunt
 → final stable Rust baseline
 
@@ -1325,9 +1465,13 @@ Final Rust audit and stabilization: the Rust bug hunt
 Maintenance
 ```
 
-This document records the current direction; v0.6.18 is in development: a recovery turn that worked and was then cut
-off is recovered, the setup window's bar fills by real counts, the update's download is streamed, and the advanced edition
-gains Open Codex on a notice and a weekly update check while idle. Before it, v0.6.17 moved installs started from inside
+This document records the current direction; the four pre-releases of v0.6.19, v0.6.19-beta to v0.6.19-beta.4, are out and
+the final v0.6.19, which carries all of them and what reached dev after them, is out; what it did not build is
+v0.6.20. v0.6.18 is out: a recovery that worked is recovered however its turn ended,
+the standard edition suggests the Codex homes this PC uses, Install another version runs in the setup window, the setup
+window's bar fills by real counts, the update's download is streamed, all seventeen translations were reviewed, a full
+audit's fixes landed in every layer, and the advanced edition gains Open Codex on a notice and a weekly update check while
+idle. Before it, v0.6.17 moved installs started from inside
 another app outside it, kept the uninstaller through updates, gave honest words when pre-releases could not be checked,
 fixed every capability pair that kept another from working, and made Japanese and Chinese fast in their own Windows
 faces. Before it, v0.6.16 brought most
@@ -1337,5 +1481,6 @@ conversations ChatGPT hands over, and the ones Codex labels not at all, are reco
 eight more ways to recover, Keep it on, the watch log, the reset actions and a compatibility report sent from
 the app, and the panel beside the chat, in the advanced edition; and a window that no longer hangs while a
 recovery waits, in both. v0.6.18 is a final on v0.6.17 with no pre-release of its own, and v0.6.19 follows it, starting with its
-pre-release, v0.6.19-alpha: the owner moved stage 5 out of v0.6.16 on 2026-10-16, so that the v0.6.16 final came
-sooner, made v0.6.17 a final on v0.6.16 on 2026-10-19, and on 2026-10-21 put the simple parts of stage 5 into v0.6.18 and the rest into v0.6.19.
+pre-release, v0.6.19-beta: the owner moved stage 5 out of v0.6.16 on 2026-10-16, so that the v0.6.16 final came
+sooner, made v0.6.17 a final on v0.6.16 on 2026-10-19, and on 2026-10-21 put the simple parts of stage 5 into v0.6.18 and the rest into v0.6.19, and on 2026-10-26 released
+v0.6.19 with what was built and moved the rest to v0.6.20, every later release one on.

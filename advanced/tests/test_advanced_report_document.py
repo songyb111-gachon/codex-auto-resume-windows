@@ -22,7 +22,8 @@ sys.path.insert(0, str(HERE))
 
 import reportfixtures as fixtures  # noqa: E402
 
-from codex_auto_resume_advanced.report import document, evidence, records  # noqa: E402
+from codex_auto_resume.ownreport import evidence  # noqa: E402
+from codex_auto_resume_advanced.report import document, records  # noqa: E402
 from codex_auto_resume_advanced.report.document import DocumentError, DocumentRefusal  # noqa: E402
 
 GOLDEN = HERE / "golden" / "report"

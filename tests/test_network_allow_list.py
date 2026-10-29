@@ -1,6 +1,6 @@
 """The advanced edition's network allow-list in one place (v0.6.19, plans/v0619-design/D-groundwork.md section 4):
 test_privacy_claims' two network tests read one constant, ADVANCED_NETWORK_MODULES - the paths under advanced/src/ that
-may reach the network - empty until a capability that does was built, and from the courier (v0.6.19,
+may reach the network - empty until a capability that does was built, and from the courier (v0.6.20,
 plans/v0619-design/D-courier.md) its package alone; and the standard archive's scan (src/, scripts/) can never be
 allowed anything through it.
 

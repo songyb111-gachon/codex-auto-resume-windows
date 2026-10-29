@@ -1,4 +1,4 @@
-"""The courier's one way to a service (v0.6.19, advanced/src/codex_auto_resume_advanced/courier/http.py, address.py):
+"""The courier's one way to a service (v0.6.20, advanced/src/codex_auto_resume_advanced/courier/http.py, address.py):
 https only, no user name or password in an address, no IP literal and no loopback name, no redirect followed, a body of
 at most 4 KiB and a reply read to 64 KiB, the certificate verified - and a failure said in one closed word, never the
 address or what the service answered.

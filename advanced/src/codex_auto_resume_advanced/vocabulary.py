@@ -166,7 +166,7 @@ class Refusal(StrEnum):
     # v0.6.16-beta.4 (j): a near-limit percentage out of order - a window's warning above its wrap-up, or the wrap-up at
     # or above the stop its words ask for.
     OPTION_ORDER = "option_order"
-    # v0.6.19 (push_notices, status_feed - the courier): an address the courier may not keep or send to (its own closed
+    # v0.6.20 (push_notices, status_feed - the courier): an address the courier may not keep or send to (its own closed
     # word beside it, courier/address.py); Windows Credential Manager that would not keep or give back a secret; a channel
     # whose address or secret is not saved; and a courier that could not be started.
     ADDRESS_REFUSED = "address_refused"
@@ -260,6 +260,16 @@ class OptionKey(StrEnum):
     # was found.
     OFFERED_VERSION = "offered_version"
     OFFERED_AT = "offered_at"
+    # v0.6.19 (issue #50; before the groundwork's block, which ends the list): early_reset's own times, for the line on
+    # Pending - when it last read usage early, when a reading found usage, when two readings lifted a limit, and when
+    # a person last asked for a reading now (a Retry now or a Rescan, control/earlycheck.py).
+    CHECKED_AT = "checked_at"
+    AVAILABLE_AT = "available_at"
+    LIFTED_AT = "lifted_at"
+    CHECK_ASKED = "check_asked"
+    # and (the review of 2026-10-24) when a probe last found usage available - so the line tells that reading, and what
+    # it continued, even once the recoveries it continued wait no more.
+    FOUND_AT = "found_at"
     # v0.6.19 (the groundwork, plans/v0619-design/D-groundwork.md), added in one block so the stage's writers never edit
     # this list at once. A person's choices: how many days the analytics keep (usage_analytics), how often the status
     # feed is read in minutes (status_feed), which events are pushed (push_notices: a bit set of CourierEvent's, in its
@@ -396,6 +406,16 @@ class BridgeCommand(StrEnum):
     ADVANCED_REPORT_JOB = "advanced-report-job"
     # v0.6.16-beta.4: a person's Stop of a turn run here (engine/headless.py) - the Dashboard's alone, never MCP.
     ADVANCED_HEADLESS_STOP = "advanced-headless-stop"
+    # v0.6.19: the Chat page's (control/chat.py) - the Dashboard's alone, never MCP.
+    ADVANCED_CHAT_READ = "advanced-chat-read"
+    ADVANCED_CHAT_SEND = "advanced-chat-send"
+    ADVANCED_CHAT_CANCEL = "advanced-chat-cancel"
+    # v0.6.19 (issue #50): early_reset's probe a person's Retry now or Rescan asks for (control/earlycheck.py) - the
+    # Dashboard's alone, never MCP.
+    ADVANCED_EARLY_CHECK = "advanced-early-check"
+    # v0.6.20 (issue #50): the person's own conversations and their names, for the pickers' Find a conversation
+    # (control/conversations.py) - read-only, the Dashboard's alone, never MCP.
+    ADVANCED_CONVERSATIONS = "advanced-conversations"
     # v0.6.19 (the groundwork): every command the stage's designs name, in one block, each the Dashboard's alone and
     # reached by no MCP tool. Until the capability that answers one is built, the bridge passes it over as it passes a
     # command this edition does not have (surfaces.UNANSWERED). The analytics' aggregates and their CSV

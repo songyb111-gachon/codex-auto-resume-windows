@@ -1,4 +1,4 @@
-"""The four channels a notice is pushed on, the outbox's tries, and Telegram's pairing (v0.6.19,
+"""The four channels a notice is pushed on, the outbox's tries, and Telegram's pairing (v0.6.20,
 advanced/src/codex_auto_resume_advanced/courier/channels.py, outbox.py, keep.py).
 
 Each channel's request is held to its shape against a fake opener or a fake SMTP server; the secrets come from a fake

@@ -47,8 +47,12 @@ namespace CodexAutoResume
         {
             advancedSent.Add(command + " " + argument);
             string capability = null;
-            try { capability = Str(Json.Parse(argument) as Dictionary<string, object>, "capability"); }
-            catch (FormatException) { }
+            // A core command the page asks with no argument (clear-history) names no capability.
+            if (argument != null)
+            {
+                try { capability = Str(Json.Parse(argument) as Dictionary<string, object>, "capability"); }
+                catch (FormatException) { }
+            }
             List<object> replies;
             if (!(capability != null && advancedScript.TryGetValue(command + " " + capability, out replies)) &&
                 !advancedScript.TryGetValue(command, out replies))
@@ -88,11 +92,22 @@ namespace CodexAutoResume
                     // On a screen as wide as anything needs, whatever this machine's is: the window holds its tabs on one
                     // row (HoldTabs), and the narrow screen is one the audit stands in on purpose (AuditNarrowestOn).
                     form.advancedScreen = int.MaxValue;
+                    // v0.6.19: the window's own questions (core's Dialog: Clear history, a refusal's notice) answered as the
+                    // page's are - from the scenario's answers, written down with them - and never shown on anyone's desktop.
+                    SettingsForm driven = form;
+                    DialogAnswers = delegate(string text, string affirm)
+                    {
+                        driven.advancedAsked.Add(text);
+                        bool yes = driven.advancedAnswers.Count > 0 && driven.advancedAnswers[0];
+                        if (driven.advancedAnswers.Count > 0) driven.advancedAnswers.RemoveAt(0);
+                        return affirm != null && yes;
+                    };
                     use(form);
                 }
             }
             finally
             {
+                DialogAnswers = null;
                 dpiScale = SystemScale;
                 if (fallback != null) fallback.SetValue(null, defaultBefore);
                 Soft.BaseFont = baseBefore;
@@ -146,6 +161,7 @@ namespace CodexAutoResume
                 foreach (KeyValuePair<string, object> pair in statements)
                     form.ShowAdvancedStatement(pair.Key, pair.Value as Dictionary<string, object>);
                 form.ShowAdvanced();
+                form.AuditTabsHeld("advanced tabs", findings);
                 var ids = new List<string>();
                 foreach (object entry in Items(listing, "capabilities") ?? new List<object>())
                 {
@@ -178,14 +194,32 @@ namespace CodexAutoResume
                     }
                     form.AdoptReportState(item, null);
                 }
-                // Pending, with every reset rule still to act scheduled under its list (AdvancedResets.cs).
+                // Pending's one list (AdvancedSchedule.cs, v0.6.19), with every reset rule still to act and every queued message
+                // as rows after the recoveries, each kind chosen in turn with its own buttons showing; and History with the
+                // completed messages at their fullest and Delete completed under them.
                 if (form.advancedResets != null)
                 {
+                    form.advancedPrompts = Map(kept, "advanced-prompts");
                     form.ShowPage("pending");
                     form.FillScheduled();
-                    form.AuditScheduled("pending/scheduled", findings);
+                    form.AuditPendingKinds("pending/kinds", findings);
+                    form.ShowPage("history");
+                    form.AuditHistoryDone("history/done", findings);
                     form.ShowAdvanced();
                 }
+                // v0.6.19 (#50): early_reset's reading in Pending's Why it is waiting, saying the longest of its sentences in
+                // this language - it has no line of its own (the owner's decision of 2026-10-24).
+                form.ShowPage("pending");
+                form.AuditEarly("pending/early", findings);
+                form.ShowAdvanced();
+                // v0.6.19 (the owner's decision of 2026-10-24): the Chat page, its tab the eighth in the strip.
+                form.AuditChat("chat", findings);
+                form.ShowAdvanced();
+                // v0.6.19 (#50): the prompt queue's editor, built and never shown - for a time (its send mode showing), for
+                // after this turn, and with the longest refusal said above its buttons.
+                form.AuditEditor("editor", findings);
+                // v0.6.20 (#50): Find a conversation's dialog, with names that fill the list and with the line it says.
+                form.AuditFind("find", findings);
                 form.ShowAdvancedList(null);
                 form.AuditAdvanced("advanced unread", findings);
                 if (ids.Count > 0)
@@ -219,6 +253,38 @@ namespace CodexAutoResume
             AuditNarrowest(where, findings);
         }
 
+        /// The width HoldTabs holds the window to, against what the strip needs as laid out on this machine (v0.6.19):
+        /// with each shown tab the chosen one in turn - in nav_current, as ShowPage sets it, every other in nav - the
+        /// held width is at least the strip's own preferred width with the bar's padding and the frame, or the strip
+        /// has taken a second row. Both numbers are this machine's, so it holds wherever it runs; a reckoning a few
+        /// pixels short (Spanish's Chat tab on GitHub's runner) is a finding.
+        private void AuditTabsHeld(string where, List<string> findings)
+        {
+            var strip = advancedTab == null ? null : advancedTab.Parent as FlowLayoutPanel;
+            if (strip == null) return;
+            var fonts = new Dictionary<Control, Font>();
+            foreach (Control control in strip.Controls) fonts[control] = control.Font;
+            try
+            {
+                foreach (Control chosen in strip.Controls)
+                {
+                    if (!(chosen is NavButton) || !Soft.OwnVisible(chosen)) continue;
+                    foreach (Control control in strip.Controls)
+                        if (control is NavButton)
+                            control.Font = Soft.RoleFont(control == chosen ? "nav_current" : "nav");
+                    int held = HoldTabs();
+                    int need = strip.GetPreferredSize(Size.Empty).Width + nav.Padding.Horizontal + FrameWidth;
+                    if (held < need && !strip.WrapContents)
+                        findings.Add(where + " :: with '" + chosen.Text + "' chosen the strip needs " + need
+                                     + " px and the window is held to " + held);
+                }
+            }
+            finally
+            {
+                foreach (KeyValuePair<Control, Font> pair in fonts) pair.Key.Font = pair.Value;
+            }
+        }
+
         /// The narrowest window, held to what it must never give up: every tab whole in the strip (the Walk of the
         /// strip), and the list's columns within it. The standard audit measures the pages at the opening size and the
         /// narrowest window only for the footer's note (AuditReopenNote); there, as on the standard pages, a row's label
@@ -232,15 +298,264 @@ namespace CodexAutoResume
             if (advancedList != null) AuditList(where + "/" + AuditName(advancedList), advancedList, findings);
         }
 
-        /// Pending with its scheduled group: the standard audit's checks, on a page that is not this one.
-        private void AuditScheduled(string where, List<string> findings)
+        /// The prompt queue's editor (AdvancedEditor.cs), built and never shown, held to the standard audit's checks: nothing
+        /// cut off, nothing scrolling sideways, every control named - for a time, for after this turn, and refused.
+        private void AuditEditor(string where, List<string> findings)
+        {
+            foreach (string when in new[] { "at_time", "after_turn" })
+            {
+                using (Form dialog = BuildEditor(null))
+                {
+                    dialog.TopLevel = false;
+                    SelectChoice(editorWhen, when);
+                    if (when == "after_turn") editorSaid.Text = PromptRefusal("queue_full");
+                    ShowEditorState();
+                    Materialise(dialog);
+                    dialog.PerformLayout();
+                    Walk(dialog, where + "/" + when, findings);
+                    AuditSpoken(where + "/" + when, dialog, findings);
+                    if (editorWords.Box.Font.SizeInPoints < Font.SizeInPoints + ReadingLarger - 0.01f)
+                        findings.Add(where + " :: the words are not at the reading size");
+                }
+                ForgetEditor();
+            }
+        }
+
+        /// Find a conversation's dialog (AdvancedFind.cs), built and never shown, held to the standard audit's checks: nothing
+        /// cut off, nothing scrolling sideways, every control named - with the list full of long names, and with no row and
+        /// the line that says why.
+        private void AuditFind(string where, List<string> findings)
+        {
+            foreach (bool empty in new[] { false, true })
+            {
+                using (Form dialog = BuildFind())
+                {
+                    dialog.TopLevel = false;
+                    for (int i = 0; i < (empty ? 0 : 12); i++)
+                        findRows.Add(new KeyValuePair<string, string>("0a1b2c3d-00" + i.ToString("00") + "-7000-8000-000000000000",
+                                                                      new string((char)('a' + i), 6) + " " + new string('x', 66)));
+                    findFailed = empty;
+                    ShowFound();
+                    Materialise(dialog);
+                    dialog.PerformLayout();
+                    string at = where + (empty ? "/empty" : "/full");
+                    Walk(dialog, at, findings);
+                    string off = ListOffCard(findList);
+                    if (off != null) findings.Add(at + " :: its list is not on a card: " + off);
+                    AuditSpoken(at, dialog, findings);
+                }
+                ForgetFind();
+            }
+        }
+
+        /// Pending's one list with a row of each kind chosen in turn - a recovery, a reset rule, a queued message - the standard
+        /// audit's checks at each, with the list's columns, the buttons under it in one row and no tab strip above it.
+        private void AuditPendingKinds(string where, List<string> findings)
         {
             AdvancedAudited++;
-            if (currentPage != "pending" || scheduledHolder == null || !OwnVisible(scheduledHolder))
-                findings.Add(where + " :: the scheduled group is not showing");
+            if (currentPage != "pending") findings.Add(where + " :: Pending is not the page showing");
+            IntPtr made = pendingList.Handle;
+            // Schedule...'s place at each choice: one place, whatever is chosen (the owner, 2026-10-24).
+            var places = new HashSet<int>();
+            foreach (string kind in new[] { null, KindRule, KindMessage, "none" })
+            {
+                int index = -1;
+                for (int i = 0; i < pendingList.Items.Count && index < 0; i++)
+                    if (Str(pendingList.Items[i].Tag as Dictionary<string, object>, RowKindKey) == kind) index = i;
+                if (index < 0 && kind != "none") continue;
+                foreach (ListViewItem item in pendingList.Items) item.Selected = false;
+                if (index >= 0) pendingList.Items[index].Selected = true;
+                UpdatePendingButtons();
+                ShowExplain();
+                PerformLayout();
+                if (scheduleAddButton != null && OwnVisible(scheduleAddButton)) places.Add(scheduleAddButton.Left);
+                string at = where + "/" + (kind ?? "recovery");
+                AuditList(at + "/" + AuditName(pendingList), pendingList, findings);
+                // The buttons under the list on one line at the window's size, whatever the chosen row's kind (the
+                // owner, 2026-10-24: a button that wraps to a line of its own is the row grown).
+                int rows = ButtonLines(cancelAllButton.Parent);
+                if (rows > 1)
+                {
+                    int needs = RowNeeds(cancelAllButton.Parent);
+                    findings.Add(at + " :: the buttons under Pending's list take " + rows + " lines: they need " + needs +
+                                 " px of the row's " + cancelAllButton.Parent.ClientSize.Width);
+                }
+                Audit(at, findings);
+                AuditSpoken(at, this, findings);
+                AuditPins(at, findings);
+            }
+            if (places.Count > 1) findings.Add(where + " :: Schedule... moves as the chosen row changes");
+        }
+
+        // A conversation the audit's Chat page is opened at: the fixtures' shape, nobody's.
+        private const string AuditChatThread = "0a1b2c3d-0000-7000-8000-00000000c0de";
+
+        /// The Chat page with a conversation of two long messages, their counts and a turn in progress, a message of the
+        /// page's on its way and the box, its tab shown beside the other seven and marked as the chosen one: the standard
+        /// audit's checks. It reads nothing (Offline): what it shows is put in place here.
+        private void AuditChat(string where, List<string> findings)
+        {
+            AdvancedAudited++;
+            bool tabShown = chatTab != null && OwnVisible(chatTab);
+            if (chatTab != null && !tabShown)
+            {
+                chatTab.Visible = true;
+                HoldTabs();
+            }
+            string keptThread = chatThread;
+            Dictionary<string, object> keptView = chatView;
+            chatThread = AuditChatThread;
+            chatView = AuditChatView();
+            var item = new Dictionary<string, object>();
+            item["id"] = ChatId;
+            item["state"] = StateArmed;
+            ShowChat();
+            FillChatPage(item);
+            PerformLayout();
+            if (currentPage != ChatPageName || chatTab == null || !chatTab.Current)
+                findings.Add(where + " :: the Chat page is not the one showing, or its tab is not marked as chosen");
             Audit(where, findings);
             AuditSpoken(where, this, findings);
             AuditPins(where, findings);
+            chatThread = keptThread;
+            chatView = keptView;
+            chatPageShown = null;
+            if (chatTab != null && !tabShown)
+            {
+                chatTab.Visible = false;
+                HoldTabs();
+            }
+        }
+
+        /// What advanced-chat-read answers at its fullest, for the audit: a turn of a long message each way with its counts,
+        /// running, and a message of the page's waiting.
+        private Dictionary<string, object> AuditChatView()
+        {
+            string longest = Word("page.chat.limit", "The usage limit is full: this message waits and is sent when it resets.") + " " +
+                             Word("page.chat.in_progress", "In progress - approvals are answered in Codex.");
+            var you = new Dictionary<string, object>();
+            you["from"] = "you";
+            you["words"] = longest;
+            var codex = new Dictionary<string, object>();
+            codex["from"] = "codex";
+            codex["words"] = longest + " " + longest;
+            var counts = new Dictionary<string, object>();
+            counts["commands"] = 12.0;
+            counts["files"] = 7.0;
+            var turn = new Dictionary<string, object>();
+            turn["messages"] = new List<object> { you, codex };
+            turn["counts"] = counts;
+            turn["status"] = "inProgress";
+            var waiting = new Dictionary<string, object>();
+            waiting["state"] = "waiting";
+            var view = new Dictionary<string, object>();
+            view["turns"] = new List<object> { turn };
+            view["messages"] = new List<object> { waiting };
+            view["words_limit"] = 4000.0;
+            var limit = new Dictionary<string, object>();
+            limit["full"] = true;
+            view["limit"] = limit;
+            return view;
+        }
+
+        /// How wide a button row's visible buttons and the chosen row's group are together, with their margins.
+        private int RowNeeds(Control row)
+        {
+            int needs = 0;
+            foreach (Control control in row.Controls)
+                if (OwnVisible(control) && (control is Button || control == kindButtons))
+                    needs += control.Width + control.Margin.Horizontal;
+            return needs;
+        }
+
+        /// How many lines the visible buttons of a button row stand on - those in a group within it too.
+        private int ButtonLines(Control row)
+        {
+            var tops = new HashSet<int>();
+            foreach (Control control in row.Controls)
+            {
+                if (!OwnVisible(control)) continue;
+                if (control is Button) tops.Add(control.Top);
+                else if (control == kindButtons) tops.Add(control.Top);
+            }
+            return tops.Count;
+        }
+
+        /// History with the completed messages listed after the recoveries and Delete completed under them: the standard
+        /// audit's checks, with the list's columns.
+        private void AuditHistoryDone(string where, List<string> findings)
+        {
+            AdvancedAudited++;
+            if (currentPage != "history") findings.Add(where + " :: History is not the page showing");
+            if (joinedDone.Count > 0 && (historyClear == null || !historyClear.Enabled))
+                findings.Add(where + " :: Clear history is not offered beside the completed messages");
+            AuditList(where + "/" + AuditName(historyList), historyList, findings);
+            Audit(where, findings);
+            AuditSpoken(where, this, findings);
+            AuditPins(where, findings);
+        }
+
+        /// early_reset's reading in Pending's Why it is waiting, at its longest sentence, with the first usage-limited recovery
+        /// chosen: the standard audit's checks - and none of the line it had until the owner's decision of 2026-10-24.
+        private void AuditEarly(string where, List<string> findings)
+        {
+            AdvancedAudited++;
+            Dictionary<string, object> longest = null;
+            int widest = -1;
+            foreach (string read in new[] { "available", "still_limited", "unknown", "not_read" })
+            {
+                var line = new Dictionary<string, object>();
+                line["checked_at"] = 1767225600.0;
+                line["read"] = read;
+                line["available_at"] = 1767225300.0;
+                line["confirm_at"] = 1767225600.0;
+                line["lifted"] = false;
+                int length = EarlyText(line).Length;
+                if (length > widest)
+                {
+                    widest = length;
+                    longest = line;
+                }
+            }
+            earlyShown = longest;
+            ShowExplain();
+            PerformLayout();
+            if (currentPage != "pending")
+                findings.Add(where + " :: Pending is not the page showing");
+            Audit(where, findings);
+            AuditSpoken(where, this, findings);
+            AuditPins(where, findings);
+            earlyShown = null;
+            ShowExplain();
+        }
+
+        /// How many tabs (NavButton) a page holds: a tab strip of its own, which Pending no longer has (the owner's decision
+        /// of 2026-10-24).
+        private static int StrayTabs(Control parent)
+        {
+            int found = 0;
+            foreach (Control child in parent.Controls)
+            {
+                if (child is NavButton) found++;
+                found += StrayTabs(child);
+            }
+            return found;
+        }
+
+        /// Whether `control` is `parent` or one of its descendants.
+        private static bool Within(Control control, Control parent)
+        {
+            for (Control c = control; c != null; c = c.Parent)
+                if (c == parent) return true;
+            return false;
+        }
+
+        /// A control's children as an array, for a loop that may meet a control with none.
+        private static Control[] ControlsOf(Control parent)
+        {
+            var found = new Control[parent.Controls.Count];
+            parent.Controls.CopyTo(found, 0);
+            return found;
         }
 
         private void AuditAdvanced(string where, List<string> findings)
@@ -309,6 +624,8 @@ namespace CodexAutoResume
         ///   {"do": "ctrl-tab", "shift": bool}                 Ctrl+Tab, or Ctrl+Shift+Tab
         ///   {"do": "reply", "key": ..., "with": [...]}        what the bridge answers from now on
         ///   {"do": "answer", "with": [...]}                   what the person answers the next questions
+        ///   {"do": "busy", "on": bool}                        another action under way, or over (SetBusy), as a request
+        ///                                                     in flight holds the page
         ///   {"do": "look"}                                    what the page shows now, into "looks"
         ///   {"do": "reopen"}                                  the arguments a reopen would start the next window with,
         ///                                                     here (ReopenArguments), into "reopened"
@@ -357,7 +674,7 @@ namespace CodexAutoResume
                                       : name == "let_go" ? form.letGoButton
                                       : name == "report_write" ? form.reportWrite : name == "report_save" ? form.reportSave
                                       : name == "report_check" ? form.reportCheck : name == "report_send" ? form.reportSend
-                                      : null;
+                                      : name == "queue_go" ? form.queueAdd : null;
                         if (button == null || !button.Enabled || !OwnVisible(button)) disabled.Add(name);
                         else Pressed.Invoke(button, new object[] { EventArgs.Empty });
                     }
@@ -479,20 +796,189 @@ namespace CodexAutoResume
                                     Committed.Invoke(field.Value, new object[] { EventArgs.Empty });
                                 }
                             if (Str(step, "words") != null && form.resetWords != null) form.resetWords.Box.Text = Str(step, "words");
+                            // v0.6.20 (#50): the conversation found by searching - Find a conversation... pressed and its
+                            // dialog answered as "find" says, never shown; what it showed into "dialogs".
+                            Dictionary<string, object> look = Map(step, "find");
+                            if (look != null)
+                            {
+                                var found = new Dictionary<string, object>();
+                                if (form.resetFind == null) disabled.Add("reset_find");
+                                else
+                                {
+                                    form.findAnswer = delegate(Form finder) { form.AnswerFind(finder, look, found); };
+                                    try { Pressed.Invoke(form.resetFind, new object[] { EventArgs.Empty }); }
+                                    finally { form.findAnswer = null; }
+                                    found["picked"] = form.resetConversation == null || form.resetConversation.SelectedItem == null
+                                        ? null : ((Choice)form.resetConversation.SelectedItem).Value;
+                                    found["offered"] = ItemsOf(form.resetConversation);
+                                    dialogs.Add(found);
+                                }
+                            }
                             if (!form.resetAdd.Enabled) disabled.Add("reset_add");
                             else Pressed.Invoke(form.resetAdd, new object[] { EventArgs.Empty });
                         }
                     }
-                    else if (what == "reset_cancel" || what == "reset_go_on" || what == "scheduled_cancel" ||
-                             what == "scheduled_go_on" || what == "credit_now")
+                    else if (what == "scheduled_cancel" || what == "scheduled_go_on")
+                    {
+                        // v0.6.19: the rule's row chosen on Pending's one list, then its Cancel or Go on pressed.
+                        form.ChooseScheduledRow("rule " + Whole(Get(step, "rule")).ToString(System.Globalization.CultureInfo.InvariantCulture));
+                        Button button = what == "scheduled_cancel" ? form.scheduleCancelButton : form.scheduleGoOnButton;
+                        if (button == null || !button.Enabled) disabled.Add(what);
+                        else Pressed.Invoke(button, new object[] { EventArgs.Empty });
+                    }
+                    else if (what == "history_select")
+                    {
+                        // v0.6.19: a History row chosen, as a click on it chooses it.
+                        int index = (int)Number(step, "index");
+                        if (form.historyList == null || index < 0 || index >= form.historyList.Items.Count) disabled.Add("history_select");
+                        else
+                        {
+                            IntPtr made = form.historyList.Handle;
+                            form.historyList.SelectedIndices.Clear();
+                            form.historyList.Items[index].Selected = true;
+                            form.UpdateHistoryButtons();
+                        }
+                    }
+                    else if (what == "pending_open")
+                    {
+                        // v0.6.19: a double click on the chosen Pending row, as the list answers it (EditionRowOpened for a row
+                        // of this edition's own) - the editor it opens answered as "editor" says, never shown.
+                        var opened = Selected(form.pendingList);
+                        var record = new Dictionary<string, object>();
+                        Dictionary<string, object> answer = Map(step, "editor");
+                        if (answer == null)
+                        {
+                            answer = new Dictionary<string, object>();
+                            answer["press"] = "cancel";
+                        }
+                        form.editorAnswer = delegate(Form dialog) { form.AnswerEditor(dialog, answer, record); };
+                        try
+                        {
+                            if (EditionRow(opened)) form.EditionRowOpened(opened);
+                            else disabled.Add("pending_open");
+                        }
+                        finally
+                        {
+                            form.editorAnswer = null;
+                        }
+                        if (record.Count > 0) dialogs.Add(record);
+                    }
+                    else if (what == "pending_select")
+                    {
+                        // v0.6.19: a Pending row chosen, as a click on it chooses it - its Why it is waiting with it.
+                        int index = (int)Number(step, "index");
+                        if (form.pendingList == null || index < 0 || index >= form.pendingList.Items.Count) disabled.Add("pending_select");
+                        else
+                        {
+                            // A list with no window of its own keeps no selection: given one first, as showing it would.
+                            IntPtr made = form.pendingList.Handle;
+                            form.pendingList.SelectedIndices.Clear();
+                            form.pendingList.Items[index].Selected = true;
+                            form.UpdatePendingButtons();
+                            form.ShowExplain();
+                        }
+                    }
+                    else if (what == "usage_asked") form.UsageAsked();
+                    else if (what == "pending_none")
+                    {
+                        // v0.6.19: no Pending row chosen.
+                        IntPtr made = form.pendingList.Handle;
+                        foreach (ListViewItem item in form.pendingList.Items) item.Selected = false;
+                        form.UpdatePendingButtons();
+                    }
+                    else if (what == "chat_tab") form.OpenChat();
+                    else if (what == "chat_poll") form.ChatPoll();      // v0.6.20: the chat's two-second read, once
+                    else if (what == "chat_send")
+                    {
+                        // v0.6.20: a message written in the chat's box and Send... pressed (answered as "answer" says).
+                        form.chatDraft = Str(step, "text") ?? "";
+                        form.SendChat();
+                    }
+                    else if (what == "chat_open")
+                    {
+                        // v0.6.19: the Advanced features card's Open the chat, pressed if it can be.
+                        if (form.chatOpen == null || !form.chatOpen.Enabled) disabled.Add("chat_open");
+                        else Pressed.Invoke(form.chatOpen, new object[] { EventArgs.Empty });
+                    }
+                    else if (what == "chat_argument")
+                    {
+                        // v0.6.19: the window started with `--chat=<conversation>`, as a notice's click starts it: read, then
+                        // the page it opens on, as ReturnToAdvanced opens it once the edition has answered.
+                        ChatArgumentParsed(Str(step, "argument"));
+                        if (!form.OpenAskedChat()) disabled.Add("chat_argument");
+                    }
+                    else if (what == "scheduled_choose") form.ChooseScheduledRow(Str(step, "key"));
+                    else if (what == "scheduled_press")
+                    {
+                        // v0.6.19 (#50): one of the Scheduled tab's buttons pressed, if it can be - the editor it opens
+                        // answered as "editor" says, never shown; what it showed into "dialogs".
+                        string name = Str(step, "button");
+                        Button button = name == "add" ? form.scheduleAddButton : name == "card_add" ? form.queueAdd
+                                      : name == "edit" ? form.scheduleEditButton
+                                      : name == "cancel" ? form.scheduleCancelButton : name == "go_on" ? form.scheduleGoOnButton
+                                      : name == "clear" ? form.historyClear : null;
+                        if (button == null || !button.Enabled) disabled.Add("scheduled_press " + name);
+                        else
+                        {
+                            var record = new Dictionary<string, object>();
+                            Dictionary<string, object> answer = Map(step, "editor");
+                            if (answer == null)
+                            {
+                                answer = new Dictionary<string, object>();
+                                answer["press"] = "cancel";
+                            }
+                            form.editorAnswer = delegate(Form dialog) { form.AnswerEditor(dialog, answer, record); };
+                            try
+                            {
+                                Pressed.Invoke(button, new object[] { EventArgs.Empty });
+                            }
+                            finally
+                            {
+                                form.editorAnswer = null;
+                            }
+                            if (record.Count > 0)
+                            {
+                                record["saved"] = (double)form.editorSaved;
+                                dialogs.Add(record);
+                            }
+                        }
+                    }
+                    else if (what == "reset_cancel" || what == "reset_go_on" || what == "credit_now")
                     {
                         List<Button> buttons = what == "reset_cancel" ? form.resetCancels : what == "reset_go_on" ? form.resetGoOns
-                                             : what == "scheduled_cancel" ? form.scheduledCancels
-                                             : what == "scheduled_go_on" ? form.scheduledGoOns : form.creditNowButtons;
+                                             : form.creditNowButtons;
                         object key = Get(step, "rule") ?? Get(step, "family");
                         Button found = buttons.Find(delegate(Button each) { return Equals(each.Tag, key); });
                         if (found == null || !found.Enabled) disabled.Add(what);
                         else Pressed.Invoke(found, new object[] { EventArgs.Empty });
+                    }
+                    else if (what == "editor")
+                    {
+                        // v0.6.19 (#50): the editor opened - for a new message, or for the prompt `prompt` - filled and
+                        // answered as `step` says, never shown; what it showed and said into "editors".
+                        var record = new Dictionary<string, object>();
+                        Dictionary<string, object> answer = step;
+                        Dictionary<string, object> row = null;
+                        if (Get(step, "prompt") != null)
+                            foreach (object listed in Items(form.advancedPrompts, "prompts") ?? new List<object>())
+                                if (Equals(Get(listed as Dictionary<string, object>, "prompt_id"), Get(step, "prompt")))
+                                    row = listed as Dictionary<string, object>;
+                        form.editorAnswer = delegate(Form dialog) { form.AnswerEditor(dialog, answer, record); };
+                        try
+                        {
+                            form.OpenEditor(row);
+                        }
+                        finally
+                        {
+                            form.editorAnswer = null;
+                        }
+                        record["saved"] = (double)form.editorSaved;
+                        dialogs.Add(record);
+                    }
+                    else if (what == "busy")
+                    {
+                        form.SetBusy(Equals(Get(step, "on"), true));
+                        form.UpdateAdvancedButtons();
                     }
                     else if (what == "run_stop")
                     {
@@ -573,6 +1059,118 @@ namespace CodexAutoResume
             Pressed.Invoke(use, new object[] { EventArgs.Empty });
             // Still open where the number was refused: what it says then, above the number.
             record["after"] = dialog.IsDisposed ? null : ownHint.Text;
+        }
+
+        /// The editor (AdvancedEditor.cs), built and never shown: what it opened with written into `record`, its fields filled
+        /// as `step` says - "thread", "words", "when", "hour", "times", "depends", "mode" - and "press" save or cancel; then
+        /// what it said, and whether it saved.
+        private void AnswerEditor(Form dialog, Dictionary<string, object> step, Dictionary<string, object> record)
+        {
+            record["title"] = dialog.Text;
+            record["conversations"] = ItemsOf(editorConversation);
+            record["conversation_enabled"] = editorConversation.Enabled;
+            record["words"] = editorWords.Box.Text;
+            record["reading_points"] = (double)editorWords.Box.Font.SizeInPoints;
+            record["window_points"] = (double)Font.SizeInPoints;
+            record["when"] = ((Choice)editorWhen.SelectedItem).Value;
+            record["mode"] = editorMode.Value;
+            var modes = new List<object>();
+            foreach (Control card in editorMode.Controls) modes.Add(card.Text);
+            record["modes"] = modes;
+            record["buttons"] = new List<object> { editorSave.Text, editorCancel.Text };
+            record["accept"] = dialog.AcceptButton == editorSave;
+            record["find_button"] = editorFind == null ? null : editorFind.Text;
+            // v0.6.20 (#50): the conversation found by searching - Find a conversation... pressed and its dialog answered
+            // as "find" says, never shown; what it showed, and what the picker then offered and held, into "find".
+            Dictionary<string, object> look = Map(step, "find");
+            if (look != null && editorFind != null)
+            {
+                var found = new Dictionary<string, object>();
+                findAnswer = delegate(Form finder) { AnswerFind(finder, look, found); };
+                try { Pressed.Invoke(editorFind, new object[] { EventArgs.Empty }); }
+                finally { findAnswer = null; }
+                found["picked"] = editorConversation.SelectedItem == null ? null : ((Choice)editorConversation.SelectedItem).Value;
+                found["offered"] = ItemsOf(editorConversation);
+                record["find"] = found;
+            }
+            foreach (KeyValuePair<string, SoftCombo> field in new Dictionary<string, SoftCombo> {
+                         { "thread", editorConversation }, { "when", editorWhen }, { "hour", editorHour }, { "times", editorTimes },
+                         { "depends", editorDepends } })
+                if (Str(step, field.Key) != null)
+                {
+                    Choose(field.Value, Str(step, field.Key));
+                    Committed.Invoke(field.Value, new object[] { EventArgs.Empty });
+                }
+            if (Str(step, "words") != null) editorWords.Box.Text = Str(step, "words");
+            if (Str(step, "mode") != null) editorMode.Value = Str(step, "mode");
+            record["mode_shown"] = OwnVisible(editorMode);
+            record["after_turn_shown"] = OwnVisible(editorAfterTurn);
+            record["blank"] = (double)EditorBlank();
+            if (Str(step, "press") == "save")
+            {
+                if (!editorSave.Enabled) record["save_disabled"] = true;
+                else Pressed.Invoke(editorSave, new object[] { EventArgs.Empty });
+            }
+            else Pressed.Invoke(editorCancel, new object[] { EventArgs.Empty });
+            record["taken"] = dialog.DialogResult == DialogResult.OK;
+            record["said"] = editorSaid.Text;
+            record["blank_after"] = (double)EditorBlank();
+            record["said_fits"] = editorSaid.Text.Length == 0 ||
+                editorSaid.Top + editorSaid.Height <= editorBody.Height && editorBody.Height <= editorBody.Parent.ClientSize.Height;
+            // Where all of it is taller than the screen lets the editor be (a CI runner's 1024 by 768), it stands at that
+            // height and what does not fit is scrolled to.
+            record["at_most"] = editorDialog.ClientSize.Height >= EditorMost();
+            record["words_after"] = editorWords.Box.Text;
+        }
+
+        /// Find a conversation's dialog (AdvancedFind.cs), built and never shown, answered as `step` says - "search" typed into
+        /// its box, "thread" chosen in its list, "press" cancel (else Use this conversation) - and what it showed written
+        /// into `record`: its title, its list's rows before and after the search, the line it says, its buttons.
+        private void AnswerFind(Form dialog, Dictionary<string, object> step, Dictionary<string, object> record)
+        {
+            record["title"] = dialog.Text;
+            record["search_name"] = findSearch.Box.AccessibleName;
+            record["column"] = findList.Columns[0].Text;
+            record["list_card"] = ListOffCard(findList) ?? "";
+            record["buttons"] = new List<object> { findUse.Text, findCancel.Text };
+            record["accept"] = dialog.AcceptButton == findUse;
+            record["use_before"] = findUse.Enabled;
+            record["rows"] = FoundRows();
+            if (Str(step, "search") != null) findSearch.Box.Text = Str(step, "search");
+            record["rows_after"] = FoundRows();
+            record["said"] = OwnVisible(findSaid) ? findSaid.Text : "";
+            if (Str(step, "thread") != null)
+            {
+                // A list with no window of its own keeps no selection: given one first, as showing it would.
+                IntPtr made = findList.Handle;
+                foreach (ListViewItem item in findList.Items)
+                    if (Str(item.Tag as Dictionary<string, object>, "thread_id") == Str(step, "thread"))
+                    {
+                        item.Selected = true;
+                        FoundChosen();
+                    }
+            }
+            record["use_enabled"] = findUse.Enabled;
+            if (Str(step, "press") == "cancel") Pressed.Invoke(findCancel, new object[] { EventArgs.Empty });
+            else if (findUse.Enabled) Pressed.Invoke(findUse, new object[] { EventArgs.Empty });
+            record["taken"] = dialog.DialogResult == DialogResult.OK;
+        }
+
+        private List<object> FoundRows()
+        {
+            var rows = new List<object>();
+            foreach (ListViewItem item in findList.Items) rows.Add(item.Text);
+            return rows;
+        }
+
+        /// The empty band between the editor's fields and its buttons, in pixels at 96 DPI: the page under the fields less
+        /// the fields.
+        private int EditorBlank()
+        {
+            if (editorBody == null || editorBody.Parent == null) return -1;
+            if (editorDialog != null) editorDialog.PerformLayout();
+            editorBody.Parent.PerformLayout();
+            return (int)Math.Round((editorBody.Parent.ClientSize.Height - editorBody.Height) / DpiScale);
         }
 
         // Control.OnClick, which raises Click as a press of the button does.
@@ -734,6 +1332,24 @@ namespace CodexAutoResume
             // lists draw them - each cell's text - where those pages are built.
             look["run_stops"] = Tags(runStops);
             look["pending_rows"] = ListCells(pendingList);
+            // Each cell of Pending's list past the conversation's that is drawn cut short, as "row/column": none while the
+            // list has room for them whole (the owner, 2026-10-25: "5시간 한…", "매일 09:…"). Measured here from the words the
+            // cell draws - a chip's in the Status column, the switch's column left out - never from what MeasureCells took.
+            var cut = new List<object>();
+            if (pendingList != null)
+                for (int r = 0; r < pendingList.Items.Count; r++)
+                    for (int c = 1; c < pendingList.Columns.Count && c < pendingList.Items[r].SubItems.Count; c++)
+                    {
+                        if (c == ResumeColumn) continue;
+                        string drawn = pendingList.Items[r].SubItems[c].Text;
+                        int whole = (c == 1 ? Soft.ChipSize(drawn, pendingList.Font).Width
+                                     : TextRenderer.MeasureText(drawn, pendingList.Font, new Size(int.MaxValue, int.MaxValue),
+                                                                TextFormatFlags.SingleLine).Width) + Px(14);
+                        if (whole > pendingList.Columns[c].Width)
+                            cut.Add(r.ToString(System.Globalization.CultureInfo.InvariantCulture) + "/" + c.ToString(System.Globalization.CultureInfo.InvariantCulture) + " " +
+                                    drawn);
+                    }
+            look["pending_cut"] = cut;
             look["history_rows"] = ListCells(historyList);
             // The open reset action's form - what each drop-down offers and holds, the count of the words, whether Add can
             // be pressed - and the rules its Cancel, Go on counting and Use a reset credit now... buttons name; and
@@ -759,14 +1375,122 @@ namespace CodexAutoResume
                 look["resets"] = resets;
             }
             else look["resets"] = null;
+            // v0.6.19 (#50; the owner's decision of 2026-10-24): Pending's one list - each row's key and kind (none for a
+            // recovery) and whether it is chosen - what each of this edition's buttons may do, Delete completed's words and
+            // whether it shows, History's rows, the note beside Pending's buttons and History's, and whether anything on
+            // Pending is a tab strip (none ever is).
             var scheduled = new Dictionary<string, object>();
-            scheduled["group_shown"] = scheduledHolder != null && OwnVisible(scheduledHolder);
-            var lines = new List<object>();
-            if (scheduledCard != null) Texts(scheduledCard, lines);
-            scheduled["texts"] = lines;
-            scheduled["cancels"] = Tags(scheduledCancels);
-            scheduled["go_ons"] = Tags(scheduledGoOns);
+            var keys = new List<object>();
+            var kinds = new List<object>();
+            var chosenKeys = new List<object>();
+            if (pendingList != null)
+                foreach (ListViewItem item in pendingList.Items)
+                {
+                    var tag = item.Tag as Dictionary<string, object>;
+                    keys.Add(ListRowId(tag));
+                    kinds.Add(Str(tag, RowKindKey));
+                    if (item.Selected) chosenKeys.Add(ListRowId(tag));
+                }
+            scheduled["keys"] = keys;
+            scheduled["kinds"] = kinds;
+            scheduled["selected"] = chosenKeys;
+            scheduled["history"] = ListCells(historyList);
+            var historyKinds = new List<object>();
+            if (historyList != null)
+                foreach (ListViewItem item in historyList.Items) historyKinds.Add(Str(item.Tag as Dictionary<string, object>, RowKindKey));
+            scheduled["history_kinds"] = historyKinds;
+            var scheduleButtons = new Dictionary<string, object>();
+            if (scheduleEditButton != null)
+            {
+                scheduleButtons["add"] = scheduleAddButton.Enabled && OwnVisible(scheduleAddButton);
+                scheduled["add_left"] = OwnVisible(scheduleAddButton) ? (double)scheduleAddButton.Left : -1.0;
+                scheduled["add_after_rescan"] = scheduleAddButton.Parent == rescanButton.Parent &&
+                    scheduleAddButton.Parent.Controls.GetChildIndex(scheduleAddButton) ==
+                    rescanButton.Parent.Controls.GetChildIndex(rescanButton) + 1;
+                scheduleButtons["edit"] = scheduleEditButton.Enabled && OwnVisible(scheduleEditButton);
+                scheduleButtons["cancel"] = scheduleCancelButton.Enabled && OwnVisible(scheduleCancelButton);
+                scheduleButtons["go_on"] = scheduleGoOnButton.Enabled && OwnVisible(scheduleGoOnButton);
+            }
+            // History's Delete completed exists once History has been built.
+            if (historyClear != null)
+            {
+                scheduleButtons["clear"] = historyClear.Enabled;
+                scheduled["clear_text"] = historyClear.Text;
+                // Clear history is History's one clearing action (the owner's decision of 2026-10-24): its buttons by
+                // their words, as they show.
+                var historyButtons = new List<object>();
+                foreach (Control button in historyClear.Parent.Controls)
+                    if (button is Button && OwnVisible(button)) historyButtons.Add(button.Text);
+                scheduled["history_buttons"] = historyButtons;
+            }
+            scheduled["buttons"] = scheduleButtons;
+            scheduled["note"] = pendingNote == null ? null : pendingNote.Text;
+            scheduled["history_note"] = historyNote == null ? null : historyNote.Text;
+            Control pendingPage;
+            scheduled["tab_strip"] = pages.TryGetValue("pending", out pendingPage) && StrayTabs(pendingPage) > 0;
+            scheduled["group_width"] = kindButtons == null ? 0.0 : (double)kindButtons.Width;
+            var later = new List<object>();
+            foreach (Button button in new[] { cancelAllButton, rescanButton })
+                if (button != null) later.Add((double)button.Left);
+            scheduled["later_lefts"] = later;
             look["scheduled"] = scheduled;
+            // v0.6.19 (#50): early_reset's reading as Why it is waiting says it (none while it is off), and the panel's
+            // whole sentence under its rows; and the buttons under Pending's list, by their words, as they show.
+            var early = new Dictionary<string, object>();
+            early["text"] = earlyShown == null ? null : EarlyText(earlyShown);
+            look["early"] = early;
+            look["explain_note"] = explainList == null ? null : explainList.Note;
+            look["explain_empty"] = explainList == null ? null : explainList.Empty;
+            var pendingButtons = new List<object>();
+            if (cancelAllButton != null && cancelAllButton.Parent != null)
+                foreach (Control control in cancelAllButton.Parent.Controls)
+                    foreach (Control button in control is Button ? new[] { control } : ControlsOf(control))
+                        if (button is Button && OwnVisible(button)) pendingButtons.Add(button.Text);
+            look["pending_buttons"] = pendingButtons;
+            // The gaps between the buttons under the list, left to right, in pixels at 96 DPI: one gap everywhere, the
+            // chosen kind's group included (the owner, 2026-10-25).
+            var spans = new List<int[]>();
+            if (cancelAllButton != null && cancelAllButton.Parent != null)
+            {
+                cancelAllButton.Parent.PerformLayout();
+                foreach (Control control in cancelAllButton.Parent.Controls)
+                {
+                    if (!(control is Button)) control.PerformLayout();
+                    foreach (Control button in control is Button ? new[] { control } : ControlsOf(control))
+                        if (button is Button && OwnVisible(button))
+                        {
+                            int left = button.Left + (control is Button ? 0 : control.Left);
+                            spans.Add(new[] { left, left + button.Width });
+                        }
+                }
+            }
+            spans.Sort((x, y) => x[0].CompareTo(y[0]));
+            var gaps = new List<object>();
+            for (int i = 1; i < spans.Count; i++) gaps.Add((double)Math.Round((spans[i][0] - spans[i - 1][1]) / DpiScale));
+            scheduled["gaps"] = gaps;
+            look["retry_enabled"] = retryButton != null && retryButton.Enabled;
+            look["button_lines"] = cancelAllButton == null || cancelAllButton.Parent == null ? 0.0
+                                 : (double)ButtonLines(cancelAllButton.Parent);
+            look["row_need"] = cancelAllButton == null ? 0.0 : (double)RowNeeds(cancelAllButton.Parent);
+            look["row_width"] = cancelAllButton == null ? 0.0 : (double)cancelAllButton.Parent.ClientSize.Width;
+            // v0.6.19 (the owner's decision of 2026-10-24): the Chat page - whether its tab shows and is marked as chosen,
+            // whether the chat's own controls are on the Chat page or on the Advanced features page, the card's button
+            // there, and the conversation the chat is at.
+            var chat = new Dictionary<string, object>();
+            chat["tab_shown"] = chatTab != null && OwnVisible(chatTab);
+            chat["tab_current"] = chatTab != null && chatTab.Current;
+            chat["on_page"] = chatConversation != null && chatPage != null && Within(chatConversation, chatPage);
+            chat["on_advanced"] = chatConversation != null && advancedPage != null && Within(chatConversation, advancedPage);
+            chat["link"] = chatOpen != null && Within(chatOpen, advancedPage);
+            chat["thread"] = chatThread;
+            // v0.6.20: the Dashboard header's light and headline - busy ("checking") while a message waits or is on its way.
+            chat["light"] = stateDot.State;
+            chat["headline"] = headline.Text;
+            look["chat"] = chat;
+            // v0.6.19 (#50): the prompt queue's card - its one line and Go to Scheduled.
+            var queue = new Dictionary<string, object>();
+            queue["go"] = queueAdd == null ? (object)null : (object)queueAdd.Enabled;
+            look["queue"] = queue;
             // The report's card: what its boxes hold, what each of its buttons may do (null where there is none), the
             // job it is reading, what it said and how the last check or send ended, the text it shows in boxes that can
             // be selected (a link, a SHA-256), and how many holds on the window's reopen there are.

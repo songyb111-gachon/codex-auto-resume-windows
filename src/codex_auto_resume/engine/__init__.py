@@ -47,6 +47,7 @@ from .relaxed import RelaxedMixin
 from .resend import ResendMixin
 from .tosession import ToSessionMixin
 from .compaction import CompactionMixin
+from .recordchannel import RecordChannelMixin
 from .kinds import KindsMixin
 from .routes import RoutesMixin
 from .storeview import StoreView
@@ -54,12 +55,24 @@ from .storeview import StoreView
 
 class Engine(OptionsMixin, AnnounceMixin, FreshnessMixin, DetectMixin, ReconcileMixin, OutcomeMixin, DispatchMixin,
              DeliveryMixin, GuardMixin, NoticeMixin, RelaxedMixin, ResendMixin, PlugRecordsMixin,
-             ForOpenMixin, RoutesMixin, KindsMixin, ToSessionMixin, CompactionMixin):
+             ForOpenMixin, RoutesMixin, KindsMixin, ToSessionMixin, CompactionMixin,
+             RecordChannelMixin):
     """The part that decides.
     """
 
     # ------------------------------------------------------------------ tick
     def tick(self):
+        # v0.6.19 (issue #50): a person's usage check is served at this tick's looks or said not checked at its end.
+        try:
+            before = self.store.usage_checks_asked(self.clock())
+        except Exception:
+            before = {}
+        try:
+            self._tick()
+        finally:
+            self._usage_checks_left(before)
+
+    def _tick(self):
         # The watch and outcome observation continue when recovery is paused: taking
         # back a queued continuation is exactly what a Pause asks for.
         try:

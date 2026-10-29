@@ -1,6 +1,6 @@
 """Where every module goes when the core is Rust, and what may call what once it is.
 
-`docs/ROADMAP.md` names the stack v0.6.21 is planned to arrive at: the Windows interface in
+`docs/ROADMAP.md` names the stack v0.6.22 is planned to arrive at: the Windows interface in
 C# and the core in Rust, in eight parts -
 
     Watcher · Recovery engine · Classifier / Policy · State machine ·
@@ -71,6 +71,8 @@ ITEM = {_q(name): item for item, names in {
                 "runtime.afterwork",
                 # v0.6.15-beta: the other Codex homes a watcher holds.
                 "runtime.homes",
+                # v0.6.18: what an update set aside and could not delete, swept as it starts.
+                "runtime.setaside",
                 # v0.6.16-beta.3: its own decisions asked on request, for Diagnostics' check (issue #27).
                 "checkup",
                 # v0.6.16: and its own rules asked again of every waiting recovery, for Rescan and reconcile (issue #39).
@@ -99,7 +101,7 @@ ITEM = {_q(name): item for item, names in {
                "engine.routes",
                # and which conversations besides the app's are watched (P18), one sent to another session (P16),
                # and a full context window's compaction turns.
-               "engine.kinds", "engine.tosession", "engine.compaction"),
+               "engine.kinds", "engine.tosession", "engine.compaction", "engine.recordchannel"),
     "policy": ("failures", "reasons", "settings", "settings_schema", "continuation", "openstate", "domain.gates",
                # what may be done at a tier, and with whose word: policy, not registry data
                "compat.permits",
@@ -130,6 +132,8 @@ ITEM = {_q(name): item for item, names in {
                "poweraction",
                # v0.6.15-beta: the Codex homes a watcher is set to watch, as Settings keep them.
                "homes",
+               # v0.6.18: and a Codex home this PC's Codex uses that is not watched yet, offered in the Dashboard.
+               "homefind",
                # v0.6.16: the kinds of notice a person can keep on screen until clicked, and an edition's.
                "notice_kinds"),
     "machine": ("machine", "domain", "domain.errors", "domain.ids", "domain.public",
@@ -180,6 +184,8 @@ ITEM = {_q(name): item for item, names in {
                 # v0.6.16-beta.3: the words for this time, in a file of their own beside the state, as that one is.
                 "oncewords",
                 "auto_resume", "cli", "controlcli", "diagnostics",
+                # v0.6.19: this PC's own compatibility report, which Diagnostics shows and the export carries.
+                "ownreport", "ownreport.document", "ownreport.evidence", "ownreport.reading",
                 "commands", "commands.base", "commands.install", "commands.records",
                 "commands.status", "commands.watcher",
                 "mcp", "mcp.panel", "mcp.server", "mcp.tools", "mcpserver"),
@@ -202,6 +208,8 @@ ITEM = {_q(name): item for item, names in {
     "platform": ("win", "win.dll", "win.homelock", "win.inventory", "win.kernel", "win.sync",
                  # v0.6.11: the administrator's policy keys, read from the registry.
                  "win.policykeys",
+                 # v0.6.18: and the account's own CODEX_HOME, read from the registry.
+                 "win.userenv",
                  # and what Windows says of power and of the internet, and the one power request.
                  "win.power", "win.network",
                  # and what it says of the watcher's own process and of this sign-in.
@@ -214,6 +222,8 @@ ITEM = {_q(name): item for item, names in {
                  "win.powerdown",
                  # v0.6.15-beta: which folder a path names, whatever its spelling.
                  "win.folderid",
+                 # v0.6.20 (#55): asking the settings window that is open to come forward on a page.
+                 "win.handover",
                  "pwsh", "shortcut", "startup", "addremove"),
     "config": ("", "config", "logbook"),
 }.items() for name in names}

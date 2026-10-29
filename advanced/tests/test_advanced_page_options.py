@@ -173,6 +173,21 @@ class PageTests(PageCase):
             "words": script["advanced-words"][0]["result"]["words"]}
 
     @classmethod
+    def scenario_keep_on_unread(cls, bridge):
+        """Short retries when Codex is at capacity watched, its statement unreadable when it is opened: Keep it on... is
+        not offered as pressable - it would confirm a statement nobody read - and once the statement is read again it is
+        (v0.6.19-beta.3, the controls audit's finding 8: it was live and its click did nothing, said nothing)."""
+        cls.watched(bridge, "capacity_retry")
+        script = cls.opening(bridge, "en")
+        shown = script["advanced-statement capacity_retry"][0]
+        script["advanced-statement capacity_retry"] = [{"ok": False, "error": "timed out"}]
+        steps = [{"do": "snapshot", "reply": snapshot()}, {"do": "show"}, {"do": "choose", "id": "capacity_retry"},
+                 {"do": "look"}, {"do": "press", "button": "keep_on"},
+                 {"do": "reply", "key": "advanced-statement capacity_retry", "with": [shown]},
+                 {"do": "choose", "id": "send_now"}, {"do": "choose", "id": "capacity_retry"}, {"do": "look"}]
+        return "en", {"script": script, "steps": steps}, {"words": script["advanced-words"][0]["result"]["words"]}
+
+    @classmethod
     def scenario_kept_notice(cls, bridge):
         """Kept on, Short retries when Codex is at capacity noted a new Codex version instead of turning itself off: said
         in the accent under its state; and a once-more capability that a resend found twice turned off: said why."""
@@ -281,6 +296,15 @@ class PageTests(PageCase):
             self.assertEqual([text for text in shown.values() if text == kept],
                              [kept] if expected_state == kept else [], "no other row says Keep it on")
             self.assertFalse([text for text in shown.values() if " \u00b7 " in text], "no state with a second word")
+
+    def test_keep_it_on_waits_for_the_statement_it_confirms(self):
+        """Fails with Keep it on enabled on the policy alone again: unread, it was pressable and did nothing."""
+        result, expected = self.of("scenario_keep_on_unread")
+        unread, read = result["looks"]
+        self.assertEqual(unread["kept"]["keep_on"], False)
+        self.assertEqual(result["disabled"], ["keep_on"])
+        self.assertEqual(read["kept"]["keep_on"], True)
+        self.assertEqual([line for line in result["sent"] if line.startswith("advanced-arm ")], [])
 
     def test_keep_it_on_asks_with_each_warning_sends_what_was_confirmed_and_lets_go_asking_nothing(self):
         result, expected = self.of("scenario_keep_on")

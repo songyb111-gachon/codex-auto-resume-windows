@@ -1,5 +1,5 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
-"""Send notices to your phone or inbox (push_notices, v0.6.19, plans/v0619-design/D-courier.md).
+"""Send notices to your phone or inbox (push_notices, v0.6.20, plans/v0619-design/D-courier.md).
 
 At P20 core tells the plug of each notice it hands to the card or the toast - its kind, its category word, its record's
 place in Pending and when, closed words and numbers only (core's notifier.told). Here that kind is mapped to a closed

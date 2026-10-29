@@ -1,4 +1,4 @@
-"""The courier process (v0.6.19, advanced/src/codex_auto_resume_advanced/courier/__main__.py, launch.py): pythonw
+"""The courier process (v0.6.20, advanced/src/codex_auto_resume_advanced/courier/__main__.py, launch.py): pythonw
 running the product's own module with no console, suspended until it is in the starting process's job object made
 KILL_ON_JOB_CLOSE; one per home (a named mutex, a second one exits busy); its arguments and exit codes; at most one start
 a minute from the watcher; and a courier that never ends never holds the watcher up.

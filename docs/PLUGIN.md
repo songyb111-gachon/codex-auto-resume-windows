@@ -20,7 +20,7 @@ The repository root *is* the plugin root. There is exactly one copy of `src/`.
 
 | Path | Purpose |
 | --- | --- |
-| `.agents/plugins/marketplace.json` | Marketplace index; one entry whose `source.path` is `"."`. |
+| `.agents/plugins/marketplace.json` | Marketplace index; one entry whose `source.path` is `"./"`, the repository root. |
 | `.codex-plugin/plugin.json` | Plugin manifest. Declares `skills` and the card's artwork; nothing else executable. The release build adds `mcpServers` to its copy (see below). |
 | `skills/codex-auto-resume/SKILL.md` | What Codex reads to answer "turn on auto resume". |
 | `scripts/bootstrap.ps1` | Turns the plugin into an installation (see below). |
@@ -46,7 +46,7 @@ GitHub has no interpreter to run it with - and with the declaration in the repos
 manifest, `codex plugin add` from a clone succeeds and registers the server as *enabled*,
 pointing at an executable that is not there. The user gets a permanently failing entry
 rather than an error they can act on. Measured against `codex-cli 0.153.4`, in an
-isolated `CODEX_HOME`. `.mcp.json` itself stays in the repository, because a
+isolated `CODEX_HOME`. Its source, `build/plugin-mcp.json`, stays in the repository (the release build writes the `.mcp.json` into the archive), because a
 security-relevant declaration should be reviewable as source rather than assembled out of
 a string in a build script.
 
@@ -138,8 +138,8 @@ action, `disable_conversation_recovery`, and the switch itself is reversible -
 `clear_recovery_history` is marked for the same one-way reason: it deletes nothing and cancels
 nothing, but nothing puts a hidden row back in the history. Pause, `retry_now`,
 `postpone_recovery`, `turn_off_power_action` and the read-only tools are not marked - turning the
-power action off only reduces automation, as a pause does: a postponement only ever holds a
-record back, and a pause only reduces automation: a continuation already
+power action off only reduces automation, as a pause does. A postponement only ever holds a
+record back. A pause only reduces automation: a continuation already
 waiting in Codex's queue is withdrawn, and a withdrawal the watcher can confirm returns that
 recovery to waiting with its attempt back, so resuming picks it up again - only a withdrawal
 it cannot confirm, or a pause over a submission that was already uncertain, is final, and
@@ -152,9 +152,11 @@ asking can let a prompt-injected turn reverse a pause.
 From v0.6.0, `update_settings` neither offers nor accepts the advanced settings - `codex_exe`,
 which engine binary to run, and `detection_lookback_hours` - which the settings window and the
 panel do not show either; a client that sends them anyway is refused. And `get_status` does not
-report the installation directory, whose path contains your Windows user name, though the
-settings it returns do include `codex_exe`, which is empty unless an engine path has been set,
-by hand or through `update_settings` in v0.5.7 or earlier. Both changes ship in v0.6.0. In
+report the installation directory, whose path contains your Windows user name. Both changes
+ship in v0.6.0. Nor do the settings it, `open_settings` and `update_settings` return carry the
+engine path: they say of `codex_exe` only whether one is set (`<set>`) or not (empty), since that
+path can hold your user name too. Up to v0.6.18 they return the path itself, empty unless one has
+been set, by hand or through `update_settings` in v0.5.7 or earlier. In
 v0.5.7 and earlier, `update_settings` accepts those two settings as well and is not marked
 destructive, so it does not request approval through that annotation, and `get_status`
 reports the installation directory as `home`. Nor does `update_settings` offer the preferences
@@ -343,7 +345,8 @@ the content - and the workflow compiles the two executables twice and refuses to
 they differ. When that normalisation was added, two local builds and a build from a separate
 clone produced byte-identical executables; the workflow's double compile repeats that check on
 every release build. That measurement covers the executables, not the whole archive, and
-whether GitHub's runner produces the same bytes as a local build has not been verified, so the
+for v0.6.0 the archive GitHub's runner published and a rebuild on another Windows machine had the same SHA-256, but with
+the same compiler build, and two different ones have never been compared, so the
 pin is still taken from the published file rather than from a rebuild. [VERIFY.md](VERIFY.md)
 has the rebuild procedure, and what a match or a mismatch does and does not show.
 
@@ -371,7 +374,10 @@ versions before v0.5.4 have no attestation. With the GitHub CLI, also check wher
 archive was built:
 
 ```powershell
-gh attestation verify .\CodexAutoResume-vX.Y.Z-win-x64.zip --repo songyb111-gachon/codex-auto-resume-windows
+gh attestation verify .\CodexAutoResume-vX.Y.Z-win-x64.zip `
+    --repo songyb111-gachon/codex-auto-resume-windows `
+    --signer-workflow songyb111-gachon/codex-auto-resume-windows/.github/workflows/release.yml `
+    --source-ref refs/tags/vX.Y.Z
 ```
 
 If you have the plugin from the marketplace, its bootstrap can install a file you already
@@ -386,7 +392,7 @@ prove, and how to rebuild a release yourself.
 
 Every way in converges on one installation, in `%USERPROFILE%\.codex-auto-resume` by default: one
 bundled interpreter, one watcher, one SQLite database, one `settings.json`, one sign-in
-entry, one notification handler and one Start Menu entry. `tests/test_convergence.py`
+entry, one notification handler, one Start Menu entry and one entry in Windows' Add or remove programs. `tests/test_convergence.py`
 pins the rules that make that true.
 
 | You do this | What happens |
@@ -406,8 +412,10 @@ consequences are designed around:
 
 - **State must not live in the plugin.** Pending interruptions, settings and logs live in
 `%USERPROFILE%\.codex-auto-resume\` by default. Updating or removing the plugin does not touch
-them. - **Autostart must not point into the plugin.** Setup copies `watcher_launcher.py` to
-that same stable directory and registers *that*, so an update needs no re-registration. - **The
+them.
+- **Autostart must not point into the plugin.** Setup copies `watcher_launcher.py` to
+that same stable directory and registers *that*, so an update needs no re-registration.
+- **The
 installed application is the engine**, not the plugin cache copy. The launcher resolves the
 installation's `app` directory first - under the home `runtime.json` records,
 `%USERPROFILE%\.codex-auto-resume\app` by default - and, for a plugin installation, falls back
@@ -435,7 +443,7 @@ They are different operations and neither implies the other.
 | Stops a running watcher | no | yes |
 | Removes sign-in autostart | no | yes |
 | Deletes settings and pending state | no | only with `--purge` |
-| Deletes logs | no | yes |
+| Deletes logs | no | only with `--purge` |
 | Deletes the program files and the bundled runtime | no | no |
 
 There is no plugin uninstall hook to attach to, so removing the plugin cannot clean up on its
@@ -443,7 +451,7 @@ own.
 
 Nor does either of them remove the *installation*. `uninstall` stops the watcher and takes away
 its Windows registrations - the sign-in entry, the notification sender identity, the
-notification button's handler and the Start Menu entry, each only where it belongs to this
+notification button's handler, the Start Menu entry and the entry in Add or remove programs, each only where it belongs to this
 installation - and `--purge` additionally deletes settings and pending recoveries - but the
 application, the bundled interpreter and the settings window stay in the installation
 directory (`%USERPROFILE%\.codex-auto-resume` by default), because they are what a later `setup` would pick up again.
