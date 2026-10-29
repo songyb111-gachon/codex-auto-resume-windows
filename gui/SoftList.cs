@@ -766,15 +766,17 @@ namespace CodexAutoResume
             StartAtFirstColumn();
         }
 
-        /// Whether the list now shows its first column, at the right where it stands mirrored: scrolled sideways as far as
-        /// it goes. True for a list whose columns fit.
+        /// Whether the list now shows its first column: at the left, scrolled not at all, or at the right where it stands
+        /// mirrored, scrolled sideways as far as it goes. True for a list whose columns fit.
         internal bool AtFirstColumn
         {
             get
             {
                 Read();
                 int range = Math.Max(0, sideScroll.Max - sideScroll.Min + 1 - Math.Max(1, sideScroll.Page));
-                return !nativeAcross || range == 0 || Math.Max(0, sideScroll.Position - sideScroll.Min) >= range;
+                int at = Math.Max(0, sideScroll.Position - sideScroll.Min);
+                // Left to right the first column is at the left: scrolled not at all.
+                return !nativeAcross || range == 0 || (ColumnsMirrored && List.Columns.Count > 1 ? at >= range : at == 0);
             }
         }
 
