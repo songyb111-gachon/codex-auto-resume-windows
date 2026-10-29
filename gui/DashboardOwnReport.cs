@@ -186,18 +186,18 @@ namespace CodexAutoResume
                                : Equals(Get(ownVersion, "worked"), true) ? w("worked")
                                : Equals(Get(ownVersion, "failed"), true) ? w("failed") : w("neither");
                 said.Append(w("row").Replace("{version}", Mirror.Embed(version)).Replace("{counted}", counted)
-                                    .Replace("{records}", Count(Number(ownVersion, "records")))
-                                    .Replace("{delivered}", Count(Number(ownVersion, "delivered"))));
+                                    .Replace("{records}", Mirror.Embed(Count(Number(ownVersion, "records"))))
+                                    .Replace("{delivered}", Mirror.Embed(Count(Number(ownVersion, "delivered")))));
             }
             var ownLeftOut = Map(result, "left_out");
             double unplaced = 0;
             var ownUnplaced = Map(ownLeftOut, "unplaced");
             if (ownUnplaced != null)
                 foreach (object value in ownUnplaced.Values) if (value is double) unplaced += (double)value;
-            said.Append("\r\n").Append(w("left_out").Replace("{hidden}", Count(Number(ownLeftOut, "hidden")))
-                                                    .Replace("{routed}", Count(Number(ownLeftOut, "another_route")))
-                                                    .Replace("{unknown}", Count(Number(ownLeftOut, "beyond_reach")))
-                                                    .Replace("{unplaced}", Count(unplaced)));
+            said.Append("\r\n").Append(w("left_out").Replace("{hidden}", Mirror.Embed(Count(Number(ownLeftOut, "hidden"))))
+                                                    .Replace("{routed}", Mirror.Embed(Count(Number(ownLeftOut, "another_route"))))
+                                                    .Replace("{unknown}", Mirror.Embed(Count(Number(ownLeftOut, "beyond_reach"))))
+                                                    .Replace("{unplaced}", Mirror.Embed(Count(unplaced))));
             said.Append("\r\n").Append(w("sha").Replace("{sha}", Mirror.Embed(Str(result, "sha256") ?? "-")));
             said.Append("\r\n\r\n").Append(text.Replace("\r\n", "\n").Replace("\n", "\r\n"));
             return said.ToString();

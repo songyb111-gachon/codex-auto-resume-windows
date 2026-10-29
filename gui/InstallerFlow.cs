@@ -757,7 +757,8 @@ namespace CodexAutoResume
             object found;
             string text = catalog.TryGetValue(key, out found) && found is string && ((string)found).Length > 0
                         ? (string)found : english ?? key;
-            for (int i = 0; i + 1 < pairs.Length; i += 2) text = text.Replace("{" + pairs[i] + "}", pairs[i + 1] ?? "");
+            // v0.6.20: each value one run in a sentence written right to left - a version, a number, a path (Mirror.Embed).
+            for (int i = 0; i + 1 < pairs.Length; i += 2) text = text.Replace("{" + pairs[i] + "}", Mirror.Embed(pairs[i + 1] ?? ""));
             return text;
         }
 

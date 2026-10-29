@@ -617,8 +617,8 @@ namespace CodexAutoResume
             var lines = Items(result, "lines");
             int matched = (int)Number(result, "matched");
             if (matched == 0) return none;
-            return shown.Replace("{shown}", (lines == null ? 0 : lines.Count).ToString(CultureInfo.CurrentCulture))
-                        .Replace("{matched}", matched.ToString(CultureInfo.CurrentCulture));
+            return shown.Replace("{shown}", Mirror.Embed((lines == null ? 0 : lines.Count).ToString(CultureInfo.CurrentCulture)))
+                        .Replace("{matched}", Mirror.Embed(matched.ToString(CultureInfo.CurrentCulture)));
         }
 
         // The last Log dialog's list, for LayoutAudit.

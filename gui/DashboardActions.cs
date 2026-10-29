@@ -616,7 +616,7 @@ namespace CodexAutoResume
             if (string.IsNullOrEmpty(check)) return null;
             if (check == "asked")
                 return S("rescan.usage_asked", "Reading Codex's usage once now for the recoveries waiting for a usage reset ({n}).")
-                    .Replace("{n}", Count(asked));
+                    .Replace("{n}", Mirror.Embed(Count(asked)));
             if (check == "not_running")
                 return S("retry.not_running", "The watcher is not running, so usage was not checked. It waits for the reset Codex gave.");
             return NotCheckedText(check);
@@ -653,10 +653,10 @@ namespace CodexAutoResume
         internal static string RescanNote(string template, Dictionary<string, object> result)
         {
             return template
-                .Replace("{retired}", Count(Number(result, "retired")))
-                .Replace("{rechecked}", Count(Number(result, "rechecked")))
-                .Replace("{unresolved}", Count(Number(result, "unresolved")))
-                .Replace("{changed}", Count(Number(result, "changed")));
+                .Replace("{retired}", Mirror.Embed(Count(Number(result, "retired"))))
+                .Replace("{rechecked}", Mirror.Embed(Count(Number(result, "rechecked"))))
+                .Replace("{unresolved}", Mirror.Embed(Count(Number(result, "unresolved"))))
+                .Replace("{changed}", Mirror.Embed(Count(Number(result, "changed"))));
         }
 
         /// What the watcher is doing, as the header's status light shows it: the light of the header's word
@@ -805,7 +805,7 @@ namespace CodexAutoResume
             string waiting = count == 0 ? Said(strings, "status.pending_none", "Nothing pending")
                            : count == 1 ? Said(strings, "status.pending_one", "1 recovery pending")
                            : Said(strings, "status.pending_many", "{n} recoveries pending")
-                                 .Replace("{n}", count.ToString(CultureInfo.InvariantCulture));
+                                 .Replace("{n}", Mirror.Embed(count.ToString(CultureInfo.InvariantCulture)));
             string recovery;
             string cause = KnownRunning(status, pending) ? AttentionCause(status, pending) : null;
             if (!KnownRunning(status, pending))

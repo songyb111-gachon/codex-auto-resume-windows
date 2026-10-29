@@ -321,7 +321,7 @@ namespace CodexAutoResume
             editorMode.Visible = later;
             editorAfterTurn.Visible = !later;
             editorCount.Text = Word("page.resets.count", "{n} of {most} characters", "n", editorWords.Box.Text.Length)
-                .Replace("{most}", EditorWordsMost().ToString(CultureInfo.CurrentCulture));
+                .Replace("{most}", Mirror.Embed(EditorWordsMost().ToString(CultureInfo.CurrentCulture)));
             editorSave.Enabled = busy == 0 && editorConversation.SelectedItem != null && editorWords.Box.Text.Trim().Length > 0;
             FitEditor();
         }

@@ -1286,7 +1286,7 @@ namespace CodexAutoResume
             string reason = code == null ? english
                 : S("custom.refusal." + code, english)
                       .Replace("{placeholder}", Str(result, "refusal_detail") ?? "")
-                      .Replace("{max}", MaxCustomLength.ToString(CultureInfo.CurrentCulture));
+                      .Replace("{max}", Mirror.Embed(MaxCustomLength.ToString(CultureInfo.CurrentCulture)));
             return S("custom.refused", "Not saved: {reason}", "reason", reason);
         }
 

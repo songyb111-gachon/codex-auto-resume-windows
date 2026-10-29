@@ -137,6 +137,21 @@ class MirrorSourceTests(unittest.TestCase):
         self.assertIn("if (mirrored) x = track.X + track.Right - x - size;", guiscan.type_body("Soft"))
         self.assertIn("if (Mirror.Window) RightToLeft = RightToLeft.Yes;", guiscan.type_body("SoftMenu"))
 
+    def test_a_number_filled_into_a_sentence_keeps_its_own_order(self):
+        """v0.6.20 phase B: as a version, an id, a time or a path does (Mirror.Embed), a number filled into a sentence is
+        embedded - one run in a sentence written right to left, itself in any other. The installer's words embed every
+        value they are given."""
+        numeric = re.compile(r"Count\(|\.ToString\(CultureInfo|Whole\(|\bshare\b|\bnumber\b|\.ToString\(\)|MaxCustomLength")
+        for source in guiscan.sources() + [ROOT / name for name in advanced_sources()]:
+            text = source.read_text(encoding="utf-8")
+            for match in re.finditer(r'\.Replace\("\{[a-z_]+\}",\s*(.*)', text):
+                filled = match.group(1)
+                if filled.startswith("Mirror.Embed("):
+                    continue
+                with self.subTest(source=source.name, fill=filled[:80]):
+                    self.assertNotRegex(filled.split(")")[0] + ")", numeric, "a number filled in without Mirror.Embed")
+        self.assertIn('Mirror.Embed(pairs[i + 1] ?? "")', guiscan.member_body("InstallerWords", "Say"))
+
     def test_a_list_is_never_mirrored_by_windows(self):
         """Windows would move a mirrored list's own bar to its left, into the clip that hides it (SoftListHost); its columns
         go the other way instead, and its first column's cell is worked out from the columns' order - Windows answers it

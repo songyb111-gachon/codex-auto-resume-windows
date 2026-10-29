@@ -259,11 +259,11 @@ namespace CodexAutoResume
             if (state == "rejected") return S("compat.reported.rejected", "could not be read");
             if (state != "reported") return "-";
             string line = S("compat.reported.counts", "worked {worked} · failed {failed} · neither {neither}")
-                .Replace("{worked}", Count(Number(reported, "worked"))).Replace("{failed}", Count(Number(reported, "failed")))
-                .Replace("{neither}", Count(Number(reported, "neither")));
+                .Replace("{worked}", Mirror.Embed(Count(Number(reported, "worked")))).Replace("{failed}", Mirror.Embed(Count(Number(reported, "failed"))))
+                .Replace("{neither}", Mirror.Embed(Count(Number(reported, "neither"))));
             double both = Number(reported, "both");
             if (both > 0)
-                line += " · " + S("compat.reported.both", "counted in both: {both}").Replace("{both}", Count(both));
+                line += " · " + S("compat.reported.both", "counted in both: {both}").Replace("{both}", Mirror.Embed(Count(both)));
             return line;
         }
 

@@ -68,8 +68,8 @@ namespace CodexAutoResume
                 string thread = Str(row, "thread_id");
                 string text = Word("page.keep.line", "{conversation} · kept going {used} of {allowed}",
                                    "conversation", ConversationOf(thread))
-                              .Replace("{used}", Whole(Get(row, "used")).ToString(CultureInfo.CurrentCulture))
-                              .Replace("{allowed}", Whole(Get(row, "allowed")).ToString(CultureInfo.CurrentCulture));
+                              .Replace("{used}", Mirror.Embed(Whole(Get(row, "used")).ToString(CultureInfo.CurrentCulture)))
+                              .Replace("{allowed}", Mirror.Embed(Whole(Get(row, "allowed")).ToString(CultureInfo.CurrentCulture)));
                 Label line = HelpText(text);
                 line.ForeColor = Ink;
                 line.Margin = Pad(0, 6, 0, 2);
@@ -128,7 +128,7 @@ namespace CodexAutoResume
             if (conversation == null || count == null) return;
             string question = Word("page.confirm.keep_going",
                 "Keep {conversation} going for up to {n} continuations? Each is sent after a turn that ended well, and it stops on no progress, a finished plan or an active goal.",
-                "conversation", conversation.ToString()).Replace("{n}", count.ToString());
+                "conversation", conversation.ToString()).Replace("{n}", Mirror.Embed(count.ToString()));
             if (!AskAdvanced(question, Affirm(Word("page.keep.button", "Keep it going...")))) return;
             string argument = "{\"thread_id\":" + Json.Escape(conversation.Value) + ",\"count\":" + count.Value +
                               ",\"generation\":" + AdvancedGeneration() + "}";

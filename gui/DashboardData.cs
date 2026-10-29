@@ -381,7 +381,7 @@ namespace CodexAutoResume
                 string text = reset > 0
                     ? S("usage.window_resets", "{window} {percent}%, resets {time}").Replace("{time}", Mirror.Embed(ClockTime(reset)))
                     : S("usage.window", "{window} {percent}%");
-                parts.Add(text.Replace("{window}", WindowName(Get(window, "window_minutes"))).Replace("{percent}", share));
+                parts.Add(text.Replace("{window}", WindowName(Get(window, "window_minutes"))).Replace("{percent}", Mirror.Embed(share)));
             }
             if (parts.Count == 0) return null;
             return S("usage.line", "Codex usage, read {age}: {windows}").Replace("{age}", Age(Now() - at))

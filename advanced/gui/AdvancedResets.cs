@@ -139,7 +139,7 @@ namespace CodexAutoResume
                 object counted = Get(rule, "counted");
                 string text = counted is double
                     ? Word("page.resets.state.counting", "{n} of {of} counted", "n", Whole(counted))
-                          .Replace("{of}", Whole(Get(rule, "ordinal")).ToString(CultureInfo.CurrentCulture))
+                          .Replace("{of}", Mirror.Embed(Whole(Get(rule, "ordinal")).ToString(CultureInfo.CurrentCulture)))
                     : Word("page.resets.state.starting", "counting starts at the next reading");
                 object next = Get(rule, "next_reset");
                 if (next is double)
@@ -532,7 +532,7 @@ namespace CodexAutoResume
         {
             if (resetWords == null || resetCount == null) return;
             resetCount.Text = Word("page.resets.count", "{n} of {most} characters", "n", resetWords.Box.Text.Length)
-                .Replace("{most}", WordsLimit().ToString(CultureInfo.CurrentCulture));
+                .Replace("{most}", Mirror.Embed(WordsLimit().ToString(CultureInfo.CurrentCulture)));
         }
 
         /// What the reset buttons may do now: nothing while another action is under way; Add only with a window, which one,
@@ -608,7 +608,7 @@ namespace CodexAutoResume
                         .Append(",\"words\":").Append(Json.Escape(resetWords.Box.Text));
                 question = Word("page.confirm.reset_message",
                     "Send this message to {conversation} when {window} resets ({which})? It is sent once, exactly as written.",
-                    "window", window).Replace("{which}", which).Replace("{conversation}", conversation.ToString());
+                    "window", window).Replace("{which}", which).Replace("{conversation}", Mirror.Embed(conversation.ToString()));
             }
             argument.Append(",\"generation\":").Append(AdvancedGeneration()).Append('}');
             if (!AskAdvanced(question, Affirm(credit ? Word("page.resets.credit.button", "Add rule...")
