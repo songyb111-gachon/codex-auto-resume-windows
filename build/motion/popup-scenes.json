@@ -1,6 +1,9 @@
 [
-  {"id": "P0", "steps": [{"popup": "open", "hold": 2310}]},
-  {"id": "P1", "steps": [{"ask": 1, "frames": 3, "step": 33}, {"switch": 1, "to": "off", "frames": 5, "step": 33}, {"hold": 1815}]},
-  {"id": "P2", "steps": [{"ask": 1, "frames": 3, "step": 33}, {"switch": 1, "to": "on", "frames": 5, "step": 33}, {"hold": 3564}]},
-  {"id": "P3", "steps": [{"popup": "close", "hold": 583}]}
+  {"id": "P0", "steps": [{"popup": "open", "hold": 1300}]},
+  {"id": "P1", "steps": [{"move": "popup.switch.1", "frames": 28, "step": 16}, {"hold": 150}, {"press": "popup.switch.1", "frames": 6, "step": 16}, {"ask": 1, "frames": 3, "step": 33}, {"switch": 1, "to": "off", "frames": 5, "step": 33}, {"hold": 1000}]},
+  {"id": "P2", "steps": [{"press": "popup.switch.1", "frames": 6, "step": 16}, {"ask": 1, "frames": 3, "step": 33}, {"switch": 1, "to": "on", "frames": 5, "step": 33}, {"hold": 600}]},
+  {"id": "P3", "steps": [{"move": "popup.switch.2", "frames": 28, "step": 16}, {"hold": 150}, {"press": "popup.switch.2", "frames": 6, "step": 16}, {"ask": 2, "frames": 3, "step": 33}, {"switch": 2, "to": "off", "frames": 5, "step": 33}, {"hold": 1000}]},
+  {"id": "P4", "steps": [{"press": "popup.switch.2", "frames": 6, "step": 16}, {"ask": 2, "frames": 3, "step": 33}, {"switch": 2, "to": "on", "frames": 5, "step": 33}, {"hold": 550}]},
+  {"id": "P5", "steps": [{"move": {"at": [800, 700]}, "frames": 28, "step": 16}, {"hold": 683}]},
+  {"id": "P6", "steps": [{"popup": "close", "hold": 583}]}
 ]

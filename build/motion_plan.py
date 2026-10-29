@@ -37,9 +37,10 @@ is replaced by `values[name]`, so one storyboard serves both READMEs. Each step 
                                                    (ui.popup.motion.glide_amount, brand's transition time and curve)
 
 A target is a name the window answers with bounds (`page.<name>`, `section.<name>`, `save`, `setting.<field>`,
-`row.<value>` in an open drop list, `task.<n>` - the Pending list's row n - and `menu.<n>` - item n of the open row
-menu, which a hover in it names), a button of the card (`card.<target>`), `{"at": [x, y]}` on the canvas, or
-`{"by": [dx, dy]}` from where the pointer is. Window states use the keys `STATE_KEYS`; the render mode refuses any
+`row.<value>` in an open drop list, `task.<n>` - the Pending list's row n - `menu.<n>` - item n of the open row
+menu, which a hover in it names - and `popup.switch.<n>` - row n's Auto-resume switch in the notification-area
+popup), a button of the card (`card.<target>`), `{"at": [x, y]}` on the canvas, or `{"by": [dx, dy]}` from where the
+pointer is. Window states use the keys `STATE_KEYS`; the render mode refuses any
 other. Every frame is a moment `t` in ms from the start, and everything that moves by itself - the window's lights,
 the card's light, the tray icon - is drawn at that moment, so a plan only says what a person does.
 """
@@ -75,7 +76,7 @@ CLOSEST = 2 * SHORTEST
 # How long a click's ripple lasts (TOOLING 2.3), in ms.
 RIPPLE_MS = 240
 NAME = re.compile(r"(page\.(%s)|section\.(%s)|save|restore|start|close|setting\.[a-z_]+|row\.[A-Za-z_-]+|card\.[a-z_]+"
-                  r"|task\.[0-9]+|menu\.[0-9]+)\Z"
+                  r"|task\.[0-9]+|menu\.[0-9]+|popup\.switch\.[0-9]+)\Z"
                   % ("|".join(PAGES), "|".join(SECTIONS)))
 
 
