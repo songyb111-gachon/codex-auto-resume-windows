@@ -915,12 +915,15 @@ PARALLEL_DISPATCH = CapabilityDef(
 # day. Before the edition's own continuations, so a person's message is handed first (P2's eight). Revision 2 (v0.6.19,
 # issue #50): a message at a time or on a schedule waits while a turn of its conversation runs, or goes into Codex's
 # queue at once, as the person chooses (engine/promptqueue.py) - the statement describes the default, so a person who
-# had it on reads the new one before it is on again.
+# had it on reads the new one before it is on again. Revision 3 (v0.6.20, issue #50 item 1, MIMG): a message may carry
+# pictures, kept as the product's own copies until it is delivered (images.py); one with pictures goes by this
+# capability's own channel at P5 - thread/queue/add, words then localImage items - and is proven by its client id at P15,
+# with no marker, so its statement names A2, A4, B3 and B4 too. A message with no pictures goes as before.
 PROMPT_QUEUE = CapabilityDef(
     id="prompt_queue",
-    points=frozenset({Point.RECORDS}),
-    revision=2,
-    departs_from=("A8", "A17", "A26", "A27", "C4", "D2", "H4", "H6"),
+    points=frozenset({Point.RECORDS, Point.SENDER, Point.DELIVERY}),
+    revision=3,
+    departs_from=("A2", "A4", "A8", "A17", "A26", "A27", "B3", "B4", "C4", "D2", "H4", "H6"),
     compat="exact_thread_recovery",
     ceilings=Ceilings(per_day=30, per_conversation=CORE_DAILY_CAP),
     journal_prefix="queue",

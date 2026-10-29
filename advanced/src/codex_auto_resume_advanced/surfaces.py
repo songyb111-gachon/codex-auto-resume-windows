@@ -117,6 +117,9 @@ ARGUMENTS[BridgeCommand.ADVANCED_PROMPTS_CLEAR_DONE] = frozenset({"prompts", "ge
 # and one waiting edited (control/prompts.edit): its id, and what advanced-prompt-add takes but the conversation.
 ARGUMENTS[BridgeCommand.ADVANCED_PROMPT_EDIT] = frozenset({"prompt", "words", "trigger", "at", "every", "occurrences",
                                                           "depends", "while_running", "generation"})
+# v0.6.20 (#50 item 1): a scheduled message's pictures, on an add and an edit (control/prompts.py).
+ARGUMENTS[BridgeCommand.ADVANCED_PROMPT_ADD] = ARGUMENTS[BridgeCommand.ADVANCED_PROMPT_ADD] | {"images"}
+ARGUMENTS[BridgeCommand.ADVANCED_PROMPT_EDIT] = ARGUMENTS[BridgeCommand.ADVANCED_PROMPT_EDIT] | {"images"}
 # The compatibility report's commands (report/flow.py), answered by the action itself.
 REPORT_COMMANDS = frozenset({BridgeCommand.ADVANCED_REPORT_BUILD, BridgeCommand.ADVANCED_REPORT_SAVE,
                              BridgeCommand.ADVANCED_REPORT_CHECK, BridgeCommand.ADVANCED_REPORT_SEND,

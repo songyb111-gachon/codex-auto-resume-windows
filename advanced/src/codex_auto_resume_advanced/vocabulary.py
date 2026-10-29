@@ -166,6 +166,13 @@ class Refusal(StrEnum):
     # v0.6.16-beta.4 (j): a near-limit percentage out of order - a window's warning above its wrap-up, or the wrap-up at
     # or above the stop its words ask for.
     OPTION_ORDER = "option_order"
+    # v0.6.20 (#50 item 1, images.py): a picture of a scheduled message that is not one this product sends (not a
+    # PNG, JPEG, GIF or WebP by its bytes, or unreadable), one over 5 MB, more than four, and pictures at all where a
+    # measurement found this Codex's queue does not take them (MIMG failed).
+    IMAGE_REFUSED = "image_refused"
+    IMAGE_TOO_LARGE = "image_too_large"
+    IMAGES_FULL = "images_full"
+    IMAGES_UNAVAILABLE = "images_unavailable"
 
 
 class JournalCode(StrEnum):

@@ -224,6 +224,13 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
 # with its search box and its list, and what it says when nothing matches or the list could not be read.
 PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "find.button", "find.title", "find.search", "find.use", "find.none", "find.failed"))
+# Pictures in a scheduled message (v0.6.20, #50 item 1: advanced/gui/AdvancedEditor.cs, AdvancedSchedule.cs): the editor's
+# block - its caption, Add a picture..., the line on what it takes, each thumbnail's name and Remove - the count a row
+# says, and each word the bridge refuses a picture with.
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
+    "editor.images", "editor.images.add", "editor.images.help", "editor.images.remove", "editor.images.picture",
+    "queue.images", "refused.image_refused", "refused.image_too_large", "refused.images_full",
+    "refused.images_unavailable"))
 # Pending's one list (v0.6.19, #50; the owner's decision of 2026-10-24: advanced/gui/AdvancedSchedule.cs): the Kind of a
 # message's and a rule's row, what a message does while a turn runs, History's completed messages and Delete completed,
 # and the prompt queue's card pointing to Pending. The tab strip's words went with the strip.
