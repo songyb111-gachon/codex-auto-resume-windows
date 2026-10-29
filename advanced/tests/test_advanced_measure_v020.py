@@ -526,5 +526,30 @@ class SteerTests(Case):
             self.assertTrue(isinstance(value, (bool, int)) or value is None, value)
 
 
+class OpenLimitTests(unittest.TestCase):
+    """MOPEN's limit and buckets (the owner's decision of 2026-10-29; codex-cli 0.165.0-alpha.1.2, this PC: the window came
+    forward 7.1 s after the link and the app took the writer lock 13.4 s after it)."""
+
+    def test_the_limit_is_thirty_seconds_and_the_poll_is_faster_than_a_read(self):
+        self.assertEqual(measure._MOPEN_SECONDS, 30.0, "was 10 s in the verdict, 30 s in the wait: now one number, 30")
+        self.assertTrue(0.2 <= measure._MOPEN_POLL_SECONDS <= 0.5)
+        source = Path(measure.__file__).read_text(encoding="utf-8")
+        self.assertIn("13.4 s", source[source.index("_MOPEN_SECONDS = 30.0") - 400:source.index("_MOPEN_SECONDS = 30.0")],
+                      "the constant says what was measured")
+
+    def test_a_load_is_a_rounded_bucket_up_to_the_limit(self):
+        for seconds, bucket in ((None, "never"), (0.4, "under_2s"), (2.0, "s2_to_10"), (10.0, "s2_to_10"),
+                                (13.4, "s10_to_20"), (20.0, "s10_to_20"), (20.1, "s20_to_30"), (30.0, "s20_to_30")):
+            with self.subTest(seconds):
+                self.assertEqual(measure._loaded_bucket(seconds), bucket)
+
+    def test_the_buckets_are_closed_words_a_record_may_hold(self):
+        from codex_auto_resume_advanced import evidence
+        for bucket in ("never", "under_2s", "s2_to_10", "s10_to_20", "s20_to_30"):
+            evidence.build(MOPEN, Verdict.FAIL, {"loaded_seconds": bucket}, product_version="0.6.20",
+                           codex_version="codex-cli 0.165.0-alpha.1.2", windows_build="10.0.26300",
+                           recorded_at="2026-10-29T00:00Z", note="x")
+
+
 if __name__ == "__main__":
     unittest.main()

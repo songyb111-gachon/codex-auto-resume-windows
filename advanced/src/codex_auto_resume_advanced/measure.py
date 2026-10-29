@@ -1619,8 +1619,11 @@ _TOKENS_USED = "SELECT tokens_used FROM threads WHERE id=?"
 _SCHEMA_FILES = 2000                          # how many generated schema files a probe reads, at most
 _SCHEMA_FILE_BYTES = 4 * 1024 * 1024          # and how much of each
 _SCHEMA_ARGUMENTS = ("app-server", "generate-json-schema", "--out")
-_MOPEN_SECONDS = 30.0                         # how long MOPEN looks for the conversation to load after its link opened
-_MOPEN_POLL_SECONDS = 0.5
+# How long MOPEN waits, from the link being handed over, for the app to take the conversation's writer lock. 30 s by the
+# owner's decision of 2026-10-29: measured here (codex-cli 0.165.0-alpha.1.2, this PC) the Codex window came forward 7.1 s
+# after the link and the app took the lock 13.4 s after it.
+_MOPEN_SECONDS = 30.0
+_MOPEN_POLL_SECONDS = 0.3                     # and how often the lock's holder count is read meanwhile (a read is ~0.5 s)
 _MAL_SECONDS = 300.0                          # how long MAL follows the account while the person signs out and in
 _MAL_POLL_SECONDS = 2.0
 _MWAKE_SECONDS = 180                          # the wake timer MWAKE sets, from when it starts
@@ -1788,53 +1791,62 @@ def _mtok(ctx):
 
 
 def _loaded_bucket(seconds) -> str:
+    """How long a load took, as a bucket and never the number: under 2 s, 2 to 10, 10 to 20, 20 to 30 (MOPEN's limit);
+    `never` where it did not happen."""
     if seconds is None:
         return str(ObservedWord.NEVER)
     if seconds < 2:
         return str(ObservedWord.UNDER_2S)
-    return str(ObservedWord.S2_TO_10 if seconds <= 10 else ObservedWord.OVER_10S)
+    if seconds <= 10:
+        return str(ObservedWord.S2_TO_10)
+    return str(ObservedWord.S10_TO_20 if seconds <= 20 else ObservedWord.S20_TO_30)
 
 
 def _mopen(ctx):
     """Opening a conversation for a message to be sent (open_to_send): the owner names a throwaway conversation the app
-    does not hold. The harness looks at who holds it - core's loaded check and Restart Manager on its writer lock, never
-    a list from a session of the product's own, which on codex-cli 0.165 does not show what the Desktop loads - and stops
-    there if anything does; then it opens the conversation's link once (codex_link.open_in_codex, one of the run's hands)
-    and looks again every _MOPEN_POLL_SECONDS for up to _MOPEN_SECONDS for the app to hold it. It opens no session and
-    calls no method. It records whether Codex was running, whether the link was handed over, how many processes held the
-    lock at the last look and how long the load took as a bucket. Not held by the app within ten seconds is a fail - unless
-    something else holds the lock, which is the person's to look at; within them, whether the window came to the front is
-    the person's to confirm."""
+    does not hold. The load is TIMED by the writer lock's holder count alone - Restart Manager, about half a second a
+    read on codex-cli 0.165 (the full look, core's identity pairing and loaded check, takes about 15 s and would swallow
+    the very time measured; the first run, 2026-10-29, could not say "under ten" for that reason). The harness reads
+    the count before (the same fast read) and stops if anything holds the lock; opens the conversation's link once
+    (codex_link.open_in_codex, one of the run's hands); and reads the count every _MOPEN_POLL_SECONDS from the moment
+    the link is handed over, for up to _MOPEN_SECONDS. When the count first reaches one or more it records that time as a
+    bucket and checks ONCE, with core's identity pairing and loaded check (`_look`), that the holder is the app; a
+    holder that is not stays with the person. It opens no session and calls no method. Not held within the limit is a
+    fail; held by the app within it, whether the Codex window came to the front is the person's to confirm."""
     if not ctx.thread_given:
         return _blocked("name a throwaway conversation the app does not hold", holders_read=False)
     running = _app_running(ctx)
-    look = _look(ctx, ctx.probe_thread)
-    if look[1] is None and not look[0]:
+    before = _lock_users(ctx, ctx.probe_thread)
+    if before is None:
         return _blocked("who holds the conversation could not be read", holders_read=False)
-    if _holds(look):
-        return _blocked("the app holds the throwaway conversation: quit and reopen the Codex app without opening "
-                        "it, then run mopen again", holders_read=True, held_before=True, holders=look[1])
+    if before:
+        return _blocked("something holds the throwaway conversation: quit and reopen the Codex app without opening "
+                        "it, then run mopen again", holders_read=True, held_before=True, holders=before)
     began = time.monotonic()
     opened = ctx.open_link(ctx.probe_thread)
-    loaded = None
+    loaded, holders, read = None, 0, False
     while opened:
-        look = _look(ctx, ctx.probe_thread)
-        if look[0]:
+        count = _lock_users(ctx, ctx.probe_thread)
+        if count is not None:
+            read, holders = True, count
+        if count:
             loaded = time.monotonic() - began
             break
         if time.monotonic() - began >= _MOPEN_SECONDS:
             break
         time.sleep(_MOPEN_POLL_SECONDS)
-    observed = {"holders_read": True, "held_before": False, "codex_running": running, "link_opened": opened,
-                "loaded_by_app": loaded is not None, "holders": look[1], "loaded_seconds": _loaded_bucket(loaded)}
+    by_app = (_look(ctx, ctx.probe_thread)[0] if loaded is not None else False)
+    observed = {"holders_read": read or not opened, "held_before": False, "codex_running": running,
+                "link_opened": opened, "loaded_by_app": bool(by_app), "holders": holders,
+                "loaded_seconds": _loaded_bucket(loaded)}
     if not opened:
         return _blocked("the conversation's link could not be handed to Windows", **observed)
-    if loaded is None and look[1]:
-        return _blocked("a process holds the conversation's lock but core's check does not find it to be the app: look "
+    if loaded is None:
+        return Verdict.FAIL, observed, "no process held the conversation within the limit of its link being opened"
+    if not by_app:
+        return _blocked("a process took the conversation's lock but core's check does not find it to be the app: look "
                         "at the Codex app, then set the verdict", **observed)
-    if loaded is None or loaded > 10:
-        return Verdict.FAIL, observed, "the conversation was not loaded within ten seconds of opening its link"
-    return _blocked("it loaded within ten seconds: confirm whether the Codex window came to the front, then set the "
+    return _blocked("the app held it within the limit: confirm whether the Codex window came to the front, then set the "
                     "verdict", **observed)
 
 
