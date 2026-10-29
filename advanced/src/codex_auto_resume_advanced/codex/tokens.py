@@ -61,7 +61,7 @@ class Rollout(NamedTuple):
     path: Path
     key: str
     size: int
-    mtime_ns: int
+    changed_ns: int
 
 
 class Read(NamedTuple):
@@ -72,7 +72,7 @@ class Read(NamedTuple):
     thread_id: str | None
     size: int
     offset: int
-    mtime_ns: int
+    changed_ns: int
     days: dict
     project_key: str | None
     outcome: str
@@ -167,13 +167,13 @@ def rollouts(homes, now, *, keep_days=KEEP_DAYS) -> list:
                 if not path.is_relative_to(root) or stat.st_mtime_ns < since_ns:
                     continue
                 found.append(Rollout(Path(home), path, file_key(path), stat.st_size, stat.st_mtime_ns))
-    found.sort(key=lambda rollout: rollout.mtime_ns, reverse=True)
+    found.sort(key=lambda rollout: rollout.changed_ns, reverse=True)
     return found
 
 
 def unchanged(rollout, known) -> bool:
     """Whether `rollout` has nothing new since `known` (its token_files row): the same size and time, read to its end."""
-    return (known is not None and known.get("mtime_ns") == rollout.mtime_ns and known.get("size") == rollout.size
+    return (known is not None and known.get("mtime_ns") == rollout.changed_ns and known.get("size") == rollout.size
             and known.get("offset", 0) >= rollout.size)
 
 
@@ -253,7 +253,7 @@ def read(rollout, known, budget, *, local=time.localtime) -> Read:
     seam a test fills), and where the next pass begins. A file that cannot be opened is UNREADABLE and left where it
     was."""
     def nothing(outcome, thread=None, offset=0, project=None, consumed=0):
-        return Read(rollout.key, thread, rollout.size, offset, rollout.mtime_ns, {}, project, outcome, consumed)
+        return Read(rollout.key, thread, rollout.size, offset, rollout.changed_ns, {}, project, outcome, consumed)
 
     try:
         thread, project = _first(rollout.path)
@@ -316,5 +316,5 @@ def read(rollout, known, budget, *, local=time.localtime) -> Read:
             kept[index] += numbers[index]
     consumed = end + 1
     outcome = CAPPED if offset + consumed < rollout.size and len(chunk) >= allowed else READ
-    return Read(rollout.key, thread, rollout.size, offset + consumed, rollout.mtime_ns, days, project, outcome,
+    return Read(rollout.key, thread, rollout.size, offset + consumed, rollout.changed_ns, days, project, outcome,
                 consumed)

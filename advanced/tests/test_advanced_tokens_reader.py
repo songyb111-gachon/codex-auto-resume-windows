@@ -15,8 +15,8 @@ from unittest import mock
 
 from codex_auto_resume_advanced.codex import tokens
 
-THREAD = "0199a000-0000-7000-8000-00000000000a"
-OTHER = "0199a000-0000-7000-8000-00000000000b"
+THREAD = "0a1b2c3d-0004-7000-8000-00000000000a"
+OTHER = "0a1b2c3d-0004-7000-8000-00000000000b"
 SECRET = "SECRET-PROMPT-WORDS"
 
 
@@ -144,7 +144,7 @@ class ResumeTests(ReaderCase):
         first = self.one()
         self.assertEqual(list(first.days.values()), [[5, 0, 5, 0, 0]])
         self.assertLess(first.offset, first.size)       # the half-written line waits
-        known = {"thread_id": THREAD, "offset": first.offset, "size": first.size, "mtime_ns": first.mtime_ns}
+        known = {"thread_id": THREAD, "offset": first.offset, "size": first.size, "mtime_ns": first.changed_ns}
         with path.open("ab") as stream:
             stream.write(b'-01-15T00:00:00.000Z"}\n' + lines(counts(at + 9, [7, 1, 2, 0], [12, 1, 7, 0])))
         second = self.one(known)
@@ -152,7 +152,7 @@ class ResumeTests(ReaderCase):
         self.assertEqual(second.offset, path.stat().st_size)
         self.assertTrue(tokens.unchanged(next(iter(self.found().values())),
                                          {"thread_id": THREAD, "offset": second.offset, "size": second.size,
-                                          "mtime_ns": second.mtime_ns}))
+                                          "mtime_ns": second.changed_ns}))
 
     def test_a_shrunk_file_or_one_of_another_conversation_is_read_again_from_its_start(self):
         at = 1_800_000_000
@@ -185,7 +185,7 @@ class CapTests(ReaderCase):
                 read = self.one(known)
                 total += sum(numbers[0] for numbers in read.days.values())
                 known = {"thread_id": read.thread_id, "offset": read.offset, "size": read.size,
-                         "mtime_ns": read.mtime_ns}
+                         "mtime_ns": read.changed_ns}
                 if read.offset >= read.size:
                     break
         # The first line's own totals are counted once, each repeat of them never again.
@@ -199,7 +199,7 @@ class CapTests(ReaderCase):
                 read = self.one(known)
                 found.extend(read.days.values())
                 known = {"thread_id": read.thread_id, "offset": read.offset, "size": read.size,
-                         "mtime_ns": read.mtime_ns}
+                         "mtime_ns": read.changed_ns}
                 if read.offset >= read.size:
                     break
         self.assertEqual(found, [[2, 0, 0, 0, 0]])

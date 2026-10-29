@@ -29,9 +29,9 @@ from codex_auto_resume_advanced.vocabulary import (Actor, ArmingState, Measureme
                                                    Verdict)
 
 ADVANCED = ac.ROOT / "advanced" / "src" / "codex_auto_resume_advanced"
-T1 = "0199a000-0000-7000-8000-0000000000a1"
-T2 = "0199a000-0000-7000-8000-0000000000a2"
-T3 = "0199a000-0000-7000-8000-0000000000a3"
+T1 = "0a1b2c3d-0003-7000-8000-0000000000a1"
+T2 = "0a1b2c3d-0003-7000-8000-0000000000a2"
+T3 = "0a1b2c3d-0003-7000-8000-0000000000a3"
 PROJECT_A, PROJECT_B = "a" * 64, "b" * 64
 SECRET = "SECRET-WORDS-OF-A-PROMPT"
 
@@ -255,10 +255,10 @@ class SampleTests(AnalyticsCase):
             own.analytics.sample([{"bucket": "codex", "window_minutes": 300, "used_percent": 5.0}])
         other = state.scoped("keep_going", on=lambda: True, armed=lambda other: True)
         with self.assertRaises(StateError):
-            other.analytics.ingest("0" * 16, T1, size=1, offset=1, mtime_ns=1, days={}, project_key=None)
+            other.analytics.ingest("0" * 16, T1, size=1, offset=1, changed_ns=1, days={}, project_key=None)
         off = state.scoped("usage_analytics", on=lambda: False)
         with self.assertRaises(StateError):
-            off.analytics.ingest("0" * 16, T1, size=1, offset=1, mtime_ns=1, days={}, project_key=None)
+            off.analytics.ingest("0" * 16, T1, size=1, offset=1, changed_ns=1, days={}, project_key=None)
 
 
 class BoundTests(AnalyticsCase):
@@ -267,7 +267,7 @@ class BoundTests(AnalyticsCase):
         old_day = time.strftime("%Y-%m-%d", time.gmtime(ac.NOW - 100 * 86400))
         new_day = time.strftime("%Y-%m-%d", time.gmtime(ac.NOW - 10 * 86400))
         for key, day, age in (("1" * 16, old_day, 100), ("2" * 16, new_day, 10)):
-            state.ingest_file(key, T1, size=1, offset=1, mtime_ns=1, days={day: [1, 1, 1, 1, 1]}, project_key=None,
+            state.ingest_file(key, T1, size=1, offset=1, changed_ns=1, days={day: [1, 1, 1, 1, 1]}, project_key=None,
                               at=ac.NOW - age * 86400)
         state.add_samples([{"bucket": "codex", "window_minutes": 300, "used_percent": 1.0, "reset_at": None}],
                           at=ac.NOW - 100 * 86400)
@@ -281,7 +281,7 @@ class BoundTests(AnalyticsCase):
         state = self.rt.state
         for bad in ({"file_key": "nothex"}, {"thread_id": T1.upper()}, {"project_key": "x" * 16},
                     {"days": {"2027-1-1": [1, 1, 1, 1, 1]}}, {"days": {"2027-01-01": [1, 1, 1, -1, 1]}}):
-            arguments = dict(file_key="3" * 16, thread_id=T1, size=1, offset=1, mtime_ns=1,
+            arguments = dict(file_key="3" * 16, thread_id=T1, size=1, offset=1, changed_ns=1,
                              days={"2027-01-01": [1, 1, 1, 1, 1]}, project_key=None)
             arguments.update(bad)
             with self.subTest(bad=bad), self.assertRaises(StateError):
@@ -365,7 +365,7 @@ class AggregationCase(AnalyticsCase):
         return time.strftime("%Y-%m-%d", time.localtime(self.now - ago_days * 86400))
 
     def put(self, key, thread, day, numbers, project):
-        self.rt.state.ingest_file(key, thread, size=1, offset=1, mtime_ns=1, days={day: numbers}, project_key=project)
+        self.rt.state.ingest_file(key, thread, size=1, offset=1, changed_ns=1, days={day: numbers}, project_key=project)
 
 
 class AggregationTests(AggregationCase):

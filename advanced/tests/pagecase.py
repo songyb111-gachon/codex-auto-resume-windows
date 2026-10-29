@@ -378,8 +378,30 @@ def audit_data(locale: str, bridge: Bridge) -> dict:  # noqa: C901 - one layout'
     return {"words": words, "listing": listing, "statements": statements,
             "kept": {"advanced-rules": rules, "advanced-samples": samples, "advanced-watch-log": watch,
                      "pending": shot["pending"], "advanced-resets": fullest_resets(shot, listing["generation"]),
-                     "advanced-prompts": fullest_prompts(shot, listing["generation"]), "snapshot": shot},
+                     "advanced-prompts": fullest_prompts(shot, listing["generation"]),
+                     "advanced-analytics": fullest_analytics(), "snapshot": shot},
             "reports": report_states()}
+
+
+def fullest_analytics() -> dict:
+    """advanced-analytics at its fullest, as control/analytics.view answers (v0.6.20): both windows with a pace - one
+    with an estimate, one with too few readings - older conversations still being read, a project with the longest
+    label core gives and counts in the billions, one with a lifetime total alone, and one with no label."""
+    now = int(ac.NOW)
+    numbers = {"input": 9876543210.0, "cached": 8765432109.0, "output": 765432109.0, "reasoning": 65432109.0,
+               "turns": 98765.0}
+    conversation = dict(numbers, thread_id=ac.THREAD, label="L" * 71 + "…", lifetime=None)
+    return {"done": True, "refusal": None, "days": 90, "choices": [7, 30, 90], "route": "per_day", "measured": None,
+            "behind": True, "last_ingest": now - 600, "more": 0,
+            "paces": [{"bucket": "codex", "minutes": 300, "used": 87.5, "reset_at": now + 4 * 3600,
+                       "change_hour": 12.5, "eta": now + 3600, "enough": True},
+                      {"bucket": "codex", "minutes": 10080, "used": 43.0, "reset_at": now + 5 * 86400,
+                       "change_hour": -0.5, "eta": None, "enough": False}],
+            "projects": [dict(numbers, key="a" * 16, label="P" * 71 + "…", lifetime=123456789.0,
+                              conversations=[conversation], more=0),
+                         {"key": "b" * 16, "label": None, "input": 0.0, "cached": 0.0, "output": 0.0, "reasoning": 0.0,
+                          "turns": 0.0, "lifetime": 987654321.0, "conversations": [], "more": 0}],
+            "total": dict(numbers, lifetime=1111111110.0)}
 
 
 # How long one view of one audit may take to lay out, at most: what it takes on a quiet PC (about 7 seconds at

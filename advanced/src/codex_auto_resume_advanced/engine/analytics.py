@@ -194,7 +194,7 @@ class UsageAnalytics:
                 key = projects[read.thread_id] = self._project(rollout.home, read.thread_id, read.project_key)
             try:
                 handle.ingest(rollout.key, read.thread_id, size=read.size, offset=read.offset,
-                              mtime_ns=read.mtime_ns, days=read.days, project_key=key, at=now)
+                              changed_ns=read.changed_ns, days=read.days, project_key=key, at=now)
             except Exception:
                 unreadable = True
                 continue

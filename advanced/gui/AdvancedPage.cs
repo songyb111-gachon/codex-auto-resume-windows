@@ -676,6 +676,12 @@ namespace CodexAutoResume
                 MethodInvoker after = done;
                 done = delegate { ReadPrompts(after); };
             }
+            // v0.6.20: the usage and token analytics' numbers (AdvancedAnalytics.cs).
+            if (id == AnalyticsId)
+            {
+                MethodInvoker after = done;
+                done = delegate { ReadAnalytics(after); };
+            }
             // v0.6.16-beta.4: the wrap-up's own wordings (AdvancedUsage.cs).
             if (id == WrapUpId)
             {
@@ -916,7 +922,7 @@ namespace CodexAutoResume
                            KeptShown(item) + "|" +
                            (IsReport(item) ? ReportShown() : "") + "|" +
                            ResetsShown(item) + "|" + KeepGoingShown(item) + "|" + QueueShown(item) + "|" +
-                           WordingsShown(item) + "|" + RunsShown(item);
+                           WordingsShown(item) + "|" + RunsShown(item) + "|" + AnalyticsShown(item);
             if (shown == advancedShown)
             {
                 UpdateAdvancedButtons();
@@ -944,6 +950,7 @@ namespace CodexAutoResume
             ForgetReportCard();
             ForgetResetCard();
             ForgetKeepGoingCard();
+            ForgetAnalyticsCard();
             ForgetQueueCard();
             if (item == null)
             {
@@ -1092,6 +1099,8 @@ namespace CodexAutoResume
             BuildResets(item);
             BuildKeepGoing(item);
             BuildQueue(item);
+            // v0.6.20: the usage and token analytics' pace and tokens, and Save as CSV... (AdvancedAnalytics.cs).
+            BuildAnalytics(item);
 
             // Its own choices, the rules a person writes for Codex's error codes and the samples of what nothing classified,
             // each only for a capability that has them - the last two once they have been read.
@@ -1587,6 +1596,7 @@ namespace CodexAutoResume
             UpdateWordingButtons(idle);
             UpdateResetButtons(idle);
             UpdateKeepGoingButtons(idle);
+            UpdateAnalyticsButtons(idle);
             UpdateQueueButtons(idle);
             UpdateReportButtons();
         }

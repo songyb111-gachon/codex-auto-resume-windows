@@ -65,7 +65,7 @@ class AnalyticsMixin:
             rows = connection.execute("SELECT %s FROM token_files" % ", ".join(_FILE_COLUMNS)).fetchall()
         return {row["file_digest"]: dict(row) for row in rows}
 
-    def ingest_file(self, file_key, thread_id, *, size, offset, mtime_ns, days, project_key, at=None) -> int:
+    def ingest_file(self, file_key, thread_id, *, size, offset, changed_ns, days, project_key, at=None) -> int:
         """One rollout's pass written in one transaction: where it now stands (token_files), and the numbers it read
         added to each day's row of its conversation (token_days) - its project key kept where the pass names one.
         `days` is {day: [input, cached, output, reasoning, turns]}. How many day rows it touched."""
@@ -74,7 +74,7 @@ class AnalyticsMixin:
         _hex16(project_key, "project key", null=True)
         _count(size, "size")
         _count(offset, "offset")
-        if type(mtime_ns) is not int or mtime_ns < 0:
+        if type(changed_ns) is not int or changed_ns < 0:
             raise StateError("invalid mtime")
         now = self._now(at)
         rows = []
@@ -89,7 +89,7 @@ class AnalyticsMixin:
                 "INSERT INTO token_files (file_digest, thread_id, size, offset, mtime_ns, read_at) VALUES (?,?,?,?,?,?) "
                 "ON CONFLICT(file_digest) DO UPDATE SET thread_id=excluded.thread_id, size=excluded.size, "
                 "offset=excluded.offset, mtime_ns=excluded.mtime_ns, read_at=excluded.read_at",
-                (file_key, thread_id, size, offset, mtime_ns, now))
+                (file_key, thread_id, size, offset, changed_ns, now))
             for day, input_, cached, output, reasoning, turns in rows:
                 connection.execute(
                     "INSERT INTO token_days (day, thread_id, project_digest, input, cached, output, reasoning, turns) "
