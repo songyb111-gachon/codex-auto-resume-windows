@@ -231,6 +231,11 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "pending.kind.message", "pending.kind.rule", "pending.rule.held", "confirm.clear_both",
     "confirm.clear", "done.cleared", "done.cleared_kept", "scheduled.state.delivered",
     "scheduled.state.handed_over", "scheduled.mode.wait", "scheduled.mode.queue", "queue.moved"))
+# See an example (v0.6.20, the owner's decision of 2026-10-29: advanced/gui/AdvancedExamples.cs): the button at the end of a
+# capability's About this feature card, and the view it opens - its title, its note that the sample is made up, and its two
+# panes' captions.
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
+    "example.button", "example.title", "example.before", "example.after", "example.note"))
 # early_reset on Pending (v0.6.19, #50: advanced/gui/AdvancedEarly.cs): what Why it is waiting says of its last reading. Its
 # line's Check now and settings button went with the line (the owner's decision of 2026-10-24), and their words.
 PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
@@ -307,11 +312,12 @@ class Catalogs:
 
     def words(self, locale=None) -> dict:
         """The Advanced features page's words in `locale`, English underneath: every `page.*`
-        and `name.*` entry, and the three states'. Unfilled - the window fills `{name}` and `{n}`
-        itself, as it fills core's."""
+        and `name.*` entry, and the three states' - and (v0.6.20) the edition's own continuations
+        (CONTINUATION_KEYS), which See an example shows as what is sent. Unfilled - the window fills
+        `{name}` and `{n}` itself, as it fills core's."""
         table = self.catalog(l10n.current() if locale is None else locale)
         return {name: value for name, value in table.items()
-                if name.startswith((PAGE_PREFIX, NAME_PREFIX, "state."))}
+                if name.startswith((PAGE_PREFIX, NAME_PREFIX, "state.")) or name in CONTINUATION_KEYS}
 
     def missing(self, definition) -> list:
         """(locale, field) for every field of `definition`'s statement a language does not have
