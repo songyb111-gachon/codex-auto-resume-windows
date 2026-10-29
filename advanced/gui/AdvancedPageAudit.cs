@@ -598,6 +598,8 @@ namespace CodexAutoResume
         ///   {"do": "unavailable"}                             a read that failed (MarkUnavailable)
         ///   {"do": "show"}                                    the tab pressed
         ///   {"do": "page", "name": ...}                       another page's tab pressed
+        ///   {"do": "example"}                                 See an example... pressed on the open capability: its view
+        ///                                                     built and never shown, what it showed into "dialogs"
         ///   {"do": "choose", "id": ...}                       that capability's row chosen in the list
         ///   {"do": "press", "button": on|watch|off|all_off|   a button pressed, if it can be: the page's, Keep it on's
         ///    keep_on|send_again|let_go|report_write|          or the report card's
@@ -664,6 +666,9 @@ namespace CodexAutoResume
                         form.PerformLayout();
                     }
                     else if (what == "page") form.ShowPage(Str(step, "name"));
+                    // v0.6.20: See an example... pressed on the open capability, its view built and never shown; what it
+                    // showed into "dialogs" (AdvancedExamples.cs ExampleLook).
+                    else if (what == "example") dialogs.Add(form.ExampleLook());
                     else if (what == "choose") form.ChooseAdvanced(Str(step, "id"));
                     else if (what == "press")
                     {
