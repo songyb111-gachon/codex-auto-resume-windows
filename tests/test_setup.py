@@ -677,8 +677,8 @@ class DocsTests(unittest.TestCase):
         self.assertGreaterEqual(latest, SETUP_SINCE, "releases/latest answers with v%s, which has no setup program"
                                 % ".".join(map(str, latest)))
         for name, (heading, korean) in _install_documents(
-                "### With the setup program", "### 설치 파일로 설치",
-                readme=("### With the setup program", "### 설치 프로그램으로 설치")).items():
+                "### With the setup program", "### 설치 마법사로 설치",
+                readme=("### With the setup program", "### 설치 마법사로 설치")).items():
             with self.subTest(name):
                 text = (ROOT / name).read_text(encoding="utf-8")
                 section = text[text.index(heading):]
@@ -701,13 +701,13 @@ class DocsTests(unittest.TestCase):
                                   section, "where the setup program is, and since which release")
 
     def test_the_recommended_route_comes_first(self):
-        """The owner, 2026-10-02: the recommended route belongs at the top. In the guide it is the plugin's; in the
-        README, from the v0.6.16 final (owner, 2026-10-16), it is the setup program's, and the plugin and the
-        archive routes follow it as folded sections."""
+        """The owner, 2026-10-02: the recommended route belongs at the top. From the v0.6.16 final (owner, 2026-10-16)
+        it is the setup program's in the README, and the guide leads with it too (the docs review, 2026-10-22: the
+        two listed different routes first); the plugin and the archive routes follow it."""
         for name, ((install, recommended), _) in _install_documents(
-                ("## Install", "### From Codex (recommended)"), ("## 설치", "### Codex에서 설치 (권장)"),
+                ("## Install", "### With the setup program (recommended)"), ("## 설치", "### 설치 마법사로 설치 (권장)"),
                 readme=(("## Install", "### With the setup program (recommended)"),
-                        ("## 설치", "### 설치 프로그램으로 설치 (권장)"))).items():
+                        ("## 설치", "### 설치 마법사로 설치 (권장)"))).items():
             with self.subTest(name):
                 text = (ROOT / name).read_text(encoding="utf-8")
                 start = text.index("\n%s\n" % install)

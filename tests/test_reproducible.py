@@ -215,10 +215,8 @@ class BuildScriptTests(unittest.TestCase):
                           "AssemblyInformationalVersion", "AssemblyCopyright"):
             self.assertIn(attribute, script)
         self.assertIn(r".codex-plugin\plugin.json", script)
-        # Every executable is described - the window by edition, since each edition has its own, the MCP launcher, and
-        # (v0.6.19) the advanced edition's Stop hook launcher.
-        self.assertEqual(script.count("-Description "), 3, "every executable is described")
-        self.assertIn("-Description 'Codex Auto Resume Stop hook launcher'", script)
+        # Both executables are described; the window by edition, since each edition has its own.
+        self.assertEqual(script.count("-Description "), 2, "both executables are described")
         self.assertIn("-Description ('Codex Auto Resume settings (' + $EditionWord + ' edition)')", script)
 
     def test_the_release_build_proves_it_twice(self):
@@ -231,16 +229,15 @@ class BuildScriptTests(unittest.TestCase):
         self.assertLess(check, archive)
 
     def test_the_release_build_proves_both_editions_executables_twice(self):
-        """Each edition builds its own window, so each is built twice and compared: four
-        executables - the two windows, the MCP launcher and (v0.6.19) the advanced edition's Stop
-        hook launcher - known by folder as well as name, since the two windows share one."""
+        """Each edition builds its own window, so each is built twice and compared: three
+        executables, known by folder as well as name, since the two windows share one."""
         workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
         start = workflow.index("- name: Build each edition's settings window and the MCP launcher")
         steps = workflow[start:workflow.index("- name: Build the release archive")]
         self.assertEqual(steps.count("./build/make_gui.ps1 -Edition advanced"), 2, "built once, then again")
         self.assertEqual(len(re.findall(r"\./build/make_gui\.ps1(?! -Edition)", steps)), 2)
         self.assertIn("Get-ChildItem build/advanced -Filter *.exe", steps)
-        self.assertIn("if ($first.Count -ne 4)", steps)
+        self.assertIn("if ($first.Count -ne 3)", steps)
         self.assertIn('"$($exe.Directory.Name)/$($exe.Name)"', steps)
 
 

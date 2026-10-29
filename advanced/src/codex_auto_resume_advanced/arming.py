@@ -720,8 +720,8 @@ class Arming:
 
         `keep_on` (v0.6.16-beta.4, the owner's "Keep it on turns it on"): turn it on AND keep it on (K8) in the
         same confirmation - only for ARMED, refused like any arm, and refused too where its own compatibility is
-        Failed here (FAILED_HERE): Keep it on never turns itself off, so it is not taken on a grade that failed - and
-        never for a capability that may not be kept on (registry.keepable, INVALID_REQUEST).
+        Failed here (FAILED_HERE): Keep it on never turns itself off, so it is not taken on a grade that failed. It is
+        offered for every capability (the owner's word of 2026-10-24, v0.6.19-beta.3).
 
         {"done": bool, "refusal": Refusal or None, "warnings": the warnings that hold now, once
         read, "generation": the generation after}."""
@@ -741,9 +741,7 @@ class Arming:
                 or type(generation) is not int or confirmed is None
                 or not (acknowledged_version is None or isinstance(acknowledged_version, str))
                 or not (also is None or isinstance(also, (list, tuple)))
-                or type(keep_on) is not bool or (keep_on and state != ArmingState.ARMED)
-                # Never one whose tripwire is what stops it doing harm (registry.keepable), as set_keep_on refuses it.
-                or (keep_on and not definition.keepable)):
+                or type(keep_on) is not bool or (keep_on and state != ArmingState.ARMED)):
             return refused(Refusal.INVALID_REQUEST)
         view = self.view()
 
@@ -915,9 +913,7 @@ class Arming:
         if (type(keep_on) is not bool or type(send_again) is not bool
                 or not (generation is None or type(generation) is int)
                 or (send_again and (not keep_on or definition.resends
-                                    or definition.kind == CapabilityKind.ACTION))
-                # v0.6.16-beta.4: never one whose tripwire is what stops it doing harm (registry.keepable).
-                or (keep_on and not definition.keepable)):
+                                    or definition.kind == CapabilityKind.ACTION))):
             return refused(Refusal.INVALID_REQUEST)
         try:
             row = self.state.arming().get(definition.id) or {}
@@ -1147,8 +1143,6 @@ class Arming:
                 # so is never given Send again.
                 "keep_on": bool(row.get("keep_on")), "send_again": bool(row.get("send_again")),
                 "notice": None if off else row.get("reason"), "resends": definition.resends,
-                # v0.6.16-beta.4: whether Keep on is offered at all (registry.keepable).
-                "keepable": definition.keepable,
                 "revision": definition.revision, "read_revision": row.get("statement_revision"),
                 "acknowledged_version": row.get("engine_version"),
                 "warnings": [str(word) for word in self.warnings(definition, view)],

@@ -1,0 +1,28 @@
+{
+  "command": "home-dismiss",
+  "cases": [
+    {
+      "case": "set aside with Not now: nothing else to offer",
+      "argument": {
+        "path": "<scratch>\\other-codex"
+      },
+      "reply": {
+        "ok": true,
+        "result": {
+          "on": true,
+          "path": null,
+          "full": false
+        }
+      }
+    },
+    {
+      "case": "no folder named is refused",
+      "argument": {},
+      "reply": {
+        "ok": false,
+        "error": "name the folder to set aside",
+        "error_code": "request_failed"
+      }
+    }
+  ]
+}

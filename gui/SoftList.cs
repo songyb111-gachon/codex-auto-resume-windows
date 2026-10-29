@@ -779,89 +779,19 @@ namespace CodexAutoResume
             if (native) bar.Paint(e.Graphics);
             if (nativeAcross) acrossBar.Paint(e.Graphics);
         }
-    }
 
-    /// A row's own menu (v0.6.11): the Pending list's - postpone the task, let a held one continue, how its
-    /// conversation resumes. Windows' menu, drawn in the window's colours rather than its own light ones: the
-    /// card's ground, its ink and hairline, the accent's soft tint under the item in hand, and High Contrast's
-    /// system colours when it is on. Paint only; the items, their keys and what a screen reader hears are Windows'.
-    internal sealed class SoftMenu : ContextMenuStrip
-    {
-        internal SoftMenu()
+        /// The gutters the soft bars run in, painted again over a picture of the window: DrawToBitmap draws the list
+        /// whole, its own scroll bars with it, past the clip that hides them on screen, and so over the soft bar beside
+        /// them (WindowRender.RenderPicture; the Advanced features pictures of v0.6.19-beta.4, the owner 2026-10-26).
+        internal void PaintGutters(Graphics g)
         {
-            Renderer = new SoftMenuRenderer();
-            ShowImageMargin = false;
-            ShowCheckMargin = true;
-        }
-
-        /// A submenu drawn as its menu is.
-        internal ToolStripMenuItem Branch(string text)
-        {
-            var item = new ToolStripMenuItem(text);
-            item.DropDown.Renderer = Renderer;
-            var menu = item.DropDown as ToolStripDropDownMenu;
-            if (menu != null)
+            using (var brush = new SolidBrush(BackColor))
             {
-                menu.ShowImageMargin = false;
-                menu.ShowCheckMargin = true;
+                if (native) g.FillRectangle(brush, Width - SoftBar.Gutter, 0, SoftBar.Gutter, Height);
+                if (nativeAcross) g.FillRectangle(brush, 0, Height - SoftBar.Gutter, Width, SoftBar.Gutter);
             }
-            return item;
-        }
-    }
-
-    internal sealed class SoftMenuRenderer : ToolStripRenderer
-    {
-        protected override void OnRenderToolStripBackground(ToolStripRenderEventArgs e)
-        {
-            using (var ground = new SolidBrush(Palette.Card)) e.Graphics.FillRectangle(ground, e.AffectedBounds);
-        }
-
-        protected override void OnRenderToolStripBorder(ToolStripRenderEventArgs e)
-        {
-            Rectangle edge = e.AffectedBounds;
-            edge.Width -= 1;
-            edge.Height -= 1;
-            using (var line = new Pen(Palette.Line)) e.Graphics.DrawRectangle(line, edge);
-        }
-
-        protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs e)
-        {
-            if (!e.Item.Selected || !e.Item.Enabled) return;
-            var band = new Rectangle(Point.Empty, e.Item.Size);
-            band.Inflate(-Soft.Px(2), 0);
-            using (var tint = new SolidBrush(Palette.AccentSoft)) e.Graphics.FillRectangle(tint, band);
-        }
-
-        protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
-        {
-            bool inHand = e.Item.Selected && e.Item.Enabled;
-            e.TextColor = !e.Item.Enabled ? Palette.Muted
-                        : Palette.Contrast && inHand ? SystemColors.HighlightText : Palette.Ink;
-            base.OnRenderItemText(e);
-        }
-
-        protected override void OnRenderArrow(ToolStripArrowRenderEventArgs e)
-        {
-            e.ArrowColor = e.Item != null && !e.Item.Enabled ? Palette.Muted
-                         : Palette.Contrast && e.Item != null && e.Item.Selected ? SystemColors.HighlightText : Palette.Ink;
-            base.OnRenderArrow(e);
-        }
-
-        protected override void OnRenderItemCheck(ToolStripItemImageRenderEventArgs e)
-        {
-            // The chosen one of a set, as a dot in the accent: the menu's own tick is Windows' light glyph.
-            Rectangle box = e.ImageRectangle;
-            int size = Math.Max(Soft.Px(6), Math.Min(box.Width, box.Height) / 2);
-            var dot = new Rectangle(box.X + (box.Width - size) / 2, box.Y + (box.Height - size) / 2, size, size);
-            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            using (var fill = new SolidBrush(e.Item.Enabled ? Palette.Accent : Palette.Muted)) e.Graphics.FillEllipse(fill, dot);
-        }
-
-        protected override void OnRenderSeparator(ToolStripSeparatorRenderEventArgs e)
-        {
-            int y = e.Item.Height / 2;
-            using (var rule = new SolidBrush(Palette.Line))
-                e.Graphics.FillRectangle(rule, Soft.Px(4), y, Math.Max(0, e.Item.Width - Soft.Px(8)), Soft.Hairline);
+            if (native) bar.Paint(g);
+            if (nativeAcross) acrossBar.Paint(g);
         }
     }
 }

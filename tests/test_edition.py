@@ -164,9 +164,9 @@ class ClosedAlternativeTests(unittest.TestCase):
         days and an hour at most (engine/foropen.py); and (v0.6.16-beta.4) TO_SESSION, the same send for a
         conversation another Codex session holds (engine/tosession.py).
 
-        v0.6.19 (the groundwork, plans/v0619-design/D-groundwork.md): P13 takes SUPERVISE and RESTART ahead of the
-        commit that carries them out (the supervisor's, D-watcher-ops.md) - the design's choice, so the stage's writers
-        share one vocabulary; until then the launcher reads no answer (tests/test_plug_supervision.py)."""
+        v0.6.19 (the groundwork, plans/v0619-design/D-groundwork.md): P13 takes SUPERVISE and RESTART, carried out by
+        the launcher (scripts/watcher_launcher.py, `_supervised`: the watcher run as a child and started once more - the
+        crash restart's commit, D-watcher-ops.md; tests/test_launcher_supervisor.py)."""
         take_up = {Alternative.ADMIT, Alternative.CAPACITY} | set(plug.PACED_AS)
         self.assertEqual(plug.TAKE_UP, take_up)
         self.assertEqual(plug.ANSWERS, plug.RESTRICTIONS | {Alternative.CLIENT_ID, Alternative.SILENT,

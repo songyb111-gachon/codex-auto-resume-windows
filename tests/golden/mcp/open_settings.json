@@ -215,7 +215,6 @@
                 "memory_guard": "off",
                 "memory_guard_limit": "mb1024",
                 "status_file": false,
-                "notice_click": "page",
                 "notices_stay": []
               }
             },
@@ -1289,7 +1288,6 @@
               "memory_guard": "off",
               "memory_guard_limit": "mb1024",
               "status_file": false,
-              "notice_click": "page",
               "notices_stay": []
             },
             "pending": [
@@ -1386,7 +1384,8 @@
                 "project": null,
                 "cwd_basename": null,
                 "home": null,
-                "once_words": false
+                "once_words": false,
+                "usage_check": null
               },
               {
                 "interruption_id": "8888888888888888888888888888888888888888888888888888888888888888",
@@ -1481,7 +1480,8 @@
                 "project": null,
                 "cwd_basename": null,
                 "home": null,
-                "once_words": false
+                "once_words": false,
+                "usage_check": null
               }
             ],
             "reasons": [

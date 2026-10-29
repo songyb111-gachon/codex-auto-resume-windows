@@ -41,9 +41,10 @@ class HiddenTests(unittest.TestCase):
     def test_its_definition_is_kept_whole(self):
         self.assertEqual(problems(CODEX_RETRY_SETTINGS), [])
         self.assertEqual(CODEX_RETRY_SETTINGS.measurements, (Measurement.MB,))
-        # v0.6.19: Continue inside the turn waits beside it, on M4 and M4B both (test_advanced_hook_claim).
+        # v0.6.19 (#50): open_to_send waits there too, on MOPEN (test_advanced_open_target holds it); v0.6.20: Continue
+        # inside the turn on MHK, M4 and M4B together (test_advanced_hook_claim).
         self.assertEqual([measurement for _definition, measurement in registry.WAITING],
-                         [Measurement.MB, (Measurement.M4, Measurement.M4B)])
+                         [Measurement.MB, Measurement.MOPEN, (Measurement.MHK, Measurement.M4, Measurement.M4B)])
 
 
 if __name__ == "__main__":

@@ -5,8 +5,9 @@ the link the app registers with Windows (`codex://threads/<id>`). That link is C
 only show a conversation, never change one - so this module is the one place that builds it, reads it back and hands
 it to Windows. Only a UUID in its canonical text is ever put in a link, and only exactly such a link is ever read.
 
-It was part of `notify.py` until v0.6.18, which re-exports these names, so `notify.codex_thread_uri` and the rest
-still read as they always did.
+From v0.6.19 it also holds this product's own link to the advanced edition's chat at one conversation (`chat_uri`),
+the other place a click on a notice may go. It was part of `notify.py` until v0.6.18, which re-exports these names,
+so `notify.codex_thread_uri` and the rest still read as they always did.
 """
 from __future__ import annotations
 
@@ -35,6 +36,24 @@ def parse_codex_thread_uri(uri) -> str | None:
     if not text.startswith(CODEX_THREAD_LINK):
         return None
     thread_id = text[len(CODEX_THREAD_LINK):]
+    return thread_id if ids.is_uuid(thread_id) else None
+
+
+# v0.6.19: this product's own link to the advanced edition's chat at one conversation, where a click on a notice may
+# go while the chat is on (notifier.click_uri) - notify.SCHEME's `chat` action, with nothing but a canonical UUID in it.
+CHAT_LINK = "codex-auto-resume:chat?thread="
+
+
+def chat_uri(thread_id) -> str | None:
+    """The link that opens the chat at `thread_id`, or None unless it is a UUID in its canonical text. Like an open
+    URI it changes nothing: at worst it opens a window."""
+    return CHAT_LINK + thread_id if ids.is_uuid(thread_id) else None
+
+
+def parse_chat_uri(uri) -> str | None:
+    """The conversation a chat link names, or None for anything but exactly CHAT_LINK and a canonical UUID."""
+    text = uri if isinstance(uri, str) else ""
+    thread_id = text[len(CHAT_LINK):] if text.startswith(CHAT_LINK) else None
     return thread_id if ids.is_uuid(thread_id) else None
 
 

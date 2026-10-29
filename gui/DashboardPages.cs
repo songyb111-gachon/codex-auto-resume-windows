@@ -389,13 +389,15 @@ namespace CodexAutoResume
             cancelAllButton = MakeButton(S("action.cancel_all", "Cancel all"), false, delegate { CancelAll(); });
             // v0.6.16 (issue #39): and every waiting recovery looked at again - one retired only on proof of newer
             // work, every other one left to wait as it was. It sends nothing and brings nothing forward.
-            rescanButton = MakeButton(S("action.rescan", "Rescan and reconcile"), false, delegate { Rescan(); });
+            rescanButton = MakeButton(S("action.rescan", "Rescan"), false, delegate { Rescan(); });
             foreach (Button button in new[] { retryButton, cancelButton, timelineButton, threadButton, cancelAllButton,
                                               rescanButton })
             {
                 button.Margin = Pad(0, 0, 6, 0);
                 row.Controls.Add(button);
             }
+            // v0.6.19: and the advanced edition's own, for the rows of its own (Pending is one list).
+            PendingButtonsBuilt(row);
             // What the last Retry now actually did, in words - it is a request to look again,
             // and saying so each time is how nobody comes to read it as "send now". It stays
             // until another row is chosen or its record leaves the list.
@@ -430,22 +432,29 @@ namespace CodexAutoResume
                 e.Handled = true;
             };
             // v0.6.11: the row's own menu - postpone it, let a held one continue, how its conversation
-            // resumes - on a right click, Shift+F10 or the menu key. Nothing on the page moves for it, and
-            // each item acts on the row the menu was opened on, whatever the list does while it is open.
+            // resumes - on a right click, Shift+F10 or the menu key, and (v0.6.19, the owner's word of 2026-10-23) a
+            // double left-click on a row. Nothing on the page moves for it, and each item acts on the row the menu was
+            // opened on, whatever the list does while it is open.
             pendingMenu = new SoftMenu();
             pendingMenu.Font = Font;
             pendingMenu.Opening += delegate(object sender, System.ComponentModel.CancelEventArgs e)
             {
-                Dictionary<string, object> task = null;
-                if (menuByMouse)
+                e.Cancel = !PrepareRowMenu();
+            };
+            pendingList.MouseDoubleClick += delegate(object sender, MouseEventArgs e)
+            {
+                if (e.Button != MouseButtons.Left) return;
+                ListViewHitTestInfo hit = pendingList.HitTest(e.Location);
+                // The Auto-resume box answers each click itself, so a double-click on it opens nothing.
+                if (hit.Item == null || (hit.SubItem != null && hit.Item.SubItems.IndexOf(hit.SubItem) == ResumeColumn)) return;
+                // v0.6.19: a row of the edition's own opens what it opens (a waiting message, its editor).
+                var opened = hit.Item.Tag as Dictionary<string, object>;
+                if (EditionRow(opened))
                 {
-                    Point at = pendingList.PointToClient(Cursor.Position);
-                    ListViewItem under = pendingList.GetItemAt(at.X, at.Y);
-                    task = under == null ? null : under.Tag as Dictionary<string, object>;
+                    EditionRowOpened(opened);
+                    return;
                 }
-                else task = Selected(pendingList);
-                menuByMouse = false;
-                e.Cancel = !FillRowMenu(task);
+                OpenRowMenu(hit.Item, e.Location);
             };
             pendingList.ContextMenuStrip = pendingMenu;
             pendingList.MouseDown += delegate(object sender, MouseEventArgs e)
@@ -547,6 +556,8 @@ namespace CodexAutoResume
                 button.Margin = Pad(0, 0, 9, 0);
                 row.Controls.Add(button);
             }
+            // v0.6.19: and the advanced edition's own, for the completed messages History lists.
+            HistoryButtonsBuilt(row);
             historyNote = Note();
             row.Controls.Add(historyNote);
             page.Controls.Add(ListCard(historyList));
@@ -702,7 +713,11 @@ namespace CodexAutoResume
                 versionsButton,
                 // v0.6.16-beta.3, last, so no button before it moves: why a failure was not taken up (issue #27).
                 MakeButton(S("action.detection_check", "Check why a failure was not taken up..."), false,
-                           delegate { OpenDetectionCheck(); }) })
+                           delegate { OpenDetectionCheck(); }),
+                // v0.6.19, last, so no button before it moves: this PC's own compatibility report, sent nowhere
+                // (DashboardOwnReport.cs).
+                MakeButton(S("action.own_report", "Compatibility report from this PC..."), false,
+                           delegate { OpenOwnReport(); }) })
             {
                 button.Margin = Pad(0, 0, 0, 9);
                 tools.Controls.Add(button);

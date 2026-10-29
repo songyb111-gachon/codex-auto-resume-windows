@@ -80,7 +80,7 @@ jobs:
       matrix:
         # PARTS below is the length of this list; tests/test_split_runs.py holds the two together,
         # so no part of the suite can be dropped by changing one of them.
-        part: [1, 2, 3, 4, 5]
+        part: [1, 2, 3, 4, 5, 6]
 
     steps:
       # The same commit the build job builds, checked out the same way: no token left on disk, and
@@ -95,7 +95,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: "3.13.15"
+          python-version: "3.14.9"
 
       # A tag is not a reason to skip the tests; it is the last moment they still help.
       #
@@ -109,7 +109,7 @@ jobs:
         shell: pwsh
         env:
           PART: ${{ matrix.part }}
-          PARTS: "5"
+          PARTS: "6"
         run: python scripts/test_parts.py --lane release --part "$env:PART/$env:PARTS" -v --annotate
 
   build:
@@ -147,7 +147,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: "3.13.15"
+          python-version: "3.14.9"
 
       - name: Work out the version
         id: version
@@ -189,9 +189,8 @@ jobs:
       # this is where that stops being a claim: if the two builds on one machine differ,
       # nothing a reader rebuilds will match either, and the release does not go out.
       #
-      # All four: the standard window and the launcher in build/, the advanced window and (v0.6.19)
-      # the Stop hook launcher in build/advanced/. The two windows share a file name, so each is
-      # known by its folder too.
+      # All three: the standard window and the launcher in build/, the advanced window in
+      # build/advanced/. The two windows share a file name, so each is known by its folder too.
       - name: Check the executables are reproducible
         shell: pwsh
         run: |
@@ -202,8 +201,8 @@ jobs:
           foreach ($exe in Get-Built) {
             $first["$($exe.Directory.Name)/$($exe.Name)"] = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash
           }
-          if ($first.Count -ne 4) {
-            throw "expected four executables, two in build/ and two in build/advanced/; found $($first.Count)"
+          if ($first.Count -ne 3) {
+            throw "expected three executables, two in build/ and one in build/advanced/; found $($first.Count)"
           }
           Start-Sleep -Seconds 2
           ./build/make_gui.ps1 | Out-Null

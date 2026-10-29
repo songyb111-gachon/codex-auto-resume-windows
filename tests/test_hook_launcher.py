@@ -1,12 +1,12 @@
-"""The advanced edition's Stop hook launcher (gui/HookLauncher.cs, v0.6.19): the MCP launcher's twin for the one
+"""The advanced edition's Stop hook launcher (gui/HookLauncher.cs, v0.6.20): the MCP launcher's twin for the one
 capability Codex itself starts, "Continue inside the turn" (plans/v0619-design/D-stop-hook.md).
 
-Held here: it is built only into the advanced edition and only that archive ships it; it compiles to the same bytes
-every time (normalize_pe, as every executable here); every child it starts gets a hidden console; and, run for real
-against a stand-in interpreter, it relays the handler's one answer whole and only from a handler that exited 0, drops
-the handler's standard error, passes (exit 0, nothing written) when nothing is installed, when the handler fails and
-when the handler hangs past its bound. What a console-subsystem launcher does when Codex starts it is M4B's to say
-(build/make_gui.ps1, $HookTarget).
+Held here: it compiles to the same bytes every time (normalize_pe, as every executable here); every child it starts
+gets a hidden console; and, run for real against a stand-in interpreter, it relays the handler's one answer whole and
+only from a handler that exited 0, drops the handler's standard error, and passes (exit 0, nothing written) when nothing
+is installed, when the handler fails and when the handler hangs past its bound. It is not built into a release yet:
+the capability is hidden until MHK, M4 and M4B pass, and shipping it in the advanced archive (build/make_gui.ps1,
+build/make_release.py, the release workflow's count of executables) waits for that, with the owner's review.
 """
 from __future__ import annotations
 
@@ -26,8 +26,6 @@ sys.path.insert(0, str(ROOT / "build"))
 import normalize_pe  # noqa: E402
 
 SOURCE = ROOT / "gui" / "HookLauncher.cs"
-MAKE_GUI = ROOT / "build" / "make_gui.ps1"
-MAKE_RELEASE = ROOT / "build" / "make_release.py"
 CSC = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Microsoft.NET" / "Framework64" / "v4.0.30319" / "csc.exe"
 NO_WINDOW = 0x08000000
 
@@ -81,23 +79,6 @@ class SourceTests(unittest.TestCase):
         self.assertIn('Path.Combine(home, "runtime", "python.exe")', self.text)
         self.assertIn("from codex_auto_resume_advanced.hook import main;", self.text)
         self.assertIn('"-I -c "', self.text)
-
-
-class BuildTests(unittest.TestCase):
-    def test_only_the_advanced_run_builds_it(self):
-        script = MAKE_GUI.read_text(encoding="utf-8")
-        start = script.index("$HookTarget = 'exe'")
-        block = script[start:]
-        self.assertIn("if ($Edition -eq 'advanced') {", block[:block.index("Build -Name 'codex-auto-resume-hook.exe'")])
-        self.assertIn("gui\\HookLauncher.cs", block)
-        # A console-subsystem executable until M4B says Codex starts hooks with a console of their own.
-        self.assertIn("-Target $HookTarget", block)
-
-    def test_only_the_advanced_archive_ships_it(self):
-        text = MAKE_RELEASE.read_text(encoding="utf-8")
-        self.assertIn('HOOK_EXE = "codex-auto-resume-hook.exe"', text)
-        body = text[text.index("def collect_gui"):text.index("def declare_mcp_server")]
-        self.assertLess(body.index('if edition != "advanced":'), body.index("hook = built / HOOK_EXE"))
 
 
 @unittest.skipUnless(CSC.is_file(), "the in-box C# compiler is not available")

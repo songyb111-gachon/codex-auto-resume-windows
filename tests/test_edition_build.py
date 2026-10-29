@@ -58,8 +58,6 @@ POWERSHELL = (Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
 STANDARD_WINDOW = b"MZ the standard window"
 ADVANCED_WINDOW = b"MZ the advanced window"
 LAUNCHER = b"MZ the MCP launcher"
-# v0.6.19: the advanced edition's Stop hook launcher, which only its build makes and only its archive ships.
-HOOK_LAUNCHER = b"MZ the Stop hook launcher"
 
 
 def load_builder(name: str):
@@ -86,7 +84,6 @@ def stand_in(builder, work: Path, root: Path = ROOT) -> None:
     (built / builder.GUI_EXE).write_bytes(STANDARD_WINDOW)
     (built / "advanced" / builder.GUI_EXE).write_bytes(ADVANCED_WINDOW)
     (built / builder.MCP_EXE).write_bytes(LAUNCHER)
-    (built / "advanced" / builder.HOOK_EXE).write_bytes(HOOK_LAUNCHER)
     builder.ROOT = root
     builder.CACHE = cache
     builder.BUILT = built
@@ -195,8 +192,6 @@ class EditionBuildTests(unittest.TestCase):
                     expected.append("payload/app/%s/%s" % (placed, path.relative_to(ROOT / tree).as_posix()))
         self.assertIn("payload/app/src/%s/plug.py" % editions.PACKAGE, expected)
         self.assertIn("payload/app/skills/%s/SKILL.md" % self.builder.ADVANCED_SKILL, expected)
-        # v0.6.19: and the Stop hook launcher, in a place of its own (edition_audit.PLACEMENTS).
-        expected.append("payload/app/%s/%s" % (self.builder.HOOK_DIR, self.builder.HOOK_EXE))
         self.assertEqual(added, sorted(expected))
         for name in self.ours:
             self.assertNotIn(editions.PACKAGE, name)
@@ -216,9 +211,6 @@ class EditionBuildTests(unittest.TestCase):
         self.assertEqual(self.ours[edition_audit.WINDOW], STANDARD_WINDOW)
         self.assertEqual(self.theirs[edition_audit.WINDOW], ADVANCED_WINDOW)
         self.assertEqual((self.ours[launcher], self.theirs[launcher]), (LAUNCHER, LAUNCHER))
-        hook = "payload/app/%s/%s" % (self.builder.HOOK_DIR, self.builder.HOOK_EXE)
-        self.assertEqual(self.theirs[hook], HOOK_LAUNCHER)
-        self.assertNotIn(hook, self.ours)
 
     def test_the_audit_finds_nothing_in_the_pair(self):
         """(a)-(d), (f) and (g) on the two archives this build made; (e) needs a commit to
@@ -352,9 +344,9 @@ class EditionWordTests(unittest.TestCase):
         text = INSTALLER.read_text(encoding="utf-8")
         read = text.index("$edition = Get-Edition -Src (Join-Path $Payload 'app\\src')")
         said = text.index("Write-Host ('edition: ' + $edition)")
-        self.assertLess(text.index("if (-not (Test-Path $Payload))"), read)
+        self.assertLess(text.index("if (-not (Test-Path -LiteralPath $Payload))"), read)
         self.assertLess(read, said)
-        self.assertLess(said, text.index("$upgrade = Test-Path $AppDir"))
+        self.assertLess(said, text.index("$upgrade = Test-Path -LiteralPath $AppDir"))
         self.assertEqual(text.count(editions.PACKAGE), 1, "the package is spelled once, in Get-Edition")
 
     def test_the_bootstrap_says_it_before_it_asks_or_fetches_anything(self):

@@ -144,7 +144,7 @@ namespace CodexAutoResume
                     // starts a stopped watcher, and never undoes a pause or adds back a
                     // sign-in start the person switched off - a plain `setup` does both, as
                     // a first install should.
-                    var info = new ProcessStartInfo(python, Bridge.Quote(setup) + " setup --keep-state");
+                    var info = new ProcessStartInfo(python, Bridge.NoRemoteDebug + Bridge.Quote(setup) + " setup --keep-state");
                     info.UseShellExecute = false;
                     // The installation this window belongs to. Setup resolves its target from
                     // this variable, so without it Repair would repair whichever installation

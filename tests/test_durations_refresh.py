@@ -94,11 +94,14 @@ class DealComparisonTests(unittest.TestCase):
                                    "seconds": seconds}), encoding="utf-8")
         return folder / "downloaded"
 
-    def refresh(self, fresh: dict, count: str = "2"):
+    def refresh(self, fresh: dict, count: str = "2", lane: dict | None = None, every: dict | None = None):
+        """--refresh-seconds of `fresh` over a table whose standard lane holds `lane` (every file at 1 s by default)
+        and whose figures for every lane are `every` (the same by default)."""
         folder = self.folder = Path(tempfile.mkdtemp())
         self.addCleanup(__import__("shutil").rmtree, folder, True)
         table = folder / "durations.json"
-        before = {"seconds": {name: 1.0 for name in self.FILES}, "lanes": {"standard": {name: 1.0 for name in self.FILES}}}
+        lane = {name: 1.0 for name in self.FILES} if lane is None else lane
+        before = {"seconds": dict(lane) if every is None else every, "lanes": {"standard": lane}}
         table.write_text(json.dumps(before), encoding="utf-8")
         said = []
         with mock.patch.object(parts, "lane_files", lambda lane: list(self.FILES)), \
@@ -115,11 +118,49 @@ class DealComparisonTests(unittest.TestCase):
                                   "10.0 min under the fresh one - enough")
         self.assertTrue(said[-1].startswith("written: "))
 
+    # Figures under STALE_FACTOR from what the fresh seconds say, so only the gain is weighed.
+    NEAR = {"tests/test_a.py": 400.0, "tests/test_b.py": 300.0, "tests/test_c.py": 400.0, "tests/test_d.py": 450.0}
+
     def test_too_little_of_a_gain_leaves_the_table_as_it_was(self):
-        # 1201 s to 1100 s: under 3 minutes.
-        after, before, said = self.refresh({"tests/test_a.py": 600.0, "tests/test_c.py": 600.0, "tests/test_d.py": 500.0})
+        # 1200 s to 1100 s: under 3 minutes.
+        after, before, said = self.refresh({"tests/test_a.py": 600.0, "tests/test_c.py": 600.0, "tests/test_d.py": 500.0},
+                                           lane=dict(self.NEAR))
+        self.assertEqual(said[0], "lane standard: longest of 2 parts 20.0 min under the current table, "
+                                  "18.3 min under the fresh one")
         self.assertEqual(after, before)
-        self.assertEqual(said[-1], "kept: no lane's longest part shrinks by 10% and 3 minutes")
+        self.assertEqual(said[-1], "kept: no lane's longest part shrinks by 10% and 3 minutes, and no file is dealt by "
+                                   "a figure 2 times and a minute from what it took")
+
+    def test_a_figure_more_than_twice_off_is_written_with_no_gain(self):
+        """The split files of 2026-10-23 kept their estimates: test_neutral_plug_4 was dealt by 147 s and took 421."""
+        self.assertEqual((parts.STALE_FACTOR, parts.STALE_SECONDS), (2.0, 60.0))
+        lane = dict(self.NEAR, **{"tests/test_d.py": 200.0})
+        after, before, said = self.refresh({"tests/test_a.py": 600.0, "tests/test_b.py": 500.0, "tests/test_c.py": 600.0,
+                                            "tests/test_d.py": 500.0}, lane=lane)
+        self.assertNotIn("enough", said[0])
+        self.assertIn("stale: lane standard: tests/test_d.py is dealt by 200 s and took 500 s", said)
+        self.assertEqual(after["lanes"]["standard"]["tests/test_d.py"], 500.0)
+        self.assertEqual(after["lanes"]["standard"]["tests/test_a.py"], 600.0, "the whole merge is written, not one file")
+        self.assertTrue(said[-1].startswith("written: "))
+
+    def test_twice_off_by_less_than_a_minute_is_noise(self):
+        lane = dict(self.NEAR, **{"tests/test_b.py": 20.0})
+        after, before, said = self.refresh({"tests/test_a.py": 600.0, "tests/test_b.py": 55.0, "tests/test_c.py": 600.0,
+                                            "tests/test_d.py": 500.0}, lane=lane)
+        self.assertEqual(after, before)
+        self.assertFalse([line for line in said if line.startswith("stale: ")])
+
+    def test_a_file_its_lane_never_measured_is_written_once_a_minute_off(self):
+        lane = {name: value for name, value in self.NEAR.items() if name != "tests/test_d.py"}
+        fresh = {"tests/test_a.py": 600.0, "tests/test_b.py": 500.0, "tests/test_c.py": 600.0}
+        # Dealt by the figure for every lane, 450 s: 50 s off is kept, 70 s off is written.
+        after, before, said = self.refresh(dict(fresh, **{"tests/test_d.py": 500.0}), lane=lane,
+                                           every=dict(self.NEAR, **{"tests/test_d.py": 450.0}))
+        self.assertEqual(after, before)
+        after, before, said = self.refresh(dict(fresh, **{"tests/test_d.py": 520.0}), lane=lane,
+                                           every=dict(self.NEAR, **{"tests/test_d.py": 450.0}))
+        self.assertIn("stale: lane standard: tests/test_d.py is dealt by 450 s (its table has none) and took 520 s", said)
+        self.assertEqual(after["lanes"]["standard"]["tests/test_d.py"], 520.0)
 
     def test_a_table_that_leaves_a_lane_uneven_is_refused_and_not_written(self):
         # A gain - 4000 s to 3500 s - but test_a and test_b, 3500 s, against 2010 s: past SPREAD.
@@ -262,7 +303,7 @@ class WorkflowShapeTests(unittest.TestCase):
     def test_it_deals_as_many_parts_as_test_yml_runs_and_runs_no_test(self):
         weigh = self.measure_steps["Weigh a new deal"]
         call = re.findall(r"python scripts/test_parts\.py (.*)", weigh)
-        self.assertEqual(call, ['--refresh-seconds "$RUNNER_TEMP/seconds" --parts standard=3,advanced=5,release=5 '
+        self.assertEqual(call, ['--refresh-seconds "$RUNNER_TEMP/seconds" --parts standard=4,advanced=6,release=6 '
                                 '> "$out/report.txt"'])
         # Each lane's own count: test.yml's test job gives each edition one, and its main-tree job and
         # release.yml deal the release lane into theirs.

@@ -8,7 +8,7 @@
   "scenes_from": "install-scenes.json",
   "values": {
     "edition": "standard",
-    "python": "3.13",
+    "python": "3.14",
     "reading": {"by": [-330, -150]},
     "watching": {"by": [-260, -120]}
   },

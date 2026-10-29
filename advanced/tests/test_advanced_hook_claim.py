@@ -1,4 +1,4 @@
-"""Continue inside the turn (stop_hook_continuation, v0.6.19): the claim the Stop hook shares with the watcher
+"""Continue inside the turn (stop_hook_continuation, v0.6.20): the claim the Stop hook shares with the watcher
 (engine/hookclaims.py), held against core's own store, claim and engine - and the capability hidden until M4 and M4B pass.
 
 Held here: the watcher first, the hook passes and spends nothing; the hook first, core is held from a second
@@ -35,24 +35,27 @@ ENGINE = "codex-cli 0.163.0-alpha.10.2"
 
 
 class HiddenTests(unittest.TestCase):
-    def test_hidden_until_m4_and_m4b_both_pass(self):
+    def test_hidden_until_mhk_m4_and_m4b_all_pass(self):
         """Fails with the WAITING row taken out: a capability no Codex measured to work would be offered."""
         self.assertIsNone(registry.REGISTRY.get(CAPABILITY))
-        self.assertNotIn(CAPABILITY, registry.SHOWN_ORDER)
         self.assertNotIn(STOP_HOOK, registry.DEFINITIONS)
         self.assertEqual(MEASURED[Measurement.M4][0], Verdict.FAIL)
         passed = (Verdict.PASS, ENGINE)
-        for measured in ({}, {Measurement.M4: passed}, {Measurement.M4B: passed},
-                         {Measurement.M4: passed, Measurement.M4B: (Verdict.FAIL, ENGINE)}):
-            with self.subTest(measured):
-                self.assertNotIn(STOP_HOOK, offered(measured))
-        self.assertIn(STOP_HOOK, offered({Measurement.M4: passed, Measurement.M4B: passed}))
+        every = {Measurement.MHK: passed, Measurement.M4: passed, Measurement.M4B: passed}
+        self.assertNotIn(STOP_HOOK, offered({}))
+        for missing in every:
+            with self.subTest(missing=missing):
+                self.assertNotIn(STOP_HOOK, offered({k: v for k, v in every.items() if k != missing}))
+                self.assertNotIn(STOP_HOOK, offered(dict(every, **{missing: (Verdict.FAIL, ENGINE)})))
+        self.assertIn(STOP_HOOK, offered(every))
 
-    def test_once_offered_it_is_shown_after_the_marker_free_continuation(self):
-        made = Registry(registry.DEFINITIONS + (STOP_HOOK,))
-        order = registry._placed(registry.SHOWN_ORDER, made)
+    def test_its_place_is_held_after_the_marker_free_continuation(self):
+        order = registry.SHOWN_ORDER
         self.assertEqual(order[order.index("marker_free_continuation") + 1], CAPABILITY)
-        self.assertEqual(registry._placed(registry.SHOWN_ORDER, registry.REGISTRY), registry.SHOWN_ORDER)
+        self.assertNotIn(CAPABILITY, [d.id for d in registry.shown(registry.REGISTRY)])
+        made = Registry(registry.DEFINITIONS + (STOP_HOOK,))
+        shown = [d.id for d in registry.shown(made)]
+        self.assertEqual(shown[shown.index("marker_free_continuation") + 1], CAPABILITY)
 
     def test_its_definition_and_statement_are_whole(self):
         self.assertEqual(problems(STOP_HOOK), [])

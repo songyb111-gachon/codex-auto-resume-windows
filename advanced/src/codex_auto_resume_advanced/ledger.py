@@ -46,6 +46,7 @@ from .registry import CORE_COOLDOWN_SECONDS, CORE_DAILY_CAP
 from .engine.hookclaims import held as hook_held, spent_on
 from .control.sendnow import fresh
 from .state import ATTACHED
+from .state.records import not_among, own_paced
 from .vocabulary import ArmingState, Ceiling, KeepOn, OverrideKind, RecordState, RuleState
 
 DAY = 86400
@@ -63,15 +64,18 @@ def ceiling_reached(counts, definition, global_hourly):
     return None
 
 
-def held_by_records(connection, thread_id, now) -> bool:
-    """Whether this edition's records on `thread_id` hold a claim core's own rows allow - and (v0.6.19) the Stop hook's
-    continuations there, each a claim on the conversation as the caps count one (engine/hookclaims.spent_on)."""
+def held_by_records(connection, thread_id, now, own=()) -> bool:
+    """Whether this edition's records on `thread_id` hold a claim core's own rows allow. One of `own` - a capability
+    with a pace of its own (state/records.own_paced, v0.6.19: the chat) - holds it only while in flight. And (v0.6.20)
+    the Stop hook's continuations there, each a claim on the conversation as the caps count one
+    (engine/hookclaims.spent_on)."""
     hooks, hooked = spent_on(connection, ATTACHED, thread_id, now)
     row = connection.execute(
         "SELECT coalesce(sum(state=?), 0), "
-        "coalesce(sum(CASE WHEN claimed_at > ? THEN max(claims, 1) ELSE 0 END), 0), "
-        "max(claimed_at) FROM %s.records WHERE thread_id=?" % ATTACHED,
-        (RecordState.IN_FLIGHT, now - DAY, thread_id)).fetchone()
+        "coalesce(sum(CASE WHEN claimed_at > ? AND %s THEN max(claims, 1) ELSE 0 END), 0), "
+        "max(CASE WHEN %s THEN claimed_at END) FROM %s.records WHERE thread_id=?"
+        % (not_among(own), not_among(own), ATTACHED),
+        (RecordState.IN_FLIGHT, now - DAY, *own, *own, thread_id)).fetchone()
     in_flight, recent, last = row[0], row[1], row[2]
     if in_flight:
         return True
@@ -104,11 +108,11 @@ class ClaimLedger:
             # taken cannot be paid for without one, and is not sent.
             return Alternative.HOLD if acted else DEFER
         thread_id, key = record.get("thread_id"), record.get("interruption_id")
-        # v0.6.19: the Stop hook blocked this very turn - its continuation went in the turn, whatever the capability's
+        # v0.6.20: the Stop hook blocked this very turn - its continuation went in the turn, whatever the capability's
         # state now (engine/hookclaims.py).
         if hook_held(connection, ATTACHED, key, now):
             return Alternative.HOLD
-        if held_by_records(connection, thread_id, now):
+        if held_by_records(connection, thread_id, now, own_paced(self.registry)):
             return Alternative.HOLD
         if not acted:
             return DEFER
@@ -209,7 +213,9 @@ class ClaimLedger:
             counts = self.state.counts(connection, ATTACHED, capability, found[2], now)
             if ceiling_reached(counts, definition, global_hourly) is not None:
                 return Alternative.HOLD
-            if not self.state.claim_record(connection, key, now):
+            # v0.6.19: one that departs from A20 (codex_chat) is paced by its own ceilings alone - one in
+            # flight in a conversation still - never by core's five a day or fifteen minutes.
+            if not self.state.claim_record(connection, key, now, own_pace="A20" in definition.departs_from):
                 return Alternative.HOLD
             self.state.record_spend(connection, ATTACHED, capability, found[2], None, now)
             return DEFER
@@ -249,4 +255,13 @@ class ClaimLedger:
             if found[4] != "ready" or found[5] is not None:
                 return None
             return found[0], found[1], found[2], found[3], "UPDATE %s.prompts SET launching_at=? WHERE prompt_id=?"
+        found = connection.execute(
+            "SELECT c.state, c.capability, c.thread_id, m.chat_id, m.state, m.sent_at "
+            "FROM %s.records c JOIN %s.chat_messages m ON m.record_id = c.record_id WHERE c.record_id=?"
+            % (ATTACHED, ATTACHED), (key,)).fetchone()
+        if found is not None:
+            # (v0.6.19) a chat message: waiting, its send not begun.
+            if found[4] != "waiting" or found[5] is not None:
+                return None
+            return found[0], found[1], found[2], found[3], "UPDATE %s.chat_messages SET sent_at=? WHERE chat_id=?"
         return None

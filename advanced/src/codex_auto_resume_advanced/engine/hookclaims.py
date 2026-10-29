@@ -1,5 +1,5 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
-"""Continue inside the turn (stop_hook_continuation, v0.6.19): the claim the Stop hook shares with the watcher, and the
+"""Continue inside the turn (stop_hook_continuation, v0.6.20): the claim the Stop hook shares with the watcher, and the
 capability's answers at P3 and P8 (plans/v0619-design/D-stop-hook.md).
 
 The hook (hook/handler.py) runs in a process Codex starts, not in the watcher, so it cannot be asked through core's

@@ -19,7 +19,8 @@ Core carries each out as it carries out its own, and nothing of it is the plug's
   known_failure are a recovery's, and this is no recovery: the plug's ledger counts its claims against
   core's, the day's five and the fifteen minutes in one conversation across both stores.
 * the send: the one dispatch (engine/dispatch.py), which binds the one sender as it does for every send
-  - and a channel the plug names for one of these is never used: it waits instead. The claim is the
+  - and a channel the plug names for one of these is never used: it waits instead (from v0.6.19 but for a
+  person's MESSAGE the plug carries marker-free, engine/recordchannel.py). The claim is the
   store's own transaction (store/claims.py, reserve_record), which asks again for consent and quiet
   hours, and nothing of core's in flight, and then the plug's ledger; the pre-send look follows; and the
   one send carries the words, a blank line and the marker, inside a launch guard that asks consent and
@@ -69,6 +70,7 @@ class PlugRecordsMixin:
         for record in self.plug.records(view):
             try:
                 if record["state"] == IN_FLIGHT_RECORD:
+                    record = self._record_carried(self._record_queued(record))   # v0.6.19 (recordchannel.py)
                     self._flying()[record["record_id"]] = record
                     self._watch_record(record)
                 elif self._worded(record):
@@ -199,7 +201,7 @@ class PlugRecordsMixin:
         if loaded != "loaded":
             return self._record_waits(record, "thread_available",
                                       "notLoaded" if loaded == "notLoaded" else "loaded_state_unknown")
-        if self.source.foreign_queued(thread, record["marker"]):
+        if self.source.foreign_queued(thread, self._record_proof(record)):
             return self._record_waits(record, "no_newer_user_work", "user_input_queued")
         if self.offline():
             return self._record_waits(record, "usage", power.OFFLINE)
@@ -223,8 +225,9 @@ class PlugRecordsMixin:
     def _record_claim(self, record, sender, app):
         """The claim and the pre-send look for a record of the plug's: (conversation, words, launch
         guard) for the one send, or None where it waits, or was handed back, or was sent already."""
-        if sender is not self.backend:
-            # A channel the plug named is never used for one of these: core's backend or nothing.
+        if (sender is self.backend) != (self._record_client(record) is None):
+            # A channel the plug named is used only for a person's message it carries marker-free, and that message
+            # only through it (engine/recordchannel.py): core's backend or nothing.
             self._record_waits(record, "submission_safe", machine.HELD)
             return None
         now = self.clock()
@@ -245,7 +248,7 @@ class PlugRecordsMixin:
             self.log(record["thread_id"], "plug_record_released", None)
             return None
         self.log(record["thread_id"], "plug_record_send_started", None)
-        return (record["thread_id"], record["words"] + "\n\n" + record["marker"],
+        return (record["thread_id"], self._record_words(record),
                 self.store.record_guard(record, self.plug, self.clock()))
 
     def _record_problem(self, record, app):
@@ -269,9 +272,9 @@ class PlugRecordsMixin:
         if found is not None:
             move, gate, reason = found
             return (RecordMove.RELEASED if move == RecordMove.WAITING else move), gate, reason
-        if self.source.foreign_queued(thread, record["marker"]):
+        if self.source.foreign_queued(thread, self._record_proof(record)):
             return RecordMove.RELEASED, "no_newer_user_work", "user_input_queued"
-        presence = self.source.marker_presence(thread, record["marker"])
+        presence = self.source.marker_presence(thread, self._record_proof(record))
         if presence.get("history") or presence.get("queue"):
             return RecordMove.SENT, "submission_safe", "duplicate_owner"
         if not self.home_lock():
@@ -301,13 +304,14 @@ class PlugRecordsMixin:
         """A record of the plug's in flight: delivered once its marker is in Codex's history; unproven
         a day after it was sent with none there - and never sent again."""
         thread = record["thread_id"]
-        if self.source.marker_rows(thread, record["marker"]):
+        if self.source.marker_rows(thread, self._record_proof(record)):
             if record.get("purpose") == RecordPurpose.WRAP_UP:
                 # v0.6.16-beta.3: the turn it started is this product's own, never the person's work (persons_turns).
                 self._wrap_up_markers().setdefault(thread, set()).add(record["marker"])
             self._record_told(record, RecordMove.DELIVERED)
             return
-        queued = record["queue_id"] is not None and self.source.queue_row(thread, record["queue_id"], record["marker"])
+        queued = record["queue_id"] is not None and self.source.queue_row(thread, record["queue_id"],
+                                                                          self._record_proof(record))
         if queued and queued["exists"] and not queued["has_marker"]:
             # Somebody edited it in Codex's queue: it is theirs now. Never deleted, never unproven, no trip.
             self._record_told(record, RecordMove.HANDED_OVER)
@@ -332,7 +336,7 @@ class PlugRecordsMixin:
         if record["record_id"] in refused:
             return False                     # asked once and refused: watched as it is, never asked every tick
         deleted = self.backend.delete_queue(thread, record["queue_id"])
-        if deleted is True and not self.source.marker_rows(thread, record["marker"]):
+        if deleted is True and not self.source.marker_rows(thread, self._record_proof(record)):
             self._record_told(record, RecordMove.WITHDRAWN, "consent", "paused" if paused else "user_cancelled")
             self.log(thread, "plug_record_withdrawn", None)
         else:

@@ -1,7 +1,7 @@
-"""Open Codex on a notice (v0.6.18): while the capability is on and Windows has a handler for `codex:`, a notice about
-one conversation offers Open Codex beside Open Dashboard, and a click hands exactly that conversation's Codex link to
-the opener; off, or with no handler, or for a notice about no conversation, every notice is exactly the standard
-edition's.
+"""Open Codex on a notice (v0.6.18; v0.6.20: no button, the notice itself): while the capability is on and Windows has
+a handler for `codex:`, a click on a notice about one conversation - the card's face, the toast's body - hands exactly
+that conversation's Codex link to the opener, and its buttons are the standard edition's; off, or with no handler, or
+for a notice about no conversation, every notice is exactly the standard edition's.
 
 Held against the shipped definition and statement, the edition's own surface, core's notifier and the watcher's
 handling of what the surface says. The registry is never read: every test gives the handler check its own reader.
@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import advancedcase as ac  # noqa: E402
 from codex_auto_resume import notifier, notify  # noqa: E402
-from codex_auto_resume.domain.plug import DEFER, Surface  # noqa: E402
+from codex_auto_resume.domain.plug import DEFER, NULL, Surface, guard  # noqa: E402
 from codex_auto_resume.runtime.app import App  # noqa: E402
 from codex_auto_resume_advanced import registry, statement, surfaces  # noqa: E402
 from codex_auto_resume_advanced.control import opencodex  # noqa: E402
@@ -126,17 +126,16 @@ class SurfaceTests(ac.AdvancedCase):
 
 
 class NoticeTests(unittest.TestCase):
-    def test_on_a_notice_about_one_conversation_offers_its_codex_link_after_open_dashboard(self):
+    def test_on_a_notice_about_one_conversation_opens_its_codex_link_when_it_is_clicked_and_gains_no_button(self):
         plain = interruption()
         shown = notifier.with_open_codex(plain, True)
-        self.assertEqual(len(shown.actions), len(plain.actions) + 1)
-        self.assertIn(LINK, [uri for _label, uri in shown.actions])
-        uris = [uri for _label, uri in shown.actions]
-        self.assertEqual(uris.index(LINK), [notify.parse_open_uri(uri) is not None for uri in uris].index(True) + 1)
-        label = dict((uri, label) for label, uri in shown.actions)[LINK]
-        self.assertEqual(label, notify.l10n.message("toast_button_open_codex"))
-        # The toast carries the same button the card draws.
-        self.assertIn((label, LINK), [tuple(pair) for pair in shown.toast_content()["more"]])
+        # v0.6.20: no button of its own - the buttons are exactly the notice's, and its face and body go to Codex.
+        # The same buttons, the Cancel one carrying the decision for the notice its press raises (notify.py).
+        self.assertEqual([label for label, _uri in shown.actions], [label for label, _uri in plain.actions])
+        self.assertEqual(shown.toast_content().get("more"), plain.toast_content().get("more"))
+        self.assertNotIn(LINK, [uri for _label, uri in shown.actions])
+        self.assertEqual(shown.click, LINK)
+        self.assertEqual(shown.toast_content()["launch"], LINK)
         self.assertEqual(notifier.with_open_codex(shown, True), shown, "never twice")
 
     def test_off_every_notice_is_exactly_the_standard_edition_s(self):
@@ -166,7 +165,9 @@ class ToastCancelTests(unittest.TestCase):
     """The notice a cancel pressed on Windows' toast raises comes from a separate process with no plug: the decision
     rides on the button's own URI."""
 
-    def activate(self, uri):
+    def activate(self, uri, on=True):
+        """`on`: whether the capability stands on here now (v0.6.18: commands/watcher.py honours the flag only
+        then, and never in the standard edition)."""
         from contextlib import contextmanager
         from types import SimpleNamespace
         from codex_auto_resume.commands import watcher as command
@@ -184,7 +185,7 @@ class ToastCancelTests(unittest.TestCase):
 
         app = SimpleNamespace(paths=None, settings={}, logger=SimpleNamespace(info=lambda *_a, **_k: None))
         delivered = []
-        with patch.object(command, "_app", lambda _args: app), patch.object(command, "_open_state", opened),                 patch.object(command, "_print", lambda *_a: None),                 patch.object(notifier, "deliver", lambda notice, **_k: delivered.append(notice) or ("toast", True)):
+        with patch.object(command, "_app", lambda _args: app), patch.object(command, "_open_state", opened),                 patch.object(command, "_print", lambda *_a: None),                 patch.object(command, "_open_codex_on", lambda _app: on),                 patch.object(notifier, "deliver", lambda notice, **_k: delivered.append(notice) or ("toast", True)):
             command.cmd_activate(SimpleNamespace(uri=uri))
         return delivered[-1]
 
@@ -199,8 +200,12 @@ class ToastCancelTests(unittest.TestCase):
 
     def test_the_notice_after_a_toast_s_cancel_offers_open_codex_only_where_the_notice_pressed_did(self):
         flagged = notifier.with_open_codex(interruption(), True).toast_content()["uri"]
-        self.assertIn(LINK, [uri for _label, uri in self.activate(flagged).actions])
-        self.assertNotIn(LINK, [uri for _label, uri in self.activate(notify.cancel_uri(ac.KEY)).actions])
+        self.assertEqual(self.activate(flagged).click, LINK)
+        self.assertNotEqual(self.activate(notify.cancel_uri(ac.KEY)).click, LINK)
+
+    def test_a_flag_is_not_honoured_while_the_capability_is_off(self):
+        flagged = notifier.with_open_codex(interruption(), True).toast_content()["uri"]
+        self.assertNotEqual(self.activate(flagged, on=False).click, LINK)
 
 
 class WatcherTests(unittest.TestCase):
@@ -238,11 +243,12 @@ class WatcherTests(unittest.TestCase):
                 app.settings = Settings(notifications=True)
                 app._open_codex = flag
                 app._inbox = None
+                app._plug = guard(NULL)                # v0.6.19: told each notice first (P20)
                 source = type("Source", (), {"identity": lambda _self, _thread: None})()
                 with patch.object(notifier, "deliver", lambda notice, **_kw: built.append(notice) or ("toast", True)):
                     App._notifier(app, source)("interruption", {"thread_id": THREAD, "interruption_id": ac.KEY,
                                                                 "reset_at": None, "category": "usage_limit"})
-                self.assertEqual(LINK in [uri for _label, uri in built[-1].actions], flag)
+                self.assertEqual(built[-1].click == LINK, flag)
 
 
 if __name__ == "__main__":

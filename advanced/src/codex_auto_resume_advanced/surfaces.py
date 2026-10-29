@@ -83,7 +83,7 @@ ARGUMENTS = {
     BridgeCommand.ADVANCED_KEEP_GOING_STOP: frozenset({"thread_id", "generation"}),
     BridgeCommand.ADVANCED_PROMPTS: frozenset(),
     BridgeCommand.ADVANCED_PROMPT_ADD: frozenset({"thread_id", "words", "trigger", "at", "every", "occurrences",
-                                                  "depends", "generation"}),
+                                                  "depends", "generation", "while_running"}),
     BridgeCommand.ADVANCED_PROMPT_CANCEL: frozenset({"prompt", "generation"}),
     BridgeCommand.ADVANCED_PROMPT_GO_ON: frozenset({"prompt", "generation"}),
     BridgeCommand.ADVANCED_REPORT_BUILD: frozenset({"login"}),
@@ -92,6 +92,13 @@ ARGUMENTS = {
     BridgeCommand.ADVANCED_REPORT_SEND: frozenset({"sha256", "writes", "word"}),
     BridgeCommand.ADVANCED_REPORT_JOB: frozenset({"job"}),
     BridgeCommand.ADVANCED_HEADLESS_STOP: frozenset({"interruption_id"}),
+    BridgeCommand.ADVANCED_CHAT_READ: frozenset({"thread_id"}),
+    BridgeCommand.ADVANCED_CHAT_SEND: frozenset({"thread_id", "words", "generation"}),
+    BridgeCommand.ADVANCED_CHAT_CANCEL: frozenset({"thread_id", "generation"}),
+    # v0.6.19 (issue #50): early_reset's probe a person's Retry now or Rescan asks for, which names no row.
+    BridgeCommand.ADVANCED_EARLY_CHECK: frozenset(),
+    # v0.6.20 (issue #50): the person's own conversations and their names, for Find a conversation; names no row.
+    BridgeCommand.ADVANCED_CONVERSATIONS: frozenset(),
 }
 # v0.6.19 (the groundwork): the stage's commands, in the vocabulary before any capability that answers one is built.
 # Each is passed over - DEFER, so core says "unknown command" exactly as for a command this edition does not have -
@@ -102,9 +109,14 @@ UNANSWERED = frozenset({
     BridgeCommand.ADVANCED_COURIER_SAVE, BridgeCommand.ADVANCED_COURIER_FORGET, BridgeCommand.ADVANCED_COURIER_TEST,
     BridgeCommand.ADVANCED_FEED_REFRESH, BridgeCommand.ADVANCED_API, BridgeCommand.ADVANCED_API_TOKEN_NEW,
     BridgeCommand.ADVANCED_REMOTE_PAIR_START, BridgeCommand.ADVANCED_REMOTE_PAIR_STATE, BridgeCommand.ADVANCED_FLEET,
-    BridgeCommand.ADVANCED_FLEET_SAVE, BridgeCommand.ADVANCED_PROMPT_EDIT, BridgeCommand.ADVANCED_PROMPTS_CLEAR_DONE,
+    BridgeCommand.ADVANCED_FLEET_SAVE,
     BridgeCommand.ADVANCED_ACCOUNT, BridgeCommand.ADVANCED_ACCOUNT_SWITCH})
 ARGUMENTS.update({command: frozenset() for command in UNANSWERED})
+# #50 (v0.6.19): the completed prompts the Dashboard showed, deleted from the list (control/prompts.clear_done).
+ARGUMENTS[BridgeCommand.ADVANCED_PROMPTS_CLEAR_DONE] = frozenset({"prompts", "generation"})
+# and one waiting edited (control/prompts.edit): its id, and what advanced-prompt-add takes but the conversation.
+ARGUMENTS[BridgeCommand.ADVANCED_PROMPT_EDIT] = frozenset({"prompt", "words", "trigger", "at", "every", "occurrences",
+                                                          "depends", "while_running", "generation"})
 # The compatibility report's commands (report/flow.py), answered by the action itself.
 REPORT_COMMANDS = frozenset({BridgeCommand.ADVANCED_REPORT_BUILD, BridgeCommand.ADVANCED_REPORT_SAVE,
                              BridgeCommand.ADVANCED_REPORT_CHECK, BridgeCommand.ADVANCED_REPORT_SEND,
@@ -121,7 +133,9 @@ KEEP_GOING_COMMANDS = frozenset({BridgeCommand.ADVANCED_KEEP_GOING, BridgeComman
 
 # The prompt queue's commands (control/prompts.py, v0.6.15-beta), the Dashboard's alone.
 PROMPT_COMMANDS = frozenset({BridgeCommand.ADVANCED_PROMPTS, BridgeCommand.ADVANCED_PROMPT_ADD,
-                             BridgeCommand.ADVANCED_PROMPT_CANCEL, BridgeCommand.ADVANCED_PROMPT_GO_ON})
+                             BridgeCommand.ADVANCED_PROMPT_CANCEL, BridgeCommand.ADVANCED_PROMPT_GO_ON,
+                             # v0.6.19 (#50): Delete completed, and an edit.
+                             BridgeCommand.ADVANCED_PROMPTS_CLEAR_DONE, BridgeCommand.ADVANCED_PROMPT_EDIT})
 
 _NO_ARGUMENTS = {"type": "object", "properties": {}, "additionalProperties": False}
 _OFF_ONLY = ("Turning a capability on is not something any tool does: the user does it in the "
@@ -205,6 +219,10 @@ def status(runtime) -> dict:
     if found:
         shown["runs"] = found
     shown.update(rows(runtime))
+    # v0.6.19 (issue #50): early_reset's last reading for Pending's Why it is waiting, only while it stands on
+    # (control/earlycheck.py).
+    from .control import earlycheck
+    shown.update(earlycheck.view(runtime))
     return shown
 
 
@@ -259,18 +277,27 @@ def meter_view(runtime) -> dict:
 
 def notice_view(runtime) -> dict:
     """What the watcher adds to the notices it builds (v0.6.18): {"notice": {"open_codex": true}} while Open Codex on
-    a notice stands on and Windows can open a `codex:` link here (control/opencodex.py), {} otherwise - so with it
-    off, or with no handler, every notice is exactly the standard edition's. A closed flag, nothing else."""
+    a notice stands on and Windows can open a `codex:` link here (control/opencodex.py), and (v0.6.19) "chat": true
+    while chat with a conversation is on, so a click on a notice may go where the person chose (core's
+    notifier.click_uri); {} otherwise - so with both off, or with no handler, every notice is exactly the standard
+    edition's. Closed flags, nothing else."""
     from .control import opencodex
+    from .engine import chat
+    found = {}
     try:
         definition = runtime.registry.get(opencodex.CAPABILITY)
-        if definition is None or runtime.states().get(opencodex.CAPABILITY) != ArmingState.ARMED:
-            return {}
-        if runtime.action(definition).available() is not True:
-            return {}
+        if (definition is not None and runtime.states().get(opencodex.CAPABILITY) == ArmingState.ARMED
+                and runtime.action(definition).available() is True):
+            found["open_codex"] = True
     except Exception:
-        return {}
-    return {"notice": {"open_codex": True}}
+        pass
+    try:
+        if (runtime.registry.get(chat.CAPABILITY) is not None
+                and runtime.states().get(chat.CAPABILITY) == ArmingState.ARMED):
+            found["chat"] = True
+    except Exception:
+        pass
+    return {"notice": found} if found else {}
 
 
 def update_view(runtime) -> dict:
@@ -377,6 +404,20 @@ def bridge(runtime, command, argument):
         return sendnow.request(runtime, argument.get("interruption_id"))
     if command == BridgeCommand.ADVANCED_HEADLESS_STOP:
         return headless_stop(runtime, argument.get("interruption_id"))
+    if command == BridgeCommand.ADVANCED_EARLY_CHECK:
+        from .control import earlycheck
+        return earlycheck.check(runtime)
+    if command in (BridgeCommand.ADVANCED_CHAT_READ, BridgeCommand.ADVANCED_CHAT_SEND,
+                   BridgeCommand.ADVANCED_CHAT_CANCEL):
+        from .control import chat
+        if command == BridgeCommand.ADVANCED_CHAT_READ:
+            return chat.view(runtime, argument.get("thread_id"))
+        if command == BridgeCommand.ADVANCED_CHAT_SEND:
+            return chat.add(runtime, argument)
+        return chat.cancel(runtime, argument)
+    if command == BridgeCommand.ADVANCED_CONVERSATIONS:
+        from .control import conversations
+        return conversations.view(runtime)
     if command == BridgeCommand.ADVANCED_WATCH_LOG:
         from . import watchlog
         return watchlog.view(runtime, argument.get("capability"))
@@ -390,6 +431,10 @@ def bridge(runtime, command, argument):
             return prompts.add(runtime, argument)
         if command == BridgeCommand.ADVANCED_PROMPT_CANCEL:
             return prompts.cancel(runtime, argument.get("prompt"), argument.get("generation"))
+        if command == BridgeCommand.ADVANCED_PROMPTS_CLEAR_DONE:
+            return prompts.clear_done(runtime, argument)
+        if command == BridgeCommand.ADVANCED_PROMPT_EDIT:
+            return prompts.edit(runtime, argument)
         return prompts.go_on(runtime, argument.get("prompt"), argument.get("generation"))
     if command in KEEP_GOING_COMMANDS:
         from .control import keepgoing

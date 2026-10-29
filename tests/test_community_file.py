@@ -302,7 +302,7 @@ class World:
         state.mkdir(exist_ok=True)
         (state / "github.json").write_text(json.dumps(dict(self.github, runs=self.runs)), encoding="utf-8")
         environment = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
-        environment.update(RUNNER_TEMP=self.root.resolve().as_posix(), GITHUB_REPOSITORY=REPO, GH_TOKEN="not-a-token",
+        environment.update(RUNNER_TEMP=self.root.resolve().as_posix(), GITHUB_REPOSITORY=REPO, GH_TOKEN="<not-a-token>",
                            AUTOFILE="", EVENT="workflow_run", ATTEMPT="", FAKE_GITHUB=str(state),
                            FAKE_ORIGIN=str(self.origin.resolve()))
         environment.update(environ or {})

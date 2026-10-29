@@ -55,11 +55,14 @@ BUILT = ROOT / "build"
 STAGES = ROOT / "build" / "stage"
 
 # Pinned so the bundled runtime is a known build rather than whatever python.org serves
-# today. Verified against the published sigstore/spdx artefacts.
-PYTHON_VERSION = "3.13.15"
+# today, by version and SHA-256 (standard I10). The digest is the one python.org's release
+# file list publishes for this archive, compared with the file it served (2026-10-24).
+# 3.14 since v0.6.19-beta.3: the 3.13 line takes security fixes only, as source, from
+# October 2026, so no newer 3.13 Windows build will come; 3.14 has them until 2027-10.
+PYTHON_VERSION = "3.14.9"
 PYTHON_ZIP = "python-%s-embed-amd64.zip" % PYTHON_VERSION
 PYTHON_URL = "https://www.python.org/ftp/python/%s/%s" % (PYTHON_VERSION, PYTHON_ZIP)
-PYTHON_SHA256 = "d1f04d990aee1253d8569e8e5104e30fa9f5fa830899f14843448872d936a2cf"
+PYTHON_SHA256 = "3c01d7cfc666f746a6f064f60fb2156ab0ec464d3d738ab796371a46a9bb24a2"
 
 # Everything the installed product needs, and nothing else. Listed explicitly rather
 # than filtered, so a stray file in the working tree cannot reach a release.
@@ -80,12 +83,6 @@ GUI_EXE = "CodexAutoResumeSettings.exe"
 # inside the plugin, so the launcher ships in the plugin payload and finds the bundled
 # interpreter itself. `.mcp.json` names it by that contained path.
 MCP_EXE = "codex-auto-resume-mcp.exe"
-# v0.6.19: the advanced edition's Stop hook launcher (gui/HookLauncher.cs), built by `make_gui.ps1 -Edition advanced`
-# into build/advanced/ and shipped in that edition's archive alone, at payload/app/HOOK_DIR/ - one of the advanced
-# edition's own places (build/edition_audit.py, PLACEMENTS). The hook's declaration names it there (the advanced
-# package's control/hookplugin.py), and only while "Continue inside the turn" is on.
-HOOK_EXE = "codex-auto-resume-hook.exe"
-HOOK_DIR = "hook"
 # Every top-level document the shipped README links to, so the installed copy does not
 # promise a privacy policy that is not beside it. Asserted by tests/test_plugin.py.
 #
@@ -240,7 +237,7 @@ def collect_runtime(stage: Path, archive: Path) -> int:
     runtime.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(archive) as bundle:
         bundle.extractall(runtime)
-    # The embeddable build ships isolated by design. Leave python313._pth exactly as
+    # The embeddable build ships isolated by design. Leave python3XX._pth (python314._pth) exactly as
     # published: our entry points do their own sys.path.insert, so no edit is needed,
     # and editing it is how people accidentally enable site-packages.
     return sum(1 for _ in runtime.rglob("*") if _.is_file())
@@ -255,8 +252,7 @@ def collect_gui(stage: Path, edition: str = "standard") -> int:
 
     Each edition has a window of its own: `make_gui.ps1 -Edition advanced` compiles the
     advanced one into build/advanced/, beside the standard one and never over it. The MCP
-    launcher is one file, the same in both editions. The Stop hook launcher (v0.6.19) is the
-    advanced edition's alone, taken from build/advanced/ into payload/app/HOOK_DIR/.
+    launcher is one file, the same in both editions.
     """
     built = BUILT / "advanced" if edition == "advanced" else BUILT
     source = built / GUI_EXE
@@ -279,15 +275,7 @@ def collect_gui(stage: Path, edition: str = "standard") -> int:
     destination = stage / "payload" / "app" / "mcp" / MCP_EXE
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(launcher, destination)
-    if edition != "advanced":
-        return 3
-    hook = built / HOOK_EXE
-    if not hook.is_file():
-        raise SystemExit("missing %s - run build/make_gui.ps1 -Edition advanced first" % hook)
-    placed = stage / "payload" / "app" / HOOK_DIR / HOOK_EXE
-    placed.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(hook, placed)
-    return 4
+    return 3
 
 
 def declare_mcp_server(stage: Path, edition: str = "standard") -> None:

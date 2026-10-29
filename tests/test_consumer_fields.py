@@ -97,6 +97,8 @@ _RECEIVERS = {
         # one a list item carries in its Tag, the fresh list compared with the shown one.
         "row": ROW, "chosen": ROW, "fresh": ROW, "Tag": ROW,
         "gates": _under(ROW, ".gates"),
+        # v0.6.19 (issue #50): the usage reading a person's Retry now asked for, on the chosen row.
+        "check": _under(ROW, ".usage_check"),
         "item": [("bridge:timeline", "result.events[]")],
         # v0.6.11: what delivery showed of each continuation, after the journal.
         "receipt": [("bridge:timeline", "result.receipts[]")],
@@ -151,6 +153,13 @@ _RECEIVERS = {
         # LayoutAudit's input: a dashboard reply, with the compatibility reply's view beside it.
         "snapshot": [("bridge:dashboard", ""), ("bridge:compatibility", "")],
     },
+    # v0.6.19: this PC's own compatibility report, beside what it has as a part of the Dashboard half (_spread): each
+    # version's line, what was left out and the codes it was left out by.
+    "gui/DashboardOwnReport.cs": {
+        "ownVersion": [("bridge:own-report", "result.versions[]")],
+        "ownLeftOut": [("bridge:own-report", "result.left_out")],
+        "ownUnplaced": [("bridge:own-report", "result.left_out.unplaced")],
+    },
     "gui/SoftTheme.cs": {
         # Theme.Stored reads the settings file for the theme before the window has a bridge.
         "map": SETTINGS,
@@ -166,6 +175,8 @@ _RECEIVERS = {
     "gui/SettingsHomes.cs": {
         "view": [("bridge:status", "status.codex_homes"), ("bridge:dashboard", "status.codex_homes")],
         "home": [("bridge:status", "status.codex_homes.homes[]"), ("bridge:dashboard", "status.codex_homes.homes[]")],
+        # v0.6.18: the Codex home the card suggests, and what Not now leaves to suggest.
+        "suggestion": [("bridge:home-suggestion", "result"), ("bridge:home-dismiss", "result")],
     },
     "panel": {
         "payload": [("@", "")],
@@ -191,7 +202,9 @@ _LOCAL = {
     "gui/InstallerFlow.cs": {"manifest"},
     # v0.6.16: the render mode's job (build/motion_window.py writes it, not the bridge): the job, its forms and
     # frames, and a frame's own parts - never a reply's.
-    "gui/WindowRender.cs": {"job", "forms", "frame", "answer", "combo", "listed", "scroll", "Map(forms, locale)"},
+    # v0.6.18: and a frame's chosen Pending row and its open row menu.
+    "gui/WindowRender.cs": {"job", "forms", "frame", "answer", "combo", "listed", "scroll", "Map(forms, locale)",
+                            "selected", "menu"},
 }
 
 # The window was two files until v0.6.10-alpha, when each became several. The three tables above
@@ -240,6 +253,12 @@ UNCHECKED = {
                                                  "(v0.6.11); the map is empty in every golden",
     ("gui/SettingsPage.cs", "keys", "id"): "each kind of notice the schema lists, by its id (v0.6.16, notice_kinds)",
     ("gui/SettingsPage.cs", "labels", "id"): "each kind an edition registered, by its id (v0.6.16, notice_kinds)",
+    # v0.6.19 (the owner's decision of 2026-10-24: Pending is one list): what a row the advanced edition joins to a list
+    # in the window says of itself (ListRowsJoined) - its kind, its key and its sentence. Made in the window, never on
+    # the wire: a recovery's row has none of them.
+    ("gui/DashboardActions.cs", "row", "RowSaidKey"): "an edition row's sentence, made in the window (ListRowsJoined)",
+    ("gui/DashboardData.cs", "row", "RowKindKey"): "an edition row's kind, made in the window (ListRowsJoined)",
+    ("gui/DashboardData.cs", "row", "RowKeyKey"): "an edition row's key, made in the window (ListRowsJoined)",
 }
 
 # Dictionaries the window writes a request into, by setting name: a name written there is one the
@@ -288,7 +307,7 @@ _TYPED = {
         "offer": wire.PowerChoice, "choice": wire.PowerChoice, "powerView": wire.PowerView,
         "armed": wire.PowerArmed, "shown": wire.PowerShown, "last": wire.PowerLast,
     },
-    "gui/SettingsHomes.cs": {"view": wire.HomesView, "home": wire.HomeView},
+    "gui/SettingsHomes.cs": {"view": wire.HomesView, "home": wire.HomeView, "suggestion": wire.HomeSuggestion},
 }
 TYPED = {(name, receiver): contract for name, table in _spread(_TYPED).items()
          for receiver, contract in table.items()}

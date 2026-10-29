@@ -14,8 +14,6 @@
     build\advanced\ beside the standard one: the same sources, then the ones
     advanced\gui\window.sources lists. The standard build never reads that file. The MCP
     launcher is one file, the same in both editions, so only the standard run builds it.
-    The advanced run also builds the Stop hook launcher (gui/HookLauncher.cs), which only
-    that edition ships.
 #>
 [CmdletBinding()]
 param(
@@ -184,18 +182,5 @@ if ($Edition -eq 'standard') {
     Build -Name 'codex-auto-resume-mcp.exe' -Target 'exe' `
           -Description 'Codex Auto Resume MCP launcher' `
           -Sources @((Join-Path $Root 'gui\McpLauncher.cs')) `
-          -References @('System.dll')
-}
-
-# v0.6.19: the advanced edition's Stop hook launcher (gui/HookLauncher.cs), the MCP launcher's twin for the one
-# capability Codex itself starts - "Continue inside the turn". Built only into the advanced edition's folder and
-# shipped only in its archive (build/make_release.py, HOOK_EXE). A console-subsystem executable, as the MCP launcher
-# is, with its handler started under CREATE_NO_WINDOW; HookTarget is the one word to change to 'winexe' should the
-# measurement M4B show Codex starts a hook's command with a console of its own.
-$HookTarget = 'exe'
-if ($Edition -eq 'advanced') {
-    Build -Name 'codex-auto-resume-hook.exe' -Target $HookTarget `
-          -Description 'Codex Auto Resume Stop hook launcher' `
-          -Sources @((Join-Path $Root 'gui\HookLauncher.cs')) `
           -References @('System.dll')
 }

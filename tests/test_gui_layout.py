@@ -190,13 +190,14 @@ class PersistentBridgeTests(unittest.TestCase):
         source = guiscan.dashboard()
         start = source.index("private void StartLocked()")
         method = source[start:source.index("internal void Stop()", start)]
-        self.assertIn('info.Arguments = "-c " + Bridge.Quote(code)', method,
+        # After remote debugging off (Bridge.NoRemoteDebug, v0.6.19-beta.3; tests/test_remote_debug_off.py).
+        self.assertIn('info.Arguments = Bridge.NoRemoteDebug + "-c " + Bridge.Quote(code)', method,
                       "the persistent bridge must pass its code with -c, as the one-shot bridge does")
         code = "".join(re.findall(r'"((?:[^"\\]|\\.)*)"', method[method.index("string code ="):
                                                                method.index(";", method.index('"sys.exit(')) + 1]))
         self.assertIn("controlcli import main", code)
         request = json.dumps({"id": 1, "command": "strings"}) + "\n"
-        result = subprocess.run([sys.executable, "-c", code, str(ROOT / "src"), "serve"],
+        result = subprocess.run([sys.executable, "-X", "disable-remote-debug", "-c", code, str(ROOT / "src"), "serve"],
                                 input=request, capture_output=True, text=True, encoding="utf-8",
                                 timeout=60)
         replies = [json.loads(line) for line in result.stdout.splitlines() if line.strip()]
@@ -226,7 +227,9 @@ class OneShotBridgeTests(unittest.TestCase):
         self.assertIn("info.RedirectStandardInput = true", self.method)
         self.assertIn("new UTF8Encoding(false).GetBytes(argument)", self.method,
                       "a redirected stdin takes the console code page unless the bytes are UTF-8")
-        self.assertIn("process.StandardInput.Close()", self.method)
+        # v0.6.18: closed on its own task beside the reads, so a child that never reads cannot hold the write.
+        self.assertIn("Stream input = process.StandardInput.BaseStream;", self.method)
+        self.assertIn("input.Close();", self.method)
 
     def test_the_command_line_it_builds_reads_its_argument_from_stdin(self):
         import json
@@ -696,7 +699,8 @@ class WindowCompositionTests(unittest.TestCase):
         self.assertNotIn("AutoScrollPosition", self.window + self.dashboard)
         self.assertIn("int width = page - SoftBar.Gutter;", self.method(self.window, "private void FitSections("))
         self.assertIn("new SoftListHost(list)", self.method(self.dashboard, "private Control ListCard("))
-        self.assertIn("new SoftListHost(view)", self.method(self.dashboard, "private Form BuildTimeline("))
+        self.assertIn("DialogListCard(view)", self.method(self.dashboard, "private Form BuildTimeline("),
+                      "a dialog's list is on the soft bar by way of History's card (tests/test_dialog_list_card.py)")
         wheel = self.method(self.window, "private static void IgnoreWheel(")
         self.assertIn("handled.Handled = true;", wheel, "the drop-down must not change under the wheel")
         self.assertIn("Soft.PassWheel(sender as Control, e.Delta);", wheel, "and the page must still scroll over it")
@@ -816,8 +820,12 @@ class WindowCompositionTests(unittest.TestCase):
         least = self.method(self.dashboard, "private int LeastWidth(")
         self.assertIn("Px(Brand.SwitchWidth + 2) + Px(14)", least, "the Auto-resume switch is never cut")
         measure = self.method(self.dashboard, "private void MeasureCells(")
-        self.assertIn("CountdownText(item.Tag as Dictionary<string, object>, Now())", measure,
+        self.assertIn("CellWidth(list, item, c)", measure)
+        cell = self.method(self.dashboard, "private int CellWidth(")
+        self.assertIn("CountdownText(record, Now())", cell,
                       "the countdown measured as the clock writes it, not as the last tick left it")
+        self.assertIn("!EditionRow(record)", cell,
+                      "a row of the edition's own measured by the words its cell keeps, not as a countdown it never shows")
         for draw in ("private void DrawHeader(", "private void DrawCell("):
             with self.subTest(draw):
                 self.assertIn("TextFormatFlags.EndEllipsis", self.method(self.dashboard, draw))
@@ -875,7 +883,10 @@ class WindowCompositionTests(unittest.TestCase):
                                  r'\? null : status;\s+if \(heroStatus != null\) Hero\(status, null, Now\(\)\);')
         self.assertNotIn('"attention"', status)
         hero = self.method(self.window, "private void Hero(")
-        self.assertIn("stateDot.State = HeaderLight(status, pending, word);", hero)
+        # v0.6.20: the working light over it while an action is in flight (BusyLight), the advanced edition's chat after it
+        # (HeroTold); the watcher's own rule is HeaderLight still.
+        self.assertIn("string light = BusyLight(HeaderLight(status, pending, word), busy > 0);", hero)
+        self.assertIn("stateDot.State = light;", hero)
         # What "known to be running" is lives in one place (KnownRunning), which the headline reads as well, so a
         # grey light never stands over "Watching for interruptions".
         light = self.method(self.dashboard, "internal static string HeaderLight(")
@@ -890,7 +901,7 @@ class WindowCompositionTests(unittest.TestCase):
         constructor = self.window[self.window.index("private SettingsForm(PersistentBridge bridge, Dictionary<string, object> catalog"):]
         constructor = constructor[:constructor.index("\n        }\n")]
         self.assertLess(constructor.index("StringsCache.Key(root)"), constructor.index("StringsCache.Read(root, cacheKey)"))
-        self.assertLess(constructor.index("Task.Factory.StartNew"), constructor.index("Font = windowFont ?? TextScale.Apply(SystemFonts.MessageBoxFont, textRead, TextSize);"),
+        self.assertLess(constructor.index("Task.Factory.StartNew"), constructor.index("Font = windowFont ?? AtDisplayScale(TextScale.Apply(SystemFonts.MessageBoxFont, textRead, TextSize));"),
                         "the strings are asked for while the fonts and the icon are made")
         read = self.method(self.window, "internal static Dictionary<string, object> Read(")
         self.assertIn("(string)stored != key) return null;", read)

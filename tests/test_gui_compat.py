@@ -67,7 +67,8 @@ class RefreshRouteTests(unittest.TestCase):
 
     def test_the_one_shot_call_passes_the_long_lived_process_and_its_lock_by(self):
         once = method(self.dashboard, "internal Dictionary<string, object> CallOnce(")
-        self.assertIn("return once.Call(command, argument);", once)
+        # v0.6.18: with the one-shot's longer limit, for a refresh that waits up to 150 s on the network.
+        self.assertIn("return once.Call(command, argument, Bridge.LongCallMilliseconds);", once)
         self.assertNotIn("gate", once, "a two-minute refresh must not hold the lock every read waits on")
         self.assertIn("if (closed) throw", once)
 

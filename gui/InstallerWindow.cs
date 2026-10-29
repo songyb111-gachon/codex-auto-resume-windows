@@ -105,7 +105,9 @@ namespace CodexAutoResume
             ForeColor = Palette.Ink;
             FormBorderStyle = FormBorderStyle.FixedSingle;
             MaximizeBox = false;
-            StartPosition = FormStartPosition.CenterScreen;
+            // CenterScreen is the screen under the pointer; a picture (Soft.StillReady, build/capture_window.ps1) opens on the
+            // primary screen instead, whose scale Program.Main took for it (SettingsForm.OpeningPointer, 2026-10-28).
+            StartPosition = Soft.StillReady == null ? FormStartPosition.CenterScreen : FormStartPosition.Manual;
             AutoScaleMode = AutoScaleMode.None;
             Soft.TitleBar(this);
             try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); }
@@ -217,6 +219,11 @@ namespace CodexAutoResume
             page = showing;
             ClientSize = new Size(width, Px(16) + HeaderHeight() + Px(16) + tallest + Px(32) + Px(16) +
                                          Px(Brand.ButtonHeight) + Px(16));
+            if (StartPosition == FormStartPosition.Manual)
+            {
+                Rectangle primary = Screen.PrimaryScreen.WorkingArea;
+                Location = new Point(primary.Left + (primary.Width - Width) / 2, primary.Top + (primary.Height - Height) / 2);
+            }
             if (showing != null) ShowPage(showing);
         }
 
@@ -509,6 +516,7 @@ namespace CodexAutoResume
         {
             string heading = flow.Mode == InstallerFlow.Uninstall ? words.Say("installer.progress.removing", "Removing")
                            : flow.Repair ? words.Say("installer.progress.repairing", "Repairing")
+                           : flow.Another ? words.Say("installer.progress.another", "Installing another version")
                            : flow.Mode == InstallerFlow.Update ? words.Say("installer.progress.updating", "Updating")
                            : words.Say("installer.progress.installing", "Installing");
             Row(Words(heading, "title", Palette.Ink), 0);
@@ -574,7 +582,9 @@ namespace CodexAutoResume
 
         private void BuildFinish()
         {
-            Row(Words(flow.Mode == InstallerFlow.Update && code == 0
+            Row(Words(flow.Another && code == 0
+                      ? words.Say("installer.done.installed_version", "Installed v{version}", "version", flow.Version)
+                      : flow.Mode == InstallerFlow.Update && code == 0
                       ? words.Say("installer.done.updated_to", "Updated to v{version}", "version", flow.Version)
                       : flow.Repair && code == 0 ? words.Say("installer.done.repaired", "Codex Auto Resume is repaired.")
                       : words.Outcome(flow.Mode, code), "title", Palette.Ink), 0);
@@ -680,8 +690,53 @@ namespace CodexAutoResume
 
         private void Post(MethodInvoker action)
         {
+            // Without a handle - between two showings of the window (SettingsForm.InstallPick shows it again after
+            // WinForms ended its modal loop) - what the run says is kept and told once it has one again: the run's
+            // end is never lost (v0.6.18 acceptance, B2).
+            lock (waiting)
+            {
+                if (!IsHandleCreated && !IsDisposed)
+                {
+                    waiting.Add(action);
+                    return;
+                }
+            }
             try { if (IsHandleCreated && !IsDisposed) BeginInvoke(action); }
             catch (Exception) { /* the window is gone */ }
+        }
+
+        private readonly List<MethodInvoker> waiting = new List<MethodInvoker>();
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            MethodInvoker[] told;
+            lock (waiting)
+            {
+                told = waiting.ToArray();
+                waiting.Clear();
+            }
+            foreach (MethodInvoker action in told) BeginInvoke(action);
+        }
+
+        /// Whether the installer is still running: the window stays, and is shown again, until it is not.
+        internal bool Running { get { return running; } }
+
+        private const int WM_SHOWWINDOW = 0x0018;
+        private const int SW_PARENTCLOSING = 1;
+
+        /// The Dashboard minimized under the window - by a person's Show desktop, or by another program - hides the
+        /// windows it owns (WM_SHOWWINDOW, SW_PARENTCLOSING), and WinForms ends a modal window's loop once it is
+        /// hidden, with no close asked: the run went on unseen (v0.6.18 acceptance, B2). While it runs, the window
+        /// stays where it is instead.
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == WM_SHOWWINDOW && running && m.WParam == IntPtr.Zero && m.LParam.ToInt64() == SW_PARENTCLOSING)
+            {
+                m.Result = IntPtr.Zero;
+                return;
+            }
+            base.WndProc(ref m);
         }
 
         /// One line the installer printed: into the log, and onto the bar where it begins a step. A progress line
@@ -791,7 +846,11 @@ namespace CodexAutoResume
                 if (forward.Enabled) Answer(false);
                 return;
             }
-            if (running && e.CloseReason == CloseReason.UserClosing)
+            // Any other close while it runs is refused the same way, Windows ending the session alone excepted: a raw
+            // WM_CLOSE from another program arrives as TaskManagerClosing, and the Dashboard's own closing as
+            // FormOwnerClosing. v0.6.18 acceptance: an older installer, run by Install another version..., closed the
+            // pick's window part-way that way - the run went on unseen and the pick said it had failed.
+            if (running && e.CloseReason != CloseReason.WindowsShutDown)
             {
                 e.Cancel = true;
                 closingAsked = true;
@@ -1035,6 +1094,12 @@ namespace CodexAutoResume
             {
                 said = percent;
                 AccessibleDescription = percent.ToString(System.Globalization.CultureInfo.InvariantCulture) + "%";
+                // v0.6.18: and said: a screen reader is told the bar moved, or it never hears the progress.
+                if (IsHandleCreated)
+                {
+                    AccessibilityNotifyClients(AccessibleEvents.DescriptionChange, -1);
+                    AccessibilityNotifyClients(AccessibleEvents.ValueChange, -1);
+                }
             }
             Invalidate();
         }

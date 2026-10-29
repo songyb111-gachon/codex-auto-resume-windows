@@ -7,17 +7,19 @@ now running, at a time, or on a schedule - in order, each once.
               `until`, 30 days from when it was written at most), whether it waits for the one before it to be
               delivered (`depends`), its place in its conversation's queue, where it stands, and the record of its
               current occurrence - a row of `records` (state/records.py) with an id of its own, which the one
-              claim counts with core's rows (ledger.py)
+              claim counts with core's rows (ledger.py) - and (v0.6.19, #50) what it does while a turn of its
+              conversation runs (`while_running`): goes into Codex's queue, as every prompt did before, or waits
 
 The file refuses words on a prompt that is done or cancelled, a series past 30 occurrences or 30 days, and a
 recurring prompt without its every; this module refuses the rest: twenty waiting in all, five to a conversation.
 """
 from __future__ import annotations
 
-from ..vocabulary import PromptEvery, PromptReason, PromptState, PromptTrigger, RecordState, Refusal
+from ..vocabulary import PromptEvery, PromptReason, PromptState, PromptTrigger, RecordState, Refusal, WhileRunning
 
 PROMPT_QUEUE = "prompt_queue"
 from .choices import Refused
+from .resets import _gate_word
 from .schema import PROMPT_SPAN
 from .session import StateError, _key, _thread, _timestamp, _word
 
@@ -31,6 +33,12 @@ WORDS_LIMIT = 8192
 # What a prompt's row may be changed in by the engine (engine/promptqueue.py), and nothing else of it.
 CHANGES = frozenset({"state", "reason", "record_id", "gate", "gate_reason", "due_at", "launching_at", "sent_at",
                      "finished_at", "sent_count"})
+# v0.6.19 (#50, Delete completed): a finished prompt that is completed work - delivered, or handed over to the person,
+# who joined the turn it started - and so one a person may take off the list. Never one cancelled, held, still to go,
+# uncertain (unknown), expired, missed or superseded: those stay until `prune`.
+COMPLETED = (PromptReason.DELIVERED, PromptReason.HANDED_OVER)
+# How many prompts one Delete completed names at most: as many rows as the journal's pass lets the table keep.
+CLEAR_MOST = 5000
 
 
 def _prompt(row) -> dict:
@@ -41,40 +49,53 @@ def _prompt(row) -> dict:
     return found
 
 
+def _occasion(words, trigger, at, every, occurrences, until, while_running, current):
+    """A prompt's words and when it goes, checked as one a person writes - (trigger, every, while_running, due, until) -
+    or Refused: prompt_refused for words that are empty or too long, occasion_invalid for a time or schedule that is not
+    one on offer (add_prompt, and v0.6.19's edit_prompt). A recurring one with no `until` ends 30 days from `current`."""
+    if not isinstance(words, str) or not words.strip() or len(words) > WORDS_LIMIT:
+        raise Refused(Refusal.PROMPT_REFUSED)
+    try:
+        trigger = _word(trigger, PromptTrigger, "trigger")
+        every = None if every is None else _word(every, PromptEvery, "every")
+        while_running = _word(while_running, WhileRunning, "while_running")
+    except StateError:
+        raise Refused(Refusal.OCCASION_INVALID) from None
+    if trigger == PromptTrigger.AFTER_TURN and while_running != WhileRunning.QUEUE:
+        raise Refused(Refusal.OCCASION_INVALID)
+    if trigger == PromptTrigger.AFTER_TURN:
+        shaped = at is None and every is None and occurrences == 1 and until is None
+        due = current
+    else:
+        shaped = (at is not None and (every is not None) == (trigger == PromptTrigger.RECURRING)
+                  and type(occurrences) is int and occurrences in OCCURRENCES
+                  and (occurrences == 1 or trigger == PromptTrigger.RECURRING))
+        due = at
+    if trigger == PromptTrigger.RECURRING and until is None:
+        until = current + PROMPT_SPAN
+    try:
+        due = _timestamp(due, "time")
+        until = None if until is None else _timestamp(until, "until")
+    except StateError:
+        raise Refused(Refusal.OCCASION_INVALID) from None
+    if (not shaped or (trigger != PromptTrigger.AFTER_TURN and due < current - 60)
+            or (until is not None and not current < until <= current + PROMPT_SPAN)):
+        raise Refused(Refusal.OCCASION_INVALID)
+    return trigger, every, while_running, due, until
+
+
 class PromptsMixin:
     def add_prompt(self, thread_id, words, trigger, *, at=None, every=None, occurrences=1, until=None,
-                   depends=False, now=None) -> int:
+                   depends=False, while_running=WhileRunning.QUEUE, now=None) -> int:
         """A person's prompt, waiting, last in its conversation's queue; its id. Refused (Refused) for words that
         are empty or too long (prompt_refused), a time or schedule that is not one on offer (occasion_invalid),
         twenty waiting in all or five in that conversation (queue_full), and a prompt that waits for the one
-        before it where there is none (dependency_unknown)."""
+        before it where there is none (dependency_unknown). `while_running` (v0.6.19, #50): what it does while a turn
+        of its conversation runs - after_turn goes into Codex's queue by its nature, so it waits for nothing."""
         _thread(thread_id)
         current = self._now(now)
-        if not isinstance(words, str) or not words.strip() or len(words) > WORDS_LIMIT:
-            raise Refused(Refusal.PROMPT_REFUSED)
-        try:
-            trigger = _word(trigger, PromptTrigger, "trigger")
-            every = None if every is None else _word(every, PromptEvery, "every")
-        except StateError:
-            raise Refused(Refusal.OCCASION_INVALID) from None
-        if trigger == PromptTrigger.AFTER_TURN:
-            shaped = at is None and every is None and occurrences == 1 and until is None
-            due = current
-        else:
-            shaped = (at is not None and (every is not None) == (trigger == PromptTrigger.RECURRING)
-                      and type(occurrences) is int and occurrences in OCCURRENCES
-                      and (occurrences == 1 or trigger == PromptTrigger.RECURRING))
-            due = at
-        if trigger == PromptTrigger.RECURRING and until is None:
-            until = current + PROMPT_SPAN
-        try:
-            due = _timestamp(due, "time")
-            until = None if until is None else _timestamp(until, "until")
-        except StateError:
-            raise Refused(Refusal.OCCASION_INVALID) from None
-        if (not shaped or (trigger != PromptTrigger.AFTER_TURN and due < current - 60)
-                or (until is not None and not current < until <= current + PROMPT_SPAN)):
-            raise Refused(Refusal.OCCASION_INVALID)
+        trigger, every, while_running, due, until = _occasion(words, trigger, at, every, occurrences, until,
+                                                              while_running, current)
         with self._transaction() as connection:
             waiting = connection.execute("SELECT thread_id FROM prompts WHERE state IN (?,?,?)", PENDING).fetchall()
             if len(waiting) >= PROMPTS_LIMIT or sum(row[0] == thread_id for row in waiting) >= PER_CONVERSATION:
@@ -84,10 +105,48 @@ class PromptsMixin:
                 raise Refused(Refusal.DEPENDENCY_UNKNOWN)
             cursor = connection.execute(
                 "INSERT INTO prompts (thread_id, words, trigger, at, every, occurrences, sent_count, until, depends, "
-                "position, state, created_at, due_at) VALUES (?,?,?,?,?,?,0,?,?,?,?,?,?)",
+                "position, state, created_at, due_at, while_running) VALUES (?,?,?,?,?,?,0,?,?,?,?,?,?,?)",
                 (thread_id, words, trigger, None if trigger == PromptTrigger.AFTER_TURN else due, every, occurrences,
-                 until, int(bool(depends)), 0 if last is None else last + 1, PromptState.WAITING, current, due))
+                 until, int(bool(depends)), 0 if last is None else last + 1, PromptState.WAITING, current, due,
+                 while_running))
             return cursor.lastrowid
+
+    def edit_prompt(self, prompt_id, generation, words, trigger, *, at=None, every=None, occurrences=1, depends=False,
+                    while_running=WhileRunning.QUEUE, now=None) -> None:
+        """A person's edit of one prompt still waiting (v0.6.19, #50): its words, when it goes, whether it waits for the
+        one before it and what it does while a turn runs - its conversation and its place kept. Refused (Refused) as
+        add_prompt refuses the same fields; where anything moved since the list was read at `generation`
+        (stale_generation); and for a prompt that is not waiting with no occurrence made - due, being sent, held,
+        finished or gone (invalid_request) - checked in the writing transaction, so an edit never reaches a message
+        core may be sending. A series keeps the occurrences it used and the 30 days from when it was written."""
+        if type(prompt_id) is not int:
+            raise Refused(Refusal.INVALID_REQUEST)
+        if type(generation) is not int:
+            raise Refused(Refusal.STALE_GENERATION)
+        current = self._now(now)
+        with self._transaction(create=False) as connection:
+            if connection is None:
+                raise Refused(Refusal.INVALID_REQUEST)
+            if connection.execute("SELECT generation FROM meta").fetchone()[0] != generation:
+                raise Refused(Refusal.STALE_GENERATION)
+            row = connection.execute("SELECT thread_id, position, created_at, sent_count FROM prompts WHERE prompt_id=? "
+                                     "AND state=? AND record_id IS NULL AND launching_at IS NULL AND sent_at IS NULL",
+                                     (prompt_id, PromptState.WAITING)).fetchone()
+            if row is None:
+                raise Refused(Refusal.INVALID_REQUEST)
+            until = row["created_at"] + PROMPT_SPAN if str(trigger) == PromptTrigger.RECURRING else None
+            trigger, every, while_running, due, until = _occasion(words, trigger, at, every, occurrences, until,
+                                                                  while_running, current)
+            if occurrences < row["sent_count"] or (row["sent_count"] and trigger != PromptTrigger.RECURRING):
+                raise Refused(Refusal.OCCASION_INVALID)
+            if depends and connection.execute("SELECT 1 FROM prompts WHERE thread_id=? AND position<?",
+                                              (row["thread_id"], row["position"])).fetchone() is None:
+                raise Refused(Refusal.DEPENDENCY_UNKNOWN)
+            connection.execute(
+                "UPDATE prompts SET words=?, trigger=?, at=?, every=?, occurrences=?, until=?, depends=?, due_at=?, "
+                "while_running=?, reason=NULL, gate=NULL, gate_reason=NULL WHERE prompt_id=?",
+                (words, trigger, None if trigger == PromptTrigger.AFTER_TURN else due, every, occurrences, until,
+                 int(bool(depends)), due, while_running, prompt_id))
 
     def prompts(self, *, thread_id=None, pending=True) -> list:
         """The prompts in queue order - by conversation, then place - each with its current occurrence's record
@@ -176,6 +235,30 @@ class PromptsMixin:
             return connection.execute("UPDATE prompts SET state=?, reason=NULL, depends=0 WHERE prompt_id=? AND state=?",
                                       (PromptState.WAITING, prompt_id, PromptState.HELD)).rowcount == 1
 
+    def clear_done(self, prompt_ids, generation) -> dict:
+        """A person's Delete completed (v0.6.19, #50): of the prompts `prompt_ids` the Dashboard showed as completed,
+        each still finished as completed work (COMPLETED) deleted - its row alone, never its occurrence's row of
+        `records`, which the ledger's caps count - and every other one left as it is and counted: one that moved on,
+        is gone, or was never completed. {"deleted": n, "skipped": n}. Refused (Refused) for ids that are not a list of
+        distinct prompt ids (invalid_request), and as a whole, deleting nothing, where anything moved since the list was
+        read at `generation` (stale_generation) - checked in the deleting transaction."""
+        if (not isinstance(prompt_ids, (list, tuple)) or not 0 < len(prompt_ids) <= CLEAR_MOST
+                or any(type(prompt) is not int for prompt in prompt_ids) or len(set(prompt_ids)) != len(prompt_ids)):
+            raise Refused(Refusal.INVALID_REQUEST)
+        if type(generation) is not int:
+            raise Refused(Refusal.STALE_GENERATION)
+        deleted = 0
+        with self._transaction(create=False) as connection:
+            if connection is None:
+                raise Refused(Refusal.STALE_GENERATION)
+            if connection.execute("SELECT generation FROM meta").fetchone()[0] != generation:
+                raise Refused(Refusal.STALE_GENERATION)
+            for prompt in prompt_ids:
+                deleted += connection.execute(
+                    "DELETE FROM prompts WHERE prompt_id=? AND state=? AND reason IN (%s) AND words IS NULL"
+                    % ",".join("?" for _ in COMPLETED), (prompt, PromptState.DONE, *COMPLETED)).rowcount
+        return {"deleted": deleted, "skipped": len(prompt_ids) - deleted}
+
     def end_prompts(self, reason, *, thread_id=None, at=None) -> int:
         """Every prompt still to go whose occurrence is not in flight - of `thread_id`, or all - ended with `reason`
         (turned off, the conversation switched off), its words gone. One in flight is left to core's watch,
@@ -230,13 +313,14 @@ def next_slot(row):
 
 
 class PromptMovesMixin:
-    def prompt_moved(self, record_id, move, *, at=None, queue_id=None) -> dict | None:
+    def prompt_moved(self, record_id, move, *, at=None, queue_id=None, gate=None, reason=None) -> dict | None:
         """What core told of a prompt's occurrence (P14), in one transaction across the prompt and its record: sent,
         the queue item is kept, and so are its words while Codex holds it (they go when it ends); handed back or
         never started, it waits again; delivered, unproven, superseded or handed over, the occurrence is used - a
         series waits for its next, anything else is done; withdrawn on a person's Cancel, it is cancelled, and on a
-        Pause held for them to say go on or cancel (no guess, E1); refused by Codex, said, and left. The capability and
-        whether it turns it off (UNPROVEN), or None where it is no prompt's."""
+        Pause held for them to say go on or cancel (no guess, E1); refused by Codex, said, and left; waiting (v0.6.19,
+        #50), the gate and the reason core named kept, as a reset message's are - what open_to_send reads. The
+        capability and whether it turns it off (UNPROVEN), or None where it is no prompt's."""
         _key(record_id, "record id")
         now = self._now(at)
         move = str(move)
@@ -287,7 +371,12 @@ class PromptMovesMixin:
                 connection.execute("UPDATE prompts SET reason=? WHERE prompt_id=?", (PromptReason.WITHDRAW_REFUSED,
                                                                                      prompt))
                 connection.execute("UPDATE records SET withdraw=0 WHERE record_id=?", (record_id,))
-            elif move != "waiting":
+            elif move == "waiting":
+                gate, reason = _gate_word(gate), _gate_word(reason)
+                if (row["gate"], row["gate_reason"]) != (gate, reason):
+                    connection.execute("UPDATE prompts SET gate=?, gate_reason=? WHERE prompt_id=?", (gate, reason,
+                                                                                                    prompt))
+            else:
                 return None
             return {"capability": PROMPT_QUEUE, "trip": move == "unproven"}
 

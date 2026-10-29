@@ -1,5 +1,5 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
-"""The Stop hook (stop_hook_continuation, v0.6.19): the handler Codex runs, through gui/HookLauncher.cs, when a turn
+"""The Stop hook (stop_hook_continuation, v0.6.20): the handler Codex runs, through gui/HookLauncher.cs, when a turn
 stops - its input read through an allow-list of keys (handler.py), and the format Codex declares, calls and hears it
 in, in one place (format.py).
 

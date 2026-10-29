@@ -32,9 +32,21 @@ NOW = 1000000.0
 RECORDS = {
     # Waiting on a usage reset that has already passed: the case Retry now is for.
     "reset_passed":      ({"code": "waiting_reset", "reset_at": NOW - 60}, True, False),
-    # Still ahead. Retry now would not move it, and a button that does nothing is worse
-    # than no button.
-    "reset_ahead":       ({"code": "waiting_reset", "reset_at": NOW + 600}, False, False),
+    # Still ahead, of a usage limit: v0.6.19 (issue #50) Retry now reads usage once there, so it is offered - the
+    # click is how a limit that lifted early goes on (the owner, 2026-10-24: beta.2's Retry now could not be clicked).
+    "reset_ahead":       ({"code": "waiting_reset", "category": "usage_limit", "reset_at": NOW + 600}, True, False),
+    # A reset still ahead of anything else Retry now cannot move, and a button that does nothing is worse than none.
+    "reset_ahead_other": ({"code": "waiting_reset", "reset_at": NOW + 600}, False, False),
+    # Where the reason it waits is already in view, a reset ahead offers nothing more: paused, the conversation off,
+    # held for a person, or a postponement of the person's own still ahead (which Retry now never shortens).
+    "reset_ahead_paused": ({"code": "waiting_reset", "category": "usage_limit", "reset_at": NOW + 600,
+                            "overlays": ["paused"]}, False, False),
+    "reset_ahead_off":   ({"code": "waiting_reset", "category": "usage_limit", "reset_at": NOW + 600,
+                           "overlays": ["thread_disabled"]}, False, False),
+    "reset_ahead_held":  ({"code": "waiting_reset", "category": "usage_limit", "reset_at": NOW + 600,
+                           "overlays": ["held"], "hold": "ask"}, False, False),
+    "reset_ahead_postponed": ({"code": "waiting_reset", "category": "usage_limit", "reset_at": NOW + 600,
+                               "not_before": NOW + 900}, False, False),
     "reset_unknown":     ({"code": "waiting_usage"}, True, False),
     "waiting_thread":    ({"code": "waiting_thread"}, True, False),
     "scheduled":         ({"code": "scheduled"}, True, False),

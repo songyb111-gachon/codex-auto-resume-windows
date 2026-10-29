@@ -594,8 +594,11 @@ static class FakePython
         string ran = System.Environment.GetEnvironmentVariable("CAR_RAN");
         if (!string.IsNullOrEmpty(ran)) System.IO.File.AppendAllText(ran, string.Join(" ", args) + "\n");
         // 5 unless a case says otherwise: CAR_PROBE_CODE for `watcher-running`, CAR_SETUP_CODE for anything else.
+        // The script's command follows the interpreter's options (-X disable-remote-debug, v0.6.19-beta.3) and the script.
+        int script = 0;
+        while (script < args.Length && args[script].StartsWith("-")) script += args[script] == "-X" ? 2 : 1;
         string said = System.Environment.GetEnvironmentVariable(
-            args.Length > 1 && args[1] == "watcher-running" ? "CAR_PROBE_CODE" : "CAR_SETUP_CODE");
+            args.Length > script + 1 && args[script + 1] == "watcher-running" ? "CAR_PROBE_CODE" : "CAR_SETUP_CODE");
         int code;
         return int.TryParse(said, out code) ? code : 5;
     }
@@ -692,7 +695,7 @@ class BootstrapRepairTests(unittest.TestCase):
         sources = [line for line in output.splitlines() if line.startswith("SOURCE ")]
         self.assertEqual(len(sources), 1, output[-2000:])
         setup = self.home / "app" / "scripts" / "plugin_setup.py"
-        self.assertIn("& '%s' '%s' 'setup' '--keep-state'" % (self.python, setup), sources[0])
+        self.assertIn("& '%s' '-X' 'disable-remote-debug' '%s' 'setup' '--keep-state'" % (self.python, setup), sources[0])
         self.assertNotIn("FAKE-PYTHON", output, "the setup ran here as well")
 
     def test_a_relaunch_that_fails_runs_it_here_and_says_so_once(self):
@@ -713,7 +716,7 @@ class BootstrapRepairTests(unittest.TestCase):
             with self.subTest(environment):
                 code, output = self.run_it(**environment)
                 self.assertEqual(code, expected, output[-2000:])
-                self.assertIn("FAKE-PYTHON args=%s watcher-running" % setup, output)
+                self.assertIn("FAKE-PYTHON args=-X disable-remote-debug %s watcher-running" % setup, output)
 
     def test_only_a_2_is_looked_at_again(self):
         code, output = self.run_it(CAR_SETUP_CODE="1", CAR_PROBE_CODE="0")

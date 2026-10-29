@@ -61,7 +61,7 @@ def cmd_install(args) -> int:
                 launcher = app.paths.home / "watcher-launcher.py"
                 target = launcher if launcher.is_file() else app.paths.entry_script
                 arguments = " ".join(startup.quote_argument(argument) for argument in
-                                     (str(target), "--home", str(app.paths.home), "status"))
+                                     (*startup.NO_REMOTE_DEBUG, str(target), "--home", str(app.paths.home), "status"))
                 shortcut.install(target=startup.python_launcher(), arguments=arguments,
                                  icon=icon, description="Codex Auto Resume")
             _print("notification sender   : %s" % startup.AUMID_DISPLAY_NAME)
@@ -265,12 +265,13 @@ def cmd_uninstall(args) -> int:
 
 
 def cmd_diagnostics(args) -> int:
-    from .. import checkup, control, diagnostics
+    from .. import checkup, control, diagnostics, ownreport
     paths = config.Paths(args.home)
     target = Path(args.out) if args.out else Path.cwd() / diagnostics.default_name()
     try:
         surface = control.Control(paths)
-        written = diagnostics.write(surface, target, check=checkup.for_bundle(surface))
+        written = diagnostics.write(surface, target, check=checkup.for_bundle(surface),
+                                    report=ownreport.for_bundle(paths))
     except FileExistsError as exc:
         raise CliError(str(exc)) from None
     _print("diagnostics written to %s" % written)

@@ -31,6 +31,23 @@ namespace CodexAutoResume
     {
         partial void RenderStateNamed(Dictionary<string, object> frame, RenderWriter writer, ref bool moved)
         {
+            // v0.6.19: the Chat page, at the conversation the frame names ("chat"), once the edition and its list answered.
+            if (Str(frame, "page") == ChatPageName)
+            {
+                if (!RenderUntil(delegate { return advancedWords != null; }))
+                    throw new InvalidDataException("the advanced edition did not answer with its words");
+                string thread = Str(frame, "chat");
+                if (thread != null && ChatShape.IsMatch(thread) && thread != chatThread) askedChat = thread;
+                if (currentPage != ChatPageName || askedChat != null)
+                {
+                    ShowChat();
+                    moved = true;
+                }
+                if (!RenderUntil(delegate { return advancedListing != null && !advancedReading; }))
+                    throw new InvalidDataException("the advanced features' list was not read");
+                FillChatPage(null);
+                return;
+            }
             if (Str(frame, "page") != AdvancedPageName) return;
             if (!RenderUntil(delegate { return advancedWords != null; }))
                 throw new InvalidDataException("the advanced edition did not answer with its words");

@@ -25,17 +25,19 @@ Diagnostics and Settings. Overview shows the watcher state, what is pending and 
 your settings, every record's state, reason and the checks it is waiting on, the content-free
 journal, and the last 300 lines of each log. Conversation and interruption ids become aliases that
 mean nothing outside that file, and paths, your Windows user name and e-mail-shaped text are
-removed. Read it, then attach it instead of raw logs. `python src\auto_resume.py diagnostics`
-writes the same file.
+removed. Read it, then attach it instead of raw logs. `python src/auto_resume.py diagnostics`
+writes the same file. The Diagnostics page also names the Codex version that is running and the word the
+compatibility data gives it (*Verified*, *Checked*, *Compatible*, *Failed here*, *Incompatible* or *Unknown*):
+say both in a report. The terminal commands below are for a source checkout.
 
 From a terminal, if you installed from source:
 
 ```bash
-python src\auto_resume.py doctor
+python src/auto_resume.py doctor
 ```
 
 ```bash
-python src\auto_resume.py status
+python src/auto_resume.py status
 ```
 
 `doctor` reports the discovered Codex engine, whether the app is paired, whether the Restart
@@ -48,8 +50,8 @@ Whichever of these apply:
 
 | Problem | Useful to include |
 | --- | --- |
-| **Install, upgrade or repair failed** | The full `Install.cmd` output, your Windows version, and whether the Codex app was open |
-| **Codex version compatibility** | The engine version from `doctor`, and the word it gives it: *verified*, *checked*, *compatible*, *failed here*, *incompatible* or *unknown* |
+| **Install, upgrade or repair failed** | The setup window's last page (the exit code and the log) or the full `Install.cmd` output, your Windows version, and whether the Codex app was open |
+| **Codex version compatibility** | The Codex version from the Diagnostics page (or from `doctor` in a source checkout), and the word it gives it: *verified*, *checked*, *compatible*, *failed here*, *incompatible* or *unknown* |
 | **A failure was recovered that should not have been** | The failure category shown in `pending` or the log line, and what you expected instead |
 | **A recoverable failure was missed** | What Codex showed you, and the log lines around that time |
 | **A task stayed at `waiting_for_loaded_thread`** | Whether the conversation was open in the app — see the note below |
@@ -94,9 +96,11 @@ times for one task; after that the button goes quiet and the task has to be cont
 hand. The settings panel in Codex has no control for it.
 
 **Windows warns about the installer, or blocks it.** Nothing this project builds is
-Authenticode-signed: not `Install.cmd` or `Uninstall.cmd`, not the PowerShell scripts, and not
-the two small programs in the release - the settings window and the MCP launcher. A `.cmd` file
-cannot carry an embedded signature. SmartScreen may warn when you run them from a ZIP you
+Authenticode-signed: not the setup program, the file most people run, not `Install.cmd` or
+`Uninstall.cmd`, not the PowerShell scripts, and not the two small programs in the release - the
+settings window and the MCP launcher. When SmartScreen says *Windows protected your PC*, choose
+**More info**, then **Run anyway**, once you have checked the file as described below. A `.cmd` file
+cannot carry an embedded signature. SmartScreen may also warn when you run them from a ZIP you
 downloaded and extracted with Explorer, because the extracted files keep the download's mark of
 the web, and Smart App Control, where it is on, may block the unsigned programs. The process
 that runs at sign-in is the bundled `pythonw.exe`, which keeps the Python Software Foundation's

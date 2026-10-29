@@ -1,0 +1,29 @@
+{
+  "command": "home-suggestion",
+  "cases": [
+    {
+      "case": "a copy run from a checkout looks nowhere",
+      "argument": null,
+      "reply": {
+        "ok": true,
+        "result": {
+          "on": true,
+          "path": null,
+          "full": false
+        }
+      }
+    },
+    {
+      "case": "a folder the account's CODEX_HOME names, not watched yet",
+      "argument": null,
+      "reply": {
+        "ok": true,
+        "result": {
+          "on": true,
+          "path": "<scratch>\\other-codex",
+          "full": false
+        }
+      }
+    }
+  ]
+}
