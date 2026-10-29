@@ -25,7 +25,8 @@ from test_gui_v0611_access import CSC, POWERSHELL, compile_window
 CASES = [{"name": "retry", "snapshot": "running", "action": "retry"},
          {"name": "rescan", "snapshot": "running", "action": "rescan"},
          {"name": "retry_stopped", "snapshot": "stopped", "action": "retry"},
-         {"name": "rescan_attention", "snapshot": "attention", "action": "rescan"}]
+         {"name": "rescan_attention", "snapshot": "attention", "action": "rescan"},
+         {"name": "start", "snapshot": "stopped", "action": "start"}]
 
 
 @unittest.skipUnless(CSC.is_file() and POWERSHELL.is_file(), "needs the in-box compiler and PowerShell")
@@ -34,7 +35,7 @@ class WindowTests(unittest.TestCase):
     def setUpClass(cls):
         cls.folder = tempfile.TemporaryDirectory()
         work = Path(cls.folder.name).resolve()
-        cls.case = BusyCase(compile_window(work), work, CASES, hold="retry-now,rescan")
+        cls.case = BusyCase(compile_window(work), work, CASES, hold="retry-now,rescan,start-watcher")
         cls.answer = cls.case.run()
 
     @classmethod
@@ -69,6 +70,14 @@ class WindowTests(unittest.TestCase):
         found = self.answer["rescan_attention"]
         self.assertEqual((found["before"], found["during"], found["during_tick"], found["after"]),
                          ("attention", "attention", "attention", "attention"))
+
+
+    def test_starting_the_watcher_shows_the_working_light_beside_its_words(self):
+        """Fails with the light left as it was: the grey of a watcher that is not running, beside "Starting the watcher..."."""
+        found = self.answer["start"]
+        self.assertEqual(found["before"], "idle")
+        self.assertEqual(found["during"], "checking")
+        self.assertEqual(found["headline"], "Starting the watcher...")
 
 
 class SourceTests(unittest.TestCase):

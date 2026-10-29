@@ -103,6 +103,17 @@ try {
         $result = @{ before = (Light $form) }
         $busy = $F.GetField('busy', $flags)
         $F.GetField('DialogAnswers', $flags).SetValue($null, [Func[string,string,bool]]{ param($text, $affirm) $true })
+        if ($case.action -eq 'start') {
+            # Start watcher (v0.6.20): not an action SetBusy counts, but "Starting the watcher..." in the headline - and the light.
+            Call $form 'StartWatcher' @() | Out-Null
+            $result.during = (Light $form)
+            $result.headline = [string](Field $form 'headline').Text
+            $F.GetField('DialogAnswers', $flags).SetValue($null, $null)
+            $form.Dispose()
+            $PB.GetMethod('Stop', $flags).Invoke($bridge, @())
+            $out[[string]$case.name] = $result
+            continue
+        }
         if ($case.action -eq 'retry') { Call $form 'RetryNow' @() | Out-Null }
         elseif ($case.action -eq 'rescan') { Call $form 'Rescan' @() | Out-Null }
         else {
