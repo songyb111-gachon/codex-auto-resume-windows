@@ -588,6 +588,9 @@ namespace CodexAutoResume
         private readonly Sideways sideways;
         private ScrollInfo scroll, sideScroll;
         private bool native, nativeAcross, queued;
+        // v0.6.20: whether a mirrored list wider than it is has been scrolled to its first column, at the right
+        // (StartAtFirstColumn); let go when its columns fit again.
+        private bool startedRight;
 
         internal SoftListHost(ListView list)
         {
@@ -760,6 +763,39 @@ namespace CodexAutoResume
             Read();
             bar.Track = native ? TrackBounds() : Rectangle.Empty;
             acrossBar.Track = nativeAcross ? AcrossBounds() : Rectangle.Empty;
+            StartAtFirstColumn();
+        }
+
+        /// Whether the list now shows its first column, at the right where it stands mirrored: scrolled sideways as far as
+        /// it goes. True for a list whose columns fit.
+        internal bool AtFirstColumn
+        {
+            get
+            {
+                Read();
+                int range = Math.Max(0, sideScroll.Max - sideScroll.Min + 1 - Math.Max(1, sideScroll.Page));
+                return !nativeAcross || range == 0 || Math.Max(0, sideScroll.Position - sideScroll.Min) >= range;
+            }
+        }
+
+        /// v0.6.20: a mirrored list whose columns are wider than it is - in a window narrower than they shrink to - starts
+        /// scrolled to its first column, which stands at the right of its columns (MirrorColumns), as a list left to right
+        /// starts at its first column at the left. Once each time its columns stop fitting; the person scrolls it after that.
+        private void StartAtFirstColumn()
+        {
+            if (!nativeAcross)
+            {
+                startedRight = false;
+                return;
+            }
+            if (startedRight || !Mirror.Of(this) || !List.IsHandleCreated) return;
+            startedRight = true;
+            Read();
+            int range = Math.Max(0, sideScroll.Max - sideScroll.Min + 1 - Math.Max(1, sideScroll.Page));
+            int by = range - Math.Max(0, sideScroll.Position - sideScroll.Min);
+            if (by > 0) SendMessage(List.Handle, LVM_SCROLL, new IntPtr(by), IntPtr.Zero);
+            Read();
+            acrossBar.Track = AcrossBounds();
         }
 
         // Beside the rows: from under the column headings to the bottom, or to the bar along it.

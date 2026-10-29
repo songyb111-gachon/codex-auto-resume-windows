@@ -282,6 +282,29 @@ foreach ($rtl in @('No', 'Yes')) {
         $form.Dispose()
     }
 }
+Add-Type -Namespace W8a -Name Scroll -MemberDefinition '[DllImport("user32.dll")] public static extern int GetScrollPos(System.IntPtr w, int bar);'
+$listType = $assembly.GetType('CodexAutoResume.SoftList', $true)
+$hostType = $assembly.GetType('CodexAutoResume.SoftListHost', $true)
+$out.wide = @{}
+foreach ($rtl in @('No', 'Yes')) {
+    $form = New-Object Windows.Forms.Form
+    $form.RightToLeft = $rtl
+    $form.TopLevel = $false
+    $form.ClientSize = New-Object Drawing.Size(400, 240)
+    $list = $listType.GetConstructors($any)[0].Invoke(@())
+    $list.View = 'Details'
+    foreach ($name in @('first', 'second', 'third')) { $null = $list.Columns.Add($name, 300) }
+    foreach ($row in 1..3) { $null = $list.Items.Add((New-Object Windows.Forms.ListViewItem -ArgumentList (,[string[]]@('a', 'b', 'c')))) }
+    $wideHost = $hostType.GetConstructors($any)[0].Invoke(@($list))
+    $wideHost.Dock = 'Fill'
+    $form.Controls.Add($wideHost)
+    $null = $form.Handle; $null = $wideHost.Handle; $null = $list.Handle
+    $form.PerformLayout(); $wideHost.PerformLayout()
+    $out.wide[$rtl] = @{ across = [bool]$hostType.GetProperty('OverflowingAcross', $any).GetValue($wideHost, $null)
+                         first = [bool]$hostType.GetProperty('AtFirstColumn', $any).GetValue($wideHost, $null)
+                         position = [W8a.Scroll]::GetScrollPos($list.Handle, 0) }
+    $form.Dispose()
+}
 $out | ConvertTo-Json -Depth 4 -Compress
 """
 
@@ -324,6 +347,16 @@ class MirrorKeyTests(unittest.TestCase):
         # Left, then Right, from the middle choice of three.
         self.assertEqual(self.answer["combo"]["No"], [0, 2], "left to right: Left the one before, Right the next")
         self.assertEqual(self.answer["combo"]["Yes"], [2, 0], "mirrored: Left the next, Right the one before")
+
+    def test_a_list_wider_than_it_is_starts_at_its_first_column(self):
+        """Mirrored, the first column stands at the right of the columns (SoftListHost.MirrorColumns), so a list wider
+        than it is starts scrolled all the way, as it starts at the left left to right."""
+        for rtl in ("No", "Yes"):
+            with self.subTest(rtl=rtl):
+                self.assertTrue(self.answer["wide"][rtl]["across"], "the columns are wider than the list")
+                self.assertTrue(self.answer["wide"][rtl]["first"])
+        self.assertEqual(self.answer["wide"]["No"]["position"], 0, "left to right it starts at the left")
+        self.assertGreater(self.answer["wide"]["Yes"]["position"], 0, "mirrored it starts scrolled to the right")
 
     def test_a_strip_of_tabs_hands_its_arrows_on_mirrored(self):
         body = guiscan.member_body("NavButton", "ProcessDialogKey")
