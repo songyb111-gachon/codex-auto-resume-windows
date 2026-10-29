@@ -112,7 +112,7 @@ UNANSWERED = frozenset({
     BridgeCommand.ADVANCED_FLEET_SAVE,
     BridgeCommand.ADVANCED_ACCOUNT, BridgeCommand.ADVANCED_ACCOUNT_SWITCH})
 ARGUMENTS.update({command: frozenset() for command in UNANSWERED})
-# usage_analytics (v0.6.19, control/analytics.py): its card read, and its CSV saved where the person chose.
+# usage_analytics (v0.6.20, control/analytics.py): its card read, and its CSV saved where the person chose.
 ARGUMENTS.update({BridgeCommand.ADVANCED_ANALYTICS: frozenset({"days"}),
                   BridgeCommand.ADVANCED_ANALYTICS_CSV: frozenset({"days", "path", "replace"})})
 # #50 (v0.6.19): the completed prompts the Dashboard showed, deleted from the list (control/prompts.clear_done).

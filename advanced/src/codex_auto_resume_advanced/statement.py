@@ -210,7 +210,7 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "option.custom",
     # (j) the percentages of a window in order, and the forced stop below the words' stop only said.
     "refused.option_order", "warn.stop_before_words"))
-# usage_analytics (v0.6.19): how many days its card shows (OptionKey.ANALYTICS_DAYS).
+# usage_analytics (v0.6.20): how many days its card shows (OptionKey.ANALYTICS_DAYS).
 PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in ("option.analytics_days",))
 # v0.6.19 (wake_for_reset): its one choice's label, how many minutes before a reset the PC is woken.
 PAGE_KEYS = PAGE_KEYS + (PAGE_PREFIX + "option.wake_lead_minutes",)

@@ -1,4 +1,4 @@
-"""The rollout reader of usage_analytics (v0.6.19, codex/tokens.py): four numbers and a turn count from each rollout,
+"""The rollout reader of usage_analytics (v0.6.20, codex/tokens.py): four numbers and a turn count from each rollout,
 read from where the last pass stopped, within its byte caps - never a word of a prompt, a tool's output or reasoning.
 
     PYTHONPATH=src;advanced/src python -m unittest discover -s advanced/tests -p test_advanced_tokens_reader.py

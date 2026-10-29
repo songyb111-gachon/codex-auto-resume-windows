@@ -19,7 +19,7 @@ it at all: a secret goes to Windows Credential Manager (credentials.py).
     meter     the usage meter's last reading of each window, and what each stage acted for (v0.6.16-beta.3)
     runs      a turn run here (v0.6.16-beta.4)
     chat      the Dashboard's chat messages (v0.6.16-beta.4)
-    analytics the tokens each conversation used a day, the rollouts read, and the meter's samples (v0.6.19)
+    analytics the tokens each conversation used a day, the rollouts read, and the meter's samples (v0.6.20)
     restarts  the watcher's restarts after it stopped unexpectedly (v0.6.19, crash_restart)
     opens     the conversations opened in Codex for a waiting message to be sent (v0.6.19, #50)
 """

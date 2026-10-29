@@ -42,7 +42,7 @@ CARRIED = frozenset((capability, choice) for capability in WINDOW_FOLLOWERS for 
 # check's last run, and the newest version it offered and when. Nothing else is ever written so.
 STAMPS = {"idle_update_check": (str(OptionKey.LAST_CHECK), str(OptionKey.OFFERED_VERSION),
                                 str(OptionKey.OFFERED_AT)),
-          # v0.6.19 (usage_analytics): when its last pass over the rollouts ran (engine/analytics.py).
+          # v0.6.20 (usage_analytics): when its last pass over the rollouts ran (engine/analytics.py).
           "usage_analytics": (str(OptionKey.LAST_INGEST),),
           # v0.6.19 (issue #50): early_reset's times for Pending's Why it is waiting, and a person's click's probe.
           "early_reset": (str(OptionKey.CHECKED_AT), str(OptionKey.AVAILABLE_AT), str(OptionKey.LIFTED_AT),
@@ -234,7 +234,7 @@ class Scoped:
             "meter": MeterHandle(state, capability, on),
             # v0.6.16-beta.4: a headless capability's own runs (state/runs.py).
             "runs": RunsHandle(state, capability, on),
-            # v0.6.19: the analytics' files and numbers, and the meter's samples while the analytics stand on.
+            # v0.6.20: the analytics' files and numbers, and the meter's samples while the analytics stand on.
             "analytics": AnalyticsHandle(state, capability, on, armed),
             # v0.6.19: the watcher's restarts after it stopped unexpectedly, written by crash_restart alone
             # (state/restarts.py).

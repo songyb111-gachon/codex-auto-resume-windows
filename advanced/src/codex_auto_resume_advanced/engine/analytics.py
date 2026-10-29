@@ -1,5 +1,5 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
-"""Usage and token analytics (v0.6.19; plans/v0619-design/D-analytics.md): how many tokens each project used a day,
+"""Usage and token analytics (v0.6.20; plans/v0619-design/D-analytics.md): how many tokens each project used a day,
 and at what pace a usage window fills - shown on the Advanced features page, never acted on.
 
 At P8, at most every INGEST_EVERY and only as an errand - the last thing a tick does, after every send's claim - it

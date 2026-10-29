@@ -1,5 +1,5 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
-"""What usage_analytics keeps (v0.6.19; advanced state version 8, the groundwork's tables).
+"""What usage_analytics keeps (v0.6.20; advanced state version 8, the groundwork's tables).
 
     usage_samples  each usage window's share at each reading the meter made while the analytics stood on: the window
                    (a bucket and its length in minutes), when, how full, and when it resets - for the pace (burn rate)
@@ -30,8 +30,8 @@ MAX_MINUTES = 100800
 MOST = 10 ** 13
 DAY = re.compile(r"\A[0-9]{4}-[01][0-9]-[0-3][0-9]\Z")
 HEX16 = re.compile(r"\A[0-9a-f]{16}\Z")
-_DAY_COLUMNS = ("day", "thread_id", "project_key", "input", "cached", "output", "reasoning", "turns")
-_FILE_COLUMNS = ("file_key", "thread_id", "size", "offset", "mtime_ns", "read_at")
+_DAY_COLUMNS = ("day", "thread_id", "project_digest", "input", "cached", "output", "reasoning", "turns")
+_FILE_COLUMNS = ("file_digest", "thread_id", "size", "offset", "mtime_ns", "read_at")
 _SAMPLE_COLUMNS = ("bucket", "minutes", "at", "used_percent", "reset_at")
 
 
@@ -63,7 +63,7 @@ class AnalyticsMixin:
             if connection is None:
                 return {}
             rows = connection.execute("SELECT %s FROM token_files" % ", ".join(_FILE_COLUMNS)).fetchall()
-        return {row["file_key"]: dict(row) for row in rows}
+        return {row["file_digest"]: dict(row) for row in rows}
 
     def ingest_file(self, file_key, thread_id, *, size, offset, mtime_ns, days, project_key, at=None) -> int:
         """One rollout's pass written in one transaction: where it now stands (token_files), and the numbers it read
@@ -86,15 +86,15 @@ class AnalyticsMixin:
             rows.append((day, *[_count(number, "count") for number in numbers]))
         with self._transaction() as connection:
             connection.execute(
-                "INSERT INTO token_files (file_key, thread_id, size, offset, mtime_ns, read_at) VALUES (?,?,?,?,?,?) "
-                "ON CONFLICT(file_key) DO UPDATE SET thread_id=excluded.thread_id, size=excluded.size, "
+                "INSERT INTO token_files (file_digest, thread_id, size, offset, mtime_ns, read_at) VALUES (?,?,?,?,?,?) "
+                "ON CONFLICT(file_digest) DO UPDATE SET thread_id=excluded.thread_id, size=excluded.size, "
                 "offset=excluded.offset, mtime_ns=excluded.mtime_ns, read_at=excluded.read_at",
                 (file_key, thread_id, size, offset, mtime_ns, now))
             for day, input_, cached, output, reasoning, turns in rows:
                 connection.execute(
-                    "INSERT INTO token_days (day, thread_id, project_key, input, cached, output, reasoning, turns) "
+                    "INSERT INTO token_days (day, thread_id, project_digest, input, cached, output, reasoning, turns) "
                     "VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(day, thread_id) DO UPDATE SET "
-                    "project_key=coalesce(excluded.project_key, project_key), input=min(input+excluded.input, ?), "
+                    "project_digest=coalesce(excluded.project_digest, project_digest), input=min(input+excluded.input, ?), "
                     "cached=min(cached+excluded.cached, ?), output=min(output+excluded.output, ?), "
                     "reasoning=min(reasoning+excluded.reasoning, ?), turns=min(turns+excluded.turns, ?)",
                     (day, thread_id, project_key, input_, cached, output, reasoning, turns, MOST, MOST, MOST, MOST,

@@ -1126,7 +1126,7 @@ IDLE_UPDATE_CHECK = CapabilityDef(
     codes=("checked", "offered", "unanswered"),
 )
 
-# Usage and token analytics (v0.6.19, plans/v0619-design/D-analytics.md). At P8, at most every ten minutes and only as
+# Usage and token analytics (v0.6.20, plans/v0619-design/D-analytics.md). At P8, at most every ten minutes and only as
 # the tick's errand, it reads what the watched Codex homes' rollouts added since its last pass - the four numbers of each
 # token_count event and the turns begun, nothing else of a line, at most 2 MiB of a file and 8 MiB a pass
 # (codex/tokens.py) - and keeps them by local day under each conversation's project key (state/analytics.py, token_days
@@ -1346,7 +1346,7 @@ SHOWN_ORDER = ("compat_report", "start_with_codex",
                "early_reset", "parallel_dispatch", "reset_message", "long_reset_message",
                # v0.6.16-beta.3 (issue #29): the usage meter and what it serves, beside the other usage-limit features.
                "usage_meter", "usage_wrap_up", "usage_pause", "keep_going",
-               # v0.6.19: the usage and token analytics, after keep going (the owner's approved order, 2026-10-22).
+               # v0.6.20: the usage and token analytics, after keep going (the owner's approved order, 2026-10-22).
                "usage_analytics",
                "prompt_queue",
                # v0.6.19: chat with a conversation, beside the queued messages (stage 4's Q12).

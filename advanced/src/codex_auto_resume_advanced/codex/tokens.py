@@ -1,5 +1,5 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
-"""The tokens a conversation used, read from its rollout - four numbers and a count, never a word (v0.6.19,
+"""The tokens a conversation used, read from its rollout - four numbers and a count, never a word (v0.6.20,
 usage_analytics; plans/v0619-design/D-analytics.md, "Sources, in order", source 2).
 
 Codex writes a `token_count` event into a conversation's rollout after each model call: how many tokens that call

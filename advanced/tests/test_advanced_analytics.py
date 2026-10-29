@@ -1,4 +1,4 @@
-"""Usage and token analytics (v0.6.19, plans/v0619-design/D-analytics.md): the capability's definition, its pass over
+"""Usage and token analytics (v0.6.20, plans/v0619-design/D-analytics.md): the capability's definition, its pass over
 the rollouts at P8 into token_days and token_files, the meter's samples while it stands on, the narrower route where
 MTOK failed, the 90-day bound - and that nothing core decides or any gate of this edition reads any of it.
 
@@ -115,7 +115,7 @@ class AnalyticsCase(ac.AdvancedCase):
         self.rt.states(fresh=True)
 
     def days(self):
-        return {(row["day"], row["thread_id"]): (row["project_key"], row["input"], row["cached"], row["output"],
+        return {(row["day"], row["thread_id"]): (row["project_digest"], row["input"], row["cached"], row["output"],
                                                  row["reasoning"], row["turns"]) for row in self.rt.state.token_days()}
 
     def file(self, thread):
@@ -134,10 +134,11 @@ class DefinitionTests(unittest.TestCase):
         self.assertIn("usage_analytics", registry.REGISTRY.ids)
         self.assertEqual(statement.CATALOGS.missing(USAGE_ANALYTICS), [])
 
-    def test_it_is_shown_right_after_keep_going_and_answers_last_at_p8(self):
+    def test_it_is_shown_right_after_keep_going_and_answers_at_p8_before_the_wake_timer(self):
         order = registry.SHOWN_ORDER
         self.assertEqual(order[order.index("keep_going") + 1], "usage_analytics")
-        self.assertEqual(registry.REGISTRY.at(Point.TICK)[-1].id, "usage_analytics")
+        # The wake timer stays last at P8, so its errand reads the due times the others' errands kept.
+        self.assertEqual([d.id for d in registry.REGISTRY.at(Point.TICK)][-2:], ["usage_analytics", "wake_for_reset"])
 
     def test_its_route_is_the_rollouts_unless_mtok_failed(self):
         self.assertEqual((analytics.route("pass"), analytics.route(None), analytics.route("fail")),
@@ -328,7 +329,7 @@ class StructureTests(unittest.TestCase):
             sql = connection.execute("SELECT sql FROM sqlite_master WHERE name=?", (table,)).fetchone()[0]
             texts = [row[1] for row in connection.execute("PRAGMA table_info(%s)" % table) if row[2].upper() == "TEXT"]
             with self.subTest(table):
-                self.assertLessEqual(set(texts), {"bucket", "day", "thread_id", "project_key", "file_key"})
+                self.assertLessEqual(set(texts), {"bucket", "day", "thread_id", "project_digest", "file_digest"})
                 for column in texts:
                     self.assertRegex(sql, r"%s\b[^,]*CHECK" % column, column)
 

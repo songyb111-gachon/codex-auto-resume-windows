@@ -463,7 +463,7 @@ class PauseBesideResetCreditTests(UsageCase):
 
 
 class AnalyticsBesideMeterAndPauseTests(UsageCase):
-    """v0.6.19, usage_analytics (observe-only): on beside the meter it requires and the stop near a limit, each still
+    """v0.6.20, usage_analytics (observe-only): on beside the meter it requires and the stop near a limit, each still
     does all it did alone - the meter keeps its reading and warns once, the stop holds a record at its percentage -
     and the analytics keep that same reading as their samples. Nothing of theirs is an answer at any point."""
 

@@ -1,4 +1,4 @@
-"""The pace of a usage window (v0.6.19, usage_analytics; engine/analytics.pace): a least-squares slope over the last
+"""The pace of a usage window (v0.6.20, usage_analytics; engine/analytics.pace): a least-squares slope over the last
 hour of the meter's samples of that window since its last reset, an estimate only with three samples over fifteen
 minutes and a rising slope - and never one past the window's reset.
 
@@ -48,8 +48,9 @@ class PaceTests(unittest.TestCase):
         self.assertEqual((short["enough"], short["eta"]), (False, None))
 
     def test_no_estimate_where_it_would_come_after_the_reset(self):
-        samples = [sample(1800, 50.0), sample(900, 51.0), sample(0, 52.0)]
-        found = pace(samples, row(52.0, reset=NOW + 3600), NOW)
+        soon = NOW + 3600
+        samples = [sample(1800, 50.0, reset=soon), sample(900, 51.0, reset=soon), sample(0, 52.0, reset=soon)]
+        found = pace(samples, row(52.0, reset=soon), NOW)
         self.assertTrue(found["enough"])
         self.assertIsNone(found["eta"])
 

@@ -1,5 +1,5 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
-"""The Dashboard's usage and token analytics (v0.6.19, usage_analytics): its card read, and its CSV saved.
+"""The Dashboard's usage and token analytics (v0.6.20, usage_analytics): its card read, and its CSV saved.
 
 Each is the long-lived bridge's, the Dashboard's alone (surfaces.py); no MCP tool reaches either, and neither writes
 anything of the edition's state.
@@ -163,7 +163,7 @@ def aggregate(runtime, days, *, now=None) -> dict:
     rows = runtime.state.token_days(first_day(now, days)) if way == "per_day" else []
     projects, threads = {}, {}
     for row in rows:
-        key = row["project_key"]
+        key = row["project_digest"]
         project = projects.setdefault(key, {"key": key, "label": None, **_numbers(), "lifetime": None,
                                             "conversations": {}})
         thread = project["conversations"].setdefault(row["thread_id"], {"thread_id": row["thread_id"], "label": None,
@@ -263,7 +263,7 @@ def rows_of(runtime, days, *, now=None) -> list:
     per_day = {}
     if found["route"] == "per_day":
         for row in runtime.state.token_days(first_day(now, days)):
-            numbers = per_day.setdefault((row["day"], row["project_key"]), _numbers())
+            numbers = per_day.setdefault((row["day"], row["project_digest"]), _numbers())
             for name in NUMBERS:
                 numbers[name] += row[name]
     lines = [[day, _cell(label.get(key))] + [numbers[name] for name in NUMBERS] + [""]
