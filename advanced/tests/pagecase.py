@@ -119,6 +119,12 @@ foreach ($job in $jobs) {
     try {
         if ($job.kind -eq 'run') {
             $out[$job.name] = [string]$run.Invoke($null, [object[]]@((Text $job.strings), (Text $job.scenario)))
+        } elseif ($job.kind -eq 'examples') {
+            # v0.6.20: See an example's views on a working area the job stands in (AdvancedExamplesAudit).
+            $examples = $form.GetMethod('AdvancedExamplesAudit', $static)
+            $report = [string]$examples.Invoke($null, [object[]]@((Text $job.strings), (Text $job.words), (Text $job.statements),
+                                                                [double]$job.scale, [int]$job.width, [int]$job.height))
+            $out[$job.name] = @{ report = $report; audited = [int]$audited.GetValue($null) }
         } else {
             $report = [string]$audit.Invoke($null, [object[]]@((Text $job.strings), (Text $job.words), (Text $job.listing),
                                                               (Text $job.statements), (Text $job.kept), (Text $job.reports),

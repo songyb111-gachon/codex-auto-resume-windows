@@ -61,15 +61,15 @@ namespace CodexAutoResume
         }
 
         /// A capability's example: what the standard edition shows without it, and what it shows with it on.
-        private sealed class Example
+        private sealed class CapabilityExample
         {
             internal string Id;
             internal ExampleScene Before, After;
         }
 
-        private static Example Ex(string id, ExampleScene before, ExampleScene after)
+        private static CapabilityExample Ex(string id, ExampleScene before, ExampleScene after)
         {
-            var made = new Example();
+            var made = new CapabilityExample();
             made.Id = id;
             made.Before = before;
             made.After = after;
@@ -195,7 +195,7 @@ namespace CodexAutoResume
 
         /// Every capability's example, in no order: registry.DEFINITIONS and the ones registry.WAITING holds back each have
         /// one (advanced/tests/test_advanced_examples.py).
-        private static Example[] Examples()
+        private static CapabilityExample[] Examples()
         {
             return new[]
             {
@@ -339,9 +339,9 @@ namespace CodexAutoResume
         }
 
         /// The example of `id`, or null where it has none.
-        private static Example ExampleFor(string id)
+        private static CapabilityExample ExampleFor(string id)
         {
-            foreach (Example each in Examples())
+            foreach (CapabilityExample each in Examples())
                 if (each.Id == id) return each;
             return null;
         }
@@ -449,7 +449,7 @@ namespace CodexAutoResume
         /// The view of `id`'s example, shown over this window until it is closed.
         private void OpenExample(string id)
         {
-            Example example = ExampleFor(id);
+            CapabilityExample example = ExampleFor(id);
             if (example == null) return;
             using (Form dialog = BuildExample(example))
             {
@@ -485,7 +485,7 @@ namespace CodexAutoResume
         }
 
         /// The dialog, built and not shown: the note, the two panes and Close.
-        private Form BuildExample(Example example)
+        private Form BuildExample(CapabilityExample example)
         {
             ForgetExample();
             exampleNames = new Dictionary<string, string>();
@@ -577,6 +577,7 @@ namespace CodexAutoResume
             exampleButtons = buttons;
             exampleSaid = null;
             dialog.ClientSize = new Size(across, Px(400));
+            ExampleHeights();
             FitExample(dialog, area);
             return dialog;
         }
@@ -701,15 +702,28 @@ namespace CodexAutoResume
             Control ground = DialogListCard(list);
             ground.Dock = DockStyle.Top;
             ground.Width = width;
-            IntPtr made = list.Handle;
-            int last = list.Items.Count - 1;
-            int listTall = list.GetItemRect(last).Bottom + Px(2);
-            var card = ground.Controls.Count > 0 ? ground.Controls[0] : null;
-            int cardRoom = card == null ? 0 : card.Padding.Vertical;
-            ground.Height = listTall + cardRoom + ground.Padding.Vertical;
-            ground.MinimumSize = new Size(0, ground.Height);
-            MeasureCells(list);
+            // As tall as a row of the window's lists, until the dialog is put together and each list measured (ExampleHeights).
+            ground.Height = Px(34) * (rows.Count + 1) + ground.Padding.Vertical + Px(16);
             return ground;
+        }
+
+        /// Each list's card exactly as tall as its rows, measured once the dialog is put together - in the font it shows,
+        /// with its header - and its columns fitted to what they hold (MeasureCells).
+        private void ExampleHeights()
+        {
+            foreach (ListView list in exampleLists)
+            {
+                Control ground = list;
+                while (ground != null && ground.Name != "dialog_list_ground") ground = ground.Parent;
+                if (ground == null || list.Items.Count == 0) continue;
+                IntPtr made = list.Handle;
+                int bottom = list.GetItemRect(list.Items.Count - 1).Bottom;
+                Control card = ground.Controls.Count > 0 ? ground.Controls[0] : null;
+                int tall = bottom + Px(4) + (card == null ? 0 : card.Padding.Vertical) + ground.Padding.Vertical;
+                ground.MinimumSize = new Size(0, tall);
+                ground.Height = tall;
+                MeasureCells(list);
+            }
         }
 
         /// A sample row as the reads have it: its moments counted from `now`, and this edition's own rows made as Pending
@@ -745,10 +759,13 @@ namespace CodexAutoResume
             record["button_in_about"] = exampleButton.Parent != null && exampleButton.Parent.Controls.Count > 0 &&
                                         exampleButton.Parent.Controls[0].Text == Word("page.about", "About this feature");
             record["button_enabled"] = exampleButton.Enabled;
+            int asked = advancedSent.Count;
             exampleAnswer = delegate(Form dialog) { LookAtExample(dialog, record); };
             // Its Click raised as a press raises it (Pressed): PerformClick does nothing on a button no one can see.
             try { Pressed.Invoke(exampleButton, new object[] { EventArgs.Empty }); }
             finally { exampleAnswer = null; }
+            // What the bridge was asked while the view was open: nothing.
+            record["asked"] = new List<object>(advancedSent.GetRange(asked, advancedSent.Count - asked).ToArray());
             return record;
         }
 
@@ -795,7 +812,6 @@ namespace CodexAutoResume
                     parts.Add(part);
                 }
                 seen["parts"] = parts;
-                seen["ink"] = (double)InkOf(pane);
                 panes.Add(seen);
             }
             record["panes"] = panes;
@@ -825,15 +841,24 @@ namespace CodexAutoResume
         private int InkOf(Control control)
         {
             if (control.Width <= 0 || control.Height <= 0) return 0;
-            using (var picture = new Bitmap(control.Width, control.Height))
+            var bounds = new Rectangle(Point.Empty, control.Size);
+            using (var picture = new Bitmap(control.Width, control.Height, System.Drawing.Imaging.PixelFormat.Format32bppArgb))
             {
-                control.DrawToBitmap(picture, new Rectangle(Point.Empty, control.Size));
-                int count = 0;
-                for (int y = 0; y < picture.Height; y += 2)
-                    for (int x = 0; x < picture.Width; x += 2)
+                control.DrawToBitmap(picture, bounds);
+                System.Drawing.Imaging.BitmapData data = picture.LockBits(bounds, System.Drawing.Imaging.ImageLockMode.ReadOnly,
+                                                                          System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                var pixels = new int[data.Stride / 4 * data.Height];
+                try { System.Runtime.InteropServices.Marshal.Copy(data.Scan0, pixels, 0, pixels.Length); }
+                finally { picture.UnlockBits(data); }
+                Color[] grounds = { Canvas, Card, Palette.Inset, Line };
+                int count = 0, across = data.Stride / 4;
+                for (int y = 0; y < control.Height; y += 2)
+                    for (int x = 0; x < control.Width; x += 2)
                     {
-                        Color seen = picture.GetPixel(x, y);
-                        if (Far(seen, Canvas) && Far(seen, Card) && Far(seen, Palette.Inset) && Far(seen, Line)) count++;
+                        Color seen = Color.FromArgb(pixels[y * across + x]);
+                        bool ground = false;
+                        foreach (Color each in grounds) ground |= !Far(seen, each);
+                        if (!ground) count++;
                     }
                 return count;
             }
@@ -861,7 +886,7 @@ namespace CodexAutoResume
                 foreach (KeyValuePair<string, object> pair in statements)
                     form.advancedStatements[pair.Key] = pair.Value as Dictionary<string, object>;
                 form.exampleArea = new Rectangle(0, 0, width, height);
-                foreach (Example example in Examples())
+                foreach (CapabilityExample example in Examples())
                 {
                     string where = "example/" + example.Id;
                     using (Form dialog = form.BuildExample(example))
