@@ -840,15 +840,15 @@ namespace CodexAutoResume
     /// (normalize, from_system), and its endonyms, which the language picker shows and nothing beside them.
     internal static class InstallerLanguages
     {
-        /// Every catalog, English first, as l10n.LOCALES. ar and he are held (l10n.HELD): laid out and audited, never
-        /// offered, never reached from Windows.
+        /// Every catalog, English first, as l10n.LOCALES. ar and he were held (l10n.HELD) until v0.6.20, when the window
+        /// was mirrored for them (Mirror): every one is offered now.
         internal static readonly string[] All =
         {
             "en", "ko", "ja", "zh-CN", "zh-TW", "es", "de", "fr", "pt-BR", "ru", "it", "tr", "pl", "uk", "vi", "id",
             "ar", "he",
         };
 
-        internal static readonly string[] Held = { "ar", "he" };
+        internal static readonly string[] Held = new string[0];
 
         // The languages whose subtag is their catalog's name (l10n._LANGUAGE_HOME, the rest of it is in Normalize).
         private static readonly string[] Own =

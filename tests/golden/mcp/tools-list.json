@@ -236,7 +236,9 @@
                   "pl",
                   "uk",
                   "vi",
-                  "id"
+                  "id",
+                  "ar",
+                  "he"
                 ],
                 "description": "See the settings documentation."
               },
@@ -259,7 +261,9 @@
                   "pl",
                   "uk",
                   "vi",
-                  "id"
+                  "id",
+                  "ar",
+                  "he"
                 ],
                 "description": "See the settings documentation."
               },
