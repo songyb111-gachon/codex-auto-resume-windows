@@ -840,7 +840,7 @@ namespace CodexAutoResume
                         foreach (ListViewItem item in list.Items)
                         {
                             var cells = new List<object>();
-                            foreach (ListViewItem.ListViewSubItem cell in item.SubItems) cells.Add(cell.Text);
+                            for (int c = 0; c < item.SubItems.Count; c++) cells.Add(item.SubItems[c].Text);
                             rows.Add(cells);
                         }
                         part["rows"] = rows;
