@@ -812,6 +812,8 @@ namespace CodexAutoResume
         private Button rescanButton;
         // Why the selected task is waiting.
         private GateList explainList;
+        // The soft page Why it is waiting scrolls its checks on, for the render mode (WindowRender.cs).
+        private SoftPage explainPage;
         private Label explainAsOf;
         // The Pending list's Auto-resume column, a check box for the task on its row.
         private const int ResumeColumn = 5;

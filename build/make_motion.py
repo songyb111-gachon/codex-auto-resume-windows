@@ -356,6 +356,12 @@ def main(argv=None) -> int:
             else:
                 plan_forms = {locale: {"answers": motion_window.answers(locale, stored)}
                               for locale, stored in plan.get("forms", {}).items()}
+                # Another state of the installation each language's frames may be in (`variant`): the replies of a
+                # paused one, under "<locale>-paused" (gui/WindowRender.cs opens the window on them).
+                for variant in plan.get("variants", ()):
+                    for locale, stored in plan.get("forms", {}).items():
+                        plan_forms["%s-%s" % (locale, variant)] = {"answers": motion_window.answers(
+                            locale, stored, paused=variant == "paused")}
                 report = make(plan, exe, work / plan["name"], plan_forms)
                 size = tuple(plan["canvas"]["size"])
             output = ROOT / plan["output"]

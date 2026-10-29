@@ -52,10 +52,13 @@
   "ripple_step": 16,
   "length": [
     25000,
-    35000
+    48000
   ],
   "budget": {
     "cap": 9000000
   },
-  "light_step_ms": 33
+  "light_step_ms": 33,
+  "variants": [
+    "paused"
+  ]
 }
