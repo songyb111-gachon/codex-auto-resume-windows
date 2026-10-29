@@ -734,10 +734,11 @@ namespace CodexAutoResume
                 form.TopLevel = false;
                 form.FormBorderStyle = FormBorderStyle.None;
                 form.ClientSize = client;
-                form.Location = Point.Empty;
-                form.Parent = this;
+                // Shown as a child of Windows' parking window, as the window itself is (OpenForRender), never as a child
+                // of the window: the grounds in it would stamp the window's own lifts into the dialog.
+                form.CreateControl();
+                IntPtr made = form.Handle;
                 form.Visible = true;
-                form.BringToFront();
                 for (int turn = 0; turn < 20; turn++)
                 {
                     Application.DoEvents();
@@ -763,7 +764,7 @@ namespace CodexAutoResume
                     Point place = RenderDialogPlace(outer, renderOuter);
                     // Client coordinates: the owner's own caption is above them.
                     place.Y -= caption;
-                    PaintDialog(picture, body, place, outer, caption, border, title, icon);
+                    PaintDialog(picture, body, place, outer, caption, border, title, icon, form.BackColor);
                     renderDialogBounds = new Dictionary<string, Rectangle>();
                     renderDialogBounds["dialog.window"] = new Rectangle(place.X, place.Y, outer.Width, outer.Height);
                     if (close != null)
@@ -774,13 +775,12 @@ namespace CodexAutoResume
                                                                           close.Width, close.Height);
                     }
                 }
-                form.Parent = null;
             }
         }
 
         /// The dialog's window over `picture`: a soft shadow, the border, the title bar and the drawn client area.
         private void PaintDialog(Bitmap picture, Bitmap body, Point place, Size outer, int caption, int border,
-                                 string title, Icon icon)
+                                 string title, Icon icon, Color ground)
         {
             Color bar = ChromeColour(renderChrome, "caption", Color.FromArgb(243, 243, 243));
             Color ink = ChromeColour(renderChrome, "ink", Color.Black);
@@ -801,6 +801,10 @@ namespace CodexAutoResume
                     g.FillRectangle(brush, place.X, place.Y, outer.Width, outer.Height);
                 using (var brush = new SolidBrush(bar))
                     g.FillRectangle(brush, place.X + border, place.Y + border, outer.Width - 2 * border, caption - border);
+                // The dialog's own ground under what its controls drew: a control that draws part of itself clear shows it,
+                // not the shadow that lies under the whole window.
+                using (var brush = new SolidBrush(ground))
+                    g.FillRectangle(brush, place.X + border, place.Y + caption, body.Width, body.Height);
                 g.DrawImageUnscaled(body, place.X + border, place.Y + caption);
                 // The product's icon, the title, and the caption buttons: Close, Maximise and the Minimise this dialog
                 // does not offer (MinimizeBox is off), drawn lighter.
