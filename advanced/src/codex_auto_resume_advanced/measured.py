@@ -83,4 +83,9 @@ MEASURED = {
     # refused (-32600) for a turn the Desktop was running (MSTEER).
     Measurement.MIMG: (Verdict.PASS, CLI_0165_ALPHA_1_2),
     Measurement.MSTEER: (Verdict.FAIL, CLI_0165_ALPHA_1_2),
+    # The same evening, the measurement session again: a conversation opened through its link came to the front in about
+    # 7 s but the app held it only after about 13 s, over the ten allowed (MOPEN); a steer over the Desktop's IPC pipe was
+    # accepted and reached the running turn once, but the app never showed the line as the person's message (MSTEER2).
+    Measurement.MOPEN: (Verdict.FAIL, CLI_0165_ALPHA_1_2),
+    Measurement.MSTEER2: (Verdict.FAIL, CLI_0165_ALPHA_1_2),
 }

@@ -149,7 +149,11 @@ class TableTests(unittest.TestCase):
         turn; the turn ran once, and the goal stayed active and carried on after it, so it passed.
         2026-10-29, on codex-cli 0.165.0-alpha.1.2, the measurement session made two of issue #50's: MIMG passed (a message
         queued with a local image file showed at once as the person's own, the picture in it, and ran); MSTEER failed -
-        turn/steer from the product's own app-server session was refused (-32600) for the turn the Desktop was running."""
+        turn/steer from the product's own app-server session was refused (-32600) for the turn the Desktop was running.
+        The same evening, two more: MOPEN failed - a conversation the app did not hold, opened through its link, came to
+        the front in about 7 s but was held by the app only after about 13 s, over the ten allowed; MSTEER2 failed - a
+        steer over the Desktop's IPC pipe was accepted and reached the running turn once, with no new turn, and the reply
+        followed it, but the app never showed the line as the person's message."""
         passed = {m for m, (verdict, _v) in measured.MEASURED.items() if verdict == Verdict.PASS}
         failed = {m for m, (verdict, _v) in measured.MEASURED.items() if verdict == Verdict.FAIL}
         self.assertEqual(passed, {Measurement.MW, Measurement.M1, Measurement.M2B, Measurement.M5,
@@ -160,7 +164,8 @@ class TableTests(unittest.TestCase):
                                   Measurement.M3B, Measurement.M6B, Measurement.MQO, Measurement.MQP,
                                   Measurement.MQG, Measurement.MIMG})
         self.assertEqual(failed, {Measurement.M2, Measurement.M3, Measurement.M4, Measurement.MAWS,
-                                  Measurement.MCLOUD, Measurement.MB, Measurement.MC2, Measurement.MSTEER})
+                                  Measurement.MCLOUD, Measurement.MB, Measurement.MC2, Measurement.MSTEER,
+                                  Measurement.MOPEN, Measurement.MSTEER2})
         new = "codex-cli 0.163.0-alpha.10.2"
         again = {Measurement.MW, Measurement.M1, Measurement.M5, Measurement.M6,
                  Measurement.M7, Measurement.MP1, Measurement.MP2, Measurement.MP3, Measurement.MIPC,
@@ -174,16 +179,12 @@ class TableTests(unittest.TestCase):
         self.assertTrue(all(measured.MEASURED[m][0] == Verdict.PASS for m in v0164))
         self.assertEqual({m for m, (_v, version) in measured.MEASURED.items()
                           if version == "codex-cli 0.165.0-alpha.1.2"},
-                         {Measurement.MIMG, Measurement.MSTEER})
+                         {Measurement.MIMG, Measurement.MSTEER, Measurement.MOPEN, Measurement.MSTEER2})
         self.assertEqual(set(Measurement) - passed - failed,
                          # v0.6.15-beta's own, for several conversations at once: not made yet.
                          {Measurement.MQ, Measurement.ME, Measurement.MS, Measurement.MK, Measurement.MT,
-                          # v0.6.19's groundwork probes, made while its stage is built: not made yet (MOPEN's
-                          # 2026-10-29 run is held back - its own look cannot see what the Desktop loads).
-                          Measurement.MTOK, Measurement.MOPEN, Measurement.MAL, Measurement.MWAKE, Measurement.MHK,
-                          Measurement.M4B,
-                          # v0.6.20: MSTEER failed from our own session; MSTEER2 asks the Desktop's IPC pipe: not made yet.
-                          Measurement.MSTEER2})
+                          # v0.6.19's groundwork probes, made while its stage is built: not made yet.
+                          Measurement.MTOK, Measurement.MAL, Measurement.MWAKE, Measurement.MHK, Measurement.M4B})
 
 
 if __name__ == "__main__":

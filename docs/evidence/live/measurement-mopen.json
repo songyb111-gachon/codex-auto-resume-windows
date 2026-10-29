@@ -1,0 +1,20 @@
+{
+  "format": "codex-auto-resume-measurement/1",
+  "step": "mopen",
+  "verdict": "fail",
+  "recorded_at": "2026-10-29T09:07Z",
+  "product_version": "0.6.20-beta.2",
+  "codex_version": "codex-cli 0.165.0-alpha.1.2",
+  "windows_build": "10.0.26300",
+  "observed": {
+    "holders_read": true,
+    "held_before": false,
+    "codex_running": true,
+    "link_opened": true,
+    "loaded_by_app": true,
+    "holders": 1,
+    "loaded_seconds": "over_10s",
+    "thread_given": true
+  },
+  "note": "the conversation was not loaded within ten seconds of opening its link"
+}

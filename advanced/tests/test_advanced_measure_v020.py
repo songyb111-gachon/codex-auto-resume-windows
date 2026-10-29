@@ -276,7 +276,7 @@ class Steer2Tests(Case):
         self.assertIs(measure.PROBES[MSTEER2], measure._msteer2)
         self.assertEqual(protocol.MEASUREMENT_METHODS[MSTEER2], ())
         self.assertEqual(str(MSTEER2), "msteer2")
-        self.assertNotIn(MSTEER2, measured.MEASURED)
+        self.assertEqual(measured.MEASURED[MSTEER2], (Verdict.FAIL, "codex-cli 0.165.0-alpha.1.2"))
         self.run_ipc()
         self.assertEqual(self.sessions, [])
 

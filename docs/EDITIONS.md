@@ -782,8 +782,9 @@ the link). It keeps B13 - it simulates no input and drives no window - and A11: 
 check finds the conversation loaded.
 
 **Ceilings.** Ten minutes between any two opens, an hour between two of one conversation, three for one message and
-twelve a day - kept on disk, so they hold after a restart. **Measurement MOPEN: not made yet** - hidden until it
-passes.
+twelve a day - kept on disk, so they hold after a restart. **Measurement MOPEN: failed** on `codex-cli
+0.165.0-alpha.1.2` - the app took about 13 seconds to hold a conversation opened through its link, over the ten
+allowed - so it stays hidden until it passes.
 
 ### Run a conversation here while Codex is closed
 
