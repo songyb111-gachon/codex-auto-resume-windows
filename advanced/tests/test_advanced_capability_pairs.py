@@ -886,5 +886,54 @@ class OpenToSendBesideHeadlessRunTests(OpenCase, UnheldCase):
         self.assertEqual(self.opened, [])
 
 
+# v0.6.20: Continue inside the turn (stop_hook_continuation, D-stop-hook.md) beside the capabilities its design pairs it
+# with. COMPOSE with capacity_retry, unknown_failure_budget and marker_free_continuation: the hook's continuation is the
+# first attempt at a failure, and theirs come after it under the same caps on one conversation - each of the hook's
+# counts there as a claim. EXCLUSIVE with keep_going by nature: a turn that ended normally is never the hook's.
+from test_advanced_hook_claim import HookClaimCase  # noqa: E402
+from codex_auto_resume import settings as core_settings  # noqa: E402
+from codex_auto_resume_advanced.hook import handler as hook_handler  # noqa: E402
+from codex_auto_resume_advanced.vocabulary import HookOutcome  # noqa: E402
+
+
+class StopHookBesideTheRetriesTests(HookClaimCase):
+    """capacity_retry, unknown_failure_budget and marker_free_continuation each carry a later send in the conversation;
+    the hook's block before them is a claim they wait fifteen minutes after, and none of them is undone by it."""
+
+    def test_the_hook_s_continuation_is_a_claim_the_others_sends_wait_for(self):
+        self.due()
+        other = dict(self.failure(), interruption_id="%064x" % 11)
+        self.assertEqual(self.hook(other, turn="55555555-5555-4555-8555-555555555555"), HookOutcome.BLOCKED)
+        # Core's record of the conversation - whichever capability's words or channel its send would carry - is held.
+        self.assertEqual(self.ledger(), Alternative.HOLD)
+        self.assertIs(self.ledger(now=self.h.now + 901), DEFER)
+
+    def test_the_kinds_they_take_up_are_not_the_hook_s_and_capacity_s_is_both_in_turn(self):
+        values = dict(core_settings.DEFAULTS)
+        for kind in ("unknown", "terminal_failure", "usage_limit", "rate_limit_transient"):
+            with self.subTest(kind):
+                self.assertFalse(hook_handler.continues({"category": kind}, values))
+        self.assertTrue(hook_handler.continues({"category": "server_5xx"}, values),
+                        "Codex at capacity: the hook first, inside the turn; capacity_retry's waits after it")
+
+
+class StopHookBesideKeepGoingTests(unittest.TestCase):
+    """A Stop hook on every normal stop would turn every turn into a loop: a turn that completed is keep_going's alone."""
+
+    def test_a_turn_that_ended_normally_is_never_claimed(self):
+        from codex_auto_resume.codex.values import normalize
+        thread, turn = "11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"
+        claims = []
+        hands = hook_handler.Hands(
+            armed=lambda: True, settings=lambda: dict(core_settings.DEFAULTS),
+            latest=lambda _thread: normalize({"thread_id": thread, "turn_id": turn, "status": "completed",
+                                              "started_at": 1_790_000_000.0, "completed_at": 1_790_000_010.0,
+                                              "rollout_ordinal": 3}),
+            claim=lambda *arguments: claims.append(arguments) or HookOutcome.BLOCKED)
+        stop = {"hook_event_name": "Stop", "session_id": thread, "turn_id": turn}
+        self.assertIsNone(hook_handler.decide(stop, hands))
+        self.assertEqual(claims, [])
+
+
 if __name__ == "__main__":
     unittest.main()

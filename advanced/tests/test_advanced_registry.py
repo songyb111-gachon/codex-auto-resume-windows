@@ -68,7 +68,8 @@ def standards_text(rule) -> str:
 
 # v0.6.19: the capabilities waiting in registry.WAITING whose statement is written already, so that a measurement's pass
 # offers them whole (open_to_send, MOPEN) - their names and statements are in every catalog while they wait.
-STATED_WAITING = (registry.OPEN_TO_SEND,)
+# v0.6.20: and Continue inside the turn (stop_hook_continuation, MHK, M4 and M4B).
+STATED_WAITING = (registry.OPEN_TO_SEND, registry.STOP_HOOK)
 
 class ShippedTests(unittest.TestCase):
     SHIPPED = ("start_with_codex",

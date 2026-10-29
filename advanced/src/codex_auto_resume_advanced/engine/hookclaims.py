@@ -20,8 +20,8 @@ edition's records - five a conversation a day, fifteen minutes apart (`spent_on`
 a block is refused another, under any interruption id (`refused`). The hold lasts HOLD_SECONDS, core's own spacing
 between claims, and no longer: a block Codex did not carry out leaves core to recover the record as it always would.
 
-P8: while the capability is on, its declaration stands in our plugin copy - written back after a Repair replaced
-the plugin's files (control/hookplugin.py, added with the declaration).
+P8: while the capability is on, its declaration stands in our plugin copies - written back after a Repair replaced
+the plugin's files (control/hookplugin.py); arming writes and removes it as the capability moves (arming.py).
 """
 from __future__ import annotations
 
@@ -142,6 +142,7 @@ def claim(paths, failure, turn_key, now, *, registry=None, busy=BUSY_SECONDS):
     try:
         connection = sqlite3.connect(str(core), timeout=busy, isolation_level=None)
         connection.execute("PRAGMA trusted_schema=OFF")
+        connection.row_factory = sqlite3.Row             # as core's claim reads its rows (state/spend.counts)
         if not state.attach(connection):
             return None
         connection.execute("BEGIN IMMEDIATE")
@@ -149,7 +150,7 @@ def claim(paths, failure, turn_key, now, *, registry=None, busy=BUSY_SECONDS):
             outcome = _decide(connection, state, definition, key, thread, turn_key, now, ATTACHED,
                               ArmingState.ARMED, ceiling_reached)
             if outcome is not None:
-                connection.execute("INSERT INTO %s.hook_claims (interruption_id, turn_key, at, outcome) "
+                connection.execute("INSERT INTO %s.hook_claims (interruption_id, turn_digest, at, outcome) "
                                    "VALUES (?,?,?,?)" % ATTACHED, (key, turn_key, now, outcome))
                 if outcome == HookOutcome.BLOCKED:
                     at = state.claim_time(connection, ATTACHED, key, now)
@@ -181,7 +182,7 @@ def _decide(connection, state, definition, key, thread, turn_key, now, schema, a
     row = connection.execute("SELECT state FROM %s.arming WHERE capability=?" % schema, (CAPABILITY,)).fetchone()
     if row is None or row[0] != armed:
         return None                                   # a turn off since the hook looked always wins
-    if connection.execute("SELECT 1 FROM %s.hook_claims WHERE turn_key=? AND outcome=?" % schema,
+    if connection.execute("SELECT 1 FROM %s.hook_claims WHERE turn_digest=? AND outcome=?" % schema,
                           (turn_key, HookOutcome.BLOCKED)).fetchone():
         return HookOutcome.REFUSED                    # once a turn
     core = connection.execute("SELECT state FROM main.interruptions WHERE interruption_id=?", (key,)).fetchone()
@@ -197,8 +198,8 @@ def _decide(connection, state, definition, key, thread, turn_key, now, schema, a
 
 
 class StopHook:
-    """The capability's code: P3's hold on a record the hook blocked, and (with the declaration) P8's upkeep. `bind`
-    gives it the runtime's clock (state.Scoped)."""
+    """The capability's code: P3's hold on a record the hook blocked, and P8's upkeep of the declaration. `bind` gives
+    it the runtime's clock (state.Scoped)."""
     __slots__ = ("paths", "_scoped")
 
     def __init__(self, paths):
@@ -219,6 +220,15 @@ class StopHook:
         if at is None or not 0 <= self._now() - at < HOLD_SECONDS:
             return DEFER
         return Alternative.HOLD
+
+
+    def tick(self, view):
+        """P8, asked only while the capability is on: its declaration stands in our plugin copies - written back where a
+        Repair or an update replaced the plugin's files. Nothing for core to run."""
+        from ..codex import inuse
+        from ..control import hookplugin
+        hookplugin.follow(self.paths, inuse.home(self.paths), True)
+        return DEFER
 
 
 def make(paths) -> StopHook:

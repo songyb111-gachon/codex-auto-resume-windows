@@ -173,9 +173,9 @@ class ClaimTests(HookClaimCase):
         passes - never a continuation of each."""
         self.due()
         key = self.h.record()["interruption_id"]
-        found = {}
+        failure, found = self.failure(), {}
         with self.h.store._transaction() as connection:
-            asking = threading.Thread(target=lambda: found.update(outcome=self.hook(busy=10)))
+            asking = threading.Thread(target=lambda: found.update(outcome=self.hook(failure, busy=10)))
             asking.start()
             asking.join(0.5)
             self.assertTrue(asking.is_alive(), "the hook waits for core's claim")
@@ -185,9 +185,9 @@ class ClaimTests(HookClaimCase):
 
     def test_a_lock_not_had_in_time_writes_nothing(self):
         self.due()
-        found = {}
+        failure, found = self.failure(), {}
         with self.h.store._transaction():
-            asking = threading.Thread(target=lambda: found.update(outcome=self.hook(busy=0.2)))
+            asking = threading.Thread(target=lambda: found.update(outcome=self.hook(failure, busy=0.2)))
             asking.start()
             asking.join(15)
         self.assertIsNone(found.get("outcome", "unset"))
