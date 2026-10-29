@@ -703,9 +703,11 @@ namespace CodexAutoResume
         {
             List<object> rgb = Items(chrome, key);
             if (rgb == null || rgb.Count != 3) return otherwise;
-            return Color.FromArgb(Convert.ToInt32(rgb[0], CultureInfo.InvariantCulture),
-                                  Convert.ToInt32(rgb[1], CultureInfo.InvariantCulture),
-                                  Convert.ToInt32(rgb[2], CultureInfo.InvariantCulture));
+            // Written as the page writes a colour (brand.py's #RRGGBB), never as a colour of the window's own.
+            return ColorTranslator.FromHtml(string.Format(CultureInfo.InvariantCulture, "#{0:X2}{1:X2}{2:X2}",
+                                                          Convert.ToInt32(rgb[0], CultureInfo.InvariantCulture),
+                                                          Convert.ToInt32(rgb[1], CultureInfo.InvariantCulture),
+                                                          Convert.ToInt32(rgb[2], CultureInfo.InvariantCulture)));
         }
 
         /// A dialog the window opens, over the picture: built by the very method the click builds it with (BuildTimeline,
@@ -782,9 +784,9 @@ namespace CodexAutoResume
         private void PaintDialog(Bitmap picture, Bitmap body, Point place, Size outer, int caption, int border,
                                  string title, Icon icon, Color ground)
         {
-            Color bar = ChromeColour(renderChrome, "caption", Color.FromArgb(243, 243, 243));
-            Color ink = ChromeColour(renderChrome, "ink", Color.Black);
-            Color line = ChromeColour(renderChrome, "line", Color.FromArgb(160, 160, 160));
+            Color bar = ChromeColour(renderChrome, "caption", Canvas);
+            Color ink = ChromeColour(renderChrome, "ink", Ink);
+            Color line = ChromeColour(renderChrome, "line", Soft.Mix(Canvas, Ink, 0.35));
             using (Graphics g = Graphics.FromImage(picture))
             {
                 g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
@@ -793,7 +795,7 @@ namespace CodexAutoResume
                 for (int step = reach; step >= 1; step--)
                 {
                     // About a sixth of the light at the edge, over every layer that reaches it, fading out to nothing.
-                    using (var brush = new SolidBrush(Color.FromArgb(Math.Max(1, (int)Math.Round(255 * 0.17 / reach)), 0, 0, 0)))
+                    using (var brush = new SolidBrush(Soft.WithAlpha(Ink, 0.17 / reach)))
                         g.FillRectangle(brush, place.X - step, place.Y - step + drop, outer.Width + 2 * step, outer.Height + 2 * step);
                 }
                 g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.None;
@@ -824,7 +826,7 @@ namespace CodexAutoResume
                 g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
                 int right = place.X + outer.Width - border;
                 using (var pen = new Pen(ink, stroke))
-                using (var faint = new Pen(Color.FromArgb(110, ink), stroke))
+                using (var faint = new Pen(Soft.WithAlpha(ink, 0.43), stroke))
                 {
                     float cx = right - button / 2f;
                     g.DrawLine(pen, cx - glyph / 2f, middle - glyph / 2f, cx + glyph / 2f, middle + glyph / 2f);
