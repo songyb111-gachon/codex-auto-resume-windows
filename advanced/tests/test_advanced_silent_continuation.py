@@ -99,7 +99,9 @@ class TripTests(TakingCase):
         again. DECISIONS Q12: beside the other continuation that goes without a marker."""
         plug = self.kept(self.on())
         self.assertTrue(plug.runtime.state.arming()[self.cap]["keep_on"])
-        shown = registry.SHOWN_ORDER
+        # As a person reads the list: v0.6.20's continuation inside the turn holds its place between the two while it
+        # waits hidden (registry.WAITING), and shows there once offered.
+        shown = [capability for capability in registry.SHOWN_ORDER if capability in registry.REGISTRY.ids]
         self.assertEqual(shown.index(self.cap), shown.index("marker_free_continuation") + 1)
 
     def test_kept_on_codex_refusing_no_input_is_a_note_and_the_next_attempt_carries_words(self):
