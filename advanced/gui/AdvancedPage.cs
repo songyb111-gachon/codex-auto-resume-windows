@@ -676,8 +676,9 @@ namespace CodexAutoResume
                 MethodInvoker after = done;
                 done = delegate { ReadPrompts(after); };
             }
-            // v0.6.20: the account signed in (AdvancedAccount.cs).
-            if (id == AccountId)
+            // v0.6.20: the account signed in (AdvancedAccount.cs) - asked only while the capability is on or watched, so
+            // off, Codex is not asked which account is signed in.
+            if (id == AccountId && Standing(item))
             {
                 MethodInvoker after = done;
                 done = delegate { ReadAccount(after); };
