@@ -613,7 +613,8 @@ namespace CodexAutoResume
         ///   {"do": "wording", "key": ..., "text": ...}         a wrap-up wording box filled and its Save words pressed
         ///   {"do": "custom_option", "key": ...,               Custom... chosen in that choice's drop-down, and its dialog -
         ///    "value": n | "cancel": true}                     built, never shown - given n and Use this value pressed, or
-        ///                                                     Cancel pressed; what it said into "dialogs"
+        ///                                                     Cancel pressed; what it said into "dialogs" (a clock's
+        ///                                                     "value" its hour, with "minute" beside it, v0.6.20)
         ///   {"do": "send_now", "id": ...}                     that waiting recovery's Send now pressed, if it can be
         ///   {"do": "reset_add", "family": "bucket minutes",   a reset form filled - its window chosen first, then which
         ///    "ordinal": ..., "repeat": once|every,            one, how often and whether it asks, or the conversation and
@@ -1056,6 +1057,9 @@ namespace CodexAutoResume
                 return;
             }
             spin.Value = Whole(Get(step, "value"));
+            // v0.6.20: a time of day of one's own (window_anchor's clock dialog): "value" its hour, "minute" its minute.
+            if (Get(step, "minute") is double && ((SoftFlow)ownEditor).Controls.Count > 2)
+                ((SoftNumber)((SoftFlow)ownEditor).Controls[2]).Spin.Value = Whole(Get(step, "minute"));
             Pressed.Invoke(use, new object[] { EventArgs.Empty });
             // Still open where the number was refused: what it says then, above the number.
             record["after"] = dialog.IsDisposed ? null : ownHint.Text;

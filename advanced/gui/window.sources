@@ -16,7 +16,7 @@
 # near-the-limit choices with the wrap-up's own wordings, and the turns run here, each with its Stop - and (v0.6.16)
 # the page in the render mode the documentation's pictures are drawn in - (v0.6.19) chat with a conversation, behind
 # a Chat tab of its own - and (v0.6.19, #50) the prompt queue's editor, Pending's Recoveries | Scheduled tabs and
-# early_reset's line with its Check now.
+# early_reset's line with its Check now - and (v0.6.20) window_anchor's line and its times of day.
 
 [advanced]
 advanced/gui/AdvancedPage.cs
@@ -29,6 +29,7 @@ advanced/gui/AdvancedEditor.cs
 advanced/gui/AdvancedFind.cs
 advanced/gui/AdvancedSchedule.cs
 advanced/gui/AdvancedEarly.cs
+advanced/gui/AdvancedAnchor.cs
 advanced/gui/AdvancedReport.cs
 advanced/gui/AdvancedUsage.cs
 advanced/gui/AdvancedRuns.cs

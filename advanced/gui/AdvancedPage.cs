@@ -177,6 +177,8 @@ namespace CodexAutoResume
             RunsApplied(reply);
             // early_reset's line on Pending, while the status carries it (AdvancedEarly.cs, v0.6.19 #50).
             EarlyApplied(reply);
+            // The reset window_anchor's last start fixed, for its card (AdvancedAnchor.cs, v0.6.20).
+            AnchorApplied(reply);
             // The reset rules waiting, read again when the status's counts of them change (AdvancedResets.cs).
             ResetCountsApplied(reply);
             if (advancedWords == null)
@@ -916,7 +918,7 @@ namespace CodexAutoResume
                            KeptShown(item) + "|" +
                            (IsReport(item) ? ReportShown() : "") + "|" +
                            ResetsShown(item) + "|" + KeepGoingShown(item) + "|" + QueueShown(item) + "|" +
-                           WordingsShown(item) + "|" + RunsShown(item);
+                           WordingsShown(item) + "|" + RunsShown(item) + "|" + AnchorShownText(item);
             if (shown == advancedShown)
             {
                 UpdateAdvancedButtons();
@@ -968,6 +970,8 @@ namespace CodexAutoResume
             TableLayoutPanel head = NewGroup(AdvancedName(id), advancedStack);
             TableLayoutPanel facts = Facts(head);
             Fact(facts, Word("page.col_state", "State")).Text = ListState(item);
+            // v0.6.20: the reset window_anchor's last start fixed, right under where it stands (AdvancedAnchor.cs).
+            BuildAnchorLine(item, head);
             // That it turned itself off, and why, where it did - a tripwire, or a new version of Codex - in the accent, as
             // what a policy refuses is: a person who turned it on finds it off, and is told it was not someone else. Right
             // under where it stands, before Keep it on, which (v0.6.16-beta.4) an off capability is offered too.
@@ -1173,8 +1177,9 @@ namespace CodexAutoResume
         /// acted on or not.
         private static bool IsSwitchChoice(string key)
         {
-            // v0.6.19 (#50): and open_to_send's Also start Codex.
+            // v0.6.19 (#50): and open_to_send's Also start Codex; v0.6.20: window_anchor's Start right after a reset.
             return key == "wrap_reset_time" || key == "wrap_after_reset" || key == "open_start_codex" ||
+                   key == "anchor_after_reset" ||
                    key.StartsWith("window_", StringComparison.Ordinal);
         }
 
@@ -1209,6 +1214,8 @@ namespace CodexAutoResume
         private string OptionText(string key, int value)
         {
             if (key == "ceiling_hours") return Word("page.option.hours", "{n} h", "n", value);
+            // v0.6.20: window_anchor's times of day, Off or HH:MM (AdvancedAnchor.cs).
+            if (IsAnchorTime(key)) return AnchorTimeText(value);
             // v0.6.16-beta.3 (issue #29): the meter's spacing, a stage's percentage, the wrap-up's wording.
             if (key == "poll_minutes" || key == "open_idle_minutes") return Word("page.option.minutes", "{n} min", "n", value);
             if (key == "wrap_style")
