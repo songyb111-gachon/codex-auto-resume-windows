@@ -142,7 +142,7 @@ file or a log. That is the package's one way to keep a secret, and it never read
 
 ## Today's capabilities
 
-Forty-one: twenty-two that change how a recovery is made, which conversations are recovered or what
+Forty-two: twenty-three that change how a recovery is made, which conversations are recovered or what
 follows a turn, two that tell you elsewhere - notices sent to your phone or inbox, and OpenAI's service status
 on the Overview (v0.6.20) - one that shows where your usage and tokens go (v0.6.20), three that send at a time you
 pick - the two at a usage reset, and queued messages - one that adds a line to the turn running now (v0.6.20; the
@@ -152,8 +152,8 @@ starts the 5-hour window early when it is idle (v0.6.20), one that switches the 
 checks for updates once a week, two that look after the watcher and the PC - restart the watcher if it stops unexpectedly,
 and wake this PC for a reset (v0.6.19) - and four actions: Longer messages, which only lets a message be longer, Open Codex on a notice, which only makes a click on a notice
 show a conversation, chat with a conversation in the Dashboard (v0.6.19), which sends a message of yours, and the
-compatibility report, which only you start. Four rest on a measurement each that was made - the first three, and queue for when a conversation
-is opened. All five added in v0.6.16-beta.4 rest on measurements that were made - running a conversation
+compatibility report, which only you start. Five rest on a measurement each that was made - the first three, queue for when a conversation
+is opened, and open a waiting conversation in Codex (MOPEN, on `codex-cli 0.165.0-alpha.1.2`). All five added in v0.6.16-beta.4 rest on measurements that were made - running a conversation
 here, the other sessions, compacting a full conversation, another model at capacity and a continuation with
 no words - and four more (the reset credit, the reset message, the usage meter and the forced stop) rest on
 measurements made on `codex-cli 0.162.0-alpha.17.2` and, for the forced stop, again on the newer one. Nine rest on
@@ -856,9 +856,6 @@ under Marker-free continuation).
 
 ### Open a waiting conversation in Codex
 
-**Not offered yet.** It is built and waits, hidden, until a measurement (MOPEN) shows on the Codex you have that
-opening a conversation through its link loads it; until then no row, statement or switch of it is shown.
-
 **What it does.** When a recovery or a scheduled message is due and waits only because the Codex app does not have
 its conversation open, it opens that exact conversation once, through Codex's own link (`codex://threads/<id>`,
 the one Open Codex on a notice uses), and the next ordinary check finds it loaded and sends as always - opening is
@@ -884,9 +881,9 @@ the link). It keeps B13 - it simulates no input and drives no window - and A11: 
 check finds the conversation loaded.
 
 **Ceilings.** Ten minutes between any two opens, an hour between two of one conversation, three for one message and
-twelve a day - kept on disk, so they hold after a restart. **Measurement MOPEN: failed** on `codex-cli
-0.165.0-alpha.1.2` - the app took about 13 seconds to hold a conversation opened through its link, over the ten
-allowed - so it stays hidden until it passes.
+twelve a day - kept on disk, so they hold after a restart. **Measurement MOPEN: passed** on `codex-cli
+0.165.0-alpha.1.2` - a conversation the app did not hold, opened through its link, brought Codex to the front and
+was held by the app within ten seconds (thirty are allowed); on any other version, a warning.
 
 ### Run a conversation here while Codex is closed
 

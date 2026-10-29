@@ -546,19 +546,21 @@ class ShownOrderTests(SurfaceCase):
     def setUp(self):
         ac.AdvancedCase.setUp(self)
         self.paths.ensure()
-        self.advanced = self.plug(*registry.DEFINITIONS)
+        self.advanced = self.plug(*registry.REGISTRY.definitions)
         self.control = control.Control(self.paths, plug=self.advanced)
 
     def test_the_list_answers_in_the_owner_s_order_the_report_first(self):
         """Fails with arming.listing walking the registry again: the report would be last."""
         listed = [item["id"] for item in self.bridge("advanced-list", {})["result"]["capabilities"]]
-        # v0.6.19: the owner's order less a capability waiting hidden in registry.WAITING (open_to_send, on MOPEN).
+        # v0.6.20: the owner's order in full - open_to_send, which waited in registry.WAITING for MOPEN, is offered.
         shown = [capability for capability in registry.SHOWN_ORDER if capability in registry.REGISTRY.ids]
+        self.assertEqual(shown, list(registry.SHOWN_ORDER))
+        self.assertEqual(shown.index("open_to_send"), shown.index("queue_for_open") + 1)
         self.assertEqual(listed, shown)
         self.assertEqual(listed[0], "compat_report")
         mcp = self.call("list_advanced_capabilities")["result"]["structuredContent"]["capabilities"]
         self.assertEqual([item["id"] for item in mcp], shown)
-        self.assertEqual(self.advanced.runtime.registry.ids, tuple(d.id for d in registry.DEFINITIONS))
+        self.assertEqual(self.advanced.runtime.registry.ids, registry.REGISTRY.ids)
 
 
 if __name__ == "__main__":

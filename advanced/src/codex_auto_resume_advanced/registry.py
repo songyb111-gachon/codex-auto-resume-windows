@@ -1426,9 +1426,10 @@ CODEX_RETRY_SETTINGS = CapabilityDef(
 # wakes a conversation the app does not hold, through the app's own link), B16 (it asks Windows the last input time and
 # reads the `codex:` handler), C4 (it acts on its own) and F6 (explorer opens the link); it keeps B13 - it simulates no
 # input and drives no UI - and A11, since nothing is sent until core's own loaded check passes. It stands on
-# loaded_state_detection, what says a conversation is not loaded, and rests on MOPEN: until opening is measured to load
-# a conversation on the Codex in force it waits in WAITING, hidden - with no narrower route, since opening that loads
-# nothing does nothing. It composes with queue_for_open (opening delivers what that queued) and leaves a conversation
+# loaded_state_detection, what says a conversation is not loaded, and rests on MOPEN. It waited in WAITING, hidden, until
+# opening was measured to load a conversation (no narrower route: opening that loads nothing does nothing); MOPEN passed on
+# codex-cli 0.165.0-alpha.1.2 (2026-10-29), so it is offered - and, as every capability resting on a measurement, shows
+# the UNMEASURED warning on any other Codex until it is measured there (arming.warnings_for). It composes with queue_for_open (opening delivers what that queued) and leaves a conversation
 # another session holds alone. Ceilings: the schema's, beside its own caps; it spends nothing.
 OPEN_TO_SEND = CapabilityDef(
     id="open_to_send",
@@ -1474,9 +1475,9 @@ STOP_HOOK = CapabilityDef(
 # The one gate for a capability that cannot work on any Codex measured so far (the owner's rule of 2026-10-16): each
 # here, with the measurement that must pass first, is hidden - not in the registry this edition runs, so no row, no
 # statement and no switch anywhere - until that measurement passes (measured.MEASURED), and then offered after
-# DEFINITIONS. Its code and its probe stay in the tree. (v0.6.19: open_to_send's statement is written already, so a
-# pass offers it whole; codex_retry_settings' is not.) v0.6.20: a tuple of measurements is several, every one of
-# which must pass (Continue inside the turn: MHK, M4 and M4B).
+# DEFINITIONS. Its code and its probe stay in the tree. (v0.6.19: open_to_send's statement was written already, so a
+# pass offers it whole - MOPEN's did, 2026-10-29; codex_retry_settings' is not.) v0.6.20: a tuple of measurements is
+# several, every one of which must pass (Continue inside the turn: MHK, M4 and M4B).
 WAITING = ((CODEX_RETRY_SETTINGS, Measurement.MB), (OPEN_TO_SEND, Measurement.MOPEN),
            (STOP_HOOK, (Measurement.MHK, Measurement.M4, Measurement.M4B)))
 

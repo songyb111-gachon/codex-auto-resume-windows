@@ -52,10 +52,11 @@ POWERSHELL = (Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
 OVERLAY = ROOT / "advanced" / "gui" / "window.sources"
 WINDOW = "CodexAutoResumeSettings.exe"
 SCALES = (1.0, 1.25, 1.5, 1.75, 2.0)
-IDS = [definition.id for definition in registry.DEFINITIONS]
+# v0.6.20: every capability this edition runs - DEFINITIONS and, once its measurement passed, open_to_send (MOPEN).
+IDS = [definition.id for definition in registry.REGISTRY.definitions]
 # The order the rows are in (the owner's, 2026-10-10): the compatibility report first, and so the one open before any
 # is chosen - an action, so a scenario that turns the first route on or off chooses it.
-# v0.6.19: less any capability waiting hidden in registry.WAITING, which holds its place there but has no row yet.
+# v0.6.20: less any capability still waiting hidden in registry.WAITING (none now: MOPEN passed, open_to_send has its row).
 SHOWN = [capability for capability in registry.SHOWN_ORDER if capability in IDS]
 # The capability the turn-on scenario opens: one whose statement carries a warning (M7 unmeasured there), named
 # rather than counted, since the registry grew (v0.6.15-beta put queue_for_open third).
@@ -193,7 +194,7 @@ class Bridge:
         self.paths.ensure()
         self.policy = policy.NONE
         self.view = ac.view("COMPATIBLE", capability="engine_present")
-        for definition in registry.DEFINITIONS:
+        for definition in registry.REGISTRY.definitions:
             if definition.compat is not None:          # an action stands on none
                 self.view["capabilities"][definition.compat] = {"state": "COMPATIBLE", "reason": "local_checks_passed"}
         self.measured = dict(PASSED)

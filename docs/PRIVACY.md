@@ -874,8 +874,8 @@ only while push notices or the status feed is on (*What the courier sends*, belo
   capability spent, with the ids of the conversation and interruption it spent it on; the edition's
   own records and what a capability asked of a standard one, as ids, states and times; the global
   ceiling a person set; a journal and per-day counts of closed codes, bounded as the standard
-  journal is, and what a watched capability would have done at most 150 lines each (180 until
-  v0.6.16-beta.4); and, for the
+  journal is, and what a watched capability would have done at most 115 lines each (180 until
+  v0.6.16-beta.4, then 150, 140 and 130 as capabilities were added); and, for the
   capabilities that use them, the choices you made, the rules you wrote (an
   error code, status numbers, a kind), which capability took up which interruption, and samples of
   failures it could not classify: Codex's error code, the status number, the form of the error, item

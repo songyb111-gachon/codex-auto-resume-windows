@@ -558,7 +558,7 @@ class Measurement(StrEnum):
     MQG = "mqg"
     # v0.6.19 (the groundwork, plans/v0619-design/D-groundwork.md section 5), made while the stage is built. MTOK: a
     # throwaway conversation's rollout keeps per-turn token totals of the five kinds, never decreasing, and the history's
-    # tokens_used agrees (usage_analytics). MOPEN: a conversation the app does not hold loads within ten seconds of its
+    # tokens_used agrees (usage_analytics). MOPEN: a conversation the app does not hold is held by the app within thirty seconds (the owner's limit, 2026-10-29) of its
     # link being opened (open_to_send). MAL: a `codex logout` and `codex login` in a terminal reach the running app
     # without a restart (account_switch). MWAKE: a wake timer wakes this PC from sleep (wake_for_reset). MHK: Codex's
     # generated schema has a Stop event for plugin hooks, and the feature is there (stop_hook_continuation). M4B: a
@@ -629,6 +629,9 @@ class ObservedWord(StrEnum):
     UNDER_2S = "under_2s"
     S2_TO_10 = "s2_to_10"
     OVER_10S = "over_10s"
+    # v0.6.20: MOPEN's limit is 30 s, so its load time is bucketed on to 20 and 30 s (the first run, 2026-10-29: 13.4 s).
+    S10_TO_20 = "s10_to_20"
+    S20_TO_30 = "s20_to_30"
     AC = "ac"
     BATTERY = "battery"
 
