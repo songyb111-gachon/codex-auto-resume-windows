@@ -146,17 +146,15 @@ namespace CodexAutoResume
         /// How the last sign-out and sign-in ended, or null where none has in this Dashboard.
         private string AccountOutcome(string state)
         {
-            switch (state)
-            {
-                case "signed_in": return Word("page.account.result.signed_in", "The sign-in finished.");
-                case "cancelled":
-                    return Word("page.account.result.cancelled", "Codex is not signed in: the sign-in was cancelled. Sign in in Codex.");
-                case "timed_out":
-                    return Word("page.account.result.timed_out", "The sign-in did not finish within ten minutes. Sign in in Codex.");
-                case "failed":
-                    return Word("page.account.result.failed", "The sign-out and sign-in could not be completed. Check Codex's own sign-in.");
-                default: return null;
-            }
+            // If-chains, not a string switch: the compiler names a switch's hash table at random (build/normalize_pe.py).
+            if (state == "signed_in") return Word("page.account.result.signed_in", "The sign-in finished.");
+            if (state == "cancelled")
+                return Word("page.account.result.cancelled", "Codex is not signed in: the sign-in was cancelled. Sign in in Codex.");
+            if (state == "timed_out")
+                return Word("page.account.result.timed_out", "The sign-in did not finish within ten minutes. Sign in in Codex.");
+            if (state == "failed")
+                return Word("page.account.result.failed", "The sign-out and sign-in could not be completed. Check Codex's own sign-in.");
+            return null;
         }
 
         /// The account as the card says it: signed in - with its plan and its masked address where Codex named them - not
@@ -181,18 +179,12 @@ namespace CodexAutoResume
         /// "another plan" in the reader's for any other.
         private string PlanName(string plan)
         {
-            switch (plan)
-            {
-                case "free": return "Free";
-                case "plus": return "Plus";
-                case "pro": return "Pro";
-                case "team": return "Team";
-                case "business": return "Business";
-                case "enterprise": return "Enterprise";
-                case "edu": return "Edu";
-                case "other": return Word("page.account.plan_other", "another plan");
-                default: return null;
-            }
+            if (plan == "other") return Word("page.account.plan_other", "another plan");
+            string[] plans = { "free", "Free", "plus", "Plus", "pro", "Pro", "team", "Team", "business", "Business",
+                               "enterprise", "Enterprise", "edu", "Edu" };
+            for (int i = 0; i < plans.Length; i += 2)
+                if (plans[i] == plan) return plans[i + 1];
+            return null;
         }
     }
 }
