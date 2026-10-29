@@ -546,7 +546,7 @@ changed).
 **J13** Compatibility words: verified, checked and compatible send alike; failed here and incompatible block; unknown is never shown as compatible; every surface says the gate's word.  
 *tested*: `test_compat_surfaces.py`
 
-**J14** Red until seen: the icon goes red only for a certain, unhidden, unseen failure after which nothing started; the seen time only moves forward.  
+**J14** Red until seen: the icon goes red only for a certain, unhidden, unseen failure after which nothing started - a failed recovery, one whose attempts ran out, or one handed over to the person - and the seen time only moves forward; a sending whose arrival or outcome cannot be confirmed asks for attention instead (amended by the owner on 2026-10-29).
 *tested*: `test_failure_seen.py`
 
 ## K. The advanced edition's own rules
