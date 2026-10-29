@@ -1457,7 +1457,6 @@ namespace CodexAutoResume
                     continue;
                 }
                 if (rtl[7] != 0) findings.Add(key + " :: its first button does not stand at its left, as it stands at its right left to right");
-                if (ltr[9] != rtl[9] || ltr[10] != rtl[10]) findings.Add(key + " :: DIAG pref " + ltr[9] + "/" + ltr[10] + " vs " + rtl[9] + "/" + rtl[10]);
                 int expected = ltr[4] - ltr[0] - ltr[2];
                 // A line of words measured right to left can come out a few pixels narrower or wider than the same words
                 // measured left to right: such a label is held to its leading edge - its right edge where its left was.
@@ -1495,7 +1494,7 @@ namespace CodexAutoResume
                 //  a line of words?]
                 var record = new[] { bounds.X, bounds.Y, bounds.Width, bounds.Height, parent.ClientSize.Width,
                                      host != null ? 1 : 0, host != null && host.ColumnsMirrored ? 1 : 0,
-                                     FirstOutOfPlace(child as FlowLayoutPanel) ? 1 : 0, child is Label ? 1 : 0, child.GetPreferredSize(new Size(child.Width, 0)).Height, child.GetPreferredSize(new Size(parent.ClientSize.Width, 0)).Height };
+                                     FirstOutOfPlace(child as FlowLayoutPanel) ? 1 : 0, child is Label ? 1 : 0 };
                 if (!mirrored.ContainsKey(here)) mirroredOrder.Add(here);
                 mirrored[here] = record;
                 // A list's clip holds the list, which Windows does not mirror; a number's parts are Windows' own.
