@@ -69,7 +69,7 @@ import time
 
 from codex_auto_resume.compat.model import FAILED_HERE, INCOMPATIBLE, STATES, UNKNOWN
 
-from . import policy as _policy
+from . import compatdata, policy as _policy
 from .measured import MEASURED
 from .registry import GLOBAL_HOURLY, ONCE_MORE, shown as _shown
 from .state import Refused, StaleGeneration, StateError
@@ -316,7 +316,9 @@ class Arming:
         # {capability: why it does not stand on now} as the last read that worked found it, for one
         # stored on or watched (`held_word`); empty until a read.
         self.why = {}
-        self._measured = measured or (lambda: MEASURED)
+        # What the measurements found: a table handed in (a test's), or - by default - this build's table with the
+        # advanced compatibility data in force laid over it for the Codex the view names (compatdata.table_for, v0.6.20).
+        self._measured = measured
         self.clock = clock
         # {record: (when core told of its move into submission_unknown, when the send that went
         # unknown was claimed)} for each such move whose trips are not all written yet: core tells
@@ -355,11 +357,15 @@ class Arming:
             return {}
         return found if isinstance(found, dict) else {}
 
-    def measured(self) -> dict:
-        """What the measurements found, as this build ships them (measured.py). A table that
+    def measured(self, view=None) -> dict:
+        """What the measurements found: this build's table (measured.py) with the advanced compatibility data in force
+        laid over it for the Codex in force - `view`'s, or this reading's (compatdata.table_for; v0.6.20). A table that
         cannot be read is no measurement at all: every route unmeasured, which is a warning."""
         try:
-            found = self._measured()
+            if self._measured is None:
+                found = compatdata.table_for(self.state.paths, engine_version(self.view() if view is None else view))
+            else:
+                found = self._measured()
         except Exception:
             return {}
         return found if isinstance(found, dict) else {}
@@ -367,18 +373,20 @@ class Arming:
     def verdict(self, measurement):
         """"pass" where `measurement` passed on the Codex in force, "fail" where it failed - on whichever Codex, as
         a statement's warnings read it (`warnings_for`) - and None for neither (v0.6.14, the reset actions)."""
-        entry = self.measured().get(Measurement(measurement))
+        view = self.view()
+        entry = self.measured(view).get(Measurement(measurement))
         if not (isinstance(entry, tuple) and len(entry) == 2):
             return None
         found, measured_on = entry
         if found == Verdict.FAIL:
             return "fail"
-        version = engine_version(self.view())
+        version = engine_version(view)
         return "pass" if found == Verdict.PASS and version is not None and measured_on == version else None
 
     def warnings(self, definition, view=None) -> tuple:
         """The warnings `definition`'s statement shows now."""
-        return warnings_for(definition, self.view() if view is None else view, self.measured())
+        view = self.view() if view is None else view
+        return warnings_for(definition, view, self.measured(view))
 
     # ------------------------------------------------------------------ now
     def current(self, *, view=None, policy=None) -> dict:
@@ -419,7 +427,7 @@ class Arming:
             if any(capability in since for capability in live) and view.get("status") != "ok":
                 view = self.live_view() or view
         policy = self.policy() if policy is None else policy
-        measured = self.measured()
+        measured = self.measured(view)
         states, why = {}, {}
         for definition in self.registry:
             row = rows.get(definition.id)

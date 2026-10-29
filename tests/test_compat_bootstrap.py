@@ -324,6 +324,10 @@ class WholeScriptTests(unittest.TestCase):
         text = BOOTSTRAP.read_text(encoding="utf-8")
         cls.assert_constant_present = RAW in text
         text = text.replace(RAW, "https://127.0.0.1:1/codex_compat.json")
+        # v0.6.20: the advanced edition's own data, asked for at the same moments by an advanced installation.
+        text = text.replace(RAW.replace("src/codex_auto_resume/data/codex_compat.json",
+                                        "advanced/src/codex_auto_resume_advanced/data/codex_compat_advanced.json"),
+                            "https://127.0.0.1:1/codex_compat_advanced.json")
         (root / "scripts" / "bootstrap.ps1").write_text(text, encoding="utf-8")
         shutil.copyfile(ROOT / ".codex-plugin" / "plugin.json", root / ".codex-plugin" / "plugin.json")
         release = json.loads((ROOT / "scripts" / "release.json").read_text(encoding="utf-8"))
