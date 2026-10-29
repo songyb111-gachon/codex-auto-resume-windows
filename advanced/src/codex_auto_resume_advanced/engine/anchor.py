@@ -280,16 +280,18 @@ class _Errand:
 class WindowAnchor:
     """window_anchor's code: its P8 tick and errand. Its seams are the tests': `session` opens a usage session (None:
     the advanced Session against the Codex the watcher told), `told` answers (codex.exe, Codex home) as the watcher told
-    them (None: codex/inuse.told), `popen` starts the request, `begin` starts the waiting thread (`begin(target)`),
-    `log` writes the watcher's log line and `local` is the local clock (time.localtime)."""
-    __slots__ = ("paths", "_scoped", "_session", "_told", "_popen", "_begin", "_log", "_local", "_lock", "_pending",
-                 "_running", "_ended", "_looked", "_learned")
+    them (None: codex/inuse.told), `backend` makes core's Backend for that pair (None: codex/inuse.backend), `popen`
+    starts the request, `begin` starts the waiting thread (`begin(target)`), `log` writes the watcher's log line and
+    `local` is the local clock (time.localtime)."""
+    __slots__ = ("paths", "_scoped", "_session", "_told", "_make_backend", "_popen", "_begin", "_log", "_local",
+                 "_lock", "_pending", "_running", "_ended", "_looked", "_learned")
 
-    def __init__(self, paths, *, session=None, told=None, popen=None, begin=None, log=None, local=None):
+    def __init__(self, paths, *, session=None, told=None, backend=None, popen=None, begin=None, log=None, local=None):
         self.paths = paths
         self._scoped = None
         self._session = session
         self._told = told or (lambda: inuse.told(paths))
+        self._make_backend = backend or (lambda: inuse.backend(paths))
         self._popen = popen or subprocess.Popen
         self._begin = begin or (lambda target: threading.Thread(target=target, daemon=True).start())
         self._log = log or _log_line
@@ -533,7 +535,7 @@ class WindowAnchor:
         the told pair first, and `_before` refused where there is none)."""
         if self._told() is None:
             raise LookupError("no watcher told the Codex it drives")
-        return inuse.backend(self.paths)
+        return self._make_backend()
 
     def _read(self, *, account):
         """One usage read through a session of its own: {"at", "windows", "signed_in"}, or None where none could be made.
