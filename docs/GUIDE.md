@@ -4,7 +4,7 @@ Everything about Codex Auto Resume in one place. The [README](../README.md) is t
 
 **Automatically resume the exact same Codex task on Windows after a usage limit resets.**
 
-<sub>🇰🇷 <a href="https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/ko/docs/GUIDE.md">한국어 안내서</a> · The app speaks sixteen languages: English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) · Русский · Italiano · Türkçe · Polski · Українська · Tiếng Việt · Bahasa Indonesia</sub>
+<sub>🇰🇷 <a href="https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/ko/docs/GUIDE.md">한국어 안내서</a> · The app speaks eighteen languages: English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) · Русский · Italiano · Türkçe · Polski · Українська · Tiếng Việt · Bahasa Indonesia · العربية · עברית</sub>
 
 Codex stops mid-task and tells you to try again at 6:34 AM. You are asleep at 6:34 AM, and in
 the morning the task is exactly where it stopped.
@@ -34,7 +34,7 @@ v0.6.0).
 | **Never touches** | user cancellation · permission · approval · content policy · invalid requests · context length · permanent authentication failures · anything unclassified |
 | **Identity** | the exact conversation UUID only — never `--last`, never "the most recent one", never a title or a folder name |
 | **Configure it** | a Windows window from the Start Menu — from v0.6.0, a Dashboard whose settings are one of its six pages — a settings panel inside Codex, or the command line |
-| **Languages** | English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) · Русский · Italiano · Türkçe · Polski · Українська · Tiếng Việt · Bahasa Indonesia — in the Dashboard, the notification-area popup, Windows notifications, the panel inside Codex and the continuation message sent to Codex. It follows Windows unless you choose one; see [Languages](#languages) |
+| **Languages** | English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) · Русский · Italiano · Türkçe · Polski · Українська · Tiếng Việt · Bahasa Indonesia · العربية · עברית — in the Dashboard, the notification-area popup, Windows notifications, the panel inside Codex and the continuation message sent to Codex. It follows Windows unless you choose one; see [Languages](#languages) |
 | **Tells you** | Notifications when a task is interrupted, when recovery starts, how it went, and when it gives up - from v0.6.5 as a card of the product's own beside the notification area, with Windows' own notification wherever a card must not show. While the watcher runs it also shows a notification-area icon, whose tooltip says whether recovery is paused, how many recoveries are waiting, how many are running in Codex, and how long until the next check |
 | **Privacy** | no telemetry, no analytics, no automatic update check, never reads your credentials. *Check for updates* in the window asks GitHub which release is newest - and, from v0.6.11, reads its list of releases on api.github.com for a newer pre-release, which it installs only if you say yes - and only when you press it; *Install another version...* reads that whole list there, page by page, when you open it and again when you confirm a version, and downloads only the version you confirmed; *Check for updates* and *Refresh compatibility data* also fetch the Codex compatibility data from raw.githubusercontent.com, sending nothing about your machine. The watcher has no network code; the usage check, the resumed turn and what the plugin's tools and commands return in a conversation go to OpenAI through Codex, as Codex's traffic always does; setup downloads the release from GitHub; and the v0.5.7 installer has Codex refresh every Git marketplace you have configured (naming only this one is new in v0.6.0) |
 
@@ -663,7 +663,7 @@ it, and `Uninstall.cmd -Purge` removes it with the rest of `config\`.
 - Single-instance protection, optional per-user Windows autostart, and a conservative uninstall.
 - Three ways to change a setting — the Dashboard from the Start Menu, a panel inside Codex, and
   the command line — all writing the same file through the same validator, so they cannot disagree.
-- Sixteen interface languages (see [Languages](#languages)). It follows Windows unless you choose one.
+- Eighteen interface languages (see [Languages](#languages)). It follows Windows unless you choose one.
 - Light and dark themes: the Dashboard and the popup follow Windows, and the panel follows Codex,
   unless you choose one. High Contrast is always honoured.
 - A continuation message you can shape: its language, a Minimal, Standard or Detailed style, or
@@ -1525,12 +1525,13 @@ Pending, History, the Codex panel and the cards show the alias beside a record o
 ### Languages
 
 The interface speaks English, 한국어, 日本語, 简体中文, 繁體中文, Español, Deutsch, Français,
-Português (Brasil), Русский, Italiano, Türkçe, Polski, Українська, Tiếng Việt and Bahasa Indonesia.
-**Interface language** defaults to *System*, which follows the first language Windows lists - in
-any region, Portuguese from Portugal included, and Chinese by its script - and falls back to
-English for a language this product does not ship. Arabic and Hebrew are translated too but not
-offered yet: they are written right to left, and they come once every surface mirrors; a Windows
-set to either speaks English here meanwhile. Each language is named in itself in the two language
+Português (Brasil), Русский, Italiano, Türkçe, Polski, Українська, Tiếng Việt, Bahasa Indonesia,
+العربية and עברית. **Interface language** defaults to *System*, which follows the first language
+Windows lists - in any region, Portuguese from Portugal included, and Chinese by its script - and
+falls back to English for a language this product does not ship. Arabic and Hebrew are written right
+to left, and in either every surface is mirrored - the Dashboard and its dialogs, the setup window,
+the popup, the notification card and the panel in Codex - while a version, an id, a time or a path
+keeps its own order. Each language is named in itself in the two language
 lists, after *System* (or *Same as the interface*); about ten show and the rest scroll, and typing
 a letter goes to the next language that begins with it. A language you choose wins over Windows
 and is kept across restarts, repairs and updates. The

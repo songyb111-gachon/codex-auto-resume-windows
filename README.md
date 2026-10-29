@@ -14,10 +14,10 @@
 <a href="https://github.com/songyb111-gachon/codex-auto-resume-windows/releases/latest"><img src="https://img.shields.io/github/v/release/songyb111-gachon/codex-auto-resume-windows?label=release" alt="latest release"></a>
 <a href="#install"><img src="https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078d4" alt="platform: Windows 10/11"></a>
 <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="license: MIT"></a>
-<a href="https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/GUIDE.md#languages"><img src="https://img.shields.io/badge/languages-16-0891b2" alt="languages: 16"></a>
+<a href="https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/GUIDE.md#languages"><img src="https://img.shields.io/badge/languages-18-0891b2" alt="languages: 18"></a>
 </p>
 
-<p align="center"><sub>🇰🇷 <a href="https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/ko/README.md">한국어 README</a> · The app speaks sixteen languages: English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) · Русский · Italiano · Türkçe · Polski · Українська · Tiếng Việt · Bahasa Indonesia</sub></p>
+<p align="center"><sub>🇰🇷 <a href="https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/ko/README.md">한국어 README</a> · The app speaks eighteen languages: English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) · Русский · Italiano · Türkçe · Polski · Українська · Tiếng Việt · Bahasa Indonesia · العربية · עברית</sub></p>
 
 <p align="center">
 <img src="docs/images/readme-motion.png" alt="The Codex Auto Resume Dashboard at work, drawn by the product's own code from synthetic sample data: the Overview with two recoveries waiting; the pointer opens Pending, right-clicks a waiting task to open its menu and closes it, then opens History, Statistics and Diagnostics, opens Settings and scrolls; it changes the interface language to Korean, saves, and the window opens again in Korean" width="750"><br>
@@ -50,7 +50,7 @@ setting, the notification, the command line, the safety model and privacy in ful
 | **Never touches** | user cancellation · permission · approval · content policy · invalid requests · context length · permanent authentication failures · anything unclassified |
 | **Identity** | the exact conversation UUID only — never `--last`, never "the most recent one", never a title or a folder name |
 | **Configure it** | the Dashboard from the Start Menu, a settings panel inside Codex, or the command line |
-| **Languages** | English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) · Русский · Italiano · Türkçe · Polski · Українська · Tiếng Việt · Bahasa Indonesia |
+| **Languages** | English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) · Русский · Italiano · Türkçe · Polski · Українська · Tiếng Việt · Bahasa Indonesia · العربية · עברית |
 | **Privacy** | no telemetry, no analytics, no automatic update check. Setting it up from Codex downloads the release from GitHub, and *Check for updates* asks GitHub which release is newest, and reads its list of releases on api.github.com for a newer pre-release, only when you press it - and it then also refreshes the Codex compatibility data from raw.githubusercontent.com, sending nothing about your machine; *Install another version...* reads that whole list there when you open it and again when you confirm a version, and downloads only the version you confirmed. The watcher has no network code; the usage check and the resumed turn go to OpenAI through Codex, as Codex's traffic always does |
 
 > [!IMPORTANT]

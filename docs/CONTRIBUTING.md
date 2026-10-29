@@ -407,11 +407,11 @@ declare it.
 
 ## Translations
 
-The interface speaks sixteen languages, and every word of it - the Dashboard, the popup and
+The interface speaks eighteen languages, and every word of it - the Dashboard, the popup and
 menu, notifications, the panel in Codex and the continuation message - comes from a catalog:
-`src/codex_auto_resume/locales/<locale>.json`, one per language. Two more catalogs, Arabic and
-Hebrew, are complete and held: nothing offers them until every surface mirrors right to left
-(`l10n.HELD`), and every rule below holds for them as for the rest. English (`en.json`) is the
+`src/codex_auto_resume/locales/<locale>.json`, one per language. Arabic and Hebrew were held
+(`l10n.HELD`, empty now) until every surface mirrored right to left; a language added later can be
+held the same way, complete and audited but offered nowhere. English (`en.json`) is the
 source. Every other catalog is a translation of it, and at runtime English fills in any key a
 translation has not reached yet. A new sentence a user will read is a new key in `en.json`.
 
@@ -441,9 +441,10 @@ long word is found before a person sees a box or a cut line. A letter drawn from
 not a box but is still a word in two faces, so `tests/test_typeface.py` holds every surface to one
 face per language: where Windows' interface font lacks one of a language's letters - Vietnamese on
 a Korean Windows - that language is set in Segoe UI on the Dashboard, the popup, the card and the
-panel alike (`win/typeface.py`). Right to left, the popup, the card
-and the panel mirror already (`tests/test_right_to_left.py`); the Dashboard window does not yet,
-and that is what keeps Arabic and Hebrew held.
+panel alike (`win/typeface.py`). Right to left, every surface mirrors: the popup, the card and the
+panel (`tests/test_right_to_left.py`), and the Dashboard, its dialogs, the Advanced page and the setup
+window, each laid out both ways and held to its left-to-right self mirrored (`gui/SoftMirror.cs`,
+`tests/test_gui_mirrored_window.py`, `tests/test_setup_mirrored.py`).
 
 ## Branches and languages
 
