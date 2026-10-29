@@ -703,7 +703,8 @@ namespace CodexAutoResume
             get
             {
                 int count = List.Columns.Count;
-                return count > 1 && List.Columns[0].DisplayIndex == count - 1;
+                // One column, or none, has no other order: it is the same either way.
+                return count <= 1 || List.Columns[0].DisplayIndex == count - 1;
             }
         }
 
@@ -723,7 +724,7 @@ namespace CodexAutoResume
         protected override void OnLayout(LayoutEventArgs levent)
         {
             base.OnLayout(levent);
-            if (Mirror.Of(this) || ColumnsMirrored) MirrorColumns();
+            if (Mirror.Of(this) || List.Columns.Count > 1 && ColumnsMirrored) MirrorColumns();
             native = NativeBar;
             nativeAcross = NativeAcross;
             int rows = Math.Max(0, Width - (native ? SoftBar.Gutter : 0));
