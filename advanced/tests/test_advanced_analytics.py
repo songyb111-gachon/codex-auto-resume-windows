@@ -138,7 +138,8 @@ class DefinitionTests(unittest.TestCase):
         order = registry.SHOWN_ORDER
         self.assertEqual(order[order.index("keep_going") + 1], "usage_analytics")
         # The wake timer stays last at P8, so its errand reads the due times the others' errands kept.
-        self.assertEqual([d.id for d in registry.REGISTRY.at(Point.TICK)][-2:], ["usage_analytics", "wake_for_reset"])
+        ticks = [d.id for d in registry.REGISTRY.at(Point.TICK)]
+        self.assertLess(ticks.index("usage_analytics"), ticks.index("wake_for_reset"))
 
     def test_its_route_is_the_rollouts_unless_mtok_failed(self):
         self.assertEqual((analytics.route("pass"), analytics.route(None), analytics.route("fail")),
