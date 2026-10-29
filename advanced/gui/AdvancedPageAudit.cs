@@ -224,6 +224,9 @@ namespace CodexAutoResume
                 form.AuditEditor("editor", findings);
                 // v0.6.20 (#50): Find a conversation's dialog, with names that fill the list and with the line it says.
                 form.AuditFind("find", findings);
+                // v0.6.20 (#50): a delivered message followed through - linked exactly with the longest chain, by time for a
+                // series, not linked, and unread.
+                form.AuditFollow("follow", findings);
                 form.ShowAdvancedList(null);
                 form.AuditAdvanced("advanced unread", findings);
                 if (ids.Count > 0)
@@ -350,6 +353,79 @@ namespace CodexAutoResume
                 }
                 ForgetFind();
             }
+        }
+
+        /// The follow-through's dialog (AdvancedFollow.cs), built and never shown, held to the standard audit's checks: nothing
+        /// cut off, nothing scrolling sideways, every control named, its list on History's card - with the longest answers it
+        /// gives: linked exactly through three cut-offs of three limits, linked by time for a series, not linked, and unread.
+        private void AuditFollow(string where, List<string> findings)
+        {
+            foreach (string kind in new[] { "exact", "time", "none", "failed" })
+            {
+                using (Form dialog = BuildFollow(new string('x', 72)))
+                {
+                    dialog.TopLevel = false;
+                    ShowFollow(AuditFollowAnswer(kind));
+                    Materialise(dialog);
+                    dialog.PerformLayout();
+                    string at = where + "/" + kind;
+                    Walk(dialog, at, findings);
+                    string off = ListOffCard(followList);
+                    if (off != null) findings.Add(at + " :: its list is not on a card: " + off);
+                    AuditSpoken(at, dialog, findings);
+                }
+                ForgetFollow();
+            }
+        }
+
+        /// What advanced-prompt-follow answers at its longest of `kind` (control/follow.py's shape): no person's words in it.
+        private static Dictionary<string, object> AuditFollowAnswer(string kind)
+        {
+            var answer = new Dictionary<string, object>();
+            answer["done"] = kind != "failed";
+            answer["refusal"] = kind == "failed" ? "state_unavailable" : null;
+            answer["link"] = kind == "failed" ? null : kind;
+            answer["why"] = kind == "none" ? "not_found" : null;
+            answer["sent_at"] = 1767225600.0;
+            answer["delivered_at"] = 1767225660.0;
+            answer["occurrence"] = kind == "time" ? 29.0 : 1.0;
+            answer["occurrences"] = kind == "time" ? 30.0 : 1.0;
+            var steps = new List<object>();
+            string[] limits = { "300m,10080m", "10080m", "codex:primary_hint" };
+            string[] states = { "recovery_failed", "outcome_unverified", "waiting_reset" };
+            string[] stages = { "ended", "ended", "waiting" };
+            int count = kind == "exact" ? 3 : kind == "time" ? 1 : 0;
+            for (int i = 0; i < count; i++)
+            {
+                var step = new Dictionary<string, object>();
+                step["category"] = "usage_limit";
+                step["limit_type"] = limits[i];
+                step["detected_at"] = 1767226500.0 + i * 20000;
+                step["reset_at"] = 1767244500.0 + i * 20000;
+                step["outcome_at"] = stages[i] == "waiting" ? null : (object)(1767246000.0 + i * 20000);
+                step["code"] = states[i];
+                step["stage"] = stages[i];
+                steps.Add(step);
+            }
+            answer["steps"] = steps;
+            answer["end"] = kind == "exact" ? "waiting" : kind == "time" ? "ended" : "unknown";
+            return answer;
+        }
+
+        /// The follow-through's dialog, built and never shown, and what it showed written into `record`: its title, the line
+        /// that says how it was linked, its columns and rows, whether its list is on a card, and its buttons.
+        private void AnswerFollow(Form dialog, Dictionary<string, object> record)
+        {
+            record["title"] = dialog.Text;
+            record["said"] = followSaid.Text;
+            var columns = new List<object>();
+            foreach (ColumnHeader column in followList.Columns) columns.Add(column.Text);
+            record["columns"] = columns;
+            record["rows"] = ListCells(followList);
+            record["list_card"] = ListOffCard(followList) ?? "";
+            record["buttons"] = new List<object> { followClose.Text };
+            record["accept"] = dialog.AcceptButton == followClose && dialog.CancelButton == followClose;
+            Pressed.Invoke(followClose, new object[] { EventArgs.Empty });
         }
 
         /// Pending's one list with a row of each kind chosen in turn - a recovery, a reset rule, a queued message - the standard
@@ -856,6 +932,26 @@ namespace CodexAutoResume
                             form.historyList.Items[index].Selected = true;
                             form.UpdateHistoryButtons();
                         }
+                    }
+                    else if (what == "history_follow")
+                    {
+                        // v0.6.20 (#50): the chosen History row's Follow through... pressed ("by": "button", if it can be) or
+                        // the row double-clicked ("by": "double") - the dialog answered, never shown; what it showed into
+                        // "dialogs".
+                        var record = new Dictionary<string, object>();
+                        form.followAnswer = delegate(Form dialog) { form.AnswerFollow(dialog, record); };
+                        try
+                        {
+                            if (Str(step, "by") == "double") form.FollowOpened(Selected(form.historyList));
+                            else if (form.followButton == null || !form.followButton.Enabled || !OwnVisible(form.followButton))
+                                disabled.Add("history_follow");
+                            else Pressed.Invoke(form.followButton, new object[] { EventArgs.Empty });
+                        }
+                        finally
+                        {
+                            form.followAnswer = null;
+                        }
+                        if (record.Count > 0) dialogs.Add(record);
                     }
                     else if (what == "pending_open")
                     {
@@ -1516,6 +1612,8 @@ namespace CodexAutoResume
                 foreach (Control button in historyClear.Parent.Controls)
                     if (button is Button && OwnVisible(button)) historyButtons.Add(button.Text);
                 scheduled["history_buttons"] = historyButtons;
+                // v0.6.20 (#50): Follow through..., offered for a delivered message.
+                scheduleButtons["follow"] = followButton != null && followButton.Enabled && OwnVisible(followButton);
             }
             scheduled["buttons"] = scheduleButtons;
             scheduled["note"] = pendingNote == null ? null : pendingNote.Text;

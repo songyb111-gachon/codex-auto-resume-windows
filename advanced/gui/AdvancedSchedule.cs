@@ -448,6 +448,8 @@ namespace CodexAutoResume
             if (doneNote != null && historyNote != null) SetNote(historyNote, doneNote);
             // v0.6.20: a chosen steer - the words that were sent, and what its outcome means.
             if (Str(row, RowKindKey) == KindSteer && historyNote != null) SetNote(historyNote, Str(row, RowSaidKey) ?? "");
+            // v0.6.20 (#50): a delivered message offers Follow through... (AdvancedFollow.cs).
+            UpdateFollowButton(row, idle);
         }
 
         /// How many completed messages History lists - what Clear history deletes; a steer is never one (v0.6.20).

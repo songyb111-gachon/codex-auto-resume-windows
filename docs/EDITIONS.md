@@ -1031,7 +1031,15 @@ are history: the History page lists the messages of the last 30 days that were d
 recovery's are, and its one **Clear history** clears them with the finished recoveries: it asks first, saying how many
 of each; hides the recoveries as it always did; deletes only the completed messages it shows that are unchanged
 since; says how many it deleted and how many it kept because they changed; and never touches a waiting, held,
-cancelled or failed message or anything of Codex's. The Advanced features page's card for
+cancelled or failed message or anything of Codex's. A delivered message chosen on History offers **Follow
+through...** (a double-click on its row does the same): it shows what the work the message started did after - when it
+was sent and delivered, the limit that cut its turn off and when, the reset its recovery waits for, where that
+recovery stands in History's own words, every further cut-off of the recovery's own turn, and how it ended (still
+running, finished without a cut-off, waiting, recovered, or ended). One line says how the turn was tied to the
+message: exactly, when the message's own mark is in that turn in Codex's history; **linked by time**, when the mark
+cannot be found and one cut-off alone started between its sending and its delivery - which may not be its turn; or
+not at all, and why. A turn you started yourself is never followed as the message's. It reads only, changes nothing
+and sends nothing, and for a series it follows the last occurrence. The Advanced features page's card for
 this capability keeps its switch and limits, and **Schedule...**, and says that a message is scheduled there or on
 Pending and managed on Pending.
 
