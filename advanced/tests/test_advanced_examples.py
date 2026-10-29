@@ -81,7 +81,7 @@ class TableTests(unittest.TestCase):
                 self.assertEqual(len(scenes), 2, "a Before and an After")
                 for index, start in enumerate(scenes):
                     scene = made[start:scenes[index + 1] if index + 1 < len(scenes) else len(made)]
-                    self.assertRegex(scene, r"\b(OnHistory|OnPending|Sent|Says)\(", "each scene has a part")
+                    self.assertRegex(scene, r"\b(OnHistory|OnPending|InReport|Sent|Says)\(", "each scene has a part")
 
     def test_the_samples_name_only_the_fixtures_and_nothing_real(self):
         source = text()

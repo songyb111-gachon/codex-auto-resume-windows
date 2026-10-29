@@ -9,7 +9,7 @@
 // of the screen it opens on, as Find a conversation is (AdvancedFind.cs). Each pane is drawn by the window itself from a
 // sample snapshot, through the code the pages draw with: a list on History's card (DialogListCard) shaped as History or
 // Pending, every cell written by Cells - core's words for a state and a kind, When, Attempts, this edition's CellsWritten
-// notes, RuleRow and PromptRow for its own rows - and Next check by CountdownText; what is sent, as the wrap-up card shows
+// notes, RuleRow and PromptRow for its own rows - in as many of the page's columns as half a small screen holds; what is sent, as the wrap-up card shows
 // it ("What is sent, exactly"); and a line made by the window's own functions (UsageLine, Keep going's line). Where nothing
 // on screen differs, a pane says the statement's own field, as the page shows it.
 //
@@ -92,6 +92,9 @@ namespace CodexAutoResume
         }
 
         private static ExamplePart OnHistory(params Dictionary<string, object>[] rows) { return Rows("history", rows); }
+
+        /// History's rows as the compatibility report keeps them: no conversation column at all.
+        private static ExamplePart InReport(params Dictionary<string, object>[] rows) { return Rows("report", rows); }
 
         private static ExamplePart OnPending(params Dictionary<string, object>[] rows) { return Rows("pending", rows); }
 
@@ -202,8 +205,8 @@ namespace CodexAutoResume
                 Ex("compat_report",
                    Scene(OnHistory(Rec(ExampleProject, "recovered", "usage_limit", Detected, Reset + 1),
                                    Rec(ExampleService, "recovered", "server_5xx", -130, -128))),
-                   Scene(OnHistory(Rec(null, "recovered", "usage_limit", Detected, Reset + 1),
-                                   Rec(null, "recovered", "server_5xx", -130, -128)))),
+                   Scene(InReport(Rec(ExampleProject, "recovered", "usage_limit", Detected, Reset + 1),
+                                  Rec(ExampleService, "recovered", "server_5xx", -130, -128)))),
                 Ex("start_with_codex",
                    Scene(OnPending(Due(Over(Rec(ExampleProject, "waiting_reset", "usage_limit", Detected, 0), "engine_unavailable"), Ahead))),
                    Scene(OnHistory(Rec(ExampleProject, "recovered", "usage_limit", Detected, Reset + 1)))),
@@ -615,7 +618,7 @@ namespace CodexAutoResume
             pane.Controls.Add(title);
             foreach (ExamplePart part in scene.Parts)
             {
-                if (part.Kind == "history" || part.Kind == "pending")
+                if (part.Kind == "history" || part.Kind == "pending" || part.Kind == "report")
                 {
                     Control made = ExampleList(part, width, now);
                     pane.Controls.Add(made);
@@ -642,6 +645,10 @@ namespace CodexAutoResume
 
         /// A part's rows on History's card (DialogListCard), shaped as History or Pending, every cell written by the window's
         /// own Cells; the card exactly as tall as its rows. With no row, the page's own words for an empty list.
+        ///
+        /// Only some of a page's columns, so that a pane half a small screen wide keeps every heading whole (CI's 1024 by
+        /// 768 at 200 %, in German): History's conversation, outcome, kind and when it finished; Pending's conversation,
+        /// status and kind; the report's outcome, kind and when it finished.
         private Control ExampleList(ExamplePart part, int width, double now)
         {
             bool pending = part.Kind == "pending";
@@ -651,18 +658,21 @@ namespace CodexAutoResume
                 empty.MaximumSize = new Size(width, 0);
                 return empty;
             }
+            bool report = part.Kind == "report";
             ListView list = pending
                 ? List(S("nav.pending", "Pending"),
                        Col(S("pending.col_conversation", "Conversation"), 140),
                        Col(S("pending.col_status", "Status"), 190),
-                       Col(S("pending.col_category", "Kind"), 110),
-                       Col(S("pending.col_next", "Next check"), 84),
-                       Col(S("pending.col_attempts", "Attempts"), 70))
+                       Col(S("pending.col_category", "Kind"), 110))
+                : report
+                ? List(S("nav.history", "History"),
+                       Col(S("history.col_outcome", "Outcome"), 200),
+                       Col(S("pending.col_category", "Kind"), 130),
+                       Col(S("history.col_finished", "Finished"), 130))
                 : List(S("nav.history", "History"),
                        Col(S("pending.col_conversation", "Conversation"), 220),
                        Col(S("history.col_outcome", "Outcome"), 200),
                        Col(S("pending.col_category", "Kind"), 130),
-                       Col(S("history.col_detected", "Detected"), 130),
                        Col(S("history.col_finished", "Finished"), 130));
             exampleLists.Add(list);
             // What this edition says of these rows, as the status of a snapshot says it (surfaces.rows).
@@ -687,9 +697,9 @@ namespace CodexAutoResume
                 foreach (Dictionary<string, object> row in rows)
                 {
                     string[] cells = Cells(row, pending);
-                    if (pending && cells[3] == null) cells[3] = CountdownText(row, now);
-                    var item = new ListViewItem(cells[0] ?? "");
-                    for (int c = 1; c < list.Columns.Count; c++) item.SubItems.Add(cells[c] ?? "");
+                    int[] shown = pending ? new[] { 0, 1, 2 } : report ? new[] { 1, 2, 4 } : new[] { 0, 1, 2, 4 };
+                    var item = new ListViewItem(cells[shown[0]] ?? "");
+                    for (int c = 1; c < shown.Length; c++) item.SubItems.Add(cells[shown[c]] ?? "");
                     item.Tag = row;
                     list.Items.Add(item);
                 }

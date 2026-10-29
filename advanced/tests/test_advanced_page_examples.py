@@ -88,7 +88,7 @@ class PageTests(PageCase):
                     self.assertTrue(pane["parts"], "something is shown")
                     for part in pane["parts"]:
                         self.assertGreater(part["ink"], 0, "the %s part drew" % part["kind"])
-                        if part["kind"] in ("history", "pending") and "rows" in part:
+                        if "rows" in part:
                             self.assertTrue(part["rows"])
                             self.assertEqual(part["on_card"], "", "the list stands on History's card")
                             for row in part["rows"]:
@@ -103,15 +103,14 @@ class PageTests(PageCase):
         words = expected["words"]
         core = l10n.catalog("en")
         history = [core["pending.col_conversation"], core["history.col_outcome"], core["pending.col_category"],
-                   core["history.col_detected"], core["history.col_finished"]]
-        pending = [core["pending.col_conversation"], core["pending.col_status"], core["pending.col_category"],
-                   core["pending.col_next"], core["pending.col_attempts"]]
+                   core["history.col_finished"]]
+        pending = [core["pending.col_conversation"], core["pending.col_status"], core["pending.col_category"]]
         (before,) = self.parts(looks["capacity_retry"], 0, "history")
         (after,) = self.parts(looks["capacity_retry"], 1, "history")
         self.assertEqual(before["columns"], history)
         self.assertEqual(before["rows"][0][:3], ["example-project", core["code.exhausted"], core["reason.server_5xx"]])
         self.assertEqual(after["rows"][0][:3], ["example-project", core["code.recovered"], core["reason.server_5xx"]])
-        self.assertTrue(after["rows"][0][3] and after["rows"][0][4], "detected and finished, as History writes them")
+        self.assertRegex(after["rows"][0][3], r"^\d{4}-\d\d-\d\d \d\d:\d\d$", "finished, as History writes it")
         # This edition's notes on a row (CellsWritten), read from the sample's own status while the view is built.
         (others,) = self.parts(looks["other_sessions"], 1, "history")
         self.assertEqual([row[0] for row in others["rows"]],
@@ -122,19 +121,18 @@ class PageTests(PageCase):
         (compact,) = self.parts(looks["compact_continue"], 1, "pending")
         self.assertEqual(compact["columns"], pending)
         self.assertIn(words["page.row.compact"], compact["rows"][0][1])
-        # A waiting row's next check, as Pending's clock writes it; its attempts beside its limit.
         (crash,) = self.parts(looks["crash_restart"], 0, "pending")
         self.assertIn(core["overlay.engine_unavailable"], crash["rows"][0][1])
-        self.assertRegex(crash["rows"][0][3], r"^\d+:\d\d$")
-        self.assertEqual(crash["rows"][0][4], "1/4")
+        # The compatibility report's rows: no conversation column at all.
+        (report,) = self.parts(looks["compat_report"], 1, "report")
+        self.assertEqual(report["columns"], history[1:])
+        self.assertEqual(report["rows"][0][:2], [core["code.recovered"], core["reason.usage_limit"]])
         # This edition's own rows, made as Pending makes them (RuleRow, PromptRow), named by the sample's conversations.
         (rules,) = self.parts(looks["reset_message"], 1, "pending")
         self.assertEqual(rules["rows"][1][0], "example-project")
         self.assertEqual(rules["rows"][1][2], words["page.pending.kind.rule"])
-        self.assertEqual(rules["rows"][1][3], words["page.resets.window.300"])
         (queued,) = self.parts(looks["prompt_queue"], 1, "pending")
         self.assertEqual([row[2] for row in queued["rows"]], [words["page.pending.kind.message"]] * 2)
-        self.assertEqual(queued["rows"][1][3], words["page.queue.when.after_turn"])
         self.assertEqual(self.parts(looks["prompt_queue"], 0)[0]["text"], core["pending.empty"])
 
     def test_what_is_sent_and_the_lines_are_the_window_s_own_words(self):
@@ -160,7 +158,7 @@ class PageTests(PageCase):
         for capability, look in looks.items():
             for pane in look["panes"]:
                 for part in pane["parts"]:
-                    for row in part.get("rows", []):
+                    for row in (part.get("rows", []) if part["kind"] != "report" else []):
                         with self.subTest(capability=capability, row=row):
                             self.assertIn(row[0].split(" · ")[0], FIXTURES + ("",))
                     self.assertNotRegex(part.get("text", ""), r"(?i)[a-z]:\\|\\users\\")
