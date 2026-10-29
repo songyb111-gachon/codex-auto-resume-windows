@@ -1080,14 +1080,24 @@ codex-cli 0.164), and only then; and, in the advanced edition, *Find a conversat
 the searchable list of a person's own conversations that [#50](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/50) asked for. #50's image attachments, steer send mode and
 follow-through view stay with the rest of v0.6.20.
 
-### v0.6.20-beta.2 🚧 — The tray reuses the open window, status lights for work in progress, lists on cards (a pre-release)
+### v0.6.20-beta.2 ✅ — The tray reuses the open window, status lights for work in progress, lists on cards (a pre-release)
 
 [#55](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/55)'s window reuse from the notification area (both editions); the status light's first slices of the owner's
 audit of 2026-10-26 (an action in progress, a chat message on its way); every dialog's list on History's card; the design help line
 naming the neumorphic design; and, in the advanced edition, a click on a notice opening Codex in place of the Open Codex button.
 
+### v0.6.20-beta.3 🚧 — A status light for every state, Arabic and Hebrew, and most of the advanced edition's list (a pre-release)
+
+Both editions: the status light checked for every state (the owner's amended J14 of 2026-10-29), the Dashboard reopened after a Repair on the
+page it showed, Arabic and Hebrew offered with every surface mirrored, and the README's motions made longer. The advanced edition: usage and
+token analytics, push notices and the status feed through one courier, starting the 5-hour window early, switching the account, the Stop hook's
+continuation (built, hidden until it is measured), #50's pictures, steer send mode, opening a conversation to send now and follow-through view,
+and a before and after for every capability.
+
 ### Around recovery
 
+- starting the 5-hour window early, at times a person picks or right after a reset, so that its reset comes sooner (the owner,
+  2026-10-28; measurement MANCHOR),
 - usage and token analytics (the live usage meter and the wrap-up near a limit are v0.6.16's; reset credits
   are v0.6.14's, used at the limit a person picks),
 - a provider status feed and push notifications - ntfy, a webhook, Telegram, e-mail - through one
@@ -1111,9 +1121,9 @@ naming the neumorphic design; and, in the advanced edition, a click on a notice 
 
 ### An example for every capability
 
-- before and after pictures or example texts for every advanced capability, in the editions page in both languages, with
-  a test that none is missing and a *See an example* link on the Advanced features page that opens the editions page at
-  it. The owner asked for them on 2026-10-24 for the v0.6.19 final; the work begun then goes on here.
+- before and after for every advanced capability, which the owner chose on 2026-10-29 to keep in the app itself: the Advanced
+  features page draws them with its own code (*See an example...* on each capability), with a test that none is missing. The owner
+  asked for them on 2026-10-24 for the v0.6.19 final; the work begun then goes on here.
 
 ---
 
