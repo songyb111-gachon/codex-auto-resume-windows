@@ -73,7 +73,8 @@ def standards_text(rule) -> str:
 
 # v0.6.19: the capabilities waiting in registry.WAITING whose statement is written already, so that a measurement's pass
 # offers them whole (open_to_send, MOPEN) - their names and statements are in every catalog while they wait.
-STATED_WAITING = (registry.OPEN_TO_SEND,)
+# v0.6.20: and Continue inside the turn (stop_hook_continuation, MHK, M4 and M4B).
+STATED_WAITING = (registry.OPEN_TO_SEND, registry.STOP_HOOK)
 
 class ShippedTests(unittest.TestCase):
     SHIPPED = ("start_with_codex",
@@ -155,7 +156,10 @@ class ShippedTests(unittest.TestCase):
     # The order a person reads them in (the owner's, 2026-10-10): the compatibility report first, then by importance.
     SHOWN = ("compat_report", "start_with_codex", "crash_restart", "wake_for_reset", "every_conversation", "queue_for_open",
              "open_to_send", "headless_run",
-             "other_sessions", "marker_free_continuation", "silent_continuation", "reset_credit",
+             "other_sessions", "marker_free_continuation",
+             # v0.6.20: the continuation inside the turn, hidden until MHK, M4 and M4B pass.
+             "stop_hook_continuation",
+             "silent_continuation", "reset_credit",
              "early_reset", "parallel_dispatch", "reset_message", "long_reset_message",
              "usage_meter", "usage_wrap_up", "usage_pause", "window_anchor", "keep_going", "usage_analytics", "prompt_queue",
              # v0.6.19: chat with a conversation, beside the queued messages.

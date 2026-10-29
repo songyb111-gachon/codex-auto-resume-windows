@@ -843,5 +843,11 @@
   "warning.measurement_failed": "对它所依赖部分的测量失败了。它在你的 Codex 上可能无法工作。",
   "warning.note": "这些警告不会阻止你开启它。开启即表示你已读过这些警告；如果之后出现新问题，它会自动关闭。",
   "warning.title": "警告",
-  "warning.unmeasured": "它所依赖的部分尚未在此版本的 Codex 上测量过。"
+  "warning.unmeasured": "它所依赖的部分尚未在此版本的 Codex 上测量过。",
+  "name.stop_hook_continuation": "在本轮内续接",
+  "statement.stop_hook_continuation.does": "当某一轮因短暂的临时故障（连接中断、超时、服务器错误或数据流中断）而停止时，本产品的 Stop 钩子会请 Codex 立即在同一轮内继续，使用标准续接消息及其标记，而不是由监视器在等待后发送一条新消息。Codex 会询问一次你是否信任本产品的钩子；请在 Codex 中选择是。每一轮最多这样续接一次，仅在该对话开启自动恢复时进行，并受与所有续接相同的每日上限约束。",
+  "statement.stop_hook_continuation.instead": "标准版会等待你的重试节奏的第一步，然后通过 Codex 的队列命令把续接作为一条新消息发送。它不会给 Codex 结束一轮的方式添加任何东西。",
+  "statement.stop_hook_continuation.departs": "A2（续接消息只通过一个渠道发送，即 Codex 的队列命令）、A5（是否发送只由监视器自己的认领决定）、A26（续接是加入对话队列的一条消息）、B3（Codex 的状态只通过其队列命令和插件命令改变）和 F6（只启动列出的进程）：由 Codex 启动的钩子程序认领续接并以它答复 Codex，且在此功能开启期间，其声明写入本产品的插件副本。",
+  "statement.stop_hook_continuation.risks": "它依赖于 Codex 在失败的一轮之后运行插件的 Stop 钩子（M4）、执行钩子的答复（M4B），并以测得的格式读取其声明（MHK）；其他版本的 Codex 可能改变其中任何一点。如果 Codex 没有继续，监视器会在最多十五分钟的暂停后照常恢复对话。无法在两秒内作出判断的钩子会让这一轮照原样结束。它只从 Codex 读取对话和本轮的 ID，从不读取说过的内容。",
+  "statement.stop_hook_continuation.stop": "在仪表盘中关闭它，或一次关闭所有高级功能：钩子的声明会从插件副本中移除，监视器会像以前一样再次续接每个失败的轮次。当 Codex 询问你是否信任该钩子时，你也可以拒绝。"
 }

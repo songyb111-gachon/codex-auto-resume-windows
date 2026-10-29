@@ -161,6 +161,12 @@ class Context:
         found = self._hand("anchor_request")
         return found if isinstance(found, dict) else {}
 
+    def stop_hook(self) -> dict:
+        """What this installation's Stop hook declaration is (M4B, v0.6.20): {"declared": whether one of ours stands in
+        our plugin copies, "commands": the commands one of ours runs}, or {} where there is no hand."""
+        found = self._hand("stop_hook")
+        return found if isinstance(found, dict) else {}
+
     def ipc_look(self) -> dict:
         """What a read-only look at the Desktop's own IPC pipe found (v0.6.16-beta.3, MIPC): a dict of
         booleans, or empty where there is no seam or the look raised. Nothing is ever written to the pipe."""
@@ -1943,15 +1949,23 @@ def _mhk(ctx):
 
 
 def _m4b(ctx):
-    """A block from this edition's Stop hook (stop_hook_continuation's M4B, D-stop-hook.md): the harness reads whether
-    the hooks Codex knows can be listed; the rest is the person's in a throwaway with the hook installed. The Stop
-    hook's writer finishes this probe with the hook it installs."""
+    """A block from this edition's Stop hook (stop_hook_continuation's M4B, D-stop-hook.md), run by the person on a
+    throwaway with the capability on - its declaration is written only then (control/hookplugin.py). The harness reads
+    whether our declaration stands, whether the hooks Codex lists can be read and whether one of them runs our
+    launcher - booleans only, no command or path recorded; that a failed turn's block continued it, where the history
+    keeps the reason, that no console window appeared and that the trust prompt appeared once is the person's to see."""
     with ctx.open() as session:
         hooks = session.call("hooks/list", {"cwds": []})
-    observed = {"hooks_listed": isinstance(hooks, (dict, list))}
-    return _blocked("with this edition's Stop hook installed in a throwaway, fail a turn: confirm the hook's block "
-                    "continued the turn, where the history keeps its reason, that no console window appeared and the "
-                    "trust prompt appeared once, then set the verdict", **observed)
+    ours = ctx.stop_hook()
+    commands = {command for command in (ours.get("commands") or ()) if isinstance(command, str)}
+    observed = {"hooks_listed": isinstance(hooks, (dict, list)), "declared": ours.get("declared") is True,
+                "ours_listed": bool(commands) and any(word in commands for word in _strings(hooks))}
+    if not observed["declared"]:
+        return _blocked("turn Continue inside the turn on in a throwaway installation, so its Stop hook is declared, "
+                        "then run m4b again", **observed)
+    return _blocked("with this edition's Stop hook declared, fail a turn: confirm the hook's block continued the turn, "
+                    "where the history keeps its reason, that no console window appeared and the trust prompt appeared "
+                    "once, then set the verdict", **observed)
 
 
 # MANCHOR (v0.6.20): the two reads that tell an idle window from a running one stand this far apart, and how close to
@@ -2337,8 +2351,16 @@ def live_hands(backend=None, paths=None) -> dict:
             return None
         return dict(answered, folder_empty_after=not any(folder.iterdir()))
 
+    def stop_hook():
+        from .codex import inuse
+        from .control import hookplugin
+        if paths is None:
+            return {}
+        return {"declared": hookplugin.present(paths, inuse.home(paths)),
+                "commands": sorted(hookplugin.ours(paths))}
+
     return {"open_link": open_link, "power": _power_look, "wake_after": _wake_after, "scratch_cli": scratch_cli,
-            "anchor_request": anchor_request}
+            "anchor_request": anchor_request, "stop_hook": stop_hook}
 
 
 def _guid(text):

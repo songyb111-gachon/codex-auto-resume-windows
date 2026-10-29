@@ -471,8 +471,23 @@ class Arming:
     def _write_off(self, capability, reason) -> bool:
         """`capability` off, with why; StateError where that cannot be written."""
         actor = Actor.TRIPWIRE if reason in TRIPWIRES else Actor.ENGINE_CHANGE
-        return self.state.move(capability, ArmingState.OFF, actor=actor, reason=reason,
-                               at=self.clock())[0]
+        turned = self.state.move(capability, ArmingState.OFF, actor=actor, reason=reason, at=self.clock())[0]
+        self._hook_declaration()
+        return turned
+
+    def _hook_declaration(self) -> None:
+        """v0.6.20: the Stop hook's declaration follows its capability's stored state (control/hookplugin.py) - written
+        while it is on, removed at every way off - and only where this registry has the capability, so nothing is
+        touched while it waits hidden (registry.WAITING). Never raises."""
+        from .control import hookplugin
+        if self.registry.get(hookplugin.CAPABILITY) is None:
+            return
+        try:
+            from .codex import inuse
+            row = self.state.arming().get(hookplugin.CAPABILITY) or {}
+            hookplugin.follow(self.state.paths, inuse.home(self.state.paths), row.get("state") == ArmingState.ARMED)
+        except Exception:
+            pass
 
     def trip(self, capability, reason) -> bool:
         """A tripwire: `capability` off, with why - or, kept on, noted (K8). Only a tripwire's
@@ -799,6 +814,7 @@ class Arming:
                 return refused(Refusal.STALE_GENERATION)
             except StateError:
                 return refused(Refusal.STATE_UNAVAILABLE)
+            self._hook_declaration()
             return {"done": True, "refusal": None, "warnings": [str(word) for word in shown], "generation": after}
 
         # Turning it on. Every requirement that is not ARMED now is turned on with it, one confirmation.
@@ -849,6 +865,7 @@ class Arming:
             return refused(Refusal.STALE_GENERATION)
         except StateError:
             return refused(Refusal.STATE_UNAVAILABLE)
+        self._hook_declaration()
         return {"done": True, "refusal": None, "warnings": [str(word) for word in shown],
                 "generation": after}
 
@@ -882,6 +899,7 @@ class Arming:
                                               reason=OffReason.DISARMED, at=self.clock())
         except StateError:
             return {"done": False, "refusal": Refusal.STATE_UNAVAILABLE, "changed": False, "also_off": also_off}
+        self._hook_declaration()
         return {"done": True, "refusal": None, "changed": changed, "also_off": also_off}
 
     def all_off(self, *, actor) -> dict:
@@ -892,14 +910,16 @@ class Arming:
             count, _after = self.state.all_off(actor=actor, reason=OffReason.ALL_OFF, at=self.clock())
         except StateError:
             return {"done": False, "refusal": Refusal.STATE_UNAVAILABLE, "count": 0}
+        self._hook_declaration()
         return {"done": True, "refusal": None, "count": count}
 
     def edition_entered(self) -> int:
         """The installer has just entered this edition: every capability off, whatever an
         earlier advanced installation of this home left on. Writes nothing where there is no
         advanced state, since then nothing can be on."""
-        return self.state.all_off(actor=Actor.EDITION_ENTRY, reason=OffReason.EDITION_ENTERED,
-                                  at=self.clock())[0]
+        count = self.state.all_off(actor=Actor.EDITION_ENTRY, reason=OffReason.EDITION_ENTERED, at=self.clock())[0]
+        self._hook_declaration()
+        return count
 
     # ------------------------------------------------------------------ kept on
     def set_keep_on(self, capability, keep_on, *, send_again=False, generation, confirmed=None,

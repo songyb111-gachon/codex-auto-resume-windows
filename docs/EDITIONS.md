@@ -283,6 +283,44 @@ when it was opened, as your own message, and was found by its id. **MQP: passed*
 in a session of its own, each landed only in its own conversation. On any other version the queue carries its
 message with its marker and the sends go one at a time.
 
+### Continue inside the turn
+
+**Not offered yet.** It is built and waits, hidden, until three measurements pass on the Codex you have: MHK (how
+Codex declares a plugin's Stop hook), M4 (Codex runs a plugin's Stop hook after a failed turn) and M4B (Codex carries
+out the hook's answer - the turn goes on, with no console window); until then no row, statement or switch of it is
+shown.
+
+**What it does.** When a turn stops on a short temporary failure - a dropped connection, a timeout, a server error or
+an interrupted stream, whose first wait in your retry timing is a minute or less - this product's Stop hook, a small
+program Codex starts as the turn ends, asks Codex to go on at once inside that same turn, with the standard
+continuation and its marker, instead of the watcher sending a new message after the wait. Codex asks you once to
+trust the hook; say yes in Codex. It reads only the conversation's and the turn's ids from what Codex hands it, and
+the latest turn from Codex's history, read-only; the hook claims the continuation in the watcher's own file under the
+watcher's claim's lock, so the two never both continue one failure: the watcher first, the hook stands aside; the hook
+first, the watcher holds that recovery for fifteen minutes and then finds the conversation moved on. A turn is
+continued this way once at most. A usage limit, which waits hours, and a turn that ended normally (Keep a conversation
+going) are never the hook's. While it is on, its declaration is written into this product's own plugin copies - the
+installation's and the copy Codex keeps - and it is removed when it is turned off, when every advanced feature is
+turned off and at an edition change.
+
+**When it helps.** When a short failure should cost seconds, not the first wait and a new message.
+
+**What it risks.** Codex's hook interface changes more than any other surface this product uses; a new Codex version
+may stop running the hook, ignore its answer or read its declaration differently. If Codex does not go on, the watcher
+recovers the conversation as usual after its hold. A hook that cannot decide within two seconds lets the turn end as
+it would have. The hook trust prompt is Codex's own and is never bypassed.
+
+**Departs from** [A2](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (one channel only, `codex queue`), A5 (only
+the watcher's own claim decides a send), A26 (a continuation is a message added to the conversation's queue),
+[B3](STANDARDS.md#b-what-it-reads-and-how) (Codex's state changes only through its queue and plugin commands: here
+the hook's declaration in the plugin copies) and [F6](STANDARDS.md#f-footprint-on-the-machine) (Codex starts the
+hook's program, which is not a listed process).
+
+**Ceilings.** 24 a day, and 5 in any one conversation - each continuation of the hook's counts as a claim toward the
+standard edition's five a day and fifteen minutes apart, as the watcher's count toward the hook's. **Measurements
+MHK, M4 and M4B: not passed yet** - M4 failed on `codex-cli 0.162.0-alpha.17.2`, where no plugin Stop hook existed to
+run; hidden until all three pass.
+
 ### Goal continuation
 
 **What it does.** For a usage limit only. When the limit paused a conversation's Codex goal and the

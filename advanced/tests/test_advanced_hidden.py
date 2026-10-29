@@ -1,6 +1,7 @@
 """A capability that cannot work on any Codex measured so far is hidden (the owner's rule of 2026-10-16): no row on the
 Advanced features page, no statement, no switch - its definition and its probe kept - and offered once its
-measurement passes. The one gate: registry.WAITING and registry.offered. Codex's own retry settings wait there, on MB.
+measurement passes. The one gate: registry.WAITING and registry.offered. Codex's own retry settings wait there, on MB
+(and, from v0.6.19, Continue inside the turn, on M4 and M4B).
 """
 from __future__ import annotations
 
@@ -40,9 +41,10 @@ class HiddenTests(unittest.TestCase):
     def test_its_definition_is_kept_whole(self):
         self.assertEqual(problems(CODEX_RETRY_SETTINGS), [])
         self.assertEqual(CODEX_RETRY_SETTINGS.measurements, (Measurement.MB,))
-        # v0.6.19 (#50): open_to_send waits there too, on MOPEN (test_advanced_open_target holds it).
-        self.assertEqual([measurement for _definition, measurement in registry.WAITING], [Measurement.MB,
-                                                                                          Measurement.MOPEN])
+        # v0.6.19 (#50): open_to_send waits there too, on MOPEN (test_advanced_open_target holds it); v0.6.20: Continue
+        # inside the turn on MHK, M4 and M4B together (test_advanced_hook_claim).
+        self.assertEqual([measurement for _definition, measurement in registry.WAITING],
+                         [Measurement.MB, Measurement.MOPEN, (Measurement.MHK, Measurement.M4, Measurement.M4B)])
 
 
 if __name__ == "__main__":

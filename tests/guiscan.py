@@ -30,8 +30,9 @@ ROOT = Path(__file__).resolve().parents[1]
 GUI = ROOT / "gui"
 MANIFEST = GUI / "window.sources"
 
-# Built by the same script from its own single source, and not part of the window.
-SEPARATE = ("gui/McpLauncher.cs",)
+# Built by the same script from its own single source, and not part of the window: the MCP launcher, and (v0.6.19)
+# the advanced edition's Stop hook launcher, its twin, built only into that edition (build/make_gui.ps1 -Edition advanced).
+SEPARATE = ("gui/McpLauncher.cs", "gui/HookLauncher.cs")
 
 # The groups `gui/window.sources` divides the compile list into, and what each one means:
 #

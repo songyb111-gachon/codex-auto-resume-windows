@@ -98,6 +98,7 @@ from .engine.fallback import (ATTEMPTS as FALLBACK_ATTEMPTS, DEFAULT_ATTEMPTS as
 from .engine.goal import make as make_goal_continuation
 from .engine.headless import DEFAULT_HOURS as HEADLESS_DEFAULT_HOURS, HOURS as HEADLESS_HOURS, make as make_headless_run
 from .engine.markerfree import make as make_marker_free
+from .engine.hookclaims import make as make_stop_hook
 from .engine.retries import (ATTEMPTS as RETRY_ATTEMPTS, DEFAULT_ATTEMPTS as RETRY_DEFAULT_ATTEMPTS,
                              make as make_retry_settings)
 from .engine.sessions import make as make_other_sessions
@@ -1412,18 +1413,48 @@ OPEN_TO_SEND = CapabilityDef(
     measurements=(Measurement.MOPEN,),
 )
 
+# Continue inside the turn (v0.6.20, plans/v0619-design/D-stop-hook.md): a continuation of a short temporary failure
+# carried inside the turn that failed, by this edition's Stop hook - a program Codex starts as the turn stops
+# (gui/HookLauncher.cs, hook/handler.py) - in place of the watcher's queued message after the wait. The hook claims in
+# core's file under core's claim's lock (engine/hookclaims.py): the watcher first, the hook passes; the hook first,
+# core is held at P3 and at P11 (ledger.py) from a second continuation of the same interruption, and its units count
+# in the caps on one conversation. Its declaration is written into this product's plugin copy only while it is on
+# (control/hookplugin.py). It departs from A2 (a second channel: Codex's own hook answer, not `codex queue`), A5 (the
+# claim is made by the hook's process, in the same transaction core's claim takes, not by core's claim), A26 (the
+# continuation is carried as the hook's reason, not a queued message), B3 (Codex's state changes through the hook's
+# declaration in the plugin copy) and F6 (Codex starts the hook's program, which is not a listed process). It stands on
+# recovery_turn_tracking - the history it reads the failed turn from - and rests on M4 (a plugin's Stop hook runs after
+# a failed turn, its row already written), M4B (Codex carries out the block: the turn goes on, without a console window)
+# and MHK (the declaration's format on the engine in force). Hidden in WAITING until all three pass. Ceilings:
+# core's own five a conversation a day, and two dozen a day in all.
+STOP_HOOK = CapabilityDef(
+    id="stop_hook_continuation",
+    points=frozenset({Point.GATES, Point.TICK}),
+    revision=1,
+    departs_from=("A2", "A5", "A26", "B3", "F6"),
+    compat="recovery_turn_tracking",
+    ceilings=Ceilings(per_day=24, per_conversation=CORE_DAILY_CAP),
+    journal_prefix="shk",
+    make=make_stop_hook,
+    measurements=(Measurement.M4, Measurement.M4B, Measurement.MHK),
+)
+
 # The one gate for a capability that cannot work on any Codex measured so far (the owner's rule of 2026-10-16): each
 # here, with the measurement that must pass first, is hidden - not in the registry this edition runs, so no row, no
 # statement and no switch anywhere - until that measurement passes (measured.MEASURED), and then offered after
 # DEFINITIONS. Its code and its probe stay in the tree. (v0.6.19: open_to_send's statement is written already, so a
-# pass offers it whole; codex_retry_settings' is not.)
-WAITING = ((CODEX_RETRY_SETTINGS, Measurement.MB), (OPEN_TO_SEND, Measurement.MOPEN))
+# pass offers it whole; codex_retry_settings' is not.) v0.6.20: a tuple of measurements is several, every one of
+# which must pass (Continue inside the turn: MHK, M4 and M4B).
+WAITING = ((CODEX_RETRY_SETTINGS, Measurement.MB), (OPEN_TO_SEND, Measurement.MOPEN),
+           (STOP_HOOK, (Measurement.MHK, Measurement.M4, Measurement.M4B)))
 
 
 def offered(measured) -> tuple:
-    """The waiting capabilities `measured` (measured.MEASURED's shape) lets out: those whose measurement passed."""
+    """The waiting capabilities `measured` (measured.MEASURED's shape) lets out: those whose measurements all passed."""
+    def passed(measurement):
+        return (measured.get(measurement) or (None,))[0] == Verdict.PASS
     return tuple(definition for definition, measurement in WAITING
-                 if (measured.get(measurement) or (None,))[0] == Verdict.PASS)
+                 if all(passed(each) for each in (measurement if isinstance(measurement, tuple) else (measurement,))))
 
 
 def _registry():
@@ -1451,6 +1482,9 @@ SHOWN_ORDER = ("compat_report", "start_with_codex",
                "open_to_send",
                # v0.6.16-beta.4: what gets a conversation going when nothing holds it, beside queue for opening (Q12).
                "headless_run", "other_sessions", "marker_free_continuation",
+               # v0.6.20: the continuation inside the turn, beside the other that goes without core's queued message -
+               # shown once MHK, M4 and M4B pass (the owner's order of 2026-10-22).
+               "stop_hook_continuation",
                # v0.6.16-beta.4: how a turn run here starts, beside the other continuation that goes without a marker
                # (DECISIONS Q12).
                "silent_continuation", "reset_credit",
