@@ -834,6 +834,10 @@ namespace CodexAutoResume
                 Font = whole;
                 Soft.BaseFont = Font;
             }
+            // v0.6.20: in a language written right to left the window is mirrored (Mirror), and so is every dialog it
+            // opens (Soft.TitleBar). Before anything is built, so what is built inherits it.
+            Mirror.Window = Mirror.Language(wordsLanguage);
+            Mirror.Apply(this);
 
             BuildFooter();
             BuildHeader();

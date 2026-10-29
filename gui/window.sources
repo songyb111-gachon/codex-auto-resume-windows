@@ -71,6 +71,7 @@ gui/SoftCombo.cs
 gui/SoftList.cs
 gui/SoftMenu.cs
 gui/SoftCallout.cs
+gui/SoftMirror.cs
 gui/Marks.cs
 
 [generated]

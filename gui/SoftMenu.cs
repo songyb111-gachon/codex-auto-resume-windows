@@ -36,6 +36,9 @@ namespace CodexAutoResume
         {
             layer = new SoftMenuLayer(this, PaintFace);
             SoftMenuRenderer.Dress(this);
+            // v0.6.20: a menu is a window of its own; mirrored with the window it opens over (Mirror.Window), its items
+            // laid out and their words drawn right to left by ToolStrip itself, and every submenu with it.
+            if (Mirror.Window) RightToLeft = RightToLeft.Yes;
         }
 
         /// The card's layer, or null in High Contrast (for the tests).

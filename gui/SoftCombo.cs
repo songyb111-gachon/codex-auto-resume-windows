@@ -736,13 +736,21 @@ namespace CodexAutoResume
             Soft.InsetWell(g, face, radius, Focused && ShowFocusCues);
             string text = SelectedIndex >= 0 ? GetItemText(SelectedItem) : "";
             int left = Soft.Px(Brand.SelectPadLeft), right = Soft.Px(Brand.SelectPadRight);
-            TextRenderer.DrawText(g, text, Font, new Rectangle(left, 0, Math.Max(0, face.Width - left - right), face.Height),
+            // v0.6.20: mirrored, the words from the right and the chevron at the left (Mirror).
+            bool mirrored = Mirror.Of(this);
+            int room = Math.Max(0, face.Width - left - right);
+            TextRenderer.DrawText(g, text, Font, new Rectangle(Mirror.X(mirrored, face.Width, left, room), 0, room, face.Height),
                                   Enabled ? Palette.Ink : Palette.Muted,
-                                  TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.SingleLine |
-                                  TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+                                  Mirror.Words(mirrored, TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.SingleLine |
+                                                         TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix));
             // The chevron: a small wedge in the muted colour, where the panel's select has it.
             float wedge = Soft.PxF(Brand.ChevronWidth), tall = Soft.PxF(Brand.ChevronHeight);
             float right1 = face.Right - Soft.Hairline - Soft.PxF(Brand.ChevronRight), left1 = right1 - wedge;
+            if (mirrored)
+            {
+                left1 = Mirror.X(true, (float)face.Width, left1, wedge);
+                right1 = left1 + wedge;
+            }
             float top = face.Top + face.Height * 0.55f - tall / 2f;
             GraphicsState state = g.Save();
             g.SmoothingMode = SmoothingMode.AntiAlias;
@@ -774,9 +782,11 @@ namespace CodexAutoResume
                       : highlighted && Palette.Contrast ? SystemColors.HighlightText : Palette.Ink;
             using (var brush = new SolidBrush(back)) e.Graphics.FillRectangle(brush, e.Bounds);
             var bounds = new Rectangle(e.Bounds.X + Soft.Px(6), e.Bounds.Y, Math.Max(0, e.Bounds.Width - Soft.Px(8)), e.Bounds.Height);
+            bool mirrored = Mirror.Of(this);
+            if (mirrored) bounds.X = e.Bounds.Right - Soft.Px(6) - bounds.Width;
             TextRenderer.DrawText(e.Graphics, GetItemText(Items[e.Index]), Font, bounds, ink,
-                                  TextFormatFlags.VerticalCenter | TextFormatFlags.Left |
-                                  TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
+                                  Mirror.Words(mirrored, TextFormatFlags.VerticalCenter | TextFormatFlags.Left |
+                                                         TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis));
         }
     }
 
@@ -959,6 +969,8 @@ namespace CodexAutoResume
         private Rectangle card;
         private Padding margin;
         private bool above, scrolls, tracking, dragging;
+        // v0.6.20: its drop-down's window is mirrored (Mirror): the card's right edge under the field's, the bar at its left.
+        private bool mirrored;
         private int pad, pill, rowGap, rows, offset, extent, grab, hover = -1, alpha = 255, rise;
         private Point pointer;
         private Bitmap image;
@@ -1021,8 +1033,15 @@ namespace CodexAutoResume
         internal static Rectangle Place(Rectangle field, int width, int wanted, int pill, int rowGap, int pad,
                                         Rectangle area, int gap, out bool above, out int rows)
         {
+            return Place(field, width, wanted, pill, rowGap, pad, area, gap, false, out above, out rows);
+        }
+
+        /// The same, `mirrored` (v0.6.20, Mirror): `pad` right of the field, so its items' words end over the field's.
+        internal static Rectangle Place(Rectangle field, int width, int wanted, int pill, int rowGap, int pad,
+                                        Rectangle area, int gap, bool mirrored, out bool above, out int rows)
+        {
             width = Math.Max(0, Math.Min(width, area.Width));
-            int x = Math.Max(area.Left, Math.Min(area.Right - width, field.X - pad));
+            int x = Math.Max(area.Left, Math.Min(area.Right - width, mirrored ? field.Right + pad - width : field.X - pad));
             int below = area.Bottom - (field.Bottom + gap), over = field.Top - gap - area.Top;
             rows = Math.Max(1, wanted);
             int height = CardHeight(rows, pill, rowGap, pad);
@@ -1046,6 +1065,7 @@ namespace CodexAutoResume
             Rectangle field = combo.RectangleToScreen(combo.ClientRectangle);
             Rectangle area = Area.IsEmpty ? Screen.FromRectangle(field).WorkingArea : Area;
             Font font = combo.Font;
+            mirrored = Mirror.Of(combo);
             pad = Soft.Px(Brand.SpaceS);
             rowGap = Soft.Px(Brand.SpaceXs);
             var unbounded = new Size(int.MaxValue, int.MaxValue);
@@ -1057,13 +1077,13 @@ namespace CodexAutoResume
             int wanted = Math.Max(1, Math.Min(count, combo.MaxDropDownItems));
             int words = widest + 2 * Soft.Px(Brand.SelectPadLeft);
             int width = Math.Max(field.Width, words) + 2 * pad;
-            card = Place(field, width, wanted, pill, rowGap, pad, area, Soft.Px(Brand.SpaceXs), out above, out rows);
+            card = Place(field, width, wanted, pill, rowGap, pad, area, Soft.Px(Brand.SpaceXs), mirrored, out above, out rows);
             scrolls = rows < count;
             if (scrolls)
             {
                 // Room for the soft bar beside the items, which keep the width their words need.
                 width = Math.Max(field.Width, words + SoftBar.Gutter) + 2 * pad;
-                card = Place(field, width, wanted, pill, rowGap, pad, area, Soft.Px(Brand.SpaceXs), out above, out rows);
+                card = Place(field, width, wanted, pill, rowGap, pad, area, Soft.Px(Brand.SpaceXs), mirrored, out above, out rows);
             }
             margin = Palette.Contrast ? Padding.Empty : Elevation.Reach("card");
             offset = 0;
@@ -1143,7 +1163,8 @@ namespace CodexAutoResume
             get
             {
                 int width = Soft.Px(SoftBar.TrackWidth);
-                return new Rectangle(card.Width - Soft.Hairline - Soft.Px(SoftBar.TrackMargin) - width, pad, width, Viewport);
+                return Mirror.Box(mirrored, card.Width,
+                                  new Rectangle(card.Width - Soft.Hairline - Soft.Px(SoftBar.TrackMargin) - width, pad, width, Viewport));
             }
         }
 
@@ -1161,6 +1182,11 @@ namespace CodexAutoResume
         /// Item `index`'s pill, in the card's coordinates, where it is scrolled to.
         internal Rectangle PillRect(int index)
         {
+            if (mirrored)
+            {
+                int left = scrolls ? TrackRect.Right + Soft.Px(Brand.SpaceXs) : pad;
+                return new Rectangle(left, pad + index * (pill + rowGap) - offset, Math.Max(0, card.Width - pad - left), pill);
+            }
             int right = scrolls ? TrackRect.X - Soft.Px(Brand.SpaceXs) : card.Width - pad;
             return new Rectangle(pad, pad + index * (pill + rowGap) - offset, Math.Max(0, right - pad), pill);
         }
@@ -1388,7 +1414,7 @@ namespace CodexAutoResume
                     }
                 }
                 var text = new Rectangle(item.X + words, item.Y, Math.Max(0, item.Width - 2 * words), item.Height);
-                TextRenderer.DrawText(f, combo.GetItemText(combo.Items[i]), combo.Font, text, ink, Flags);
+                TextRenderer.DrawText(f, combo.GetItemText(combo.Items[i]), combo.Font, text, ink, Mirror.Words(mirrored, Flags));
             }
             if (scrolls)
             {
