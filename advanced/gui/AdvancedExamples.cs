@@ -697,7 +697,7 @@ namespace CodexAutoResume
                 foreach (Dictionary<string, object> row in rows)
                 {
                     string[] cells = Cells(row, pending);
-                    // Built a cell at a time: a constant array here would be a class the compiler names at random, and the
+                    // Built a cell at a time: a constant array here would make the compiler emit a type named at random, and the
                     // build could not be made reproducible (build/normalize_pe.py).
                     var shown = new List<int>();
                     if (!report) shown.Add(0);
