@@ -777,9 +777,29 @@ namespace CodexAutoResume
             record["close"] = exampleClose.Text;
             record["accept"] = dialog.AcceptButton == exampleClose && dialog.CancelButton == exampleClose;
             record["beside"] = examplePanes.ColumnCount == 2;
+            // Drawn as the render mode draws the window: a child of Windows' parking window, which is never on the screen, as
+            // tall as all it shows so that nothing is scrolled out of the picture - then drawn into one bitmap.
             dialog.TopLevel = false;
+            dialog.Visible = true;
             Materialise(dialog);
+            int full = exampleBody.GetPreferredSize(new Size(dialog.ClientSize.Width, 0)).Height + exampleButtons.Height;
+            if (full > dialog.ClientSize.Height) dialog.ClientSize = new Size(dialog.ClientSize.Width, full);
             dialog.PerformLayout();
+            Application.DoEvents();
+            Control host = exampleBody.Parent;
+            int[] pixels;
+            int stride;
+            using (var picture = new Bitmap(host.Width, host.Height, System.Drawing.Imaging.PixelFormat.Format32bppArgb))
+            {
+                var bounds = new Rectangle(Point.Empty, host.Size);
+                host.DrawToBitmap(picture, bounds);
+                System.Drawing.Imaging.BitmapData data = picture.LockBits(bounds, System.Drawing.Imaging.ImageLockMode.ReadOnly,
+                                                                          System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                stride = data.Stride / 4;
+                pixels = new int[stride * data.Height];
+                try { System.Runtime.InteropServices.Marshal.Copy(data.Scan0, pixels, 0, pixels.Length); }
+                finally { picture.UnlockBits(data); }
+            }
             var panes = new List<object>();
             foreach (Control pane in examplePaneControls)
             {
@@ -808,7 +828,7 @@ namespace CodexAutoResume
                         part["on_card"] = ListOffCard(list) ?? "";
                     }
                     else part["text"] = pair.Key.Text;
-                    part["ink"] = (double)InkOf(pair.Key);
+                    part["ink"] = (double)InkOf(pair.Key, host, pixels, stride);
                     parts.Add(part);
                 }
                 seen["parts"] = parts;
@@ -836,32 +856,28 @@ namespace CodexAutoResume
             return null;
         }
 
-        /// How many of `control`'s pixels the window drew in ink - the text's colours, the chips' - when it draws itself into
-        /// a bitmap, as the render mode draws the window (DrawToBitmap): 0 for a part that drew nothing on its ground.
-        private int InkOf(Control control)
+        /// How many of `control`'s pixels the window drew in ink - the text's colours, the chips' - in `pixels`, the picture
+        /// of `host` the window drew of itself (DrawToBitmap, as the render mode draws it): 0 for a part that drew nothing on
+        /// its ground.
+        private int InkOf(Control control, Control host, int[] pixels, int stride)
         {
-            if (control.Width <= 0 || control.Height <= 0) return 0;
-            var bounds = new Rectangle(Point.Empty, control.Size);
-            using (var picture = new Bitmap(control.Width, control.Height, System.Drawing.Imaging.PixelFormat.Format32bppArgb))
+            int left = 0, top = 0;
+            for (Control at = control; at != null && at != host; at = at.Parent)
             {
-                control.DrawToBitmap(picture, bounds);
-                System.Drawing.Imaging.BitmapData data = picture.LockBits(bounds, System.Drawing.Imaging.ImageLockMode.ReadOnly,
-                                                                          System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-                var pixels = new int[data.Stride / 4 * data.Height];
-                try { System.Runtime.InteropServices.Marshal.Copy(data.Scan0, pixels, 0, pixels.Length); }
-                finally { picture.UnlockBits(data); }
-                Color[] grounds = { Canvas, Card, Palette.Inset, Line };
-                int count = 0, across = data.Stride / 4;
-                for (int y = 0; y < control.Height; y += 2)
-                    for (int x = 0; x < control.Width; x += 2)
-                    {
-                        Color seen = Color.FromArgb(pixels[y * across + x]);
-                        bool ground = false;
-                        foreach (Color each in grounds) ground |= !Far(seen, each);
-                        if (!ground) count++;
-                    }
-                return count;
+                left += at.Left;
+                top += at.Top;
             }
+            Color[] grounds = { Canvas, Card, Palette.Inset, Line };
+            int count = 0, rows = pixels.Length / Math.Max(1, stride);
+            for (int y = Math.Max(0, top); y < Math.Min(rows, top + control.Height); y += 2)
+                for (int x = Math.Max(0, left); x < Math.Min(stride, left + control.Width); x += 2)
+                {
+                    Color seen = Color.FromArgb(pixels[y * stride + x]);
+                    bool ground = false;
+                    foreach (Color each in grounds) ground |= !Far(seen, each);
+                    if (!ground) count++;
+                }
+            return count;
         }
 
         private static bool Far(Color a, Color b)
