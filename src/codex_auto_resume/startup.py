@@ -51,9 +51,9 @@ def python_launcher() -> Path:
 # user, to run a script of that process's choosing (sys.remote_exec) - and it is on unless the interpreter is told
 # otherwise. Every process of the bundled Python this product starts is told so on its command line, right after
 # the interpreter. The spelling is `disable-remote-debug`, with hyphens: an unknown -X option is kept without a
-# word, and `-X disable_remote_debug`, as PEP 768 wrote it, leaves remote debugging on (measured on 3.14.7 and on
-# the bundled 3.14.9). Before 3.14 the option is unknown and kept the same way, so one command line serves every
-# supported line. Not the PYTHON_DISABLE_REMOTE_DEBUG variable: an environment is handed on to everything a
+# word, and `-X disable_remote_debug`, as PEP 768 wrote it, leaves remote debugging on (measured on 3.14.7 and
+# on the bundled 3.14.9 and 3.14.10). Before 3.14 the option is unknown and kept the same way, so one command line
+# serves every supported line. Not the PYTHON_DISABLE_REMOTE_DEBUG variable: an environment is handed on to everything a
 # process starts, Codex and other people's Python among it, and this is for the product's own processes alone.
 NO_REMOTE_DEBUG = ("-X", "disable-remote-debug")
 _NO_REMOTE_DEBUG_OPTION = NO_REMOTE_DEBUG[1]

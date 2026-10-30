@@ -95,7 +95,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: "3.14.9"
+          python-version: "3.14.10"
 
       # A tag is not a reason to skip the tests; it is the last moment they still help.
       #
@@ -147,7 +147,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: "3.14.9"
+          python-version: "3.14.10"
 
       - name: Work out the version
         id: version

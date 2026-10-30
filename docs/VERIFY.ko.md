@@ -308,7 +308,7 @@ v0.5.4부터 적용됩니다(v0.5.0과 v0.5.1에는 고정된 다이제스트가
   똑같은 파일들로 서로 다른 압축 파일을 만듭니다.
   `python -c "import zlib; print(zlib.ZLIB_RUNTIME_VERSION)"`는 사용 중인 Python의 zlib를 출력합니다.
   3.13에서는 `1.3.1`, 3.14에서는 `1.3.1.zlib-ng`입니다. 그 태그의 `release.yml`은 설치하는 Python을 정확히
-  적습니다(지금의 워크플로는 3.14.9). 다이제스트를 비교할 때는 그 버전을 쓰세요.
+  적습니다(지금의 워크플로는 3.14.10). 다이제스트를 비교할 때는 그 버전을 쓰세요.
 
 관리자 권한은 필요하지 않습니다. 빌드는 함께 넣을 embeddable Python을 python.org에서 내려받고, 그
 SHA-256이 `build/make_release.py`에 적힌 값과 다르면 거부합니다.

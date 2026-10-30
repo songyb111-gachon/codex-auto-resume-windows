@@ -56,13 +56,13 @@ STAGES = ROOT / "build" / "stage"
 
 # Pinned so the bundled runtime is a known build rather than whatever python.org serves
 # today, by version and SHA-256 (standard I10). The digest is the one python.org's release
-# file list publishes for this archive, compared with the file it served (2026-10-24).
+# file list publishes for this archive, compared with the file it served (3.14.10: 2026-10-30).
 # 3.14 since v0.6.19-beta.3: the 3.13 line takes security fixes only, as source, from
 # October 2026, so no newer 3.13 Windows build will come; 3.14 has them until 2027-10.
-PYTHON_VERSION = "3.14.9"
+PYTHON_VERSION = "3.14.10"
 PYTHON_ZIP = "python-%s-embed-amd64.zip" % PYTHON_VERSION
 PYTHON_URL = "https://www.python.org/ftp/python/%s/%s" % (PYTHON_VERSION, PYTHON_ZIP)
-PYTHON_SHA256 = "3c01d7cfc666f746a6f064f60fb2156ab0ec464d3d738ab796371a46a9bb24a2"
+PYTHON_SHA256 = "90905e64a840557d8c1bc4f5b74db3d7ee85e3ffb217611cac1c7813acea4159"
 
 # Everything the installed product needs, and nothing else. Listed explicitly rather
 # than filtered, so a stray file in the working tree cannot reach a release.

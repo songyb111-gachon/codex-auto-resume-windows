@@ -769,7 +769,7 @@ ownership information. It never acquires a lock on the app's file.
   tell them apart.
 
 **Python is not required by either install route** — the installation brings its own runtime
-(Python 3.14.9), and the plugin's setup script is PowerShell. Python 3.13 or newer is needed only if
+(Python 3.14.10), and the plugin's setup script is PowerShell. Python 3.13 or newer is needed only if
 you run the engine from a source checkout; see [Testing](#testing) for the versions CI runs.
 
 ## What is recovered, and what is not

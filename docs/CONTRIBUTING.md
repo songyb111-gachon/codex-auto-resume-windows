@@ -11,7 +11,7 @@ properties intact.
   and no build step for the Python side. What that promise covers is decided in one file,
   `scripts/python_support.json`: CI runs every non-live test on Python 3.13 and 3.14 as
   blocking jobs, and on Python 3.15 as an experimental, advisory one whose result is shown but
-  does not block; releases are built with 3.14; and the archive bundles Python 3.14.9, so nobody
+  does not block; releases are built with 3.14; and the archive bundles Python 3.14.10, so nobody
   installing a release needs a Python of their own. Adding a tested version never moves the
   bundled runtime. `tests/test_python_support.py` fails if the workflows, or the minimum this
   page and the README state, stop agreeing with that file.
