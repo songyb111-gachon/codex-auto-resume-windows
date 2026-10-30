@@ -36,14 +36,14 @@ file of its own in the installation's config folder - its compatibility data, be
 ### Advanced edition
 
 - **Compatibility data of its own.** The measurement verdicts per exact Codex engine that the advanced edition's capabilities rest on
-  are published by the maintainer from the records of those measurements, in a file of its own beside the edition's code - never in the standard data,
+  are published by the maintainer from the records of those measurements, in a file of its own - never in the standard data,
   whose validators the earlier releases run. It is fetched only when you ask, at the two moments the standard data is refreshed (*Refresh
   compatibility data* on the Diagnostics page, and a check for updates that reached GitHub), as one request to one constant address that uploads nothing;
   PRIVACY says so. It is trusted only so far. A measurement that failed on this PC always wins. The data only narrows - a failure in
   it adds the warning - except that a pass in it stands in for a verdict the build does not have, and only on an engine the
   maintainer measured exactly, your exact Codex version. Data that has expired, is malformed, is too new or is older than what the
-  edition already has is ignored whole, and it never shows or hides a capability. The bundled file starts with no engine, so nothing
-  changes until the maintainer publishes one.
+  edition already has is ignored whole, and it never shows or hides a capability. No copy ships in the release, so nothing
+  changes until the maintainer publishes one and it is fetched.
 - **Community compatibility reports can ask to be credited, and carry the advanced edition's own outcomes.** A report whose sender
   chose it - an opt-in, off by default - is credited once in the contributors list and the README's thanks line, by the GitHub login
   its pull request comes from: never a name typed into the file, and never the maintainer or a bot. The outcomes a report carries
