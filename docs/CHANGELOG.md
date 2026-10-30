@@ -35,13 +35,10 @@ file of its own in the installation's config folder - its compatibility data, be
 
 ### Advanced edition
 
-- **The 5-hour window's early start now starts right after a reset unless you turn that off, and says when it has nothing to
-  start from** (the owner's report of 2026-10-31). *Start right after a reset* was meant to be on until a person turns it off, but
-  the watcher read the option as off while nobody had set it: turned on and left as it came, *Start the 5-hour window early* had no
-  start time and no reset to start from, and did nothing, without a word. The watcher and its card now read it as on until you turn
-  it off, so an installation that turned the capability on and never touched that option starts the window right after the next
-  reset it sees. And while it is on with no start time picked and *Start right after a reset* turned off, its card says so in one
-  line: it starts nothing until you pick a start time or turn that option on.
+- **The 5-hour window's early start says when it has nothing to start from.** Turned on with no start time picked and
+  *Start right after a reset* turned off, it never starts a window, and nothing said so. Its card now says it in one line - it
+  starts nothing until you pick a start time or turn that option on - and the line goes as soon as you do. *Start right after a
+  reset* stays on until you turn it off, as before.
 - **Compatibility data of its own.** The measurement verdicts per exact Codex engine that the advanced edition's capabilities rest on
   are published by the maintainer from the records of those measurements, in a file of its own - never in the standard data,
   whose validators the earlier releases run. It is fetched only when you ask, at the two moments the standard data is refreshed (*Refresh
