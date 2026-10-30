@@ -1511,14 +1511,14 @@ namespace CodexAutoResume
             }
         }
 
-        /// Whether `child` is docked across `parent` - to its top, its bottom or filling it - in a parent whose room for it is
-        /// the same either way: padding alike on both sides, or mirrored with it (Mirror.Display). Such a control stands where
-        /// docking puts it whichever way the window reads (MirrorCompare).
+        /// Whether `child` is docked across a window - a dialog's band or body: to its top, its bottom or filling it, with the
+        /// window's padding alike on both sides. Such a control stands where docking puts it whichever way the window reads
+        /// (MirrorCompare). Docked inside a table, a flowing row or a page that scrolls it is placed by that, mirrored, and is
+        /// held to its mirrored place like everything else.
         private static bool Docked(Control child, Control parent)
         {
             if (child.Dock != DockStyle.Top && child.Dock != DockStyle.Bottom && child.Dock != DockStyle.Fill) return false;
-            return parent.Padding.Left == parent.Padding.Right || parent is SoftStack || parent is SoftCard || parent is SoftRows ||
-                   parent is SoftFlow || parent is SoftPage;
+            return parent is Form && parent.Padding.Left == parent.Padding.Right;
         }
 
         /// Whether a row of buttons that flows from the right - the window's button rows, whose first button (the primary
