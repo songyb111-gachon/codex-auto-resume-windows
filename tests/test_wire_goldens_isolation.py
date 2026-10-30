@@ -1,4 +1,4 @@
-"""The wire goldens record core's kinds of notice, whatever an earlier test in the same process registered (v0.6.20-beta.3).
+"""The wire goldens record core's kinds of notice, whatever an earlier test in the same process registered (v0.6.20-beta.4).
 
 codex_auto_resume.notice_kinds keeps an edition's kinds for the life of a process. After the CI parts were dealt again, an
 advanced test ran before test_wire_goldens in one part and left the plug's kinds in `describe` (dev CI 40761286107). Here a
