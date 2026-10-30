@@ -255,6 +255,9 @@ jobs:
           gained() { g diff --no-renames --no-color -U0 "$1" "$2" -- "$3" | sed -n '/^+++ /d; s/^+//p'; }
           lost() { g diff --no-renames --no-color -U0 "$1" "$2" -- "$3" | sed -n '/^--- /d; s/^-//p'; }
           counted() { g diff --no-renames --numstat "$1" "$2" -- "$3" | cut -f1,2 | tr '\t' ' '; }
+          # Whether a path at a commit links a login already, in any letter case (GitHub's logins are): a person is
+          # credited once. The file is read into a variable first, so grep stopping early cannot fail the pipeline.
+          listed() { local text; text=$(g cat-file blob "$1:$2"); grep -qiE "\]\(https://github\.com/$3/?\)" <<< "$text"; }
           api() { "$gh" api "$@"; }
 
           # Paused since the plan was made: nothing is written. Anything but unset or `on` pauses.
@@ -356,6 +359,9 @@ jobs:
               fi
               for path in "${credits[@]}"; do
                 [ "$login_lower" != songyb111-gachon ] || fail "a filing credits the owner"
+                if [[ $path != *ko_branch.json ]] && listed "$local_parent" "$path" "$login"; then
+                  fail "a credit names someone the document lists already"
+                fi
                 case "$path" in
                   docs/CONTRIBUTORS.md)
                     [ "$(counted "$local_parent" "$commit" "$path")" = "1 0" ] || fail "a credit is not one added line"
@@ -435,8 +441,9 @@ jobs:
                   while IFS= read -r line; do
                     [[ $line =~ ^-\ \[@([A-Za-z0-9-]{1,39})\]\(https://github\.com/([A-Za-z0-9-]{1,39})\)\ 님은\ Codex\ codex-cli\ [0-9A-Za-z.-]{1,40}에서\ 호환성을\ 보고해\ 주셨습니다\.$ ]] \
                       && [ "${BASH_REMATCH[1]}" = "${BASH_REMATCH[2]}" ] || fail "dev's credit is not the filer's sentence"
-                    [ "${credited_in[${BASH_REMATCH[1],,}]:-}" = "${BASH_REMATCH[1]}" ] \
-                      || fail "dev's credit names no one this run credited"
+                    who="${BASH_REMATCH[1]}"
+                    ! listed "$dev_base" "$path" "$who" || fail "dev's credit names someone the document lists already"
+                    [ "${credited_in[${who,,}]:-}" = "$who" ] || fail "dev's credit names no one this run credited"
                   done < <(gained "$dev_base" "$dev_merge" "$path")
                 else
                   [ "$(counted "$dev_base" "$dev_merge" "$path")" = "1 1" ] || fail "dev's credit is not one changed line"
@@ -450,9 +457,9 @@ jobs:
                   while [ -n "$added" ]; do
                     [[ $added =~ ^,\ \[@([A-Za-z0-9-]{1,39})\]\(https://github\.com/([A-Za-z0-9-]{1,39})\)(.*)$ ]] \
                       && [ "${BASH_REMATCH[1]}" = "${BASH_REMATCH[2]}" ] || fail "dev's credit is not the filer's thanks"
-                    [ "${credited_in[${BASH_REMATCH[1],,}]:-}" = "${BASH_REMATCH[1]}" ] \
-                      || fail "dev's credit names no one this run credited"
-                    added="${BASH_REMATCH[3]}"
+                    who="${BASH_REMATCH[1]}" added="${BASH_REMATCH[3]}"
+                    ! listed "$dev_base" "$path" "$who" || fail "dev's credit names someone the document lists already"
+                    [ "${credited_in[${who,,}]:-}" = "$who" ] || fail "dev's credit names no one this run credited"
                   done
                 fi
                 # A blob main never had: GitHub's hash for it must be the one tested, as a filing's are.

@@ -337,6 +337,35 @@ class WriteStepCreditTests(CreditCase):
         self.forged_dev({filer.CONTRIBUTORS_KO: korean.encode("utf-8")})
         self.assertDevRefused("dev's credit names no one this run credited")
 
+    def test_a_credit_for_someone_listed_already_is_refused(self):
+        """The W7 review's C3: kano0222 is listed; a report from Kano0222 chose credit, and the plan lists them again."""
+        line = "- [@Kano0222](https://github.com/Kano0222) reported compatibility on Codex %s." % VERSION
+        contributors = CONTRIBUTORS.replace("\n\n## A note", "\n" + line + "\n\n## A note")
+        self.world.pr(7, credited(login="Kano0222"), login="Kano0222")
+        self.world.plan()
+        planned = self.world.chain()[-1]
+        main = git(self.world.checkout, "rev-parse", "refs/remotes/origin/main")
+        made = {name: self.world.show(planned, name)
+                for name in git(self.world.checkout, "diff", "--name-only", main, planned).splitlines()}
+        self.assertNotIn(filer.CONTRIBUTORS, made, "the planner itself credits a listed person never")
+        made[filer.CONTRIBUTORS] = contributors.encode("utf-8")
+        forged = commit(self.world.checkout, main, made, filer.commit_message("Kano0222", VERSION, 507, 7))
+        (self.world.out / "chain").write_bytes(forged.encode("ascii") + b"\n")
+        (self.world.out / "dev").write_bytes(b"")
+        git(self.world.checkout, "update-ref", "refs/plan/main", forged)
+        (self.world.out / "plan.bundle").unlink()
+        git(self.world.checkout, "bundle", "create", str(self.world.out / "plan.bundle"), "refs/plan/main", "^" + main)
+        self.assertRefused("a credit names someone the document lists already")
+
+    def test_a_korean_credit_for_someone_the_korean_list_has_already_is_refused(self):
+        listed = "- [@user7](https://github.com/user7) 님은 문제를 알렸습니다."
+        self.world.on_dev({filer.CONTRIBUTORS_KO: CONTRIBUTORS_KO.replace("\n\n## AI", "\n" + listed + "\n\n## AI")
+                           .encode("utf-8")})
+        line = "- [@User7](https://github.com/User7) 님은 Codex %s에서 호환성을 보고해 주셨습니다." % VERSION
+        korean = CONTRIBUTORS_KO.replace("\n\n## AI", "\n" + listed + "\n" + line + "\n\n## AI")
+        self.forged_dev({filer.CONTRIBUTORS_KO: korean.encode("utf-8")})
+        self.assertDevRefused("dev's credit names someone the document lists already")
+
     def test_a_language_map_change_beyond_a_digest_is_refused(self):
         changed = json.loads(mapping())
         changed["documents"]["evil.md"] = "x"
