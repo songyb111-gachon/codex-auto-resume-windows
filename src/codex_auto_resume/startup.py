@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import re
 import sys
 
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
@@ -102,6 +103,173 @@ def again_without_remote_debug(script) -> int | None:
                               stdin=streams[0], stdout=streams[1], stderr=streams[2]).returncode
     except (OSError, ValueError, AttributeError):
         return None
+
+
+# A run from source uses the newest Python installed (the owner, 2026-10-30). `python src/auto_resume.py` ran under
+# whichever `python` came first on PATH, and `install --startup` registered the pythonw.exe beside it, so installing
+# a newer Python changed nothing. The installation's own runtime (a python3XX._pth beside it) is never left. Which
+# interpreters there are is read from PEP 514's registration (HKCU and HKLM Software\Python\PythonCore, read only):
+# what the py launcher reads too, without starting one.
+PYTHON_VARIABLE = "CODEX_AUTO_RESUME_PYTHON"     # a python.exe, pythonw.exe or folder that pins it; `current` keeps it
+MIN_PYTHON = (3, 13)
+PYTHONCORE = r"Software\Python\PythonCore"
+# How the interpreter came to be the one: what `doctor` says after the path.
+CHOSEN_WORDS = {"bundled": "the installation's own runtime", "pinned": "pinned by " + PYTHON_VARIABLE,
+                "current": "kept by %s=current" % PYTHON_VARIABLE,
+                "pinned-missing": PYTHON_VARIABLE + " names no python.exe with a pythonw.exe beside it; kept this one",
+                "newest": "the newest Python installed", "running": "this one; no newer Python is installed"}
+
+
+def bundled_runtime(executable=None) -> bool:
+    """Whether the interpreter is an embeddable distribution - an installation's runtime, its python3XX._pth beside it."""
+    try:
+        return any(Path(executable or sys.executable).resolve().parent.glob("python3*._pth"))
+    except OSError:
+        return False
+
+
+def _registered_pythons():
+    """Every PEP 514 PythonCore entry of the current user's and the machine's 64-bit view, as dicts, read only."""
+    try:
+        winreg = _winreg()
+    except StartupError:
+        return []
+    found = []
+    for hive in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+        try:
+            core = winreg.OpenKey(hive, PYTHONCORE, 0, winreg.KEY_READ | winreg.KEY_WOW64_64KEY)
+        except OSError:
+            continue
+        with core:
+            index = 0
+            while True:
+                try:
+                    tag = winreg.EnumKey(core, index)
+                except OSError:
+                    break
+                index += 1
+                entry = {"tag": tag}
+                for sub, names in (("", ("Version", "SysArchitecture")),
+                                   ("InstallPath", ("", "ExecutablePath", "WindowedExecutablePath"))):
+                    try:
+                        with winreg.OpenKey(core, tag + ("\\" + sub if sub else "")) as key:
+                            for name in names:
+                                try:
+                                    entry[(sub + ":" if sub else "") + name] = winreg.QueryValueEx(key, name)[0]
+                                except OSError:
+                                    pass
+                    except OSError:
+                        pass
+                found.append(entry)
+    return found
+
+
+def installed_pythons(reader=None) -> list:
+    """(version, python.exe) of every installed CPython that may run a source tree: a final release (`3.14.10`, never a
+    candidate), 64-bit, the standard build (tag `3.14`, never `3.14t` or `3.14-32`), at least MIN_PYTHON, with
+    python.exe and pythonw.exe there. `reader` stands in for the registry (_registered_pythons) in tests."""
+    found = []
+    for entry in (reader or _registered_pythons)():
+        version = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", str(entry.get("Version") or ""))
+        if not version or not re.fullmatch(r"\d+\.\d+(-64)?", str(entry.get("tag") or "")):
+            continue
+        if entry.get("SysArchitecture") != "64bit":
+            continue
+        number = tuple(int(part) for part in version.groups())
+        if number[:2] < MIN_PYTHON:
+            continue
+        folder = entry.get("InstallPath:")
+        python = entry.get("InstallPath:ExecutablePath") or (str(Path(folder) / "python.exe") if folder else None)
+        windowed = (entry.get("InstallPath:WindowedExecutablePath")
+                    or (str(Path(python).with_name("pythonw.exe")) if python else None))
+        if python and windowed and Path(python).is_file() and Path(windowed).is_file():
+            found.append((number, Path(python)))
+    return found
+
+
+def _running():
+    """(version, usable) of this interpreter: usable is a final 64-bit release with pythonw.exe beside it."""
+    usable = (sys.version_info.releaselevel == "final" and sys.maxsize > 2 ** 32
+              and Path(sys.executable).with_name("pythonw.exe").is_file())
+    return tuple(sys.version_info[:3]), usable
+
+
+def choose_python(environ=None, reader=None, executable=None, running=None):
+    """(python.exe, version or None, reason) for a run from source. The bundled runtime stays; PYTHON_VARIABLE pins one
+    (`current` keeps this one); otherwise the newest of installed_pythons and this interpreter - this one when it is as
+    new, so a virtual environment of the newest is kept. Reasons are CHOSEN_WORDS' keys; `executable` and `running`
+    stand in for this interpreter in tests."""
+    environ = os.environ if environ is None else environ
+    current = Path(executable or sys.executable)
+    if bundled_runtime(current):
+        return current, None, "bundled"
+    pinned = (environ.get(PYTHON_VARIABLE) or "").strip()
+    if pinned.lower() == "current":
+        return current, None, "current"
+    if pinned:
+        path = Path(pinned)
+        path = path / "python.exe" if path.is_dir() else path.with_name("python.exe")
+        if path.is_file() and path.with_name("pythonw.exe").is_file():
+            return path, None, "pinned"
+        return current, None, "pinned-missing"
+    mine, usable = running or _running()
+    newest = max(installed_pythons(reader), default=None, key=lambda found: found[0])
+    if newest is None or (usable and newest[0] <= tuple(mine)):
+        return current, ".".join(map(str, mine)), "running"
+    return newest[1], ".".join(map(str, newest[0])), "newest"
+
+
+def describe_python(environ=None, reader=None) -> str:
+    """`doctor`'s line: the interpreter running, and the one a run from source would choose, and why."""
+    chosen, version, reason = choose_python(environ, reader)
+    running = "%s %s" % (sys.executable, ".".join(map(str, sys.version_info[:3])))
+    if reason in ("newest", "pinned") and not _same_path(chosen, sys.executable):
+        return "%s; a run from source starts %s%s (%s)" % (running, chosen, " " + version if version else "",
+                                                           CHOSEN_WORDS[reason])
+    return "%s (%s)" % (running, CHOSEN_WORDS[reason])
+
+
+def again_under_chosen_python(script, environ=None, reader=None) -> int | None:
+    """Run this script again under the interpreter choose_python picks, with remote debugging off, where that is not
+    the one running: the exit code to end with, or None to go on here (src/auto_resume.py's `__main__`).
+
+    Only a run nobody in the product started: a person at a console (standard input a terminal) or Windows itself (no
+    standard streams at all - the sign-in value, the notification button) - never one given NO_REMOTE_DEBUG, which
+    the product passes to everything it starts from an interpreter already chosen. So each start of a registered
+    value resolves the newest again, and a test or a script that runs the entry point keeps its own interpreter.
+    Where nothing has to change, the remote-debug guard decides alone (again_without_remote_debug)."""
+    if _NO_REMOTE_DEBUG_OPTION in getattr(sys, "_xoptions", {}) or bundled_runtime():
+        return again_without_remote_debug(script)
+    no_streams = sys.stdin is None and sys.stdout is None and sys.stderr is None
+    try:
+        person = bool(sys.stdin is not None and sys.stdin.isatty())
+    except (OSError, ValueError, AttributeError):
+        person = False
+    if not (person or no_streams):
+        return again_without_remote_debug(script)
+    chosen, _version, reason = choose_python(environ, reader)
+    if reason not in ("newest", "pinned") or _same_path(chosen, sys.executable):
+        return again_without_remote_debug(script)
+    import subprocess
+    try:
+        if no_streams:
+            # pythonw.exe beside the chosen one, a GUI program: a detached one opens nothing (python_launcher).
+            interpreter = Path(chosen).with_name("pythonw.exe")
+            flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+            subprocess.Popen([str(interpreter), *NO_REMOTE_DEBUG, str(script), *sys.argv[1:]], close_fds=True,
+                             creationflags=flags, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL)
+            return 0
+        streams = [stream.fileno() if stream is not None else subprocess.DEVNULL
+                   for stream in (sys.stdin, sys.stdout, sys.stderr)]
+        for stream in (sys.stdout, sys.stderr):
+            if stream is not None:
+                stream.flush()
+        return subprocess.run([str(chosen), *NO_REMOTE_DEBUG, str(script), *sys.argv[1:]],
+                              creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                              stdin=streams[0], stdout=streams[1], stderr=streams[2]).returncode
+    except (OSError, ValueError, AttributeError):
+        return again_without_remote_debug(script)
 
 
 def script_index(argv) -> int:

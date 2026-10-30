@@ -878,7 +878,16 @@ Measurements MP1 to MP3, that the Codex app shows the panel there as it should, 
 
 For development, or if you would rather run it yourself. This is not a third way to install the
 product — it is the engine on its own, with no settings window, no panel and no bundled runtime,
-and it needs **Python 3.13 or newer** on your PATH (CI runs it on 3.13 and 3.14).
+and it needs **Python 3.13 or newer** installed (CI runs it on 3.13 and 3.14).
+
+Whichever `python` you start it with, a run you start at a console - and the sign-in entry and the
+notification button it registers - goes on under the newest Python installed: the newest final,
+64-bit release of 3.13 or later with a `pythonw.exe` beside it, as Windows lists them for the `py`
+launcher (the PythonCore entries under HKCU and HKLM, only read). Install a newer Python and the
+next start uses it, with nothing to register again. Set `CODEX_AUTO_RESUME_PYTHON` to a
+`python.exe`, a `pythonw.exe` or its folder to pin one, or to `current` to keep the one you started;
+`doctor` says which Python a run from source starts and why. An installation never does this: it
+keeps the runtime it brought.
 
 ```bash
 git clone https://github.com/songyb111-gachon/codex-auto-resume-windows.git
