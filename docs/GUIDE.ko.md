@@ -792,7 +792,8 @@ Codex 앱이 패널을 그곳에 제대로 보여 주는지 재는 측정 MP1~MP
 설치된 가장 새로운 Python으로 이어서 돕니다. Windows가 `py` 실행기에게 알려 주는 목록(HKCU와 HKLM의
 PythonCore 항목, 읽기만 합니다)에서 3.13 이상이고 정식 릴리스이며 64비트이고 옆에 `pythonw.exe`가 있는 것
 가운데 가장 새로운 것입니다. 더 새로운 Python을 설치하면 다음 시작부터 그것을 쓰고, 다시 등록할 것은
-없습니다. 하나로 고정하려면 `CODEX_AUTO_RESUME_PYTHON`에 `python.exe`나 `pythonw.exe`나 그 폴더를, 시작한
+없습니다. 다만 로그인 항목에는 등록할 때의 Python이 적혀 있으니, 그 Python을 지웠다면 `enable`을 다시
+실행하세요. 하나로 고정하려면 `CODEX_AUTO_RESUME_PYTHON`에 `python.exe`나 `pythonw.exe`나 그 폴더를, 시작한
 그대로 두려면 `current`를 넣으세요. 소스에서 하는 실행이 어떤 Python으로 시작하는지와 그 까닭은 `doctor`가
 알려 줍니다. 설치본은 이렇게 하지 않고, 함께 가져온 런타임을 그대로 씁니다.
 

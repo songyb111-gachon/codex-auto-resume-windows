@@ -884,7 +884,8 @@ Whichever `python` you start it with, a run you start at a console - and the sig
 notification button it registers - goes on under the newest Python installed: the newest final,
 64-bit release of 3.13 or later with a `pythonw.exe` beside it, as Windows lists them for the `py`
 launcher (the PythonCore entries under HKCU and HKLM, only read). Install a newer Python and the
-next start uses it, with nothing to register again. Set `CODEX_AUTO_RESUME_PYTHON` to a
+next start uses it, with nothing to register again - but the sign-in entry still names the Python it was
+registered with, so if you uninstall that one, run `enable` again. Set `CODEX_AUTO_RESUME_PYTHON` to a
 `python.exe`, a `pythonw.exe` or its folder to pin one, or to `current` to keep the one you started;
 `doctor` says which Python a run from source starts and why. An installation never does this: it
 keeps the runtime it brought.
