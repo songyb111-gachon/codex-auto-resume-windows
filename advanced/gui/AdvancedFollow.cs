@@ -255,7 +255,7 @@ namespace CodexAutoResume
             int occurrences = Whole(Get(result, "occurrences"));
             if (occurrences > 1)
                 said += " " + Word("page.follow.series", "This follows its last occurrence, {n} of {of}.", "n", Whole(Get(result, "occurrence")))
-                    .Replace("{of}", occurrences.ToString(CultureInfo.CurrentCulture));
+                    .Replace("{of}", Mirror.Embed(occurrences.ToString(CultureInfo.CurrentCulture)));
             return said;
         }
     }

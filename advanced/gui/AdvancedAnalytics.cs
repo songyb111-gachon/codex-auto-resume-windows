@@ -172,10 +172,10 @@ namespace CodexAutoResume
                 line += " · " + Word("page.analytics.numbers",
                     "input {input} · cached {cached} · output {output} · reasoning {reasoning} · {turns} turns",
                     "input", AnalyticsCount(Get(numbers, "input")))
-                    .Replace("{cached}", AnalyticsCount(Get(numbers, "cached")))
-                    .Replace("{output}", AnalyticsCount(Get(numbers, "output")))
-                    .Replace("{reasoning}", AnalyticsCount(Get(numbers, "reasoning")))
-                    .Replace("{turns}", AnalyticsCount(Get(numbers, "turns")));
+                    .Replace("{cached}", Mirror.Embed(AnalyticsCount(Get(numbers, "cached"))))
+                    .Replace("{output}", Mirror.Embed(AnalyticsCount(Get(numbers, "output"))))
+                    .Replace("{reasoning}", Mirror.Embed(AnalyticsCount(Get(numbers, "reasoning"))))
+                    .Replace("{turns}", Mirror.Embed(AnalyticsCount(Get(numbers, "turns"))));
             if (Get(numbers, "lifetime") is double)
                 line += " · " + Word("page.analytics.lifetime", "lifetime {n}", "n", AnalyticsCount(Get(numbers, "lifetime")));
             return line;

@@ -445,7 +445,7 @@ namespace CodexAutoResume
         private string ExamplePace(int percent, int change, int minutes)
         {
             return Word("page.analytics.used", "{window}: {percent}% used", "window", WindowName(300.0))
-                       .Replace("{percent}", percent.ToString(CultureInfo.CurrentCulture)) + " · " +
+                       .Replace("{percent}", Mirror.Embed(percent.ToString(CultureInfo.CurrentCulture))) + " · " +
                    Word("page.analytics.change", "{change} in the last hour", "change", "+" + change.ToString(CultureInfo.CurrentCulture) + "%") +
                    " · " + Word("page.analytics.eta", "At this pace, full around {time}.", "time", ClockTime(Now() + minutes * 60.0));
         }
