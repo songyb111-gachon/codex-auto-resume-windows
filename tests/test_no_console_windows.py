@@ -232,9 +232,13 @@ class PythonStartTests(unittest.TestCase):
             "the launcher again, once, with remote debugging off",
         ("src/codex_auto_resume/startup.py", "again_without_remote_debug"):
             "src/auto_resume.py or setup again, once, with remote debugging off",
+        # 2026-10-30: a run from source started by Windows (no streams) goes on under the newest Python installed.
+        ("src/codex_auto_resume/startup.py", "again_under_chosen_python"):
+            "src/auto_resume.py or setup again, once, under the newest pythonw.exe, with remote debugging off",
     }
+    # The last: the pythonw.exe beside the Python startup.choose_python chose, which it takes only with one there.
     INTERPRETERS = {"startup.python_launcher()", "python_for_watcher(home)",
-                    "Path(sys.executable).resolve().with_name('pythonw.exe')"}
+                    "Path(sys.executable).resolve().with_name('pythonw.exe')", "Path(chosen).with_name('pythonw.exe')"}
     OWN_CODE = ("entry", "LAUNCHER_NAME", "__file__", "script")
 
     @classmethod

@@ -33,7 +33,7 @@ RUNTIME_DIR_NAME = ".codex-auto-resume"
 # The directory names the installer creates under the root - and therefore the ones
 # it would destroy if it ever ran against a directory that merely contained them.
 OCCUPIED_NAMES = ("app", "runtime", "config", "logs")
-MIN_PYTHON = (3, 13)
+MIN_PYTHON = (3, 13)                                             # startup.MIN_PYTHON, the same
 CHECK = "✓"
 EXIT_OK = 0
 EXIT_ERROR = 1
@@ -623,6 +623,7 @@ def main(argv=None) -> int:
 
 if __name__ == "__main__":
     # Remote debugging off (PEP 768) where whatever ran this did not say so: a published bootstrap runs setup as it
-    # always has. What the product starts itself passes startup.NO_REMOTE_DEBUG, and this then does nothing.
-    again = startup.again_without_remote_debug(__file__)
+    # always has. What the product starts itself passes startup.NO_REMOTE_DEBUG, and this then does nothing. Run from
+    # a source tree by a person, it goes on under the newest Python installed (startup.again_under_chosen_python).
+    again = startup.again_under_chosen_python(__file__)
     sys.exit(main() if again is None else again)

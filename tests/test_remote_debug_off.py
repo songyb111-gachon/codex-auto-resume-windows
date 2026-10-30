@@ -48,7 +48,8 @@ WINDOW_CS = sorted((ROOT / "gui").glob("*.cs")) + sorted((ROOT / "advanced" / "g
     sorted((ROOT / "build" / "setup").glob("*.cs"))
 PRODUCT_PS = (ROOT / "build" / "install" / "install.ps1", ROOT / "scripts" / "bootstrap.ps1")
 # The first element of an argument list that is an interpreter of the product's.
-INTERPRETER = re.compile(r"\binterpreter\b|pythonw|python_launcher\(|python_for_watcher\(|sys\.executable|\blauncher\b")
+INTERPRETER = re.compile(r"\binterpreter\b|pythonw|python_launcher\(|python_for_watcher\(|sys\.executable|\blauncher\b"
+                         r"|str\(chosen\)")
 
 
 def _relative(path: Path) -> str:
@@ -76,8 +77,13 @@ class StaticTests(unittest.TestCase):
                 if isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     for child in ast.walk(function):
                         functions.setdefault(id(child), function.name)
+            # A `%` operand formats text and an unpacking target names results: neither is a command line.
+            formatted = {id(node.right) for node in ast.walk(tree)
+                         if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Mod)}
             for node in ast.walk(tree):
                 if not isinstance(node, (ast.List, ast.Tuple)) or not node.elts:
+                    continue
+                if isinstance(node.ctx, ast.Store) or id(node) in formatted:
                     continue
                 if not INTERPRETER.search(ast.unparse(node.elts[0])):
                     continue
@@ -202,7 +208,8 @@ class EntryTests(unittest.TestCase):
         for path in (ROOT / "src" / "auto_resume.py", ROOT / "scripts" / "plugin_setup.py"):
             with self.subTest(path=_relative(path)):
                 block = self.main_block(path)
-                self.assertRegex(block, r"again = (startup\.)?again_without_remote_debug\(__file__\)\n"
+                # 2026-10-30: through again_under_chosen_python, which ends in the remote-debug guard (test_newest_python).
+                self.assertRegex(block, r"again = (startup\.)?again_(without_remote_debug|under_chosen_python)\(__file__\)\n"
                                         r"\s*sys\.exit\(main\(\) if again is None else again\)")
 
     def test_every_sign_in_value_names_one_of_those_entry_points(self):

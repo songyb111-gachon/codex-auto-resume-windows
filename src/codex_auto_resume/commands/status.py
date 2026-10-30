@@ -82,6 +82,8 @@ DOCTOR_CHECKS = 8
 def cmd_doctor(args) -> int:
     app = _app(args)
     ok = True
+    # Which Python runs this, and which a run from source would choose and why (startup.choose_python).
+    _print("python           : %s" % startup.describe_python())
     try:
         backend = app.backend()
         _print("codex.exe        : %s" % backend.codex_exe)

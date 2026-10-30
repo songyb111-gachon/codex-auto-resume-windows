@@ -337,7 +337,7 @@ For a release whose tag has `build/normalize_pe.py`, you need:
   implementation (zlib-ng), so a 3.13 and a 3.14 build write different archives from
   identical files. `python -c "import zlib; print(zlib.ZLIB_RUNTIME_VERSION)"` prints the
   zlib yours uses: `1.3.1` on 3.13, `1.3.1.zlib-ng` on 3.14. The tag's `release.yml` names
-  the exact Python it installs (3.14.9 for the workflows now); use that one for a digest
+  the exact Python it installs (3.14.10 for the workflows now); use that one for a digest
   comparison.
 
 No administrator rights are needed. The build downloads the embeddable Python it bundles
