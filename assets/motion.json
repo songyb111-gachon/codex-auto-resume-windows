@@ -110,7 +110,7 @@
       "passed": true,
       "worst": 0
     },
-    "window": "0dacb219ad2210cf6f7b4d9924864bb0a9b1551ea2b370c89bd8561136ff64b1"
+    "window": "4e195c618e3252336fdbb4b9faba80f2e99d85222083560bdcc98b4ad07a41fb"
   },
   "images": {
     "assets/logo-motion-dark.png": {
@@ -259,7 +259,7 @@
     "<motion:logo-light>": "e30f23a553b3ff5cc333efa162e11d280073213b463e80e2da1ce125326216f9",
     "<motion:popup-en>": "dc4ab99c758a11348cfc8dbe1fc0906a35fa3660dd6b15e9f5c6a908d0a47e82",
     "<motion:popup-ko>": "2e13c600849720c1241cb4fb4e0015dfe1666f620abd1b6e7098ec9564e2a0f3",
-    "<motion:readme-en>": "3498468c71e3b8c8748a7dddea3bba35532aad44a4c60edc0c93274e78c1811a",
-    "<motion:readme-ko>": "bf5bfa8001bbf79b7c4fa264fed45a0ffef4e5137c5266a4f57a8b3fcac7737d"
+    "<motion:readme-en>": "e794a0fa7f970e12548f99b0e2aa881810dc45f52b6c1a07e95a6f584dbed369",
+    "<motion:readme-ko>": "f4841d1745b4185a1c16a89b845100a3db9c865ea9a24c7c77b611e19cee3b70"
   }
 }
