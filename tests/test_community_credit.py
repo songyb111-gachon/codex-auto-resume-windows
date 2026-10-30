@@ -200,6 +200,17 @@ class FilingCreditTests(CreditCase):
         self.assertFalse(set(files) & {filer.CONTRIBUTORS, "README.md", filer.KO_BRANCH, filer.CONTRIBUTORS_KO,
                                        filer.THANKS_KO})
 
+    def test_dev_is_left_for_promote_when_main_credited_someone_in_an_earlier_run(self):
+        """The write job takes a Korean credit only for this run's filings, so the planner does not offer another."""
+        self.world.filed_by_hand(credited(login="User8"), reporter_id=508, number=8)
+        show = {name: self.world.show("refs/heads/main", name, self.world.origin)
+                for name in (filer.CONTRIBUTORS, "README.md", filer.KO_BRANCH)}
+        files = filer.credit_files(show.get, "User8", VERSION)
+        self.world.on_main(files, filer.commit_message("User8", VERSION, 508, 8))
+        planner = self.world.plan()
+        self.assertEqual((self.world.out / "dev").read_text(encoding="utf-8"), "")
+        self.assertTrue(any("Korean documents" in line for line in planner.summary), planner.summary)
+
     def test_dev_takes_the_credit_in_its_korean_documents(self):
         self.world.pr(7, credited())
         self.world.plan()
@@ -257,6 +268,59 @@ class WriteStepCreditTests(CreditCase):
     def test_words_of_its_own_in_the_contributors_list_are_refused(self):
         self.tampered({filer.CONTRIBUTORS: (CONTRIBUTORS + "<script>x</script>\n").encode("utf-8")})
         self.assertRefused("a credit is not")
+
+    # ------------------------------------------------ a plan forged on dev's side (the W7 review's C2)
+    def rebundle(self, main_tip, dev_merge, dev_base):
+        world = self.world
+        main = git(world.checkout, "rev-parse", "refs/remotes/origin/main")
+        git(world.checkout, "update-ref", "refs/plan/main", main_tip)
+        git(world.checkout, "update-ref", "refs/plan/dev", dev_merge)
+        (world.out / "chain").write_bytes(main_tip.encode("ascii") + b"\n")
+        (world.out / "dev").write_bytes(("%s %s\n" % (dev_base, dev_merge)).encode("ascii"))
+        (world.out / "plan.bundle").unlink()
+        git(world.checkout, "bundle", "create", str(world.out / "plan.bundle"), "refs/plan/main", "refs/plan/dev",
+            "^" + main, "^" + dev_base)
+
+    def forged_dev(self, files, login="User7"):
+        """The planner's own plan for a credited report from `login`, but dev's merge with `files` set over it."""
+        world = self.world
+        world.pr(7, credited(login=login), login=login)
+        world.plan()
+        dev_base, merge = (world.out / "dev").read_text(encoding="utf-8").split()
+        tip = world.chain()[-1]
+        with tempfile.TemporaryDirectory() as folder:
+            index = {"GIT_INDEX_FILE": str(Path(folder) / "index")}
+            git(world.checkout, "read-tree", merge, env=index)
+            for path, data in files.items():
+                blob = git(world.checkout, "hash-object", "-w", "--no-filters", "--stdin", data=data)
+                git(world.checkout, "update-index", "--add", "--cacheinfo", "100644,%s,%s" % (blob, path), env=index)
+            tree = git(world.checkout, "write-tree", env=index)
+        self.rebundle(tip, git(world.checkout, "commit-tree", tree, "-p", dev_base, "-p", tip, "-m", "dev merge"),
+                      dev_base)
+
+    def assertDevRefused(self, fragment):
+        dev = git(self.world.origin, "rev-parse", "refs/heads/dev")
+        code, said = self.world.write()
+        self.assertEqual(code, 1, said)
+        self.assertIn(fragment, said)
+        self.assertEqual(git(self.world.origin, "rev-parse", "refs/heads/dev"), dev)
+
+    def test_a_korean_thanks_link_whose_text_is_not_its_address_is_refused(self):
+        evil = THANKS_KO.replace(" 님 등)", ", [@User7](https://github.com/User7), [@Mallory](https://github.com/evil-site) 님 등)")
+        self.forged_dev({filer.THANKS_KO: evil.encode("utf-8")})
+        self.assertDevRefused("dev's credit is not the filer's thanks")
+
+    def test_a_korean_thanks_for_someone_this_run_did_not_credit_is_refused(self):
+        evil = THANKS_KO.replace(" 님 등)", ", [@User7](https://github.com/User7), [@cervinho2](https://github.com/cervinho2) 님 등)")
+        self.forged_dev({filer.THANKS_KO: evil.encode("utf-8")})
+        self.assertDevRefused("dev's credit names no one this run credited")
+
+    def test_a_korean_contributors_line_for_someone_this_run_did_not_credit_is_refused(self):
+        line = "- [@User8](https://github.com/User8) 님은 Codex %s에서 호환성을 보고해 주셨습니다." % VERSION
+        self.world.filed_by_hand(sample(login="User8", failed=True), reporter_id=508, number=8)
+        korean = CONTRIBUTORS_KO.replace("\n\n## AI", "\n" + line + "\n\n## AI")
+        self.forged_dev({filer.CONTRIBUTORS_KO: korean.encode("utf-8")})
+        self.assertDevRefused("dev's credit names no one this run credited")
 
     def test_a_language_map_change_beyond_a_digest_is_refused(self):
         changed = json.loads(mapping())

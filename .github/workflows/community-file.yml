@@ -291,6 +291,8 @@ jobs:
           fi
 
           declare -A filed_in=()
+          # The logins this run's filings credited, by their lowercase spelling: the only ones dev's Korean twins may name.
+          declare -A credited_in=()
           new_main="$main"
           if [ "${#chain[@]}" -gt 0 ] || [ -n "$dev_merge" ]; then
             "$git" init --quiet "$work"
@@ -366,6 +368,7 @@ jobs:
                     ;;
                 esac
               done
+              if [ "${#credits[@]}" -gt 0 ]; then credited_in[$login_lower]="$login"; fi
               # The message: the filer's, rebuilt from its own trailers and nothing else.
               message=$(g cat-file commit "$commit" | sed '1,/^$/d')
               number=$(sed -n 's/^Pull-request: #\([0-9]\{1,7\}\)$/\1/p' <<< "$message")
@@ -415,16 +418,16 @@ jobs:
               read -r _old_mode new_mode _old_blob new_blob status <<< "${meta#:}"
               [[ $new_mode == 100644 && ( $status == A || $status == M ) ]] || fail "dev's merge does more than set files"
               if [[ $path =~ $korean_credited ]]; then
-                # dev's own Korean twin, credited as main credited the English one: only the planner's lines, for
-                # logins whose report folder main has.
+                # dev's own Korean twin, credited as main credited the English one: only the planner's lines, each for
+                # a login one of this run's filings credited, its link's text and address the same login.
                 [ "$status" = M ] || fail "dev's merge does more than change a Korean document"
                 if [ "$path" = docs/CONTRIBUTORS.ko.md ]; then
                   [ "$(counted "$dev_base" "$dev_merge" "$path" | cut -d' ' -f2)" = 0 ] || fail "dev's credit removes a line"
                   while IFS= read -r line; do
                     [[ $line =~ ^-\ \[@([A-Za-z0-9-]{1,39})\]\(https://github\.com/([A-Za-z0-9-]{1,39})\)\ 님은\ Codex\ codex-cli\ [0-9A-Za-z.-]{1,40}에서\ 호환성을\ 보고해\ 주셨습니다\.$ ]] \
                       && [ "${BASH_REMATCH[1]}" = "${BASH_REMATCH[2]}" ] || fail "dev's credit is not the filer's sentence"
-                    g rev-parse --verify --quiet "$local_main:docs/evidence/community/${BASH_REMATCH[1]}" > /dev/null \
-                      || fail "dev's credit names no one main filed"
+                    [ "${credited_in[${BASH_REMATCH[1],,}]:-}" = "${BASH_REMATCH[1]}" ] \
+                      || fail "dev's credit names no one this run credited"
                   done < <(gained "$dev_base" "$dev_merge" "$path")
                 else
                   [ "$(counted "$dev_base" "$dev_merge" "$path")" = "1 1" ] || fail "dev's credit is not one changed line"
@@ -434,8 +437,14 @@ jobs:
                     || fail "dev's credit is not the filer's thanks"
                   added="${now%% 님 등)*}"
                   added="${added#"${was%% 님 등)*}"}"
-                  [[ $added =~ ^(,\ \[@([A-Za-z0-9-]{1,39})\]\(https://github\.com/[A-Za-z0-9-]{1,39}\))+$ ]] \
-                    || fail "dev's credit is not the filer's thanks"
+                  [ -n "$added" ] || fail "dev's credit is not the filer's thanks"
+                  while [ -n "$added" ]; do
+                    [[ $added =~ ^,\ \[@([A-Za-z0-9-]{1,39})\]\(https://github\.com/([A-Za-z0-9-]{1,39})\)(.*)$ ]] \
+                      && [ "${BASH_REMATCH[1]}" = "${BASH_REMATCH[2]}" ] || fail "dev's credit is not the filer's thanks"
+                    [ "${credited_in[${BASH_REMATCH[1],,}]:-}" = "${BASH_REMATCH[1]}" ] \
+                      || fail "dev's credit names no one this run credited"
+                    added="${BASH_REMATCH[3]}"
+                  done
                 fi
                 # A blob main never had: GitHub's hash for it must be the one tested, as a filing's are.
                 [ "$(g cat-file -s "$new_blob")" -le 1000000 ] || fail "dev's credit is a file over 1 MB"

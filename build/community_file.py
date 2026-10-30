@@ -1147,7 +1147,9 @@ class Planner:
 
     def _korean_credits(self, base):
         """{path: bytes} for dev's Korean twins with every credit line main's contributors list gained since `base`,
-        or None where one could not be put there."""
+        or None where one could not be put there - or names a login none of this run's filings credited, which the
+        write job would refuse: dev is then left for promote.py."""
+        this_run = {filing["pull"]["login"] for filing in self.filings if reader.credited(filing["report"])}
         def lines(ref):
             raw = self.git.show(ref, CONTRIBUTORS)
             return (raw or b"").decode("utf-8").replace("\r\n", "\n").split("\n")
@@ -1158,6 +1160,8 @@ class Planner:
         for found in added:
             if found is None:
                 continue
+            if found.group(1) not in this_run:
+                return None
             def show(name):
                 return texts[name] if name in texts else self.git.show(self.dev, name)
             files = credit_files(show, found.group(1), found.group(2), korean=True)
