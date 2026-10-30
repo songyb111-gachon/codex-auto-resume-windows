@@ -134,6 +134,9 @@ namespace CodexAutoResume
                     renderOuter = new Size(Convert.ToInt32(outer[0], CultureInfo.InvariantCulture),
                                            Convert.ToInt32(outer[1], CultureInfo.InvariantCulture));
                 renderChrome = Map(job, "chrome");
+                // v0.6.20: each frame also as the still a capture takes of the window (FramedStill), when the job asks.
+                renderStill = Map(job, "still");
+                if (renderStill != null) renderCaption = LoadCaption(Str(renderStill, "caption"));
                 // The job's command line, read as the window's own is (ParseArguments), for what a page takes from it:
                 // the advanced edition's `--capability=`. The standard window takes nothing here.
                 var arguments = new List<string>();
@@ -161,9 +164,15 @@ namespace CodexAutoResume
                         formLocale = answersOf;
                     }
                     form.RenderState(frame, writer);
+                    int index = Convert.ToInt32(frame["index"], CultureInfo.InvariantCulture);
                     using (Bitmap picture = form.RenderPicture(frame, writer))
-                        writer.Write(Convert.ToInt32(frame["index"], CultureInfo.InvariantCulture), picture,
-                                     form.RenderBounds(targets, frame));
+                    {
+                        writer.Write(index, picture, form.RenderBounds(targets, frame));
+                        if (renderStill != null)
+                            using (Bitmap still = FramedStill(picture, renderCaption, StillNumber(renderStill, "left"),
+                                                              StillNumber(renderStill, "right"), StillNumber(renderStill, "radius")))
+                                writer.WriteStill(index, still);
+                    }
                 }
             }
             catch (Exception error)
@@ -173,6 +182,8 @@ namespace CodexAutoResume
             finally
             {
                 if (form != null) form.Dispose();
+                if (renderCaption != null) renderCaption.Dispose();
+                renderCaption = null;
                 PersistentBridge.Answers = null;
                 lock (RenderMisses) writer.Finish(RenderMisses);
             }
@@ -914,6 +925,114 @@ namespace CodexAutoResume
             }
         }
 
+        // ------------------------------------------------------------------ the still a capture takes (v0.6.20)
+        // The job's `still`: {"caption": a PNG of the title bar, "left", "right": how much of it is kept at each end,
+        // "radius": the corners' in px}; and that title bar, loaded.
+        private static Dictionary<string, object> renderStill;
+        private static Bitmap renderCaption;
+
+        private static int StillNumber(Dictionary<string, object> still, string key)
+        {
+            object value;
+            return still.TryGetValue(key, out value) && value != null ? Convert.ToInt32(value, CultureInfo.InvariantCulture) : 0;
+        }
+
+        /// The title bar a still is framed with, as 32-bit ARGB, its file let go at once.
+        internal static Bitmap LoadCaption(string path)
+        {
+            if (string.IsNullOrEmpty(path) || !File.Exists(path)) throw new InvalidDataException("the job's still names no title bar: " + path);
+            using (var read = new Bitmap(path))
+            {
+                var caption = new Bitmap(read.Width, read.Height, PixelFormat.Format32bppArgb);
+                using (Graphics g = Graphics.FromImage(caption))
+                {
+                    g.CompositingMode = System.Drawing.Drawing2D.CompositingMode.SourceCopy;
+                    g.DrawImage(read, new Rectangle(0, 0, read.Width, read.Height), 0, 0, read.Width, read.Height, GraphicsUnit.Pixel);
+                }
+                return caption;
+            }
+        }
+
+        private static int[] Argb(Bitmap picture)
+        {
+            var pixels = new int[picture.Width * picture.Height];
+            BitmapData data = picture.LockBits(new Rectangle(0, 0, picture.Width, picture.Height), ImageLockMode.ReadOnly,
+                                               PixelFormat.Format32bppArgb);
+            try
+            {
+                for (int y = 0; y < picture.Height; y++)
+                    Marshal.Copy(new IntPtr(data.Scan0.ToInt64() + (long)y * data.Stride), pixels, y * picture.Width, picture.Width);
+            }
+            finally { picture.UnlockBits(data); }
+            return pixels;
+        }
+
+        /// The window as build/capture_window.ps1 photographs it, from the client area drawn here: Windows' title bar above
+        /// it - the caption the job gives, taken from a capture at the job's scale (build/window_frame.py): its first `left`
+        /// px and its last `right` px as they are, and between them its plain bar - and the corners Windows rounds cut, as
+        /// that script cuts them (the same GDI+ fill of the same path, `radius` px, so the same pixels). Nothing of the
+        /// screen is read: Windows draws a window's title bar on a monitor, at that monitor's DPI, and this one is on none.
+        internal static Bitmap FramedStill(Bitmap client, Bitmap caption, int left, int right, int radius)
+        {
+            int width = client.Width, top = caption.Height, height = top + client.Height;
+            int across = caption.Width;
+            left = Math.Max(0, Math.Min(left, Math.Min(width, across - 1)));
+            right = Math.Max(0, Math.Min(right, Math.Min(width - left, across - left - 1)));
+            int[] bar = Argb(caption), body = Argb(client);
+            var pixels = new int[width * height];
+            for (int y = 0; y < top; y++)
+                for (int x = 0; x < width; x++)
+                {
+                    int from = x < left ? x : x >= width - right ? across - (width - x) : left;
+                    pixels[y * width + x] = bar[y * across + from];
+                }
+            for (int i = 0; i < body.Length; i++) pixels[top * width + i] = unchecked((int)0xFF000000) | (body[i] & 0xFFFFFF);
+            using (var square = new Bitmap(width, height, PixelFormat.Format32bppArgb))
+            {
+                BitmapData data = square.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
+                try
+                {
+                    for (int y = 0; y < height; y++)
+                        Marshal.Copy(pixels, y * width, new IntPtr(data.Scan0.ToInt64() + (long)y * data.Stride), width);
+                }
+                finally { square.UnlockBits(data); }
+                return Rounded(square, radius);
+            }
+        }
+
+        /// `square` with its corners cut round, `radius` px, the corners left clear: build/capture_window.ps1's own steps -
+        /// a new 32-bit ARGB bitmap, antialiased, high-quality pixel offsets, the four arcs filled through a texture of the
+        /// picture - so a still drawn here and one captured on a monitor of that scale have the same corners.
+        internal static Bitmap Rounded(Bitmap square, int radius)
+        {
+            int width = square.Width, height = square.Height;
+            var rounded = new Bitmap(width, height, PixelFormat.Format32bppArgb);
+            if (radius <= 0 || width <= 2 * radius || height <= 2 * radius)
+            {
+                using (Graphics g = Graphics.FromImage(rounded))
+                {
+                    g.CompositingMode = System.Drawing.Drawing2D.CompositingMode.SourceCopy;
+                    g.DrawImage(square, new Rectangle(0, 0, width, height), 0, 0, width, height, GraphicsUnit.Pixel);
+                }
+                return rounded;
+            }
+            using (Graphics paint = Graphics.FromImage(rounded))
+            using (var path = new System.Drawing.Drawing2D.GraphicsPath())
+            using (var brush = new TextureBrush(square))
+            {
+                paint.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                paint.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+                int d = 2 * radius;
+                path.AddArc(0, 0, d, d, 180, 90);
+                path.AddArc(width - d, 0, d, d, 270, 90);
+                path.AddArc(width - d, height - d, d, d, 0, 90);
+                path.AddArc(0, height - d, d, d, 90, 90);
+                path.CloseFigure();
+                paint.FillPath(brush, path);
+            }
+            return rounded;
+        }
+
         /// Writes each frame as the rectangle that changed since the one before - the first whole - as raw RGB, and
         /// frames.json: the client size, each frame's rectangle and file, the bounds of its targets, what was noted.
         private sealed class RenderWriter
@@ -928,6 +1047,12 @@ namespace CodexAutoResume
             internal RenderWriter(string folder) { this.folder = folder; }
 
             internal void Note(string text) { notes.Add(text); }
+
+            /// v0.6.20: a frame's still (FramedStill), whole, as `still-<index>.png` beside the frames.
+            internal void WriteStill(int index, Bitmap still)
+            {
+                still.Save(Path.Combine(folder, "still-" + index.ToString("D5", CultureInfo.InvariantCulture) + ".png"), ImageFormat.Png);
+            }
 
             internal void Failed(string text) { Error = text; }
 

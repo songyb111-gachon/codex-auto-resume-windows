@@ -3575,6 +3575,17 @@ def input_digest(path: Path) -> str:
     return sha256(path.read_text(encoding="utf-8").encode("utf-8"))
 
 
+# v0.6.20: the scale every window still is drawn at, whatever display this machine has. The stills are drawn by the
+# window itself, offscreen (gui/WindowRender.cs, a job naming `scale`), framed with Windows' title bar taken once from
+# a capture at this scale (build/window_frame.py) - so a picture made on the laptop's panel at 200 % is the picture a
+# capture on a monitor at 150 % made, byte for byte (the owner, 2026-10-30: every picture the same, whatever monitor is
+# connected). 150 % is what every committed window picture has been since v0.6.11 (1500x1041).
+PINNED_DPI = 144
+PINNED_SCALE = PINNED_DPI / 96.0
+# The window's opening client height in logical px (gui/SettingsApp.cs OpeningHeight): under a still's title bar.
+OPENING_HEIGHT = 664
+
+
 def system_dpi() -> int:
     """The scaling the window was captured at, recorded so a size change has a reason.
 
