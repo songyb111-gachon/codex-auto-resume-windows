@@ -780,6 +780,50 @@ namespace CodexAutoResume
             }
         }
 
+        /// `icon` at `size` px for a picture: the image the .ico holds for that size, or the next larger, decoded as the PNG
+        /// it is. Every image in codex-auto-resume.ico is PNG-compressed, and System.Drawing's Icon paints such an image as
+        /// noise offscreen - DrawIcon, ToBitmap and a resized Icon alike (2026-10-30, the README's Timeline dialog); a real
+        /// title bar is drawn by Windows and never meets this. An icon with no PNG image is drawn as before.
+        internal static Bitmap IconImage(Icon icon, int size)
+        {
+            try
+            {
+                byte[] file;
+                using (var saved = new MemoryStream()) { icon.Save(saved); file = saved.ToArray(); }
+                int count = BitConverter.ToUInt16(file, 4), best = -1, bestSide = int.MaxValue;
+                for (int i = 0; i < count; i++)
+                {
+                    int side = file[6 + 16 * i] == 0 ? 256 : file[6 + 16 * i];
+                    if (side >= size && side < bestSide) { best = i; bestSide = side; }
+                }
+                if (best >= 0)
+                {
+                    int length = BitConverter.ToInt32(file, 6 + 16 * best + 8);
+                    int offset = BitConverter.ToInt32(file, 6 + 16 * best + 12);
+                    if (length > 8 && file[offset] == 0x89 && file[offset + 1] == (byte)'P' && file[offset + 2] == (byte)'N')
+                    {
+                        // The stream stays with the bitmap, as GDI+ asks of one it decodes from (a MemoryStream holds no
+                        // handle); the image at its own size is returned as it is, so nothing resamples it.
+                        var decoded = new Bitmap(new MemoryStream(file, offset, length));
+                        if (decoded.Width == size && decoded.Height == size) return decoded;
+                        using (decoded)
+                        {
+                            var fitted = new Bitmap(size, size, PixelFormat.Format32bppArgb);
+                            using (Graphics g = Graphics.FromImage(fitted))
+                            {
+                                g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                                g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+                                g.DrawImage(decoded, new Rectangle(0, 0, size, size));
+                            }
+                            return fitted;
+                        }
+                    }
+                }
+            }
+            catch (Exception) { /* a picture's icon is decoration: fall back to what System.Drawing makes of it */ }
+            using (var scaled = new Icon(icon, new Size(size, size))) return scaled.ToBitmap();
+        }
+
         /// The dialog's window over `picture`: a soft shadow, the border, the title bar and the drawn client area.
         private void PaintDialog(Bitmap picture, Bitmap body, Point place, Size outer, int caption, int border,
                                  string title, Icon icon, Color ground)
@@ -812,11 +856,8 @@ namespace CodexAutoResume
                 // does not offer (MinimizeBox is off), drawn lighter.
                 int small = Math.Min(caption - 2 * border, Px(16));
                 int middle = place.Y + caption / 2;
-                // Through a bitmap: the product's icon holds PNG-compressed images, and DrawIcon onto an offscreen bitmap
-                // paints such an image as noise (2026-10-30, the README's Timeline dialog); ToBitmap decodes it.
                 if (icon != null)
-                    using (var scaled = new Icon(icon, new Size(small, small)))
-                    using (Bitmap mark = scaled.ToBitmap())
+                    using (Bitmap mark = IconImage(icon, small))
                         g.DrawImage(mark, new Rectangle(place.X + Px(12), middle - small / 2, small, small));
                 // Windows' own caption font, as it draws a title.
                 using (Font font = SystemFonts.CaptionFont)
