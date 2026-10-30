@@ -4193,6 +4193,13 @@ def run_jobs(jobs: list, workers: int | None = None) -> tuple:
     if windows:
         import make_release
         make_release.fetch_runtime()
+    # v0.6.20: what every window job is told beside itself - photographed or drawn offscreen - and, drawn, the one
+    # window compiled for all of them before any starts (`window_exe`), its title bar checked first.
+    told = {"capture": WINDOW_CAPTURE}
+    if windows and not WINDOW_CAPTURE:
+        import window_frame
+        window_frame.still_job("window", PINNED_DPI)
+        told["exe"] = str(window_exe())
     started, gate, stopping = [], threading.Lock(), threading.Event()
     contained = kill_on_close_job()
 
@@ -4203,10 +4210,11 @@ def run_jobs(jobs: list, workers: int | None = None) -> tuple:
                 raise RuntimeError("not started: the run was stopped")
             options = dict(stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8",
                            errors="replace", cwd=str(ROOT))
+            command = job_command(dict(job, **told) if job["kind"] == "window" else job)
             if contained is None:
-                process = subprocess.Popen(job_command(job), creationflags=NO_WINDOW, **options)
+                process = subprocess.Popen(command, creationflags=NO_WINDOW, **options)
             else:
-                process = start_in_job(contained, job_command(job), **options)
+                process = start_in_job(contained, command, **options)
             started.append(process)
         try:
             out, err = process.communicate(timeout=JOB_LIMIT)
@@ -4363,16 +4371,6 @@ def main(argv=None) -> int:
     print("drawing        : %d of %d jobs, %d at a time and %d window(s) at once%s"
           % (len(todo), len(jobs), workers or job_workers(), WINDOWS_AT_ONCE,
              "" if len(todo) == len(jobs) else " - the rest are what the manifest records"))
-    windows = [job for job in todo if job["kind"] == "window"]
-    for job in windows:
-        job["capture"] = WINDOW_CAPTURE
-    if windows and not WINDOW_CAPTURE:
-        # One window compiled for every job's drawing, before any starts (`window_exe`).
-        import window_frame
-        window_frame.still_job("window", PINNED_DPI)
-        exe = str(window_exe())
-        for job in windows:
-            job["exe"] = exe
     drawn, failed = run_jobs(todo, workers)
     if failed:
         raise SystemExit("%d job(s) failed; the manifest is as it was" % failed)
