@@ -237,9 +237,9 @@ class WriteStepCreditTests(CreditCase):
         self.assertIn("[@User7](https://github.com/User7) 님은".encode("utf-8"),
                       self.world.show(dev, filer.CONTRIBUTORS_KO, self.world.origin))
 
-    def tampered(self, files):
-        """A plan whose one commit is the filer's but for `files` set over it."""
-        self.world.pr(7, credited())
+    def tampered(self, files, report=None):
+        """A plan whose one commit is the filer's for `report` (a credited one by default) but for `files` set over it."""
+        self.world.pr(7, report if report is not None else credited())
         self.world.plan()
         planned = self.world.chain()[-1]
         main = git(self.world.checkout, "rev-parse", "refs/remotes/origin/main")
@@ -264,6 +264,21 @@ class WriteStepCreditTests(CreditCase):
         line = "- [@Mallory](https://github.com/Mallory) reported compatibility on Codex %s." % VERSION
         self.tampered({filer.CONTRIBUTORS: CONTRIBUTORS.replace("## A note", line + "\n\n## A note").encode("utf-8")})
         self.assertRefused("a credit is not")
+
+    def test_a_credit_for_a_report_that_did_not_choose_it_is_refused(self):
+        """The W7 review's C1: the report says nothing of credit (or says false), and the plan credits it anyway."""
+        line = "- [@User7](https://github.com/User7) reported compatibility on Codex %s." % VERSION
+        contributors = CONTRIBUTORS.replace("\n\n## A note", "\n" + line + "\n\n## A note")
+        thanks = THANKS.replace("and [@kano0222](https://github.com/kano0222) among them;",
+                                ", [@kano0222](https://github.com/kano0222) and [@User7](https://github.com/User7) "
+                                "among them;").replace("[@cervinho](https://github.com/cervinho) ,",
+                                                       "[@cervinho](https://github.com/cervinho),")
+        for report in (sample(login="User7"), credited(credit=False)):
+            with self.subTest(credit=report.get("credit")):
+                self.setUp()
+                self.tampered({filer.CONTRIBUTORS: contributors.encode("utf-8"), "README.md": thanks.encode("utf-8")},
+                              report=report)
+                self.assertRefused("a credit for a report that did not choose it")
 
     def test_words_of_its_own_in_the_contributors_list_are_refused(self):
         self.tampered({filer.CONTRIBUTORS: (CONTRIBUTORS + "<script>x</script>\n").encode("utf-8")})

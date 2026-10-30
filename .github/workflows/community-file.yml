@@ -345,6 +345,15 @@ jobs:
               [[ ! $login_lower =~ $reserved ]] || fail "a report folder no Windows checkout can hold"
               # A credit: for the report folder's login alone, in the planner's one sentence and place.
               link="[@$login](https://github.com/$login)"
+              if [ "${#credits[@]}" -gt 0 ]; then
+                # Only for a report that chose it: the report this commit files, read from git - never the plan's word -
+                # says "credit": true, one top-level line of the filer's two-space JSON (reader.encode).
+                filed_report=$(g cat-file blob "$commit:$report")
+                [ "$(head -n 1 <<< "$filed_report")" = "{" ] \
+                  && [ "$(grep -c '^  "credit": ' <<< "$filed_report")" = 1 ] \
+                  && grep -qx '  "credit": true,\{0,1\}' <<< "$filed_report" \
+                  || fail "a credit for a report that did not choose it"
+              fi
               for path in "${credits[@]}"; do
                 [ "$login_lower" != songyb111-gachon ] || fail "a filing credits the owner"
                 case "$path" in
