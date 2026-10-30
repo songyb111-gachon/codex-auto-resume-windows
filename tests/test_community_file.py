@@ -1086,10 +1086,11 @@ class WriteStepTests(unittest.TestCase):
         self.assertRefusedWrite("touches a path the filer does not write")
 
     def test_a_readme_changed_but_by_a_credit_is_refused(self):
-        """README.md is a path a credit may change (CREDITED), and only as the planner changes it."""
+        """README.md is a path a credit may change (CREDITED), and only for a report that chose credit (this one did
+        not), and only as the planner changes it (test_community_credit forges the shapes)."""
         path = reader.canonical_path("User7", VERSION)
         self.tamper({path: reader.encode(sample(login="User7")), "README.md": b"# taken over\n"})
-        self.assertRefusedWrite("a credit is not the filer's thanks")
+        self.assertRefusedWrite("a credit for a report that did not choose it")
 
     def test_a_commit_that_changes_a_filed_report_is_refused(self):
         world = self.fresh()
