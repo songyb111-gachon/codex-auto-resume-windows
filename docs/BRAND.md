@@ -697,16 +697,31 @@ in two steps: the whole set, then `--breathe`. A picture of a light that moves m
 a surface moves is animated as an APNG, whose first frame is what a viewer without animation shows.
 Since v0.6.10 each surface declares its lights - where each one is, its radius, its state and
 the ground it stands on, kept in `assets/screenshots.json` under `lights`: the popup and the card
-from their own layout, the panel from the page itself, the window from its capture. The popup and
+from their own layout, the panel from the page itself, the window from its still. The popup and
 the card are drawn moving by their own renderers, their light alone drawn again frame by frame as
-they draw it; the panel and the window are captured still at the top of the breath and `--breathe`
+they draw it; the panel and the window are made still at the top of the breath and `--breathe`
 draws every light they declare, each on its own ground, at every moment of one cycle. A picture's
 lights move on one rhythm, and a frame lasts exactly its share of it - a 4.4-second breath is 132
 frames of 1/30 s, where 33 ms made it 4.356 s until v0.6.10. The panel's two lights are drawn a
 frame each in turn, so each frame stays a small rectangle. Classic's pictures move with their glow,
 and Plain's dim with none.
 
-Screenshots are captured with `build/capture_window.ps1`, which declares itself DPI aware
-before measuring. A DPI-unaware capture is told a scaled-down window rectangle, allocates a
-bitmap that size and returns a picture of the window's top-left corner — which looks
-exactly like a window whose layout is broken, and cost an afternoon once.
+The window's stills are the same whatever display the machine has (v0.6.20). They used to be
+photographed on the screen and so took the display's scaling: with only a laptop's 200 % panel
+attached, every one came out 2000x1386 where the set is 1500x1041. Now the window draws them
+itself, offscreen, in the render mode the motion pictures use (`gui/WindowRender.cs`), at a
+pinned 150 % (`PINNED_DPI` in `build/make_screenshots.py`) and Windows' plain text size: the
+fonts at that scale's size, a list's header laid out at it, the window on no screen. Nothing
+appears on the screen. The title bar is Windows' to draw, on a monitor at that monitor's DPI, so
+it is taken once from a capture at 150 % and kept beside the generator (`build/window_frame.py`,
+`build/frame/`, with the title, the icon and the DPI it shows; a change to any of them stops the
+generator until it is taken again), and the corners are cut round as the capture cut them. Drawn
+on a 200 % laptop, every window still and the setup window's Welcome still
+(`build/make_install_motion.py --still`) were the committed 150 % captures byte for byte. The
+manifest records `window_dpi` and `window_drawn` where it recorded the display's `system_dpi`.
+
+`--capture` still photographs real windows, for a proof or to take the title bar again, with a
+monitor at 150 % as the primary. Captures are taken with `build/capture_window.ps1`, which
+declares itself DPI aware before measuring. A DPI-unaware capture is told a scaled-down window
+rectangle, allocates a bitmap that size and returns a picture of the window's top-left corner —
+which looks exactly like a window whose layout is broken, and cost an afternoon once.
