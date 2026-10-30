@@ -174,7 +174,7 @@ class KeptApartTests(unittest.TestCase):
         self.assertEqual(addresses, ["https://raw.githubusercontent.com/songyb111-gachon/codex-auto-resume-windows/"
                                      "main/src/codex_auto_resume/data/codex_compat.json",
                                      "https://raw.githubusercontent.com/songyb111-gachon/codex-auto-resume-windows/"
-                                     "main/advanced/src/codex_auto_resume_advanced/data/codex_compat_advanced.json"])
+                                     "main/advanced/compat/codex_compat_advanced.json"])
         self.assertNotIn("reported.json", script)
         self.assertNotIn("evidence/community", script)
 

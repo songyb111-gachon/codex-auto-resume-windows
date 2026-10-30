@@ -5,8 +5,11 @@ What a release knows of the measurements is measured.py, a table fixed when it w
 after a release would show every capability "not measured on this Codex" until the next one, even once the owner has
 measured it. So the owner's records also go out in a file of their own (v0.6.20, docs/ROADMAP.md "Compatibility data for
 the advanced edition"), published by the maintainer's admin program from docs/evidence/live/ into
-data/codex_compat_advanced.json on the product's main - never into the standard data
-(src/codex_auto_resume/data/codex_compat.json), whose validators older releases run and must never see change.
+advanced/compat/codex_compat_advanced.json on the product's main - never into the standard data
+(src/codex_auto_resume/data/codex_compat.json), whose validators older releases run and must never see change. That file
+is outside this package and ships in no archive: what a release carries of the measurements is measured.py, and the
+bootstrap's address for the file names no package (tests/test_edition_build.py: it spells the package only where it reads
+an edition).
 
     {"format": "codex-auto-resume-compat-advanced/1", "sequence": 1,
      "published_at": "2026-10-30T00:00:00Z", "expires_at": "2027-01-28T00:00:00Z", "min_product": "0.6.20",
@@ -14,12 +17,12 @@ data/codex_compat_advanced.json on the product's main - never into the standard 
                   "measurements": {"mopen": {"verdict": "pass", "recorded_at": "2026-10-29T12:06Z",
                                    "evidence": "docs/evidence/advanced/codex-cli-0.165.0-alpha.1.2/measurement-mopen.json"}}}]}
 
-Where it comes from on an installation: the copy this release carries (BUNDLED), and the one fetched from main - only
-when a person asks, at the two moments the standard data is fetched (scripts/bootstrap.ps1: -Compatibility, which the
+Where it comes from on an installation: the one fetched from main - only when a person asks, at the two moments the standard data is fetched (scripts/bootstrap.ps1: -Compatibility, which the
 Diagnostics refresh runs, and an update check that reached github.com), for an installation of this edition only, saved
 unread to config/compat-advanced.download.json (DOWNLOAD). This module is the only thing that reads it: at the next
 read it is judged whole and adopted into config/compat-advanced.json (ADOPTED) only when it is valid, unexpired and of a
-higher sequence than both what is adopted and what is bundled; then the download is removed, whatever it was.
+higher sequence than what is adopted; then the download is removed, whatever it was. (A test can hand `bundled` a
+baseline of its own; an installation has none.)
 
 The trust rules (`overlay`), each held by advanced/tests/test_advanced_compat_data.py:
 
@@ -37,6 +40,7 @@ PC may arm, which data never does.
 from __future__ import annotations
 
 import calendar
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -49,7 +53,9 @@ from .measured import MEASURED
 from .vocabulary import Measurement, Verdict
 
 FORMAT = "codex-auto-resume-compat-advanced/1"
-BUNDLED = Path(__file__).resolve().parent / "data" / "codex_compat_advanced.json"
+# Where the published file is kept in the repository, relative to its root (the admin program writes it there).
+REPOSITORY_PATH = "advanced/compat/codex_compat_advanced.json"
+BUNDLED = None
 DOWNLOAD = "compat-advanced.download.json"        # in core's state directory (config/), as the bootstrap saves it
 ADOPTED = "compat-advanced.json"
 MAX_BYTES = 256 * 1024                             # the bootstrap's cap, and the standard data's
@@ -69,7 +75,9 @@ MINUTE = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\dZ")
 PRODUCT = re.compile(r"(\d{1,6})\.(\d{1,6})\.(\d{1,6})")
 EVIDENCE = "docs/evidence/advanced/%s/measurement-%s.json"
 
-# The parsed documents by (path, size, modified): an unchanged file is not parsed again at every read.
+# The parsed documents by their bytes' digest: an unchanged file is not parsed again at every read. Never by size and
+# modified time - a file rewritten with as many bytes inside one tick of the file system's clock (coarse on some
+# Windows machines, CI's runners among them) keeps both, and its old reading would be served as the new one.
 _SEEN = {}
 
 
@@ -173,17 +181,17 @@ def validate(raw, *, product=None) -> dict:
 def _read(path, *, product=None):
     """The document at `path`, validated, or None where there is none or it is refused - never a part of one."""
     try:
-        stat = os.stat(path)
+        if os.stat(path).st_size > MAX_BYTES:
+            return None
+        raw = Path(path).read_bytes()
     except OSError:
         return None
-    key = (str(path), stat.st_size, stat.st_mtime_ns, product)
+    key = (hashlib.sha256(raw).hexdigest(), product)
     if key in _SEEN:
         return _SEEN[key]
     try:
-        if stat.st_size > MAX_BYTES:
-            raise Refused("too_large")
-        found = validate(Path(path).read_bytes(), product=product)
-    except (OSError, Refused):
+        found = validate(raw, product=product)
+    except Refused:
         found = None
     if len(_SEEN) > 16:
         _SEEN.clear()
@@ -206,7 +214,8 @@ def adopt(state_dir, *, bundled=BUNDLED, now=None, product=None) -> None:
     try:
         found = _read(download, product=product)
         floor = max([document["sequence"] for document in (_read(folder / ADOPTED, product=product),
-                                                           _read(bundled, product=product)) if document] or [0])
+                                                           _read(bundled, product=product) if bundled else None)
+                     if document] or [0])
         if _fresh(found, now) and found["sequence"] > floor:
             os.replace(download, folder / ADOPTED)
             return
@@ -224,7 +233,7 @@ def in_force(state_dir=None, *, bundled=BUNDLED, now=None, product=None):
     now = time.time() if now is None else now
     if state_dir is not None:
         adopt(state_dir, bundled=bundled, now=now, product=product)
-    candidates = [_read(bundled, product=product)]
+    candidates = [_read(bundled, product=product)] if bundled else []
     if state_dir is not None:
         candidates.append(_read(Path(state_dir) / ADOPTED, product=product))
     fresh = [document for document in candidates if _fresh(document, now)]

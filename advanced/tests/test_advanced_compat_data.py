@@ -189,6 +189,17 @@ class InForceTests(unittest.TestCase):
         self.assertIsNone(self.force())
         self.assertEqual(compatdata.overlay(measured.MEASURED, self.force(), ENGINE), measured.MEASURED)
 
+    def test_a_file_rewritten_inside_one_tick_of_the_file_clock_is_read_again(self):
+        """CI's runners keep a file's modified time coarse: a document rewritten with as many bytes keeps its size and
+        its time. It is still read as what it now says (the 3-of-7 red of test_an_expired_document_is_ignored_whole)."""
+        self.assertEqual(self.force()["sequence"], 3)
+        before = os.stat(self.bundled)
+        expired = raw(document({}, sequence=3, published=NOW - 100 * 86400, expires=NOW - 86400))
+        self.assertEqual(len(expired), before.st_size)
+        self.bundled.write_bytes(expired)
+        os.utime(self.bundled, ns=(before.st_atime_ns, before.st_mtime_ns))
+        self.assertIsNone(self.force())
+
     def test_nothing_is_fetched_here(self):
         """This module reads files and never the network: the fetch is the bootstrap's, at a person's request."""
         text = Path(compatdata.__file__).read_text(encoding="utf-8")
@@ -210,11 +221,13 @@ class SeamTests(ac.AdvancedCase):
         self.assertEqual(made.arming.verdict(Measurement.MOPEN), "pass")
 
 
-class BundledTests(unittest.TestCase):
-    def test_the_bundled_file_is_valid_unexpired_and_cites_only_what_exists(self):
-        found = compatdata.validate(compatdata.BUNDLED.read_bytes())
+class PublishedFileTests(unittest.TestCase):
+    PUBLISHED = ac.ROOT / compatdata.REPOSITORY_PATH
+
+    def test_the_published_file_is_valid_unexpired_and_cites_only_what_exists(self):
+        found = compatdata.validate(self.PUBLISHED.read_bytes())
         self.assertGreater(found["expires_at"], time.time())
-        document_ = json.loads(compatdata.BUNDLED.read_text(encoding="utf-8"))
+        document_ = json.loads(self.PUBLISHED.read_text(encoding="utf-8"))
         for engine in document_["engines"]:
             for name, said in engine["measurements"].items():
                 with self.subTest(engine=engine["version"], measurement=name):
@@ -224,7 +237,9 @@ class BundledTests(unittest.TestCase):
     def test_it_is_not_the_standard_data(self):
         standard = ac.ROOT / "src" / "codex_auto_resume" / "data" / "codex_compat.json"
         self.assertNotEqual(json.loads(standard.read_text(encoding="utf-8"))["format"], compatdata.FORMAT)
-        self.assertNotIn("codex_auto_resume" + os.sep + "data", str(compatdata.BUNDLED))
+        self.assertFalse(compatdata.REPOSITORY_PATH.startswith(("src/", "advanced/src/")),
+                         "outside both packages: no archive carries it, and its address names no package")
+        self.assertIsNone(compatdata.in_force(None))
 
 
 if __name__ == "__main__":

@@ -225,10 +225,11 @@ $CompatibilityHosts = @('raw.githubusercontent.com')
 # The validator's own cap. A larger download is refused before Python is started.
 $CompatibilityMaxBytes = 262144
 # The advanced edition's own compatibility data (v0.6.20): the owner's measurement verdicts for each Codex engine, in a
-# file of its own beside the advanced package, so the standard data above - whose validators older releases run - never
-# changes for it. Asked for at the same two moments as the standard data, by the same rules, and only for an installation
-# that is the advanced edition (Update-AdvancedCompatibilityData); a standard one never builds a second request.
-$AdvancedCompatibilityUrl = 'https://raw.githubusercontent.com/songyb111-gachon/codex-auto-resume-windows/main/advanced/src/codex_auto_resume_advanced/data/codex_compat_advanced.json'
+# file of its own in the advanced edition's folder of this repository, so the standard data above - whose validators
+# older releases run - never changes for it. Asked for at the same two moments as the standard data, by the same rules,
+# and only for an installation Get-Edition finds the advanced edition (Update-AdvancedCompatibilityData); a standard one
+# never builds a second request.
+$AdvancedCompatibilityUrl = 'https://raw.githubusercontent.com/songyb111-gachon/codex-auto-resume-windows/main/advanced/compat/codex_compat_advanced.json'
 
 # The refresh that rides on an update check shares that check's time. The settings window
 # waits 120 s for -CheckOnly (gui/DashboardMaintenance.cs, CheckMilliseconds) and calls anything slower
@@ -1766,9 +1767,9 @@ function Update-AdvancedCompatibilityData {
     <#
         The advanced edition's measurement data, at the moments the standard data is refreshed and by its rules:
         one GET to one constant URL with no query string, at raw.githubusercontent.com and no other host, at most
-        $CompatibilityMaxBytes, under the same deadline. Only for an installation whose tree holds the advanced
-        package - the edition's own test, as edition.py makes it - so a standard installation asks nothing more and
-        prints nothing more. The body is never parsed here: it lands in a temporary folder and is moved, unread, to
+        $CompatibilityMaxBytes, under the same deadline. Only for an installation Get-Edition finds the advanced
+        edition - the one reading of the edition, as edition.py makes it - so a standard installation asks nothing
+        more and prints nothing more. The body is never parsed here: it lands in a temporary folder and is moved, unread, to
         config\compat-advanced.download.json, which the advanced edition judges whole at its next read and adopts
         only when it is valid, unexpired and newer than what it has (compatdata.py); anything else is removed there.
 
@@ -1777,7 +1778,7 @@ function Update-AdvancedCompatibilityData {
     #>
     param([string]$Home_, [string]$Source, [int]$TimeoutSec = 60)
     if (-not $Source) { $Source = Join-Path $Home_ 'app\src' }
-    if (-not (Test-Path -LiteralPath (Join-Path $Source 'codex_auto_resume_advanced') -PathType Container)) { return $null }
+    if ((Get-Edition -Src $Source) -ne 'advanced') { return $null }
     $state = Join-Path $Home_ 'config'
     if ($TimeoutSec -le 0 -or -not (Test-Path -LiteralPath $state -PathType Container)) {
         Step 'The advanced edition''s measurement data was not asked for; what it has still applies.'
