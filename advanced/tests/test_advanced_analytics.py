@@ -33,7 +33,7 @@ T1 = "0a1b2c3d-0003-7000-8000-0000000000a1"
 T2 = "0a1b2c3d-0003-7000-8000-0000000000a2"
 T3 = "0a1b2c3d-0003-7000-8000-0000000000a3"
 PROJECT_A, PROJECT_B = "a" * 64, "b" * 64
-SECRET = "SECRET-WORDS-OF-A-PROMPT"
+PRIVATE = "SECRET-WORDS-OF-A-PROMPT"
 
 
 def stamp(at):
@@ -48,7 +48,7 @@ def rollout(path, thread, events, cwd="C:\\work\\Example"):
         total = [a + b for a, b in zip(total, numbers)]
         usage = lambda values: dict(zip(tokens.KINDS + ("total_tokens",), values + [sum(values)]))
         lines.append({"timestamp": stamp(at), "type": "event_msg", "payload": {"type": "task_started"}})
-        lines.append({"timestamp": stamp(at), "type": "response_item", "payload": {"text": SECRET}})
+        lines.append({"timestamp": stamp(at), "type": "response_item", "payload": {"text": PRIVATE}})
         lines.append({"timestamp": stamp(at), "type": "event_msg", "payload": {
             "type": "token_count", "info": {"last_token_usage": usage(numbers), "total_token_usage": usage(total)}}})
     path.parent.mkdir(parents=True, exist_ok=True)

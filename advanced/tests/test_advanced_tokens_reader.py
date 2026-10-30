@@ -17,7 +17,7 @@ from codex_auto_resume_advanced.codex import tokens
 
 THREAD = "0a1b2c3d-0004-7000-8000-00000000000a"
 OTHER = "0a1b2c3d-0004-7000-8000-00000000000b"
-SECRET = "SECRET-PROMPT-WORDS"
+PRIVATE = "SECRET-PROMPT-WORDS"
 
 
 def utc(at):
@@ -30,7 +30,7 @@ def stamp(at):
 
 def meta(thread=THREAD, cwd="C:\\work\\ExampleProject"):
     return {"timestamp": stamp(1_800_000_000), "type": "session_meta",
-            "payload": {"id": thread, "cwd": cwd, "instructions": SECRET}}
+            "payload": {"id": thread, "cwd": cwd, "instructions": PRIVATE}}
 
 
 def counts(at, last, total, words=True):
@@ -41,7 +41,7 @@ def counts(at, last, total, words=True):
         info["last_token_usage"] = usage(last)
     payload = {"type": "token_count", "info": info, "rate_limits": {"primary": {"used_percent": 12.0}}}
     if words:
-        payload["note"] = SECRET + " tool output and reasoning text"
+        payload["note"] = PRIVATE + " tool output and reasoning text"
     return {"timestamp": stamp(at), "type": "event_msg", "payload": payload}
 
 
@@ -52,7 +52,7 @@ def started(at):
 def message(at):
     """A line of words alone, which holds the bytes "token_count" in what a person wrote."""
     return {"timestamp": stamp(at), "type": "response_item",
-            "payload": {"type": "message", "content": [{"text": SECRET + ' about "token_count" events'}]}}
+            "payload": {"type": "message", "content": [{"text": PRIVATE + ' about "token_count" events'}]}}
 
 
 def lines(*events) -> bytes:
@@ -95,7 +95,7 @@ class NumbersTests(ReaderCase):
         self.assertEqual(read.thread_id, THREAD)
         self.assertEqual(read.days, {day: [110, 44, 22, 6, 2]})
         self.assertEqual(read.outcome, tokens.READ)
-        self.assertNotIn(SECRET, repr(read))
+        self.assertNotIn(PRIVATE, repr(read))
         self.assertNotIn("ExampleProject", repr(read))
         self.assertRegex(read.project_key, r"\A[0-9a-f]{16}\Z")
 

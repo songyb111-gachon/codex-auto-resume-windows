@@ -28,7 +28,8 @@ from codex_auto_resume_advanced.courier import __main__ as courier  # noqa: E402
 from codex_auto_resume_advanced.registry import PUSH_NOTICES  # noqa: E402
 from codex_auto_resume_advanced.vocabulary import OptionKey  # noqa: E402
 
-TOKEN = "123456789:" + "T" * 35                    # made up: the shape of a bot token, never a real one
+BOT_INK = "123456789:" + "T" * 35                    # made up: the shape of a bot token, never a real one
+BEARER_INK = "made-up-bearer"                       # made up: a webhook bearer, never a real one
 TOPIC = "https://ntfy.example.com/a-topic-made-up-for-the-test"
 HOOK = "https://hooks.example.com/in/made-up"
 SMTP = {"host": "smtp.example.com", "port": 465, "user": "me@example.com", "password": "made-up-app-password",
@@ -98,8 +99,8 @@ class ChannelCase(ac.AdvancedCase):
         self.catalogs = statement.CATALOGS
         self.rt = self.runtime(PUSH_NOTICES)
         self.rt.arming.catalogs = statement.CATALOGS
-        self.secrets = Secrets(ntfy_url=TOPIC, webhook_url=HOOK, webhook_token="made-up-bearer",
-                               telegram_token=TOKEN, telegram_chat="-1001234", smtp=json.dumps(SMTP))
+        self.secrets = Secrets(ntfy_url=TOPIC, webhook_url=HOOK, webhook_token=BEARER_INK,
+                               telegram_token=BOT_INK, telegram_chat="-1001234", smtp=json.dumps(SMTP))
 
     def row(self, event="recovered", category="usage_limit", alias="task 3"):
         return {"event": event, "category": category, "alias": alias, "at": ac.NOW}
@@ -154,12 +155,12 @@ class ShapeTests(ChannelCase):
         opener = Opener()
         channels.send("telegram", self.row(), self.secrets, opener=opener, locale="en")
         (request, _timeout), = opener.requests
-        self.assertEqual(request.full_url, "https://api.telegram.org/bot%s/sendMessage" % TOKEN)
+        self.assertEqual(request.full_url, "https://api.telegram.org/bot%s/sendMessage" % BOT_INK)
         body = json.loads(request.data)
         self.assertEqual(set(body), {"chat_id", "text", "disable_web_page_preview"})
         self.assertEqual(body["chat_id"], -1001234)
-        self.assertNotIn(TOKEN, request.data.decode("utf-8"))
-        self.assertNotIn(TOKEN, json.dumps(dict(request.header_items())))
+        self.assertNotIn(BOT_INK, request.data.decode("utf-8"))
+        self.assertNotIn(BOT_INK, json.dumps(dict(request.header_items())))
 
     def test_e_mail_on_465_is_tls_from_the_start_and_587_is_starttls_both_verified(self):
         channels.send("email", self.row(), self.secrets, smtp=Smtp, locale="en")
@@ -201,7 +202,7 @@ class ShapeTests(ChannelCase):
         with self.assertRaises(keep.NotSaved):
             channels.send("ntfy", self.row(), Secrets(), opener=opener)
         with self.assertRaises(keep.NotSaved):
-            channels.send("telegram", self.row(), Secrets(telegram_token=TOKEN), opener=opener)
+            channels.send("telegram", self.row(), Secrets(telegram_token=BOT_INK), opener=opener)
         from codex_auto_resume_advanced.courier.address import AddressRefused
         with self.assertRaises(AddressRefused):
             channels.send("ntfy", self.row(), Secrets(ntfy_url="http://ntfy.example.com/x"), opener=opener)
@@ -290,10 +291,10 @@ class DrainTests(DrainCase):
     def test_no_secret_reaches_the_state_file(self):
         self.enqueue("ntfy", "telegram")
         channels.drain(self.rt, self.secrets, opener=Opener(error=urllib.error.HTTPError(
-            TOPIC, 401, "bad " + TOKEN, {}, io.BytesIO(TOKEN.encode()))), now=ac.NOW)
+            TOPIC, 401, "bad " + BOT_INK, {}, io.BytesIO(BOT_INK.encode()))), now=ac.NOW)
         self.rt.state.close()
         raw = Path(self.rt.state.path).read_bytes()
-        for secret in (TOKEN, TOPIC, "made-up-bearer", "-1001234", "a-topic-made-up"):
+        for secret in (BOT_INK, TOPIC, "made-up-bearer", "-1001234", "a-topic-made-up"):
             self.assertNotIn(secret.encode("utf-8"), raw)
 
 
@@ -376,7 +377,7 @@ class PairingTests(DrainCase):
         self.assertIsNone(row["code_digest"])
         self.assertIsNotNone(row["paired_at"])
         url = opener.requests[0][0].full_url
-        self.assertTrue(url.startswith("https://api.telegram.org/bot%s/getUpdates?timeout=" % TOKEN), url)
+        self.assertTrue(url.startswith("https://api.telegram.org/bot%s/getUpdates?timeout=" % BOT_INK), url)
         self.rt.state.close()
         self.assertNotIn(b"042317", Path(self.rt.state.path).read_bytes())
 
