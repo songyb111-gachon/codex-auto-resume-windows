@@ -1461,7 +1461,10 @@ namespace CodexAutoResume
                     continue;
                 }
                 if (rtl[7] != 0) findings.Add(key + " :: its first button does not stand at its left, as it stands at its right left to right");
-                int expected = ltr[4] - ltr[0] - ltr[2];
+                // Docked across its parent - to the top, the bottom or filling it - a control stands where docking puts it in
+                // either direction: the same place. (A dialog the screen made narrower than it was laid out for keeps its docked
+                // children at their first width, wider than it, left to right and right to left alike - CI's 1024-px screen.)
+                int expected = rtl[9] != 0 ? ltr[0] : ltr[4] - ltr[0] - ltr[2];
                 // A line of words measured right to left can come out a few pixels narrower or wider than the same words
                 // measured left to right: such a label is held to its leading edge - its right edge where its left was.
                 bool words = rtl[8] != 0 && Math.Abs(rtl[2] - ltr[2]) > 1;
@@ -1495,16 +1498,27 @@ namespace CodexAutoResume
                 Rectangle bounds = child.Bounds;
                 var host = child as SoftListHost;
                 // [x, y, width, height, the parent's width, a list?, its columns mirrored?, a row whose first button is wrong?,
-                //  a line of words?]
+                //  a line of words?, docked across its parent?]
                 var record = new[] { bounds.X, bounds.Y, bounds.Width, bounds.Height, parent.ClientSize.Width,
                                      host != null ? 1 : 0, host != null && host.ColumnsMirrored ? 1 : 0,
-                                     FirstOutOfPlace(child as FlowLayoutPanel) ? 1 : 0, child is Label ? 1 : 0 };
+                                     FirstOutOfPlace(child as FlowLayoutPanel) ? 1 : 0, child is Label ? 1 : 0,
+                                     Docked(child, parent) ? 1 : 0 };
                 if (!mirrored.ContainsKey(here)) mirroredOrder.Add(here);
                 mirrored[here] = record;
                 // A list's clip holds the list, which Windows does not mirror; a number's parts are Windows' own.
                 if (host != null || child is UpDownBase || child is ListClip) continue;
                 MirrorRecordOf(here, child);
             }
+        }
+
+        /// Whether `child` is docked across `parent` - to its top, its bottom or filling it - in a parent whose room for it is
+        /// the same either way: padding alike on both sides, or mirrored with it (Mirror.Display). Such a control stands where
+        /// docking puts it whichever way the window reads (MirrorCompare).
+        private static bool Docked(Control child, Control parent)
+        {
+            if (child.Dock != DockStyle.Top && child.Dock != DockStyle.Bottom && child.Dock != DockStyle.Fill) return false;
+            return parent.Padding.Left == parent.Padding.Right || parent is SoftStack || parent is SoftCard || parent is SoftRows ||
+                   parent is SoftFlow || parent is SoftPage;
         }
 
         /// Whether a row of buttons that flows from the right - the window's button rows, whose first button (the primary
