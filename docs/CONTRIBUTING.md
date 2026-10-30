@@ -787,6 +787,23 @@ the account and that Codex version are listed in `docs/evidence/community/withdr
 same report is not filed again; the account's reports on other Codex versions are judged like any
 other. No report enters the compatibility data, and none changes a tier.
 
+A report may also carry the records an advanced-edition feature carried by a route of its own, kept
+apart in `advanced_records` (codex-compat-reporter 1.5.4 on). They are held to the same rules as any
+record, counted by the same rule into the advanced edition's own Reported counts beside the version
+in the index and the folder's README, and never into the verdict, a level or the counts a release
+ships.
+
+**Credit, only if you ask for it.** A report written with `report --credit` (the reporter window's
+check box, unticked unless you tick it) says `"credit": true` and nothing more. When such a report
+is filed, the login of the pull request's author - as GitHub reports it for your account, never
+anything typed into the file - is added once to [CONTRIBUTORS.md](CONTRIBUTORS.md), at the end of the
+people who helped, in one fixed sentence ("reported compatibility on Codex" and the version), and to
+the README's thanks line. A login that is listed already is not added again, and a bot or the
+maintainer is never added. Whatever stops a filing stops its credit (the switch, a blocked account, a
+red `main`). A report withdrawn later leaves its credit as it is: you did report; the maintainer
+removes a credit by hand only if the report was abusive. Without `credit`, nothing about you is
+written anywhere outside your report's own folder.
+
 ## How the code is layered
 
 The Python package is built in layers, and its imports point one way: down or sideways,

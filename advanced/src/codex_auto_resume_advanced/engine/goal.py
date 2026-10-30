@@ -53,6 +53,7 @@ from codex_auto_resume.domain.plug import DEFER, Alternative
 from ..codex import inuse
 from ..codex.goals import Goals
 from ..codex.protocol import Session, SessionRefused, submitted
+from .. import compatdata
 from ..measured import MEASURED
 from ..vocabulary import GoalStatus, Measurement, Verdict
 from .markerfree import MAX_PROMPT, _close, _queue_id
@@ -73,6 +74,13 @@ APP_FREE = "app_free"
 def _usage_record(record) -> bool:
     return (isinstance(record, dict) and record.get("category") == failures.USAGE_LIMIT
             and ids.is_uuid(record.get("thread_id")))
+
+
+def _engine(view):
+    """The Codex version the view names, or None."""
+    engine = view.get("engine") if isinstance(view, dict) else None
+    version = engine.get("version") if isinstance(engine, dict) else None
+    return version if isinstance(version, str) else None
 
 
 def m2b_passed(view, measured) -> bool:
@@ -136,7 +144,10 @@ class GoalContinuation:
     def _m2b(self) -> bool:
         try:
             view = self._view() if self._view is not None else _view_of(self.paths)
-            measured = self._measured() if self._measured is not None else MEASURED
+            # v0.6.20: by default this build's table with the advanced compatibility data laid over it
+            # (compatdata.table_for), for the Codex the view names.
+            measured = (self._measured() if self._measured is not None
+                        else compatdata.table_for(self.paths, _engine(view), table=MEASURED))
             return m2b_passed(view, measured)
         except Exception:
             return False
