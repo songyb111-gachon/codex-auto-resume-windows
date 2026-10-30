@@ -1037,11 +1037,12 @@ namespace CodexAutoResume
         internal static Rectangle Place(Rectangle field, int width, int wanted, int pill, int rowGap, int pad,
                                         Rectangle area, int gap, out bool above, out int rows)
         {
-            return Place(field, width, wanted, pill, rowGap, pad, area, gap, false, out above, out rows);
+            return PlaceSide(field, width, wanted, pill, rowGap, pad, area, gap, false, out above, out rows);
         }
 
-        /// The same, `mirrored` (v0.6.20, Mirror): `pad` right of the field, so its items' words end over the field's.
-        internal static Rectangle Place(Rectangle field, int width, int wanted, int pill, int rowGap, int pad,
+        /// The same, `mirrored` (v0.6.20, Mirror): `pad` right of the field, so its items' words end over the field's. A name
+        /// of its own, not a second Place: the tests reach Place by its name alone.
+        internal static Rectangle PlaceSide(Rectangle field, int width, int wanted, int pill, int rowGap, int pad,
                                         Rectangle area, int gap, bool mirrored, out bool above, out int rows)
         {
             width = Math.Max(0, Math.Min(width, area.Width));
@@ -1081,13 +1082,13 @@ namespace CodexAutoResume
             int wanted = Math.Max(1, Math.Min(count, combo.MaxDropDownItems));
             int words = widest + 2 * Soft.Px(Brand.SelectPadLeft);
             int width = Math.Max(field.Width, words) + 2 * pad;
-            card = Place(field, width, wanted, pill, rowGap, pad, area, Soft.Px(Brand.SpaceXs), mirrored, out above, out rows);
+            card = PlaceSide(field, width, wanted, pill, rowGap, pad, area, Soft.Px(Brand.SpaceXs), mirrored, out above, out rows);
             scrolls = rows < count;
             if (scrolls)
             {
                 // Room for the soft bar beside the items, which keep the width their words need.
                 width = Math.Max(field.Width, words + SoftBar.Gutter) + 2 * pad;
-                card = Place(field, width, wanted, pill, rowGap, pad, area, Soft.Px(Brand.SpaceXs), mirrored, out above, out rows);
+                card = PlaceSide(field, width, wanted, pill, rowGap, pad, area, Soft.Px(Brand.SpaceXs), mirrored, out above, out rows);
             }
             margin = Palette.Contrast ? Padding.Empty : Elevation.Reach("card");
             offset = 0;
