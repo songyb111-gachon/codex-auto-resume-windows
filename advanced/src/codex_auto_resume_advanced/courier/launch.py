@@ -49,7 +49,7 @@ def argv(paths, *extra) -> list:
     `--feed`)."""
     from codex_auto_resume import startup
     interpreter = startup.python_launcher()
-    return [str(interpreter), "-m", MODULE, "--home", str(Path(paths.home)), *extra]
+    return [str(interpreter), *startup.NO_REMOTE_DEBUG, "-m", MODULE, "--home", str(Path(paths.home)), *extra]
 
 
 def _kernel():

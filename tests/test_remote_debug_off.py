@@ -134,7 +134,7 @@ class StaticTests(unittest.TestCase):
                     continue
                 starts["%s:%d" % (_relative(path), text.count("\n", 0, found.start()) + 1)] = segment
         self.assertEqual(sorted(site.split(":")[0] for site in starts),
-                         ["gui/Dashboard.cs", "gui/DashboardMaintenance.cs", "gui/McpLauncher.cs",
+                         ["gui/Dashboard.cs", "gui/DashboardMaintenance.cs", "gui/HookLauncher.cs", "gui/McpLauncher.cs",
                           "gui/SettingsApp.cs"], sorted(starts))
         first = re.compile(r'Arguments = (Bridge\.)?NoRemoteDebug \+|ProcessStartInfo\(python, (Bridge\.)?NoRemoteDebug \+'
                            r'|arguments\.Append\(NoRemoteDebug\)\.Append\("-c "\)|Arguments = "-I -X %s -c "' % OPTION)

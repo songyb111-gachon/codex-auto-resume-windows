@@ -152,7 +152,7 @@ class LaunchTests(Home):
         process, = Process.started
         self.assertIs(found, process)
         self.assertEqual(adopted, [process])
-        self.assertEqual(process.argv, [r"C:\Python\pythonw.exe", "-m", "codex_auto_resume_advanced.courier",
+        self.assertEqual(process.argv, [r"C:\Python\pythonw.exe", "-X", "disable-remote-debug", "-m", "codex_auto_resume_advanced.courier",
                                         "--home", str(Path(self.paths.home)), "--feed"])
         self.assertEqual(process.options["creationflags"], NO_WINDOW | launch.CREATE_SUSPENDED)
         self.assertFalse(process.options["shell"])
