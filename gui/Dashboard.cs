@@ -1617,7 +1617,7 @@ namespace CodexAutoResume
             if (e.ColumnIndex == 1 && row != null)
                 Soft.Chip(e.Graphics, cell, text, list.Font, Palette.Contrast && selected ? ink : ToneFor(row), back, mirrored);
             else if (list == pendingList && e.ColumnIndex == ResumeColumn && row != null && !EditionRow(row))
-                DrawResumeBox(e.Graphics, cell, row, back, mirrored);
+                DrawResumeBox(e.Graphics, cell, row, back);
             else
                 TextRenderer.DrawText(e.Graphics, text, list.Font, cell, e.ColumnIndex == 0 ? ink : quiet,
                                       Mirror.Words(mirrored, TextFormatFlags.VerticalCenter | TextFormatFlags.Left |
@@ -1634,19 +1634,17 @@ namespace CodexAutoResume
         /// (FollowResumeSwitches).
         private void DrawResumeBox(Graphics g, Rectangle cell, Dictionary<string, object> row, Color ground)
         {
-            DrawResumeBox(g, cell, row, ground, false);
-        }
-
-        private void DrawResumeBox(Graphics g, Rectangle cell, Dictionary<string, object> row, Color ground, bool mirrored)
-        {
             int width = Px(Brand.SwitchWidth), height = Px(Brand.SwitchHeight);
-            var track = new Rectangle(mirrored ? cell.Right - Px(2) - width : cell.X + Px(2), cell.Y + (cell.Height - height) / 2,
-                                      width, height);
+            var track = new Rectangle(cell.X + Px(2), cell.Y + (cell.Height - height) / 2, width, height);
+            // v0.6.20: at the cell's right, its knob travelling left, in a mirrored window (Mirror).
+            bool mirrored = ListMirrored(pendingList);
+            if (mirrored) track.X = cell.Right - Px(2) - width;
             double on = ThreadOn(row) ? 1.0 : 0.0;
             Transition glide;
             string id = Str(row, "interruption_id");
             if (id != null && resumeGlides.TryGetValue(id, out glide) && glide.Running) on = glide.Value;
-            Soft.SwitchAt(g, track, on, true, ground, mirrored);
+            if (mirrored) Soft.SwitchSide(g, track, on, true, ground, true);
+            else Soft.SwitchAt(g, track, on, true, ground);
         }
 
         // Pending's Auto-resume switches (v0.6.5): each row's as it was last drawn, by its record's id, and the glide of

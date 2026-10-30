@@ -941,12 +941,13 @@ namespace CodexAutoResume
         /// it is exactly the switch at rest.
         internal static void SwitchAt(Graphics g, Rectangle track, double on, bool enabled, Color ground)
         {
-            SwitchAt(g, track, on, enabled, ground, false);
+            SwitchSide(g, track, on, enabled, ground, false);
         }
 
         /// The same, `mirrored` in a window written right to left (v0.6.20, Mirror): the knob at the right when off and
-        /// travelling left to on, as the popup's and the panel's switch do.
-        internal static void SwitchAt(Graphics g, Rectangle track, double on, bool enabled, Color ground, bool mirrored)
+        /// travelling left to on, as the popup's and the panel's switch do. A name of its own, not a second SwitchAt:
+        /// the tests reach SwitchAt by its name alone.
+        internal static void SwitchSide(Graphics g, Rectangle track, double on, bool enabled, Color ground, bool mirrored)
         {
             on = Math.Max(0.0, Math.Min(1.0, on));
             float radius = track.Height / 2f;

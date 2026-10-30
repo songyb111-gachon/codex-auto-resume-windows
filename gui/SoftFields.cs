@@ -246,7 +246,7 @@ namespace CodexAutoResume
             double on = turn.Value;
             bool mirrored = Mirror.Of(this);
             if (box) DrawBoxAt(g, glyph, on, Enabled);
-            else Soft.SwitchAt(g, glyph, on, Enabled, Parent != null ? Ground.Colour(Parent) : Palette.Card, mirrored);
+            else Soft.SwitchSide(g, glyph, on, Enabled, Parent != null ? Ground.Colour(Parent) : Palette.Card, mirrored);
             int wide = glyph.Width + Gap;
             var textBounds = Mirror.Box(mirrored, Width, new Rectangle(wide, 0, Math.Max(0, Width - wide), Height));
             Color ink = Enabled ? ForeColor : Palette.Muted;
