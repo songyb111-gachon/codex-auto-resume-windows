@@ -189,6 +189,17 @@ class InForceTests(unittest.TestCase):
         self.assertIsNone(self.force())
         self.assertEqual(compatdata.overlay(measured.MEASURED, self.force(), ENGINE), measured.MEASURED)
 
+    def test_a_file_rewritten_inside_one_tick_of_the_file_clock_is_read_again(self):
+        """CI's runners keep a file's modified time coarse: a document rewritten with as many bytes keeps its size and
+        its time. It is still read as what it now says (the 3-of-7 red of test_an_expired_document_is_ignored_whole)."""
+        self.assertEqual(self.force()["sequence"], 3)
+        before = os.stat(self.bundled)
+        expired = raw(document({}, sequence=3, published=NOW - 100 * 86400, expires=NOW - 86400))
+        self.assertEqual(len(expired), before.st_size)
+        self.bundled.write_bytes(expired)
+        os.utime(self.bundled, ns=(before.st_atime_ns, before.st_mtime_ns))
+        self.assertIsNone(self.force())
+
     def test_nothing_is_fetched_here(self):
         """This module reads files and never the network: the fetch is the bootstrap's, at a person's request."""
         text = Path(compatdata.__file__).read_text(encoding="utf-8")

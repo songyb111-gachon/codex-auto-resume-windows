@@ -37,6 +37,7 @@ PC may arm, which data never does.
 from __future__ import annotations
 
 import calendar
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -69,7 +70,9 @@ MINUTE = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\dZ")
 PRODUCT = re.compile(r"(\d{1,6})\.(\d{1,6})\.(\d{1,6})")
 EVIDENCE = "docs/evidence/advanced/%s/measurement-%s.json"
 
-# The parsed documents by (path, size, modified): an unchanged file is not parsed again at every read.
+# The parsed documents by their bytes' digest: an unchanged file is not parsed again at every read. Never by size and
+# modified time - a file rewritten with as many bytes inside one tick of the file system's clock (coarse on some
+# Windows machines, CI's runners among them) keeps both, and its old reading would be served as the new one.
 _SEEN = {}
 
 
@@ -173,17 +176,17 @@ def validate(raw, *, product=None) -> dict:
 def _read(path, *, product=None):
     """The document at `path`, validated, or None where there is none or it is refused - never a part of one."""
     try:
-        stat = os.stat(path)
+        if os.stat(path).st_size > MAX_BYTES:
+            return None
+        raw = Path(path).read_bytes()
     except OSError:
         return None
-    key = (str(path), stat.st_size, stat.st_mtime_ns, product)
+    key = (hashlib.sha256(raw).hexdigest(), product)
     if key in _SEEN:
         return _SEEN[key]
     try:
-        if stat.st_size > MAX_BYTES:
-            raise Refused("too_large")
-        found = validate(Path(path).read_bytes(), product=product)
-    except (OSError, Refused):
+        found = validate(raw, product=product)
+    except Refused:
         found = None
     if len(_SEEN) > 16:
         _SEEN.clear()
