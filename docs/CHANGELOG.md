@@ -36,7 +36,7 @@ file of its own in the installation's config folder - its compatibility data, be
 ### Advanced edition
 
 - **Compatibility data of its own.** The measurement verdicts per exact Codex engine that the advanced edition's capabilities rest on
-  are published by the maintainer from his records, in a file of its own beside the edition's code - never in the standard data,
+  are published by the maintainer from the records of those measurements, in a file of its own beside the edition's code - never in the standard data,
   whose validators the earlier releases run. It is fetched only when you ask, at the two moments the standard data is refreshed (*Refresh
   compatibility data* on the Diagnostics page, and a check for updates that reached GitHub), as one request to one constant address that uploads nothing;
   PRIVACY says so. It is trusted only so far. A measurement that failed on this PC always wins. The data only narrows - a failure in
