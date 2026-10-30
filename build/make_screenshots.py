@@ -25,13 +25,17 @@ images did not. That is the part that could not be done by remembering.
     python build/make_screenshots.py --light     # only the status light's own picture
     python build/make_screenshots.py --audit OUT # light and dark sheets of all four surfaces, into OUT only
 
-Run it from a checkout, on Windows, with the settings window built, from PowerShell: launched
-from a POSIX shell, headless Edge exits at once and prints nothing. A whole regeneration is the
-first two lines, in that order. It writes the canonical assets and copies them to `docs/images/`.
-The popup and the notification card are drawn off-screen by their own renderers, moving, and need
-neither the window nor Edge; the icon's motion is drawn from the icon's own frames and needs nothing
-of Windows at all. The window and the panel are captured still, and `--breathe` then draws their
-lights moving over the capture (see "pictures that breathe").
+Run it from a checkout, on Windows, from PowerShell: launched from a POSIX shell, headless Edge
+exits at once and prints nothing. A whole regeneration is the first two lines, in that order. It
+writes the canonical assets and copies them to `docs/images/`. The popup and the notification card
+are drawn off-screen by their own renderers, moving, and need neither the window nor Edge; the
+icon's motion is drawn from the icon's own frames and needs nothing of Windows at all. The window's
+stills are drawn by the window itself, offscreen, at a pinned 150 % whatever the display is
+(v0.6.20, PINNED_DPI: nothing is shown on the screen), framed with Windows' title bar kept from one
+capture at that scale (build/window_frame.py); `--capture` photographs real windows instead, which
+needs a monitor at 150 % as the primary and the settings window built (build/make_gui.ps1). The panel
+is rendered still by headless Edge, and `--breathe` then draws the window's and the panel's lights
+moving over the still (see "pictures that breathe").
 
 Both steps draw their pictures side by side, each job in a process of its own (see "jobs"), and
 only what is stale: a picture the manifest says was drawn from what the working tree holds now is
@@ -132,7 +136,13 @@ WINDOW_INPUTS = (
     "<window sources>",
     "gui/app.manifest",                   # its DPI awareness, and so its size
     "assets/codex-auto-resume.ico",       # the mark in the title bar, which is captured
-    "build/capture_window.ps1",           # how much of the window is captured
+    "build/capture_window.ps1",           # how much of the window is captured (--capture)
+    # v0.6.20: how a still is drawn offscreen - the window's render job and the answers it is given - and the title
+    # bar it is framed with, kept from a capture at PINNED_DPI with what it is a picture of.
+    "build/motion_window.py",
+    "build/window_frame.py",
+    "build/frame/window-caption.png",
+    "build/frame/frame.json",
     # Whether the icon and the DPI manifest are compiled into the binary at all, and
     # which sources go into it. The two entries above it are only inputs because this
     # file passes them to the compiler.
@@ -1979,7 +1989,7 @@ def window_record(path: Path, theme: str | None = None, design: str | None = Non
     if len(found) != WINDOW_LIGHTS:
         raise SystemExit("%s: %d lights of the colour %s, where the window has %d"
                          % (path.name, len(found), brand.status_fill(state), WINDOW_LIGHTS))
-    scale = (system_dpi() or 96) / 96.0
+    scale = window_dpi() / 96.0
     radius = brand.STATUS_DOT["window"] * scale + GDI_PLUS_SPREAD
     lights = []
     for x, y, measured in found:
@@ -2829,9 +2839,92 @@ def capture_moment(clock=time.time) -> float:
     return float(int(clock()))
 
 
+# v0.6.20: whether the window's stills are photographed (`--capture`) rather than drawn offscreen at PINNED_DPI, and
+# the window compiled for the offscreen drawing (`window_exe`), which a run compiles once and hands its jobs.
+WINDOW_CAPTURE = False
+WINDOW_EXE = None
+
+
+def window_dpi() -> int:
+    """The DPI the window's stills are drawn at: PINNED_DPI, whatever the display - or, photographed (`--capture`), the
+    display's own (`system_dpi`)."""
+    return (system_dpi() or 96) if WINDOW_CAPTURE else PINNED_DPI
+
+
+def window_exe() -> Path:
+    """The window the stills are drawn with offscreen: the one this run was handed, or compiled from the working tree
+    now (build/motion_window.py compile_window) into a folder of its own, removed when the process ends."""
+    global WINDOW_EXE
+    if WINDOW_EXE is None:
+        import atexit
+        import motion_window
+        folder = Path(tempfile.mkdtemp(prefix="car-window-"))
+        atexit.register(shutil.rmtree, str(folder), True)
+        WINDOW_EXE = str(motion_window.compile_window(folder))
+    return Path(WINDOW_EXE)
+
+
 def render_window(targets: dict, theme: str | None = None, design: str | None = None,
                   captured=None) -> dict:
-    """Capture each page of the window, with the watcher's mutex held but no watcher running.
+    """Each page of the window into its picture: drawn offscreen at PINNED_DPI (`render_window_offscreen`), or with
+    `--capture` photographed (`capture_window`). A theme whose title bar is not kept (build/window_frame.py: the audit's
+    dark sheets) is photographed."""
+    import window_frame
+    if WINDOW_CAPTURE or window_frame.problems("window", PINNED_DPI, theme or THEME) and (theme or THEME) != THEME:
+        return capture_window(targets, theme, design, captured)
+    return render_window_offscreen(targets, theme, design, captured)
+
+
+def render_window_offscreen(targets: dict, theme: str | None = None, design: str | None = None,
+                            captured=None) -> dict:
+    """Draw each page of the window offscreen, as the still a capture on a monitor at PINNED_DPI takes (v0.6.20).
+
+    The window draws itself (gui/WindowRender.cs, the render mode the motion pictures are drawn with): built, never
+    shown and on no screen, at the pinned scale and Windows' plain text size, answered from the bridge's own replies
+    asked of the pinned scratch installation (build/motion_window.py answers - the same records, clock, registry and
+    engine the envelope is asked of) in the language this job is in, with `theme` and `design` stored; each page at
+    rest, its light at the capture's moment. Each is framed as build/capture_window.ps1 frames a capture - Windows'
+    title bar above it, kept from a capture at PINNED_DPI (build/window_frame.py), and the corners cut round - and
+    written where the capture wrote it. Nothing is shown on the screen, no pointer matters, and nothing of a real
+    installation is read. On a 200 % laptop every picture so drawn was the committed 150 % capture, byte for byte."""
+    import motion_window
+    import window_frame
+    theme, design = theme or THEME, design or brand.DEFAULT_DESIGN
+    locale = os.environ.get(l10n.ENV_LANG) or "en"
+    stored = {}
+    if theme != THEME:
+        stored["theme"] = theme
+    if design != brand.DEFAULT_DESIGN:
+        stored["design"] = design
+    pages = list(targets)
+    frames = []
+    for index, page in enumerate(pages):
+        frame = {"index": index, "locale": locale, "page": page, "light": 0}
+        if page == "settings":
+            # The Settings page opens on the section with the most to show, as the capture opens it.
+            frame["section"] = "continuation"
+        frames.append(frame)
+    still = window_frame.still_job("window", PINNED_DPI, theme)
+    answers = motion_window.answers(locale, stored or None)
+    with tempfile.TemporaryDirectory() as name:
+        work = Path(name)
+        job = {"out": str(work / "frames"), "theme": theme, "design": design,
+               "forms": {locale: {"answers": answers}}, "targets": [], "outer": [], "chrome": {},
+               "scale": PINNED_SCALE, "still": still, "frames": frames}
+        with window_turn():
+            motion_window.render(window_exe(), job, work)
+        for index, page in enumerate(pages):
+            target = targets[page]
+            copy_file(work / "frames" / ("still-%05d.png" % index), target)
+            print("  %s  %s  (drawn offscreen at %d DPI)" % (shown_path(target), dimensions(target), PINNED_DPI))
+            if captured is not None:
+                captured(page, target)
+    return {page: dimensions(target) for page, target in targets.items()}
+
+
+def capture_window(targets: dict, theme: str | None = None, design: str | None = None,
+                   captured=None) -> dict:
+    """Capture each page of the window, with the watcher's mutex held but no watcher running (`--capture`).
 
     The window reports "watching" when the single-instance mutex is taken, so taking it
     is enough to show the product in its ordinary state. Starting a real watcher would
@@ -3720,7 +3813,7 @@ def audit_folder(out) -> Path:
 
 def audit_scale() -> float:
     """The scale the window is captured at, which every other surface is drawn at for the sheets."""
-    return (system_dpi() or 96) / 96.0
+    return window_dpi() / 96.0
 
 
 def png_size(path) -> tuple:
@@ -3972,14 +4065,16 @@ def manifest_key(path) -> str:
 def stale(job: dict, recorded, inputs: dict, dpi: int) -> str | None:
     """Why a job's pictures must be drawn again, or None when the manifest says they are what the working tree
     draws: every input it names is the one recorded, every picture is the bytes recorded and has its lights
-    recorded, and a window's were captured at this machine's scaling."""
+    recorded, and a window's were drawn at `dpi` (`window_dpi`: PINNED_DPI, whatever the display, since v0.6.20 - a
+    manifest from before records the display's as `system_dpi`)."""
     if not recorded:
         return "no manifest"
     for name in job_inputs(job):
         if recorded.get("inputs", {}).get(name) != inputs.get(name):
             return "%s moved" % name
-    if job["kind"] == "window" and recorded.get("system_dpi") != dpi:
-        return "captured at %s DPI" % recorded.get("system_dpi")
+    drawn_at = recorded.get("window_dpi", recorded.get("system_dpi"))
+    if job["kind"] == "window" and drawn_at != dpi:
+        return "drawn at %s DPI" % drawn_at
     for target in job_targets(job).values():
         key = manifest_key(target)
         image = recorded.get("images", {}).get(key)
@@ -4006,6 +4101,11 @@ def run_job(job: dict) -> dict:
     # As a run one after another had it by the time it drew anything in its own process: aware of the
     # display's scaling (`window_record` asked `system_dpi`), and the language every surface resolves.
     system_dpi()
+    # v0.6.20: photographed or drawn offscreen, as the run was told, and the window the run compiled for the drawing.
+    global WINDOW_CAPTURE, WINDOW_EXE
+    WINDOW_CAPTURE = bool(job.get("capture"))
+    if job.get("exe"):
+        WINDOW_EXE = job["exe"]
     if locale is None:
         os.environ.pop(l10n.ENV_LANG, None)
     else:
@@ -4218,10 +4318,17 @@ def main(argv=None) -> int:
     parser.add_argument("--all", action="store_true", help="draw every picture, stale or not")
     parser.add_argument("--jobs", type=int, default=None, help="how many to draw at once")
     parser.add_argument("--windows", type=windows_at_once, default=WINDOWS_AT_ONCE, metavar="N",
-                        help="how many windows may be open at once on this machine (default %d)" % WINDOWS_AT_ONCE)
+                        help="how many windows may be drawn or open at once on this machine (default %d)"
+                             % WINDOWS_AT_ONCE)
+    parser.add_argument("--capture", action="store_true",
+                        help="photograph the window's stills on the screen instead of drawing them offscreen at "
+                             "%d DPI (a proof, or to take its title bar again; needs a monitor at that scale)"
+                             % PINNED_DPI)
     options = parser.parse_args(argv)
     workers = max(1, options.jobs) if options.jobs else None
     WINDOWS_AT_ONCE = options.windows
+    global WINDOW_CAPTURE
+    WINDOW_CAPTURE = options.capture
     if options.breathe:
         breathe_pictures(everything=options.all, workers=workers)
         return 0
@@ -4229,8 +4336,10 @@ def main(argv=None) -> int:
     print("version        : %s" % config.version())
     print("theme          : %s" % THEME)
     # Aware of the display's scaling first, as the run one after another was by the time it asked for the
-    # inputs, which it did last.
-    dpi = system_dpi()
+    # inputs, which it did last. The window's pictures are drawn at `window_dpi`: PINNED_DPI unless photographed.
+    system_dpi()
+    dpi = window_dpi()
+    print("window         : %s at %d DPI" % ("photographed" if WINDOW_CAPTURE else "drawn offscreen", dpi))
     inputs = render_inputs()
     try:
         recorded = json.loads(MANIFEST.read_text(encoding="utf-8"))
@@ -4245,6 +4354,16 @@ def main(argv=None) -> int:
     print("drawing        : %d of %d jobs, %d at a time and %d window(s) at once%s"
           % (len(todo), len(jobs), workers or job_workers(), WINDOWS_AT_ONCE,
              "" if len(todo) == len(jobs) else " - the rest are what the manifest records"))
+    windows = [job for job in todo if job["kind"] == "window"]
+    for job in windows:
+        job["capture"] = WINDOW_CAPTURE
+    if windows and not WINDOW_CAPTURE:
+        # One window compiled for every job's drawing, before any starts (`window_exe`).
+        import window_frame
+        window_frame.still_job("window", PINNED_DPI)
+        exe = str(window_exe())
+        for job in windows:
+            job["exe"] = exe
     drawn, failed = run_jobs(todo, workers)
     if failed:
         raise SystemExit("%d job(s) failed; the manifest is as it was" % failed)
@@ -4284,7 +4403,11 @@ def main(argv=None) -> int:
         "locales": list(LOCALES),
         "documentation_locales": list(EXTRA_LOCALES),
         "designs": list(DESIGNS_PICTURED),
-        "system_dpi": dpi,
+        # v0.6.20: the DPI the window's pictures are drawn at, and how: "offscreen" (at PINNED_DPI, whatever the
+        # display) or "captured" (`--capture`, the display's own). It replaces `system_dpi`, the display's, which
+        # every picture used to take.
+        "window_dpi": dpi,
+        "window_drawn": "captured" if WINDOW_CAPTURE else "offscreen",
         "inputs": inputs,
         "images": {named(path): {"sha256": sha256(path.read_bytes()), "size": dimensions(path)}
                    for path in list(copies) + list(copies.values()) + extras},
