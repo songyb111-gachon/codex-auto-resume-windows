@@ -106,6 +106,7 @@
   "page.analytics.total": "합계",
   "page.analytics.used": "{window}: {percent}% 사용",
   "page.anchor.fixed": "다음 재설정 시각이 {time}로 정해졌습니다.",
+  "page.anchor.needs_occasion": "시작 시각을 고르거나 '재설정 직후에 시작'을 켜기 전에는 아무것도 시작하지 않습니다.",
   "page.chat.cancel": "취소",
   "page.chat.click": "알림을 클릭하면 열리는 곳",
   "page.chat.click.chat": "여기서 그 대화의 채팅",

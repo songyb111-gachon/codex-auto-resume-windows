@@ -887,6 +887,7 @@
   "page.option.anchor_after_reset": "Start right after a reset",
   "page.option.off": "Off",
   "page.anchor.fixed": "Next reset fixed at {time}.",
+  "page.anchor.needs_occasion": "It starts nothing until you pick a start time or turn on Start right after a reset.",
   "name.account_switch": "Switch the Codex account",
   "statement.account_switch.does": "Its card shows which Codex account this PC is signed in to: the plan and a masked e-mail address, read from Codex while the card is open and never stored. Sign out and sign in with another account... asks first, then runs Codex's own codex logout and codex login: your browser opens Codex's own sign-in page, and you sign in there. While it is on, the watcher reads which account is signed in when it starts and every 30 minutes, and keeps only a keyed digest of it. When another account is signed in, every recovery waiting for a usage limit waits for you instead - Pending lets each continue or cancels it - a reset rule that is counting is held until you press Go on counting, and one notice says how many wait. Until it has been measured on this Codex that the running app follows a sign-in made this way, the card says how to switch in Codex instead of offering the button.",
   "statement.account_switch.instead": "The standard edition never reads which account Codex is signed in to. You switch accounts in Codex yourself, and recoveries waiting for a usage limit go on as before.",

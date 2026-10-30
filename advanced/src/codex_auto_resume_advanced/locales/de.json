@@ -106,6 +106,7 @@
   "page.analytics.total": "Gesamt",
   "page.analytics.used": "{window}: {percent} % verbraucht",
   "page.anchor.fixed": "Nächstes Zurücksetzen festgelegt auf {time}.",
+  "page.anchor.needs_occasion": "Es startet nichts, bis Sie eine Startzeit wählen oder „Direkt nach einem Zurücksetzen starten“ einschalten.",
   "page.chat.cancel": "Abbrechen",
   "page.chat.click": "Ein Klick auf eine Meldung öffnet",
   "page.chat.click.chat": "Den Chat dieser Unterhaltung hier",

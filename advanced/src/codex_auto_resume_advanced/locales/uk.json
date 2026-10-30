@@ -106,6 +106,7 @@
   "page.analytics.total": "Разом",
   "page.analytics.used": "{window}: використано {percent}%",
   "page.anchor.fixed": "Наступне скидання призначено на {time}.",
+  "page.anchor.needs_occasion": "Нічого не буде запущено, доки ви не виберете час запуску або не ввімкнете «Запускати одразу після скидання».",
   "page.chat.cancel": "Скасувати",
   "page.chat.click": "Клацання на сповіщенні відкриває",
   "page.chat.click.chat": "Чат цієї розмови тут",

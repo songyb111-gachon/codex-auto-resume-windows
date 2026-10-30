@@ -106,6 +106,7 @@
   "page.analytics.total": "Tổng",
   "page.analytics.used": "{window}: đã dùng {percent}%",
   "page.anchor.fixed": "Lần đặt lại tiếp theo được cố định lúc {time}.",
+  "page.anchor.needs_occasion": "Nó sẽ không bắt đầu gì cho đến khi bạn chọn giờ bắt đầu hoặc bật \"Bắt đầu ngay sau khi đặt lại\".",
   "page.chat.cancel": "Hủy",
   "page.chat.click": "Nhấp vào thông báo sẽ mở",
   "page.chat.click.chat": "Trò chuyện của cuộc hội thoại đó tại đây",

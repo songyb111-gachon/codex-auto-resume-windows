@@ -106,6 +106,7 @@
   "page.analytics.total": "Total",
   "page.analytics.used": "{window} : {percent} % utilisé",
   "page.anchor.fixed": "Prochaine réinitialisation fixée à {time}.",
+  "page.anchor.needs_occasion": "Rien ne démarre tant que vous n'avez pas choisi une heure de départ ou activé « Démarrer juste après une réinitialisation ».",
   "page.chat.cancel": "Annuler",
   "page.chat.click": "Un clic sur une notification ouvre",
   "page.chat.click.chat": "Le chat de cette conversation ici",

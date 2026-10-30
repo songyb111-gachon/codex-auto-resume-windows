@@ -106,6 +106,7 @@
   "page.analytics.total": "Итого",
   "page.analytics.used": "{window}: использовано {percent}%",
   "page.anchor.fixed": "Следующий сброс назначен на {time}.",
+  "page.anchor.needs_occasion": "Ничего не будет запущено, пока вы не выберете время запуска или не включите «Запускать сразу после сброса».",
   "page.chat.cancel": "Отменить",
   "page.chat.click": "Щелчок по уведомлению открывает",
   "page.chat.click.chat": "Чат этого разговора здесь",

@@ -106,6 +106,7 @@
   "page.analytics.total": "Totale",
   "page.analytics.used": "{window}: {percent}% usato",
   "page.anchor.fixed": "Prossimo azzeramento fissato alle {time}.",
+  "page.anchor.needs_occasion": "Non avvia nulla finché non scegli un orario di avvio o attivi «Avvia subito dopo un azzeramento».",
   "page.chat.cancel": "Annulla",
   "page.chat.click": "Un clic su una notifica apre",
   "page.chat.click.chat": "La chat di quella conversazione qui",

@@ -106,6 +106,7 @@
   "page.analytics.total": "Razem",
   "page.analytics.used": "{window}: zużyto {percent}%",
   "page.anchor.fixed": "Następny reset ustalony na {time}.",
+  "page.anchor.needs_occasion": "Nic nie zostanie uruchomione, dopóki nie wybierzesz godziny startu albo nie włączysz opcji „Start zaraz po resecie”.",
   "page.chat.cancel": "Anuluj",
   "page.chat.click": "Kliknięcie powiadomienia otwiera",
   "page.chat.click.chat": "Czat tej rozmowy tutaj",
