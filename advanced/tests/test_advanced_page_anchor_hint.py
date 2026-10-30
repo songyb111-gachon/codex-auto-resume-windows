@@ -97,6 +97,14 @@ class PageTests(PageCase):
         head, line = self.head("scenario_after_a_reset")
         self.assertNotIn(line, head)
 
+    def test_the_switch_shows_on_where_nothing_is_stored_and_off_where_off_is(self):
+        """Fails with AnchorAfterResetOn left out of the switch's build: nothing stored shows off."""
+        for name, on in (("scenario_unstored", True), ("scenario_no_occasion", False), ("scenario_after_a_reset", True)):
+            result, expected = self.of(name)
+            with self.subTest(name):
+                (switch,) = [each for each in result["looks"][0]["switches"] if each["key"] == "anchor_after_reset"]
+                self.assertEqual(switch["on"], on)
+
     def test_it_is_not_there_while_the_capability_is_off(self):
         """Fails with AnchorNeedsOccasion's state check removed."""
         head, line = self.head("scenario_off")

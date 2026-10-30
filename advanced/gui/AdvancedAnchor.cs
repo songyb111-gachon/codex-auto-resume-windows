@@ -91,10 +91,18 @@ namespace CodexAutoResume
                 else if (key == "anchor_after_reset")
                 {
                     afterReset++;
-                    if (Whole(Get(option, "value")) == SwitchOn) return false;
+                    if (AnchorAfterResetOn(option)) return false;
                 }
             }
             return times > 0 && afterReset > 0;
+        }
+
+        /// Whether Start right after a reset is on in the list's choice: it is, unless a person turned it off - a choice
+        /// that carries no value reads as on, the default (registry.py), as the watcher reads it.
+        private static bool AnchorAfterResetOn(Dictionary<string, object> option)
+        {
+            object value = Get(option, "value");
+            return value == null || Whole(value) == SwitchOn;
         }
 
         /// Whether a choice is one of its times of day.
