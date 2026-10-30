@@ -1605,7 +1605,9 @@ namespace CodexAutoResume
             // allocated two hundred and forty brushes every time it repainted, and it repaints on every
             // scroll, selection and refresh.
             e.Graphics.FillRectangle(Soft.Fill(back), bounds);
-            e.Graphics.FillRectangle(Soft.Fill(Line), bounds.Left, bounds.Bottom - Soft.Hairline, bounds.Width, Soft.Hairline);
+            // The hairline across what Windows hands the cell: for the first column, mirrored, that is the whole row, and a
+            // full hairline is what every row has.
+            e.Graphics.FillRectangle(Soft.Fill(Line), e.Bounds.Left, e.Bounds.Bottom - Soft.Hairline, e.Bounds.Width, Soft.Hairline);
             var row = e.Item.Tag as Dictionary<string, object>;
             var cell = new Rectangle(bounds.X + (mirrored ? Px(4) : Px(10)), bounds.Y, Math.Max(0, bounds.Width - Px(14)), bounds.Height);
             string text = e.SubItem == null ? "" : e.SubItem.Text;
