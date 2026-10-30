@@ -19,7 +19,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import advancedcase as ac  # noqa: E402
-from test_advanced_courier_channels import SMTP, TOKEN, TOPIC, Secrets  # noqa: E402
+from test_advanced_courier_channels import SMTP, BOT_INK, TOPIC, Secrets  # noqa: E402
 from codex_auto_resume_advanced import statement, surfaces  # noqa: E402
 from codex_auto_resume_advanced.control import courier as card  # noqa: E402
 from codex_auto_resume_advanced.courier import keep  # noqa: E402
@@ -54,7 +54,7 @@ class SaveTests(CardCase):
         self.on(state="shadow")
         for argument in ({"channel": "ntfy", "url": TOPIC},
                          {"channel": "webhook", "url": "https://hooks.example.com/x", "token": "made-up"},
-                         {"channel": "telegram", "token": TOKEN},
+                         {"channel": "telegram", "token": BOT_INK},
                          dict({"channel": "email"}, **SMTP)):
             with self.subTest(argument["channel"]):
                 self.assertTrue(card.save(self.rt, argument, secrets=self.secrets)["done"])
@@ -64,7 +64,7 @@ class SaveTests(CardCase):
                          {"ntfy": True, "webhook": True, "telegram": False, "email": True})
         self.assertEqual(view["telegram"], {"token_saved": True, "paired": False, "pairing": False})
         said = json.dumps(view)
-        for secret in (TOPIC, TOKEN, "made-up", SMTP["password"], "hooks.example.com"):
+        for secret in (TOPIC, BOT_INK, "made-up", SMTP["password"], "hooks.example.com"):
             self.assertNotIn(secret, said)
 
     def test_a_refused_address_says_why_in_one_word_and_keeps_nothing(self):
@@ -91,7 +91,7 @@ class SaveTests(CardCase):
 
     def test_a_new_bot_token_forgets_the_chat_paired_before(self):
         self.on()
-        self.secrets.kept.update(telegram_token=TOKEN, telegram_chat="77")
+        self.secrets.kept.update(telegram_token=BOT_INK, telegram_chat="77")
         card.save(self.rt, {"channel": "telegram", "token": "99:" + "B" * 35}, secrets=self.secrets)
         self.assertNotIn("telegram_chat", self.secrets.kept)
 
@@ -103,7 +103,7 @@ class PairTests(CardCase):
         self.assertEqual(card.save(self.rt, {"channel": "telegram", "pair": True}, secrets=self.secrets,
                                    start=lambda paths, *extra: started.append(extra) or True)["refusal"],
                          Refusal.NOT_SAVED)
-        self.secrets.kept["telegram_token"] = TOKEN
+        self.secrets.kept["telegram_token"] = BOT_INK
         answer = card.save(self.rt, {"channel": "telegram", "pair": True}, secrets=self.secrets,
                            start=lambda paths, *extra: started.append(extra) or True)
         self.assertTrue(answer["done"])
@@ -116,7 +116,7 @@ class PairTests(CardCase):
 
 class ForgetAndTestTests(CardCase):
     def test_forget_takes_only_that_channel_out(self):
-        self.secrets.kept.update(ntfy_url=TOPIC, telegram_token=TOKEN, telegram_chat="1")
+        self.secrets.kept.update(ntfy_url=TOPIC, telegram_token=BOT_INK, telegram_chat="1")
         self.assertTrue(card.forget(self.rt, "telegram", secrets=self.secrets)["done"])
         self.assertEqual(set(self.secrets.kept), {"ntfy_url"})
 
