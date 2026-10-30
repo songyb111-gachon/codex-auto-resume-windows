@@ -496,12 +496,11 @@ uninstalled. It reports and keeps anything else.
 ## Language
 
 The product's own interface - the Dashboard, the notification-area popup and its menu, Windows
-notifications, the settings panel in Codex and the plugin layer's messages - ships in sixteen
+notifications, the settings panel in Codex and the plugin layer's messages - ships in eighteen
 languages: English, 한국어, 日本語, 简体中文, 繁體中文, Español, Deutsch, Français, Português
-(Brasil), Русский, Italiano, Türkçe, Polski, Українська, Tiếng Việt and Bahasa Indonesia. Until
-v0.6.3 it was English or Korean, and until v0.6.11 the first nine. Arabic and Hebrew are translated
-as well but not offered: they are written right to left and wait until every surface mirrors, so
-no picker lists them, and a Windows set to either is answered in English.
+(Brasil), Русский, Italiano, Türkçe, Polski, Українська, Tiếng Việt, Bahasa Indonesia, العربية and
+עברית. Until v0.6.3 it was English or Korean, until v0.6.11 the first nine, and until v0.6.20 the
+first sixteen: Arabic and Hebrew, written right to left, waited until every surface mirrored.
 
 **Which one.** The **Interface language** setting decides (General, in the Dashboard's Settings
 and in the panel). Its default, *System*, follows Windows, read from the same source the ChatGPT

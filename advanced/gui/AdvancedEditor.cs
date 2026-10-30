@@ -15,12 +15,25 @@
 // at. Taken, the dialog closes, the list is read again and the saved row is the one chosen there; refused, the dialog
 // stays with every field as typed and the refusal's words above the buttons.
 //
+// v0.6.20 (issue #50, steer_send): for a new message, while Steer the running turn stands on, When offers a fifth
+// choice - Now, into the turn that is running (steer). Chosen, the hour, the count and the wait for the one before are
+// not asked, the two while-running cards and the after-this-turn line give way to the steer's warning in the danger
+// colour (the Codex app does not show a steered line - only History does), and the accent button reads Steer now and
+// sends the bridge's advanced-steer instead; the watcher alone writes it, and History shows what came of it.
+//
+// v0.6.20 (#50 item 1): pictures under the words - pasted (Ctrl+V of a picture, or of picture files copied in Explorer),
+// chosen (Add a picture..., an open-file dialog of pictures only) or dropped on the dialog - up to four, each checked by
+// its bytes and size before it is shown, as a row of thumbnails with a Remove under each. The request names each new
+// one by its file - a paste by a PNG the window writes to %TEMP% and deletes once the dialog has closed - and each one a
+// message already had by its copy's id; the bridge keeps the product's own copies (images.py).
+//
 // C# 5 (the in-box compiler), as the rest of the window.
 
 using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Globalization;
+using System.IO;
 using System.Windows.Forms;
 
 namespace CodexAutoResume
@@ -32,6 +45,9 @@ namespace CodexAutoResume
         private SoftCombo editorConversation, editorWhen, editorHour, editorTimes, editorDepends;
         private SoftTextArea editorWords;
         private Label editorCount, editorAfterTurn, editorSaid;
+        // v0.6.20: the steer's warning, shown while When is the steer; and whether the last save was a steer.
+        private Label editorSteerWarning;
+        private bool editorSteered;
         private ChoiceGroup editorMode;
         private Button editorSave, editorCancel;
         // What FitEditor measures - the fields' stack and the buttons under it - and what it last fitted the dialog to.
@@ -45,6 +61,25 @@ namespace CodexAutoResume
         private Action<Form> editorAnswer;
         // The type scale's figure step (SoftTheme.RoleFont "figure"): the editor's words are read at it.
         private const float ReadingLarger = 3f;
+        // v0.6.20 (#50 item 1): the message's pictures - each a file to copy (Path) or a copy it already has (Id) - their
+        // row of thumbnails, Add a picture..., and the PNGs written for a paste, deleted once the dialog has closed.
+        private sealed class EditorImage
+        {
+            public string Path, Id;
+            public Image Thumb;
+        }
+        private List<EditorImage> editorImages = new List<EditorImage>();
+        private List<string> editorTemps = new List<string>();
+        private FlowLayoutPanel editorThumbs;
+        private Button editorAddImage;
+        private bool editorHadImages;
+        // Null in every window a person opens. In a window AdvancedPageRun drives: the files Add a picture... chooses, so
+        // no file dialog is ever shown there.
+        private Func<string[]> editorChoose;
+        // As the bridge holds them (images.py): four a message, 5 MB each.
+        private const int ImagesMost = 4;
+        private const long ImageBytesMost = 5L * 1024 * 1024;
+        private const int ThumbSide = 64;
 
         /// The editor for a new message (`row` null) or for `row`, a prompt still waiting: shown, answered, and - where it
         /// saved - the page and the list read again, the saved row to be chosen there.
@@ -57,10 +92,12 @@ namespace CodexAutoResume
                 if (editorAnswer != null) editorAnswer(dialog);
                 else if (!auditing) dialog.ShowDialog(this);
             }
-            bool taken = editorTaken;
+            bool taken = editorTaken, steered = editorSteered;
             ForgetEditor();
+            ForgetPasted();
             if (!taken) return;
-            ResetNote(Word("page.done.prompt_saved", "Saved."));
+            ResetNote(steered ? Word("page.done.steer_sent", "Handed to the watcher. History shows what came of it.")
+                              : Word("page.done.prompt_saved", "Saved."));
             // The list as the save answered it, the saved row chosen (AdvancedSchedule.cs), then read again.
             FillScheduled();
             ReadAdvanced(null);
@@ -74,12 +111,30 @@ namespace CodexAutoResume
             editorFind = null;
             editorWords = null;
             editorCount = editorAfterTurn = editorSaid = null;
+            editorSteerWarning = null;
+            editorSteered = false;
             editorMode = null;
             editorSave = editorCancel = null;
             editorBody = editorButtons = null;
             editorFitFor = null;
             editorPrompt = -1;
             editorTaken = false;
+            foreach (EditorImage image in editorImages)
+                if (image.Thumb != null) image.Thumb.Dispose();
+            editorImages = new List<EditorImage>();
+            editorThumbs = null;
+            editorAddImage = null;
+            editorHadImages = false;
+        }
+
+        /// The PNGs written for a paste, deleted: the bridge has made its own copies of those it saved.
+        private void ForgetPasted()
+        {
+            foreach (string path in editorTemps)
+                try { File.Delete(path); }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            editorTemps = new List<string>();
         }
 
         private int EditorWordsMost()
@@ -160,12 +215,44 @@ namespace CodexAutoResume
             editorCount = HelpText("");
             card.Controls.Add(editorCount);
 
+            // Its pictures: a caption, what it takes, the thumbnails, and Add a picture... (v0.6.20, #50 item 1).
+            card.Controls.Add(Caption(Word("page.editor.images", "Pictures")));
+            card.Controls.Add(HelpText(Word("page.editor.images.help",
+                "Paste with Ctrl+V, drop files here or add them: up to 4 pictures, PNG, JPEG, GIF or WebP, 5 MB each. Each is kept as a copy until the message is delivered.")));
+            editorThumbs = new FlowLayoutPanel();
+            editorThumbs.AutoSize = true;
+            editorThumbs.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            editorThumbs.WrapContents = true;
+            editorThumbs.FlowDirection = FlowDirection.LeftToRight;
+            editorThumbs.Anchor = AnchorStyles.Left | AnchorStyles.Top;
+            editorThumbs.Margin = Pad(0, 0, 0, 0);
+            editorThumbs.BackColor = Card;
+            editorThumbs.AccessibleName = Word("page.editor.images", "Pictures");
+            card.Controls.Add(editorThumbs);
+            editorAddImage = CardButton(card, Word("page.editor.images.add", "Add a picture..."), delegate { ChooseImages(); });
+            if (editing)
+                foreach (object listed in Items(row, "images") ?? new List<object>())
+                {
+                    string id = Str(listed as Dictionary<string, object>, "id");
+                    string copy = Str(listed as Dictionary<string, object>, "path");
+                    if (id == null) continue;
+                    var image = new EditorImage();
+                    image.Id = id;
+                    image.Thumb = copy == null ? null : Thumbnail(copy);
+                    editorImages.Add(image);
+                    editorHadImages = true;
+                }
+            ShowThumbs();
+
             string when = Word("page.queue.when", "When");
             editorWhen = EditorCombo(when, 220);
             editorWhen.Items.Add(new Choice("after_turn", Word("page.queue.when.after_turn", "After this turn")));
             editorWhen.Items.Add(new Choice("at_time", Word("page.queue.when.at_time", "At a time")));
             editorWhen.Items.Add(new Choice("day", Word("page.queue.when.daily", "Every day")));
             editorWhen.Items.Add(new Choice("week", Word("page.queue.when.weekly", "Every week")));
+            // v0.6.20: the steer, for a new message while Steer the running turn stands on.
+            if (!editing && SteerOn())
+                editorWhen.Items.Add(new Choice("steer", Word("page.editor.when.steer", "Now, into the turn that is running (steer)")));
             string trigger = editing ? Str(row, "trigger") : null;
             SelectChoice(editorWhen, trigger == "recurring" ? Str(row, "every") : trigger ?? "after_turn");
             card.Controls.Add(NewRow(when, editorWhen));
@@ -210,6 +297,11 @@ namespace CodexAutoResume
             editorAfterTurn = HelpText(Word("page.editor.mode.after_turn",
                 "\"After this turn\" goes into Codex's queue: Codex runs it when the turn now running ends."));
             card.Controls.Add(editorAfterTurn);
+            editorSteerWarning = HelpText(Word("page.editor.steer.warning",
+                "A steer goes into the turn running now, through the Codex app's own connection. The Codex app does not show the steered line anywhere - only History here shows what was sent."));
+            editorSteerWarning.ForeColor = Palette.Danger;
+            editorSteerWarning.Visible = false;
+            card.Controls.Add(editorSteerWarning);
             if (Equals(Get(advancedPrompts, "after_turn_unproven"), true))
                 card.Controls.Add(HelpText(Word("page.queue.unproven",
                     "After this turn is unproven on this Codex until it has been measured.")));
@@ -244,6 +336,13 @@ namespace CodexAutoResume
             editorWords.Box.TextChanged += delegate { ShowEditorState(); };
             editorWhen.SelectionChangeCommitted += delegate { ShowEditorState(); };
             editorConversation.SelectionChangeCommitted += delegate { ShowEditorState(); };
+            // A picture pasted anywhere in the dialog, or files dropped on it (v0.6.20): Ctrl+V of text still pastes text.
+            dialog.KeyPreview = true;
+            dialog.KeyDown += delegate(object sender, KeyEventArgs e)
+            {
+                if (e.Control && e.KeyCode == Keys.V && PasteImages()) e.SuppressKeyPress = true;
+            };
+            TakeDrops(dialog);
             editorDialog = dialog;
             ShowEditorState();
 
@@ -253,6 +352,7 @@ namespace CodexAutoResume
             int lines = inner - card.Padding.Horizontal;
             foreach (Control control in card.Controls)
                 if (control is WrapLabel) control.MaximumSize = new Size(lines, 0);
+            editorThumbs.MaximumSize = new Size(lines, 0);
             editorSaid.MaximumSize = new Size(inner, 0);
             dialog.ClientSize = new Size(width, Px(400));
             editorBody = body;
@@ -269,7 +369,9 @@ namespace CodexAutoResume
         private void FitEditor()
         {
             if (editorDialog == null || editorBody == null || editorButtons == null) return;
-            string showing = Soft.OwnVisible(editorMode) + "|" + Soft.OwnVisible(editorAfterTurn) + "|" + editorSaid.Text;
+            string showing = Soft.OwnVisible(editorMode) + "|" + Soft.OwnVisible(editorAfterTurn) + "|" +
+                             Soft.OwnVisible(editorSteerWarning) + "|" + editorSaid.Text
+                           + "|" + editorImages.Count.ToString(CultureInfo.InvariantCulture);
             if (showing == editorFitFor) return;
             editorFitFor = showing;
             int width = editorDialog.ClientSize.Width;
@@ -315,15 +417,242 @@ namespace CodexAutoResume
             if (editorWhen == null) return;
             var when = editorWhen.SelectedItem as Choice;
             string value = when == null ? "after_turn" : when.Value;
-            bool later = value != "after_turn";
+            bool steer = value == "steer";
+            bool later = value != "after_turn" && !steer;
             editorHour.Enabled = later;
             editorTimes.Enabled = value == "day" || value == "week";
+            editorDepends.Enabled = !steer;
             editorMode.Visible = later;
-            editorAfterTurn.Visible = !later;
+            editorAfterTurn.Visible = value == "after_turn";
+            editorSteerWarning.Visible = steer;
+            string save = steer ? Word("page.editor.steer.send", "Steer now") : Word("page.editor.save", "Save and return");
+            if (editorSave.Text != save) editorSave.Text = save;
             editorCount.Text = Word("page.resets.count", "{n} of {most} characters", "n", editorWords.Box.Text.Length)
-                .Replace("{most}", EditorWordsMost().ToString(CultureInfo.CurrentCulture));
+                .Replace("{most}", Mirror.Embed(EditorWordsMost().ToString(CultureInfo.CurrentCulture)));
             editorSave.Enabled = busy == 0 && editorConversation.SelectedItem != null && editorWords.Box.Text.Trim().Length > 0;
+            if (editorAddImage != null) editorAddImage.Enabled = busy == 0 && editorImages.Count < ImagesMost;
             FitEditor();
+        }
+
+        // ---------------------------------------------------------------- pictures (v0.6.20, #50 item 1)
+        /// Add a picture...: the files chosen in an open-file dialog of pictures only - or, in a window AdvancedPageRun
+        /// drives, the files it names, never a dialog shown.
+        private void ChooseImages()
+        {
+            string[] chosen = null;
+            if (editorChoose != null) chosen = editorChoose();
+            else if (!auditing)
+                using (var open = new OpenFileDialog())
+                {
+                    open.Title = Word("page.editor.images.add", "Add a picture...").TrimEnd('.');
+                    open.Filter = Word("page.editor.images", "Pictures") + "|*.png;*.jpg;*.jpeg;*.gif;*.webp";
+                    open.Multiselect = true;
+                    open.CheckFileExists = true;
+                    if (open.ShowDialog(editorDialog) == DialogResult.OK) chosen = open.FileNames;
+                }
+            if (chosen != null) AddImages(chosen);
+        }
+
+        /// Ctrl+V: a picture on the clipboard, written as a PNG of the window's own in %TEMP%, or picture files copied in
+        /// Explorer. False where the clipboard holds neither, so the words box pastes its text as it always did.
+        private bool PasteImages()
+        {
+            try
+            {
+                if (Clipboard.ContainsFileDropList())
+                {
+                    var files = new List<string>();
+                    foreach (string file in Clipboard.GetFileDropList()) files.Add(file);
+                    if (files.Count == 0 || ImageKind(files[0]) == null) return false;
+                    AddImages(files.ToArray());
+                    return true;
+                }
+                if (!Clipboard.ContainsImage()) return false;
+                using (Image pasted = Clipboard.GetImage())
+                {
+                    if (pasted == null) return false;
+                    string path = System.IO.Path.Combine(System.IO.Path.GetTempPath(),
+                                                         "codex-auto-resume-paste-" + Guid.NewGuid().ToString("N") + ".png");
+                    pasted.Save(path, System.Drawing.Imaging.ImageFormat.Png);
+                    editorTemps.Add(path);
+                    AddImages(new[] { path });
+                }
+                return true;
+            }
+            catch (System.Runtime.InteropServices.ExternalException) { return false; }
+            catch (IOException) { return false; }
+            catch (UnauthorizedAccessException) { return false; }
+        }
+
+        /// Files dropped anywhere on the dialog but the words box, which keeps its own dragging of text.
+        private void TakeDrops(Control control)
+        {
+            if (editorWords != null && control == editorWords.Box) return;
+            control.AllowDrop = true;
+            control.DragEnter += delegate(object sender, DragEventArgs e)
+            {
+                e.Effect = e.Data != null && e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None;
+            };
+            control.DragDrop += delegate(object sender, DragEventArgs e)
+            {
+                var files = e.Data == null ? null : e.Data.GetData(DataFormats.FileDrop) as string[];
+                if (files != null) AddImages(files);
+            };
+            foreach (Control child in control.Controls) TakeDrops(child);
+        }
+
+        /// The pictures `paths` added after those there, each checked as the bridge checks it - its bytes a PNG, JPEG, GIF
+        /// or WebP, 5 MB at most, four in all - and the first refusal said above the buttons.
+        private void AddImages(string[] paths)
+        {
+            if (editorThumbs == null || paths == null) return;
+            string refused = null;
+            foreach (string path in paths)
+            {
+                if (editorImages.Count >= ImagesMost) { refused = refused ?? "images_full"; break; }
+                string problem = ImageProblem(path);
+                if (problem != null) { refused = refused ?? problem; continue; }
+                var image = new EditorImage();
+                image.Path = path;
+                image.Thumb = Thumbnail(path);
+                editorImages.Add(image);
+            }
+            editorSaid.Text = refused == null ? "" : PromptRefusal(refused);
+            ShowThumbs();
+            ShowEditorState();
+        }
+
+        /// Why the file at `path` is no picture the bridge takes - image_refused or image_too_large - or null.
+        private static string ImageProblem(string path)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(path) || !File.Exists(path)) return "image_refused";
+                if (new FileInfo(path).Length > ImageBytesMost) return "image_too_large";
+                return ImageKind(path) == null ? "image_refused" : null;
+            }
+            catch (Exception) { return "image_refused"; }   // unreadable, or no path Windows takes
+        }
+
+        /// The kind a file's first bytes say - png, jpg, gif or webp - or null: never its name (images.py's kind).
+        private static string ImageKind(string path)
+        {
+            var head = new byte[12];
+            int read;
+            try
+            {
+                using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                    read = stream.Read(head, 0, head.Length);
+            }
+            catch (Exception) { return null; }              // unreadable, or no path Windows takes
+            if (read >= 8 && head[0] == 0x89 && head[1] == 0x50 && head[2] == 0x4E && head[3] == 0x47
+                && head[4] == 0x0D && head[5] == 0x0A && head[6] == 0x1A && head[7] == 0x0A) return "png";
+            if (read >= 3 && head[0] == 0xFF && head[1] == 0xD8 && head[2] == 0xFF) return "jpg";
+            if (read >= 6 && head[0] == 'G' && head[1] == 'I' && head[2] == 'F' && head[3] == '8'
+                && (head[4] == '7' || head[4] == '9') && head[5] == 'a') return "gif";
+            if (read >= 12 && head[0] == 'R' && head[1] == 'I' && head[2] == 'F' && head[3] == 'F'
+                && head[8] == 'W' && head[9] == 'E' && head[10] == 'B' && head[11] == 'P') return "webp";
+            return null;
+        }
+
+        /// A thumbnail of the picture at `path`, ThumbSide square at most with its shape kept, read into memory so the file
+        /// is never held open - or null where Windows cannot draw it (a WebP on a Windows without its codec): its tile is
+        /// then the canvas's inset alone.
+        private Image Thumbnail(string path)
+        {
+            try
+            {
+                byte[] data = File.ReadAllBytes(path);
+                using (var stream = new MemoryStream(data))
+                using (Image found = Image.FromStream(stream))
+                {
+                    int side = Px(ThumbSide);
+                    double scale = Math.Min((double)side / Math.Max(1, found.Width), (double)side / Math.Max(1, found.Height));
+                    int width = Math.Max(1, (int)Math.Round(found.Width * Math.Min(1.0, scale)));
+                    int height = Math.Max(1, (int)Math.Round(found.Height * Math.Min(1.0, scale)));
+                    return new Bitmap(found, new Size(width, height));
+                }
+            }
+            catch (ArgumentException) { return null; }
+            catch (IOException) { return null; }
+            catch (UnauthorizedAccessException) { return null; }
+            catch (OutOfMemoryException) { return null; }
+            catch (System.Runtime.InteropServices.ExternalException) { return null; }
+        }
+
+        /// The thumbnails as the pictures stand: one tile each - the picture on the canvas's inset, a hairline round it -
+        /// and its Remove under it.
+        private void ShowThumbs()
+        {
+            if (editorThumbs == null) return;
+            editorThumbs.SuspendLayout();
+            var shown = new List<Control>();
+            foreach (Control tile in editorThumbs.Controls) shown.Add(tile);
+            foreach (Control old in shown) { editorThumbs.Controls.Remove(old); old.Dispose(); }
+            for (int i = 0; i < editorImages.Count; i++)
+            {
+                EditorImage image = editorImages[i];
+                string name = Word("page.editor.images.picture", "Picture {n}", "n", i + 1);
+                var tile = new FlowLayoutPanel();
+                tile.FlowDirection = FlowDirection.TopDown;
+                tile.WrapContents = false;
+                tile.AutoSize = true;
+                tile.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+                tile.Margin = Pad(0, 2, 12, 6);
+                tile.BackColor = Card;
+                var picture = new PictureBox();
+                picture.Size = new Size(Px(ThumbSide), Px(ThumbSide));
+                picture.SizeMode = PictureBoxSizeMode.CenterImage;
+                picture.BackColor = Palette.Inset;
+                picture.Image = image.Thumb;
+                picture.AccessibleName = name;
+                picture.AccessibleRole = AccessibleRole.Graphic;
+                picture.Margin = new Padding(0);
+                picture.Paint += delegate(object sender, PaintEventArgs e)
+                {
+                    var box = (PictureBox)sender;
+                    using (var pen = new Pen(Palette.Line))
+                        e.Graphics.DrawRectangle(pen, 0, 0, box.Width - 1, box.Height - 1);
+                };
+                tile.Controls.Add(picture);
+                int index = i;
+                Button remove = MakeButton(Word("page.editor.images.remove", "Remove"), false, delegate { RemoveImage(index); });
+                remove.AccessibleName = Word("page.editor.images.remove", "Remove") + " " + name;
+                remove.Margin = Pad(0, 4, 0, 0);
+                tile.Controls.Add(remove);
+                editorThumbs.Controls.Add(tile);
+                if (editorDialog != null) TakeDrops(tile);
+            }
+            editorThumbs.Visible = editorImages.Count > 0;
+            editorThumbs.ResumeLayout(true);
+        }
+
+        /// Remove under a thumbnail: that picture taken off the message (its copy, if it had one, goes when it is saved).
+        private void RemoveImage(int index)
+        {
+            if (index < 0 || index >= editorImages.Count) return;
+            EditorImage image = editorImages[index];
+            editorImages.RemoveAt(index);
+            if (image.Thumb != null) image.Thumb.Dispose();
+            editorSaid.Text = "";
+            ShowThumbs();
+            ShowEditorState();
+        }
+
+        /// The request's pictures - each new one by its file, each kept one by its copy's id - or null where it names none
+        /// and the message had none, so the request is the one it was before pictures.
+        private string ImagesArgument()
+        {
+            if (editorImages.Count == 0 && !editorHadImages) return null;
+            var argument = new System.Text.StringBuilder("[");
+            for (int i = 0; i < editorImages.Count; i++)
+            {
+                if (i > 0) argument.Append(',');
+                EditorImage image = editorImages[i];
+                if (image.Id != null) argument.Append("{\"id\":").Append(Json.Escape(image.Id)).Append('}');
+                else argument.Append("{\"path\":").Append(Json.Escape(image.Path)).Append('}');
+            }
+            return argument.Append(']').ToString();
         }
 
         /// The request Save and return sends, or null where a field it needs has nothing chosen.
@@ -333,6 +662,11 @@ namespace CodexAutoResume
             var when = editorWhen.SelectedItem as Choice;
             if (conversation == null || when == null) return null;
             var argument = new System.Text.StringBuilder("{");
+            // v0.6.20: a steer names its conversation and its words alone; it goes now, or not at all.
+            if (when.Value == "steer")
+                return argument.Append("\"thread_id\":").Append(Json.Escape(conversation.Value))
+                               .Append(",\"words\":").Append(Json.Escape(editorWords.Box.Text.Replace("\r\n", "\n")))
+                               .Append(",\"generation\":").Append(AdvancedGeneration()).Append('}').ToString();
             if (editorPrompt >= 0) argument.Append("\"prompt\":").Append(editorPrompt.ToString(CultureInfo.InvariantCulture));
             else argument.Append("\"thread_id\":").Append(Json.Escape(conversation.Value));
             argument.Append(",\"words\":").Append(Json.Escape(editorWords.Box.Text.Replace("\r\n", "\n")));
@@ -355,6 +689,8 @@ namespace CodexAutoResume
             }
             var depends = editorDepends.SelectedItem as Choice;
             argument.Append(",\"depends\":").Append(depends != null && depends.Value == "yes" ? "true" : "false");
+            string pictures = ImagesArgument();
+            if (pictures != null) argument.Append(",\"images\":").Append(pictures);
             argument.Append(",\"generation\":").Append(AdvancedGeneration()).Append('}');
             return argument.ToString();
         }
@@ -367,9 +703,11 @@ namespace CodexAutoResume
             string argument = EditorArgument();
             if (argument == null) return;
             bool editing = editorPrompt >= 0;
+            var chosen = editorWhen.SelectedItem as Choice;
+            bool steer = !editing && chosen != null && chosen.Value == "steer";
             editorSave.Enabled = false;
             editorSaid.Text = "";
-            AdvancedCall(editing ? "advanced-prompt-edit" : "advanced-prompt-add", argument, true,
+            AdvancedCall(steer ? "advanced-steer" : editing ? "advanced-prompt-edit" : "advanced-prompt-add", argument, true,
                          delegate(Dictionary<string, object> reply)
             {
                 Dictionary<string, object> result = AdvancedResult(reply);
@@ -377,18 +715,43 @@ namespace CodexAutoResume
                 if (AdvancedDone(result))
                 {
                     editorTaken = true;
-                    editorSaved = Get(result, "prompt") is double ? Whole(Get(result, "prompt")) : -1;
+                    editorSteered = steer;
+                    editorSaved = !steer && Get(result, "prompt") is double ? Whole(Get(result, "prompt")) : -1;
                     advancedPrompts = result;
                     dialog.DialogResult = DialogResult.OK;
                     if (dialog.Visible) dialog.Close();
                     return;
                 }
                 string refusal = Str(result, "refusal");
-                editorSaid.Text = editing && refusal == "invalid_request"
+                editorSaid.Text = steer ? SteerRefusal(refusal)
+                    : editing && refusal == "invalid_request"
                     ? Word("page.refused.prompt_moved", "It is no longer waiting, so it can no longer be changed.")
                     : PromptRefusal(refusal);
                 ShowEditorState();
             });
+        }
+
+        // ---------------------------------------------------------------- the steer (v0.6.20)
+        private const string SteerId = "steer_send";
+
+        /// Whether Steer the running turn stands on now - on, not watched: a watched steer would never be sent.
+        private bool SteerOn()
+        {
+            Dictionary<string, object> steer = advancedListing == null ? null : AdvancedItem(SteerId);
+            return steer != null && Str(steer, "state") == StateArmed;
+        }
+
+        /// What a refused steer says above the buttons: no turn running, one still waiting there, its caps - else as a
+        /// message's refusal says it.
+        private string SteerRefusal(string refusal)
+        {
+            if (refusal == "no_turn_running")
+                return Word("page.refused.no_turn_running", "No turn is running in that conversation, so there is nothing to steer. Nothing was sent.");
+            if (refusal == "being_sent")
+                return Word("page.refused.steer_waiting", "A steer for that conversation still waits to go. Wait until History shows what came of it.");
+            if (refusal == "queue_full")
+                return Word("page.refused.steer_full", "As many steers were asked for as may: 30 in a conversation and 60 in all in a day.");
+            return PromptRefusal(refusal);
         }
     }
 }

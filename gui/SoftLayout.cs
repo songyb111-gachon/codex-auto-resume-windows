@@ -25,6 +25,12 @@ namespace CodexAutoResume
             BackColor = Palette.Canvas;
         }
 
+        // v0.6.20: its padding mirrored in a mirrored window (Mirror.Display).
+        public override Rectangle DisplayRectangle
+        {
+            get { return Mirror.Display(this, base.DisplayRectangle); }
+        }
+
         protected override void OnPaintBackground(PaintEventArgs e)
         {
             Ground.Paint(this, e);
@@ -66,6 +72,12 @@ namespace CodexAutoResume
             RowCount = rows;
             for (int i = 0; i < columns; i++) ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / columns));
             for (int i = 0; i < rows; i++) RowStyles.Add(new RowStyle(SizeType.Percent, 100f / rows));
+        }
+
+        // v0.6.20: its padding mirrored in a mirrored window (Mirror.Display).
+        public override Rectangle DisplayRectangle
+        {
+            get { return Mirror.Display(this, base.DisplayRectangle); }
         }
 
         /// How tall it must be, `width` wide, for every row to hold its own tallest card, margins and all.
@@ -253,10 +265,12 @@ namespace CodexAutoResume
         {
             get
             {
-                if (!scrolls) return base.DisplayRectangle;
+                if (!scrolls) return Mirror.Display(this, base.DisplayRectangle);
                 Size client = ClientSize;
                 int gutter = overflow ? SoftBar.Gutter : 0;
-                return new Rectangle(Padding.Left, Padding.Top - offset,
+                // v0.6.20: mirrored, the bar stands at the left (Mirror), and what the page holds starts past its gutter,
+                // inside its right padding where it would start inside its left.
+                return new Rectangle(Mirror.Of(this) ? Padding.Right + gutter : Padding.Left, Padding.Top - offset,
                                      Math.Max(0, client.Width - Padding.Horizontal - gutter),
                                      Math.Max(0, Math.Max(client.Height, extent) - Padding.Vertical));
             }
@@ -275,11 +289,26 @@ namespace CodexAutoResume
             if (scrolls && !moving) overflow = false;
             base.OnLayout(levent);
             if (scrolls) Settle(levent);
+            if (Mirror.Of(this)) PlaceMirrored();
             bool now = Ground.Scrolling(this);
             if (now == scrolling) return;
             scrolling = now;
             Form form = FindForm();
             if (form != null && form.IsHandleCreated) form.Invalidate(true);
+        }
+
+        // v0.6.20: mirrored (Mirror), what the page holds where it is placed rather than docked - a Settings section, the
+        // Advanced page's column - stands at the right of the room the bar leaves, as it stands at the left otherwise.
+        // Windows' layout puts such a child back where it was last put, so it is placed from the right every time.
+        private void PlaceMirrored()
+        {
+            Rectangle display = DisplayRectangle;
+            foreach (Control child in Controls)
+            {
+                if (child.Dock != DockStyle.None) continue;
+                int x = display.Right - child.Width;
+                if (child.Left != x) child.Left = x;
+            }
         }
 
         // Measures what it holds and lays it out again until that agrees with the offset and the bar: the
@@ -314,8 +343,9 @@ namespace CodexAutoResume
             if (glideTarget > offset && !overflow) glideTarget = offset;
             int margin = Soft.Px(SoftBar.TrackMargin);
             bar.Track = overflow
-                ? new Rectangle(ClientSize.Width - margin - Soft.Px(SoftBar.TrackWidth), margin,
-                                Soft.Px(SoftBar.TrackWidth), Math.Max(0, ClientSize.Height - 2 * margin))
+                ? Mirror.Box(Mirror.Of(this), ClientSize.Width,
+                             new Rectangle(ClientSize.Width - margin - Soft.Px(SoftBar.TrackWidth), margin,
+                                           Soft.Px(SoftBar.TrackWidth), Math.Max(0, ClientSize.Height - 2 * margin)))
                 : Rectangle.Empty;
         }
 
@@ -792,6 +822,25 @@ namespace CodexAutoResume
             BackColor = Palette.Canvas;
         }
 
+        // v0.6.20: its padding mirrored in a mirrored window (Mirror.Display).
+        public override Rectangle DisplayRectangle
+        {
+            get { return Mirror.Display(this, base.DisplayRectangle); }
+        }
+
+        // v0.6.20: a row that flows from the right (FlowDirection.RightToLeft: the window's button rows) stands, left to right,
+        // its padding's whole width in from its right edge - Windows lays such a row out with both its left and its right
+        // padding at the right. Mirrored, Windows flows it from the left past its (mirrored) left padding alone. Each control is
+        // moved by the other padding, so the row is its left-to-right self mirrored (Mirror; MirrorAudit, measured on the
+        // dialogs' button rows). Windows lays the row out anew each time, so this is the same each time.
+        protected override void OnLayout(LayoutEventArgs levent)
+        {
+            base.OnLayout(levent);
+            if (!Mirror.Of(this) || FlowDirection != FlowDirection.RightToLeft || Padding.Left == 0) return;
+            foreach (Control child in Controls)
+                if (Soft.OwnVisible(child)) child.Left += Padding.Left;
+        }
+
         protected override void OnPaintBackground(PaintEventArgs e)
         {
             Ground.Paint(this, e);
@@ -811,6 +860,19 @@ namespace CodexAutoResume
                      ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
             BackColor = Palette.Card;
             tracker = new LiftTracker(this, "card");
+        }
+
+        // v0.6.20: a capped line at its cell's right in a mirrored window (Mirror.Caps).
+        protected override void OnLayout(LayoutEventArgs levent)
+        {
+            base.OnLayout(levent);
+            Mirror.Caps(this);
+        }
+
+        // v0.6.20: its padding mirrored in a mirrored window (Mirror.Display).
+        public override Rectangle DisplayRectangle
+        {
+            get { return Mirror.Display(this, base.DisplayRectangle); }
         }
 
         /// Zero. A card keeps no band inside itself for its shadow any more - the ground around
@@ -844,7 +906,7 @@ namespace CodexAutoResume
             Ground.PaintBehind(this, e.Graphics, ClientRectangle, radius);
             // The card's own ground, and in dark its one-pixel top light inside the hairline.
             Soft.Body(e.Graphics, ClientRectangle, radius, Palette.Card, Palette.Line, "card");
-            if (Palette.AccentBar) Bar(e.Graphics, ClientRectangle, radius);
+            if (Palette.AccentBar) Bar(e.Graphics, ClientRectangle, radius, Mirror.Of(this));
             Ground.Stamps(this, e.Graphics, e.ClipRectangle);
         }
 
@@ -852,6 +914,12 @@ namespace CodexAutoResume
         /// hairline of a body filling `face`, from its top to its bottom and following its corners. Paint only: it
         /// lies over the card's own ground, in the card's padding, and nothing is laid out for it.
         internal static void Bar(Graphics g, Rectangle face, float radius)
+        {
+            Bar(g, face, radius, false);
+        }
+
+        /// The same, inside the right hairline in a mirrored window (v0.6.20, Mirror), as the popup and the panel have it.
+        internal static void Bar(Graphics g, Rectangle face, float radius, bool mirrored)
         {
             int hairline = Soft.Hairline;
             Rectangle inner = Rectangle.Inflate(face, -hairline, -hairline);
@@ -861,7 +929,8 @@ namespace CodexAutoResume
             g.PixelOffsetMode = PixelOffsetMode.Half;
             // The body's inner shape, filled where the bar is: its corners drawn as smoothly as the card's own, and
             // its right edge a whole pixel.
-            g.SetClip(new Rectangle(inner.X, inner.Y, Math.Min(inner.Width, Soft.Px(Brand.AccentBar)), inner.Height), CombineMode.Intersect);
+            int wide = Math.Min(inner.Width, Soft.Px(Brand.AccentBar));
+            g.SetClip(new Rectangle(mirrored ? inner.Right - wide : inner.X, inner.Y, wide, inner.Height), CombineMode.Intersect);
             using (GraphicsPath shape = Soft.Rounded(inner, Math.Max(0f, radius - hairline)))
                 g.FillPath(Soft.Fill(Palette.Accent), shape);
             g.Restore(state);
@@ -1327,7 +1396,10 @@ namespace CodexAutoResume
             if (Soft.OwnVisible(pin))
             {
                 Size size = PinSize();
-                place = new Rectangle(width - size.Width, Math.Max(0, ClientSize.Height - size.Height), size.Width, size.Height);
+                // v0.6.20: mirrored, at the bottom left - the body's tables mirror themselves, so what Plan measured in
+                // left-to-right terms is the same distance from the other edge (Mirror).
+                place = new Rectangle(Mirror.X(Mirror.Of(this), width, width - size.Width, size.Width),
+                                      Math.Max(0, ClientSize.Height - size.Height), size.Width, size.Height);
                 if (pin.Bounds != place) pin.Bounds = place;
             }
             Cut(Rectangle.Intersect(place, body.Bounds));

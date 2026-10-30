@@ -110,9 +110,12 @@ namespace CodexAutoResume
             g.PixelOffsetMode = PixelOffsetMode.Half;
             using (var path = Soft.Rounded(ClientRectangle, radius))
                 g.FillPath(Soft.Fill(Tint), path);
-            // The badge, level with the notice's first line.
+            // The badge, level with the notice's first line - at the right, and the notice left of it, in a mirrored window
+            // (v0.6.20, Mirror).
+            bool mirrored = Mirror.Of(this);
             int badge = Soft.Px(Brand.CalloutBadge);
-            var circle = new RectangleF(Soft.Px(Brand.CalloutPadLeft), Padding.Top + (Font.Height - badge) / 2f, badge, badge);
+            var circle = Mirror.Box(mirrored, (float)Width,
+                                    new RectangleF(Soft.Px(Brand.CalloutPadLeft), Padding.Top + (Font.Height - badge) / 2f, badge, badge));
             g.FillEllipse(Soft.Fill(Palette.Accent), circle);
             g.Restore(state);
             if (Palette.Contrast) Soft.Edge(g, ClientRectangle, radius, Palette.Line, Soft.Hairline);
@@ -121,8 +124,9 @@ namespace CodexAutoResume
                                   TextFormatFlags.SingleLine | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
             int inner = Inner(Width);
             TextRenderer.DrawText(g, Soft.Wrap(notice, Font, inner, Words), Font,
-                                  new Rectangle(Padding.Left, Padding.Top, inner, Math.Max(0, Height - Padding.Vertical)),
-                                  ForeColor, Words);
+                                  new Rectangle(Mirror.X(mirrored, Width, Padding.Left, inner), Padding.Top, inner,
+                                                Math.Max(0, Height - Padding.Vertical)),
+                                  ForeColor, Mirror.Words(mirrored, Words));
         }
     }
 }

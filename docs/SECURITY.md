@@ -143,10 +143,13 @@ them `thread/goal/set`, `thread/queue/add` with words this product wrote, and `t
 ## Enforced properties
 
 - **No network code in the recovery runtime.** No file under `src/` or `scripts/*.py` - nor, in
-  the advanced edition, under its package's `advanced/src/` - imports a networking module, and a
-  test fails if one gains an import of a networking module, so the
+  the advanced edition, under its package's `advanced/src/` but for its courier (below) - imports a
+  networking module, and a test fails if one gains an import of a networking module, so the
   watcher opens no connection of its own. That is a property of the code, checked by that test,
-  not a sandbox. The advanced edition's compatibility report reaches GitHub only by starting gh, the
+  not a sandbox. In the advanced edition, from v0.6.20, the courier (the package's `courier/`) is the
+  one exception, and only while push notices or the status feed is on: a short-lived process of its
+  own that sends to the services a person typed in and reads status.openai.com (*The courier*, under
+  [The advanced edition](#the-advanced-edition)). The advanced edition's compatibility report reaches GitHub only by starting gh, the
   GitHub CLI the person installed, when they ask in the Dashboard (*The compatibility report*, under
   [The advanced edition](#the-advanced-edition)). The traffic we know the product causes comes from elsewhere:
   - The Codex processes it starts ask OpenAI for your current usage (`account/rateLimits/read`)
@@ -687,9 +690,26 @@ arguments and environment. It may call only the methods that capability declares
 method. It answers the approval, permission, input and elicitation requests Codex may make of it -
 seven methods - with the refusal Codex's own schema gives each (a table in the same file), and
 every other request, a token
-refresh, an attestation or a tool call among them, with an error. The advanced edition adds no
-network code: its package imports no networking module either (`tests/test_privacy_claims.py`). The
-compatibility report reaches GitHub only through gh, above.
+refresh, an attestation or a tool call among them, with an error. Its package imports no
+networking module but in the courier's own folder (`tests/test_privacy_claims.py`,
+ADVANCED_NETWORK_MODULES), below. The compatibility report reaches GitHub only through gh, above.
+
+**The courier** (v0.6.20; push notices and the status feed, each off until a person turns it on). The
+advanced edition's only network code: `pythonw.exe` running the advanced package's `courier`, started by
+the watcher at most once a minute while a notice waits or a status reading is due (or by the
+Dashboard's service for a test notice, a Telegram pairing or a reading now), windowless, in the
+starting process's job object made KILL_ON_JOB_CLOSE, one per installation under a named mutex. It
+sends, then exits; it never listens. Every request is HTTPS with the certificate verified (Windows'
+store, TLS 1.2 or later, never downgraded), no redirect followed, no user name or password in an
+address, no IP literal or loopback host; a body of at most 4 KiB, a reply read to 64 KiB. Its hosts
+are the ones a person types (an ntfy topic, a webhook, an SMTP server on 465 or 587), api.telegram.org
+for a Telegram bot, and status.openai.com for the status feed. A push carries a closed event, a
+failure category word, `task N` and the time - never a title, a path, an id, an error's text or a
+word of a conversation. Addresses, tokens and passwords are kept in Windows Credential Manager
+(`credentials.py`) and nowhere else; they never reach `advanced.sqlite`, a log, the journal, the
+diagnostics or a bridge answer. At most 30 notices an hour across channels, three tries each,
+dropped after seven days; twenty refusals in a day switch a channel off. Paused, nothing is written,
+sent or read. The status feed's words are shown, never read by any decision.
 
 **The measurement harness.** The advanced edition's archive also carries `measure` (the advanced
 package's `measure.py`), with which the owner finds out whether a

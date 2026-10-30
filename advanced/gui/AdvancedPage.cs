@@ -175,8 +175,12 @@ namespace CodexAutoResume
             advancedPending = Items(reply, "pending");
             // The turns run here now, which the running capabilities' card lists (AdvancedRuns.cs, v0.6.16-beta.4).
             RunsApplied(reply);
+            // v0.6.20: OpenAI's status on the Overview, while the status feed says something is wrong (AdvancedCourier.cs).
+            FeedApplied(reply);
             // early_reset's line on Pending, while the status carries it (AdvancedEarly.cs, v0.6.19 #50).
             EarlyApplied(reply);
+            // The reset window_anchor's last start fixed, for its card (AdvancedAnchor.cs, v0.6.20).
+            AnchorApplied(reply);
             // The reset rules waiting, read again when the status's counts of them change (AdvancedResets.cs).
             ResetCountsApplied(reply);
             if (advancedWords == null)
@@ -227,7 +231,8 @@ namespace CodexAutoResume
 
         private string Word(string key, string fallback, string token, object replacement)
         {
-            return Word(key, fallback).Replace("{" + token + "}", Convert.ToString(replacement, CultureInfo.CurrentCulture));
+            // v0.6.20: the value one run in a sentence written right to left (Mirror.Embed).
+            return Word(key, fallback).Replace("{" + token + "}", Mirror.Embed(Convert.ToString(replacement, CultureInfo.CurrentCulture)));
         }
 
         /// A capability's name as the page lists it; its id where no catalog has one.
@@ -676,6 +681,25 @@ namespace CodexAutoResume
                 MethodInvoker after = done;
                 done = delegate { ReadPrompts(after); };
             }
+            // v0.6.20: the courier's card (AdvancedCourier.cs).
+            if (id == PushId)
+            {
+                MethodInvoker after = done;
+                done = delegate { ReadCourier(after); };
+            }
+            // v0.6.20: the usage and token analytics' numbers (AdvancedAnalytics.cs).
+            if (id == AnalyticsId)
+            {
+                MethodInvoker after = done;
+                done = delegate { ReadAnalytics(after); };
+            }
+            // v0.6.20: the account signed in (AdvancedAccount.cs) - asked only while the capability is on or watched, so
+            // off, Codex is not asked which account is signed in.
+            if (id == AccountId && Standing(item))
+            {
+                MethodInvoker after = done;
+                done = delegate { ReadAccount(after); };
+            }
             // v0.6.16-beta.4: the wrap-up's own wordings (AdvancedUsage.cs).
             if (id == WrapUpId)
             {
@@ -916,7 +940,8 @@ namespace CodexAutoResume
                            KeptShown(item) + "|" +
                            (IsReport(item) ? ReportShown() : "") + "|" +
                            ResetsShown(item) + "|" + KeepGoingShown(item) + "|" + QueueShown(item) + "|" +
-                           WordingsShown(item) + "|" + RunsShown(item);
+                           WordingsShown(item) + "|" + RunsShown(item) + "|" + CourierShown(item) + "|" + AnalyticsShown(item)
+                           + "|" + AnchorShownText(item) + "|" + AccountShown(item);
             if (shown == advancedShown)
             {
                 UpdateAdvancedButtons();
@@ -944,6 +969,8 @@ namespace CodexAutoResume
             ForgetReportCard();
             ForgetResetCard();
             ForgetKeepGoingCard();
+            ForgetCourierCard();
+            ForgetAnalyticsCard();
             ForgetQueueCard();
             if (item == null)
             {
@@ -968,6 +995,8 @@ namespace CodexAutoResume
             TableLayoutPanel head = NewGroup(AdvancedName(id), advancedStack);
             TableLayoutPanel facts = Facts(head);
             Fact(facts, Word("page.col_state", "State")).Text = ListState(item);
+            // v0.6.20: the reset window_anchor's last start fixed, right under where it stands (AdvancedAnchor.cs).
+            BuildAnchorLine(item, head);
             // That it turned itself off, and why, where it did - a tripwire, or a new version of Codex - in the accent, as
             // what a policy refuses is: a person who turned it on finds it off, and is told it was not someone else. Right
             // under where it stands, before Keep it on, which (v0.6.16-beta.4) an off capability is offered too.
@@ -1053,7 +1082,11 @@ namespace CodexAutoResume
                 // v0.6.16-beta.3: what it needs on (registry.CapabilityDef.requires), which turning it on turns on too.
                 string needs = NamesOf(Items(item, "requires"));
                 if (needs.Length > 0) about.Controls.Add(HelpText(Word("page.requires", "Needs: {names}", "names", needs)));
+                // v0.6.20 (the owner, 2026-10-29): its before and after, drawn by this window from sample data
+                // (AdvancedExamples.cs) - the last thing in the card, in one place for every capability.
+                BuildExampleButton(about, id);
             }
+            else exampleButton = null;
 
             // The report's card - what a person starts it doing - under its statement (AdvancedReport.cs).
             if (IsReport(item)) BuildReportCard(item);
@@ -1091,11 +1124,18 @@ namespace CodexAutoResume
             // and the queued prompts (v0.6.15-beta) - each while its capability is on or, from v0.6.16-beta.3, watched.
             BuildResets(item);
             BuildKeepGoing(item);
+            // v0.6.20: where notices go and which (AdvancedCourier.cs).
+            BuildCourier(item);
             BuildQueue(item);
+            // v0.6.20: the usage and token analytics' pace and tokens, and Save as CSV... (AdvancedAnalytics.cs).
+            BuildAnalytics(item);
+            // v0.6.20: the Codex account signed in, and how to switch it (AdvancedAccount.cs).
+            BuildAccount(item);
 
             // Its own choices, the rules a person writes for Codex's error codes and the samples of what nothing classified,
             // each only for a capability that has them - the last two once they have been read.
-            List<object> options = Items(item, "options");
+            // v0.6.20: less push_notices' channel and event switches, which the courier's card shows (AdvancedCourier.cs).
+            List<object> options = WithoutCourierChoices(Items(item, "options"));
             if (options != null && options.Count > 0) BuildAdvancedChoices(id, options);
             if (Equals(Get(item, "rules_editor"), true) && advancedRules != null) BuildAdvancedRules();
             if (Equals(Get(item, "samples"), true) && advancedSamples != null) BuildAdvancedSamples();
@@ -1173,8 +1213,9 @@ namespace CodexAutoResume
         /// acted on or not.
         private static bool IsSwitchChoice(string key)
         {
-            // v0.6.19 (#50): and open_to_send's Also start Codex.
+            // v0.6.19 (#50): and open_to_send's Also start Codex; v0.6.20: window_anchor's Start right after a reset.
             return key == "wrap_reset_time" || key == "wrap_after_reset" || key == "open_start_codex" ||
+                   key == "anchor_after_reset" ||
                    key.StartsWith("window_", StringComparison.Ordinal);
         }
 
@@ -1209,8 +1250,10 @@ namespace CodexAutoResume
         private string OptionText(string key, int value)
         {
             if (key == "ceiling_hours") return Word("page.option.hours", "{n} h", "n", value);
+            // v0.6.20: window_anchor's times of day, Off or HH:MM (AdvancedAnchor.cs).
+            if (IsAnchorTime(key)) return AnchorTimeText(value);
             // v0.6.16-beta.3 (issue #29): the meter's spacing, a stage's percentage, the wrap-up's wording.
-            if (key == "poll_minutes" || key == "open_idle_minutes") return Word("page.option.minutes", "{n} min", "n", value);
+            if (key == "poll_minutes" || key == "open_idle_minutes" || key == "feed_minutes") return Word("page.option.minutes", "{n} min", "n", value);
             if (key == "wrap_style")
                 return Word("page.option.style." + value.ToString(CultureInfo.InvariantCulture),
                             value == 1 ? "Short" : value == 3 ? "Detailed" : value == 4 ? "With the numbers" :
@@ -1587,7 +1630,10 @@ namespace CodexAutoResume
             UpdateWordingButtons(idle);
             UpdateResetButtons(idle);
             UpdateKeepGoingButtons(idle);
+            UpdateCourierButtons(idle);
+            UpdateAnalyticsButtons(idle);
             UpdateQueueButtons(idle);
+            UpdateAccountButtons(idle);
             UpdateReportButtons();
         }
 

@@ -140,6 +140,18 @@ class Context:
         """Whether the conversation's link was handed to Windows (MOPEN)."""
         return self._hand("open_link", thread) is True
 
+    def steer_over_ipc(self, thread, text, message):
+        """(whether the steer hand was there to call, the closed word of what came of it - codex/ipc.steer_turn's - or None
+        where the hand raised). The hand is called at most once and this never calls it again (MSTEER2)."""
+        hand = self._hands.get("steer_ipc")
+        if not callable(hand):
+            return False, None
+        try:
+            word = hand(thread, text, message)
+        except Exception:
+            return True, None
+        return True, word if isinstance(word, str) else None
+
     def power_look(self) -> dict:
         """The power settings read (MWAKE): a dict, empty where there is no hand or it failed."""
         found = self._hand("power")
@@ -154,6 +166,18 @@ class Context:
         """The engine's stdout, run with `arguments` on the scratch Codex home `home` (MTOK, MHK), or None."""
         found = self._hand("scratch_cli", home, tuple(arguments))
         return found if isinstance(found, str) else None
+
+    def anchor_request(self) -> dict:
+        """window_anchor's request run once from a new empty folder (MANCHOR): {"code", "input", "cached", "output",
+        "folder_empty_after"}, empty where there is no hand or it failed."""
+        found = self._hand("anchor_request")
+        return found if isinstance(found, dict) else {}
+
+    def stop_hook(self) -> dict:
+        """What this installation's Stop hook declaration is (M4B, v0.6.20): {"declared": whether one of ours stands in
+        our plugin copies, "commands": the commands one of ours runs}, or {} where there is no hand."""
+        found = self._hand("stop_hook")
+        return found if isinstance(found, dict) else {}
 
     def ipc_look(self) -> dict:
         """What a read-only look at the Desktop's own IPC pipe found (v0.6.16-beta.3, MIPC): a dict of
@@ -1254,21 +1278,20 @@ def _mc1(ctx):
 
 def _mqo(ctx):
     """A continuation queued for opening, with no marker (v0.6.17, issue #42): the owner names a throwaway conversation
-    the Desktop does not hold. The harness lists what the app holds - and stops there if it holds this one - then adds
-    one short message to its queue under a client id of no one's, with no marker (thread/queue/add, M7's call, as
+    the Desktop does not hold. The harness looks at who holds it (core's loaded check and Restart Manager on its writer
+    lock) - and stops there if anything does - then adds one short message to its queue under a client id of no one's, with no marker (thread/queue/add, M7's call, as
     marker-free continuation sends), looks that it stays queued, and follows the queue for up to _MQO_OPEN_SECONDS
     while the person opens the conversation in the Desktop. Taken, it reads Codex's history for that client id on a
     person's message the way core proves a marker-free continuation delivered (LocalSource.marker_rows: the history
     database's userMessage items, placed by the rollout - engine/reconcile.py reads exactly this). That the message
     ran there once, as the person's own, is what the person watching confirms."""
+    look = _look(ctx, ctx.probe_thread)
+    if look[1] is None and not look[0]:
+        return _blocked("who holds the conversation could not be read", holders_read=False)
+    if _holds(look):
+        return _blocked("the app holds the throwaway conversation: quit and reopen the Codex app without opening "
+                        "it, then run mqo again", holders_read=True, held_before=True, holders=look[1])
     with ctx.open() as session:
-        loaded = session.call("thread/loaded/list")
-        held = loaded.get("data") if isinstance(loaded, dict) else None
-        if not isinstance(held, list):
-            return _blocked("the conversations the app holds could not be listed", loaded_listed=False)
-        if ctx.probe_thread in held:
-            return _blocked("the app holds the throwaway conversation: quit and reopen the Codex app without opening "
-                            "it, then run mqo again", loaded_listed=True, held_before=True)
         added = session.call("thread/queue/add", {"threadId": ctx.probe_thread,
                                                   "clientUserMessageId": _SAMPLE_MQO_CLIENT_ID,
                                                   "input": [{"type": "text", "text": _M2B_PROMPT}]})
@@ -1286,18 +1309,48 @@ def _mqo(ctx):
         if found or time.monotonic() >= deadline:
             break
         time.sleep(_M2B_POLL_SECONDS)
-    observed = {"loaded_listed": True, "held_before": False, "add_accepted": isinstance(added, dict),
+    observed = {"holders_read": True, "held_before": False, "holders": look[1], "add_accepted": isinstance(added, dict),
                 "queued_while_not_held": waiting, "taken": taken, "taken_seconds": _seconds(waited),
                 "client_id_on_user_item": found}
     return _blocked("open the throwaway conversation in the Desktop within five minutes of starting this; confirm the "
                     "message ran there once, as your own, with no marker, then set the verdict", **observed)
 
 
-def _held(session, threads):
-    """Which of `threads` the app holds now (thread/loaded/list), or None where that could not be listed."""
-    loaded = session.call("thread/loaded/list")
-    held = loaded.get("data") if isinstance(loaded, dict) else None
-    return None if not isinstance(held, list) else [thread for thread in threads if thread in held]
+def _lock_users(ctx, thread):
+    """How many processes hold the conversation's writer lock file open - Restart Manager's list, as core's loaded check
+    reads it (codex/transport.Backend.loaded): a count, never a process; None where it could not be read. A session of the
+    product's own never lists what the Desktop loads (codex-cli 0.165, MOPEN 2026-10-29: thread/loaded/list stayed empty
+    while the app held the conversation), so no probe asks one."""
+    from codex_auto_resume.windows import resource_users
+    home = getattr(ctx.backend, "codex_home", None)
+    try:
+        return None if home is None else len(resource_users(Path(home) / "thread-writer-locks" / (thread + ".lock")))
+    except Exception:
+        return None
+
+
+def _look(ctx, thread) -> tuple:
+    """(whether core's loaded check finds the Codex app holding `thread`, how many processes hold its writer lock - or
+    None where that could not be read). The check is core's own, with the app paired by its identity; where the app is not
+    running or cannot be paired it says no, and the count still tells whether anything else holds it."""
+    app = False
+    try:
+        identity = ctx.backend.app_identity() if ctx.backend is not None else None
+        app = bool(identity) and ctx.backend.loaded(thread, identity) == "loaded"
+    except Exception:
+        app = False
+    return app, _lock_users(ctx, thread)
+
+
+def _holds(look) -> bool:
+    """Whether a `_look` says the conversation is held: by the app, or by any process at all."""
+    return bool(look[0] or look[1])
+
+
+def _held(ctx, threads) -> tuple:
+    """(the threads of `threads` something holds now, whether every one could be looked at): by `_look`."""
+    looks = [(thread, _look(ctx, thread)) for thread in threads]
+    return [thread for thread, look in looks if _holds(look)], all(look[1] is not None or look[0] for _, look in looks)
 
 
 def _queued_ids(session, thread):
@@ -1334,13 +1387,12 @@ def _mqp(ctx):
         return _blocked("name two to four throwaway conversations the Desktop does not hold, comma-separated, then run "
                         "mqp again", conversations=len(threads))
     ids = _SAMPLE_MQP_CLIENT_IDS[:len(threads)]
-    with ctx.open() as session:
-        held = _held(session, threads)
-    if held is None:
-        return _blocked("the conversations the app holds could not be listed", loaded_listed=False)
+    held, read = _held(ctx, threads)
+    if not read:
+        return _blocked("who holds the conversations could not be read", holders_read=False)
     if held:
         return _blocked("the app holds one of the throwaway conversations: quit and reopen the Codex app without "
-                        "opening them, then run mqp again", loaded_listed=True, held_before=len(held))
+                        "opening them, then run mqp again", holders_read=True, held_before=len(held))
     accepted = [False] * len(threads)
 
     def add(index):
@@ -1396,17 +1448,17 @@ def _mqg(ctx):
     where they ran as one - and reads the goal's status again. What ran is what the person watching confirms."""
     from .codex import turns
     home = getattr(ctx.backend, "codex_home", None)
+    held, read = _held(ctx, (ctx.probe_thread,))
+    if not read:
+        return _blocked("who holds the conversation could not be read", holders_read=False)
+    if held:
+        return _blocked("the app holds the throwaway conversation: quit and reopen the Codex app without opening "
+                        "it, then run mqg again", holders_read=True, held_before=True)
     with ctx.open() as session:
-        held = _held(session, (ctx.probe_thread,))
-        if held is None:
-            return _blocked("the conversations the app holds could not be listed", loaded_listed=False)
-        if held:
-            return _blocked("the app holds the throwaway conversation: quit and reopen the Codex app without opening "
-                            "it, then run mqg again", loaded_listed=True, held_before=True)
         before = _goal_status(session.call("thread/goal/get", {"threadId": ctx.probe_thread}))
         if before is None:
             return _blocked("give the throwaway conversation a goal and pause it, close the conversation, then run mqg "
-                            "again", loaded_listed=True, held_before=False, goal_found=False)
+                            "again", holders_read=True, held_before=False, goal_found=False)
         session.call("thread/goal/set", {"threadId": ctx.probe_thread, "status": "active"})
         set_active = _goal_status(session.call("thread/goal/get", {"threadId": ctx.probe_thread}))
         try:
@@ -1426,7 +1478,7 @@ def _mqg(ctx):
                 break
             time.sleep(_M2B_POLL_SECONDS)
         after = _goal_status(session.call("thread/goal/get", {"threadId": ctx.probe_thread}))
-    observed = {"loaded_listed": True, "held_before": False, "goal_found": True,
+    observed = {"holders_read": True, "held_before": False, "goal_found": True,
                 "goal_set_active": set_active == "active", "add_accepted": isinstance(added, dict),
                 "queued_while_not_held": waiting, "taken": taken, "turns_after_open": ran,
                 "client_id_on_user_item": taken and _client_recorded(ctx, _SAMPLE_MQG_CLIENT_ID),
@@ -1579,8 +1631,11 @@ _TOKENS_USED = "SELECT tokens_used FROM threads WHERE id=?"
 _SCHEMA_FILES = 2000                          # how many generated schema files a probe reads, at most
 _SCHEMA_FILE_BYTES = 4 * 1024 * 1024          # and how much of each
 _SCHEMA_ARGUMENTS = ("app-server", "generate-json-schema", "--out")
-_MOPEN_SECONDS = 30.0                         # how long MOPEN looks for the conversation to load after its link opened
-_MOPEN_POLL_SECONDS = 0.5
+# How long MOPEN waits, from the link being handed over, for the app to take the conversation's writer lock. 30 s by the
+# owner's decision of 2026-10-29: measured here (codex-cli 0.165.0-alpha.1.2, this PC) the Codex window came forward 7.1 s
+# after the link and the app took the lock 13.4 s after it.
+_MOPEN_SECONDS = 30.0
+_MOPEN_POLL_SECONDS = 0.3                     # and how often the lock's holder count is read meanwhile (a read is ~0.5 s)
 _MAL_SECONDS = 300.0                          # how long MAL follows the account while the person signs out and in
 _MAL_POLL_SECONDS = 2.0
 _MWAKE_SECONDS = 180                          # the wake timer MWAKE sets, from when it starts
@@ -1748,47 +1803,62 @@ def _mtok(ctx):
 
 
 def _loaded_bucket(seconds) -> str:
+    """How long a load took, as a bucket and never the number: under 2 s, 2 to 10, 10 to 20, 20 to 30 (MOPEN's limit);
+    `never` where it did not happen."""
     if seconds is None:
         return str(ObservedWord.NEVER)
     if seconds < 2:
         return str(ObservedWord.UNDER_2S)
-    return str(ObservedWord.S2_TO_10 if seconds <= 10 else ObservedWord.OVER_10S)
+    if seconds <= 10:
+        return str(ObservedWord.S2_TO_10)
+    return str(ObservedWord.S10_TO_20 if seconds <= 20 else ObservedWord.S20_TO_30)
 
 
 def _mopen(ctx):
     """Opening a conversation for a message to be sent (open_to_send): the owner names a throwaway conversation the app
-    does not hold. The harness lists what the app holds - and stops there if it holds this one - then opens the
-    conversation's link once (codex_link.open_in_codex, one of the run's hands) and looks for it among what the app
-    holds for up to _MOPEN_SECONDS. It records whether Codex was running, whether the link was handed over, and how long
-    the load took as a bucket. Not loaded within ten seconds is a fail; within them, whether the window came to the
-    front is the person's to confirm."""
+    does not hold. The load is TIMED by the writer lock's holder count alone - Restart Manager, about half a second a
+    read on codex-cli 0.165 (the full look, core's identity pairing and loaded check, takes about 15 s and would swallow
+    the very time measured; the first run, 2026-10-29, could not say "under ten" for that reason). The harness reads
+    the count before (the same fast read) and stops if anything holds the lock; opens the conversation's link once
+    (codex_link.open_in_codex, one of the run's hands); and reads the count every _MOPEN_POLL_SECONDS from the moment
+    the link is handed over, for up to _MOPEN_SECONDS. When the count first reaches one or more it records that time as a
+    bucket and checks ONCE, with core's identity pairing and loaded check (`_look`), that the holder is the app; a
+    holder that is not stays with the person. It opens no session and calls no method. Not held within the limit is a
+    fail; held by the app within it, whether the Codex window came to the front is the person's to confirm."""
     if not ctx.thread_given:
-        return _blocked("name a throwaway conversation the app does not hold", loaded_listed=False)
+        return _blocked("name a throwaway conversation the app does not hold", holders_read=False)
     running = _app_running(ctx)
-    with ctx.open() as session:
-        held = _held(session, [ctx.probe_thread])
-        if held is None:
-            return _blocked("the conversations the app holds could not be listed", loaded_listed=False)
-        if held:
-            return _blocked("the app holds the throwaway conversation: quit and reopen the Codex app without opening "
-                            "it, then run mopen again", loaded_listed=True, held_before=True)
-        began = time.monotonic()
-        opened = ctx.open_link(ctx.probe_thread)
-        loaded = None
-        while opened:
-            if _held(session, [ctx.probe_thread]):
-                loaded = time.monotonic() - began
-                break
-            if time.monotonic() - began >= _MOPEN_SECONDS:
-                break
-            time.sleep(_MOPEN_POLL_SECONDS)
-    observed = {"loaded_listed": True, "held_before": False, "codex_running": running, "link_opened": opened,
+    before = _lock_users(ctx, ctx.probe_thread)
+    if before is None:
+        return _blocked("who holds the conversation could not be read", holders_read=False)
+    if before:
+        return _blocked("something holds the throwaway conversation: quit and reopen the Codex app without opening "
+                        "it, then run mopen again", holders_read=True, held_before=True, holders=before)
+    began = time.monotonic()
+    opened = ctx.open_link(ctx.probe_thread)
+    loaded, holders, read = None, 0, False
+    while opened:
+        count = _lock_users(ctx, ctx.probe_thread)
+        if count is not None:
+            read, holders = True, count
+        if count:
+            loaded = time.monotonic() - began
+            break
+        if time.monotonic() - began >= _MOPEN_SECONDS:
+            break
+        time.sleep(_MOPEN_POLL_SECONDS)
+    by_app = (_look(ctx, ctx.probe_thread)[0] if loaded is not None else False)
+    observed = {"holders_read": read or not opened, "held_before": False, "codex_running": running,
+                "link_opened": opened, "loaded_by_app": bool(by_app), "holders": holders,
                 "loaded_seconds": _loaded_bucket(loaded)}
     if not opened:
         return _blocked("the conversation's link could not be handed to Windows", **observed)
-    if loaded is None or loaded > 10:
-        return Verdict.FAIL, observed, "the conversation was not loaded within ten seconds of opening its link"
-    return _blocked("it loaded within ten seconds: confirm whether the Codex window came to the front, then set the "
+    if loaded is None:
+        return Verdict.FAIL, observed, "no process held the conversation within the limit of its link being opened"
+    if not by_app:
+        return _blocked("a process took the conversation's lock but core's check does not find it to be the app: look "
+                        "at the Codex app, then set the verdict", **observed)
+    return _blocked("the app held it within the limit: confirm whether the Codex window came to the front, then set the "
                     "verdict", **observed)
 
 
@@ -1937,15 +2007,311 @@ def _mhk(ctx):
 
 
 def _m4b(ctx):
-    """A block from this edition's Stop hook (stop_hook_continuation's M4B, D-stop-hook.md): the harness reads whether
-    the hooks Codex knows can be listed; the rest is the person's in a throwaway with the hook installed. The Stop
-    hook's writer finishes this probe with the hook it installs."""
+    """A block from this edition's Stop hook (stop_hook_continuation's M4B, D-stop-hook.md), run by the person on a
+    throwaway with the capability on - its declaration is written only then (control/hookplugin.py). The harness reads
+    whether our declaration stands, whether the hooks Codex lists can be read and whether one of them runs our
+    launcher - booleans only, no command or path recorded; that a failed turn's block continued it, where the history
+    keeps the reason, that no console window appeared and that the trust prompt appeared once is the person's to see."""
     with ctx.open() as session:
         hooks = session.call("hooks/list", {"cwds": []})
-    observed = {"hooks_listed": isinstance(hooks, (dict, list))}
-    return _blocked("with this edition's Stop hook installed in a throwaway, fail a turn: confirm the hook's block "
-                    "continued the turn, where the history keeps its reason, that no console window appeared and the "
-                    "trust prompt appeared once, then set the verdict", **observed)
+    ours = ctx.stop_hook()
+    commands = {command for command in (ours.get("commands") or ()) if isinstance(command, str)}
+    observed = {"hooks_listed": isinstance(hooks, (dict, list)), "declared": ours.get("declared") is True,
+                "ours_listed": bool(commands) and any(word in commands for word in _strings(hooks))}
+    if not observed["declared"]:
+        return _blocked("turn Continue inside the turn on in a throwaway installation, so its Stop hook is declared, "
+                        "then run m4b again", **observed)
+    return _blocked("with this edition's Stop hook declared, fail a turn: confirm the hook's block continued the turn, "
+                    "where the history keeps its reason, that no console window appeared and the trust prompt appeared "
+                    "once, then set the verdict", **observed)
+
+
+# MANCHOR (v0.6.20): the two reads that tell an idle window from a running one stand this far apart, and how close to
+# five hours after the request its reset must be.
+_MANCHOR_GAP = 20
+_MANCHOR_EARLY, _MANCHOR_LATE = 300, 60
+
+
+def _manchor_read(session):
+    """One usage read as window_anchor keeps it: {"at", "windows"}."""
+    return {"at": time.time(), "windows": credits.parse(session.call(credits.READ, {}))["windows"]}
+
+
+def _manchor(ctx):
+    """Starting an idle 5-hour window early (window_anchor, v0.6.20): two usage reads _MANCHOR_GAP apart must show the
+    window idle (0 %, its reset ~5 h ahead and moving with the clock); then the capability's own request runs once
+    from a new empty folder (`anchor_request`), and two more reads show whether the window now runs with its reset
+    about five hours after the request. What the harness cannot see is the person's: Codex's /usage showing that reset,
+    and no new conversation in the app's list.
+
+    How the owner runs it: with the 5-hour window idle (no Codex use for five hours, or since its reset), `measure
+    manchor`; then look at /usage and the sidebar, and record with `measure-verdict manchor pass as_expected`."""
+    from .engine import anchor
+    with ctx.open() as session:
+        first = _manchor_read(session)
+        time.sleep(_MANCHOR_GAP)
+        second = _manchor_read(session)
+    found = anchor.judge(first, second)
+    observed = {"windows_read": first["windows"] is not None and second["windows"] is not None,
+                "idle_before": found == anchor.IDLE}
+    if found != anchor.IDLE:
+        return _blocked("wait until the 5-hour window is idle - no Codex use since its reset - then run manchor "
+                        "again", **observed)
+    asked_at = time.time()
+    ran = ctx.anchor_request()
+    with ctx.open() as session:
+        after = _manchor_read(session)
+        time.sleep(_MANCHOR_GAP)
+        later = _manchor_read(session)
+    five, _weekly = anchor.windows_of(later["windows"])
+    reset = five.get("reset_at") if five is not None else None
+    near = (type(reset) is int
+            and asked_at + anchor.WINDOW_SECONDS - _MANCHOR_EARLY <= reset <= asked_at + anchor.WINDOW_SECONDS + _MANCHOR_LATE)
+    observed.update({"request_exit_zero": ran.get("code") == 0,
+                     "window_started": anchor.judge(after, later) == anchor.RUNNING,
+                     "reset_near_five_hours": near,
+                     "folder_empty_after": ran.get("folder_empty_after") is True})
+    for key in ("input", "cached", "output"):
+        value = ran.get(key)
+        observed[key + "_tokens"] = value if type(value) is int else None
+    if not (observed["request_exit_zero"] and observed["window_started"] and observed["reset_near_five_hours"]):
+        return Verdict.FAIL, observed, "the request did not start the idle 5-hour window with its reset five hours on"
+    return _blocked("confirm in Codex's /usage that the 5-hour reset is five hours after the request, and that the "
+                    "app's list has no new conversation, then set the verdict", **observed)
+
+
+# --------------------------------------------------------------------------- v0.6.20 (issue #50)
+# Two probes the measurement session runs before an image in a scheduled message and a direct steer send are built
+# (plans/v0619-design/D-issue50.md). Neither is run by an agent. Each is content-free: booleans, counts and the code of
+# a refusal, never a path, an id, a picture or anything a turn said; what only a person can see in the Codex app is
+# left to them, the verdict blocked.
+_SAMPLE_MIMG_CLIENT_IDS = ("00000000-0000-7000-8000-00000000000b", "00000000-0000-7000-8000-00000000000c")
+_SAMPLE_MSTEER_CLIENT_ID = "00000000-0000-7000-8000-00000000000d"
+# One half-transparent red pixel (RGBA 255, 0, 0, 127) as a PNG: the picture MIMG queues. Nothing in it says anything.
+_MIMG_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+_MIMG_IMAGE_TYPES = ("image", "localImage")
+# MSTEER's words: one short, harmless line for the running turn to take in. What the turn answers is never read.
+_MSTEER_TEXT = "Also end your reply with the single word: ok."
+_SAMPLE_MSTEER2_CLIENT_ID = "00000000-0000-7000-8000-00000000000e"
+# What codex/ipc.steer_turn answers, by what it means for MSTEER2: the steer was accepted; the answer did not come or the
+# pipe failed after the request may have been written (the line may be in the turn); the app answered no; no app or no
+# client holding the conversation (nothing was written).
+_IPC_STEERED = "steered"
+_IPC_UNCERTAIN = ("unconfirmed", "broken")
+_IPC_REFUSED = ("refused", "version_mismatch")
+_MSTEER_LOOK_SECONDS = 10.0                   # how long MSTEER looks in the history for its client id after an accept
+_MSTEER_POLL_SECONDS = 0.5
+
+
+def _queued_images(added) -> tuple:
+    """(how many input items the queued submission Codex answered with holds, whether one is an image) - kinds only."""
+    submission = added.get("queuedSubmission") if isinstance(added, dict) else None
+    items = submission.get("input") if isinstance(submission, dict) else None
+    if not isinstance(items, list):
+        return 0, False
+    return len(items), any(isinstance(item, dict) and item.get("type") in _MIMG_IMAGE_TYPES for item in items)
+
+
+def _mimg(ctx):
+    """An image in a scheduled message (image_attachments): the owner names a throwaway conversation the app holds, idle.
+    A one-pixel picture the harness writes into a scratch folder of its own, with one short line of words, is added to
+    the conversation's queue under a client id of no one's (thread/queue/add, MC1's call) as a local image file - the
+    copy of a picture the product would keep until delivery. Codex refusing that shape (a coded answer, so nothing was
+    queued) is followed by the same message with the picture as a data address, once; an answer that did not come is not
+    followed by anything - the add is never repeated. Then, as MC1 does, the queue until the app takes the item, the
+    history for a turn within ten seconds and for the client id on the person's message. The scratch folder is removed
+    when the run ends. That the message showed in Codex as the person's own with the picture in it is what the person
+    watching confirms."""
+    if not ctx.thread_given:
+        return _blocked("name a throwaway conversation the app holds, idle", add_calls=0)
+    import base64
+    import shutil
+    import tempfile
+    scratch = Path(tempfile.mkdtemp(prefix="car-mimg-"))
+    try:
+        picture = scratch / "sample.png"
+        picture.write_bytes(base64.b64decode(_MIMG_PNG_BASE64))
+        shapes = (("local_image", {"type": "localImage", "path": str(picture)}),
+                  ("data_address", {"type": "image", "url": "data:image/png;base64," + _MIMG_PNG_BASE64}))
+        observed = {"add_calls": 0}
+        taken_id = None
+        with ctx.open() as session:
+            for (name, image), client_id in zip(shapes, _SAMPLE_MIMG_CLIENT_IDS):
+                observed["add_calls"] += 1
+                try:
+                    added = session.call("thread/queue/add", {
+                        "threadId": ctx.probe_thread, "clientUserMessageId": client_id,
+                        "input": [{"type": "text", "text": _M2B_PROMPT}, image]})
+                except AdapterError as exc:
+                    observed[name + "_accepted"] = False
+                    if not hasattr(exc, "method"):
+                        # No answer came: it may be queued. Nothing is sent again; the person looks in Codex.
+                        observed["add_answer_uncertain"] = True
+                        return _blocked("the answer to the add did not come: look in Codex whether the message is "
+                                        "queued or shown - it was not added again - and remove it from the queue "
+                                        "yourself if it is there; then run mimg again", **observed)
+                    observed[name + "_refusal_code"] = exc.code
+                    continue
+                count, kept = _queued_images(added)
+                observed.update({name + "_accepted": True, "queued_input_items": count, "queued_keeps_image": kept})
+                taken_id = client_id
+                break
+            if taken_id is None:
+                return (Verdict.FAIL, observed,
+                        "Codex refused the message with a picture in both shapes, as a local file and as a data "
+                        "address")
+            began = time.monotonic()
+            taken = _await_taken(session, ctx.probe_thread, taken_id, _MC1_QUEUE_SECONDS)
+        waited = time.monotonic() - began
+        started = False
+        deadline = time.monotonic() + _MC1_START_SECONDS
+        while taken:
+            try:
+                started = _latest_kinds(ctx)[0] in ("inProgress", "completed")
+            except Exception:
+                started = False
+            if started or time.monotonic() >= deadline:
+                break
+            time.sleep(_M2B_POLL_SECONDS)
+        observed.update({"taken": taken, "taken_seconds": _seconds(waited), "turn_started": started,
+                         "client_id_on_user_item": _client_recorded(ctx, taken_id)})
+    finally:
+        shutil.rmtree(scratch, ignore_errors=True)
+    return _blocked("confirm the message showed in Codex at once as your own, with the picture in it (one half-transparent red pixel) "
+                    "and its line of words, nothing marked it as sent by a program, and the turn ran as one you typed, "
+                    "then set the verdict; if it was not taken, remove it from the conversation's queue in Codex",
+                    **observed)
+
+
+def _running_turn(ctx, turns):
+    """`(the latest turn of the probe's conversation, None)` when Codex's history says it is running, else
+    `(None, the probe's blocked result)`. The history is Codex's own database, read only."""
+    home = getattr(ctx.backend, "codex_home", None)
+    try:
+        running = turns.Turns(home).latest(ctx.probe_thread) if home is not None else None
+    except Exception:
+        return None, _blocked("the history could not be read", history_read=False, steer_calls=0)
+    if running is None or running.status != "inProgress":
+        return None, _blocked("start a long turn in the throwaway conversation in the Codex app and run again while it "
+                              "runs", history_read=True, turn_in_progress=False, steer_calls=0)
+    return running, None
+
+
+def _msteer2(ctx):
+    """A direct steer send through the Desktop's own IPC pipe (steer_send_mode, after MSTEER failed from our own
+    app-server session): the owner names a throwaway conversation the app holds with a long turn running. The harness
+    reads the conversation's latest turn from Codex's history and goes on only if it is running; it records whether the
+    app holds the conversation (core's loaded check and Restart Manager), then makes ONE steer over the pipe
+    (codex/ipc.steer_turn: initialize, the owner of the conversation, thread-follower-steer-turn to that owner) with one
+    short line under a client id of no one's. The pipe's steer names no turn, so the history is read again afterwards: the
+    latest turn must be the one that was running, and the client id on a person's message. A word that says the app
+    refused, or that no app or owner was there, is a fail or a precondition left to the person; a request that may have been
+    written with no answer is recorded as uncertain and is NEVER made again. That the line showed in the running turn as the
+    person's own, once, with no new turn, is what the person watching confirms. `steer_calls` is 1 on every path that
+    reached the pipe, 0 on every other."""
+    if not ctx.thread_given:
+        return _blocked("name a throwaway conversation the app holds with a long turn running", steer_calls=0)
+    from .codex import turns
+    running, stop = _running_turn(ctx, turns)
+    if stop is not None:
+        return stop
+    observed = {"history_read": True, "turn_in_progress": True, "steer_calls": 0}
+    look = _look(ctx, ctx.probe_thread)
+    observed.update({"held_by_app": look[0], "holders": look[1]})
+    called, word = ctx.steer_over_ipc(ctx.probe_thread, _MSTEER_TEXT, _SAMPLE_MSTEER2_CLIENT_ID)
+    if not called:
+        return _blocked("the IPC hand was not wired: run this from the Dashboard's runtime", **observed)
+    observed["steer_calls"] = 1
+    uncertain = word is None or word in _IPC_UNCERTAIN
+    observed.update({"steer_accepted": word == _IPC_STEERED, "answer_uncertain": uncertain,
+                     "pipe_reached": word not in ("no_pipe",), "owner_found": word not in ("no_pipe", "no_client"),
+                     "app_refused": word in _IPC_REFUSED, "version_mismatch": word == "version_mismatch"})
+    if word in _IPC_REFUSED:
+        return Verdict.FAIL, observed, "the Desktop's IPC pipe refused the steer for the conversation"
+    if uncertain:
+        return _blocked("the steer may have been written and no answer came: look in Codex whether the line showed in "
+                        "the running turn - it was not sent again - and do not run msteer2 again before you have looked; "
+                        "then set the verdict", **observed)
+    if word != _IPC_STEERED:
+        return _blocked("the Desktop's IPC pipe was not reached or the app does not hold the conversation, and nothing "
+                        "was written: start Codex, open the throwaway conversation with its long turn, then run msteer2 "
+                        "again", **observed)
+    seen = False
+    deadline = time.monotonic() + _MSTEER_LOOK_SECONDS
+    while True:
+        seen = _client_recorded(ctx, _SAMPLE_MSTEER2_CLIENT_ID)
+        if seen or time.monotonic() >= deadline:
+            break
+        time.sleep(_MSTEER_POLL_SECONDS)
+    try:
+        latest = turns.Turns(getattr(ctx.backend, "codex_home", None)).latest(ctx.probe_thread)
+    except Exception:
+        latest = None
+    observed.update({"client_id_on_user_item": seen,
+                     "latest_turn_unchanged": latest is not None and latest.turn_id == running.turn_id})
+    return _blocked("confirm the line showed in Codex inside the turn that was running, as your own message, once, with "
+                    "no new turn begun by it and nothing else sent, then set the verdict", **observed)
+
+
+def _msteer(ctx):
+    """A direct steer send (steer_send_mode): the owner names a throwaway conversation the app holds with a long turn
+    running (for example "count from 1 to 300 with a pause of two seconds between the numbers, using the shell"). The
+    harness reads the conversation's latest turn from Codex's history and goes on only if it is running; it looks at
+    whether the app holds the conversation (core's loaded check), then calls turn/steer ONCE for that exact turn (expectedTurnId) with one short line of words under a
+    client id of no one's, from the supported connection this product has - a one-turn session of its own app server.
+    It records whether Codex accepted it or refused it with a code (a refusal is certain: nothing was delivered), and
+    for an accept whether the answer names the same turn and whether the history shows the client id on a person's
+    message. An answer that did not come is recorded as uncertain and the call is NEVER made again: the person looks in
+    Codex whether the line showed in the running turn, and `steer_calls` says how many were made - one, on every path
+    that reaches the call. That it showed as the person's own, in the turn that was running and in no other, is what the
+    person watching confirms."""
+    if not ctx.thread_given:
+        return _blocked("name a throwaway conversation the app holds with a long turn running", steer_calls=0)
+    from .codex import turns
+    home = getattr(ctx.backend, "codex_home", None)
+    try:
+        running = turns.Turns(home).latest(ctx.probe_thread) if home is not None else None
+    except Exception:
+        return _blocked("the history could not be read", history_read=False, steer_calls=0)
+    if running is None or running.status != "inProgress":
+        return _blocked("start a long turn in the throwaway conversation in the Codex app and run msteer again while "
+                        "it runs", history_read=True, turn_in_progress=False, steer_calls=0)
+    observed = {"history_read": True, "turn_in_progress": True, "steer_calls": 0}
+    look = _look(ctx, ctx.probe_thread)
+    observed.update({"held_by_app": look[0], "holders": look[1]})
+    with ctx.open() as session:
+        observed["steer_calls"] = 1
+        try:
+            answered = session.call("turn/steer", {"threadId": ctx.probe_thread, "expectedTurnId": running.turn_id,
+                                                   "input": [{"type": "text", "text": _MSTEER_TEXT}],
+                                                   "clientUserMessageId": _SAMPLE_MSTEER_CLIENT_ID})
+        except AdapterError as exc:
+            if hasattr(exc, "method"):
+                observed.update({"steer_accepted": False, "answer_uncertain": False, "refusal_code": exc.code})
+                return (Verdict.FAIL, observed,
+                        "Codex refused turn/steer for the exact active turn of the conversation")
+            observed.update({"steer_accepted": False, "answer_uncertain": True})
+            return _blocked("the answer to turn/steer did not come: look in Codex whether the line showed in the "
+                            "running turn - it was not sent again - and do not run msteer again before you have "
+                            "looked; then set the verdict", **observed)
+    sure = isinstance(answered, dict) and isinstance(answered.get("turnId"), str)
+    observed.update({"steer_accepted": True, "answer_uncertain": False,
+                     "answer_names_same_turn": sure and answered["turnId"] == running.turn_id})
+    seen = False
+    deadline = time.monotonic() + _MSTEER_LOOK_SECONDS
+    while True:
+        seen = _client_recorded(ctx, _SAMPLE_MSTEER_CLIENT_ID)
+        if seen or time.monotonic() >= deadline:
+            break
+        time.sleep(_MSTEER_POLL_SECONDS)
+    try:
+        latest = turns.Turns(home).latest(ctx.probe_thread)
+    except Exception:
+        latest = None
+    observed.update({"client_id_on_user_item": seen,
+                     "latest_turn_unchanged": latest is not None and latest.turn_id == running.turn_id})
+    return _blocked("confirm the line showed in Codex inside the turn that was running, as your own message, with "
+                    "no new turn begun by it and nothing else sent, then set the verdict", **observed)
 
 
 PROBES = {
@@ -1962,6 +2328,8 @@ PROBES = {
     Measurement.MQO: _mqo, Measurement.MQP: _mqp, Measurement.MQG: _mqg,
     Measurement.MTOK: _mtok, Measurement.MOPEN: _mopen, Measurement.MAL: _mal, Measurement.MWAKE: _mwake,
     Measurement.MHK: _mhk, Measurement.M4B: _m4b,
+    Measurement.MANCHOR: _manchor,
+    Measurement.MIMG: _mimg, Measurement.MSTEER: _msteer, Measurement.MSTEER2: _msteer2,
 }
 
 # A conversation and a message id of no one's: the shape a call takes, never a real id. A probe
@@ -2263,7 +2631,33 @@ def live_hands(backend=None, paths=None) -> dict:
             return None
         return result.stdout if result.returncode == 0 else None
 
-    return {"open_link": open_link, "power": _power_look, "wake_after": _wake_after, "scratch_cli": scratch_cli}
+    def anchor_request():
+        # MANCHOR (v0.6.20): window_anchor's own request, once, from a new empty folder made for it - windowless, its
+        # exit code and token counts answered and nothing it printed; the folder is looked at again and left.
+        import tempfile
+        from .engine import anchor
+        used = backend if backend is not None else live_backend(paths)
+        folder = Path(tempfile.mkdtemp(prefix="car-manchor-"))
+        try:
+            answered = anchor.finish_request(anchor.start_request(used, folder))
+        except Exception:
+            return None
+        return dict(answered, folder_empty_after=not any(folder.iterdir()))
+
+    def stop_hook():
+        from .codex import inuse
+        from .control import hookplugin
+        if paths is None:
+            return {}
+        return {"declared": hookplugin.present(paths, inuse.home(paths)),
+                "commands": sorted(hookplugin.ours(paths))}
+
+    def steer_ipc(thread, text, message):
+        from .codex import ipc
+        return str(ipc.steer_turn(thread, text, message=message))
+
+    return {"open_link": open_link, "power": _power_look, "wake_after": _wake_after, "scratch_cli": scratch_cli,
+            "anchor_request": anchor_request, "stop_hook": stop_hook, "steer_ipc": steer_ipc}
 
 
 def _guid(text):

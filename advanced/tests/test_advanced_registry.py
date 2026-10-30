@@ -21,7 +21,7 @@ import advancedcase as ac  # noqa: E402
 import languages  # noqa: E402
 from codex_auto_resume import l10n  # noqa: E402
 from codex_auto_resume.domain.plug import Point  # noqa: E402
-from codex_auto_resume_advanced import registry, standards, statement  # noqa: E402
+from codex_auto_resume_advanced import measured, registry, standards, statement  # noqa: E402
 from codex_auto_resume_advanced.registry import (CAPABILITY_POINTS, Ceilings, Registry,  # noqa: E402
                                                  RegistryError, problems)
 from codex_auto_resume_advanced.vocabulary import ArmingWarning, CapabilityKind, Field, Measurement, OptionKey, Verdict  # noqa: E402
@@ -54,8 +54,13 @@ CHANGES = frozenset({"thread/queue/add", "thread/goal/set",
                      "thread/compact/start", "thread/settings/update"})
 # v0.6.16-beta.4: Codex's models listed (engine/fallback.py).
 READS = READS | {"model/list"}
-# v0.6.16-beta.4: the capabilities that change Codex's state through the Codex app's IPC pipe (codex/ipc.py).
-IPC_CHANGES = frozenset({"usage_pause"})
+# v0.6.20: whether an account is signed in (window_anchor's look before it starts a window; MA's read) and which one
+# (account_switch, codex/account.py) - read, never changed: a sign-in is Codex's own CLI.
+READS = READS | {"account/read"}
+# v0.6.16-beta.4: the capabilities that change Codex's state through the Codex app's IPC pipe (codex/ipc.py) - and,
+# v0.6.20, through a `codex exec` of their own: window_anchor starts the account's 5-hour window, as a reset credit spent
+# changes the account's state (engine/anchor.py); and the steer (thread-follower-steer-turn), which adds to a running turn.
+IPC_CHANGES = frozenset({"usage_pause", "window_anchor", "steer_send"})
 
 
 def standards_text(rule) -> str:
@@ -66,9 +71,11 @@ def standards_text(rule) -> str:
     raise AssertionError(f"{rule} is not in the standards file")
 
 
-# v0.6.19: the capabilities waiting in registry.WAITING whose statement is written already, so that a measurement's pass
-# offers them whole (open_to_send, MOPEN) - their names and statements are in every catalog while they wait.
-STATED_WAITING = (registry.OPEN_TO_SEND,)
+# v0.6.19: the capabilities of registry.WAITING whose statement was written before their measurement passed
+# (open_to_send, MOPEN): their names and statements are in every catalog, waiting or offered. MOPEN passed on
+# codex-cli 0.165.0-alpha.1.2 (2026-10-29), so open_to_send is offered - and already in registry.DEFINITIONS + this.
+# v0.6.20: and Continue inside the turn (stop_hook_continuation, MHK, M4 and M4B), still waiting.
+STATED_WAITING = (registry.OPEN_TO_SEND, registry.STOP_HOOK)
 
 class ShippedTests(unittest.TestCase):
     SHIPPED = ("start_with_codex",
@@ -91,15 +98,30 @@ class ShippedTests(unittest.TestCase):
                "codex_chat",
                # v0.6.18: the weekly update check; and Open Codex on a notice, an action, before the other two.
                "idle_update_check",
+               # v0.6.20: the usage and token analytics; starting the 5-hour window early, before the wake timer, which
+               # stays last at P8.
+               "usage_analytics", "window_anchor",
                # v0.6.19: the wake timer, last at P8, so it reads the due times the others' errands just kept.
+               # v0.6.20: the courier's two - push notices and the status feed - and switching the Codex account, before the
+               # wake timer.
+               "push_notices", "status_feed", "account_switch",
+               # v0.6.20 (#50): steering the running turn, at P8 before the wake timer.
+               "steer_send",
                "wake_for_reset",
                "open_codex_button",
                "long_reset_message", "compat_report")
 
+    # v0.6.20: open_to_send passed its measurement (MOPEN, codex-cli 0.165.0-alpha.1.2, 2026-10-29) and is offered whole,
+    # after the 41 of DEFINITIONS (registry.offered): 42 in the registry this edition runs.
+    OFFERED = ("open_to_send",)
+
     def test_the_registry_this_edition_ships_is_its_capabilities_in_their_order(self):
         self.assertEqual([d.id for d in registry.DEFINITIONS], list(self.SHIPPED))
-        self.assertEqual(len(registry.REGISTRY), len(self.SHIPPED))
-        self.assertEqual(registry.REGISTRY.ids, self.SHIPPED)
+        self.assertEqual(len(registry.DEFINITIONS), 41)
+        self.assertEqual(len(registry.REGISTRY), len(self.SHIPPED) + len(self.OFFERED))
+        self.assertEqual(len(registry.REGISTRY), 42)
+        self.assertEqual(registry.REGISTRY.ids, self.SHIPPED + self.OFFERED)
+        self.assertEqual([definition.id for definition in registry.offered(measured.MEASURED)], list(self.OFFERED))
         # The compatibility report is an action, last: it answers at no point, so it is in no list below.
         self.assertEqual([d.id for d in registry.DEFINITIONS if d.kind == CapabilityKind.ACTION],
                          ["open_codex_button", "long_reset_message", "compat_report"])
@@ -115,7 +137,14 @@ class ShippedTests(unittest.TestCase):
                      Point.SCHEDULE: ("reset_credit", "early_reset", "once_more_when_unsure", "send_now"),
                      Point.TICK: ("compact_continue", "model_fallback", "headless_run", "reset_credit", "reset_message", "empty_response", "subagent_parent",
                                   "keep_going", "usage_meter", "usage_wrap_up", "usage_pause", "idle_update_check",
-                                  "wake_for_reset"),
+                                  "usage_analytics", "window_anchor", "push_notices", "status_feed", "account_switch",
+                                  # v0.6.20 (#50): the steer, before the wake timer.
+                                  "steer_send",
+                                  "wake_for_reset",
+                                  # v0.6.20: offered after the rest, so it answers last (registry.offered).
+                                  "open_to_send"),
+                     # v0.6.20: a notice core raised, told to the courier's push notices.
+                     Point.NOTICE: ("push_notices",),
                      Point.RECORDS: ("reset_message", "prompt_queue", "empty_response", "subagent_parent",
                                      "keep_going", "usage_wrap_up", "codex_chat"),
                      # v0.6.15-beta: the lines a parent's continuation is given of its subagents' stops (5a).
@@ -129,8 +158,9 @@ class ShippedTests(unittest.TestCase):
                      Point.ADMISSION: ("compact_continue", "capacity_retry", "structured_rules", "unknown_failure_budget",
                                        "codex_gave_up", "sign_in_retry"),
                      # v0.6.19: and the chat, for its own messages alone (engine/chat.py).
-                     Point.SENDER: ("goal_continuation", "marker_free_continuation", "codex_chat"),
-                     Point.DELIVERY: ("marker_free_continuation", "silent_continuation", "codex_chat"),
+                     # v0.6.20 (#50 item 1): prompt_queue's own channel for a message with pictures, at P5 and P15.
+                     Point.SENDER: ("goal_continuation", "marker_free_continuation", "prompt_queue", "codex_chat"),
+                     Point.DELIVERY: ("marker_free_continuation", "prompt_queue", "silent_continuation", "codex_chat"),
                      # v0.6.15-beta: several sends waiting for their receipts at once.
                      Point.CONCURRENCY: ("parallel_dispatch",),
                      # v0.6.16-beta.3: which conversations core takes up.
@@ -141,16 +171,23 @@ class ShippedTests(unittest.TestCase):
     # The order a person reads them in (the owner's, 2026-10-10): the compatibility report first, then by importance.
     SHOWN = ("compat_report", "start_with_codex", "crash_restart", "wake_for_reset", "every_conversation", "queue_for_open",
              "open_to_send", "headless_run",
-             "other_sessions", "marker_free_continuation", "silent_continuation", "reset_credit",
+             "other_sessions", "marker_free_continuation",
+             # v0.6.20: the continuation inside the turn, hidden until MHK, M4 and M4B pass.
+             "stop_hook_continuation",
+             "silent_continuation", "reset_credit",
              "early_reset", "parallel_dispatch", "reset_message", "long_reset_message",
-             "usage_meter", "usage_wrap_up", "usage_pause", "keep_going", "prompt_queue",
+             "usage_meter", "usage_wrap_up", "usage_pause", "window_anchor", "keep_going", "usage_analytics", "prompt_queue",
              # v0.6.19: chat with a conversation, beside the queued messages.
              "codex_chat",
-             "empty_response", "once_more_when_unsure", "send_now", "open_codex_button", "capacity_retry",
+             # v0.6.20 (#50): steering the running turn, written in the queue's editor.
+             "steer_send",
+             "empty_response", "once_more_when_unsure", "send_now", "open_codex_button",
+             # v0.6.20: the courier's two, beside Open Codex on a notice.
+             "push_notices", "status_feed", "capacity_retry",
              "compact_continue", "model_fallback",
              "codex_gave_up",
              "goal_continuation", "subagent_parent", "sign_in_retry", "unknown_failure_budget", "idle_update_check",
-             "structured_rules")
+             "account_switch", "structured_rules")
 
     def test_the_shown_order_names_every_capability_of_the_registry_exactly_once(self):
         order, ids = registry.SHOWN_ORDER, registry.REGISTRY.ids
@@ -168,7 +205,7 @@ class ShippedTests(unittest.TestCase):
         self.assertEqual(tuple(d.id for d in registry.shown(registry.REGISTRY)),
                          tuple(capability for capability in self.SHOWN if capability in registry.REGISTRY.ids))
         # Presentation only: the registry itself, which decides who answers first, keeps its own order.
-        self.assertEqual(registry.REGISTRY.ids, self.SHIPPED)
+        self.assertEqual(registry.REGISTRY.ids, self.SHIPPED + self.OFFERED)
         # A registry of some of them (one a test makes) shows those in the owner's order too.
         made = [registry.REGISTRY.get(capability) for capability in ("structured_rules", "compat_report")]
         self.assertEqual([d.id for d in registry.shown(made)], ["compat_report", "structured_rules"])
@@ -358,11 +395,11 @@ class ShippedTests(unittest.TestCase):
     def test_a_capability_that_moves_an_engine_constant_departs_from_h2(self):
         """H2: no setting moves an engine constant, and A20's caps are engine constants (the standards
         file says so). A capability that departs from A20 lets a person's choice move them, so it names
-        H2 as well: the capacity retries, Send now and (v0.6.19) the chat, paced on its own."""
+        H2 as well: the capacity retries, Send now, (v0.6.19) the chat and (v0.6.20) the steer, paced on their own."""
         self.assertIn("engine constants", standards_text("A20"))
         self.assertIn("move an engine constant", standards_text("H2"))
         moving = [definition.id for definition in registry.DEFINITIONS if "A20" in definition.departs_from]
-        self.assertEqual(moving, ["capacity_retry", "send_now", "codex_chat"])
+        self.assertEqual(moving, ["capacity_retry", "send_now", "codex_chat", "steer_send"])
         for definition in registry.DEFINITIONS:
             if "A20" in definition.departs_from:
                 with self.subTest(definition.id):
@@ -443,13 +480,16 @@ class ShippedTests(unittest.TestCase):
 
     def test_the_prompt_queue_departs_and_rests_on_what_the_design_says(self):
         """A8, A17, A26, A27, C4, D2, H4 and H6 - A20 kept (the owner's answer); exact_thread_recovery and MT; core's
-        five a conversation, thirty a day; at P2 alone. And Longer messages is revision 2, naming queued prompts."""
+        five a conversation, thirty a day; at P2. And Longer messages is revision 2, naming queued prompts. v0.6.20 (#50
+        item 1): a message with pictures goes by its own channel through thread/queue/add with no marker, so it names
+        A2, A4, B3 and B4 too and answers at P5 and P15 as well (revision 3)."""
         found = registry.REGISTRY.get("prompt_queue")
-        self.assertEqual(found.departs_from, ("A8", "A17", "A26", "A27", "C4", "D2", "H4", "H6"))
+        self.assertEqual(found.departs_from, ("A2", "A4", "A8", "A17", "A26", "A27", "B3", "B4", "C4", "D2", "H4",
+                                              "H6"))
         self.assertNotIn("A20", found.departs_from)
         self.assertEqual((found.compat, found.measurements, found.journal_prefix),
                          ("exact_thread_recovery", (Measurement.MT,), "queue"))
-        self.assertEqual(found.points, frozenset({Point.RECORDS}))
+        self.assertEqual(found.points, frozenset({Point.RECORDS, Point.SENDER, Point.DELIVERY}))
         self.assertEqual((found.ceilings.per_day, found.ceilings.per_conversation), (30, registry.CORE_DAILY_CAP))
         self.assertEqual(registry.LONG_RESET_MESSAGE.revision, 2)
 
@@ -882,10 +922,12 @@ class ShippedCatalogTests(unittest.TestCase):
 
     def test_the_page_s_words_are_every_page_key_every_name_and_the_three_states(self):
         """What advanced-words hands the Dashboard's Advanced features page: its own words, a name for every
-        capability the edition ships and the three states' words - in the person's language, each language's own."""
+        capability the edition ships and the three states' words - in the person's language, each language's own - and
+        (v0.6.20) the edition's own continuations, which See an example shows as what is sent."""
         english = statement.CATALOGS.words("en")
         wanted = (set(statement.PAGE_KEYS) | {"state.off", "state.shadow", "state.armed"}
-                  | {statement.name_key(definition.id) for definition in registry.DEFINITIONS + STATED_WAITING})
+                  | {statement.name_key(definition.id) for definition in registry.DEFINITIONS + STATED_WAITING}
+                  | set(statement.CONTINUATION_KEYS))
         self.assertEqual(set(english), wanted)
         for locale in l10n.LOCALES:
             with self.subTest(locale):

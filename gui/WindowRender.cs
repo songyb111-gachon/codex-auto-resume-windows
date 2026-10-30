@@ -7,7 +7,8 @@
 // a bridge, so nothing is read from an installation, nothing is written anywhere but the job's folder, and no
 // process is started. For each frame of the job it is put in a state - a page, a Settings section, a scroll
 // offset, a control's hover or pressed face, a drop-down's value, its open list, a Pending row chosen and its own
-// menu open (v0.6.18), the moment of its lights -
+// menu open (v0.6.18), an action in flight (v0.6.20: SetBusy), the answers of another state of the installation
+// (paused), Why it is waiting scrolled, a dialog the window opened (Timeline) over it, the moment of its lights -
 // waits until it holds still as a capture waits (Settled), and draws itself into a bitmap; only what changed
 // since the frame before is written.
 
@@ -127,6 +128,13 @@ namespace CodexAutoResume
                 AdoptTextSize(text, TextScale.Fitting(text, Screen.PrimaryScreen.WorkingArea.Size, DpiScale));
                 Soft.StillLightMs = 0;
                 PersistentBridge.Answers = RenderAnswer;
+                // The window as the picture frames it, and the title bar a dialog is drawn with over it (RenderDialog).
+                renderOuter = new Size(0, 0);
+                var outer = Items(job, "outer");
+                if (outer != null && outer.Count == 2)
+                    renderOuter = new Size(Convert.ToInt32(outer[0], CultureInfo.InvariantCulture),
+                                           Convert.ToInt32(outer[1], CultureInfo.InvariantCulture));
+                renderChrome = Map(job, "chrome");
                 // The job's command line, read as the window's own is (ParseArguments), for what a page takes from it:
                 // the advanced edition's `--capability=`. The standard window takes nothing here.
                 var arguments = new List<string>();
@@ -140,13 +148,18 @@ namespace CodexAutoResume
                     var frame = item as Dictionary<string, object>;
                     if (frame == null) continue;
                     string locale = Str(frame, "locale") ?? "en";
-                    if (form == null || formLocale != locale)
+                    // Another state of the installation answers its reads (a paused watcher: `variant` "paused" reads
+                    // the replies the job gives for "<locale>-paused"): the window is opened again on them, as it is for
+                    // another language.
+                    string variant = Str(frame, "variant");
+                    string answersOf = variant == null ? locale : locale + "-" + variant;
+                    if (form == null || formLocale != answersOf)
                     {
                         if (form != null) form.Dispose();
                         form = null;
-                        renderAnswers = Items(Map(forms, locale), "answers");
+                        renderAnswers = Items(Map(forms, answersOf), "answers");
                         form = OpenForRender(writer);
-                        formLocale = locale;
+                        formLocale = answersOf;
                     }
                     form.RenderState(frame, writer);
                     using (Bitmap picture = form.RenderPicture(frame, writer))
@@ -277,11 +290,55 @@ namespace CodexAutoResume
             // The chosen row again, now that the page holds still (RenderSelected).
             RenderSelected(Map(frame, "selected"));
             RenderScroll(page, Map(frame, "scroll"));
+            RenderExplain(page, Map(frame, "explain"));
             RenderFace(Str(frame, "hover"), Str(frame, "pressed"), writer);
             object light;
             Soft.StillLightMs = frame.TryGetValue("light", out light) && light != null
                 ? Convert.ToDouble(light, CultureInfo.InvariantCulture) : 0;
+            // An action in flight, as the window counts it (SetBusy): its buttons wait their turn and the header's light
+            // is the working one (BusyLight). After the moment of the lights, which the header reads as it follows.
+            object working;
+            RenderBusy(frame.TryGetValue("busy", out working) && Equals(working, true));
             HoldStill(false);
+        }
+
+        // Whether the last frame had an action in flight (RenderBusy).
+        private bool renderBusy;
+
+        /// The window's own count of an action in flight, raised or let go as the frame says: SetBusy, which waits on
+        /// nothing - what a Retry now, a Pause or a Rescan raises for as long as the bridge's call lasts.
+        private void RenderBusy(bool on)
+        {
+            if (on == renderBusy) return;
+            renderBusy = on;
+            SetBusy(on);
+        }
+
+        /// Why it is waiting scrolled `notches` turns of the wheel down, the last of them `glide_ms` into its glide: its
+        /// checks' own soft page (the Pending page's), moved as the wheel moves any page (RenderOffset).
+        private void RenderExplain(string page, Dictionary<string, object> scroll)
+        {
+            if (page != "pending" || explainPage == null) return;
+            int notches = scroll == null ? 0 : Convert.ToInt32(scroll["notches"], CultureInfo.InvariantCulture);
+            object gliding;
+            int glide = scroll != null && scroll.TryGetValue("glide_ms", out gliding) && gliding != null
+                ? Convert.ToInt32(gliding, CultureInfo.InvariantCulture) : -1;
+            ISoftScroller scroller = explainPage;
+            scroller.ScrollTo(RenderOffset(scroller.Extent, scroller.Viewport, notches, glide));
+        }
+
+        /// The control a frame's target names that the window's command line has no name for: the Pending page's own
+        /// buttons and its explanation, the Overview's Pause or Resume. Null for every other name.
+        private Control RenderControl(string name)
+        {
+            switch (name)
+            {
+                case "pending.retry": return retryButton;
+                case "pending.timeline": return timelineButton;
+                case "pending.explain": return explainPage == null ? null : explainPage.Parent;
+                case "overview.toggle": return toggleButton;
+            }
+            return null;
         }
 
         /// A drop-down showing a value that is not saved, as a pick from its list leaves it; the value it was built
@@ -377,8 +434,9 @@ namespace CodexAutoResume
             string name = pressed ?? hover;
             // A row of an open list, a Pending row or an item of the row menu: drawn by RenderPicture, not a control's face.
             if (name == null || name.StartsWith("row.", StringComparison.Ordinal) ||
-                name.StartsWith("task.", StringComparison.Ordinal) || name.StartsWith("menu.", StringComparison.Ordinal)) return;
-            Control control = FocusTarget(name);
+                name.StartsWith("task.", StringComparison.Ordinal) || name.StartsWith("menu.", StringComparison.Ordinal) ||
+                name.StartsWith("dialog.", StringComparison.Ordinal)) return;
+            Control control = RenderControl(name) ?? FocusTarget(name);
             if (control == null) { writer.Note("no control is called " + name); return; }
             SetRenderFace(control, true, pressed != null);
             renderFaced = control;
@@ -401,13 +459,19 @@ namespace CodexAutoResume
         /// gutters are painted again on top, as far as the window shows that list, as the screen draws them.
         private void PaintListGutters(Bitmap picture)
         {
+            PaintListGutters(picture, this);
+        }
+
+        /// The same for the lists under `root` - the window, or a dialog it has open (RenderDialog) - in the picture of it.
+        private void PaintListGutters(Bitmap picture, Control root)
+        {
             var hosts = new List<SoftListHost>();
             var walk = new Stack<Control>();
-            walk.Push(this);
+            walk.Push(root);
             while (walk.Count > 0)
             {
                 Control control = walk.Pop();
-                if (control != this && !Soft.OwnVisible(control)) continue;
+                if (control != root && !Soft.OwnVisible(control)) continue;
                 var host = control as SoftListHost;
                 if (host != null) hosts.Add(host);
                 foreach (Control child in control.Controls) walk.Push(child);
@@ -415,11 +479,11 @@ namespace CodexAutoResume
             foreach (SoftListHost host in hosts)
             {
                 if (!host.IsHandleCreated) continue;
-                Point at = PointToClient(host.PointToScreen(Point.Empty));
+                Point at = root.PointToClient(host.PointToScreen(Point.Empty));
                 var shown = new Rectangle(at, host.Size);
-                for (Control parent = host.Parent; parent != null && parent != this; parent = parent.Parent)
+                for (Control parent = host.Parent; parent != null && parent != root; parent = parent.Parent)
                     if (parent.IsHandleCreated)
-                        shown.Intersect(new Rectangle(PointToClient(parent.PointToScreen(Point.Empty)), parent.ClientSize));
+                        shown.Intersect(new Rectangle(root.PointToClient(parent.PointToScreen(Point.Empty)), parent.ClientSize));
                 if (shown.Width <= 0 || shown.Height <= 0) continue;
                 using (Graphics g = Graphics.FromImage(picture))
                 {
@@ -441,11 +505,16 @@ namespace CodexAutoResume
             PaintListGutters(picture);
             renderRows = null;
             renderMenu = null;
+            renderDialogBounds = null;
             // v0.6.18: a Pending row's own menu, over everything: a window of its own too (SoftMenu), drawn by its own
             // card where it opens.
             RenderDropList(picture, Map(frame, "droplist"), writer);
             var menu = Map(frame, "menu");
             if (menu != null) RenderMenu(picture, Str(menu, "at"), Str(frame, "hover"), writer);
+            // v0.6.20: a dialog the window opened, centred over it: a top-level window of its own, drawn by its own
+            // controls, with the title bar Windows draws round it.
+            var dialog = Map(frame, "dialog");
+            if (dialog != null) RenderDialog(picture, dialog, Str(frame, "hover"), Str(frame, "pressed"), writer);
             return picture;
         }
 
@@ -593,10 +662,12 @@ namespace CodexAutoResume
                 Rectangle rect;
                 if (renderRows != null && renderRows.TryGetValue(name, out rect)) { found[name] = Box(rect); continue; }
                 if (renderMenu != null && renderMenu.TryGetValue(name, out rect)) { found[name] = Box(rect); continue; }
+                if (renderDialogBounds != null && renderDialogBounds.TryGetValue(name, out rect)) { found[name] = Box(rect); continue; }
                 int row;
                 if (RenderTask(name, out rect, out row)) { found[name] = Box(rect); continue; }
-                if (name.StartsWith("menu.", StringComparison.Ordinal) || name.StartsWith("task.", StringComparison.Ordinal)) continue;
-                Control control = name.StartsWith("row.", StringComparison.Ordinal) ? null : FocusTarget(name);
+                if (name.StartsWith("menu.", StringComparison.Ordinal) || name.StartsWith("task.", StringComparison.Ordinal) ||
+                    name.StartsWith("dialog.", StringComparison.Ordinal)) continue;
+                Control control = name.StartsWith("row.", StringComparison.Ordinal) ? null : (RenderControl(name) ?? FocusTarget(name));
                 if (control == null) continue;
                 bool shows = true;
                 for (Control c = control; c != null && c != this; c = c.Parent) shows &= OwnVisible(c);
@@ -610,6 +681,163 @@ namespace CodexAutoResume
         private static List<object> Box(Rectangle rect)
         {
             return new List<object> { (double)rect.X, (double)rect.Y, (double)rect.Width, (double)rect.Height };
+        }
+
+        // ------------------------------------------------------------------ a dialog the window opened (v0.6.20)
+        // The window the picture frames, as big as its caption and client area together, and the colours of the title bar
+        // Windows draws round a dialog (the job: `outer` and `chrome`); both from the committed still of the window.
+        private static Size renderOuter;
+        private static Dictionary<string, object> renderChrome;
+
+        // The named parts of the dialog the last picture showed (`dialog.close`), in client coordinates.
+        private Dictionary<string, Rectangle> renderDialogBounds;
+
+        /// Where a dialog's window `size` big goes over the window `owner` big, both with their title bars: centred on it,
+        /// as StartPosition.CenterParent centres a dialog on the window that opened it.
+        internal static Point RenderDialogPlace(Size size, Size owner)
+        {
+            return new Point((owner.Width - size.Width) / 2, (owner.Height - size.Height) / 2);
+        }
+
+        private static Color ChromeColour(Dictionary<string, object> chrome, string key, Color otherwise)
+        {
+            List<object> rgb = Items(chrome, key);
+            if (rgb == null || rgb.Count != 3) return otherwise;
+            // Written as the page writes a colour (brand.py's #RRGGBB), never as a colour of the window's own.
+            return ColorTranslator.FromHtml(string.Format(CultureInfo.InvariantCulture, "#{0:X2}{1:X2}{2:X2}",
+                                                          Convert.ToInt32(rgb[0], CultureInfo.InvariantCulture),
+                                                          Convert.ToInt32(rgb[1], CultureInfo.InvariantCulture),
+                                                          Convert.ToInt32(rgb[2], CultureInfo.InvariantCulture)));
+        }
+
+        /// A dialog the window opens, over the picture: built by the very method the click builds it with (BuildTimeline,
+        /// which OpenTimeline shows) from the reply the bridge gives for the chosen row, its controls laid out and drawn as
+        /// the window's own are (a top-level window in a picture would need the screen), then framed by the title bar
+        /// and border Windows draws round it - its title, the product's icon, the three caption buttons - and centred on
+        /// the window (RenderDialogPlace) over a soft shadow. `hover` or `pressed` naming `dialog.close` gives its
+        /// Close button that face.
+        private void RenderDialog(Bitmap picture, Dictionary<string, object> dialog, string hover, string pressed,
+                                  RenderWriter writer)
+        {
+            string kind = Str(dialog, "kind");
+            ListView list = Str(dialog, "list") == "history" ? historyList : pendingList;
+            if (kind != "timeline") { writer.Note("no dialog is called " + kind); return; }
+            var row = Selected(list);
+            if (row == null || IsDemo(row)) { writer.Note("no task is chosen for the " + kind + " dialog"); return; }
+            var reply = RenderAnswer("timeline", IdArgument(row));
+            if (!Ok(reply)) { writer.Note("the timeline of the chosen task was not answered"); return; }
+            var result = Map(reply, "result");
+            using (Form form = BuildTimeline(row, Items(result, "events"), Items(result, "receipts")))
+            {
+                // Its client area at the size it opens at, kept when the window's own frame is taken off it.
+                Size client = form.ClientSize;
+                string title = form.Text;
+                Icon icon = form.Icon;
+                form.TopLevel = false;
+                form.FormBorderStyle = FormBorderStyle.None;
+                form.ClientSize = client;
+                // Shown as a child of Windows' parking window, as the window itself is (OpenForRender), never as a child
+                // of the window: the grounds in it would stamp the window's own lifts into the dialog.
+                form.CreateControl();
+                IntPtr made = form.Handle;
+                form.Visible = true;
+                for (int turn = 0; turn < 20; turn++)
+                {
+                    Application.DoEvents();
+                    Application.RaiseIdle(EventArgs.Empty);
+                    Materialise(form);
+                    form.PerformLayout();
+                    System.Threading.Thread.Sleep(10);
+                }
+                var close = form.CancelButton as Control;
+                if (close != null) SetRenderFace(close, hover == "dialog.close" || pressed == "dialog.close", pressed == "dialog.close");
+                Application.DoEvents();
+                using (var body = new Bitmap(client.Width, client.Height, PixelFormat.Format32bppArgb))
+                {
+                    // On the dialog's own ground, not on whatever is behind it: a soft control draws over its parent's.
+                    using (Graphics ground = Graphics.FromImage(body)) ground.Clear(form.BackColor);
+                    form.Invalidate(true);
+                    form.DrawToBitmap(body, new Rectangle(Point.Empty, client));
+                    PaintListGutters(body, form);
+                    // The window's own caption height: what the picture frames above its client area.
+                    int caption = Math.Max(0, renderOuter.Height - ClientSize.Height);
+                    int border = Math.Max(1, Px(1));
+                    Size outer = new Size(client.Width + 2 * border, caption + client.Height + border);
+                    Point place = RenderDialogPlace(outer, renderOuter);
+                    // Client coordinates: the owner's own caption is above them.
+                    place.Y -= caption;
+                    PaintDialog(picture, body, place, outer, caption, border, title, icon, form.BackColor);
+                    renderDialogBounds = new Dictionary<string, Rectangle>();
+                    renderDialogBounds["dialog.window"] = new Rectangle(place.X, place.Y, outer.Width, outer.Height);
+                    if (close != null)
+                    {
+                        Point inForm = new Point(close.Left, close.Top);
+                        for (Control up = close.Parent; up != null && up != form; up = up.Parent) { inForm.X += up.Left; inForm.Y += up.Top; }
+                        renderDialogBounds["dialog.close"] = new Rectangle(place.X + border + inForm.X, place.Y + caption + inForm.Y,
+                                                                          close.Width, close.Height);
+                    }
+                }
+            }
+        }
+
+        /// The dialog's window over `picture`: a soft shadow, the border, the title bar and the drawn client area.
+        private void PaintDialog(Bitmap picture, Bitmap body, Point place, Size outer, int caption, int border,
+                                 string title, Icon icon, Color ground)
+        {
+            Color bar = ChromeColour(renderChrome, "caption", Canvas);
+            Color ink = ChromeColour(renderChrome, "ink", Ink);
+            Color line = ChromeColour(renderChrome, "line", Soft.Mix(Canvas, Ink, 0.35));
+            using (Graphics g = Graphics.FromImage(picture))
+            {
+                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                // The shadow Windows puts round a window: a soft one, deeper below than above.
+                int reach = Px(14), drop = Px(6);
+                for (int step = reach; step >= 1; step--)
+                {
+                    // About a sixth of the light at the edge, over every layer that reaches it, fading out to nothing.
+                    using (var brush = new SolidBrush(Soft.WithAlpha(Ink, 0.17 / reach)))
+                        g.FillRectangle(brush, place.X - step, place.Y - step + drop, outer.Width + 2 * step, outer.Height + 2 * step);
+                }
+                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.None;
+                using (var brush = new SolidBrush(line))
+                    g.FillRectangle(brush, place.X, place.Y, outer.Width, outer.Height);
+                using (var brush = new SolidBrush(bar))
+                    g.FillRectangle(brush, place.X + border, place.Y + border, outer.Width - 2 * border, caption - border);
+                // The dialog's own ground under what its controls drew: a control that draws part of itself clear shows it,
+                // not the shadow that lies under the whole window.
+                using (var brush = new SolidBrush(ground))
+                    g.FillRectangle(brush, place.X + border, place.Y + caption, body.Width, body.Height);
+                g.DrawImageUnscaled(body, place.X + border, place.Y + caption);
+                // The product's icon, the title, and the caption buttons: Close, Maximise and the Minimise this dialog
+                // does not offer (MinimizeBox is off), drawn lighter.
+                int small = Math.Min(caption - 2 * border, Px(16));
+                int middle = place.Y + caption / 2;
+                if (icon != null)
+                    using (var scaled = new Icon(icon, new Size(small, small)))
+                        g.DrawIcon(scaled, new Rectangle(place.X + Px(12), middle - small / 2, small, small));
+                // Windows' own caption font, as it draws a title.
+                using (Font font = SystemFonts.CaptionFont)
+                    TextRenderer.DrawText(g, title ?? "", font,
+                                          new Rectangle(place.X + Px(12) + small + Px(10), place.Y, outer.Width, caption),
+                                          ink, TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix |
+                                          TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
+                int button = Px(46), glyph = Px(10);
+                float stroke = Math.Max(1f, (float)Math.Round(DpiScale));
+                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                int right = place.X + outer.Width - border;
+                using (var pen = new Pen(ink, stroke))
+                using (var faint = new Pen(Soft.WithAlpha(ink, 0.43), stroke))
+                {
+                    float cx = right - button / 2f;
+                    g.DrawLine(pen, cx - glyph / 2f, middle - glyph / 2f, cx + glyph / 2f, middle + glyph / 2f);
+                    g.DrawLine(pen, cx - glyph / 2f, middle + glyph / 2f, cx + glyph / 2f, middle - glyph / 2f);
+                    cx -= button;
+                    g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.None;
+                    g.DrawRectangle(pen, (int)(cx - glyph / 2f), middle - glyph / 2, glyph, glyph);
+                    cx -= button;
+                    g.DrawLine(faint, cx - glyph / 2f, middle, cx + glyph / 2f, middle);
+                }
+            }
         }
 
         /// Writes each frame as the rectangle that changed since the one before - the first whole - as raw RGB, and

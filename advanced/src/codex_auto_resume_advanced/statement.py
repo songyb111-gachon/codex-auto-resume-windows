@@ -25,7 +25,7 @@ from pathlib import Path
 
 from codex_auto_resume import l10n
 
-from .vocabulary import ArmingState, ArmingWarning, Field, ReportRefusal, ReportWrite, WebReason
+from .vocabulary import ArmingState, ArmingWarning, Field, ReportRefusal, ReportWrite, SteerReason, WebReason
 
 DIRECTORY = Path(__file__).resolve().parent / "locales"
 FIELDS = tuple(Field)
@@ -111,6 +111,8 @@ PAGE_KEYS = tuple(PAGE_PREFIX + name for name in (
     "watchlog.answer.silent",
     # v0.6.19 (the groundwork): P13's two words, which a watched supervisor would answer.
     "watchlog.answer.supervise", "watchlog.answer.restart",
+    # v0.6.20 (push_notices): a notice it would have pushed.
+    "watchlog.answer.notice",
     # v0.6.16-beta.3: a message a watched capability would have sent.
     "watchlog.answer.records",
     "watchlog.answer.other",
@@ -161,6 +163,15 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "queue.at", "queue.series", "queue.state.waiting", "queue.state.held", "queue.state.in_codex",
     "queue.state.being_sent", "queue.state.refused", "queue.unproven", "queue.go_on", "confirm.prompt",
     "done.prompt_added", "refused.prompt_refused", "refused.queue_full", "refused.dependency_unknown",))
+# Steer the running turn (v0.6.20, issue #50 - steer_send): the editor's When choice, its warning and its button, what a
+# steer refused at once says, and History's row for a steer - its kind, its states, the words sent and what each outcome
+# and each refusal means (advanced/gui/AdvancedEditor.cs, AdvancedSchedule.cs; vocabulary.SteerState, SteerReason).
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
+    "editor.when.steer", "editor.steer.warning", "editor.steer.send", "done.steer_sent", "refused.no_turn_running",
+    "refused.steer_waiting", "refused.steer_full",
+    "pending.kind.steer", "steer.state.waiting", "steer.state.accepted", "steer.state.unconfirmed", "steer.state.refused",
+    "steer.sent", "steer.note.waiting", "steer.note.accepted", "steer.note.unconfirmed")) + tuple(
+    PAGE_PREFIX + "steer.reason." + str(reason) for reason in SteerReason)
 # A capability that needs another (v0.6.16-beta.3, registry.CapabilityDef.requires): what its card says it needs, the
 # one confirmation that turns on what it needs too, what turning a requirement off turned off first, and the words for
 # a dependent read down because what it needs is off.
@@ -210,8 +221,20 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "option.custom",
     # (j) the percentages of a window in order, and the forced stop below the words' stop only said.
     "refused.option_order", "warn.stop_before_words"))
+# usage_analytics (v0.6.20): how many days its card shows (OptionKey.ANALYTICS_DAYS).
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in ("option.analytics_days",))
+# Its cards (advanced/gui/AdvancedAnalytics.cs): the pace of each window, the tokens of each project and the total, the
+# conversations under a project, the narrower route's note, and Save as CSV....
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + "analytics." + name for name in (
+    "pace", "used", "change", "eta", "not_enough", "resets", "no_reading", "tokens", "lifetime_only", "behind",
+    "other", "hide", "show", "none", "total", "save", "numbers", "lifetime"))
 # v0.6.19 (wake_for_reset): its one choice's label, how many minutes before a reset the PC is woken.
 PAGE_KEYS = PAGE_KEYS + (PAGE_PREFIX + "option.wake_lead_minutes",)
+# v0.6.20 (window_anchor): its three times of day and its After a reset switch, a time switched off, and the line on its
+# card that says the reset its last start fixed.
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
+    "option.anchor_at_1", "option.anchor_at_2", "option.anchor_at_3", "option.anchor_after_reset", "option.off",
+    "anchor.fixed"))
 # open_to_send's two choices (v0.6.19, #50): how long the PC has been idle first, and Also start Codex (a switch).
 PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in ("option.open_idle_minutes", "option.open_start_codex"))
 # The prompt queue's editor (v0.6.19, #50: advanced/gui/AdvancedEditor.cs): Schedule a message..., Edit..., the dialog's
@@ -224,6 +247,20 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
 # with its search box and its list, and what it says when nothing matches or the list could not be read.
 PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "find.button", "find.title", "find.search", "find.use", "find.none", "find.failed"))
+# A delivered message followed through (v0.6.20, #50: advanced/gui/AdvancedFollow.cs): History's Follow through..., the
+# dialog's title, its rows - sent, delivered, each cut-off, the reset waited for, where the recovery stands - how the work
+# ended, how the turn was tied to the message, a series' last occurrence, and the line for an answer that did not come.
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + "follow." + name for name in (
+    "button", "title", "failed", "sent", "delivered_turn", "delivered", "cut", "reset", "recovery", "end.still_running",
+    "end.finished", "end.waiting", "end.recovering", "end.recovered", "end.ended", "end.unknown", "link.exact", "link.time",
+    "link.ambiguous", "link.no_record", "link.not_found", "series"))
+# Pictures in a scheduled message (v0.6.20, #50 item 1: advanced/gui/AdvancedEditor.cs, AdvancedSchedule.cs): the editor's
+# block - its caption, Add a picture..., the line on what it takes, each thumbnail's name and Remove - the count a row
+# says, and each word the bridge refuses a picture with.
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
+    "editor.images", "editor.images.add", "editor.images.help", "editor.images.remove", "editor.images.picture",
+    "queue.images", "refused.image_refused", "refused.image_too_large", "refused.images_full",
+    "refused.images_unavailable"))
 # Pending's one list (v0.6.19, #50; the owner's decision of 2026-10-24: advanced/gui/AdvancedSchedule.cs): the Kind of a
 # message's and a rule's row, what a message does while a turn runs, History's completed messages and Delete completed,
 # and the prompt queue's card pointing to Pending. The tab strip's words went with the strip.
@@ -231,10 +268,82 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "pending.kind.message", "pending.kind.rule", "pending.rule.held", "confirm.clear_both",
     "confirm.clear", "done.cleared", "done.cleared_kept", "scheduled.state.delivered",
     "scheduled.state.handed_over", "scheduled.mode.wait", "scheduled.mode.queue", "queue.moved"))
+# See an example (v0.6.20, the owner's decision of 2026-10-29: advanced/gui/AdvancedExamples.cs): the button at the end of a
+# capability's About this feature card, and the view it opens - its title, its note that the sample is made up, and its two
+# panes' captions.
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
+    "example.button", "example.title", "example.before", "example.after", "example.note"))
 # early_reset on Pending (v0.6.19, #50: advanced/gui/AdvancedEarly.cs): what Why it is waiting says of its last reading. Its
 # line's Check now and settings button went with the line (the owner's decision of 2026-10-24), and their words.
 PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "early.none", "early.available_first", "early.lifted", "early.limited", "early.unknown", "early.not_read"))
+# v0.6.20 (push_notices, status_feed - the courier): what a push says (its event in words and the edition, also the card's
+# event switches), the courier's card - its channels, fields, buttons, outcomes and refusals - and the status feed's line
+# on the Overview with its choice.
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
+    "push.usage_limit_detected",
+    "push.recovered",
+    "push.failed",
+    "push.needs_you",
+    "push.stopped_unexpectedly",
+    "push.restarted",
+    "push.update_offered",
+    "push.test",
+    "push.edition",
+    "courier.title",
+    "courier.events",
+    "courier.channel.ntfy",
+    "courier.channel.webhook",
+    "courier.channel.telegram",
+    "courier.channel.email",
+    "courier.saved",
+    "courier.not_saved",
+    "courier.tripped",
+    "courier.secret_note",
+    "courier.field.url",
+    "courier.field.token",
+    "courier.field.bot_token",
+    "courier.field.host",
+    "courier.field.port",
+    "courier.field.user",
+    "courier.field.password",
+    "courier.field.from",
+    "courier.field.to",
+    "courier.save",
+    "courier.replace",
+    "courier.forget",
+    "courier.test",
+    "courier.pair",
+    "courier.pair_code",
+    "courier.paired",
+    "courier.not_paired",
+    "courier.result.sent",
+    "courier.result.refused",
+    "courier.result.server_error",
+    "courier.result.timed_out",
+    "courier.result.tls",
+    "courier.result.busy",
+    "courier.result.not_saved",
+    "courier.result.no_answer",
+    "refused.address_refused",
+    "refused.secret_unavailable",
+    "refused.not_saved",
+    "refused.courier_unavailable",
+    "done.courier_saved",
+    "done.courier_forgotten",
+    "confirm.courier_forget",
+    "feed.label",
+    "feed.degraded",
+    "feed.outage",
+    "option.feed_minutes",
+))
+# The Codex account card (v0.6.20, account_switch: advanced/gui/AdvancedAccount.cs): the account signed in, how to switch in
+# Codex, the button that runs Codex's own sign-out and sign-in, its question, its wait, how it ended and its refusals.
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
+    "account.title", "account.signed_in", "account.signed_in_only", "account.api_key", "account.plan_other",
+    "account.signed_out", "account.unknown", "account.guidance", "account.waiting", "account.button",
+    "account.button_help", "confirm.account_switch", "account.result.signed_in", "account.result.cancelled",
+    "account.result.timed_out", "account.result.failed", "refused.switch_unmeasured", "refused.switch_running"))
 # The edition's own continuations' words (v0.6.15-beta): what empty_response, subagent_parent and keep_going send -
 # fixed, each passing core's continuation.validate_continuation in every language (nothing is filled in but, for a
 # subagent's line, its id and a closed kind word).
@@ -307,11 +416,12 @@ class Catalogs:
 
     def words(self, locale=None) -> dict:
         """The Advanced features page's words in `locale`, English underneath: every `page.*`
-        and `name.*` entry, and the three states'. Unfilled - the window fills `{name}` and `{n}`
-        itself, as it fills core's."""
+        and `name.*` entry, and the three states' - and (v0.6.20) the edition's own continuations
+        (CONTINUATION_KEYS), which See an example shows as what is sent. Unfilled - the window fills
+        `{name}` and `{n}` itself, as it fills core's."""
         table = self.catalog(l10n.current() if locale is None else locale)
         return {name: value for name, value in table.items()
-                if name.startswith((PAGE_PREFIX, NAME_PREFIX, "state."))}
+                if name.startswith((PAGE_PREFIX, NAME_PREFIX, "state.")) or name in CONTINUATION_KEYS}
 
     def missing(self, definition) -> list:
         """(locale, field) for every field of `definition`'s statement a language does not have

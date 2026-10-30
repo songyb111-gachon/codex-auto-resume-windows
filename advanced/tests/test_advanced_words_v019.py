@@ -42,7 +42,15 @@ COMMANDS = ("advanced-analytics", "advanced-analytics-csv", "advanced-courier", 
             "advanced-account-switch")
 # The commands whose capability has been built since, each with what answers it now: no longer passed over.
 BUILT = {"advanced-prompts-clear-done": "#50, Delete completed (control/prompts.clear_done)",
-         "advanced-prompt-edit": "#50, the editor's Save and return on a waiting message (control/prompts.edit)"}
+         "advanced-prompt-edit": "#50, the editor's Save and return on a waiting message (control/prompts.edit)",
+         # v0.6.20, the courier (control/courier.py).
+         "advanced-courier": "the courier's card read", "advanced-courier-save": "one channel saved, or Telegram paired",
+         "advanced-courier-forget": "one channel forgotten", "advanced-courier-test": "a test notice",
+         "advanced-feed-refresh": "the status feed read now",
+         "advanced-analytics": "usage_analytics, its card (control/analytics.view)",
+         "advanced-analytics-csv": "usage_analytics, its CSV (control/analytics.save_csv)",
+         "advanced-account": "account_switch, the account card's read (control/account.view)",
+         "advanced-account-switch": "account_switch, Codex's own sign-out and sign-in (control/account.switch)"}
 
 
 class WordTests(unittest.TestCase):
@@ -52,11 +60,15 @@ class WordTests(unittest.TestCase):
             with self.subTest(name):
                 self.assertEqual(tuple(str(word) for word in getattr(vocabulary, name)), words)
 
-    def test_each_grown_list_ends_with_the_designs_words(self):
+    def test_each_grown_list_holds_the_designs_words_together(self):
+        # The design's words were added at the end of each list; words a capability built since adds (v0.6.20:
+        # window_anchor's options) come after them, so the design's words stand together, in their order.
         for name, words in ADDED.items():
             with self.subTest(name):
                 held = tuple(str(word) for word in getattr(vocabulary, name))
-                self.assertEqual(held[-len(words):], words)
+                self.assertIn(words[0], held)
+                start = held.index(words[0])
+                self.assertEqual(held[start:start + len(words)], words)
 
     def test_every_command_the_designs_name_is_a_word(self):
         self.assertEqual(tuple(str(command) for command in BridgeCommand)[-len(COMMANDS):], COMMANDS)

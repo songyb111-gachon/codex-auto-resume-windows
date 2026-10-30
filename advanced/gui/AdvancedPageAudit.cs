@@ -139,6 +139,17 @@ namespace CodexAutoResume
         /// (AuditReopenNote), or as wide as the tabs, this page's among them, where they need more (HoldTabs); and the
         /// narrowest screen the window opens on at this scaling, TextScale.NarrowestWidth wide - the text size is fitted
         /// so that one holds the standard window - where the tabs take a second row rather than be cut off.
+        /// v0.6.20: the page laid out right to left against the page laid out left to right, mirrored (SettingsForm.MirrorCompare):
+        /// every view AdvancedLayoutAudit lays out, in a language written right to left. One line for each place that differs.
+        internal static string AdvancedMirrorAudit(string stringsJson, string wordsJson, string listingJson, string statementsJson,
+                                                   string keptJson, string reportsJson, double scale)
+        {
+            return MirrorCompare(delegate
+            {
+                return AdvancedLayoutAudit(stringsJson, wordsJson, listingJson, statementsJson, keptJson, reportsJson, scale);
+            });
+        }
+
         internal static string AdvancedLayoutAudit(string stringsJson, string wordsJson, string listingJson, string statementsJson,
                                                    string keptJson, string reportsJson, double scale)
         {
@@ -153,6 +164,10 @@ namespace CodexAutoResume
                 form.advancedSamples = Map(kept, "advanced-samples");
                 form.advancedPending = Items(kept, "pending");
                 form.advancedResets = Map(kept, "advanced-resets");
+                // v0.6.20: the usage and token analytics' cards at their fullest (AdvancedAnalytics.cs).
+                form.advancedAnalytics = Map(kept, "advanced-analytics");
+                // v0.6.20: the account card at its fullest (AdvancedAccount.cs).
+                form.advancedAccount = Map(kept, "advanced-account");
                 Dictionary<string, object> shot = Map(kept, "snapshot");
                 form.AdoptAdvancedWords(Json.Parse(wordsJson) as Dictionary<string, object>);
                 // The conversations the reset forms offer, and Pending's list, are the snapshot's.
@@ -220,6 +235,9 @@ namespace CodexAutoResume
                 form.AuditEditor("editor", findings);
                 // v0.6.20 (#50): Find a conversation's dialog, with names that fill the list and with the line it says.
                 form.AuditFind("find", findings);
+                // v0.6.20 (#50): a delivered message followed through - linked exactly with the longest chain, by time for a
+                // series, not linked, and unread.
+                form.AuditFollow("follow", findings);
                 form.ShowAdvancedList(null);
                 form.AuditAdvanced("advanced unread", findings);
                 if (ids.Count > 0)
@@ -346,6 +364,79 @@ namespace CodexAutoResume
                 }
                 ForgetFind();
             }
+        }
+
+        /// The follow-through's dialog (AdvancedFollow.cs), built and never shown, held to the standard audit's checks: nothing
+        /// cut off, nothing scrolling sideways, every control named, its list on History's card - with the longest answers it
+        /// gives: linked exactly through three cut-offs of three limits, linked by time for a series, not linked, and unread.
+        private void AuditFollow(string where, List<string> findings)
+        {
+            foreach (string kind in new[] { "exact", "time", "none", "failed" })
+            {
+                using (Form dialog = BuildFollow(new string('x', 72)))
+                {
+                    dialog.TopLevel = false;
+                    ShowFollow(AuditFollowAnswer(kind));
+                    Materialise(dialog);
+                    dialog.PerformLayout();
+                    string at = where + "/" + kind;
+                    Walk(dialog, at, findings);
+                    string off = ListOffCard(followList);
+                    if (off != null) findings.Add(at + " :: its list is not on a card: " + off);
+                    AuditSpoken(at, dialog, findings);
+                }
+                ForgetFollow();
+            }
+        }
+
+        /// What advanced-prompt-follow answers at its longest of `kind` (control/follow.py's shape): no person's words in it.
+        private static Dictionary<string, object> AuditFollowAnswer(string kind)
+        {
+            var answer = new Dictionary<string, object>();
+            answer["done"] = kind != "failed";
+            answer["refusal"] = kind == "failed" ? "state_unavailable" : null;
+            answer["link"] = kind == "failed" ? null : kind;
+            answer["why"] = kind == "none" ? "not_found" : null;
+            answer["sent_at"] = 1767225600.0;
+            answer["delivered_at"] = 1767225660.0;
+            answer["occurrence"] = kind == "time" ? 29.0 : 1.0;
+            answer["occurrences"] = kind == "time" ? 30.0 : 1.0;
+            var steps = new List<object>();
+            string[] limits = { "300m,10080m", "10080m", "codex:primary_hint" };
+            string[] states = { "recovery_failed", "outcome_unverified", "waiting_reset" };
+            string[] stages = { "ended", "ended", "waiting" };
+            int count = kind == "exact" ? 3 : kind == "time" ? 1 : 0;
+            for (int i = 0; i < count; i++)
+            {
+                var step = new Dictionary<string, object>();
+                step["category"] = "usage_limit";
+                step["limit_type"] = limits[i];
+                step["detected_at"] = 1767226500.0 + i * 20000;
+                step["reset_at"] = 1767244500.0 + i * 20000;
+                step["outcome_at"] = stages[i] == "waiting" ? null : (object)(1767246000.0 + i * 20000);
+                step["code"] = states[i];
+                step["stage"] = stages[i];
+                steps.Add(step);
+            }
+            answer["steps"] = steps;
+            answer["end"] = kind == "exact" ? "waiting" : kind == "time" ? "ended" : "unknown";
+            return answer;
+        }
+
+        /// The follow-through's dialog, built and never shown, and what it showed written into `record`: its title, the line
+        /// that says how it was linked, its columns and rows, whether its list is on a card, and its buttons.
+        private void AnswerFollow(Form dialog, Dictionary<string, object> record)
+        {
+            record["title"] = dialog.Text;
+            record["said"] = followSaid.Text;
+            var columns = new List<object>();
+            foreach (ColumnHeader column in followList.Columns) columns.Add(column.Text);
+            record["columns"] = columns;
+            record["rows"] = ListCells(followList);
+            record["list_card"] = ListOffCard(followList) ?? "";
+            record["buttons"] = new List<object> { followClose.Text };
+            record["accept"] = dialog.AcceptButton == followClose && dialog.CancelButton == followClose;
+            Pressed.Invoke(followClose, new object[] { EventArgs.Empty });
         }
 
         /// Pending's one list with a row of each kind chosen in turn - a recovery, a reset rule, a queued message - the standard
@@ -598,22 +689,28 @@ namespace CodexAutoResume
         ///   {"do": "unavailable"}                             a read that failed (MarkUnavailable)
         ///   {"do": "show"}                                    the tab pressed
         ///   {"do": "page", "name": ...}                       another page's tab pressed
+        ///   {"do": "example"}                                 See an example... pressed on the open capability: its view
+        ///                                                     built and never shown, what it showed into "dialogs"
         ///   {"do": "choose", "id": ...}                       that capability's row chosen in the list
         ///   {"do": "press", "button": on|watch|off|all_off|   a button pressed, if it can be: the page's, Keep it on's
-        ///    keep_on|send_again|let_go|report_write|          or the report card's
-        ///    report_save|report_check|report_send}
+        ///    keep_on|send_again|let_go|report_write|          or the report card's - or (v0.6.20) the account card's
+        ///    report_save|report_check|report_send|
+        ///    account_switch}
         ///   {"do": "type", "into": login|word, "text": ...}  text typed into one of the report's boxes, whole
         ///   {"do": "poll"}                                    the running report job read, as the page's clock reads it
+        ///   {"do": "poll_account"}                            the account card read again, as its timer reads it (v0.6.20)
         ///   {"do": "save_to", "path": ...}                    the file the save dialog would answer with
         ///   {"do": "hourly", "value": n}                      the hourly limit chosen, and the pause after it over
         ///   {"do": "set_option", "key": ..., "value": n}      a choice made in that choice's drop-down
         ///   {"do": "rule", "tag": ..., "sampled": ...,        a new rule's fields filled - its code typed, or taken from the
         ///    "from": ..., "to": ..., "kind": ...}             samples' drop-down - and Add rule pressed, if it can be
         ///   {"do": "remove", "rule": n}                       that rule's Remove pressed, if it can be
+        ///   {"do": "analytics_toggle", "project": key}        a project's Show or Hide conversations pressed ("" for Other)
         ///   {"do": "wording", "key": ..., "text": ...}         a wrap-up wording box filled and its Save words pressed
         ///   {"do": "custom_option", "key": ...,               Custom... chosen in that choice's drop-down, and its dialog -
         ///    "value": n | "cancel": true}                     built, never shown - given n and Use this value pressed, or
-        ///                                                     Cancel pressed; what it said into "dialogs"
+        ///                                                     Cancel pressed; what it said into "dialogs" (a clock's
+        ///                                                     "value" its hour, with "minute" beside it, v0.6.20)
         ///   {"do": "send_now", "id": ...}                     that waiting recovery's Send now pressed, if it can be
         ///   {"do": "reset_add", "family": "bucket minutes",   a reset form filled - its window chosen first, then which
         ///    "ordinal": ..., "repeat": once|every,            one, how often and whether it asks, or the conversation and
@@ -626,6 +723,9 @@ namespace CodexAutoResume
         ///   {"do": "answer", "with": [...]}                   what the person answers the next questions
         ///   {"do": "busy", "on": bool}                        another action under way, or over (SetBusy), as a request
         ///                                                     in flight holds the page
+        ///   {"do": "courier", "button": "save ntfy"}          a courier card's button pressed, if it can be (v0.6.20)
+        ///   {"do": "courier_type", "into": "ntfy.url",       one of the courier card's boxes filled
+        ///    "text": ...}
         ///   {"do": "look"}                                    what the page shows now, into "looks"
         ///   {"do": "reopen"}                                  the arguments a reopen would start the next window with,
         ///                                                     here (ReopenArguments), into "reopened"
@@ -664,6 +764,9 @@ namespace CodexAutoResume
                         form.PerformLayout();
                     }
                     else if (what == "page") form.ShowPage(Str(step, "name"));
+                    // v0.6.20: See an example... pressed on the open capability, its view built and never shown; what it
+                    // showed into "dialogs" (AdvancedExamples.cs ExampleLook).
+                    else if (what == "example") dialogs.Add(form.ExampleLook());
                     else if (what == "choose") form.ChooseAdvanced(Str(step, "id"));
                     else if (what == "press")
                     {
@@ -672,9 +775,11 @@ namespace CodexAutoResume
                                       : name == "off" ? form.advancedOff : name == "all_off" ? form.advancedAllOff
                                       : name == "keep_on" ? form.keepOnButton : name == "send_again" ? form.sendAgainButton
                                       : name == "let_go" ? form.letGoButton
+                                      : name == "account_switch" ? form.accountSwitch
                                       : name == "report_write" ? form.reportWrite : name == "report_save" ? form.reportSave
                                       : name == "report_check" ? form.reportCheck : name == "report_send" ? form.reportSend
-                                      : name == "queue_go" ? form.queueAdd : null;
+                                      : name == "queue_go" ? form.queueAdd
+                                      : name == "analytics_save" ? form.analyticsSave : null;
                         if (button == null || !button.Enabled || !OwnVisible(button)) disabled.Add(name);
                         else Pressed.Invoke(button, new object[] { EventArgs.Empty });
                     }
@@ -839,6 +944,26 @@ namespace CodexAutoResume
                             form.UpdateHistoryButtons();
                         }
                     }
+                    else if (what == "history_follow")
+                    {
+                        // v0.6.20 (#50): the chosen History row's Follow through... pressed ("by": "button", if it can be) or
+                        // the row double-clicked ("by": "double") - the dialog answered, never shown; what it showed into
+                        // "dialogs".
+                        var record = new Dictionary<string, object>();
+                        form.followAnswer = delegate(Form dialog) { form.AnswerFollow(dialog, record); };
+                        try
+                        {
+                            if (Str(step, "by") == "double") form.FollowOpened(Selected(form.historyList));
+                            else if (form.followButton == null || !form.followButton.Enabled || !OwnVisible(form.followButton))
+                                disabled.Add("history_follow");
+                            else Pressed.Invoke(form.followButton, new object[] { EventArgs.Empty });
+                        }
+                        finally
+                        {
+                            form.followAnswer = null;
+                        }
+                        if (record.Count > 0) dialogs.Add(record);
+                    }
                     else if (what == "pending_open")
                     {
                         // v0.6.19: a double click on the chosen Pending row, as the list answers it (EditionRowOpened for a row
@@ -980,11 +1105,32 @@ namespace CodexAutoResume
                         form.SetBusy(Equals(Get(step, "on"), true));
                         form.UpdateAdvancedButtons();
                     }
+                    else if (what == "courier")
+                    {
+                        // v0.6.20: one of the courier card's buttons by its tag ("save ntfy", "test ntfy", "pair telegram").
+                        Button found = form.courierButtons.Find(delegate(Button each) { return Equals(each.Tag, Str(step, "button")); });
+                        if (found == null || !found.Enabled) disabled.Add("courier " + Str(step, "button"));
+                        else Pressed.Invoke(found, new object[] { EventArgs.Empty });
+                    }
+                    else if (what == "courier_type")
+                    {
+                        // and one of its boxes, "<channel>.<field>", filled whole.
+                        SoftTextArea box;
+                        if (!form.courierBoxes.TryGetValue(Str(step, "into") ?? "", out box)) disabled.Add("courier_type " + Str(step, "into"));
+                        else box.Box.Text = Str(step, "text") ?? "";
+                    }
                     else if (what == "run_stop")
                     {
                         Button stop = form.runStops.Find(delegate(Button each) { return Equals(each.Tag, Str(step, "key")); });
                         if (stop == null || !stop.Enabled) disabled.Add("run_stop");
                         else Pressed.Invoke(stop, new object[] { EventArgs.Empty });
+                    }
+                    else if (what == "analytics_toggle")
+                    {
+                        // v0.6.20: a project's Show conversations or Hide conversations pressed (AdvancedAnalytics.cs).
+                        Button toggle = form.analyticsToggles.Find(delegate(Button each) { return Equals(each.Tag, Str(step, "project") ?? ""); });
+                        if (toggle == null || !toggle.Enabled) disabled.Add("analytics_toggle");
+                        else Pressed.Invoke(toggle, new object[] { EventArgs.Empty });
                     }
                     else if (what == "remove")
                     {
@@ -1006,6 +1152,7 @@ namespace CodexAutoResume
                         else box.Box.Text = Str(step, "text") ?? "";
                     }
                     else if (what == "poll") form.PollReport();
+                    else if (what == "poll_account") form.ReadAccount(null);    // v0.6.20: the account card read again
                     else if (what == "save_to") form.advancedSaveTo = Str(step, "path");
                     else if (what == "reply")
                         form.advancedScript[Str(step, "key") ?? ""] = new List<object>(Items(step, "with") ?? new List<object>());
@@ -1056,6 +1203,9 @@ namespace CodexAutoResume
                 return;
             }
             spin.Value = Whole(Get(step, "value"));
+            // v0.6.20: a time of day of one's own (window_anchor's clock dialog): "value" its hour, "minute" its minute.
+            if (Get(step, "minute") is double && ((SoftFlow)ownEditor).Controls.Count > 2)
+                ((SoftNumber)((SoftFlow)ownEditor).Controls[2]).Spin.Value = Whole(Get(step, "minute"));
             Pressed.Invoke(use, new object[] { EventArgs.Empty });
             // Still open where the number was refused: what it says then, above the number.
             record["after"] = dialog.IsDisposed ? null : ownHint.Text;
@@ -1063,7 +1213,8 @@ namespace CodexAutoResume
 
         /// The editor (AdvancedEditor.cs), built and never shown: what it opened with written into `record`, its fields filled
         /// as `step` says - "thread", "words", "when", "hour", "times", "depends", "mode" - and "press" save or cancel; then
-        /// what it said, and whether it saved.
+        /// what it said, and whether it saved. v0.6.20 (#50 item 1): "images", files Add a picture... chooses - handed to it,
+        /// never a file dialog shown - and "remove", the place of a thumbnail whose Remove is pressed then.
         private void AnswerEditor(Form dialog, Dictionary<string, object> step, Dictionary<string, object> record)
         {
             record["title"] = dialog.Text;
@@ -1103,8 +1254,40 @@ namespace CodexAutoResume
                 }
             if (Str(step, "words") != null) editorWords.Box.Text = Str(step, "words");
             if (Str(step, "mode") != null) editorMode.Value = Str(step, "mode");
+            record["images_before"] = (double)editorImages.Count;
+            record["add_image"] = editorAddImage.Text;
+            List<object> chosen = Items(step, "images");
+            if (chosen != null)
+            {
+                var files = new List<string>();
+                foreach (object file in chosen) files.Add(file as string);
+                editorChoose = delegate { return files.ToArray(); };
+                try { Pressed.Invoke(editorAddImage, new object[] { EventArgs.Empty }); }
+                finally { editorChoose = null; }
+                record["said_on_add"] = editorSaid.Text;
+            }
+            record["thumbs_added"] = ThumbNames();
+            if (Get(step, "remove") != null)
+            {
+                int place = Whole(Get(step, "remove"));
+                Control tile = place < editorThumbs.Controls.Count ? editorThumbs.Controls[place] : null;
+                Button remove = tile == null ? null : tile.Controls[1] as Button;
+                if (remove != null) Pressed.Invoke(remove, new object[] { EventArgs.Empty });
+            }
+            record["thumbs"] = ThumbNames();
+            record["thumbs_shown"] = OwnVisible(editorThumbs);
+            record["thumbs_fit"] = editorThumbs.Width <= editorThumbs.Parent.ClientSize.Width;
+            record["add_enabled"] = editorAddImage.Enabled;
             record["mode_shown"] = OwnVisible(editorMode);
             record["after_turn_shown"] = OwnVisible(editorAfterTurn);
+            // v0.6.20 (#50): When's choices, the steer's warning and what the buttons and fields say once filled.
+            record["whens"] = ItemsOf(editorWhen);
+            record["steer_shown"] = OwnVisible(editorSteerWarning);
+            record["steer_warning"] = editorSteerWarning.Text;
+            record["steer_colour"] = editorSteerWarning.ForeColor == Palette.Danger;
+            record["buttons_after"] = new List<object> { editorSave.Text, editorCancel.Text };
+            record["hour_enabled"] = editorHour.Enabled;
+            record["depends_enabled"] = editorDepends.Enabled;
             record["blank"] = (double)EditorBlank();
             if (Str(step, "press") == "save")
             {
@@ -1115,12 +1298,25 @@ namespace CodexAutoResume
             record["taken"] = dialog.DialogResult == DialogResult.OK;
             record["said"] = editorSaid.Text;
             record["blank_after"] = (double)EditorBlank();
-            record["said_fits"] = editorSaid.Text.Length == 0 ||
+            // A dialog Cancel closed has let go of its controls: what it said on the way (a picture refused) fits nowhere now.
+            record["said_fits"] = editorSaid.Text.Length == 0 || editorBody.Parent == null ||
                 editorSaid.Top + editorSaid.Height <= editorBody.Height && editorBody.Height <= editorBody.Parent.ClientSize.Height;
             // Where all of it is taller than the screen lets the editor be (a CI runner's 1024 by 768), it stands at that
             // height and what does not fit is scrolled to.
             record["at_most"] = editorDialog.ClientSize.Height >= EditorMost();
             record["words_after"] = editorWords.Box.Text;
+        }
+
+        /// The thumbnails' names, in order, each with whether it holds a drawn picture: "Picture 1:drawn".
+        private List<object> ThumbNames()
+        {
+            var names = new List<object>();
+            foreach (Control tile in editorThumbs.Controls)
+            {
+                var picture = tile.Controls[0] as PictureBox;
+                names.Add(picture.AccessibleName + (picture.Image != null ? ":drawn" : ":blank"));
+            }
+            return names;
         }
 
         /// Find a conversation's dialog (AdvancedFind.cs), built and never shown, answered as `step` says - "search" typed into
@@ -1331,6 +1527,11 @@ namespace CodexAutoResume
             // The turns run here: what each Stop... names (v0.6.16-beta.4); and Pending's and History's rows as the
             // lists draw them - each cell's text - where those pages are built.
             look["run_stops"] = Tags(runStops);
+            // v0.6.20: the Overview's OpenAI status line, while it is shown (AdvancedCourier.cs), and the courier card's buttons.
+            look["feed"] = feedValue != null && OwnVisible(feedValue) ? feedValue.Text : null;
+            look["courier_buttons"] = Tags(courierButtons);
+            // v0.6.20: the account card's button - whether it can be pressed, or null where it is not offered.
+            look["account_switch"] = accountSwitch == null ? (object)null : accountSwitch.Enabled;
             look["pending_rows"] = ListCells(pendingList);
             // Each cell of Pending's list past the conversation's that is drawn cut short, as "row/column": none while the
             // list has room for them whole (the owner, 2026-10-25: "5시간 한…", "매일 09:…"). Measured here from the words the
@@ -1422,6 +1623,8 @@ namespace CodexAutoResume
                 foreach (Control button in historyClear.Parent.Controls)
                     if (button is Button && OwnVisible(button)) historyButtons.Add(button.Text);
                 scheduled["history_buttons"] = historyButtons;
+                // v0.6.20 (#50): Follow through..., offered for a delivered message.
+                scheduleButtons["follow"] = followButton != null && followButton.Enabled && OwnVisible(followButton);
             }
             scheduled["buttons"] = scheduleButtons;
             scheduled["note"] = pendingNote == null ? null : pendingNote.Text;

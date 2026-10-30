@@ -68,9 +68,11 @@ def compile_window(folder: Path) -> Path:
     return exe
 
 
-def answers(locale: str, stored: dict | None = None) -> list:
+def answers(locale: str, stored: dict | None = None, paused: bool = False) -> list:
     """[{command, argument, reply}]: the bridge's replies to every read the pictured pages make, in `locale`, from
-    the pinned scratch installation with `stored` written over its settings (what a Save in the picture stored)."""
+    the pinned scratch installation with `stored` written over its settings (what a Save in the picture stored) - and,
+    with `paused`, recovery paused through the bridge as a press on Pause recovery pauses it, so that every reply says
+    what a paused installation says. The Timeline of each waiting task is among them (the dialog it opens)."""
     import make_screenshots as shots
     from codex_auto_resume import config, l10n
     out = []
@@ -88,11 +90,20 @@ def answers(locale: str, stored: dict | None = None) -> list:
                 shots.owner_only(config.Paths(home).state_dir)
             os.environ[l10n.ENV_LANG] = locale
             try:
+                if paused:
+                    switched = shots.ask(surface, "enabled", {"enabled": False})
+                    if not switched.get("ok"):
+                        raise RuntimeError("the pinned installation could not be paused: %r" % switched)
                 replies = {}
                 for command, argument in shots.WINDOW_READS + EXTRA_READS:
                     replies[command] = shots.ask(surface, command, argument)
                     out.append({"command": command, "argument": None if argument is None else
                                 json.dumps(argument, separators=(",", ":")), "reply": replies[command]})
+                # What the Timeline button asks for the task chosen: one answer for each task the Pending list shows.
+                for row in (replies["dashboard"] or {}).get("pending") or []:
+                    argument = {"interruption_id": row["interruption_id"]}
+                    out.append({"command": "timeline", "argument": json.dumps(argument, separators=(",", ":")),
+                                "reply": shots.ask(surface, "timeline", argument)})
                 preview = shots.preview_request((replies["describe"] or {}).get("schema") or [],
                                                 (replies["settings"] or {}).get("settings") or {})
                 if preview is not None:
@@ -108,12 +119,28 @@ def answers(locale: str, stored: dict | None = None) -> list:
     return out
 
 
-def frame_state(frame: motion_plan.Frame, index: int) -> dict:
-    """What the render mode is told for one frame: its window state and the moment of its lights."""
+def frame_state(frame: motion_plan.Frame, index: int, light_step: int = 0) -> dict:
+    """What the render mode is told for one frame: its window state and the moment of its lights - the last tick of
+    the light's own timer (`light_step` ms, HaloDot's) at or before the frame, as on a screen: a frame the pointer or a
+    glide draws between two ticks shows the light as the last tick left it, and does not move it. Without a step the
+    light is at the frame's own moment."""
     state = motion_plan.thawed(frame.window)
     state["index"] = index
-    state["light"] = frame.t
+    state["light"] = (frame.t // light_step) * light_step if light_step else frame.t
     return state
+
+
+def chrome(plan: dict) -> dict:
+    """The colours of the title bar Windows draws round a dialog over the window, read from the window's own still: its
+    title bar's colour, black for the title and the buttons (an active window's), and the border a shade darker than
+    the bar. {} for a plan with no window."""
+    if "window" not in plan:
+        return {}
+    import make_screenshots
+    width, _height, rgb, _alpha = make_screenshots.read_png(ROOT / plan["window"]["still"])
+    at = (8 * width + width // 2) * 3
+    bar = tuple(rgb[at:at + 3])
+    return {"caption": list(bar), "ink": [0, 0, 0], "line": [int(channel * 0.65) for channel in bar]}
 
 
 def job(plan: dict, frames: list, out: Path, forms: dict | None = None) -> dict:
@@ -124,9 +151,12 @@ def job(plan: dict, frames: list, out: Path, forms: dict | None = None) -> dict:
     if forms is None:
         forms = {locale: {"answers": answers(locale, stored)} for locale, stored in plan.get("forms", {}).items()}
     canvas = plan.get("canvas") or {}
+    # The window as the picture frames it, with its title bar: what a dialog is centred on (the window's own still is
+    # as big, motion_compose.WindowChrome).
     return {"out": str(out), "theme": canvas.get("theme", "light"), "design": canvas.get("design", "soft"),
-            "forms": forms, "targets": targets,
-            "frames": [frame_state(frame, index) for index, frame in enumerate(frames)]}
+            "forms": forms, "targets": targets, "outer": list(canvas.get("size") or []), "chrome": chrome(plan),
+            "frames": [frame_state(frame, index, int(plan.get("light_step_ms") or 0))
+                       for index, frame in enumerate(frames)]}
 
 
 def render(exe: Path, job_data: dict, folder: Path) -> dict:

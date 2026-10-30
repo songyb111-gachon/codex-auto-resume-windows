@@ -81,7 +81,12 @@ class DefinitionTests(unittest.TestCase):
 
     def test_its_errand_runs_after_every_other_capability_s_at_p8(self):
         """The reset actions and the forced stop keep their due times in their own errands; this one reads them last."""
-        self.assertEqual(registry.REGISTRY.at(Point.TICK)[-1].id, CAP)
+        # v0.6.20: last of DEFINITIONS; only a capability offered once its measurement passed answers after it
+        # (registry.offered - open_to_send), and none of those keeps a due time this errand reads.
+        ticks = [definition.id for definition in registry.REGISTRY.at(Point.TICK)]
+        offered = {definition.id for definition, _m in registry.WAITING} & set(registry.REGISTRY.ids)
+        self.assertEqual([each for each in ticks if each not in offered][-1], CAP)
+        self.assertTrue(set(ticks[ticks.index(CAP) + 1:]) <= offered)
 
 
 class WakeCase(ac.AdvancedCase):

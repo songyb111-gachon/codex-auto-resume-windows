@@ -126,6 +126,15 @@ turn_running): SQLite cannot change a CHECK in place, and the version-7 file's w
 by the journal's pass (state/journal.py), each as the groundwork fixed it. A version-7 reader from v0.6.17 on uses the
 file as it is - every table it knows holding its columns, first - and v0.6.16, which reads no mark, refuses it as newer,
 every capability off and nothing written: the way down every version before had.
+
+Version 9, v0.6.20's (issue #50, steer_send), adds one table and changes nothing else, so it stays marked readable from
+7: v0.6.17 to v0.6.19 use a version-9 file as it is, every table they know holding its columns. A version-8 file is
+brought to it when it is opened (UPGRADE_TO_V020), every row kept; an older file takes the earlier steps first.
+
+    steers         each line a person asked to be added to a running turn: its conversation, the person's own words
+                   (kept after the send, so History shows exactly what went in - the owner's decision of 2026-10-29), the
+                   client id it carried, where it stands (SteerState) and why it was refused (SteerReason), when it was
+                   asked and when it settled; 30 days and 1,000 rows (state/journal.py)
 """
 from __future__ import annotations
 
@@ -138,7 +147,8 @@ from ..registry import GLOBAL_HOURLY
 from ..vocabulary import (ArmingState, ChatReason, ChatState, ContinuationKind, ContinuationReason, CourierChannel,
                           CourierEvent, FeedWord, HookOutcome, KeepReason, KeepState, OpenOutcome, OutboxState,
                           OverrideKind, PlanWord, PromptEvery, PromptReason, PromptState, PromptTrigger, RecordState,
-                          RuleReason, RuleState, RunEnd, SpendOutcome, WhileRunning, WordingKey)
+                          RuleReason, RuleState, RunEnd, SpendOutcome, SteerReason, SteerState, WhileRunning,
+                          WordingKey)
 
 # The window switches (v0.6.16 final, the owner's request of 2026-10-18): Wrap up near a limit and Stop near a limit
 # offer a pair of their own, rows of `options` whose CHECK has admitted these words since version 6 - no new version.
@@ -152,9 +162,11 @@ WINDOW_ON, WINDOW_OFF = 1, 2
 # The v0.6.19 stage's version (the groundwork): the one place it is numbered - a literal, which the setup's version
 # picker reads (tests/test_version_picker.py) - the step after stage 4's (7, v0.6.16-beta.4, which v0.6.17 and v0.6.18
 # kept: `options` free of its CHECK and the mark changed no table and no column).
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 STAGE4_VERSION = 7
-V019_VERSION = SCHEMA_VERSION
+V019_VERSION = 8
+# v0.6.20's (steer_send): one table added to version 8's.
+V020_VERSION = SCHEMA_VERSION
 # The oldest version whose reader may use a file this version writes (above): 7 - version 8 only adds what a version-7
 # reader from v0.6.17 on passes over. A later version raises it only where a version-7 reader cannot use its file.
 READABLE_FROM = 7
@@ -220,13 +232,20 @@ TABLES = {
     "restarts": ("at", "exit_code", "restarted"),
     "account_seen": ("singleton", "identity_digest", "plan", "read_at"),
     "hook_claims": ("interruption_id", "turn_digest", "at", "outcome"),
+    # Version 9 (v0.6.20, issue #50): the steers.
+    "steers": ("steer_id", "thread_id", "words", "client_id", "state", "reason", "created_at", "finished_at"),
 }
+# Version 9's (v0.6.20).
+V020_TABLES = ("steers",)
+# Version 8's tables, as v0.6.19 left them: what a version-9 file holds for a version-8 reader, and the shape the step to
+# version 9 is taken from.
+TABLES_V8 = {name: columns for name, columns in TABLES.items() if name not in V020_TABLES}
 # Version 8's (v0.6.19).
 V019_TABLES = ("usage_samples", "token_days", "token_files", "outbox", "feed", "remote", "opens", "restarts",
                "account_seen", "hook_claims")
 # Version 7's tables, as stage 4 left them and v0.6.17 and v0.6.18 kept them: what every older shape is taken from, and
 # what a version-8 file holds for a version-7 reader (holds).
-TABLES_V7 = dict({name: columns for name, columns in TABLES.items() if name not in V019_TABLES},
+TABLES_V7 = dict({name: columns for name, columns in TABLES_V8.items() if name not in V019_TABLES},
                  prompts=TABLES["prompts"][:-1])
 V4_TABLES = ("continuations", "keep_going", "prompts")
 # Version 5's (v0.6.16-beta.3).
@@ -801,11 +820,31 @@ _STATEMENTS_V019 = (
             _one_of("outcome", HookOutcome)),
     "CREATE INDEX hook_claims_at ON hook_claims(at)",
 )
+# Version 9's own (v0.6.20): the steers. The words are the person's own, at most a queued message's (WORDS_LIMIT in
+# state/prompts.py) and never a control character but a line break or a tab; a settled steer has its time, a waiting
+# one none; only a refusal has a reason.
+STEER_WORDS = 8192
+_STATEMENTS_V020 = (
+    """CREATE TABLE steers (
+        steer_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        thread_id TEXT NOT NULL %s,
+        words TEXT NOT NULL CHECK (length(words) BETWEEN 1 AND %d),
+        client_id TEXT NOT NULL CHECK (length(client_id) = 36 AND client_id NOT GLOB '*[^0-9a-f-]*'),
+        state TEXT NOT NULL %s,
+        reason TEXT CHECK (reason IS NULL OR reason IN (%s)),
+        created_at REAL NOT NULL,
+        finished_at REAL,
+        CHECK ((state IN ('%s', '%s')) = (finished_at IS NULL)),
+        CHECK ((state = '%s') = (reason IS NOT NULL))
+    )""" % (_UUID, STEER_WORDS, _one_of("state", SteerState), ", ".join("'%s'" % word for word in SteerReason),
+            SteerState.REQUESTED, SteerState.SENDING, SteerState.REFUSED),
+    "CREATE INDEX steers_created ON steers(created_at)",
+)
 _STATEMENTS_V7 = _STATEMENTS_V2 + _STATEMENTS_V3 + _STATEMENTS_V4 + _STATEMENTS_V5 + _STATEMENTS_V6 + _STATEMENTS_STAGE4
 MARKED = "PRAGMA application_id=%d" % (MARK | READABLE_FROM)
 _FREED = {id(_STATEMENTS_V3[0]): _OPTIONS_FREE, id(_STATEMENTS_V6[0]): _WORDINGS_FREE}
 STATEMENTS = (tuple(_FREED.get(id(statement), statement) for statement in _STATEMENTS_V7) + _STATEMENTS_V019
-              + (MARKED, "PRAGMA user_version=%d" % SCHEMA_VERSION))
+              + _STATEMENTS_V020 + (MARKED, "PRAGMA user_version=%d" % SCHEMA_VERSION))
 # The file exactly as v0.6.16 made it - its `options` CHECK on names, no mark, and the reasons and keys version 7 knew:
 # what a test builds the file before from.
 STATEMENTS_V7 = (tuple(_PROMPTS_V7 if statement is _PROMPTS_V4 else _WORDINGS_V7 if statement is _STATEMENTS_V6[0]
@@ -906,3 +945,6 @@ def wordings_checked(connection) -> bool:
 UPGRADE_TO_V019 = (_remade(_PROMPTS_V4, "prompts", TABLES_V7["prompts"], _PROMPTS_INDEX, suffix="v8")
                    + _STATEMENTS_V019 + ("PRAGMA user_version=%d" % V019_VERSION,))
 FREE_WORDINGS = _remade(_WORDINGS_FREE, "wordings", TABLES["wordings"], suffix="free")
+# Version 9 (v0.6.20, steer_send): a version-8 file - v0.6.19's - is brought to it by one step, the steers' table added;
+# nothing else is made again, and the mark stays readable from 7.
+UPGRADE_TO_V020 = _STATEMENTS_V020 + ("PRAGMA user_version=%d" % V020_VERSION,)

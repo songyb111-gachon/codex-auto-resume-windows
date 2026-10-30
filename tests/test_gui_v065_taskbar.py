@@ -1182,7 +1182,8 @@ class TaskbarMarkTests(unittest.TestCase):
         # v0.6.10 the light is told in one place with the words beside it (Hero), which ApplyStatus and
         # UpdateCountdowns call where they told it before, and which tells the button nothing itself.
         self.assertNotIn("StateSet", settings + dashboard + controls)
-        self.assertEqual((settings + dashboard).count("stateDot.State ="), 3)
+        # v0.6.20: and the fourth is Start watcher's working light, while "Starting the watcher..." is the headline.
+        self.assertEqual((settings + dashboard).count("stateDot.State ="), 4)
 
         def method(source, signature):
             start = source.index(signature)

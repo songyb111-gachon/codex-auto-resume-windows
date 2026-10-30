@@ -1261,7 +1261,10 @@
           "event.rescan_retired": "Retired by Rescan: newer work came after it",
           "event.rescan_rechecked": "Rescan: still the latest failure, left waiting",
           "event.rescan_unresolved": "Rescan: could not be decided, left as it was",
-          "event.rescan_changed": "Rescan: changed meanwhile, left as it was"
+          "event.rescan_changed": "Rescan: changed meanwhile, left as it was",
+          "msg.toast_account_changed": "Another Codex account is signed in",
+          "msg.toast_account_changed_count": "Tasks that waited for a usage limit wait for you: {n}",
+          "why.account_changed": "Another Codex account was signed in after it stopped: nothing is sent until you let it continue."
         },
         "preference": "system",
         "system_language": "en",
@@ -1281,7 +1284,9 @@
           "pl": "Polski",
           "uk": "Українська",
           "vi": "Tiếng Việt",
-          "id": "Bahasa Indonesia"
+          "id": "Bahasa Indonesia",
+          "ar": "العربية",
+          "he": "עברית"
         }
       }
     }

@@ -94,9 +94,10 @@ class AllowListTests(V019Case):
             with self.subTest(measurement):
                 self.assertIn(measurement, measure.PROBES)
                 self.assertIn(measurement, protocol.MEASUREMENT_METHODS)
-        self.assertEqual(protocol.methods_for(Measurement.MOPEN), {"initialize", "initialized", "thread/loaded/list"})
+        self.assertEqual(protocol.methods_for(Measurement.MOPEN), {"initialize", "initialized"},
+                         "no method: who holds a conversation is core's loaded check, not a list from our session")
         self.assertEqual(protocol.methods_for(Measurement.MAL), {"initialize", "initialized", "account/read"})
-        for measurement in (Measurement.MTOK, Measurement.MWAKE, Measurement.MHK):
+        for measurement in (Measurement.MTOK, Measurement.MWAKE, Measurement.MHK, Measurement.MOPEN):
             with self.subTest(measurement), self.assertRaises(measure.EvidenceUnavailable):
                 measure.Context(measurement, session_factory=self.factory({})).open()
 
@@ -158,35 +159,89 @@ class TokenTests(V019Case):
 
 
 class OpenTests(V019Case):
+    """MOPEN times the load by the writer lock's holder count alone (measure._lock_users, Restart Manager, ~0.5 s a read)
+    and checks once, after the count first reaches one, with core's identity pairing and loaded check (measure._look,
+    ~15 s on codex-cli 0.165) that the holder is the app. It opens no session. The first run (2026-10-29) timed it with
+    the full look and could never say "under ten"; by hand the app took the lock 13.4 s after the link."""
+
+    def counting(self, *counts, app=True):
+        """`_lock_users` answering each of `counts` in turn (the last again); `_look` answering (`app`, 1) and counting its
+        calls into `self.identity_checks`."""
+        left = list(counts)
+        self.identity_checks = []
+
+        def look(ctx, thread):
+            self.identity_checks.append(thread)
+            return app, 1
+        from contextlib import ExitStack
+        stack = ExitStack()
+        stack.enter_context(patch.object(measure, "_lock_users",
+                                         lambda ctx, thread: left.pop(0) if len(left) > 1 else left[0]))
+        stack.enter_context(patch.object(measure, "_look", look))
+        return stack
+
     def test_loaded_soon_after_its_link_is_left_to_the_person_for_the_window(self):
         opened = []
-        replies = {"thread/loaded/list": sequence({"data": []}, {"data": []}, {"data": [THREAD]})}
-        record = self.run_one(Measurement.MOPEN, replies=replies,
-                              hands={"open_link": lambda thread: opened.append(thread) or True})
+        with self.counting(0, 0, 0, 1):
+            record = self.run_one(Measurement.MOPEN, hands={"open_link": lambda thread: opened.append(thread) or True})
         self.assertEqual(record["verdict"], "blocked", record)
         self.assertEqual(opened, [THREAD], "opened once")
         observed = record["observed"]
-        self.assertEqual((observed["link_opened"], observed["loaded_seconds"], observed["held_before"]),
-                         (True, "under_2s", False))
+        self.assertEqual((observed["link_opened"], observed["loaded_seconds"], observed["held_before"],
+                          observed["loaded_by_app"], observed["holders"]), (True, "under_2s", False, True, 1))
+        self.assertEqual(self.sessions, [], "no session, so no list of ours is asked")
 
-    def test_never_loaded_is_a_fail(self):
-        record = self.run_one(Measurement.MOPEN, replies={"thread/loaded/list": {"data": []}},
-                              hands={"open_link": lambda thread: True})
-        self.assertEqual((record["verdict"], record["observed"]["loaded_seconds"]), ("fail", "never"))
+    def test_the_slow_identity_check_is_made_once_and_not_counted_in_the_time(self):
+        """Fails with the full look in the polling loop: the load would be timed in tens of seconds."""
+        import time
 
-    def test_one_the_app_holds_already_is_never_opened(self):
+        def slow_look(ctx, thread):
+            self.identity_checks.append(thread)
+            time.sleep(0.5)                         # 2.5 times the limit: the real one is ~15 s against 30
+            return True, 1
+        with self.counting(0, 0, 1), patch.object(measure, "_look", slow_look):
+            record = self.run_one(Measurement.MOPEN, hands={"open_link": lambda thread: True})
+        self.assertEqual(len(self.identity_checks), 1, "once, after the count first reached one")
+        self.assertEqual((record["verdict"], record["observed"]["loaded_seconds"]), ("blocked", "under_2s"))
+
+    def test_the_before_look_is_the_fast_count_not_the_full_look(self):
+        with self.counting(1):
+            self.run_one(Measurement.MOPEN, hands={"open_link": lambda thread: True})
+        self.assertEqual(self.identity_checks, [], "a conversation already held is never given to the slow check")
+
+    def test_never_held_within_the_limit_is_a_fail_and_the_identity_is_never_checked(self):
+        with self.counting(0):
+            record = self.run_one(Measurement.MOPEN, hands={"open_link": lambda thread: True})
+        self.assertEqual((record["verdict"], record["observed"]["loaded_seconds"], record["observed"]["holders"]),
+                         ("fail", "never", 0))
+        self.assertEqual(self.identity_checks, [])
+
+    def test_a_holder_that_is_not_the_app_stays_with_the_person(self):
+        with self.counting(0, 1, app=False):
+            record = self.run_one(Measurement.MOPEN, hands={"open_link": lambda thread: True})
+        observed = record["observed"]
+        self.assertEqual((record["verdict"], observed["loaded_by_app"], observed["holders"]), ("blocked", False, 1))
+        self.assertEqual(len(self.identity_checks), 1)
+        self.assertIn("not find it to be the app", record["note"])
+
+    def test_one_something_holds_already_is_never_opened(self):
         opened = []
-        record = self.run_one(Measurement.MOPEN, replies={"thread/loaded/list": {"data": [THREAD]}},
-                              hands={"open_link": lambda thread: opened.append(thread) or True})
+        with self.counting(1):
+            record = self.run_one(Measurement.MOPEN, hands={"open_link": lambda thread: opened.append(thread) or True})
         self.assertEqual((record["verdict"], record["observed"]["held_before"], opened), ("blocked", True, []))
 
+    def test_who_holds_it_unreadable_opens_nothing(self):
+        opened = []
+        with self.counting(None):
+            record = self.run_one(Measurement.MOPEN, hands={"open_link": lambda thread: opened.append(thread) or True})
+        self.assertEqual((record["verdict"], record["observed"]["holders_read"], opened), ("blocked", False, []))
+
     def test_a_link_not_handed_over_or_no_conversation_is_left_to_the_person(self):
-        record = self.run_one(Measurement.MOPEN, replies={"thread/loaded/list": {"data": []}},
-                              hands={"open_link": lambda thread: False})
-        self.assertEqual((record["verdict"], record["observed"]["link_opened"]), ("blocked", False))
-        before = len(self.sessions)
-        record = self.run_one(Measurement.MOPEN, thread=None)
-        self.assertEqual((record["verdict"], len(self.sessions)), ("blocked", before), "no session for none")
+        with self.counting(0):
+            record = self.run_one(Measurement.MOPEN, hands={"open_link": lambda thread: False})
+            self.assertEqual((record["verdict"], record["observed"]["link_opened"]), ("blocked", False))
+            record = self.run_one(Measurement.MOPEN, thread=None)
+        self.assertEqual((record["verdict"], self.sessions), ("blocked", []), "no session for none")
 
 
 class AccountTests(V019Case):

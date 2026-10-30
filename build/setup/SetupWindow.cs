@@ -311,6 +311,99 @@ namespace CodexAutoResume
             return string.Join("\n", findings);
         }
 
+        // ------------------------------------------------------------------ the window mirrored (v0.6.20)
+        // What MirrorAudit records while LayoutAudit runs: each control on each page and finish, by where it was checked
+        // and its place among its parents' controls - [x, y, width, height, the parent's width, a line of words?]. Null
+        // while nothing records.
+        private static Dictionary<string, int[]> recorded;
+        // Whether a control itself is visible, whatever its parents are: the window is never shown.
+        private static readonly System.Reflection.MethodInfo OwnState =
+            typeof(Control).GetMethod("GetState", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        private static List<string> recordedOrder;
+
+        /// How many controls the last MirrorAudit compared, so that a quiet report is known to have looked.
+        internal static int AuditedMirror;
+
+        /// Every place where the window laid out right to left is not the window laid out left to right, mirrored - as the
+        /// settings window's SettingsForm.MirrorAudit holds the Dashboard: every page and finish LayoutAudit lays out, in a
+        /// language written right to left, laid out once as if it read left to right (Mirror.Never) and once as it is.
+        /// Each control must stand where the first layout had it mirrored across its parent, within a pixel, as wide
+        /// (a line of words: its leading edge) and as tall; and the audit right to left must report nothing.
+        internal static string MirrorAudit(string catalogJson, string language, double displayScale, double text)
+        {
+            var findings = new List<string>();
+            AuditedMirror = 0;
+            Dictionary<string, int[]> across, back;
+            List<string> order;
+            bool never = Mirror.Never;
+            try
+            {
+                Mirror.Never = true;
+                recorded = new Dictionary<string, int[]>();
+                recordedOrder = new List<string>();
+                LayoutAudit(catalogJson, language, displayScale, text);
+                across = recorded;
+                order = recordedOrder;
+                Mirror.Never = false;
+                recorded = new Dictionary<string, int[]>();
+                recordedOrder = new List<string>();
+                string report = LayoutAudit(catalogJson, language, displayScale, text);
+                back = recorded;
+                if (!Mirror.Window) findings.Add("the language is not written right to left: nothing was mirrored");
+                if (report.Length > 0) findings.Add("laid out right to left, the layout audit reports: " + report.Replace("\n", " | "));
+            }
+            finally
+            {
+                Mirror.Never = never;
+                recorded = null;
+                recordedOrder = null;
+            }
+            foreach (string key in back.Keys)
+                if (!across.ContainsKey(key)) findings.Add(key + " :: shows only right to left");
+            foreach (string key in order)
+            {
+                int[] ltr = across[key], rtl;
+                if (!back.TryGetValue(key, out rtl))
+                {
+                    findings.Add(key + " :: is not there right to left");
+                    continue;
+                }
+                AuditedMirror++;
+                int expected = ltr[4] - ltr[0] - ltr[2];
+                bool words = rtl[5] != 0 && Math.Abs(rtl[2] - ltr[2]) > 1;
+                bool aside = words ? Math.Abs(rtl[0] + rtl[2] - (ltr[4] - ltr[0])) > 1
+                                   : Math.Abs(rtl[0] - expected) > 1 || Math.Abs(rtl[2] - ltr[2]) > 1;
+                if (ltr[4] != rtl[4] || aside || Math.Abs(rtl[1] - ltr[1]) > 1 || Math.Abs(rtl[3] - ltr[3]) > 1)
+                    findings.Add(key + " :: stands at " + rtl[0] + "," + rtl[1] + "," + rtl[2] + "," + rtl[3] + " in " + rtl[4] +
+                                 ", not mirrored from " + ltr[0] + "," + ltr[1] + "," + ltr[2] + "," + ltr[3] + " in " + ltr[4] +
+                                 " (x " + expected + ")");
+            }
+            return string.Join("\n", findings);
+        }
+
+        private static void Record(string where, Control parent, Control window)
+        {
+            RecordOf(where + " ", parent);
+        }
+
+        private static void RecordOf(string path, Control parent)
+        {
+            for (int index = 0; index < parent.Controls.Count; index++)
+            {
+                Control child = parent.Controls[index];
+                if (OwnState != null ? !(bool)OwnState.Invoke(child, new object[] { 2 }) : !child.Visible) continue;
+                string here = path + "/" + index + ":" + child.GetType().Name;
+                Rectangle bounds = child.Bounds;
+                if (!recorded.ContainsKey(here)) recordedOrder.Add(here);
+                recorded[here] = new[] { bounds.X, bounds.Y, bounds.Width, bounds.Height, parent.ClientSize.Width,
+                                         child is Label ? 1 : 0 };
+                // A text area's clip holds Windows' own box, which it does not mirror (SoftTextArea); a number's parts
+                // are Windows' own.
+                if (child is ListClip || child is UpDownBase) continue;
+                RecordOf(here, child);
+            }
+        }
+
         // The pages, then a finish of each kind. Added one by one: a constant array would give the program a class
         // with a random name (build/normalize_pe.py).
         private static List<int> Endings()
@@ -346,6 +439,8 @@ namespace CodexAutoResume
             int width = body.Parent.Width - body.Parent.Padding.Horizontal;
             int height = body.Parent.Height - body.Parent.Padding.Vertical;
             int used = window.Arrange(width);
+            // v0.6.20: and where everything stands, while MirrorAudit records.
+            if (recorded != null) Record(where, window, window);
             if (used > height) findings.Add(where + " :: the page needs " + used + " px and its card holds " + height);
             foreach (Control control in window.ShownRows())
             {
@@ -368,14 +463,19 @@ namespace CodexAutoResume
                     string.IsNullOrEmpty(control.AccessibleName) && string.IsNullOrEmpty(control.Text))
                     findings.Add(where + " :: " + name + " has no name a screen reader says");
             }
-            int left = int.MaxValue;
+            // v0.6.20: mirrored (Mirror), the buttons run from the left - Next first - and its twin checks the other side.
+            bool mirrored = Mirror.Of(window);
+            int left = int.MaxValue, right = int.MinValue;
             foreach (Control button in window.Buttons())
             {
                 Size wanted = button.GetPreferredSize(Size.Empty);
                 if (wanted.Width > button.Width) findings.Add(where + " :: button '" + button.Text + "' needs " + wanted.Width + " px and has " + button.Width);
-                if (button.Left < Soft.Px(16)) findings.Add(where + " :: button '" + Short(button.Text) + "' runs past the window's left side");
-                if (button.Right > left) findings.Add(where + " :: button '" + button.Text + "' overlaps the one beside it");
+                if (mirrored ? button.Right > window.ClientSize.Width - Soft.Px(16) : button.Left < Soft.Px(16))
+                    findings.Add(where + " :: button '" + Short(button.Text) + "' runs past the window's " + (mirrored ? "right" : "left") + " side");
+                if (mirrored ? button.Left < right : button.Right > left)
+                    findings.Add(where + " :: button '" + button.Text + "' overlaps the one beside it");
                 left = Math.Min(left, button.Left);
+                right = Math.Max(right, button.Right);
                 if (button.Bottom > window.ClientSize.Height) findings.Add(where + " :: button '" + button.Text + "' is below the window");
             }
             foreach (Label line in window.HeaderLines())

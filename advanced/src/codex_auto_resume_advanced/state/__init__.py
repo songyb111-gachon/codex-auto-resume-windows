@@ -19,12 +19,17 @@ it at all: a secret goes to Windows Credential Manager (credentials.py).
     meter     the usage meter's last reading of each window, and what each stage acted for (v0.6.16-beta.3)
     runs      a turn run here (v0.6.16-beta.4)
     chat      the Dashboard's chat messages (v0.6.16-beta.4)
+    analytics the tokens each conversation used a day, the rollouts read, and the meter's samples (v0.6.20)
     restarts  the watcher's restarts after it stopped unexpectedly (v0.6.19, crash_restart)
     opens     the conversations opened in Codex for a waiting message to be sent (v0.6.19, #50)
+    account   the account the watcher last saw signed in, as a keyed digest (v0.6.20, account_switch)
+    steers    the lines a person asked to be added to a running turn, and what came of each (v0.6.20, #50)
 """
 from __future__ import annotations
 
 from ..registry import REGISTRY
+from .analytics import AnalyticsMixin
+from .account import AccountMixin
 from .arming import ArmingMixin
 from .choices import ChoicesMixin, Refused, Scoped  # noqa: F401
 from .continuations import ContinuationsMixin
@@ -40,11 +45,12 @@ from .chat import ChatMixin
 from .schema import ATTACHED, FILE_NAME, SCHEMA_VERSION, TABLES  # noqa: F401
 from .session import SessionMixin, StaleGeneration, StateError  # noqa: F401
 from .spend import SpendMixin
+from .steers import SteersMixin
 
 
 class AdvancedState(SessionMixin, ArmingMixin, SpendMixin, RecordsMixin, JournalMixin, ChoicesMixin,
                     ResetsMixin, ContinuationsMixin, PromptsMixin, PromptMovesMixin, MeterMixin, RunsMixin,
-                    ChatMixin, RestartsMixin, OpensMixin):
+                    ChatMixin, RestartsMixin, OpensMixin, AnalyticsMixin, AccountMixin, SteersMixin):
     """One installation's advanced state, for one process: opened when first needed."""
 
     def __init__(self, paths, *, registry=REGISTRY, **options):

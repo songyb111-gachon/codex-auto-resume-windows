@@ -154,6 +154,13 @@ namespace CodexAutoResume
         {
             int[] range = pick.Range;
             var custom = new Dictionary<string, object>();
+            // v0.6.20: a time of day of one's own (window_anchor) is asked for in the Settings page's clock, as HH:MM.
+            if (IsAnchorTime(pick.Key))
+            {
+                custom["kind"] = "clock";
+                return OwnDialog(pick.Label, custom, CustomHint(pick), AnchorClock(current) ?? "07:00",
+                                 delegate(string value, Action<string> answer) { answer(AnchorValue(value)); }, taken);
+            }
             custom["kind"] = "number";
             custom["min"] = (double)range[0];
             custom["max"] = (double)range[1];
@@ -169,6 +176,9 @@ namespace CodexAutoResume
         /// say theirs ("1 min", "100%").
         private string CustomHint(CustomPick pick)
         {
+            if (IsAnchorTime(pick.Key))
+                return S("own.range", "From {low} to {high}.").Replace("{low}", AnchorTimeText(AnchorShift))
+                                                            .Replace("{high}", AnchorTimeText(1439 + AnchorShift));
             return S("own.range", "From {low} to {high}.").Replace("{low}", OptionText(pick.Key, pick.Range[0]))
                                                         .Replace("{high}", OptionText(pick.Key, pick.Range[1]));
         }

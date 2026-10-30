@@ -1286,7 +1286,7 @@ namespace CodexAutoResume
             string reason = code == null ? english
                 : S("custom.refusal." + code, english)
                       .Replace("{placeholder}", Str(result, "refusal_detail") ?? "")
-                      .Replace("{max}", MaxCustomLength.ToString(CultureInfo.CurrentCulture));
+                      .Replace("{max}", Mirror.Embed(MaxCustomLength.ToString(CultureInfo.CurrentCulture)));
             return S("custom.refused", "Not saved: {reason}", "reason", reason);
         }
 
@@ -1443,6 +1443,7 @@ namespace CodexAutoResume
             starting = true;
             startButton.Enabled = false;
             heroHeld = true;                // until the answer is read (ApplyStatus)
+            stateDot.State = "checking";    // v0.6.20: the working light while it starts, as the headline says (ApplyStatus puts the read one back)
             headline.Text = S("start.working", "Starting the watcher...");
             detail.Text = S("start.waiting", "Waiting for it to report in");
             header.Invalidate(true);

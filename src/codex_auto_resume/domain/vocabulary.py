@@ -626,3 +626,6 @@ class NoticeKind(StrEnum):
     # v0.6.19: the advanced edition's crash restart left the watcher stopped after its third restart in an hour - raised by
     # its plug in the launcher, as Windows' toast.
     RESTART_GAVE_UP = "restart_gave_up"
+    # v0.6.20: the advanced edition's account switch saw another Codex account signed in, and recoveries waiting for a
+    # usage limit wait for a person - shown only from its plug's surface.
+    ACCOUNT_CHANGED = "account_changed"

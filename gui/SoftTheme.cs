@@ -865,6 +865,8 @@ namespace CodexAutoResume
         /// in light or High Contrast; a Windows that knows neither attribute keeps its light title bar.
         internal static void TitleBar(Form form)
         {
+            // v0.6.20: and mirrored when the window being built is (Mirror.Window) - every window and dialog calls this.
+            Mirror.Apply(form);
             if (!Palette.Dark || form == null) return;
             EventHandler apply = delegate
             {
@@ -939,6 +941,14 @@ namespace CodexAutoResume
         /// it is exactly the switch at rest.
         internal static void SwitchAt(Graphics g, Rectangle track, double on, bool enabled, Color ground)
         {
+            SwitchSide(g, track, on, enabled, ground, false);
+        }
+
+        /// The same, `mirrored` in a window written right to left (v0.6.20, Mirror): the knob at the right when off and
+        /// travelling left to on, as the popup's and the panel's switch do. A name of its own, not a second SwitchAt:
+        /// the tests reach SwitchAt by its name alone.
+        internal static void SwitchSide(Graphics g, Rectangle track, double on, bool enabled, Color ground, bool mirrored)
+        {
             on = Math.Max(0.0, Math.Min(1.0, on));
             float radius = track.Height / 2f;
             Color offFill = Palette.Inset, offEdge = Palette.Line, onFill = Palette.Accent, onEdge = Palette.Accent;
@@ -970,6 +980,7 @@ namespace CodexAutoResume
             }
             float size = PxF(Brand.Knob), inset = PxF(Brand.KnobInset);
             float x = track.X + inset + (float)(PxF(Brand.KnobTravel) * on);
+            if (mirrored) x = track.X + track.Right - x - size;
             Color knob = on <= 0.0 ? offKnob : on >= 1.0 ? onKnob : Mix(offKnob, onKnob, on);
             GraphicsState state = g.Save();
             g.SmoothingMode = SmoothingMode.AntiAlias;
@@ -1128,10 +1139,17 @@ namespace CodexAutoResume
         /// the ground is `over`, the ground it sits on. Returns how wide it was drawn.
         internal static int Chip(Graphics g, Rectangle cell, string text, Font font, Color tone, Color over)
         {
+            return Chip(g, cell, text, font, tone, over, false);
+        }
+
+        /// The same, at the cell's right and read right to left when `mirrored` (v0.6.20, Mirror).
+        internal static int Chip(Graphics g, Rectangle cell, string text, Font font, Color tone, Color over, bool mirrored)
+        {
             if (string.IsNullOrEmpty(text)) return 0;
             Size size = ChipSize(text, font);
             int width = Math.Min(size.Width, Math.Max(Px(Brand.CountMinWidth), cell.Width));
-            var body = new RectangleF(cell.X, cell.Y + (float)Math.Floor((cell.Height - size.Height) / 2f), width, size.Height);
+            var body = new RectangleF(mirrored ? cell.Right - width : cell.X,
+                                      cell.Y + (float)Math.Floor((cell.Height - size.Height) / 2f), width, size.Height);
             GraphicsState state = g.Save();
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.PixelOffsetMode = PixelOffsetMode.Half;
@@ -1140,8 +1158,9 @@ namespace CodexAutoResume
                 g.FillPath(brush, path);
             g.Restore(state);
             TextRenderer.DrawText(g, text, font, Rectangle.Round(body), tone,
-                                  TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
-                                  TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
+                                  Mirror.Words(mirrored, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
+                                                         TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis |
+                                                         TextFormatFlags.NoPadding));
             return width;
         }
 

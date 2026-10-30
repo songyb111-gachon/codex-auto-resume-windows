@@ -300,7 +300,9 @@
               "pl",
               "uk",
               "vi",
-              "id"
+              "id",
+              "ar",
+              "he"
             ],
             "group": "general"
           },
@@ -325,7 +327,9 @@
               "pl",
               "uk",
               "vi",
-              "id"
+              "id",
+              "ar",
+              "he"
             ],
             "group": "continuation"
           },
@@ -1309,7 +1313,9 @@
               "pl",
               "uk",
               "vi",
-              "id"
+              "id",
+              "ar",
+              "he"
             ],
             "group": "general"
           },
@@ -1334,7 +1340,9 @@
               "pl",
               "uk",
               "vi",
-              "id"
+              "id",
+              "ar",
+              "he"
             ],
             "group": "continuation"
           },

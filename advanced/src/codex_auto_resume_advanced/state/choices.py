@@ -42,9 +42,16 @@ CARRIED = frozenset((capability, choice) for capability in WINDOW_FOLLOWERS for 
 # check's last run, and the newest version it offered and when. Nothing else is ever written so.
 STAMPS = {"idle_update_check": (str(OptionKey.LAST_CHECK), str(OptionKey.OFFERED_VERSION),
                                 str(OptionKey.OFFERED_AT)),
+          # v0.6.20 (usage_analytics): when its last pass over the rollouts ran (engine/analytics.py).
+          "usage_analytics": (str(OptionKey.LAST_INGEST),),
           # v0.6.19 (issue #50): early_reset's times for Pending's Why it is waiting, and a person's click's probe.
           "early_reset": (str(OptionKey.CHECKED_AT), str(OptionKey.AVAILABLE_AT), str(OptionKey.LIFTED_AT),
-                          str(OptionKey.CHECK_ASKED), str(OptionKey.FOUND_AT))}
+                          str(OptionKey.CHECK_ASKED), str(OptionKey.FOUND_AT)),
+          # v0.6.20: window_anchor's times and the last request's token counts (engine/anchor.py).
+          "window_anchor": (str(OptionKey.ANCHOR_STARTED_AT), str(OptionKey.ANCHOR_FIXED_AT),
+                            str(OptionKey.ANCHOR_SEEN_RESET), str(OptionKey.ANCHOR_SLOT_DONE),
+                            str(OptionKey.ANCHOR_RESET_DONE), str(OptionKey.ANCHOR_INPUT_TOKENS),
+                            str(OptionKey.ANCHOR_OUTPUT_TOKENS))}
 RULES_LIMIT = 10
 STATUS_RANGE = (100, 599)
 # How far back the Dashboard counts a rule's hits and shows samples.
@@ -213,6 +220,7 @@ class Scoped:
         # v0.6.14, the reset actions: their rules, windows and spends (state/resets.ResetsHandle - writes only while
         # on), whether a measurement passed or failed on the Codex in force (arming.Arming.verdict), and whether
         # another capability stands on now.
+        from .analytics import AnalyticsHandle
         from .continuations import ContinuationsHandle
         from .meter import MeterHandle
         from .runs import RunsHandle
@@ -221,6 +229,7 @@ class Scoped:
         from .prompts import PromptsHandle
         from .resets import ResetsHandle
         from .restarts import RestartsHandle
+        from .steers import SteersHandle
         self._reads.update({
             "resets": ResetsHandle(state, capability, on),
             # v0.6.15-beta: a continuation capability's own continuations (state/continuations.py).
@@ -231,6 +240,8 @@ class Scoped:
             "meter": MeterHandle(state, capability, on),
             # v0.6.16-beta.4: a headless capability's own runs (state/runs.py).
             "runs": RunsHandle(state, capability, on),
+            # v0.6.20: the analytics' files and numbers, and the meter's samples while the analytics stand on.
+            "analytics": AnalyticsHandle(state, capability, on, armed),
             # v0.6.19: the watcher's restarts after it stopped unexpectedly, written by crash_restart alone
             # (state/restarts.py).
             "restarts": RestartsHandle(state, capability, on),
@@ -238,10 +249,20 @@ class Scoped:
             "chat": ChatHandle(state, capability, on),
             # v0.6.19 (#50): open_to_send's opens (state/opens.py).
             "opens": OpensHandle(state, capability, on),
+            # v0.6.20 (#50): steer_send's steers (state/steers.py).
+            "steers": SteersHandle(state, capability, on),
             "passed": lambda measurement: verdict is not None and verdict(measurement) == "pass",
             "failed": lambda measurement: verdict is not None and verdict(measurement) == "fail",
             "armed": lambda other: armed is not None and armed(other) is True,
         })
+        # v0.6.20 (push_notices, status_feed - the courier, plans/v0619-design/D-courier.md): push_notices' outbox, written
+        # only while it is on, and the status feed's last reading, read always. Neither loads a networking module.
+        from ..courier.feed import read as feed_read
+        from ..courier.outbox import OutboxHandle
+        self._reads.update({"outbox": OutboxHandle(state, capability, on), "feed": lambda: feed_read(state)})
+        # v0.6.20: the account account_switch last saw signed in (state/account.py) - its alone.
+        from .account import AccountHandle
+        self._reads["account"] = AccountHandle(state, capability, on)
 
     def __getattr__(self, name):
         reads = object.__getattribute__(self, "_reads")

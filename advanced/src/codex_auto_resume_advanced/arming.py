@@ -76,7 +76,7 @@ from .state import Refused, StaleGeneration, StateError
 from .state.spend import CHANNELS
 from .state.choices import DAY, RECENT_DAYS, RULES_LIMIT, aggregated, tag_problem
 from .statement import CATALOGS
-from .vocabulary import ContinuationReason, PromptReason  # noqa: E402  (v0.6.15-beta)
+from .vocabulary import ContinuationReason, PromptReason, SteerReason  # noqa: E402  (v0.6.15-beta; v0.6.20)
 from .vocabulary import (KEPT_NOTICES, TRIPWIRES, Actor, ArmingState, ArmingWarning, CapabilityKind,
                          KeepOn, Measurement, OffReason, OverrideKind, RecordState, Refusal, RuleReason,
                          RuleState, Verdict)
@@ -324,6 +324,9 @@ class Arming:
         # timeout, or not to be opened - is tried again at every sweep until it is, though the
         # record has settled by then (`_settle`).
         self._owed = {}
+        # v0.6.20 (account_switch): Credential Manager as `forget` reaches it (credentials.Secrets' shape) - a test's,
+        # or None for Windows' own, asked only where the account seen is still kept.
+        self.secrets = None
 
     def policy(self):
         try:
@@ -468,8 +471,23 @@ class Arming:
     def _write_off(self, capability, reason) -> bool:
         """`capability` off, with why; StateError where that cannot be written."""
         actor = Actor.TRIPWIRE if reason in TRIPWIRES else Actor.ENGINE_CHANGE
-        return self.state.move(capability, ArmingState.OFF, actor=actor, reason=reason,
-                               at=self.clock())[0]
+        turned = self.state.move(capability, ArmingState.OFF, actor=actor, reason=reason, at=self.clock())[0]
+        self._hook_declaration()
+        return turned
+
+    def _hook_declaration(self) -> None:
+        """v0.6.20: the Stop hook's declaration follows its capability's stored state (control/hookplugin.py) - written
+        while it is on, removed at every way off - and only where this registry has the capability, so nothing is
+        touched while it waits hidden (registry.WAITING). Never raises."""
+        from .control import hookplugin
+        if self.registry.get(hookplugin.CAPABILITY) is None:
+            return
+        try:
+            from .codex import inuse
+            row = self.state.arming().get(hookplugin.CAPABILITY) or {}
+            hookplugin.follow(self.state.paths, inuse.home(self.state.paths), row.get("state") == ArmingState.ARMED)
+        except Exception:
+            pass
 
     def trip(self, capability, reason) -> bool:
         """A tripwire: `capability` off, with why - or, kept on, noted (K8). Only a tripwire's
@@ -565,6 +583,7 @@ class Arming:
         self._duplicates(core_view)
         self._void_requests(states)
         self._end_resets(states)
+        self._end_account(states)
 
     def _void_requests(self, states) -> None:
         """Every unused FORCE_ONCE - a person's Send now - of a capability that does not stand on now,
@@ -599,6 +618,11 @@ class Arming:
             # continuation still waiting of one that does not stand on (state/continuations).
             if states.get("prompt_queue", ArmingState.OFF) == ArmingState.OFF:
                 self.state.end_prompts(PromptReason.TURNED_OFF, at=self.clock())
+            # v0.6.20 (#50): every steer still waiting to be sent while steer_send does not stand on - watched included:
+            # a steer is for the turn running now, and is never held for a later arm.
+            if (self.registry.get("steer_send") is not None
+                    and states.get("steer_send", ArmingState.OFF) != ArmingState.ARMED):
+                self.state.end_requested_steers(SteerReason.TURNED_OFF, at=self.clock())
             for row in self.state.continuations(pending=True):
                 if (states.get(row["capability"], ArmingState.OFF) != ArmingState.ARMED
                         and row["record_state"] == RecordState.WAITING):
@@ -606,6 +630,14 @@ class Arming:
                                                  at=self.clock())
         except StateError:
             return                                   # tried again at the next sweep
+
+    def _end_account(self, states) -> None:
+        """v0.6.20: account_switch turned off - by a person, every feature off, a policy or an edition entered - takes its
+        salt out of Credential Manager and the account seen out of the state (engine/account.forget): only where a row is
+        still kept, so with none nothing is asked of Credential Manager; what fails is tried again at the next sweep."""
+        from .engine import account
+        if states.get(account.CAPABILITY, ArmingState.OFF) == ArmingState.OFF and account.CAPABILITY in self.registry.ids:
+            account.forget(self.state, self.secrets)
 
     def _duplicates(self, core_view) -> None:
         """Each resend still watched (an open RESEND_ONCE) whose record core says was found twice:
@@ -787,6 +819,7 @@ class Arming:
                 return refused(Refusal.STALE_GENERATION)
             except StateError:
                 return refused(Refusal.STATE_UNAVAILABLE)
+            self._hook_declaration()
             return {"done": True, "refusal": None, "warnings": [str(word) for word in shown], "generation": after}
 
         # Turning it on. Every requirement that is not ARMED now is turned on with it, one confirmation.
@@ -837,6 +870,7 @@ class Arming:
             return refused(Refusal.STALE_GENERATION)
         except StateError:
             return refused(Refusal.STATE_UNAVAILABLE)
+        self._hook_declaration()
         return {"done": True, "refusal": None, "warnings": [str(word) for word in shown],
                 "generation": after}
 
@@ -870,6 +904,7 @@ class Arming:
                                               reason=OffReason.DISARMED, at=self.clock())
         except StateError:
             return {"done": False, "refusal": Refusal.STATE_UNAVAILABLE, "changed": False, "also_off": also_off}
+        self._hook_declaration()
         return {"done": True, "refusal": None, "changed": changed, "also_off": also_off}
 
     def all_off(self, *, actor) -> dict:
@@ -880,14 +915,16 @@ class Arming:
             count, _after = self.state.all_off(actor=actor, reason=OffReason.ALL_OFF, at=self.clock())
         except StateError:
             return {"done": False, "refusal": Refusal.STATE_UNAVAILABLE, "count": 0}
+        self._hook_declaration()
         return {"done": True, "refusal": None, "count": count}
 
     def edition_entered(self) -> int:
         """The installer has just entered this edition: every capability off, whatever an
         earlier advanced installation of this home left on. Writes nothing where there is no
         advanced state, since then nothing can be on."""
-        return self.state.all_off(actor=Actor.EDITION_ENTRY, reason=OffReason.EDITION_ENTERED,
-                                  at=self.clock())[0]
+        count = self.state.all_off(actor=Actor.EDITION_ENTRY, reason=OffReason.EDITION_ENTERED, at=self.clock())[0]
+        self._hook_declaration()
+        return count
 
     # ------------------------------------------------------------------ kept on
     def set_keep_on(self, capability, keep_on, *, send_again=False, generation, confirmed=None,

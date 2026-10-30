@@ -1,0 +1,31 @@
+{
+  "format": "codex-auto-resume-measurement/1",
+  "step": "manchor",
+  "verdict": "blocked",
+  "recorded_at": "2026-10-29T08:20Z",
+  "product_version": "0.6.20-beta.2",
+  "codex_version": "codex-cli 0.165.0-alpha.1.2",
+  "windows_build": "10.0.26300",
+  "observed": {
+    "windows_read": true,
+    "idle_before": true,
+    "request_exit_zero": true,
+    "window_started": true,
+    "reset_near_five_hours": true,
+    "folder_empty_after": true,
+    "input_tokens": 24138,
+    "cached_tokens": 12416,
+    "output_tokens": 5,
+    "no_new_conversation": true,
+    "no_new_rollout": true,
+    "history_unchanged": true,
+    "second_request_kept_reset": true,
+    "thread_given": false
+  },
+  "note": "confirm in Codex's /usage that the 5-hour reset is five hours after the request, and that the app's list has no new conversation, then set the verdict",
+  "completion": {
+    "verdict": "pass",
+    "note": "as_expected",
+    "recorded_at": "2026-10-29T08:23Z"
+  }
+}

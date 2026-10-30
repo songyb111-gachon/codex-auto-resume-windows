@@ -433,7 +433,7 @@ namespace CodexAutoResume
             if (commands > 0 || files > 0)
                 card.Controls.Add(HelpText(Word("page.chat.counts", "Ran {commands} commands, changed {files} files",
                     "commands", commands.ToString(CultureInfo.InvariantCulture))
-                    .Replace("{files}", files.ToString(CultureInfo.InvariantCulture))));
+                    .Replace("{files}", Mirror.Embed(files.ToString(CultureInfo.InvariantCulture)))));
             if (Str(turn, "status") == "inProgress")
                 card.Controls.Add(HelpText(Word("page.chat.in_progress", "In progress - approvals are answered in Codex.")));
         }

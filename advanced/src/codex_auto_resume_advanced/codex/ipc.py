@@ -1,5 +1,5 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
-"""The Codex Desktop app's own IPC pipe, \\\\.\\pipe\\codex-ipc - for the forced stop near a usage limit alone
+"""The Codex Desktop app's own IPC pipe, \\\\.\\pipe\\codex-ipc - for the forced stop near a usage limit and, from v0.6.20, MSTEER2's steer
 (v0.6.16-beta.4, usage_pause; measurement MIPC passed on codex-cli 0.162.0-alpha.17.2 with app 26.1007.9446.0, and
 again on 0.163.0-alpha.10.2 with app 26.1013.3656.0 - f16c9ca2 on measure-20261017 - where v4 was measured too).
 
@@ -9,7 +9,9 @@ person makes with the app's own Stop button. The app then pauses that conversati
 its restart. And, after the window resets, `thread-follower-start-turn` - a turn started with the product's own
 continuation, which goes past that paused queue - for a conversation it stopped (start_turn); measured 2026-10-16,
 once that turn completes the app sends what was queued by itself and the pause is gone, so nothing else is asked of
-the queue (`thread-follower-set-queued-follow-ups-state` is not needed). Every frame is 4 bytes of little-endian
+the queue (`thread-follower-set-queued-follow-ups-state` is not needed). v0.6.20 adds `steer_turn`, a line added to the
+running turn, for the MSTEER2 measurement and - from v0.6.20, by the owner's decision of 2026-10-29 after MSTEER2 found the
+line delivered but never shown - the steer_send capability's errand (engine/steer.py), which only the watcher runs. Every frame is 4 bytes of little-endian
 length and UTF-8 JSON. Each request has one deadline for its whole answer, READ_SECONDS from when it is written,
 however many broadcasts come first (an overlapped read, cancelled and waited out, then the pipe closed - as the MIPC
 look does); nothing here waits for good.
@@ -49,6 +51,16 @@ REQUESTS = {
         "request": {"threadId": "{thread}", "clientUserMessageId": "{message}",
                     "input": [{"type": "text", "text": "{text}", "text_elements": []}]},
         "context": {"inheritThreadSettings": True}}}),
+    # v0.6.20 (MSTEER2, issue #50): a line added to the turn the app is running, as the app's own steer does for a window
+    # that follows the conversation (the 2026-10-16 experiment, measure-20261016/ipc_try.py: success, inside the running
+    # turn, shown as the person's message). It names no turn: the app steers the conversation's running one, which is
+    # why the caller checks the history before and after. restoreMessage is what the app builds the steering item from.
+    "thread-follower-steer-turn": (1, {
+        "conversationId": "{thread}", "clientUserMessageId": "{message}",
+        "input": [{"type": "text", "text": "{text}", "text_elements": []}],
+        "restoreMessage": {"id": "{message}", "text": "{text}", "cwd": None,
+                           "context": {"workspaceRoots": [], "collaborationMode": None, "commentAttachments": []}},
+        "serviceTier": None, "attachments": [], "additionalContext": None, "toolOutput": None}),
 }
 # v4 of the stop names the running turn it expects to stop, so a turn begun in between is never stopped.
 INTERRUPT_EXPECTING = (4, {"conversationId": "{thread}", "mode": "system", "expectedTurnId": "{turn}"})
@@ -77,6 +89,11 @@ class Stop(StrEnum):
 class Start(StrEnum):
     """What came of one turn started - the closed words the journal keeps (and Stop's for every failure)."""
     STARTED = "started"
+
+
+class Steer(StrEnum):
+    """What came of one line added to a running turn (steer_turn) - the closed word; Stop's for every failure."""
+    STEERED = "steered"
 
 
 class _Failed(Exception):
@@ -421,6 +438,50 @@ def start_turn(thread_id, text, *, channel=None, gate=None):
                 return Stop.UNCONFIRMED
             raise
         return Start.STARTED
+    except _Failed as failed:
+        return failed.word
+    except Exception:
+        return Stop.BROKEN
+    finally:
+        opened.close()
+
+
+def steer_turn(thread_id, text, *, message=None, channel=None, gate=None):
+    """Add `text` to the turn the app is running for `thread_id` (MSTEER2, v0.6.20): Steer.STEERED, or the Stop word of
+    what failed - NO_PIPE (no app), NO_CLIENT (the app does not hold the conversation), VERSION_MISMATCH, REFUSED, HELD,
+    UNCONFIRMED where the request was written and no answer came in time, or the pipe failed after it was written (it
+    may be in the turn), BROKEN where nothing of it was written. One request is written, once: nothing here asks again,
+    whatever the answer. `message` is the client id the line carries (the history
+    shows it on the person's message). `gate` is core's errand guard, around the one writing (HELD where it refuses).
+    `channel` is a seam (a Channel of a test's own pipe)."""
+    try:
+        opened = channel if channel is not None else Channel()
+    except _Failed as failed:
+        return failed.word
+    except Exception:
+        return Stop.BROKEN
+    try:
+        hello = _request(opened, "initializing-client", "initialize", REQUESTS["initialize"], {})
+        client = (hello.get("result") or {}).get("clientId")
+        if not isinstance(client, str) or not client:
+            return Stop.REFUSED
+        owner = _request(opened, client, "thread-owner-discovery", REQUESTS["thread-owner-discovery"],
+                         {"thread": thread_id}).get("handledByClientId")
+        if not isinstance(owner, str) or not owner:
+            return Stop.NO_CLIENT
+        try:
+            _request(opened, client, "thread-follower-steer-turn", REQUESTS["thread-follower-steer-turn"],
+                     {"thread": thread_id, "message": message or str(uuid.uuid4()), "text": text}, target=owner,
+                     gate=gate)
+        except _Failed as failed:
+            # v0.6.20 (steer_send): a pipe that fails while the steer is written or its answer read leaves it possibly
+            # written, as an answer that never came does - UNCONFIRMED, never a failure a caller might write it again for.
+            if failed.word in (Stop.NO_ANSWER, Stop.BROKEN):
+                return Stop.UNCONFIRMED
+            raise
+        except Exception:
+            return Stop.UNCONFIRMED
+        return Steer.STEERED
     except _Failed as failed:
         return failed.word
     except Exception:

@@ -462,6 +462,41 @@ class PauseBesideResetCreditTests(UsageCase):
         self.assertFalse(all(held), "some minute of the credit's early window is not held")
 
 
+class AnalyticsBesideMeterAndPauseTests(UsageCase):
+    """v0.6.20, usage_analytics (observe-only): on beside the meter it requires and the stop near a limit, each still
+    does all it did alone - the meter keeps its reading and warns once, the stop holds a record at its percentage -
+    and the analytics keep that same reading as their samples. Nothing of theirs is an answer at any point."""
+
+    def setUp(self):
+        ac.AdvancedCase.setUp(self)
+        from codex_auto_resume_advanced.registry import USAGE_ANALYTICS
+        self.compat = {"status": "ok", "engine": {"found": True, "version": ac.ENGINE},
+                       "capabilities": {name: {"state": "COMPATIBLE", "reason": "local_checks_passed"}
+                                        for name in ("usage_probe", "exact_thread_recovery")}}
+        self.rt = self.runtime(USAGE_METER, USAGE_PAUSE, USAGE_ANALYTICS)
+        self.rt.arming.catalogs = statement.CATALOGS
+        self.answer, self.calls, self.app = reply(), [], True
+        code = self.rt._code_of(USAGE_METER)
+        code._session = lambda: Session(self.answer, self.calls)
+        code._app_running = lambda: self.app
+        self.rt._code_of(USAGE_ANALYTICS)._homes = lambda: []
+
+    def test_both_apply_to_the_same_reading(self):
+        self.on("usage_pause")
+        self.on("usage_analytics")
+        self.answer = reply(five=99)
+        self.look()
+        self.look()                                   # the stop's own tick marks the window
+        rows = self.rt.state.meter()
+        self.assertEqual(rows[("codex", 300)]["used_percent"], 99.0)
+        self.assertEqual(rows[("codex", 300)]["warned_reset_at"], rows[("codex", 300)]["reset_at"])
+        record = {"interruption_id": ac.KEY, "thread_id": ac.THREAD, "category": "usage_limit",
+                  "state": "waiting_reset"}
+        self.assertIs(self.rt.ask(Point.GATES, "submission_safe", record, {}), Alternative.HOLD)
+        samples = self.rt.state.usage_samples()
+        self.assertIn((300, 99.0), [(row["minutes"], row["used_percent"]) for row in samples])
+
+
 # v0.6.19 W4 (plans/v0619-design/D-watcher-ops.md): the watcher operations beside what they meet.
 class CrashRestartBesideStartWithCodexTests(ac.AdvancedCase):
     """crash_restart and start_with_codex: COMPOSE. Start with Codex starts this installation's launcher through WMI,
@@ -884,6 +919,148 @@ class OpenToSendBesideHeadlessRunTests(OpenCase, UnheldCase):
             self.h.tick(advance=61)
         self.assertEqual(len(route.calls), 1, "headless_run ran it")
         self.assertEqual(self.opened, [])
+
+
+# ------------------------------------------------------------------ v0.6.20: push_notices and status_feed (the courier)
+class CourierBesideEveryCapabilityTests(ac.AdvancedCase):
+    """COMPOSE, none needed: push_notices and status_feed only observe. Neither answers at a point that decides or sends
+    (P20 is told and its answer never read; P8's errands only start the courier), so with either on beside any other
+    capability, every answer the other gives at every point is the one it gives alone."""
+
+    def test_they_answer_at_no_deciding_point(self):
+        from codex_auto_resume_advanced.registry import PUSH_NOTICES, STATUS_FEED
+        self.assertEqual(PUSH_NOTICES.points, frozenset({Point.NOTICE, Point.TICK}))
+        self.assertEqual(STATUS_FEED.points, frozenset({Point.TICK}))
+        for definition in (PUSH_NOTICES, STATUS_FEED):
+            self.assertEqual(definition.requires, ())
+
+    def test_beside_every_shipped_capability_the_other_answers_as_it_does_alone(self):
+        from codex_auto_resume_advanced import registry as shipped
+        from codex_auto_resume_advanced.registry import PUSH_NOTICES, STATUS_FEED
+        courier = {PUSH_NOTICES.id, STATUS_FEED.id}
+        others = [definition for definition in shipped.DEFINITIONS if definition.id not in courier]
+        for definition in others:
+            with self.subTest(definition.id):
+                # Neither of the courier's two is ever asked at a point the other answers at but P8, where errands join.
+                shared = (PUSH_NOTICES.points | STATUS_FEED.points) & definition.points
+                self.assertLessEqual(shared, frozenset({Point.TICK, Point.NOTICE}))
+                self.assertNotIn(Point.NOTICE, definition.points)
+
+
+# ---------------------------------------------------------------- v0.6.20: account_switch (plans/v0619-design/D-account.md)
+class AccountBesideResetsAndPauseTests(UsageCase):
+    """account_switch beside reset_credit, reset_message and usage_pause: COMPOSE, each still doing its own. Another
+    account signed in holds core's waiting usage-limit records and every reset rule still counting - held in the reset
+    actions' own words, as over a gap in the count (state/resets.py has no word of its own for a change of account, and
+    count_gap is what a count that cannot be carried over is), Go on counting the person's - while usage_pause's own
+    hold of core's records at P3 still answers beside it. reset_message's rule is held the same way
+    (test_advanced_account.ResetRuleTests)."""
+
+    class View:
+        def records_in(self, wanted):
+            return [{"interruption_id": ac.KEY, "category": "usage_limit", "state": "waiting_reset"}]
+
+    def setUp(self):
+        ac.AdvancedCase.setUp(self)
+        from codex_auto_resume_advanced.registry import ACCOUNT_SWITCH
+        from test_advanced_account import ONE, OTHER, Secrets
+        from codex_auto_resume_advanced.codex import account
+        self.compat = {"status": "ok", "engine": {"found": True, "version": ac.ENGINE},
+                       "capabilities": {name: {"state": "COMPATIBLE", "reason": "local_checks_passed"}
+                                        for name in ("usage_probe", "exact_thread_recovery")}}
+        self.rt = self.runtime(ACCOUNT_SWITCH, RESET_CREDIT, USAGE_METER, USAGE_PAUSE)
+        self.rt.arming.catalogs = statement.CATALOGS
+        self.answer, self.calls, self.app = reply(), [], True
+        meter = self.rt._code_of(USAGE_METER)
+        meter._session = lambda: Session(self.answer, self.calls)
+        meter._app_running = lambda: self.app
+        self.signed, self.other, self.holds = ONE, OTHER, []
+        code = self.rt._code_of(ACCOUNT_SWITCH)
+        code._read = lambda paths: account.parse(self.signed)
+        code._secrets = self.rt.arming.secrets = Secrets()
+        code._hold = lambda paths, keys, now: self.holds.append(list(keys)) or len(keys)
+
+    def tick(self):
+        answer = self.rt.tick(self.View())
+        if answer is not DEFER:
+            answer.run(lambda: None)
+        self.rt.states(fresh=True)
+
+    def test_a_counting_credit_rule_is_held_and_core_s_records_too(self):
+        from codex_auto_resume_advanced.vocabulary import RuleReason, RuleState
+        self.on("reset_credit", "account_switch")
+        rule = self.rt.state.add_reset_rule("reset_credit", "codex", 300, 2, at=self.now)
+        self.tick()
+        self.signed = self.other
+        self.now += 1800
+        self.tick()
+        held = self.rt.state.reset_rule(rule)
+        self.assertEqual((held["state"], held["reason"]), (RuleState.HELD, RuleReason.COUNT_GAP))
+        self.assertEqual(self.holds, [[ac.KEY]])
+
+    def test_the_pause_still_holds_beside_the_account_s_hold(self):
+        self.on("usage_pause", "account_switch")
+        self.answer = reply(five=100)
+        self.tick()
+        self.tick()                                   # the pause's own tick marks the window
+        record = {"interruption_id": ac.KEY, "thread_id": ac.THREAD, "category": "usage_limit",
+                  "state": "waiting_reset"}
+        self.assertIs(self.rt.ask(Point.GATES, "submission_safe", record, {}), Alternative.HOLD)
+        self.signed = self.other
+        self.now += 1800
+        self.tick()
+        self.assertEqual(self.holds, [[ac.KEY]], "core's record is held for the person")
+        self.assertIs(self.rt.ask(Point.GATES, "submission_safe", record, {}), Alternative.HOLD,
+                      "and the pause still holds it at P3 until its window resets")
+
+
+# v0.6.20: Continue inside the turn (stop_hook_continuation, D-stop-hook.md) beside the capabilities its design pairs it
+# with. COMPOSE with capacity_retry, unknown_failure_budget and marker_free_continuation: the hook's continuation is the
+# first attempt at a failure, and theirs come after it under the same caps on one conversation - each of the hook's
+# counts there as a claim. EXCLUSIVE with keep_going by nature: a turn that ended normally is never the hook's.
+from test_advanced_hook_claim import HookClaimCase  # noqa: E402
+from codex_auto_resume import settings as core_settings  # noqa: E402
+from codex_auto_resume_advanced.hook import handler as hook_handler  # noqa: E402
+from codex_auto_resume_advanced.vocabulary import HookOutcome  # noqa: E402
+
+
+class StopHookBesideTheRetriesTests(HookClaimCase):
+    """capacity_retry, unknown_failure_budget and marker_free_continuation each carry a later send in the conversation;
+    the hook's block before them is a claim they wait fifteen minutes after, and none of them is undone by it."""
+
+    def test_the_hook_s_continuation_is_a_claim_the_others_sends_wait_for(self):
+        self.due()
+        other = dict(self.failure(), interruption_id="%064x" % 11)
+        self.assertEqual(self.hook(other, turn="55555555-5555-4555-8555-555555555555"), HookOutcome.BLOCKED)
+        # Core's record of the conversation - whichever capability's words or channel its send would carry - is held.
+        self.assertEqual(self.ledger(), Alternative.HOLD)
+        self.assertIs(self.ledger(now=self.h.now + 901), DEFER)
+
+    def test_the_kinds_they_take_up_are_not_the_hook_s_and_capacity_s_is_both_in_turn(self):
+        values = dict(core_settings.DEFAULTS)
+        for kind in ("unknown", "terminal_failure", "usage_limit", "rate_limit_transient"):
+            with self.subTest(kind):
+                self.assertFalse(hook_handler.continues({"category": kind}, values))
+        self.assertTrue(hook_handler.continues({"category": "server_5xx"}, values),
+                        "Codex at capacity: the hook first, inside the turn; capacity_retry's waits after it")
+
+
+class StopHookBesideKeepGoingTests(unittest.TestCase):
+    """A Stop hook on every normal stop would turn every turn into a loop: a turn that completed is keep_going's alone."""
+
+    def test_a_turn_that_ended_normally_is_never_claimed(self):
+        from codex_auto_resume.codex.values import normalize
+        thread, turn = "11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"
+        claims = []
+        hands = hook_handler.Hands(
+            armed=lambda: True, settings=lambda: dict(core_settings.DEFAULTS),
+            latest=lambda _thread: normalize({"thread_id": thread, "turn_id": turn, "status": "completed",
+                                              "started_at": 1_790_000_000.0, "completed_at": 1_790_000_010.0,
+                                              "rollout_ordinal": 3}),
+            claim=lambda *arguments: claims.append(arguments) or HookOutcome.BLOCKED)
+        stop = {"hook_event_name": "Stop", "session_id": thread, "turn_id": turn}
+        self.assertIsNone(hook_handler.decide(stop, hands))
+        self.assertEqual(claims, [])
 
 
 if __name__ == "__main__":

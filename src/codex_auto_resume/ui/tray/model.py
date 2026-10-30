@@ -22,10 +22,13 @@ def popup_attention(popup) -> bool:
 
 def snapshot_from(store, now: float) -> dict:
     """What the icon shows, from our own store only: no Codex read, no content."""
-    waiting, running, due = 0, 0, []
+    waiting, running, held, due = 0, 0, 0, []
     for row in store.pending():
         if row["state"] in machine.WAITING:
             waiting += 1
+            # v0.6.20: and how many of them wait for a person (the overlay `held`): the icon asks for their attention.
+            if row.get("hold") is not None:
+                held += 1
             at = machine.eligible_at(row)
             if at:
                 due.append(at)
@@ -33,5 +36,5 @@ def snapshot_from(store, now: float) -> dict:
             running += 1
     # When the newest certain failure was, and the newest recovery on its way: the icon asks the control layer
     # whether anybody has seen it since (Tray._failure_unseen), every second rather than every tick.
-    return {"enabled": store.settings()["enabled"], "waiting": waiting, "running": running,
+    return {"enabled": store.settings()["enabled"], "waiting": waiting, "running": running, "held": held,
             "next_at": min(due) if due else None, "failures": store.failure_marks()}

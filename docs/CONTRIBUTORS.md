@@ -56,6 +56,8 @@ Everyone below is a person outside the project who helped it, in the order they 
   records under another id ([#30](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/30)).
 - [@Hunweibyn](https://github.com/Hunweibyn) suggested watching the usage limit ahead of time, with a safe pause
   and resume ([#29](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/29)).
+- [@TheEleage](https://github.com/TheEleage) reviewed the Russian labels in their fork; the Russian *Retry now* button and the two
+  strings that quote it follow their wording.
 - [@Zephreo](https://github.com/Zephreo) suggested resuming a goal that was running ([#36](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/36)).
 - [@Kdevaulo](https://github.com/Kdevaulo) reported a terminal conversation continued in the Codex Desktop that
   was left out of recovery ([#37](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/37)) and an update status that misled when GitHub could not be reached ([#41](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/41)),
@@ -64,10 +66,13 @@ Everyone below is a person outside the project who helped it, in the order they 
   ([#53](https://github.com/songyb111-gachon/codex-auto-resume-windows/pull/53)).
 - [@weng-wen-jun](https://github.com/weng-wen-jun) asked for a manual rescan that reconciles obsolete
   pending recoveries ([#39](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/39)), then proposed the Pending and editor work for queued messages and the
-  usage check behind Retry now and Rescan, and the searchable conversation picker that became Find a conversation
+  usage check behind Retry now and Rescan, and the searchable conversation picker that became Find a conversation, and
+  the follow-up that became pictures beside the words of a queued message, the steer send mode and the follow-through view in History
   ([#50](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/50)).
 - [@kano0222](https://github.com/kano0222) reported that a conversation an agent made was never recovered, even when the
   person went on using it from the input box, and traced it to the exact rule in the code ([#54](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/54)).
+- [@CuuuuteBrainGoo](https://github.com/CuuuuteBrainGoo) reported that opening the Dashboard from the notification area opened another
+  window each time ([#55](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/55)).
 
 ## A note on the AI contributors
 

@@ -41,7 +41,8 @@ class ReadmePlanTests(unittest.TestCase):
             with self.subTest(name):
                 plan = motion_plan.load(make_motion.plan_path(name))
                 end = motion_plan.plan_end(plan)
-                self.assertTrue(25000 <= end <= 35000, end)
+                # v0.6.20: four more scenes (Retry now, Why it is waiting, Timeline, Pause and Resume): up to 48 s.
+                self.assertTrue(25000 <= end <= 48000, end)
                 frames = motion_plan.expand(plan)
                 self.assertEqual(frames[0].t, 0)
                 self.assertEqual(state(frames[0]), {"page": "overview", "locale": plan["locale"]},

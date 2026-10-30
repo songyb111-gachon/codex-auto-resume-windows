@@ -6,7 +6,7 @@
     python -X utf8 build/make_motion.py --fidelity      # only the window held to today's stills, recorded
     python -X utf8 build/make_motion.py card-en card-ko # the notification card appearing, on its own
     python -X utf8 build/make_motion.py logo-light logo-dark   # the README's logo, moving (build/motion_logo.py)
-    python -X utf8 build/make_motion.py popup-en popup-ko   # the notification-area popup opened, used and closed
+    python -X utf8 build/make_motion.py popup-en popup-ko   # the notification-area popup used by a pointer
     python -X utf8 build/make_motion.py --all           # all ten: the final's picture pass
 
 The README's two show the Dashboard alone, the window bare, with no shadow (RGBA, its rounded corners clear);
@@ -241,6 +241,7 @@ def make(plan: dict, exe: Path | None, work: Path, forms=None) -> object:
             popup.close()
             raise SystemExit("the popup is drawn %dx%d and the canvas is %dx%d: make the stills again, or the "
                              "canvas the size of the popup's still" % (tuple(popup.size) + (width, height)))
+        seen_bounds_at_start = popup.bounds()
         if not popup.is_the_still(frames[0], plain, ROOT / popup_plan["still"]):
             popup.close()
             raise SystemExit("the popup's first frame is not %s as it is committed: make the stills again first "
@@ -255,11 +256,13 @@ def make(plan: dict, exe: Path | None, work: Path, forms=None) -> object:
     accent = tuple(brand.rgb(brand.palette(theme, design)["accent"]))
     scale = float((plan.get("pointer") or {}).get("scale", 1.5))
     seen_bounds, standing = {}, {}
+    if popup is not None:
+        seen_bounds.update(seen_bounds_at_start)      # the popup's switches, where its own layout puts them
 
     def draw(frame):
         if popup is not None:
-            return popup.drawn(frame, plain)          # nobody points, and no window, strip or card
-        if pictures is not None:
+            picture = bytearray(popup.drawn(frame, plain))     # no window, strip or card
+        elif pictures is not None:
             _index, client, bounds = next(pictures)
             seen_bounds.update(bounds)
             picture = chrome.frame(client)
@@ -353,6 +356,12 @@ def main(argv=None) -> int:
             else:
                 plan_forms = {locale: {"answers": motion_window.answers(locale, stored)}
                               for locale, stored in plan.get("forms", {}).items()}
+                # Another state of the installation each language's frames may be in (`variant`): the replies of a
+                # paused one, under "<locale>-paused" (gui/WindowRender.cs opens the window on them).
+                for variant in plan.get("variants", ()):
+                    for locale, stored in plan.get("forms", {}).items():
+                        plan_forms["%s-%s" % (locale, variant)] = {"answers": motion_window.answers(
+                            locale, stored, paused=variant == "paused")}
                 report = make(plan, exe, work / plan["name"], plan_forms)
                 size = tuple(plan["canvas"]["size"])
             output = ROOT / plan["output"]

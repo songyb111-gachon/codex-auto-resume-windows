@@ -185,6 +185,10 @@ namespace CodexAutoResume
         private void Adopt(InstallerWords next)
         {
             words = next;
+            // v0.6.20: mirrored in a language written right to left, as the Dashboard is (Mirror) - and back again when the
+            // person picks another language here.
+            Mirror.Window = Mirror.Language(words.Language);
+            RightToLeft = Mirror.Window ? RightToLeft.Yes : RightToLeft.No;
             Font = Typeface.ForLanguage(baseFont, words.Catalog, words.Language);
             Soft.BaseFont = Font;
             title.Font = Soft.RoleFont("display");
@@ -248,9 +252,12 @@ namespace CodexAutoResume
             int column = Math.Max(Px(28), 2 * HaloDot.Extent + Px(12));
             int lineOne = LineHeight(title), lineTwo = LineHeight(version) + Px(2);
             int top = Math.Max(0, (head.Height - lineOne - lineTwo) / 2);
-            light.SetBounds(0, 0, column, head.Height);
-            title.SetBounds(column + Px(8), top, Math.Max(1, head.Width - column - Px(8)), lineOne);
-            version.SetBounds(column + Px(8), top + lineOne + Px(2), Math.Max(1, head.Width - column - Px(8)), lineTwo - Px(2));
+            // v0.6.20: mirrored, the light at the right and the two lines left of it (Mirror).
+            bool mirrored = Mirror.Of(head);
+            int lines = Math.Max(1, head.Width - column - Px(8));
+            light.SetBounds(Mirror.X(mirrored, head.Width, 0, column), 0, column, head.Height);
+            title.SetBounds(Mirror.X(mirrored, head.Width, column + Px(8), lines), top, lines, lineOne);
+            version.SetBounds(Mirror.X(mirrored, head.Width, column + Px(8), lines), top + lineOne + Px(2), lines, lineTwo - Px(2));
         }
 
         protected override void OnLayout(LayoutEventArgs levent)
@@ -267,7 +274,8 @@ namespace CodexAutoResume
                 if (!Has(button)) continue;
                 Size size = button.GetPreferredSize(Size.Empty);
                 size = new Size(Math.Max(size.Width, button.MinimumSize.Width), Math.Max(size.Height, button.MinimumSize.Height));
-                button.SetBounds(right - size.Width, buttonsTop, size.Width, size.Height);
+                // v0.6.20: mirrored, Next at the left and the others right of it (Mirror).
+                button.SetBounds(Mirror.X(Mirror.Of(this), width, right - size.Width, size.Width), buttonsTop, size.Width, size.Height);
                 right -= size.Width + Px(9);
             }
         }
@@ -643,7 +651,9 @@ namespace CodexAutoResume
                 control.Visible = Wanted(control);
                 y += row.Value;
                 int height = HeightAt(control, width);
-                control.SetBounds(0, y, control is SoftCombo ? Math.Min(width, Px(260)) : width, height);
+                int wide = control is SoftCombo ? Math.Min(width, Px(260)) : width;
+                // v0.6.20: a drop-down narrower than the card stands at its right when mirrored (Mirror).
+                control.SetBounds(Mirror.X(Mirror.Of(this), width, 0, wide), y, wide, height);
                 y += height;
             }
             return y;
@@ -1138,6 +1148,8 @@ namespace CodexAutoResume
             int filled = (int)Math.Round(track.Width * shown);
             if (filled <= 0) return;
             var face = new Rectangle(track.X, track.Y, Math.Max(track.Height, filled), track.Height);
+            // v0.6.20: mirrored, the bar fills from the right (Mirror).
+            face = Mirror.Within(Mirror.Of(this), track, face);
             var smoothing = g.SmoothingMode;
             g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
             using (System.Drawing.Drawing2D.GraphicsPath shape = Soft.Rounded(face, radius))

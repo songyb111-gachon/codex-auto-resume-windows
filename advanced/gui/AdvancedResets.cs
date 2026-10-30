@@ -84,10 +84,12 @@ namespace CodexAutoResume
         /// The status's counts of the reset rules waiting (surfaces.status), written to compare: "" where none waits.
         private static string ResetCounts(Dictionary<string, object> advanced)
         {
+            // v0.6.20: and the steers waiting for the watcher, so History is read again when one settles.
             if (advanced == null || !(Get(advanced, "messages") is double || Get(advanced, "credit_rules") is double ||
-                                      Get(advanced, "prompts") is double)) return "";
+                                      Get(advanced, "prompts") is double || Get(advanced, "steers_waiting") is double)) return "";
             return AdvancedWritten(Get(advanced, "messages")) + "," + AdvancedWritten(Get(advanced, "credit_rules")) + "," +
-                   AdvancedWritten(Get(advanced, "ready")) + "," + AdvancedWritten(Get(advanced, "prompts"));
+                   AdvancedWritten(Get(advanced, "ready")) + "," + AdvancedWritten(Get(advanced, "prompts")) + "," +
+                   AdvancedWritten(Get(advanced, "steers_waiting"));
         }
 
         /// A snapshot's counts read: the rules read again when they changed - one added, due or ended, here or anywhere.
@@ -139,7 +141,7 @@ namespace CodexAutoResume
                 object counted = Get(rule, "counted");
                 string text = counted is double
                     ? Word("page.resets.state.counting", "{n} of {of} counted", "n", Whole(counted))
-                          .Replace("{of}", Whole(Get(rule, "ordinal")).ToString(CultureInfo.CurrentCulture))
+                          .Replace("{of}", Mirror.Embed(Whole(Get(rule, "ordinal")).ToString(CultureInfo.CurrentCulture)))
                     : Word("page.resets.state.starting", "counting starts at the next reading");
                 object next = Get(rule, "next_reset");
                 if (next is double)
@@ -225,6 +227,8 @@ namespace CodexAutoResume
         private string ConversationOf(string thread)
         {
             string label;
+            // v0.6.20: a sample's conversation, while See an example's view is built (AdvancedExamples.cs).
+            if (thread != null && exampleNames != null && exampleNames.TryGetValue(thread, out label)) return label;
             if (thread != null && Conversations().TryGetValue(thread, out label)) return label;
             return thread != null && thread.Length >= 8 ? thread.Substring(0, 8) : (thread ?? "");
         }
@@ -532,7 +536,7 @@ namespace CodexAutoResume
         {
             if (resetWords == null || resetCount == null) return;
             resetCount.Text = Word("page.resets.count", "{n} of {most} characters", "n", resetWords.Box.Text.Length)
-                .Replace("{most}", WordsLimit().ToString(CultureInfo.CurrentCulture));
+                .Replace("{most}", Mirror.Embed(WordsLimit().ToString(CultureInfo.CurrentCulture)));
         }
 
         /// What the reset buttons may do now: nothing while another action is under way; Add only with a window, which one,
@@ -608,7 +612,7 @@ namespace CodexAutoResume
                         .Append(",\"words\":").Append(Json.Escape(resetWords.Box.Text));
                 question = Word("page.confirm.reset_message",
                     "Send this message to {conversation} when {window} resets ({which})? It is sent once, exactly as written.",
-                    "window", window).Replace("{which}", which).Replace("{conversation}", conversation.ToString());
+                    "window", window).Replace("{which}", which).Replace("{conversation}", Mirror.Embed(conversation.ToString()));
             }
             argument.Append(",\"generation\":").Append(AdvancedGeneration()).Append('}');
             if (!AskAdvanced(question, Affirm(credit ? Word("page.resets.credit.button", "Add rule...")

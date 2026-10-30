@@ -55,8 +55,9 @@ def dump(path) -> dict:
 
 
 def kept(path) -> dict:
-    """`dump`, less the tables version 8 added (v0.6.19), which a version-7 file had none of."""
-    return {name: rows for name, rows in dump(path).items() if name not in schema_module.V019_TABLES}
+    """`dump`, less the tables version 8 added (v0.6.19) and version 9 (v0.6.20), which a version-7 file had none of."""
+    return {name: rows for name, rows in dump(path).items()
+            if name not in schema_module.V019_TABLES + schema_module.V020_TABLES}
 
 
 def header(path) -> tuple:

@@ -94,7 +94,9 @@ class StoryboardTests(unittest.TestCase):
             with self.subTest(name):
                 plan = motion_plan.load(make_motion.plan_path(name))
                 ids = [scene["id"] for scene in plan["scenes"]]
-                self.assertEqual(ids[ids.index("S1") + 1:ids.index("S1") + 3], ["S1m", "S5"])
+                self.assertEqual(ids[ids.index("S1") + 1:ids.index("S1") + 3], ["S1m", "S2a"])
+                # v0.6.20: Retry now, Why it is waiting and the Timeline come after the menu, still before History.
+                self.assertEqual(ids[ids.index("S1m") + 1:ids.index("S1m") + 5], ["S2a", "S2b", "S2c", "S5"])
                 steps = plan["scenes"][ids.index("S1m")]["steps"]
                 self.assertEqual([next(key for key in step if key in motion_plan.STEPS) for step in steps],
                                  ["move", "right", "move", "hover", "hold", "move", "hover", "hold", "dismiss"])

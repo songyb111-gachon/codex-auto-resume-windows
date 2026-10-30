@@ -7,6 +7,19 @@
       "passed": true,
       "worst": 0
     },
+    "en/dialog": {
+      "exact": 1.0,
+      "light": 0,
+      "outside": 0,
+      "passed": true,
+      "probes": [
+        "ground",
+        "close",
+        "title bar"
+      ],
+      "worst": 0,
+      "wrong": []
+    },
     "en/history": {
       "exact": 1.0,
       "light": 388,
@@ -49,6 +62,19 @@
       "passed": true,
       "worst": 0
     },
+    "ko/dialog": {
+      "exact": 1.0,
+      "light": 0,
+      "outside": 0,
+      "passed": true,
+      "probes": [
+        "ground",
+        "close",
+        "title bar"
+      ],
+      "worst": 0,
+      "wrong": []
+    },
     "ko/history": {
       "exact": 1.0,
       "light": 388,
@@ -84,7 +110,7 @@
       "passed": true,
       "worst": 0
     },
-    "window": "071ceebe67b0eba0c557088591bf5fd4e13d11bba24e230a9fec317b58ef9023"
+    "window": "4e195c618e3252336fdbb4b9faba80f2e99d85222083560bdcc98b4ad07a41fb"
   },
   "images": {
     "assets/logo-motion-dark.png": {
@@ -138,90 +164,102 @@
       "size": "776x540"
     },
     "docs/images/readme-motion-ko.png": {
-      "bytes": 6972035,
-      "frames": 1197,
-      "ms": 32057,
+      "bytes": 6643222,
+      "frames": 1621,
+      "ms": 45697,
       "scenes": {
-        "S0": 108441,
-        "S1": 271270,
-        "S10": 246217,
-        "S11": 853544,
-        "S12": 47283,
-        "S12b": 1535518,
-        "S13": 63004,
-        "S14": 19193,
-        "S15": 439609,
-        "S16": 64879,
-        "S1m": 746945,
-        "S5": 305360,
-        "S6": 179075,
-        "S7": 304427,
-        "S8": 292750,
-        "S9": 1494417
+        "S0": 108491,
+        "S1": 199940,
+        "S10": 172966,
+        "S11": 610007,
+        "S12": 40288,
+        "S12b": 705465,
+        "S13": 70417,
+        "S14": 20660,
+        "S15": 276652,
+        "S15b": 204999,
+        "S16": 62132,
+        "S1m": 424274,
+        "S2a": 213811,
+        "S2b": 649814,
+        "S2c": 753047,
+        "S5": 218272,
+        "S6": 139149,
+        "S7": 182324,
+        "S8": 190430,
+        "S9": 1399981
       },
-      "sha256": "1d4b6fc18a73abb33563a8b21d79ad0166ebdd126392f2532195a0cf26b2eb4e",
+      "sha256": "932f03c876fcb08d201aaf6f2e4503da8afcfe12accd1d649ca65557698cfd06",
       "size": "1500x1041"
     },
     "docs/images/readme-motion.png": {
-      "bytes": 7520783,
-      "frames": 1208,
-      "ms": 32277,
+      "bytes": 7248236,
+      "frames": 1625,
+      "ms": 45917,
       "scenes": {
-        "S0": 114014,
-        "S1": 319367,
-        "S10": 290120,
-        "S11": 939954,
-        "S12": 56131,
-        "S12b": 1580498,
-        "S13": 51316,
-        "S14": 19998,
-        "S15": 371823,
-        "S16": 63494,
-        "S1m": 865410,
-        "S5": 349358,
-        "S6": 212741,
-        "S7": 363545,
-        "S8": 360856,
-        "S9": 1562055
+        "S0": 114067,
+        "S1": 228919,
+        "S10": 201238,
+        "S11": 660242,
+        "S12": 47807,
+        "S12b": 851810,
+        "S13": 58688,
+        "S14": 19806,
+        "S15": 237052,
+        "S15b": 188034,
+        "S16": 61894,
+        "S1m": 489048,
+        "S2a": 234529,
+        "S2b": 716382,
+        "S2c": 809983,
+        "S5": 249610,
+        "S6": 165348,
+        "S7": 216573,
+        "S8": 240159,
+        "S9": 1456944
       },
-      "sha256": "d451de8f00b2cc1c1274da97fa6a18f22f2c1dab2e19ee9fcfdba169b0101cf9",
+      "sha256": "a9d101ff6d9314a1221927ccb657301fa899ca42e9beb6a2a664b7aaac5ec679",
       "size": "1500x1041"
     },
     "docs/images/tray-popup-motion-ko.png": {
-      "bytes": 223513,
-      "frames": 257,
+      "bytes": 1463148,
+      "frames": 342,
       "ms": 8800,
       "scenes": {
-        "P0": 79600,
-        "P1": 57346,
-        "P2": 83250,
-        "P3": 3214
+        "P0": 69340,
+        "P1": 363930,
+        "P2": 140854,
+        "P3": 549096,
+        "P4": 89098,
+        "P5": 250727
       },
-      "sha256": "4badac633c7240a4abb2d0dd26aad424b34fdf335ddf5f071062ab9ba6797c42",
+      "sha256": "365f24065d9562dc231773e98f1b4207730fe9951a1d36893ffdee035262ab49",
       "size": "752x883"
     },
     "docs/images/tray-popup-motion.png": {
-      "bytes": 231181,
-      "frames": 257,
+      "bytes": 1608076,
+      "frames": 342,
       "ms": 8800,
       "scenes": {
-        "P0": 82034,
-        "P1": 59414,
-        "P2": 86453,
-        "P3": 3177
+        "P0": 72051,
+        "P1": 410023,
+        "P2": 157721,
+        "P3": 602365,
+        "P4": 93873,
+        "P5": 271940
       },
-      "sha256": "2f941121c76a68699f5c2e9fdfe8ce37d88b08c498fecc8ad4742a72f23c32e4",
+      "sha256": "fe4620b124a4ae68243538889571559f52a5634cec942298379725e6669a88ad",
       "size": "752x873"
     }
   },
   "inputs": {
-    "<motion:card-en>": "02e8736389cbbe4736028e237cf2b634ffd2b1e093eb56113380c1dee78ec7cd",
-    "<motion:card-ko>": "f344f18f6b162175c6e4a61bab9649d95a6c80909e7472ab443765f96939de40",
+    "<motion:card-en>": "b6cafac46e2a01809c2b35df73af5102ca7a6cbd9db7b74e5368137cbbc10bbe",
+    "<motion:card-ko>": "a44b5b0fece42a5468df62353fb0e5fadb0b96c33888ddc197bd03cbfd745514",
     "<motion:logo-dark>": "4dfe3238f39ea88c7af2d9415561f25a758b58ac419575cbaa549f3bd811d159",
     "<motion:logo-light>": "e30f23a553b3ff5cc333efa162e11d280073213b463e80e2da1ce125326216f9",
-    "<motion:popup-en>": "4ad7450acd50af1137a77bbd841fdd7feec73e738e3a9ae27b462b55253dbfb8",
-    "<motion:popup-ko>": "37b16022a61858bd487a3b72f7227443faa46e4e8963e7317b3987c501d397ad",
-    "<motion:readme-en>": "e9990df6899ceaa1039ebf63d811f47c3c04986d18bb164db9c25165b87c45dc",
-    "<motion:readme-ko>": "74a3777c5461588340fa2329e2f3ecea560cd213ade6d0113d5a5d752391e817"
+    "<motion:popup-en>": "dc4ab99c758a11348cfc8dbe1fc0906a35fa3660dd6b15e9f5c6a908d0a47e82",
+    "<motion:popup-ko>": "2e13c600849720c1241cb4fb4e0015dfe1666f620abd1b6e7098ec9564e2a0f3",
+    "<motion:readme-en>": "e794a0fa7f970e12548f99b0e2aa881810dc45f52b6c1a07e95a6f584dbed369",
+    "<motion:readme-ko>": "f4841d1745b4185a1c16a89b845100a3db9c865ea9a24c7c77b611e19cee3b70"
   }
 }

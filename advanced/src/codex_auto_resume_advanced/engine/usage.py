@@ -47,6 +47,8 @@ from .continued import answer_key, handed
 from .wrapwords import ON, SWITCH, DEFAULT_STYLE, STYLE_KEYS, STYLES, render  # noqa: F401 - the registry's, the tests'
 
 METER, WRAP_UP, PAUSE = "usage_meter", "usage_wrap_up", "usage_pause"
+# v0.6.20: the analytics, for which the meter keeps each reading as a sample while both stand on (state/analytics.py).
+ANALYTICS = "usage_analytics"
 # Recover every conversation (engine/everyconversation.py): while it is on, core takes up P19's widening, and so does
 # the wrap-up - never more than core would recover.
 EVERY_CONVERSATION = "every_conversation"
@@ -247,6 +249,8 @@ class UsageMeter:
             return None
         handle.save(found)
         self._count("read")
+        # v0.6.20: while usage_analytics stands on too, each reading is also kept as a sample for its pace.
+        self._sample(found)
         options = scoped.options()
         on = acting(options)
         for row in windows(handle.rows()):
@@ -256,6 +260,15 @@ class UsageMeter:
                 if handle.mark(row["bucket"], row["minutes"], warned_reset_at=row["reset_at"]):
                     self._count("warned")
         return None
+
+    def _sample(self, found) -> None:
+        """The reading kept as samples (state/analytics.py) where usage_analytics stands on - never otherwise, and a
+        sample that cannot be kept costs the reading nothing."""
+        try:
+            if self._scoped.armed(ANALYTICS):
+                self._scoped.analytics.sample(found, at=self._scoped.now())
+        except Exception:
+            pass
 
     def _count(self, code) -> None:
         try:

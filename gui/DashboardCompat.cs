@@ -259,11 +259,11 @@ namespace CodexAutoResume
             if (state == "rejected") return S("compat.reported.rejected", "could not be read");
             if (state != "reported") return "-";
             string line = S("compat.reported.counts", "worked {worked} · failed {failed} · neither {neither}")
-                .Replace("{worked}", Count(Number(reported, "worked"))).Replace("{failed}", Count(Number(reported, "failed")))
-                .Replace("{neither}", Count(Number(reported, "neither")));
+                .Replace("{worked}", Mirror.Embed(Count(Number(reported, "worked")))).Replace("{failed}", Mirror.Embed(Count(Number(reported, "failed"))))
+                .Replace("{neither}", Mirror.Embed(Count(Number(reported, "neither"))));
             double both = Number(reported, "both");
             if (both > 0)
-                line += " · " + S("compat.reported.both", "counted in both: {both}").Replace("{both}", Count(both));
+                line += " · " + S("compat.reported.both", "counted in both: {both}").Replace("{both}", Mirror.Embed(Count(both)));
             return line;
         }
 
@@ -307,7 +307,7 @@ namespace CodexAutoResume
             object sequence = Get(data, source == "cache" ? "cache_sequence" : "bundled_sequence");
             if (source == "none" || !(sequence is double)) return said;
             return S("compat.source_sequence", "{source}, #{sequence}").Replace("{source}", said)
-                   .Replace("{sequence}", ((int)(double)sequence).ToString(CultureInfo.InvariantCulture));
+                   .Replace("{sequence}", Mirror.Embed(((int)(double)sequence).ToString(CultureInfo.InvariantCulture)));
         }
 
         /// A callout for each notice, in order, the scale's medium step apart as the panel's are, and nothing - no room
@@ -544,7 +544,7 @@ namespace CodexAutoResume
                 return S("diag.compat_refreshed", "Compatibility data #{sequence} is now in force.", "sequence", sequence);
             if (outcome == "refused")
                 return S("diag.compat_refused", "The downloaded data was refused ({code}): {reason}. The data in force before still applies.")
-                       .Replace("{code}", reason ?? "?").Replace("{reason}", RefusedBecause(reason));
+                       .Replace("{code}", Mirror.Embed(reason ?? "?")).Replace("{reason}", RefusedBecause(reason));
             if (outcome == "unavailable")
                 return S("diag.compat_unavailable", "GitHub could not be reached, so nothing was changed.");
             if (outcome == "incomplete")

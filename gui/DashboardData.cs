@@ -262,6 +262,7 @@ namespace CodexAutoResume
         private static double Now()
         {
             if (Soft.StillNow > 0) return Soft.StillNow;        // held still for a picture
+            if (Mirror.HeldNow > 0) return Mirror.HeldNow;      // held still for the mirror audit's two layouts
             return (DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
         }
 
@@ -379,9 +380,9 @@ namespace CodexAutoResume
                 double used = Number(window, "used_percent"), reset = Number(window, "reset_at");
                 string share = (used >= 100 ? 100 : (int)Math.Floor(used)).ToString(CultureInfo.InvariantCulture);
                 string text = reset > 0
-                    ? S("usage.window_resets", "{window} {percent}%, resets {time}").Replace("{time}", ClockTime(reset))
+                    ? S("usage.window_resets", "{window} {percent}%, resets {time}").Replace("{time}", Mirror.Embed(ClockTime(reset)))
                     : S("usage.window", "{window} {percent}%");
-                parts.Add(text.Replace("{window}", WindowName(Get(window, "window_minutes"))).Replace("{percent}", share));
+                parts.Add(text.Replace("{window}", WindowName(Get(window, "window_minutes"))).Replace("{percent}", Mirror.Embed(share)));
             }
             if (parts.Count == 0) return null;
             return S("usage.line", "Codex usage, read {age}: {windows}").Replace("{age}", Age(Now() - at))

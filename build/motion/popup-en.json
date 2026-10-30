@@ -19,7 +19,13 @@
     "locale": "en",
     "still": "docs/images/tray-popup.png"
   },
-  "pointer": null,
+  "pointer": {
+    "rest": [
+      800,
+      560
+    ],
+    "scale": 2.0
+  },
   "length": [
     8800,
     8800
@@ -27,5 +33,6 @@
   "budget": {
     "cap": 4000000
   },
-  "light_step_ms": 33
+  "light_step_ms": 33,
+  "ripple_step": 16
 }

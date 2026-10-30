@@ -183,7 +183,7 @@ namespace CodexAutoResume
             try { culture = CultureInfo.GetCultureInfo(InterfaceLocale()); }
             catch (ArgumentException) { }
             string number = ((long)amount).ToString(plain ? "0" : "N0", culture);
-            return words == null ? number : S(words, "{n}").Replace("{n}", number);
+            return words == null ? number : S(words, "{n}").Replace("{n}", Mirror.Embed(number));
         }
 
         /// A value of the person's own as its drop-down item says it.

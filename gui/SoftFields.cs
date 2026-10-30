@@ -97,8 +97,8 @@ namespace CodexAutoResume
             }
             Soft.Body(g, face, radius, fill, edge, pressed && Enabled);
             TextRenderer.DrawText(g, Text, Font, face, text,
-                                  TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
-                                  TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
+                                  Mirror.Words(Mirror.Of(this), TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
+                                                                TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis));
         }
     }
 
@@ -172,18 +172,24 @@ namespace CodexAutoResume
             return Soft.Wrap(Text ?? "", Font, Math.Max(1, width), WrapFormat);
         }
 
-        /// The switch's track, or the check box's box: at the left, on the control's middle line.
+        /// The switch's track, or the check box's box: at the left, on the control's middle line - at the right in a
+        /// mirrored window (v0.6.20, Mirror), its words then left of it.
         internal Rectangle Glyph
         {
             get
             {
+                Rectangle glyph;
                 if (box)
                 {
                     int size = Soft.Px(Brand.CheckSize);
-                    return new Rectangle(0, (Height - size) / 2, size, size);
+                    glyph = new Rectangle(0, (Height - size) / 2, size, size);
                 }
-                int height = Soft.Px(Brand.SwitchHeight);
-                return new Rectangle(0, (Height - height) / 2, Soft.Px(Brand.SwitchWidth), height);
+                else
+                {
+                    int height = Soft.Px(Brand.SwitchHeight);
+                    glyph = new Rectangle(0, (Height - height) / 2, Soft.Px(Brand.SwitchWidth), height);
+                }
+                return Mirror.Box(Mirror.Of(this), Width, glyph);
             }
         }
 
@@ -238,9 +244,11 @@ namespace CodexAutoResume
             Ground.PaintArea(this, g, ClientRectangle);
             Rectangle glyph = Glyph;
             double on = turn.Value;
+            bool mirrored = Mirror.Of(this);
             if (box) DrawBoxAt(g, glyph, on, Enabled);
-            else Soft.SwitchAt(g, glyph, on, Enabled, Parent != null ? Ground.Colour(Parent) : Palette.Card);
-            var textBounds = new Rectangle(glyph.Right + Gap, 0, Math.Max(0, Width - glyph.Right - Gap), Height);
+            else Soft.SwitchSide(g, glyph, on, Enabled, Parent != null ? Ground.Colour(Parent) : Palette.Card, mirrored);
+            int wide = glyph.Width + Gap;
+            var textBounds = Mirror.Box(mirrored, Width, new Rectangle(wide, 0, Math.Max(0, Width - wide), Height));
             Color ink = Enabled ? ForeColor : Palette.Muted;
             int room = textBounds.Width - Soft.Px(6);
             if (Wraps && TextRenderer.MeasureText(Text ?? "", Font, new Size(int.MaxValue, int.MaxValue),
@@ -250,12 +258,12 @@ namespace CodexAutoResume
                 string lines = Lines(room);
                 int height = Soft.Measure(lines, Font, Math.Max(1, room), WrapFormat).Height;
                 TextRenderer.DrawText(g, lines, Font, new Rectangle(textBounds.X, (Height - height) / 2, textBounds.Width, height),
-                                      ink, WrapFormat);
+                                      ink, Mirror.Words(mirrored, WrapFormat));
             }
             else
                 TextRenderer.DrawText(g, Text, Font, textBounds, ink,
-                                      TextFormatFlags.VerticalCenter | TextFormatFlags.Left |
-                                      TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
+                                      Mirror.Words(mirrored, TextFormatFlags.VerticalCenter | TextFormatFlags.Left |
+                                                             TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis));
             if (Focused && ShowFocusCues)
                 Soft.Ring(g, glyph, box ? Soft.PxF(Palette.RadiusCheck) : glyph.Height / 2f);
         }
@@ -376,7 +384,9 @@ namespace CodexAutoResume
         {
             base.OnLayout(levent);
             int left = Soft.Px(8), right = Soft.Px(4);
-            Spin.SetBounds(left, Math.Max(0, (Height - Spin.Height) / 2), Math.Max(0, Width - left - right), Spin.Height);
+            int width = Math.Max(0, Width - left - right);
+            // v0.6.20: mirrored, the wider side is the right one, where the number starts; Windows puts the spin buttons left.
+            Spin.SetBounds(Mirror.X(Mirror.Of(this), Width, left, width), Math.Max(0, (Height - Spin.Height) / 2), width, Spin.Height);
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -530,7 +540,9 @@ namespace CodexAutoResume
             Soft.Body(g, ClientRectangle, radius, fill, Checked ? Palette.Accent : Palette.Line, Checked && Palette.Depth);
             // The radio mark, so the card still says "one of these" without its colour.
             float mark = Soft.PxF(16);
-            var ring = new RectangleF(body.X + Soft.PxF(14), body.Y + Soft.PxF(12), mark, mark);
+            // v0.6.20: mirrored, the mark at the right and the words left of it (Mirror).
+            bool mirrored = Mirror.Of(this);
+            var ring = Mirror.Box(mirrored, (float)Width, new RectangleF(body.X + Soft.PxF(14), body.Y + Soft.PxF(12), mark, mark));
             Color markColour = onHighlight ? SystemColors.HighlightText : Checked ? Palette.Accent : Palette.Muted;
             GraphicsState state = g.Save();
             g.SmoothingMode = SmoothingMode.AntiAlias;
@@ -542,19 +554,20 @@ namespace CodexAutoResume
                     g.FillEllipse(brush, ring.X + (mark - dot) / 2f, ring.Y + (mark - dot) / 2f, dot, dot);
             }
             g.Restore(state);
-            Rectangle column = TextColumn(Width);
+            Rectangle column = Mirror.Box(mirrored, Width, TextColumn(Width));
             int left = column.X, textWidth = column.Width;
+            TextFormatFlags words = Mirror.Words(mirrored, Words);
             Font title = TitleFont;
             string heading = Soft.Wrap(Text ?? "", title, textWidth, Words);
             Size top = TextRenderer.MeasureText(heading, title, new Size(textWidth, int.MaxValue), Words);
             TextRenderer.DrawText(g, heading, title, new Rectangle(left, (int)body.Y + Soft.Px(10), textWidth, top.Height),
                                   onHighlight ? SystemColors.HighlightText : Checked ? Palette.Accent : Palette.Ink,
-                                  Words);
+                                  words);
             if (!string.IsNullOrEmpty(Help))
                 TextRenderer.DrawText(g, Soft.Wrap(Help, Font, textWidth, Words), Font,
                                       new Rectangle(left, (int)body.Y + Soft.Px(12) + top.Height, textWidth, Height),
                                       onHighlight ? SystemColors.HighlightText : Palette.Secondary,
-                                      Words);
+                                      words);
         }
     }
 
@@ -773,8 +786,8 @@ namespace CodexAutoResume
             if (!moved) return;                          // nothing to draw again: a keystroke costs nothing
             int gutter = Soft.Px(SoftBar.TrackWidth);
             Rectangle track = Extent > Viewport
-                ? new Rectangle(Width - Padding.Right - gutter, Padding.Top, gutter,
-                                Math.Max(0, Height - Padding.Vertical))
+                ? Mirror.Box(Mirror.Of(this), Width, new Rectangle(Width - Padding.Right - gutter, Padding.Top, gutter,
+                                                                   Math.Max(0, Height - Padding.Vertical)))
                 : Rectangle.Empty;
             bool appeared = track.IsEmpty != bar.Track.IsEmpty;
             bar.Track = track;                           // invalidates what it covers itself
@@ -816,19 +829,26 @@ namespace CodexAutoResume
             // drawn; narrower by the gutter while the soft bar shows, so no text runs under it.
             int native = SystemInformation.VerticalScrollBarWidth;
             int gutter = bar.Track.IsEmpty ? 0 : Soft.Px(SoftBar.TrackWidth);
+            // v0.6.20: mirrored, the well's wide padding is on the right, where the words start, and the soft bar on the left.
+            // The box is mirrored by Windows, whose own bar then stands at its left: it is set that much left of the clip,
+            // where it is not drawn (Mirror).
+            bool mirrored = Mirror.Of(this);
+            int shown = Math.Max(0, room - gutter);
+            int clipX = mirrored ? Width - Padding.Left - shown : Padding.Left;
+            int boxX = mirrored ? -native : 0;
             if (oneLine)
             {
                 // The line centred in the box, as a button's text is - never taller than the box itself.
                 int line = Math.Min(LineHeight, Height);
                 int top = Math.Max(0, (Height - line) / 2);
-                clip.SetBounds(Padding.Left, top, Math.Max(0, room - gutter), line);
-                Box.SetBounds(0, 0, Math.Max(0, room - gutter + native), line);
+                clip.SetBounds(clipX, top, shown, line);
+                Box.SetBounds(boxX, 0, Math.Max(0, room - gutter + native), line);
                 Changed();
                 return;
             }
             int tall = Math.Max(0, Height - Padding.Vertical);
-            clip.SetBounds(Padding.Left, Padding.Top, Math.Max(0, room - gutter), tall);
-            Box.SetBounds(0, 0, Math.Max(0, room - gutter + native), tall);
+            clip.SetBounds(clipX, Padding.Top, shown, tall);
+            Box.SetBounds(boxX, 0, Math.Max(0, room - gutter + native), tall);
             Changed();
         }
 
@@ -893,9 +913,12 @@ namespace CodexAutoResume
             Ground.PaintBehind(this, e.Graphics, ClientRectangle, radius);
             Soft.InsetWell(e.Graphics, ClientRectangle, radius, false);
             int room = Math.Max(0, Width - Soft.Px(Brand.WellPadLeft + Brand.WellPadRight));
+            // v0.6.20: mirrored, from the right, read right to left (Mirror).
+            bool mirrored = Mirror.Of(this);
             TextRenderer.DrawText(e.Graphics, Soft.Wrap(text, Font, room, Words), Font,
-                                  new Rectangle(Soft.Px(Brand.WellPadLeft), Soft.Px(Brand.WellPadTop), room, Height),
-                                  Palette.Ink, Words);
+                                  new Rectangle(Mirror.X(mirrored, Width, Soft.Px(Brand.WellPadLeft), room), Soft.Px(Brand.WellPadTop),
+                                                room, Height),
+                                  Palette.Ink, Mirror.Words(mirrored, Words));
         }
     }
 }

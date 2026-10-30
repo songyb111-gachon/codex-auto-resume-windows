@@ -99,24 +99,48 @@ ARGUMENTS = {
     BridgeCommand.ADVANCED_EARLY_CHECK: frozenset(),
     # v0.6.20 (issue #50): the person's own conversations and their names, for Find a conversation; names no row.
     BridgeCommand.ADVANCED_CONVERSATIONS: frozenset(),
+    # v0.6.20 (issue #50, steer_send): one line asked to be added to the turn running in a conversation - the watcher
+    # alone sends it (control/steer.py).
+    BridgeCommand.ADVANCED_STEER: frozenset({"thread_id", "words", "generation"}),
+    # v0.6.20 (issue #50): a delivered message followed to the end of its work (control/follow.py) - read-only.
+    BridgeCommand.ADVANCED_PROMPT_FOLLOW: frozenset({"prompt"}),
 }
 # v0.6.19 (the groundwork): the stage's commands, in the vocabulary before any capability that answers one is built.
 # Each is passed over - DEFER, so core says "unknown command" exactly as for a command this edition does not have -
 # until the writer of its capability builds it: that writer gives it its arguments here, takes it out of this set, and
 # answers it in `bridge`.
 UNANSWERED = frozenset({
-    BridgeCommand.ADVANCED_ANALYTICS, BridgeCommand.ADVANCED_ANALYTICS_CSV, BridgeCommand.ADVANCED_COURIER,
-    BridgeCommand.ADVANCED_COURIER_SAVE, BridgeCommand.ADVANCED_COURIER_FORGET, BridgeCommand.ADVANCED_COURIER_TEST,
-    BridgeCommand.ADVANCED_FEED_REFRESH, BridgeCommand.ADVANCED_API, BridgeCommand.ADVANCED_API_TOKEN_NEW,
+    BridgeCommand.ADVANCED_API, BridgeCommand.ADVANCED_API_TOKEN_NEW,
     BridgeCommand.ADVANCED_REMOTE_PAIR_START, BridgeCommand.ADVANCED_REMOTE_PAIR_STATE, BridgeCommand.ADVANCED_FLEET,
-    BridgeCommand.ADVANCED_FLEET_SAVE,
-    BridgeCommand.ADVANCED_ACCOUNT, BridgeCommand.ADVANCED_ACCOUNT_SWITCH})
+    BridgeCommand.ADVANCED_FLEET_SAVE})
+# v0.6.20 (account_switch): the account card's read and its Codex sign-out and sign-in, answered (control/account.py).
+ARGUMENTS[BridgeCommand.ADVANCED_ACCOUNT] = frozenset()
+ARGUMENTS[BridgeCommand.ADVANCED_ACCOUNT_SWITCH] = frozenset()
 ARGUMENTS.update({command: frozenset() for command in UNANSWERED})
+# usage_analytics (v0.6.20, control/analytics.py): its card read, and its CSV saved where the person chose.
+ARGUMENTS.update({BridgeCommand.ADVANCED_ANALYTICS: frozenset({"days"}),
+                  BridgeCommand.ADVANCED_ANALYTICS_CSV: frozenset({"days", "path", "replace"})})
 # #50 (v0.6.19): the completed prompts the Dashboard showed, deleted from the list (control/prompts.clear_done).
 ARGUMENTS[BridgeCommand.ADVANCED_PROMPTS_CLEAR_DONE] = frozenset({"prompts", "generation"})
 # and one waiting edited (control/prompts.edit): its id, and what advanced-prompt-add takes but the conversation.
 ARGUMENTS[BridgeCommand.ADVANCED_PROMPT_EDIT] = frozenset({"prompt", "words", "trigger", "at", "every", "occurrences",
                                                           "depends", "while_running", "generation"})
+# v0.6.20 (push_notices, status_feed - the courier, control/courier.py): the card's read, one channel saved - its address
+# and secret, or Telegram's pairing begun - or forgotten, a test notice, and the status feed read now.
+ARGUMENTS.update({
+    BridgeCommand.ADVANCED_COURIER: frozenset(),
+    BridgeCommand.ADVANCED_COURIER_SAVE: frozenset({"channel", "url", "token", "host", "port", "user", "password",
+                                                    "from", "to", "pair"}),
+    BridgeCommand.ADVANCED_COURIER_FORGET: frozenset({"channel"}),
+    BridgeCommand.ADVANCED_COURIER_TEST: frozenset({"channel"}),
+    BridgeCommand.ADVANCED_FEED_REFRESH: frozenset(),
+})
+COURIER_COMMANDS = frozenset({BridgeCommand.ADVANCED_COURIER, BridgeCommand.ADVANCED_COURIER_SAVE,
+                              BridgeCommand.ADVANCED_COURIER_FORGET, BridgeCommand.ADVANCED_COURIER_TEST,
+                              BridgeCommand.ADVANCED_FEED_REFRESH})
+# v0.6.20 (#50 item 1): a scheduled message's pictures, on an add and an edit (control/prompts.py).
+ARGUMENTS[BridgeCommand.ADVANCED_PROMPT_ADD] = ARGUMENTS[BridgeCommand.ADVANCED_PROMPT_ADD] | {"images"}
+ARGUMENTS[BridgeCommand.ADVANCED_PROMPT_EDIT] = ARGUMENTS[BridgeCommand.ADVANCED_PROMPT_EDIT] | {"images"}
 # The compatibility report's commands (report/flow.py), answered by the action itself.
 REPORT_COMMANDS = frozenset({BridgeCommand.ADVANCED_REPORT_BUILD, BridgeCommand.ADVANCED_REPORT_SAVE,
                              BridgeCommand.ADVANCED_REPORT_CHECK, BridgeCommand.ADVANCED_REPORT_SEND,
@@ -135,7 +159,9 @@ KEEP_GOING_COMMANDS = frozenset({BridgeCommand.ADVANCED_KEEP_GOING, BridgeComman
 PROMPT_COMMANDS = frozenset({BridgeCommand.ADVANCED_PROMPTS, BridgeCommand.ADVANCED_PROMPT_ADD,
                              BridgeCommand.ADVANCED_PROMPT_CANCEL, BridgeCommand.ADVANCED_PROMPT_GO_ON,
                              # v0.6.19 (#50): Delete completed, and an edit.
-                             BridgeCommand.ADVANCED_PROMPTS_CLEAR_DONE, BridgeCommand.ADVANCED_PROMPT_EDIT})
+                             BridgeCommand.ADVANCED_PROMPTS_CLEAR_DONE, BridgeCommand.ADVANCED_PROMPT_EDIT,
+                             # v0.6.20 (#50): a delivered one followed to the end of its work, read-only.
+                             BridgeCommand.ADVANCED_PROMPT_FOLLOW})
 
 _NO_ARGUMENTS = {"type": "object", "properties": {}, "additionalProperties": False}
 _OFF_ONLY = ("Turning a capability on is not something any tool does: the user does it in the "
@@ -174,7 +200,8 @@ def answer(runtime, name, facts):
     if name == Surface.STATUS:
         return status(runtime)
     if name == Surface.TRAY:
-        return dict(badge(runtime), **meter_view(runtime), **notice_view(runtime), **update_view(runtime))
+        return dict(badge(runtime), **meter_view(runtime), **notice_view(runtime), **update_view(runtime),
+                    **account_view(runtime))
     if name in BADGE_SURFACES:
         return badge(runtime)
     if not isinstance(facts, dict):
@@ -213,6 +240,8 @@ def status(runtime) -> dict:
     except Exception:
         pass
     shown.update(meter_view(runtime))
+    # v0.6.20: what OpenAI's status page last said, only while it says something is wrong (status_feed).
+    shown.update(feed_view(runtime))
     # v0.6.16-beta.4: the turns run here now, only where there are any - and what Pending and History say of a row
     # the edition had a hand in, keyed by interruption id, only where there is something to say.
     found = runs(runtime)
@@ -223,6 +252,9 @@ def status(runtime) -> dict:
     # (control/earlycheck.py).
     from .control import earlycheck
     shown.update(earlycheck.view(runtime))
+    # v0.6.20: the reset window_anchor's start fixed, for its line on the Advanced page, only while it stands on.
+    from .engine import anchor
+    shown.update(anchor.view(runtime))
     return shown
 
 
@@ -316,6 +348,21 @@ def update_view(runtime) -> dict:
         return {}
     version, prerelease = found
     return {"update": {"notices": [{"key": "update:" + version, "version": version, "prerelease": prerelease}]}}
+
+
+def account_view(runtime) -> dict:
+    """What account_switch asks the watcher to show once (v0.6.20): {"account": {"notices": [{"key", "count"}]}} while it
+    stands on and its last change of account in this process held something, {} otherwise. A key and a count, read back
+    by core before anything is shown."""
+    from .engine import account
+    try:
+        definition = runtime.registry.get(account.CAPABILITY)
+        if definition is None or runtime.states().get(account.CAPABILITY) != ArmingState.ARMED:
+            return {}
+        found = runtime._code_of(definition).notice()
+    except Exception:
+        return {}
+    return {"account": {"notices": [dict(found)]}} if found else {}
 
 
 def diagnostics(runtime) -> dict:
@@ -423,6 +470,9 @@ def bridge(runtime, command, argument):
         return watchlog.view(runtime, argument.get("capability"))
     if command in RESET_COMMANDS:
         return resets(runtime, command, argument)
+    if command == BridgeCommand.ADVANCED_STEER:
+        from .control import steer
+        return steer.request(runtime, argument)
     if command in PROMPT_COMMANDS:
         from .control import prompts
         if command == BridgeCommand.ADVANCED_PROMPTS:
@@ -435,7 +485,17 @@ def bridge(runtime, command, argument):
             return prompts.clear_done(runtime, argument)
         if command == BridgeCommand.ADVANCED_PROMPT_EDIT:
             return prompts.edit(runtime, argument)
+        if command == BridgeCommand.ADVANCED_PROMPT_FOLLOW:
+            from .control import follow
+            return follow.view(runtime, argument.get("prompt"))
         return prompts.go_on(runtime, argument.get("prompt"), argument.get("generation"))
+    if command in COURIER_COMMANDS:
+        return courier(runtime, command, argument)
+    if command in (BridgeCommand.ADVANCED_ANALYTICS, BridgeCommand.ADVANCED_ANALYTICS_CSV):
+        from .control import analytics
+        if command == BridgeCommand.ADVANCED_ANALYTICS:
+            return analytics.view(runtime, argument.get("days"))
+        return analytics.save_csv(runtime, argument)
     if command in KEEP_GOING_COMMANDS:
         from .control import keepgoing
         if command == BridgeCommand.ADVANCED_KEEP_GOING:
@@ -443,6 +503,14 @@ def bridge(runtime, command, argument):
         if command == BridgeCommand.ADVANCED_KEEP_GOING_SET:
             return keepgoing.set_one(runtime, argument)
         return keepgoing.stop(runtime, argument)
+    if command == BridgeCommand.ADVANCED_ACCOUNT:
+        # v0.6.20 (account_switch): which account is signed in, for the card - the Dashboard's alone.
+        from .control import account as account_card
+        return account_card.view(runtime)
+    if command == BridgeCommand.ADVANCED_ACCOUNT_SWITCH:
+        # and Codex's own sign-out and sign-in, after the window asked first - never MCP's, the icon's or a card's.
+        from .control import account as account_card
+        return account_card.switch(runtime)
     if command == BridgeCommand.ADVANCED_KEEP_ON:
         return arming.set_keep_on(argument.get("capability"), argument.get("keep_on"),
                                   send_again=argument.get("send_again", False),
@@ -450,6 +518,38 @@ def bridge(runtime, command, argument):
                                   actor=Actor.DASHBOARD)
     return arming.set_global_hourly(argument.get("global_hourly"), generation=argument.get("generation"),
                                     actor=Actor.DASHBOARD)
+
+
+def courier(runtime, command, argument):
+    """The courier's commands (v0.6.20, control/courier.py), the Dashboard's alone."""
+    from .control import courier as card
+    if command == BridgeCommand.ADVANCED_COURIER:
+        return card.view(runtime)
+    if command == BridgeCommand.ADVANCED_COURIER_SAVE:
+        return card.save(runtime, argument)
+    if command == BridgeCommand.ADVANCED_COURIER_FORGET:
+        return card.forget(runtime, argument.get("channel"))
+    if command == BridgeCommand.ADVANCED_COURIER_TEST:
+        return card.test(runtime, argument.get("channel"))
+    return card.feed_refresh(runtime)
+
+
+def feed_view(runtime) -> dict:
+    """What OpenAI's status page last said (v0.6.20, status_feed), for the Overview: {"feed": {"word", "codex_word",
+    "incidents", "checked_at"}} while status_feed stands on and the page said degraded or an outage - of the service or
+    of Codex in it - and {} otherwise: nothing is shown while it is operational or unknown. Closed words and numbers; a
+    word to show, never read by anything that decides."""
+    from .courier import feed
+    try:
+        if runtime.registry.get(feed.CAPABILITY) is None or runtime.states().get(feed.CAPABILITY) != ArmingState.ARMED:
+            return {}
+        row = feed.read(runtime.state)
+    except Exception:
+        return {}
+    if not row or not {row.get("word"), row.get("codex_word")} & {"degraded", "outage"}:
+        return {}
+    return {"feed": {"word": row["word"], "codex_word": row["codex_word"], "incidents": row["incidents"],
+                     "checked_at": row["checked_at"]}}
 
 
 def headless_stop(runtime, interruption_id):

@@ -110,7 +110,8 @@ namespace CodexAutoResume
             // v0.6.19: a row of this edition's own on Pending or History (AdvancedSchedule.cs) is written as it was made.
             if (WriteJoinedCells(row, cells)) return;
             string key = Str(row, "interruption_id");
-            Dictionary<string, object> said = Map(Map(snapshot, "status"), "advanced");
+            // v0.6.20: a sample's own, while See an example's view is built (AdvancedExamples.cs).
+            Dictionary<string, object> said = exampleSaid ?? Map(Map(snapshot, "status"), "advanced");
             if (key == null || said == null) return;
             string kind = Str(Map(said, "kinds"), key);
             if (kind == "cli") cells[0] += " · " + Word("page.row.kind.cli", "CLI");

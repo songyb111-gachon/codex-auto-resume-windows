@@ -1,6 +1,6 @@
 """The watch log (v0.6.14, watchlog.py): what a watched capability would have done, read by the
 Dashboard over the bridge - answer words, points, counts and minutes only, once for each recovery and
-answer, the last 30 days of at most 140 lines a capability - read without writing anything, the
+answer, the last 30 days of at most 115 lines a capability - read without writing anything, the
 journal's only reader, and nothing a model can reach.
 
 Run from the repository root:

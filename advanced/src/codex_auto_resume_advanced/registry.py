@@ -57,7 +57,8 @@ of a sign-in failure (engine/admitted.py); at P8 and P7, a reset credit used at 
 (engine/resetmessage.py); and, at P7 and P3, the notice of a usage limit that lifts early (engine/earlyreset.py); at P7, an uncertain continuation sent once more (engine/oncemore.py),
 and one waiting recovery a person asks to send now (control/sendnow.py); at P12, several conversations at once
 (engine/parallel.py); at P16, a conversation queued in Codex for when it is opened (engine/foropen.py); from v0.6.18,
-at P8, the weekly update check while idle (engine/updatecheck.py); and, at no point, three actions: longer
+at P8, the weekly update check while idle (engine/updatecheck.py); from v0.6.20, at P8, a line a person steers into
+the running turn over the Codex app's own pipe (engine/steer.py); and, at no point, three actions: longer
 reset messages, Open Codex on a notice (control/opencodex.py), and the compatibility report (report/). The tests define
 one of their own to hold every rule here.
 """
@@ -72,6 +73,10 @@ from codex_auto_resume.domain.plug import Point
 from .control.codexstart import make as make_start_with_codex
 from .control.opencodex import make as make_open_codex_button
 from .control.sendnow import make as make_send_now
+from .engine.analytics import DAYS as ANALYTICS_DAYS, DEFAULT_DAYS as ANALYTICS_DEFAULT_DAYS, make as make_usage_analytics
+from .engine.anchor import (CODES as ANCHOR_CODES, TIME_CHOICES as ANCHOR_TIMES, TIME_OFF as ANCHOR_OFF,
+                             TIME_RANGE as ANCHOR_RANGE, make as make_window_anchor)
+from .engine.account import make as make_account_switch
 from .engine.admitted import (ATTEMPTS, DEFAULT_ATTEMPTS, make_codex_gave_up, make_sign_in_retry,
                               make_structured_rules, make_unknown_failure_budget)
 from .engine.capacity import CEILING_HOURS, DEFAULT_HOURS, make as make_capacity_retry
@@ -94,14 +99,20 @@ from .engine.fallback import (ATTEMPTS as FALLBACK_ATTEMPTS, DEFAULT_ATTEMPTS as
 from .engine.goal import make as make_goal_continuation
 from .engine.headless import DEFAULT_HOURS as HEADLESS_DEFAULT_HOURS, HOURS as HEADLESS_HOURS, make as make_headless_run
 from .engine.markerfree import make as make_marker_free
+from .engine.hookclaims import make as make_stop_hook
 from .engine.retries import (ATTEMPTS as RETRY_ATTEMPTS, DEFAULT_ATTEMPTS as RETRY_DEFAULT_ATTEMPTS,
                              make as make_retry_settings)
 from .engine.sessions import make as make_other_sessions
+from .engine.steer import make as make_steer_send
 from .engine.silent import make as make_silent_continuation
 from .engine.oncemore import make as make_once_more
 from .engine.parallel import DEFAULT_WORKERS, WORKERS, make as make_parallel
 from .engine.updatecheck import make as make_idle_update_check
 from .engine.wake import DEFAULT_LEAD as WAKE_DEFAULT_LEAD, LEADS as WAKE_LEADS, make as make_wake_for_reset
+# v0.6.20 (the courier): push notices and the status feed.
+from .engine.push import DEFAULT_EVENTS, EVENT_CHOICES, make as make_push_notices, SWITCH as PUSH_SWITCH
+from .engine.feed import DEFAULT_MINUTES as FEED_DEFAULT_MINUTES, MINUTES as FEED_MINUTES, make as make_status_feed
+from .courier.outbox import codes as push_codes
 from .engine.usage import (DEFAULT_PAUSE, DEFAULT_POLL, DEFAULT_STOP_WORDS, DEFAULT_STYLE, DEFAULT_WARN,
                            DEFAULT_WRAP, ON, PERCENT_RANGE, PERCENTS, POLL_RANGE, SWITCH,
                            POLL_CHOICES, STYLES, make_meter, make_pause, make_wrap_up)
@@ -915,18 +926,51 @@ PARALLEL_DISPATCH = CapabilityDef(
 # day. Before the edition's own continuations, so a person's message is handed first (P2's eight). Revision 2 (v0.6.19,
 # issue #50): a message at a time or on a schedule waits while a turn of its conversation runs, or goes into Codex's
 # queue at once, as the person chooses (engine/promptqueue.py) - the statement describes the default, so a person who
-# had it on reads the new one before it is on again.
+# had it on reads the new one before it is on again. Revision 3 (v0.6.20, issue #50 item 1, MIMG): a message may carry
+# pictures, kept as the product's own copies until it is delivered (images.py); one with pictures goes by this
+# capability's own channel at P5 - thread/queue/add, words then localImage items - and is proven by its client id at P15,
+# with no marker, so its statement names A2, A4, B3 and B4 too. A message with no pictures goes as before.
 PROMPT_QUEUE = CapabilityDef(
     id="prompt_queue",
-    points=frozenset({Point.RECORDS}),
-    revision=2,
-    departs_from=("A8", "A17", "A26", "A27", "C4", "D2", "H4", "H6"),
+    points=frozenset({Point.RECORDS, Point.SENDER, Point.DELIVERY}),
+    revision=3,
+    departs_from=("A2", "A4", "A8", "A17", "A26", "A27", "B3", "B4", "C4", "D2", "H4", "H6"),
     compat="exact_thread_recovery",
     ceilings=Ceilings(per_day=30, per_conversation=CORE_DAILY_CAP),
     journal_prefix="queue",
     make=make_prompt_queue,
     codes=("due", "sent", "delivered", "unknown", "expired", "missed", "held", "superseded"),
     measurements=(Measurement.MT,),
+)
+
+# Steer the running turn (v0.6.20, issue #50 item 2; the owner's decision of 2026-10-29, "경고와 함께 만들기"). A person
+# writes a line in the prompt queue's editor, choosing Now, into the turn that is running (steer) as its When; the
+# Dashboard's request writes it `requested` (control/steer.py) and at P8 the watcher's errand alone checks and writes it,
+# once, through the Desktop's own IPC pipe (codex/ipc.steer_turn, inside core's errand guard): only while Codex's history
+# says the conversation's latest turn is running and the app holds it (the holder count, then core's loaded check with
+# the app's identity), claimed before the write and never written again once it may have been (engine/steer.py). The
+# Codex app never shows the steered line (MSTEER2 failed not_as_expected on codex-cli 0.165.0-alpha.1.2: delivered once,
+# into the same turn, obeyed, never shown) - its statement says so first, and every steer is kept with its words for
+# History (state/steers.py). It departs from A4 (a send not shown as the person's message, with no marker, its arrival
+# unprovable in the conversation), A2 and B3 (an undocumented route, not codex queue), A1 (handed on by the watcher's
+# errand, not Engine.dispatch), A8 (its own checks, not core's gates), A17 (it joins the running turn), A20 (its own
+# caps, and so H2), A26 (a person's words, no continuation), D2 (the words kept after the send) and H6 (nothing takes it
+# back). It
+# needs the prompt queue, whose editor is where it is written, and stands on loaded_state_detection; its route rests on
+# MIPC and MSTEER2 - the failed MSTEER2 is the warning its statement shows and the person confirms. Ceilings: 30 a
+# conversation and 60 a day, the request's own caps (A20 departed).
+STEER_SEND = CapabilityDef(
+    id="steer_send",
+    points=frozenset({Point.TICK}),
+    revision=1,
+    departs_from=("A1", "A2", "A4", "A8", "A17", "A20", "A26", "B3", "D2", "H2", "H6"),
+    compat="loaded_state_detection",
+    ceilings=Ceilings(per_day=60, per_conversation=30),
+    journal_prefix="steer",
+    make=make_steer_send,
+    codes=("accepted", "unconfirmed", "refused"),
+    measurements=(Measurement.MIPC, Measurement.MSTEER2),
+    requires=("prompt_queue",),
 )
 
 # Empty-response recovery (v0.6.15-beta; the plan's item 3). At P8, at most once a minute, it looks at the
@@ -1125,6 +1169,60 @@ IDLE_UPDATE_CHECK = CapabilityDef(
     codes=("checked", "offered", "unanswered"),
 )
 
+# Usage and token analytics (v0.6.20, plans/v0619-design/D-analytics.md). At P8, at most every ten minutes and only as
+# the tick's errand, it reads what the watched Codex homes' rollouts added since its last pass - the four numbers of each
+# token_count event and the turns begun, nothing else of a line, at most 2 MiB of a file and 8 MiB a pass
+# (codex/tokens.py) - and keeps them by local day under each conversation's project key (state/analytics.py, token_days
+# and token_files, 90 days); while it stands on, the usage meter keeps each of its readings as a sample too, for the
+# pace (engine/usage.py). The card on the Advanced features page shows each window's pace and each project's tokens over
+# the days a person picks, and saves them as CSV where the person chooses (control/analytics.py). Where MTOK failed on
+# the Codex in force, no rollout is read: the card shows each conversation's lifetime total alone (threads.tokens_used,
+# core's reader) - the narrower route, never a reason to withhold it. It departs from B6 (rollouts read beyond the
+# first line and the usage-limit scan), C4 (it reads on its own, on a schedule), C9 (usage readings kept when no
+# recovery is due), D2 (per-project digests and token counts kept 90 days) and F3 (the CSV written where the person
+# chooses); stands on usage_probe, as the meter it requires, and rests on MTOK and MU. No gate reads any of it, and it
+# sends nothing: its ceilings are the schema's floor and never bind.
+USAGE_ANALYTICS = CapabilityDef(
+    id="usage_analytics",
+    points=frozenset({Point.TICK}),
+    revision=1,
+    departs_from=("B6", "C4", "C9", "D2", "F3"),
+    compat="usage_probe",
+    ceilings=Ceilings(per_day=1, per_conversation=1),
+    journal_prefix="analytic",
+    make=make_usage_analytics,
+    codes=("ingested", "capped", "unreadable"),
+    measurements=(Measurement.MTOK, Measurement.MU),
+    options=(Option(OptionKey.ANALYTICS_DAYS, ANALYTICS_DAYS, ANALYTICS_DEFAULT_DAYS),),
+    requires=("usage_meter",),
+)
+
+# Switch the Codex account (v0.6.20, plans/v0619-design/D-account.md): its card in the Dashboard shows the account this
+# PC is signed in to - its plan and a masked address, read by account/read in the Dashboard's process and never stored -
+# and, once MAL passed on the Codex in force, offers Codex's own `codex logout` then `codex login` (codex/account.py);
+# until then it says how to switch in Codex instead (the narrower route, K6: a warning, never a refusal). The product
+# never asks Codex for a sign-in method (codex/protocol.FORBIDDEN_METHODS unchanged) and never reads Codex's sign-in
+# file, a token or a cookie. While on, the watcher reads the account at its start and every 30 minutes at P8 and keeps
+# only a keyed digest of it (engine/account.py); another account signed in holds every recovery waiting for a usage
+# limit (core's hold `account_changed`) and every reset rule still counting, for the person to let go, with one notice.
+# It departs from B4 (account/read beyond core's calls), B10 (an account's plan and address are read), B11 (it starts
+# Codex's own sign-in, which handles the credentials), C4 (it reads on a schedule), C9 (Codex is asked when no recovery
+# is due), D2 (a digest of the account is kept), F6 (`codex logout` and `codex login` are not listed processes) and H7
+# (a change of account holds recoveries, beside the settings that do). It stands on usage_probe - the app server's
+# reads, as the usage meter's - rests on MA and MAL, and sends nothing: its ceilings are the floor and never bind.
+ACCOUNT_SWITCH = CapabilityDef(
+    id="account_switch",
+    points=frozenset({Point.TICK}),
+    revision=1,
+    departs_from=("B4", "B10", "B11", "C4", "C9", "D2", "F6", "H7"),
+    compat="usage_probe",
+    ceilings=Ceilings(per_day=1, per_conversation=1),
+    journal_prefix="account",
+    make=make_account_switch,
+    codes=("changed", "held", "switch_asked", "signed_in", "not_signed_in", "switch_failed"),
+    measurements=(Measurement.MA, Measurement.MAL),
+)
+
 # Wake this PC for a reset (v0.6.19, plans/v0619-design/D-watcher-ops.md B). At P8 it finds the earliest time something
 # waits for - core's waiting usage-limit records, the reset actions' pending rules, the forced stop's held window - and
 # sets a waitable timer of the watcher's own, with fResume, for that time less the lead a person chose (1, 2 or 5
@@ -1148,6 +1246,81 @@ WAKE_FOR_RESET = CapabilityDef(
     codes=("set", "cancelled", "not_allowed"),
     measurements=(Measurement.MWAKE,),
     options=(Option(OptionKey.WAKE_LEAD_MINUTES, WAKE_LEADS, WAKE_DEFAULT_LEAD),),
+)
+
+# Send notices to your phone or inbox (v0.6.20, plans/v0619-design/D-courier.md): at P20 a notice core raises is mapped
+# to a closed event and, for the events a person picked and each channel they switched on and saved - ntfy, a webhook,
+# Telegram, e-mail - written to the outbox (engine/push.py); at P8 the courier is started to send it (courier/), the
+# advanced edition's only network code: HTTPS with verification, no redirect, at most 30 an hour across channels, three
+# tries, dropped after seven days, never a title, a path, an id or a word of a conversation. Its secrets are Credential
+# Manager's alone (credentials.py). It departs from C1 and C2 (network code, in a second shipped file), C3 (hosts the
+# person types), C8 (each service sees this PC's address and the courier's User-Agent), D1 (event codes leave the PC, to
+# a service the person chose), D6 (a channel that is not a Windows notice), F6 (a process of its own besides the listed
+# ones) and F8 (a second process while it runs). It keeps A1 - nothing it does reaches Codex - E11, never deciding or
+# delaying a recovery, and K5: paused, nothing is written or sent. It stands on engine_present as the update check does;
+# its ceilings are the schema's floor and never bind: it sends nothing to Codex.
+PUSH_NOTICES = CapabilityDef(
+    id="push_notices",
+    points=frozenset({Point.NOTICE, Point.TICK}),
+    revision=1,
+    departs_from=("C1", "C2", "C3", "C8", "D1", "D6", "F6", "F8"),
+    compat="engine_present",
+    ceilings=Ceilings(per_day=1, per_conversation=1),
+    journal_prefix="push",
+    make=make_push_notices,
+    codes=push_codes(),
+    options=(Option(OptionKey.PUSH_EVENTS, EVENT_CHOICES, DEFAULT_EVENTS),
+             Option(OptionKey.NTFY, PUSH_SWITCH, PUSH_SWITCH[1]), Option(OptionKey.WEBHOOK, PUSH_SWITCH, PUSH_SWITCH[1]),
+             Option(OptionKey.TELEGRAM, PUSH_SWITCH, PUSH_SWITCH[1]), Option(OptionKey.EMAIL, PUSH_SWITCH, PUSH_SWITCH[1])),
+)
+
+# Show OpenAI's service status (v0.6.20, D-courier.md): while a recovery waits in a usage limit or a connection failure,
+# the courier reads status.openai.com's summary every 10, 30 or 60 minutes (the person's choice) and once when
+# the Dashboard opens, and keeps two words and a count (courier/feed.py); the Overview shows a line while it says degraded
+# or an outage. A word to show, never a gate's input. It departs from C1, C2, C3 (status.openai.com), C4 (it reads on its
+# own) and C8 (the page sees this PC's address); it keeps A1, E11 and K5 - paused, nothing is read.
+STATUS_FEED = CapabilityDef(
+    id="status_feed",
+    points=frozenset({Point.TICK}),
+    revision=1,
+    departs_from=("C1", "C2", "C3", "C4", "C8"),
+    compat="engine_present",
+    ceilings=Ceilings(per_day=1, per_conversation=1),
+    journal_prefix="feed",
+    make=make_status_feed,
+    codes=("checked", "unknown", "refused"),
+    options=(Option(OptionKey.FEED_MINUTES, FEED_MINUTES, FEED_DEFAULT_MINUTES),),
+)
+
+# Start the 5-hour window early (v0.6.20, the owner's request of 2026-10-28; plans/v0620-anchor-design.md). At P8,
+# when Codex's 5-hour window is idle - 0 % in two reads STEADY_GAP apart, its reset ~5 h ahead and moving with the
+# clock, as MANCHOR found an idle window reports - its errand starts one near-free request, the measured
+# `codex exec --ephemeral -s read-only` "Reply with OK" from an empty folder of its own, so the window starts now and
+# its reset is fixed five hours on: at the times of day a person picks (up to three, off by default), right after a
+# reset it has seen (a switch, on by default), or both. One start a window at most, inside core's errand guard; never
+# while a window runs, the weekly window is full, recovery is paused or only observed, no account is signed in, or for
+# any Codex but the one the watcher told its plug. Every start and every skip is a journal word; the reset it fixed is
+# on the Advanced page and in the watcher's log. It departs from A1 and A2 (a request beside core's one send, through
+# `codex exec`), A13 and A26 (nothing failed, and its words are no continuation's), A25 (it opens a usage window),
+# B3 (`codex exec` changes Codex's usage), B4 (it asks account/read), C4 (it acts on a schedule), C9 (it reads usage
+# when no recovery is due) and F6 (`codex exec` is not a process the product starts). It stands on usage_probe and
+# rests on MANCHOR. Ceilings: five starts a day (a day holds fewer than five windows), one a conversation (it sends to
+# none). Before wake_for_reset, which stays last at P8.
+WINDOW_ANCHOR = CapabilityDef(
+    id="window_anchor",
+    points=frozenset({Point.TICK}),
+    revision=1,
+    departs_from=("A1", "A2", "A13", "A25", "A26", "B3", "B4", "C4", "C9", "F6"),
+    compat="usage_probe",
+    ceilings=Ceilings(per_day=5, per_conversation=1),
+    journal_prefix="anchor",
+    make=make_window_anchor,
+    codes=ANCHOR_CODES,
+    measurements=(Measurement.MANCHOR,),
+    options=(Option(OptionKey.ANCHOR_AT_1, ANCHOR_TIMES, ANCHOR_OFF, custom=ANCHOR_RANGE),
+             Option(OptionKey.ANCHOR_AT_2, ANCHOR_TIMES, ANCHOR_OFF, custom=ANCHOR_RANGE),
+             Option(OptionKey.ANCHOR_AT_3, ANCHOR_TIMES, ANCHOR_OFF, custom=ANCHOR_RANGE),
+             Option(OptionKey.ANCHOR_AFTER_RESET, SWITCH, ON)),
 )
 
 # Longer reset messages (v0.6.14, the owner's answer of 2026-10-08): a message sent at a reset may be up to what one
@@ -1223,6 +1396,9 @@ DEFINITIONS = (START_WITH_CODEX, CRASH_RESTART, GOAL_CONTINUATION, QUEUE_FOR_OPE
                UNKNOWN_FAILURE_BUDGET, CODEX_GAVE_UP, SIGN_IN_RETRY, RESET_CREDIT, RESET_MESSAGE, EARLY_RESET,
                ONCE_MORE, SEND_NOW, PARALLEL_DISPATCH, PROMPT_QUEUE, EMPTY_RESPONSE, SUBAGENT_PARENT, KEEP_GOING,
                USAGE_METER, USAGE_WRAP_UP, USAGE_PAUSE, EVERY_CONVERSATION, SILENT_CONTINUATION, CODEX_CHAT, IDLE_UPDATE_CHECK,
+               # v0.6.20 (the usage and token analytics; the 5-hour window started early; the courier; the account switch;
+               # #50's steer), before the wake timer, whose errand reads last at P8.
+               USAGE_ANALYTICS, WINDOW_ANCHOR, PUSH_NOTICES, STATUS_FEED, ACCOUNT_SWITCH, STEER_SEND,
                WAKE_FOR_RESET,
                OPEN_CODEX_BUTTON, LONG_RESET_MESSAGE,
                COMPAT_REPORT)
@@ -1253,9 +1429,10 @@ CODEX_RETRY_SETTINGS = CapabilityDef(
 # wakes a conversation the app does not hold, through the app's own link), B16 (it asks Windows the last input time and
 # reads the `codex:` handler), C4 (it acts on its own) and F6 (explorer opens the link); it keeps B13 - it simulates no
 # input and drives no UI - and A11, since nothing is sent until core's own loaded check passes. It stands on
-# loaded_state_detection, what says a conversation is not loaded, and rests on MOPEN: until opening is measured to load
-# a conversation on the Codex in force it waits in WAITING, hidden - with no narrower route, since opening that loads
-# nothing does nothing. It composes with queue_for_open (opening delivers what that queued) and leaves a conversation
+# loaded_state_detection, what says a conversation is not loaded, and rests on MOPEN. It waited in WAITING, hidden, until
+# opening was measured to load a conversation (no narrower route: opening that loads nothing does nothing); MOPEN passed on
+# codex-cli 0.165.0-alpha.1.2 (2026-10-29), so it is offered - and, as every capability resting on a measurement, shows
+# the UNMEASURED warning on any other Codex until it is measured there (arming.warnings_for). It composes with queue_for_open (opening delivers what that queued) and leaves a conversation
 # another session holds alone. Ceilings: the schema's, beside its own caps; it spends nothing.
 OPEN_TO_SEND = CapabilityDef(
     id="open_to_send",
@@ -1272,18 +1449,48 @@ OPEN_TO_SEND = CapabilityDef(
     measurements=(Measurement.MOPEN,),
 )
 
+# Continue inside the turn (v0.6.20, plans/v0619-design/D-stop-hook.md): a continuation of a short temporary failure
+# carried inside the turn that failed, by this edition's Stop hook - a program Codex starts as the turn stops
+# (gui/HookLauncher.cs, hook/handler.py) - in place of the watcher's queued message after the wait. The hook claims in
+# core's file under core's claim's lock (engine/hookclaims.py): the watcher first, the hook passes; the hook first,
+# core is held at P3 and at P11 (ledger.py) from a second continuation of the same interruption, and its units count
+# in the caps on one conversation. Its declaration is written into this product's plugin copy only while it is on
+# (control/hookplugin.py). It departs from A2 (a second channel: Codex's own hook answer, not `codex queue`), A5 (the
+# claim is made by the hook's process, in the same transaction core's claim takes, not by core's claim), A26 (the
+# continuation is carried as the hook's reason, not a queued message), B3 (Codex's state changes through the hook's
+# declaration in the plugin copy) and F6 (Codex starts the hook's program, which is not a listed process). It stands on
+# recovery_turn_tracking - the history it reads the failed turn from - and rests on M4 (a plugin's Stop hook runs after
+# a failed turn, its row already written), M4B (Codex carries out the block: the turn goes on, without a console window)
+# and MHK (the declaration's format on the engine in force). Hidden in WAITING until all three pass. Ceilings:
+# core's own five a conversation a day, and two dozen a day in all.
+STOP_HOOK = CapabilityDef(
+    id="stop_hook_continuation",
+    points=frozenset({Point.GATES, Point.TICK}),
+    revision=1,
+    departs_from=("A2", "A5", "A26", "B3", "F6"),
+    compat="recovery_turn_tracking",
+    ceilings=Ceilings(per_day=24, per_conversation=CORE_DAILY_CAP),
+    journal_prefix="shk",
+    make=make_stop_hook,
+    measurements=(Measurement.M4, Measurement.M4B, Measurement.MHK),
+)
+
 # The one gate for a capability that cannot work on any Codex measured so far (the owner's rule of 2026-10-16): each
 # here, with the measurement that must pass first, is hidden - not in the registry this edition runs, so no row, no
 # statement and no switch anywhere - until that measurement passes (measured.MEASURED), and then offered after
-# DEFINITIONS. Its code and its probe stay in the tree. (v0.6.19: open_to_send's statement is written already, so a
-# pass offers it whole; codex_retry_settings' is not.)
-WAITING = ((CODEX_RETRY_SETTINGS, Measurement.MB), (OPEN_TO_SEND, Measurement.MOPEN))
+# DEFINITIONS. Its code and its probe stay in the tree. (v0.6.19: open_to_send's statement was written already, so a
+# pass offers it whole - MOPEN's did, 2026-10-29; codex_retry_settings' is not.) v0.6.20: a tuple of measurements is
+# several, every one of which must pass (Continue inside the turn: MHK, M4 and M4B).
+WAITING = ((CODEX_RETRY_SETTINGS, Measurement.MB), (OPEN_TO_SEND, Measurement.MOPEN),
+           (STOP_HOOK, (Measurement.MHK, Measurement.M4, Measurement.M4B)))
 
 
 def offered(measured) -> tuple:
-    """The waiting capabilities `measured` (measured.MEASURED's shape) lets out: those whose measurement passed."""
+    """The waiting capabilities `measured` (measured.MEASURED's shape) lets out: those whose measurements all passed."""
+    def passed(measurement):
+        return (measured.get(measurement) or (None,))[0] == Verdict.PASS
     return tuple(definition for definition, measurement in WAITING
-                 if (measured.get(measurement) or (None,))[0] == Verdict.PASS)
+                 if all(passed(each) for each in (measurement if isinstance(measurement, tuple) else (measurement,))))
 
 
 def _registry():
@@ -1311,22 +1518,37 @@ SHOWN_ORDER = ("compat_report", "start_with_codex",
                "open_to_send",
                # v0.6.16-beta.4: what gets a conversation going when nothing holds it, beside queue for opening (Q12).
                "headless_run", "other_sessions", "marker_free_continuation",
+               # v0.6.20: the continuation inside the turn, beside the other that goes without core's queued message -
+               # shown once MHK, M4 and M4B pass (the owner's order of 2026-10-22).
+               "stop_hook_continuation",
                # v0.6.16-beta.4: how a turn run here starts, beside the other continuation that goes without a marker
                # (DECISIONS Q12).
                "silent_continuation", "reset_credit",
                "early_reset", "parallel_dispatch", "reset_message", "long_reset_message",
                # v0.6.16-beta.3 (issue #29): the usage meter and what it serves, beside the other usage-limit features.
-               "usage_meter", "usage_wrap_up", "usage_pause", "keep_going",
+               "usage_meter", "usage_wrap_up", "usage_pause",
+               # v0.6.20: starting the 5-hour window early, beside what reads and keeps the usage windows.
+               "window_anchor", "keep_going",
+               # v0.6.20: the usage and token analytics, after keep going (the owner's approved order, 2026-10-22).
+               "usage_analytics",
                "prompt_queue",
                # v0.6.19: chat with a conversation, beside the queued messages (stage 4's Q12).
-               "codex_chat", "empty_response", "once_more_when_unsure", "send_now",
+               "codex_chat",
+               # v0.6.20 (#50): steering the running turn, written in the prompt queue's editor, after the chat.
+               "steer_send", "empty_response", "once_more_when_unsure", "send_now",
                # v0.6.18: Open Codex on a notice, beside Send now - both what a person does about one conversation.
-               "open_codex_button", "capacity_retry",
+               "open_codex_button",
+               # v0.6.20 (the courier; the owner's order of 2026-10-22): push notices and the status feed, beside Open Codex
+               # on a notice - what a person is told, and where.
+               "push_notices", "status_feed",
+               "capacity_retry",
                # v0.6.16-beta.4: what a failure of Codex's own is taken up with, beside the capacity retry (Q12).
                "compact_continue", "model_fallback",
                "codex_gave_up", "goal_continuation", "subagent_parent", "sign_in_retry", "unknown_failure_budget",
                # v0.6.18: the weekly update check, which recovers nothing, among the expert settings.
                "idle_update_check",
+               # v0.6.20: switching the Codex account, among the expert settings (the order the owner approved on 2026-10-22).
+               "account_switch",
                "structured_rules")
 
 

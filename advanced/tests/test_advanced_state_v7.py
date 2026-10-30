@@ -53,7 +53,7 @@ class UpgradeTests(StateCase):
         with contextlib.closing(sqlite3.connect(path)) as connection:
             # And on to the version after stage 4's (v0.6.19's 8, test_advanced_schema_v8), in the same opening.
             self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], schema_module.SCHEMA_VERSION)
-            self.assertEqual((schema_module.STAGE4_VERSION, schema_module.SCHEMA_VERSION), (7, 8))
+            self.assertEqual((schema_module.STAGE4_VERSION, schema_module.SCHEMA_VERSION), (7, 9))
             self.assertEqual(connection.execute("SELECT count(*) FROM spend").fetchone()[0], 1)
             self.assertEqual(connection.execute("SELECT count(*) FROM wordings").fetchone()[0], 1)
             self.assertEqual(connection.execute("SELECT count(*) FROM keep_going").fetchone()[0], 1)

@@ -89,8 +89,7 @@ class DecisionTests(unittest.TestCase):
                 self.assertEqual(self.resolve(tags), expected)
 
     def test_english_for_a_language_this_product_does_not_have(self):
-        # Arabic and Hebrew have catalogs, but this release holds them (l10n.HELD): English too.
-        for tags in (["nl-NL"], ["fi-FI"], ["hi-IN"], ["ar-SA"], ["he-IL"], ["sv-SE"], ["th-TH"]):
+        for tags in (["nl-NL"], ["fi-FI"], ["hi-IN"], ["sv-SE"], ["th-TH"]):
             with self.subTest(tags):
                 self.assertEqual(self.resolve(tags), "en")
 

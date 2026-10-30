@@ -1,0 +1,26 @@
+{
+  "format": "codex-auto-resume-measurement/1",
+  "step": "mimg",
+  "verdict": "blocked",
+  "recorded_at": "2026-10-29T08:39Z",
+  "product_version": "0.6.20-beta.2",
+  "codex_version": "codex-cli 0.165.0-alpha.1.2",
+  "windows_build": "10.0.26300",
+  "observed": {
+    "add_calls": 1,
+    "local_image_accepted": true,
+    "queued_input_items": 2,
+    "queued_keeps_image": true,
+    "taken": true,
+    "taken_seconds": "under_10s",
+    "turn_started": true,
+    "client_id_on_user_item": true,
+    "thread_given": true
+  },
+  "note": "confirm the message showed in Codex at once as your own, with the picture in it (one white pixel) and its line of words, nothing marked it as sent by a program, and the turn ran as one you typed, then set the verdict; if it was not taken, remove it from the conversation's queue in Codex",
+  "completion": {
+    "verdict": "pass",
+    "note": "as_expected",
+    "recorded_at": "2026-10-29T08:40Z"
+  }
+}

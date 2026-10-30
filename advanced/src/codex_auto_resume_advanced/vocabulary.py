@@ -166,6 +166,27 @@ class Refusal(StrEnum):
     # v0.6.16-beta.4 (j): a near-limit percentage out of order - a window's warning above its wrap-up, or the wrap-up at
     # or above the stop its words ask for.
     OPTION_ORDER = "option_order"
+    # v0.6.20 (push_notices, status_feed - the courier): an address the courier may not keep or send to (its own closed
+    # word beside it, courier/address.py); Windows Credential Manager that would not keep or give back a secret; a channel
+    # whose address or secret is not saved; and a courier that could not be started.
+    ADDRESS_REFUSED = "address_refused"
+    SECRET_UNAVAILABLE = "secret_unavailable"
+    NOT_SAVED = "not_saved"
+    COURIER_UNAVAILABLE = "courier_unavailable"
+    # v0.6.20 (account_switch): Codex's own sign-out and sign-in asked for before MAL passed on the Codex in force - the
+    # card offers no button then - and asked again while one is still waiting for the browser.
+    SWITCH_UNMEASURED = "switch_unmeasured"
+    SWITCH_RUNNING = "switch_running"
+    # v0.6.20 (steer_send): a steer asked for a conversation whose latest turn is not running in Codex's history - there
+    # is nothing to steer, so nothing waits.
+    NO_TURN_RUNNING = "no_turn_running"
+    # v0.6.20 (#50 item 1, images.py): a picture of a scheduled message that is not one this product sends (not a
+    # PNG, JPEG, GIF or WebP by its bytes, or unreadable), one over 5 MB, more than four, and pictures at all where a
+    # measurement found this Codex's queue does not take them (MIMG failed).
+    IMAGE_REFUSED = "image_refused"
+    IMAGE_TOO_LARGE = "image_too_large"
+    IMAGES_FULL = "images_full"
+    IMAGES_UNAVAILABLE = "images_unavailable"
 
 
 class JournalCode(StrEnum):
@@ -285,6 +306,21 @@ class OptionKey(StrEnum):
     LAST_INGEST = "last_ingest"
     LAST_FEED = "last_feed"
     LAST_FLEET_WRITE = "last_fleet_write"
+    # v0.6.20 (window_anchor, the owner's request of 2026-10-28): the times of day it starts an idle 5-hour window at
+    # (three, each off or a time - TIME_OFF, or the minute of the day plus two), and whether it starts one right after
+    # a reset. And its stamps: when it last started one, the reset that start fixed, the running reset it last saw, the
+    # time and the reset it last handled, and the last request's input and output token counts.
+    ANCHOR_AT_1 = "anchor_at_1"
+    ANCHOR_AT_2 = "anchor_at_2"
+    ANCHOR_AT_3 = "anchor_at_3"
+    ANCHOR_AFTER_RESET = "anchor_after_reset"
+    ANCHOR_STARTED_AT = "anchor_started_at"
+    ANCHOR_FIXED_AT = "anchor_fixed_at"
+    ANCHOR_SEEN_RESET = "anchor_seen_reset"
+    ANCHOR_SLOT_DONE = "anchor_slot_done"
+    ANCHOR_RESET_DONE = "anchor_reset_done"
+    ANCHOR_INPUT_TOKENS = "anchor_input_tokens"
+    ANCHOR_OUTPUT_TOKENS = "anchor_output_tokens"
 
 
 class WordingKey(StrEnum):
@@ -409,6 +445,13 @@ class BridgeCommand(StrEnum):
     # v0.6.20 (issue #50): the person's own conversations and their names, for the pickers' Find a conversation
     # (control/conversations.py) - read-only, the Dashboard's alone, never MCP.
     ADVANCED_CONVERSATIONS = "advanced-conversations"
+    # v0.6.20 (issue #50, steer_send): a line the person wrote, to be added to the turn running in one conversation -
+    # the Dashboard's editor asks, and the watcher alone sends it (control/steer.py, engine/steer.py).
+    ADVANCED_STEER = "advanced-steer"
+    # v0.6.20 (issue #50, promised there on 2026-10-26): a delivered scheduled message followed to the end of the work it
+    # started - its turn, the limit that cut it off, the recovery of that turn, to the end (control/follow.py). Read-only,
+    # part of the prompt queue, the Dashboard's alone, never MCP.
+    ADVANCED_PROMPT_FOLLOW = "advanced-prompt-follow"
     # v0.6.19 (the groundwork): every command the stage's designs name, in one block, each the Dashboard's alone and
     # reached by no MCP tool. Until the capability that answers one is built, the bridge passes it over as it passes a
     # command this edition does not have (surfaces.UNANSWERED). The analytics' aggregates and their CSV
@@ -526,7 +569,7 @@ class Measurement(StrEnum):
     MQG = "mqg"
     # v0.6.19 (the groundwork, plans/v0619-design/D-groundwork.md section 5), made while the stage is built. MTOK: a
     # throwaway conversation's rollout keeps per-turn token totals of the five kinds, never decreasing, and the history's
-    # tokens_used agrees (usage_analytics). MOPEN: a conversation the app does not hold loads within ten seconds of its
+    # tokens_used agrees (usage_analytics). MOPEN: a conversation the app does not hold is held by the app within thirty seconds (the owner's limit, 2026-10-29) of its
     # link being opened (open_to_send). MAL: a `codex logout` and `codex login` in a terminal reach the running app
     # without a restart (account_switch). MWAKE: a wake timer wakes this PC from sleep (wake_for_reset). MHK: Codex's
     # generated schema has a Stop event for plugin hooks, and the feature is there (stop_hook_continuation). M4B: a
@@ -537,6 +580,21 @@ class Measurement(StrEnum):
     MWAKE = "mwake"
     MHK = "mhk"
     M4B = "m4b"
+    # v0.6.20 (window_anchor): one ephemeral, read-only, low-effort `codex exec` on an idle 5-hour window starts it -
+    # its reset fixed five hours after the request - and leaves no conversation, rollout or history line.
+    MANCHOR = "manchor"
+    # v0.6.20 (issue #50, plans/v0619-design/D-issue50.md): the two measured before they are built. MIMG: Codex's queue
+    # (thread/queue/add) takes an image beside the words - a local image file, or an image by its data address - for a
+    # throwaway conversation the app holds idle, and the app delivers it as the person's own message with the image
+    # (image_attachments). MSTEER: turn/steer reaches the exact active turn of a throwaway conversation from a connection
+    # this product may use - accepted or refused with a code, shown in the conversation or not, and called exactly once,
+    # never again after an answer that did not come (steer_send_mode).
+    MIMG = "mimg"
+    MSTEER = "msteer"
+    # v0.6.20: MSTEER failed from our own app-server session (-32600, codex-cli 0.165), so MSTEER2 asks the same of the
+    # Desktop's own IPC pipe - the connection this product already uses for the forced stop (MIPC): one line added to the
+    # running turn of a throwaway conversation the app holds (thread-follower-steer-turn), called once, never again.
+    MSTEER2 = "msteer2"
 
 
 class ObservedWord(StrEnum):
@@ -582,6 +640,9 @@ class ObservedWord(StrEnum):
     UNDER_2S = "under_2s"
     S2_TO_10 = "s2_to_10"
     OVER_10S = "over_10s"
+    # v0.6.20: MOPEN's limit is 30 s, so its load time is bucketed on to 20 and 30 s (the first run, 2026-10-29: 13.4 s).
+    S10_TO_20 = "s10_to_20"
+    S20_TO_30 = "s20_to_30"
     AC = "ac"
     BATTERY = "battery"
 
@@ -956,3 +1017,31 @@ class PlanWord(StrEnum):
     ENTERPRISE = "enterprise"
     EDU = "edu"
     OTHER = "other"
+
+
+class SteerState(StrEnum):
+    """Where one steer stands (steer_send, v0.6.20, state `steers`): asked for and waiting for the watcher (requested),
+    claimed by the watcher's errand just before its one write (sending), and then one of three outcomes that are never
+    collapsed: the Codex app took it into the running turn (accepted), it was written and no answer came, so it may have
+    been delivered (unconfirmed), or it was not written (refused, with its SteerReason). Whether it was seen in the
+    conversation is never a state: the Codex app does not show a steered line (MSTEER2)."""
+    REQUESTED = "requested"
+    SENDING = "sending"
+    ACCEPTED = "accepted"
+    UNCONFIRMED = "unconfirmed"
+    REFUSED = "refused"
+
+
+class SteerReason(StrEnum):
+    """Why a steer was refused - never written - (SteerState.REFUSED): no turn running in that conversation, the Codex app
+    not holding it, the app's connection (its IPC pipe) not there, the app refusing it (or its build checking another
+    version of the request), recovery paused, Observe only or quiet hours holding it (core's errand guard), not sent
+    within two minutes of being asked, the conversation switched off, or the capability turned off before it went."""
+    NO_TURN = "no_turn"
+    NOT_HELD = "not_held"
+    NO_PIPE = "no_pipe"
+    APP_REFUSED = "app_refused"
+    HELD = "held"
+    EXPIRED = "expired"
+    CONVERSATION_OFF = "conversation_off"
+    TURNED_OFF = "turned_off"

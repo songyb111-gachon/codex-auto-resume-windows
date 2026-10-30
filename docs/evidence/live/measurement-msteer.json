@@ -1,0 +1,20 @@
+{
+  "format": "codex-auto-resume-measurement/1",
+  "step": "msteer",
+  "verdict": "fail",
+  "recorded_at": "2026-10-29T08:41Z",
+  "product_version": "0.6.20-beta.2",
+  "codex_version": "codex-cli 0.165.0-alpha.1.2",
+  "windows_build": "10.0.26300",
+  "observed": {
+    "history_read": true,
+    "turn_in_progress": true,
+    "steer_calls": 1,
+    "held_by_app": false,
+    "steer_accepted": false,
+    "answer_uncertain": false,
+    "refusal_code": -32600,
+    "thread_given": true
+  },
+  "note": "Codex refused turn/steer for the exact active turn of the conversation"
+}

@@ -579,7 +579,8 @@ class FlowTests(unittest.TestCase):
             with self.subTest(tag):
                 self.assertEqual(self.answer["normalized"][tag], l10n.normalize(tag))
         self.assertEqual(self.answer["from_system"], ["de", "en"], "only the most preferred language counts")
-        self.assertEqual(self.answer["resolved"], ["ja", "de", "en", "de"])
+        # Arabic, held until v0.6.20 (English then), is offered once the window is mirrored for it.
+        self.assertEqual(self.answer["resolved"], ["ja", "de", "ar", "de"])
 
     def test_the_edition_is_install_ps1s_rule(self):
         self.assertEqual(self.answer["edition_of"], {"advanced": "advanced", "other_case": "standard",

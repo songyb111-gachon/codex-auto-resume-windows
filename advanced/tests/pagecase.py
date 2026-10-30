@@ -52,10 +52,11 @@ POWERSHELL = (Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
 OVERLAY = ROOT / "advanced" / "gui" / "window.sources"
 WINDOW = "CodexAutoResumeSettings.exe"
 SCALES = (1.0, 1.25, 1.5, 1.75, 2.0)
-IDS = [definition.id for definition in registry.DEFINITIONS]
+# v0.6.20: every capability this edition runs - DEFINITIONS and, once its measurement passed, open_to_send (MOPEN).
+IDS = [definition.id for definition in registry.REGISTRY.definitions]
 # The order the rows are in (the owner's, 2026-10-10): the compatibility report first, and so the one open before any
 # is chosen - an action, so a scenario that turns the first route on or off chooses it.
-# v0.6.19: less any capability waiting hidden in registry.WAITING, which holds its place there but has no row yet.
+# v0.6.20: less any capability still waiting hidden in registry.WAITING (none now: MOPEN passed, open_to_send has its row).
 SHOWN = [capability for capability in registry.SHOWN_ORDER if capability in IDS]
 # The capability the turn-on scenario opens: one whose statement carries a warning (M7 unmeasured there), named
 # rather than counted, since the registry grew (v0.6.15-beta put queue_for_open third).
@@ -119,6 +120,12 @@ foreach ($job in $jobs) {
     try {
         if ($job.kind -eq 'run') {
             $out[$job.name] = [string]$run.Invoke($null, [object[]]@((Text $job.strings), (Text $job.scenario)))
+        } elseif ($job.kind -eq 'examples') {
+            # v0.6.20: See an example's views on a working area the job stands in (AdvancedExamplesAudit).
+            $examples = $form.GetMethod('AdvancedExamplesAudit', $static)
+            $report = [string]$examples.Invoke($null, [object[]]@((Text $job.strings), (Text $job.words), (Text $job.statements),
+                                                                [double]$job.scale, [int]$job.width, [int]$job.height))
+            $out[$job.name] = @{ report = $report; audited = [int]$audited.GetValue($null) }
         } else {
             $report = [string]$audit.Invoke($null, [object[]]@((Text $job.strings), (Text $job.words), (Text $job.listing),
                                                               (Text $job.statements), (Text $job.kept), (Text $job.reports),
@@ -193,7 +200,7 @@ class Bridge:
         self.paths.ensure()
         self.policy = policy.NONE
         self.view = ac.view("COMPATIBLE", capability="engine_present")
-        for definition in registry.DEFINITIONS:
+        for definition in registry.REGISTRY.definitions:
             if definition.compat is not None:          # an action stands on none
                 self.view["capabilities"][definition.compat] = {"state": "COMPATIBLE", "reason": "local_checks_passed"}
         self.measured = dict(PASSED)
@@ -378,8 +385,35 @@ def audit_data(locale: str, bridge: Bridge) -> dict:  # noqa: C901 - one layout'
     return {"words": words, "listing": listing, "statements": statements,
             "kept": {"advanced-rules": rules, "advanced-samples": samples, "advanced-watch-log": watch,
                      "pending": shot["pending"], "advanced-resets": fullest_resets(shot, listing["generation"]),
-                     "advanced-prompts": fullest_prompts(shot, listing["generation"]), "snapshot": shot},
+                     "advanced-prompts": fullest_prompts(shot, listing["generation"]),
+                     "advanced-analytics": fullest_analytics(), "snapshot": shot,
+                     # v0.6.20: the account card at its fullest - the plan, the masked address, the button and the
+                     # longest way a sign-in can end (advanced/gui/AdvancedAccount.cs).
+                     "advanced-account": {"done": True, "refusal": None, "present": True, "plan": "enterprise",
+                                          "kind": "chatgpt", "mask": "s•••@e•••.com",
+                                          "button": True, "switch": "failed"}},
             "reports": report_states()}
+
+
+def fullest_analytics() -> dict:
+    """advanced-analytics at its fullest, as control/analytics.view answers (v0.6.20): both windows with a pace - one
+    with an estimate, one with too few readings - older conversations still being read, a project with the longest
+    label core gives and counts in the billions, one with a lifetime total alone, and one with no label."""
+    now = int(ac.NOW)
+    numbers = {"input": 9876543210.0, "cached": 8765432109.0, "output": 765432109.0, "reasoning": 65432109.0,
+               "turns": 98765.0}
+    conversation = dict(numbers, thread_id=ac.THREAD, label="L" * 71 + "…", lifetime=None)
+    return {"done": True, "refusal": None, "days": 90, "choices": [7, 30, 90], "route": "per_day", "measured": None,
+            "behind": True, "last_ingest": now - 600, "more": 0,
+            "paces": [{"bucket": "codex", "minutes": 300, "used": 87.5, "reset_at": now + 4 * 3600,
+                       "change_hour": 12.5, "eta": now + 3600, "enough": True},
+                      {"bucket": "codex", "minutes": 10080, "used": 43.0, "reset_at": now + 5 * 86400,
+                       "change_hour": -0.5, "eta": None, "enough": False}],
+            "projects": [dict(numbers, key="a" * 16, label="P" * 71 + "…", lifetime=123456789.0,
+                              conversations=[conversation], more=0),
+                         {"key": "b" * 16, "label": None, "input": 0.0, "cached": 0.0, "output": 0.0, "reasoning": 0.0,
+                          "turns": 0.0, "lifetime": 987654321.0, "conversations": [], "more": 0}],
+            "total": dict(numbers, lifetime=1111111110.0)}
 
 
 # How long one view of one audit may take to lay out, at most: what it takes on a quiet PC (about 7 seconds at

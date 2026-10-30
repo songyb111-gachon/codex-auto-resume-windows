@@ -51,6 +51,13 @@ STATES = ("monitoring", "waiting", "checking", "recovering", "paused", "attentio
 ATTENTION_OVERLAYS = frozenset({"compatibility_blocked", "compatibility_failed_here", "engine_unavailable", "watcher_not_ticking"})
 
 
+# v0.6.20: and the one circumstance that waits for a person without anything being wrong: a waiting record held for them
+# (overlay `held`, schema 4's hold: its conversation asks first or only notifies). Nothing is sent for it until a person
+# lets it continue, so every header asks for their attention (activity) - under a watcher not known to run, which is a
+# stopped watcher's grey, and over a pause. Kept apart from ATTENTION_OVERLAYS, which are about the watcher.
+HELD_OVERLAY = "held"
+
+
 def is_waiting(row) -> bool:
     return row.get("state") in machine.WAITING
 
@@ -85,6 +92,8 @@ def activity(status, rows, now) -> str:
     if (status.get("upgrade_pending") is True or watcher.get("ticking") is False
             or watcher.get("engine_state") in ("incompatible", "failed_here")
             or any(ATTENTION_OVERLAYS & set(row.get("overlays") or ()) for row in known)):
+        return "attention"
+    if any(HELD_OVERLAY in (row.get("overlays") or ()) for row in known):
         return "attention"
     if status.get("enabled") is not True:
         return "paused"
@@ -132,6 +141,10 @@ def snapshot_activity(snapshot, now, *, attention=False) -> str:
     """The same word from the icon's own tick snapshot, for the icon's state (tray.icon_state)."""
     snapshot = snapshot or {}
     if attention:
+        return "attention"
+    # v0.6.20: a record held for a person (snapshot_from counts them), as every header asks for their attention.
+    # v0.6.20: and a sending nobody has confirmed, unseen (tray._unconfirmed_unseen): amber and not red (J14).
+    if snapshot.get("held") or snapshot.get("unconfirmed"):
         return "attention"
     if snapshot and not snapshot.get("enabled", True):
         return "paused"
