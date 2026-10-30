@@ -221,11 +221,13 @@ class SeamTests(ac.AdvancedCase):
         self.assertEqual(made.arming.verdict(Measurement.MOPEN), "pass")
 
 
-class BundledTests(unittest.TestCase):
-    def test_the_bundled_file_is_valid_unexpired_and_cites_only_what_exists(self):
-        found = compatdata.validate(compatdata.BUNDLED.read_bytes())
+class PublishedFileTests(unittest.TestCase):
+    PUBLISHED = ac.ROOT / compatdata.REPOSITORY_PATH
+
+    def test_the_published_file_is_valid_unexpired_and_cites_only_what_exists(self):
+        found = compatdata.validate(self.PUBLISHED.read_bytes())
         self.assertGreater(found["expires_at"], time.time())
-        document_ = json.loads(compatdata.BUNDLED.read_text(encoding="utf-8"))
+        document_ = json.loads(self.PUBLISHED.read_text(encoding="utf-8"))
         for engine in document_["engines"]:
             for name, said in engine["measurements"].items():
                 with self.subTest(engine=engine["version"], measurement=name):
@@ -235,7 +237,9 @@ class BundledTests(unittest.TestCase):
     def test_it_is_not_the_standard_data(self):
         standard = ac.ROOT / "src" / "codex_auto_resume" / "data" / "codex_compat.json"
         self.assertNotEqual(json.loads(standard.read_text(encoding="utf-8"))["format"], compatdata.FORMAT)
-        self.assertNotIn("codex_auto_resume" + os.sep + "data", str(compatdata.BUNDLED))
+        self.assertFalse(compatdata.REPOSITORY_PATH.startswith(("src/", "advanced/src/")),
+                         "outside both packages: no archive carries it, and its address names no package")
+        self.assertIsNone(compatdata.in_force(None))
 
 
 if __name__ == "__main__":

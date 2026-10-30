@@ -24,8 +24,8 @@ ROOT = Path(__file__).resolve().parents[1]
 BOOTSTRAP = ROOT / "scripts" / "bootstrap.ps1"
 POWERSHELL = (Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
               / "WindowsPowerShell" / "v1.0" / "powershell.exe")
-URL = ("https://raw.githubusercontent.com/songyb111-gachon/codex-auto-resume-windows/main/advanced/src/"
-       "codex_auto_resume_advanced/data/codex_compat_advanced.json")
+URL = ("https://raw.githubusercontent.com/songyb111-gachon/codex-auto-resume-windows/main/advanced/compat/"
+       "codex_compat_advanced.json")
 
 PROBE = r"""
 $ErrorActionPreference = 'Stop'
@@ -34,7 +34,7 @@ $errors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseFile($env:CAR_BOOTSTRAP, [ref]$null, [ref]$errors)
 if ($errors -and $errors.Count) { throw 'bootstrap.ps1 does not parse' }
 $wanted = @('Step', 'Get-FinalUri', 'Assert-TrustedHost', 'Invoke-BoundedWebRequest', 'Get-Remote',
-            'Update-AdvancedCompatibilityData')
+            'Update-AdvancedCompatibilityData', 'Get-Edition')
 foreach ($node in $ast.FindAll({ param($n)
         $n -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)) {
     if ($wanted -contains $node.Name) { Invoke-Expression $node.Extent.Text }
@@ -80,7 +80,10 @@ class AdvancedFetchTests(unittest.TestCase):
 
     def run_probe(self, body=b'{"sequence": 2}', *, advanced=True, final=URL):
         if advanced:
-            (self.source / "codex_auto_resume_advanced").mkdir(exist_ok=True)
+            # The advanced edition as Get-Edition reads it: the package's folder, in its case, with its __init__.py.
+            package = self.source / "codex_auto_resume_advanced"
+            package.mkdir(exist_ok=True)
+            (package / "__init__.py").write_text("", encoding="utf-8")
         self.body.write_bytes(body)
         environment = dict(os.environ, CAR_BOOTSTRAP=str(BOOTSTRAP), CAR_HOME=str(self.home),
                            CAR_SOURCE=str(self.source), CAR_BODY=str(self.body), CAR_FINAL=final,
