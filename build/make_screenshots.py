@@ -2864,15 +2864,12 @@ def window_exe() -> Path:
     return Path(WINDOW_EXE)
 
 
-def render_window(targets: dict, theme: str | None = None, design: str | None = None,
-                  captured=None) -> dict:
-    """Each page of the window into its picture: drawn offscreen at PINNED_DPI (`render_window_offscreen`), or with
-    `--capture` photographed (`capture_window`). A theme whose title bar is not kept (build/window_frame.py: the audit's
-    dark sheets) is photographed."""
-    import window_frame
-    if WINDOW_CAPTURE or window_frame.problems("window", PINNED_DPI, theme or THEME) and (theme or THEME) != THEME:
-        return capture_window(targets, theme, design, captured)
-    return render_window_offscreen(targets, theme, design, captured)
+def draw_window(targets: dict, design: str | None = None, captured=None) -> dict:
+    """Each page of the window into its published picture (v0.6.20): drawn offscreen at PINNED_DPI
+    (`render_window_offscreen`), or with `--capture` photographed (`render_window`)."""
+    if WINDOW_CAPTURE:
+        return render_window(targets, design=design, captured=captured)
+    return render_window_offscreen(targets, design=design, captured=captured)
 
 
 def render_window_offscreen(targets: dict, theme: str | None = None, design: str | None = None,
@@ -2922,9 +2919,10 @@ def render_window_offscreen(targets: dict, theme: str | None = None, design: str
     return {page: dimensions(target) for page, target in targets.items()}
 
 
-def capture_window(targets: dict, theme: str | None = None, design: str | None = None,
-                   captured=None) -> dict:
-    """Capture each page of the window, with the watcher's mutex held but no watcher running (`--capture`).
+def render_window(targets: dict, theme: str | None = None, design: str | None = None,
+                  captured=None) -> dict:
+    """Capture each page of the window, with the watcher's mutex held but no watcher running: the published pictures
+    with `--capture` (`draw_window`), and the audit's sheets.
 
     The window reports "watching" when the single-instance mutex is taken, so taking it
     is enough to show the product in its ordinary state. Starting a real watcher would
@@ -3679,6 +3677,17 @@ PINNED_SCALE = PINNED_DPI / 96.0
 OPENING_HEIGHT = 664
 
 
+def stills_dpi_problem(recorded: dict) -> str | None:
+    """Why a window drawn offscreen at PINNED_DPI cannot be held to the committed stills `recorded` (the manifest), or
+    None: they were drawn at another DPI. The motion, the Advanced-page stills and their fidelity checks draw the window
+    at PINNED_DPI too, so the display this machine has does not enter into it (v0.6.20)."""
+    drawn_at = recorded.get("window_dpi", recorded.get("system_dpi"))
+    if drawn_at != PINNED_DPI:
+        return "the stills were drawn at %s DPI and the window is drawn at %d: make them again first" % (
+            drawn_at, PINNED_DPI)
+    return None
+
+
 def system_dpi() -> int:
     """The scaling the window was captured at, recorded so a size change has a reason.
 
@@ -3813,7 +3822,7 @@ def audit_folder(out) -> Path:
 
 def audit_scale() -> float:
     """The scale the window is captured at, which every other surface is drawn at for the sheets."""
-    return window_dpi() / 96.0
+    return (system_dpi() or 96) / 96.0
 
 
 def png_size(path) -> tuple:
@@ -4132,7 +4141,7 @@ def run_job(job: dict) -> dict:
 
 
 def window_job(targets: dict, design) -> dict:
-    """One installation's pages, captured side by side as the windows' turns come (`render_window`), each
+    """One installation's pages, drawn offscreen or captured as the windows' turns come (`draw_window`), each
     picture's record read while the other pages are captured. The fixture every record's light is read from is
     read first, as the panel read it before the window was captured when all this ran one after another: reading
     it patches the clock, which the capture must not see."""
@@ -4144,7 +4153,7 @@ def window_job(targets: dict, design) -> dict:
         def captured(_page, target):
             reading[target] = reader.submit(window_record, target, design=design)
 
-        render_window(targets, design=design, captured=captured)
+        draw_window(targets, design=design, captured=captured)
         return {target: reading[target].result() for target in targets.values()}
 
 

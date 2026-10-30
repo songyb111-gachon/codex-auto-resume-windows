@@ -13,9 +13,10 @@ wire goldens and the envelope are asked of), one set per language the picture sh
 stored (`forms` in the plan). Every command the window sends that is not among them - each one that would change
 something - is refused, so the render mode can neither write nor start anything.
 
-This compiles its own copy of the window (gui/window.sources, gui/app.manifest - which makes the window DPI-aware, so
-it draws at this machine's scale as the captured pictures were) into a scratch folder, and runs it there with
-CREATE_NO_WINDOW. Nothing is shown on the screen and nothing of the real installation is read.
+This compiles its own copy of the window (gui/window.sources, gui/app.manifest) into a scratch folder, and runs it
+there with CREATE_NO_WINDOW. Every job is drawn at the stills' pinned scale (make_screenshots.PINNED_SCALE, 150 %), not
+at this machine's: the window's render mode takes the job's `scale` (v0.6.20). Nothing is shown on the screen and
+nothing of the real installation is read.
 """
 from __future__ import annotations
 
@@ -161,7 +162,9 @@ def job(plan: dict, frames: list, out: Path, forms: dict | None = None) -> dict:
     canvas = plan.get("canvas") or {}
     # The window as the picture frames it, with its title bar: what a dialog is centred on (the window's own still is
     # as big, motion_compose.WindowChrome).
+    import make_screenshots
     return {"out": str(out), "theme": canvas.get("theme", "light"), "design": canvas.get("design", "soft"),
+            "scale": make_screenshots.PINNED_SCALE,
             "forms": forms, "targets": targets, "outer": list(canvas.get("size") or []), "chrome": chrome(plan),
             "frames": [frame_state(frame, index, int(plan.get("light_step_ms") or 0))
                        for index, frame in enumerate(frames)]}
