@@ -1086,13 +1086,19 @@ follow-through view stay with the rest of v0.6.20.
 audit of 2026-10-26 (an action in progress, a chat message on its way); every dialog's list on History's card; the design help line
 naming the neumorphic design; and, in the advanced edition, a click on a notice opening Codex in place of the Open Codex button.
 
-### v0.6.20-beta.3 🚧 — A status light for every state, Arabic and Hebrew, and most of the advanced edition's list (a pre-release)
+### v0.6.20-beta.3 ✅ — A status light for every state, Arabic and Hebrew, and most of the advanced edition's list (a pre-release)
 
 Both editions: the status light checked for every state (the owner's amended J14 of 2026-10-29), the Dashboard reopened after a Repair on the
 page it showed, Arabic and Hebrew offered with every surface mirrored, and the README's motions made longer. The advanced edition: usage and
 token analytics, push notices and the status feed through one courier, starting the 5-hour window early, switching the account, the Stop hook's
 continuation (built, hidden until it is measured), #50's pictures, steer send mode, opening a conversation to send now and follow-through view,
 and a before and after for every capability.
+
+### v0.6.20-beta.4 🚧 — Python 3.14.10, a source run under the newest Python, and the advanced edition's own compatibility data (a pre-release)
+
+Both editions: Python 3.14.10 bundled, a run from source going on under the newest Python installed (the owner, 2026-10-30), and the
+Timeline dialog's columns measured in the window's own font. The advanced edition: its own compatibility data, and community reports that
+can ask to be credited and carry its own outcomes (the reporter's next release offers the choice).
 
 ### Around recovery
 
@@ -1135,6 +1141,10 @@ the last features written in Python - the rest of the advanced edition - are aud
 and the reference the Rust core reproduces holds them.
 
 v0.6.21 is planned as the final comprehensive audit of the Python implementation, in both editions.
+
+v0.6.21 also bundles Python 3.15 (3.15.2 or newer), with lazy imports turned on by option for the bundled runtime after a measurement, and the
+audits its changes call for - the UTF-8 default and the removed APIs. The minimum for a run from source stays 3.13, so no 3.15-only syntax is
+shipped (the owner, 2026-10-30).
 
 Right after the final v0.6.21 is published and verified, the last Python version is kept as a repository of its own - its
 history and tags up to v0.6.21 - before the Rust core replaces it (the owner, 2026-10-24).
