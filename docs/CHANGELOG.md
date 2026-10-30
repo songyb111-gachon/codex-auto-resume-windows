@@ -85,7 +85,7 @@ of them. If you chose Arabic or Hebrew, an earlier version reads the choice as E
     tied to the message exactly or "linked by time", where no proof is found.
 - **See an example on every capability.** The open capability's *About this feature* card ends with *See an example...*, which opens a
   dialog with two panes, *Without it* and *With it*, drawn by the page itself from made-up samples - it reads nothing from your PC and
-  sends nothing. All 44 capabilities have one, in all eighteen languages, and a test fails when one is missing.
+  sends nothing. Every capability has one, those still waiting for a measurement included, in all eighteen languages, and a test fails when one is missing.
 
 ## v0.6.20-beta.2 — The open Dashboard brought forward from the notification area, a status light that shows work in progress, and lists on their own card in every dialog
 
