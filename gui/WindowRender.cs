@@ -124,8 +124,7 @@ namespace CodexAutoResume
                 Design.Opened = design;
                 Palette.AdoptDesign(design);
                 Palette.Adopt(Theme.Current(theme));
-                double text = TextScale.Read();
-                AdoptTextSize(text, TextScale.Fitting(text, Screen.PrimaryScreen.WorkingArea.Size, DpiScale));
+                AdoptRenderScale(job);
                 Soft.StillLightMs = 0;
                 PersistentBridge.Answers = RenderAnswer;
                 // The window as the picture frames it, and the title bar a dialog is drawn with over it (RenderDialog).
@@ -180,6 +179,33 @@ namespace CodexAutoResume
             return writer.Error == null ? 0 : 2;
         }
 
+        /// v0.6.20: the scale the job's pictures are drawn at. A job naming `scale` (build/make_screenshots.py PINNED_SCALE,
+        /// 1.5) is drawn at that scale and at Windows' plain text size, whatever display this machine has: the window drawn
+        /// at another monitor's scale as it is on a monitor of that scale (AdoptDisplayScale, its fonts at FontFactor and
+        /// Control.DefaultFont with them), so a picture is the same on a laptop at 200 % and on a monitor at 150 % (the owner,
+        /// 2026-10-30). A job without one is drawn at this machine's scale and text size, as before.
+        private static void AdoptRenderScale(Dictionary<string, object> job)
+        {
+            object pinned;
+            double scale = job.TryGetValue("scale", out pinned) && pinned != null
+                ? Convert.ToDouble(pinned, CultureInfo.InvariantCulture) : 0;
+            if (scale >= 0.5)
+            {
+                RenderPinned = true;
+                AdoptDisplayScale(scale);
+                ScaleDefaultFont();
+                AdoptTextSize(1.0, 1.0);
+                return;
+            }
+            double text = TextScale.Read();
+            AdoptTextSize(text, TextScale.Fitting(text, Screen.PrimaryScreen.WorkingArea.Size, DpiScale));
+        }
+
+        /// v0.6.20: whether this is a render whose scale the job pinned (AdoptRenderScale): the window opens at its own size
+        /// on no screen (KeepOnScreen), and a list's header is laid out at that scale (SoftList.PinnedHeader). False in
+        /// every window a person opens.
+        internal static bool RenderPinned;
+
         /// The window as a capture opens it, built never shown, for the job's replies in force.
         private static SettingsForm OpenForRender(RenderWriter writer)
         {
@@ -187,9 +213,13 @@ namespace CodexAutoResume
             string nowhere = Path.Combine(Path.GetTempPath(), "codex-auto-resume-render-" + Guid.NewGuid().ToString("N"));
             var form = new SettingsForm(new PersistentBridge(nowhere, new Bridge(nowhere)), strings, null);
             form.rendering = true;
+            // v0.6.20: the client area the window opened with - its opening size, as a language's face scales it (Microsoft
+            // YaHei UI opens it wider and shorter) - kept when its frame is taken off; it was set back to the opening
+            // size, so a picture in such a language came out the size of every other.
+            Size opened = form.ClientSize;
             form.TopLevel = false;
             form.FormBorderStyle = FormBorderStyle.None;
-            form.ClientSize = new Size(form.Px(OpeningWidth), form.Px(OpeningHeight));
+            form.ClientSize = RenderPinned ? opened : new Size(form.Px(OpeningWidth), form.Px(OpeningHeight));
             form.CreateControl();
             IntPtr made = form.Handle;
             // Shown as a child of Windows' parking window, which is never on the screen: its Load (the reads, the

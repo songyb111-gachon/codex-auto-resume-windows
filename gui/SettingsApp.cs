@@ -924,6 +924,8 @@ namespace CodexAutoResume
             // the render mode builds opens on no screen and is measured against the primary, as it always was: the
             // audit's sizes at a scaling this machine is not set to are taken from there (wherever the pointer is, its
             // 200% text-size audit cut the Settings section list off against a smaller screen).
+            // v0.6.20: a picture drawn at a pinned scale opens on no screen at all, at its own size (RenderPinned).
+            if (RenderPinned) return;
             Rectangle screen = (opening ?? Screen.FromControl(this)).WorkingArea;
             // v0.6.18: the frame its style adds (SizeFromClientSize), not Width less ClientSize.Width: Windows holds a
             // form's Width to the largest window the screen allows (SystemInformation.MaxWindowTrackSize) while the client

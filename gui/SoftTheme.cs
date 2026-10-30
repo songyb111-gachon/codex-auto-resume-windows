@@ -1063,13 +1063,16 @@ namespace CodexAutoResume
         /// body, help, count: the window's font. label, button, chip, nav: the same (500, which
         /// is Regular). heading, name, nav_current: 600. title: 1.5pt larger, 600 (card
         /// headings). display: 2.5pt larger, 600 (the header). figure: 3pt larger, 600 (the
-        /// Overview's count of what is waiting).
+        /// Overview's count of what is waiting). Points as Windows draws them on a monitor of the window's own scale: at
+        /// FontFactor (v0.6.20), as the window's font already is (SettingsForm.AtDisplayScale) - a window drawn at 150 %
+        /// where Windows turns points into pixels at 200 % had its headings 1.5 pt of 200 % larger where they are 1.5 pt
+        /// of 150 % on a 150 % monitor. Nothing changes where the factor is 1.
         internal static Font RoleFont(string role)
         {
             Font font;
             string key = role ?? "body";
             if (fonts.TryGetValue(key, out font)) return font;
-            float larger = key == "display" ? 2.5f : key == "title" ? 1.5f : key == "figure" ? 3f : 0f;
+            float larger = (key == "display" ? 2.5f : key == "title" ? 1.5f : key == "figure" ? 3f : 0f) * SettingsForm.FontFactor;
             int weight = key == "heading" || key == "name" || key == "nav_current" || key == "title" ||
                          key == "display" || key == "figure" ? 600
                        : key == "label" || key == "button" || key == "chip" || key == "nav" ? 500 : 400;
@@ -1090,7 +1093,8 @@ namespace CodexAutoResume
 
         internal static float AsidePoints(float version)
         {
-            return Math.Min(version, Math.Max(AsideLeast, version * AsideShare));
+            // The least at FontFactor, as RoleFont's steps are: 6.75 pt where Windows' points are the window's own.
+            return Math.Min(version, Math.Max(AsideLeast * SettingsForm.FontFactor, version * AsideShare));
         }
 
         /// A CSS weight in GDI. 400 and 500 are Regular: Malgun Gothic and the CJK UI faces have
