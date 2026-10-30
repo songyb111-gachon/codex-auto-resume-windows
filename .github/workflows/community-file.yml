@@ -257,6 +257,8 @@ jobs:
           counted() { g diff --no-renames --numstat "$1" "$2" -- "$3" | cut -f1,2 | tr '\t' ' '; }
           # Whether a path at a commit links a login already, in any letter case (GitHub's logins are): a person is
           # credited once. The file is read into a variable first, so grep stopping early cannot fail the pipeline.
+          # The owner and a bot are never credited, in either language.
+          uncredited() { [ "${1,,}" = songyb111-gachon ] || [[ $1 == *"[bot]"* ]]; }
           listed() { local text; text=$(g cat-file blob "$1:$2"); grep -qiE "\]\(https://github\.com/$3/?\)" <<< "$text"; }
           api() { "$gh" api "$@"; }
 
@@ -442,6 +444,7 @@ jobs:
                     [[ $line =~ ^-\ \[@([A-Za-z0-9-]{1,39})\]\(https://github\.com/([A-Za-z0-9-]{1,39})\)\ 님은\ Codex\ codex-cli\ [0-9A-Za-z.-]{1,40}에서\ 호환성을\ 보고해\ 주셨습니다\.$ ]] \
                       && [ "${BASH_REMATCH[1]}" = "${BASH_REMATCH[2]}" ] || fail "dev's credit is not the filer's sentence"
                     who="${BASH_REMATCH[1]}"
+                    ! uncredited "$who" || fail "dev's credit names the owner or a bot"
                     ! listed "$dev_base" "$path" "$who" || fail "dev's credit names someone the document lists already"
                     [ "${credited_in[${who,,}]:-}" = "$who" ] || fail "dev's credit names no one this run credited"
                   done < <(gained "$dev_base" "$dev_merge" "$path")
@@ -458,6 +461,7 @@ jobs:
                     [[ $added =~ ^,\ \[@([A-Za-z0-9-]{1,39})\]\(https://github\.com/([A-Za-z0-9-]{1,39})\)(.*)$ ]] \
                       && [ "${BASH_REMATCH[1]}" = "${BASH_REMATCH[2]}" ] || fail "dev's credit is not the filer's thanks"
                     who="${BASH_REMATCH[1]}" added="${BASH_REMATCH[3]}"
+                    ! uncredited "$who" || fail "dev's credit names the owner or a bot"
                     ! listed "$dev_base" "$path" "$who" || fail "dev's credit names someone the document lists already"
                     [ "${credited_in[${who,,}]:-}" = "$who" ] || fail "dev's credit names no one this run credited"
                   done

@@ -366,6 +366,19 @@ class WriteStepCreditTests(CreditCase):
         self.forged_dev({filer.CONTRIBUTORS_KO: korean.encode("utf-8")})
         self.assertDevRefused("dev's credit names someone the document lists already")
 
+    def test_a_korean_credit_for_the_owner_is_refused(self):
+        """The W7 review's C4: the English step refuses the owner; the Korean ones do too, by their own check."""
+        owner = "- [@songyb111-gachon](https://github.com/songyb111-gachon) 님은 Codex %s에서 호환성을 보고해 주셨습니다." % VERSION
+        user = "- [@User7](https://github.com/User7) 님은 Codex %s에서 호환성을 보고해 주셨습니다." % VERSION
+        for name, data in (
+                (filer.CONTRIBUTORS_KO, CONTRIBUTORS_KO.replace("\n\n## AI", "\n" + user + "\n" + owner + "\n\n## AI")),
+                (filer.THANKS_KO, THANKS_KO.replace(" 님 등)", ", [@User7](https://github.com/User7), "
+                                                             "[@Songyb111-Gachon](https://github.com/Songyb111-Gachon) 님 등)"))):
+            with self.subTest(name):
+                self.setUp()
+                self.forged_dev({name: data.encode("utf-8")})
+                self.assertDevRefused("dev's credit names the owner or a bot")
+
     def test_a_language_map_change_beyond_a_digest_is_refused(self):
         changed = json.loads(mapping())
         changed["documents"]["evil.md"] = "x"
