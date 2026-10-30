@@ -170,7 +170,8 @@ namespace CodexAutoResume
                         writer.Write(index, picture, form.RenderBounds(targets, frame));
                         if (renderStill != null)
                             using (Bitmap still = FramedStill(picture, renderCaption, StillNumber(renderStill, "left"),
-                                                              StillNumber(renderStill, "right"), StillNumber(renderStill, "radius")))
+                                                              StillNumber(renderStill, "right"), StillNumber(renderStill, "radius"),
+                                                              StillNumber(renderStill, "dpi")))
                                 writer.WriteStill(index, still);
                     }
                 }
@@ -972,9 +973,10 @@ namespace CodexAutoResume
         /// The window as build/capture_window.ps1 photographs it, from the client area drawn here: Windows' title bar above
         /// it - the caption the job gives, taken from a capture at the job's scale (build/window_frame.py): its first `left`
         /// px and its last `right` px as they are, and between them its plain bar - and the corners Windows rounds cut, as
-        /// that script cuts them (the same GDI+ fill of the same path, `radius` px, so the same pixels). Nothing of the
-        /// screen is read: Windows draws a window's title bar on a monitor, at that monitor's DPI, and this one is on none.
-        internal static Bitmap FramedStill(Bitmap client, Bitmap caption, int left, int right, int radius)
+        /// that script cuts them (the same GDI+ fill of the same path, `radius` px, so the same pixels) - its resolution
+        /// `dpi`, as a capture's bitmap has the monitor's, so the PNG it is saved as says the same. Nothing of the screen is
+        /// read: Windows draws a window's title bar on a monitor, at that monitor's DPI, and this one is on none.
+        internal static Bitmap FramedStill(Bitmap client, Bitmap caption, int left, int right, int radius, int dpi)
         {
             int width = client.Width, top = caption.Height, height = top + client.Height;
             int across = caption.Width;
@@ -998,7 +1000,9 @@ namespace CodexAutoResume
                         Marshal.Copy(pixels, y * width, new IntPtr(data.Scan0.ToInt64() + (long)y * data.Stride), width);
                 }
                 finally { square.UnlockBits(data); }
-                return Rounded(square, radius);
+                Bitmap rounded = Rounded(square, radius);
+                if (dpi > 0) rounded.SetResolution(dpi, dpi);
+                return rounded;
             }
         }
 

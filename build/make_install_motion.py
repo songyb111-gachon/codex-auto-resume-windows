@@ -5,6 +5,7 @@ window's own code, offscreen.
     python -X utf8 build/make_install_motion.py install-ko       # one of them (a plan's name under build/motion/)
     python -X utf8 build/make_install_motion.py --dry-run        # only the frames each plan asks for, scene by scene
     python -X utf8 build/make_install_motion.py --fidelity       # only the window held to the captured stills
+    python -X utf8 build/make_install_motion.py --still          # first draw the Welcome still(s) offscreen, then on
     python -X utf8 build/make_install_motion.py --out DIR        # the pictures into DIR; nothing else is written
     python -X utf8 build/make_install_motion.py --out DIR --client-only   # a proof with no still: the client area
 
@@ -22,14 +23,17 @@ of one captured still of the real setup window (`window.still`), and over it a p
 (build/motion_compose.py). The frames are written as a lossless APNG within the plan's byte budget
 (build/motion_apng.py), and recorded with what they were made from in assets/install-motion.json.
 
-Before any picture the window is held to the captured stills (FIDELITY: the Welcome page of a first installation,
-captured by the main session from the real setup program): the client area drawn offscreen must be the captured one
-(build/motion_fidelity.compare). A still that fails stops the run; with no still at all there is no frame to put the
-window in, and only `--client-only` draws (a proof, never the documentation's picture).
+Before any picture the window is held to the stills (FIDELITY: the Welcome page of a first installation): the client
+area drawn offscreen must be the still's (build/motion_fidelity.compare). A still that fails stops the run; with no
+still at all there is no frame to put the window in, and only `--client-only` draws (a proof, never the documentation's
+picture). Since v0.6.20 the still is drawn too, offscreen (`--still`): the Welcome page at the pinned scale, framed with
+the setup window's title bar kept from a capture at that scale (build/window_frame.py) and its corners cut as
+build/capture_window.ps1 cuts them - the captured still, byte for byte, with no Setup exe built or shown. A still
+captured from a Setup exe (the main session, build/capture_window.ps1) is held the same way.
 
-It captures nothing and moves no pointer: nothing is shown on the screen. It needs Windows (GDI and GDI+), the in-box
-C# compiler, and the display at the scale the stills were captured at. Run it from the main session, detached, under
-plans/proof/gui_lock.sh like every picture.
+It captures nothing and moves no pointer: nothing is shown on the screen. It needs Windows (GDI and GDI+) and the
+in-box C# compiler; the window is drawn at the pinned scale (make_screenshots.PINNED_SCALE, 150 %) whatever the
+display is. Run it from the main session, detached, under plans/proof/gui_lock.sh like every picture.
 """
 from __future__ import annotations
 
@@ -289,7 +293,9 @@ def job(plan: dict, frames: list, out: Path, root: Path = ROOT) -> dict:
         state = {key: value for key, value in motion_plan.thawed(frame.window).items() if key in STATE_KEYS}
         state.update(index=index, light=frame.t)
         states.append(state)
+    import make_screenshots
     return {"out": str(out), "theme": canvas.get("theme", "light"), "design": canvas.get("design", "soft"),
+            "scale": make_screenshots.PINNED_SCALE,
             "locale": plan["locale"], "locales": str(root / "src" / "codex_auto_resume" / "locales"),
             "edition": plan["edition"], "version": version(root), "home": HOME,
             "events": [{key: value for key, value in event.items() if key != "hold"} for event in plan["events"]],
@@ -384,18 +390,21 @@ def at_rest() -> dict:
     return {"index": 0, "page": "welcome", "light": 0}
 
 
-def check_fidelity(exe: Path, work: Path, root: Path = ROOT, theme: str = "light", edition: str = "standard") -> dict:
+def check_fidelity(exe: Path, work: Path, root: Path = ROOT, theme: str = "light", edition: str = "standard",
+                   stills: Path | None = None) -> dict:
     """{"<locale>": comparison} of the Welcome page drawn now with each captured still that exists, and
     {"<locale>": client size} as `sizes` beside them."""
     import make_screenshots
     import motion_fidelity
     results = {}
     for locale, name in FIDELITY:
-        path = root / name
+        # The stills where they are: in the tree, or where a proof drew them (`stills`, --still --out DIR).
+        path = (stills or root) / name
         if not path.is_file():
             continue
         out = Path(work) / ("fidelity-" + locale)
         data = {"out": str(out / "frames"), "theme": theme, "design": "soft", "locale": locale,
+                "scale": make_screenshots.PINNED_SCALE,
                 "locales": str(root / "src" / "codex_auto_resume" / "locales"), "edition": edition,
                 "version": version(root), "home": HOME, "events": [], "targets": [], "frames": [at_rest()]}
         result = render(exe, data, out)
@@ -404,6 +413,25 @@ def check_fidelity(exe: Path, work: Path, root: Path = ROOT, theme: str = "light
         compared["client"] = list(size)
         results[locale] = compared
     return results
+
+
+def draw_still(exe: Path, work: Path, locale: str, target: Path, root: Path = ROOT, theme: str = "light",
+               edition: str = "standard") -> str:
+    """Draws the Welcome page of a first installation in `locale` offscreen, as build/capture_window.ps1 captures the
+    setup window on a monitor at the pinned scale (v0.6.20): the client area at that scale, Windows' title bar kept from
+    such a capture above it and the corners cut (build/window_frame.py) - into `target`; its size."""
+    import make_screenshots
+    import window_frame
+    out = Path(work) / ("still-" + locale)
+    data = {"out": str(out / "frames"), "theme": theme, "design": "soft", "locale": locale,
+            "scale": make_screenshots.PINNED_SCALE,
+            "still": window_frame.still_job("setup", make_screenshots.PINNED_DPI, theme),
+            "locales": str(root / "src" / "codex_auto_resume" / "locales"), "edition": edition,
+            "version": version(root), "home": HOME, "events": [], "targets": [], "frames": [at_rest()]}
+    render(exe, data, out)
+    Path(target).parent.mkdir(parents=True, exist_ok=True)
+    make_screenshots.copy_file(out / "frames" / "still-00000.png", target)
+    return make_screenshots.dimensions(Path(target))
 
 
 def render_input(plan: dict, root: Path = ROOT) -> str:
@@ -535,7 +563,23 @@ def main(argv=None) -> int:
     client_only = "--client-only" in argv
     if client_only and out_dir is None:
         raise SystemExit("--client-only draws a proof: give it --out DIR")
-    found = fidelity_still()
+    stills_root = ROOT
+    if "--still" in argv:
+        # v0.6.20: the Welcome still(s) drawn offscreen first - into assets/, or with --out into DIR, which the rest of
+        # the run then holds the window to and frames it with.
+        with tempfile.TemporaryDirectory(prefix="install-still-") as name:
+            work = Path(name)
+            edition = plans[0]["edition"] if plans else "standard"
+            exe = compile_shim(work / "shim", edition)
+            theme = (plans[0]["canvas"].get("theme") if plans else None) or "light"
+            wanted = [(locale, still) for locale, still in FIDELITY if (ROOT / still).is_file()] or [FIDELITY[-1]]
+            for locale, still in wanted:
+                target = (out_dir / still) if out_dir is not None else ROOT / still
+                print("still %-4s %s  %s  (drawn offscreen)" % (locale, target, draw_still(exe, work, locale, target,
+                                                                                         theme=theme, edition=edition)))
+        if out_dir is not None:
+            stills_root = out_dir
+    found = fidelity_still(stills_root)
     if found is None and not client_only:
         raise SystemExit("no captured still of the setup window (%s): capture one first, or draw a proof with "
                          "--out DIR --client-only" % ", ".join(name for _locale, name in FIDELITY))
@@ -545,7 +589,7 @@ def main(argv=None) -> int:
         edition = plans[0]["edition"] if plans else "standard"
         exe = compile_shim(work / "shim", edition)
         theme = (plans[0]["canvas"].get("theme") if plans else None) or "light"
-        results = check_fidelity(exe, work, theme=theme, edition=edition)
+        results = check_fidelity(exe, work, theme=theme, edition=edition, stills=stills_root)
         for key in sorted(results):
             result = results[key]
             print("fidelity %-4s %s  exact %.4f%%  worst %d  outside %d%s"

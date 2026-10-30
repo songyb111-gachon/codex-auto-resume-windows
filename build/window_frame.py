@@ -99,7 +99,8 @@ def still_job(kind: str, dpi: int, theme: str = "light") -> dict:
         raise FrameError("the %s's title bar cannot frame its stills: %s - take it again from a capture at %d DPI "
                          "(build/window_frame.py)" % (kind, "; ".join(wrong), dpi))
     entry = read_key()[kind]
-    return {"caption": str(caption_path(kind)), "left": entry["left"], "right": entry["right"], "radius": radius(dpi)}
+    return {"caption": str(caption_path(kind)), "left": entry["left"], "right": entry["right"], "radius": radius(dpi),
+            "dpi": dpi}
 
 
 def caption_rows(width: int, height: int, rgb: bytes, alpha, client_height: int) -> tuple:
