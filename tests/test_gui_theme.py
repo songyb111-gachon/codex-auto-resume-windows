@@ -833,6 +833,7 @@ try {
             $out.note[[string]$locale][[string]$width] = @{
                 text = [string]$note.Text; width = $note.ClientSize.Width; height = $note.ClientSize.Height; needed = $needed.Height
                 noteRight = $note.Right; rowLeft = $row.Left; rowTop = $row.Top; rowBottom = $row.Bottom
+                noteLeft = $note.Left; rowRight = $row.Right
                 cardHeight = $card.ClientSize.Height; cardTop = $card.Padding.Top; cardBottom = $card.Padding.Bottom }
             $w.Dispose()
         }
@@ -1513,7 +1514,12 @@ class WindowThemeTests(unittest.TestCase):
                     self.assertEqual(note["text"], l10n.catalog(locale)["note.reopen_pending"])
                     self.assertGreater(note["width"], 0)
                     self.assertLessEqual(note["needed"], note["height"], "the note is cut off")
-                    self.assertLessEqual(note["noteRight"], note["rowLeft"], "beside the buttons, not under them")
+                    # v0.6.20: a window written right to left is mirrored (gui/SoftMirror.cs): the buttons at the card's
+                    # left and the note right of them - beside them still.
+                    if l10n.right_to_left(locale):
+                        self.assertGreaterEqual(note["noteLeft"], note["rowRight"], "beside the buttons, not under them")
+                    else:
+                        self.assertLessEqual(note["noteRight"], note["rowLeft"], "beside the buttons, not under them")
                     self.assertGreaterEqual(note["rowTop"], note["cardTop"], "the buttons inside the card")
                     self.assertLessEqual(note["rowBottom"], note["cardHeight"] - note["cardBottom"])
 
