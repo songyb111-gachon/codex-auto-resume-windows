@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -42,6 +43,8 @@ EXTRA_READS = (("power-action", None), ("state-access", None), ("plugin-copy", N
 WHEEL_LINES = 3
 # The longest a render job may take, in seconds.
 RENDER_LIMIT = 30 * 60
+# The product's icon, as assets/ and an installation's folder name it.
+ICON_NAME = "codex-auto-resume.ico"
 
 
 def _said(raw: bytes) -> str:
@@ -54,17 +57,22 @@ def _said(raw: bytes) -> str:
 
 
 def compile_window(folder: Path) -> Path:
-    """The window built from the working tree into `folder`, with its manifest (DPI awareness) as the release has it."""
+    """The window built from the working tree into `folder`, with its manifest (DPI awareness) and its icon as the
+    release has them - the icon embedded, and beside the exe, where the window loads it from (SettingsForm reads
+    BaseDirectory\\codex-auto-resume.ico): without the file a dialog's title bar in a picture shows Windows' default
+    form icon where the product's own stands."""
     import make_screenshots
     Path(folder).mkdir(parents=True, exist_ok=True)
     exe = Path(folder) / "CodexAutoResumeSettings.exe"
+    icon = ROOT / "assets" / ICON_NAME
     arguments = [str(CSC), "/nologo", "/target:winexe", "/platform:x64", "/optimize+", "/out:" + str(exe),
-                 "/win32manifest:" + str(ROOT / "gui" / "app.manifest"),
+                 "/win32manifest:" + str(ROOT / "gui" / "app.manifest"), "/win32icon:" + str(icon),
                  "/reference:System.dll", "/reference:System.Drawing.dll", "/reference:System.Windows.Forms.dll"]
     arguments += [str(ROOT / name) for name in make_screenshots.window_sources()]
     done = subprocess.run(arguments, capture_output=True, timeout=600, creationflags=NO_WINDOW)
     if done.returncode != 0 or not exe.is_file():
         raise RuntimeError("the window did not compile:\n" + _said(done.stdout or b"") + _said(done.stderr or b""))
+    shutil.copyfile(icon, Path(folder) / ICON_NAME)
     return exe
 
 
