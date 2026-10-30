@@ -812,9 +812,12 @@ namespace CodexAutoResume
                 // does not offer (MinimizeBox is off), drawn lighter.
                 int small = Math.Min(caption - 2 * border, Px(16));
                 int middle = place.Y + caption / 2;
+                // Through a bitmap: the product's icon holds PNG-compressed images, and DrawIcon onto an offscreen bitmap
+                // paints such an image as noise (2026-10-30, the README's Timeline dialog); ToBitmap decodes it.
                 if (icon != null)
                     using (var scaled = new Icon(icon, new Size(small, small)))
-                        g.DrawIcon(scaled, new Rectangle(place.X + Px(12), middle - small / 2, small, small));
+                    using (Bitmap mark = scaled.ToBitmap())
+                        g.DrawImage(mark, new Rectangle(place.X + Px(12), middle - small / 2, small, small));
                 // Windows' own caption font, as it draws a title.
                 using (Font font = SystemFonts.CaptionFont)
                     TextRenderer.DrawText(g, title ?? "", font,

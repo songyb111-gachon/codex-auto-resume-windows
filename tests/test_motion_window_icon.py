@@ -48,6 +48,12 @@ class SourceTests(unittest.TestCase):
         body = guiscan.member_body("SettingsForm", "BuildTimeline")
         self.assertIn("dialog.Icon = Icon;", body)
 
+    def test_a_rendered_dialog_draws_the_icon_through_a_bitmap(self):
+        # The icon's images are PNG-compressed; DrawIcon onto the render's offscreen bitmap painted them as noise.
+        body = guiscan.member_body("SettingsForm", "PaintDialog")
+        self.assertIn("scaled.ToBitmap()", body)
+        self.assertNotIn("g.DrawIcon(", body)
+
 
 if __name__ == "__main__":
     unittest.main()
