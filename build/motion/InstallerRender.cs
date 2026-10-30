@@ -83,7 +83,18 @@ namespace CodexAutoResume
                     if (frame == null) continue;
                     driver.Put(frame);
                     using (Bitmap picture = driver.Picture())
+                    {
                         writer.Write(Int(frame, "index"), picture, driver.Bounds(Items(job, "targets")));
+                        // v0.6.20: the still a capture takes of the window, when the job asks (StillFrame).
+                        var still = Map(job, "still");
+                        if (still != null)
+                            using (Bitmap caption = StillFrame.LoadCaption(Str(still, "caption")))
+                            using (Bitmap framed = StillFrame.FramedStill(picture, caption, Int(still, "left"),
+                                                                          Int(still, "right"), Int(still, "radius"),
+                                                                          Int(still, "dpi")))
+                                framed.Save(Path.Combine(folder, "still-" + Int(frame, "index").ToString("D5",
+                                            CultureInfo.InvariantCulture) + ".png"), ImageFormat.Png);
+                    }
                 }
             }
             catch (Exception error)
@@ -128,9 +139,27 @@ namespace CodexAutoResume
                 Soft.ReduceMotionSetting = false;
                 Palette.AdoptDesign(design);
                 Palette.Adopt(Theme.Current(theme));
-                double read = TextScale.Read();
-                SettingsForm.AdoptTextSize(TextScale.Fitting(read, Screen.PrimaryScreen.WorkingArea.Size, SettingsForm.SystemScale));
-                Font font = TextScale.Apply(SystemFonts.MessageBoxFont, read, SettingsForm.TextSize);
+                Font font;
+                object pinned;
+                double scale = job.TryGetValue("scale", out pinned) && pinned != null
+                    ? Convert.ToDouble(pinned, CultureInfo.InvariantCulture) : 0;
+                if (scale >= 0.5)
+                {
+                    // v0.6.20: at the job's scale and Windows' plain text size, whatever display this machine has - as the
+                    // layout audit stands a scaling in (InstallerAudit), the fonts in points at that scale's size, and the
+                    // controls' own steps with them (FontFactor).
+                    SettingsForm.StandIn(scale, 1.0);
+                    SettingsForm.FontFactor = (float)(scale / SettingsForm.SystemScale);
+                    SettingsForm.RenderPinned = true;
+                    Font box = SystemFonts.MessageBoxFont;
+                    font = new Font(box.FontFamily, box.SizeInPoints * SettingsForm.FontFactor, box.Style, GraphicsUnit.Point);
+                }
+                else
+                {
+                    double read = TextScale.Read();
+                    SettingsForm.AdoptTextSize(TextScale.Fitting(read, Screen.PrimaryScreen.WorkingArea.Size, SettingsForm.SystemScale));
+                    font = TextScale.Apply(SystemFonts.MessageBoxFont, read, SettingsForm.TextSize);
+                }
                 Soft.StillLightMs = 0;
                 var spoken = new Dictionary<string, InstallerWords>();
                 InstallerWindow.Speaker speaker = delegate(string other)
@@ -418,6 +447,12 @@ namespace CodexAutoResume
             return Convert.ToInt32(map[key], CultureInfo.InvariantCulture);
         }
 
+        private static Dictionary<string, object> Map(Dictionary<string, object> map, string key)
+        {
+            object value;
+            return map != null && map.TryGetValue(key, out value) ? value as Dictionary<string, object> : null;
+        }
+
         private static List<object> Items(Dictionary<string, object> map, string key)
         {
             object value;
@@ -508,6 +543,111 @@ namespace CodexAutoResume
                     .Append(",\n\"frames\": [\n").Append(frames).Append("\n]}\n");
                 File.WriteAllText(Path.Combine(folder, "frames.json"), text.ToString(), new UTF8Encoding(false));
             }
+        }
+    }
+    /// v0.6.20: the still a capture takes of the setup window, framed with Windows' title bar kept from a capture at the
+    /// job's scale (build/window_frame.py) and its corners cut as build/capture_window.ps1 cuts them. The very members of
+    /// gui/WindowRender.cs (SettingsForm), which this program does not compile: tests/test_install_motion.py holds each
+    /// one to the window's, character for character.
+    internal static class StillFrame
+    {
+        /// The title bar a still is framed with, as 32-bit ARGB, its file let go at once.
+        internal static Bitmap LoadCaption(string path)
+        {
+            if (string.IsNullOrEmpty(path) || !File.Exists(path)) throw new InvalidDataException("the job's still names no title bar: " + path);
+            using (var read = new Bitmap(path))
+            {
+                var caption = new Bitmap(read.Width, read.Height, PixelFormat.Format32bppArgb);
+                using (Graphics g = Graphics.FromImage(caption))
+                {
+                    g.CompositingMode = System.Drawing.Drawing2D.CompositingMode.SourceCopy;
+                    g.DrawImage(read, new Rectangle(0, 0, read.Width, read.Height), 0, 0, read.Width, read.Height, GraphicsUnit.Pixel);
+                }
+                return caption;
+            }
+        }
+
+        private static int[] Argb(Bitmap picture)
+        {
+            var pixels = new int[picture.Width * picture.Height];
+            BitmapData data = picture.LockBits(new Rectangle(0, 0, picture.Width, picture.Height), ImageLockMode.ReadOnly,
+                                               PixelFormat.Format32bppArgb);
+            try
+            {
+                for (int y = 0; y < picture.Height; y++)
+                    Marshal.Copy(new IntPtr(data.Scan0.ToInt64() + (long)y * data.Stride), pixels, y * picture.Width, picture.Width);
+            }
+            finally { picture.UnlockBits(data); }
+            return pixels;
+        }
+
+        /// The window as build/capture_window.ps1 photographs it, from the client area drawn here: Windows' title bar above
+        /// it - the caption the job gives, taken from a capture at the job's scale (build/window_frame.py): its first `left`
+        /// px and its last `right` px as they are, and between them its plain bar - and the corners Windows rounds cut, as
+        /// that script cuts them (the same GDI+ fill of the same path, `radius` px, so the same pixels) - its resolution
+        /// `dpi`, as a capture's bitmap has the monitor's, so the PNG it is saved as says the same. Nothing of the screen is
+        /// read: Windows draws a window's title bar on a monitor, at that monitor's DPI, and this one is on none.
+        internal static Bitmap FramedStill(Bitmap client, Bitmap caption, int left, int right, int radius, int dpi)
+        {
+            int width = client.Width, top = caption.Height, height = top + client.Height;
+            int across = caption.Width;
+            left = Math.Max(0, Math.Min(left, Math.Min(width, across - 1)));
+            right = Math.Max(0, Math.Min(right, Math.Min(width - left, across - left - 1)));
+            int[] bar = Argb(caption), body = Argb(client);
+            var pixels = new int[width * height];
+            for (int y = 0; y < top; y++)
+                for (int x = 0; x < width; x++)
+                {
+                    int from = x < left ? x : x >= width - right ? across - (width - x) : left;
+                    pixels[y * width + x] = bar[y * across + from];
+                }
+            for (int i = 0; i < body.Length; i++) pixels[top * width + i] = unchecked((int)0xFF000000) | (body[i] & 0xFFFFFF);
+            using (var square = new Bitmap(width, height, PixelFormat.Format32bppArgb))
+            {
+                BitmapData data = square.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
+                try
+                {
+                    for (int y = 0; y < height; y++)
+                        Marshal.Copy(pixels, y * width, new IntPtr(data.Scan0.ToInt64() + (long)y * data.Stride), width);
+                }
+                finally { square.UnlockBits(data); }
+                Bitmap rounded = Rounded(square, radius);
+                if (dpi > 0) rounded.SetResolution(dpi, dpi);
+                return rounded;
+            }
+        }
+
+        /// `square` with its corners cut round, `radius` px, the corners left clear: build/capture_window.ps1's own steps -
+        /// a new 32-bit ARGB bitmap, antialiased, high-quality pixel offsets, the four arcs filled through a texture of the
+        /// picture - so a still drawn here and one captured on a monitor of that scale have the same corners.
+        internal static Bitmap Rounded(Bitmap square, int radius)
+        {
+            int width = square.Width, height = square.Height;
+            var rounded = new Bitmap(width, height, PixelFormat.Format32bppArgb);
+            if (radius <= 0 || width <= 2 * radius || height <= 2 * radius)
+            {
+                using (Graphics g = Graphics.FromImage(rounded))
+                {
+                    g.CompositingMode = System.Drawing.Drawing2D.CompositingMode.SourceCopy;
+                    g.DrawImage(square, new Rectangle(0, 0, width, height), 0, 0, width, height, GraphicsUnit.Pixel);
+                }
+                return rounded;
+            }
+            using (Graphics paint = Graphics.FromImage(rounded))
+            using (var path = new System.Drawing.Drawing2D.GraphicsPath())
+            using (var brush = new TextureBrush(square))
+            {
+                paint.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                paint.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+                int d = 2 * radius;
+                path.AddArc(0, 0, d, d, 180, 90);
+                path.AddArc(width - d, 0, d, d, 270, 90);
+                path.AddArc(width - d, height - d, d, d, 0, 90);
+                path.AddArc(0, height - d, d, d, 90, 90);
+                path.CloseFigure();
+                paint.FillPath(brush, path);
+            }
+            return rounded;
         }
     }
 }

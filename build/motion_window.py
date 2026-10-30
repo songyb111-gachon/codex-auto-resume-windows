@@ -13,15 +13,17 @@ wire goldens and the envelope are asked of), one set per language the picture sh
 stored (`forms` in the plan). Every command the window sends that is not among them - each one that would change
 something - is refused, so the render mode can neither write nor start anything.
 
-This compiles its own copy of the window (gui/window.sources, gui/app.manifest - which makes the window DPI-aware, so
-it draws at this machine's scale as the captured pictures were) into a scratch folder, and runs it there with
-CREATE_NO_WINDOW. Nothing is shown on the screen and nothing of the real installation is read.
+This compiles its own copy of the window (gui/window.sources, gui/app.manifest) into a scratch folder, and runs it
+there with CREATE_NO_WINDOW. Every job is drawn at the stills' pinned scale (make_screenshots.PINNED_SCALE, 150 %), not
+at this machine's: the window's render mode takes the job's `scale` (v0.6.20). Nothing is shown on the screen and
+nothing of the real installation is read.
 """
 from __future__ import annotations
 
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -42,6 +44,8 @@ EXTRA_READS = (("power-action", None), ("state-access", None), ("plugin-copy", N
 WHEEL_LINES = 3
 # The longest a render job may take, in seconds.
 RENDER_LIMIT = 30 * 60
+# The product's icon, as assets/ and an installation's folder name it.
+ICON_NAME = "codex-auto-resume.ico"
 
 
 def _said(raw: bytes) -> str:
@@ -54,17 +58,22 @@ def _said(raw: bytes) -> str:
 
 
 def compile_window(folder: Path) -> Path:
-    """The window built from the working tree into `folder`, with its manifest (DPI awareness) as the release has it."""
+    """The window built from the working tree into `folder`, with its manifest (DPI awareness) and its icon as the
+    release has them - the icon embedded, and beside the exe, where the window loads it from (SettingsForm reads
+    BaseDirectory\\codex-auto-resume.ico): without the file a dialog's title bar in a picture shows Windows' default
+    form icon where the product's own stands."""
     import make_screenshots
     Path(folder).mkdir(parents=True, exist_ok=True)
     exe = Path(folder) / "CodexAutoResumeSettings.exe"
+    icon = ROOT / "assets" / ICON_NAME
     arguments = [str(CSC), "/nologo", "/target:winexe", "/platform:x64", "/optimize+", "/out:" + str(exe),
-                 "/win32manifest:" + str(ROOT / "gui" / "app.manifest"),
+                 "/win32manifest:" + str(ROOT / "gui" / "app.manifest"), "/win32icon:" + str(icon),
                  "/reference:System.dll", "/reference:System.Drawing.dll", "/reference:System.Windows.Forms.dll"]
     arguments += [str(ROOT / name) for name in make_screenshots.window_sources()]
     done = subprocess.run(arguments, capture_output=True, timeout=600, creationflags=NO_WINDOW)
     if done.returncode != 0 or not exe.is_file():
         raise RuntimeError("the window did not compile:\n" + _said(done.stdout or b"") + _said(done.stderr or b""))
+    shutil.copyfile(icon, Path(folder) / ICON_NAME)
     return exe
 
 
@@ -153,7 +162,9 @@ def job(plan: dict, frames: list, out: Path, forms: dict | None = None) -> dict:
     canvas = plan.get("canvas") or {}
     # The window as the picture frames it, with its title bar: what a dialog is centred on (the window's own still is
     # as big, motion_compose.WindowChrome).
+    import make_screenshots
     return {"out": str(out), "theme": canvas.get("theme", "light"), "design": canvas.get("design", "soft"),
+            "scale": make_screenshots.PINNED_SCALE,
             "forms": forms, "targets": targets, "outer": list(canvas.get("size") or []), "chrome": chrome(plan),
             "frames": [frame_state(frame, index, int(plan.get("light_step_ms") or 0))
                        for index, frame in enumerate(frames)]}

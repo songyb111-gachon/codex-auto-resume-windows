@@ -124,8 +124,7 @@ namespace CodexAutoResume
                 Design.Opened = design;
                 Palette.AdoptDesign(design);
                 Palette.Adopt(Theme.Current(theme));
-                double text = TextScale.Read();
-                AdoptTextSize(text, TextScale.Fitting(text, Screen.PrimaryScreen.WorkingArea.Size, DpiScale));
+                AdoptRenderScale(job);
                 Soft.StillLightMs = 0;
                 PersistentBridge.Answers = RenderAnswer;
                 // The window as the picture frames it, and the title bar a dialog is drawn with over it (RenderDialog).
@@ -135,6 +134,9 @@ namespace CodexAutoResume
                     renderOuter = new Size(Convert.ToInt32(outer[0], CultureInfo.InvariantCulture),
                                            Convert.ToInt32(outer[1], CultureInfo.InvariantCulture));
                 renderChrome = Map(job, "chrome");
+                // v0.6.20: each frame also as the still a capture takes of the window (FramedStill), when the job asks.
+                renderStill = Map(job, "still");
+                if (renderStill != null) renderCaption = LoadCaption(Str(renderStill, "caption"));
                 // The job's command line, read as the window's own is (ParseArguments), for what a page takes from it:
                 // the advanced edition's `--capability=`. The standard window takes nothing here.
                 var arguments = new List<string>();
@@ -162,9 +164,16 @@ namespace CodexAutoResume
                         formLocale = answersOf;
                     }
                     form.RenderState(frame, writer);
+                    int index = Convert.ToInt32(frame["index"], CultureInfo.InvariantCulture);
                     using (Bitmap picture = form.RenderPicture(frame, writer))
-                        writer.Write(Convert.ToInt32(frame["index"], CultureInfo.InvariantCulture), picture,
-                                     form.RenderBounds(targets, frame));
+                    {
+                        writer.Write(index, picture, form.RenderBounds(targets, frame));
+                        if (renderStill != null)
+                            using (Bitmap still = FramedStill(picture, renderCaption, StillNumber(renderStill, "left"),
+                                                              StillNumber(renderStill, "right"), StillNumber(renderStill, "radius"),
+                                                              StillNumber(renderStill, "dpi")))
+                                writer.WriteStill(index, still);
+                    }
                 }
             }
             catch (Exception error)
@@ -174,11 +183,40 @@ namespace CodexAutoResume
             finally
             {
                 if (form != null) form.Dispose();
+                if (renderCaption != null) renderCaption.Dispose();
+                renderCaption = null;
                 PersistentBridge.Answers = null;
                 lock (RenderMisses) writer.Finish(RenderMisses);
             }
             return writer.Error == null ? 0 : 2;
         }
+
+        /// v0.6.20: the scale the job's pictures are drawn at. A job naming `scale` (build/make_screenshots.py PINNED_SCALE,
+        /// 1.5) is drawn at that scale and at Windows' plain text size, whatever display this machine has: the window drawn
+        /// at another monitor's scale as it is on a monitor of that scale (AdoptDisplayScale, its fonts at FontFactor and
+        /// Control.DefaultFont with them), so a picture is the same on a laptop at 200 % and on a monitor at 150 % (the owner,
+        /// 2026-10-30). A job without one is drawn at this machine's scale and text size, as before.
+        private static void AdoptRenderScale(Dictionary<string, object> job)
+        {
+            object pinned;
+            double scale = job.TryGetValue("scale", out pinned) && pinned != null
+                ? Convert.ToDouble(pinned, CultureInfo.InvariantCulture) : 0;
+            if (scale >= 0.5)
+            {
+                RenderPinned = true;
+                AdoptDisplayScale(scale);
+                ScaleDefaultFont();
+                AdoptTextSize(1.0, 1.0);
+                return;
+            }
+            double text = TextScale.Read();
+            AdoptTextSize(text, TextScale.Fitting(text, Screen.PrimaryScreen.WorkingArea.Size, DpiScale));
+        }
+
+        /// v0.6.20: whether this is a render whose scale the job pinned (AdoptRenderScale): the window opens at its own size
+        /// on no screen (KeepOnScreen), and a list's header is laid out at that scale (SoftList.PinnedHeader). False in
+        /// every window a person opens.
+        internal static bool RenderPinned;
 
         /// The window as a capture opens it, built never shown, for the job's replies in force.
         private static SettingsForm OpenForRender(RenderWriter writer)
@@ -187,9 +225,13 @@ namespace CodexAutoResume
             string nowhere = Path.Combine(Path.GetTempPath(), "codex-auto-resume-render-" + Guid.NewGuid().ToString("N"));
             var form = new SettingsForm(new PersistentBridge(nowhere, new Bridge(nowhere)), strings, null);
             form.rendering = true;
+            // v0.6.20: the client area the window opened with - its opening size, as a language's face scales it (Microsoft
+            // YaHei UI opens it wider and shorter) - kept when its frame is taken off; it was set back to the opening
+            // size, so a picture in such a language came out the size of every other.
+            Size opened = form.ClientSize;
             form.TopLevel = false;
             form.FormBorderStyle = FormBorderStyle.None;
-            form.ClientSize = new Size(form.Px(OpeningWidth), form.Px(OpeningHeight));
+            form.ClientSize = RenderPinned ? opened : new Size(form.Px(OpeningWidth), form.Px(OpeningHeight));
             form.CreateControl();
             IntPtr made = form.Handle;
             // Shown as a child of Windows' parking window, which is never on the screen: its Load (the reads, the
@@ -780,6 +822,50 @@ namespace CodexAutoResume
             }
         }
 
+        /// `icon` at `size` px for a picture: the image the .ico holds for that size, or the next larger, decoded as the PNG
+        /// it is. Every image in codex-auto-resume.ico is PNG-compressed, and System.Drawing's Icon paints such an image as
+        /// noise offscreen - DrawIcon, ToBitmap and a resized Icon alike (2026-10-30, the README's Timeline dialog); a real
+        /// title bar is drawn by Windows and never meets this. An icon with no PNG image is drawn as before.
+        internal static Bitmap IconImage(Icon icon, int size)
+        {
+            try
+            {
+                byte[] file;
+                using (var saved = new MemoryStream()) { icon.Save(saved); file = saved.ToArray(); }
+                int count = BitConverter.ToUInt16(file, 4), best = -1, bestSide = int.MaxValue;
+                for (int i = 0; i < count; i++)
+                {
+                    int side = file[6 + 16 * i] == 0 ? 256 : file[6 + 16 * i];
+                    if (side >= size && side < bestSide) { best = i; bestSide = side; }
+                }
+                if (best >= 0)
+                {
+                    int length = BitConverter.ToInt32(file, 6 + 16 * best + 8);
+                    int offset = BitConverter.ToInt32(file, 6 + 16 * best + 12);
+                    if (length > 8 && file[offset] == 0x89 && file[offset + 1] == (byte)'P' && file[offset + 2] == (byte)'N')
+                    {
+                        // The stream stays with the bitmap, as GDI+ asks of one it decodes from (a MemoryStream holds no
+                        // handle); the image at its own size is returned as it is, so nothing resamples it.
+                        var decoded = new Bitmap(new MemoryStream(file, offset, length));
+                        if (decoded.Width == size && decoded.Height == size) return decoded;
+                        using (decoded)
+                        {
+                            var fitted = new Bitmap(size, size, PixelFormat.Format32bppArgb);
+                            using (Graphics g = Graphics.FromImage(fitted))
+                            {
+                                g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                                g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+                                g.DrawImage(decoded, new Rectangle(0, 0, size, size));
+                            }
+                            return fitted;
+                        }
+                    }
+                }
+            }
+            catch (Exception) { /* a picture's icon is decoration: fall back to what System.Drawing makes of it */ }
+            using (var scaled = new Icon(icon, new Size(size, size))) return scaled.ToBitmap();
+        }
+
         /// The dialog's window over `picture`: a soft shadow, the border, the title bar and the drawn client area.
         private void PaintDialog(Bitmap picture, Bitmap body, Point place, Size outer, int caption, int border,
                                  string title, Icon icon, Color ground)
@@ -813,10 +899,12 @@ namespace CodexAutoResume
                 int small = Math.Min(caption - 2 * border, Px(16));
                 int middle = place.Y + caption / 2;
                 if (icon != null)
-                    using (var scaled = new Icon(icon, new Size(small, small)))
-                        g.DrawIcon(scaled, new Rectangle(place.X + Px(12), middle - small / 2, small, small));
-                // Windows' own caption font, as it draws a title.
-                using (Font font = SystemFonts.CaptionFont)
+                    using (Bitmap mark = IconImage(icon, small))
+                        g.DrawImage(mark, new Rectangle(place.X + Px(12), middle - small / 2, small, small));
+                // Windows' own caption font, as it draws a title - at the scale the window is drawn at (AtDisplayScale,
+                // v0.6.20): Windows gives it in points, which it turns into pixels at the scale it signed in at.
+                using (Font windows = SystemFonts.CaptionFont)
+                using (Font font = AtDisplayScale(windows))
                     TextRenderer.DrawText(g, title ?? "", font,
                                           new Rectangle(place.X + Px(12) + small + Px(10), place.Y, outer.Width, caption),
                                           ink, TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix |
@@ -840,6 +928,117 @@ namespace CodexAutoResume
             }
         }
 
+        // ------------------------------------------------------------------ the still a capture takes (v0.6.20)
+        // The job's `still`: {"caption": a PNG of the title bar, "left", "right": how much of it is kept at each end,
+        // "radius": the corners' in px}; and that title bar, loaded.
+        private static Dictionary<string, object> renderStill;
+        private static Bitmap renderCaption;
+
+        private static int StillNumber(Dictionary<string, object> still, string key)
+        {
+            object value;
+            return still.TryGetValue(key, out value) && value != null ? Convert.ToInt32(value, CultureInfo.InvariantCulture) : 0;
+        }
+
+        /// The title bar a still is framed with, as 32-bit ARGB, its file let go at once.
+        internal static Bitmap LoadCaption(string path)
+        {
+            if (string.IsNullOrEmpty(path) || !File.Exists(path)) throw new InvalidDataException("the job's still names no title bar: " + path);
+            using (var read = new Bitmap(path))
+            {
+                var caption = new Bitmap(read.Width, read.Height, PixelFormat.Format32bppArgb);
+                using (Graphics g = Graphics.FromImage(caption))
+                {
+                    g.CompositingMode = System.Drawing.Drawing2D.CompositingMode.SourceCopy;
+                    g.DrawImage(read, new Rectangle(0, 0, read.Width, read.Height), 0, 0, read.Width, read.Height, GraphicsUnit.Pixel);
+                }
+                return caption;
+            }
+        }
+
+        private static int[] Argb(Bitmap picture)
+        {
+            var pixels = new int[picture.Width * picture.Height];
+            BitmapData data = picture.LockBits(new Rectangle(0, 0, picture.Width, picture.Height), ImageLockMode.ReadOnly,
+                                               PixelFormat.Format32bppArgb);
+            try
+            {
+                for (int y = 0; y < picture.Height; y++)
+                    Marshal.Copy(new IntPtr(data.Scan0.ToInt64() + (long)y * data.Stride), pixels, y * picture.Width, picture.Width);
+            }
+            finally { picture.UnlockBits(data); }
+            return pixels;
+        }
+
+        /// The window as build/capture_window.ps1 photographs it, from the client area drawn here: Windows' title bar above
+        /// it - the caption the job gives, taken from a capture at the job's scale (build/window_frame.py): its first `left`
+        /// px and its last `right` px as they are, and between them its plain bar - and the corners Windows rounds cut, as
+        /// that script cuts them (the same GDI+ fill of the same path, `radius` px, so the same pixels) - its resolution
+        /// `dpi`, as a capture's bitmap has the monitor's, so the PNG it is saved as says the same. Nothing of the screen is
+        /// read: Windows draws a window's title bar on a monitor, at that monitor's DPI, and this one is on none.
+        internal static Bitmap FramedStill(Bitmap client, Bitmap caption, int left, int right, int radius, int dpi)
+        {
+            int width = client.Width, top = caption.Height, height = top + client.Height;
+            int across = caption.Width;
+            left = Math.Max(0, Math.Min(left, Math.Min(width, across - 1)));
+            right = Math.Max(0, Math.Min(right, Math.Min(width - left, across - left - 1)));
+            int[] bar = Argb(caption), body = Argb(client);
+            var pixels = new int[width * height];
+            for (int y = 0; y < top; y++)
+                for (int x = 0; x < width; x++)
+                {
+                    int from = x < left ? x : x >= width - right ? across - (width - x) : left;
+                    pixels[y * width + x] = bar[y * across + from];
+                }
+            for (int i = 0; i < body.Length; i++) pixels[top * width + i] = unchecked((int)0xFF000000) | (body[i] & 0xFFFFFF);
+            using (var square = new Bitmap(width, height, PixelFormat.Format32bppArgb))
+            {
+                BitmapData data = square.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
+                try
+                {
+                    for (int y = 0; y < height; y++)
+                        Marshal.Copy(pixels, y * width, new IntPtr(data.Scan0.ToInt64() + (long)y * data.Stride), width);
+                }
+                finally { square.UnlockBits(data); }
+                Bitmap rounded = Rounded(square, radius);
+                if (dpi > 0) rounded.SetResolution(dpi, dpi);
+                return rounded;
+            }
+        }
+
+        /// `square` with its corners cut round, `radius` px, the corners left clear: build/capture_window.ps1's own steps -
+        /// a new 32-bit ARGB bitmap, antialiased, high-quality pixel offsets, the four arcs filled through a texture of the
+        /// picture - so a still drawn here and one captured on a monitor of that scale have the same corners.
+        internal static Bitmap Rounded(Bitmap square, int radius)
+        {
+            int width = square.Width, height = square.Height;
+            var rounded = new Bitmap(width, height, PixelFormat.Format32bppArgb);
+            if (radius <= 0 || width <= 2 * radius || height <= 2 * radius)
+            {
+                using (Graphics g = Graphics.FromImage(rounded))
+                {
+                    g.CompositingMode = System.Drawing.Drawing2D.CompositingMode.SourceCopy;
+                    g.DrawImage(square, new Rectangle(0, 0, width, height), 0, 0, width, height, GraphicsUnit.Pixel);
+                }
+                return rounded;
+            }
+            using (Graphics paint = Graphics.FromImage(rounded))
+            using (var path = new System.Drawing.Drawing2D.GraphicsPath())
+            using (var brush = new TextureBrush(square))
+            {
+                paint.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                paint.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+                int d = 2 * radius;
+                path.AddArc(0, 0, d, d, 180, 90);
+                path.AddArc(width - d, 0, d, d, 270, 90);
+                path.AddArc(width - d, height - d, d, d, 0, 90);
+                path.AddArc(0, height - d, d, d, 90, 90);
+                path.CloseFigure();
+                paint.FillPath(brush, path);
+            }
+            return rounded;
+        }
+
         /// Writes each frame as the rectangle that changed since the one before - the first whole - as raw RGB, and
         /// frames.json: the client size, each frame's rectangle and file, the bounds of its targets, what was noted.
         private sealed class RenderWriter
@@ -854,6 +1053,12 @@ namespace CodexAutoResume
             internal RenderWriter(string folder) { this.folder = folder; }
 
             internal void Note(string text) { notes.Add(text); }
+
+            /// v0.6.20: a frame's still (FramedStill), whole, as `still-<index>.png` beside the frames.
+            internal void WriteStill(int index, Bitmap still)
+            {
+                still.Save(Path.Combine(folder, "still-" + index.ToString("D5", CultureInfo.InvariantCulture) + ".png"), ImageFormat.Png);
+            }
 
             internal void Failed(string text) { Error = text; }
 

@@ -107,8 +107,8 @@ def fair() -> str | None:
         return None
     import make_screenshots as shots
     recorded = json.loads(shots.MANIFEST.read_text(encoding="utf-8"))
-    if shots.system_dpi() != recorded.get("system_dpi"):
-        return "the display is not at the scale the stills were captured at"
+    if shots.stills_dpi_problem(recorded):
+        return "the stills are not at the scale the window is drawn at (%s)" % shots.stills_dpi_problem(recorded)
     if recorded["inputs"].get("<window sources>") != shots.window_digest():
         return "the stills are not of this working tree's window yet (CAR_MOTION_FIDELITY=1 compares anyway)"
     return None

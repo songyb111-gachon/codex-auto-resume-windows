@@ -42,7 +42,8 @@ The two pictures of v0.6.16-beta.4's usage numbers, settled at the final's merge
 
 Into docs/images, the run first holds the window drawn offscreen to today's captured stills (motion_fidelity) and
 records the result, each picture's digest and what it was made from in assets/advanced-shots.json; a page that fails
-stops it. It needs Windows, the in-box C# compiler and the display at the stills' scale. Run it from the main session
+stops it. It needs Windows and the in-box C# compiler; the window is drawn at the stills' pinned scale (150 %) whatever
+the display is. Run it from the main session
 after the stills are made, detached, under plans/proof/gui_lock.sh.
 """
 from __future__ import annotations
@@ -510,7 +511,9 @@ def job(shots_of: list, locales, forms: dict, out: Path) -> tuple:
     as it stays written once it is - and [(picture, locale)] in the order of its frames."""
     order = [(each, locale) for locale in locales for each in sorted(shots_of, key=lambda item: item.report)]
     frames = [frame(each, locale, index) for index, (each, locale) in enumerate(order)]
-    return {"out": str(out), "theme": "light", "design": "soft", "forms": forms, "targets": [], "frames": frames}, order
+    import make_screenshots as shots
+    return {"out": str(out), "theme": "light", "design": "soft", "scale": shots.PINNED_SCALE, "forms": forms,
+            "targets": [], "frames": frames}, order
 
 
 def render(exe: Path, job_data: dict, folder: Path) -> tuple:
@@ -665,9 +668,8 @@ def main(argv=None) -> int:
     real = out is None
     if real:
         recorded = json.loads(shots.MANIFEST.read_text(encoding="utf-8"))
-        if shots.system_dpi() != recorded.get("system_dpi"):
-            raise SystemExit("the display is at %s DPI and the stills were captured at %s: make them again first"
-                             % (shots.system_dpi(), recorded.get("system_dpi")))
+        if shots.stills_dpi_problem(recorded):
+            raise SystemExit(shots.stills_dpi_problem(recorded))
         if recorded["inputs"].get("<window sources>") != shots.window_digest():
             raise SystemExit("the window's stills are stale: run build/make_screenshots.py first")
     with tempfile.TemporaryDirectory() as name:

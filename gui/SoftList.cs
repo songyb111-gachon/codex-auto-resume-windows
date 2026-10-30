@@ -416,7 +416,7 @@ namespace CodexAutoResume
 
         // ------------------------------------------------------------------ the baseline
 
-        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        [StructLayout(LayoutKind.Sequential, CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
         private struct TextMetric
         {
             public int Height, Ascent, Descent, InternalLeading, ExternalLeading, AveCharWidth, MaxCharWidth, Weight,
@@ -507,6 +507,123 @@ namespace CodexAutoResume
         internal SoftList()
         {
             SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
+        }
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            // v0.6.20: only in a picture drawn at a scale pinned apart from this machine's (SettingsForm.RenderPinned).
+            if (SettingsForm.RenderPinned) PinnedHeader.Attach(this);
+        }
+
+        [DllImport("user32.dll", EntryPoint = "SendMessageW")]
+        private static extern IntPtr SendHeaderMessage(IntPtr window, int message, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        private static extern int GetDpiForWindow(IntPtr window);
+
+        [DllImport("gdi32.dll")]
+        private static extern IntPtr CreateCompatibleDC(IntPtr dc);
+
+        [DllImport("gdi32.dll")]
+        private static extern bool DeleteDC(IntPtr dc);
+
+        [DllImport("gdi32.dll")]
+        private static extern IntPtr SelectObject(IntPtr dc, IntPtr item);
+
+        [DllImport("gdi32.dll")]
+        private static extern bool DeleteObject(IntPtr item);
+
+        [DllImport("gdi32.dll", CharSet = CharSet.Unicode)]
+        private static extern bool GetTextMetricsW(IntPtr dc, out HeaderMetric metric);
+
+        [StructLayout(LayoutKind.Sequential, CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        private struct HeaderMetric
+        {
+            public int Height, Ascent, Descent, InternalLeading, ExternalLeading, AveCharWidth, MaxCharWidth, Weight,
+                       Overhang, DigitizedAspectX, DigitizedAspectY;
+            public char FirstChar, LastChar, DefaultChar, BreakChar;
+            public byte Italic, Underlined, StruckOut, PitchAndFamily, Set;
+        }
+
+        /// v0.6.20: the list's column header as tall as Windows makes it on a monitor of the pinned scale. Windows lays the
+        /// header out at the DPI of the monitor the list is on - its text's height and a margin it scales with that DPI -
+        /// and the window draws everything else at the pinned scale (SettingsForm.AdoptRenderScale): on a 200 % laptop a
+        /// picture pinned at 150 % had its headers 2 px taller, and every row under them 2 px lower, than a window on a
+        /// 150 % monitor. The header's answer to HDM_LAYOUT is taken, its margin - what it gives beyond the font's height -
+        /// scaled from the monitor's DPI to the pinned scale, and the list told that height instead.
+        private sealed class PinnedHeader : NativeWindow
+        {
+            private const int LVM_GETHEADER = 0x101F;
+            private const int HDM_LAYOUT = 0x1205;
+            private readonly SoftList list;
+
+            private PinnedHeader(SoftList list) { this.list = list; }
+
+            internal static void Attach(SoftList list)
+            {
+                IntPtr header = SendHeaderMessage(list.Handle, LVM_GETHEADER, IntPtr.Zero, IntPtr.Zero);
+                if (header == IntPtr.Zero) return;
+                new PinnedHeader(list).AssignHandle(header);
+                // Laid out again now, with this answering (WM_SIZE, as a resize lays the header out).
+                Size client = list.ClientSize;
+                SendHeaderMessage(list.Handle, 0x0005, IntPtr.Zero, (IntPtr)(((client.Height & 0xFFFF) << 16) | (client.Width & 0xFFFF)));
+            }
+
+            protected override void WndProc(ref Message m)
+            {
+                base.WndProc(ref m);
+                if (m.Msg != HDM_LAYOUT || m.LParam == IntPtr.Zero) return;
+                try
+                {
+                    // HDLAYOUT: the rectangle the header and the rows share, and where the header goes (WINDOWPOS).
+                    IntPtr area = Marshal.ReadIntPtr(m.LParam);
+                    IntPtr place = Marshal.ReadIntPtr(m.LParam, IntPtr.Size);
+                    if (area == IntPtr.Zero || place == IntPtr.Zero) return;
+                    // WINDOWPOS: hwnd, hwndInsertAfter, x, y, cx, cy, flags.
+                    int cyAt = 2 * IntPtr.Size + 12;
+                    int given = Marshal.ReadInt32(place, cyAt);
+                    int wanted = Pinned(given);
+                    if (wanted == given) return;
+                    Marshal.WriteInt32(place, cyAt, wanted);
+                    // RECT: left, top, right, bottom - the rows start under the header.
+                    Marshal.WriteInt32(area, 4, Marshal.ReadInt32(area, 4) + wanted - given);
+                }
+                catch (Exception) { /* a picture's header at Windows' height: a pixel or two off, never a failure */ }
+            }
+
+            /// The header's height `given` at the monitor's DPI, at the pinned scale: the font's height, and the margin
+            /// scaled from that DPI to the scale.
+            private int Pinned(int given)
+            {
+                int dpi = GetDpiForWindow(Handle);
+                if (given <= 0 || dpi < 48) return given;
+                double scale = SettingsForm.DisplayScale * 96.0;
+                if (Math.Abs(scale - dpi) < 0.5) return given;
+                int text = TextHeight(list.Font);
+                if (text <= 0 || text >= given) return given;
+                return text + (int)Math.Round((given - text) * scale / dpi);
+            }
+
+            private static int TextHeight(Font font)
+            {
+                IntPtr dc = CreateCompatibleDC(IntPtr.Zero);
+                if (dc == IntPtr.Zero) return 0;
+                IntPtr made = font.ToHfont();
+                try
+                {
+                    IntPtr previous = SelectObject(dc, made);
+                    HeaderMetric metric;
+                    bool read = GetTextMetricsW(dc, out metric);
+                    SelectObject(dc, previous);
+                    return read ? metric.Height : 0;
+                }
+                finally
+                {
+                    DeleteObject(made);
+                    DeleteDC(dc);
+                }
+            }
         }
 
         /// After anything that can move or resize what the list shows - a scroll either way, a key, a

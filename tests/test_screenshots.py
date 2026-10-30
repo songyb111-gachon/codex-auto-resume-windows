@@ -264,7 +264,10 @@ class ManifestTests(unittest.TestCase):
         self.assertIn("<window sources>", inputs)
         expected = {"<window sources>", "gui/app.manifest", "assets/codex-auto-resume.ico",
                     ".codex-plugin/plugin.json", "build/capture_window.ps1",
-                    "build/make_gui.ps1", "build/make_screenshots.py"}
+                    "build/make_gui.ps1", "build/make_screenshots.py",
+                    # v0.6.20: the stills are drawn offscreen by the render job and framed with the kept title bar.
+                    "build/motion_window.py", "build/window_frame.py", "build/frame/window-caption.png",
+                    "build/frame/frame.json"}
         self.assertEqual(sorted(expected - inputs), [],
                          "the window is compiled from these, so a change to one of them "
                          "must mark the screenshots stale")
@@ -1151,11 +1154,12 @@ class ContentTests(unittest.TestCase):
         self.assertNotIn("policy.defaults()", inspect.getsource(make_screenshots.scratch_installation))
         self.assertNotIn("--theme", inspect.getsource(make_screenshots.render_window))
         for published in (make_screenshots.scratch_installation, make_screenshots.render_window,
+                          make_screenshots.render_window_offscreen,
                           make_screenshots.render_panel, make_screenshots.render_popup):
             self.assertIsNone(inspect.signature(published).parameters["theme"].default, published.__name__)
             self.assertIsNone(inspect.signature(published).parameters["design"].default, published.__name__)
         for whole_run in (make_screenshots.main, make_screenshots.render_inputs, make_screenshots.run_job,
-                          make_screenshots.window_job, make_screenshots.job_targets):
+                          make_screenshots.window_job, make_screenshots.draw_window, make_screenshots.job_targets):
             self.assertNotIn("theme=", inspect.getsource(whole_run).replace("theme=THEME", ""),
                              "a published picture is drawn in THEME")
             self.assertNotIn("design=\"", inspect.getsource(whole_run),
@@ -2796,7 +2800,8 @@ class FasterRunTests(unittest.TestCase):
     def test_a_job_is_stale_exactly_when_what_it_is_drawn_from_moved(self):
         g = self.generator
         jobs, recorded = g.whole_run_jobs(), self.manifest
-        inputs, dpi = dict(recorded["inputs"]), recorded["system_dpi"]
+        # v0.6.20: the DPI the window's pictures are drawn at (`window_dpi`); a manifest from before names the display's.
+        inputs, dpi = dict(recorded["inputs"]), recorded.get("window_dpi", recorded.get("system_dpi"))
 
         def stale_with(**changes):
             moved = dict(inputs)
@@ -2844,7 +2849,8 @@ class FasterRunTests(unittest.TestCase):
                 stack.enter_context(patch.object(g, "WINDOWS_AT_ONCE", g.WINDOWS_AT_ONCE))
                 stack.enter_context(patch.object(g, "MANIFEST", manifest))
                 stack.enter_context(patch.object(g, "render_inputs", MagicMock(return_value=dict(self.manifest["inputs"]))))
-                stack.enter_context(patch.object(g, "system_dpi", MagicMock(return_value=self.manifest["system_dpi"])))
+                stack.enter_context(patch.object(g, "system_dpi", MagicMock(
+                    return_value=self.manifest.get("window_dpi", self.manifest.get("system_dpi")))))
                 stack.enter_context(patch.object(g, "run_jobs", jobs))
                 stack.enter_context(patch.object(g, "copy_file", MagicMock(side_effect=AssertionError("copied"))))
                 stack.enter_context(redirect_stdout(io.StringIO()))

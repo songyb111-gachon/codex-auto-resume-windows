@@ -1,0 +1,24 @@
+{
+  "setup": {
+    "caption": "9818827e092e8bab63f85398b3fe7bcd31496bbb64907149db01920e860406f4",
+    "dpi": 144,
+    "icon": "45c3f3a0d02d78f9be0b80532eedc2f524cd7ebe1056007dacdb286ca743bd52",
+    "left": 240,
+    "right": 200,
+    "rows": 37,
+    "theme": "light",
+    "title": "Codex Auto Resume",
+    "width": 900
+  },
+  "window": {
+    "caption": "e9d08f943cedb848cee397197d1630e390355938558657c13b91fd11c109f179",
+    "dpi": 144,
+    "icon": "45c3f3a0d02d78f9be0b80532eedc2f524cd7ebe1056007dacdb286ca743bd52",
+    "left": 240,
+    "right": 200,
+    "rows": 45,
+    "theme": "light",
+    "title": "Codex Auto Resume",
+    "width": 1500
+  }
+}
