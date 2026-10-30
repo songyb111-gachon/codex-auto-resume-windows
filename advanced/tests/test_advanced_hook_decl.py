@@ -98,12 +98,13 @@ class DeclarationTests(Scratch):
         with patch.object(hookplugin, "WRITER", lambda path, document: written.append((Path(path), document))), \
                 patch.object(hookplugin, "REMOVER", lambda path: removed.append(Path(path))):
             hookplugin.follow(self.paths, self.codex_home, True)
-            self.assertEqual(sorted(path for path, _ in written),
-                             sorted(root.joinpath(*hookformat.FORMAT.file) for root in (self.installation, self.copy)))
+            # Resolved on both sides: CI's TEMP is in 8.3 form (RUNNER~1) where the product names the long one.
+            self.assertEqual(sorted(path.resolve() for path, _ in written),
+                             sorted(root.joinpath(*hookformat.FORMAT.file).resolve() for root in (self.installation, self.copy)))
             self.assertEqual(snapshot(self.codex_home), self.before, "nothing written past the seam")
             hookplugin.write_declaration(self.copy.joinpath(*hookformat.FORMAT.file), written[0][1])
             hookplugin.follow(self.paths, self.codex_home, False)
-            self.assertEqual(removed, [self.copy.joinpath(*hookformat.FORMAT.file)])
+            self.assertEqual([path.resolve() for path in removed], [self.copy.joinpath(*hookformat.FORMAT.file).resolve()])
 
     def test_another_format_changes_only_the_constant(self):
         """What MHK may settle differently - a file the manifest names, the command inside the plugin, the installation's
