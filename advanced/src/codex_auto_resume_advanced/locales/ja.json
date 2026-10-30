@@ -106,6 +106,7 @@
   "page.analytics.total": "合計",
   "page.analytics.used": "{window}: {percent}% 使用",
   "page.anchor.fixed": "次のリセットは {time} に固定されました。",
+  "page.anchor.needs_occasion": "開始時刻を選ぶか「リセットの直後に開始」をオンにするまで、何も開始しません。",
   "page.chat.cancel": "キャンセル",
   "page.chat.click": "通知をクリックすると開くもの",
   "page.chat.click.chat": "ここでその会話のチャット",

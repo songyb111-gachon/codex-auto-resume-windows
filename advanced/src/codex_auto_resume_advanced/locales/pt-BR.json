@@ -106,6 +106,7 @@
   "page.analytics.total": "Total",
   "page.analytics.used": "{window}: {percent}% usado",
   "page.anchor.fixed": "Próxima redefinição marcada para {time}.",
+  "page.anchor.needs_occasion": "Nada será iniciado até que você escolha um horário de início ou ative \"Iniciar logo após uma redefinição\".",
   "page.chat.cancel": "Cancelar",
   "page.chat.click": "Um clique em um aviso abre",
   "page.chat.click.chat": "O chat dessa conversa aqui",

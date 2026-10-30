@@ -106,6 +106,7 @@
   "page.analytics.total": "Toplam",
   "page.analytics.used": "{window}: %{percent} kullanıldı",
   "page.anchor.fixed": "Sonraki sıfırlama {time} saatine sabitlendi.",
+  "page.anchor.needs_occasion": "Bir başlatma saati seçene veya \"Bir sıfırlamanın hemen ardından başlat\" seçeneğini açana kadar hiçbir şey başlatmaz.",
   "page.chat.cancel": "İptal",
   "page.chat.click": "Bir bildirime tıklamak şunu açar",
   "page.chat.click.chat": "O konuşmanın sohbeti burada",

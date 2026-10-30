@@ -106,6 +106,7 @@
   "page.analytics.total": "סך הכול",
   "page.analytics.used": "{window}: נוצלו {percent}%",
   "page.anchor.fixed": "האיפוס הבא נקבע ל-{time}.",
+  "page.anchor.needs_occasion": "שום דבר לא יתחיל עד שתבחר שעת התחלה או תפעיל את ״התחלה מיד אחרי איפוס״.",
   "page.chat.cancel": "ביטול",
   "page.chat.click": "לחיצה על התראה פותחת",
   "page.chat.click.chat": "הצ'אט של אותה שיחה כאן",
