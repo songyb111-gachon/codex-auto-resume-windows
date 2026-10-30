@@ -127,6 +127,18 @@ class TrustTests(unittest.TestCase):
         self.assertEqual(found[Measurement.MIMG], (Verdict.PASS, ENGINE))       # never measured
         self.assertEqual(compatdata.overlay({}, data, None), {})                  # no engine known: nothing
 
+    def test_any_verdict_the_build_made_on_that_engine_stands_against_a_data_pass(self):
+        """Rule 4 (the W7 review): a build verdict made on the exact engine - a pass, and a blocked one too - is a
+        verdict there, so a data pass does not stand in for it; on another engine it does."""
+        data = self.data({Measurement.MOPEN: Verdict.PASS})
+        self.assertEqual(compatdata.overlay({Measurement.MOPEN: (Verdict.BLOCKED, ENGINE)}, data, ENGINE)[Measurement.MOPEN],
+                         (Verdict.BLOCKED, ENGINE))
+        self.assertEqual(compatdata.overlay({Measurement.MOPEN: (Verdict.BLOCKED, OLD)}, data, ENGINE)[Measurement.MOPEN],
+                         (Verdict.PASS, ENGINE))
+        failed = self.data({Measurement.MOPEN: Verdict.FAIL})
+        self.assertEqual(compatdata.overlay({Measurement.MOPEN: (Verdict.BLOCKED, ENGINE)}, failed, ENGINE)[Measurement.MOPEN],
+                         (Verdict.FAIL, ENGINE))
+
     def test_the_warnings_follow(self):
         definition = ac.definition(measurements=(Measurement.MOPEN,), compat=None)
         view = {"status": "ok", "engine": {"found": True, "version": ENGINE}, "capabilities": {}}

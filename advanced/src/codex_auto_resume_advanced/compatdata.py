@@ -244,7 +244,7 @@ def overlay(table, document, engine) -> dict:
             continue                                    # 1. a fail in the build's own table always wins
         if verdict == Verdict.FAIL:
             found[measurement] = (Verdict.FAIL, engine)  # 3. data can narrow
-        elif not (built_verdict == Verdict.PASS and built_on == engine):
+        elif built_verdict is None or built_on != engine:
             found[measurement] = (Verdict.PASS, engine)  # 4. a pass stands in only where the build has none here
     return found
 
