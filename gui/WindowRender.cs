@@ -900,8 +900,10 @@ namespace CodexAutoResume
                 if (icon != null)
                     using (Bitmap mark = IconImage(icon, small))
                         g.DrawImage(mark, new Rectangle(place.X + Px(12), middle - small / 2, small, small));
-                // Windows' own caption font, as it draws a title.
-                using (Font font = SystemFonts.CaptionFont)
+                // Windows' own caption font, as it draws a title - at the scale the window is drawn at (AtDisplayScale,
+                // v0.6.20): Windows gives it in points, which it turns into pixels at the scale it signed in at.
+                using (Font windows = SystemFonts.CaptionFont)
+                using (Font font = AtDisplayScale(windows))
                     TextRenderer.DrawText(g, title ?? "", font,
                                           new Rectangle(place.X + Px(12) + small + Px(10), place.Y, outer.Width, caption),
                                           ink, TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix |
