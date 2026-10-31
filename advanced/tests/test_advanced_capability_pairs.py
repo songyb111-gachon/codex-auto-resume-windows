@@ -1233,5 +1233,134 @@ class AnchorBesideAccountSwitchTests(_AnchorBeside):
         self.assertEqual(len(self.world.started), 1)
         self.assertEqual(self.codes()[-1], "anchor.skip_once")
 
+
+class AnchorBesideUsagePauseTests(_AnchorBeside):
+    """window_anchor beside usage_pause: SPLIT by what each touches. The pause holds this product's continuations while
+    a window it marked has not reset; the anchor starts only an idle 5-hour window, so a pause of the 5-hour window
+    and a start never meet, and a pause of the weekly window (under 100 %) leaves an idle 5-hour window to start -
+    while the pause still holds core's records at P3 beside it. A start costs under 1 % (MANCHOR)."""
+    BESIDE = (USAGE_METER, USAGE_PAUSE)
+
+    def test_a_held_weekly_window_does_not_stop_a_start_and_the_pause_still_holds(self):
+        self.beside("usage_meter")
+        self.beside("usage_pause")
+        self.rt.state.save_meter([{"bucket": "codex", "window_minutes": 10080, "used_percent": 96.0,
+                                   "reset_at": int(self.now + 86400)}])
+        self.assertTrue(self.rt.state.mark_meter("codex", 10080, paused_reset_at=int(self.now + 86400)))
+        self.world.week = 96.0
+        self.on(anchor_at_1=anchor_engine.encode_time(7, 0), anchor_after_reset=2)
+        self.run_through()
+        self.assertEqual(len(self.world.started), 1)
+        record = {"interruption_id": ac.KEY, "thread_id": ac.THREAD, "category": "usage_limit",
+                  "state": "waiting_reset"}
+        self.assertIs(self.rt.ask(Point.GATES, "submission_safe", record, {}), Alternative.HOLD)
+
+
+class FallbackBesideCapacityRetryTests(ac.AdvancedCase):
+    """model_fallback beside capacity_retry: COMPOSE. capacity_retry takes a capacity failure up at P17 (CAPACITY:
+    sooner retries on the same model); the record keeps its kind (server_5xx), so once its task has had the Attempts
+    and nothing holds the conversation with Codex closed, model_fallback's turn on Codex's default is still P16's."""
+
+    def test_a_task_capacity_retry_took_up_falls_back_past_the_attempts(self):
+        self.compat = _compat(MODEL_FALLBACK.compat, CAPACITY_RETRY.compat)
+        rt = self.runtime(CAPACITY_RETRY, MODEL_FALLBACK)
+        rt.arming.catalogs = statement.CATALOGS
+        code = rt._code_of(MODEL_FALLBACK)
+        code._turns, code._app = Codes("serverOverloaded"), lambda: False
+        code._open, code.follower = (lambda capability: None), headless.Follower(poll=0.01)
+        for definition in (CAPACITY_RETRY, MODEL_FALLBACK):
+            result = self.arm(rt, definition.id, warnings=[str(w) for w in rt.arming.warnings(definition)])
+            self.assertTrue(result["done"], result)
+        rt.states(fresh=True)
+        key = "%064x" % 7
+        facts = {"category": "server_5xx", "code": "serverOverloaded", "takes": frozenset({Alternative.CAPACITY}),
+                 "interruption_id": key,
+                 "thread_id": FallbackBesideHeadlessRunTests.THREAD, "completed_at": self.now + 1}
+        self.assertIs(rt.ask(Point.ADMISSION, facts), Alternative.CAPACITY, "capacity_retry takes it up")
+        record = {"interruption_id": key, "thread_id": FallbackBesideHeadlessRunTests.THREAD,
+                  "turn_id": FallbackBesideHeadlessRunTests.TURN, "category": "server_5xx", "chain_continuations": 2,
+                  "holder": "none", "app": False}
+        route = rt.ask(Point.UNLOADED, record)
+        self.assertEqual((route.capability, route.mode), (MODEL_FALLBACK.id, headless.FALLBACK))
+
+
+from test_advanced_steer_send import SteerCase  # noqa: E402
+from codex_auto_resume_advanced.registry import STEER_SEND  # noqa: E402
+from codex_auto_resume_advanced.vocabulary import SteerState  # noqa: E402
+
+
+class SteerBesideUsagePauseTests(SteerCase):
+    """steer_send beside usage_pause (and the prompt queue it needs): SPLIT by whose words. The pause holds this
+    product's continuations; a steer is a person's own line, as a queued prompt is, which the pause leaves alone - so a
+    held window neither holds nor refuses it, and it is written once, while the pause still holds core's records."""
+    BESIDE = (PROMPT_QUEUE, USAGE_METER, USAGE_PAUSE)
+
+    def setUp(self):
+        super().setUp()
+        self.compat = _compat(*{definition.compat for definition in (*self.BESIDE, STEER_SEND)})
+
+    def test_a_steer_is_written_while_a_window_is_held(self):
+        plug, runtime = self.on()
+        runtime._code_of(USAGE_METER)._app_running = lambda: False       # the meter reads nothing here
+        runtime.state.save_meter([{"bucket": "codex", "window_minutes": 300, "used_percent": 97.0,
+                                   "reset_at": int(self.h.now + 3600)}])
+        self.assertTrue(runtime.state.mark_meter("codex", 300, paused_reset_at=int(self.h.now + 3600)))
+        self.assertTrue(runtime._code_of(USAGE_PAUSE).holding(), "the window is held")
+        self.assertTrue(self.ask(runtime)["done"])
+        self.h.tick()
+        self.assertEqual(len(self.calls), 1)
+        self.assertEqual(self.rows(runtime)[0]["state"], SteerState.ACCEPTED)
+        self.assertTrue(runtime._code_of(USAGE_PAUSE).holding(), "and still held for core's records")
+
+
+from codex_auto_resume_advanced.registry import EVERY_CONVERSATION  # noqa: E402
+from test_session_kinds import CLI, add_thread  # noqa: E402
+
+
+class EveryConversationBesideOtherSessionsTests(TakingCase):
+    """every_conversation beside other_sessions: COMPOSE. Each widens a different check of the one place core judges a
+    conversation (codex/eligibility.row_problem): other_sessions which sources (P18: a terminal's, VS Code's),
+    every_conversation which labels (P19) - so a terminal's conversation with a label the standard edition does not
+    know is taken up with both on, and with either alone it is not. every_conversation sends nothing itself, so no
+    unit of any ceiling is ever spent in its name."""
+    DEFINITION = EVERY_CONVERSATION
+    BESIDE = (OTHER_SESSIONS,)
+
+    def fresh(self, **kwargs):
+        made = super().fresh(**kwargs)
+        holding_sessions(made.backend)
+        return made
+
+    def arm(self, plug, state="armed", capability=None, **changes):
+        definition = plug.runtime.registry.get(capability or self.cap)
+        changes.setdefault("warnings", [str(word) for word in plug.runtime.arming.warnings(definition)])
+        return super().arm(plug, state=state, capability=capability, **changes)
+
+    def setUp(self):
+        super().setUp()
+        self.compat = _compat(EVERY_CONVERSATION.compat, OTHER_SESSIONS.compat)
+
+    def test_a_terminal_s_conversation_with_a_new_label_is_taken_up_with_both_on(self):
+        plug = self.armed()
+        add_thread(self.h.home, T1, **CLI, thread_source="a_label_from_tomorrow")
+        self.ready_after_reset(self.h, thread_id=T1)
+        self.h.tick()
+        self.assertEqual(len(self.h.records(T1)), 1)
+        for _ in range(3):
+            self.h.tick(advance=60)
+        self.assertNotIn(EVERY_CONVERSATION.id, [spend[0] for spend in self.spends(plug)])
+
+    def test_with_either_alone_it_is_not(self):
+        for alone in (EVERY_CONVERSATION, OTHER_SESSIONS):
+            with self.subTest(alone.id):
+                h = self.fresh()
+                plug = self.advanced(h)
+                self.arm(plug, capability=alone.id)
+                self.plugged(plug, h)
+                add_thread(h.home, T1, **CLI, thread_source="a_label_from_tomorrow")
+                self.ready_after_reset(h, thread_id=T1)
+                h.tick()
+                self.assertEqual(h.records(T1), [])
+
 if __name__ == "__main__":
     unittest.main()
