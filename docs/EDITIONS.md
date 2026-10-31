@@ -1438,8 +1438,8 @@ recovery is due), [D2](STANDARDS.md#d-privacy-and-the-data-it-keeps) (a digest o
 
 **Ceilings.** None come into play: it sends nothing to Codex. **Measurements MA: passed** on
 `codex-cli 0.162.0-alpha.17.2`, and **MAL: failed** on `codex-cli 0.166.0-alpha.5.1` (2026-11-01, partial: the
-sign-out reached the running app, the sign-in did not); on any version where one has not passed, a warning, and
-the button is hidden because its measurement failed.
+sign-out reached the running app, the sign-in did not). MA without a pass on the version in force is a warning;
+MAL without one only hides the button - hidden because its measurement failed - and never turns the switch off.
 
 ### Compatibility report
 

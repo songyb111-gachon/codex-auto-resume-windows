@@ -88,6 +88,7 @@ transaction, once.
 from __future__ import annotations
 
 from inspect import getattr_static
+import sys
 import time
 
 from codex_auto_resume import continuation, failures, machine
@@ -140,6 +141,40 @@ HELD_WORDS = frozenset({"compat_unknown", "engine_unknown", "policy", "refused",
 SPLIT = "split"
 # The state a claimed record moves to first (core's machine), where a pooled claim is known to have committed.
 SUBMITTING = "submitting"
+
+
+# How many of this edition's frames a hook's raise is said with in the watcher's log (`_said_raised`), innermost last.
+RAISED_FRAMES = 6
+
+
+def _said_raised(definition) -> None:
+    """One line in the watcher's log (core's logbook, as engine/anchor.py and engine/updatecheck.py write theirs) for a
+    hook of `definition`'s that raised: the capability, the exception's type (and the type it was raised from) and this
+    edition's frames it passed, each as file name:line function - what the journal's `hook_exception` alone does not
+    say, and nothing else kept anywhere did (2026-10-31: window_anchor raised once, and no traceback was left). Never
+    the exception's message, an argument or a path beyond a file's name: those can carry a path, an id or an account.
+    Called inside the `except` that caught it, so `sys.exc_info` is that exception. Never raises. INFO, so a process
+    with no log of its own (the Dashboard's, the MCP server's) writes nothing."""
+    try:
+        import logging
+        import os
+        import traceback
+        from codex_auto_resume.logbook import LOGGER_NAME
+        kind, value, trace = sys.exc_info()
+        if kind is None:
+            return
+        package = os.path.normcase(os.path.dirname(os.path.abspath(__file__))) + os.sep
+        frames = [frame for frame in traceback.extract_tb(trace)
+                  if os.path.normcase(os.path.abspath(frame.filename)).startswith(package)
+                  and os.path.abspath(frame.filename) != os.path.abspath(__file__)]
+        said = " < ".join("%s:%s %s" % (os.path.basename(frame.filename), frame.lineno, frame.name)
+                          for frame in reversed(frames[-RAISED_FRAMES:]))
+        cause = getattr(value, "__cause__", None) or getattr(value, "__context__", None)
+        logging.getLogger(LOGGER_NAME).info(
+            "advanced %s: a hook raised %s%s%s", definition.id, kind.__name__,
+            " (from %s)" % type(cause).__name__ if cause is not None else "", " at " + said if said else "")
+    except Exception:
+        pass
 
 
 def _route_ask(record) -> bool:
@@ -381,7 +416,9 @@ class Runtime:
 
     def _tripped(self, definition, record=None) -> None:
         """A hook of `definition`'s raised: off from here on - or, kept on (K8), noted, and passed
-        over for `record` alone; a point with no record skips only the call it raised in."""
+        over for `record` alone; a point with no record skips only the call it raised in. Said in the watcher's log
+        first, with the exception's type and where (`_said_raised`)."""
+        _said_raised(definition)
         if self.arming.trip(definition.id, OffReason.HOOK_EXCEPTION) or not self.arming.kept(definition.id):
             self._states[definition.id] = ArmingState.OFF
             return
