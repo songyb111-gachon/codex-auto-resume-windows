@@ -620,8 +620,9 @@ namespace CodexAutoResume
         // forward on the page the command line names, or where it is - and this process ends before it builds anything.
         // Only a start whose command line an open request carries whole asks (HandsOverOnStart): a reopen (--reopened, the
         // old window is still on screen until the new one is), the chat a notice opens (--chat, --capability), a capture
-        // (Soft.StillReady) and anything else start as they always did. A window of a scratch build - a capture's, a
-        // test's - is another program and is never asked; the audit's window and one not yet shown refuse (TakeOpenRequest).
+        // (a picture's ready event, which SettingsApp.cs reads) and anything else start as they always did. A window of a
+        // scratch build - a capture's, a test's - is another program and is never asked; the audit's window and one not yet
+        // shown refuse (TakeOpenRequest).
         private const int OpenRequestWait = 3000;          // the window answers at once and comes forward afterwards
         private const int SmtoAbortIfHung = 0x0002;
         private const int GwOwner = 4;
