@@ -1421,5 +1421,53 @@ class WakeBesideAnchorTests(WakeBesideTheResetCapabilitiesTests):
     # The reset capabilities' own test, which this class's runtime does not carry.
     test_the_timer_is_set_for_the_earliest_due_time_of_them_all = None
 
+
+from test_advanced_subagent import CHILDREN, SubagentCase  # noqa: E402
+from codex_auto_resume_advanced.registry import SUBAGENT_PARENT  # noqa: E402
+from codex_auto_resume_advanced.vocabulary import Measurement as _Measurement, Verdict as _Verdict  # noqa: E402
+
+NEW_LABEL = "a_label_from_tomorrow"
+
+
+class SubagentFollowUpBesideEveryConversationTests(SubagentCase):
+    """subagent_parent's follow-up to a parent that finished (5b) beside every_conversation: COMPOSE (the owner's word
+    of 2026-10-31, "정식 전에 고치기"). 5b picked its parents from every conversation with a turn lately, judged by
+    nothing, so a parent core never takes up - a label the standard edition does not know, with every_conversation off
+    - got a continuation that waited for good. It now judges a parent as core does (core's reader, P19's widening while
+    every_conversation is on), as empty_response and the wrap-up do, and one already waiting for a parent core no longer
+    takes up is withdrawn."""
+    BESIDE = (EVERY_CONVERSATION,)
+
+    def setUp(self):
+        super().setUp()
+        self.measured = {_Measurement.MS: (_Verdict.PASS, ENGINE)}
+        self.compat = _compat(SUBAGENT_PARENT.compat, EVERY_CONVERSATION.compat)
+
+    def finished(self, label):
+        self.h.home.add_thread(T1, thread_source=label)
+        self.spawned(CHILDREN[:1])
+        self.h.home.add_turn(T1, completed=int(self.h.now))
+        for _ in range(3):
+            self.h.tick(advance=61)
+
+    def waiting(self, plug):
+        return [row for row in plug.runtime.state.continuations(capability=SUBAGENT_PARENT.id)
+                if row["thread_id"] == T1 and row["record_state"] == "waiting"]
+
+    def test_a_parent_core_never_takes_up_gets_no_follow_up_that_waits_for_good(self):
+        """Fails with the fix reverted: a continuation for that parent, waiting, never sent."""
+        plug = self.on()
+        plug.runtime.arming.disarm(EVERY_CONVERSATION.id, actor=Actor.DASHBOARD)
+        plug.runtime.states(fresh=True)
+        self.finished(NEW_LABEL)
+        self.assertEqual(self.waiting(plug), [])
+        self.assertEqual(self.h.backend.send_calls, [])
+
+    def test_with_every_conversation_on_that_parent_is_followed_up(self):
+        self.on()
+        self.finished(NEW_LABEL)
+        self.assertEqual([call[0] for call in self.h.backend.send_calls], [T1])
+        self.assertEqual(len(self.lines(self.h.backend.send_calls[0][1])), 1)
+
 if __name__ == "__main__":
     unittest.main()
