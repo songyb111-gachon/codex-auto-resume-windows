@@ -24,11 +24,11 @@ from .payload import (_choose_reset, _item_is_ours, _needing, _queue_has_marker,
 
 
 class HistoryMixin:
-    def _eligibility(self, thread_id: str, strict: bool = False, kinds=None, turn_id=None):
-        """(its file, None) for a conversation taken up - a person's own desktop one (A15), or of a kind the plug names
-        (P18; `kinds`, else this tick's) - or (None, why not), a domain/skips.py reason and its kind word. strict=True
-        (latest) re-raises transient I/O as SourceError, so the engine defers; an agent-made one: `turn_id`'s trigger (#54)."""
-        kinds = self.session_kinds if kinds is None else kinds
+    def _eligibility(self, thread_id: str, strict: bool = False, kinds=None, turn_id=None, widened=None):
+        """(its file, None) for a conversation taken up - a person's own desktop one (A15), a kind (P18, `kinds`) or label
+        (P19, `widened`) the plug names, else this tick's - or (None, why not), a domain/skips.py reason and its kind word.
+        strict=True (latest) re-raises transient I/O as SourceError, so the engine defers; agent-made: `turn_id` (#54)."""
+        kinds, widened = (self.session_kinds if kinds is None else kinds), (self.widened if widened is None else widened)
         if not ids.is_uuid(thread_id):
             return None, (skips.UNKNOWN_CONVERSATION, None)
         with self._db("state") as connection:
@@ -37,7 +37,7 @@ class HistoryMixin:
                 "FROM threads WHERE id=?", (thread_id,)).fetchone()
         if row is None:
             return None, (skips.UNKNOWN_CONVERSATION, None)
-        word = eligibility.row_problem(dict(row), kinds, self.widened, self._composed(thread_id, row, turn_id, strict))
+        word = eligibility.row_problem(dict(row), kinds, widened, self._composed(thread_id, row, turn_id, strict))
         if word is not None:
             return None, (skips.OTHER_KIND, word)
         try:
@@ -59,9 +59,9 @@ class HistoryMixin:
         except (ValueError, UnicodeError):
             return None, (skips.OTHER_KIND, "file")
 
-    def taken(self, thread_id: str, kinds) -> bool:
-        """Whether `thread_id` is a conversation taken up with `kinds` watched (P18, engine/kinds.py)."""
-        return self._eligibility(thread_id, kinds=frozenset(kinds))[0] is not None
+    def taken(self, thread_id: str, kinds, widened=None) -> bool:
+        """Whether `thread_id` is taken up with `kinds` watched (P18, engine/kinds.py) and `widened` (P19), else this tick's."""
+        return self._eligibility(thread_id, kinds=frozenset(kinds), widened=widened)[0] is not None
 
     def _chain(self, thread_id: str, strict: bool = False, turn_id=None):
         """(its file, every id its turns are recorded under - its own first, each split id oldest first, the current

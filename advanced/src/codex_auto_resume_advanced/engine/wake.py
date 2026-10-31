@@ -8,7 +8,10 @@ something it waits for falls due:
 
 * core's waiting usage-limit records: next_check_at of each record in category usage_limit (core's view, `records_in`);
 * the reset actions' pending rules - a reset credit, a message of a person's own - that know when they act (`due_at`);
-* the forced stop's held window (usage_pause): the reset its pause holds for (the meter's `paused_reset_at`).
+* the forced stop's held window (usage_pause): the reset its pause holds for (the meter's `paused_reset_at`);
+* (v0.6.20, the pair audit; the owner's word of 2026-10-31) while Start the 5-hour window early stands on too, its next
+  time picked and - Start right after a reset on - the reset it waits for (engine/anchor.next_due), read from its own
+  choices and stamps, never written: a PC asleep at a time picked still has its window started.
 
 The earliest of them all, less the lead a person chose (1, 2 or 5 minutes; 2 by default), is when a waitable timer of
 the watcher's own wakes the PC (win/waketimer.py) - set, moved when that time changes, and cancelled when nothing waits
@@ -43,6 +46,8 @@ ASK_EVERY = 60
 # Core's waiting states, and the category a usage-limit record is in.
 WAITING = "WAITING"
 USAGE_LIMIT = "usage_limit"
+# Start the 5-hour window early, whose occasions it wakes for too (v0.6.20).
+ANCHOR = "window_anchor"
 
 
 def _number(value):
@@ -111,8 +116,22 @@ class WakeForReset:
             held = row.get("paused_reset_at")
             if held is not None and held == row.get("reset_at"):
                 found.append(_number(held))
+        found.append(_number(self._anchor_due(now)))
         later = [when for when in found if when is not None and when > now]
         return min(later) if later else None
+
+    def _anchor_due(self, now):
+        """window_anchor's next occasion while it stands on (engine/anchor.next_due), or None: off, or unreadable."""
+        scoped = self._scoped
+        try:
+            if scoped.armed(ANCHOR) is not True:
+                return None
+            from .anchor import next_due
+            return next_due(scoped.options_of(ANCHOR), now, scoped.stamped_of(ANCHOR, OptionKey.ANCHOR_SLOT_DONE),
+                            scoped.stamped_of(ANCHOR, OptionKey.ANCHOR_SEEN_RESET),
+                            scoped.stamped_of(ANCHOR, OptionKey.ANCHOR_RESET_DONE))
+        except Exception:
+            return None
 
     def lead(self) -> int:
         value = (self._scoped.options() or {}).get(OptionKey.WAKE_LEAD_MINUTES, DEFAULT_LEAD)

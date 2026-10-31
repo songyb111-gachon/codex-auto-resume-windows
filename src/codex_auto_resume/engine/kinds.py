@@ -7,6 +7,10 @@ record is checked against, a usage limit's reset time, a stalled turn - reads th
 leaves ends, cancelled, the waiting records of its conversations (session_kind_off): what the plug no longer watches is
 never sent to, and what is in flight is followed to its end. The cancel is core's, final, as any cancel is.
 
+v0.6.20 (the pair audit; the owner's word of 2026-10-31): the same for P19, the labels the plug widens to (Recover every
+conversation) - asked here once a tick with P18, set on the reader, and a widening that leaves ends, cancelled with the
+same word, the waiting records of the conversations only it took up, as a kind that leaves does.
+
 v0.6.16: a watcher that starts does not know what the one before it watched, so at its first ask every kind may
 have been, and one its plug does not name then leaves as in a running watcher - after a restart with a capability
 turned off, an entry into the advanced edition, a move to the standard edition. Left to the next check, which can no
@@ -15,7 +19,7 @@ item 8 e).
 """
 from __future__ import annotations
 
-from ..domain.plughands import SESSION_KINDS
+from ..domain.plughands import SESSION_KINDS, WIDENINGS
 from ..machine import WAITING
 
 # The reason a kind no longer watched cancels its waiting records with.
@@ -38,17 +42,21 @@ class KindsMixin:
             return False
 
     def session_kinds(self):
-        kinds = self.plug.sessions()
-        # The first ask of this watcher: what the one before it watched is unknown, so every kind may have been.
+        kinds, widened = self.plug.sessions(), self.plug.eligibility()
+        # The first ask of this watcher: what the one before it watched is unknown, so every kind - and every widening
+        # (P19, v0.6.20) - may have been.
         before = self.__dict__.get("_session_kinds", frozenset(SESSION_KINDS))
+        wider = self.__dict__.get("_widened", frozenset(WIDENINGS))
         self.source.session_kinds = self._session_kinds = kinds
-        if kinds == before:
+        self.source.widened = self._widened = widened
+        if kinds == before and widened == wider:
             return
-        gone, left = before - kinds, []
+        gone, left = (before - kinds) or (wider - widened), []
         for row in self._records(WAITING) if gone else ():
             try:
                 # Taken now first: the app's own conversation, and every one still watched, costs one read.
-                if not self.source.taken(row["thread_id"], kinds) and self.source.taken(row["thread_id"], before):
+                if (not self.source.taken(row["thread_id"], kinds, widened)
+                        and self.source.taken(row["thread_id"], before | kinds, wider | widened)):
                     left.append(row)
             except Exception:
                 pass                    # one that cannot be read is left as it is: never cancelled on a guess

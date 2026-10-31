@@ -155,6 +155,19 @@ def reset_due(options, now, seen, done):
     return seen
 
 
+def next_due(options, now, slot_done, seen, reset_done, local=time.localtime):
+    """The earliest occasion still to come, in whole seconds, or None - for wake_for_reset (v0.6.20, the pair audit; the
+    owner's word of 2026-10-31): the next occurrence of a time picked, today's or tomorrow's, not handled already, and -
+    Start right after a reset on - the reset seen not handled yet, AFTER_RESET after it. Pure."""
+    start = midnight(now, local)
+    found = [occurrence for minute in picked(options) for occurrence in (start + minute * 60, start + 86400 + minute * 60)
+             if occurrence > now and (type(slot_done) is not int or occurrence > slot_done)]
+    if after_reset_on(options) and type(seen) is int and (type(reset_done) is not int or seen > reset_done):
+        if seen + AFTER_RESET > now:
+            found.append(seen + AFTER_RESET)
+    return min(found) if found else None
+
+
 def windows_of(windows):
     """(the 5-hour window, the weekly window) of one reading - the `codex` bucket's, else the `legacy` one's - each
     None where there is none."""

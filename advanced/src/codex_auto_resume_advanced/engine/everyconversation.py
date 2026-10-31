@@ -14,7 +14,8 @@ by the app before anything is sent.
 
 It answers one closed word, EVERY_DESKTOP (domain/plughands.Widening), which core reads at the one place a
 conversation is judged (codex/history._eligibility) through codex/values.taken_thread_source. Its code decides nothing
-else and reads nothing.
+else and reads nothing. Turned off (v0.6.20, the pair audit), core cancels the waiting records of the conversations only
+it took up (engine/kinds.py, session_kind_off), as turning other_sessions off cancels its own.
 """
 from __future__ import annotations
 
