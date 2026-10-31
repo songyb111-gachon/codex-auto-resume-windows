@@ -87,6 +87,35 @@ class ShimTests(unittest.TestCase):
         self.assertLess(greys, max(8, wide * tall // 200), "Windows' own scroll bar shows in the log (%d plain grey "
                                                             "pixels where the box keeps it)" % greys)
 
+    def test_the_log_follows_its_newest_line_as_it_does_in_a_window_on_a_screen(self):
+        """The README's motion showed the log filling from its top and never scrolling (the owner, 2026-11-01), where
+        the setup window on a screen follows each line it is told. An edit control scrolls its caret into view only
+        while its window is visible, and the shim's window stands in Windows' parking window, which never is: the shim
+        puts the log where that scroll leaves it (Driver.FollowLog). The log is the page's one text area; its scroll
+        record is [first line shown, lines, lines shown]. With the lines the plan prints, the log fills the box and
+        then runs past it: first at its top, then - a line at a time, never back - at its foot."""
+        plan = motion.load("install-en")
+        events = len(plan["events"])
+        told = [index for index, event in enumerate(plan["events"], 1) if "line" in event
+                and not event["line"].lstrip().startswith("progress:")]
+        marks = [0, told[2], told[5], told[8], events]
+        frames = [{"index": 0, "page": "welcome", "light": 0}, {"index": 1, "page": "options", "light": 40}]
+        frames += [{"index": 2 + number, "page": "progress", "progress": mark, "light": 80 + number}
+                   for number, mark in enumerate(marks)]
+        data = motion.job(plan, [], Path(self.work.name) / "follow" / "frames")
+        data["frames"] = frames
+        result = motion.render(self.exe, data, Path(self.work.name) / "follow")
+        seen = [bounds["scroll.0"] for _index, _size, _picture, bounds in
+                motion.pictures(result, Path(self.work.name) / "follow" / "frames") if "scroll.0" in bounds]
+        self.assertEqual(len(seen), len(marks))
+        firsts = [first for first, _lines, _shown in seen]
+        self.assertEqual(firsts[0], 0, "before a line, the log is at its top")
+        self.assertEqual(firsts, sorted(firsts), "the log scrolls down and never back")
+        first, lines, shown = seen[-1]
+        self.assertGreater(lines, shown, "the plan's lines run past the box: there is something to follow")
+        self.assertEqual(first, lines - shown, "the last line stands at the foot of the log, as in a visible window")
+        self.assertGreater(first, 0)
+
     def test_it_refuses_to_go_back_a_page(self):
         plan = motion.load("install-en")
         data = motion.job(plan, [], Path(self.work.name) / "back" / "frames")

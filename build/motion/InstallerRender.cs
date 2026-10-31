@@ -250,6 +250,7 @@ namespace CodexAutoResume
                     if (!told.WaitOne(StepLimit)) throw new TimeoutException("the run did not take event " + delivered);
                     delivered++;
                     Settle();
+                    FollowLog();
                 }
                 if (want == Array.IndexOf(Order, InstallerFlow.Finish) && window.Page != InstallerFlow.Finish)
                 {
@@ -268,6 +269,25 @@ namespace CodexAutoResume
                     lightSince = t;
                 }
                 Soft.StillLightMs = Math.Max(0, t - lightSince);
+                Settle();
+            }
+
+            /// The log follows its newest line, as it does in the setup window on a screen. AppendText puts the caret at the
+            /// end of the text and an edit control scrolls its caret into view - but only while its window is visible
+            /// (IsWindowVisible), and this one stands in Windows' parking window, which never is: the lines arrived and the
+            /// text stayed at its top (measured 2026-11-01: 30 lines appended, first visible line 0 here, 23 in a window on
+            /// a screen). So the log is put where that scroll leaves it - its last line at the bottom - through the area's
+            /// own door, the one its soft bar scrolls by (SoftTextArea.ScrollTo), which also moves the bar's thumb. Only
+            /// the page's own log, and only down: nothing is scrolled that a person has not left at the foot.
+            private void FollowLog()
+            {
+                if (window.Page != InstallerFlow.Progress) return;
+                foreach (SoftTextArea area in All<SoftTextArea>(window))
+                {
+                    if (!area.Visible) continue;
+                    int last = area.Extent - area.Viewport;
+                    if (last > area.Offset) area.ScrollTo(last);
+                }
                 Settle();
             }
 
@@ -392,6 +412,8 @@ namespace CodexAutoResume
                     found["area." + number] = new List<object> { (double)where.X, (double)where.Y, (double)area.Width, (double)area.Height };
                     found["native." + number] = new List<object> { (double)(box.X + area.Box.Width - native), (double)box.Y,
                                                                    (double)native, (double)area.Box.Height };
+                    // Where its text stands: the first line shown, the lines there are and how many show.
+                    found["scroll." + number] = new List<object> { (double)area.Offset, (double)area.Extent, (double)area.Viewport };
                     number++;
                 }
                 return found;
