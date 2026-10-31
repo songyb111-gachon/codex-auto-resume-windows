@@ -14,6 +14,7 @@ import json
 from pathlib import Path
 import sys
 import threading
+import time
 import unittest
 from unittest.mock import patch
 import uuid
@@ -1061,6 +1062,104 @@ class StopHookBesideKeepGoingTests(unittest.TestCase):
         stop = {"hook_event_name": "Stop", "session_id": thread, "turn_id": turn}
         self.assertIsNone(hook_handler.decide(stop, hands))
         self.assertEqual(claims, [])
+
+
+
+# ------------------------------------------------------------------ v0.6.20: the four not audited before (the pair audit
+# of 2026-10-31, plans/v0620-capability-pairs.md): model_fallback, window_anchor, steer_send, every_conversation.
+from codex_auto_resume_advanced.registry import CAPACITY_RETRY, MODEL_FALLBACK  # noqa: E402
+from test_advanced_headless import SAVED, Server  # noqa: E402
+from test_advanced_model_fallback import Codes  # noqa: E402
+
+DEFAULT_MODEL = "the-default-model"
+WORDS = "Continue.\n\n[codex-auto-resume:0123456789abcdef]"
+
+
+class FallbackBesideHeadlessRunTests(ac.AdvancedCase):
+    """Finding V20-1, SPLIT: model_fallback answers P16 before headless_run (registry order) for an unheld conversation
+    at capacity past the Attempts - and where that conversation is on Codex's default model already, its route starts
+    nothing (codex/headless.py: no other model to fall back to). Core gives the claim back and the record waits; at its
+    next look model_fallback answered again, so headless_run - whose turn on the same model is what that case needs -
+    was passed over, and each answer was a claim that cost core's spacing and caps. Each now acts on its own cases:
+    a conversation found on the default is headless_run's (or core's) from then on."""
+    THREAD = "0a1b2c3d-0001-7000-8000-000000000001"
+    OTHER = "0a1b2c3d-0001-7000-8000-000000000002"
+    TURN = "11111111-2222-3333-4444-555555555555"
+
+    def setUp(self):
+        super().setUp()
+        self.compat = _compat(MODEL_FALLBACK.compat, HEADLESS_RUN.compat)
+        self.rt = self.runtime(MODEL_FALLBACK, HEADLESS_RUN)
+        self.rt.arming.catalogs = statement.CATALOGS
+        for name, value in (("INTERRUPT_SECONDS", 0.5), ("APP_LOOK_SECONDS", 0.0)):
+            self.addCleanup(setattr, headless, name, getattr(headless, name))
+            setattr(headless, name, value)
+        self.follower = headless.Follower(poll=0.01)
+        self.models, self.servers = {}, []
+
+        def opening(capability):
+            self.servers.append(_ByThread(capability, self.models))
+            return self.servers[-1]
+        fallback = self.rt._code_of(MODEL_FALLBACK)
+        fallback._turns, fallback._open, fallback.follower = Codes("serverOverloaded"), opening, self.follower
+        fallback._app = lambda: False
+        run = self.rt._code_of(HEADLESS_RUN)
+        run._open, run.follower, run._app = opening, self.follower, lambda: False
+        for definition in (MODEL_FALLBACK, HEADLESS_RUN):
+            result = self.arm(self.rt, definition.id, warnings=[str(w) for w in self.rt.arming.warnings(definition)])
+            self.assertTrue(result["done"], result)
+        self.rt.states(fresh=True)
+
+    def record(self, thread, key=7):
+        return {"interruption_id": "%064x" % key, "thread_id": thread, "turn_id": self.TURN, "category": "server_5xx",
+                "chain_continuations": 2, "holder": "none", "app": False}
+
+    def route(self, record):
+        self.rt.tick(None)                                   # a new look: what was taken last time is forgotten
+        return self.rt.ask(Point.UNLOADED, record)
+
+    def resume(self, route, thread):
+        answered = route.resume(thread, still_unloaded=lambda: True, words=WORDS, client_id=None)
+        if answered.get("outcome") == "ran":
+            deadline = time.monotonic() + 5
+            while self.follower.live() is not None and time.monotonic() < deadline:
+                time.sleep(0.01)
+        return answered
+
+    def test_a_conversation_on_the_default_model_already_is_headless_run_s_after_one_look(self):
+        """Fails with the fix reverted: model_fallback answers again and again, and starts nothing each time."""
+        self.models[self.THREAD] = DEFAULT_MODEL
+        first = self.route(self.record(self.THREAD))
+        self.assertEqual(first.capability, MODEL_FALLBACK.id)
+        self.assertEqual(self.resume(first, self.THREAD)["outcome"], "not_started", "nothing to fall back to")
+        self.assertNotIn("turn/start", self.servers[-1].methods())
+        again = self.route(self.record(self.THREAD))
+        self.assertEqual(again.capability, HEADLESS_RUN.id, "the same model again is headless_run's turn")
+        self.assertEqual(self.resume(again, self.THREAD)["outcome"], "ran")
+        started = dict(self.servers[-1].calls)["turn/start"]
+        self.assertNotIn("model", started, "on the conversation's own model")
+
+    def test_a_conversation_on_another_model_still_falls_back(self):
+        self.models[self.THREAD] = DEFAULT_MODEL
+        self.resume(self.route(self.record(self.THREAD)), self.THREAD)
+        self.models[self.OTHER] = "the-threads-model"
+        other = self.route(self.record(self.OTHER, key=8))
+        self.assertEqual(other.capability, MODEL_FALLBACK.id, "each conversation on its own")
+        self.assertEqual(self.resume(other, self.OTHER)["outcome"], "ran")
+        self.assertEqual(dict(self.servers[-1].calls)["turn/start"]["model"], DEFAULT_MODEL)
+
+
+class _ByThread(Server):
+    """A route's session whose thread/resume answers for the conversation asked - its saved settings, on the model the
+    test gave it - and whose model/list names DEFAULT_MODEL Codex's default."""
+
+    def __init__(self, capability, models):
+        super().__init__(capability, replies={"model/list": {"data": [{"model": DEFAULT_MODEL, "isDefault": True}]}})
+        self.models = models
+
+    def call(self, method, params=None):
+        answer = super().call(method, params)
+        return dict(SAVED, model=self.models[params["threadId"]]) if method == "thread/resume" else answer
 
 
 if __name__ == "__main__":
