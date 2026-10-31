@@ -138,12 +138,14 @@ class ChoiceTests(Scratch):
                          (running, None, "pinned-missing"))
 
     def test_doctor_says_which_and_why(self):
-        newer = self.interpreter("Python315")
-        line = startup.describe_python({}, self.registry(self.entry("3.15", "3.15.2", newer)))
+        # Newer than any interpreter a lane runs: on CI's 3.15.2 lane a 3.15.2 is as new as the one running, which a run
+        # from source then keeps (choose_python), so the line rightly named the running one (dev CI 41145110604).
+        newer = self.interpreter("Python399")
+        line = startup.describe_python({}, self.registry(self.entry("3.99", "3.99.0", newer)))
         if startup._same_path(newer, sys.executable):
             self.skipTest("the scratch interpreter is this one")
         self.assertIn(sys.executable, line)
-        self.assertIn("a run from source starts %s 3.15.2 (the newest Python installed)" % newer, line)
+        self.assertIn("a run from source starts %s 3.99.0 (the newest Python installed)" % newer, line)
         line = startup.describe_python({startup.PYTHON_VARIABLE: "current"}, self.registry())
         self.assertTrue(line.endswith("(kept by CODEX_AUTO_RESUME_PYTHON=current)"), line)
 
