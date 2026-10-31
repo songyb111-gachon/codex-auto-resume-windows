@@ -45,7 +45,8 @@ MEASUREMENT_METHODS = {
     Measurement.M2: ("thread/loaded/list", "thread/goal/get", "thread/goal/set"),
     Measurement.M2B: ("thread/goal/get", "thread/goal/set", "thread/queue/add", "thread/queue/list"),
     Measurement.M3: ("thread/queue/add", "thread/queue/list"),
-    Measurement.M4: ("hooks/list",),
+    # v0.6.20: M4 makes its failed turn itself, as M6 starts its turn (a model no Codex offers).
+    Measurement.M4: ("hooks/list", "thread/resume", "turn/start", "turn/interrupt", "thread/unsubscribe"),
     Measurement.M5: ("thread/loaded/list", "thread/queue/list"),
     Measurement.M6: ("thread/resume", "turn/start", "turn/interrupt", "thread/unsubscribe"),
     Measurement.M7: ("thread/queue/add", "thread/queue/list"),
