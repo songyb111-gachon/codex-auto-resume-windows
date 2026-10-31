@@ -557,8 +557,14 @@ tasks, each with its own **Auto-resume** switch bound to that task's exact inter
 **Pause recovery** or **Resume recovery**, and **Open Dashboard**. A click anywhere else, or Esc,
 closes it too. The popup runs inside the watcher process, on the icon's own thread, and goes
 through the same control layer as every other surface; nothing in it can send a continuation.
-The right-click menu is what it was: it opens the Dashboard, pauses or resumes recovery, and
-stops the watcher; it is drawn dark while the popup is. The popup and the menu take up a new
+A right click on the icon opens its menu, drawn in the popup's own design: a line that says how
+the watcher is doing, **Open Dashboard**, **Show what is waiting** while anything waits,
+**Pause recovery** or **Resume recovery**, **Don't sleep after recoveries** (or hibernate, shut down)
+while that power action is armed, and **Stop the watcher**. It opens at the pointer, light or dark
+as the popup is, in the system's colours in High Contrast, and right to left in Arabic and Hebrew.
+The arrow keys, Home and End move through it, Enter or an item's first letter chooses, and Esc, Alt,
+a click anywhere else or switching to another window closes it; a screen reader reads it as a menu.
+Where it cannot be drawn, Windows' own menu opens with the same items. The popup and the menu take up a new
 language or theme the next time they open, without restarting the watcher. The countdown only means the watcher looks again — nothing is sent because it
 reaches zero. The icon is on by default and can be switched off on the Settings page.
 

@@ -105,6 +105,9 @@ class Tray(MenuMixin, StoredMixin, CardsMixin, ClicksMixin, AnimationMixin):
         self._settings_values = None
         self._menu_mode = APP_MODE_DEFAULT   # what this process's menus were last asked to be
         self._menu_theming = True            # False once Windows could not be asked
+        # v0.6.20: the menu drawn in the product's design (menu.py): made on the first right click, False once it
+        # could not be made or shown - Windows' own menu from then on.
+        self._menu_drawn = None
         # v0.6.5: the icon's motion. Until its frame table is built (off this thread) the icon is
         # the .ico, and if the table cannot be built it stays that way. Once it is, every icon shown is one composed frame, made into
         # an HICON as it is shown and destroyed once the shell holds the next: two at most.
@@ -402,6 +405,7 @@ class Tray(MenuMixin, StoredMixin, CardsMixin, ClicksMixin, AnimationMixin):
                         pass
                     self._session_watch = False
                 self._drop_cards()
+                self._drop_menu()
                 demo, self._demo = self._demo, None
                 if demo is not None:
                     demo.__exit__(None, None, None)

@@ -10,7 +10,7 @@ above it.
     model       what it shows, as a pure function of the watcher's snapshot
     motion      the states it moves in, and every frame of them
     win32       the numbers, the two structures, and a handle cache of its own
-    menu        what the right-click menu offers, and asking for it to be drawn dark
+    menu        what the right-click menu offers, showing it drawn or Windows' own, and asking Windows' dark
     stored      the settings it reads for itself before it opens anything
     cards       hosting the notification card on this thread
     clicks      making the popup, showing it, marking what it showed as seen
@@ -106,11 +106,13 @@ from .menu import (APP_MODE_DEFAULT,
                    MENU_OPEN,
                    MENU_PENDING,
                    MENU_POWER_OFF,
+                   MENU_STATUS,
                    MENU_STOP,
                    MENU_TOGGLE,
                    UXTHEME_FLUSH_MENU_THEMES,
                    UXTHEME_SET_PREFERRED_APP_MODE,
                    menu_app_mode,
+                   menu_items,
                    prefer_app_mode)  # noqa: F401
 from .icon import Tray  # noqa: F401
 from .dashboard import PAGES, open_chat, open_dashboard  # noqa: F401

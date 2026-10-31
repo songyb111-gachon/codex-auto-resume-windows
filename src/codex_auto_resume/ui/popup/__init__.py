@@ -1,9 +1,10 @@
 """The notification-area popup: what it shows, where it goes, and how it is drawn.
 
 `tray_popup.py` was 2,851 lines - the largest file in the package. It is the same popup in
-thirteen files, and every `tray_popup.<name>` reads as it did.
+thirteen files, and every `tray_popup.<name>` reads as it did. Since v0.6.20 the icon's right-click
+menu is drawn here too, by the popup's renderer, in two files of its own.
 
-The six that ask Windows nothing, which is why the documentation's pictures can be taken
+The seven that ask Windows nothing, which is why the documentation's pictures can be taken
 without a screen:
 
     words       the catalogue, and how a line is cut and broken
@@ -12,6 +13,7 @@ without a screen:
     motion      what moves, and how far along it is
     elevation   how far a shadow reaches, and how much of each pixel it covers
     layout      where every piece goes, in one pass
+    menuplan    the icon's right-click menu: where each item goes, where it opens, what a key reaches (v0.6.20)
 
 Then Windows, and what is drawn with it:
 
@@ -23,6 +25,7 @@ Then Windows, and what is drawn with it:
     access      what a screen reader is told of it, and asks of it (v0.6.11)
     messages    what Windows says to the window, and what each message decides
     window      the window itself, and the life of one popup
+    menuwindow  the icon's right-click menu, drawn in the popup's design: its window, keys and screen reader (v0.6.20)
 
 That is the order they are imported in below, and it is their dependency order: each file
 uses only what is above it. `tests/test_popup_shape.py` holds it that way.
@@ -66,6 +69,17 @@ from .layout import (MARK,
                      layout,
                      mirror,
                      share_columns)  # noqa: F401
+from .menuplan import (MENU_CHECK,
+                       MENU_MIN_WIDTH,
+                       MENU_REACH,
+                       menu_accessible_items,
+                       menu_end,
+                       menu_layout,
+                       menu_letter,
+                       menu_mirror,
+                       menu_place,
+                       menu_step,
+                       menu_usable)  # noqa: F401
 from .win32 import (BITMAP,
                     BITMAPINFO,
                     BITMAPINFOHEADER,
@@ -189,3 +203,4 @@ from .renderer import CHIP_ALPHA, DOT_FILL, Renderer  # noqa: F401
 from .access import PopupAccessible, accessible_items  # noqa: F401
 from .messages import REFRESH_TICKS  # noqa: F401
 from .window import FIRST_READ_WAIT_MS, FRAME_MS, Popup  # noqa: F401
+from .menuwindow import Menu, MenuAccessible, MenuRenderer  # noqa: F401
