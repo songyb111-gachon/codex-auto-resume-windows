@@ -87,8 +87,29 @@ an older version brings the runtime that version was built with (3.14.9 for v0.6
   this release takes it back: a run from source uses the Python that started it, `doctor` no longer prints that line, and
   `CODEX_AUTO_RESUME_PYTHON` is gone.
 
+- **The icon's right-click menu is drawn in the popup's design** (new since beta.4; the owner's request). It opens at the pointer on
+  that monitor's scale, shows the item in hand as a raised pill, takes the arrow keys, Home and End, Enter, an item's first letter
+  and Esc, closes on a click outside, is read as a menu by a screen reader, follows High Contrast, and opens mirrored in Arabic and
+  Hebrew. Its items are the ones Windows' menu had, from one list; where it cannot open, Windows' menu opens as before.
+- **Starting the Dashboard again brings the open one forward** (new since beta.4). A Start menu shortcut or the program started
+  directly now hands over to the Dashboard already open, on the page asked for, as the notification area's opens do since beta.2,
+  instead of opening a second window.
+- **Mirrored lists keep their columns** (new since beta.4). In Arabic and Hebrew the History list showed only its End column: a list
+  built narrow scrolled to its first column and kept that scroll once it widened. Every list now starts from its first pixel when it
+  takes a new size; a left-to-right list scrolled sideways had the same fault.
+- **Smaller things** (new since beta.4): the Timeline dialog lists its lines in time order (its receipts came after all its events);
+  the word the header shows while the window loads comes from the catalog in every language instead of English; the dialogs that hold
+  a list - the example, *Find a conversation...* and *Follow through...* - wear the product's icon.
+- **The README's install motion shows the log as the setup program does** (new since beta.4): its log follows each line the installer
+  prints, as it does on a screen, instead of staying at its top.
+
 ### Advanced edition
 
+- **Switch the Codex account stays on whatever its button's measurement says** (new since beta.4). The live check before this release
+  found that MAL's failure turned the whole capability off; only its button rests on MAL, so only the button is hidden now and the card
+  stays. An installation a release candidate turned off this way turns it on again on its card.
+- **Start the 5-hour window early skips instead of failing** when its own state is busy for a moment, and a capability whose code
+  raises now leaves one line in the watcher's log naming it and the exception's type (new since beta.4).
 - **The Advanced features page is in a new order** (new since beta.4; approved by the owner on 2026-10-31): the compatibility report
   first, then what gets work going again after a usage limit with no hands, then what saves work, then the other common failures,
   then rare cases and expert settings. Stored choices do not move.
