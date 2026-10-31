@@ -83,6 +83,12 @@ footnote. There are four kinds, and they are genuinely different:
   compatibility data, and that data can only make the watcher more careful. It happens only when
   you ask for it, with one of those buttons or those commands; the watcher never asks, and Codex
   cannot.
+
+  In the advanced edition alone, each such refresh makes one more `GET`, by the same rules, to that
+  edition's own measurement data: a second constant file on the same branch of this repository at
+  the same host, in the edition's own folder. It is saved unread and kept only if the edition finds it
+  valid and newer than what it has; it can only add a warning or stand in for a measurement the
+  maintainer made on your exact Codex version. A standard installation never makes this request.
 - **Nothing more for what other people report.** From v0.6.10 the Diagnostics page shows, beside
   the Codex version, how many of the reports other people filed for that exact version saw it
   work, saw it fail, or saw neither. Those counts are not fetched: they come with each release, in

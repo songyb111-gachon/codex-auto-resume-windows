@@ -158,6 +158,7 @@ def check(exe: Path, work: Path, locales=("en", "ko"), forms=None) -> dict:
         overview = still_path("overview", locale)
         frame = make_screenshots.read_png(overview)
         job = {"out": str(out / "frames"), "theme": "light", "design": "soft", "forms": {locale: answers},
+               "scale": make_screenshots.PINNED_SCALE,
                "targets": ["dialog.window", "dialog.close", "pending.retry"], "outer": [frame[0], frame[1]],
                "chrome": motion_window.chrome({"window": {"still": str(overview.relative_to(make_screenshots.ROOT))}}),
                "frames": pages_at_rest(locale) + [dialog_frame(locale)]}

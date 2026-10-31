@@ -33,8 +33,8 @@ every page the window draws at rest is held to today's committed still (build/mo
 recorded, with the picture's inputs, in assets/motion.json; a page that fails stops the run.
 
 It captures nothing and moves no pointer: nothing is shown on the screen. It needs Windows (the window and the card
-are drawn with its GDI and GDI+), the in-box C# compiler, and the display at the scale the stills were captured at
-(assets/screenshots.json's system_dpi). Run it from the main session after the stills are made, detached, under
+are drawn with its GDI and GDI+) and the in-box C# compiler; the window is drawn at the stills' pinned scale
+(assets/screenshots.json's window_dpi, 150 %) whatever the display is. Run it from the main session after the stills are made, detached, under
 plans/proof/quiet.sh like every picture; it takes minutes, most of them the window settling on each page.
 """
 from __future__ import annotations
@@ -323,9 +323,8 @@ def main(argv=None) -> int:
     # A card on its own has no window: no stills to be fresh, no window to hold to them.
     windowed = any("window" in plan for plan in plans)
     recorded = json.loads(shots.MANIFEST.read_text(encoding="utf-8"))
-    if windowed and shots.system_dpi() != recorded.get("system_dpi"):
-        raise SystemExit("the display is at %s DPI and the stills were captured at %s: make them again first"
-                         % (shots.system_dpi(), recorded.get("system_dpi")))
+    if windowed and shots.stills_dpi_problem(recorded):
+        raise SystemExit(shots.stills_dpi_problem(recorded))
     if windowed and recorded["inputs"].get("<window sources>") != shots.window_digest():
         raise SystemExit("the window's stills are stale: run build/make_screenshots.py first")
     manifest = read_manifest()

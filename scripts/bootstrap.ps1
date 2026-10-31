@@ -224,6 +224,12 @@ $CompatibilityUrl = 'https://raw.githubusercontent.com/songyb111-gachon/codex-au
 $CompatibilityHosts = @('raw.githubusercontent.com')
 # The validator's own cap. A larger download is refused before Python is started.
 $CompatibilityMaxBytes = 262144
+# The advanced edition's own compatibility data (v0.6.20): the owner's measurement verdicts for each Codex engine, in a
+# file of its own in the advanced edition's folder of this repository, so the standard data above - whose validators
+# older releases run - never changes for it. Asked for at the same two moments as the standard data, by the same rules,
+# and only for an installation Get-Edition finds the advanced edition (Update-AdvancedCompatibilityData); a standard one
+# never builds a second request.
+$AdvancedCompatibilityUrl = 'https://raw.githubusercontent.com/songyb111-gachon/codex-auto-resume-windows/main/advanced/compat/codex_compat_advanced.json'
 
 # The refresh that rides on an update check shares that check's time. The settings window
 # waits 120 s for -CheckOnly (gui/DashboardMaintenance.cs, CheckMilliseconds) and calls anything slower
@@ -1757,6 +1763,54 @@ function Update-CompatibilityData {
     }
 }
 
+function Update-AdvancedCompatibilityData {
+    <#
+        The advanced edition's measurement data, at the moments the standard data is refreshed and by its rules:
+        one GET to one constant URL with no query string, at raw.githubusercontent.com and no other host, at most
+        $CompatibilityMaxBytes, under the same deadline. Only for an installation Get-Edition finds the advanced
+        edition - the one reading of the edition, as edition.py makes it - so a standard installation asks nothing
+        more and prints nothing more. The body is never parsed here: it lands in a temporary folder and is moved, unread, to
+        config\compat-advanced.download.json, which the advanced edition judges whole at its next read and adopts
+        only when it is valid, unexpired and newer than what it has (compatdata.py); anything else is removed there.
+
+        Returns 'fetched', 'unavailable' or $null (not the advanced edition: nothing was asked), and never throws.
+        Its answer changes neither the `compatibility:` line nor any exit code.
+    #>
+    param([string]$Home_, [string]$Source, [int]$TimeoutSec = 60)
+    if (-not $Source) { $Source = Join-Path $Home_ 'app\src' }
+    if ((Get-Edition -Src $Source) -ne 'advanced') { return $null }
+    $state = Join-Path $Home_ 'config'
+    if ($TimeoutSec -le 0 -or -not (Test-Path -LiteralPath $state -PathType Container)) {
+        Step 'The advanced edition''s measurement data was not asked for; what it has still applies.'
+        return 'unavailable'
+    }
+    Step 'Asking raw.githubusercontent.com for the advanced edition''s measurement data. Nothing is uploaded,'
+    Step 'and nothing is kept unless the advanced edition finds it valid and newer than what it has.'
+    $folder = Join-Path ([IO.Path]::GetTempPath()) ('codex-auto-resume-compat-' + [Guid]::NewGuid().ToString('N'))
+    try {
+        try {
+            [Net.ServicePointManager]::SecurityProtocol =
+                [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
+        } catch {
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        }
+        New-Item -ItemType Directory -Force -Path $folder | Out-Null
+        $file = Join-Path $folder 'codex_compat_advanced.json'
+        try {
+            Get-Remote -Uri $AdvancedCompatibilityUrl -OutFile $file -What 'The advanced measurement data' `
+                       -Hosts $CompatibilityHosts -TimeoutSec $TimeoutSec -Deadline -MaxBytes $CompatibilityMaxBytes
+        } catch { return 'unavailable' }
+        if (-not (Test-Path -LiteralPath $file)) { return 'unavailable' }
+        if ((Get-Item -LiteralPath $file).Length -gt $CompatibilityMaxBytes) { return 'unavailable' }
+        Move-Item -LiteralPath $file -Destination (Join-Path $state 'compat-advanced.download.json') -Force
+        return 'fetched'
+    } catch {
+        return 'unavailable'
+    } finally {
+        Remove-Item -Recurse -Force -LiteralPath $folder -ErrorAction SilentlyContinue
+    }
+}
+
 function Get-CompatibilityExit {
     param([string]$Answer)
     if ($Answer -like 'refreshed *') { return 0 }
@@ -2259,6 +2313,7 @@ if ($Compatibility) {
         exit $ExitUnavailable
     }
     $answer = Update-CompatibilityData -Home_ $installHome
+    $null = Update-AdvancedCompatibilityData -Home_ $installHome
     Write-Host ('compatibility: ' + $answer)
     if ($answer -like 'refreshed *') { Ok 'The compatibility data is up to date.' }
     elseif ($answer -like 'refused *') { Step 'The data was refused; what was in force before still is.' }
@@ -2413,6 +2468,9 @@ if ($CheckOnly -or $Update) {
     # never a late one: it gets only what is left of the time the window waits for this.
     $compatibilityTimeout = Get-CompatibilityTimeout -Elapsed $ScriptClock.Elapsed.TotalSeconds
     Write-Host ('compatibility: ' + (Update-CompatibilityData -Home_ $installHome -TimeoutSec $compatibilityTimeout))
+    # The advanced edition's measurement data rides on the same moment, with only what is left of the same time.
+    $null = Update-AdvancedCompatibilityData -Home_ $installHome `
+        -TimeoutSec (Get-CompatibilityTimeout -Elapsed $ScriptClock.Elapsed.TotalSeconds)
     # The check's own second question, asked by -CheckOnly alone: is there a pre-release newer than
     # both? Its own line, `prerelease: v<version>`, and only when there is one. It never changes the
     # answer below, and a list that could not be read offers nothing rather than claiming anything.

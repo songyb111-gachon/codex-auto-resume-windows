@@ -1158,7 +1158,9 @@ namespace CodexAutoResume
                 if (key == null) continue;
                 if (IsSwitchChoice(key))
                 {
-                    BuildAdvancedSwitch(id, key, Whole(Get(option, "value")) == SwitchOn, card);
+                    // v0.6.20-beta.4: Start right after a reset reads as on where the list carries no value for it (AdvancedAnchor.cs).
+                    BuildAdvancedSwitch(id, key, key == "anchor_after_reset" ? AnchorAfterResetOn(option)
+                                                                            : Whole(Get(option, "value")) == SwitchOn, card);
                     continue;
                 }
                 var combo = new SoftCombo();

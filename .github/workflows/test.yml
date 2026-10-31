@@ -128,12 +128,12 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           # The 3.14 lane runs the exact Python a release bundles (build/make_release.py PYTHON_VERSION), not
           # the newest 3.14 the runner has: a newer 3.13 patch that arrived on the runners in October 2026 had never
           # had the suite run on it, and no user runs it (tests/test_python_support.py holds the two together).
-          python-version: ${{ matrix.python-version == '3.14' && '3.14.9' || matrix.python-version }}
+          python-version: ${{ matrix.python-version == '3.14' && '3.14.10' || matrix.python-version }}
           # Needed for the future lane, and harmless for the others: a stable release
           # is still preferred where one exists, so this does not quietly move a
           # blocking version onto a release candidate. It also means the day the next
@@ -256,9 +256,9 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: "3.14.9"
+          python-version: "3.14.10"
 
       - name: Take every Korean source off, as a promotion to main does
         # Removed from the index too: the suite lists files with `git ls-files`, and main's index has

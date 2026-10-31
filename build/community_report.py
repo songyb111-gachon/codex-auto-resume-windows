@@ -106,6 +106,11 @@ LOCAL_KEYS = frozenset({"reports", "first", "last", "covers"})
 RECORD_KEYS = frozenset({"detected_at", "delivered_at", "outcome_at", "category", "state", "reason",
                          "turn_status", "gates_passed", "progress_items"})
 CAPABILITY_KEYS = frozenset({"confirmed", "missed", "last_confirmed", "level"})
+# What a report may carry beside those (codex-compat-reporter 1.5.4 on): `advanced_records`, the records an advanced-edition
+# feature carried by a route of its own, with RECORD_KEYS each, counted apart as the advanced edition's Reported and never
+# read by recompute(); and `credit`, the sender's own choice to be named in the contributors list - a boolean, never a
+# name: the login credited is the pull request's author as GitHub reports it (build/community_file.py credit_files).
+OPTIONAL_KEYS = frozenset({"advanced_records", "credit"})
 
 LOGIN = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}")
 # Names Windows gives to devices, which no folder can have there (LOGIN already keeps out the dots,
@@ -268,7 +273,7 @@ def inspect(raw, *, author=None, now=None, releases=None):
         return None, ["the file is not JSON the product would read: %s" % error.code], []
     if not isinstance(report, dict):
         return None, ["the file is not one JSON object"], []
-    missing, extra = sorted(TOP_KEYS - set(report)), set(report) - TOP_KEYS
+    missing, extra = sorted(TOP_KEYS - set(report)), set(report) - TOP_KEYS - OPTIONAL_KEYS
     if missing or extra:
         said = (["missing " + ", ".join(missing)] if missing else []) + (
             ["%d the format does not have" % len(extra)] if extra else [])
@@ -278,6 +283,7 @@ def inspect(raw, *, author=None, now=None, releases=None):
     _envelope(reading, author, releases)
     _local_checks(reading)
     records = _records(reading)
+    _optional(reading, records)
     _capabilities(reading, records)
     if reading.refusals:
         return report, reading.refusals, []
@@ -366,13 +372,13 @@ def _local_checks(reading):
         refuse("local_checks.covers names something that is not one of the ten capabilities, or twice")
 
 
-def _records(reading):
-    records, refuse = reading.report["records"], reading.refuse
+def _records(reading, listed="records", records=None):
+    records, refuse = reading.report[listed] if records is None else records, reading.refuse
     if not isinstance(records, list) or len(records) > MAX_RECORDS:
-        refuse("records is not a list of at most %d" % MAX_RECORDS)
+        refuse("%s is not a list of at most %d" % (listed, MAX_RECORDS))
         return []
     for number, record in enumerate(records, 1):
-        where = "records[%d]" % number
+        where = "%s[%d]" % (listed, number)
         if not isinstance(record, dict) or set(record) != RECORD_KEYS:
             refuse("%s: its keys are not %s" % (where, ", ".join(sorted(RECORD_KEYS))))
             continue
@@ -396,6 +402,31 @@ def _records(reading):
                                   or not all(is_count(many) for many in items.values())):
             refuse("%s.progress_items is not a count of what the product counts" % where)
     return records
+
+
+def _optional(reading, records):
+    """The two keys a report may carry beside the format's own (OPTIONAL_KEYS), each held to its rule."""
+    report, refuse = reading.report, reading.refuse
+    if "credit" in report and not isinstance(report["credit"], bool):
+        refuse("credit is not true or false")
+    if "advanced_records" in report:
+        advanced = report["advanced_records"]
+        if not isinstance(advanced, list) or not advanced or len(records) + len(advanced) > MAX_RECORDS:
+            refuse("advanced_records is not a list of 1 to %d, with records counted in" % MAX_RECORDS)
+        else:
+            _records(reading, "advanced_records", advanced)
+
+
+def advanced_graded(report):
+    """What a report's advanced_records say, in the Reported grade's two words, or None where it has none. Counted
+    apart: never in graded(), recompute(), the verdict, a level or the counts a release ships."""
+    advanced = report.get("advanced_records")
+    return product_evidence.graded(advanced) if advanced else None
+
+
+def credited(report) -> bool:
+    """Whether the sender chose to be named in the contributors list: `credit` true, exactly."""
+    return report.get("credit") is True
 
 
 def _capabilities(reading, records):
@@ -497,13 +528,17 @@ def index_entry(path, report) -> dict:
     again = recompute(report)
     levels = [entry["level"] for entry in again["capabilities"].values() if entry["level"]]
     says = graded(report)
+    advanced = advanced_graded(report)
+    apart = ({} if advanced is None else
+             {"advanced": {"records": len(report["advanced_records"]), "worked": advanced["worked"],
+                           "failed": advanced["failed"]}})
     return {"reported_by": report["reporter"]["github_login"], "path": path,
             "recorded_at": report["recorded_at"], "verdict": again["verdict"],
             "records": len(report["records"]),
             "delivered": sum(1 for record in report["records"] if record["delivered_at"]),
             "verified": levels.count(VERIFIED), "checked": levels.count(CHECKED),
             "product_version": report["reporter"]["product_version"],
-            "worked": says["worked"], "failed": says["failed"]}
+            "worked": says["worked"], "failed": says["failed"], **apart}
 
 
 def build_index(reports, *, generated_at=None) -> dict:
@@ -517,6 +552,10 @@ def build_index(reports, *, generated_at=None) -> dict:
     for version, entries in sorted(versions.items()):
         listing[version] = {"reported": tally(graded_of_entry(entry) for entry in entries),
                             "reports": entries}
+        # The advanced edition's own routes, counted apart and only where a report carried them.
+        advanced = [entry["advanced"] for entry in entries if "advanced" in entry]
+        if advanced:
+            listing[version]["advanced"] = tally(graded_of_entry(entry) for entry in advanced)
     return {"format": INDEX_FORMAT,
             "generated_at": iso(time.time() if generated_at is None else generated_at),
             "grade": "REPORTED",
@@ -590,6 +629,17 @@ def build_readme(index) -> str:
                             entry["records"], entry["delivered"], entry["recorded_at"][:10]))
     if not versions:
         lines.append("| - | - | - | - | - | - |")
+    advanced = [(version, held["advanced"]) for version, held in sorted(versions.items()) if "advanced" in held]
+    if advanced:
+        lines += ["", "### The advanced edition's own routes", "",
+                  "Records an advanced-edition feature carried by a route of its own, which a report keeps apart from"
+                  " the standard route's. Counted by the same rule, and Reported only: they move no verdict, no tier"
+                  " and none of the counts above.", "",
+                  "| Codex version | Reports | Worked | Failed | Neither | Both |",
+                  "| --- | --- | --- | --- | --- | --- |"]
+        for version, said in advanced:
+            lines.append("| `%s` | %d | %d | %d | %d | %d |" % (version, said["reports"], said["worked"],
+                                                               said["failed"], said["neither"], said["both"]))
     lines += ["", "Written by build/community_report.py whenever a report is filed or withdrawn - by"
               " .github/workflows/community-file.yml, or by the maintainer's tool - from index.json."
               " Do not edit it by hand: tests/test_reported_data.py holds it equal to what that code"

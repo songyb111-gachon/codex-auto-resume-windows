@@ -1318,6 +1318,11 @@ namespace CodexAutoResume
                                 Col(S("timeline.col_time", "Time"), 140),
                                 Col(S("timeline.col_event", "Event"), 250),
                                 Col(S("timeline.col_detail", "Detail"), 220));
+                // v0.6.20: in the font it is drawn in from the start. Its cells are measured below (MeasureCells) before it
+                // is on the dialog, and until then a list has Windows' default font - Gulim on a Korean Windows, at
+                // whatever size Windows made it when the session began - so the columns shared the dialog's width by
+                // widths no cell is drawn at, and differently from one machine to the next.
+                view.Font = Font;
                 if (events != null)
                 {
                     foreach (object entry in events)

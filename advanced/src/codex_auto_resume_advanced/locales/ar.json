@@ -106,6 +106,7 @@
   "page.analytics.total": "المجموع",
   "page.analytics.used": "{window}: استُخدم {percent}%",
   "page.anchor.fixed": "ثُبِّتت إعادة التعيين التالية عند {time}.",
+  "page.anchor.needs_occasion": "لن يبدأ أي شيء إلى أن تختار وقت بدء أو تشغّل «البدء مباشرة بعد إعادة التعيين».",
   "page.chat.cancel": "إلغاء",
   "page.chat.click": "النقر على إشعار يفتح",
   "page.chat.click.chat": "محادثة ذلك الحوار هنا",

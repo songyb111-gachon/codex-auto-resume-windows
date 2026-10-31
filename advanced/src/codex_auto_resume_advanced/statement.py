@@ -231,10 +231,10 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + "analytics." + name for name in (
 # v0.6.19 (wake_for_reset): its one choice's label, how many minutes before a reset the PC is woken.
 PAGE_KEYS = PAGE_KEYS + (PAGE_PREFIX + "option.wake_lead_minutes",)
 # v0.6.20 (window_anchor): its three times of day and its After a reset switch, a time switched off, and the line on its
-# card that says the reset its last start fixed.
+# card that says the reset its last start fixed, and that it starts nothing with no time picked and no After a reset.
 PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "option.anchor_at_1", "option.anchor_at_2", "option.anchor_at_3", "option.anchor_after_reset", "option.off",
-    "anchor.fixed"))
+    "anchor.fixed", "anchor.needs_occasion"))
 # open_to_send's two choices (v0.6.19, #50): how long the PC has been idle first, and Also start Codex (a switch).
 PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in ("option.open_idle_minutes", "option.open_start_codex"))
 # The prompt queue's editor (v0.6.19, #50: advanced/gui/AdvancedEditor.cs): Schedule a message..., Edit..., the dialog's

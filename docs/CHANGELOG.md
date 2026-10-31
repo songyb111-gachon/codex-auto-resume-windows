@@ -1,5 +1,59 @@
 # Changelog
 
+## v0.6.20-beta.4 — Python 3.14.10, a run from source under the newest Python installed, the Timeline dialog's columns in the window's own font, and the advanced edition's compatibility data of its own
+
+[The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.20-beta.3...v0.6.20-beta.4)
+
+**A pre-release: the fourth of v0.6.20.** It is a GitHub pre-release, so `releases/latest` stays v0.6.19. An installation of
+v0.6.20-beta, -beta.2 or -beta.3 is offered it by *Check for updates* where pre-releases are offered - the check asks first and
+says it is tested less - and *Install another version...* lists it. Both editions change in the first group; the second is the
+advanced edition's alone.
+
+**Going back.** Nothing that an earlier version reads changes: the watcher's state stays schema 5, the settings file gains no key,
+and the advanced edition's own file stays version 9. The advanced edition may keep one more small
+file of its own in the installation's config folder - its compatibility data, below - which an earlier version does not look at.
+
+### Both editions
+
+- **Python 3.14.10 is bundled in place of 3.14.9.** It is the bugfix release of 2026-10-25, pinned by version and SHA-256 as the
+  last one was, with remote debugging off in it as before. The release run and the tests on the bundled Python use it too.
+- **A run from source goes on under the newest Python installed** (the owner's request of 2026-10-30). Started at a console, or by
+  the sign-in entry or the notification button it registers, a run from source now starts itself again under the newest final,
+  64-bit Python of 3.13 or later that has a `pythonw.exe` beside it - read, and only read, from the list Windows keeps for the `py`
+  launcher. Install a newer Python and the next start uses it, with nothing to register again. `CODEX_AUTO_RESUME_PYTHON` pins one (a
+  `python.exe`, a `pythonw.exe` or its folder; `current` keeps the one you started), and `doctor` says which Python a run from source
+  starts and why. An installation keeps the runtime it brought and never chooses. The sign-in entry names the Python it was
+  registered with, so if you uninstall that one, run `enable` again; the guide says so.
+- **The Timeline dialog's columns are measured in the window's own font from the start.** The dialog measured its columns before
+  its list had the window's font, in Windows' default one, so a column could be sized for a different face than the one drawn, and
+  differently from one PC to the next. The columns now match the text on every machine.
+- **The README's first motion shows the Timeline dialog with the product's icon.** It had shown Windows' default form icon, and then,
+  once the icon was added, coloured noise where it stood, because the icon's images are compressed in a way the picture-drawing code
+  could not paint. For contributors: every picture of the window is now drawn offscreen at a pinned 150 % on any display, with
+  Windows' title bar kept from one capture, instead of photographed on the screen at the display's own scaling (`docs/DEVELOPMENT.md`
+  and `docs/BRAND.md` say how; a real capture is `--capture`). Nothing a person sees in the program changes with it.
+
+### Advanced edition
+
+- **The 5-hour window's early start says when it has nothing to start from.** Turned on with no start time picked and
+  *Start right after a reset* turned off, it never starts a window, and nothing said so. Its card now says it in one line - it
+  starts nothing until you pick a start time or turn that option on - and the line goes as soon as you do. *Start right after a
+  reset* stays on until you turn it off, as before.
+- **Compatibility data of its own.** The measurement verdicts per exact Codex engine that the advanced edition's capabilities rest on
+  are published by the maintainer from the records of those measurements, in a file of its own - never in the standard data,
+  whose validators the earlier releases run. It is fetched only when you ask, at the two moments the standard data is refreshed (*Refresh
+  compatibility data* on the Diagnostics page, and a check for updates that reached GitHub), as one request to one constant address that uploads nothing;
+  PRIVACY says so. It is trusted only so far. A measurement that failed on this PC always wins. The data only narrows - a failure in
+  it adds the warning - except that a pass in it stands in for a verdict the build does not have, and only on an engine the
+  maintainer measured exactly, your exact Codex version. Data that has expired, is malformed, is too new or is older than what the
+  edition already has is ignored whole, and it never shows or hides a capability. No copy ships in the release, so nothing
+  changes until the maintainer publishes one and it is fetched.
+- **Community compatibility reports can ask to be credited, and carry the advanced edition's own outcomes.** A report whose sender
+  chose it - an opt-in, off by default - is credited once in the contributors list and the README's thanks line, by the GitHub login
+  its pull request comes from: never a name typed into the file, and never the maintainer or a bot. The outcomes a report carries
+  from the advanced edition's own capabilities are counted apart as reported, never as a verdict, a level or part of the counts a
+  release ships. The public reporter that offers the choice comes as its own release: the reporter's next release.
+
 ## v0.6.20-beta.3 — A status light for every state, Arabic and Hebrew offered with the window mirrored, and the advanced edition's analytics, push notices, early 5-hour window, account switch and the rest of issue 50
 
 [The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.20-beta.2...v0.6.20-beta.3)

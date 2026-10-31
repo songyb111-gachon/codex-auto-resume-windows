@@ -204,9 +204,11 @@ _LOCAL = {
     # frames, and a frame's own parts - never a reply's.
     # v0.6.18: and a frame's chosen Pending row and its open row menu.
     # v0.6.20: and what a frame's other states are made of: the answers of a paused installation (`variant`), the
-    # chrome round a dialog, the dialog a frame has open, and Why it is waiting turned.
+    # chrome round a dialog, the dialog a frame has open, and Why it is waiting turned; and the still a capture takes
+    # (`renderStill`: the kept title bar, its ends kept, the corners' radius and the DPI).
     "gui/WindowRender.cs": {"job", "forms", "frame", "answer", "combo", "listed", "scroll", "Map(forms, locale)",
-                            "selected", "menu", "Map(forms, answersOf)", "chrome", "dialog", "explain"},
+                            "selected", "menu", "Map(forms, answersOf)", "chrome", "dialog", "explain",
+                            "renderStill"},
 }
 
 # The window was two files until v0.6.10-alpha, when each became several. The three tables above

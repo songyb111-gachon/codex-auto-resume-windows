@@ -117,8 +117,10 @@ def picked(options) -> tuple:
 
 
 def after_reset_on(options) -> bool:
+    """Whether Start right after a reset is on: it is, unless a person turned it off - a missing value is on (the
+    registry's default; `options` carries it, and this does not depend on that)."""
     from .wrapwords import ON
-    return (options or {}).get(OptionKey.ANCHOR_AFTER_RESET) == ON
+    return (options or {}).get(OptionKey.ANCHOR_AFTER_RESET, ON) == ON
 
 
 def midnight(now, local=time.localtime) -> int:

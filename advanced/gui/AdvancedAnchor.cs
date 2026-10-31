@@ -6,7 +6,8 @@
 // on and that reset is still ahead (the status's advanced.window_anchor, engine/anchor.view). Its choices are the
 // page's own controls: each time of day a drop-down of Off and every half hour, with Custom... opening the Settings
 // page's clock dialog for any minute (a time is held as its minute of the day plus two, Off as 1), and Start right after
-// a reset a switch, as every on-or-off choice of the window is. The request itself is the watcher's: nothing here
+// a reset a switch, as every on-or-off choice of the window is; and while it is on with neither a time nor that switch, its card
+// says it starts nothing (v0.6.20-beta.4). The request itself is the watcher's: nothing here
 // starts it.
 //
 // C# 5 (the in-box compiler), as the rest of the window.
@@ -47,16 +48,61 @@ namespace CodexAutoResume
             return Word("page.anchor.fixed", "Next reset fixed at {time}.", "time", ClockTime((double)fixedAt));
         }
 
-        /// Its line on the head card, under where it stands: only for window_anchor, only with a fixed reset ahead.
+        /// Its lines on the head card, under where it stands: only for window_anchor. The reset its last start fixed, in the
+        /// ink, while one is ahead; and, in the accent as every line that asks something of the person is, that it starts
+        /// nothing while it is on with no time picked and Start right after a reset off (AnchorNeedsOccasion).
         private void BuildAnchorLine(Dictionary<string, object> item, TableLayoutPanel head)
         {
             if (Str(item, "id") != AnchorId) return;
             string text = AnchorText();
-            if (text == null) return;
-            Label line = HelpText(text);
-            line.ForeColor = Ink;
-            line.Margin = Pad(0, Brand.SpaceS, 0, 0);
-            head.Controls.Add(line);
+            if (text != null)
+            {
+                Label line = HelpText(text);
+                line.ForeColor = Ink;
+                line.Margin = Pad(0, Brand.SpaceS, 0, 0);
+                head.Controls.Add(line);
+            }
+            if (!AnchorNeedsOccasion(item)) return;
+            Label needs = HelpText(Word("page.anchor.needs_occasion",
+                "It starts nothing until you pick a start time or turn on Start right after a reset."));
+            needs.ForeColor = Accent;
+            needs.Margin = Pad(0, Brand.SpaceS, 0, 0);
+            head.Controls.Add(needs);
+        }
+
+        /// Whether it is on with no occasion to start a window at: none of its three times of day picked and Start right
+        /// after a reset off, as the options the list carries say. A choice the list does not carry is not guessed at.
+        private static bool AnchorNeedsOccasion(Dictionary<string, object> item)
+        {
+            if (Str(item, "id") != AnchorId || Str(item, "state") != StateArmed) return false;
+            List<object> options = Items(item, "options");
+            if (options == null) return false;
+            int times = 0, afterReset = 0;
+            foreach (object entry in options)
+            {
+                var option = entry as Dictionary<string, object>;
+                string key = Str(option, "key");
+                if (key == null) continue;
+                if (IsAnchorTime(key))
+                {
+                    times++;
+                    if (Whole(Get(option, "value")) >= AnchorShift) return false;
+                }
+                else if (key == "anchor_after_reset")
+                {
+                    afterReset++;
+                    if (AnchorAfterResetOn(option)) return false;
+                }
+            }
+            return times > 0 && afterReset > 0;
+        }
+
+        /// Whether Start right after a reset is on in the list's choice: it is, unless a person turned it off - a choice
+        /// that carries no value reads as on, the default (registry.py), as the watcher reads it.
+        private static bool AnchorAfterResetOn(Dictionary<string, object> option)
+        {
+            object value = Get(option, "value");
+            return value == null || Whole(value) == SwitchOn;
         }
 
         /// Whether a choice is one of its times of day.

@@ -106,6 +106,7 @@
   "page.analytics.total": "合計",
   "page.analytics.used": "{window}：已用 {percent}%",
   "page.anchor.fixed": "下次重設已固定在 {time}。",
+  "page.anchor.needs_occasion": "在您選擇開始時間或開啟「重設後立即開始」之前，它不會開始任何動作。",
   "page.chat.cancel": "取消",
   "page.chat.click": "點按通知時開啟",
   "page.chat.click.chat": "此處該對話的聊天",

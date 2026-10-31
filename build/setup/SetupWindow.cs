@@ -201,9 +201,20 @@ namespace CodexAutoResume
 
         internal static readonly double SystemScale = MeasureDpiScale();
         private static double scale = SystemScale;
+        private static double displayScale = SystemScale;
         internal static double TextSize = 1.0;
 
         internal static double DpiScale { get { return scale; } }
+
+        /// The display's scale without the text size: the system's, or the one stood in (StandIn).
+        internal static double DisplayScale { get { return displayScale; } }
+
+        /// How much larger the controls' steps in points are drawn than Windows draws points (SettingsForm.FontFactor in
+        /// gui/SettingsApp.cs): 1, but in a picture drawn at a pinned scale (build/motion/InstallerRender.cs, v0.6.20).
+        internal static float FontFactor = 1f;
+
+        /// Whether this is such a picture (SettingsForm.RenderPinned in gui/WindowRender.cs): never in the setup program.
+        internal static bool RenderPinned;
 
         internal static void AdoptTextSize(double drawn)
         {
@@ -215,6 +226,7 @@ namespace CodexAutoResume
         internal static void StandIn(double displayScale, double text)
         {
             TextSize = Math.Max(1.0, text);
+            SettingsForm.displayScale = displayScale;
             scale = displayScale * TextSize;
         }
 

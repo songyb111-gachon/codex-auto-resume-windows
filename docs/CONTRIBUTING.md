@@ -11,7 +11,7 @@ properties intact.
   and no build step for the Python side. What that promise covers is decided in one file,
   `scripts/python_support.json`: CI runs every non-live test on Python 3.13 and 3.14 as
   blocking jobs, and on Python 3.15 as an experimental, advisory one whose result is shown but
-  does not block; releases are built with 3.14; and the archive bundles Python 3.14.9, so nobody
+  does not block; releases are built with 3.14; and the archive bundles Python 3.14.10, so nobody
   installing a release needs a Python of their own. Adding a tested version never moves the
   bundled runtime. `tests/test_python_support.py` fails if the workflows, or the minimum this
   page and the README state, stop agreeing with that file.
@@ -786,6 +786,23 @@ found to be wrong is withdrawn in the open, by removing its file and its index e
 the account and that Codex version are listed in `docs/evidence/community/withdrawn.json`, so the
 same report is not filed again; the account's reports on other Codex versions are judged like any
 other. No report enters the compatibility data, and none changes a tier.
+
+A report may also carry the records an advanced-edition feature carried by a route of its own, kept
+apart in `advanced_records` (codex-compat-reporter 1.5.4 on). They are held to the same rules as any
+record, counted by the same rule into the advanced edition's own Reported counts beside the version
+in the index and the folder's README, and never into the verdict, a level or the counts a release
+ships.
+
+**Credit, only if you ask for it.** A report written with `report --credit` (the reporter window's
+check box, unticked unless you tick it) says `"credit": true` and nothing more. When such a report
+is filed, the login of the pull request's author - as GitHub reports it for your account, never
+anything typed into the file - is added once to [CONTRIBUTORS.md](CONTRIBUTORS.md), at the end of the
+people who helped, in one fixed sentence ("reported compatibility on Codex" and the version), and to
+the README's thanks line. A login that is listed already is not added again, and a bot or the
+maintainer is never added. Whatever stops a filing stops its credit (the switch, a blocked account, a
+red `main`). A report withdrawn later leaves its credit as it is: you did report; the maintainer
+removes a credit by hand only if the report was abusive. Without `credit`, nothing about you is
+written anywhere outside your report's own folder.
 
 ## How the code is layered
 

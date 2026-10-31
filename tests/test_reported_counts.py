@@ -167,10 +167,14 @@ class KeptApartTests(unittest.TestCase):
         self.assertNotIn("community", json.dumps(registry).lower())
 
     def test_the_refresh_still_knows_one_address_and_it_is_the_registrys(self):
+        """And, from v0.6.20, the advanced edition's own measurement data beside it, which an advanced installation
+        alone asks for (tests/test_compat_bootstrap_advanced.py): neither is the counts."""
         script = (ROOT / "scripts" / "bootstrap.ps1").read_text(encoding="utf-8")
         addresses = re.findall(r"https://raw\.githubusercontent\.com/[^\s'\"]+", script)
         self.assertEqual(addresses, ["https://raw.githubusercontent.com/songyb111-gachon/codex-auto-resume-windows/"
-                                     "main/src/codex_auto_resume/data/codex_compat.json"])
+                                     "main/src/codex_auto_resume/data/codex_compat.json",
+                                     "https://raw.githubusercontent.com/songyb111-gachon/codex-auto-resume-windows/"
+                                     "main/advanced/compat/codex_compat_advanced.json"])
         self.assertNotIn("reported.json", script)
         self.assertNotIn("evidence/community", script)
 

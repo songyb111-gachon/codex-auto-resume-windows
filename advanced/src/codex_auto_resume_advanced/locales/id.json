@@ -106,6 +106,7 @@
   "page.analytics.total": "Total",
   "page.analytics.used": "{window}: {percent}% terpakai",
   "page.anchor.fixed": "Reset berikutnya ditetapkan pukul {time}.",
+  "page.anchor.needs_occasion": "Tidak ada yang dimulai sampai Anda memilih waktu mulai atau mengaktifkan \"Mulai tepat setelah reset\".",
   "page.chat.cancel": "Batal",
   "page.chat.click": "Klik pada pemberitahuan membuka",
   "page.chat.click.chat": "Obrolan percakapan itu di sini",
