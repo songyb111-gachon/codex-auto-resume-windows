@@ -46,7 +46,9 @@ class HiddenTests(unittest.TestCase):
         self.assertEqual(let_out, (OPEN_TO_SEND,))
         made = Registry(registry.DEFINITIONS + let_out)
         shown = [definition.id for definition in registry.shown(made)]
-        self.assertEqual(shown[shown.index("queue_for_open") + 1], "open_to_send", "placed after queue for opening")
+        # 2026-10-31 (the owner's order): among the work savers, after send now and before Open Codex on a notice.
+        self.assertEqual(shown[shown.index("send_now") + 1], "open_to_send", "placed after send now")
+        self.assertEqual(shown[shown.index("open_to_send") + 1], "open_codex_button")
 
     def test_its_statement_no_longer_waits_for_a_measurement_and_it_warns_on_any_other_engine(self):
         """MOPEN passed on one Codex: the statement says so in every language, and any other engine shows UNMEASURED, as
