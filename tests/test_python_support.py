@@ -124,12 +124,12 @@ class WorkflowAgreementTests(unittest.TestCase):
     def test_every_python_the_ci_sets_up_is_its_lines_newest_release(self):
         """check-latest makes setup-python look past the runner's cache for the line's newest release. The owner's
         rule of 2026-10-31: the CI always runs the newest Python, and the bundled one stays pinned until it is moved -
-        so every Python test.yml sets up asks for it (each lane and the main-tree job), and the workflows that build or
-        ship a release do not."""
+        so every lane of the test job asks for it, once, in its one setup. The main-tree job is the release lane on
+        main's tree and runs the release's pinned patch, as release.yml does (the owner, 2026-10-31); neither asks."""
         text = workflow("test.yml")
         asked = re.findall(r"(?m)^\s+check-latest: (.+?)\s*$", text)
-        self.assertEqual(len(asked), len(re.findall(r"uses: actions/setup-python@", text)))
-        self.assertEqual(set(asked), {"true"})
+        self.assertEqual(asked, ["true"])
+        self.assertIn("python-version: ${{ matrix.python-version }}", text)
         for name in ("release.yml", "sync-ko.yml", "community-report.yml"):
             with self.subTest(name):
                 self.assertNotIn("check-latest", workflow(name), "a release's Python is a pin, not the newest")
@@ -214,8 +214,10 @@ class ShippedRuntimeLaneTests(unittest.TestCase):
     def patches(self, name):
         return re.findall(r"3\.\d+\.\d+", workflow(name))
 
-    def test_the_test_workflow_names_no_patch(self):
-        self.assertEqual(self.patches("test.yml"), [], "a CI lane pinned to a patch is not the newest of its line")
+    def test_the_test_workflow_pins_only_the_main_tree_job(self):
+        """Its lanes name no patch, so each is the newest of its line; its main-tree job, the release lane on main's
+        tree, names the bundled patch, as release.yml does."""
+        self.assertEqual(self.patches("test.yml"), [POLICY["bundled_runtime"]])
 
     def test_the_release_workflow_tests_and_builds_on_the_bundled_patch(self):
         self.assertEqual(self.patches("release.yml"), [POLICY["bundled_runtime"]] * 2)

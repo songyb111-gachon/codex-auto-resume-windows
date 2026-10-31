@@ -248,9 +248,9 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          # The newest 3.14, as the test job's lanes take theirs (the owner, 2026-10-31).
-          python-version: "3.14"
-          check-latest: true
+          # The release's own Python, to the patch: this job is the release lane on main's tree, so it runs what
+          # release.yml runs (the owner, 2026-10-31: main the same as the release); the test job's lanes take the newest.
+          python-version: "3.14.10"
 
       - name: Take every Korean source off, as a promotion to main does
         # Removed from the index too: the suite lists files with `git ls-files`, and main's index has
