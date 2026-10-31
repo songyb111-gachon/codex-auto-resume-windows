@@ -556,7 +556,9 @@ class ShownOrderTests(SurfaceCase):
         # but for Continue inside the turn, still waiting hidden on MHK, M4 and M4B.
         shown = [capability for capability in registry.SHOWN_ORDER if capability in registry.REGISTRY.ids]
         self.assertEqual([each for each in registry.SHOWN_ORDER if each not in shown], ["stop_hook_continuation"])
-        self.assertEqual(shown.index("open_to_send"), shown.index("queue_for_open") + 1)
+        # 2026-10-31: open_to_send is among the work savers, after send now and before Open Codex on a notice.
+        self.assertEqual(shown[shown.index("send_now"):shown.index("send_now") + 3],
+                         ["send_now", "open_to_send", "open_codex_button"])
         self.assertEqual(listed, shown)
         self.assertEqual(listed[0], "compat_report")
         mcp = self.call("list_advanced_capabilities")["result"]["structuredContent"]["capabilities"]

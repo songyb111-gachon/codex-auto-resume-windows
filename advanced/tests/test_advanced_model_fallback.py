@@ -264,11 +264,13 @@ class ErrorCodeTests(unittest.TestCase):
 class RegistryTests(TakingCase):
     DEFINITION = MODEL_FALLBACK
 
-    def test_it_answers_at_p16_before_headless_run_and_is_shown_after_compact_continue(self):
+    def test_it_answers_at_p16_before_headless_run_and_is_shown_after_the_capacity_retry(self):
         at = tuple(d.id for d in registry.REGISTRY.at(Point.UNLOADED))
         self.assertLess(at.index(self.cap), at.index("headless_run"))
         shown = registry.SHOWN_ORDER
-        self.assertEqual(shown.index(self.cap), shown.index("compact_continue") + 1)
+        # 2026-10-31: right after the capacity retry, before compact_continue.
+        self.assertEqual(shown.index(self.cap), shown.index("capacity_retry") + 1)
+        self.assertEqual(shown[shown.index(self.cap) + 1], "compact_continue")
         self.assertEqual(self.DEFINITION.option(OptionKey.ATTEMPTS).choices, (1, 2, 3))
 
     def test_unmeasured_on_this_codex_is_a_warning_never_a_refusal(self):

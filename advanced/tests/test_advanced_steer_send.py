@@ -55,7 +55,8 @@ class DefinitionTests(unittest.TestCase):
         self.assertEqual(STEER_SEND.measurements, (Measurement.MIPC, Measurement.MSTEER2))
         self.assertEqual(STEER_SEND.requires, ("prompt_queue",), "written in the prompt queue's editor")
         shown = [definition.id for definition in registry.shown(registry.REGISTRY)]
-        self.assertEqual(shown[shown.index("prompt_queue") + 2], "steer_send", "after the chat, beside the queue")
+        # 2026-10-31 (the owner's order): right after the chat, which follows Open Codex on a notice.
+        self.assertEqual(shown[shown.index("codex_chat") + 1], "steer_send", "after the chat")
 
     def test_its_statement_and_words_are_in_every_language(self):
         self.assertEqual(statement.CATALOGS.missing(STEER_SEND), [])
