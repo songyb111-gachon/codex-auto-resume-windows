@@ -286,10 +286,13 @@ message with its marker and the sends go one at a time.
 
 ### Continue inside the turn
 
-**Not offered yet.** It is built and waits, hidden, until three measurements pass on the Codex you have: MHK (how
-Codex declares a plugin's Stop hook), M4 (Codex runs a plugin's Stop hook after a failed turn) and M4B (Codex carries
-out the hook's answer - the turn goes on, with no console window); until then no row, statement or switch of it is
-shown.
+**Hidden, because its measurement failed.** It stays in the product, built and hidden: measurement M4 failed on
+`codex-cli 0.166.0-alpha.5.1` (2026-10-31) - Codex runs a plugin's Stop hook after a turn that completed, but not after
+a turn that failed, which is the case this capability needs - and on `codex-cli 0.162.0-alpha.17.2` (2026-10-10), where
+no plugin Stop hook existed yet. It is offered only once a Codex runs Stop hooks after failed turns and three
+measurements pass on the Codex you have: MHK (how Codex declares a plugin's Stop hook), M4 (Codex runs a plugin's Stop
+hook after a failed turn) and M4B (Codex carries out the hook's answer - the turn goes on, with no console window);
+until then no row, statement or switch of it is shown.
 
 **What it does.** When a turn stops on a short temporary failure - a dropped connection, a timeout, a server error or
 an interrupted stream, whose first wait in your retry timing is a minute or less - this product's Stop hook, a small
@@ -319,8 +322,9 @@ hook's program, which is not a listed process).
 
 **Ceilings.** 24 a day, and 5 in any one conversation - each continuation of the hook's counts as a claim toward the
 standard edition's five a day and fifteen minutes apart, as the watcher's count toward the hook's. **Measurements
-MHK, M4 and M4B: not passed yet** - M4 failed on `codex-cli 0.162.0-alpha.17.2`, where no plugin Stop hook existed to
-run; hidden until all three pass.
+MHK, M4 and M4B: not passed** - M4 failed on `codex-cli 0.162.0-alpha.17.2` (2026-10-10), where no plugin Stop hook
+existed to run, and again on `codex-cli 0.166.0-alpha.5.1` (2026-10-31), where Codex ran the hook after a completed
+turn and not after a failed one; hidden because the measurement failed, until all three pass.
 
 ### Goal continuation
 
@@ -1561,8 +1565,12 @@ headings as the last four bullets below.
 - **A route of its own, and other kinds of session** - a conversation nothing holds, run through
   Codex's app server; CLI, TUI and IDE sessions; a full context compacted, then continued; another
   model at capacity; a continuation with no words - all built in v0.6.16-beta.4, described
-  [above](#todays-capabilities); and a continuation inside the turn through a Codex Stop hook, planned for
-  v0.6.20. (Codex's own retry settings are offered only once a measurement passes.)
+  [above](#todays-capabilities); and a continuation inside the turn through a Codex Stop hook, built in v0.6.20 and
+  hidden because its measurement M4 failed (`codex-cli 0.162.0-alpha.17.2`, 2026-10-10, and `codex-cli 0.166.0-alpha.5.1`,
+  2026-10-31: Codex does not run the hook after a failed turn). (Codex's own retry settings stay in the product, hidden
+  because their measurement MB failed: Codex refuses the write under `model_providers.openai` (`config/value/write`,
+  -32600) on `codex-cli 0.162.0-alpha.17.2` (2026-10-16) and again on `codex-cli 0.166.0-alpha.5.1` (2026-10-31). They
+  are offered only once a Codex passes MB.)
 - **Around recovery** - usage analytics (the live usage meter and the wrap-up near a limit are built,
   described [above](#todays-capabilities)); a provider status feed and push notifications through one courier process, the advanced edition's only
   outbound network code; a local API and web view, remote control over Telegram and a read-only view
@@ -1576,7 +1584,8 @@ headings as the last four bullets below.
 - **Compatibility data for the advanced edition** - verdicts for each Codex engine in a file of its own, which
   installed advanced editions fetch, and the compatibility reporter counting the advanced edition's outcomes as
   "reported" without ever raising a verdict.
-- **Also moved here** - a continuation inside the turn through a Codex Stop hook, and Arabic and Hebrew (offered from
+- **Also moved here** - a continuation inside the turn through a Codex Stop hook (built, and hidden because its
+  measurement M4 failed on 2026-10-31), and Arabic and Hebrew (offered from
   v0.6.20, every surface mirrored for them). Watching
   several Codex homes, which the standard edition gains, was built in v0.6.16-beta, and the winget manifests for both
   editions in v0.6.16 ([WINGET.md](WINGET.md)).

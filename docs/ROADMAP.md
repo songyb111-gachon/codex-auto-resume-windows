@@ -822,9 +822,12 @@ finish its step, and a pause that holds our continuations until the reset
 - a continuation with no words, where Codex allows it (the app's queue refused an empty one:
   measurement M3).
 
-Codex's own retry settings are not offered until Codex allows changing its built-in provider's retry settings
-(measured on 2026-10-16, MB). A continuation inside the turn, through a Codex Stop hook, and chatting with a
-Codex conversation inside the Dashboard were on this list; the chat went out in v0.6.19 and the Stop hook is v0.6.20's.
+Codex's own retry settings stay in the product, hidden, because their measurement failed: Codex refuses the write under
+`model_providers.openai` (`config/value/write`, -32600) in the built-in provider's retry settings, measured on 2026-10-16 (MB,
+`codex-cli 0.162.0-alpha.17.2`) and again on 2026-10-31 (`codex-cli 0.166.0-alpha.5.1`); they are offered only once a Codex passes MB.
+A continuation inside the turn, through a Codex Stop hook, and chatting with a
+Codex conversation inside the Dashboard were on this list; the chat went out in v0.6.19 and the Stop hook is v0.6.20's,
+built and hidden because its measurement M4 failed (see v0.6.20).
 
 #### The usage capabilities, finished
 
@@ -1093,7 +1096,7 @@ naming the neumorphic design; and, in the advanced edition, a click on a notice 
 Both editions: the status light checked for every state (the owner's amended J14 of 2026-10-29), the Dashboard reopened after a Repair on the
 page it showed, Arabic and Hebrew offered with every surface mirrored, and the README's motions made longer. The advanced edition: usage and
 token analytics, push notices and the status feed through one courier, starting the 5-hour window early, switching the account, the Stop hook's
-continuation (built, hidden until it is measured), #50's pictures, steer send mode, opening a conversation to send now and follow-through view,
+continuation (built, and hidden because its measurement failed), #50's pictures, steer send mode, opening a conversation to send now and follow-through view,
 and a before and after for every capability.
 
 ### v0.6.20-beta.4 🚧 — Python 3.14.10, a source run under the newest Python, and the advanced edition's own compatibility data (a pre-release)
@@ -1121,7 +1124,10 @@ can ask to be credited and carry its own outcomes (the reporter's next release o
 
 ### Also moved here
 
-- **A continuation inside the turn, through a Codex Stop hook**, from v0.6.16's list of other routes.
+- **A continuation inside the turn, through a Codex Stop hook**, from v0.6.16's list of other routes. It is built and stays in the
+  product, hidden, because its measurement failed: M4 found that Codex runs a plugin's Stop hook after a turn that completed but not after one
+  that failed, which is the case it needs - on `codex-cli 0.166.0-alpha.5.1` (2026-10-31), and on `codex-cli 0.162.0-alpha.17.2`
+  (2026-10-10) with no Stop-hook plugin yet. It is offered only once a Codex runs Stop hooks after failed turns and M4 and M4B pass.
 - **Arabic and Hebrew**, translated and held since v0.6.11-beta, offered once the window is mirrored
   for right-to-left.
 
