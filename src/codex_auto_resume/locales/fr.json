@@ -1185,6 +1185,7 @@
   "status.unavailable": "État indisponible",
   "status.unavailable_detail": "Les paramètres peuvent toujours être modifiés et enregistrés",
   "status.unknown": "État du surveillant inconnu",
+  "status.loading": "Chargement...",
   "status.watching": "Surveillance des interruptions",
   "stay.after_sleep": "Tâches en attente après une longue veille",
   "time.ago": "il y a {time}",

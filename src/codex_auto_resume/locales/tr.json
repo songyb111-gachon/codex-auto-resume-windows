@@ -1185,6 +1185,7 @@
   "status.unavailable": "Durum kullanılamıyor",
   "status.unavailable_detail": "Ayarlar yine de değiştirilip kaydedilebilir",
   "status.unknown": "İzleyici durumu bilinmiyor",
+  "status.loading": "Yükleniyor...",
   "status.watching": "Kesintiler izleniyor",
   "stay.after_sleep": "Uzun bir uykudan sonra bekleyen görevler",
   "time.ago": "{time} önce",

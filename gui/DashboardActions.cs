@@ -1323,6 +1323,11 @@ namespace CodexAutoResume
                 // whatever size Windows made it when the session began - so the columns shared the dialog's width by
                 // widths no cell is drawn at, and differently from one machine to the next.
                 view.Font = Font;
+                // v0.6.20 (the final's live acceptance, A10): every line at its time - what delivery showed of a continuation
+                // among the events around it, as the dialog reads, oldest first. They were listed after every event, so a
+                // turn seen starting at 10:07 stood under the 10:14 and 10:15 events.
+                var lines = new List<ListViewItem>();
+                var times = new List<double>();
                 if (events != null)
                 {
                     foreach (object entry in events)
@@ -1337,7 +1342,8 @@ namespace CodexAutoResume
                         // and a translated label for each would say no more than the state does.
                         string to = Str(item, "to_code");
                         line.SubItems.Add(to == null ? "" : S("code." + to, to.Replace('_', ' ')));
-                        view.Items.Add(line);
+                        lines.Add(line);
+                        times.Add(Number(item, "at"));
                     }
                 }
                 if (receipts != null)
@@ -1350,9 +1356,11 @@ namespace CodexAutoResume
                         var line = new ListViewItem(When(Number(receipt, "at")));
                         line.SubItems.Add(S("receipt." + kind, kind));
                         line.SubItems.Add("");
-                        view.Items.Add(line);
+                        lines.Add(line);
+                        times.Add(Number(receipt, "at"));
                     }
                 }
+                foreach (int index in InTimeOrder(times)) view.Items.Add(lines[index]);
                 // Each column's widest cell, so the columns share the dialog's width by what they hold (FitColumns).
                 MeasureCells(view);
                 // On History's card, on the soft scroll bar, as the lists in the window are (DialogListCard).
@@ -1375,6 +1383,27 @@ namespace CodexAutoResume
                 timelineList = view;
                 return dialog;
             }
+        }
+
+        /// The order the Timeline lists its lines in (v0.6.20): by `times`, oldest first, lines of one time in the order they
+        /// came - the events, oldest first as the journal gives them, then what delivery showed. A line with no time (0)
+        /// stays after the line before it.
+        internal static List<int> InTimeOrder(List<double> times)
+        {
+            var order = new List<int>();
+            var keys = new List<double>();
+            double last = 0;
+            for (int i = 0; i < times.Count; i++)
+            {
+                double at = times[i] > 0 ? times[i] : last;
+                last = at;
+                // After every line at its time or before it: a stable order, without System.Linq (not referenced).
+                int place = keys.Count;
+                while (place > 0 && keys[place - 1] > at) place--;
+                keys.Insert(place, at);
+                order.Insert(place, i);
+            }
+            return order;
         }
 
         // The last Timeline dialog's list, for LayoutAudit.

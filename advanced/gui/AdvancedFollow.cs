@@ -122,7 +122,9 @@ namespace CodexAutoResume
             dialog.MinimizeBox = false;
             dialog.MaximizeBox = false;
             dialog.ShowInTaskbar = false;
-            dialog.ShowIcon = false;
+            // The product's icon in the title bar, as every window with a list has it - Timeline, the log, Install another
+            // version (v0.6.15) - and the window itself (the v0.6.20 final's live acceptance, A7).
+            dialog.Icon = Icon;
             // As wide and tall as it was drawn for, or what the screen it opens on holds (a small screen at a large scaling):
             // what is inside takes its width from the dialog, so nothing is cut off at either edge.
             Rectangle area = Screen.GetWorkingArea(this);

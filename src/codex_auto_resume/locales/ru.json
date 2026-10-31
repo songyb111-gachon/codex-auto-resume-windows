@@ -1185,6 +1185,7 @@
   "status.unavailable": "Статус недоступен",
   "status.unavailable_detail": "Настройки по-прежнему можно изменять и сохранять",
   "status.unknown": "Статус монитора неизвестен",
+  "status.loading": "Загрузка...",
   "status.watching": "Отслеживание прерываний",
   "stay.after_sleep": "Задачи, ожидающие после долгого сна",
   "time.ago": "{time} назад",

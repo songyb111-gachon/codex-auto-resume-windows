@@ -1185,6 +1185,7 @@
   "status.unavailable": "Стан недоступний",
   "status.unavailable_detail": "Параметри все одно можна змінити й зберегти",
   "status.unknown": "Стан монітора невідомий",
+  "status.loading": "Завантаження...",
   "status.watching": "Стеження за перериваннями",
   "stay.after_sleep": "Завдання, що чекають після тривалого сну",
   "time.ago": "{time} тому",

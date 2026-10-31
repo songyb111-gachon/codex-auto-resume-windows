@@ -1185,6 +1185,7 @@
   "status.unavailable": "Status indisponível",
   "status.unavailable_detail": "As configurações ainda podem ser alteradas e salvas",
   "status.unknown": "Status do monitor desconhecido",
+  "status.loading": "Carregando...",
   "status.watching": "Monitorando interrupções",
   "stay.after_sleep": "Tarefas esperando após uma suspensão longa",
   "time.ago": "há {time}",

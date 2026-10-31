@@ -1185,6 +1185,7 @@
   "status.unavailable": "Status nicht verfügbar",
   "status.unavailable_detail": "Einstellungen können weiterhin geändert und gespeichert werden",
   "status.unknown": "Watcher-Status unbekannt",
+  "status.loading": "Wird geladen...",
   "status.watching": "Achtet auf Unterbrechungen",
   "stay.after_sleep": "Aufgaben, die nach langem Energiesparmodus warten",
   "time.ago": "vor {time}",

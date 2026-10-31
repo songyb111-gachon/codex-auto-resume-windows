@@ -1185,6 +1185,7 @@
   "status.unavailable": "Không có trạng thái",
   "status.unavailable_detail": "Vẫn có thể thay đổi và lưu cài đặt",
   "status.unknown": "Không rõ trạng thái bộ theo dõi",
+  "status.loading": "Đang tải...",
   "status.watching": "Đang theo dõi gián đoạn",
   "stay.after_sleep": "Tác vụ đang chờ sau khi máy ngủ lâu",
   "time.ago": "{time} trước",

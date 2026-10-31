@@ -1185,6 +1185,7 @@
   "status.unavailable": "الحالة غير متاحة",
   "status.unavailable_detail": "لا يزال بالإمكان تغيير الإعدادات وحفظها",
   "status.unknown": "حالة المراقِب غير معروفة",
+  "status.loading": "جارٍ التحميل...",
   "status.watching": "يراقب الانقطاعات",
   "stay.after_sleep": "مهام تنتظر بعد سكون طويل",
   "time.ago": "منذ {time}",
