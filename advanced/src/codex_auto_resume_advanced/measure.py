@@ -179,6 +179,13 @@ class Context:
         found = self._hand("stop_hook")
         return found if isinstance(found, dict) else {}
 
+    def m4_hook_note(self) -> list:
+        """What the measurement-only Stop hook wrote (M4, v0.6.20): one dict a run - "at" (when it ran), "keys" (its
+        input's key names) and "status" (the turn's status word in Codex's history then) - or [] where there is no hand
+        or nothing was written."""
+        found = self._hand("m4_hook_note")
+        return [note for note in found if isinstance(note, dict)] if isinstance(found, list) else []
+
     def ipc_look(self) -> dict:
         """What a read-only look at the Desktop's own IPC pipe found (v0.6.16-beta.3, MIPC): a dict of
         booleans, or empty where there is no seam or the look raised. Nothing is ever written to the pipe."""
@@ -313,14 +320,133 @@ def _m3(ctx):
     return verdict, observed, note
 
 
+# M4 (v0.6.20): the failed turn the probe makes itself - one turn asked of a model no Codex offers, so it fails at its
+# first model request - how long it is followed, and how long the hook's note is waited for once it ended. What the
+# turn would have said is never read.
+_M4_MODEL = "car-m4-no-such-model"
+_M4_PROMPT = "Reply with the single word: ok."
+_M4_TURN_SECONDS = 120.0
+_M4_NOTE_SECONDS = 15.0
+# The trust words under which Codex runs a hook (HookTrustStatus): trusted by the person, or managed by policy.
+_M4_RUNS = ("trusted", "managed")
+# Where the measurement-only Stop hook writes its notes, under the temporary folder (the m4_hook_note hand reads it).
+M4_HOOK_NOTE = Path("car-measure", "m4-hook", "notes.jsonl")
+
+
+def _plugin_stop_hooks(listed) -> tuple:
+    """(how many Stop hooks hooks/list names from a plugin, how many of them are on and trusted) - counts only, never a
+    command or a path."""
+    entries = listed.get("data") if isinstance(listed, dict) else None
+    found = trusted = 0
+    for entry in entries if isinstance(entries, list) else ():
+        hooks = entry.get("hooks") if isinstance(entry, dict) else None
+        for hook in hooks if isinstance(hooks, list) else ():
+            if not isinstance(hook, dict) or _letters(hook.get("eventName")) != "stop" or hook.get("source") != "plugin":
+                continue
+            found += 1
+            trusted += hook.get("enabled") is not False and hook.get("trustStatus") in _M4_RUNS
+    return found, trusted
+
+
+def _stop_runs(events, thread) -> dict:
+    """The plugin Stop hook runs this thread's hook/started and hook/completed notifications name: how many started, how
+    many completed, and the last completed one's status word (HookRunStatus) - never an entry's text."""
+    found = {"started": 0, "completed": 0, "status": None}
+    for event in events:
+        method = event.get("method") if isinstance(event, dict) else None
+        params = event.get("params") if method in ("hook/started", "hook/completed") else None
+        run = params.get("run") if isinstance(params, dict) and params.get("threadId") == thread else None
+        if not isinstance(run, dict) or _letters(run.get("eventName")) != "stop" or run.get("source") != "plugin":
+            continue
+        if method == "hook/started":
+            found["started"] += 1
+        else:
+            found["completed"] += 1
+            found["status"] = run.get("status") if isinstance(run.get("status"), str) else "other"
+    return found
+
+
 def _m4(ctx):
-    """Plugin Stop hooks run after a failed turn. The harness reads whether a Stop hook is
-    declared; that it runs after a failed turn is what the person confirms."""
+    """Plugin Stop hooks run after a failed turn, and the failed turn is in Codex's history by the time the hook runs.
+    v0.6.20: the probe makes the failed turn itself. The person declares a measurement-only Stop hook in this plugin's
+    copy (it writes a note: the time it ran, the input's key names, and the turn's status in Codex's history at that
+    moment), trusts it in Codex, and names a throwaway conversation nothing holds. The harness lists the hooks (how many
+    Stop hooks come from a plugin, and how many of them are on and trusted) and stops if none is; otherwise it resumes
+    the conversation without its history, starts one turn asking a model no Codex offers, follows it to its end, and
+    counts the hook/started and hook/completed notifications of a plugin Stop hook for it; then it reads the hook's note
+    written after the turn began. Pass where the turn failed, a plugin Stop hook ran after it, and the history said
+    failed when it ran. Booleans, counts and status words only."""
+    if not ctx.thread_given:
+        return _blocked("name a throwaway conversation nothing holds, with a measurement Stop hook declared and trusted, "
+                        "then run m4 again", holders_read=False)
+    holders = _lock_users(ctx, ctx.probe_thread)
+    if holders is None or holders:
+        return _blocked("something holds the throwaway conversation, or who does could not be read: quit and reopen the "
+                        "Codex app without opening it, then run m4 again",
+                        holders_read=holders is not None, held_before=bool(holders))
+    began = time.time()
+    seen, notes = [], []
     with ctx.open() as session:
-        hooks = session.call("hooks/list", {"cwds": []})
-    observed = {"hooks_listed": isinstance(hooks, (dict, list))}
-    return _blocked("cause a turn to fail and confirm the plugin Stop hook ran and the failed "
-                    "row was persisted by then, then set the verdict", **observed)
+        listed = session.call("hooks/list", {"cwds": []})
+        found, trusted = _plugin_stop_hooks(listed)
+        observed = {"holders_read": True, "held_before": False, "plugin_stop_hooks": found,
+                    "plugin_stop_hooks_trusted": trusted}
+        if not trusted:
+            return _blocked("no plugin Stop hook is listed as on and trusted: declare the measurement hook, trust it in "
+                            "Codex, then run m4 again", **observed)
+        session.call("thread/resume", {"threadId": ctx.probe_thread, "excludeTurns": True})
+        try:
+            started = session.call("turn/start", {
+                "threadId": ctx.probe_thread, "input": [{"type": "text", "text": _M4_PROMPT}], "model": _M4_MODEL,
+                "approvalPolicy": "untrusted", "approvalsReviewer": "user",
+                "sandboxPolicy": {"type": "readOnly", "networkAccess": False}})
+        except AdapterError:
+            started = None
+        turn = started.get("turn") if isinstance(started, dict) else None
+        turn_id = turn.get("id") if isinstance(turn, dict) and isinstance(turn.get("id"), str) else None
+        status = _await_turn(session, ctx.probe_thread, turn_id, _M4_TURN_SECONDS, seen) if turn_id else None
+        if status is None and turn_id is not None:
+            try:
+                session.call("turn/interrupt", {"threadId": ctx.probe_thread, "turnId": turn_id})
+                status = _await_turn(session, ctx.probe_thread, turn_id, _M6_INTERRUPT_SECONDS, seen)
+            except AdapterError:
+                pass
+        # The hook may finish after the turn says it ended: its notification and its note are waited for a little.
+        deadline = time.monotonic() + _M4_NOTE_SECONDS
+        while turn_id is not None:
+            seen.extend(session.drain_events())
+            notes = [note for note in ctx.m4_hook_note()
+                     if isinstance(note.get("at"), (int, float)) and note["at"] >= began]
+            if (notes and _stop_runs(seen, ctx.probe_thread)["completed"]) or time.monotonic() >= deadline:
+                break
+            time.sleep(_M6_POLL_SECONDS)
+        try:
+            session.call("thread/unsubscribe", {"threadId": ctx.probe_thread})
+        except AdapterError:
+            pass
+    runs = _stop_runs(seen, ctx.probe_thread)
+    note = notes[-1] if notes else {}
+    keys = {key for key in note.get("keys") or () if isinstance(key, str)}
+    row = note.get("status")
+    observed.update({"turn_started": turn_id is not None, "turn_status": status or "none",
+                     "stop_hook_started": runs["started"], "stop_hook_completed": runs["completed"],
+                     "stop_hook_status": runs["status"] or "none", "hook_noted": bool(notes),
+                     "history_status_when_hook_ran": row if row in ("completed", "failed", "inProgress",
+                                                                    "interrupted") else ("none" if row is None else
+                                                                                         "other")})
+    observed.update({"input_" + key: key in keys for key in _HOOK_INPUT_KEYS})
+    if status != "failed":
+        return _blocked("the turn did not fail as asked, so nothing is settled: look at the conversation, then run m4 "
+                        "again", **observed)
+    ran = runs["started"] or runs["completed"] or notes
+    if not ran:
+        return Verdict.FAIL, observed, "a plugin Stop hook did not run after the failed turn"
+    if not notes:
+        return _blocked("a plugin Stop hook ran but the measurement hook left no note: look at the hook, then run m4 "
+                        "again", **observed)
+    if row != "failed":
+        return Verdict.FAIL, observed, "the failed turn was not yet in Codex's history when the Stop hook ran"
+    return Verdict.PASS, observed, None
 
 
 def _m5(ctx):
@@ -2656,8 +2782,25 @@ def live_hands(backend=None, paths=None) -> dict:
         from .codex import ipc
         return str(ipc.steer_turn(thread, text, message=message))
 
+    def m4_hook_note():
+        # M4 (v0.6.20): the measurement-only Stop hook's notes, one JSON object a line, where it writes them.
+        import json
+        import tempfile
+        try:
+            lines = (Path(tempfile.gettempdir()) / M4_HOOK_NOTE).read_text(encoding="utf-8").splitlines()
+        except OSError:
+            return []
+        notes = []
+        for line in lines:
+            try:
+                notes.append(json.loads(line))
+            except ValueError:
+                continue
+        return notes
+
     return {"open_link": open_link, "power": _power_look, "wake_after": _wake_after, "scratch_cli": scratch_cli,
-            "anchor_request": anchor_request, "stop_hook": stop_hook, "steer_ipc": steer_ipc}
+            "anchor_request": anchor_request, "stop_hook": stop_hook, "steer_ipc": steer_ipc,
+            "m4_hook_note": m4_hook_note}
 
 
 def _guid(text):
