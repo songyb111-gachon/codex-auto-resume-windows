@@ -105,9 +105,10 @@ an older version brings the runtime that version was built with (3.14.9 for v0.6
   per account (new since beta.4): after *Switch the Codex account* sees another account signed in, its start and its resets follow
   the account now signed in, and a time picked within five hours of a start made on the other account is no longer refused.
 - **Switch the Codex account.** The account card shows the plan and a masked address of the account this PC is signed in to, and a
-  change of account holds every recovery waiting for a limit until you let it continue. Its button, which runs Codex's own sign-out
-  and sign-in, waits for a measurement not yet made - whether the running Codex app follows a sign-in made that way; until then the
-  card says how to switch in Codex.
+  change of account holds every recovery waiting for a limit until you let it continue. Its button, which would run Codex's own
+  sign-out and sign-in, is hidden because its measurement failed (MAL, on codex-cli 0.166.0-alpha.5.1, 2026-11-01): a sign-out made
+  with `codex logout` reached the running Codex app, but the `codex login` after it did not until the app's own sign-in was used.
+  The card says how to switch in Codex instead, and the button is offered once a Codex passes.
 - **Push notices and OpenAI's service status, through one courier process.** With *Send notices to your phone or inbox* on, a notice
   you picked goes as a short message to an ntfy topic, a webhook, a Telegram bot or an e-mail server you set up on the capability's
   card; with *Show OpenAI's service status* on, the same process reads OpenAI's public status page, and the Overview says when it
@@ -127,7 +128,8 @@ an older version brings the runtime that version was built with (3.14.9 for v0.6
 - **Two recovery records no longer wait for good** (new since beta.4). *Tell a parent which of its subagents stopped* no longer
   leaves a record for a conversation that core never takes up. And turning *Recover every conversation but Codex's own* off cancels
   the waiting records it widened, as turning *Recover CLI, TUI and VS Code conversations* off does.
-- **Two capabilities stay hidden because their measurement failed** (new since beta.4). Codex's own retry settings: Codex refuses
+- **Two capabilities and one button stay hidden because their measurement failed** (new since beta.4; the button is *Switch the
+  Codex account*'s, above). Codex's own retry settings: Codex refuses
   the write (measurement MB, on codex-cli 0.162 on 2026-10-16 and again on 0.166.0-alpha.5.1 on 2026-10-31). *Continue inside the
   turn*, the continuation by a Codex Stop hook, which beta.3 told was built and hidden and waiting for three measurements: Codex runs
   a plugin's Stop hook after a turn that completed, but not after one that failed, which is the case it needs (measurement M4, on

@@ -103,5 +103,9 @@ MEASURED = {
     Measurement.MOPEN: (Verdict.PASS, CLI_0165_ALPHA_1_2),
     # 2026-10-31 (v0.6.20, Continue inside the turn's declaration): on a scratch Codex home the probe made and removed.
     Measurement.MHK: (Verdict.PASS, CLI_0166_ALPHA_5_1),
+    # 2026-11-01 (v0.6.20, account_switch's button), the measurement session with the owner: a `codex logout` made outside
+    # the app reached the running app, but the `codex login` after it did not within about a minute - the app came back
+    # signed in only through its own sign-in - so the button stays hidden: hidden because its measurement failed (partial).
+    Measurement.MAL: (Verdict.FAIL, CLI_0166_ALPHA_5_1),
     Measurement.MSTEER2: (Verdict.FAIL, CLI_0165_ALPHA_1_2),
 }
