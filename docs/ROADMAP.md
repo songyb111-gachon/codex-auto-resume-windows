@@ -1066,7 +1066,14 @@ chat's statement carries as its warning.
 
 ---
 
-## v0.6.20 — The rest of the advanced edition's last stage
+## v0.6.20 — The rest of the advanced edition's last stage ✅
+
+**Four pre-releases and a final that carries all of them. v0.6.20 carries the status light checked for every state, Arabic and Hebrew
+with every surface mirrored, #54 and #55, the Timeline dialog's columns, Python 3.14.10, and, in the advanced edition, usage and token
+analytics, push notices and the status feed, the 5-hour window started early, switching the account, #50's pictures, steer send mode,
+opening a conversation to send now and the follow-through view, an example for every capability, the advanced edition's own
+compatibility data, the Advanced features page in the owner's order, and the pair audit's fixes. The loopback API, remote control and
+the switch to Python 3.15 are v0.6.21.**
 
 On 2026-10-26 the owner released v0.6.19 as a final with what was built and moved what had been begun and what remained
 to a version of its own, v0.6.20, so that every later release moved back by one; and
@@ -1099,11 +1106,25 @@ token analytics, push notices and the status feed through one courier, starting 
 continuation (built, and hidden because its measurement failed), #50's pictures, steer send mode, opening a conversation to send now and follow-through view,
 and a before and after for every capability.
 
-### v0.6.20-beta.4 🚧 — Python 3.14.10, a source run under the newest Python, and the advanced edition's own compatibility data (a pre-release)
+### v0.6.20-beta.4 ✅ — Python 3.14.10, a source run under the newest Python (taken back in the final), and the advanced edition's own compatibility data (a pre-release)
 
 Both editions: Python 3.14.10 bundled, a run from source going on under the newest Python installed (the owner, 2026-10-30), and the
 Timeline dialog's columns measured in the window's own font. The advanced edition: its own compatibility data, and community reports that
-can ask to be credited and carry its own outcomes (the reporter's next release offers the choice).
+can ask to be credited and carry its own outcomes (the reporter's next release offers the choice). The source run under the newest Python was
+the owner's request of 2026-10-30 and is taken back in the final: the request had been about the CI, not about the product choosing an
+interpreter.
+
+### v0.6.20 ✅ — The final: what came after the fourth pre-release
+
+The final's changelog entry tells the whole line, every item of the four pre-releases in the form it has now; what reached it after
+v0.6.20-beta.4 is this. In both editions: a run from source goes on under the Python that started it, as before beta.4, and doctor
+no longer prints that Python's line; the CI runs every non-live test on Python 3.13, 3.14 and 3.15, all three blocking, each on the newest
+release of its line, and the main-tree job and the release workflow run the bundled Python 3.14.10, pinned until it is moved on purpose;
+every picture of the window is the window's own size on a screen smaller than the window. In the advanced edition: the Advanced features page
+in the order the owner approved on 2026-10-31; the pair audit's two fixes (a conversation already on Codex's default model is left to the
+headless route, and the 5-hour window started early is counted per account) and its holds; the wake for a reset also wakes the PC for the
+early 5-hour window; two recovery records that waited for good are cancelled; the measurements MB and M4 of 2026-10-31, which fail, so
+Codex's own retry settings and the continuation inside the turn stay hidden; and the reporter's release 1.5.4, which offers the credit.
 
 ### Around recovery
 
@@ -1490,9 +1511,9 @@ diagnostics, the scroll bar's groove, and M2b measured again
 
         ↓
 
-v0.6.20
-The rest of the advanced edition's last stage: analytics, the courier, account switching, the Stop hook continuation,
-Arabic and Hebrew, and an example for every capability
+v0.6.20  ✅ Released
+The final: the rest of the advanced edition's last stage - analytics, the courier, account switching, Arabic and Hebrew, and an
+example for every capability; the Stop hook continuation built and hidden because its measurement failed
 
         ↓
 
@@ -1525,7 +1546,8 @@ Maintenance
 
 This document records the current direction; the four pre-releases of v0.6.19, v0.6.19-beta to v0.6.19-beta.4, are out and
 the final v0.6.19, which carries all of them and what reached dev after them, is out; what it did not build is
-v0.6.20. v0.6.18 is out: a recovery that worked is recovered however its turn ended,
+v0.6.20, and the four pre-releases of v0.6.20, v0.6.20-beta to v0.6.20-beta.4, are out and the final v0.6.20, which carries all of them and what
+reached dev after them, is out. v0.6.18 is out: a recovery that worked is recovered however its turn ended,
 the standard edition suggests the Codex homes this PC uses, Install another version runs in the setup window, the setup
 window's bar fills by real counts, the update's download is streamed, all seventeen translations were reviewed, a full
 audit's fixes landed in every layer, and the advanced edition gains Open Codex on a notice and a weekly update check while
