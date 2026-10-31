@@ -1404,7 +1404,8 @@ DEFINITIONS = (START_WITH_CODEX, CRASH_RESTART, GOAL_CONTINUATION, QUEUE_FOR_OPE
                COMPAT_REPORT)
 # Codex's own retry settings (stage 4's item 6): Attempts (6, 8, 10 or 12; 8 by default) for both of its built-in
 # provider's retry keys, written at P8 and put back (engine/retries.py). MB failed on codex-cli 0.162.0-alpha.17.2 -
-# Codex refuses any write under model_providers.openai - so it waits in WAITING: hidden, its statement unwritten.
+# Codex refuses any write under model_providers.openai - so it waits in WAITING: hidden, its statement unwritten. Made
+# again on codex-cli 0.166.0-alpha.5.1 (2026-10-31), MB failed the same way: hidden because its measurement failed.
 CODEX_RETRY_SETTINGS = CapabilityDef(
     id="codex_retry_settings",
     points=frozenset({Point.TICK}),
@@ -1461,7 +1462,9 @@ OPEN_TO_SEND = CapabilityDef(
 # declaration in the plugin copy) and F6 (Codex starts the hook's program, which is not a listed process). It stands on
 # recovery_turn_tracking - the history it reads the failed turn from - and rests on M4 (a plugin's Stop hook runs after
 # a failed turn, its row already written), M4B (Codex carries out the block: the turn goes on, without a console window)
-# and MHK (the declaration's format on the engine in force). Hidden in WAITING until all three pass. Ceilings:
+# and MHK (the declaration's format on the engine in force). Hidden in WAITING until all three pass - and hidden because its
+# measurement failed: on codex-cli 0.166.0-alpha.5.1 (2026-10-31) M4 found that Codex runs a plugin's Stop hook after a
+# completed turn but none after a failed one, the turn this capability is for (MHK passed). Ceilings:
 # core's own five a conversation a day, and two dozen a day in all.
 STOP_HOOK = CapabilityDef(
     id="stop_hook_continuation",

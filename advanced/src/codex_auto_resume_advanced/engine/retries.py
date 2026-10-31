@@ -4,7 +4,8 @@
 How many times Codex retries a failed request and stream is two settings of its built-in provider,
 `model_providers.openai.request_max_retries` and `stream_max_retries`. MB measured on codex-cli 0.162.0-alpha.17.2 that
 Codex refuses any write under model_providers.openai (config/value/write, -32600), so on that Codex nothing here can
-work, and the owner's rule of 2026-10-16 keeps such a capability out of sight: no row on the Advanced features page, no
+work - and on codex-cli 0.166.0-alpha.5.1 (2026-10-31) MB failed the same way: it is hidden because its measurement
+failed. The owner's rule of 2026-10-16 keeps such a capability out of sight: no row on the Advanced features page, no
 statement, no switch (registry.WAITING, offered only once MB passes - registry.offered).
 
 This is its definition's code while it waits: it answers nothing. When a later Codex passes MB, the writer that keeps

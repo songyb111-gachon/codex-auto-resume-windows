@@ -155,7 +155,10 @@ class TableTests(unittest.TestCase):
         steer over the Desktop's IPC pipe was accepted and reached the running turn once, with no new turn, and the reply
         followed it, but the app never showed the line as the person's message. That night MOPEN was made again against
         the owner's limit of thirty seconds, its load timed by the lock's holder count alone: the window came to the
-        front and the app held the conversation within 2-10 s, so it passed."""
+        front and the app held the conversation within 2-10 s, so it passed.
+        2026-10-31, on codex-cli 0.166.0-alpha.5.1, before the v0.6.20 final: MB failed again (Codex refuses the write) and
+        MHK passed (plugin hooks a listed feature, Stop one of their events), both on scratch Codex homes; M4 failed - the
+        probe made its own failed turn, and Codex ran a plugin's Stop hook after a completed turn but none after it."""
         passed = {m for m, (verdict, _v) in measured.MEASURED.items() if verdict == Verdict.PASS}
         failed = {m for m, (verdict, _v) in measured.MEASURED.items() if verdict == Verdict.FAIL}
         self.assertEqual(passed, {Measurement.MW, Measurement.M1, Measurement.M2B, Measurement.M5,
@@ -164,7 +167,8 @@ class TableTests(unittest.TestCase):
                                   Measurement.MN, Measurement.MU, Measurement.MIPC, Measurement.MC1,
                                   Measurement.MXA, Measurement.MX, Measurement.MF, Measurement.MO,
                                   Measurement.M3B, Measurement.M6B, Measurement.MQO, Measurement.MQP,
-                                  Measurement.MQG, Measurement.MANCHOR, Measurement.MIMG, Measurement.MOPEN})
+                                  Measurement.MQG, Measurement.MANCHOR, Measurement.MIMG, Measurement.MOPEN,
+                                  Measurement.MHK})
         self.assertEqual(failed, {Measurement.M2, Measurement.M3, Measurement.M4, Measurement.MAWS,
                                   Measurement.MCLOUD, Measurement.MB, Measurement.MC2, Measurement.MSTEER,
                                   Measurement.MSTEER2})
@@ -183,11 +187,15 @@ class TableTests(unittest.TestCase):
         self.assertEqual({m for m, (_v, version) in measured.MEASURED.items()
                           if version == "codex-cli 0.165.0-alpha.1.2"},
                          {Measurement.MANCHOR, Measurement.MIMG, Measurement.MSTEER, Measurement.MOPEN, Measurement.MSTEER2})
+        # v0.6.20, before its final: MB and M4 made again and MHK made, on the Codex of 2026-10-31.
+        self.assertEqual({m for m, (_v, version) in measured.MEASURED.items()
+                          if version == "codex-cli 0.166.0-alpha.5.1"},
+                         {Measurement.MB, Measurement.MHK, Measurement.M4})
         self.assertEqual(set(Measurement) - passed - failed,
                          # v0.6.15-beta's own, for several conversations at once: not made yet.
                          {Measurement.MQ, Measurement.ME, Measurement.MS, Measurement.MK, Measurement.MT,
                           # v0.6.19's groundwork probes, made while its stage is built: not made yet.
-                          Measurement.MTOK, Measurement.MAL, Measurement.MWAKE, Measurement.MHK, Measurement.M4B})
+                          Measurement.MTOK, Measurement.MAL, Measurement.MWAKE, Measurement.M4B})
 
 
 if __name__ == "__main__":
