@@ -1185,6 +1185,7 @@
   "status.unavailable": "המצב אינו זמין",
   "status.unavailable_detail": "עדיין אפשר לשנות ולשמור הגדרות",
   "status.unknown": "מצב תהליך הניטור לא ידוע",
+  "status.loading": "טוען...",
   "status.watching": "מנטר הפסקות",
   "stay.after_sleep": "משימות שממתינות אחרי שינה ארוכה",
   "time.ago": "לפני {time}",

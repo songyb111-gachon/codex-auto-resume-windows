@@ -1185,6 +1185,7 @@
   "status.unavailable": "無法取得狀態",
   "status.unavailable_detail": "仍可變更並儲存設定",
   "status.unknown": "監看程式狀態未知",
+  "status.loading": "正在載入...",
   "status.watching": "正在監看中斷",
   "stay.after_sleep": "長時間睡眠後等待的任務",
   "time.ago": "{time}前",

@@ -1185,6 +1185,7 @@
   "status.unavailable": "상태를 읽을 수 없음",
   "status.unavailable_detail": "설정은 계속 변경하고 저장할 수 있습니다",
   "status.unknown": "워처 상태를 알 수 없음",
+  "status.loading": "불러오는 중...",
   "status.watching": "중단을 감시하는 중",
   "stay.after_sleep": "오랜 절전 뒤 기다리는 작업",
   "time.ago": "{time} 전",

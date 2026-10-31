@@ -1185,6 +1185,7 @@
   "status.unavailable": "Stan niedostępny",
   "status.unavailable_detail": "Ustawienia nadal można zmieniać i zapisywać",
   "status.unknown": "Stan monitora nieznany",
+  "status.loading": "Wczytywanie...",
   "status.watching": "Wypatruje przerwań",
   "stay.after_sleep": "Zadania czekające po długim uśpieniu",
   "time.ago": "{time} temu",

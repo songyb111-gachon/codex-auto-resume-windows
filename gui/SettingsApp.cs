@@ -1199,7 +1199,9 @@ namespace CodexAutoResume
             headline.ForeColor = Ink;
             headline.Font = Soft.RoleFont("display");
             headline.AutoEllipsis = true;
-            headline.Text = "Loading...";
+            // In the window's language until the first status arrives: after a reopen it showed a moment, in English in
+            // every language (the v0.6.20 final's live acceptance, A5).
+            headline.Text = S("status.loading", "Loading...");
 
             detail.Dock = DockStyle.Fill;
             detail.TextAlign = ContentAlignment.TopLeft;

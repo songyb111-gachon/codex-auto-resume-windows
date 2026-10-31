@@ -1185,6 +1185,7 @@
   "status.unavailable": "状态不可用",
   "status.unavailable_detail": "仍可更改并保存设置",
   "status.unknown": "监视程序状态未知",
+  "status.loading": "正在加载...",
   "status.watching": "正在监视中断",
   "stay.after_sleep": "长时间睡眠后等待的任务",
   "time.ago": "{time}前",

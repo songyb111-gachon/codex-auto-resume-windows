@@ -1185,6 +1185,7 @@
   "status.unavailable": "Status tidak tersedia",
   "status.unavailable_detail": "Pengaturan tetap dapat diubah dan disimpan",
   "status.unknown": "Status pemantau tidak diketahui",
+  "status.loading": "Memuat...",
   "status.watching": "Memantau interupsi",
   "stay.after_sleep": "Tugas yang menunggu setelah tidur panjang",
   "time.ago": "{time} lalu",

@@ -1185,6 +1185,7 @@
   "status.unavailable": "状態を取得できません",
   "status.unavailable_detail": "設定の変更と保存は引き続き可能です",
   "status.unknown": "監視プロセスの状態は不明です",
+  "status.loading": "読み込み中...",
   "status.watching": "中断を監視中",
   "stay.after_sleep": "長いスリープの後に待っているタスク",
   "time.ago": "{time}前",
