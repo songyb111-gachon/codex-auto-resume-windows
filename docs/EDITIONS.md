@@ -156,8 +156,10 @@ compatibility report, which only you start. Five rest on a measurement each that
 is opened, and open a waiting conversation in Codex (MOPEN, on `codex-cli 0.165.0-alpha.1.2`). All five added in v0.6.16-beta.4 rest on measurements that were made - running a conversation
 here, the other sessions, compacting a full conversation, another model at capacity and a continuation with
 no words - and four more (the reset credit, the reset message, the usage meter and the forced stop) rest on
-measurements made on `codex-cli 0.162.0-alpha.17.2` and, for the forced stop, again on the newer one. Nine rest on
-measurements not made yet - wake this PC for a reset, on MWAKE, the usage and token analytics, on MTOK, and switching the Codex account, on MAL (its MA passed), are the new ones - the chat rests on M7, MC1 and MC2, which were made, as its own
+measurements made on `codex-cli 0.162.0-alpha.17.2` and, for the forced stop, again on the newer one. Eight rest on
+measurements not made yet - wake this PC for a reset, on MWAKE, and the usage and token analytics, on MTOK, are the new ones -
+switching the Codex account rests on MA, which passed, and on MAL, which failed on `codex-cli 0.166.0-alpha.5.1` on
+2026-11-01, so its button is hidden - the chat rests on M7, MC1 and MC2, which were made, as its own
 section below says, starting the 5-hour window early on MANCHOR, made on `codex-cli 0.165.0-alpha.1.2` on 2026-10-29, steering the running turn on MSTEER2,
 made the same day, and the other sixteen on none. Each measurement made was made by hand, on the
 owner's machine, first on `codex-cli 0.158.0-alpha.2.1`, again on `codex-cli 0.162.0-alpha.17.2` and, for those this release's
@@ -1420,7 +1422,9 @@ you sign in in Codex. A change of account is noticed at the watcher's next readi
 The terms of your ChatGPT plan apply to the accounts you use. Until MAL - the running Codex app follows a
 sign-in made with `codex login` without a restart - has passed on the Codex in force, the card offers no
 button: it says to sign out in Codex (Settings > Account) and sign in there with the other account, and a
-change is held for you all the same. Turned off, the digest and its key are deleted the next time the
+change is held for you all the same. MAL failed on `codex-cli 0.166.0-alpha.5.1` (2026-11-01): a sign-out
+made with `codex logout` reached the running app, but the `codex login` after it did not until the app's
+own sign-in was used. So the button is hidden because its measurement failed. Turned off, the digest and its key are deleted the next time the
 watcher runs.
 
 **Departs from** [B4](STANDARDS.md#b-what-it-reads-and-how) (`account/read` beyond core's calls),
@@ -1433,8 +1437,9 @@ recovery is due), [D2](STANDARDS.md#d-privacy-and-the-data-it-keeps) (a digest o
 [A12](STANDARDS.md#a-what-it-may-send-to-codex-and-when): a recovery you let continue still reads live usage.
 
 **Ceilings.** None come into play: it sends nothing to Codex. **Measurements MA: passed** on
-`codex-cli 0.162.0-alpha.17.2`, and **MAL: not made yet**; on any version where one has not passed, a warning,
-and the button waits for MAL.
+`codex-cli 0.162.0-alpha.17.2`, and **MAL: failed** on `codex-cli 0.166.0-alpha.5.1` (2026-11-01, partial: the
+sign-out reached the running app, the sign-in did not); on any version where one has not passed, a warning, and
+the button is hidden because its measurement failed.
 
 ### Compatibility report
 
