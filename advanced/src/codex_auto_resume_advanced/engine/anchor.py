@@ -30,6 +30,11 @@ tick is journalled and its errand never run); the errand reads and acts:
    log.
 
 Every start and every skip is one journal line, `anchor.<word>` (registry WINDOW_ANCHOR.codes), nothing else.
+
+Beside account_switch (v0.6.20, the pair audit's V20-2): the window is the signed-in account's. Where account_switch
+saw another account signed in (its stamp ACCOUNT_CHANGED_AT), the start, the fixed reset and the reset seen kept here
+were the other account's - they go, once a change, so one start a window is counted for this account's window and a
+time picked is not refused `skip_once` for a start made on the other.
 """
 from __future__ import annotations
 
@@ -86,6 +91,9 @@ SKIPS = {"running": "skip_running", "weekly": "skip_weekly", "paused": "skip_pau
 CODES = ("started", "fixed", "unfixed", "failed", "timed_out") + tuple(SKIPS.values())
 # What an occasion is: a time picked, or a reset seen.
 SLOT, RESET, VERIFY = "slot", "reset", "verify"
+# account_switch, and the stamps of a window that are the account's that was signed in (V20-2).
+ACCOUNT_SWITCH = "account_switch"
+WINDOW_STAMPS = (OptionKey.ANCHOR_STARTED_AT, OptionKey.ANCHOR_FIXED_AT, OptionKey.ANCHOR_SEEN_RESET)
 LOG_PREFIX = "window anchor: "
 
 
@@ -316,6 +324,7 @@ class WindowAnchor:
             return DEFER
         try:
             now = scoped.now()
+            self._account_changed()
             with self._lock:
                 ended, running = self._ended is not None, self._running is not None
             if ended:
@@ -331,6 +340,23 @@ class WindowAnchor:
             return _Errand(self, view) if self._occasion(now) or self._learn_due(now) else DEFER
         except Exception:
             return DEFER
+
+    def _account_changed(self) -> None:
+        """V20-2: another account signed in since the last change taken in, as account_switch saw it - its window stamps
+        go, once a change. Nothing where account_switch does not stand on, or nothing can be read."""
+        scoped = self._scoped
+        try:
+            if scoped.armed(ACCOUNT_SWITCH) is not True:
+                return
+            changed = scoped.stamped_of(ACCOUNT_SWITCH, OptionKey.ACCOUNT_CHANGED_AT)
+            taken = scoped.stamped(OptionKey.ANCHOR_ACCOUNT_AT)
+            if type(changed) is not int or (type(taken) is int and taken >= changed):
+                return
+            for key in WINDOW_STAMPS:
+                scoped.unstamp(key)
+            scoped.stamp(OptionKey.ANCHOR_ACCOUNT_AT, changed)
+        except Exception:
+            return
 
     def _occasion(self, now):
         """(why, occurrence) of an occasion due now - a time picked first, then a reset seen - or None."""

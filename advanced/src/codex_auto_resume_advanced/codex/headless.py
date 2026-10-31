@@ -311,6 +311,9 @@ class HeadlessRun:
         self.seconds, self.mode, self.model, self.app_running = seconds, mode, model, app_running
         # What the last resume came to before a turn started, for the capability's journal: refused_settings, or None.
         self.refused = None
+        # v0.6.20 (the pair audit, V20-1): a FALLBACK route's conversation found on Codex's default model already -
+        # nothing to fall back to - its thread id, for model_fallback to leave that conversation to the others.
+        self.on_default = None
 
     def resume(self, thread_id, *, launch_guard=None, still_unloaded=None, words=None, client_id=None):
         """Run the one turn core asked for - see the module's steps. Never raises."""
@@ -345,6 +348,8 @@ class HeadlessRun:
                     self.model = _default_model(session.call("model/list", {}))
                 except Exception:
                     self.model = None
+                if self.model is not None and self.model == original:
+                    self.on_default = thread_id
                 if self.model is None or original is None or self.model == original:
                     return dict(PREFLIGHT)
             if still_unloaded is not None and not _yes(still_unloaded):

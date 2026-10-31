@@ -14,6 +14,7 @@ import json
 from pathlib import Path
 import sys
 import threading
+import time
 import unittest
 from unittest.mock import patch
 import uuid
@@ -1062,6 +1063,304 @@ class StopHookBesideKeepGoingTests(unittest.TestCase):
         self.assertIsNone(hook_handler.decide(stop, hands))
         self.assertEqual(claims, [])
 
+
+
+# ------------------------------------------------------------------ v0.6.20: the four not audited before (the pair audit
+# of 2026-10-31, plans/v0620-capability-pairs.md): model_fallback, window_anchor, steer_send, every_conversation.
+from codex_auto_resume_advanced.registry import CAPACITY_RETRY, MODEL_FALLBACK  # noqa: E402
+from test_advanced_headless import SAVED, Server  # noqa: E402
+from test_advanced_model_fallback import Codes  # noqa: E402
+
+DEFAULT_MODEL = "the-default-model"
+WORDS = "Continue.\n\n[codex-auto-resume:0123456789abcdef]"
+
+
+class FallbackBesideHeadlessRunTests(ac.AdvancedCase):
+    """Finding V20-1, SPLIT: model_fallback answers P16 before headless_run (registry order) for an unheld conversation
+    at capacity past the Attempts - and where that conversation is on Codex's default model already, its route starts
+    nothing (codex/headless.py: no other model to fall back to). Core gives the claim back and the record waits; at its
+    next look model_fallback answered again, so headless_run - whose turn on the same model is what that case needs -
+    was passed over, and each answer was a claim that cost core's spacing and caps. Each now acts on its own cases:
+    a conversation found on the default is headless_run's (or core's) from then on."""
+    THREAD = "0a1b2c3d-0001-7000-8000-000000000001"
+    OTHER = "0a1b2c3d-0001-7000-8000-000000000002"
+    TURN = "11111111-2222-3333-4444-555555555555"
+
+    def setUp(self):
+        super().setUp()
+        self.compat = _compat(MODEL_FALLBACK.compat, HEADLESS_RUN.compat)
+        self.rt = self.runtime(MODEL_FALLBACK, HEADLESS_RUN)
+        self.rt.arming.catalogs = statement.CATALOGS
+        for name, value in (("INTERRUPT_SECONDS", 0.5), ("APP_LOOK_SECONDS", 0.0)):
+            self.addCleanup(setattr, headless, name, getattr(headless, name))
+            setattr(headless, name, value)
+        self.follower = headless.Follower(poll=0.01)
+        self.models, self.servers = {}, []
+
+        def opening(capability):
+            self.servers.append(_ByThread(capability, self.models))
+            return self.servers[-1]
+        fallback = self.rt._code_of(MODEL_FALLBACK)
+        fallback._turns, fallback._open, fallback.follower = Codes("serverOverloaded"), opening, self.follower
+        fallback._app = lambda: False
+        run = self.rt._code_of(HEADLESS_RUN)
+        run._open, run.follower, run._app = opening, self.follower, lambda: False
+        for definition in (MODEL_FALLBACK, HEADLESS_RUN):
+            result = self.arm(self.rt, definition.id, warnings=[str(w) for w in self.rt.arming.warnings(definition)])
+            self.assertTrue(result["done"], result)
+        self.rt.states(fresh=True)
+
+    def record(self, thread, key=7):
+        return {"interruption_id": "%064x" % key, "thread_id": thread, "turn_id": self.TURN, "category": "server_5xx",
+                "chain_continuations": 2, "holder": "none", "app": False}
+
+    def route(self, record):
+        self.rt.tick(None)                                   # a new look: what was taken last time is forgotten
+        return self.rt.ask(Point.UNLOADED, record)
+
+    def resume(self, route, thread):
+        answered = route.resume(thread, still_unloaded=lambda: True, words=WORDS, client_id=None)
+        if answered.get("outcome") == "ran":
+            deadline = time.monotonic() + 5
+            while self.follower.live() is not None and time.monotonic() < deadline:
+                time.sleep(0.01)
+        return answered
+
+    def test_a_conversation_on_the_default_model_already_is_headless_run_s_after_one_look(self):
+        """Fails with the fix reverted: model_fallback answers again and again, and starts nothing each time."""
+        self.models[self.THREAD] = DEFAULT_MODEL
+        first = self.route(self.record(self.THREAD))
+        self.assertEqual(first.capability, MODEL_FALLBACK.id)
+        self.assertEqual(self.resume(first, self.THREAD)["outcome"], "not_started", "nothing to fall back to")
+        self.assertNotIn("turn/start", self.servers[-1].methods())
+        again = self.route(self.record(self.THREAD))
+        self.assertEqual(again.capability, HEADLESS_RUN.id, "the same model again is headless_run's turn")
+        self.assertEqual(self.resume(again, self.THREAD)["outcome"], "ran")
+        started = dict(self.servers[-1].calls)["turn/start"]
+        self.assertNotIn("model", started, "on the conversation's own model")
+
+    def test_a_conversation_on_another_model_still_falls_back(self):
+        self.models[self.THREAD] = DEFAULT_MODEL
+        self.resume(self.route(self.record(self.THREAD)), self.THREAD)
+        self.models[self.OTHER] = "the-threads-model"
+        other = self.route(self.record(self.OTHER, key=8))
+        self.assertEqual(other.capability, MODEL_FALLBACK.id, "each conversation on its own")
+        self.assertEqual(self.resume(other, self.OTHER)["outcome"], "ran")
+        self.assertEqual(dict(self.servers[-1].calls)["turn/start"]["model"], DEFAULT_MODEL)
+
+
+class _ByThread(Server):
+    """A route's session whose thread/resume answers for the conversation asked - its saved settings, on the model the
+    test gave it - and whose model/list names DEFAULT_MODEL Codex's default."""
+
+    def __init__(self, capability, models):
+        super().__init__(capability, replies={"model/list": {"data": [{"model": DEFAULT_MODEL, "isDefault": True}]}})
+        self.models = models
+
+    def call(self, method, params=None):
+        answer = super().call(method, params)
+        return dict(SAVED, model=self.models[params["threadId"]]) if method == "thread/resume" else answer
+
+
+
+from test_advanced_window_anchor import AnchorCase  # noqa: E402
+from codex_auto_resume_advanced.engine import anchor as anchor_engine  # noqa: E402
+from codex_auto_resume_advanced.registry import ACCOUNT_SWITCH, WINDOW_ANCHOR  # noqa: E402
+from codex_auto_resume_advanced.vocabulary import OptionKey  # noqa: E402
+
+
+class _AnchorBeside(AnchorCase):
+    """window_anchor beside the capabilities in BESIDE: its own harness (test_advanced_window_anchor.AnchorCase - every
+    usage read a fake session, every request a stub process), with them armed in one runtime."""
+    BESIDE = ()
+
+    def setUp(self):
+        super().setUp()
+        self.rt.state.close()
+        self.rt = self.runtime(*self.BESIDE, WINDOW_ANCHOR)
+        self.rt.arming.catalogs = statement.CATALOGS
+        self.wire()
+
+    def beside(self, capability):
+        definition = self.rt.registry.get(capability)
+        result = self.arm(self.rt, capability, warnings=[str(w) for w in self.rt.arming.warnings(definition)])
+        self.assertTrue(result["done"], result)
+        self.rt.states(fresh=True)
+
+
+class AnchorBesideAccountSwitchTests(_AnchorBeside):
+    """Finding V20-2, COMPOSE: the 5-hour window is the signed-in account's, but window_anchor kept one start, one fixed
+    reset and one reset seen whatever account they were of - so after account_switch saw another account signed in,
+    a time picked within five hours of a start made on the other account was refused `skip_once` though this account's
+    window was idle, and the reset seen was the other account's. account_switch's mechanism now carries it: the change
+    it sees is stamped, and window_anchor lets the other account's window stamps go."""
+    BESIDE = (ACCOUNT_SWITCH,)
+
+    def setUp(self):
+        super().setUp()
+        from test_advanced_account import ONE, OTHER, Secrets
+        from codex_auto_resume_advanced.codex import account
+        self.signed, self.other = ONE, OTHER
+        code = self.rt._code_of(ACCOUNT_SWITCH)
+        code._read = lambda paths: account.parse(self.signed)
+        code._secrets = self.rt.arming.secrets = Secrets()
+        code._hold = lambda paths, keys, now: len(keys)
+
+    def two_times(self):
+        self.beside("account_switch")
+        self.on(anchor_at_1=anchor_engine.encode_time(7, 0), anchor_at_2=anchor_engine.encode_time(8, 0),
+                anchor_after_reset=2)
+        self.run_through()
+        self.assertEqual(len(self.world.started), 1)
+
+    def test_another_account_s_idle_window_is_started_at_the_next_time_picked(self):
+        """Fails with the fix reverted: refused skip_once for the start made on the other account an hour before."""
+        self.two_times()
+        first_fixed = self.stamped(OptionKey.ANCHOR_FIXED_AT)
+        self.signed, self.world.running_until = self.other, None    # another account, its window idle
+        self.now = float(anchor_engine.midnight(self.now) + 8 * 3600 - 30)
+        self.run_through()
+        self.assertEqual(len(self.world.started), 2, "the other account's window started too")
+        self.assertNotIn("anchor.skip_once", self.codes())
+        self.assertEqual(self.codes()[-2:], ["anchor.started", "anchor.fixed"])
+        self.assertNotEqual(self.stamped(OptionKey.ANCHOR_FIXED_AT), first_fixed, "the reset this account's start fixed")
+
+    def test_the_same_account_still_starts_one_window_once(self):
+        self.two_times()
+        self.world.running_until = None
+        self.now = float(anchor_engine.midnight(self.now) + 8 * 3600 - 30)
+        self.run_through()
+        self.assertEqual(len(self.world.started), 1)
+        self.assertEqual(self.codes()[-1], "anchor.skip_once")
+
+
+class AnchorBesideUsagePauseTests(_AnchorBeside):
+    """window_anchor beside usage_pause: SPLIT by what each touches. The pause holds this product's continuations while
+    a window it marked has not reset; the anchor starts only an idle 5-hour window, so a pause of the 5-hour window
+    and a start never meet, and a pause of the weekly window (under 100 %) leaves an idle 5-hour window to start -
+    while the pause still holds core's records at P3 beside it. A start costs under 1 % (MANCHOR)."""
+    BESIDE = (USAGE_METER, USAGE_PAUSE)
+
+    def test_a_held_weekly_window_does_not_stop_a_start_and_the_pause_still_holds(self):
+        self.beside("usage_meter")
+        self.beside("usage_pause")
+        self.rt.state.save_meter([{"bucket": "codex", "window_minutes": 10080, "used_percent": 96.0,
+                                   "reset_at": int(self.now + 86400)}])
+        self.assertTrue(self.rt.state.mark_meter("codex", 10080, paused_reset_at=int(self.now + 86400)))
+        self.world.week = 96.0
+        self.on(anchor_at_1=anchor_engine.encode_time(7, 0), anchor_after_reset=2)
+        self.run_through()
+        self.assertEqual(len(self.world.started), 1)
+        record = {"interruption_id": ac.KEY, "thread_id": ac.THREAD, "category": "usage_limit",
+                  "state": "waiting_reset"}
+        self.assertIs(self.rt.ask(Point.GATES, "submission_safe", record, {}), Alternative.HOLD)
+
+
+class FallbackBesideCapacityRetryTests(ac.AdvancedCase):
+    """model_fallback beside capacity_retry: COMPOSE. capacity_retry takes a capacity failure up at P17 (CAPACITY:
+    sooner retries on the same model); the record keeps its kind (server_5xx), so once its task has had the Attempts
+    and nothing holds the conversation with Codex closed, model_fallback's turn on Codex's default is still P16's."""
+
+    def test_a_task_capacity_retry_took_up_falls_back_past_the_attempts(self):
+        self.compat = _compat(MODEL_FALLBACK.compat, CAPACITY_RETRY.compat)
+        rt = self.runtime(CAPACITY_RETRY, MODEL_FALLBACK)
+        rt.arming.catalogs = statement.CATALOGS
+        code = rt._code_of(MODEL_FALLBACK)
+        code._turns, code._app = Codes("serverOverloaded"), lambda: False
+        code._open, code.follower = (lambda capability: None), headless.Follower(poll=0.01)
+        for definition in (CAPACITY_RETRY, MODEL_FALLBACK):
+            result = self.arm(rt, definition.id, warnings=[str(w) for w in rt.arming.warnings(definition)])
+            self.assertTrue(result["done"], result)
+        rt.states(fresh=True)
+        key = "%064x" % 7
+        facts = {"category": "server_5xx", "code": "serverOverloaded", "takes": frozenset({Alternative.CAPACITY}),
+                 "interruption_id": key,
+                 "thread_id": FallbackBesideHeadlessRunTests.THREAD, "completed_at": self.now + 1}
+        self.assertIs(rt.ask(Point.ADMISSION, facts), Alternative.CAPACITY, "capacity_retry takes it up")
+        record = {"interruption_id": key, "thread_id": FallbackBesideHeadlessRunTests.THREAD,
+                  "turn_id": FallbackBesideHeadlessRunTests.TURN, "category": "server_5xx", "chain_continuations": 2,
+                  "holder": "none", "app": False}
+        route = rt.ask(Point.UNLOADED, record)
+        self.assertEqual((route.capability, route.mode), (MODEL_FALLBACK.id, headless.FALLBACK))
+
+
+from test_advanced_steer_send import SteerCase  # noqa: E402
+from codex_auto_resume_advanced.registry import STEER_SEND  # noqa: E402
+from codex_auto_resume_advanced.vocabulary import SteerState  # noqa: E402
+
+
+class SteerBesideUsagePauseTests(SteerCase):
+    """steer_send beside usage_pause (and the prompt queue it needs): SPLIT by whose words. The pause holds this
+    product's continuations; a steer is a person's own line, as a queued prompt is, which the pause leaves alone - so a
+    held window neither holds nor refuses it, and it is written once, while the pause still holds core's records."""
+    BESIDE = (PROMPT_QUEUE, USAGE_METER, USAGE_PAUSE)
+
+    def setUp(self):
+        super().setUp()
+        self.compat = _compat(*{definition.compat for definition in (*self.BESIDE, STEER_SEND)})
+
+    def test_a_steer_is_written_while_a_window_is_held(self):
+        plug, runtime = self.on()
+        runtime._code_of(USAGE_METER)._app_running = lambda: False       # the meter reads nothing here
+        runtime.state.save_meter([{"bucket": "codex", "window_minutes": 300, "used_percent": 97.0,
+                                   "reset_at": int(self.h.now + 3600)}])
+        self.assertTrue(runtime.state.mark_meter("codex", 300, paused_reset_at=int(self.h.now + 3600)))
+        self.assertTrue(runtime._code_of(USAGE_PAUSE).holding(), "the window is held")
+        self.assertTrue(self.ask(runtime)["done"])
+        self.h.tick()
+        self.assertEqual(len(self.calls), 1)
+        self.assertEqual(self.rows(runtime)[0]["state"], SteerState.ACCEPTED)
+        self.assertTrue(runtime._code_of(USAGE_PAUSE).holding(), "and still held for core's records")
+
+
+from codex_auto_resume_advanced.registry import EVERY_CONVERSATION  # noqa: E402
+from test_session_kinds import CLI, add_thread  # noqa: E402
+
+
+class EveryConversationBesideOtherSessionsTests(TakingCase):
+    """every_conversation beside other_sessions: COMPOSE. Each widens a different check of the one place core judges a
+    conversation (codex/eligibility.row_problem): other_sessions which sources (P18: a terminal's, VS Code's),
+    every_conversation which labels (P19) - so a terminal's conversation with a label the standard edition does not
+    know is taken up with both on, and with either alone it is not. every_conversation sends nothing itself, so no
+    unit of any ceiling is ever spent in its name."""
+    DEFINITION = EVERY_CONVERSATION
+    BESIDE = (OTHER_SESSIONS,)
+
+    def fresh(self, **kwargs):
+        made = super().fresh(**kwargs)
+        holding_sessions(made.backend)
+        return made
+
+    def arm(self, plug, state="armed", capability=None, **changes):
+        definition = plug.runtime.registry.get(capability or self.cap)
+        changes.setdefault("warnings", [str(word) for word in plug.runtime.arming.warnings(definition)])
+        return super().arm(plug, state=state, capability=capability, **changes)
+
+    def setUp(self):
+        super().setUp()
+        self.compat = _compat(EVERY_CONVERSATION.compat, OTHER_SESSIONS.compat)
+
+    def test_a_terminal_s_conversation_with_a_new_label_is_taken_up_with_both_on(self):
+        plug = self.armed()
+        add_thread(self.h.home, T1, **CLI, thread_source="a_label_from_tomorrow")
+        self.ready_after_reset(self.h, thread_id=T1)
+        self.h.tick()
+        self.assertEqual(len(self.h.records(T1)), 1)
+        for _ in range(3):
+            self.h.tick(advance=60)
+        self.assertNotIn(EVERY_CONVERSATION.id, [spend[0] for spend in self.spends(plug)])
+
+    def test_with_either_alone_it_is_not(self):
+        for alone in (EVERY_CONVERSATION, OTHER_SESSIONS):
+            with self.subTest(alone.id):
+                h = self.fresh()
+                plug = self.advanced(h)
+                self.arm(plug, capability=alone.id)
+                self.plugged(plug, h)
+                add_thread(h.home, T1, **CLI, thread_source="a_label_from_tomorrow")
+                self.ready_after_reset(h, thread_id=T1)
+                h.tick()
+                self.assertEqual(h.records(T1), [])
 
 if __name__ == "__main__":
     unittest.main()
