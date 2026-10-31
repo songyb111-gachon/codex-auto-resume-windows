@@ -1408,6 +1408,13 @@ namespace CodexAutoResume
             string renderJob = SettingsForm.RenderJob;
             if (renderJob != null) return SettingsForm.RenderFrames(renderJob);
 
+            // v0.6.20 (the final's live acceptance): started by a person - the Start menu, the program itself - while a window
+            // of this program is open, that window comes forward on the page asked and this process ends, before anything is
+            // built: never two Dashboards (HandsOverOnStart, HandOverTo). A reopen, the chat a notice opens and a capture start
+            // as they always did.
+            if (SettingsForm.HandsOverOnStart(argv, Soft.StillReady != null) &&
+                SettingsForm.HandOverTo(Application.ExecutablePath, SettingsForm.HandOverPage(argv)))
+                return 0;
             string root = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
             // v0.6.17: opened inside another app's private view of Windows - from the tray of a watcher the Codex app
             // started - Repair, an update and another version would register this installation where Windows never
