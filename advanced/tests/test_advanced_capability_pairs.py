@@ -1162,5 +1162,76 @@ class _ByThread(Server):
         return dict(SAVED, model=self.models[params["threadId"]]) if method == "thread/resume" else answer
 
 
+
+from test_advanced_window_anchor import AnchorCase  # noqa: E402
+from codex_auto_resume_advanced.engine import anchor as anchor_engine  # noqa: E402
+from codex_auto_resume_advanced.registry import ACCOUNT_SWITCH, WINDOW_ANCHOR  # noqa: E402
+from codex_auto_resume_advanced.vocabulary import OptionKey  # noqa: E402
+
+
+class _AnchorBeside(AnchorCase):
+    """window_anchor beside the capabilities in BESIDE: its own harness (test_advanced_window_anchor.AnchorCase - every
+    usage read a fake session, every request a stub process), with them armed in one runtime."""
+    BESIDE = ()
+
+    def setUp(self):
+        super().setUp()
+        self.rt.state.close()
+        self.rt = self.runtime(*self.BESIDE, WINDOW_ANCHOR)
+        self.rt.arming.catalogs = statement.CATALOGS
+        self.wire()
+
+    def beside(self, capability):
+        definition = self.rt.registry.get(capability)
+        result = self.arm(self.rt, capability, warnings=[str(w) for w in self.rt.arming.warnings(definition)])
+        self.assertTrue(result["done"], result)
+        self.rt.states(fresh=True)
+
+
+class AnchorBesideAccountSwitchTests(_AnchorBeside):
+    """Finding V20-2, COMPOSE: the 5-hour window is the signed-in account's, but window_anchor kept one start, one fixed
+    reset and one reset seen whatever account they were of - so after account_switch saw another account signed in,
+    a time picked within five hours of a start made on the other account was refused `skip_once` though this account's
+    window was idle, and the reset seen was the other account's. account_switch's mechanism now carries it: the change
+    it sees is stamped, and window_anchor lets the other account's window stamps go."""
+    BESIDE = (ACCOUNT_SWITCH,)
+
+    def setUp(self):
+        super().setUp()
+        from test_advanced_account import ONE, OTHER, Secrets
+        from codex_auto_resume_advanced.codex import account
+        self.signed, self.other = ONE, OTHER
+        code = self.rt._code_of(ACCOUNT_SWITCH)
+        code._read = lambda paths: account.parse(self.signed)
+        code._secrets = self.rt.arming.secrets = Secrets()
+        code._hold = lambda paths, keys, now: len(keys)
+
+    def two_times(self):
+        self.beside("account_switch")
+        self.on(anchor_at_1=anchor_engine.encode_time(7, 0), anchor_at_2=anchor_engine.encode_time(8, 0),
+                anchor_after_reset=2)
+        self.run_through()
+        self.assertEqual(len(self.world.started), 1)
+
+    def test_another_account_s_idle_window_is_started_at_the_next_time_picked(self):
+        """Fails with the fix reverted: refused skip_once for the start made on the other account an hour before."""
+        self.two_times()
+        first_fixed = self.stamped(OptionKey.ANCHOR_FIXED_AT)
+        self.signed, self.world.running_until = self.other, None    # another account, its window idle
+        self.now = float(anchor_engine.midnight(self.now) + 8 * 3600 - 30)
+        self.run_through()
+        self.assertEqual(len(self.world.started), 2, "the other account's window started too")
+        self.assertNotIn("anchor.skip_once", self.codes())
+        self.assertEqual(self.codes()[-2:], ["anchor.started", "anchor.fixed"])
+        self.assertNotEqual(self.stamped(OptionKey.ANCHOR_FIXED_AT), first_fixed, "the reset this account's start fixed")
+
+    def test_the_same_account_still_starts_one_window_once(self):
+        self.two_times()
+        self.world.running_until = None
+        self.now = float(anchor_engine.midnight(self.now) + 8 * 3600 - 30)
+        self.run_through()
+        self.assertEqual(len(self.world.started), 1)
+        self.assertEqual(self.codes()[-1], "anchor.skip_once")
+
 if __name__ == "__main__":
     unittest.main()
