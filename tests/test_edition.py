@@ -646,7 +646,11 @@ class EditionLaneTests(unittest.TestCase):
 
     def test_the_future_python_runs_each_edition_too(self):
         """An `include` entry that sets a Python the axis does not list makes a job of its own
-        and joins no other, so an entry without an edition would test neither by name."""
+        and joins no other, so an entry without an edition would test neither by name. While no next
+        Python is named (python_support.json, null since 2026-10-31) there is no `include` at all."""
+        if "include:" not in self.matrix:
+            self.assertNotIn("experimental: true", self.matrix)
+            return
         include = self.matrix[self.matrix.index("include:"):]
         entries = re.findall(r"(?m)^          - (\{.*\})\s*$", include)
         self.assertTrue(entries, "the future Python has no lane")
