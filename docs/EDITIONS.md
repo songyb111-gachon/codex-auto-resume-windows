@@ -1551,10 +1551,10 @@ published as a final instead (owner, 2026-10-10). v0.6.15 was a fix alone (owner
 rest went to v0.6.16, which came in four pre-releases and is out: its first, v0.6.16-beta, built the
 six capabilities of stage 3c, and the next three a route of its own, other kinds of session and the
 usage capabilities. v0.6.18 then took two small capabilities of stage 5, Open Codex on a notice and the weekly
-update check, and published them as a final (owner, 2026-10-21). v0.6.19 then came in four pre-releases and is out (owner, 2026-10-26): its first, v0.6.19-beta, carried the chat inside the Dashboard, the restart of the watcher and the wake for a reset, and the others the rest of what it built. What is left of stage 5 is v0.6.20 (owner, 2026-10-26), which publishes each part as a pre-release as it is finished; its local API and web view, remote control and view of other PCs moved on to v0.6.21 (owner, 2026-10-31). Each new capability is the advanced edition's alone, off until you
+update check, and published them as a final (owner, 2026-10-21). v0.6.19 then came in four pre-releases and is out (owner, 2026-10-26): its first, v0.6.19-beta, carried the chat inside the Dashboard, the restart of the watcher and the wake for a reset, and the others the rest of what it built. What was left of stage 5 was v0.6.20 (owner, 2026-10-26), which published each part as a pre-release as it was finished and is out; its local API and web view, remote control and view of other PCs moved on to v0.6.21 (owner, 2026-10-31). Each new capability is the advanced edition's alone, off until you
 turn it on, with a statement that names the standards it departs from. This is a direction, not a
 promise; [ROADMAP.md](ROADMAP.md) has the whole list: the two additions in its v0.6.12 section, what
-is built in its v0.6.14, v0.6.16, v0.6.18 and v0.6.19 sections, and the rest in its v0.6.20 and v0.6.21 sections, under the same
+is built in its v0.6.14, v0.6.16, v0.6.18, v0.6.19 and v0.6.20 sections, and the rest in its v0.6.21 section, under the same
 headings as the last four bullets below.
 
 - **Recovery through the channels already in use** - several conversations at once,
