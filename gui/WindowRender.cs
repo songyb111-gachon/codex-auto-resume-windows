@@ -28,6 +28,10 @@ namespace CodexAutoResume
     internal sealed partial class SettingsForm
     {
         // ------------------------------------------------------------------ render mode
+        [DllImport("user32.dll")]
+        private static extern bool SetWindowPos(IntPtr window, IntPtr after, int x, int y, int width, int height, uint flags);
+        private const uint SwpNoMove = 0x0002, SwpNoZOrder = 0x0004, SwpNoActivate = 0x0010;
+
         [DllImport("user32.dll", EntryPoint = "SendMessageW")]
         private static extern IntPtr SendRenderMessage(IntPtr window, int message, IntPtr wParam, IntPtr lParam);
 
@@ -234,6 +238,12 @@ namespace CodexAutoResume
             form.ClientSize = RenderPinned ? opened : new Size(form.Px(OpeningWidth), form.Px(OpeningHeight));
             form.CreateControl();
             IntPtr made = form.Handle;
+            // v0.6.20: and as large as it is. Form.SetBoundsCore holds a form to the largest window the screen allows
+            // (SystemInformation.MaxWindowTrackSize) even off every screen, while ClientSize keeps what was asked: on a CI
+            // runner's 1024 by 768 screen the 1500 by 996 window was drawn 1044 by 788 (dev CI 41145110604). Windows itself
+            // sizes a window with no frame off the screen past that.
+            if (RenderPinned)
+                SetWindowPos(made, IntPtr.Zero, 0, 0, opened.Width, opened.Height, SwpNoMove | SwpNoZOrder | SwpNoActivate);
             // Shown as a child of Windows' parking window, which is never on the screen: its Load (the reads, the
             // first page, the clock) and its Shown come as they come to a window a person opens.
             form.Visible = true;
