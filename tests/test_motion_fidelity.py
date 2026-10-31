@@ -3,9 +3,11 @@ and the motion pictures are made from what the working tree holds (assets/motion
 
 `CompareTests` holds the comparison itself to the rule on tiny synthetic pictures. `LiveTests` draws every page at
 rest in the render mode now and holds it to today's committed still - only where that is a fair question: on Windows
-with the C# compiler, at the display scale the stills were captured at, and while the stills are the window's of
-this working tree (or when CAR_MOTION_FIDELITY=1 asks for it anyway). `MadeTests` hold a made motion picture to its
-manifest: its bytes, its inputs, and the fidelity recorded when it was made.
+with the C# compiler, at the scale the stills were drawn at, while the stills are the window's of this working tree,
+and where CAR_MOTION_FIDELITY=1 asks for it. It draws with this machine's fonts and ClearType, which a CI runner does
+not share - its first run there, once the stills were pinned, held 97 % of the Overview exact (dev CI 41153137956) -
+so it is the picture machine's check, as test_pinned_stills' live drawing is. `MadeTests` hold a made motion picture
+to its manifest everywhere: its bytes, its inputs, and the fidelity recorded when it was made.
 """
 from __future__ import annotations
 
@@ -103,14 +105,14 @@ def fair() -> str | None:
     """Why the live comparison would not be a fair one here, or None."""
     if os.name != "nt" or not motion_window.CSC.is_file():
         return "the window is built with Windows' C# compiler"
-    if os.environ.get("CAR_MOTION_FIDELITY") == "1":
-        return None
+    if os.environ.get("CAR_MOTION_FIDELITY") != "1":
+        return "draws with this machine's fonts and ClearType: CAR_MOTION_FIDELITY=1 asks for it"
     import make_screenshots as shots
     recorded = json.loads(shots.MANIFEST.read_text(encoding="utf-8"))
     if shots.stills_dpi_problem(recorded):
         return "the stills are not at the scale the window is drawn at (%s)" % shots.stills_dpi_problem(recorded)
     if recorded["inputs"].get("<window sources>") != shots.window_digest():
-        return "the stills are not of this working tree's window yet (CAR_MOTION_FIDELITY=1 compares anyway)"
+        return "the stills are not of this working tree's window yet"
     return None
 
 
