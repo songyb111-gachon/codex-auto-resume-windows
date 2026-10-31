@@ -121,12 +121,15 @@ class WorkflowAgreementTests(unittest.TestCase):
             self.assertIn('python-version: "%s"' % future, text)
             self.assertIn("experimental: true", text)
 
-    def test_only_the_newest_blocking_line_asks_for_its_newest_release(self):
-        """check-latest makes setup-python look past the runner's cache for the line's newest release. The
-        newest line takes it (2026-10-31) so the CI always runs the newest Python there is; no other lane does -
-        3.14 is pinned to the bundled build, and an older line's newest patch is a Python nobody has run."""
-        asked = re.findall(r"(?m)^\s+check-latest: (.+?)\s*$", workflow("test.yml"))
-        self.assertEqual(asked, ["${{ matrix.python-version == '%s' }}" % POLICY["blocking"][-1]])
+    def test_every_python_the_ci_sets_up_is_its_lines_newest_release(self):
+        """check-latest makes setup-python look past the runner's cache for the line's newest release. The owner's
+        rule of 2026-10-31: the CI always runs the newest Python, and the bundled one stays pinned until it is moved -
+        so every Python test.yml sets up asks for it (each lane and the main-tree job), and the workflows that build or
+        ship a release do not."""
+        text = workflow("test.yml")
+        asked = re.findall(r"(?m)^\s+check-latest: (.+?)\s*$", text)
+        self.assertEqual(len(asked), len(re.findall(r"uses: actions/setup-python@", text)))
+        self.assertEqual(set(asked), {"true"})
         for name in ("release.yml", "sync-ko.yml", "community-report.yml"):
             with self.subTest(name):
                 self.assertNotIn("check-latest", workflow(name), "a release's Python is a pin, not the newest")
@@ -200,20 +203,19 @@ class BundledRuntimeTests(unittest.TestCase):
 
 
 class ShippedRuntimeLaneTests(unittest.TestCase):
-    """The suite and the release build run on the Python a release bundles, to the patch.
+    """The release build tests and builds on the Python a release bundles, to the patch; the CI runs the newest.
 
-    2026-10-17: the runners moved 3.13 to 3.13.16 and the 3.13 lane alone went red on a tray-popup test that
-    passes on 3.13.15 - the version every user runs. A lane on a newer patch than the bundled one tests a
-    Python nobody has; a move of the bundled runtime is a change of its own, made here and tested first.
+    The owner, 2026-10-31: the CI always on the newest Python, the bundled one pinned until we move it. The bundled
+    runtime moves only when someone moves it (python_support.json, build/make_release.py), and release.yml runs the
+    suite on it before it builds; test.yml names no patch at all, so every lane is the newest of its line. (2026-10-17
+    the runners' newer 3.13.16 turned one tray-popup test red that passed on 3.13.15: the newest is what the CI is for.)
     """
 
     def patches(self, name):
         return re.findall(r"3\.\d+\.\d+", workflow(name))
 
-    def test_the_test_workflow_runs_the_bundled_patch_in_its_lane(self):
-        found = self.patches("test.yml")
-        self.assertTrue(found, "test.yml lets the runner choose the bundled line's patch")
-        self.assertEqual(set(found), {POLICY["bundled_runtime"]})
+    def test_the_test_workflow_names_no_patch(self):
+        self.assertEqual(self.patches("test.yml"), [], "a CI lane pinned to a patch is not the newest of its line")
 
     def test_the_release_workflow_tests_and_builds_on_the_bundled_patch(self):
         self.assertEqual(self.patches("release.yml"), [POLICY["bundled_runtime"]] * 2)

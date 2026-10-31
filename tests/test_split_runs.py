@@ -841,8 +841,11 @@ class MainTreeTests(unittest.TestCase):
 
     def test_it_is_the_releases_lane_in_the_releases_parts_on_the_releases_python(self):
         self.assertEqual(declared_parts(self.main), declared_parts(self.release))
-        pinned = r'python-version: "(3\.\d+)"'
-        self.assertEqual(re.findall(pinned, self.main), re.findall(pinned, self.release))
+        # The release's Python line: release.yml pins the bundled patch, and this job, part of the CI, takes the newest
+        # release of that line (the owner, 2026-10-31: the CI always on the newest, the bundle pinned until moved).
+        line = r'python-version: "(3\.\d+)(?:\.\d+)?"'
+        self.assertEqual(set(re.findall(line, self.main)), set(re.findall(line, self.release)))
+        self.assertTrue(re.findall(line, self.main))
         suite = step(self.main, self.SUITE)
         self.assertIn('run: python scripts/test_parts.py --lane release --part "$env:PART/$env:PARTS" -v --annotate',
                       suite)

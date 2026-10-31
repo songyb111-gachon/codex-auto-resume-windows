@@ -1874,8 +1874,8 @@ python -m unittest discover -s tests
 
 These tests use fakes and temporary directories. They never contact the ChatGPT app and never send a
 message to any conversation, so they are safe to run anywhere and are what CI runs. CI runs every one
-of them on Python 3.13, 3.14 and 3.15, each of which has to pass; the 3.15 job takes the newest 3.15
-release there is, so the source is always tested on the newest Python.
+of them on Python 3.13, 3.14 and 3.15, each of which has to pass, and each job takes the newest release of
+its line there is, so the source is always tested on the newest Python.
 
 There is also an opt-in live check against your real environment. It verifies binary discovery,
 app pairing, loaded-state classification, and usage reading. It sends no message to any

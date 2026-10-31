@@ -10,8 +10,9 @@ properties intact.
 - Python 3.13 or newer, standard library only. There are no third-party runtime dependencies
   and no build step for the Python side. What that promise covers is decided in one file,
   `scripts/python_support.json`: CI runs every non-live test on Python 3.13, 3.14 and 3.15 as
-  blocking jobs (the 3.15 lane takes the newest 3.15 release there is, so the source is always held to the
-  newest Python; there is no advisory lane for now); releases are built with 3.14; and the archive bundles Python 3.14.10, so nobody
+  blocking jobs, each on the newest release of its line there is, so the source is always held to the newest
+  Python (there is no advisory lane for now); releases are built with 3.14; and the archive bundles Python 3.14.10,
+  pinned until it is moved on purpose and tested by the release workflow before it builds, so nobody
   installing a release needs a Python of their own. Adding a tested version never moves the
   bundled runtime. `tests/test_python_support.py` fails if the workflows, or the minimum this
   page and the README state, stop agreeing with that file.
