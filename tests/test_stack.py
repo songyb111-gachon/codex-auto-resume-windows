@@ -197,7 +197,9 @@ ITEM = {_q(name): item for item, names in {
               "ui.popup.renderer", "ui.popup.theme", "ui.popup.win32", "ui.popup.window",
               "ui.popup.words", "ui.popup.messages",
               # v0.6.11: what a screen reader is told of the popup, and asks of it.
-              "ui.popup.access"),
+              "ui.popup.access",
+              # v0.6.20: the icon's right-click menu, drawn by the popup's renderer.
+              "ui.popup.menuplan", "ui.popup.menuwindow"),
     "notifications": ("notice_card", "notice_presence", "notice_window", "notifier", "notify",
                       # v0.6.18: the Codex app's link to one conversation, and opening it, out of notify.
                       "codex_link",

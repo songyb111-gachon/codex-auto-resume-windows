@@ -81,13 +81,15 @@ class _Painter:
     counted in and out (`gdiplus_objects`).
     """
 
-    def __init__(self, canvas):
+    def __init__(self, canvas, pixel_format=PIXEL_FORMAT_32BPP_RGB):
+        # v0.6.20: PARGB for a canvas whose alpha is kept - the icon's drawn menu, a layered window whose card and
+        # shadow are drawn over nothing (menuwindow.py); everything else draws opaque, and its alpha is not read.
         self.gp = _dll("gdiplus")
         self.bitmap = C.c_void_p()
         self.graphics = C.c_void_p()
         _dll("gdi32").GdiFlush()                               # GDI may still owe us text
         status = self.gp.GdipCreateBitmapFromScan0(canvas.width, canvas.height, canvas.width * 4,
-                                                   PIXEL_FORMAT_32BPP_RGB, canvas.bits, C.byref(self.bitmap))
+                                                   pixel_format, canvas.bits, C.byref(self.bitmap))
         if status != 0:
             raise OSError("GdipCreateBitmapFromScan0 failed (%d)" % status)
         _gdiplus_made(1)
