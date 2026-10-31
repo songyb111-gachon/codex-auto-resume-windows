@@ -1224,8 +1224,9 @@ ACCOUNT_SWITCH = CapabilityDef(
 )
 
 # Wake this PC for a reset (v0.6.19, plans/v0619-design/D-watcher-ops.md B). At P8 it finds the earliest time something
-# waits for - core's waiting usage-limit records, the reset actions' pending rules, the forced stop's held window - and
-# sets a waitable timer of the watcher's own, with fResume, for that time less the lead a person chose (1, 2 or 5
+# waits for - core's waiting usage-limit records, the reset actions' pending rules, the forced stop's held window, and
+# (v0.6.20, the pair audit) while Start the 5-hour window early stands on too, its next time picked or reset it waits for -
+# and sets a waitable timer of the watcher's own, with fResume, for that time less the lead a person chose (1, 2 or 5
 # minutes; 2), only where Windows' Allow wake timers already allows it for the power source in use - read, never
 # written; moved when that time changes, cancelled when nothing waits, recovery is paused, it is turned off or the
 # watcher stops (engine/wake.py, win/waketimer.py). Waking only lets the watcher's ordinary tick run sooner; every gate
