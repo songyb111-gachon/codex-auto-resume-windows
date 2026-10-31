@@ -773,10 +773,18 @@ class WorkflowPartsTests(unittest.TestCase):
         lanes = sum(edition_parts(self.tests).values())
         future = len(re.findall(r"(?m)^          - \{python-version: ", self.matrix))
         main_tree = declared_parts(job(workflow("test.yml"), "main-tree"))
-        self.assertEqual((len(versions), lanes, future, main_tree), (2, 10, 10, 6))
+        # 2026-10-31: 3.15 blocks (it was the 10 advisory jobs), and no next Python has a lane for now.
+        self.assertEqual((len(versions), lanes, future, main_tree), (3, 10, 0, 6))
         self.assertLessEqual(len(versions) * lanes + future + main_tree, 37)
+        self.assertEqual(len(versions) * lanes + future + main_tree, 36)
 
     def test_the_future_python_runs_every_part_of_each_edition(self):
+        """When python_support.json names a next Python its lane is every part of each edition; while it is
+        null (2026-10-31) the matrix has no `include` at all."""
+        future = json.loads((ROOT / "scripts" / "python_support.json").read_text(encoding="utf-8"))["future_prerelease"]
+        if future is None:
+            self.assertNotIn("include:", self.matrix)
+            return
         include = self.matrix[self.matrix.index("include:"):]
         entries = re.findall(r'(?m)^          - \{python-version: "([\d.]+)", experimental: true, '
                              r'edition: (\w+), part: (\d+)\}\s*$', include)
@@ -924,7 +932,8 @@ class WorkflowSecondsTests(unittest.TestCase):
         names = [render(self.JOBS["test"][1], values) for values in jobs]
         names += [render(self.JOBS["main-tree"][1], {"part": str(part)})
                   for part in range(1, declared_parts(job(self.source, "main-tree")) + 1)]
-        self.assertEqual(len(jobs), (len(axis("python-version")) + 1) * sum(edition_parts(test).values()))
+        extra = 1 if "include:" in matrix else 0   # the next Python, while python_support.json names one
+        self.assertEqual(len(jobs), (len(axis("python-version")) + extra) * sum(edition_parts(test).values()))
         self.assertEqual(len(set(names)), len(names), sorted(names))
         self.assertNotIn("release", axis("edition"), "the main-tree job's names are the release lane's alone")
 
