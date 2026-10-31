@@ -168,26 +168,22 @@ class ShippedTests(unittest.TestCase):
         for point in Point:
             self.assertEqual(tuple(d.id for d in registry.REGISTRY.at(point)), answering.get(point, ()))
 
-    # The order a person reads them in (the owner's, 2026-10-10): the compatibility report first, then by importance.
-    SHOWN = ("compat_report", "start_with_codex", "crash_restart", "wake_for_reset", "every_conversation", "queue_for_open",
-             "open_to_send", "headless_run",
-             "other_sessions", "marker_free_continuation",
-             # v0.6.20: the continuation inside the turn, hidden until MHK, M4 and M4B pass.
-             "stop_hook_continuation",
-             "silent_continuation", "reset_credit",
-             "early_reset", "parallel_dispatch", "reset_message", "long_reset_message",
-             "usage_meter", "usage_wrap_up", "usage_pause", "window_anchor", "keep_going", "usage_analytics", "prompt_queue",
-             # v0.6.19: chat with a conversation, beside the queued messages.
-             "codex_chat",
-             # v0.6.20 (#50): steering the running turn, written in the queue's editor.
-             "steer_send",
-             "empty_response", "once_more_when_unsure", "send_now", "open_codex_button",
-             # v0.6.20: the courier's two, beside Open Codex on a notice.
-             "push_notices", "status_feed", "capacity_retry",
-             "compact_continue", "model_fallback",
-             "codex_gave_up",
-             "goal_continuation", "subagent_parent", "sign_in_retry", "unknown_failure_budget", "idle_update_check",
-             "account_switch", "structured_rules")
+    # The order a person reads them in (the owner's, 2026-10-10, approved again in full on 2026-10-31): the compatibility
+    # report first, then 1) what gets work going again after a usage limit with no hands, 2) what saves the person work,
+    # 3) the other common failures, 4) rare cases and expert settings.
+    SHOWN = ("compat_report",
+             # 1)
+             "start_with_codex", "crash_restart", "wake_for_reset", "every_conversation", "queue_for_open", "headless_run",
+             "other_sessions", "marker_free_continuation", "reset_credit", "early_reset", "window_anchor", "parallel_dispatch",
+             # 2) (open_to_send is hidden until MOPEN passes)
+             "reset_message", "long_reset_message", "keep_going", "prompt_queue", "usage_meter", "usage_wrap_up", "usage_pause",
+             "push_notices", "send_now", "open_to_send", "open_codex_button", "codex_chat", "steer_send", "usage_analytics",
+             # 3)
+             "empty_response", "once_more_when_unsure", "capacity_retry", "model_fallback", "compact_continue", "codex_gave_up",
+             "goal_continuation", "subagent_parent", "sign_in_retry", "unknown_failure_budget",
+             # 4) (stop_hook_continuation is hidden until MHK, M4 and M4B pass)
+             "silent_continuation", "stop_hook_continuation", "status_feed", "account_switch", "idle_update_check",
+             "structured_rules")
 
     def test_the_shown_order_names_every_capability_of_the_registry_exactly_once(self):
         order, ids = registry.SHOWN_ORDER, registry.REGISTRY.ids

@@ -49,13 +49,15 @@ class HiddenTests(unittest.TestCase):
                 self.assertNotIn(STOP_HOOK, offered(dict(every, **{missing: (Verdict.FAIL, ENGINE)})))
         self.assertIn(STOP_HOOK, offered(every))
 
-    def test_its_place_is_held_after_the_marker_free_continuation(self):
+    def test_its_place_is_held_after_the_silent_continuation(self):
         order = registry.SHOWN_ORDER
-        self.assertEqual(order[order.index("marker_free_continuation") + 1], CAPABILITY)
+        # 2026-10-31: among the rare cases, right after the turn run here without a message, before the status feed.
+        self.assertEqual(order[order.index("silent_continuation") + 1], CAPABILITY)
+        self.assertEqual(order[order.index(CAPABILITY) + 1], "status_feed")
         self.assertNotIn(CAPABILITY, [d.id for d in registry.shown(registry.REGISTRY)])
         made = Registry(registry.DEFINITIONS + (STOP_HOOK,))
         shown = [d.id for d in registry.shown(made)]
-        self.assertEqual(shown[shown.index("marker_free_continuation") + 1], CAPABILITY)
+        self.assertEqual(shown[shown.index("silent_continuation") + 1], CAPABILITY)
 
     def test_its_definition_and_statement_are_whole(self):
         self.assertEqual(problems(STOP_HOOK), [])

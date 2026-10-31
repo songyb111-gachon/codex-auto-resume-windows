@@ -1505,51 +1505,27 @@ REGISTRY = _registry()
 # read first. The owner's order, 2026-10-10 ("고급 기능 순서를 중요하고 많이 쓸만한거 순서대로 해줘. 그리고
 # 호환성 보고서를 제일 위로 해줘"): the compatibility report at the top, then 1) what gets work going again
 # after a usage limit with no hands, 2) what saves the person work, 3) the other common failures, 4) rare
-# cases and expert settings. A measurement's warning never pushes a capability down. Every capability of
+# cases and expert settings. A measurement's warning never pushes a capability down. The owner approved the
+# whole list again on 2026-10-31 ("이대로", before the final), the groups below. Every capability of
 # DEFINITIONS appears here exactly once, and so may one waiting in WAITING, at the place it takes once offered
 # (test_advanced_registry holds it).
-SHOWN_ORDER = ("compat_report", "start_with_codex",
-               # v0.6.19 (the order the owner approved on 2026-10-22): what keeps the watcher itself going, after what
-               # starts it.
-               "crash_restart", "wake_for_reset",
-               # v0.6.16-beta.3: which conversations are recovered at all, beside what starts the recovering.
-               "every_conversation", "queue_for_open",
-               # v0.6.19 (#50): opening a waiting conversation, beside queueing for its opening - shown once MOPEN passes.
-               "open_to_send",
-               # v0.6.16-beta.4: what gets a conversation going when nothing holds it, beside queue for opening (Q12).
-               "headless_run", "other_sessions", "marker_free_continuation",
-               # v0.6.20: the continuation inside the turn, beside the other that goes without core's queued message -
-               # shown once MHK, M4 and M4B pass (the owner's order of 2026-10-22).
-               "stop_hook_continuation",
-               # v0.6.16-beta.4: how a turn run here starts, beside the other continuation that goes without a marker
-               # (DECISIONS Q12).
-               "silent_continuation", "reset_credit",
-               "early_reset", "parallel_dispatch", "reset_message", "long_reset_message",
-               # v0.6.16-beta.3 (issue #29): the usage meter and what it serves, beside the other usage-limit features.
-               "usage_meter", "usage_wrap_up", "usage_pause",
-               # v0.6.20: starting the 5-hour window early, beside what reads and keeps the usage windows.
-               "window_anchor", "keep_going",
-               # v0.6.20: the usage and token analytics, after keep going (the owner's approved order, 2026-10-22).
-               "usage_analytics",
-               "prompt_queue",
-               # v0.6.19: chat with a conversation, beside the queued messages (stage 4's Q12).
-               "codex_chat",
-               # v0.6.20 (#50): steering the running turn, written in the prompt queue's editor, after the chat.
-               "steer_send", "empty_response", "once_more_when_unsure", "send_now",
-               # v0.6.18: Open Codex on a notice, beside Send now - both what a person does about one conversation.
-               "open_codex_button",
-               # v0.6.20 (the courier; the owner's order of 2026-10-22): push notices and the status feed, beside Open Codex
-               # on a notice - what a person is told, and where.
-               "push_notices", "status_feed",
-               "capacity_retry",
-               # v0.6.16-beta.4: what a failure of Codex's own is taken up with, beside the capacity retry (Q12).
-               "compact_continue", "model_fallback",
-               "codex_gave_up", "goal_continuation", "subagent_parent", "sign_in_retry", "unknown_failure_budget",
-               # v0.6.18: the weekly update check, which recovers nothing, among the expert settings.
-               "idle_update_check",
-               # v0.6.20: switching the Codex account, among the expert settings (the order the owner approved on 2026-10-22).
-               "account_switch",
-               "structured_rules")
+SHOWN_ORDER = (
+    "compat_report",
+    # 2026-10-31, group 1: what gets work going again after a usage limit with no hands (what keeps the watcher
+    # going, what starts the recovering, which conversations, and the continuations that need no marker).
+    "start_with_codex", "crash_restart", "wake_for_reset", "every_conversation", "queue_for_open", "headless_run",
+    "other_sessions", "marker_free_continuation", "reset_credit", "early_reset", "window_anchor", "parallel_dispatch",
+    # 2026-10-31, group 2: what saves the person work (messages, the usage meter and what serves it, what a person
+    # is told and does about one conversation). open_to_send is shown once MOPEN passes.
+    "reset_message", "long_reset_message", "keep_going", "prompt_queue", "usage_meter", "usage_wrap_up", "usage_pause",
+    "push_notices", "send_now", "open_to_send", "open_codex_button", "codex_chat", "steer_send", "usage_analytics",
+    # 2026-10-31, group 3: the other common failures.
+    "empty_response", "once_more_when_unsure", "capacity_retry", "model_fallback", "compact_continue", "codex_gave_up",
+    "goal_continuation", "subagent_parent", "sign_in_retry", "unknown_failure_budget",
+    # 2026-10-31, group 4: rare cases and expert settings. stop_hook_continuation is hidden (WAITING) until MHK, M4
+    # and M4B pass and then takes this place.
+    "silent_continuation", "stop_hook_continuation", "status_feed", "account_switch", "idle_update_check",
+    "structured_rules")
 
 
 def shown(registry) -> tuple:

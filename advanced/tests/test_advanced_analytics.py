@@ -134,9 +134,11 @@ class DefinitionTests(unittest.TestCase):
         self.assertIn("usage_analytics", registry.REGISTRY.ids)
         self.assertEqual(statement.CATALOGS.missing(USAGE_ANALYTICS), [])
 
-    def test_it_is_shown_right_after_keep_going_and_answers_at_p8_before_the_wake_timer(self):
+    def test_it_is_shown_last_among_the_work_savers_and_answers_at_p8_before_the_wake_timer(self):
         order = registry.SHOWN_ORDER
-        self.assertEqual(order[order.index("keep_going") + 1], "usage_analytics")
+        # 2026-10-31: the last of the second group (what saves the person work), right after steering the turn.
+        self.assertEqual(order[order.index("usage_analytics") - 1], "steer_send")
+        self.assertEqual(order[order.index("usage_analytics") + 1], "empty_response")
         # The wake timer stays last at P8, so its errand reads the due times the others' errands kept.
         ticks = [d.id for d in registry.REGISTRY.at(Point.TICK)]
         self.assertLess(ticks.index("usage_analytics"), ticks.index("wake_for_reset"))

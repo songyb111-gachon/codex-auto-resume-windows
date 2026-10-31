@@ -51,13 +51,14 @@ def interruption():
 
 
 class DefinitionTests(unittest.TestCase):
-    def test_it_is_an_action_departing_from_a28_b16_and_f6_shown_right_after_send_now(self):
+    def test_it_is_an_action_departing_from_a28_b16_and_f6_shown_after_send_now_and_open_to_send(self):
         self.assertEqual((OPEN_CODEX_BUTTON.kind, OPEN_CODEX_BUTTON.points, OPEN_CODEX_BUTTON.compat,
                           OPEN_CODEX_BUTTON.ceilings), (CapabilityKind.ACTION, frozenset(), None, None))
         self.assertEqual(OPEN_CODEX_BUTTON.departs_from, ("A28", "B16", "F6"))
         self.assertIn(CAP, registry.REGISTRY.ids)
         order = registry.SHOWN_ORDER
-        self.assertEqual(order[order.index("send_now") + 1], CAP)
+        # 2026-10-31: send now, open to send (hidden until MOPEN passes), then this.
+        self.assertEqual(order[order.index("send_now"):order.index("send_now") + 3], ("send_now", "open_to_send", CAP))
         self.assertEqual(statement.CATALOGS.missing(OPEN_CODEX_BUTTON), [])
 
 
