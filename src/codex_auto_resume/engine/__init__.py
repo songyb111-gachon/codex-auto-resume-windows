@@ -101,9 +101,10 @@ class Engine(OptionsMixin, AnnounceMixin, FreshnessMixin, DetectMixin, Reconcile
         # capability, as it beats core. P8 is once a tick, after everything is observed; what it
         # answers to run (v0.6.14, an errand) runs last, after P2, whatever the tick met before it.
         # P19 (v0.6.16-beta.3): which of the app's conversations detection takes up from here on - a person's own
-        # alone where the plug names nothing, which is the standard edition's always (NULL answers the empty set).
-        self.source.widened = self.plug.eligibility()
-        self.session_kinds()            # P18 (v0.6.16-beta.4): and which conversations besides the app's (engine/kinds.py)
+        # alone where the plug names nothing, which is the standard edition's always (NULL answers the empty set) - and
+        # P18 (v0.6.16-beta.4), which conversations besides the app's; each one that leaves ends the waiting records
+        # only it took up (engine/kinds.py, v0.6.20 for P19).
+        self.session_kinds()
         view = StoreView(self.store, self.clock(), self.last_usage, home_key=self.home_key)
         errand = self.plug.tick(view)
         try:

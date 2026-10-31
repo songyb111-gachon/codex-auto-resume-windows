@@ -1042,7 +1042,8 @@ KEEP_GOING = CapabilityDef(
 # - every other check of a conversation, and every gate of a recovery, standing. It departs from A15 (only the desktop
 # app's own user conversations are detected), stands on thread_eligibility - the state row and the rollout's first
 # line it is judged by - and rests on no measurement. It sends nothing itself: what it takes up is core's recovery, under
-# core's own limits, so its ceilings are the schema's floor and never bind.
+# core's own limits, so its ceilings are the schema's floor and never bind. Turned off, the waiting records only it took
+# up are cancelled by core (session_kind_off, v0.6.20), as other_sessions' are.
 EVERY_CONVERSATION = CapabilityDef(
     id="every_conversation",
     points=frozenset({Point.ELIGIBILITY}),
