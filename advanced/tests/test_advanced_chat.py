@@ -219,9 +219,11 @@ class ReaderTests(unittest.TestCase):
 
 
 class RegistryTests(ChatCase):
-    def test_it_is_shown_after_the_prompt_queue_and_rests_on_mc1_and_mc2(self):
+    def test_it_is_shown_after_open_codex_on_a_notice_and_rests_on_mc1_and_mc2(self):
         shown = registry.SHOWN_ORDER
-        self.assertEqual(shown.index(self.cap), shown.index("prompt_queue") + 1)
+        # 2026-10-31: among the work savers, after what a person does about one conversation, before steering its turn.
+        self.assertEqual(shown.index(self.cap), shown.index("open_codex_button") + 1)
+        self.assertEqual(shown[shown.index(self.cap) + 1], "steer_send")
         self.assertEqual(tuple(d.id for d in registry.REGISTRY.at(Point.SENDER))[-1], self.cap)
         plug = self.advanced()
         definition = plug.runtime.registry.get(self.cap)

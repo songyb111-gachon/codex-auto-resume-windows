@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from takingcase import TakingCase  # noqa: E402
 import codexsim  # noqa: E402
+from codex_auto_resume import machine  # noqa: E402
 from codex_auto_resume.domain.plug import Point  # noqa: E402
 from codex_auto_resume.domain.plughands import Widening  # noqa: E402
 from codex_auto_resume_advanced import registry  # noqa: E402
@@ -73,6 +74,42 @@ class EveryConversationTests(TakingCase):
     def test_its_answer_is_the_one_closed_word(self):
         plug = self.armed()
         self.assertEqual(plug.runtime.eligibility(), frozenset({Widening.EVERY_DESKTOP}))
+
+
+class TurnedOffTests(TakingCase):
+    """v0.6.20 (the pair audit; the owner's word of 2026-10-31): turned off, the waiting records of the conversations it
+    widened to are cancelled - as turning other_sessions off cancels its own (core's engine/kinds.py, the same word,
+    session_kind_off) - and a person's own conversation's record is untouched. Left to the next check, such a record
+    could no longer be read and would be retired as superseded, which is untrue."""
+    DEFINITION = EVERY_CONVERSATION
+
+    def waiting(self, label):
+        thread = codexsim.new_id()
+        self.h.home.add_thread(thread, thread_source=label)
+        self.h.backend.loaded_map[thread] = "loaded"
+        self.h.now += 1
+        self.h.home.fail_usage(thread)
+        self.h.tick()
+        (row,) = self.h.records(thread)
+        self.assertIn(row["state"], machine.WAITING)
+        return thread
+
+    def test_turned_off_the_waiting_records_it_widened_to_are_cancelled(self):
+        """Fails with the fix reverted: the widened record keeps waiting for a conversation core no longer takes up."""
+        plug = self.armed()
+        widened, own = self.waiting(NEW_LABEL), self.waiting("user")
+        plug.runtime.arming.disarm(self.cap, actor=Actor.DASHBOARD)
+        plug.runtime.states(fresh=True)
+        self.h.tick(advance=1)
+        row = self.h.record(widened)
+        self.assertEqual((row["state"], row["last_error"]), ("cancelled", "session_kind_off"))
+        self.assertNotEqual(self.h.record(own)["state"], "cancelled")
+
+    def test_still_on_they_keep_waiting(self):
+        self.armed()
+        widened = self.waiting(NEW_LABEL)
+        self.h.tick(advance=1)
+        self.assertNotEqual(self.h.record(widened)["state"], "cancelled")
 
 
 if __name__ == "__main__":

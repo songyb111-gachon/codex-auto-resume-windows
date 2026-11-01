@@ -14,7 +14,7 @@ from pathlib import Path, PureWindowsPath
 import sqlite3
 import time
 from .. import failures, guards, machine, projects
-from ..domain import ids, skips
+from ..domain import ids, skips, states
 from .errors import SourceError
 from .labels import _label
 from .values import KNOWN_STATUSES, PROGRESS_ITEM_TYPES, PROGRESS_KINDS, _json, _turn_status, epoch, normalize
@@ -24,11 +24,11 @@ from .payload import (_choose_reset, _item_is_ours, _needing, _queue_has_marker,
 
 
 class HistoryMixin:
-    def _eligibility(self, thread_id: str, strict: bool = False, kinds=None, turn_id=None):
-        """(its file, None) for a conversation taken up - a person's own desktop one (A15), or of a kind the plug names
-        (P18; `kinds`, else this tick's) - or (None, why not), a domain/skips.py reason and its kind word. strict=True
-        (latest) re-raises transient I/O as SourceError, so the engine defers; an agent-made one: `turn_id`'s trigger (#54)."""
-        kinds = self.session_kinds if kinds is None else kinds
+    def _eligibility(self, thread_id: str, strict: bool = False, kinds=None, turn_id=None, widened=None):
+        """(its file, None) for a conversation taken up - a person's own desktop one (A15), a kind (P18, `kinds`) or label
+        (P19, `widened`) the plug names, else this tick's - or (None, why not), a domain/skips.py reason and its kind word.
+        strict=True (latest) re-raises transient I/O as SourceError, so the engine defers; agent-made: `turn_id` (#54)."""
+        kinds, widened = (self.session_kinds if kinds is None else kinds), (self.widened if widened is None else widened)
         if not ids.is_uuid(thread_id):
             return None, (skips.UNKNOWN_CONVERSATION, None)
         with self._db("state") as connection:
@@ -37,7 +37,7 @@ class HistoryMixin:
                 "FROM threads WHERE id=?", (thread_id,)).fetchone()
         if row is None:
             return None, (skips.UNKNOWN_CONVERSATION, None)
-        word = eligibility.row_problem(dict(row), kinds, self.widened, self._composed(thread_id, row, turn_id, strict))
+        word = eligibility.row_problem(dict(row), kinds, widened, self._composed(thread_id, row, turn_id, strict))
         if word is not None:
             return None, (skips.OTHER_KIND, word)
         try:
@@ -59,9 +59,9 @@ class HistoryMixin:
         except (ValueError, UnicodeError):
             return None, (skips.OTHER_KIND, "file")
 
-    def taken(self, thread_id: str, kinds) -> bool:
-        """Whether `thread_id` is a conversation taken up with `kinds` watched (P18, engine/kinds.py)."""
-        return self._eligibility(thread_id, kinds=frozenset(kinds))[0] is not None
+    def taken(self, thread_id: str, kinds, widened=None) -> bool:
+        """Whether `thread_id` is taken up with `kinds` watched (P18, engine/kinds.py) and `widened` (P19), else this tick's."""
+        return self._eligibility(thread_id, kinds=frozenset(kinds), widened=widened)[0] is not None
 
     def _chain(self, thread_id: str, strict: bool = False, turn_id=None):
         """(its file, every id its turns are recorded under - its own first, each split id oldest first, the current
@@ -622,9 +622,8 @@ class HistoryMixin:
         try:
             turns = self._ids(thread_id)[-1]           # the current file's projection: a split's newest id
             with self._db("history") as connection:
-                if not connection.execute(
-                        "SELECT 1 FROM sqlite_master WHERE type='table' "
-                        "AND name='thread_history_projection_state'").fetchone():
+                if not connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' "
+                                          "AND name='thread_history_projection_state'").fetchone():
                     return {"table": False, "fresh": None}
                 row = connection.execute(
                     "SELECT next_rollout_byte_offset FROM thread_history_projection_state "
@@ -640,24 +639,22 @@ class HistoryMixin:
             return {"table": True, "fresh": None}
         return {"table": True, "fresh": size == row[0]}
 
-    def activity(self, threads=(), now=None, recent: float = 3600.0) -> dict:
-        """Whether anything may still run in this Codex home, for the power action (v0.6.12): sizes, times and
-        counts, never content (B7). First Codex's history has caught up (A18): every conversation whose file was
-        written in the last `recent` seconds, and each of `threads` (the batch's own) at any age, projected
-        exactly - its file's size, one stat call, nothing opened, is the projection's offset, with no grace, so
-        a turn just started or a failure not projected yet holds the action; a missing row is behind too.
-        `history` is True when all are current, False when one is behind, None when it cannot be told. Then,
-        only once current, the latest turns still in progress in every conversation and the items queued in
-        Codex - each None when unreadable; a turn left in progress by a crash holds the action (Q9)."""
+    def activity(self, threads=(), now=None, recent: float = 3600.0, booted=None) -> dict:
+        """Whether anything may still run in this Codex home, for the power action (v0.6.12): sizes, times and counts,
+        never content (B7). First Codex's history has caught up (A18): every conversation whose file was written in the
+        last `recent` seconds, and each of `threads` (the batch's own) at any age, projected exactly - its file's size,
+        one stat call, nothing opened, is the projection's offset, with no grace; a missing row is behind too. `history`
+        is True when all are current, False when one is behind, None when it cannot be told. Then the latest turns in
+        progress and the items queued since Windows started (`booted`, the heartbeat's; v0.6.20 final: one from before
+        it is gone, states.ended_by_boot, by created_at_ms where Codex keeps it) - None if unread or with no boot time."""
         unknown = {"history": None, "running": None, "queued": None}
         if not epoch(now) or type(recent) not in (int, float) or not recent >= 0:
             return unknown
         wanted = {thread for thread in threads if ids.is_uuid(thread)}
         try:
             with self._db("history") as connection:
-                if not connection.execute(
-                        "SELECT 1 FROM sqlite_master WHERE type='table' "
-                        "AND name='thread_history_projection_state'").fetchone():
+                if not connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' "
+                                          "AND name='thread_history_projection_state'").fetchone():
                     return unknown
                 offsets = {row[0]: row[1] for row in connection.execute(
                     "SELECT thread_id,next_rollout_byte_offset FROM thread_history_projection_state")}
@@ -682,19 +679,21 @@ class HistoryMixin:
             if type(offset) is not int or offset != info.st_size:
                 return {"history": False, "running": None, "queued": None}
         found = {"history": True, "running": None, "queued": None}
+        if not epoch(booted):
+            return found
         try:
             with self._db("history") as connection:
-                running = connection.execute(
-                    "SELECT count(*) FROM thread_turns t WHERE t.status='inProgress' "
+                found["running"] = sum(not states.ended_by_boot(row[0], booted) for row in connection.execute(
+                    "SELECT t.started_at FROM thread_turns t WHERE t.status='inProgress' "
                     "AND NOT EXISTS (SELECT 1 FROM thread_turns n "
-                    "WHERE n.thread_id=t.thread_id AND n.rollout_ordinal>t.rollout_ordinal)").fetchone()[0]
-            found["running"] = running if type(running) is int else None
+                    "WHERE n.thread_id=t.thread_id AND n.rollout_ordinal>t.rollout_ordinal)"))
         except (SourceError, sqlite3.Error, OSError, ValueError):
             pass
         try:
             with self._db("queue") as connection:
-                queued = connection.execute("SELECT count(*) FROM queued_items").fetchone()[0]
-            found["queued"] = queued if type(queued) is int else None
+                kept = "created_at_ms" in {row[1] for row in connection.execute("PRAGMA table_info(queued_items)")}
+                since = " WHERE created_at_ms IS NULL OR created_at_ms>=%d" % ((booted - states.BOOT_MARGIN) * 1000)
+                found["queued"] = connection.execute("SELECT count(*) FROM queued_items" + since * kept).fetchone()[0]
         except (SourceError, sqlite3.Error, OSError, ValueError):
             pass
         return found

@@ -15,10 +15,11 @@
 // minimized, while an action is on its way, or under a dialog - it waits for those.
 //
 // The new window is a new process, started before this one closes. The window has no
-// single-instance rule of its own - the Start menu starts one each time - so nothing refuses it,
-// and this one stays until the new one is on screen. (Since v0.6.20 the notification-area icon,
-// its popup and a notification ask the window that is open to come forward first - win/handover.py
-// and TakeOpenRequest below - and start one only where none takes it; a reopen asks nothing.) Its
+// single-instance rule of its own, so nothing refuses it, and this one stays until the new one is
+// on screen. (Since v0.6.20 the notification-area icon, its popup and a notification ask the window
+// that is open to come forward first - win/handover.py and TakeOpenRequest below - and start one only
+// where none takes it, and a start from the Start menu or of the program itself asks the same way
+// before it builds anything (HandOverTo); a reopen asks nothing.) Its
 // command line carries only checked values (ParseArguments), and a window it opens never
 // reopens again for what it reads as it opens more than once in a row (ReopenDecision), so a
 // disagreement between what it was started with and what it reads cannot become a loop. If the
@@ -610,6 +611,173 @@ namespace CodexAutoResume
         {
             try { ChangeWindowMessageFilterEx(Handle, WM_COPYDATA, MessageFilterAllow, IntPtr.Zero); }
             catch (Exception) { /* it is asked only from its own level */ }
+        }
+
+        // ------------------------------------------------------------- started while one is open (v0.6.20)
+        // The v0.6.20 final's live acceptance: the Start menu's shortcut, or the program itself, started a second Dashboard
+        // beside the one on screen - #55 had only the watcher's opens ask first. A start by a person now asks the same way
+        // (HandOverTo, as win/handover.py does): a window of this very program that is open takes the request - comes
+        // forward on the page the command line names, or where it is - and this process ends before it builds anything.
+        // Only a start whose command line an open request carries whole asks (HandsOverOnStart): a reopen (--reopened, the
+        // old window is still on screen until the new one is), the chat a notice opens (--chat, --capability), a capture
+        // (a picture's ready event, which SettingsApp.cs reads) and anything else start as they always did. A window of a
+        // scratch build - a capture's, a test's - is another program and is never asked; the audit's window and one not yet
+        // shown refuse (TakeOpenRequest).
+        private const int OpenRequestWait = 3000;          // the window answers at once and comes forward afterwards
+        private const int SmtoAbortIfHung = 0x0002;
+        private const int GwOwner = 4;
+        private const int QueryLimitedInformation = 0x1000;
+        private const string FormsClass = "WindowsForms10.";
+
+        private delegate bool EachWindow(IntPtr window, IntPtr data);
+
+        [DllImport("user32.dll")]
+        private static extern bool EnumWindows(EachWindow each, IntPtr data);
+
+        [DllImport("user32.dll")]
+        private static extern bool IsWindowVisible(IntPtr window);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetWindow(IntPtr window, int command);
+
+        [DllImport("user32.dll")]
+        private static extern int GetWindowThreadProcessId(IntPtr window, out int process);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        private static extern int GetClassName(IntPtr window, StringBuilder name, int size);
+
+        [DllImport("user32.dll", EntryPoint = "SendMessageTimeoutW")]
+        private static extern IntPtr SendOpenRequest(IntPtr window, int message, IntPtr wParam, ref CopyData data, int flags,
+                                                     int milliseconds, out IntPtr answer);
+
+        [DllImport("user32.dll", EntryPoint = "AllowSetForegroundWindow")]
+        private static extern bool LetComeForward(int process);
+
+        [DllImport("kernel32.dll", EntryPoint = "OpenProcess")]
+        private static extern IntPtr OpenProcessToRead(int access, bool inherit, int process);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+        private static extern bool QueryFullProcessImageName(IntPtr process, int flags, StringBuilder name, ref int size);
+
+        [DllImport("kernel32.dll", EntryPoint = "CloseHandle")]
+        private static extern bool CloseProcess(IntPtr process);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+        private static extern int GetLongPathName(string path, StringBuilder longer, int size);
+
+        /// Whether a start with `arguments` asks a window that is open to take it: one a person made - the Start menu's
+        /// shortcut, the program itself, the setup's Finish - whose command line names at most a page (`--page=`, the older
+        /// `--settings`), opened again outside another app's view (HostApp.Outside) or not, and not a capture's. Pure.
+        internal static bool HandsOverOnStart(string[] arguments, bool capture)
+        {
+            if (capture) return false;
+            if (arguments == null) return true;
+            foreach (string argument in arguments)
+            {
+                if (string.IsNullOrEmpty(argument) || argument == HostApp.Outside || argument == "--settings") continue;
+                if (argument.StartsWith("--page=", StringComparison.Ordinal) &&
+                    Array.IndexOf(PageOrder, argument.Substring("--page=".Length)) >= 0) continue;
+                return false;
+            }
+            return true;
+        }
+
+        /// The page a start that hands over asks for: the one its command line names, or "" - come forward where it is.
+        internal static string HandOverPage(string[] arguments)
+        {
+            string page = ParseArguments(HostApp.Without(arguments)).Page;
+            return page != null && Array.IndexOf(PageOrder, page) >= 0 ? page : "";
+        }
+
+        /// True when a window of the program `exe` that is already open - in another process - took the request to come
+        /// forward on `page` ("" where it is). Only top-level, visible, unowned Windows Forms windows of processes whose
+        /// program is that very file are asked, as win/handover.py asks them. Nothing here throws: a question Windows
+        /// cannot answer is a window not found, and the start goes on as it always did.
+        internal static bool HandOverTo(string exe, string page)
+        {
+            try
+            {
+                string target = SameFile(exe);
+                if (target == null) return false;
+                int own = Process.GetCurrentProcess().Id;
+                var asked = new List<KeyValuePair<IntPtr, int>>();
+                var programs = new Dictionary<int, bool>();
+                EachWindow each = delegate(IntPtr window, IntPtr data)
+                {
+                    try
+                    {
+                        if (!IsWindowVisible(window) || GetWindow(window, GwOwner) != IntPtr.Zero) return true;
+                        int process;
+                        GetWindowThreadProcessId(window, out process);
+                        if (process == 0 || process == own) return true;
+                        var kind = new StringBuilder(256);
+                        if (GetClassName(window, kind, kind.Capacity) == 0 ||
+                            !kind.ToString().StartsWith(FormsClass, StringComparison.Ordinal)) return true;
+                        bool ours;
+                        if (!programs.TryGetValue(process, out ours))
+                        {
+                            ours = string.Equals(SameFile(ProgramOf(process)), target, StringComparison.OrdinalIgnoreCase);
+                            programs[process] = ours;
+                        }
+                        if (ours) asked.Add(new KeyValuePair<IntPtr, int>(window, process));
+                    }
+                    catch (Exception) { /* a window Windows cannot tell about is not ours */ }
+                    return true;
+                };
+                EnumWindows(each, IntPtr.Zero);
+                GC.KeepAlive(each);
+                foreach (var pair in asked)
+                    if (AskToComeForward(pair.Key, pair.Value, page ?? "")) return true;
+            }
+            catch (Exception) { /* none found: the start goes on */ }
+            return false;
+        }
+
+        /// The program process `process` runs, by its full path, or null.
+        private static string ProgramOf(int process)
+        {
+            IntPtr handle = OpenProcessToRead(QueryLimitedInformation, false, process);
+            if (handle == IntPtr.Zero) return null;
+            try
+            {
+                var name = new StringBuilder(32768);
+                int size = name.Capacity;
+                return QueryFullProcessImageName(handle, 0, name, ref size) ? name.ToString(0, size) : null;
+            }
+            finally { CloseProcess(handle); }
+        }
+
+        /// One spelling of a file's path whatever it was written as - long names, a full path - compared without case.
+        private static string SameFile(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return null;
+            string full = Path.GetFullPath(path);
+            var longer = new StringBuilder(32768);
+            int length = GetLongPathName(full, longer, longer.Capacity);
+            return length > 0 && length < longer.Capacity ? longer.ToString() : full;
+        }
+
+        /// Asks one window to come forward on `page`; true when it answered OpenRequestTaken.
+        private static bool AskToComeForward(IntPtr window, int process, string page)
+        {
+            byte[] bytes = Encoding.Unicode.GetBytes(page);
+            IntPtr buffer = Marshal.AllocHGlobal(Math.Max(1, bytes.Length));
+            try
+            {
+                Marshal.Copy(bytes, 0, buffer, bytes.Length);
+                var copy = new CopyData();
+                copy.Data = new IntPtr(OpenRequestMark);
+                copy.Size = bytes.Length;
+                copy.Bytes = bytes.Length > 0 ? buffer : IntPtr.Zero;
+                // A person just started it: this process may bring a window forward, and lets the window do it itself.
+                try { LetComeForward(process); }
+                catch (Exception) { /* the window still takes it, behind whatever is in front */ }
+                IntPtr answer;
+                IntPtr sent = SendOpenRequest(window, WM_COPYDATA, IntPtr.Zero, ref copy, SmtoAbortIfHung, OpenRequestWait,
+                                              out answer);
+                return sent != IntPtr.Zero && answer.ToInt64() == OpenRequestTaken;
+            }
+            finally { Marshal.FreeHGlobal(buffer); }
         }
 
         /// What a window drawn at `drawn` does once it is on a monitor whose scale is `now` (v0.6.18): KeepWindow at the

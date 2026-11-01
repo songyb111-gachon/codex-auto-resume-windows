@@ -108,8 +108,9 @@ class NullPlugTests(unittest.TestCase):
         self.assertGreaterEqual(plug.PLUG_API, 1)
         # 3 (v0.6.14): P8's errand, and P2's records carried out - a package written for 2 is refused. 4
         # (v0.6.15-beta): P12's whole number of workers carried out, P2's purposes and moves. 6 (v0.6.19): P13 asked at
-        # the watcher's start and end with SUPERVISE and RESTART, and P20, a notice told.
-        self.assertEqual(plug.PLUG_API, 6)
+        # the watcher's start and end with SUPERVISE and RESTART, and P20, a notice told. 7 (v0.6.20): P21, how the tasks
+        # a person armed the power action for stand.
+        self.assertEqual(plug.PLUG_API, 7)
 
 
 class RecordingPlug(Plug):
@@ -270,6 +271,8 @@ class GuardTests(unittest.TestCase):
                     self.assertEqual(answer, frozenset(), "a person's own conversations alone (A15, plughands.widening_of)")
                 elif point is Point.SESSIONS:
                     self.assertEqual(answer, frozenset(), "the app's conversations alone (A15, plughands.kinds_of)")
+                elif point is Point.POWER:
+                    self.assertIsNone(answer, "no word for any tasks: the power action waits (P21, v0.6.20)")
                 else:
                     self.assertIs(answer, DEFER)
         self.assertEqual(guarded.failures, 0)
@@ -646,7 +649,11 @@ class EditionLaneTests(unittest.TestCase):
 
     def test_the_future_python_runs_each_edition_too(self):
         """An `include` entry that sets a Python the axis does not list makes a job of its own
-        and joins no other, so an entry without an edition would test neither by name."""
+        and joins no other, so an entry without an edition would test neither by name. While no next
+        Python is named (python_support.json, null since 2026-10-31) there is no `include` at all."""
+        if "include:" not in self.matrix:
+            self.assertNotIn("experimental: true", self.matrix)
+            return
         include = self.matrix[self.matrix.index("include:"):]
         entries = re.findall(r"(?m)^          - (\{.*\})\s*$", include)
         self.assertTrue(entries, "the future Python has no lane")

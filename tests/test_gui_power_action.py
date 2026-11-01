@@ -629,8 +629,8 @@ class BuiltCardTests(unittest.TestCase):
                 report = self.answer["audit"][locale]
                 self.assertEqual(report, "", "\n" + "\n".join(report.splitlines()[:40]))
                 # Each action counting down and waiting, and the card an administrator holds: at the opening width,
-                # and the card alone at the narrowest (v0.6.14).
-                self.assertEqual(self.answer["audited"][locale], 2 * (2 * 3 + 1), "the audit laid out every state of the card")
+                # and the card alone at the narrowest (v0.6.14) - and (v0.6.20) each action armed for tasks a person picked.
+                self.assertEqual(self.answer["audited"][locale], 2 * (3 * 3 + 1), "the audit laid out every state of the card")
 
     def test_turning_it_on_asks_first_with_cancel_the_default_so_a_reflex_enter_arms_nothing(self):
         self.assertEqual(self.clicks("offered"), {"on": False, "busy": 0, "asked": 0})

@@ -383,17 +383,18 @@ class Renderer:
                                                      shadow.alpha)
         return image
 
-    def _lift(self, paint, recipe, rect, radius, scale):
+    def _lift(self, paint, recipe, rect, radius, scale, lights=True):
         """A raised body's outer shadows, the last listed first as CSS paints them; the body goes on top.
 
         Read from the theme's recipe shadow by shadow: dark's card mixes two drops with an inset top
-        light, which `_inner` draws once the body is filled. Nothing without depth.
+        light, which `_inner` draws once the body is filled. Nothing without depth. `lights` False leaves out
+        the highlight (the `shadow_light` outer shadow, light's glow up and to the left) and keeps the drops.
         """
         if not self._depth():
             return
         left, top, right, bottom = (int(value) for value in rect)
         for shadow in reversed(recipe_shadows(recipe, self._theme(), self._design())):
-            if shadow.inset:
+            if shadow.inset or (not lights and shadow.token == "shadow_light"):
                 continue
             image = self._image(lift_coverage(right - left, bottom - top, radius, shadow.blur * scale), shadow)
             extent = image.extent

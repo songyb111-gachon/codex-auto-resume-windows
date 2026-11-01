@@ -361,12 +361,11 @@ namespace CodexAutoResume
                 dialog.Font = Font;
                 dialog.BackColor = Canvas;
                 dialog.ForeColor = Ink;
-                Soft.TitleBar(dialog);
+                Soft.DialogBar(dialog);
                 dialog.StartPosition = FormStartPosition.CenterParent;
                 dialog.MinimizeBox = false;
                 dialog.MaximizeBox = false;
                 dialog.ShowInTaskbar = false;
-                dialog.ShowIcon = false;
                 dialog.ClientSize = new Size(Px(420), Px(170));
                 var body = new SoftStack();
                 body.Dock = DockStyle.Fill;

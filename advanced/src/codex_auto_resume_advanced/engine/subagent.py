@@ -16,6 +16,11 @@ never sent to (A15). With this on:
   the Codex in force (the narrowed route): 5a adds words to a send core makes anyway; 5b makes new sends on lineage
   nobody has watched on this Codex.
 
+5b judges a parent as core judges a conversation (v0.6.20, the pair audit; the owner's word of 2026-10-31): core's reader,
+with P19's widening while Recover every conversation is on, as empty_response and the wrap-up do - a parent core never
+takes up is not followed up, since its record would wait for good, and one already waiting for a parent core no longer
+takes up is withdrawn.
+
 Never the child: every record is the parent's (`thread_id`), core's P2 gate refuses a conversation that is not a
 person's own, and P4 changes only the words of a send to the parent. Children are read only for a parent asked about
 (codex/lineage.py); Codex's way of writing items into a conversation is named in no source file of either edition
@@ -26,6 +31,7 @@ from __future__ import annotations
 from codex_auto_resume import failures
 from codex_auto_resume.domain import ids
 from codex_auto_resume.domain.plug import DEFER
+from codex_auto_resume.domain.plughands import Widening
 
 from .. import statement
 from ..codex import inuse
@@ -33,6 +39,7 @@ from ..codex.lineage import Lineage
 from ..codex.turns import Turns
 from ..vocabulary import ContinuationKind, ContinuationReason, Measurement, RecordState
 from .continued import answer_key, handed, words_pass
+from .usage import EVERY_CONVERSATION
 
 CAPABILITY = "subagent_parent"
 MAX_LINES = 5
@@ -91,6 +98,33 @@ class SubagentParent:
 
     def _codex_home(self):
         return self._home if self._home is not None else inuse.home(self.paths)
+
+    def _source(self):
+        """Core's reader, judging a conversation as core does - a person's own, or P19's widening while Recover every
+        conversation is on - never one core never recovers, whose record would wait for good (as empty_response's)."""
+        from codex_auto_resume.codex import LocalSource
+        source = LocalSource(self._codex_home())
+        try:
+            widened = self._scoped.armed(EVERY_CONVERSATION) is True
+        except Exception:
+            widened = False
+        source.widened = frozenset({Widening.EVERY_DESKTOP}) if widened else frozenset()
+        return source
+
+    @staticmethod
+    def _not_taken(handle, source) -> None:
+        """A follow-up waiting for a parent core does not take up - made before this look judged it so, or one Recover
+        every conversation widened to and no longer does - ended, withdrawn, as empty_response ends its own."""
+        try:
+            waiting = {row["thread_id"] for row in handle.mine() if row["record_state"] == RecordState.WAITING}
+        except Exception:
+            return
+        for thread in waiting:
+            try:
+                if source.latest(thread) is None:
+                    handle.end(ContinuationReason.WITHDRAWN, thread_id=thread)
+            except Exception:
+                continue
 
     def _stopped(self, parent):
         """[(key, line)] for each of `parent`'s subagents whose latest turn stopped on a failure and was not told
@@ -173,12 +207,14 @@ class SubagentParent:
         try:
             turns = Turns(self._codex_home())
             candidates = turns.recent(now - RECENT)
+            source = self._source()
         except Exception:
             return None
+        self._not_taken(handle, source)
         for parent in candidates:
             try:
-                if view.thread_enabled(parent) is not True:
-                    continue
+                if view.thread_enabled(parent) is not True or source.latest(parent) is None:
+                    continue                             # switched off, or a conversation core does not take up
                 turn = turns.latest(parent)
             except Exception:
                 continue

@@ -1266,7 +1266,7 @@ namespace CodexAutoResume
             if (repairButton != null) repairButton.Enabled = busy == 0;
             if (updateButton != null) updateButton.Enabled = busy == 0 && !updatesManaged;
             if (versionsButton != null) versionsButton.Enabled = busy == 0 && !updatesManaged;
-            if (stopButton != null) stopButton.Enabled = busy == 0;
+            UpdateWatcherButton();
             if (demoButton != null) demoButton.Enabled = busy == 0;
             if (compatButton != null) compatButton.Enabled = busy == 0;
             if (saveButton != null) saveButton.Enabled = busy == 0;

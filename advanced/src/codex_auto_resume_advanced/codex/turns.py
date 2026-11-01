@@ -27,11 +27,11 @@ from codex_auto_resume.codex import LocalSource, SourceError
 from codex_auto_resume.codex.values import _json
 from codex_auto_resume.codex.paths import _safe_path, newest_generation
 from codex_auto_resume.codex.rollout import SPAN
-from codex_auto_resume.domain import ids
+from codex_auto_resume.domain import ids, states
 
 # The columns read, and the only ones (thread_items' item_json only through the plan statement's json_each).
 TURN_COLUMNS = frozenset({"thread_id", "turn_id", "status", "error_json", "completed_at", "rollout_ordinal",
-                          "final_agent_item_id"})
+                          "final_agent_item_id", "started_at"})
 ITEM_COLUMNS = frozenset({"thread_id", "turn_id", "item_type", "item_json", "rollout_ordinal"})
 LATEST = ("SELECT turn_id, status, error_json IS NOT NULL AND error_json NOT IN ('', 'null'), completed_at, "
           "final_agent_item_id IS NOT NULL, rollout_ordinal FROM thread_turns WHERE thread_id=? "
@@ -46,12 +46,19 @@ PLAN = ("SELECT json_extract(step.value, '$.status') FROM (SELECT item_json FROM
         "AS step")
 BETWEEN = "SELECT count(*) FROM thread_turns WHERE thread_id=? AND rollout_ordinal > ? AND rollout_ordinal < ?"
 # v0.6.16-beta.3 (usage_wrap_up): the conversations whose latest turn is running - status words and ids only.
-RUNNING = ("SELECT t.thread_id FROM thread_turns t WHERE t.status='inProgress' AND NOT EXISTS (SELECT 1 FROM "
-           "thread_turns n WHERE n.thread_id=t.thread_id AND n.rollout_ordinal > t.rollout_ordinal) LIMIT ?")
+# v0.6.20 final: with each turn's start, so one begun before Windows last started is left out (states.ended_by_boot),
+# newest first, so a crash leftover never crowds a live turn out of the limit.
+RUNNING = ("SELECT t.thread_id, t.started_at FROM thread_turns t WHERE t.status='inProgress' AND NOT EXISTS (SELECT 1 "
+           "FROM thread_turns n WHERE n.thread_id=t.thread_id AND n.rollout_ordinal > t.rollout_ordinal) "
+           "ORDER BY t.started_at DESC LIMIT ?")
 # v0.6.16-beta.4 (model_fallback): one failed turn's error, read only to be dropped to Codex's code at once (core's
 # failures.shape - a tag of letters and digits, never a word of its message, B9).
 ERROR = "SELECT error_json FROM thread_turns WHERE thread_id=? AND turn_id=?"
-STATEMENTS = (LATEST, KINDS, RECENT, HAS_PLAN, PLAN, BETWEEN, RUNNING, ERROR)
+# v0.6.20 (power_after_tasks, Discussion #57): one turn's status by its id - a status word, never a word of the turn.
+STATUS = "SELECT status FROM thread_turns WHERE thread_id=? AND turn_id=?"
+STATEMENTS = (LATEST, KINDS, RECENT, HAS_PLAN, PLAN, BETWEEN, RUNNING, ERROR, STATUS)
+# The statuses Codex writes a turn in; anything else reads "other".
+TURN_STATUSES = frozenset({"completed", "failed", "interrupted", "inProgress"})
 # A plan step's statuses as Codex writes them; anything else reads "unknown".
 STEP_STATUSES = frozenset({"pending", "in_progress", "completed"})
 UNKNOWN = "unknown"
@@ -109,6 +116,17 @@ def connect(home, kind, tables):
 
 def _kind(value) -> str:
     return value if isinstance(value, str) and 0 < len(value) <= KIND_MAX and value.isalpha() else "other"
+
+
+def booted_of(paths):
+    """When Windows last started, as the watcher's heartbeat records it (store.watcher_status's booted_at, the time core's
+    power action reads, engine/freshness) - or None where it cannot be read (v0.6.20 final)."""
+    try:
+        from codex_auto_resume.store import Store
+        with Store(paths.state_dir) as store:
+            return (store.watcher_status() or {}).get("booted_at")
+    except Exception:
+        return None
 
 
 class Turns:
@@ -178,6 +196,22 @@ class Turns:
         info = error.get("codexErrorInfo") if isinstance(error, dict) else None
         return failures.shape(info)["code"]
 
+    def status(self, thread_id, turn_id):
+        """The status of turn `turn_id` of conversation `thread_id` - completed, failed, interrupted, inProgress or
+        "other" - looked for under every id the conversation's turns are recorded under (a split, issue #30), or None
+        where no such turn is recorded (v0.6.20, power_after_tasks)."""
+        if not ids.is_uuid(thread_id) or not ids.is_uuid(turn_id):
+            raise TurnsUnavailable("not a turn")
+        chain = self._core("turn_chain", thread_id)
+
+        def run(connection):
+            for other in reversed(chain):
+                row = connection.execute(STATUS, (other, turn_id)).fetchone()
+                if row is not None:
+                    return row[0] if row[0] in TURN_STATUSES else "other"
+            return None
+        return self._read(run)
+
     def recent(self, since) -> list:
         """The conversations with a turn completed at `since` or later (Codex's seconds), the latest first, at
         most RECENT_LIMIT - the candidates the edition looks at, never a list of every conversation."""
@@ -193,10 +227,14 @@ class Turns:
                 found.append(named)
         return found
 
-    def running(self) -> list:
+    def running(self, booted=None) -> list:
         """The conversations whose latest turn is running now, at most RECENT_LIMIT (v0.6.16-beta.3, the wrap-up's
-        candidates): ids, never a word of any turn - a split id's named as its conversation (`_named`)."""
-        return self._named(self._read(lambda connection: connection.execute(RUNNING, (RECENT_LIMIT,)).fetchall()))
+        candidates): ids, never a word of any turn - a split id's named as its conversation (`_named`). v0.6.20 final: a
+        latest turn begun before Windows last started (`booted`, the heartbeat's boot time, `booted_of`) is a crash's
+        leftover and is not running (states.ended_by_boot, as core's activity reads it); with no boot time every one
+        counts, as before."""
+        rows = self._read(lambda connection: connection.execute(RUNNING, (RECENT_LIMIT,)).fetchall())
+        return self._named([row for row in rows if not states.ended_by_boot(row[1], booted)])
 
     def between(self, thread_id, after, before) -> int:
         """How many turns of `thread_id` lie strictly between the turns at ordinals `after` and `before` - 0 where

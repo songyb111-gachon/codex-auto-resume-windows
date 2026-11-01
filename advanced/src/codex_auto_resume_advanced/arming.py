@@ -129,16 +129,18 @@ def compat_warning(view, definition):
     return None
 
 
-def warnings_for(definition, view, measured=MEASURED) -> tuple:
+def warnings_for(definition, view, measured=MEASURED, *, parts=True) -> tuple:
     """Every warning `definition`'s statement shows now, in the vocabulary's order. Pure.
 
     A measurement its route rests on that failed is MEASUREMENT_FAILED, whichever Codex it failed
     on; one with no verdict, or a pass on another Codex than the one in force, is UNMEASURED - a
     pass counts only for the version it was made on. Then the compatibility grade of what it
-    stands on (`compat_warning`), and ENGINE_UNKNOWN where no Codex version is known."""
+    stands on (`compat_warning`), and ENGINE_UNKNOWN where no Codex version is known. The measurements only a part
+    rests on (`narrowed_by`, v0.6.20) are warned of the same way; `parts=False` leaves them out - the warnings a
+    tripwire reads (`standing`), since such a fail narrows the part and never turns the capability off."""
     version = engine_version(view)
     found = set()
-    for measurement in definition.measurements:
+    for measurement in definition.measurements + (tuple(getattr(definition, "narrowed_by", ())) if parts else ()):
         entry = measured.get(measurement) if isinstance(measured, dict) else None
         verdict, measured_on = entry if isinstance(entry, tuple) and len(entry) == 2 else (None, None)
         if verdict == Verdict.FAIL:
@@ -175,7 +177,8 @@ def standing(definition, row, policy, view, measured=MEASURED) -> tuple:
     if not kept or policy.admits(definition.id):
         if row.get("statement_revision") != definition.revision:
             notice = OffReason.STATEMENT_CHANGED
-    unconfirmed = set(warnings_for(definition, view, measured)) - set(row.get("warnings") or ())
+    # Only what its route rests on trips it: a measurement only a part rests on (`narrowed_by`) narrows that part.
+    unconfirmed = set(warnings_for(definition, view, measured, parts=False)) - set(row.get("warnings") or ())
     if notice is None:
         notice = next((reason for warning, reason in TRIPPING.items() if warning in unconfirmed), None)
     if notice is not None and not kept:
@@ -494,7 +497,11 @@ class Arming:
     def _hook_declaration(self) -> None:
         """v0.6.20: the Stop hook's declaration follows its capability's stored state (control/hookplugin.py) - written
         while it is on, removed at every way off - and only where this registry has the capability, so nothing is
-        touched while it waits hidden (registry.WAITING). Never raises."""
+        touched while it waits hidden (registry.WAITING). Never raises.
+
+        v0.6.20: so does core's power action armed for tasks a person picked (control/powertasks.follow) - turned off,
+        and its list gone, at every way power_after_tasks goes off, so nothing waits on an answer that never comes."""
+        self._power_tasks_follow()
         from .control import hookplugin
         if self.registry.get(hookplugin.CAPABILITY) is None:
             return
@@ -502,6 +509,19 @@ class Arming:
             from .codex import inuse
             row = self.state.arming().get(hookplugin.CAPABILITY) or {}
             hookplugin.follow(self.state.paths, inuse.home(self.state.paths), row.get("state") == ArmingState.ARMED)
+        except Exception:
+            pass
+
+    def _power_tasks_follow(self) -> None:
+        """v0.6.20: core's power action armed for tasks follows power_after_tasks' stored state (control/powertasks.py),
+        only where this registry has the capability. Never raises."""
+        from .control import powertasks
+        from .engine.powertasks import CAPABILITY
+        if self.registry.get(CAPABILITY) is None:
+            return
+        try:
+            row = self.state.arming().get(CAPABILITY) or {}
+            powertasks.follow(self.state.paths, row.get("state") == ArmingState.ARMED)
         except Exception:
             pass
 
@@ -1207,7 +1227,10 @@ class Arming:
                 "requires_off": [other for other in self.registry.requires(definition.id)
                                  if states.get(other, ArmingState.OFF) != ArmingState.ARMED],
                 "departs_from": departs(definition, row), "compat": definition.compat,
-                "measurements": [str(measurement) for measurement in definition.measurements],
+                # Every measurement its statement warns of (v0.6.20): those only a part rests on, then its route's -
+                # usage_analytics' MTOK before MU, as they were listed before, so the answer is the one it was.
+                "measurements": [str(measurement) for measurement in
+                                 tuple(getattr(definition, "narrowed_by", ())) + definition.measurements],
                 "points": sorted(str(point) for point in definition.points),
                 # Whether any point it answers at leads to a send, and so whether its ceilings can
                 # ever bind. A capability that only starts, or only shadows, spends no unit; a

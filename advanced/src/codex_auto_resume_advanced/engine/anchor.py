@@ -22,7 +22,8 @@ tick is journalled and its errand never run); the errand reads and acts:
 2. an occasion is skipped, with its word, where recovery is paused (Pause, Observe only - core's settings, and core's
    errand guard again at the start), no watcher told the plug the Codex it drives (never another home or engine),
    it started a window less than five hours ago (one start a window), usage cannot be read, no account is signed in,
-   the weekly window is full, or the 5-hour window runs;
+   the weekly window is full, the 5-hour window runs, or its own state or core's guard cannot be read or written
+   (`skip_state`: a file another process holds past its timeout - never a raise, which would trip it);
 3. two reads STEADY_GAP apart; idle, and the request starts inside core's errand guard - its start stamped first -
    from an empty folder of its own, windowless, and is waited for on a thread of its own for at most TIMEOUT;
 4. the next tick settles it: its exit code and the token counts are kept (never what it printed), and two more
@@ -30,6 +31,11 @@ tick is journalled and its errand never run); the errand reads and acts:
    log.
 
 Every start and every skip is one journal line, `anchor.<word>` (registry WINDOW_ANCHOR.codes), nothing else.
+
+Beside account_switch (v0.6.20, the pair audit's V20-2): the window is the signed-in account's. Where account_switch
+saw another account signed in (its stamp ACCOUNT_CHANGED_AT), the start, the fixed reset and the reset seen kept here
+were the other account's - they go, once a change, so one start a window is counted for this account's window and a
+time picked is not refused `skip_once` for a start made on the other.
 """
 from __future__ import annotations
 
@@ -80,12 +86,18 @@ EXEC_ARGUMENTS = ("exec", "--skip-git-repo-check", "--ephemeral", "--json", "-s"
 FOLDER = "anchor-cwd"
 # What two reads may come to (`judge`).
 IDLE, RUNNING, WEEKLY_FULL, UNREADABLE = "idle", "running", "weekly", "unreadable"
-# The journal's word for each reason an occasion is skipped.
+# The journal's word for each reason an occasion is skipped. `state` (2026-11-01): its own stamps, or core's errand guard,
+# could not be read or written - the advanced state or core's store busy past its timeout (StateError, StoreError) - where
+# the errand used to raise and its tripwire caught it (hook_exception, the owner's journal at 2026-10-31 10:08:17).
 SKIPS = {"running": "skip_running", "weekly": "skip_weekly", "paused": "skip_paused", "signed_out": "skip_signed_out",
-         "unreadable": "skip_unreadable", "home": "skip_home", "once": "skip_once", "folder": "skip_folder"}
+         "unreadable": "skip_unreadable", "home": "skip_home", "once": "skip_once", "folder": "skip_folder",
+         "state": "skip_state"}
 CODES = ("started", "fixed", "unfixed", "failed", "timed_out") + tuple(SKIPS.values())
 # What an occasion is: a time picked, or a reset seen.
 SLOT, RESET, VERIFY = "slot", "reset", "verify"
+# account_switch, and the stamps of a window that are the account's that was signed in (V20-2).
+ACCOUNT_SWITCH = "account_switch"
+WINDOW_STAMPS = (OptionKey.ANCHOR_STARTED_AT, OptionKey.ANCHOR_FIXED_AT, OptionKey.ANCHOR_SEEN_RESET)
 LOG_PREFIX = "window anchor: "
 
 
@@ -145,6 +157,19 @@ def reset_due(options, now, seen, done):
     if now < seen + AFTER_RESET or (done is not None and seen <= done):
         return None
     return seen
+
+
+def next_due(options, now, slot_done, seen, reset_done, local=time.localtime):
+    """The earliest occasion still to come, in whole seconds, or None - for wake_for_reset (v0.6.20, the pair audit; the
+    owner's word of 2026-10-31): the next occurrence of a time picked, today's or tomorrow's, not handled already, and -
+    Start right after a reset on - the reset seen not handled yet, AFTER_RESET after it. Pure."""
+    start = midnight(now, local)
+    found = [occurrence for minute in picked(options) for occurrence in (start + minute * 60, start + 86400 + minute * 60)
+             if occurrence > now and (type(slot_done) is not int or occurrence > slot_done)]
+    if after_reset_on(options) and type(seen) is int and (type(reset_done) is not int or seen > reset_done):
+        if seen + AFTER_RESET > now:
+            found.append(seen + AFTER_RESET)
+    return min(found) if found else None
 
 
 def windows_of(windows):
@@ -316,6 +341,7 @@ class WindowAnchor:
             return DEFER
         try:
             now = scoped.now()
+            self._account_changed()
             with self._lock:
                 ended, running = self._ended is not None, self._running is not None
             if ended:
@@ -331,6 +357,23 @@ class WindowAnchor:
             return _Errand(self, view) if self._occasion(now) or self._learn_due(now) else DEFER
         except Exception:
             return DEFER
+
+    def _account_changed(self) -> None:
+        """V20-2: another account signed in since the last change taken in, as account_switch saw it - its window stamps
+        go, once a change. Nothing where account_switch does not stand on, or nothing can be read."""
+        scoped = self._scoped
+        try:
+            if scoped.armed(ACCOUNT_SWITCH) is not True:
+                return
+            changed = scoped.stamped_of(ACCOUNT_SWITCH, OptionKey.ACCOUNT_CHANGED_AT)
+            taken = scoped.stamped(OptionKey.ANCHOR_ACCOUNT_AT)
+            if type(changed) is not int or (type(taken) is int and taken >= changed):
+                return
+            for key in WINDOW_STAMPS:
+                scoped.unstamp(key)
+            scoped.stamp(OptionKey.ANCHOR_ACCOUNT_AT, changed)
+        except Exception:
+            return
 
     def _occasion(self, now):
         """(why, occurrence) of an occasion due now - a time picked first, then a reset seen - or None."""
@@ -361,10 +404,14 @@ class WindowAnchor:
         if self._pending is not None:
             self._second(view, guard, now)
             return None
-        occasion = self._occasion(now)
+        try:
+            occasion = self._occasion(now)
+            learn = occasion is None and self._learn_due(now)
+        except Exception:
+            return None                 # its own state unreadable now: nothing is known to be due; the tick looks again
         if occasion is not None:
             self._first(view, occasion, now)
-        elif self._learn_due(now):
+        elif learn:
             self._learned = now
             reading = self._read(account=False)
             self._remember(reading, now)
@@ -417,7 +464,10 @@ class WindowAnchor:
             return "paused"
         if self._told() is None:
             return "home"
-        started = self._scoped.stamped(OptionKey.ANCHOR_STARTED_AT)
+        try:
+            started = self._scoped.stamped(OptionKey.ANCHOR_STARTED_AT)
+        except Exception:
+            return "state"              # one start a window cannot be told: none is made
         if type(started) is int and 0 <= now - started < WINDOW_SECONDS:
             return "once"
         return None
@@ -431,16 +481,26 @@ class WindowAnchor:
             backend = self._backend()
         except Exception:
             return self._skip(why, occurrence, "home")
-        process = None
-        with guard() as permitted:
-            if permitted is True and self._scoped.stamp(OptionKey.ANCHOR_STARTED_AT, max(1, int(now))) is True:
-                try:
-                    process = start_request(backend, folder)
-                except Exception:
-                    process = None
-                    self._scoped.unstamp(OptionKey.ANCHOR_STARTED_AT)
-            elif permitted is not True:
-                return self._skip(why, occurrence, "paused")
+        process, refused = None, None
+        try:
+            with guard() as permitted:
+                if permitted is not True:
+                    refused = "paused"
+                else:
+                    stamped = self._stamp(OptionKey.ANCHOR_STARTED_AT, max(1, int(now)))
+                    if stamped is None:
+                        refused = "state"   # the start's stamp could not be written: one start a window not kept
+                    elif stamped is True:
+                        try:
+                            process = start_request(backend, folder)
+                        except Exception:
+                            process = None
+                            self._unstamp(OptionKey.ANCHOR_STARTED_AT)
+        except Exception:
+            if process is None:             # core's guard could not be taken (its store busy): nothing started
+                refused = "state"
+        if refused is not None:
+            return self._skip(why, occurrence, refused)
         self._done(why, occurrence)
         if process is None:
             self._count("failed")
@@ -474,9 +534,9 @@ class WindowAnchor:
         for key, name in ((OptionKey.ANCHOR_INPUT_TOKENS, "input"), (OptionKey.ANCHOR_OUTPUT_TOKENS, "output")):
             value = answered.get(name)
             if type(value) is int and value >= 1:
-                scoped.stamp(key, value)
+                self._stamp(key, value)
             else:
-                scoped.unstamp(key)
+                self._unstamp(key)
         if answered.get("end") == "timed_out":
             self._count("timed_out")
             self._say("the request did not finish within %d s and was ended" % TIMEOUT)
@@ -504,8 +564,8 @@ class WindowAnchor:
             five, _weekly = windows_of(reading["windows"])
             reset = five["reset_at"] if five is not None else None
             if type(reset) is int and reset > self._scoped.now():
-                self._scoped.stamp(OptionKey.ANCHOR_FIXED_AT, reset)
-                self._scoped.stamp(OptionKey.ANCHOR_SEEN_RESET, reset)
+                self._stamp(OptionKey.ANCHOR_FIXED_AT, reset)
+                self._stamp(OptionKey.ANCHOR_SEEN_RESET, reset)
                 self._count("fixed")
                 self._say("the 5-hour window started at %s; its next reset is fixed at %s (%s)"
                           % (_hhmm(started, self._local), _hhmm(reset, self._local),
@@ -517,10 +577,14 @@ class WindowAnchor:
 
     # ------------------------------------------------------------------ helpers
     def _remember(self, reading, now) -> None:
-        """A running window's reset ahead, kept as the reset seen - what After a reset acts on once it has gone by."""
+        """A running window's reset ahead, kept as the reset seen - what After a reset acts on once it has gone by. Where
+        the state cannot be read or written, nothing is kept: a later read learns it again."""
         reset = running_reset(reading, now)
-        if reset is not None and self._scoped.stamped(OptionKey.ANCHOR_SEEN_RESET) != reset:
-            self._scoped.stamp(OptionKey.ANCHOR_SEEN_RESET, reset)
+        try:
+            if reset is not None and self._scoped.stamped(OptionKey.ANCHOR_SEEN_RESET) != reset:
+                self._scoped.stamp(OptionKey.ANCHOR_SEEN_RESET, reset)
+        except Exception:
+            pass
 
     def _skip(self, why, occurrence, reason) -> None:
         self._done(why, occurrence)
@@ -529,7 +593,21 @@ class WindowAnchor:
     def _done(self, why, occurrence) -> None:
         key = {SLOT: OptionKey.ANCHOR_SLOT_DONE, RESET: OptionKey.ANCHOR_RESET_DONE}.get(why)
         if key is not None and type(occurrence) is int and occurrence >= 1:
-            self._scoped.stamp(key, occurrence)
+            self._stamp(key, occurrence)
+
+    def _stamp(self, key, value):
+        """Its stamp `key` kept (Scoped.stamp): True, False where it was not kept (not on), or None where the state could
+        not be written - never a raise."""
+        try:
+            return self._scoped.stamp(key, value) is True
+        except Exception:
+            return None
+
+    def _unstamp(self, key) -> None:
+        try:
+            self._scoped.unstamp(key)
+        except Exception:
+            pass
 
     def _backend(self):
         """Core's Backend for the codex.exe and the Codex home the watcher told - never another (inuse.backend reads

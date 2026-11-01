@@ -676,7 +676,8 @@ class LocalSourceTests(unittest.TestCase):
         os.utime(path or self.rollout, (then, then))
 
     def activity(self, threads=()):
-        return self.source.activity(threads, time.time())
+        # v0.6.20 final: read since a Windows start long before any turn here (2001), so every one counts.
+        return self.source.activity(threads, time.time(), booted=978307200.0)
 
     def test_activity_when_everything_is_current_and_nothing_runs(self):
         self.assertEqual(self.activity(), {"history": True, "running": 0, "queued": 0})
@@ -693,10 +694,14 @@ class LocalSourceTests(unittest.TestCase):
         self.assertNotIn(other, repr(found))
 
     def test_a_crashed_turn_left_in_progress_holds_it_whatever_its_age(self):
-        """Q9: no time bound on the turns counted, unlike the needs-you stall reader."""
+        """Q9: no time bound on the turns counted, unlike the needs-you stall reader - within this start of Windows
+        (v0.6.20 final, the owner: one begun before Windows last started says inProgress for good, and holds nothing;
+        tests/test_power_action_boot.py)."""
         turn = self.later_turn(2, "inProgress")
-        self.set_turn(turn, started_at=946684800)
+        self.set_turn(turn, started_at=978307200 + 60)
         self.assertEqual(self.activity()["running"], 1)
+        self.set_turn(turn, started_at=946684800)
+        self.assertEqual(self.activity()["running"], 0)
 
     def test_a_lagging_projection_of_a_recently_written_file_is_behind(self):
         self.grow()

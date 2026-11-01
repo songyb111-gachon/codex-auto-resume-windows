@@ -127,16 +127,22 @@ class DefinitionTests(unittest.TestCase):
         self.assertEqual(USAGE_ANALYTICS.departs_from, ("B6", "C4", "C9", "D2", "F3"))
         self.assertEqual((USAGE_ANALYTICS.points, USAGE_ANALYTICS.compat, USAGE_ANALYTICS.requires),
                          (frozenset({Point.TICK}), "usage_probe", ("usage_meter",)))
-        self.assertEqual(USAGE_ANALYTICS.measurements, (Measurement.MTOK, Measurement.MU))
+        # MTOK only narrows it (v0.6.20): failed, the lifetime totals alone, and never a tripwire.
+        self.assertEqual((USAGE_ANALYTICS.measurements, USAGE_ANALYTICS.narrowed_by),
+                         ((Measurement.MU,), (Measurement.MTOK,)))
         self.assertEqual((USAGE_ANALYTICS.ceilings.per_day, USAGE_ANALYTICS.ceilings.per_conversation), (1, 1))
         self.assertEqual(USAGE_ANALYTICS.codes, ("ingested", "capped", "unreadable"))
         self.assertEqual(USAGE_ANALYTICS.option(OptionKey.ANALYTICS_DAYS).choices, (7, 30, 90))
         self.assertIn("usage_analytics", registry.REGISTRY.ids)
         self.assertEqual(statement.CATALOGS.missing(USAGE_ANALYTICS), [])
 
-    def test_it_is_shown_right_after_keep_going_and_answers_at_p8_before_the_wake_timer(self):
+    def test_it_is_shown_last_among_the_work_savers_and_answers_at_p8_before_the_wake_timer(self):
         order = registry.SHOWN_ORDER
-        self.assertEqual(order[order.index("keep_going") + 1], "usage_analytics")
+        # 2026-10-31: the last of the second group (what saves the person work), right after steering the turn.
+        self.assertEqual(order[order.index("usage_analytics") - 1], "steer_send")
+        # 2026-11-01 (Discussion #57): the power action after tasks a person picked follows it, the end of group 2.
+        self.assertEqual(order[order.index("usage_analytics") + 1], "power_after_tasks")
+        self.assertEqual(order[order.index("power_after_tasks") + 1], "empty_response")
         # The wake timer stays last at P8, so its errand reads the due times the others' errands kept.
         ticks = [d.id for d in registry.REGISTRY.at(Point.TICK)]
         self.assertLess(ticks.index("usage_analytics"), ticks.index("wake_for_reset"))

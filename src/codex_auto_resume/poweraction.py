@@ -32,6 +32,19 @@ no input queued) and asks Windows (steps 12-14: still available, nobody else sig
 down, nobody at this PC for two minutes - `judge_presence`), and only then counts down. Anything
 that cannot be read is a reason to wait, never to act (E1).
 
+Tasks a person picked (v0.6.20, Discussion #57). In the advanced edition an arming may be made for the tasks a
+person picked instead (`tasks` true, written only while the edition's plug answers for them - control/poweraction.py):
+a Once, carrying nothing. Its steps 6 to 10 are the plug's word (P21, PowerTasks), and core's own records still hold
+it - a recovery open anywhere, the watched tasks' own included, waits first:
+
+     T1  no word, or the plug cannot tell: wait (tasks_unknown)
+     T2  one still runs: wait (tasks_running)
+     8   any record still open, or an uncertain submission followed: wait, as above
+     T3  one ended in an ending not counted: the batch ends not_met
+     T4  every one ended as counted: go on to Codex and Windows, steps 11 to 16 as above
+
+An arming without `tasks` - every one the standard edition can make - never asks the plug and takes steps 6 to 10.
+
 Every record is classed by its own state and reason, and nothing inherits its parent's class: a
 child born exhausted is OTHER even when its parent recovered, because the task's last usage limit
 was not recovered (`classify`).
@@ -45,11 +58,12 @@ from dataclasses import dataclass, field
 
 from .domain import ids
 from .domain.power_vocabulary import (PowerAction, PowerAfter, PowerClass, PowerEnd, PowerPhase,
-                                      PowerRepeat, PowerUnavailable, PowerWait)
+                                      PowerRepeat, PowerTasks, PowerUnavailable, PowerWait)
 from .domain.states import EPOCH_STORE, TERMINAL, epoch, still_followed
 from .domain.vocabulary import FailureCategory, ReasonCode, RecordState
 
 ACTIONS, AFTERS, REPEATS = tuple(PowerAction), tuple(PowerAfter), tuple(PowerRepeat)
+TASKS = tuple(PowerTasks)
 PHASES, WAITS, ENDS = tuple(PowerPhase), tuple(PowerWait), tuple(PowerEnd)
 CLASSES, UNAVAILABLE = tuple(PowerClass), tuple(PowerUnavailable)
 
@@ -98,6 +112,8 @@ PERSON_SUPERSEDED = frozenset({ReasonCode.LATEST_TURN_CHANGED, ReasonCode.PARENT
 
 _TOP = ("format", "armed", "shown", "last")
 _ARMED = ("nonce", "action", "after", "repeat", "grace_seconds", "armed_at", "since", "carried", "stop_at")
+# v0.6.20: the one key an arming for tasks a person picked has beside them, and only as True.
+TASKS_KEY = "tasks"
 _SHOWN = ("nonce", "phase", "waiting_for", "grace_until")
 _LAST = ("action", "result", "at")
 # What a surface is told of an arming: never its nonce, which only a notice's button carries.
@@ -128,6 +144,11 @@ def _count(value) -> bool:
 
 
 def _armed(armed, now) -> bool:
+    if isinstance(armed, dict) and TASKS_KEY in armed:
+        # v0.6.20: an arming for tasks a person picked - `tasks` exactly True, a Once, carrying nothing.
+        if armed[TASKS_KEY] is not True or armed.get("repeat") != PowerRepeat.ONCE or armed.get("carried") != []:
+            return False
+        armed = {key: value for key, value in armed.items() if key != TASKS_KEY}
     if not _exact(armed, _ARMED) or not ids.is_power_nonce(armed["nonce"]):
         return False
     if not (_word(armed["action"], ACTIONS) and _word(armed["after"], AFTERS)
@@ -191,12 +212,21 @@ def blank() -> dict:
     return {"format": FORMAT, "armed": None, "shown": None, "last": None}
 
 
+def for_tasks(armed) -> bool:
+    """Whether an arming is one for tasks a person picked (v0.6.20): its `tasks` key, True. Never for None."""
+    return isinstance(armed, dict) and armed.get(TASKS_KEY) is True
+
+
 def view(document) -> dict:
     """What every surface is told of the file (PowerView): the arming's choices and times, what the
-    watcher last showed, and how the last batch ended - never the nonce. All None for no file."""
+    watcher last showed, and how the last batch ended - never the nonce. All None for no file. An
+    arming for tasks a person picked says `tasks` True too (v0.6.20); no other arming has the key."""
     document = document if isinstance(document, dict) else {}
     armed, shown, last = document.get("armed"), document.get("shown"), document.get("last")
-    return {"armed": None if armed is None else {key: armed[key] for key in _VIEW_ARMED},
+    viewed = None if armed is None else {key: armed[key] for key in _VIEW_ARMED}
+    if viewed is not None and for_tasks(armed):
+        viewed[TASKS_KEY] = True
+    return {"armed": viewed,
             "shown": None if shown is None else {key: shown[key] for key in _VIEW_SHOWN},
             "last": None if last is None else {key: last[key] for key in _LAST}}
 
@@ -284,6 +314,8 @@ class Facts:
     rows: tuple = field(default=())
     saw_open: bool = False
     follow_window: float = FOLLOW_SECONDS
+    # v0.6.20: for an arming for tasks a person picked, the plug's word (PowerTasks) - None where it said nothing.
+    tasks: str | None = None
 
 
 @dataclass(frozen=True)
@@ -314,6 +346,8 @@ def decide(facts: Facts) -> Decision:
         return Decision(WAIT, None, saw)
     if facts.paused:
         return Decision(WAIT, PowerWait.PAUSED, saw)
+    if for_tasks(armed):
+        return _decide_tasks(facts, saw)
     batch = members(facts.rows, armed)
     if not batch:
         if armed["repeat"] == PowerRepeat.ONCE and facts.now > armed["armed_at"] + LAPSE_SECONDS:
@@ -334,6 +368,22 @@ def decide(facts: Facts) -> Decision:
     if not saw and (ended is None or facts.now - ended > STALE_SECONDS):
         return Decision(END, PowerEnd.STALE, saw)
     return Decision(GO, None, saw)
+
+
+def _decide_tasks(facts: Facts, saw: bool) -> Decision:
+    """Steps T1 to T4 for an arming for tasks a person picked, with core's step 8 between them: the plug's word decides
+    whether they ended as counted, and core's records whether anything of a recovery still waits, anywhere."""
+    if facts.tasks not in TASKS or facts.tasks == PowerTasks.UNKNOWN:
+        return Decision(WAIT, PowerWait.TASKS_UNKNOWN, saw)
+    if facts.tasks == PowerTasks.RUNNING:
+        return Decision(WAIT, PowerWait.TASKS_RUNNING, True)
+    if any(is_open(row) for row in facts.rows):
+        return Decision(WAIT, PowerWait.RECOVERY_OPEN, True)
+    if any(still_followed(row, facts.now, facts.follow_window) for row in facts.rows):
+        return Decision(WAIT, PowerWait.DELIVERY_UNKNOWN, True)
+    if facts.tasks == PowerTasks.NOT_MET:
+        return Decision(END, PowerEnd.NOT_MET, True)
+    return Decision(GO, None, True)
 
 
 # ------------------------------------------------------------------------------ after step 10

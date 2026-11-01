@@ -156,13 +156,12 @@ namespace CodexAutoResume
             dialog.Font = Font;
             dialog.BackColor = Canvas;
             dialog.ForeColor = Ink;
-            Soft.TitleBar(dialog);
+            Soft.DialogBar(dialog);
             dialog.FormBorderStyle = FormBorderStyle.FixedDialog;
             dialog.StartPosition = FormStartPosition.CenterParent;
             dialog.MinimizeBox = false;
             dialog.MaximizeBox = false;
             dialog.ShowInTaskbar = false;
-            dialog.ShowIcon = false;
             int width = Px(560);
 
             var body = new SoftStack();
@@ -303,8 +302,11 @@ namespace CodexAutoResume
             editorSteerWarning.Visible = false;
             card.Controls.Add(editorSteerWarning);
             if (Equals(Get(advancedPrompts, "after_turn_unproven"), true))
-                card.Controls.Add(HelpText(Word("page.queue.unproven",
-                    "After this turn is unproven on this Codex until it has been measured.")));
+                card.Controls.Add(HelpText(Equals(Get(advancedPrompts, "after_turn_failed"), true)
+                    ? Word("page.queue.unproven_failed",
+                        "\"After this turn\" may not work on this Codex: its measurement failed.")
+                    : Word("page.queue.unproven",
+                        "After this turn is unproven on this Codex until it has been measured.")));
 
             // Where a refusal is said, above the buttons.
             editorSaid = HelpText("");

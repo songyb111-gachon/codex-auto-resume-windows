@@ -20,7 +20,7 @@ quietly stopped working.
 
 Both of those happen to every module that becomes a package, so both rules are held for all of
 them in `tests/test_names.py` and `tests/test_reexports.py`. What is here is what is the
-popup's own: the surface it gives, the order its files are layered in, and the six of them
+popup's own: the surface it gives, the order its files are layered in, and the seven of them
 that may not touch Windows.
 """
 from __future__ import annotations
@@ -42,14 +42,16 @@ from codex_auto_resume.ui import popup as tray_popup  # noqa: E402
 ROOT = Path(_HERE).parent
 PACKAGE = "codex_auto_resume.ui.popup"
 
-# The fourteen files, in the order `__init__` re-exports them: the six that ask Windows nothing,
+# The sixteen files, in the order `__init__` re-exports them: the seven that ask Windows nothing,
 # then Windows and what is drawn with it. It is a dependency order, and the test below holds it
-# that way - so the list reads as the layering it is, rather than as fourteen names. `messages` came
+# that way - so the list reads as the layering it is, rather than as sixteen names. `messages` came
 # out of `window` in v0.6.10, the window's messages as a mixin it is made of, to give window.py room
 # under the line budget; `access` in v0.6.11, what a screen reader is told, which the messages answer from.
-MODULES = ("words", "model", "placement", "motion", "elevation", "layout",
-           "win32", "fonts", "theme", "gdiplus", "renderer", "access", "messages", "window")
-ASKS_WINDOWS_NOTHING = MODULES[:6]
+# v0.6.20 drew the icon's right-click menu here, in two files: `menuplan`, where its items go and what a key
+# reaches - asking Windows nothing, so the seventh of that half - and `menuwindow`, its window, after the popup's.
+MODULES = ("words", "model", "placement", "motion", "elevation", "layout", "menuplan",
+           "win32", "fonts", "theme", "gdiplus", "renderer", "access", "messages", "window", "menuwindow")
+ASKS_WINDOWS_NOTHING = MODULES[:7]
 
 # What `tray_popup.<name>` gave before the split, name for name. `countdown` is the one public
 # name not carried over: it was `from .ui.words import countdown`, re-exported by accident, and
@@ -94,6 +96,11 @@ SURFACE = {
     "shadow_step", "share_columns", "snapshot_activity", "system_rgb", "task_item",
     "taskbar_edge", "text_scale", "theme_choice", "theme_setting", "tile_ground", "unbroken", "urgency",
     "view_model", "vocabulary", "well_coverage",
+    # v0.6.20: the icon's right-click menu, drawn - its plan (menuplan) and its window (menuwindow).
+    "MENU_CHECK", "MENU_MIN_WIDTH", "MENU_REACH", "Menu", "MenuAccessible", "MenuRenderer", "menu_accessible_items",
+    "menu_end", "menu_layout", "menu_letter", "menu_mirror", "menu_place", "menu_step", "menu_usable",
+    # The popup's row menus drawn by the same code (v0.6.20): a submenu's place, and a row menu's items numbered.
+    "menu_beside", "menu_numbered",
 }
 
 
@@ -110,7 +117,7 @@ class SurfaceTests(unittest.TestCase):
                   and name != "annotations"}          # `from __future__ import`
         self.assertEqual(public - SURFACE, set(), "a new name on the popup is a decision: add it above")
 
-    def test_the_fourteen_modules_are_all_there_and_nothing_else_is(self):
+    def test_the_sixteen_modules_are_all_there_and_nothing_else_is(self):
         listed = {srcscan.module_name(path).split(".")[-1] for path in srcscan.files_of(PACKAGE)}
         self.assertEqual(listed, set(MODULES) | {"popup"})
 
@@ -145,7 +152,7 @@ class SurfaceTests(unittest.TestCase):
         source = srcscan.read(srcscan.modules()[PACKAGE])
         self.assertEqual(re.findall(r"^from \.(\w+) import", source, re.M), list(MODULES))
 
-    def test_the_six_that_ask_windows_nothing_ask_it_nothing(self):
+    def test_the_seven_that_ask_windows_nothing_ask_it_nothing(self):
         """The half the documentation's pictures are drawn by: no win32, no registry, no DLL."""
         for module in ASKS_WINDOWS_NOTHING:
             with self.subTest(module):
@@ -154,7 +161,7 @@ class SurfaceTests(unittest.TestCase):
                     srcscan.modules()[PACKAGE + "." + module]))
 
     def test_no_two_modules_define_the_same_name(self):
-        """`__init__` re-exports fourteen files in order, so a name in two of them would resolve
+        """`__init__` re-exports sixteen files in order, so a name in two of them would resolve
         to whichever is imported last - and moving a line between files would change it."""
         owners: dict[str, list[str]] = {}
         for path in srcscan.files_of(PACKAGE):

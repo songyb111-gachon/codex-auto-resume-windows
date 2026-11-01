@@ -43,6 +43,9 @@ from __future__ import annotations
 from contextlib import nullcontext
 import copy
 
+from . import ids
+from .power_vocabulary import PowerTasks
+
 # The interface's own words (v0.6.16-beta.4: domain/plugwords.py, out of this module at its line budget), named here
 # as before.
 from .plugwords import Alternative, Edition, FailureForm, PlugFailure, Point, Surface  # noqa: F401
@@ -57,11 +60,15 @@ from .plughands import (Channel, Errand, RecordMove, RecordPurpose, Route, Sessi
 # argument, would be called the old way or not at all, and nothing would say so. 2: P17 and `wants`.
 # 3 (v0.6.14): P8's errand, and P2's records carried out. 4 (v0.6.15-beta): P12, QUEUE_FOR_OPEN.
 # 5 (v0.6.16-beta.4): P16 asked with the app closed, and a route that takes core's words. 6 (v0.6.19): P13 asked at the
-# watcher's start and once it ended, with SUPERVISE and RESTART; P20, a notice told.
-PLUG_API = 6
+# watcher's start and once it ended, with SUPERVISE and RESTART; P20, a notice told. 7 (v0.6.20): P21, how the tasks a
+# person armed the power action for stand.
+PLUG_API = 7
 
 
 POINTS = tuple(Point)
+# P21's words (v0.6.20), and how many conversations its answer may name at most.
+POWER_TASKS = tuple(PowerTasks)
+POWER_THREADS = 64
 SURFACES = tuple(Surface)
 RECORD_MOVES = tuple(RecordMove)
 RECORD_PURPOSES = tuple(RecordPurpose)
@@ -231,6 +238,13 @@ class Plug:
         while the plug wants it (Guarded.notice). Its answer is not read."""
         return DEFER
 
+    def power(self, facts):                           # P21
+        """How the tasks a person armed the power action for stand (v0.6.20, Discussion #57): asked by the watcher's
+        power action only for an arming made for them (`tasks`), with `{"nonce", "armed_at", "now"}` - the arming's
+        own nonce and times, nothing of any conversation. `{"tasks": a PowerTasks word, "threads": [their ids]}`, held
+        to Guarded.power; DEFER - NULL's - is no answer, on which core waits (fail closed)."""
+        return DEFER
+
     def eligibility(self):                            # P19
         """Which conversations besides a person's own core takes up (v0.6.16-beta.3): Widening words, asked once a tick
         while not paused. DEFER - a person's own alone (A15) - is NULL's."""
@@ -281,7 +295,7 @@ HOOKS = {
     Point.CLAIM_LEDGER: "claim_ledger", Point.CONCURRENCY: "partition",
     Point.SUPERVISION: "supervise", Point.MOVED: "moved", Point.DELIVERY: "delivery",
     Point.UNLOADED: "unloaded", Point.ADMISSION: "admission", Point.ELIGIBILITY: "eligibility", Point.SESSIONS: "sessions",
-    Point.NOTICE: "notice",
+    Point.NOTICE: "notice", Point.POWER: "power",
 }
 
 # A hook may always restrict. HOLD keeps a record waiting, exactly as a gate that says WAIT
@@ -552,6 +566,27 @@ class Guarded:
             except Exception:
                 return
             self._ask(Point.NOTICE, facts)
+
+    def power(self, facts):
+        """P21 (v0.6.20): `{"tasks": a PowerTasks word, "threads": a tuple of conversation ids}`, or None - for NULL, a
+        plug that does not want P21 now, a hook that raised, and any answer not exactly that shape (two keys, a closed
+        word, at most POWER_THREADS canonical ids). Core waits on None (poweraction.decide, fail closed)."""
+        if not self.wants(Point.POWER):
+            return None
+        answer = self._ask(Point.POWER, facts)
+        try:
+            if not isinstance(answer, dict) or set(answer) != {"tasks", "threads"}:
+                return None
+            word, threads = answer["tasks"], answer["threads"]
+            if type(word) not in (str, PowerTasks) or word not in POWER_TASKS:
+                return None
+            if not isinstance(threads, (list, tuple)) or len(threads) > POWER_THREADS:
+                return None
+            if not all(type(thread) is str and ids.is_uuid(thread) for thread in threads):
+                return None
+        except Exception:
+            return None
+        return {"tasks": PowerTasks(word).value, "threads": tuple(dict.fromkeys(threads))}
 
     def moved(self, record, state):
         """P14. The record goes as a copy (`consult`), and the answer is not read."""

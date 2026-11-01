@@ -78,15 +78,17 @@ def row(key, category="usage_limit", state="waiting_reset"):
 
 
 class DefinitionTests(unittest.TestCase):
-    def test_a_route_at_p8_resting_on_ma_and_mal_shown_among_the_expert_settings(self):
+    def test_a_route_at_p8_resting_on_ma_shown_among_the_expert_settings(self):
         self.assertEqual((ACCOUNT_SWITCH.kind, ACCOUNT_SWITCH.points, ACCOUNT_SWITCH.compat),
                          (CapabilityKind.ROUTE, frozenset({Point.TICK}), "usage_probe"))
-        self.assertEqual(ACCOUNT_SWITCH.measurements, (Measurement.MA, Measurement.MAL))
+        # MAL only narrows: the button reads it (control/account.offered); its fail never turns the capability off.
+        self.assertEqual(ACCOUNT_SWITCH.measurements, (Measurement.MA,))
         for standard in ("B4", "B10", "B11", "D2", "F6"):
             self.assertIn(standard, ACCOUNT_SWITCH.departs_from)
         order = registry.SHOWN_ORDER
+        # 2026-10-31: among the rare cases, after the status feed and before the weekly update check.
         self.assertEqual(order[order.index(CAP) - 1:order.index(CAP) + 2],
-                         ("idle_update_check", CAP, "structured_rules"))
+                         ("status_feed", CAP, "idle_update_check"))
         self.assertEqual(statement.CATALOGS.missing(ACCOUNT_SWITCH), [])
 
     def test_its_session_may_ask_account_read_and_never_a_sign_in_method(self):

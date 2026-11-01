@@ -1,19 +1,29 @@
 {
   "format": "codex-auto-resume-measurement/1",
   "step": "m4",
-  "verdict": "blocked",
-  "recorded_at": "2026-10-10T09:30Z",
-  "product_version": "0.6.14",
-  "codex_version": "codex-cli 0.162.0-alpha.17.2",
+  "verdict": "fail",
+  "recorded_at": "2026-10-31T12:50Z",
+  "product_version": "0.6.20-beta.4",
+  "codex_version": "codex-cli 0.166.0-alpha.5.1",
   "windows_build": "10.0.26300",
   "observed": {
-    "hooks_listed": true,
+    "holders_read": true,
+    "held_before": false,
+    "plugin_stop_hooks": 1,
+    "plugin_stop_hooks_trusted": 1,
+    "turn_started": true,
+    "turn_status": "failed",
+    "stop_hook_started": 0,
+    "stop_hook_completed": 0,
+    "stop_hook_status": "none",
+    "hook_noted": false,
+    "history_status_when_hook_ran": "none",
+    "input_session_id": false,
+    "input_turn_id": false,
+    "input_hook_event_name": false,
+    "input_transcript_path": false,
+    "input_stop_hook_active": false,
     "thread_given": true
   },
-  "note": "cause a turn to fail and confirm the plugin Stop hook ran and the failed row was persisted by then, then set the verdict",
-  "completion": {
-    "verdict": "fail",
-    "note": "precondition_unmet",
-    "recorded_at": "2026-10-10T09:30Z"
-  }
+  "note": "a plugin Stop hook did not run after the failed turn"
 }

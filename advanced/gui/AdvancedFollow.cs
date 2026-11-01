@@ -116,13 +116,12 @@ namespace CodexAutoResume
             dialog.Font = Font;
             dialog.BackColor = Canvas;
             dialog.ForeColor = Ink;
-            Soft.TitleBar(dialog);
+            Soft.DialogBar(dialog);
             dialog.FormBorderStyle = FormBorderStyle.FixedDialog;
             dialog.StartPosition = FormStartPosition.CenterParent;
             dialog.MinimizeBox = false;
             dialog.MaximizeBox = false;
             dialog.ShowInTaskbar = false;
-            dialog.ShowIcon = false;
             // As wide and tall as it was drawn for, or what the screen it opens on holds (a small screen at a large scaling):
             // what is inside takes its width from the dialog, so nothing is cut off at either edge.
             Rectangle area = Screen.GetWorkingArea(this);

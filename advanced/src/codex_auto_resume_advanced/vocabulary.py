@@ -177,6 +177,12 @@ class Refusal(StrEnum):
     # card offers no button then - and asked again while one is still waiting for the browser.
     SWITCH_UNMEASURED = "switch_unmeasured"
     SWITCH_RUNNING = "switch_running"
+    # v0.6.20 final (account_switch's restart, control/account.restart): Restart asked while a turn runs, a recovery
+    # waits or runs or something is queued in Codex (codex/restart.busy); asked while one runs; and asked with no sign-in
+    # of this Dashboard's to restart Codex for.
+    RESTART_BUSY = "restart_busy"
+    RESTART_RUNNING = "restart_running"
+    NOTHING_TO_RESTART = "nothing_to_restart"
     # v0.6.20 (steer_send): a steer asked for a conversation whose latest turn is not running in Codex's history - there
     # is nothing to steer, so nothing waits.
     NO_TURN_RUNNING = "no_turn_running"
@@ -187,6 +193,9 @@ class Refusal(StrEnum):
     IMAGE_TOO_LARGE = "image_too_large"
     IMAGES_FULL = "images_full"
     IMAGES_UNAVAILABLE = "images_unavailable"
+    # v0.6.20 (power_after_tasks): core's power action refused the arming - an administrator's DisablePowerAction, an
+    # older watcher holding the state, or an action Windows will not do here; the answer names core's own code.
+    POWER_REFUSED = "power_refused"
 
 
 class JournalCode(StrEnum):
@@ -321,6 +330,10 @@ class OptionKey(StrEnum):
     ANCHOR_RESET_DONE = "anchor_reset_done"
     ANCHOR_INPUT_TOKENS = "anchor_input_tokens"
     ANCHOR_OUTPUT_TOKENS = "anchor_output_tokens"
+    # v0.6.20 (the pair audit, V20-2): when account_switch last saw another account signed in, and the change of account
+    # window_anchor last took in - its window stamps are the account's that was signed in, and go with it.
+    ACCOUNT_CHANGED_AT = "account_changed_at"
+    ANCHOR_ACCOUNT_AT = "anchor_account_at"
 
 
 class WordingKey(StrEnum):
@@ -452,6 +465,12 @@ class BridgeCommand(StrEnum):
     # started - its turn, the limit that cut it off, the recovery of that turn, to the end (control/follow.py). Read-only,
     # part of the prompt queue, the Dashboard's alone, never MCP.
     ADVANCED_PROMPT_FOLLOW = "advanced-prompt-follow"
+    # v0.6.20 (power_after_tasks, Discussion #57): the card's read - the conversations running now, and the tasks the power
+    # action waits for - and core's power action armed for the ones a person picked. The Dashboard's alone, never MCP.
+    ADVANCED_POWER_TASKS = "advanced-power-tasks"
+    ADVANCED_POWER_TASKS_ARM = "advanced-power-tasks-arm"
+    # v0.6.20 final (account_switch): the card's answer to "Restart Codex now so it uses the new account?" (control/account.restart).
+    ADVANCED_ACCOUNT_RESTART = "advanced-account-restart"
     # v0.6.19 (the groundwork): every command the stage's designs name, in one block, each the Dashboard's alone and
     # reached by no MCP tool. Until the capability that answers one is built, the bridge passes it over as it passes a
     # command this edition does not have (surfaces.UNANSWERED). The analytics' aggregates and their CSV
@@ -577,6 +596,10 @@ class Measurement(StrEnum):
     MTOK = "mtok"
     MOPEN = "mopen"
     MAL = "mal"
+    # v0.6.20 final (account_switch's button, in place of MAL): an outside `codex logout` and `codex login`, then a full
+    # restart of the Codex app done the way the product does it (codex/restart.restart), bring the app up signed in as
+    # the new account.
+    MALR = "malr"
     MWAKE = "mwake"
     MHK = "mhk"
     M4B = "m4b"
@@ -595,6 +618,13 @@ class Measurement(StrEnum):
     # Desktop's own IPC pipe - the connection this product already uses for the forced stop (MIPC): one line added to the
     # running turn of a throwaway conversation the app holds (thread-follower-steer-turn), called once, never again.
     MSTEER2 = "msteer2"
+    # v0.6.20 (model_fallback beside codex_gave_up, plans/v0620-capability-pairs.md): which code a failed turn records
+    # when its model stays at capacity (serverOverloaded) through Codex's own retries - read from a Codex home's
+    # history and rollouts, codes and counts only (a real overload cannot be made on demand). PASS: every failed turn
+    # whose last retry Codex made for capacity recorded serverOverloaded, the code model_fallback already answers. FAIL:
+    # one recorded responseTooManyFailedAttempts - codex_gave_up's kind (terminal_failure) - which model_fallback would
+    # then also have to answer where the last retry's cause was capacity.
+    MGAVE = "mgave"
 
 
 class ObservedWord(StrEnum):
@@ -645,6 +675,15 @@ class ObservedWord(StrEnum):
     S20_TO_30 = "s20_to_30"
     AC = "ac"
     BATTERY = "battery"
+    # v0.6.20 final: what the account switch's restart came to and how the Codex app ended (MALR, codex/restart.py).
+    RESTARTED = "restarted"
+    RESTARTED_SIGNED_OUT = "restarted_signed_out"
+    NOT_RUNNING = "not_running"
+    NOT_ENDED = "not_ended"
+    NOT_STARTED = "not_started"
+    RESTART_FAILED = "restart_failed"
+    CLOSED = "closed"
+    ENDED = "ended"
 
 
 class RunEnd(StrEnum):

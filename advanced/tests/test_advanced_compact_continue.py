@@ -140,11 +140,13 @@ class CodeTests(unittest.TestCase):
 
 
 class RegistryTests(CompactCase):
-    def test_it_answers_at_p16_before_headless_run_and_is_shown_after_the_capacity_retry(self):
+    def test_it_answers_at_p16_before_headless_run_and_is_shown_after_the_model_fallback(self):
         at = tuple(d.id for d in registry.REGISTRY.at(Point.UNLOADED))
         self.assertLess(at.index(self.cap), at.index("headless_run"))
         shown = registry.SHOWN_ORDER
-        self.assertEqual(shown.index(self.cap), shown.index("capacity_retry") + 1)
+        # 2026-10-31: the capacity retry, the model fallback, then this - the failures of Codex's own, together.
+        self.assertEqual(shown[shown.index("capacity_retry"):shown.index("capacity_retry") + 3],
+                         ("capacity_retry", "model_fallback", self.cap))
 
     def test_unmeasured_on_this_codex_is_a_warning_never_a_refusal(self):
         plug = self.advanced()

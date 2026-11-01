@@ -59,7 +59,9 @@ VALUE_POINTS = (Point.TEXT, Point.SENDER, Point.TICK, Point.START_ROUTE, Point.U
                 # v0.6.16-beta.3: a watched capability's message that would have been sent (runtime._watched_records).
                 Point.RECORDS,
                 # v0.6.20: a notice push_notices would have pushed (P20, told; engine/push.py answers the point's name).
-                Point.NOTICE)
+                Point.NOTICE,
+                # v0.6.20: how the tasks a person picked stand (P21; engine/powertasks.py answers a word and the ids).
+                Point.POWER)
 # Every answer the log names; anything else reads as null.
 WORDS = tuple(Alternative) + VALUE_POINTS
 _WORDS = frozenset(str(word) for word in WORDS)

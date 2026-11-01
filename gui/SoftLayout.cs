@@ -632,13 +632,14 @@ namespace CodexAutoResume
             if (Palette.Depth)
             {
                 // The pill's lift, kept in the groove: it rests in the well rather than floating over
-                // the page, and its shadow never covers the well's own edge.
+                // the page, and its shadow never covers the well's own edge. Its drop only - no highlight up and
+                // to the left (v0.6.20 final, the owner: no lit edge on a scroll bar).
                 int hairline = Soft.Hairline;
                 Rectangle groove = Rectangle.Inflate(track, -hairline, -hairline);
                 GraphicsState saved = g.Save();
                 using (GraphicsPath path = Soft.Rounded(groove, Math.Max(0f, radius - hairline)))
                     g.SetClip(path, CombineMode.Intersect);
-                Elevation.StampOuter(g, thumb, "control", knob, groove);
+                Elevation.StampOuter(g, thumb, "control", knob, groove, false);
                 g.Restore(saved);
             }
             Soft.Body(g, thumb, knob, ThumbFill(state, contrast), ThumbEdge(state, contrast), false);

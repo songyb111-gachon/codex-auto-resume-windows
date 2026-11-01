@@ -14,6 +14,7 @@ import json
 from pathlib import Path
 import sys
 import threading
+import time
 import unittest
 from unittest.mock import patch
 import uuid
@@ -1061,6 +1062,546 @@ class StopHookBesideKeepGoingTests(unittest.TestCase):
         stop = {"hook_event_name": "Stop", "session_id": thread, "turn_id": turn}
         self.assertIsNone(hook_handler.decide(stop, hands))
         self.assertEqual(claims, [])
+
+
+
+# ------------------------------------------------------------------ v0.6.20: the four not audited before (the pair audit
+# of 2026-10-31, plans/v0620-capability-pairs.md): model_fallback, window_anchor, steer_send, every_conversation.
+from codex_auto_resume_advanced.registry import CAPACITY_RETRY, MODEL_FALLBACK  # noqa: E402
+from test_advanced_headless import SAVED, Server  # noqa: E402
+from test_advanced_model_fallback import Codes  # noqa: E402
+
+DEFAULT_MODEL = "the-default-model"
+WORDS = "Continue.\n\n[codex-auto-resume:0123456789abcdef]"
+
+
+class FallbackBesideHeadlessRunTests(ac.AdvancedCase):
+    """Finding V20-1, SPLIT: model_fallback answers P16 before headless_run (registry order) for an unheld conversation
+    at capacity past the Attempts - and where that conversation is on Codex's default model already, its route starts
+    nothing (codex/headless.py: no other model to fall back to). Core gives the claim back and the record waits; at its
+    next look model_fallback answered again, so headless_run - whose turn on the same model is what that case needs -
+    was passed over, and each answer was a claim that cost core's spacing and caps. Each now acts on its own cases:
+    a conversation found on the default is headless_run's (or core's) from then on."""
+    THREAD = "0a1b2c3d-0001-7000-8000-000000000001"
+    OTHER = "0a1b2c3d-0001-7000-8000-000000000002"
+    TURN = "11111111-2222-3333-4444-555555555555"
+
+    def setUp(self):
+        super().setUp()
+        self.compat = _compat(MODEL_FALLBACK.compat, HEADLESS_RUN.compat)
+        self.rt = self.runtime(MODEL_FALLBACK, HEADLESS_RUN)
+        self.rt.arming.catalogs = statement.CATALOGS
+        for name, value in (("INTERRUPT_SECONDS", 0.5), ("APP_LOOK_SECONDS", 0.0)):
+            self.addCleanup(setattr, headless, name, getattr(headless, name))
+            setattr(headless, name, value)
+        self.follower = headless.Follower(poll=0.01)
+        self.models, self.servers = {}, []
+
+        def opening(capability):
+            self.servers.append(_ByThread(capability, self.models))
+            return self.servers[-1]
+        fallback = self.rt._code_of(MODEL_FALLBACK)
+        fallback._turns, fallback._open, fallback.follower = Codes("serverOverloaded"), opening, self.follower
+        fallback._app = lambda: False
+        run = self.rt._code_of(HEADLESS_RUN)
+        run._open, run.follower, run._app = opening, self.follower, lambda: False
+        for definition in (MODEL_FALLBACK, HEADLESS_RUN):
+            result = self.arm(self.rt, definition.id, warnings=[str(w) for w in self.rt.arming.warnings(definition)])
+            self.assertTrue(result["done"], result)
+        self.rt.states(fresh=True)
+
+    def record(self, thread, key=7):
+        return {"interruption_id": "%064x" % key, "thread_id": thread, "turn_id": self.TURN, "category": "server_5xx",
+                "chain_continuations": 2, "holder": "none", "app": False}
+
+    def route(self, record):
+        self.rt.tick(None)                                   # a new look: what was taken last time is forgotten
+        return self.rt.ask(Point.UNLOADED, record)
+
+    def resume(self, route, thread):
+        answered = route.resume(thread, still_unloaded=lambda: True, words=WORDS, client_id=None)
+        if answered.get("outcome") == "ran":
+            deadline = time.monotonic() + 5
+            while self.follower.live() is not None and time.monotonic() < deadline:
+                time.sleep(0.01)
+        return answered
+
+    def test_a_conversation_on_the_default_model_already_is_headless_run_s_after_one_look(self):
+        """Fails with the fix reverted: model_fallback answers again and again, and starts nothing each time."""
+        self.models[self.THREAD] = DEFAULT_MODEL
+        first = self.route(self.record(self.THREAD))
+        self.assertEqual(first.capability, MODEL_FALLBACK.id)
+        self.assertEqual(self.resume(first, self.THREAD)["outcome"], "not_started", "nothing to fall back to")
+        self.assertNotIn("turn/start", self.servers[-1].methods())
+        again = self.route(self.record(self.THREAD))
+        self.assertEqual(again.capability, HEADLESS_RUN.id, "the same model again is headless_run's turn")
+        self.assertEqual(self.resume(again, self.THREAD)["outcome"], "ran")
+        started = dict(self.servers[-1].calls)["turn/start"]
+        self.assertNotIn("model", started, "on the conversation's own model")
+
+    def test_a_conversation_on_another_model_still_falls_back(self):
+        self.models[self.THREAD] = DEFAULT_MODEL
+        self.resume(self.route(self.record(self.THREAD)), self.THREAD)
+        self.models[self.OTHER] = "the-threads-model"
+        other = self.route(self.record(self.OTHER, key=8))
+        self.assertEqual(other.capability, MODEL_FALLBACK.id, "each conversation on its own")
+        self.assertEqual(self.resume(other, self.OTHER)["outcome"], "ran")
+        self.assertEqual(dict(self.servers[-1].calls)["turn/start"]["model"], DEFAULT_MODEL)
+
+
+class _ByThread(Server):
+    """A route's session whose thread/resume answers for the conversation asked - its saved settings, on the model the
+    test gave it - and whose model/list names DEFAULT_MODEL Codex's default."""
+
+    def __init__(self, capability, models):
+        super().__init__(capability, replies={"model/list": {"data": [{"model": DEFAULT_MODEL, "isDefault": True}]}})
+        self.models = models
+
+    def call(self, method, params=None):
+        answer = super().call(method, params)
+        return dict(SAVED, model=self.models[params["threadId"]]) if method == "thread/resume" else answer
+
+
+
+from test_advanced_window_anchor import AnchorCase  # noqa: E402
+from codex_auto_resume_advanced.engine import anchor as anchor_engine  # noqa: E402
+from codex_auto_resume_advanced.registry import ACCOUNT_SWITCH, WINDOW_ANCHOR  # noqa: E402
+from codex_auto_resume_advanced.vocabulary import OptionKey  # noqa: E402
+
+
+class _AnchorBeside(AnchorCase):
+    """window_anchor beside the capabilities in BESIDE: its own harness (test_advanced_window_anchor.AnchorCase - every
+    usage read a fake session, every request a stub process), with them armed in one runtime."""
+    BESIDE = ()
+
+    def setUp(self):
+        super().setUp()
+        self.rt.state.close()
+        self.rt = self.runtime(*self.BESIDE, WINDOW_ANCHOR)
+        self.rt.arming.catalogs = statement.CATALOGS
+        self.wire()
+
+    def beside(self, capability):
+        definition = self.rt.registry.get(capability)
+        result = self.arm(self.rt, capability, warnings=[str(w) for w in self.rt.arming.warnings(definition)])
+        self.assertTrue(result["done"], result)
+        self.rt.states(fresh=True)
+
+
+class AnchorBesideAccountSwitchTests(_AnchorBeside):
+    """Finding V20-2, COMPOSE: the 5-hour window is the signed-in account's, but window_anchor kept one start, one fixed
+    reset and one reset seen whatever account they were of - so after account_switch saw another account signed in,
+    a time picked within five hours of a start made on the other account was refused `skip_once` though this account's
+    window was idle, and the reset seen was the other account's. account_switch's mechanism now carries it: the change
+    it sees is stamped, and window_anchor lets the other account's window stamps go."""
+    BESIDE = (ACCOUNT_SWITCH,)
+
+    def setUp(self):
+        super().setUp()
+        from test_advanced_account import ONE, OTHER, Secrets
+        from codex_auto_resume_advanced.codex import account
+        self.signed, self.other = ONE, OTHER
+        code = self.rt._code_of(ACCOUNT_SWITCH)
+        code._read = lambda paths: account.parse(self.signed)
+        code._secrets = self.rt.arming.secrets = Secrets()
+        code._hold = lambda paths, keys, now: len(keys)
+
+    def two_times(self):
+        self.beside("account_switch")
+        self.on(anchor_at_1=anchor_engine.encode_time(7, 0), anchor_at_2=anchor_engine.encode_time(8, 0),
+                anchor_after_reset=2)
+        self.run_through()
+        self.assertEqual(len(self.world.started), 1)
+
+    def test_another_account_s_idle_window_is_started_at_the_next_time_picked(self):
+        """Fails with the fix reverted: refused skip_once for the start made on the other account an hour before."""
+        self.two_times()
+        first_fixed = self.stamped(OptionKey.ANCHOR_FIXED_AT)
+        self.signed, self.world.running_until = self.other, None    # another account, its window idle
+        self.now = float(anchor_engine.midnight(self.now) + 8 * 3600 - 30)
+        self.run_through()
+        self.assertEqual(len(self.world.started), 2, "the other account's window started too")
+        self.assertNotIn("anchor.skip_once", self.codes())
+        self.assertEqual(self.codes()[-2:], ["anchor.started", "anchor.fixed"])
+        self.assertNotEqual(self.stamped(OptionKey.ANCHOR_FIXED_AT), first_fixed, "the reset this account's start fixed")
+
+    def test_the_same_account_still_starts_one_window_once(self):
+        self.two_times()
+        self.world.running_until = None
+        self.now = float(anchor_engine.midnight(self.now) + 8 * 3600 - 30)
+        self.run_through()
+        self.assertEqual(len(self.world.started), 1)
+        self.assertEqual(self.codes()[-1], "anchor.skip_once")
+
+
+class AnchorBesideUsagePauseTests(_AnchorBeside):
+    """window_anchor beside usage_pause: SPLIT by what each touches. The pause holds this product's continuations while
+    a window it marked has not reset; the anchor starts only an idle 5-hour window, so a pause of the 5-hour window
+    and a start never meet, and a pause of the weekly window (under 100 %) leaves an idle 5-hour window to start -
+    while the pause still holds core's records at P3 beside it. A start costs under 1 % (MANCHOR)."""
+    BESIDE = (USAGE_METER, USAGE_PAUSE)
+
+    def test_a_held_weekly_window_does_not_stop_a_start_and_the_pause_still_holds(self):
+        self.beside("usage_meter")
+        self.beside("usage_pause")
+        self.rt.state.save_meter([{"bucket": "codex", "window_minutes": 10080, "used_percent": 96.0,
+                                   "reset_at": int(self.now + 86400)}])
+        self.assertTrue(self.rt.state.mark_meter("codex", 10080, paused_reset_at=int(self.now + 86400)))
+        self.world.week = 96.0
+        self.on(anchor_at_1=anchor_engine.encode_time(7, 0), anchor_after_reset=2)
+        self.run_through()
+        self.assertEqual(len(self.world.started), 1)
+        record = {"interruption_id": ac.KEY, "thread_id": ac.THREAD, "category": "usage_limit",
+                  "state": "waiting_reset"}
+        self.assertIs(self.rt.ask(Point.GATES, "submission_safe", record, {}), Alternative.HOLD)
+
+
+class FallbackBesideCapacityRetryTests(ac.AdvancedCase):
+    """model_fallback beside capacity_retry: COMPOSE. capacity_retry takes a capacity failure up at P17 (CAPACITY:
+    sooner retries on the same model); the record keeps its kind (server_5xx), so once its task has had the Attempts
+    and nothing holds the conversation with Codex closed, model_fallback's turn on Codex's default is still P16's."""
+
+    def test_a_task_capacity_retry_took_up_falls_back_past_the_attempts(self):
+        self.compat = _compat(MODEL_FALLBACK.compat, CAPACITY_RETRY.compat)
+        rt = self.runtime(CAPACITY_RETRY, MODEL_FALLBACK)
+        rt.arming.catalogs = statement.CATALOGS
+        code = rt._code_of(MODEL_FALLBACK)
+        code._turns, code._app = Codes("serverOverloaded"), lambda: False
+        code._open, code.follower = (lambda capability: None), headless.Follower(poll=0.01)
+        for definition in (CAPACITY_RETRY, MODEL_FALLBACK):
+            result = self.arm(rt, definition.id, warnings=[str(w) for w in rt.arming.warnings(definition)])
+            self.assertTrue(result["done"], result)
+        rt.states(fresh=True)
+        key = "%064x" % 7
+        facts = {"category": "server_5xx", "code": "serverOverloaded", "takes": frozenset({Alternative.CAPACITY}),
+                 "interruption_id": key,
+                 "thread_id": FallbackBesideHeadlessRunTests.THREAD, "completed_at": self.now + 1}
+        self.assertIs(rt.ask(Point.ADMISSION, facts), Alternative.CAPACITY, "capacity_retry takes it up")
+        record = {"interruption_id": key, "thread_id": FallbackBesideHeadlessRunTests.THREAD,
+                  "turn_id": FallbackBesideHeadlessRunTests.TURN, "category": "server_5xx", "chain_continuations": 2,
+                  "holder": "none", "app": False}
+        route = rt.ask(Point.UNLOADED, record)
+        self.assertEqual((route.capability, route.mode), (MODEL_FALLBACK.id, headless.FALLBACK))
+
+
+from test_advanced_steer_send import SteerCase  # noqa: E402
+from codex_auto_resume_advanced.registry import STEER_SEND  # noqa: E402
+from codex_auto_resume_advanced.vocabulary import SteerState  # noqa: E402
+
+
+class SteerBesideUsagePauseTests(SteerCase):
+    """steer_send beside usage_pause (and the prompt queue it needs): SPLIT by whose words. The pause holds this
+    product's continuations; a steer is a person's own line, as a queued prompt is, which the pause leaves alone - so a
+    held window neither holds nor refuses it, and it is written once, while the pause still holds core's records."""
+    BESIDE = (PROMPT_QUEUE, USAGE_METER, USAGE_PAUSE)
+
+    def setUp(self):
+        super().setUp()
+        self.compat = _compat(*{definition.compat for definition in (*self.BESIDE, STEER_SEND)})
+
+    def test_a_steer_is_written_while_a_window_is_held(self):
+        plug, runtime = self.on()
+        runtime._code_of(USAGE_METER)._app_running = lambda: False       # the meter reads nothing here
+        runtime.state.save_meter([{"bucket": "codex", "window_minutes": 300, "used_percent": 97.0,
+                                   "reset_at": int(self.h.now + 3600)}])
+        self.assertTrue(runtime.state.mark_meter("codex", 300, paused_reset_at=int(self.h.now + 3600)))
+        self.assertTrue(runtime._code_of(USAGE_PAUSE).holding(), "the window is held")
+        self.assertTrue(self.ask(runtime)["done"])
+        self.h.tick()
+        self.assertEqual(len(self.calls), 1)
+        self.assertEqual(self.rows(runtime)[0]["state"], SteerState.ACCEPTED)
+        self.assertTrue(runtime._code_of(USAGE_PAUSE).holding(), "and still held for core's records")
+
+
+from codex_auto_resume_advanced.registry import EVERY_CONVERSATION  # noqa: E402
+from test_session_kinds import CLI, add_thread  # noqa: E402
+
+
+class EveryConversationBesideOtherSessionsTests(TakingCase):
+    """every_conversation beside other_sessions: COMPOSE. Each widens a different check of the one place core judges a
+    conversation (codex/eligibility.row_problem): other_sessions which sources (P18: a terminal's, VS Code's),
+    every_conversation which labels (P19) - so a terminal's conversation with a label the standard edition does not
+    know is taken up with both on, and with either alone it is not. every_conversation sends nothing itself, so no
+    unit of any ceiling is ever spent in its name."""
+    DEFINITION = EVERY_CONVERSATION
+    BESIDE = (OTHER_SESSIONS,)
+
+    def fresh(self, **kwargs):
+        made = super().fresh(**kwargs)
+        holding_sessions(made.backend)
+        return made
+
+    def arm(self, plug, state="armed", capability=None, **changes):
+        definition = plug.runtime.registry.get(capability or self.cap)
+        changes.setdefault("warnings", [str(word) for word in plug.runtime.arming.warnings(definition)])
+        return super().arm(plug, state=state, capability=capability, **changes)
+
+    def setUp(self):
+        super().setUp()
+        self.compat = _compat(EVERY_CONVERSATION.compat, OTHER_SESSIONS.compat)
+
+    def test_a_terminal_s_conversation_with_a_new_label_is_taken_up_with_both_on(self):
+        plug = self.armed()
+        add_thread(self.h.home, T1, **CLI, thread_source="a_label_from_tomorrow")
+        self.ready_after_reset(self.h, thread_id=T1)
+        self.h.tick()
+        self.assertEqual(len(self.h.records(T1)), 1)
+        for _ in range(3):
+            self.h.tick(advance=60)
+        self.assertNotIn(EVERY_CONVERSATION.id, [spend[0] for spend in self.spends(plug)])
+
+    def test_with_either_alone_it_is_not(self):
+        for alone in (EVERY_CONVERSATION, OTHER_SESSIONS):
+            with self.subTest(alone.id):
+                h = self.fresh()
+                plug = self.advanced(h)
+                self.arm(plug, capability=alone.id)
+                self.plugged(plug, h)
+                add_thread(h.home, T1, **CLI, thread_source="a_label_from_tomorrow")
+                self.ready_after_reset(h, thread_id=T1)
+                h.tick()
+                self.assertEqual(h.records(T1), [])
+
+
+class WakeBesideAnchorTests(WakeBesideTheResetCapabilitiesTests):
+    """wake_for_reset beside window_anchor: COMPOSE (the owner's word of 2026-10-31, "예, 함께 동작"). While both stand on,
+    the wake timer is set for window_anchor's next time picked too - and, with Start right after a reset on, for the
+    reset it waits for (plus the minute it waits after one) - read from its own choices and stamps, never written; so a
+    PC asleep at a time picked still has its window started, and core's own due times still come first where earlier."""
+
+    def setUp(self):
+        super().setUp()
+        self.rt.state.close()
+        self.compat = _compat("engine_present", "usage_probe")
+        self.rt = self.runtime(WAKE_FOR_RESET, WINDOW_ANCHOR)
+        self.rt.arming.catalogs = statement.CATALOGS
+        self.code = self.rt._code_of(WAKE_FOR_RESET)
+        self.code._timer = self.timer = self.Timer()
+        self.code._start = lambda target: None
+        self.now = float(anchor_engine.midnight(ac.NOW) + 6 * 3600)          # 06:00 local
+
+    def choose(self, key, value):
+        self.rt.state.set_option("window_anchor", OptionKey(key), value, generation=self.rt.state.meta()["generation"],
+                                 actor=Actor.DASHBOARD)
+
+    def test_the_timer_wakes_the_pc_for_a_time_picked_and_for_the_reset_it_waits_for(self):
+        """Fails with the fix reverted: no timer at all - nothing of core's or the reset actions' waits."""
+        self.on("wake_for_reset")
+        self.on("window_anchor")
+        self.choose("anchor_at_1", anchor_engine.encode_time(7, 0))
+        self.errand([])
+        seven = anchor_engine.midnight(self.now) + 7 * 3600
+        self.assertEqual(self.timer.due, seven - 120, "07:00, less the lead")
+        self.assertTrue(self.rt.state.stamp("window_anchor", OptionKey.ANCHOR_SEEN_RESET, int(self.now + 1800)))
+        self.errand([])
+        self.assertEqual(self.timer.due, int(self.now + 1800) + anchor_engine.AFTER_RESET - 120,
+                         "the reset it saw comes first: Start right after a reset is on by default")
+        self.choose("anchor_after_reset", 2)
+        self.errand([])
+        self.assertEqual(self.timer.due, seven - 120, "with it off, the time picked alone")
+        core = {"state": "waiting_reset", "category": "usage_limit", "next_check_at": self.now + 600}
+        self.errand([core])
+        self.assertEqual(self.timer.due, self.now + 600 - 120, "core's earlier due time still first")
+
+    def test_a_time_already_handled_wakes_for_tomorrow_s(self):
+        self.on("wake_for_reset")
+        self.on("window_anchor")
+        self.choose("anchor_at_1", anchor_engine.encode_time(7, 0))
+        seven = anchor_engine.midnight(self.now) + 7 * 3600
+        self.assertTrue(self.rt.state.stamp("window_anchor", OptionKey.ANCHOR_SLOT_DONE, seven))
+        self.errand([])
+        self.assertEqual(self.timer.due, seven + 86400 - 120)
+
+    def test_with_window_anchor_off_its_times_wake_nothing(self):
+        self.on("wake_for_reset")
+        self.choose("anchor_at_1", anchor_engine.encode_time(7, 0))
+        self.errand([])
+        self.assertIsNone(self.timer.due)
+
+    # The reset capabilities' own test, which this class's runtime does not carry.
+    test_the_timer_is_set_for_the_earliest_due_time_of_them_all = None
+
+
+from test_advanced_subagent import CHILDREN, SubagentCase  # noqa: E402
+from codex_auto_resume_advanced.registry import SUBAGENT_PARENT  # noqa: E402
+from codex_auto_resume_advanced.vocabulary import Measurement as _Measurement, Verdict as _Verdict  # noqa: E402
+
+NEW_LABEL = "a_label_from_tomorrow"
+
+
+class SubagentFollowUpBesideEveryConversationTests(SubagentCase):
+    """subagent_parent's follow-up to a parent that finished (5b) beside every_conversation: COMPOSE (the owner's word
+    of 2026-10-31, "정식 전에 고치기"). 5b picked its parents from every conversation with a turn lately, judged by
+    nothing, so a parent core never takes up - a label the standard edition does not know, with every_conversation off
+    - got a continuation that waited for good. It now judges a parent as core does (core's reader, P19's widening while
+    every_conversation is on), as empty_response and the wrap-up do, and one already waiting for a parent core no longer
+    takes up is withdrawn."""
+    BESIDE = (EVERY_CONVERSATION,)
+
+    def setUp(self):
+        super().setUp()
+        self.measured = {_Measurement.MS: (_Verdict.PASS, ENGINE)}
+        self.compat = _compat(SUBAGENT_PARENT.compat, EVERY_CONVERSATION.compat)
+
+    def finished(self, label):
+        self.h.home.add_thread(T1, thread_source=label)
+        self.spawned(CHILDREN[:1])
+        self.h.home.add_turn(T1, completed=int(self.h.now))
+        for _ in range(3):
+            self.h.tick(advance=61)
+
+    def waiting(self, plug):
+        return [row for row in plug.runtime.state.continuations(capability=SUBAGENT_PARENT.id)
+                if row["thread_id"] == T1 and row["record_state"] == "waiting"]
+
+    def test_a_parent_core_never_takes_up_gets_no_follow_up_that_waits_for_good(self):
+        """Fails with the fix reverted: a continuation for that parent, waiting, never sent."""
+        plug = self.on()
+        plug.runtime.arming.disarm(EVERY_CONVERSATION.id, actor=Actor.DASHBOARD)
+        plug.runtime.states(fresh=True)
+        self.finished(NEW_LABEL)
+        self.assertEqual(self.waiting(plug), [])
+        self.assertEqual(self.h.backend.send_calls, [])
+
+    def test_with_every_conversation_on_that_parent_is_followed_up(self):
+        self.on()
+        self.finished(NEW_LABEL)
+        self.assertEqual([call[0] for call in self.h.backend.send_calls], [T1])
+        self.assertEqual(len(self.lines(self.h.backend.send_calls[0][1])), 1)
+
+
+class _PowerTasksPair(ac.AdvancedCase):
+    """power_after_tasks (v0.6.20, Discussion #57) armed beside another: its runtime, its code given the test's own
+    Codex history and core records, and core's power action file on the scratch home."""
+    TURN = "11111111-1111-7111-8111-111111111111"
+    RECOVERY = "22222222-2222-7222-8222-222222222222"
+
+    class Statuses:
+        def __init__(self, statuses):
+            self.statuses = statuses
+
+        def status(self, thread, turn):
+            return self.statuses.get(turn)
+
+    def setUp(self):
+        super().setUp()
+        from codex_auto_resume import managed
+        from codex_auto_resume.control import policy as control_policy, poweraction as control_power
+        from codex_auto_resume_advanced.registry import POWER_AFTER_TASKS
+        self.paths.ensure()
+        for stand_in in (patch.object(control_power.PowerActionMixin, "power_port", _AlwaysOffered()),
+                         patch.object(control_policy, "managed_policy", return_value=managed.NONE)):
+            stand_in.start()
+            self.addCleanup(stand_in.stop)
+        self.compat = {"status": "ok", "engine": {"found": True, "version": ac.ENGINE},
+                       "capabilities": {name: {"state": "COMPATIBLE", "reason": "local_checks_passed"}
+                                        for name in ("recovery_turn_tracking", "usage_probe", "loaded_state_detection")}}
+        self.plug_ = self.plug(POWER_AFTER_TASKS, *self.beside())
+        self.rt = self.plug_.runtime
+        self.rt.arming.catalogs = statement.CATALOGS
+        self.statuses = self.Statuses({self.TURN: "failed"})
+        self.records = []
+        from codex_auto_resume_advanced.engine import powertasks
+        self.powertasks = powertasks
+        code = self.rt._code_of(POWER_AFTER_TASKS)
+        code._records, code._turns = (lambda: self.records), self.statuses
+
+    def beside(self):
+        return ()
+
+    def on(self, capability):
+        definition = self.rt.registry.get(capability)
+        result = self.rt.arming.arm(capability, state="armed", revision=definition.revision,
+                                    generation=self.rt.state.meta()["generation"], acknowledged_version=ac.ENGINE,
+                                    warnings=[str(w) for w in self.rt.arming.warnings(definition)], actor=Actor.DASHBOARD)
+        self.assertTrue(result["done"], result)
+        self.rt.states(fresh=True)
+
+    def arm_tasks(self):
+        """Core's power action armed for one task, as the card arms it, and the list written under its nonce."""
+        from codex_auto_resume.control import Control
+        from codex_auto_resume_advanced.control.powertasks import _plug_of
+        Control(self.paths, plug=_plug_of(self.rt)).arm_power_action(
+            {"action": "sleep", "after": "any_end", "repeat": "once", "grace_minutes": 5}, tasks=True)
+        armed = self.stored()["armed"]
+        self.assertTrue(self.powertasks.write(self.paths, {
+            "format": self.powertasks.FORMAT, "nonce": armed["nonce"], "armed_at": armed["armed_at"], "failed": False,
+            "interrupted": False, "tasks": [{"thread_id": ac.THREAD, "turn_id": self.TURN}]}))
+        return armed["nonce"]
+
+    def stored(self):
+        return json.loads(self.paths.power_action_file.read_text(encoding="utf-8"))
+
+    def answer(self, nonce):
+        from codex_auto_resume.domain.plug import guard
+        return guard(self.plug_).power({"nonce": nonce})
+
+
+class _AlwaysOffered:
+    def available(self, action):
+        return True, None
+
+    def act(self, action):
+        raise AssertionError("nothing here acts")
+
+
+class PowerTasksBesideThePowerActionTests(_PowerTasksPair):
+    """power_after_tasks beside the standard power action after recoveries: ONE POWER ACTION AT A TIME. Both are the one
+    arming of config/power-action.json: arming either replaces the other, as a second arming always did; the list of an
+    arming that was replaced answers nothing for the new one, and an arming without `tasks` never asks the plug."""
+
+    def test_settings_arming_after_a_tasks_arming_replaces_it_and_the_list_decides_nothing(self):
+        from codex_auto_resume import poweraction
+        from codex_auto_resume.control import Control
+        self.on("power_after_tasks")
+        nonce = self.arm_tasks()
+        Control(self.paths).arm_power_action({"action": "sleep", "after": "all_recovered", "repeat": "once",
+                                              "grace_minutes": 5})
+        armed = self.stored()["armed"]
+        self.assertFalse(poweraction.for_tasks(armed), "the usage-limit batch decides it")
+        self.assertEqual(self.answer(armed["nonce"])["tasks"], "unknown", "the old list is another arming's")
+        self.assertNotEqual(armed["nonce"], nonce)
+
+    def test_a_tasks_arming_after_settings_arming_replaces_it(self):
+        from codex_auto_resume import poweraction
+        from codex_auto_resume.control import Control
+        Control(self.paths).arm_power_action({"action": "hibernate", "after": "all_recovered", "repeat": "always",
+                                              "grace_minutes": 10})
+        self.on("power_after_tasks")
+        self.arm_tasks()
+        armed = self.stored()["armed"]
+        self.assertTrue(poweraction.for_tasks(armed))
+        self.assertEqual((armed["action"], armed["repeat"]), ("sleep", "once"))
+
+
+class PowerTasksBesideRecoveryTests(_PowerTasksPair):
+    """power_after_tasks beside a recovery capability (reset_credit): RECOVERY FIRST. A watched task cut off by a usage
+    limit is recovered as the other capability and core recover it; while its record waits, the plug says running and
+    core waits for the recovery anyway; once recovered, the task's end is its recovery turn's."""
+
+    def beside(self):
+        return (RESET_CREDIT,)
+
+    def test_a_watched_task_waits_for_its_recovery_then_its_recovery_turn_decides(self):
+        from codex_auto_resume import poweraction
+        self.on("power_after_tasks")
+        self.on("reset_credit")
+        nonce = self.arm_tasks()
+        waiting = {"interruption_id": "%064x" % 9, "thread_id": ac.THREAD, "turn_id": self.TURN, "state": "waiting_reset",
+                   "recovery_turn_id": None, "parent_interruption_id": None, "detected_at": 1000, "category": "usage_limit",
+                   "outcome_at": None, "last_error": None, "queue_id": None, "submitted_at": None}
+        self.records = [waiting]
+        self.assertEqual(self.answer(nonce)["tasks"], "running")
+        found = poweraction.decide(poweraction.Facts(now=ac.NOW, read=poweraction.READ_OK,
+                                                     document={"armed": self.stored()["armed"]}, rows=(waiting,),
+                                                     tasks="met"))
+        self.assertEqual(found.word, "recovery_open", "core waits for any recovery, whatever the plug says")
+        self.records = [dict(waiting, state="recovered", recovery_turn_id=self.RECOVERY)]
+        self.statuses.statuses[self.RECOVERY] = "inProgress"
+        self.assertEqual(self.answer(nonce)["tasks"], "running")
+        self.statuses.statuses[self.RECOVERY] = "completed"
+        self.assertEqual(self.answer(nonce), {"tasks": "met", "threads": (ac.THREAD,)})
+        self.assertEqual(self.rt.registry.at(Point.POWER)[0].id, "power_after_tasks", "the other answers nothing there")
 
 
 if __name__ == "__main__":

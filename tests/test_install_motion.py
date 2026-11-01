@@ -462,6 +462,10 @@ class ShippedTests(unittest.TestCase):
         self.assertIn("private bool primary, danger, hover, pressed;", button)
         self.assertIn("private void Press(bool down)", button)
         self.assertIn("internal string State", guiscan.type_body("HaloDot"))
+        # The log follows its newest line by the area's own scroll door and reads its position back (Driver.FollowLog).
+        area = guiscan.type_body("SoftTextArea")
+        for member in ("public int Extent", "public int Viewport", "public int Offset", "public void ScrollTo(int offset)"):
+            self.assertIn(member, area)
         self.assertIn("internal static double StillLightMs", guiscan.controls())
 
 

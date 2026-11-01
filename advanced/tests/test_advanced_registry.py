@@ -107,19 +107,22 @@ class ShippedTests(unittest.TestCase):
                "push_notices", "status_feed", "account_switch",
                # v0.6.20 (#50): steering the running turn, at P8 before the wake timer.
                "steer_send",
+               # v0.6.20 (Discussion #57): the power action after tasks a person picked, the one answer at P21.
+               "power_after_tasks",
                "wake_for_reset",
                "open_codex_button",
                "long_reset_message", "compat_report")
 
     # v0.6.20: open_to_send passed its measurement (MOPEN, codex-cli 0.165.0-alpha.1.2, 2026-10-29) and is offered whole,
-    # after the 41 of DEFINITIONS (registry.offered): 42 in the registry this edition runs.
+    # after the 41 of DEFINITIONS (registry.offered): 42 in the registry this edition runs. v0.6.20: power_after_tasks
+    # joins DEFINITIONS - 42 of them, 43 in the registry.
     OFFERED = ("open_to_send",)
 
     def test_the_registry_this_edition_ships_is_its_capabilities_in_their_order(self):
         self.assertEqual([d.id for d in registry.DEFINITIONS], list(self.SHIPPED))
-        self.assertEqual(len(registry.DEFINITIONS), 41)
+        self.assertEqual(len(registry.DEFINITIONS), 42)
         self.assertEqual(len(registry.REGISTRY), len(self.SHIPPED) + len(self.OFFERED))
-        self.assertEqual(len(registry.REGISTRY), 42)
+        self.assertEqual(len(registry.REGISTRY), 43)
         self.assertEqual(registry.REGISTRY.ids, self.SHIPPED + self.OFFERED)
         self.assertEqual([definition.id for definition in registry.offered(measured.MEASURED)], list(self.OFFERED))
         # The compatibility report is an action, last: it answers at no point, so it is in no list below.
@@ -145,6 +148,8 @@ class ShippedTests(unittest.TestCase):
                                   "open_to_send"),
                      # v0.6.20: a notice core raised, told to the courier's push notices.
                      Point.NOTICE: ("push_notices",),
+                     # v0.6.20: how the tasks a person picked stand, for the power action.
+                     Point.POWER: ("power_after_tasks",),
                      Point.RECORDS: ("reset_message", "prompt_queue", "empty_response", "subagent_parent",
                                      "keep_going", "usage_wrap_up", "codex_chat"),
                      # v0.6.15-beta: the lines a parent's continuation is given of its subagents' stops (5a).
@@ -168,26 +173,23 @@ class ShippedTests(unittest.TestCase):
         for point in Point:
             self.assertEqual(tuple(d.id for d in registry.REGISTRY.at(point)), answering.get(point, ()))
 
-    # The order a person reads them in (the owner's, 2026-10-10): the compatibility report first, then by importance.
-    SHOWN = ("compat_report", "start_with_codex", "crash_restart", "wake_for_reset", "every_conversation", "queue_for_open",
-             "open_to_send", "headless_run",
-             "other_sessions", "marker_free_continuation",
-             # v0.6.20: the continuation inside the turn, hidden until MHK, M4 and M4B pass.
-             "stop_hook_continuation",
-             "silent_continuation", "reset_credit",
-             "early_reset", "parallel_dispatch", "reset_message", "long_reset_message",
-             "usage_meter", "usage_wrap_up", "usage_pause", "window_anchor", "keep_going", "usage_analytics", "prompt_queue",
-             # v0.6.19: chat with a conversation, beside the queued messages.
-             "codex_chat",
-             # v0.6.20 (#50): steering the running turn, written in the queue's editor.
-             "steer_send",
-             "empty_response", "once_more_when_unsure", "send_now", "open_codex_button",
-             # v0.6.20: the courier's two, beside Open Codex on a notice.
-             "push_notices", "status_feed", "capacity_retry",
-             "compact_continue", "model_fallback",
-             "codex_gave_up",
-             "goal_continuation", "subagent_parent", "sign_in_retry", "unknown_failure_budget", "idle_update_check",
-             "account_switch", "structured_rules")
+    # The order a person reads them in (the owner's, 2026-10-10, approved again in full on 2026-10-31): the compatibility
+    # report first, then 1) what gets work going again after a usage limit with no hands, 2) what saves the person work,
+    # 3) the other common failures, 4) rare cases and expert settings.
+    SHOWN = ("compat_report",
+             # 1)
+             "start_with_codex", "crash_restart", "wake_for_reset", "every_conversation", "queue_for_open", "headless_run",
+             "other_sessions", "marker_free_continuation", "reset_credit", "early_reset", "window_anchor", "parallel_dispatch",
+             # 2) (open_to_send is hidden until MOPEN passes)
+             "reset_message", "long_reset_message", "keep_going", "prompt_queue", "usage_meter", "usage_wrap_up", "usage_pause",
+             "push_notices", "send_now", "open_to_send", "open_codex_button", "codex_chat", "steer_send", "usage_analytics",
+             "power_after_tasks",
+             # 3)
+             "empty_response", "once_more_when_unsure", "capacity_retry", "model_fallback", "compact_continue", "codex_gave_up",
+             "goal_continuation", "subagent_parent", "sign_in_retry", "unknown_failure_budget",
+             # 4) (stop_hook_continuation is hidden until MHK, M4 and M4B pass)
+             "silent_continuation", "stop_hook_continuation", "status_feed", "account_switch", "idle_update_check",
+             "structured_rules")
 
     def test_the_shown_order_names_every_capability_of_the_registry_exactly_once(self):
         order, ids = registry.SHOWN_ORDER, registry.REGISTRY.ids
@@ -251,7 +253,8 @@ class ShippedTests(unittest.TestCase):
         credit = registry.REGISTRY.get("reset_credit")
         self.assertEqual(credit.departs_from, ("A12", "B3", "B4", "B10", "C4", "C9"))
         self.assertEqual((credit.compat, credit.revision, credit.kind), ("usage_probe", 1, CapabilityKind.ROUTE))
-        self.assertEqual(credit.measurements, (Measurement.MU, Measurement.MN, Measurement.MR))
+        # v0.6.20: MR only decides asking first, so it narrows and never trips (test_advanced_narrowing_parts).
+        self.assertEqual((credit.measurements, credit.narrowed_by), ((Measurement.MU, Measurement.MN), (Measurement.MR,)))
         self.assertEqual(credit.points, frozenset({Point.TICK, Point.SCHEDULE}))
         self.assertEqual((credit.ceilings.per_day, credit.ceilings.per_conversation), (12, 3))
         self.assertEqual(credit.codes, ("hit", "spent", "nothing", "no_credit", "asked", "lapsed", "unknown", "gap",
@@ -487,29 +490,32 @@ class ShippedTests(unittest.TestCase):
         self.assertEqual(found.departs_from, ("A2", "A4", "A8", "A17", "A26", "A27", "B3", "B4", "C4", "D2", "H4",
                                               "H6"))
         self.assertNotIn("A20", found.departs_from)
-        self.assertEqual((found.compat, found.measurements, found.journal_prefix),
-                         ("exact_thread_recovery", (Measurement.MT,), "queue"))
+        # v0.6.20: only the after_turn route rests on MT, so it narrows and never trips (test_advanced_narrowing_parts).
+        self.assertEqual((found.compat, found.measurements, found.narrowed_by, found.journal_prefix),
+                         ("exact_thread_recovery", (), (Measurement.MT,), "queue"))
         self.assertEqual(found.points, frozenset({Point.RECORDS, Point.SENDER, Point.DELIVERY}))
         self.assertEqual((found.ceilings.per_day, found.ceilings.per_conversation), (30, registry.CORE_DAILY_CAP))
         self.assertEqual(registry.LONG_RESET_MESSAGE.revision, 2)
 
     def test_keep_going_departs_and_rests_on_what_the_design_says(self):
-        """A13, A26 and B9; it stands on outcome_observation and rests on MK; core's five a conversation, two dozen a
+        """A13, A26 and B9; it stands on outcome_observation and is narrowed by MK; core's five a conversation, two dozen a
         day; at P8 and P2."""
         found = registry.REGISTRY.get("keep_going")
         self.assertEqual(found.departs_from, ("A13", "A26", "B9"))
-        self.assertEqual((found.compat, found.measurements, found.journal_prefix),
-                         ("outcome_observation", (Measurement.MK,), "keep"))
+        # v0.6.20: MK only narrows it - read where its part is decided, never a tripwire.
+        self.assertEqual((found.compat, found.measurements, found.narrowed_by, found.journal_prefix),
+                         ("outcome_observation", (), (Measurement.MK,), "keep"))
         self.assertEqual(found.points, frozenset({Point.TICK, Point.RECORDS}))
         self.assertEqual((found.ceilings.per_day, found.ceilings.per_conversation), (24, registry.CORE_DAILY_CAP))
 
     def test_the_subagent_recovery_departs_and_rests_on_what_the_design_says(self):
-        """0.5, A15 and A26; it stands on thread_eligibility and rests on MS; three a conversation, a dozen a day;
+        """0.5, A15 and A26; it stands on thread_eligibility and is narrowed by MS; three a conversation, a dozen a day;
         at P4 (5a), P8 and P2 (5b)."""
         found = registry.REGISTRY.get("subagent_parent")
         self.assertEqual(found.departs_from, ("0.5", "A15", "A26"))
-        self.assertEqual((found.compat, found.measurements, found.journal_prefix),
-                         ("thread_eligibility", (Measurement.MS,), "sub"))
+        # v0.6.20: MS only narrows it - read where its part is decided, never a tripwire.
+        self.assertEqual((found.compat, found.measurements, found.narrowed_by, found.journal_prefix),
+                         ("thread_eligibility", (), (Measurement.MS,), "sub"))
         self.assertEqual(found.points, frozenset({Point.TEXT, Point.TICK, Point.RECORDS}))
         self.assertEqual((found.ceilings.per_day, found.ceilings.per_conversation), (12, 3))
 

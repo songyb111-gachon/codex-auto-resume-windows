@@ -10,11 +10,14 @@ the two claims serialise on core's claim's lock.
 from __future__ import annotations
 
 import contextlib
+import os
 from pathlib import Path
 import sqlite3
 import sys
+import tempfile
 import threading
 import unittest
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -22,6 +25,7 @@ import advancedcase as ac  # noqa: E402
 from codex_auto_resume import config  # noqa: E402
 from codex_auto_resume.domain.plug import DEFER, Alternative, guard  # noqa: E402
 from codex_auto_resume_advanced import registry, statement  # noqa: E402
+from codex_auto_resume_advanced.codex import inuse  # noqa: E402
 from codex_auto_resume_advanced.engine import hookclaims  # noqa: E402
 from codex_auto_resume_advanced.hook.handler import turn_key  # noqa: E402
 from codex_auto_resume_advanced.measured import MEASURED  # noqa: E402
@@ -49,13 +53,15 @@ class HiddenTests(unittest.TestCase):
                 self.assertNotIn(STOP_HOOK, offered(dict(every, **{missing: (Verdict.FAIL, ENGINE)})))
         self.assertIn(STOP_HOOK, offered(every))
 
-    def test_its_place_is_held_after_the_marker_free_continuation(self):
+    def test_its_place_is_held_after_the_silent_continuation(self):
         order = registry.SHOWN_ORDER
-        self.assertEqual(order[order.index("marker_free_continuation") + 1], CAPABILITY)
+        # 2026-10-31: among the rare cases, right after the turn run here without a message, before the status feed.
+        self.assertEqual(order[order.index("silent_continuation") + 1], CAPABILITY)
+        self.assertEqual(order[order.index(CAPABILITY) + 1], "status_feed")
         self.assertNotIn(CAPABILITY, [d.id for d in registry.shown(registry.REGISTRY)])
         made = Registry(registry.DEFINITIONS + (STOP_HOOK,))
         shown = [d.id for d in registry.shown(made)]
-        self.assertEqual(shown[shown.index("marker_free_continuation") + 1], CAPABILITY)
+        self.assertEqual(shown[shown.index("silent_continuation") + 1], CAPABILITY)
 
     def test_its_definition_and_statement_are_whole(self):
         self.assertEqual(problems(STOP_HOOK), [])
@@ -69,6 +75,17 @@ class HookClaimCase(LedgerCase):
     EXTRA = (STOP_HOOK,)
 
     def setUp(self):
+        # No test reaches the person's Codex home (2026-10-31). Arming Continue inside the turn writes its declaration
+        # into each copy Codex keeps of this plugin (arming -> control/hookplugin.follow, through codex/inuse.home), and
+        # with CODEX_HOME unset that home is ~/.codex: this case wrote into the owner's real plugin copy, where CI has
+        # none. An empty scratch folder stands in for it, set before anything is armed (CodexHomeTests holds it).
+        scratch = tempfile.TemporaryDirectory()
+        self.addCleanup(scratch.cleanup)
+        self.codex_home = Path(scratch.name) / "codex-home"
+        self.codex_home.mkdir()
+        isolated = mock.patch.dict(os.environ, {"CODEX_HOME": str(self.codex_home)})
+        isolated.start()
+        self.addCleanup(isolated.stop)
         super().setUp()
         self.plug = self.advanced()
         runtime = self.plug.runtime
@@ -98,6 +115,14 @@ class HookClaimCase(LedgerCase):
     def rows(self):
         with contextlib.closing(sqlite3.connect(self.plug.runtime.state.path)) as connection:
             return connection.execute("SELECT interruption_id, outcome FROM hook_claims ORDER BY at").fetchall()
+
+
+class CodexHomeTests(HookClaimCase):
+    def test_arming_it_reaches_no_codex_home_but_a_scratch_one(self):
+        """Fails with the isolation above taken out: the home its declaration follows is the person's ~/.codex."""
+        self.assertEqual(inuse.home(self.paths), self.codex_home.resolve())
+        person = Path(os.environ.get("USERPROFILE") or str(Path.home())) / ".codex"
+        self.assertNotEqual(inuse.home(self.paths), person.resolve())
 
 
 class ClaimTests(HookClaimCase):

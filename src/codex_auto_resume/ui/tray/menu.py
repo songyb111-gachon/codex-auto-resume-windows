@@ -1,8 +1,22 @@
-"""The right-click menu: what it offers, and asking Windows to draw it dark.
+"""The right-click menu: what it offers, how it is shown, and asking Windows to draw its own dark.
 
-Kept together on purpose. The menu is the one surface this icon draws through Windows itself
-rather than through the popup, so the ordinals, the command ids and the two methods that use
-them are one thing to read - and one place to replace when a test needs Windows not to answer.
+What it offers is one list, `menu_items`, and both ways of showing it are built from that list
+alone, so they cannot offer different things. Since v0.6.20 (the owner, 2026-11-01) the menu is
+drawn in the product's own design by the popup's renderer (ui/popup/menuwindow.py), as the window's
+menus are (gui/SoftMenu.cs). Windows' own menu (TrackPopupMenu), which it was until then, stays as
+the fallback, in exactly these cases:
+
+* the icon has no window and message loop of its own - a menu asked for before the icon started,
+  as the tests ask for it - since the drawn menu is a window that loop has to serve, where
+  Windows' menu runs a loop of its own;
+* the drawn menu could not be made or shown: GDI+ would not start, Windows refused the window or
+  its layered picture. That is logged once and Windows' menu is shown for the rest of the
+  watcher's life, as a popup that broke is not made again;
+* Windows refused the drawn menu the foreground for one opening (a menu without the keyboard
+  could not close on a click elsewhere): that opening is Windows' menu, and the next is drawn.
+
+Asking Windows to draw its own menu dark - by ordinal, below - is kept for that fallback and for
+the popup's row menus' same fallback: they open in the same drawn menu (ui/popup/window.py).
 """
 from __future__ import annotations
 
@@ -12,7 +26,8 @@ import os
 import sys
 import time
 
-from .win32 import (MF_GRAYED,
+from .win32 import (MF_CHECKED,
+                    MF_GRAYED,
                     MF_SEPARATOR,
                     MF_STRING,
                     TPM_NONOTIFY,
@@ -33,6 +48,8 @@ from .words import tooltip
 # confirmations intact. (The popup's per-task switch is the other half: it names the
 # conversation beside the switch, and it is bound to that row's exact identities.)
 MENU_OPEN, MENU_TOGGLE, MENU_STOP, MENU_PENDING = 1, 2, 3, 4
+# The first line, which says how the watcher is doing and cannot be chosen (v0.6.20: named, for the list both menus share).
+MENU_STATUS = 0
 # v0.6.12: the power action after usage-limit recoveries, turned off - offered only while it is armed, and
 # never turned on here (H14). It reduces automation, as Pause does, so it asks nothing.
 MENU_POWER_OFF = 5
@@ -49,6 +66,34 @@ APP_MODE_DEFAULT, APP_MODE_FORCE_DARK = 0, 2
 UXTHEME_SET_PREFERRED_APP_MODE, UXTHEME_FLUSH_MENU_THEMES = 135, 136
 DARK_MENU_BUILD = 18362
 
+
+
+def menu_items(snapshot, strings, now, pending=False, armed=None) -> list:
+    """What the menu offers, in order, as both of its ways of being shown take it (v0.6.20): a dict per item - `id`
+    (the command it carries; MENU_STATUS for the first line), `text`, `enabled`, `checked` - and None for a line
+    between groups. `pending` says the icon can show what is waiting, `armed` is the armed power action's word or
+    None. A pure function of what the icon shows: the status line, Open Dashboard, Show what is waiting while
+    anything waits or runs, Pause or Resume, the power action turned off while one is armed, and Stop the watcher."""
+    strings = strings or {}
+
+    def item(identifier, text, enabled=True):
+        return {"id": identifier, "text": text, "enabled": enabled, "checked": False}
+
+    status = tooltip(snapshot, strings, now).split("\n", 1)[-1]
+    items = [item(MENU_STATUS, status, enabled=False), None,
+             item(MENU_OPEN, strings.get("menu.open", "Open Dashboard"))]
+    # Only while there is something to look at. An item that opens a page saying
+    # nothing is waiting is an item that teaches people not to use the menu.
+    waiting = int(snapshot.get("waiting", 0) or 0) + int(snapshot.get("running", 0) or 0)
+    if waiting and pending:
+        items.append(item(MENU_PENDING, strings.get("menu.pending", "Show what is waiting").replace("{n}", str(waiting))))
+    paused = not snapshot.get("enabled", True)
+    items.append(item(MENU_TOGGLE, strings.get("menu.resume", "Resume recovery") if paused
+                      else strings.get("menu.pause", "Pause recovery")))
+    if armed in POWER_OFF_WORDS:
+        items.append(item(MENU_POWER_OFF, strings.get("menu.power_off." + armed, POWER_OFF_WORDS[armed])))
+    items += [None, item(MENU_STOP, strings.get("menu.stop", "Stop the watcher"))]
+    return items
 
 
 def menu_app_mode(look) -> int:
@@ -77,34 +122,57 @@ class MenuMixin:
 
 
     def _menu(self):
-        user32 = _dll("user32")
         self._adopt_settings()                  # the menu speaks the language stored now
-        self._theme_menu()                      # and is drawn in the theme the popup is
+        self._theme_menu()                      # and Windows' own is drawn in the theme the popup is
         snapshot = self._shown()
+        paused = not snapshot.get("enabled", True)
+        items = menu_items(snapshot, self.strings, time.time(), bool(self.on_pending), self._power_armed())
+        if self._draw_menu(items, paused):
+            return
+        self._act(self._native_menu(items), paused)
+
+    def _draw_menu(self, items, paused) -> bool:
+        """The menu drawn in the product's design (v0.6.20), at the pointer; what is chosen reaches `_act` exactly as
+        Windows' menu's choice does, with the state it was drawn in. False when Windows' menu is to be shown instead:
+        no window of the icon's own, a drawn menu that broke before, one that breaks now, or an opening Windows
+        refused it the foreground for (see the file's head)."""
+        if not self._hwnd or self._menu_drawn is False:
+            return False
+        try:
+            if self._menu_drawn is None:
+                from .. import popup as tray_popup
+                self._menu_drawn = tray_popup.Menu(log=self.log)
+            with self._lock:
+                strings = dict(self.strings)
+            return bool(self._menu_drawn.open(items, strings, lambda chosen: self._act(chosen, paused)))
+        except Exception as exc:
+            self.log("tray menu drawn unavailable (%s)" % type(exc).__name__)
+            self._drop_menu()
+            self._menu_drawn = False
+            return False
+
+    def _drop_menu(self):
+        """Let the drawn menu's window go, as the icon's goes; one that broke stays given up."""
+        menu = self._menu_drawn
+        if not menu:
+            return
+        self._menu_drawn = None
+        try:
+            menu.destroy()
+        except Exception as exc:
+            self.log("tray menu cleanup failed (%s)" % type(exc).__name__)
+
+    def _native_menu(self, items) -> int:
+        """Windows' own menu, built from the same items, at the pointer: the command chosen, or 0 for none."""
+        user32 = _dll("user32")
         menu = user32.CreatePopupMenu()
         try:
-            status = tooltip(snapshot, self.strings, time.time()).split("\n", 1)[-1]
-            user32.AppendMenuW(menu, MF_STRING | MF_GRAYED, 0, status)
-            user32.AppendMenuW(menu, MF_SEPARATOR, 0, None)
-            user32.AppendMenuW(menu, MF_STRING, MENU_OPEN,
-                               self.strings.get("menu.open", "Open Dashboard"))
-            # Only while there is something to look at. An item that opens a page saying
-            # nothing is waiting is an item that teaches people not to use the menu.
-            waiting = int(snapshot.get("waiting", 0) or 0) + int(snapshot.get("running", 0) or 0)
-            if waiting and self.on_pending:
-                user32.AppendMenuW(menu, MF_STRING, MENU_PENDING,
-                                   self.strings.get("menu.pending", "Show what is waiting")
-                                   .replace("{n}", str(waiting)))
-            paused = not snapshot.get("enabled", True)
-            user32.AppendMenuW(menu, MF_STRING, MENU_TOGGLE,
-                               self.strings.get("menu.resume", "Resume recovery") if paused
-                               else self.strings.get("menu.pause", "Pause recovery"))
-            armed = self._power_armed()
-            if armed is not None:
-                user32.AppendMenuW(menu, MF_STRING, MENU_POWER_OFF,
-                                   self.strings.get("menu.power_off." + armed, POWER_OFF_WORDS[armed]))
-            user32.AppendMenuW(menu, MF_SEPARATOR, 0, None)
-            user32.AppendMenuW(menu, MF_STRING, MENU_STOP, self.strings.get("menu.stop", "Stop the watcher"))
+            for entry in items:
+                if entry is None:
+                    user32.AppendMenuW(menu, MF_SEPARATOR, 0, None)
+                    continue
+                flags = MF_STRING | (0 if entry["enabled"] else MF_GRAYED) | (MF_CHECKED if entry["checked"] else 0)
+                user32.AppendMenuW(menu, flags, entry["id"], entry["text"])
             point = W.POINT()
             user32.GetCursorPos(C.byref(point))
             # Without this the menu does not close when the user clicks elsewhere.
@@ -114,7 +182,7 @@ class MenuMixin:
             user32.PostMessageW(self._hwnd, WM_NULL, 0, 0)
         finally:
             user32.DestroyMenu(menu)
-        self._act(chosen, paused)
+        return chosen
 
     def _act(self, chosen, paused):
         action = {MENU_OPEN: self.on_open, MENU_STOP: self.on_stop,

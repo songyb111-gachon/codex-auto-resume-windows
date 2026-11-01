@@ -33,13 +33,19 @@ CLI_0164_ALPHA_11_1 = "codex-cli 0.164.0-alpha.11.1"
 # issue #50's MIMG, MSTEER, MOPEN and MSTEER2 (the same version under the name the probes' records use).
 CODEX_0165_ALPHA_1_2 = "codex-cli 0.165.0-alpha.1.2"
 CLI_0165_ALPHA_1_2 = CODEX_0165_ALPHA_1_2
+# The Codex of 2026-10-31, before the v0.6.20 final (the owner: no capability hidden without being measured again): MB made
+# again - Codex still refuses any write under model_providers.openai; MHK made - plugin hooks are a listed feature (in its
+# removed stage, `hooks` itself stable and on) and Stop is one of their events; M4 made again, the probe making its own
+# failed turn - Codex ran a plugin's Stop hook after a completed turn but none after the failed one. So both capabilities
+# that wait on them stay hidden (registry.WAITING), marked as hidden because their measurement failed.
+CLI_0166_ALPHA_5_1 = "codex-cli 0.166.0-alpha.5.1"
 
 MEASURED = {
     Measurement.M1: (Verdict.PASS, CLI_0163_ALPHA_10_2),
     Measurement.M2: (Verdict.FAIL, CLI_0162_ALPHA_17_2),
     Measurement.M2B: (Verdict.PASS, CLI_0164_ALPHA_11_1),
     Measurement.M3: (Verdict.FAIL, CLI_0162_ALPHA_17_2),
-    Measurement.M4: (Verdict.FAIL, CLI_0162_ALPHA_17_2),
+    Measurement.M4: (Verdict.FAIL, CLI_0166_ALPHA_5_1),
     Measurement.M5: (Verdict.PASS, CLI_0163_ALPHA_10_2),
     Measurement.M6: (Verdict.PASS, CLI_0163_ALPHA_10_2),
     Measurement.M7: (Verdict.PASS, CLI_0163_ALPHA_10_2),
@@ -67,7 +73,7 @@ MEASURED = {
     Measurement.MX: (Verdict.PASS, CLI_0163_ALPHA_10_2),
     Measurement.MF: (Verdict.PASS, CLI_0163_ALPHA_10_2),
     # A fail narrows a route or is its capability's warning, never its end (the owner's rule).
-    Measurement.MB: (Verdict.FAIL, CLI_0162_ALPHA_17_2),
+    Measurement.MB: (Verdict.FAIL, CLI_0166_ALPHA_5_1),
     Measurement.MC2: (Verdict.FAIL, CLI_0162_ALPHA_17_2),
     # 2026-10-17, made again on codex-cli 0.163.0-alpha.10.2: all three passed there (they had failed on 0.162).
     Measurement.MO: (Verdict.PASS, CLI_0163_ALPHA_10_2),
@@ -95,5 +101,14 @@ MEASURED = {
     # the owner's thirty, its load timed by the lock's holder count alone, the window came to the front and the app held
     # the conversation within 2-10 s, so it passed - and open_to_send is offered.
     Measurement.MOPEN: (Verdict.PASS, CLI_0165_ALPHA_1_2),
+    # 2026-10-31 (v0.6.20, Continue inside the turn's declaration): on a scratch Codex home the probe made and removed.
+    Measurement.MHK: (Verdict.PASS, CLI_0166_ALPHA_5_1),
+    # 2026-11-01 (v0.6.20, account_switch's button), the measurement session with the owner: a `codex logout` made outside
+    # the app reached the running app, but the `codex login` after it did not within about a minute - the app came back
+    # signed in only through its own sign-in - so the button stays hidden: hidden because its measurement failed (partial).
+    Measurement.MAL: (Verdict.FAIL, CLI_0166_ALPHA_5_1),
+    # 2026-11-02 (measure-20261101f): the sign-out and sign-in, then the product's own restart of Codex (Windows asked
+    # it to quit, and it did), brought the app up signed in - the account switch's button rests on it.
+    Measurement.MALR: (Verdict.PASS, CLI_0166_ALPHA_5_1),
     Measurement.MSTEER2: (Verdict.FAIL, CLI_0165_ALPHA_1_2),
 }

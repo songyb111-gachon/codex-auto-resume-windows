@@ -155,7 +155,14 @@ class TableTests(unittest.TestCase):
         steer over the Desktop's IPC pipe was accepted and reached the running turn once, with no new turn, and the reply
         followed it, but the app never showed the line as the person's message. That night MOPEN was made again against
         the owner's limit of thirty seconds, its load timed by the lock's holder count alone: the window came to the
-        front and the app held the conversation within 2-10 s, so it passed."""
+        front and the app held the conversation within 2-10 s, so it passed.
+        2026-10-31, on codex-cli 0.166.0-alpha.5.1, before the v0.6.20 final: MB failed again (Codex refuses the write) and
+        MHK passed (plugin hooks a listed feature, Stop one of their events), both on scratch Codex homes; M4 failed - the
+        probe made its own failed turn, and Codex ran a plugin's Stop hook after a completed turn but none after it.
+        2026-11-01, on the same engine, MAL failed, partial: a sign-out made with `codex logout` outside the app reached the
+        running app, but the `codex login` after it did not within about a minute; the app came back signed in through its
+        own sign-in. 2026-11-02, the same engine: MALR passed - after that sign-out and sign-in, the product's own restart
+        of Codex brought the app up signed in."""
         passed = {m for m, (verdict, _v) in measured.MEASURED.items() if verdict == Verdict.PASS}
         failed = {m for m, (verdict, _v) in measured.MEASURED.items() if verdict == Verdict.FAIL}
         self.assertEqual(passed, {Measurement.MW, Measurement.M1, Measurement.M2B, Measurement.M5,
@@ -164,10 +171,11 @@ class TableTests(unittest.TestCase):
                                   Measurement.MN, Measurement.MU, Measurement.MIPC, Measurement.MC1,
                                   Measurement.MXA, Measurement.MX, Measurement.MF, Measurement.MO,
                                   Measurement.M3B, Measurement.M6B, Measurement.MQO, Measurement.MQP,
-                                  Measurement.MQG, Measurement.MANCHOR, Measurement.MIMG, Measurement.MOPEN})
+                                  Measurement.MQG, Measurement.MANCHOR, Measurement.MIMG, Measurement.MOPEN,
+                                  Measurement.MHK, Measurement.MALR})
         self.assertEqual(failed, {Measurement.M2, Measurement.M3, Measurement.M4, Measurement.MAWS,
                                   Measurement.MCLOUD, Measurement.MB, Measurement.MC2, Measurement.MSTEER,
-                                  Measurement.MSTEER2})
+                                  Measurement.MSTEER2, Measurement.MAL})
         new = "codex-cli 0.163.0-alpha.10.2"
         again = {Measurement.MW, Measurement.M1, Measurement.M5, Measurement.M6,
                  Measurement.M7, Measurement.MP1, Measurement.MP2, Measurement.MP3, Measurement.MIPC,
@@ -183,11 +191,17 @@ class TableTests(unittest.TestCase):
         self.assertEqual({m for m, (_v, version) in measured.MEASURED.items()
                           if version == "codex-cli 0.165.0-alpha.1.2"},
                          {Measurement.MANCHOR, Measurement.MIMG, Measurement.MSTEER, Measurement.MOPEN, Measurement.MSTEER2})
+        # v0.6.20, before its final: MB and M4 made again and MHK made, on the Codex of 2026-10-31.
+        self.assertEqual({m for m, (_v, version) in measured.MEASURED.items()
+                          if version == "codex-cli 0.166.0-alpha.5.1"},
+                         {Measurement.MB, Measurement.MHK, Measurement.M4, Measurement.MAL, Measurement.MALR})
         self.assertEqual(set(Measurement) - passed - failed,
                          # v0.6.15-beta's own, for several conversations at once: not made yet.
                          {Measurement.MQ, Measurement.ME, Measurement.MS, Measurement.MK, Measurement.MT,
                           # v0.6.19's groundwork probes, made while its stage is built: not made yet.
-                          Measurement.MTOK, Measurement.MAL, Measurement.MWAKE, Measurement.MHK, Measurement.M4B})
+                          Measurement.MTOK, Measurement.MWAKE, Measurement.M4B,
+                          # v0.6.20: which code a turn kept at capacity through Codex's retries records.
+                          Measurement.MGAVE})
 
 
 if __name__ == "__main__":

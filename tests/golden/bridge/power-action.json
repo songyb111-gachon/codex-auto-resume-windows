@@ -172,6 +172,47 @@
           "upgrade_pending": false
         }
       }
+    },
+    {
+      "case": "armed for tasks a person picked",
+      "argument": null,
+      "reply": {
+        "ok": true,
+        "result": {
+          "view": {
+            "armed": {
+              "action": "sleep",
+              "after": "all_recovered",
+              "repeat": "once",
+              "grace_seconds": 300,
+              "armed_at": 1800000000.0,
+              "since": 1800000000.0,
+              "tasks": true
+            },
+            "shown": null,
+            "last": null
+          },
+          "actions": [
+            {
+              "value": "sleep",
+              "available": true,
+              "reason": null
+            },
+            {
+              "value": "hibernate",
+              "available": true,
+              "reason": null
+            },
+            {
+              "value": "shut_down",
+              "available": true,
+              "reason": null
+            }
+          ],
+          "managed": false,
+          "upgrade_pending": false
+        }
+      }
     }
   ]
 }

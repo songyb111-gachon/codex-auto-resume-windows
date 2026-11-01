@@ -88,6 +88,8 @@ NOT_SCENARIOS = {
                          "of 2026-10-24), which no scenario requests",
     "test_codex_schema": "reads a Codex home through the source alone; it builds no engine",
     "test_source": "reads a Codex home through the source alone; it builds no engine",
+    "test_power_action_boot": "drives the power action's reading of what runs with a boot time (v0.6.20 final: a turn or "
+                              "queued item from before Windows last started is gone), which no scenario asks",
     "test_agent_thread_trigger": "reads a Codex home through the source alone for #54's composer-turn rule (v0.6.20-beta); "
                                  "it builds no engine",
     "test_screenshots": "draws the settings window's pictures, one GUI module at a time",

@@ -15,6 +15,7 @@ import time
 from ... import brand
 from ...win.dll import WNDCLASSW, WNDPROC
 from .layout import WIDTH
+from .menuplan import menu_numbered
 from .messages import PopupMessages, REFRESH_TICKS  # noqa: F401
 from .model import PopupModel, perform, select_action
 from .motion import animates, glide_amount, halo, next_glides
@@ -80,9 +81,11 @@ class Popup(PopupMessages):
     # not yet fitted, until the window reads one - on the class for the same reason.
     _text = 1.0
     _fit = None
+    # The drawn row menu's maker and the menu (v0.6.20): none - Windows' own menu - for a Popup made without __init__.
+    make_menu = _row_menu = None
 
     def __init__(self, *, control=None, source=None, strings=None, on_dashboard=None, log=None,
-                 anchor=None, theme_menu=None):
+                 anchor=None, theme_menu=None, make_menu=None):
         self.model = PopupModel(strings)
         self.locale = locale_of(strings)
         self.control = control
@@ -93,6 +96,10 @@ class Popup(PopupMessages):
         # v0.6.11: asks Windows to draw this process's menus in the popup's own light or dark, as the
         # icon's menu is drawn (ui/tray/menu.py); None where nothing can be asked.
         self.theme_menu = theme_menu
+        # v0.6.20: makes the drawn menu (menuwindow.Menu) a row's menu opens in, as the icon's does; None where there is
+        # none, and then - and once the drawn one broke (False) - a row's menu is Windows' own.
+        self.make_menu = make_menu
+        self._row_menu = None
         self.hwnd = None
         self.visible = False
         self._proc = None
@@ -170,6 +177,12 @@ class Popup(PopupMessages):
 
     def destroy(self):
         user32 = _dll("user32")
+        menu, self._row_menu = self._row_menu, None
+        if menu:
+            try:
+                menu.destroy()
+            except Exception as exc:
+                self.log("tray popup menu cleanup failed (%s)" % type(exc).__name__)
         access.disconnect(self)
         hwnd, self.hwnd = self.hwnd, None
         self.visible = False
@@ -234,6 +247,8 @@ class Popup(PopupMessages):
 
     def hide(self):
         self._pending_show = None
+        if self._row_menu:
+            self._row_menu.close()
         hwnd = self.hwnd
         if not hwnd:
             return
@@ -575,7 +590,8 @@ class Popup(PopupMessages):
     def _context_menu(self, lparam):
         """A task row's own menu: at the pointer on the row under it, or - from the keyboard - on the row
         whose switch has the focus. Its items are that row's as it was drawn (model.row_menu); what is
-        chosen is done exactly as a click on the row's switch is, bound to the row's identities."""
+        chosen is done exactly as a click on the row's switch is, bound to the row's identities. Since
+        v0.6.20 it is the drawn menu the icon's is (menuwindow.Menu), and Windows' own where that cannot open."""
         plan = self._painted_plan
         if plan is None or not self.hwnd:
             return
@@ -598,12 +614,22 @@ class Popup(PopupMessages):
         entries = self.model.menu_for(key) if key else []
         if not entries:
             return
+        numbered, actions = menu_numbered(entries)
+
+        def run(command):
+            action = actions.get(command)
+            if action is None or not self.model.begin(action):
+                return
+            self._run(action)
+            self._update()
+        if self._draw_row_menu(numbered, run, (point.x, point.y)):
+            return
         if self.theme_menu is not None:
             try:
                 self.theme_menu()
             except Exception as exc:
                 self.log("tray popup menu theme failed (%s)" % type(exc).__name__)
-        actions, menus = {}, []
+        menus = []
 
         def build(items):
             menu = user32.CreatePopupMenu()
@@ -616,23 +642,44 @@ class Popup(PopupMessages):
                 if entry["items"]:
                     user32.AppendMenuW(menu, flags | MF_POPUP, build(entry["items"]), entry["text"])
                     continue
-                command = len(actions) + 1
-                actions[command] = entry["action"] if entry["enabled"] else None
-                user32.AppendMenuW(menu, flags, command, entry["text"])
+                user32.AppendMenuW(menu, flags, entry["id"], entry["text"])
             return menu
         try:
             # Right to left, the menu is laid out mirrored and opens leftward from its point (v0.6.11).
             direction = TPM_LAYOUTRTL | TPM_RIGHTALIGN if plan.get("rtl") else 0
-            chosen = user32.TrackPopupMenu(build(entries), TPM_RIGHTBUTTON | TPM_RETURNCMD | TPM_NONOTIFY | direction,
+            chosen = user32.TrackPopupMenu(build(numbered), TPM_RIGHTBUTTON | TPM_RETURNCMD | TPM_NONOTIFY | direction,
                                            point.x, point.y, 0, self.hwnd, None)
             user32.PostMessageW(self.hwnd, 0, 0, 0)        # WM_NULL: a click elsewhere closes it (as the icon's)
         finally:
             user32.DestroyMenu(menus[0])        # its submenus go with it
-        action = actions.get(chosen)
-        if action is None or not self.model.begin(action):
-            return
-        self._run(action)
-        self._update()
+        run(chosen)
+
+    def _draw_row_menu(self, entries, run, point) -> bool:
+        """The row's menu drawn at `point` (v0.6.20), the keyboard handed back to the popup as it closes, the popup
+        closed with it when something else is clicked. False when Windows' menu is to open instead: nothing to make
+        the drawn one with, one that broke before or breaks now (logged, and given up for this popup's life), or an
+        opening Windows refused the foreground - the icon's menu's cases (ui/tray/menu.py)."""
+        if self.make_menu is None or self._row_menu is False or not self.hwnd:
+            return False
+        try:
+            if self._row_menu is None:
+                self._row_menu = self.make_menu()
+            return bool(self._row_menu.open(entries, self.model.strings, run, point=point, owner=self.hwnd,
+                                            on_leave=self.hide))
+        except Exception as exc:
+            self.log("tray popup menu drawn unavailable (%s)" % type(exc).__name__)
+            menu, self._row_menu = self._row_menu, False
+            if menu:
+                try:
+                    menu.destroy()
+                except Exception:
+                    pass
+            return False
+
+    def _menu_has(self, hwnd) -> bool:
+        """Whether `hwnd` is the drawn row menu's window: the popup stays open while its own menu has the focus."""
+        menu = self._row_menu
+        return bool(menu) and bool(hwnd) and menu.hwnd == hwnd
 
     def _activate(self, target):
         action = self.model.action_for(target)

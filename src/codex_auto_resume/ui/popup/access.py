@@ -29,8 +29,11 @@ from .words import say
 _com = library()
 
 # The roles and states a child can have, by their MSAA numbers (oleacc.h).
-A11Y_ROLES = {"dialog": 0x12, "text": 0x29, "row": 0x22, "switch": 0x2C, "button": 0x2B}
+A11Y_ROLES = {"dialog": 0x12, "text": 0x29, "row": 0x22, "switch": 0x2C, "button": 0x2B,
+              # v0.6.20: the icon's drawn menu (menuwindow.py) - a menu popup, its items and the lines between them.
+              "menu": 0x0B, "menuitem": 0x0C, "separator": 0x15}
 A11Y_STATES = {"unavailable": 0x1, "focused": 0x4, "checked": 0x10, "hot": 0x80, "focusable": 0x100000,
+               "haspopup": 0x40000000,     # v0.6.20: a row menu's item that opens a submenu
           "readonly": 0x40}
 OBJID_CLIENT, OBJID_WINDOW, CHILDID_SELF = -4, 0, 0
 WM_GETOBJECT = 0x003D
@@ -524,19 +527,20 @@ _COINIT_APARTMENTTHREADED = 0x2
 _RPC_E_CHANGED_MODE = -2147417850
 
 
-def answer(popup, wparam, lparam):
+def answer(popup, wparam, lparam, make=None):
     """WM_GETOBJECT for the popup: its client object when that is what is asked for, else None - and
     Windows answers for the window itself. COM comes up single-threaded on the popup's thread the first
     time, where it is not up already, so every question arrives on that thread through its own messages;
     on a thread where COM is up multithreaded they would arrive on others, so there the window is left
-    to Windows' own answer."""
+    to Windows' own answer. `make` is the object's class: the popup's own unless another drawn window - the icon's
+    menu (v0.6.20) - answers through the same machinery for what it draws."""
     if C.c_long(lparam & 0xFFFFFFFF).value != OBJID_CLIENT or not popup.hwnd:
         return None
     _declare_msaa()
     if getattr(popup, "_access", None) is None:
         if _com("ole32").CoInitializeEx(None, _COINIT_APARTMENTTHREADED) == _RPC_E_CHANGED_MODE:
             return None
-        popup._access = PopupAccessible(popup)
+        popup._access = (make or PopupAccessible)(popup)
     return _com("oleacc").LresultFromObject(C.byref(IID_IACCESSIBLE), wparam, popup._access.pointer)
 
 

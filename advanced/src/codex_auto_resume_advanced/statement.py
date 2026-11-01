@@ -113,6 +113,8 @@ PAGE_KEYS = tuple(PAGE_PREFIX + name for name in (
     "watchlog.answer.supervise", "watchlog.answer.restart",
     # v0.6.20 (push_notices): a notice it would have pushed.
     "watchlog.answer.notice",
+    # v0.6.20 (power_after_tasks): how the tasks a person picked stand, said to the power action.
+    "watchlog.answer.power",
     # v0.6.16-beta.3: a message a watched capability would have sent.
     "watchlog.answer.records",
     "watchlog.answer.other",
@@ -137,7 +139,7 @@ RESETS_KEYS = tuple(RESETS_PREFIX + name for name in (
     "field.conversation", "no_conversation", "field.words", "field.window", "field.which_reached", "field.which",
     "field.repeat", "repeat.once", "repeat.every", "field.ask", "ask.no", "ask.yes", "ask.note", "credit.button",
     "message.button", "credit.note", "message.note", "go_on", "cancel", "reading.unknown", "reading",
-    "reading.no_expiry", "reading.last", "count", "unproven"))
+    "reading.no_expiry", "reading.last", "count", "unproven", "unproven_failed", "ask.note_failed"))
 PAGE_KEYS = PAGE_KEYS + RESETS_KEYS
 # The compatibility report's card on that page (advanced/gui/AdvancedReport.cs): its own words, one for each
 # write sending makes (vocabulary.ReportWrite), one for each reason it has to be sent on the web (WebReason) and
@@ -156,12 +158,12 @@ PAGE_KEYS = PAGE_KEYS + REPORT_KEYS
 # AdvancedQueue.cs).
 PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "keep.title", "keep.none", "keep.count", "keep.button", "keep.line",
-    "keep.stop", "keep.capped", "confirm.keep_going", "done.keep_going", "refused.keep_count_invalid",
+    "keep.stop", "keep.capped", "keep.capped_failed", "confirm.keep_going", "done.keep_going", "refused.keep_count_invalid",
     "queue.title", "queue.none", "queue.add", "queue.when", "queue.when.after_turn",
     "queue.when.at_time", "queue.when.daily", "queue.when.weekly", "queue.hour", "queue.times",
     "queue.depends", "queue.depends.no", "queue.depends.yes", "queue.button", "queue.line",
     "queue.at", "queue.series", "queue.state.waiting", "queue.state.held", "queue.state.in_codex",
-    "queue.state.being_sent", "queue.state.refused", "queue.unproven", "queue.go_on", "confirm.prompt",
+    "queue.state.being_sent", "queue.state.refused", "queue.unproven", "queue.unproven_failed", "queue.go_on", "confirm.prompt",
     "done.prompt_added", "refused.prompt_refused", "refused.queue_full", "refused.dependency_unknown",))
 # Steer the running turn (v0.6.20, issue #50 - steer_send): the editor's When choice, its warning and its button, what a
 # steer refused at once says, and History's row for a steer - its kind, its states, the words sent and what each outcome
@@ -341,9 +343,24 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
 # Codex, the button that runs Codex's own sign-out and sign-in, its question, its wait, how it ended and its refusals.
 PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "account.title", "account.signed_in", "account.signed_in_only", "account.api_key", "account.plan_other",
-    "account.signed_out", "account.unknown", "account.guidance", "account.waiting", "account.button",
+    "account.signed_out", "account.unknown", "account.guidance", "account.guidance_failed", "account.waiting", "account.button",
     "account.button_help", "confirm.account_switch", "account.result.signed_in", "account.result.cancelled",
     "account.result.timed_out", "account.result.failed", "refused.switch_unmeasured", "refused.switch_running"))
+# v0.6.20 final: the restart after a sign-in - its question, why it waits, its buttons, its wait, how it ended, and its
+# question and refusals (advanced/gui/AdvancedAccount.cs, control/account.restart).
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
+    "account.restart.ask", "account.restart.needed", "account.restart.help", "account.restart.busy",
+    "account.restart.button", "account.restart.not_now", "account.restart.restarting", "account.restart.result.restarted",
+    "account.restart.result.signed_out", "account.restart.result.not_running", "account.restart.result.not_ended",
+    "account.restart.result.not_started", "account.restart.result.failed", "confirm.account_restart",
+    "refused.restart_running", "refused.nothing_to_restart"))
+# v0.6.20 (power_after_tasks, Discussion #57): the tasks the power action waits for, or the form they are picked with
+# (advanced/gui/AdvancedPowerTasks.cs).
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
+    "powertasks.title", "powertasks.help", "powertasks.none", "powertasks.failed", "powertasks.interrupted",
+    "powertasks.button", "powertasks.off", "powertasks.line", "powertasks.end.running", "powertasks.end.completed",
+    "powertasks.end.failed", "powertasks.end.interrupted", "powertasks.end.unknown", "confirm.power_after_tasks",
+    "done.power_after_tasks", "refused.power_no_turn", "refused.power_refused"))
 # The edition's own continuations' words (v0.6.15-beta): what empty_response, subagent_parent and keep_going send -
 # fixed, each passing core's continuation.validate_continuation in every language (nothing is filled in but, for a
 # subagent's line, its id and a closed kind word).

@@ -64,6 +64,8 @@ METHODS = {
     "_power_armed",
     # v0.6.20 (standard J14): a sending nobody can confirm, unseen, holds the icon amber and not red (clicks.py).
     "_unconfirmed_unseen",
+    # v0.6.20: the right-click menu drawn in the product's design, and Windows' own as its fallback (menu.py).
+    "_draw_menu", "_drop_menu", "_native_menu",
 }
 
 
@@ -143,7 +145,8 @@ class CompositionTests(unittest.TestCase):
 
     def test_each_mixin_holds_the_methods_its_file_is_named_for(self):
         """Not vacuous: a method moved to another file would show up here before anywhere else."""
-        for mixin, expected in ((menu.MenuMixin, {"_menu", "_act", "_theme_menu", "_power_armed"}),
+        for mixin, expected in ((menu.MenuMixin, {"_menu", "_act", "_theme_menu", "_power_armed", "_draw_menu",
+                                                  "_drop_menu", "_native_menu"}),
                                 (cards.CardsMixin, {"_host_cards", "_card_look", "_drop_cards"}),
                                 (stored.StoredMixin, {"_stored_settings", "_adopt_settings",
                                                       "_adopt_reduce_motion"})):

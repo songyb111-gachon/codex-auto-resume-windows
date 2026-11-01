@@ -878,11 +878,31 @@ namespace CodexAutoResume
             int below = nativeAcross ? Math.Max(0, List.Height - List.ClientSize.Height) : 0;
             if (nativeAcross && below == 0) below = SystemInformation.HorizontalScrollBarHeight;
             clip.SetBounds(mirrored ? Width - rows : 0, 0, rows, tall);
+            if (List.Width != rows + beside || List.Height != tall + below) FromFirstPixel();
             List.SetBounds(0, 0, rows + beside, tall + below);
             Read();
             bar.Track = native ? TrackBounds() : Rectangle.Empty;
             acrossBar.Track = nativeAcross ? AcrossBounds() : Rectangle.Empty;
             StartAtFirstColumn();
+        }
+
+        /// v0.6.20 (the final's live acceptance, A5): a list scrolled sideways is scrolled back to its left edge before it
+        /// takes another size. Its columns are fitted to its new width as it takes it (SettingsForm.FitColumns, on the
+        /// list's ClientSizeChanged, inside Windows' own handling of the size), and a list that had been scrolled sideways
+        /// and whose columns then fitted kept its headings and rows as far right as it had been scrolled, with no bar left
+        /// to scroll them back: Windows had taken the scroll back twice. A mirrored list is scrolled to its first column
+        /// whenever its columns are wider than it is (StartAtFirstColumn) - and History, built while the window had not
+        /// yet given it its room (133 px wide, no row tall), was scrolled 107 px to the right before it took its full
+        /// width: in Arabic and Hebrew it showed its End column alone, at its right, and every other column past its edge,
+        /// headings and rows blank. Left to right the same followed a sideways scroll and a wider window. Mirrored, a list
+        /// still wider than its columns once it has its size starts at its first column again.
+        private void FromFirstPixel()
+        {
+            if (!List.IsHandleCreated || !NativeAcross) return;
+            Read();
+            int at = sideScroll.Position - sideScroll.Min;
+            if (at > 0) SendMessage(List.Handle, LVM_SCROLL, new IntPtr(-at), IntPtr.Zero);
+            startedRight = false;
         }
 
         /// Whether the list now shows its first column: at the left, scrolled not at all, or at the right where it stands

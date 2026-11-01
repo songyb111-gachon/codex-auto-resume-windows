@@ -29,7 +29,7 @@ from codex_auto_resume.domain.plughands import Widening
 
 from .. import statement
 from ..codex import inuse, ipc
-from ..codex.turns import Turns
+from ..codex.turns import Turns, booted_of
 from ..vocabulary import ContinuationKind, ContinuationReason, OptionKey, RecordState
 from .continued import answer_key, words_pass
 from .usage import AFTER_RESET_KEY, EVERY_CONVERSATION, NOTICE_FOR, ON, WRAP_UP, UsagePause, _reset_since
@@ -127,7 +127,7 @@ class UsageStop(UsagePause):
     def _running(self, view) -> list:
         """(thread, turn) of each conversation switched on, of the kind core recovers, whose latest turn runs."""
         turns, source, found = Turns(self._codex_home()), self._source(), []
-        for thread in turns.running():
+        for thread in turns.running(booted=booted_of(self.paths)):
             try:
                 if view.thread_enabled(thread) is not True or source.latest(thread) is None:
                     continue

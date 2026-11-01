@@ -64,7 +64,12 @@ class Point(StrEnum):
 
     P20 (v0.6.19) is not a question either: core tells the plug each notice it raises, as P14 tells a move - its kind,
     its category word, its record's place in Pending and when, closed words and numbers only (Guarded.notice), and
-    only while the plug wants it. Its answer is not read."""
+    only while the plug wants it. Its answer is not read.
+
+    P21 (v0.6.20, Discussion #57) is asked by the watcher's power action, and only for an arming made for tasks a
+    person picked (control/poweraction.py, `tasks`): how those tasks stand, one closed word (PowerTasks) and the ids of
+    their conversations, checked before core takes it (Guarded.power). Core decides from the word as it decides from
+    its own batch; an arming without `tasks` - every one the standard edition makes - never asks."""
     RECORDS = "records"                      # P2  records of the advanced store, due now
     GATES = "gates"                          # P3  the gates a record passes before it is sent
     TEXT = "text"                            # P4  what the continuation says
@@ -84,6 +89,7 @@ class Point(StrEnum):
     SESSIONS = "sessions"                    # P18 which conversations besides the app's core watches
     ELIGIBILITY = "eligibility"              # P19 which of the app's conversations core takes up
     NOTICE = "notice"                        # P20 a notice core raised, told
+    POWER = "power"                          # P21 how the tasks a person armed the power action for stand
 
 
 class Alternative(StrEnum):

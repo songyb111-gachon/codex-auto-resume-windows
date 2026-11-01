@@ -18,6 +18,11 @@ P8's errand: with no run live, Codex closed and nothing holding the conversation
 inside core's errand guard, and read back.
 
 Never for a usage, rate, sign-in or billing failure: only server_5xx with Codex's capacity code.
+
+Beside headless_run (v0.6.20, the pair audit's V20-1): this answers P16 first, and where the conversation turns out to
+be on Codex's default model already there is nothing to fall back to - its route starts nothing, and core gives the
+claim back. That conversation is then left at P16 for ON_DEFAULT_FOR, so headless_run's turn on the same model - or,
+with it off, core's own wait - is what it gets, instead of this answering again at every look and starting nothing.
 """
 from __future__ import annotations
 
@@ -38,11 +43,15 @@ DEFAULT_ATTEMPTS = 2
 NOT_RESTORED = "model_not_restored"
 # How often a model still owed back is tried again, in seconds: a restore Codex refuses is not asked every tick.
 RESTORE_EVERY = 600
+# How long a conversation found on Codex's default model already is left to the others at P16, in seconds: a day, the
+# span its ceilings count in. Codex closed, nothing changes a conversation's model meanwhile.
+ON_DEFAULT_FOR = 86400
 
 
 class ModelFallback:
     """The capability's code: its hooks at P16 and P8. `bind` gives it its view of the state (state.Scoped)."""
-    __slots__ = ("paths", "_scoped", "_turns", "_open", "follower", "_app", "_routes", "_unheld", "_tried")
+    __slots__ = ("paths", "_scoped", "_turns", "_open", "follower", "_app", "_routes", "_unheld", "_tried",
+                 "_on_default")
 
     def __init__(self, paths, *, turns=None, session=None, follower=None, app_running=None, unheld_now=None):
         self.paths, self._scoped, self._turns = paths, None, turns
@@ -52,6 +61,7 @@ class ModelFallback:
         self._routes = {}
         self._unheld = unheld_now if unheld_now is not None else _unheld_now(paths)
         self._tried = {}
+        self._on_default = {}
 
     def bind(self, scoped):
         self._scoped = scoped
@@ -76,13 +86,28 @@ class ModelFallback:
         key = record.get("interruption_id") if isinstance(record, dict) else None
         if (not unheld(record) or record.get("category") != KIND or not ids.is_interruption_id(key)
                 or self._scoped is None or self.follower.live() is not None
-                or (record.get("chain_continuations") or 0) < self._attempts() or not self._overloaded(record)):
+                or (record.get("chain_continuations") or 0) < self._attempts() or self._defaulted(record)
+                or not self._overloaded(record)):
             return DEFER
         route = headless.HeadlessRun(CAPABILITY, key=key, session=self._open, follower=self.follower,
                                      seconds=HOUR, mode=headless.FALLBACK, app_running=self._app,
                                      owe=lambda thread_id, model, seconds: self._owe(key, thread_id, model, seconds))
         self._routes = {key: route}
         return route
+
+    def _defaulted(self, record) -> bool:
+        """Whether the record's conversation was found on Codex's default model already within ON_DEFAULT_FOR (V20-1):
+        what a route of its own found is taken in first, once."""
+        try:
+            now = self._scoped.now()
+        except Exception:
+            return False
+        for route in self._routes.values():
+            thread, route.on_default = getattr(route, "on_default", None), None
+            if thread is not None:
+                self._on_default[thread] = now
+        self._on_default = {thread: at for thread, at in self._on_default.items() if 0 <= now - at < ON_DEFAULT_FOR}
+        return record.get("thread_id") in self._on_default
 
     def _owe(self, key, thread_id, model, seconds) -> bool:
         now = self._scoped.now()

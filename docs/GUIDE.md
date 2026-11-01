@@ -557,8 +557,17 @@ tasks, each with its own **Auto-resume** switch bound to that task's exact inter
 **Pause recovery** or **Resume recovery**, and **Open Dashboard**. A click anywhere else, or Esc,
 closes it too. The popup runs inside the watcher process, on the icon's own thread, and goes
 through the same control layer as every other surface; nothing in it can send a continuation.
-The right-click menu is what it was: it opens the Dashboard, pauses or resumes recovery, and
-stops the watcher; it is drawn dark while the popup is. The popup and the menu take up a new
+A right click on the icon opens its menu, drawn in the popup's own design: a line that says how
+the watcher is doing, **Open Dashboard**, **Show what is waiting** while anything waits,
+**Pause recovery** or **Resume recovery**, **Don't sleep after recoveries** (or hibernate, shut down)
+while that power action is armed, and **Stop the watcher**. It opens at the pointer, light or dark
+as the popup is, in the system's colours in High Contrast, and right to left in Arabic and Hebrew.
+The arrow keys, Home and End move through it, Enter or an item's first letter chooses, and Esc, Alt,
+a click anywhere else or switching to another window closes it; a screen reader reads it as a menu.
+Where it cannot be drawn, Windows' own menu opens with the same items. A task's own menu in the popup is drawn
+the same way, and its **Postpone** and **How this conversation resumes** open their choices beside them: the right
+arrow, Enter, a click or resting the pointer opens them, and the left arrow or Esc closes them - the other way round in
+Arabic and Hebrew. The popup and the menu take up a new
 language or theme the next time they open, without restarting the watcher. The countdown only means the watcher looks again — nothing is sent because it
 reaches zero. The icon is on by default and can be switched off on the Settings page.
 
@@ -886,17 +895,7 @@ Measurements MP1 to MP3, that the Codex app shows the panel there as it should, 
 
 For development, or if you would rather run it yourself. This is not a third way to install the
 product — it is the engine on its own, with no settings window, no panel and no bundled runtime,
-and it needs **Python 3.13 or newer** installed (CI runs it on 3.13 and 3.14).
-
-Whichever `python` you start it with, a run you start at a console - and the sign-in entry and the
-notification button it registers - goes on under the newest Python installed: the newest final,
-64-bit release of 3.13 or later with a `pythonw.exe` beside it, as Windows lists them for the `py`
-launcher (the PythonCore entries under HKCU and HKLM, only read). Install a newer Python and the
-next start uses it, with nothing to register again - but the sign-in entry still names the Python it was
-registered with, so if you uninstall that one, run `enable` again. Set `CODEX_AUTO_RESUME_PYTHON` to a
-`python.exe`, a `pythonw.exe` or its folder to pin one, or to `current` to keep the one you started;
-`doctor` says which Python a run from source starts and why. An installation never does this: it
-keeps the runtime it brought.
+and it needs **Python 3.13 or newer** on your PATH (CI runs it on 3.13, 3.14 and 3.15).
 
 ```bash
 git clone https://github.com/songyb111-gachon/codex-auto-resume-windows.git
@@ -1392,6 +1391,13 @@ Codex, changes no Windows setting, starts no program and needs no administrator.
 leave Windows' wake timers as they are, and a shut down forces no program closed. What it keeps is one
 file, `config\power-action.json`: ids, times and closed words, never a title or a path.
 
+**After tasks you pick, in the advanced edition.** The advanced edition can arm this same power action for
+conversations whose turn is running now, on the Advanced features page, once it is turned on there: it acts when
+every task you picked has ended - completed, or also failed or interrupted if you chose so, after any usage-limit
+recovery of it - and every other condition above holds. The card here then says the PC acts when the tasks you
+picked finish, its notice says it is for them, and everything under **Turning it off** turns it off. See
+[Sleep or shut down after tasks you pick](EDITIONS.md#sleep-or-shut-down-after-tasks-you-pick).
+
 ### The watcher's memory, how it stopped, and a status file
 
 From v0.6.11 the watcher asks Windows, after every check, how much memory its own process has
@@ -1884,8 +1890,8 @@ python -m unittest discover -s tests
 
 These tests use fakes and temporary directories. They never contact the ChatGPT app and never send a
 message to any conversation, so they are safe to run anywhere and are what CI runs. CI runs every one
-of them on Python 3.13 and 3.14, each of which has to pass, and on Python 3.15 as an experimental,
-advisory job whose result is shown but does not block.
+of them on Python 3.13, 3.14 and 3.15, each of which has to pass, and each job takes the newest release of
+its line there is, so the source is always tested on the newest Python.
 
 There is also an opt-in live check against your real environment. It verifies binary discovery,
 app pairing, loaded-state classification, and usage reading. It sends no message to any

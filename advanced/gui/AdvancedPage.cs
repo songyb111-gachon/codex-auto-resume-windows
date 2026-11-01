@@ -700,6 +700,13 @@ namespace CodexAutoResume
                 MethodInvoker after = done;
                 done = delegate { ReadAccount(after); };
             }
+            // v0.6.20: the conversations running now and the tasks the power action waits for (AdvancedPowerTasks.cs) -
+            // asked only while the capability is on or watched.
+            if (id == PowerTasksId && Standing(item))
+            {
+                MethodInvoker after = done;
+                done = delegate { ReadPowerTasks(after); };
+            }
             // v0.6.16-beta.4: the wrap-up's own wordings (AdvancedUsage.cs).
             if (id == WrapUpId)
             {
@@ -941,7 +948,7 @@ namespace CodexAutoResume
                            (IsReport(item) ? ReportShown() : "") + "|" +
                            ResetsShown(item) + "|" + KeepGoingShown(item) + "|" + QueueShown(item) + "|" +
                            WordingsShown(item) + "|" + RunsShown(item) + "|" + CourierShown(item) + "|" + AnalyticsShown(item)
-                           + "|" + AnchorShownText(item) + "|" + AccountShown(item);
+                           + "|" + AnchorShownText(item) + "|" + AccountShown(item) + "|" + PowerTasksShown(item);
             if (shown == advancedShown)
             {
                 UpdateAdvancedButtons();
@@ -972,6 +979,7 @@ namespace CodexAutoResume
             ForgetCourierCard();
             ForgetAnalyticsCard();
             ForgetQueueCard();
+            ForgetPowerTasksCard();
             if (item == null)
             {
                 TableLayoutPanel card = NewGroup(Word("page.nav", "Advanced features"), advancedStack);
@@ -1131,6 +1139,8 @@ namespace CodexAutoResume
             BuildAnalytics(item);
             // v0.6.20: the Codex account signed in, and how to switch it (AdvancedAccount.cs).
             BuildAccount(item);
+            // v0.6.20: the tasks the power action waits for, or the form they are picked with (AdvancedPowerTasks.cs).
+            BuildPowerTasks(item);
 
             // Its own choices, the rules a person writes for Codex's error codes and the samples of what nothing classified,
             // each only for a capability that has them - the last two once they have been read.
@@ -1636,6 +1646,7 @@ namespace CodexAutoResume
             UpdateAnalyticsButtons(idle);
             UpdateQueueButtons(idle);
             UpdateAccountButtons(idle);
+            UpdatePowerTasksButtons(idle);
             UpdateReportButtons();
         }
 

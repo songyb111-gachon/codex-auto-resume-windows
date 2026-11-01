@@ -45,7 +45,8 @@ MEASUREMENT_METHODS = {
     Measurement.M2: ("thread/loaded/list", "thread/goal/get", "thread/goal/set"),
     Measurement.M2B: ("thread/goal/get", "thread/goal/set", "thread/queue/add", "thread/queue/list"),
     Measurement.M3: ("thread/queue/add", "thread/queue/list"),
-    Measurement.M4: ("hooks/list",),
+    # v0.6.20: M4 makes its failed turn itself, as M6 starts its turn (a model no Codex offers).
+    Measurement.M4: ("hooks/list", "thread/resume", "turn/start", "turn/interrupt", "thread/unsubscribe"),
     Measurement.M5: ("thread/loaded/list", "thread/queue/list"),
     Measurement.M6: ("thread/resume", "turn/start", "turn/interrupt", "thread/unsubscribe"),
     Measurement.M7: ("thread/queue/add", "thread/queue/list"),
@@ -113,6 +114,9 @@ MEASUREMENT_METHODS = {
     Measurement.MTOK: (),
     Measurement.MOPEN: (),
     Measurement.MAL: ("account/read",),
+    # v0.6.20 final: MALR reads the account as MAL does, then restarts the Codex app as the card's Restart does (a
+    # process ended and started, not a call) and reads it once more.
+    Measurement.MALR: ("account/read",),
     Measurement.MWAKE: (),
     Measurement.MHK: (),
     Measurement.M4B: ("hooks/list",),
@@ -126,6 +130,8 @@ MEASUREMENT_METHODS = {
     Measurement.MSTEER: ("turn/steer",),
     # MSTEER2 uses the Desktop's IPC pipe (codex/ipc.py), not an app-server session: no protocol method.
     Measurement.MSTEER2: (),
+    # v0.6.20: MGAVE reads the history's database and the rollouts of a Codex home - no session.
+    Measurement.MGAVE: (),
 }
 
 # The methods a capability's own route may call, beyond `initialize` - each one a measurement

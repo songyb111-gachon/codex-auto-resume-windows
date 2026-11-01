@@ -509,10 +509,12 @@ class _PowerPort:
         raise ProcessRefused("a wire golden never puts its machine to sleep")
 
 
-def _power(reasons=(), *, arm=None, end=None, show=None, **managed_values):
+def _power(reasons=(), *, arm=None, end=None, show=None, tasks=False, **managed_values):
     """The power action's port stood in for, for this one case (v0.6.12), and - in this order, through the
     product's own control layer, and left as they are for the cases after it - an arming, the end of its
-    first batch, and what the watcher shows of the next. `managed_values` are an administrator's keys."""
+    first batch, and what the watcher shows of the next. `managed_values` are an administrator's keys. `tasks`
+    (v0.6.20): the arming made for tasks a person picked, as the advanced edition's page makes it - through a plug of
+    this file's own that answers for them (P21), since the standard edition's never does."""
     @contextmanager
     def using(workspace):
         from codex_auto_resume import config, control, managed
@@ -524,7 +526,10 @@ def _power(reasons=(), *, arm=None, end=None, show=None, **managed_values):
                 stack.enter_context(patch.object(policy, "managed_policy",
                                                  return_value=managed.Managed(**managed_values)))
             layer = control.Control(config.Paths(workspace / "home"))
-            if arm is not None:
+            if tasks:
+                control.Control(config.Paths(workspace / "home"), plug=_tasks_plug()).arm_power_action(
+                    dict(arm), tasks=True)
+            elif arm is not None:
                 layer.arm_power_action(dict(arm))
             if end is not None:
                 layer.power_batch_end(layer.read_power_action()[1]["armed"]["nonce"], end)
@@ -532,6 +537,18 @@ def _power(reasons=(), *, arm=None, end=None, show=None, **managed_values):
                 layer.power_show(layer.read_power_action()[1]["armed"]["nonce"], dict(show))
             yield
     return using
+
+
+def _tasks_plug():
+    from codex_auto_resume.domain.plug import Plug, Point
+
+    class TasksPlug(Plug):
+        """A plug that answers for tasks a person picked (P21), as the advanced edition's does once it is turned on."""
+        __slots__ = ()
+
+        def wants(self, point):
+            return point == Point.POWER
+    return TasksPlug()
 
 
 SLEEP_ONCE = {"action": "sleep", "after": "all_recovered", "repeat": "once", "grace_minutes": 5}
@@ -812,7 +829,9 @@ BRIDGE_CASES = {
         Case("hibernation off in Windows", using=_power(NO_HIBERNATION)),
         Case("an account Windows lets do none of them", using=_power(NONE_FOR_THIS_ACCOUNT)),
         Case("while an administrator's DisablePowerAction is set", using=_power(disable_power_action=True)),
-        Case("armed to shut down every time", using=_power(arm=SHUT_DOWN_ALWAYS))],
+        Case("armed to shut down every time", using=_power(arm=SHUT_DOWN_ALWAYS)),
+        # v0.6.20 (Discussion #57): armed on the advanced edition's page for tasks a person picked - once, with `tasks`.
+        Case("armed for tasks a person picked", using=_power(arm=SLEEP_ONCE, tasks=True))],
     "power-arm": [
         Case("armed to sleep once, after every recovery succeeded", SLEEP_ONCE, using=_power()),
         Case("a second arming replaces the first", SHUT_DOWN_ALWAYS, using=_power()),

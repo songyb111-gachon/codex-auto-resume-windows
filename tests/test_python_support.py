@@ -53,9 +53,12 @@ def workflow(name: str) -> str:
 
 class PolicyShapeTests(unittest.TestCase):
     def test_every_version_is_a_python_minor(self):
-        for key in ("minimum", "future_prerelease", "release_build"):
+        for key in ("minimum", "release_build"):
             with self.subTest(key):
                 self.assertRegex(POLICY[key], VERSION)
+        # null while the next Python has no release candidate to run (since 2026-10-31).
+        if POLICY["future_prerelease"] is not None:
+            self.assertRegex(POLICY["future_prerelease"], VERSION)
         for version in POLICY["blocking"]:
             with self.subTest(version):
                 self.assertRegex(version, VERSION)
@@ -82,10 +85,16 @@ class PolicyShapeTests(unittest.TestCase):
 
     def test_the_future_lane_is_newer_than_everything_that_blocks(self):
         newest = max(int(v.split(".")[1]) for v in POLICY["blocking"])
-        self.assertGreater(int(POLICY["future_prerelease"].split(".")[1]), newest)
+        if POLICY["future_prerelease"] is not None:
+            self.assertGreater(int(POLICY["future_prerelease"].split(".")[1]), newest)
 
     def test_the_future_lane_has_not_quietly_become_a_blocking_one(self):
         self.assertNotIn(POLICY["future_prerelease"], POLICY["blocking"])
+
+    def test_the_newest_python_released_blocks(self):
+        """The owner, 2026-10-31: the CI for source runs must run the newest Python, and only the newest line
+        is required. The line that is newest is 3.15; a lane that is merely advisory does not count."""
+        self.assertEqual(POLICY["blocking"][-1], "3.15")
 
 
 class WorkflowAgreementTests(unittest.TestCase):
@@ -99,10 +108,31 @@ class WorkflowAgreementTests(unittest.TestCase):
         self.assertEqual(self.matrix_versions(), POLICY["blocking"])
 
     def test_the_future_lane_is_in_the_workflow_and_marked_experimental(self):
+        """When a next Python is named, its lane is the workflow's `include` entries, each experimental; when
+        none is (null), the workflow has no experimental lane at all - not one entry, not an `include`."""
         text = workflow("test.yml")
-        self.assertIn('python-version: "%s"' % POLICY["future_prerelease"], text)
-        self.assertIn("experimental: true", text)
         self.assertIn("continue-on-error: ${{ matrix.experimental }}", text)
+        self.assertIn("experimental: [false]", text)
+        future = POLICY["future_prerelease"]
+        if future is None:
+            self.assertNotIn("experimental: true", text)
+            self.assertNotRegex(text, r"(?m)^\s+include:")
+        else:
+            self.assertIn('python-version: "%s"' % future, text)
+            self.assertIn("experimental: true", text)
+
+    def test_every_python_the_ci_sets_up_is_its_lines_newest_release(self):
+        """check-latest makes setup-python look past the runner's cache for the line's newest release. The owner's
+        rule of 2026-10-31: the CI always runs the newest Python, and the bundled one stays pinned until it is moved -
+        so every lane of the test job asks for it, once, in its one setup. The main-tree job is the release lane on
+        main's tree and runs the release's pinned patch, as release.yml does (the owner, 2026-10-31); neither asks."""
+        text = workflow("test.yml")
+        asked = re.findall(r"(?m)^\s+check-latest: (.+?)\s*$", text)
+        self.assertEqual(asked, ["true"])
+        self.assertIn("python-version: ${{ matrix.python-version }}", text)
+        for name in ("release.yml", "sync-ko.yml", "community-report.yml"):
+            with self.subTest(name):
+                self.assertNotIn("check-latest", workflow(name), "a release's Python is a pin, not the newest")
 
     def test_only_the_future_lane_is_allowed_to_fail_quietly(self):
         """`continue-on-error` on the whole job would silence the versions that matter."""
@@ -122,8 +152,14 @@ class WorkflowAgreementTests(unittest.TestCase):
                       "if: !matrix.experimental", "if: ${{ !matrix.experimental"):
             self.assertNotIn(guard, text, "a lane is being spared a step")
 
-    def test_prereleases_are_permitted_where_the_interpreter_is_chosen(self):
-        self.assertIn("allow-prereleases: true", workflow("test.yml"))
+    def test_prereleases_are_permitted_only_while_a_prerelease_lane_exists(self):
+        """Every lane is a released Python now, so none needs allow-prereleases; the edit that names the next
+        Python in the policy adds it back with that lane."""
+        text = workflow("test.yml")
+        if POLICY["future_prerelease"] is None:
+            self.assertNotIn("allow-prereleases", text)
+        else:
+            self.assertIn("allow-prereleases: true", text)
 
     def test_the_workflows_that_pin_one_version_pin_a_supported_one(self):
         """release.yml, sync-ko.yml and community-report.yml each choose a single interpreter."""
@@ -167,20 +203,21 @@ class BundledRuntimeTests(unittest.TestCase):
 
 
 class ShippedRuntimeLaneTests(unittest.TestCase):
-    """The suite and the release build run on the Python a release bundles, to the patch.
+    """The release build tests and builds on the Python a release bundles, to the patch; the CI runs the newest.
 
-    2026-10-17: the runners moved 3.13 to 3.13.16 and the 3.13 lane alone went red on a tray-popup test that
-    passes on 3.13.15 - the version every user runs. A lane on a newer patch than the bundled one tests a
-    Python nobody has; a move of the bundled runtime is a change of its own, made here and tested first.
+    The owner, 2026-10-31: the CI always on the newest Python, the bundled one pinned until we move it. The bundled
+    runtime moves only when someone moves it (python_support.json, build/make_release.py), and release.yml runs the
+    suite on it before it builds; test.yml names no patch at all, so every lane is the newest of its line. (2026-10-17
+    the runners' newer 3.13.16 turned one tray-popup test red that passed on 3.13.15: the newest is what the CI is for.)
     """
 
     def patches(self, name):
         return re.findall(r"3\.\d+\.\d+", workflow(name))
 
-    def test_the_test_workflow_runs_the_bundled_patch_in_its_lane(self):
-        found = self.patches("test.yml")
-        self.assertTrue(found, "test.yml lets the runner choose the bundled line's patch")
-        self.assertEqual(set(found), {POLICY["bundled_runtime"]})
+    def test_the_test_workflow_pins_only_the_main_tree_job(self):
+        """Its lanes name no patch, so each is the newest of its line; its main-tree job, the release lane on main's
+        tree, names the bundled patch, as release.yml does."""
+        self.assertEqual(self.patches("test.yml"), [POLICY["bundled_runtime"]])
 
     def test_the_release_workflow_tests_and_builds_on_the_bundled_patch(self):
         self.assertEqual(self.patches("release.yml"), [POLICY["bundled_runtime"]] * 2)

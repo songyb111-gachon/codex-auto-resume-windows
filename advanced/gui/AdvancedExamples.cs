@@ -358,16 +358,24 @@ namespace CodexAutoResume
                          Says(f => f.Word("page.feed.degraded", "OpenAI reports degraded service")))),
                 Ex("account_switch",
                    Scene(Says(f => f.ExampleField("account_switch", "instead"))),
-                   // Its button waits for the MAL measurement: the card says so, and the example says what the card says.
+                   // Its button waits for the MALR measurement: the card says so, and the example says what the card says.
                    Scene(Says(f => f.Word("page.account.signed_in", "Signed in: {account}", "account", "e•••@example.com")),
                          Says(f => f.Word("page.refused.switch_unmeasured",
-                                          "It has not been measured on this Codex that the running app follows a sign-in made from here. Switch in Codex instead.")))),
+                                          "It has not been measured on this Codex that a sign-in made from here, followed by a restart of Codex, brings Codex up with the new account. Switch in Codex instead.")))),
                 Ex("steer_send",
                    Scene(Says(f => f.ExampleField("steer_send", "instead"))),
                    // With its warning: the line reaches the turn, and the Codex app does not show it.
                    Scene(Says(f => f.Word("page.pending.kind.steer", "Steer") + " · " + f.Word("page.steer.state.accepted", "accepted")),
                          Says(f => f.Word("page.steer.note.accepted", "The Codex app took it into the running turn.")),
                          Says(f => f.Word("page.editor.steer.warning", "The Codex app does not show the steered line anywhere.")))),
+                // v0.6.20 (Discussion #57): the tasks a person picked, and the power action waiting for them.
+                Ex("power_after_tasks",
+                   Scene(Says(f => f.ExampleField("power_after_tasks", "instead"))),
+                   Scene(Says(f => f.Word("page.powertasks.line", "{conversation} · {end}", "conversation", ExampleProject)
+                                    .Replace("{end}", f.PowerTaskEnd("completed"))),
+                         Says(f => f.Word("page.powertasks.line", "{conversation} · {end}", "conversation", ExampleService)
+                                    .Replace("{end}", f.PowerTaskEnd("running"))),
+                         Says(f => f.PowerWaitLine("tasks_running")))),
                 // Hidden on the page until MHK, M4 and M4B are measured: its example waits with it.
                 Ex("stop_hook_continuation",
                    Scene(OnHistory(Rec(ExampleProject, "recovered", "network_transient", -60, -44)),
@@ -555,13 +563,12 @@ namespace CodexAutoResume
             dialog.Font = Font;
             dialog.BackColor = Canvas;
             dialog.ForeColor = Ink;
-            Soft.TitleBar(dialog);
+            Soft.DialogBar(dialog);
             dialog.FormBorderStyle = FormBorderStyle.FixedDialog;
             dialog.StartPosition = FormStartPosition.CenterParent;
             dialog.MinimizeBox = false;
             dialog.MaximizeBox = false;
             dialog.ShowInTaskbar = false;
-            dialog.ShowIcon = false;
             // As wide as it was drawn for, or what the screen it opens on holds, less its frame and room around it; what is
             // inside takes its width from the dialog, so nothing is cut off at either edge.
             Rectangle area = ExampleScreen();

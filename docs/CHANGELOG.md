@@ -1,5 +1,246 @@
 # Changelog
 
+## v0.6.20 — A status light for every state, Arabic and Hebrew with the window mirrored, a conversation an agent made recovered when you started the turn, the open Dashboard brought forward, and the advanced edition's analytics, push notices, early 5-hour window, account switch, compatibility data and the rest of issue 50
+
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.19...v0.6.20)
+
+**From v0.6.19, an ordinary update.** It is the latest release, for both editions, so v0.6.19's *Check for updates* offers it in
+the edition you have, an installation of one of the v0.6.20 pre-releases is offered it the same way, and the plugin in Codex
+installs it too. It follows four pre-releases - v0.6.20-beta, -beta.2, -beta.3 and -beta.4 - and this entry tells everything they
+carried, in the form it has now: where a later pre-release replaced an earlier one's item, only the later one is told, and what
+came after the last of them is marked "(new since beta.4)". One thing beta.4 carried is taken back, and it is told once, at the
+end of the first group. Both editions change in the first group; the second is the advanced edition's alone, and what it changes
+is off until you turn it on. What this release does not carry - the loopback API and its web view, remote control, a view of other
+PCs, and the switch to Python 3.15 - is v0.6.21 now.
+
+**Going back.** The watcher's state stays schema 5, and the settings file gains no key. The advanced edition's own file is now
+version 9, brought up from version 8 the first time it is opened, every row kept: one table is added - the steered lines, below -
+and the stored choices are where they were, so the Advanced features page's new order moves none of them. The file stays marked as
+readable from version 7, so v0.6.19, v0.6.18 and v0.6.17 use it as it is and keep every advanced feature on; they pass over the
+table they do not know. v0.6.16 and the versions before it read no such mark, refuse the file as newer and run with every advanced
+feature off, writing nothing, and *Install another version...* says so before it installs one of them. The advanced edition may
+keep one more small file of its own in the installation's config folder - its compatibility data, below - which an earlier version
+does not look at. If you chose Arabic or Hebrew, an earlier version reads the choice as English. What does travel with the version
+is the Python that comes bundled: it is part of the archive the installer unpacks, so this version brings 3.14.10, and installing
+an older version brings the runtime that version was built with (3.14.9 for v0.6.19, 3.13.15 for v0.6.18).
+
+### Both editions
+
+- **A conversation an agent made is recovered when you started the failed turn yourself** (reported by
+  [@kano0222](https://github.com/kano0222), [#54](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/54)).
+  Codex labels a conversation an agent opened as `agent_created_thread`, and both editions left every such conversation alone as
+  Codex's own work - also when you had gone on using it from the input box, so a usage limit there was never recovered. Codex
+  writes in a conversation's file how each turn was started; the watcher now reads that for the failed turn and takes the
+  conversation up as yours when that turn came from the input box (`composer`), and only then. A turn Codex queued, a goal's
+  turn, a review's, or one whose start Codex did not record stays excluded as before, and so does a conversation whose file
+  cannot be read. Codex records the continuation this product sends as a queued turn, so if that continuation stops at a limit
+  too, it is not taken up again: one recovery for each turn you started. Measured on codex-cli 0.164. In the advanced edition,
+  *Recover every conversation but Codex's own* follows the same rule for these conversations.
+- **The notification area brings the open Dashboard forward** (reported by
+  [@CuuuuteBrainGoo](https://github.com/CuuuuteBrainGoo),
+  [#55](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/55)). *Open Dashboard*, *Show what is waiting*, the
+  popup's Dashboard button and a notification's Open each started another Dashboard window, because the window had no rule to keep
+  to one. Now each asks the window already open for this installation to show that page and come to the front, and a new window
+  starts only when none is open. Pause and Resume in the menu already acted without a window, and still do.
+- **The status light is checked for every state.** Work in progress is lit as it happens: the working light shows in the
+  Dashboard's header, and the application's icon and its taskbar button follow it, while the watcher starts and while an action
+  you began - *Retry now*, *Rescan* or another - waits for its answer, and it goes back the moment the answer comes. The owner's
+  amended standard J14 (2026-10-29) decides the rest. Red is for a failure that is certain, not hidden and not yet seen, after
+  which nothing started: a recovery that failed, one whose attempts ran out, and one handed over to you. A sending whose arrival
+  or outcome cannot be confirmed no longer counts as a failure: it asks for your attention, in amber. So does a record held for
+  you, in the window, the taskbar, the icon, the popup, the panel and the card. A stopped watcher and one that needs you keep their
+  own light.
+- **The Dashboard the watcher opened is opened again after a Repair, on the page it showed.** A Dashboard closed for a repair or
+  an update came back only on the standard window's own pages; a window on the Advanced features or Chat page, or one that stayed
+  inside another application's view, was closed and never opened again. Each now opens again where it was.
+- **Arabic and Hebrew are offered, with every surface mirrored.** They are listed in the language pickers by their own names,
+  reached from an Arabic or Hebrew Windows, accepted as the interface and the continuation language, and offered by the setup
+  window: eighteen languages in all. Written right to left, the Dashboard and its dialogs, the Advanced features page and the setup
+  window are mirrored as the popup, the card and the panel have been since v0.6.11: what stands at the left stands at the right, and
+  the scroll bars, switches, drop-downs and lists mirror with it. The arrow keys go the way the window reads (along the tabs, and in a
+  closed drop-down), a list wider than its window starts at its first column, and a number, a version, an id, a time or a path keeps
+  its own order inside a sentence. A layout check lays the window out twice - as if it read left to right, and as it does - and holds
+  every control to its first place mirrored, at 100% and 200%.
+- **Lists in dialogs stand on their own card, as History's does.** The timeline, the log and *Install another version...* put their
+  list on the same raised card the History page uses, instead of straight on the grey ground; one place in the window makes that card
+  for every dialog's list, and the layout check now finds a list that is not on one.
+- **The design choice says what Soft is.** Its help line now says that Soft is the raised, neumorphic design; the three names stay
+  as they were.
+- **The Timeline dialog's columns are measured in the window's own font from the start.** The dialog measured its columns before
+  its list had the window's font, in Windows' default one, so a column could be sized for a different face than the one drawn, and
+  differently from one PC to the next. The columns now match the text on every machine.
+- **Python 3.14.10 is bundled in place of 3.14.9.** It is the bugfix release of 2026-10-25, pinned by version and SHA-256 as the
+  last one was, with remote debugging off in it as before. The release run and the tests on the bundled Python use it too.
+- **The README's pictures show more.** The first motion shows *Retry now* lighting the working light, Pause and then Resume, *Why it
+  is waiting* scrolled to its end, a dialog opening centred, and the Timeline dialog with the product's icon (it had shown Windows'
+  default form icon, and then coloured noise where the icon stood, because the icon's images are compressed in a way the
+  picture-drawing code could not paint); the notification-area picture shows the switches turned off and on, with the pointer.
+- **For contributors: the CI runs every non-live test on Python 3.13, 3.14 and 3.15** (new since beta.4). All three lanes block now,
+  each on the newest release of its line, and the main-tree job and the release workflow run the bundled Python 3.14.10, which stays
+  pinned until it is moved on purpose. Every picture of the window is drawn offscreen at a pinned 150% on any display, with
+  Windows' title bar kept from one capture, instead of photographed on the screen at the display's own scaling, and is now the
+  window's own size on a screen smaller than the window (`docs/DEVELOPMENT.md` and `docs/BRAND.md` say how; a real capture is
+  `--capture`). Nothing a person sees in the program changes with it.
+- **A run from source goes on under the Python that started it, as it did before beta.4** (new since beta.4). Beta.4 made a run
+  from source start itself again under the newest Python installed, with `CODEX_AUTO_RESUME_PYTHON` to pin one and a line in
+  `doctor` saying which. The request behind it had been about the CI's Pythons, not about the product choosing an interpreter, so
+  this release takes it back: a run from source uses the Python that started it, `doctor` no longer prints that line, and
+  `CODEX_AUTO_RESUME_PYTHON` is gone.
+
+- **The icon's right-click menu is drawn in the popup's design** (new since beta.4; the owner's request). It opens at the pointer on
+  that monitor's scale, shows the item in hand as a raised pill, takes the arrow keys, Home and End, Enter, an item's first letter
+  and Esc, closes on a click outside, is read as a menu by a screen reader, follows High Contrast, and opens mirrored in Arabic and
+  Hebrew. It has no bright edge round it, as the popup's raised cards have, and no shadow either (light's pale shadow shone like a
+  glow on a dark taskbar). Its items are the ones Windows' menu had, from one list;
+  where it cannot open, Windows' menu opens as before. The popup's row menus open in the same drawn menu, with *Postpone* and the
+  tier choices as submenus beside their items (to the left in Arabic and Hebrew); their items and actions are the ones they had.
+- **Starting the Dashboard again brings the open one forward** (new since beta.4). A Start menu shortcut or the program started
+  directly now hands over to the Dashboard already open, on the page asked for, as the notification area's opens do since beta.2,
+  instead of opening a second window.
+- **Mirrored lists keep their columns** (new since beta.4). In Arabic and Hebrew the History list showed only its End column: a list
+  built narrow scrolled to its first column and kept that scroll once it widened. Every list now starts from its first pixel when it
+  takes a new size; a left-to-right list scrolled sideways had the same fault. Each row's line now runs the whole width in Arabic
+  and Hebrew too (it stopped short of the rightmost column), in History, Pending, the Timeline and *Install another version...*.
+- **The power action no longer waits for a crash's leftovers** (new since beta.4). A turn Codex still records as in progress
+  though it began before Windows last started, and an item queued before then, counted as Codex still working, so on a PC that
+  ever had Codex end abruptly the power action waited for good. Both now count only since Windows last started, the time the
+  watcher records, by the rule recovery already used for a turn left in progress; with no such time it does nothing, as before.
+- **Smaller things** (new since beta.4): the Timeline dialog lists its lines in time order (its receipts came after all its events);
+  the word the header shows while the window loads comes from the catalog in every language instead of English; the dialogs that hold
+  a list are no longer shown with Windows' default icon; a scroll bar's pill keeps its shadow but no lit edge; the Diagnostics page offers *Start watcher* while the watcher is
+  stopped (it kept offering *Stop watcher*), and is greyed while a start or a stop is on its way.
+- **Windows opened inside the Dashboard have no icon** (new since beta.4; the owner's choice): every dialog, picker, statement and
+  confirmation the Dashboard opens shows no icon in its title bar; the Dashboard's own window keeps it, as do the taskbar and the
+  setup program's window.
+- **The README's install motion shows the log as the setup program does** (new since beta.4): its log follows each line the installer
+  prints, as it does on a screen, instead of staying at its top.
+
+### Advanced edition
+
+- **Switch the Codex account stays on whatever its button's measurement says** (new since beta.4). The live check before this release
+  found that MAL's failure turned the whole capability off; only its button rests on MAL, so only the button is hidden now and the card
+  stays. An installation a release candidate turned off this way turns it on again on its card.
+- **Start the 5-hour window early skips instead of failing** when its own state is busy for a moment, and a capability whose code
+  raises now leaves one line in the watcher's log naming it and the exception's type (new since beta.4).
+- **The Advanced features page is in a new order** (new since beta.4; approved by the owner on 2026-10-31): the compatibility report
+  first, then what gets work going again after a usage limit with no hands, then what saves work, then the other common failures,
+  then rare cases and expert settings. Stored choices do not move.
+- **Usage and token analytics.** While it is on, the Advanced features page shows the pace of each window - its share, the change over
+  the last hour, around when it would be full beside its reset, or that there are not enough readings yet - and the tokens used, one
+  line a project with its conversations on demand. *Save as CSV...* asks before it replaces a file. Where the narrower measurement of
+  tokens failed, the card says so.
+- **Start the 5-hour window early** (the owner's request of 2026-10-28). Codex's window starts at your first use. When it is idle,
+  the watcher sends one tiny request so that it starts now and resets five hours later: at up to three times of day you pick, or right
+  after a reset it has seen. At most one start a window and five a day; never while the weekly limit is reached, recovery is paused or
+  Codex is not signed in. Measured on codex-cli 0.165: the request fixed the reset five hours on and left no conversation behind, and
+  it used under 1% of the 5-hour window. Turned on with no start time picked and *Start right after a reset* turned off, it never
+  starts a window, and its card now says so in one line, which goes as soon as you pick a time or turn that option on. It counts
+  per account (new since beta.4): after *Switch the Codex account* sees another account signed in, its start and its resets follow
+  the account now signed in, and a time picked within five hours of a start made on the other account is no longer refused.
+- **Switch the Codex account.** The account card shows the plan and a masked address of the account this PC is signed in to, and a
+  change of account holds every recovery waiting for a limit until you let it continue. Its button runs Codex's own sign-out and
+  sign-in, and then asks *Restart Codex now so it uses the new account?* (new since beta.4): a sign-in made outside the running
+  Codex app reaches it only after a full restart (MAL, on codex-cli 0.166.0-alpha.5.1, 2026-11-01). *Restart Codex* waits until
+  no turn runs in any conversation, no recovery waits or runs and nothing is queued, asks Windows to close the Codex app - ending it
+  only if that does not - opens it again on your newest conversation and reads the account afresh; *Not now* leaves the new account
+  for the next time Codex starts. The button is offered only where this route passed (MALR, on codex-cli 0.166.0-alpha.5.1,
+  2026-11-02: Codex closed on Windows' request and came back signed in); elsewhere the card says the button's measurement failed or
+  is not made yet, and how to switch in Codex. Its statement changed, so if you had it on or watched it, you read it again once.
+- **A measurement that only a part of a capability rests on never turns the capability off** (new since beta.4). A count, a second
+  worker, a parent's follow-up, the token estimate, the account button, a scheduled message's *after this turn* and spending a
+  reset credit without asking first each rest on a measurement of their own (MK, MQ, MS, MTOK, MAL, MT and MR). Listed among the capability's measurements, a failed one would have turned the whole capability off, as MAL's did to a
+  watched account switch in a candidate of this release; now it narrows only its part and the statement says that it failed, while
+  the capability stays as you left it. The words for a count, a choice after this turn and a reset's ask-first note say *failed*
+  where the measurement failed, not *unmeasured*.
+- **Sleep, hibernate or shut down after tasks you pick** (new since beta.4; asked for in
+  [Discussion #57](https://github.com/songyb111-gachon/codex-auto-resume-windows/discussions/57) by
+  [@cervinho](https://github.com/cervinho)). The Advanced features page lists your own conversations whose turn is running now:
+  pick one or more, choose what the PC does and how long the notice warns first, say whether a task that failed or was
+  interrupted counts too, and the power action of Settings is armed once for them. It acts only when every task you picked
+  has ended, no recovery waits or runs anywhere, no turn runs in any conversation, nothing is queued, Codex has finished
+  recording, nobody has used the PC for two minutes and the countdown ran out unstopped; a task cut off by a usage limit is
+  recovered first. The notice says it is for the tasks you picked and stops it for this one time; Settings, the icon and the
+  notice turn it off. It reads only how the turns end and sends nothing to Codex. The standard edition decides its power
+  action exactly as before.
+- **Push notices and OpenAI's service status, through one courier process.** With *Send notices to your phone or inbox* on, a notice
+  you picked goes as a short message to an ntfy topic, a webhook, a Telegram bot or an e-mail server you set up on the capability's
+  card; with *Show OpenAI's service status* on, the same process reads OpenAI's public status page, and the Overview says when it
+  reports degraded service or an outage. The courier is **the advanced edition's first outbound network code**, and it runs only
+  while one of the two is on, with no window and one per home. A push says what happened, the task's place in Pending, the failure's
+  category word, the time and the edition - never a conversation's title or words, a project, a path, an id, an error's text or an
+  account. The services you set up see this PC's address, and the status page sees it and the time. The addresses, tokens and
+  passwords you type are kept in Windows Credential Manager, never in a file, a log or the diagnostics. PRIVACY and SECURITY now say
+  what leaves the PC and where, and no longer say that the advanced edition adds no network code.
+- **Wake this PC for a reset also wakes it for the early 5-hour window** (new since beta.4). While both are on, the PC is woken for
+  *Start the 5-hour window early*'s picked times and for the resets it waits for, as it already was for a recovery's reset.
+- **Two pairs of capabilities that defeated each other now work together** (new since beta.4; found by an audit of every pair).
+  *Use Codex's default model when one is at capacity* now leaves a conversation that is already on the default model to *Run a
+  conversation here while Codex is closed*; it had kept claiming that conversation at every look and answered again each time, so
+  the other one's turn never came. And the 5-hour window started early is counted per account, as told above. The pairs that
+  already composed are held by tests.
+- **Two recovery records no longer wait for good** (new since beta.4). *Tell a parent which of its subagents stopped* no longer
+  leaves a record for a conversation that core never takes up. And turning *Recover every conversation but Codex's own* off cancels
+  the waiting records it widened, as turning *Recover CLI, TUI and VS Code conversations* off does.
+- **Two capabilities and one button stay hidden because their measurement failed** (new since beta.4; the button is *Switch the
+  Codex account*'s, above). Codex's own retry settings: Codex refuses
+  the write (measurement MB, on codex-cli 0.162 on 2026-10-16 and again on 0.166.0-alpha.5.1 on 2026-10-31). *Continue inside the
+  turn*, the continuation by a Codex Stop hook, which beta.3 told was built and hidden and waiting for three measurements: Codex runs
+  a plugin's Stop hook after a turn that completed, but not after one that failed, which is the case it needs (measurement M4, on
+  0.166.0-alpha.5.1, 2026-10-31); its hook claim, shared with the watcher so that only one of them continues a stop, and its
+  declaration, which stands in this product's plugin copies only while the capability is on, stay in the product. Neither has a row,
+  statement or switch; each is offered once a Codex passes.
+- **Chat shows that a message is on its way.** While a message you sent from the Chat page waits to be delivered or is on its way,
+  the header's light shows the working light and its words say *Sending...* or *Sent*, until the message is delivered, not taken,
+  failed or cancelled. Sending from a chat opened straight on its page, before the Advanced features page had been opened, no longer
+  fails.
+- **A notice opens Codex by a click, with no button for it.** With the capability that opens a conversation in Codex from a notice
+  turned on, a click on the notice itself - the card or the Windows notification - opens that conversation in Codex; the separate
+  *Open Codex* button is gone. Cancel, *Open Dashboard* and the update notice's own button are as they were, and the Chat page's own
+  choice of where a click goes still wins.
+- **Find a conversation...** (asked for by [@weng-wen-jun](https://github.com/weng-wen-jun),
+  [#50](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/50)). Beside the conversation picker of a new scheduled
+  message and of the reset message form, a button opens a search over your own conversations of the Codex home the watcher drives,
+  by name: newest first, at most 200, none archived and none you switched off for recovery, listed on the same card as every
+  dialog's list. It reads a conversation's id and name and nothing it says. The one you choose goes into the picker and is offered
+  there, after the ones Pending and History list, until the Dashboard closes. Saving a message to it asks for the same consent as
+  before. The words are in all eighteen languages.
+- **The rest of [#50](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/50)** (asked for by
+  [@weng-wen-jun](https://github.com/weng-wen-jun)):
+  - **Pictures beside the words of a queued message.** The message editor takes up to four by paste, choice or drop and shows
+    them as thumbnails, each with *Remove*. Each is checked by its bytes (PNG, JPEG, GIF or WebP, 5 MB at most) and kept as the
+    product's own copy, never your path, and the watcher sends it with the words. Measured on codex-cli 0.165: Codex took the
+    picture beside the words and showed it as your own message.
+  - **Steer the running turn, with its warning.** A new *When* choice sends a line into the turn that is running now. Measured on
+    codex-cli 0.165: the line reaches the running turn and the model follows it, but **the Codex app does not show it** as your
+    message, live or after the conversation is opened again. The editor says so, and you confirm it; History lists each steered
+    line with its words and how it ended - accepted, may have been delivered (never sent again), or refused with its reason. The
+    words are kept 30 days with the conversation. The Codex app's own pipe is the only route there is: Codex refused the same
+    call from a session of this product's own.
+  - **Open a waiting conversation in Codex to send now.** Offered: its measurement passed with the limit set at thirty seconds - on
+    codex-cli 0.165 the app held the conversation its link opened within 2 to 10 seconds.
+  - **Follow through...** in History. For a delivered message it shows the whole way: sent, delivered, each cut-off and its limit, the
+    reset its recovery waits for, where that recovery stands, and how the work ended - with one line saying whether the turn was
+    tied to the message exactly or "linked by time", where no proof is found.
+- **See an example on every capability.** The open capability's *About this feature* card ends with *See an example...*, which opens a
+  dialog with two panes, *Without it* and *With it*, drawn by the page itself from made-up samples - it reads nothing from your PC and
+  sends nothing. Every capability has one, those hidden for a failed measurement included, in all eighteen languages, and a test
+  fails when one is missing.
+- **Compatibility data of its own.** The measurement verdicts per exact Codex engine that the advanced edition's capabilities rest on
+  are published by the maintainer from the records of those measurements, in a file of its own - never in the standard data,
+  whose validators the earlier releases run. It is fetched only when you ask, at the two moments the standard data is refreshed (*Refresh
+  compatibility data* on the Diagnostics page, and a check for updates that reached GitHub), as one request to one constant address that uploads nothing;
+  PRIVACY says so. It is trusted only so far. A measurement that failed on this PC always wins. The data only narrows - a failure in
+  it adds the warning - except that a pass in it stands in for a verdict the build does not have, and only on an engine the
+  maintainer measured exactly, your exact Codex version. Data that has expired, is malformed, is too new or is older than what the
+  edition already has is ignored whole, and it never shows or hides a capability. No copy ships in the release: the first data is
+  published after this release, and until it is fetched nothing changes.
+- **Community compatibility reports can ask to be credited, and carry the advanced edition's own outcomes.** A report whose sender
+  chose it - an opt-in, off by default - is credited once in the contributors list and the README's thanks line, by the GitHub login
+  its pull request comes from: never a name typed into the file, and never the maintainer or a bot. The outcomes a report carries
+  from the advanced edition's own capabilities are counted apart as reported, never as a verdict, a level or part of the counts a
+  release ships. The public reporter that offers the choice is out (new since beta.4): its
+  [release 1.5.4](https://github.com/songyb111-gachon/codex-compat-reporter/releases/tag/v1.5.4) of 2026-10-31 asks for it.
+
 ## v0.6.20-beta.4 — Python 3.14.10, a run from source under the newest Python installed, the Timeline dialog's columns in the window's own font, and the advanced edition's compatibility data of its own
 
 [The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.20-beta.3...v0.6.20-beta.4)

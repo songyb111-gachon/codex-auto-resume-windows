@@ -181,3 +181,15 @@ def waiting_state(record: dict, now: float) -> str:
 
 
 # ---------------------------------------------------------------------------- reasons
+
+
+# A Windows start this many seconds after a turn was seen starting ended it (2026-10-21, engine/outcome._cut_off).
+BOOT_MARGIN = 5.0
+
+
+def ended_by_boot(started, booted) -> bool:
+    """Whether Windows started after a turn began - `booted`, the boot time the watcher's heartbeat records, more than
+    BOOT_MARGIN seconds after `started`, both in seconds: then the turn, whatever its row still says, can no longer
+    finish (2026-10-21, the rule of a turn that "says inProgress for good"). False where either is not a time."""
+    return (epoch(started, *EPOCH_STORE) and epoch(booted, *EPOCH_STORE)
+            and booted > started + BOOT_MARGIN)

@@ -22,7 +22,9 @@ asked to agree to and everything the plug holds it to:
   failure the person did not confirm turns it off (arming.py);
 * `measurements` - the measurements its route rests on (measure.py), if any. One that failed, or
   has no pass for the Codex in force (measured.py), is a warning in its statement, never a
-  reason to withhold it;
+  reason to withhold it; a fail the person did not confirm turns it off (arming.py);
+* `narrowed_by` - the measurements only a part of it rests on (v0.6.20): warned of as `measurements` are, read
+  where the part is decided, and never a tripwire - a fail narrows that part and leaves it on;
 * `ceilings` - how many sends it may make in a day, overall and in one conversation. Beside them
   stands one global ceiling for every capability together, GLOBAL_HOURLY an hour, which a person
   may lower and never raise (state.AdvancedState.set_global_hourly). One conversation's ceiling is
@@ -107,6 +109,7 @@ from .engine.steer import make as make_steer_send
 from .engine.silent import make as make_silent_continuation
 from .engine.oncemore import make as make_once_more
 from .engine.parallel import DEFAULT_WORKERS, WORKERS, make as make_parallel
+from .engine.powertasks import make as make_power_after_tasks
 from .engine.updatecheck import make as make_idle_update_check
 from .engine.wake import DEFAULT_LEAD as WAKE_DEFAULT_LEAD, LEADS as WAKE_LEADS, make as make_wake_for_reset
 # v0.6.20 (the courier): push notices and the status feed.
@@ -187,6 +190,14 @@ class CapabilityDef:
     kind: CapabilityKind = CapabilityKind.ROUTE
     # v0.6.16-beta.4: the WordingKeys of a person's own text it keeps (state `wordings`): the wrap-up's Custom text.
     wordings: tuple = ()
+    # v0.6.20: the measurements only a part of it rests on - a narrower route taken until it passes (keep_going's three
+    # continuations until MK, parallel_dispatch's two workers until MQ, subagent_parent's 5a alone until MS,
+    # usage_analytics' lifetime totals where MTOK failed). Each still shows in its statement as `measurements` do - a
+    # fail as MEASUREMENT_FAILED, no pass for the Codex in force as UNMEASURED (arming.warnings_for) - and its code reads
+    # it where the part is decided (arming.Arming.verdict, Scoped.passed/failed); but a fail of one is never a tripwire
+    # (arming.standing): it narrows the part and never turns the capability off (2026-11-01: MAL's fail, listed among
+    # account_switch's measurements, turned the owner's watched capability off at the v0.6.20 update).
+    narrowed_by: tuple = ()
     # No `keepable` (v0.6.16-beta.4 to v0.6.19-beta.2): the owner's word of 2026-10-24 is that a person may keep every
     # capability on (K8) - the choice is offered on each, and none is kept on unless the person chose it there.
 
@@ -233,7 +244,7 @@ def problems(definition) -> list:
             found.append("an action stands on no compatibility capability")
         if definition.ceilings is not None:
             found.append("an action has no ceilings: it spends nothing")
-        if definition.measurements != ():
+        if definition.measurements != () or definition.narrowed_by != ():
             found.append("an action rests on no measurement")
     elif (not isinstance(points, frozenset) or not points
             or not all(isinstance(point, Point) for point in points)):
@@ -273,6 +284,12 @@ def problems(definition) -> list:
             or not all(isinstance(measurement, Measurement) for measurement in measurements)
             or len(set(measurements)) != len(measurements)):
         found.append("measurements")
+    narrowed_by = definition.narrowed_by
+    if (not isinstance(narrowed_by, tuple)
+            or not all(isinstance(measurement, Measurement) for measurement in narrowed_by)
+            or len(set(narrowed_by)) != len(narrowed_by)
+            or (isinstance(measurements, tuple) and set(narrowed_by) & set(measurements))):
+        found.append("narrowed_by")
     options = definition.options
     if (not isinstance(options, tuple) or any(_option_problem(option) for option in options)
             or len({option.key for option in options}) != len(options)):
@@ -782,7 +799,8 @@ SIGN_IN_RETRY = CapabilityDef(
 # window, it answers EARLY at P7 for the recoveries that wait, so they go at core's next early window. It departs
 # from A12 (a look before the reset time), B3 and B4 (account/rateLimitResetCredit/consume changes the account),
 # B10 (it keeps the count and the soonest expiry), C4 (it reads and spends on its own) and C9 (it reads usage when no
-# recovery is due); it stands on usage_probe and rests on MU, MN and MR. A spend whose result cannot be known turns
+# recovery is due); it stands on usage_probe and rests on MU and MN; MR only narrows it (`narrowed_by`, v0.6.20: failed or
+# unmeasured, it asks first and stays on). A spend whose result cannot be known turns
 # it off, as a send it paid for gone submission_unknown does (K7). Ceilings: the early looks it causes, three a
 # conversation, a dozen a day. It comes before early_reset, whose hold lets go of a look it made (not_taken).
 RESET_CREDIT = CapabilityDef(
@@ -795,7 +813,8 @@ RESET_CREDIT = CapabilityDef(
     journal_prefix="credit",
     make=make_reset_credit,
     codes=("hit", "spent", "nothing", "no_credit", "asked", "lapsed", "unknown", "gap", "gone"),
-    measurements=(Measurement.MU, Measurement.MN, Measurement.MR),
+    measurements=(Measurement.MU, Measurement.MN),
+    narrowed_by=(Measurement.MR,),
 )
 
 # A message of a person's own when the window they picked resets (v0.6.14, the owner's request of 2026-10-06; the
@@ -902,6 +921,7 @@ SEND_NOW = CapabilityDef(
 # claim and look stays on the tick (core's engine/launches.py). Each pooled claim pays one unit, so a pooled send whose
 # fate cannot be known turns it off (K7). It departs from 0.5 (one recovery dispatched at a time) and A19 (in sequence,
 # under one lock) - and keeps A19's one continuation in flight per conversation - and stands on exact_thread_recovery.
+# MQ only narrows it (`narrowed_by`, v0.6.20): failed or unmeasured, two workers at most, and it stays on.
 # Ceilings: core's five a conversation a day, 48 a day in all.
 PARALLEL_DISPATCH = CapabilityDef(
     id="parallel_dispatch",
@@ -913,7 +933,7 @@ PARALLEL_DISPATCH = CapabilityDef(
     journal_prefix="par",
     make=make_parallel,
     options=(Option(OptionKey.WORKERS, WORKERS, DEFAULT_WORKERS),),
-    measurements=(Measurement.MQ,),
+    narrowed_by=(Measurement.MQ,),
 )
 
 # The prompt queue (v0.6.15-beta; the plan's item 7, on reset_message's way). A person queues messages of their own
@@ -922,7 +942,8 @@ PARALLEL_DISPATCH = CapabilityDef(
 # words, a P2 MESSAGE core sends exactly as typed: in order, each once, one waiting for the one before it to arrive
 # where asked, paced like every recovery (A20 kept, the owner's answer). Cancel and a Pause take back one Codex already
 # holds (the owner's answer of 2026-10-09). It departs from A8, A17, A26, A27, C4, D2, H4 and H6 as its statement says,
-# and stands on exact_thread_recovery. Its after_turn route rests on MT. Ceilings: core's five a conversation, thirty a
+# and stands on exact_thread_recovery. Only its after_turn route rests on MT, which only narrows it (`narrowed_by`, v0.6.20:
+# failed or unmeasured, that choice is marked and the rest stays on). Ceilings: core's five a conversation, thirty a
 # day. Before the edition's own continuations, so a person's message is handed first (P2's eight). Revision 2 (v0.6.19,
 # issue #50): a message at a time or on a schedule waits while a turn of its conversation runs, or goes into Codex's
 # queue at once, as the person chooses (engine/promptqueue.py) - the statement describes the default, so a person who
@@ -940,7 +961,7 @@ PROMPT_QUEUE = CapabilityDef(
     journal_prefix="queue",
     make=make_prompt_queue,
     codes=("due", "sent", "delivered", "unknown", "expired", "missed", "held", "superseded"),
-    measurements=(Measurement.MT,),
+    narrowed_by=(Measurement.MT,),
 )
 
 # Steer the running turn (v0.6.20, issue #50 item 2; the owner's decision of 2026-10-29, "경고와 함께 만들기"). A person
@@ -1001,7 +1022,8 @@ EMPTY_RESPONSE = CapabilityDef(
 # continuation of its own to a parent that finished normally after a subagent stopped (5b). Every record is the
 # parent's: nothing is ever sent to a subagent. It departs from 0.5 (only failed turns are recovered), A15 (subagents
 # are never detected or recovered) and A26 (words of its own), and stands on thread_eligibility, which conversations
-# are a person's own. Its route rests on MS. Ceilings: three a conversation, a dozen a day.
+# are a person's own. Its 5b rests on MS, which only narrows it (`narrowed_by`, v0.6.20): failed or unmeasured, 5a
+# alone runs and it stays on. Ceilings: three a conversation, a dozen a day.
 SUBAGENT_PARENT = CapabilityDef(
     id="subagent_parent",
     points=frozenset({Point.TEXT, Point.TICK, Point.RECORDS}),
@@ -1012,7 +1034,7 @@ SUBAGENT_PARENT = CapabilityDef(
     journal_prefix="sub",
     make=make_subagent_parent,
     codes=("told", "followed_up", "sent", "delivered", "unknown", "superseded"),
-    measurements=(Measurement.MS,),
+    narrowed_by=(Measurement.MS,),
 )
 
 # Keep going (v0.6.15-beta; the plan's item 6). A person picks conversations in the Dashboard, each with a count of 1
@@ -1021,8 +1043,8 @@ SUBAGENT_PARENT = CapabilityDef(
 # latest. It stops on no progress, a finished plan (its steps' statuses alone), an unreadable plan, the count used, an
 # active goal, a failed or interrupted turn, and the conversation switched off. Until MK passes on the Codex in force,
 # three at most are sent. It departs from A13 (only failures are recovered), A26 (words of its own) and B9 (a plan's
-# step statuses are read from an item's content), and stands on outcome_observation. Ceilings: core's five a
-# conversation, two dozen a day.
+# step statuses are read from an item's content), and stands on outcome_observation. MK only narrows it (`narrowed_by`,
+# v0.6.20): failed or unmeasured, three at most, and it stays on. Ceilings: core's five a conversation, two dozen a day.
 KEEP_GOING = CapabilityDef(
     id="keep_going",
     points=frozenset({Point.TICK, Point.RECORDS}),
@@ -1033,7 +1055,7 @@ KEEP_GOING = CapabilityDef(
     journal_prefix="keep",
     make=make_keep_going,
     codes=("found", "stopped", "sent", "delivered", "unknown", "superseded"),
-    measurements=(Measurement.MK,),
+    narrowed_by=(Measurement.MK,),
 )
 
 # Recover every conversation but Codex's own (v0.6.16-beta.3; users asked, the owner's plan of 2026-10-13). At P19 it
@@ -1042,7 +1064,8 @@ KEEP_GOING = CapabilityDef(
 # - every other check of a conversation, and every gate of a recovery, standing. It departs from A15 (only the desktop
 # app's own user conversations are detected), stands on thread_eligibility - the state row and the rollout's first
 # line it is judged by - and rests on no measurement. It sends nothing itself: what it takes up is core's recovery, under
-# core's own limits, so its ceilings are the schema's floor and never bind.
+# core's own limits, so its ceilings are the schema's floor and never bind. Turned off, the waiting records only it took
+# up are cancelled by core (session_kind_off, v0.6.20), as other_sessions' are.
 EVERY_CONVERSATION = CapabilityDef(
     id="every_conversation",
     points=frozenset({Point.ELIGIBILITY}),
@@ -1180,7 +1203,8 @@ IDLE_UPDATE_CHECK = CapabilityDef(
 # core's reader) - the narrower route, never a reason to withhold it. It departs from B6 (rollouts read beyond the
 # first line and the usage-limit scan), C4 (it reads on its own, on a schedule), C9 (usage readings kept when no
 # recovery is due), D2 (per-project digests and token counts kept 90 days) and F3 (the CSV written where the person
-# chooses); stands on usage_probe, as the meter it requires, and rests on MTOK and MU. No gate reads any of it, and it
+# chooses); stands on usage_probe, as the meter it requires, and rests on MU; MTOK only narrows it (`narrowed_by`,
+# v0.6.20) - failed, the lifetime totals alone, and it stays on. No gate reads any of it, and it
 # sends nothing: its ceilings are the schema's floor and never bind.
 USAGE_ANALYTICS = CapabilityDef(
     id="usage_analytics",
@@ -1192,9 +1216,33 @@ USAGE_ANALYTICS = CapabilityDef(
     journal_prefix="analytic",
     make=make_usage_analytics,
     codes=("ingested", "capped", "unreadable"),
-    measurements=(Measurement.MTOK, Measurement.MU),
+    measurements=(Measurement.MU,),
+    narrowed_by=(Measurement.MTOK,),
     options=(Option(OptionKey.ANALYTICS_DAYS, ANALYTICS_DAYS, ANALYTICS_DEFAULT_DAYS),),
     requires=("usage_meter",),
+)
+
+# Sleep, hibernate or shut down after tasks a person picked (v0.6.20, Discussion #57, the owner's decision of 2026-11-01;
+# plans/v0621-watch-power-design.md). A person picks conversations whose turn runs now on its card and arms core's own
+# power action for them, once (control/powertasks.py): core keeps the arming, the countdown, its notice and the Stop of
+# that one batch, every way to turn it off, and every condition of its own - a stop first, DisablePowerAction, a pause, no
+# recovery open anywhere, Codex's history caught up, no turn running in any conversation, nothing queued, two idle
+# minutes, the countdown run out. At P21 it answers the one thing core does not know: whether those tasks have ended as
+# the person chose to count them - completed, and failed or interrupted where chosen - followed through any usage limit
+# and its recovery to their real end, ids and statuses only (engine/powertasks.py). It departs from H14 (the power
+# action is armed for, and decided by, tasks a person started, not usage-limit recoveries, and armed on this page); it
+# keeps everything else of H14, B16 and A28 as amended. It sends nothing to Codex and stands on recovery_turn_tracking -
+# the history its turns are read from; its ceilings are the schema's floor and never bind. Turning it off turns a tasks
+# arming off with it (arming.py).
+POWER_AFTER_TASKS = CapabilityDef(
+    id="power_after_tasks",
+    points=frozenset({Point.POWER}),
+    revision=1,
+    departs_from=("H14",),
+    compat="recovery_turn_tracking",
+    ceilings=Ceilings(per_day=1, per_conversation=1),
+    journal_prefix="pwrtask",
+    make=make_power_after_tasks,
 )
 
 # Switch the Codex account (v0.6.20, plans/v0619-design/D-account.md): its card in the Dashboard shows the account this
@@ -1209,23 +1257,40 @@ USAGE_ANALYTICS = CapabilityDef(
 # Codex's own sign-in, which handles the credentials), C4 (it reads on a schedule), C9 (Codex is asked when no recovery
 # is due), D2 (a digest of the account is kept), F6 (`codex logout` and `codex login` are not listed processes) and H7
 # (a change of account holds recoveries, beside the settings that do). It stands on usage_probe - the app server's
-# reads, as the usage meter's - rests on MA and MAL, and sends nothing: its ceilings are the floor and never bind.
+# reads, as the usage meter's - rests on MA, and sends nothing: its ceilings are the floor and never bind. MAL only
+# narrows it (`narrowed_by`, as MK, MQ, MS and MTOK do): only the button rests on it, and its code reads MAL where the
+# button is offered (control/account.offered, arming.Arming.verdict). So MAL failed hides the button and the statement
+# says so, and no tripwire turns the capability off for it (2026-11-01: listed among its measurements, MAL's fail turned
+# the owner's watched account_switch off at the v0.6.20 update).
+# v0.6.20 final (the owner, 2026-11-01: ask, then restart): MAL failed partial - the running app follows the outside
+# sign-out but not the sign-in, which only a full restart of the app brings in. So a sign-in from the button ends with
+# the card asking "Restart Codex now so it uses the new account?": Restart - only while no turn runs, no recovery waits
+# or runs and nothing is queued in Codex - asks Windows to close the Codex app (the Restart Manager, not forced), ends
+# its main process only if that did not end it, starts it again through its own codex: link (core's open_in_codex) and
+# reads the account afresh (codex/restart.py, control/account.restart). Not now leaves the account signed in and the
+# card saying Codex needs a restart. That adds E8 (it ends another program's process, after the person agreed). The
+# button now rests on MALR - this route, measured - in place of MAL, which stays measured.py's record of the plain one.
+# Revision 2: its statement now says it may restart Codex after asking (E8), so a person who had it on, or watched it,
+# since the betas reads the new one before it is on again.
 ACCOUNT_SWITCH = CapabilityDef(
     id="account_switch",
     points=frozenset({Point.TICK}),
-    revision=1,
-    departs_from=("B4", "B10", "B11", "C4", "C9", "D2", "F6", "H7"),
+    revision=2,
+    departs_from=("B4", "B10", "B11", "C4", "C9", "D2", "E8", "F6", "H7"),
     compat="usage_probe",
     ceilings=Ceilings(per_day=1, per_conversation=1),
     journal_prefix="account",
     make=make_account_switch,
-    codes=("changed", "held", "switch_asked", "signed_in", "not_signed_in", "switch_failed"),
-    measurements=(Measurement.MA, Measurement.MAL),
+    codes=("changed", "held", "switch_asked", "signed_in", "not_signed_in", "switch_failed", "restart_asked",
+           "codex_closed", "codex_ended", "restarted", "restart_not_needed", "restart_failed"),
+    measurements=(Measurement.MA,),
+    narrowed_by=(Measurement.MALR,),
 )
 
 # Wake this PC for a reset (v0.6.19, plans/v0619-design/D-watcher-ops.md B). At P8 it finds the earliest time something
-# waits for - core's waiting usage-limit records, the reset actions' pending rules, the forced stop's held window - and
-# sets a waitable timer of the watcher's own, with fResume, for that time less the lead a person chose (1, 2 or 5
+# waits for - core's waiting usage-limit records, the reset actions' pending rules, the forced stop's held window, and
+# (v0.6.20, the pair audit) while Start the 5-hour window early stands on too, its next time picked or reset it waits for -
+# and sets a waitable timer of the watcher's own, with fResume, for that time less the lead a person chose (1, 2 or 5
 # minutes; 2), only where Windows' Allow wake timers already allows it for the power source in use - read, never
 # written; moved when that time changes, cancelled when nothing waits, recovery is paused, it is turned off or the
 # watcher stops (engine/wake.py, win/waketimer.py). Waking only lets the watcher's ordinary tick run sooner; every gate
@@ -1399,12 +1464,15 @@ DEFINITIONS = (START_WITH_CODEX, CRASH_RESTART, GOAL_CONTINUATION, QUEUE_FOR_OPE
                # v0.6.20 (the usage and token analytics; the 5-hour window started early; the courier; the account switch;
                # #50's steer), before the wake timer, whose errand reads last at P8.
                USAGE_ANALYTICS, WINDOW_ANCHOR, PUSH_NOTICES, STATUS_FEED, ACCOUNT_SWITCH, STEER_SEND,
+               # v0.6.20 (Discussion #57): the power action after tasks a person picked, the one answer at P21.
+               POWER_AFTER_TASKS,
                WAKE_FOR_RESET,
                OPEN_CODEX_BUTTON, LONG_RESET_MESSAGE,
                COMPAT_REPORT)
 # Codex's own retry settings (stage 4's item 6): Attempts (6, 8, 10 or 12; 8 by default) for both of its built-in
 # provider's retry keys, written at P8 and put back (engine/retries.py). MB failed on codex-cli 0.162.0-alpha.17.2 -
-# Codex refuses any write under model_providers.openai - so it waits in WAITING: hidden, its statement unwritten.
+# Codex refuses any write under model_providers.openai - so it waits in WAITING: hidden, its statement unwritten. Made
+# again on codex-cli 0.166.0-alpha.5.1 (2026-10-31), MB failed the same way: hidden because its measurement failed.
 CODEX_RETRY_SETTINGS = CapabilityDef(
     id="codex_retry_settings",
     points=frozenset({Point.TICK}),
@@ -1461,7 +1529,9 @@ OPEN_TO_SEND = CapabilityDef(
 # declaration in the plugin copy) and F6 (Codex starts the hook's program, which is not a listed process). It stands on
 # recovery_turn_tracking - the history it reads the failed turn from - and rests on M4 (a plugin's Stop hook runs after
 # a failed turn, its row already written), M4B (Codex carries out the block: the turn goes on, without a console window)
-# and MHK (the declaration's format on the engine in force). Hidden in WAITING until all three pass. Ceilings:
+# and MHK (the declaration's format on the engine in force). Hidden in WAITING until all three pass - and hidden because its
+# measurement failed: on codex-cli 0.166.0-alpha.5.1 (2026-10-31) M4 found that Codex runs a plugin's Stop hook after a
+# completed turn but none after a failed one, the turn this capability is for (MHK passed). Ceilings:
 # core's own five a conversation a day, and two dozen a day in all.
 STOP_HOOK = CapabilityDef(
     id="stop_hook_continuation",
@@ -1505,51 +1575,29 @@ REGISTRY = _registry()
 # read first. The owner's order, 2026-10-10 ("고급 기능 순서를 중요하고 많이 쓸만한거 순서대로 해줘. 그리고
 # 호환성 보고서를 제일 위로 해줘"): the compatibility report at the top, then 1) what gets work going again
 # after a usage limit with no hands, 2) what saves the person work, 3) the other common failures, 4) rare
-# cases and expert settings. A measurement's warning never pushes a capability down. Every capability of
+# cases and expert settings. A measurement's warning never pushes a capability down. The owner approved the
+# whole list again on 2026-10-31 ("이대로", before the final), the groups below. Every capability of
 # DEFINITIONS appears here exactly once, and so may one waiting in WAITING, at the place it takes once offered
 # (test_advanced_registry holds it).
-SHOWN_ORDER = ("compat_report", "start_with_codex",
-               # v0.6.19 (the order the owner approved on 2026-10-22): what keeps the watcher itself going, after what
-               # starts it.
-               "crash_restart", "wake_for_reset",
-               # v0.6.16-beta.3: which conversations are recovered at all, beside what starts the recovering.
-               "every_conversation", "queue_for_open",
-               # v0.6.19 (#50): opening a waiting conversation, beside queueing for its opening - shown once MOPEN passes.
-               "open_to_send",
-               # v0.6.16-beta.4: what gets a conversation going when nothing holds it, beside queue for opening (Q12).
-               "headless_run", "other_sessions", "marker_free_continuation",
-               # v0.6.20: the continuation inside the turn, beside the other that goes without core's queued message -
-               # shown once MHK, M4 and M4B pass (the owner's order of 2026-10-22).
-               "stop_hook_continuation",
-               # v0.6.16-beta.4: how a turn run here starts, beside the other continuation that goes without a marker
-               # (DECISIONS Q12).
-               "silent_continuation", "reset_credit",
-               "early_reset", "parallel_dispatch", "reset_message", "long_reset_message",
-               # v0.6.16-beta.3 (issue #29): the usage meter and what it serves, beside the other usage-limit features.
-               "usage_meter", "usage_wrap_up", "usage_pause",
-               # v0.6.20: starting the 5-hour window early, beside what reads and keeps the usage windows.
-               "window_anchor", "keep_going",
-               # v0.6.20: the usage and token analytics, after keep going (the owner's approved order, 2026-10-22).
-               "usage_analytics",
-               "prompt_queue",
-               # v0.6.19: chat with a conversation, beside the queued messages (stage 4's Q12).
-               "codex_chat",
-               # v0.6.20 (#50): steering the running turn, written in the prompt queue's editor, after the chat.
-               "steer_send", "empty_response", "once_more_when_unsure", "send_now",
-               # v0.6.18: Open Codex on a notice, beside Send now - both what a person does about one conversation.
-               "open_codex_button",
-               # v0.6.20 (the courier; the owner's order of 2026-10-22): push notices and the status feed, beside Open Codex
-               # on a notice - what a person is told, and where.
-               "push_notices", "status_feed",
-               "capacity_retry",
-               # v0.6.16-beta.4: what a failure of Codex's own is taken up with, beside the capacity retry (Q12).
-               "compact_continue", "model_fallback",
-               "codex_gave_up", "goal_continuation", "subagent_parent", "sign_in_retry", "unknown_failure_budget",
-               # v0.6.18: the weekly update check, which recovers nothing, among the expert settings.
-               "idle_update_check",
-               # v0.6.20: switching the Codex account, among the expert settings (the order the owner approved on 2026-10-22).
-               "account_switch",
-               "structured_rules")
+SHOWN_ORDER = (
+    "compat_report",
+    # 2026-10-31, group 1: what gets work going again after a usage limit with no hands (what keeps the watcher
+    # going, what starts the recovering, which conversations, and the continuations that need no marker).
+    "start_with_codex", "crash_restart", "wake_for_reset", "every_conversation", "queue_for_open", "headless_run",
+    "other_sessions", "marker_free_continuation", "reset_credit", "early_reset", "window_anchor", "parallel_dispatch",
+    # 2026-10-31, group 2: what saves the person work (messages, the usage meter and what serves it, what a person
+    # is told and does about one conversation). open_to_send is shown once MOPEN passes.
+    "reset_message", "long_reset_message", "keep_going", "prompt_queue", "usage_meter", "usage_wrap_up", "usage_pause",
+    "push_notices", "send_now", "open_to_send", "open_codex_button", "codex_chat", "steer_send", "usage_analytics",
+    # 2026-11-01 (Discussion #57): it spares the person waiting at the PC for the tasks they started to finish.
+    "power_after_tasks",
+    # 2026-10-31, group 3: the other common failures.
+    "empty_response", "once_more_when_unsure", "capacity_retry", "model_fallback", "compact_continue", "codex_gave_up",
+    "goal_continuation", "subagent_parent", "sign_in_retry", "unknown_failure_budget",
+    # 2026-10-31, group 4: rare cases and expert settings. stop_hook_continuation is hidden (WAITING) until MHK, M4
+    # and M4B pass and then takes this place.
+    "silent_continuation", "stop_hook_continuation", "status_feed", "account_switch", "idle_update_check",
+    "structured_rules")
 
 
 def shown(registry) -> tuple:

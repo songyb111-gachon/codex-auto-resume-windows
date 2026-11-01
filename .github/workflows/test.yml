@@ -80,10 +80,16 @@ jobs:
     # 1383 s. A dev run is 10 + 10 + 10 + 6 = 36 jobs: 4 standard parts and 6 advanced parts for each of 2 Pythons
     # and the next one, and the 6 of the main-tree job - under the 37 a run may take, so a dev run and part of another
     # still fit GitHub's 40 jobs at once.
+    #
+    # Python 3.15 is a blocking lane (2026-10-31, the owner: the CI for source runs must run the newest Python;
+    # asked how, "only the newest line required"), no longer the advisory one. The job count stays 36: 4 standard
+    # parts and 6 advanced parts for each of 3 Pythons (30) and the 6 of the main-tree job - the 10 jobs of the
+    # advisory lane are the 10 of the third blocking Python. No 3.16 lane for now: it would add 10 jobs and break
+    # the 37 a run may take.
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.13", "3.14"]
+        python-version: ["3.13", "3.14", "3.15"]
         experimental: [false]
         edition: [standard, advanced]
         # The longest lane's parts; PARTS below is this list for the advanced lane and two fewer for the
@@ -91,30 +97,15 @@ jobs:
         # without what is excluded) to 1..its PARTS, so no part of a lane can be dropped by changing one of them.
         part: [1, 2, 3, 4, 5, 6]
         # The standard lane has no parts 5 and 6 (see its four parts above). A quick run (workflow_dispatch input
-        # `quick`) keeps 3.13 alone: the others and the pre-release lane are excluded as well. Without the input
-        # only the standard parts 5 and 6 are.
+        # `quick`) keeps 3.13 alone: 3.14 and 3.15 are excluded as well. Without the input only the standard
+        # parts 5 and 6 are.
         exclude: '${{ fromJSON(inputs.quick && ''[{"python-version":"3.14"},{"python-version":"3.15"},{"edition":"standard","part":5},{"edition":"standard","part":6}]'' || ''[{"edition":"standard","part":5},{"edition":"standard","part":6}]'') }}'
-        include:
-          # The next Python, while it is still a release candidate. It is not decoration:
-          # it compiles the sources and runs the same suite, and a failure is annotated
-          # exactly like any other, so a real incompatibility is visible the day it
-          # appears. It does not block, because a defect in a pre-release interpreter is
-          # not a defect in this product - and finding out about a real one in October,
-          # from a user, is worse than finding out now from a lane nobody had to merge.
-          #
-          # Once per edition and part, like every other Python. An entry that sets a new Python
-          # makes one job of its own rather than joining the ones above, so each is named.
-          - {python-version: "3.15", experimental: true, edition: standard, part: 1}
-          - {python-version: "3.15", experimental: true, edition: standard, part: 2}
-          - {python-version: "3.15", experimental: true, edition: standard, part: 3}
-          - {python-version: "3.15", experimental: true, edition: standard, part: 4}
-          - {python-version: "3.15", experimental: true, edition: advanced, part: 1}
-          - {python-version: "3.15", experimental: true, edition: advanced, part: 2}
-          - {python-version: "3.15", experimental: true, edition: advanced, part: 3}
-          - {python-version: "3.15", experimental: true, edition: advanced, part: 4}
-          - {python-version: "3.15", experimental: true, edition: advanced, part: 5}
-          - {python-version: "3.15", experimental: true, edition: advanced, part: 6}
-    # Only the pre-release lane is allowed to fail the job without failing the run.
+        # There is no `include` block and no experimental lane: the newest Python released is a blocking lane
+        # (2026-10-31) and the next one is not out as a release candidate. When scripts/python_support.json sets a
+        # `future_prerelease`, its lane comes back here as ten `include` entries, once per edition and part, each
+        # of them marked experimental (tests/test_python_support.py holds the two in agreement either way).
+    # Only an experimental lane is allowed to fail the job without failing the run; none is now (every entry of
+    # the matrix says `experimental: false`), and the expression stays so a future pre-release lane needs no edit here.
     continue-on-error: ${{ matrix.experimental }}
 
     steps:
@@ -130,29 +121,28 @@ jobs:
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          # The 3.14 lane runs the exact Python a release bundles (build/make_release.py PYTHON_VERSION), not
-          # the newest 3.14 the runner has: a newer 3.13 patch that arrived on the runners in October 2026 had never
-          # had the suite run on it, and no user runs it (tests/test_python_support.py holds the two together).
-          python-version: ${{ matrix.python-version == '3.14' && '3.14.10' || matrix.python-version }}
-          # Needed for the future lane, and harmless for the others: a stable release
-          # is still preferred where one exists, so this does not quietly move a
-          # blocking version onto a release candidate. It also means the day the next
-          # Python ships, that lane starts testing the real thing without an edit.
-          allow-prereleases: true
+          # Every lane runs the newest release of its line (the owner, 2026-10-31: the CI always on the newest, the
+          # bundle pinned until we move it): check-latest looks past whatever the runner image cached. The Python a
+          # release bundles stays pinned until it is moved on purpose, and release.yml tests and builds on that exact
+          # patch (tests/test_python_support.py holds both).
+          python-version: ${{ matrix.python-version }}
+          check-latest: true
+          # Pre-releases are not allowed: every lane is a released Python. When a next Python reaches its release
+          # candidate and python_support.json names it, that edit allows them with its lane.
 
       - name: Install PyYAML for the workflow-shape test
         # tests/test_workflow_privilege.py YamlShapeTests parses every workflow with PyYAML and skips
         # without it. Only this test job gets it: no file of the product imports yaml (the product
         # stays standard library), so nothing here is a dependency of what is shipped.
-        # An exact version. The next Python is a release candidate that may have no wheel for it yet,
-        # so its lane carries on without the package rather than failing the job's first step.
+        # An exact version. A lane marked experimental (a pre-release Python may have no wheel for it yet)
+        # carries on without the package rather than failing the job's first step; no lane is now.
         continue-on-error: ${{ matrix.experimental }}
         run: python -m pip install PyYAML==6.0.3
 
       - name: Say which interpreter this actually is
         # The lane is named for a line, not a build. When a failure turns out to be the
-        # interpreter's, the first question is which one - and on the pre-release lane
-        # that answer changes under you.
+        # interpreter's, the first question is which one - and on the newest line
+        # (check-latest) that answer changes under you.
         run: python -c "import sys; print(sys.version)"
 
       - name: Compile all sources
@@ -258,6 +248,8 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
+          # The release's own Python, to the patch: this job is the release lane on main's tree, so it runs what
+          # release.yml runs (the owner, 2026-10-31: main the same as the release); the test job's lanes take the newest.
           python-version: "3.14.10"
 
       - name: Take every Korean source off, as a promotion to main does

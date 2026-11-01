@@ -13,7 +13,9 @@ its plan word, in state `account_seen` (state/account.py). Never the address, ne
   limit (core's store.hold_waiting, HoldKind `account_changed`, actor engine: only one that waits unsent with no hold
   and no cancel, so this can only ever hold more back), and every reset rule still counting (reset_credit's and
   reset_message's, which count the windows of the account that was signed in): held as over a gap in the count
-  (RuleReason count_gap), its Go on counting the person's - as engine/resetwatch.py holds one. Pending says why each
+  (RuleReason count_gap), its Go on counting the person's - as engine/resetwatch.py holds one. And (v0.6.20, the pair
+  audit's V20-2) the time of the change is stamped (ACCOUNT_CHANGED_AT) for window_anchor, whose start and resets seen
+  were the other account's window's: they go, and one start a window counts this account's. Pending says why each
   record waits, and Let it continue or Cancel is the person's (H7: a hold is theirs to release). One notice says how
   many wait (`account_changed`, a kind registered with core in plug.py), shown once by the watcher (surfaces), and the
   journal counts `account.changed`, and `account.held` once for each.
@@ -28,7 +30,7 @@ from __future__ import annotations
 from codex_auto_resume.domain.plug import DEFER
 
 from ..codex import account
-from ..vocabulary import RuleReason, RuleState
+from ..vocabulary import OptionKey, RuleReason, RuleState
 
 CAPABILITY = account.CAPABILITY
 SALT = "salt"
@@ -143,6 +145,8 @@ class AccountWatch:
             return None
         held = self._hold_waiting(view, now) + self._hold_rules()
         handle.save(seen, plan, at=now)
+        # v0.6.20 (the pair audit, V20-2): when, for window_anchor - whose window stamps are the other account's.
+        self._scoped.stamp(OptionKey.ACCOUNT_CHANGED_AT, max(1, int(now)))
         self._count("changed")
         for _ in range(held):
             self._count("held")

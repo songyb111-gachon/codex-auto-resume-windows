@@ -784,7 +784,9 @@ namespace CodexAutoResume
                 // Its client area at the size it opens at, kept when the window's own frame is taken off it.
                 Size client = form.ClientSize;
                 string title = form.Text;
-                Icon icon = form.Icon;
+                // The icon the dialog's title bar shows: none (Soft.DialogBar sets ShowIcon = false), and a form's Icon is
+                // Windows' default one where none was given - never to be drawn.
+                Icon icon = form.ShowIcon ? form.Icon : null;
                 form.TopLevel = false;
                 form.FormBorderStyle = FormBorderStyle.None;
                 form.ClientSize = client;
@@ -911,12 +913,14 @@ namespace CodexAutoResume
                 if (icon != null)
                     using (Bitmap mark = IconImage(icon, small))
                         g.DrawImage(mark, new Rectangle(place.X + Px(12), middle - small / 2, small, small));
+                // The title starts where the icon was, as Windows' does when a title bar has none.
+                int titleLeft = place.X + Px(12) + (icon != null ? small + Px(10) : 0);
                 // Windows' own caption font, as it draws a title - at the scale the window is drawn at (AtDisplayScale,
                 // v0.6.20): Windows gives it in points, which it turns into pixels at the scale it signed in at.
                 using (Font windows = SystemFonts.CaptionFont)
                 using (Font font = AtDisplayScale(windows))
                     TextRenderer.DrawText(g, title ?? "", font,
-                                          new Rectangle(place.X + Px(12) + small + Px(10), place.Y, outer.Width, caption),
+                                          new Rectangle(titleLeft, place.Y, outer.Width, caption),
                                           ink, TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix |
                                           TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
                 int button = Px(46), glyph = Px(10);

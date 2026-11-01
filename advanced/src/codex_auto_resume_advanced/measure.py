@@ -179,6 +179,13 @@ class Context:
         found = self._hand("stop_hook")
         return found if isinstance(found, dict) else {}
 
+    def m4_hook_note(self) -> list:
+        """What the measurement-only Stop hook wrote (M4, v0.6.20): one dict a run - "at" (when it ran), "keys" (its
+        input's key names) and "status" (the turn's status word in Codex's history then) - or [] where there is no hand
+        or nothing was written."""
+        found = self._hand("m4_hook_note")
+        return [note for note in found if isinstance(note, dict)] if isinstance(found, list) else []
+
     def ipc_look(self) -> dict:
         """What a read-only look at the Desktop's own IPC pipe found (v0.6.16-beta.3, MIPC): a dict of
         booleans, or empty where there is no seam or the look raised. Nothing is ever written to the pipe."""
@@ -313,14 +320,133 @@ def _m3(ctx):
     return verdict, observed, note
 
 
+# M4 (v0.6.20): the failed turn the probe makes itself - one turn asked of a model no Codex offers, so it fails at its
+# first model request - how long it is followed, and how long the hook's note is waited for once it ended. What the
+# turn would have said is never read.
+_M4_MODEL = "car-m4-no-such-model"
+_M4_PROMPT = "Reply with the single word: ok."
+_M4_TURN_SECONDS = 120.0
+_M4_NOTE_SECONDS = 15.0
+# The trust words under which Codex runs a hook (HookTrustStatus): trusted by the person, or managed by policy.
+_M4_RUNS = ("trusted", "managed")
+# Where the measurement-only Stop hook writes its notes, under the temporary folder (the m4_hook_note hand reads it).
+M4_HOOK_NOTE = Path("car-measure", "m4-hook", "notes.jsonl")
+
+
+def _plugin_stop_hooks(listed) -> tuple:
+    """(how many Stop hooks hooks/list names from a plugin, how many of them are on and trusted) - counts only, never a
+    command or a path."""
+    entries = listed.get("data") if isinstance(listed, dict) else None
+    found = trusted = 0
+    for entry in entries if isinstance(entries, list) else ():
+        hooks = entry.get("hooks") if isinstance(entry, dict) else None
+        for hook in hooks if isinstance(hooks, list) else ():
+            if not isinstance(hook, dict) or _letters(hook.get("eventName")) != "stop" or hook.get("source") != "plugin":
+                continue
+            found += 1
+            trusted += hook.get("enabled") is not False and hook.get("trustStatus") in _M4_RUNS
+    return found, trusted
+
+
+def _stop_runs(events, thread) -> dict:
+    """The plugin Stop hook runs this thread's hook/started and hook/completed notifications name: how many started, how
+    many completed, and the last completed one's status word (HookRunStatus) - never an entry's text."""
+    found = {"started": 0, "completed": 0, "status": None}
+    for event in events:
+        method = event.get("method") if isinstance(event, dict) else None
+        params = event.get("params") if method in ("hook/started", "hook/completed") else None
+        run = params.get("run") if isinstance(params, dict) and params.get("threadId") == thread else None
+        if not isinstance(run, dict) or _letters(run.get("eventName")) != "stop" or run.get("source") != "plugin":
+            continue
+        if method == "hook/started":
+            found["started"] += 1
+        else:
+            found["completed"] += 1
+            found["status"] = run.get("status") if isinstance(run.get("status"), str) else "other"
+    return found
+
+
 def _m4(ctx):
-    """Plugin Stop hooks run after a failed turn. The harness reads whether a Stop hook is
-    declared; that it runs after a failed turn is what the person confirms."""
+    """Plugin Stop hooks run after a failed turn, and the failed turn is in Codex's history by the time the hook runs.
+    v0.6.20: the probe makes the failed turn itself. The person declares a measurement-only Stop hook in this plugin's
+    copy (it writes a note: the time it ran, the input's key names, and the turn's status in Codex's history at that
+    moment), trusts it in Codex, and names a throwaway conversation nothing holds. The harness lists the hooks (how many
+    Stop hooks come from a plugin, and how many of them are on and trusted) and stops if none is; otherwise it resumes
+    the conversation without its history, starts one turn asking a model no Codex offers, follows it to its end, and
+    counts the hook/started and hook/completed notifications of a plugin Stop hook for it; then it reads the hook's note
+    written after the turn began. Pass where the turn failed, a plugin Stop hook ran after it, and the history said
+    failed when it ran. Booleans, counts and status words only."""
+    if not ctx.thread_given:
+        return _blocked("name a throwaway conversation nothing holds, with a measurement Stop hook declared and trusted, "
+                        "then run m4 again", holders_read=False)
+    holders = _lock_users(ctx, ctx.probe_thread)
+    if holders is None or holders:
+        return _blocked("something holds the throwaway conversation, or who does could not be read: quit and reopen the "
+                        "Codex app without opening it, then run m4 again",
+                        holders_read=holders is not None, held_before=bool(holders))
+    began = time.time()
+    seen, notes = [], []
     with ctx.open() as session:
-        hooks = session.call("hooks/list", {"cwds": []})
-    observed = {"hooks_listed": isinstance(hooks, (dict, list))}
-    return _blocked("cause a turn to fail and confirm the plugin Stop hook ran and the failed "
-                    "row was persisted by then, then set the verdict", **observed)
+        listed = session.call("hooks/list", {"cwds": []})
+        found, trusted = _plugin_stop_hooks(listed)
+        observed = {"holders_read": True, "held_before": False, "plugin_stop_hooks": found,
+                    "plugin_stop_hooks_trusted": trusted}
+        if not trusted:
+            return _blocked("no plugin Stop hook is listed as on and trusted: declare the measurement hook, trust it in "
+                            "Codex, then run m4 again", **observed)
+        session.call("thread/resume", {"threadId": ctx.probe_thread, "excludeTurns": True})
+        try:
+            started = session.call("turn/start", {
+                "threadId": ctx.probe_thread, "input": [{"type": "text", "text": _M4_PROMPT}], "model": _M4_MODEL,
+                "approvalPolicy": "untrusted", "approvalsReviewer": "user",
+                "sandboxPolicy": {"type": "readOnly", "networkAccess": False}})
+        except AdapterError:
+            started = None
+        turn = started.get("turn") if isinstance(started, dict) else None
+        turn_id = turn.get("id") if isinstance(turn, dict) and isinstance(turn.get("id"), str) else None
+        status = _await_turn(session, ctx.probe_thread, turn_id, _M4_TURN_SECONDS, seen) if turn_id else None
+        if status is None and turn_id is not None:
+            try:
+                session.call("turn/interrupt", {"threadId": ctx.probe_thread, "turnId": turn_id})
+                status = _await_turn(session, ctx.probe_thread, turn_id, _M6_INTERRUPT_SECONDS, seen)
+            except AdapterError:
+                pass
+        # The hook may finish after the turn says it ended: its notification and its note are waited for a little.
+        deadline = time.monotonic() + _M4_NOTE_SECONDS
+        while turn_id is not None:
+            seen.extend(session.drain_events())
+            notes = [note for note in ctx.m4_hook_note()
+                     if isinstance(note.get("at"), (int, float)) and note["at"] >= began]
+            if (notes and _stop_runs(seen, ctx.probe_thread)["completed"]) or time.monotonic() >= deadline:
+                break
+            time.sleep(_M6_POLL_SECONDS)
+        try:
+            session.call("thread/unsubscribe", {"threadId": ctx.probe_thread})
+        except AdapterError:
+            pass
+    runs = _stop_runs(seen, ctx.probe_thread)
+    note = notes[-1] if notes else {}
+    keys = {key for key in note.get("keys") or () if isinstance(key, str)}
+    row = note.get("status")
+    observed.update({"turn_started": turn_id is not None, "turn_status": status or "none",
+                     "stop_hook_started": runs["started"], "stop_hook_completed": runs["completed"],
+                     "stop_hook_status": runs["status"] or "none", "hook_noted": bool(notes),
+                     "history_status_when_hook_ran": row if row in ("completed", "failed", "inProgress",
+                                                                    "interrupted") else ("none" if row is None else
+                                                                                         "other")})
+    observed.update({"input_" + key: key in keys for key in _HOOK_INPUT_KEYS})
+    if status != "failed":
+        return _blocked("the turn did not fail as asked, so nothing is settled: look at the conversation, then run m4 "
+                        "again", **observed)
+    ran = runs["started"] or runs["completed"] or notes
+    if not ran:
+        return Verdict.FAIL, observed, "a plugin Stop hook did not run after the failed turn"
+    if not notes:
+        return _blocked("a plugin Stop hook ran but the measurement hook left no note: look at the hook, then run m4 "
+                        "again", **observed)
+    if row != "failed":
+        return Verdict.FAIL, observed, "the failed turn was not yet in Codex's history when the Stop hook ran"
+    return Verdict.PASS, observed, None
 
 
 def _m5(ctx):
@@ -1206,14 +1332,32 @@ def _config_value(read, key):
 
 
 def _version_of(read):
+    """The version of the configuration config/value/write writes, as its expectedVersion takes it, or None. An older
+    config/read answered one of its own ("version"); codex-cli 0.166's has none - each layer carries its own
+    (ConfigLayer.version, a string, with includeLayers) and the user layer, $CODEX_HOME/config.toml, is the one a write
+    goes to. Without this every write on 0.166 carried a null expectedVersion, which Codex never checks, so a stale
+    version could never be refused and MB could not pass even where the writes were taken (v0.6.20)."""
     found = read.get("version") if isinstance(read, dict) else None
-    return found if isinstance(found, (str, int)) and not isinstance(found, bool) else None
+    if isinstance(found, (str, int)) and not isinstance(found, bool):
+        return found
+    layers = read.get("layers") if isinstance(read, dict) else None
+    for layer in layers if isinstance(layers, list) else ():
+        name = layer.get("name") if isinstance(layer, dict) else None
+        if isinstance(name, dict) and name.get("type") == "user":
+            version = layer.get("version")
+            return version if isinstance(version, str) else None
+    return None
 
 
 def _mb(ctx):
     """Codex's own config writes (codex_retry_settings), on a scratch Codex home the harness makes and removes - no
     config of the person's is ever opened or written: config/read with its layers, both keys written (upsert) and read
-    back, the first one removed and read back, and a write against a stale version refused. Booleans only."""
+    back, the first one removed and read back, and a write against a stale version refused. Booleans only.
+
+    Every write's parameters are ConfigValueWriteParams' (keyPath, value, mergeStrategy, expectedVersion as a string
+    or null) on codex-cli 0.162 and 0.166 alike. Both refuse the first write by design, whatever its shape: -32600,
+    "model_providers contains reserved built-in provider IDs: `openai`. Built-in providers cannot be overridden" (read
+    on a scratch home on 2026-10-16) - a fail that says the built-in provider's retry settings cannot be written there."""
     import shutil
     import tempfile
     scratch = Path(tempfile.mkdtemp(prefix="car-mb-"))
@@ -1636,7 +1780,7 @@ _SCHEMA_ARGUMENTS = ("app-server", "generate-json-schema", "--out")
 # after the link and the app took the lock 13.4 s after it.
 _MOPEN_SECONDS = 30.0
 _MOPEN_POLL_SECONDS = 0.3                     # and how often the lock's holder count is read meanwhile (a read is ~0.5 s)
-_MAL_SECONDS = 300.0                          # how long MAL follows the account while the person signs out and in
+_MAL_SECONDS = 600.0                          # how long MAL follows the account while the person signs out and in
 _MAL_POLL_SECONDS = 2.0
 _MWAKE_SECONDS = 180                          # the wake timer MWAKE sets, from when it starts
 _MWAKE_BOUND = 900                            # how long it waits for that timer, at most
@@ -1875,33 +2019,132 @@ def _account(reply):
     return True, plan.lower() if plan.lower() in {str(word) for word in PlanWord} else str(PlanWord.OTHER)
 
 
+def _mal_read(ctx):
+    """One account/read on a session opened for it alone and closed after it (MAL, v0.6.20): (whether one is signed in -
+    None where Codex did not answer as one - and its plan word), or None where the read could not be made. A running
+    app-server never reads the sign-in from disk again on account/read (2026-11-01: MAL's one server answered "signed
+    in" for four minutes after `codex logout` had removed it), so each look is a new server - as the account card's
+    own read is (codex/account.read). account/read's one parameter, refreshToken, is never sent: it asks Codex to
+    refresh the person's tokens, a write, and still reads no sign-in made outside it."""
+    try:
+        with ctx.open() as session:
+            return _account(session.call("account/read", {}))
+    except (AdapterError, SessionRefused, OSError):
+        return None
+
+
 def _mal(ctx):
-    """An account switch made outside the app (account_switch): with the app open and signed in, the person signs out
-    with `codex logout` and back in with `codex login` in a terminal, with their own account. The harness reads the
-    account (account/read: whether one is signed in, and its plan word - never the address) before, then every
-    _MAL_POLL_SECONDS for up to _MAL_SECONDS, and records whether it saw the sign-out and the sign-in after it. That
-    the running app shows the new sign-in without a restart is the person's to confirm."""
+    """An account switch made outside the app (account_switch): with the app open and signed in, the measurement session
+    runs `codex logout` and then `codex login` with the app's own engine, and the person signs in in the browser with
+    their own account - never with the app's own sign-in buttons. The harness reads the account (account/read: whether
+    one is signed in, and its plan word - never the address) before, then every _MAL_POLL_SECONDS for up to
+    _MAL_SECONDS (ten minutes: a browser sign-in only just fitted five on 2026-11-01), each time on a fresh session,
+    and records whether it saw the sign-out and the sign-in after it, and how many looks were made and failed. That the
+    running app shows the new sign-in without a restart is the person's to confirm."""
     with ctx.open() as session:
         present, plan = _account(session.call("account/read", {}))
-        if not present:
-            return _blocked("sign in to Codex first, then run mal again", account_read=present is not None,
-                            signed_in_before=False)
-        out = back = False
-        after = None
-        deadline = time.monotonic() + _MAL_SECONDS
-        while time.monotonic() < deadline:
-            time.sleep(_MAL_POLL_SECONDS)
-            now, found = _account(session.call("account/read", {}))
-            if now is False:
-                out = True
-            elif now and out:
-                back, after = True, found
-                break
+    if not present:
+        return _blocked("sign in to Codex first, then run mal again", account_read=present is not None,
+                        signed_in_before=False, fresh_session_each_read=True)
+    out = back = False
+    after = None
+    reads = failed = 0
+    deadline = time.monotonic() + _MAL_SECONDS
+    while time.monotonic() < deadline:
+        time.sleep(_MAL_POLL_SECONDS)
+        found = _mal_read(ctx)
+        reads += 1
+        if found is None:
+            failed += 1
+            continue
+        now, word = found
+        if now is False:
+            out = True
+        elif now and out:
+            back, after = True, word
+            break
     observed = {"account_read": True, "signed_in_before": True, "plan_before": plan, "signed_out_seen": out,
-                "signed_in_again_seen": back, "plan_after": after}
-    return _blocked("run `codex logout` and then `codex login` in a terminal within five minutes of starting this; "
-                    "confirm the running app shows the new sign-in without a restart, then set the verdict",
-                    **observed)
+                "signed_in_again_seen": back, "plan_after": after, "fresh_session_each_read": True,
+                "reads": reads, "reads_failed": failed}
+    return _blocked("with the app open and signed in, run `codex logout` and then `codex login` with the app's own "
+                    "engine (the codex.exe in the app's bin folder under LOCALAPPDATA, never a codex on PATH) within "
+                    "ten minutes of starting this; the person signs in in the browser only and never with the app's "
+                    "own sign-in buttons; confirm the running app shows the new sign-in without a restart, then set "
+                    "the verdict", **observed)
+
+
+def _malr(ctx):
+    """The account switch's route as the product makes it (account_switch's button, v0.6.20 final, in place of MAL): with
+    the app open and signed in, the measurement session runs `codex logout` and then `codex login` with the app's own
+    engine, and the person signs in in the browser - as MAL. The harness reads the account first, then follows it on a
+    fresh session every _MAL_POLL_SECONDS for up to _MAL_SECONDS until it has seen the sign-out and the sign-in after it;
+    then - where no turn runs and nothing is queued in Codex (codex/restart.busy, read-only) - it restarts the Codex app
+    exactly as the card's Restart does (codex/restart.restart, the run's `codex_restart` hand: Windows' request to close
+    the app's main process, its end only if that did not end it, the app's own link to the newest conversation handed
+    to Windows, the app waited for) and reads the account afresh. It records how the app ended, what the restart came to,
+    and whether a fresh read finds the account signed in - never the address. That the restarted app shows the new
+    account without its own sign-in page is the person's to confirm.
+
+    FAIL: the product's route did not end the app, or did not start it again. Blocked otherwise, for the person to see."""
+    with ctx.open() as session:
+        present, plan = _account(session.call("account/read", {}))
+    observed = {"account_read": present is not None, "signed_in_before": bool(present), "plan_before": plan,
+                "signed_out_seen": False, "signed_in_again_seen": False, "plan_after": None,
+                "fresh_session_each_read": True, "reads": 0, "reads_failed": 0, "busy_turn_running": None,
+                "busy_queued": None, "busy_unknown": None, "restart_outcome": None, "codex_ended_by": None, "signed_in_after_restart": None,
+                "plan_after_restart": None}
+    if not present:
+        return _blocked("sign in to Codex first, then run malr again", **observed)
+    out = back = False
+    deadline = time.monotonic() + _MAL_SECONDS
+    while time.monotonic() < deadline:
+        time.sleep(_MAL_POLL_SECONDS)
+        found = _mal_read(ctx)
+        observed["reads"] += 1
+        if found is None:
+            observed["reads_failed"] += 1
+            continue
+        now, word = found
+        if now is False:
+            out = True
+        elif now and out:
+            back = True
+            observed["plan_after"] = word
+            break
+    observed.update({"signed_out_seen": out, "signed_in_again_seen": back})
+    if not back:
+        return _blocked("run `codex logout` and then `codex login` with the app's own engine within ten minutes of "
+                        "starting malr, and sign in in the browser; then run malr again", **observed)
+    after = {}
+
+    def read():
+        found = _mal_read(ctx)
+        if found is None:
+            return {"present": None}
+        after.update(present=found[0], plan=found[1])
+        return {"present": found[0]}
+    answered = ctx._hand("codex_restart", getattr(ctx.backend, "codex_home", None), read)
+    answered = answered if isinstance(answered, dict) else {}
+    from .codex import restart as restarts
+    busy = [word for word in answered.get("busy") or () if word in (restarts.TURN_RUNNING, restarts.QUEUED,
+                                                                     restarts.UNKNOWN, restarts.RECOVERY)]
+    outcome = answered.get("outcome")
+    observed.update({"busy_turn_running": restarts.TURN_RUNNING in busy, "busy_queued": restarts.QUEUED in busy,
+                     "busy_unknown": restarts.UNKNOWN in busy,
+                     "restart_outcome": outcome if outcome in restarts.OUTCOMES else None,
+                     "codex_ended_by": answered.get("how") if answered.get("how") in ("closed", "ended") else None,
+                     "signed_in_after_restart": after.get("present"), "plan_after_restart": after.get("plan")})
+    if busy:
+        return _blocked("a turn ran, something was queued in Codex or that could not be read, so Codex was not "
+                        "restarted: let it finish, then run malr again", **observed)
+    if outcome in ("not_ended", "not_started"):
+        return (Verdict.FAIL, observed, "the product's restart did not end the Codex app" if outcome == "not_ended"
+                else "the product's restart ended the Codex app but did not start it again")
+    if outcome not in ("restarted", "restarted_signed_out"):
+        return _blocked("the Codex app was not running, or could not be told apart, so it was not restarted: open the "
+                        "Codex app, signed in, and run malr again", **observed)
+    return _blocked("confirm the restarted Codex app shows the new account (Settings > Account) without its own sign-in "
+                    "page, then set the verdict", **observed)
 
 
 def _power_source(on_battery) -> str:
@@ -2314,6 +2557,179 @@ def _msteer(ctx):
                     "no new turn begun by it and nothing else sent, then set the verdict", **observed)
 
 
+# MGAVE (v0.6.20): which code a turn records when its model stays at capacity through Codex's own retries.
+_MGAVE_DAYS = 90                              # how far back the failed turns are read, by their end
+_MGAVE_TURNS = 2000                           # how many failed turns at most, the latest first
+_MGAVE_SCAN_BYTES = 4 * 1024 * 1024           # how much of a rollout before a failed turn's end is read first
+_MGAVE_FAILED = ("SELECT thread_id, turn_id, error_json, rollout_end_byte_offset FROM thread_turns "
+                 "WHERE status='failed' AND completed_at >= ? ORDER BY completed_at DESC LIMIT ?")
+_MGAVE_COLUMNS = frozenset({"thread_id", "turn_id", "status", "error_json", "completed_at", "rollout_end_byte_offset"})
+_CAPACITY = "serverOverloaded"
+_GAVE_UP = "responseTooManyFailedAttempts"
+
+
+def _code_word(info):
+    """The variant a CodexErrorInfo names, in the schema's camelCase - the history writes it so (codexErrorInfo), a
+    rollout in snake_case (codex_error_info) - or None. A bare word, or a tagged object's one key; nothing else."""
+    if isinstance(info, dict) and len(info) == 1:
+        info = next(iter(info))
+    if not isinstance(info, str) or not info or len(info) > 64 or not info.replace("_", "").isalnum():
+        return None
+    head, *rest = info.split("_")
+    return head + "".join(part[:1].upper() + part[1:] for part in rest)
+
+
+def _turn_retries(path, turn_id, end):
+    """(how many retries Codex made in the failed turn `turn_id` of the rollout at `path`, the code of the last one or
+    None) - its stream_error events, the retries Codex announces before it gives up (an `error` event is the turn's own
+    end, never a retry), from the turn's task_started to its own end: its task_complete or turn_aborted, another turn's
+    task_started, or the byte `end` where the history says its failure was written (the file's end where the history
+    kept no offset, or one past the file). The _MGAVE_SCAN_BYTES before that end are read first, and the whole file up
+    to it only where the turn began earlier. None where the turn's task_started is not in the file before that end.
+    Only each event's type, turn and code are looked at: never a message, an id kept, or a time."""
+    with path.open("rb") as stream:
+        size = stream.seek(0, 2)
+        stop = end if type(end) is int and 0 < end <= size else size
+        start = max(0, stop - _MGAVE_SCAN_BYTES)
+        found = _scan_turn(stream, start, stop, turn_id)
+        if found is None and start:
+            found = _scan_turn(stream, 0, stop, turn_id)
+    return found
+
+
+def _scan_turn(stream, start, stop, turn_id):
+    """_turn_retries' read of bytes `start` to `stop` of the open rollout `stream`, a line at a time."""
+    import json
+    stream.seek(start)
+    if start:
+        stream.readline()                      # the first may be cut
+    retries = None
+    while stream.tell() < stop:
+        line = stream.readline()
+        if not line:
+            break
+        over = stream.tell() - stop
+        if over > 0:
+            line = line[:len(line) - over]     # past the turn's end: what is cut there is no event
+        if (b'"task_started"' not in line and b'"stream_error"' not in line and b'"task_complete"' not in line
+                and b'"turn_aborted"' not in line):
+            continue
+        try:
+            event = json.loads(line.decode("utf-8"))
+        except (ValueError, UnicodeError):
+            continue
+        payload = event.get("payload") if isinstance(event, dict) else None
+        if not isinstance(payload, dict) or event.get("type") != "event_msg":
+            continue
+        kind = payload.get("type")
+        if kind == "task_started" and payload.get("turn_id") == turn_id:
+            retries = []                       # the turn begins here: only what follows is its own
+        elif retries is None:
+            continue
+        elif kind == "stream_error":
+            retries.append(_code_word(payload.get("codex_error_info", payload.get("codexErrorInfo"))))
+        elif kind == "task_started" or (kind in ("task_complete", "turn_aborted") and payload.get("turn_id") == turn_id):
+            break
+    return None if retries is None else (len(retries), (retries[-1] if retries else None))
+
+
+def _mgave(ctx):
+    """Which code a turn records when its model stays at capacity through Codex's own retries (model_fallback beside
+    codex_gave_up, v0.6.20). A real overload cannot be made on demand, and Codex's schema offers no read of a past
+    turn's retries (thread/read gives a turn's error, never the retries before it; the error notification's willRetry
+    is live only), so this reads what a Codex home kept: every failed turn of the history's database in the last
+    _MGAVE_DAYS days (at most _MGAVE_TURNS), its recorded code, and in its rollout the stream_error events - Codex's
+    retries - before its failure, with the last one's code. Run by the measurement session on the owner's Codex home
+    with the owner's yes; read-only. Counts only: never an id, a message, a path or a time.
+
+    Each turn's rollout is looked for where the `threads` row names it, in archived_sessions (an archived
+    conversation's), and by name - a split id's `..._A_B.jsonl` has no row (issue #30): sessions.Origins.find. One
+    no longer in the Codex home counts in rollouts_missing, one that is there but cannot be read in rollouts_unread
+    (v0.6.20 final: the first run left 24 of 30 unread, every one looked for in the sessions folder by its row alone).
+
+    PASS: one failed turn or more whose last retry was for capacity, and every one recorded serverOverloaded. FAIL: one
+    recorded responseTooManyFailedAttempts. Blocked: no such turn found - nothing to answer with yet."""
+    import json
+    import sqlite3
+    from .codex import sessions
+    from .codex.turns import TurnsUnavailable, connect
+    home = getattr(ctx.backend, "codex_home", None)
+    if home is None:
+        return _blocked("no Codex home to read", history_read=False)
+    try:
+        connection = connect(home, "history", {"thread_turns": _MGAVE_COLUMNS})
+    except TurnsUnavailable:
+        return _blocked("the Codex home's history could not be read", history_read=False)
+    try:
+        rows = connection.execute(_MGAVE_FAILED, (int(time.time()) - _MGAVE_DAYS * 86400, _MGAVE_TURNS)).fetchall()
+    except sqlite3.Error:
+        rows = None
+    finally:
+        connection.close()
+    if rows is None:
+        return _blocked("the Codex home's history could not be read", history_read=False)
+    origins = sessions.Origins(home)
+    names = None
+    found = dict.fromkeys(("overloaded_turns", "gave_up_turns", "overloaded_after_capacity_retries",
+                           "overloaded_without_retries", "gave_up_after_capacity_retries",
+                           "gave_up_after_other_retries", "gave_up_without_retries", "retries_seen",
+                           "rollouts_read", "rollouts_archived", "rollouts_found_by_name", "rollouts_missing",
+                           "rollouts_unread", "offsets_missing", "turn_starts_unseen"), 0)
+    for thread, turn, raw, end in rows:
+        try:
+            error = json.loads(raw) if isinstance(raw, str) else None
+        except ValueError:
+            error = None
+        code = _code_word(error.get("codexErrorInfo") if isinstance(error, dict) else None)
+        if code not in (_CAPACITY, _GAVE_UP):
+            continue
+        kind = "overloaded" if code == _CAPACITY else "gave_up"
+        found[kind + "_turns"] += 1
+        try:
+            if names is None:
+                names = origins.names()        # one listing of names for every turn, nothing opened
+            path, how = origins.find(thread, names)
+        except (TurnsUnavailable, OSError, ValueError):
+            path, how = None, "unread"
+        if path is None:
+            found["rollouts_" + ("missing" if how == "missing" else "unread")] += 1
+            continue
+        if type(end) is not int or end <= 0:
+            found["offsets_missing"] += 1
+        try:
+            read = _turn_retries(path, turn, end)
+        except (OSError, ValueError):
+            found["rollouts_unread"] += 1
+            continue
+        found["rollouts_read"] += 1
+        if how == "archived":
+            found["rollouts_archived"] += 1
+        elif how == "name":
+            found["rollouts_found_by_name"] += 1
+        if read is None:
+            found["turn_starts_unseen"] += 1
+            continue
+        retries, last = read
+        found["retries_seen"] += retries
+        if not retries:
+            found[kind + "_without_retries"] += 1
+        elif last == _CAPACITY:
+            found[kind + "_after_capacity_retries"] += 1
+        elif kind == "gave_up":
+            found["gave_up_after_other_retries"] += 1
+    observed = dict(found, history_read=True, failed_turns=len(rows), days_read=_MGAVE_DAYS)
+    if found["gave_up_after_capacity_retries"]:
+        return (Verdict.FAIL, observed, "a turn Codex last retried for capacity recorded responseTooManyFailedAttempts: "
+                "model_fallback would also have to answer codex_gave_up's kind there")
+    if found["overloaded_after_capacity_retries"]:
+        return Verdict.PASS, observed, None
+    if found["rollouts_read"] > found["turn_starts_unseen"] and not found["retries_seen"]:
+        return _blocked("no rollout read kept a retry before its failed turn: this Codex may not write its retries "
+                        "into rollouts, so MGAVE cannot answer from a Codex home", **observed)
+    return _blocked("no failed turn whose last retry was for capacity was found in the last ninety days: run mgave again "
+                    "after one", **observed)
+
+
 PROBES = {
     Measurement.M1: _m1, Measurement.M2: _m2, Measurement.M2B: _m2b, Measurement.M3: _m3,
     Measurement.M4: _m4, Measurement.M5: _m5, Measurement.M6: _m6, Measurement.M7: _m7,
@@ -2326,10 +2742,11 @@ PROBES = {
     Measurement.M6B: _m6b, Measurement.MO: _mo, Measurement.MX: _mx, Measurement.MXA: _mxa, Measurement.MF: _mf,
     Measurement.M3B: _m3b, Measurement.MB: _mb, Measurement.MC1: _mc1, Measurement.MC2: _mc2,
     Measurement.MQO: _mqo, Measurement.MQP: _mqp, Measurement.MQG: _mqg,
-    Measurement.MTOK: _mtok, Measurement.MOPEN: _mopen, Measurement.MAL: _mal, Measurement.MWAKE: _mwake,
+    Measurement.MTOK: _mtok, Measurement.MOPEN: _mopen, Measurement.MAL: _mal, Measurement.MALR: _malr, Measurement.MWAKE: _mwake,
     Measurement.MHK: _mhk, Measurement.M4B: _m4b,
     Measurement.MANCHOR: _manchor,
     Measurement.MIMG: _mimg, Measurement.MSTEER: _msteer, Measurement.MSTEER2: _msteer2,
+    Measurement.MGAVE: _mgave,
 }
 
 # A conversation and a message id of no one's: the shape a call takes, never a real id. A probe
@@ -2656,8 +3073,47 @@ def live_hands(backend=None, paths=None) -> dict:
         from .codex import ipc
         return str(ipc.steer_turn(thread, text, message=message))
 
+    def m4_hook_note():
+        # M4 (v0.6.20): the measurement-only Stop hook's notes, one JSON object a line, where it writes them.
+        import json
+        import tempfile
+        try:
+            lines = (Path(tempfile.gettempdir()) / M4_HOOK_NOTE).read_text(encoding="utf-8").splitlines()
+        except OSError:
+            return []
+        notes = []
+        for line in lines:
+            try:
+                notes.append(json.loads(line))
+            except ValueError:
+                continue
+        return notes
+
+    def codex_restart(home, read):
+        # MALR (v0.6.20 final): the card's Restart, exactly - codex/restart.busy on the probe's home, without core's
+        # records (a measurement has none of its own) but with Windows' own boot time, which the watcher's heartbeat
+        # records there - then codex/restart.restart with the product's hands but the probe's home and read.
+        from codex_auto_resume.codex import LocalSource
+        from codex_auto_resume.win.ownprocess import booted_at
+        from .codex import restart as restarts
+
+        class _NoRecords:
+            def pending(self):
+                return []
+
+            def watcher_status(self):
+                return {"booted_at": booted_at()}
+        if home is None:
+            return {}
+        busy = restarts.busy(paths, source=LocalSource(Path(home)), store=_NoRecords())
+        if busy:
+            return {"busy": list(busy)}
+        outcome, how = restarts.restart(paths, hands=restarts.Hands(paths, home=home, read=read))
+        return {"outcome": outcome, "how": how}
+
     return {"open_link": open_link, "power": _power_look, "wake_after": _wake_after, "scratch_cli": scratch_cli,
-            "anchor_request": anchor_request, "stop_hook": stop_hook, "steer_ipc": steer_ipc}
+            "anchor_request": anchor_request, "stop_hook": stop_hook, "steer_ipc": steer_ipc,
+            "m4_hook_note": m4_hook_note, "codex_restart": codex_restart}
 
 
 def _guid(text):

@@ -697,7 +697,9 @@ namespace CodexAutoResume
             // The other half of what the upgrade-pending message tells people to do. Starting
             // the watcher has always been in the header; stopping it lived only in the command
             // line, which is the one place a person who uses this window never goes.
-            stopButton = MakeButton(S("action.stop_watcher", "Stop watcher"), false, delegate { StopWatcher(); });
+            // v0.6.20 final: and the way back in, in the same button - Start watcher while the watcher is stopped, as the header
+            // offers it (FollowWatcher, from the status the header reads).
+            stopButton = MakeButton(S("action.stop_watcher", "Stop watcher"), false, delegate { WatcherButton(); });
             // v0.6.11, after the five there were: the log searched, and a recovery played out with made-up words.
             demoButton = MakeButton(S("action.demo", "Show me what happens"), false, delegate { StartDemo(); });
             // v0.6.12, last, so no button before it moves: any published version, in either edition, in place of this one

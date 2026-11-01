@@ -1,0 +1,31 @@
+{
+  "format": "codex-auto-resume-measurement/1",
+  "step": "mgave",
+  "verdict": "blocked",
+  "recorded_at": "2026-11-01T12:35Z",
+  "product_version": "0.6.20",
+  "codex_version": "codex-cli 0.166.0-alpha.5.1",
+  "windows_build": "10.0.26300",
+  "observed": {
+    "overloaded_turns": 30,
+    "gave_up_turns": 0,
+    "overloaded_after_capacity_retries": 0,
+    "overloaded_without_retries": 6,
+    "gave_up_after_capacity_retries": 0,
+    "gave_up_after_other_retries": 0,
+    "gave_up_without_retries": 0,
+    "retries_seen": 0,
+    "rollouts_read": 6,
+    "rollouts_archived": 0,
+    "rollouts_found_by_name": 0,
+    "rollouts_missing": 24,
+    "rollouts_unread": 0,
+    "offsets_missing": 0,
+    "turn_starts_unseen": 0,
+    "history_read": true,
+    "failed_turns": 250,
+    "days_read": 90,
+    "thread_given": false
+  },
+  "note": "no rollout read kept a retry before its failed turn: this Codex may not write its retries into rollouts, so MGAVE cannot answer from a Codex home"
+}

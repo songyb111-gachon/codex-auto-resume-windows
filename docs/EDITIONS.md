@@ -142,24 +142,26 @@ file or a log. That is the package's one way to keep a secret, and it never read
 
 ## Today's capabilities
 
-Forty-two: twenty-three that change how a recovery is made, which conversations are recovered or what
+Forty-three: twenty-three that change how a recovery is made, which conversations are recovered or what
 follows a turn, two that tell you elsewhere - notices sent to your phone or inbox, and OpenAI's service status
 on the Overview (v0.6.20) - one that shows where your usage and tokens go (v0.6.20), three that send at a time you
 pick - the two at a usage reset, and queued messages - one that adds a line to the turn running now (v0.6.20; the
 Codex app does not show that line, only History does) - three
 before a usage limit is reached - the usage meter, and the wrap-up and the forced stop that need it - one that
 starts the 5-hour window early when it is idle (v0.6.20), one that switches the Codex account (v0.6.20), one that
-checks for updates once a week, two that look after the watcher and the PC - restart the watcher if it stops unexpectedly,
+checks for updates once a week, one that puts this PC to sleep or shuts it down after tasks you pick (v0.6.20), two that look after the watcher and the PC - restart the watcher if it stops unexpectedly,
 and wake this PC for a reset (v0.6.19) - and four actions: Longer messages, which only lets a message be longer, Open Codex on a notice, which only makes a click on a notice
 show a conversation, chat with a conversation in the Dashboard (v0.6.19), which sends a message of yours, and the
 compatibility report, which only you start. Five rest on a measurement each that was made - the first three, queue for when a conversation
 is opened, and open a waiting conversation in Codex (MOPEN, on `codex-cli 0.165.0-alpha.1.2`). All five added in v0.6.16-beta.4 rest on measurements that were made - running a conversation
 here, the other sessions, compacting a full conversation, another model at capacity and a continuation with
 no words - and four more (the reset credit, the reset message, the usage meter and the forced stop) rest on
-measurements made on `codex-cli 0.162.0-alpha.17.2` and, for the forced stop, again on the newer one. Nine rest on
-measurements not made yet - wake this PC for a reset, on MWAKE, the usage and token analytics, on MTOK, and switching the Codex account, on MAL (its MA passed), are the new ones - the chat rests on M7, MC1 and MC2, which were made, as its own
+measurements made on `codex-cli 0.162.0-alpha.17.2` and, for the forced stop, again on the newer one. Eight rest on
+measurements not made yet - wake this PC for a reset, on MWAKE, and the usage and token analytics, on MTOK, are the new ones -
+switching the Codex account rests on MA, which passed, and its button on MALR - the sign-in, then the product's restart
+of Codex - which passed on `codex-cli 0.166.0-alpha.5.1` on 2026-11-02 (MAL, the sign-in alone, failed there on 2026-11-01) - the chat rests on M7, MC1 and MC2, which were made, as its own
 section below says, starting the 5-hour window early on MANCHOR, made on `codex-cli 0.165.0-alpha.1.2` on 2026-10-29, steering the running turn on MSTEER2,
-made the same day, and the other sixteen on none. Each measurement made was made by hand, on the
+made the same day, and the other seventeen on none. Each measurement made was made by hand, on the
 owner's machine, first on `codex-cli 0.158.0-alpha.2.1`, again on `codex-cli 0.162.0-alpha.17.2` and, for those this release's
 capabilities rest on, once more on `codex-cli 0.163.0-alpha.10.2` (2026-10-17) - and MQO, MQP and MQG, which decide how
 the continuation with no marker, several conversations at once and the goal continuation sit beside the queue for
@@ -286,10 +288,13 @@ message with its marker and the sends go one at a time.
 
 ### Continue inside the turn
 
-**Not offered yet.** It is built and waits, hidden, until three measurements pass on the Codex you have: MHK (how
-Codex declares a plugin's Stop hook), M4 (Codex runs a plugin's Stop hook after a failed turn) and M4B (Codex carries
-out the hook's answer - the turn goes on, with no console window); until then no row, statement or switch of it is
-shown.
+**Hidden, because its measurement failed.** It stays in the product, built and hidden: measurement M4 failed on
+`codex-cli 0.166.0-alpha.5.1` (2026-10-31) - Codex runs a plugin's Stop hook after a turn that completed, but not after
+a turn that failed, which is the case this capability needs - and on `codex-cli 0.162.0-alpha.17.2` (2026-10-10), where
+no plugin Stop hook existed yet. It is offered only once a Codex runs Stop hooks after failed turns and three
+measurements pass on the Codex you have: MHK (how Codex declares a plugin's Stop hook), M4 (Codex runs a plugin's Stop
+hook after a failed turn) and M4B (Codex carries out the hook's answer - the turn goes on, with no console window);
+until then no row, statement or switch of it is shown.
 
 **What it does.** When a turn stops on a short temporary failure - a dropped connection, a timeout, a server error or
 an interrupted stream, whose first wait in your retry timing is a minute or less - this product's Stop hook, a small
@@ -319,8 +324,9 @@ hook's program, which is not a listed process).
 
 **Ceilings.** 24 a day, and 5 in any one conversation - each continuation of the hook's counts as a claim toward the
 standard edition's five a day and fifteen minutes apart, as the watcher's count toward the hook's. **Measurements
-MHK, M4 and M4B: not passed yet** - M4 failed on `codex-cli 0.162.0-alpha.17.2`, where no plugin Stop hook existed to
-run; hidden until all three pass.
+MHK, M4 and M4B: not passed** - M4 failed on `codex-cli 0.162.0-alpha.17.2` (2026-10-10), where no plugin Stop hook
+existed to run, and again on `codex-cli 0.166.0-alpha.5.1` (2026-10-31), where Codex ran the hook after a completed
+turn and not after a failed one; hidden because the measurement failed, until all three pass.
 
 ### Goal continuation
 
@@ -740,7 +746,8 @@ the person's own second yes, spent exactly one credit, which lifted the limit, a
 the same key spent no second one. On that version of Codex the statement carries none of them as a
 warning, and a credit is used at the limit you picked by itself, unless you chose *Ask me first*; on
 any other version each is a warning until it is measured there, and a credit is spent only when you
-press *Use a reset credit now...*.
+press *Use a reset credit now...*. MR only decides whether a credit is spent without asking first, so its failing never
+turns the capability off: it asks first.
 
 ### Send your own message when a limit resets
 
@@ -825,6 +832,7 @@ has not, they go one at a time, and the journal says so.
 
 **Ceilings.** 48 a day, and core's 5 in any one conversation. **Measurement MQ: not made yet;
 MQP: passed** on `codex-cli 0.163.0-alpha.10.2`.
+MQ failing only holds it to 2 workers; it never turns it off.
 
 ### Queue for when a conversation is opened
 
@@ -977,7 +985,8 @@ word for why it stopped are told - never anything it said.
 [A26](STANDARDS.md#a-what-it-may-send-to-codex-and-when).
 
 **Ceilings.** 12 a day, and 3 in any one conversation. **Measurement MS: not made yet** - until it is, a
-parent that finished normally is told nothing.
+parent that finished normally is told nothing,
+and MS failing does the same; it never turns it off.
 
 ### Keep a conversation going
 
@@ -1000,6 +1009,7 @@ conversation off. It is paced like every recovery.
 read from the content of a conversation's items).
 
 **Ceilings.** 24 a day, and core's 5 in any one conversation. **Measurement MK: not made yet.**
+Until it passes, or where it fails, no more than 3 are sent; its failing never turns it off.
 
 ### Queue messages for later
 
@@ -1061,7 +1071,8 @@ on or cancel) and [H6](STANDARDS.md#h-user-control) (Cancel no longer reaches a 
 A20.
 
 **Ceilings.** 30 a day, and core's 5 in any one conversation. **Measurement MT: not made yet** - "after this
-turn" says it is unproven until it is. Its statement is at revision 2 since the send mode (v0.6.19): if it was on,
+turn" says it is unproven until it is, and where it fails that choice says so; its failing never turns the capability
+off. Its statement is at revision 2 since the send mode (v0.6.19): if it was on,
 you read the new statement once and turn it on again.
 
 ### Steer the running turn
@@ -1302,8 +1313,37 @@ product's own folders: the CSV goes where you choose).
 
 **Ceilings.** None come into play: it sends nothing to Codex. **Measurement MTOK: not made yet** - what Codex's
 rollout files carry of token counts; until it passes, the statement carries the warning that it was not measured,
-and where it fails, the narrower route above. **MU: passed** (codex-cli 0.162.0-alpha.17.2, 2026-10-10) for the
+and where it fails, the narrower route above - its failing never turns it off. **MU: passed** (codex-cli 0.162.0-alpha.17.2, 2026-10-10) for the
 meter's readings.
+
+### Sleep or shut down after tasks you pick
+
+**What it does.** Its card on the Advanced features page lists your own conversations whose turn is running now. Pick
+one or more, choose **Then** (Sleep, Hibernate or Shut down - what the power action in Settings offers on this PC) and
+**Warn me first for** (2 to 30 minutes, 5 by default), say whether a task that **failed** or was **interrupted** counts
+too (a completed one always does), and press **Turn on...**, which asks first. It arms the very power action of
+Settings, once: once every task you picked has ended in an ending you count, and - as for the power action after
+recoveries - no recovery waits or runs anywhere, Codex has finished recording, no turn runs in any conversation, no
+input is queued, nobody has used this PC for 2 minutes and the notice's countdown has run out unstopped, this PC does
+what you picked. The notice says it is for the tasks you picked and has the same stop button, for this one time. A
+task cut off by a usage limit is recovered as usual, and the power action waits for that task's real end, after its
+recovery. While armed, the card shows each task and how it stands, and **Turn off**; Settings, the notification-area
+icon and the notice turn it off too. It reads each task's turn status and core's records of it - ids and statuses,
+never what a conversation says - and sends nothing to Codex.
+
+**When it helps.** When you leave long tasks running and want the PC off once they are done, whether or not a usage
+limit comes in between.
+
+**What it risks.** Only Codex in this Codex home is checked: other programs, downloads and unsaved work are not, and
+Shut down closes every program. A task that never ends - one left running by a crash - keeps it waiting until you turn
+it off. Anything it cannot read means it waits.
+
+**Departs from** [H14](STANDARDS.md#h-user-control) (the power action is armed on this page for tasks you started, and
+decided by how they end, not only by usage-limit recoveries). The rest of H14 holds: off until you turn it on, a stop
+first, every way to turn it off, nothing unreadable lets it act, nothing sent.
+
+**Ceilings.** None come into play: it sends nothing to Codex. It rests on no measurement: the turn statuses it reads
+are the ones every recovery already reads.
 
 ### Start the 5-hour window early
 
@@ -1399,7 +1439,13 @@ the plan and a masked e-mail address such as `s•••@e•••.com`, read f
 open and never stored. **Sign out and sign in with another account...** asks first, then runs Codex's own
 `codex logout` and `codex login`, with no window: your browser opens Codex's own sign-in page, you sign in
 there, and the card says how it ended - signed in, cancelled, not finished after ten minutes, or failed. The
-product never asks Codex to sign anyone in or out by a route of its own, never reads Codex's sign-in file, a
+running Codex app uses the new account only once it is restarted, so a sign-in that finished leaves the card asking
+**Restart Codex now so it uses the new account?** **Restart Codex** waits until no turn runs in any conversation, no
+recovery waits or runs and nothing is queued in Codex - until then the card says Codex is busy and offers it again
+once it is clear - then asks Windows to close the Codex app (the Restart Manager's request, as an installer makes it),
+ends its main process only if it is still running 30 seconds later, starts it again through its own `codex:` link at
+your newest conversation and reads the account afresh. **Not now** leaves the new account signed in, and the card says
+Codex needs a restart to use it. The product never asks Codex to sign anyone in or out by a route of its own, never reads Codex's sign-in file, a
 token or a cookie, and never lists, remembers or picks an account. While it is on, the watcher reads which
 account is signed in when it starts and every 30 minutes, and keeps only a keyed digest of it (HMAC-SHA256,
 its key in Windows Credential Manager). When another account is signed in, every recovery waiting for a usage
@@ -1413,10 +1459,13 @@ changed is the same account; a reading that failed, or found no one signed in, c
 **What it risks.** `codex login` is Codex's own sign-in: it opens your default browser and listens on this PC
 for the answer. Cancelled there, Codex stays signed out, and recoveries wait - usage cannot be read - until
 you sign in in Codex. A change of account is noticed at the watcher's next reading, up to 30 minutes later.
-The terms of your ChatGPT plan apply to the accounts you use. Until MAL - the running Codex app follows a
-sign-in made with `codex login` without a restart - has passed on the Codex in force, the card offers no
-button: it says to sign out in Codex (Settings > Account) and sign in there with the other account, and a
-change is held for you all the same. Turned off, the digest and its key are deleted the next time the
+The terms of your ChatGPT plan apply to the accounts you use. MAL failed on `codex-cli 0.166.0-alpha.5.1`
+(2026-11-01): a sign-out made with `codex logout` reached the running app, but the `codex login` after it did not,
+and only a full restart of the app brought it up signed in - hence the restart. Restart closes the Codex app, and if
+Windows' request is not enough its process is ended as Task Manager would end it: anything unsaved in Codex's window,
+such as a message you were typing, may be lost. Until MALR - that sign-in, then this restart, brings Codex up with the
+new account - has passed on the Codex in force, the card offers no button: it says to sign out in Codex (Settings >
+Account) and sign in there with the other account, and a change is held for you all the same. Turned off, the digest and its key are deleted the next time the
 watcher runs.
 
 **Departs from** [B4](STANDARDS.md#b-what-it-reads-and-how) (`account/read` beyond core's calls),
@@ -1424,13 +1473,18 @@ watcher runs.
 [B11](STANDARDS.md#b-what-it-reads-and-how) (it starts Codex's own sign-in, which handles your credentials),
 [C4](STANDARDS.md#c-network) (it reads on a schedule), [C9](STANDARDS.md#c-network) (Codex is asked when no
 recovery is due), [D2](STANDARDS.md#d-privacy-and-the-data-it-keeps) (a digest of the account is kept),
+[E8](STANDARDS.md#e-failure-behaviour) (after you agree, it ends the Codex app's process to restart it,
+if Windows' request to close it was not enough),
 [F6](STANDARDS.md#f-footprint-on-the-machine) (`codex logout` and `codex login` are not listed processes) and
 [H7](STANDARDS.md#h-user-control) (a change of account holds recoveries for you). It keeps
 [A12](STANDARDS.md#a-what-it-may-send-to-codex-and-when): a recovery you let continue still reads live usage.
 
 **Ceilings.** None come into play: it sends nothing to Codex. **Measurements MA: passed** on
-`codex-cli 0.162.0-alpha.17.2`, and **MAL: not made yet**; on any version where one has not passed, a warning,
-and the button waits for MAL.
+`codex-cli 0.162.0-alpha.17.2`; **MAL: failed** on `codex-cli 0.166.0-alpha.5.1` (2026-11-01, partial: the
+sign-out reached the running app, the sign-in did not), kept as the record of the plain route; **MALR: passed** on
+`codex-cli 0.166.0-alpha.5.1` (2026-11-02: after the same sign-out and sign-in, Windows asked Codex to quit, it did, and
+it came back signed in). MA without a pass on the version in force is a warning; MALR without one only hides the button - and, failed,
+it is hidden because its measurement failed - and never turns the switch off.
 
 ### Compatibility report
 
@@ -1547,10 +1601,10 @@ published as a final instead (owner, 2026-10-10). v0.6.15 was a fix alone (owner
 rest went to v0.6.16, which came in four pre-releases and is out: its first, v0.6.16-beta, built the
 six capabilities of stage 3c, and the next three a route of its own, other kinds of session and the
 usage capabilities. v0.6.18 then took two small capabilities of stage 5, Open Codex on a notice and the weekly
-update check, and published them as a final (owner, 2026-10-21). v0.6.19 then came in four pre-releases and is out (owner, 2026-10-26): its first, v0.6.19-beta, carried the chat inside the Dashboard, the restart of the watcher and the wake for a reset, and the others the rest of what it built. What is left of stage 5 is v0.6.20 (owner, 2026-10-26), which publishes each part as a pre-release as it is finished. Each new capability is the advanced edition's alone, off until you
+update check, and published them as a final (owner, 2026-10-21). v0.6.19 then came in four pre-releases and is out (owner, 2026-10-26): its first, v0.6.19-beta, carried the chat inside the Dashboard, the restart of the watcher and the wake for a reset, and the others the rest of what it built. What was left of stage 5 was v0.6.20 (owner, 2026-10-26), which published each part as a pre-release as it was finished and is out; its local API and web view, remote control and view of other PCs moved on to v0.6.21 (owner, 2026-10-31). Each new capability is the advanced edition's alone, off until you
 turn it on, with a statement that names the standards it departs from. This is a direction, not a
 promise; [ROADMAP.md](ROADMAP.md) has the whole list: the two additions in its v0.6.12 section, what
-is built in its v0.6.14, v0.6.16, v0.6.18 and v0.6.19 sections, and the rest in its v0.6.20 section, under the same
+is built in its v0.6.14, v0.6.16, v0.6.18, v0.6.19 and v0.6.20 sections, and the rest in its v0.6.21 section, under the same
 headings as the last four bullets below.
 
 - **Recovery through the channels already in use** - several conversations at once,
@@ -1561,8 +1615,12 @@ headings as the last four bullets below.
 - **A route of its own, and other kinds of session** - a conversation nothing holds, run through
   Codex's app server; CLI, TUI and IDE sessions; a full context compacted, then continued; another
   model at capacity; a continuation with no words - all built in v0.6.16-beta.4, described
-  [above](#todays-capabilities); and a continuation inside the turn through a Codex Stop hook, planned for
-  v0.6.20. (Codex's own retry settings are offered only once a measurement passes.)
+  [above](#todays-capabilities); and a continuation inside the turn through a Codex Stop hook, built in v0.6.20 and
+  hidden because its measurement M4 failed (`codex-cli 0.162.0-alpha.17.2`, 2026-10-10, and `codex-cli 0.166.0-alpha.5.1`,
+  2026-10-31: Codex does not run the hook after a failed turn). (Codex's own retry settings stay in the product, hidden
+  because their measurement MB failed: Codex refuses the write under `model_providers.openai` (`config/value/write`,
+  -32600) on `codex-cli 0.162.0-alpha.17.2` (2026-10-16) and again on `codex-cli 0.166.0-alpha.5.1` (2026-10-31). They
+  are offered only once a Codex passes MB.)
 - **Around recovery** - usage analytics (the live usage meter and the wrap-up near a limit are built,
   described [above](#todays-capabilities)); a provider status feed and push notifications through one courier process, the advanced edition's only
   outbound network code; a local API and web view, remote control over Telegram and a read-only view
@@ -1576,7 +1634,8 @@ headings as the last four bullets below.
 - **Compatibility data for the advanced edition** - verdicts for each Codex engine in a file of its own, which
   installed advanced editions fetch, and the compatibility reporter counting the advanced edition's outcomes as
   "reported" without ever raising a verdict.
-- **Also moved here** - a continuation inside the turn through a Codex Stop hook, and Arabic and Hebrew (offered from
+- **Also moved here** - a continuation inside the turn through a Codex Stop hook (built, and hidden because its
+  measurement M4 failed on 2026-10-31), and Arabic and Hebrew (offered from
   v0.6.20, every surface mirrored for them). Watching
   several Codex homes, which the standard edition gains, was built in v0.6.16-beta, and the winget manifests for both
   editions in v0.6.16 ([WINGET.md](WINGET.md)).

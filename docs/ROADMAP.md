@@ -1,4 +1,4 @@
-# Codex Auto Resume roadmap: v0.6.3 → v0.6.23
+# Codex Auto Resume roadmap: v0.6.3 → v0.6.24
 
 This is the current development direction for Codex Auto Resume from v0.6.3.
 
@@ -12,7 +12,7 @@ advanced features, more than any program like this, in two editions → stabiliz
 core with Rust and make it Rust-native → stabilize Rust**
 
 The default recovery behavior stays as conservative as it has always been, through every release
-here: what v0.6.11, v0.6.12, v0.6.14, v0.6.16, v0.6.18, v0.6.19 and v0.6.20 add to it is there for a person to turn on, never
+here: what v0.6.11, v0.6.12, v0.6.14, v0.6.16, v0.6.18, v0.6.19, v0.6.20 and v0.6.21 add to it is there for a person to turn on, never
 on by itself - except fixes: v0.6.15's detection of the conversations Codex hands over, and v0.6.18's judgment of a
 cut-off recovery turn, are on by themselves.
 
@@ -328,7 +328,7 @@ The repository's landing page on GitHub is tidied in the same stage, while paths
 anyway, so that fewer files sit at its root.
 
 Bugs discovered during this refactor will be fixed with regression tests, but the alpha is
-**not intended to be the full repository-wide bug hunt**; v0.6.21 is. It is the modularization and
+**not intended to be the full repository-wide bug hunt**; v0.6.22 is. It is the modularization and
 nothing else: no feature, and no change anybody could see.
 
 What it carries: the modules that were over their ceiling are packages in the plan's layout -
@@ -570,7 +570,7 @@ and released at the same time, with the same version:
 
 Each has its own archive and pinned digest, and one build attestation names both. An installation
 updates within its edition only; moving between them is a deliberate reinstall, never an update.
-The Rust core carries both (v0.6.22).
+The Rust core carries both (v0.6.23).
 
 ---
 
@@ -822,9 +822,12 @@ finish its step, and a pause that holds our continuations until the reset
 - a continuation with no words, where Codex allows it (the app's queue refused an empty one:
   measurement M3).
 
-Codex's own retry settings are not offered until Codex allows changing its built-in provider's retry settings
-(measured on 2026-10-16, MB). A continuation inside the turn, through a Codex Stop hook, and chatting with a
-Codex conversation inside the Dashboard were on this list; the chat went out in v0.6.19 and the Stop hook is v0.6.20's.
+Codex's own retry settings stay in the product, hidden, because their measurement failed: Codex refuses the write under
+`model_providers.openai` (`config/value/write`, -32600) in the built-in provider's retry settings, measured on 2026-10-16 (MB,
+`codex-cli 0.162.0-alpha.17.2`) and again on 2026-10-31 (`codex-cli 0.166.0-alpha.5.1`); they are offered only once a Codex passes MB.
+A continuation inside the turn, through a Codex Stop hook, and chatting with a
+Codex conversation inside the Dashboard were on this list; the chat went out in v0.6.19 and the Stop hook is v0.6.20's,
+built and hidden because its measurement M4 failed (see v0.6.20).
 
 #### The usage capabilities, finished
 
@@ -982,7 +985,7 @@ On 2026-10-26 the owner decided to release v0.6.19 as a final with what was buil
 remained to the next version, and to number that version v0.6.20 and move every later release back by one. What v0.6.19
 did not build - usage analytics, the courier process, the loopback API and remote control, account switching, the
 Stop-hook continuation, Arabic and Hebrew, and the before and after examples with a *See an example* link for every
-advanced capability - is v0.6.20 below.
+advanced capability - is v0.6.20 below (the loopback API and remote control moved on to v0.6.21 on 2026-10-31).
 
 ### v0.6.19-beta ✅ — The last stage's first visible parts (a pre-release)
 
@@ -1063,11 +1066,20 @@ chat's statement carries as its warning.
 
 ---
 
-## v0.6.20 — The rest of the advanced edition's last stage
+## v0.6.20 — The rest of the advanced edition's last stage ✅
+
+**Four pre-releases and a final that carries all of them. v0.6.20 carries the status light checked for every state, Arabic and Hebrew
+with every surface mirrored, #54 and #55, the Timeline dialog's columns, Python 3.14.10, and, in the advanced edition, usage and token
+analytics, push notices and the status feed, the 5-hour window started early, switching the account, #50's pictures, steer send mode,
+opening a conversation to send now and the follow-through view, an example for every capability, the advanced edition's own
+compatibility data, the Advanced features page in the owner's order, and the pair audit's fixes. The loopback API, remote control and
+the switch to Python 3.15 are v0.6.21.**
 
 On 2026-10-26 the owner released v0.6.19 as a final with what was built and moved what had been begun and what remained
-to a version of its own, v0.6.20, so that every later release moved back by one: the final Python audit is v0.6.21, the
-Rust core v0.6.22 and its audit v0.6.23. As in v0.6.19, every capability here is the advanced edition's alone, off until
+to a version of its own, v0.6.20, so that every later release moved back by one; and
+on 2026-10-31 it moved the loopback API and web view, remote control over Telegram and the read-only view of other PCs out of this version into
+a v0.6.21 of their own, with the switch to Python 3.15, and every later release one on again: the final Python audit is v0.6.22, the Rust core
+v0.6.23 and its audit v0.6.24. As in v0.6.19, every capability here is the advanced edition's alone, off until
 a person turns it on, with a statement that names the standards it departs from; some rest on a measurement of the real
 Codex, and one that fails narrows the route, or becomes a warning the person confirms, and does not drop the capability.
 
@@ -1091,14 +1103,28 @@ naming the neumorphic design; and, in the advanced edition, a click on a notice 
 Both editions: the status light checked for every state (the owner's amended J14 of 2026-10-29), the Dashboard reopened after a Repair on the
 page it showed, Arabic and Hebrew offered with every surface mirrored, and the README's motions made longer. The advanced edition: usage and
 token analytics, push notices and the status feed through one courier, starting the 5-hour window early, switching the account, the Stop hook's
-continuation (built, hidden until it is measured), #50's pictures, steer send mode, opening a conversation to send now and follow-through view,
+continuation (built, and hidden because its measurement failed), #50's pictures, steer send mode, opening a conversation to send now and follow-through view,
 and a before and after for every capability.
 
-### v0.6.20-beta.4 🚧 — Python 3.14.10, a source run under the newest Python, and the advanced edition's own compatibility data (a pre-release)
+### v0.6.20-beta.4 ✅ — Python 3.14.10, a source run under the newest Python (taken back in the final), and the advanced edition's own compatibility data (a pre-release)
 
 Both editions: Python 3.14.10 bundled, a run from source going on under the newest Python installed (the owner, 2026-10-30), and the
 Timeline dialog's columns measured in the window's own font. The advanced edition: its own compatibility data, and community reports that
-can ask to be credited and carry its own outcomes (the reporter's next release offers the choice).
+can ask to be credited and carry its own outcomes (the reporter's next release offers the choice). The source run under the newest Python was
+the owner's request of 2026-10-30 and is taken back in the final: the request had been about the CI, not about the product choosing an
+interpreter.
+
+### v0.6.20 ✅ — The final: what came after the fourth pre-release
+
+The final's changelog entry tells the whole line, every item of the four pre-releases in the form it has now; what reached it after
+v0.6.20-beta.4 is this. In both editions: a run from source goes on under the Python that started it, as before beta.4, and doctor
+no longer prints that Python's line; the CI runs every non-live test on Python 3.13, 3.14 and 3.15, all three blocking, each on the newest
+release of its line, and the main-tree job and the release workflow run the bundled Python 3.14.10, pinned until it is moved on purpose;
+every picture of the window is the window's own size on a screen smaller than the window. In the advanced edition: the Advanced features page
+in the order the owner approved on 2026-10-31; the pair audit's two fixes (a conversation already on Codex's default model is left to the
+headless route, and the 5-hour window started early is counted per account) and its holds; the wake for a reset also wakes the PC for the
+early 5-hour window; two recovery records that waited for good are cancelled; the measurements MB and M4 of 2026-10-31, which fail, so
+Codex's own retry settings and the continuation inside the turn stay hidden; and the reporter's release 1.5.4, which offers the credit.
 
 ### Around recovery
 
@@ -1108,8 +1134,6 @@ can ask to be credited and carry its own outcomes (the reporter's next release o
   are v0.6.14's, used at the limit a person picks),
 - a provider status feed and push notifications - ntfy, a webhook, Telegram, e-mail - through one
   courier process, the advanced edition's only outbound network code,
-- a loopback API and web view on 127.0.0.1, remote control over Telegram, and a read-only view of
-  other PCs through a folder the person syncs,
 - switching the active Codex account on the person's command (measurement MA).
 
 ### Compatibility data for the advanced edition
@@ -1121,7 +1145,10 @@ can ask to be credited and carry its own outcomes (the reporter's next release o
 
 ### Also moved here
 
-- **A continuation inside the turn, through a Codex Stop hook**, from v0.6.16's list of other routes.
+- **A continuation inside the turn, through a Codex Stop hook**, from v0.6.16's list of other routes. It is built and stays in the
+  product, hidden, because its measurement failed: M4 found that Codex runs a plugin's Stop hook after a turn that completed but not after one
+  that failed, which is the case it needs - on `codex-cli 0.166.0-alpha.5.1` (2026-10-31), and on `codex-cli 0.162.0-alpha.17.2`
+  (2026-10-10) with no Stop-hook plugin yet. It is offered only once a Codex runs Stop hooks after failed turns and M4 and M4B pass.
 - **Arabic and Hebrew**, translated and held since v0.6.11-beta, offered once the window is mirrored
   for right-to-left.
 
@@ -1133,21 +1160,47 @@ can ask to be credited and carry its own outcomes (the reporter's next release o
 
 ---
 
-## v0.6.21 — The final Python audit, both editions
+## v0.6.21 — The loopback API and remote control, and the switch to Python 3.15
 
-v0.6.21 is the last Python release: the whole repository, both editions, through its bug hunt, and
-the Python reference implementation the Rust migration reproduces. It comes after v0.6.16, v0.6.18, v0.6.19 and v0.6.20 so that
+On 2026-10-31 the owner moved two things into a version of their own, and the final Python audit, as it was, to v0.6.22 with every later
+release one on: what v0.6.20 had planned of the advanced edition's network surfaces (W2), and the switch to Python 3.15. As in v0.6.20,
+every capability here is the advanced edition's alone, off until a person turns it on, with a statement that names the standards it departs from.
+
+### The loopback API, remote control and a view of other PCs
+
+- a loopback API and web view on 127.0.0.1,
+- remote control over Telegram,
+- a read-only view of other PCs through a folder the person syncs.
+
+### The switch to Python 3.15
+
+Python 3.15 is already a blocking lane of the CI, and runs the newest 3.15 release there is (the owner, 2026-10-31). This version bundles it
+and takes what it brings, as the plan of 2026-10-30 lays it out:
+
+- the newest 3.15.x bundled (3.15.2 or newer), its version and SHA-256 pinned, remote debugging off as now,
+- lazy imports (PEP 810) by option, `-X lazy_imports=all`, on the bundled runtime's launches only, measured first - the cold start of the
+  bridge, the MCP server and the watcher's first tick, with and without it - and kept only if the gain is real; a module whose import registers
+  something is found and imported where its registration is needed,
+- the UTF-8 default (PEP 686) audited: every file and subprocess text call without an explicit encoding, and what a locale's encoding (cp949 here)
+  read before,
+- the removed and deprecated APIs checked against all of the source, tests and scripts, also the paths no test reaches,
+- the free speed of the official Windows binaries measured with the lazy imports, and a script to profile a source-run watcher or bridge with
+  the new sampling profiler, for the window's lag and the CPU work,
+- the minimum for a run from source stays 3.13, so no 3.15-only syntax is shipped; not now: `lazy import` statements, `frozendict`, `sentinel`.
+
+---
+
+## v0.6.22 — The final Python audit, both editions
+
+v0.6.22 is the last Python release: the whole repository, both editions, through its bug hunt, and
+the Python reference implementation the Rust migration reproduces. It comes after v0.6.16, v0.6.18, v0.6.19, v0.6.20 and v0.6.21 so that
 the last features written in Python - the rest of the advanced edition - are audited with the rest,
 and the reference the Rust core reproduces holds them.
 
-v0.6.21 is planned as the final comprehensive audit of the Python implementation, in both editions.
+v0.6.22 is planned as the final comprehensive audit of the Python implementation, in both editions.
 
-v0.6.21 also bundles Python 3.15 (3.15.2 or newer), with lazy imports turned on by option for the bundled runtime after a measurement, and the
-audits its changes call for - the UTF-8 default and the removed APIs. The minimum for a run from source stays 3.13, so no 3.15-only syntax is
-shipped (the owner, 2026-10-30).
-
-Right after the final v0.6.21 is published and verified, the last Python version is kept as a repository of its own - its
-history and tags up to v0.6.21 - before the Rust core replaces it (the owner, 2026-10-24).
+Right after the final v0.6.22 is published and verified, the last Python version is kept as a repository of its own - its
+history and tags up to v0.6.22 - before the Rust core replaces it (the owner, 2026-10-24).
 
 Unlike v0.6.10-alpha's refactoring, it is intentionally a broad bug hunt.
 
@@ -1168,7 +1221,7 @@ Expected areas include:
 - malformed, stale, or corrupted state,
 - fault injection,
 - real Codex integration,
-- Advanced / Experimental recovery paths: every capability of v0.6.11, v0.6.14, v0.6.16, v0.6.18, v0.6.19 and v0.6.20, each with its
+- Advanced / Experimental recovery paths: every capability of v0.6.11, v0.6.14, v0.6.16, v0.6.18, v0.6.19, v0.6.20 and v0.6.21, each with its
   warnings, tripwires and ceilings,
 - responsiveness, in every language: whatever lag v0.6.9 left,
 - both editions, and that the standard one still holds none of the advanced code,
@@ -1185,14 +1238,14 @@ for the Rust migration.
 
 ---
 
-## v0.6.22 — Rust: the core replaced as it is, then made Rust-native
+## v0.6.23 — Rust: the core replaced as it is, then made Rust-native
 
-v0.6.22 arrives in two stages too: **v0.6.22-alpha**, a pre-release, replaces the production Python
-core with Rust as it is; the final **v0.6.22** is that core made naturally Rust-oriented. The alpha is
+v0.6.23 arrives in two stages too: **v0.6.23-alpha**, a pre-release, replaces the production Python
+core with Rust as it is; the final **v0.6.23** is that core made naturally Rust-oriented. The alpha is
 a pre-release because the core swapped as it is is a stage on the way to the Rust-native one, not a
 release worth having on its own.
 
-### v0.6.22-alpha — Complete Rust core replacement (a pre-release)
+### v0.6.23-alpha — Complete Rust core replacement (a pre-release)
 
 The alpha is planned to replace the production Python core with Rust, as it is.
 
@@ -1203,7 +1256,7 @@ The rule is:
 
 > **Replace the implementation, not the behavior.**
 
-The Rust implementation should reproduce the final v0.6.21 as closely as practical.
+The Rust implementation should reproduce the final v0.6.22 as closely as practical.
 
 Goals include:
 
@@ -1245,13 +1298,13 @@ Rust
 PowerShell may remain as a thin layer for bootstrap, installation, updating, or similar Windows
 deployment work.
 
-### v0.6.22 — Rust-native restructuring and optimization
+### v0.6.23 — Rust-native restructuring and optimization
 
 The alpha prioritizes behavioral parity.
 
 That may leave some Python-shaped architecture inside the first Rust implementation.
 
-The final v0.6.22 is planned to make the codebase more naturally Rust-oriented.
+The final v0.6.23 is planned to make the codebase more naturally Rust-oriented.
 
 Potential work includes:
 
@@ -1271,9 +1324,9 @@ This is not intended to be the final full-system bug hunt.
 
 ---
 
-## v0.6.23 — Final Rust audit and stabilization: the Rust bug hunt
+## v0.6.24 — Final Rust audit and stabilization: the Rust bug hunt
 
-v0.6.23 is planned as the final comprehensive stabilization pass.
+v0.6.24 is planned as the final comprehensive stabilization pass.
 
 Expected focus includes:
 
@@ -1289,7 +1342,7 @@ Expected focus includes:
 - installer / update / repair / uninstall,
 - malformed or corrupted state,
 - Compatibility Registry cache/offline/failure behavior,
-- Advanced / Experimental capabilities: every capability of v0.6.11, v0.6.14, v0.6.16, v0.6.18, v0.6.19 and v0.6.20,
+- Advanced / Experimental capabilities: every capability of v0.6.11, v0.6.14, v0.6.16, v0.6.18, v0.6.19, v0.6.20 and v0.6.21,
 - real Codex recovery,
 - fuzz or property testing where useful.
 
@@ -1311,7 +1364,7 @@ The intended final stack is:
 
 There is currently **no planned v0.7.0 feature cycle**.
 
-After v0.6.23, the project is expected to move primarily into maintenance:
+After v0.6.24, the project is expected to move primarily into maintenance:
 
 - Codex compatibility updates,
 - Compatibility Registry updates,
@@ -1458,25 +1511,31 @@ diagnostics, the scroll bar's groove, and M2b measured again
 
         ↓
 
-v0.6.20
-The rest of the advanced edition's last stage: analytics, the courier, the loopback API and remote control, account
-switching, the Stop hook continuation, Arabic and Hebrew, and an example for every capability
+v0.6.20  ✅ Released
+The final: the rest of the advanced edition's last stage - analytics, the courier, account switching, Arabic and Hebrew, and an
+example for every capability; the Stop hook continuation built and hidden because its measurement failed
 
         ↓
 
 v0.6.21
+The loopback API, remote control and a view of other PCs (advanced edition)
++ the switch to Python 3.15 and what it brings
+
+        ↓
+
+v0.6.22
 The final Python audit, both editions
 → freeze Python reference behavior
 
         ↓
 
-v0.6.22-alpha → v0.6.22
+v0.6.23-alpha → v0.6.23
 Complete Rust core replacement, in a pre-release
 + Rust-native restructuring and optimization, in the final
 
         ↓
 
-v0.6.23
+v0.6.24
 Final Rust audit and stabilization: the Rust bug hunt
 → final stable Rust baseline
 
@@ -1487,7 +1546,8 @@ Maintenance
 
 This document records the current direction; the four pre-releases of v0.6.19, v0.6.19-beta to v0.6.19-beta.4, are out and
 the final v0.6.19, which carries all of them and what reached dev after them, is out; what it did not build is
-v0.6.20. v0.6.18 is out: a recovery that worked is recovered however its turn ended,
+v0.6.20, and the four pre-releases of v0.6.20, v0.6.20-beta to v0.6.20-beta.4, are out and the final v0.6.20, which carries all of them and what
+reached dev after them, is out. v0.6.18 is out: a recovery that worked is recovered however its turn ended,
 the standard edition suggests the Codex homes this PC uses, Install another version runs in the setup window, the setup
 window's bar fills by real counts, the update's download is streamed, all seventeen translations were reviewed, a full
 audit's fixes landed in every layer, and the advanced edition gains Open Codex on a notice and a weekly update check while
@@ -1503,4 +1563,5 @@ the app, and the panel beside the chat, in the advanced edition; and a window th
 recovery waits, in both. v0.6.18 is a final on v0.6.17 with no pre-release of its own, and v0.6.19 follows it, starting with its
 pre-release, v0.6.19-beta: the owner moved stage 5 out of v0.6.16 on 2026-10-16, so that the v0.6.16 final came
 sooner, made v0.6.17 a final on v0.6.16 on 2026-10-19, and on 2026-10-21 put the simple parts of stage 5 into v0.6.18 and the rest into v0.6.19, and on 2026-10-26 released
-v0.6.19 with what was built and moved the rest to v0.6.20, every later release one on.
+v0.6.19 with what was built and moved the rest to v0.6.20, every later release one on, and on 2026-10-31 moved the loopback API,
+remote control and the view of other PCs out of v0.6.20 into a v0.6.21 of their own, with the switch to Python 3.15, every later release one on again.
