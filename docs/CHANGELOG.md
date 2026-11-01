@@ -90,16 +90,22 @@ an older version brings the runtime that version was built with (3.14.9 for v0.6
 - **The icon's right-click menu is drawn in the popup's design** (new since beta.4; the owner's request). It opens at the pointer on
   that monitor's scale, shows the item in hand as a raised pill, takes the arrow keys, Home and End, Enter, an item's first letter
   and Esc, closes on a click outside, is read as a menu by a screen reader, follows High Contrast, and opens mirrored in Arabic and
-  Hebrew. Its items are the ones Windows' menu had, from one list; where it cannot open, Windows' menu opens as before.
+  Hebrew. It has no bright edge round it, as the popup's raised cards have. Its items are the ones Windows' menu had, from one list;
+  where it cannot open, Windows' menu opens as before.
 - **Starting the Dashboard again brings the open one forward** (new since beta.4). A Start menu shortcut or the program started
   directly now hands over to the Dashboard already open, on the page asked for, as the notification area's opens do since beta.2,
   instead of opening a second window.
 - **Mirrored lists keep their columns** (new since beta.4). In Arabic and Hebrew the History list showed only its End column: a list
   built narrow scrolled to its first column and kept that scroll once it widened. Every list now starts from its first pixel when it
-  takes a new size; a left-to-right list scrolled sideways had the same fault.
+  takes a new size; a left-to-right list scrolled sideways had the same fault. Each row's line now runs the whole width in Arabic
+  and Hebrew too (it stopped short of the rightmost column), in History, Pending, the Timeline and *Install another version...*.
 - **Smaller things** (new since beta.4): the Timeline dialog lists its lines in time order (its receipts came after all its events);
   the word the header shows while the window loads comes from the catalog in every language instead of English; the dialogs that hold
-  a list - the example, *Find a conversation...* and *Follow through...* - wear the product's icon.
+  a list are no longer shown with Windows' default icon; the Diagnostics page offers *Start watcher* while the watcher is
+  stopped (it kept offering *Stop watcher*), and is greyed while a start or a stop is on its way.
+- **Windows opened inside the Dashboard have no icon** (new since beta.4; the owner's choice): every dialog, picker, statement and
+  confirmation the Dashboard opens shows no icon in its title bar; the Dashboard's own window keeps it, as do the taskbar and the
+  setup program's window.
 - **The README's install motion shows the log as the setup program does** (new since beta.4): its log follows each line the installer
   prints, as it does on a screen, instead of staying at its top.
 
@@ -129,7 +135,15 @@ an older version brings the runtime that version was built with (3.14.9 for v0.6
   change of account holds every recovery waiting for a limit until you let it continue. Its button, which would run Codex's own
   sign-out and sign-in, is hidden because its measurement failed (MAL, on codex-cli 0.166.0-alpha.5.1, 2026-11-01): a sign-out made
   with `codex logout` reached the running Codex app, but the `codex login` after it did not until the app's own sign-in was used.
-  The card says how to switch in Codex instead, and the button is offered once a Codex passes.
+  Measured again the same day with a probe that reads the account afresh each time: the running app takes a sign-in made outside it
+  only after Codex is restarted in full. The card and its statement say the button is hidden because its measurement failed (they
+  had said "until it is measured"), and how to switch in Codex instead; the button is offered once a Codex passes.
+- **A measurement that only a part of a capability rests on never turns the capability off** (new since beta.4). A count, a second
+  worker, a parent's follow-up, the token estimate and the account button each rest on a measurement of their own (MK, MQ, MS, MTOK
+  and MAL). Listed among the capability's measurements, a failed one would have turned the whole capability off, as MAL's did to a
+  watched account switch in a candidate of this release; now it narrows only its part and the statement says that it failed, while
+  the capability stays as you left it. The words for a count, a choice after this turn and a reset's ask-first note say *failed*
+  where the measurement failed, not *unmeasured*.
 - **Push notices and OpenAI's service status, through one courier process.** With *Send notices to your phone or inbox* on, a notice
   you picked goes as a short message to an ntfy topic, a webhook, a Telegram bot or an e-mail server you set up on the capability's
   card; with *Show OpenAI's service status* on, the same process reads OpenAI's public status page, and the Overview says when it
