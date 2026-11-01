@@ -2073,6 +2073,80 @@ def _mal(ctx):
                     "the verdict", **observed)
 
 
+def _malr(ctx):
+    """The account switch's route as the product makes it (account_switch's button, v0.6.20 final, in place of MAL): with
+    the app open and signed in, the measurement session runs `codex logout` and then `codex login` with the app's own
+    engine, and the person signs in in the browser - as MAL. The harness reads the account first, then follows it on a
+    fresh session every _MAL_POLL_SECONDS for up to _MAL_SECONDS until it has seen the sign-out and the sign-in after it;
+    then - where no turn runs and nothing is queued in Codex (codex/restart.busy, read-only) - it restarts the Codex app
+    exactly as the card's Restart does (codex/restart.restart, the run's `codex_restart` hand: Windows' request to close
+    the app's main process, its end only if that did not end it, the app's own link to the newest conversation handed
+    to Windows, the app waited for) and reads the account afresh. It records how the app ended, what the restart came to,
+    and whether a fresh read finds the account signed in - never the address. That the restarted app shows the new
+    account without its own sign-in page is the person's to confirm.
+
+    FAIL: the product's route did not end the app, or did not start it again. Blocked otherwise, for the person to see."""
+    with ctx.open() as session:
+        present, plan = _account(session.call("account/read", {}))
+    observed = {"account_read": present is not None, "signed_in_before": bool(present), "plan_before": plan,
+                "signed_out_seen": False, "signed_in_again_seen": False, "plan_after": None,
+                "fresh_session_each_read": True, "reads": 0, "reads_failed": 0, "busy_turn_running": None,
+                "busy_queued": None, "busy_unknown": None, "restart_outcome": None, "codex_ended_by": None, "signed_in_after_restart": None,
+                "plan_after_restart": None}
+    if not present:
+        return _blocked("sign in to Codex first, then run malr again", **observed)
+    out = back = False
+    deadline = time.monotonic() + _MAL_SECONDS
+    while time.monotonic() < deadline:
+        time.sleep(_MAL_POLL_SECONDS)
+        found = _mal_read(ctx)
+        observed["reads"] += 1
+        if found is None:
+            observed["reads_failed"] += 1
+            continue
+        now, word = found
+        if now is False:
+            out = True
+        elif now and out:
+            back = True
+            observed["plan_after"] = word
+            break
+    observed.update({"signed_out_seen": out, "signed_in_again_seen": back})
+    if not back:
+        return _blocked("run `codex logout` and then `codex login` with the app's own engine within ten minutes of "
+                        "starting malr, and sign in in the browser; then run malr again", **observed)
+    after = {}
+
+    def read():
+        found = _mal_read(ctx)
+        if found is None:
+            return {"present": None}
+        after.update(present=found[0], plan=found[1])
+        return {"present": found[0]}
+    answered = ctx._hand("codex_restart", getattr(ctx.backend, "codex_home", None), read)
+    answered = answered if isinstance(answered, dict) else {}
+    from .codex import restart as restarts
+    busy = [word for word in answered.get("busy") or () if word in (restarts.TURN_RUNNING, restarts.QUEUED,
+                                                                     restarts.UNKNOWN, restarts.RECOVERY)]
+    outcome = answered.get("outcome")
+    observed.update({"busy_turn_running": restarts.TURN_RUNNING in busy, "busy_queued": restarts.QUEUED in busy,
+                     "busy_unknown": restarts.UNKNOWN in busy,
+                     "restart_outcome": outcome if outcome in restarts.OUTCOMES else None,
+                     "codex_ended_by": answered.get("how") if answered.get("how") in ("closed", "ended") else None,
+                     "signed_in_after_restart": after.get("present"), "plan_after_restart": after.get("plan")})
+    if busy:
+        return _blocked("a turn ran, something was queued in Codex or that could not be read, so Codex was not "
+                        "restarted: let it finish, then run malr again", **observed)
+    if outcome in ("not_ended", "not_started"):
+        return (Verdict.FAIL, observed, "the product's restart did not end the Codex app" if outcome == "not_ended"
+                else "the product's restart ended the Codex app but did not start it again")
+    if outcome not in ("restarted", "restarted_signed_out"):
+        return _blocked("the Codex app was not running, or could not be told apart, so it was not restarted: open the "
+                        "Codex app, signed in, and run malr again", **observed)
+    return _blocked("confirm the restarted Codex app shows the new account (Settings > Account) without its own sign-in "
+                    "page, then set the verdict", **observed)
+
+
 def _power_source(on_battery) -> str:
     if on_battery is None:
         return str(ObservedWord.UNKNOWN)
@@ -2668,7 +2742,7 @@ PROBES = {
     Measurement.M6B: _m6b, Measurement.MO: _mo, Measurement.MX: _mx, Measurement.MXA: _mxa, Measurement.MF: _mf,
     Measurement.M3B: _m3b, Measurement.MB: _mb, Measurement.MC1: _mc1, Measurement.MC2: _mc2,
     Measurement.MQO: _mqo, Measurement.MQP: _mqp, Measurement.MQG: _mqg,
-    Measurement.MTOK: _mtok, Measurement.MOPEN: _mopen, Measurement.MAL: _mal, Measurement.MWAKE: _mwake,
+    Measurement.MTOK: _mtok, Measurement.MOPEN: _mopen, Measurement.MAL: _mal, Measurement.MALR: _malr, Measurement.MWAKE: _mwake,
     Measurement.MHK: _mhk, Measurement.M4B: _m4b,
     Measurement.MANCHOR: _manchor,
     Measurement.MIMG: _mimg, Measurement.MSTEER: _msteer, Measurement.MSTEER2: _msteer2,
@@ -3015,9 +3089,26 @@ def live_hands(backend=None, paths=None) -> dict:
                 continue
         return notes
 
+    def codex_restart(home, read):
+        # MALR (v0.6.20 final): the card's Restart, exactly - codex/restart.busy without core's records (a measurement
+        # has none of its own), then codex/restart.restart with the product's hands but the probe's home and read.
+        from .codex import restart as restarts
+        from .codex.turns import Turns
+
+        class _NoRecords:
+            def pending(self):
+                return []
+        if home is None:
+            return {}
+        busy = restarts.busy(paths, turns=Turns(home), store=_NoRecords())
+        if busy:
+            return {"busy": list(busy)}
+        outcome, how = restarts.restart(paths, hands=restarts.Hands(paths, home=home, read=read))
+        return {"outcome": outcome, "how": how}
+
     return {"open_link": open_link, "power": _power_look, "wake_after": _wake_after, "scratch_cli": scratch_cli,
             "anchor_request": anchor_request, "stop_hook": stop_hook, "steer_ipc": steer_ipc,
-            "m4_hook_note": m4_hook_note}
+            "m4_hook_note": m4_hook_note, "codex_restart": codex_restart}
 
 
 def _guid(text):

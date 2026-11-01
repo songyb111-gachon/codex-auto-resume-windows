@@ -358,10 +358,10 @@ namespace CodexAutoResume
                          Says(f => f.Word("page.feed.degraded", "OpenAI reports degraded service")))),
                 Ex("account_switch",
                    Scene(Says(f => f.ExampleField("account_switch", "instead"))),
-                   // Its button waits for the MAL measurement: the card says so, and the example says what the card says.
+                   // Its button waits for the MALR measurement: the card says so, and the example says what the card says.
                    Scene(Says(f => f.Word("page.account.signed_in", "Signed in: {account}", "account", "e•••@example.com")),
                          Says(f => f.Word("page.refused.switch_unmeasured",
-                                          "It has not been measured on this Codex that the running app follows a sign-in made from here. Switch in Codex instead.")))),
+                                          "It has not been measured on this Codex that a sign-in made from here, followed by a restart of Codex, brings Codex up with the new account. Switch in Codex instead.")))),
                 Ex("steer_send",
                    Scene(Says(f => f.ExampleField("steer_send", "instead"))),
                    // With its warning: the line reaches the turn, and the Codex app does not show it.

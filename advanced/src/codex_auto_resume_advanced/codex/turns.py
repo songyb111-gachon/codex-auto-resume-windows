@@ -53,7 +53,10 @@ RUNNING = ("SELECT t.thread_id FROM thread_turns t WHERE t.status='inProgress' A
 ERROR = "SELECT error_json FROM thread_turns WHERE thread_id=? AND turn_id=?"
 # v0.6.20 (power_after_tasks, Discussion #57): one turn's status by its id - a status word, never a word of the turn.
 STATUS = "SELECT status FROM thread_turns WHERE thread_id=? AND turn_id=?"
-STATEMENTS = (LATEST, KINDS, RECENT, HAS_PLAN, PLAN, BETWEEN, RUNNING, ERROR, STATUS)
+# v0.6.20 final (account_switch's restart, codex/restart.busy): how many items wait in Codex's queue - a count, never
+# an item.
+QUEUED = "SELECT count(*) FROM queued_items"
+STATEMENTS = (LATEST, KINDS, RECENT, HAS_PLAN, PLAN, BETWEEN, RUNNING, ERROR, STATUS, QUEUED)
 # The statuses Codex writes a turn in; anything else reads "other".
 TURN_STATUSES = frozenset({"completed", "failed", "interrupted", "inProgress"})
 # A plan step's statuses as Codex writes them; anything else reads "unknown".
@@ -217,6 +220,16 @@ class Turns:
         """The conversations whose latest turn is running now, at most RECENT_LIMIT (v0.6.16-beta.3, the wrap-up's
         candidates): ids, never a word of any turn - a split id's named as its conversation (`_named`)."""
         return self._named(self._read(lambda connection: connection.execute(RUNNING, (RECENT_LIMIT,)).fetchall()))
+
+    def queued(self) -> int:
+        """How many items wait in Codex's queue, in every conversation (v0.6.20 final, codex/restart.busy): a count."""
+        connection = connect(self.home, "queue", {"queued_items": frozenset({"id"})})
+        try:
+            return int(connection.execute(QUEUED).fetchone()[0])
+        except (sqlite3.Error, OSError, ValueError, TypeError):
+            raise TurnsUnavailable("the queue cannot be read") from None
+        finally:
+            connection.close()
 
     def between(self, thread_id, after, before) -> int:
         """How many turns of `thread_id` lie strictly between the turns at ordinals `after` and `before` - 0 where

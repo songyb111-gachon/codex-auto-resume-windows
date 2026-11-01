@@ -1259,18 +1259,27 @@ POWER_AFTER_TASKS = CapabilityDef(
 # button is offered (control/account.offered, arming.Arming.verdict). So MAL failed hides the button and the statement
 # says so, and no tripwire turns the capability off for it (2026-11-01: listed among its measurements, MAL's fail turned
 # the owner's watched account_switch off at the v0.6.20 update).
+# v0.6.20 final (the owner, 2026-11-01: ask, then restart): MAL failed partial - the running app follows the outside
+# sign-out but not the sign-in, which only a full restart of the app brings in. So a sign-in from the button ends with
+# the card asking "Restart Codex now so it uses the new account?": Restart - only while no turn runs, no recovery waits
+# or runs and nothing is queued in Codex - asks Windows to close the Codex app (the Restart Manager, not forced), ends
+# its main process only if that did not end it, starts it again through its own codex: link (core's open_in_codex) and
+# reads the account afresh (codex/restart.py, control/account.restart). Not now leaves the account signed in and the
+# card saying Codex needs a restart. That adds E8 (it ends another program's process, after the person agreed). The
+# button now rests on MALR - this route, measured - in place of MAL, which stays measured.py's record of the plain one.
 ACCOUNT_SWITCH = CapabilityDef(
     id="account_switch",
     points=frozenset({Point.TICK}),
     revision=1,
-    departs_from=("B4", "B10", "B11", "C4", "C9", "D2", "F6", "H7"),
+    departs_from=("B4", "B10", "B11", "C4", "C9", "D2", "E8", "F6", "H7"),
     compat="usage_probe",
     ceilings=Ceilings(per_day=1, per_conversation=1),
     journal_prefix="account",
     make=make_account_switch,
-    codes=("changed", "held", "switch_asked", "signed_in", "not_signed_in", "switch_failed"),
+    codes=("changed", "held", "switch_asked", "signed_in", "not_signed_in", "switch_failed", "restart_asked",
+           "codex_closed", "codex_ended", "restarted", "restart_not_needed", "restart_failed"),
     measurements=(Measurement.MA,),
-    narrowed_by=(Measurement.MAL,),
+    narrowed_by=(Measurement.MALR,),
 )
 
 # Wake this PC for a reset (v0.6.19, plans/v0619-design/D-watcher-ops.md B). At P8 it finds the earliest time something

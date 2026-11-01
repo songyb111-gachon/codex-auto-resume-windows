@@ -114,6 +114,9 @@ MEASUREMENT_METHODS = {
     Measurement.MTOK: (),
     Measurement.MOPEN: (),
     Measurement.MAL: ("account/read",),
+    # v0.6.20 final: MALR reads the account as MAL does, then restarts the Codex app as the card's Restart does (a
+    # process ended and started, not a call) and reads it once more.
+    Measurement.MALR: ("account/read",),
     Measurement.MWAKE: (),
     Measurement.MHK: (),
     Measurement.M4B: ("hooks/list",),

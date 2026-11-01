@@ -200,7 +200,9 @@ class TableTests(unittest.TestCase):
                           # v0.6.19's groundwork probes, made while its stage is built: not made yet.
                           Measurement.MTOK, Measurement.MWAKE, Measurement.M4B,
                           # v0.6.20: which code a turn kept at capacity through Codex's retries records.
-                          Measurement.MGAVE})
+                          Measurement.MGAVE,
+                          # v0.6.20 final: the account switch's sign-in, then the product's restart of Codex.
+                          Measurement.MALR})
 
 
 if __name__ == "__main__":

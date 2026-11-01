@@ -6,6 +6,9 @@ among account_switch's `measurements` the fail was a MEASUREMENT_FAILED warning 
 card vanished. Only the card's button rests on MAL (control/account.offered reads its verdict); the card's read rests on
 MA. A measurement that only narrows is kept out of `measurements` and read where it is used, as M2b, MQO and MQP are.
 
+v0.6.20 final: the button now ends with a restart of Codex the person agrees to, and rests on MALR - that route,
+measured - in place of MAL, which stays the record of the plain route. The narrowing is the same, read from MALR.
+
 Every read is a fake and every home a temporary folder: no Codex runs and no account is read.
 
     CODEX_AR_EDITION=advanced PYTHONPATH="src;advanced/src" python -m unittest discover -s advanced/tests
@@ -27,6 +30,8 @@ from codex_auto_resume_advanced.vocabulary import (Actor, ArmingState, ArmingWar
                                                    Verdict)
 
 CAP = "account_switch"
+# The measurement the button rests on (v0.6.20 final: MALR, the sign-in and then the product's restart of Codex).
+NARROWS = Measurement.MALR
 ONE = {"account": {"type": "chatgpt", "email": "someone@example.com", "planType": "plus"}}
 
 
@@ -51,7 +56,7 @@ class MalFailTests(ac.AdvancedCase):
         self.assertTrue(result["done"], result)
 
     def mal_fails(self):
-        self.measured = dict(self.measured, **{Measurement.MAL: (Verdict.FAIL, ac.ENGINE)})
+        self.measured = dict(self.measured, **{NARROWS: (Verdict.FAIL, ac.ENGINE)})
 
     def codes(self):
         with self.rt.state._read() as connection:
@@ -83,14 +88,14 @@ class MalFailTests(ac.AdvancedCase):
         answer = self.stays(ArmingState.SHADOW)
         self.assertEqual((answer["done"], answer["present"], answer["button"]), (True, True, False))
 
-    def test_the_button_still_follows_mal(self):
-        """The narrowing itself is unchanged: on, the button is offered once MAL passed on the Codex in force."""
+    def test_the_button_follows_malr(self):
+        """The narrowing itself is unchanged: on, the button is offered once MALR passed on the Codex in force."""
         self.on(ArmingState.ARMED)
         self.mal_fails()
         self.assertFalse(card.offered(self.rt))
-        self.measured[Measurement.MAL] = (Verdict.PASS, ac.ENGINE)
+        self.measured[NARROWS] = (Verdict.PASS, ac.ENGINE)
         self.assertTrue(card.offered(self.rt))
-        self.measured[Measurement.MAL] = (Verdict.PASS, "0.1.0")
+        self.measured[NARROWS] = (Verdict.PASS, "0.1.0")
         self.assertFalse(card.offered(self.rt), "a pass on another Codex is no pass here")
 
 
@@ -106,7 +111,14 @@ class NarrowingAuditTests(unittest.TestCase):
         found = {key: value for key, value in found.items() if value}
         self.assertEqual(found, {"goal_continuation": ["m2"], "codex_chat": ["mc2"], "steer_send": ["msteer2"]})
         self.assertNotIn(Measurement.MAL, ACCOUNT_SWITCH.measurements)
+        self.assertNotIn(Measurement.MALR, ACCOUNT_SWITCH.measurements)
         self.assertEqual(ACCOUNT_SWITCH.measurements, (Measurement.MA,))
+        self.assertEqual(ACCOUNT_SWITCH.narrowed_by, (Measurement.MALR,))
+
+    def test_mal_is_kept_as_the_record_of_the_plain_route(self):
+        """MAL's fail stays in the shipped table, and no longer narrows account_switch: the button rests on MALR."""
+        self.assertEqual(measured.MEASURED[Measurement.MAL][0], Verdict.FAIL)
+        self.assertNotIn(Measurement.MAL, ACCOUNT_SWITCH.narrowed_by)
 
 
 if __name__ == "__main__":

@@ -158,8 +158,8 @@ here, the other sessions, compacting a full conversation, another model at capac
 no words - and four more (the reset credit, the reset message, the usage meter and the forced stop) rest on
 measurements made on `codex-cli 0.162.0-alpha.17.2` and, for the forced stop, again on the newer one. Eight rest on
 measurements not made yet - wake this PC for a reset, on MWAKE, and the usage and token analytics, on MTOK, are the new ones -
-switching the Codex account rests on MA, which passed, and on MAL, which failed on `codex-cli 0.166.0-alpha.5.1` on
-2026-11-01, so its button is hidden - the chat rests on M7, MC1 and MC2, which were made, as its own
+switching the Codex account rests on MA, which passed, and its button on MALR - the sign-in, then the product's restart
+of Codex - not made yet (MAL, the sign-in alone, failed on `codex-cli 0.166.0-alpha.5.1` on 2026-11-01) - the chat rests on M7, MC1 and MC2, which were made, as its own
 section below says, starting the 5-hour window early on MANCHOR, made on `codex-cli 0.165.0-alpha.1.2` on 2026-10-29, steering the running turn on MSTEER2,
 made the same day, and the other seventeen on none. Each measurement made was made by hand, on the
 owner's machine, first on `codex-cli 0.158.0-alpha.2.1`, again on `codex-cli 0.162.0-alpha.17.2` and, for those this release's
@@ -1437,7 +1437,13 @@ the plan and a masked e-mail address such as `s•••@e•••.com`, read f
 open and never stored. **Sign out and sign in with another account...** asks first, then runs Codex's own
 `codex logout` and `codex login`, with no window: your browser opens Codex's own sign-in page, you sign in
 there, and the card says how it ended - signed in, cancelled, not finished after ten minutes, or failed. The
-product never asks Codex to sign anyone in or out by a route of its own, never reads Codex's sign-in file, a
+running Codex app uses the new account only once it is restarted, so a sign-in that finished leaves the card asking
+**Restart Codex now so it uses the new account?** **Restart Codex** waits until no turn runs in any conversation, no
+recovery waits or runs and nothing is queued in Codex - until then the card says Codex is busy and offers it again
+once it is clear - then asks Windows to close the Codex app (the Restart Manager's request, as an installer makes it),
+ends its main process only if it is still running 30 seconds later, starts it again through its own `codex:` link at
+your newest conversation and reads the account afresh. **Not now** leaves the new account signed in, and the card says
+Codex needs a restart to use it. The product never asks Codex to sign anyone in or out by a route of its own, never reads Codex's sign-in file, a
 token or a cookie, and never lists, remembers or picks an account. While it is on, the watcher reads which
 account is signed in when it starts and every 30 minutes, and keeps only a keyed digest of it (HMAC-SHA256,
 its key in Windows Credential Manager). When another account is signed in, every recovery waiting for a usage
@@ -1451,12 +1457,13 @@ changed is the same account; a reading that failed, or found no one signed in, c
 **What it risks.** `codex login` is Codex's own sign-in: it opens your default browser and listens on this PC
 for the answer. Cancelled there, Codex stays signed out, and recoveries wait - usage cannot be read - until
 you sign in in Codex. A change of account is noticed at the watcher's next reading, up to 30 minutes later.
-The terms of your ChatGPT plan apply to the accounts you use. Until MAL - the running Codex app follows a
-sign-in made with `codex login` without a restart - has passed on the Codex in force, the card offers no
-button: it says to sign out in Codex (Settings > Account) and sign in there with the other account, and a
-change is held for you all the same. MAL failed on `codex-cli 0.166.0-alpha.5.1` (2026-11-01): a sign-out
-made with `codex logout` reached the running app, but the `codex login` after it did not until the app's
-own sign-in was used. So the button is hidden because its measurement failed. Turned off, the digest and its key are deleted the next time the
+The terms of your ChatGPT plan apply to the accounts you use. MAL failed on `codex-cli 0.166.0-alpha.5.1`
+(2026-11-01): a sign-out made with `codex logout` reached the running app, but the `codex login` after it did not,
+and only a full restart of the app brought it up signed in - hence the restart. Restart closes the Codex app, and if
+Windows' request is not enough its process is ended as Task Manager would end it: anything unsaved in Codex's window,
+such as a message you were typing, may be lost. Until MALR - that sign-in, then this restart, brings Codex up with the
+new account - has passed on the Codex in force, the card offers no button: it says to sign out in Codex (Settings >
+Account) and sign in there with the other account, and a change is held for you all the same. Turned off, the digest and its key are deleted the next time the
 watcher runs.
 
 **Departs from** [B4](STANDARDS.md#b-what-it-reads-and-how) (`account/read` beyond core's calls),
@@ -1464,14 +1471,17 @@ watcher runs.
 [B11](STANDARDS.md#b-what-it-reads-and-how) (it starts Codex's own sign-in, which handles your credentials),
 [C4](STANDARDS.md#c-network) (it reads on a schedule), [C9](STANDARDS.md#c-network) (Codex is asked when no
 recovery is due), [D2](STANDARDS.md#d-privacy-and-the-data-it-keeps) (a digest of the account is kept),
+[E8](STANDARDS.md#e-failure-behaviour) (after you agree, it ends the Codex app's process to restart it,
+if Windows' request to close it was not enough),
 [F6](STANDARDS.md#f-footprint-on-the-machine) (`codex logout` and `codex login` are not listed processes) and
 [H7](STANDARDS.md#h-user-control) (a change of account holds recoveries for you). It keeps
 [A12](STANDARDS.md#a-what-it-may-send-to-codex-and-when): a recovery you let continue still reads live usage.
 
 **Ceilings.** None come into play: it sends nothing to Codex. **Measurements MA: passed** on
-`codex-cli 0.162.0-alpha.17.2`, and **MAL: failed** on `codex-cli 0.166.0-alpha.5.1` (2026-11-01, partial: the
-sign-out reached the running app, the sign-in did not). MA without a pass on the version in force is a warning;
-MAL without one only hides the button - hidden because its measurement failed - and never turns the switch off.
+`codex-cli 0.162.0-alpha.17.2`; **MAL: failed** on `codex-cli 0.166.0-alpha.5.1` (2026-11-01, partial: the
+sign-out reached the running app, the sign-in did not), kept as the record of the plain route; **MALR: not made
+yet**. MA without a pass on the version in force is a warning; MALR without one only hides the button - and, failed,
+it is hidden because its measurement failed - and never turns the switch off.
 
 ### Compatibility report
 

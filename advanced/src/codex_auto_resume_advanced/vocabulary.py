@@ -177,6 +177,12 @@ class Refusal(StrEnum):
     # card offers no button then - and asked again while one is still waiting for the browser.
     SWITCH_UNMEASURED = "switch_unmeasured"
     SWITCH_RUNNING = "switch_running"
+    # v0.6.20 final (account_switch's restart, control/account.restart): Restart asked while a turn runs, a recovery
+    # waits or runs or something is queued in Codex (codex/restart.busy); asked while one runs; and asked with no sign-in
+    # of this Dashboard's to restart Codex for.
+    RESTART_BUSY = "restart_busy"
+    RESTART_RUNNING = "restart_running"
+    NOTHING_TO_RESTART = "nothing_to_restart"
     # v0.6.20 (steer_send): a steer asked for a conversation whose latest turn is not running in Codex's history - there
     # is nothing to steer, so nothing waits.
     NO_TURN_RUNNING = "no_turn_running"
@@ -463,6 +469,8 @@ class BridgeCommand(StrEnum):
     # action waits for - and core's power action armed for the ones a person picked. The Dashboard's alone, never MCP.
     ADVANCED_POWER_TASKS = "advanced-power-tasks"
     ADVANCED_POWER_TASKS_ARM = "advanced-power-tasks-arm"
+    # v0.6.20 final (account_switch): the card's answer to "Restart Codex now so it uses the new account?" (control/account.restart).
+    ADVANCED_ACCOUNT_RESTART = "advanced-account-restart"
     # v0.6.19 (the groundwork): every command the stage's designs name, in one block, each the Dashboard's alone and
     # reached by no MCP tool. Until the capability that answers one is built, the bridge passes it over as it passes a
     # command this edition does not have (surfaces.UNANSWERED). The analytics' aggregates and their CSV
@@ -588,6 +596,10 @@ class Measurement(StrEnum):
     MTOK = "mtok"
     MOPEN = "mopen"
     MAL = "mal"
+    # v0.6.20 final (account_switch's button, in place of MAL): an outside `codex logout` and `codex login`, then a full
+    # restart of the Codex app done the way the product does it (codex/restart.restart), bring the app up signed in as
+    # the new account.
+    MALR = "malr"
     MWAKE = "mwake"
     MHK = "mhk"
     M4B = "m4b"
@@ -663,6 +675,15 @@ class ObservedWord(StrEnum):
     S20_TO_30 = "s20_to_30"
     AC = "ac"
     BATTERY = "battery"
+    # v0.6.20 final: what the account switch's restart came to and how the Codex app ended (MALR, codex/restart.py).
+    RESTARTED = "restarted"
+    RESTARTED_SIGNED_OUT = "restarted_signed_out"
+    NOT_RUNNING = "not_running"
+    NOT_ENDED = "not_ended"
+    NOT_STARTED = "not_started"
+    RESTART_FAILED = "restart_failed"
+    CLOSED = "closed"
+    ENDED = "ended"
 
 
 class RunEnd(StrEnum):

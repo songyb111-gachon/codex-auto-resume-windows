@@ -70,29 +70,29 @@ class AnswerTests(ac.AdvancedCase):
 
     def test_a_pass_here_is_not_a_failure(self):
         self.measured = {m: (Verdict.PASS, ac.ENGINE) for m in
-                         (Measurement.MAL, Measurement.MK, Measurement.MT, Measurement.MU, Measurement.MR)}
+                         (Measurement.MALR, Measurement.MK, Measurement.MT, Measurement.MU, Measurement.MR)}
         self.assertEqual(set(self.answers().values()), {False})
         self.assertFalse(keepgoing.view(self.rt)["count_capped"])
 
     def test_a_pass_on_another_codex_is_unmeasured_here_not_failed(self):
         self.measured = {m: (Verdict.PASS, OLDER) for m in
-                         (Measurement.MAL, Measurement.MK, Measurement.MT, Measurement.MU, Measurement.MR)}
+                         (Measurement.MALR, Measurement.MK, Measurement.MT, Measurement.MU, Measurement.MR)}
         self.assertEqual(set(self.answers().values()), {False})
         self.assertTrue(keepgoing.view(self.rt)["count_capped"])
 
     def test_a_failed_record_is_a_failure_for_the_part_it_rests_on_and_for_no_other(self):
-        for measurement, name in ((Measurement.MAL, "account"), (Measurement.MK, "keep"), (Measurement.MT, "after_turn"),
+        for measurement, name in ((Measurement.MALR, "account"), (Measurement.MK, "keep"), (Measurement.MT, "after_turn"),
                                   (Measurement.MU, "count"), (Measurement.MR, "credit")):
             with self.subTest(measurement):
                 self.measured = {measurement: (Verdict.FAIL, ac.ENGINE)}
                 self.assertEqual({key for key, found in self.answers().items() if found}, {name})
 
     def test_a_failure_on_another_codex_counts_as_a_warning_reads_it(self):
-        self.measured = {Measurement.MAL: (Verdict.FAIL, OLDER)}
+        self.measured = {Measurement.MALR: (Verdict.FAIL, OLDER)}
         self.assertTrue(self.read()["measurement_failed"])
 
     def test_the_account_button_stays_hidden_after_a_failure(self):
-        self.measured = {Measurement.MAL: (Verdict.FAIL, ac.ENGINE)}
+        self.measured = {Measurement.MALR: (Verdict.FAIL, ac.ENGINE)}
         self.assertEqual((self.read()["button"], self.read()["measurement_failed"]), (False, True))
 
 
