@@ -39,6 +39,14 @@ def _word(value) -> str:
             and value.replace("_", "").isalpha() else "other")
 
 
+def _regular(path) -> bool:
+    """A regular file, never a link to one (MGAVE's look for rollouts)."""
+    try:
+        return not path.is_symlink() and path.is_file()
+    except OSError:
+        return False
+
+
 class Origins:
     """The conversations of the Codex home `home`, as MO and MC2 read them."""
 
@@ -73,6 +81,44 @@ class Origins:
         v0.6.19). The path is the reader's to open, never to keep."""
         row = self._row(thread_id)
         return self._rollout(thread_id, row.get("rollout_path")) if row is not None else None
+
+    def find(self, thread_id, names=None):
+        """(the rollout the turns recorded under `thread_id` are in, how it was found) for MGAVE (v0.6.20) - or
+        (None, "missing") where no such file is left in the Codex home. Found, in this order: "row", the file the
+        `threads` row names in the sessions folder; "archived", the file it names in archived_sessions, where Codex
+        moves an archived conversation's rollout; "name", a .jsonl file in either folder whose name ends in the id -
+        a split id's `..._A_B.jsonl` (issue #30), which has no row of its own, and a row whose path went stale when
+        Codex moved the file. `names` is `names()`'s listing, made once by a caller that asks for many ids. Regular
+        files only, no link followed; the path is the reader's to open, never to keep."""
+        if not ids.is_uuid(thread_id):
+            return None, "missing"
+        row = self._row(thread_id)
+        raw = row.get("rollout_path") if row is not None else None
+        if isinstance(raw, str):
+            path = _safe_path(Path(raw))
+            for folder, how in (("sessions", "row"), ("archived_sessions", "archived")):
+                if (path.is_relative_to(_safe_path(self.home / folder)) and path.suffix == ".jsonl"
+                        and thread_id in path.name and _regular(path)):
+                    return path, how
+        found = (self.names() if names is None else names).get(thread_id)
+        return (found, "name") if found is not None else (None, "missing")
+
+    def names(self):
+        """{the id a file's name ends in: the file} for every regular .jsonl file under the sessions and the
+        archived_sessions folders - names only, nothing opened, no link followed; a file in sessions before one in
+        archived_sessions of the same id. Empty where neither can be listed."""
+        found = {}
+        for folder in ("archived_sessions", "sessions"):
+            try:
+                paths = sorted(path for path in (self.home / folder).rglob("*.jsonl") if _regular(path))
+            except OSError:
+                continue
+            for path in paths:
+                stem = path.stem
+                tail = stem[-36:].lower()
+                if ids.is_uuid(tail) and (len(stem) == 36 or stem[-37] in "-_"):
+                    found[tail] = _safe_path(path)
+        return found
 
     def origin(self, thread_id):
         """(the `threads` row's source, thread source and history mode, the first line's originator, source and

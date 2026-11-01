@@ -2486,7 +2486,7 @@ def _msteer(ctx):
 # MGAVE (v0.6.20): which code a turn records when its model stays at capacity through Codex's own retries.
 _MGAVE_DAYS = 90                              # how far back the failed turns are read, by their end
 _MGAVE_TURNS = 2000                           # how many failed turns at most, the latest first
-_MGAVE_SCAN_BYTES = 4 * 1024 * 1024           # how much of a rollout before a failed turn's end is read
+_MGAVE_SCAN_BYTES = 4 * 1024 * 1024           # how much of a rollout before a failed turn's end is read first
 _MGAVE_FAILED = ("SELECT thread_id, turn_id, error_json, rollout_end_byte_offset FROM thread_turns "
                  "WHERE status='failed' AND completed_at >= ? ORDER BY completed_at DESC LIMIT ?")
 _MGAVE_COLUMNS = frozenset({"thread_id", "turn_id", "status", "error_json", "completed_at", "rollout_end_byte_offset"})
@@ -2508,19 +2508,37 @@ def _code_word(info):
 def _turn_retries(path, turn_id, end):
     """(how many retries Codex made in the failed turn `turn_id` of the rollout at `path`, the code of the last one or
     None) - its stream_error events, the retries Codex announces before it gives up (an `error` event is the turn's own
-    end, never a retry), read from the turn's task_started to the byte `end` where its failure was written, at most
-    _MGAVE_SCAN_BYTES. Only each event's type and code are looked at: never a message, an id kept, or a time."""
-    import json
+    end, never a retry), from the turn's task_started to its own end: its task_complete or turn_aborted, another turn's
+    task_started, or the byte `end` where the history says its failure was written (the file's end where the history
+    kept no offset, or one past the file). The _MGAVE_SCAN_BYTES before that end are read first, and the whole file up
+    to it only where the turn began earlier. None where the turn's task_started is not in the file before that end.
+    Only each event's type, turn and code are looked at: never a message, an id kept, or a time."""
     with path.open("rb") as stream:
-        start = max(0, end - _MGAVE_SCAN_BYTES)
-        stream.seek(start)
-        data = stream.read(end - start)
-    lines = data.split(b"\n")
+        size = stream.seek(0, 2)
+        stop = end if type(end) is int and 0 < end <= size else size
+        start = max(0, stop - _MGAVE_SCAN_BYTES)
+        found = _scan_turn(stream, start, stop, turn_id)
+        if found is None and start:
+            found = _scan_turn(stream, 0, stop, turn_id)
+    return found
+
+
+def _scan_turn(stream, start, stop, turn_id):
+    """_turn_retries' read of bytes `start` to `stop` of the open rollout `stream`, a line at a time."""
+    import json
+    stream.seek(start)
     if start:
-        lines = lines[1:]                      # the first may be cut
-    retries = []
-    for line in lines:
-        if b'"task_started"' not in line and b'"stream_error"' not in line:
+        stream.readline()                      # the first may be cut
+    retries = None
+    while stream.tell() < stop:
+        line = stream.readline()
+        if not line:
+            break
+        over = stream.tell() - stop
+        if over > 0:
+            line = line[:len(line) - over]     # past the turn's end: what is cut there is no event
+        if (b'"task_started"' not in line and b'"stream_error"' not in line and b'"task_complete"' not in line
+                and b'"turn_aborted"' not in line):
             continue
         try:
             event = json.loads(line.decode("utf-8"))
@@ -2529,11 +2547,16 @@ def _turn_retries(path, turn_id, end):
         payload = event.get("payload") if isinstance(event, dict) else None
         if not isinstance(payload, dict) or event.get("type") != "event_msg":
             continue
-        if payload.get("type") == "task_started" and payload.get("turn_id") == turn_id:
+        kind = payload.get("type")
+        if kind == "task_started" and payload.get("turn_id") == turn_id:
             retries = []                       # the turn begins here: only what follows is its own
-        elif payload.get("type") == "stream_error":
+        elif retries is None:
+            continue
+        elif kind == "stream_error":
             retries.append(_code_word(payload.get("codex_error_info", payload.get("codexErrorInfo"))))
-    return len(retries), (retries[-1] if retries else None)
+        elif kind == "task_started" or (kind in ("task_complete", "turn_aborted") and payload.get("turn_id") == turn_id):
+            break
+    return None if retries is None else (len(retries), (retries[-1] if retries else None))
 
 
 def _mgave(ctx):
@@ -2544,6 +2567,11 @@ def _mgave(ctx):
     _MGAVE_DAYS days (at most _MGAVE_TURNS), its recorded code, and in its rollout the stream_error events - Codex's
     retries - before its failure, with the last one's code. Run by the measurement session on the owner's Codex home
     with the owner's yes; read-only. Counts only: never an id, a message, a path or a time.
+
+    Each turn's rollout is looked for where the `threads` row names it, in archived_sessions (an archived
+    conversation's), and by name - a split id's `..._A_B.jsonl` has no row (issue #30): sessions.Origins.find. One
+    no longer in the Codex home counts in rollouts_missing, one that is there but cannot be read in rollouts_unread
+    (v0.6.20 final: the first run left 24 of 30 unread, every one looked for in the sessions folder by its row alone).
 
     PASS: one failed turn or more whose last retry was for capacity, and every one recorded serverOverloaded. FAIL: one
     recorded responseTooManyFailedAttempts. Blocked: no such turn found - nothing to answer with yet."""
@@ -2567,10 +2595,12 @@ def _mgave(ctx):
     if rows is None:
         return _blocked("the Codex home's history could not be read", history_read=False)
     origins = sessions.Origins(home)
+    names = None
     found = dict.fromkeys(("overloaded_turns", "gave_up_turns", "overloaded_after_capacity_retries",
                            "overloaded_without_retries", "gave_up_after_capacity_retries",
                            "gave_up_after_other_retries", "gave_up_without_retries", "retries_seen",
-                           "rollouts_unread"), 0)
+                           "rollouts_read", "rollouts_archived", "rollouts_found_by_name", "rollouts_missing",
+                           "rollouts_unread", "offsets_missing", "turn_starts_unseen"), 0)
     for thread, turn, raw, end in rows:
         try:
             error = json.loads(raw) if isinstance(raw, str) else None
@@ -2582,13 +2612,30 @@ def _mgave(ctx):
         kind = "overloaded" if code == _CAPACITY else "gave_up"
         found[kind + "_turns"] += 1
         try:
-            path = origins.rollout(thread) if type(end) is int and end > 0 else None
-            retries, last = _turn_retries(path, turn, end) if path is not None else (None, None)
+            if names is None:
+                names = origins.names()        # one listing of names for every turn, nothing opened
+            path, how = origins.find(thread, names)
         except (TurnsUnavailable, OSError, ValueError):
-            retries, last = None, None
-        if retries is None:
+            path, how = None, "unread"
+        if path is None:
+            found["rollouts_" + ("missing" if how == "missing" else "unread")] += 1
+            continue
+        if type(end) is not int or end <= 0:
+            found["offsets_missing"] += 1
+        try:
+            read = _turn_retries(path, turn, end)
+        except (OSError, ValueError):
             found["rollouts_unread"] += 1
             continue
+        found["rollouts_read"] += 1
+        if how == "archived":
+            found["rollouts_archived"] += 1
+        elif how == "name":
+            found["rollouts_found_by_name"] += 1
+        if read is None:
+            found["turn_starts_unseen"] += 1
+            continue
+        retries, last = read
         found["retries_seen"] += retries
         if not retries:
             found[kind + "_without_retries"] += 1
@@ -2602,7 +2649,7 @@ def _mgave(ctx):
                 "model_fallback would also have to answer codex_gave_up's kind there")
     if found["overloaded_after_capacity_retries"]:
         return Verdict.PASS, observed, None
-    if (found["overloaded_turns"] or found["gave_up_turns"]) and not found["retries_seen"] and             found["rollouts_unread"] < found["overloaded_turns"] + found["gave_up_turns"]:
+    if found["rollouts_read"] > found["turn_starts_unseen"] and not found["retries_seen"]:
         return _blocked("no rollout read kept a retry before its failed turn: this Codex may not write its retries "
                         "into rollouts, so MGAVE cannot answer from a Codex home", **observed)
     return _blocked("no failed turn whose last retry was for capacity was found in the last ninety days: run mgave again "

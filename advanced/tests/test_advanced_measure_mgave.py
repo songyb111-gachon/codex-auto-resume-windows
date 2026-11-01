@@ -49,11 +49,17 @@ class Home:
         self.turns = []
         self.threads = []
 
-    def conversation(self, index, *turns):
+    def conversation(self, index, *turns, folder="sessions", split=None, offset=True):
         """`turns`: each (turn index, its retries' codes, the code it failed with or None for a completed turn, how many
-        days ago it ended)."""
+        days ago it ended). `folder`: sessions, or archived_sessions where Codex moves an archived conversation's
+        rollout; `split`: the index of the id Codex split the conversation's turns under (issue #30) - its file
+        `..._A_B.jsonl`, its turns under B, and no row of B's; `offset`: whether the history kept each failure's end
+        byte."""
         thread = uuid(index)
-        path = self.root / "sessions" / ("rollout-2026-10-31T00-00-00-%s.jsonl" % thread)
+        recorded = thread if split is None else uuid(split)
+        name = thread if split is None else "%s_%s" % (thread, recorded)
+        path = self.root / folder / ("rollout-2026-10-31T00-00-00-%s.jsonl" % name)
+        path.parent.mkdir(parents=True, exist_ok=True)
         lines = [{"type": "session_meta", "payload": {"id": thread, "originator": "codex_desktop"}}]
         data = b""
         for turn_index, retries, code, days in turns:
@@ -72,9 +78,9 @@ class Home:
             if code is not None:
                 camel = measure._code_word(code)
                 info = camel if isinstance(code, str) else {camel: {"httpStatusCode": 529}}
-                self.turns.append((thread, turn, "failed",
+                self.turns.append((recorded, turn, "failed",
                                    json.dumps({"message": SENTINEL, "codexErrorInfo": info}),
-                                   int(time.time()) - days * 86400, len(data)))
+                                   int(time.time()) - days * 86400, len(data) if offset else None))
         path.write_bytes(data)
         self.threads.append((thread, str(path)))
         return self
@@ -109,6 +115,9 @@ class MgaveCase(unittest.TestCase):
         self.assertNotIn(SENTINEL, text)
         for thread, _path in self.home.threads:
             self.assertNotIn(thread, text)
+        for turn in self.home.turns:
+            self.assertNotIn(turn[0], text)
+            self.assertNotIn(turn[1], text)
         self.assertNotIn(str(self.dir), text)
         return json.loads(text)
 
@@ -169,14 +178,100 @@ class BlockedTests(MgaveCase):
         self.assertEqual(record["verdict"], "blocked")
         self.assertIn("may not write its retries", record["note"])
 
-    def test_a_rollout_outside_the_sessions_folder_is_never_opened(self):
+    def test_a_rollout_outside_the_codex_home_is_never_opened(self):
+        """The row names a file outside the home: it is not opened, and with no file of that id left in the home the
+        turn's rollout counts as missing - though the file outside holds a capacity retry."""
         self.home.conversation(1, (1, ["server_overloaded"], "server_overloaded", 1))
         thread, path = self.home.threads[0]
         moved = self.dir / ("rollout-%s.jsonl" % thread)
-        shutil.copy(path, moved)
+        shutil.move(path, moved)
         self.home.threads[0] = (thread, str(moved))
         record = self.run_mgave()
-        self.assertEqual((record["verdict"], record["observed"]["rollouts_unread"]), ("blocked", 1))
+        observed = record["observed"]
+        self.assertEqual((record["verdict"], observed["rollouts_missing"], observed["rollouts_read"],
+                          observed["retries_seen"]), ("blocked", 1, 0, 0))
+
+    def test_a_rollout_that_is_gone_counts_as_missing_not_unread(self):
+        self.home.conversation(1, (1, ["server_overloaded"], "server_overloaded", 1))
+        Path(self.home.threads[0][1]).unlink()
+        observed = self.run_mgave()["observed"]
+        self.assertEqual((observed["rollouts_missing"], observed["rollouts_unread"], observed["rollouts_read"]),
+                         (1, 0, 0))
+
+    def test_a_linked_rollout_is_never_followed(self):
+        self.home.conversation(1, (1, ["server_overloaded"], "server_overloaded", 1))
+        thread, path = self.home.threads[0]
+        outside = self.dir / "elsewhere.jsonl"
+        shutil.move(path, outside)
+        try:
+            Path(path).symlink_to(outside)
+        except OSError:
+            self.skipTest("this account cannot make a symbolic link")
+        observed = self.run_mgave()["observed"]
+        self.assertEqual((observed["rollouts_missing"], observed["rollouts_read"]), (1, 0))
+
+
+class FoundTests(MgaveCase):
+    """v0.6.20 final: the first run on a real home left 24 of 30 overloaded turns' rollouts unread - each was looked for
+    only where its `threads` row named it inside the sessions folder, and only with the history's end byte."""
+
+    def assert_read(self, observed, **counts):
+        self.assertEqual((observed["overloaded_after_capacity_retries"], observed["retries_seen"],
+                          observed["rollouts_read"], observed["rollouts_unread"], observed["rollouts_missing"]),
+                         (1, 2, 1, 0, 0), observed)
+        for key, value in counts.items():
+            self.assertEqual(observed[key], value, key)
+
+    def test_an_archived_conversations_rollout_is_read(self):
+        self.home.conversation(1, (1, ["server_overloaded"] * 2, "server_overloaded", 3), folder="archived_sessions")
+        record = self.run_mgave()
+        self.assertEqual(record["verdict"], "pass", record)
+        self.assert_read(record["observed"], rollouts_archived=1, rollouts_found_by_name=0)
+
+    def test_a_split_ids_turns_are_read_from_its_file_by_name(self):
+        """Codex records a split conversation's turns under B, which has no `threads` row; its file is ..._A_B.jsonl."""
+        self.home.conversation(1, (1, ["server_overloaded"] * 2, "server_overloaded", 3), split=7)
+        record = self.run_mgave()
+        self.assertEqual(record["verdict"], "pass", record)
+        self.assert_read(record["observed"], rollouts_found_by_name=1, rollouts_archived=0)
+
+    def test_a_rollout_moved_to_archived_sessions_behind_its_row_is_found_by_name(self):
+        self.home.conversation(1, (1, ["server_overloaded"] * 2, "server_overloaded", 3))
+        thread, path = self.home.threads[0]
+        archived = self.home.root / "archived_sessions"
+        archived.mkdir()
+        shutil.move(path, archived / Path(path).name)
+        self.assert_read(self.run_mgave()["observed"], rollouts_found_by_name=1)
+
+    def test_a_turn_with_no_end_byte_is_read_to_its_own_end(self):
+        self.home.conversation(1, (1, ["server_overloaded"] * 2, "server_overloaded", 3),
+                               (2, ["response_stream_disconnected"], None, 1), offset=False)
+        self.assert_read(self.run_mgave()["observed"], offsets_missing=1)
+
+    def test_a_turn_that_began_before_the_look_back_is_read_from_its_start(self):
+        """Its retries stand early, its failure far later: the look-back alone sees neither its start nor a retry."""
+        self.home.conversation(1, (1, ["server_overloaded"] * 2, "server_overloaded", 3))
+        path = Path(self.home.threads[0][1])
+        lines = path.read_bytes().split(b"\n")
+        error_at = next(i for i, line in enumerate(lines) if b'"type": "error"' in line)
+        filler = [json.dumps(event("token_count", info=SENTINEL * 40)).encode("utf-8")] * 200
+        data = b"\n".join(lines[:error_at] + filler + lines[error_at:])
+        path.write_bytes(data)
+        self.home.turns[0] = self.home.turns[0][:5] + (len(data),)
+        original = measure._MGAVE_SCAN_BYTES
+        measure._MGAVE_SCAN_BYTES = 4096
+        self.addCleanup(setattr, measure, "_MGAVE_SCAN_BYTES", original)
+        self.assert_read(self.run_mgave()["observed"], turn_starts_unseen=0)
+
+    def test_a_turn_whose_start_is_not_in_its_rollout_is_counted_apart(self):
+        self.home.conversation(1, (1, ["server_overloaded"] * 2, "server_overloaded", 3))
+        path = Path(self.home.threads[0][1])
+        path.write_bytes(path.read_bytes().replace(b'"task_started"', b'"task_begun"'))
+        record = self.run_mgave()
+        observed = record["observed"]
+        self.assertEqual((record["verdict"], observed["rollouts_read"], observed["turn_starts_unseen"],
+                          observed["retries_seen"]), ("blocked", 1, 1, 0))
+        self.assertNotIn("may not write its retries", record["note"])
 
 
 class ShapeTests(unittest.TestCase):
