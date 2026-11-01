@@ -1072,14 +1072,16 @@ chat's statement carries as its warning.
 with every surface mirrored, #54 and #55, the Timeline dialog's columns, Python 3.14.10, and, in the advanced edition, usage and token
 analytics, push notices and the status feed, the 5-hour window started early, switching the account, #50's pictures, steer send mode,
 opening a conversation to send now and the follow-through view, an example for every capability, the advanced edition's own
-compatibility data, the Advanced features page in the owner's order, and the pair audit's fixes. The loopback API, remote control and
-the switch to Python 3.15 are v0.6.21.**
+compatibility data, the Advanced features page in the owner's order, the pair audit's fixes, the power action after tasks you pick
+(Discussion #57) and the account switch's button ending with a Codex restart you agree to. The loopback API and remote control are
+v0.6.21; the switch to Python 3.15 is v0.6.22.**
 
 On 2026-10-26 the owner released v0.6.19 as a final with what was built and moved what had been begun and what remained
 to a version of its own, v0.6.20, so that every later release moved back by one; and
 on 2026-10-31 it moved the loopback API and web view, remote control over Telegram and the read-only view of other PCs out of this version into
 a v0.6.21 of their own, with the switch to Python 3.15, and every later release one on again: the final Python audit is v0.6.22, the Rust core
-v0.6.23 and its audit v0.6.24. As in v0.6.19, every capability here is the advanced edition's alone, off until
+v0.6.23 and its audit v0.6.24. On 2026-11-02 it moved the switch to Python 3.15 on to v0.6.22, and the power action after tasks you
+pick (Discussion #57), promised for v0.6.21, into this release. As in v0.6.19, every capability here is the advanced edition's alone, off until
 a person turns it on, with a statement that names the standards it departs from; some rest on a measurement of the real
 Codex, and one that fails narrows the route, or becomes a warning the person confirms, and does not drop the capability.
 
@@ -1160,10 +1162,11 @@ Codex's own retry settings and the continuation inside the turn stay hidden; and
 
 ---
 
-## v0.6.21 — The loopback API and remote control, and the switch to Python 3.15
+## v0.6.21 — The loopback API and remote control
 
 On 2026-10-31 the owner moved two things into a version of their own, and the final Python audit, as it was, to v0.6.22 with every later
-release one on: what v0.6.20 had planned of the advanced edition's network surfaces (W2), and the switch to Python 3.15. As in v0.6.20,
+release one on: what v0.6.20 had planned of the advanced edition's network surfaces (W2), and the switch to Python 3.15, which it moved on
+to v0.6.22 on 2026-11-02. As in v0.6.20,
 every capability here is the advanced edition's alone, off until a person turns it on, with a statement that names the standards it departs from.
 
 ### The loopback API, remote control and a view of other PCs
@@ -1172,25 +1175,9 @@ every capability here is the advanced edition's alone, off until a person turns 
 - remote control over Telegram,
 - a read-only view of other PCs through a folder the person syncs.
 
-### The switch to Python 3.15
-
-Python 3.15 is already a blocking lane of the CI, and runs the newest 3.15 release there is (the owner, 2026-10-31). This version bundles it
-and takes what it brings, as the plan of 2026-10-30 lays it out:
-
-- the newest 3.15.x bundled (3.15.2 or newer), its version and SHA-256 pinned, remote debugging off as now,
-- lazy imports (PEP 810) by option, `-X lazy_imports=all`, on the bundled runtime's launches only, measured first - the cold start of the
-  bridge, the MCP server and the watcher's first tick, with and without it - and kept only if the gain is real; a module whose import registers
-  something is found and imported where its registration is needed,
-- the UTF-8 default (PEP 686) audited: every file and subprocess text call without an explicit encoding, and what a locale's encoding (cp949 here)
-  read before,
-- the removed and deprecated APIs checked against all of the source, tests and scripts, also the paths no test reaches,
-- the free speed of the official Windows binaries measured with the lazy imports, and a script to profile a source-run watcher or bridge with
-  the new sampling profiler, for the window's lag and the CPU work,
-- the minimum for a run from source stays 3.13, so no 3.15-only syntax is shipped; not now: `lazy import` statements, `frozendict`, `sentinel`.
-
 ---
 
-## v0.6.22 — The final Python audit, both editions
+## v0.6.22 — The switch to Python 3.15 and the final Python audit, both editions
 
 v0.6.22 is the last Python release: the whole repository, both editions, through its bug hunt, and
 the Python reference implementation the Rust migration reproduces. It comes after v0.6.16, v0.6.18, v0.6.19, v0.6.20 and v0.6.21 so that
@@ -1235,6 +1222,23 @@ The resulting behavior becomes the:
 > **final Python reference implementation**
 
 for the Rust migration.
+
+### The switch to Python 3.15
+
+Moved here from v0.6.21 by the owner on 2026-11-02. Python 3.15 is already a blocking lane of the CI, and runs the newest 3.15 release
+there is (the owner, 2026-10-31). This version bundles it
+and takes what it brings, as the plan of 2026-10-30 lays it out:
+
+- the newest 3.15.x bundled (3.15.2 or newer), its version and SHA-256 pinned, remote debugging off as now,
+- lazy imports (PEP 810) by option, `-X lazy_imports=all`, on the bundled runtime's launches only, measured first - the cold start of the
+  bridge, the MCP server and the watcher's first tick, with and without it - and kept only if the gain is real; a module whose import registers
+  something is found and imported where its registration is needed,
+- the UTF-8 default (PEP 686) audited: every file and subprocess text call without an explicit encoding, and what a locale's encoding (cp949 here)
+  read before,
+- the removed and deprecated APIs checked against all of the source, tests and scripts, also the paths no test reaches,
+- the free speed of the official Windows binaries measured with the lazy imports, and a script to profile a source-run watcher or bridge with
+  the new sampling profiler, for the window's lag and the CPU work,
+- the minimum for a run from source stays 3.13, so no 3.15-only syntax is shipped; not now: `lazy import` statements, `frozendict`, `sentinel`.
 
 ---
 
