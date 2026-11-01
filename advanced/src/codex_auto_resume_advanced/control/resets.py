@@ -104,6 +104,14 @@ def count_unproven(runtime) -> bool:
         return True
 
 
+def _failed(runtime, measurement) -> bool:
+    """Whether `measurement` failed (arming.verdict): the card then says that, not that it has not been made."""
+    try:
+        return runtime.arming.verdict(measurement) == "fail"
+    except Exception:
+        return False
+
+
 def view(runtime) -> dict:
     """advanced-resets: every rule still to act and those of the last thirty days, a message's words while it is
     still to act, the window families on offer with what was counted of each, the last reading - the count of
@@ -145,6 +153,8 @@ def view(runtime) -> dict:
                         "expiry_known": bool(reading.get("expiry_known")) if credit_on else None},
             "last_spend": None if last is None else {"outcome": last["outcome"], "at": last["finished_at"]},
             "count_unproven": count_unproven(runtime),
+            # v0.6.20: ... and whether MU failed, and whether MR - what lets a credit be used with no click - failed.
+            "count_failed": _failed(runtime, Measurement.MU), "credit_failed": _failed(runtime, Measurement.MR),
             "limits": {"messages": 10, "credit_rules": 4, "words": words_limit(runtime), "ordinals": 9,
                        "use_now_minutes": reset_credit.USE_NOW // 60}}
 

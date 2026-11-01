@@ -52,10 +52,19 @@ def offered(runtime) -> bool:
         return False
 
 
+def failed(runtime) -> bool:
+    """Whether MAL failed - on whichever Codex, as a statement's warnings read a fail (arming.verdict): the card then says
+    its button is hidden because the measurement failed, not that it has not been made (v0.6.20)."""
+    try:
+        return runtime.arming.verdict(Measurement.MAL) == "fail"
+    except Exception:
+        return False
+
+
 def view(runtime, *, reader=None) -> dict:
-    """advanced-account: {present, plan, kind, mask, button} of the account signed in - `present` None where Codex could
-    not be asked - or NOT_ON while the capability is off, with nothing read. `reader` is a test's (account.read's
-    shape)."""
+    """advanced-account: {present, plan, kind, mask, button, measurement_failed} of the account signed in - `present` None
+    where Codex could not be asked - or NOT_ON while the capability is off, with nothing read. `reader` is a test's
+    (account.read's shape)."""
     if not _standing(runtime, CAPABILITY):
         return _refused(Refusal.NOT_ON)
     state = switching(runtime)
@@ -64,7 +73,7 @@ def view(runtime, *, reader=None) -> dict:
     return {"done": True, "refusal": None, "present": present,
             "plan": found.get("plan_word") if present else None, "kind": found.get("kind") if present else None,
             "mask": account.mask(found.get("email")) if present else None, "button": offered(runtime),
-            "switch": state}
+            "measurement_failed": failed(runtime), "switch": state}
 
 
 def _count(runtime, code) -> None:

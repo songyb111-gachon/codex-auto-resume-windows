@@ -303,8 +303,11 @@ namespace CodexAutoResume
             editorSteerWarning.Visible = false;
             card.Controls.Add(editorSteerWarning);
             if (Equals(Get(advancedPrompts, "after_turn_unproven"), true))
-                card.Controls.Add(HelpText(Word("page.queue.unproven",
-                    "After this turn is unproven on this Codex until it has been measured.")));
+                card.Controls.Add(HelpText(Equals(Get(advancedPrompts, "after_turn_failed"), true)
+                    ? Word("page.queue.unproven_failed",
+                        "\"After this turn\" may not work on this Codex: its measurement failed.")
+                    : Word("page.queue.unproven",
+                        "After this turn is unproven on this Codex until it has been measured.")));
 
             // Where a refusal is said, above the buttons.
             editorSaid = HelpText("");
