@@ -7,9 +7,12 @@ sign-in again; Ctrl+R and closing the window (the app keeps running in the backg
 of the app - its main process ended, then started again - brings it up signed in as the new account. So the card's
 button ends with a question, and this is what Restart does.
 
-`busy` is when it may: never while a turn runs in any conversation (codex/turns.running), a recovery of core's waits or
-runs (core's store: a record not ended, unless a person's or a change of account's hold keeps it waiting for them), or
-anything is queued in Codex (its queue database, a count) - a reading that fails is busy too. `restart` then:
+`busy` is when it may: never while a turn runs in any conversation or anything is queued in Codex - core's own
+judgement, the power action's (LocalSource.activity read with the boot time the watcher's heartbeat records, then
+poweraction.judge_activity: one way to that answer, so a turn or an item left from before Windows started holds neither)
+- nor while a recovery of core's waits or runs (core's store: a record not ended, unless a person's or a change of
+account's hold keeps it waiting for them). A reading that fails, or Codex's history behind its files, is busy too.
+`restart` then:
 
 1. finds the Codex app's main process as core finds it (codex/pairing: the package's ChatGPT.exe whose parent is none
    of its own) - none running is NOT_RUNNING, nothing to restart; several, FAILED;
@@ -101,30 +104,33 @@ class Hands:
         time.sleep(seconds)
 
 
-def busy(paths, *, turns=None, store=None) -> tuple:
-    """Why Codex may not be restarted now - (TURN_RUNNING, RECOVERY, QUEUED) as they stand, (UNKNOWN,) where any of them
-    cannot be read - or () when it may. `turns` (codex/turns.Turns' shape) and `store` (core's Store, opened) are a
-    test's."""
-    found = []
+def busy(paths, *, source=None, store=None, now=None) -> tuple:
+    """Why Codex may not be restarted now - (TURN_RUNNING or QUEUED, RECOVERY) as they stand, (UNKNOWN,) where any of
+    them cannot be read - or () when it may. `source` (core's LocalSource's shape: `activity`), `store` (core's Store,
+    opened: `pending` and `watcher_status`) and `now` are a test's."""
+    from codex_auto_resume import poweraction
+    from codex_auto_resume.domain.power_vocabulary import PowerWait
     try:
-        if turns is None:
-            from . import inuse
-            from .turns import Turns
-            turns = Turns(inuse.home(paths))
-        if turns.running():
-            found.append(TURN_RUNNING)
         if store is None:
             from codex_auto_resume.store import Store
             with Store(paths.state_dir) as opened:
-                rows = opened.pending()
+                rows, status = opened.pending(), opened.watcher_status()
         else:
-            rows = store.pending()
-        if any(not row.get("hold") and not row.get("cancel_requested") for row in rows):
-            found.append(RECOVERY)
-        if turns.queued():
-            found.append(QUEUED)
+            rows, status = store.pending(), store.watcher_status()
+        if source is None:
+            from pathlib import Path
+            from codex_auto_resume.codex import LocalSource
+            from . import inuse
+            source = LocalSource(Path(inuse.home(paths)))
+        word = poweraction.judge_activity(source.activity((), time.time() if now is None else now,
+                                                          booted=(status or {}).get("booted_at")))
     except Exception:
         return (UNKNOWN,)
+    found = {PowerWait.TURN_RUNNING: [TURN_RUNNING], PowerWait.QUEUED_INPUT: [QUEUED], None: []}.get(word)
+    if found is None:
+        return (UNKNOWN,)
+    if any(not row.get("hold") and not row.get("cancel_requested") for row in rows):
+        found.append(RECOVERY)
     return tuple(found)
 
 

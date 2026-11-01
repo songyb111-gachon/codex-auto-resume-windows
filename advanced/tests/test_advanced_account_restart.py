@@ -17,8 +17,10 @@ from __future__ import annotations
 
 import json
 import os
+from contextlib import closing
 from pathlib import Path
 import shutil
+import sqlite3
 import sys
 import tempfile
 import unittest
@@ -30,6 +32,8 @@ import advancedcase as ac  # noqa: E402
 from test_advanced_account_switch import CardCase  # noqa: E402
 from test_advanced_measure_mal import CachedSession, Disk, signed  # noqa: E402
 from test_advanced_measure_stage4 import THREAD, VERSIONS, Backend  # noqa: E402
+import codexsim  # noqa: E402
+from codex_auto_resume.codex import LocalSource  # noqa: E402
 from codex_auto_resume_advanced import measure, surfaces  # noqa: E402
 from codex_auto_resume_advanced.codex import account, protocol, restart  # noqa: E402
 from codex_auto_resume_advanced.control import account as card  # noqa: E402
@@ -37,6 +41,8 @@ from codex_auto_resume_advanced.registry import ACCOUNT_SWITCH  # noqa: E402
 from codex_auto_resume_advanced.vocabulary import Measurement, Refusal, Verdict  # noqa: E402
 
 CONVERSATION = "00000000-0000-7000-8000-00000000000a"
+DAY = 86400
+BOOTED = codexsim.BASE - 3 * DAY          # Windows started three days before codexsim's present
 ADDRESS = "someone@example.com"
 
 
@@ -152,42 +158,74 @@ class RestartRouteTests(unittest.TestCase):
         self.assertEqual((restart.END_SECONDS, restart.KILL_SECONDS, restart.START_SECONDS), (30, 15, 60))
 
 
-class Turns:
-    def __init__(self, running=(), queued=0, broken=False):
-        self._running, self._queued, self.broken = list(running), queued, broken
-
-    def running(self):
-        if self.broken:
-            raise RuntimeError("unread")
-        return self._running
-
-    def queued(self):
-        return self._queued
-
-
 class Store:
-    def __init__(self, *rows):
-        self.rows = list(rows)
+    """Core's store as busy asks it: its records not ended, and the watcher's heartbeat with Windows' start."""
+
+    def __init__(self, *rows, booted=BOOTED):
+        self.rows, self.booted = list(rows), booted
 
     def pending(self):
         return self.rows
 
+    def watcher_status(self):
+        return {"booted_at": self.booted}
+
 
 class BusyTests(unittest.TestCase):
+    """busy asks core's own judgement - LocalSource.activity with the heartbeat's boot time, then
+    poweraction.judge_activity - on a codexsim home, so the restart and the power action answer one way."""
+
+    def setUp(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.home = codexsim.CodexHome(Path(folder.name))
+
+    def busy(self, *rows, booted=BOOTED):
+        return restart.busy(None, source=LocalSource(self.home.root), store=Store(*rows, booted=booted),
+                            now=codexsim.BASE)
+
+    def turn(self, started):
+        self.home.add_turn(codexsim.new_id(), status="inProgress", started=int(started))
+
+    def queued(self, created):
+        thread = codexsim.new_id()
+        self.home.add_thread(thread)
+        queue_id = self.home.enqueue(thread, "a message of the user's")
+        with closing(sqlite3.connect(self.home.root / "queue_1.sqlite")) as db:
+            db.execute("UPDATE queued_items SET created_at_ms=? WHERE id=?", (int(created * 1000), queue_id))
+            db.commit()
+
     def test_clear_only_when_nothing_runs_waits_or_is_queued(self):
-        self.assertEqual(restart.busy(None, turns=Turns(), store=Store()), ())
-        self.assertEqual(restart.busy(None, turns=Turns(running=[CONVERSATION]), store=Store()), (restart.TURN_RUNNING,))
-        self.assertEqual(restart.busy(None, turns=Turns(queued=1), store=Store()), (restart.QUEUED,))
-        self.assertEqual(restart.busy(None, turns=Turns(), store=Store({"hold": None, "cancel_requested": 0})),
-                         (restart.RECOVERY,))
+        self.assertEqual(self.busy(), ())
+        self.assertEqual(self.busy({"hold": None, "cancel_requested": 0}), (restart.RECOVERY,))
+        self.turn(BOOTED + 60)
+        self.assertEqual(self.busy(), (restart.TURN_RUNNING,))
+
+    def test_an_item_queued_since_windows_started_is_busy(self):
+        self.queued(BOOTED + 60)
+        self.assertEqual(self.busy(), (restart.QUEUED,))
+
+    def test_a_turn_and_an_item_left_from_before_windows_started_are_not(self):
+        """The owner's PC, 2026-11-01 (MALR blocked): turns inProgress since 18 and 30 days, items queued 6 and 36 days
+        before. Fails with busy reading codex/turns.running and queued again: busy for good."""
+        self.turn(BOOTED - 18 * DAY)
+        self.turn(BOOTED - 30 * DAY)
+        self.queued(BOOTED - 6 * DAY)
+        self.queued(BOOTED - 36 * DAY)
+        self.assertEqual(self.busy(), ())
 
     def test_a_recovery_a_hold_keeps_for_the_person_does_not_block(self):
         """A change of account holds waiting recoveries for the person (engine/account.py): they wait on them, not on
         Codex, and a restart does not touch them."""
-        self.assertEqual(restart.busy(None, turns=Turns(), store=Store({"hold": "account_changed"})), ())
+        self.assertEqual(self.busy({"hold": "account_changed"}), ())
 
-    def test_a_reading_that_fails_is_busy(self):
-        self.assertEqual(restart.busy(None, turns=Turns(broken=True), store=Store()), (restart.UNKNOWN,))
+    def test_no_boot_time_or_a_reading_that_fails_is_busy(self):
+        self.assertEqual(self.busy(booted=None), (restart.UNKNOWN,))
+
+        class Broken:
+            def activity(self, *unused, **ignored):
+                raise OSError("locked")
+        self.assertEqual(restart.busy(None, source=Broken(), store=Store()), (restart.UNKNOWN,))
 
 
 class RestartCardCase(CardCase):

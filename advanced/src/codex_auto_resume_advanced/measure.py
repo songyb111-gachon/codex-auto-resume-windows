@@ -3090,17 +3090,22 @@ def live_hands(backend=None, paths=None) -> dict:
         return notes
 
     def codex_restart(home, read):
-        # MALR (v0.6.20 final): the card's Restart, exactly - codex/restart.busy without core's records (a measurement
-        # has none of its own), then codex/restart.restart with the product's hands but the probe's home and read.
+        # MALR (v0.6.20 final): the card's Restart, exactly - codex/restart.busy on the probe's home, without core's
+        # records (a measurement has none of its own) but with Windows' own boot time, which the watcher's heartbeat
+        # records there - then codex/restart.restart with the product's hands but the probe's home and read.
+        from codex_auto_resume.codex import LocalSource
+        from codex_auto_resume.win.ownprocess import booted_at
         from .codex import restart as restarts
-        from .codex.turns import Turns
 
         class _NoRecords:
             def pending(self):
                 return []
+
+            def watcher_status(self):
+                return {"booted_at": booted_at()}
         if home is None:
             return {}
-        busy = restarts.busy(paths, turns=Turns(home), store=_NoRecords())
+        busy = restarts.busy(paths, source=LocalSource(Path(home)), store=_NoRecords())
         if busy:
             return {"busy": list(busy)}
         outcome, how = restarts.restart(paths, hands=restarts.Hands(paths, home=home, read=read))
