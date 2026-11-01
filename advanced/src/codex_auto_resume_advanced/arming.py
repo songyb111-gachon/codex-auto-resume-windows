@@ -129,16 +129,18 @@ def compat_warning(view, definition):
     return None
 
 
-def warnings_for(definition, view, measured=MEASURED) -> tuple:
+def warnings_for(definition, view, measured=MEASURED, *, parts=True) -> tuple:
     """Every warning `definition`'s statement shows now, in the vocabulary's order. Pure.
 
     A measurement its route rests on that failed is MEASUREMENT_FAILED, whichever Codex it failed
     on; one with no verdict, or a pass on another Codex than the one in force, is UNMEASURED - a
     pass counts only for the version it was made on. Then the compatibility grade of what it
-    stands on (`compat_warning`), and ENGINE_UNKNOWN where no Codex version is known."""
+    stands on (`compat_warning`), and ENGINE_UNKNOWN where no Codex version is known. The measurements only a part
+    rests on (`narrowed_by`, v0.6.21) are warned of the same way; `parts=False` leaves them out - the warnings a
+    tripwire reads (`standing`), since such a fail narrows the part and never turns the capability off."""
     version = engine_version(view)
     found = set()
-    for measurement in definition.measurements:
+    for measurement in definition.measurements + (tuple(getattr(definition, "narrowed_by", ())) if parts else ()):
         entry = measured.get(measurement) if isinstance(measured, dict) else None
         verdict, measured_on = entry if isinstance(entry, tuple) and len(entry) == 2 else (None, None)
         if verdict == Verdict.FAIL:
@@ -175,7 +177,8 @@ def standing(definition, row, policy, view, measured=MEASURED) -> tuple:
     if not kept or policy.admits(definition.id):
         if row.get("statement_revision") != definition.revision:
             notice = OffReason.STATEMENT_CHANGED
-    unconfirmed = set(warnings_for(definition, view, measured)) - set(row.get("warnings") or ())
+    # Only what its route rests on trips it: a measurement only a part rests on (`narrowed_by`) narrows that part.
+    unconfirmed = set(warnings_for(definition, view, measured, parts=False)) - set(row.get("warnings") or ())
     if notice is None:
         notice = next((reason for warning, reason in TRIPPING.items() if warning in unconfirmed), None)
     if notice is not None and not kept:
@@ -1207,7 +1210,9 @@ class Arming:
                 "requires_off": [other for other in self.registry.requires(definition.id)
                                  if states.get(other, ArmingState.OFF) != ArmingState.ARMED],
                 "departs_from": departs(definition, row), "compat": definition.compat,
-                "measurements": [str(measurement) for measurement in definition.measurements],
+                # Every measurement its statement warns of: its route's, then those only a part rests on (v0.6.21).
+                "measurements": [str(measurement) for measurement in
+                                 definition.measurements + tuple(getattr(definition, "narrowed_by", ()))],
                 "points": sorted(str(point) for point in definition.points),
                 # Whether any point it answers at leads to a send, and so whether its ceilings can
                 # ever bind. A capability that only starts, or only shadows, spends no unit; a

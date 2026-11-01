@@ -22,7 +22,9 @@ asked to agree to and everything the plug holds it to:
   failure the person did not confirm turns it off (arming.py);
 * `measurements` - the measurements its route rests on (measure.py), if any. One that failed, or
   has no pass for the Codex in force (measured.py), is a warning in its statement, never a
-  reason to withhold it;
+  reason to withhold it; a fail the person did not confirm turns it off (arming.py);
+* `narrowed_by` - the measurements only a part of it rests on (v0.6.21): warned of as `measurements` are, read
+  where the part is decided, and never a tripwire - a fail narrows that part and leaves it on;
 * `ceilings` - how many sends it may make in a day, overall and in one conversation. Beside them
   stands one global ceiling for every capability together, GLOBAL_HOURLY an hour, which a person
   may lower and never raise (state.AdvancedState.set_global_hourly). One conversation's ceiling is
@@ -187,6 +189,14 @@ class CapabilityDef:
     kind: CapabilityKind = CapabilityKind.ROUTE
     # v0.6.16-beta.4: the WordingKeys of a person's own text it keeps (state `wordings`): the wrap-up's Custom text.
     wordings: tuple = ()
+    # v0.6.21: the measurements only a part of it rests on - a narrower route taken until it passes (keep_going's three
+    # continuations until MK, parallel_dispatch's two workers until MQ, subagent_parent's 5a alone until MS,
+    # usage_analytics' lifetime totals where MTOK failed). Each still shows in its statement as `measurements` do - a
+    # fail as MEASUREMENT_FAILED, no pass for the Codex in force as UNMEASURED (arming.warnings_for) - and its code reads
+    # it where the part is decided (arming.Arming.verdict, Scoped.passed/failed); but a fail of one is never a tripwire
+    # (arming.standing): it narrows the part and never turns the capability off (2026-11-01: MAL's fail, listed among
+    # account_switch's measurements, turned the owner's watched capability off at the v0.6.20 update).
+    narrowed_by: tuple = ()
     # No `keepable` (v0.6.16-beta.4 to v0.6.19-beta.2): the owner's word of 2026-10-24 is that a person may keep every
     # capability on (K8) - the choice is offered on each, and none is kept on unless the person chose it there.
 
@@ -233,7 +243,7 @@ def problems(definition) -> list:
             found.append("an action stands on no compatibility capability")
         if definition.ceilings is not None:
             found.append("an action has no ceilings: it spends nothing")
-        if definition.measurements != ():
+        if definition.measurements != () or definition.narrowed_by != ():
             found.append("an action rests on no measurement")
     elif (not isinstance(points, frozenset) or not points
             or not all(isinstance(point, Point) for point in points)):
@@ -273,6 +283,12 @@ def problems(definition) -> list:
             or not all(isinstance(measurement, Measurement) for measurement in measurements)
             or len(set(measurements)) != len(measurements)):
         found.append("measurements")
+    narrowed_by = definition.narrowed_by
+    if (not isinstance(narrowed_by, tuple)
+            or not all(isinstance(measurement, Measurement) for measurement in narrowed_by)
+            or len(set(narrowed_by)) != len(narrowed_by)
+            or (isinstance(measurements, tuple) and set(narrowed_by) & set(measurements))):
+        found.append("narrowed_by")
     options = definition.options
     if (not isinstance(options, tuple) or any(_option_problem(option) for option in options)
             or len({option.key for option in options}) != len(options)):
@@ -902,6 +918,7 @@ SEND_NOW = CapabilityDef(
 # claim and look stays on the tick (core's engine/launches.py). Each pooled claim pays one unit, so a pooled send whose
 # fate cannot be known turns it off (K7). It departs from 0.5 (one recovery dispatched at a time) and A19 (in sequence,
 # under one lock) - and keeps A19's one continuation in flight per conversation - and stands on exact_thread_recovery.
+# MQ only narrows it (`narrowed_by`, v0.6.21): failed or unmeasured, two workers at most, and it stays on.
 # Ceilings: core's five a conversation a day, 48 a day in all.
 PARALLEL_DISPATCH = CapabilityDef(
     id="parallel_dispatch",
@@ -913,7 +930,7 @@ PARALLEL_DISPATCH = CapabilityDef(
     journal_prefix="par",
     make=make_parallel,
     options=(Option(OptionKey.WORKERS, WORKERS, DEFAULT_WORKERS),),
-    measurements=(Measurement.MQ,),
+    narrowed_by=(Measurement.MQ,),
 )
 
 # The prompt queue (v0.6.15-beta; the plan's item 7, on reset_message's way). A person queues messages of their own
@@ -1001,7 +1018,8 @@ EMPTY_RESPONSE = CapabilityDef(
 # continuation of its own to a parent that finished normally after a subagent stopped (5b). Every record is the
 # parent's: nothing is ever sent to a subagent. It departs from 0.5 (only failed turns are recovered), A15 (subagents
 # are never detected or recovered) and A26 (words of its own), and stands on thread_eligibility, which conversations
-# are a person's own. Its route rests on MS. Ceilings: three a conversation, a dozen a day.
+# are a person's own. Its 5b rests on MS, which only narrows it (`narrowed_by`, v0.6.21): failed or unmeasured, 5a
+# alone runs and it stays on. Ceilings: three a conversation, a dozen a day.
 SUBAGENT_PARENT = CapabilityDef(
     id="subagent_parent",
     points=frozenset({Point.TEXT, Point.TICK, Point.RECORDS}),
@@ -1012,7 +1030,7 @@ SUBAGENT_PARENT = CapabilityDef(
     journal_prefix="sub",
     make=make_subagent_parent,
     codes=("told", "followed_up", "sent", "delivered", "unknown", "superseded"),
-    measurements=(Measurement.MS,),
+    narrowed_by=(Measurement.MS,),
 )
 
 # Keep going (v0.6.15-beta; the plan's item 6). A person picks conversations in the Dashboard, each with a count of 1
@@ -1021,8 +1039,8 @@ SUBAGENT_PARENT = CapabilityDef(
 # latest. It stops on no progress, a finished plan (its steps' statuses alone), an unreadable plan, the count used, an
 # active goal, a failed or interrupted turn, and the conversation switched off. Until MK passes on the Codex in force,
 # three at most are sent. It departs from A13 (only failures are recovered), A26 (words of its own) and B9 (a plan's
-# step statuses are read from an item's content), and stands on outcome_observation. Ceilings: core's five a
-# conversation, two dozen a day.
+# step statuses are read from an item's content), and stands on outcome_observation. MK only narrows it (`narrowed_by`,
+# v0.6.21): failed or unmeasured, three at most, and it stays on. Ceilings: core's five a conversation, two dozen a day.
 KEEP_GOING = CapabilityDef(
     id="keep_going",
     points=frozenset({Point.TICK, Point.RECORDS}),
@@ -1033,7 +1051,7 @@ KEEP_GOING = CapabilityDef(
     journal_prefix="keep",
     make=make_keep_going,
     codes=("found", "stopped", "sent", "delivered", "unknown", "superseded"),
-    measurements=(Measurement.MK,),
+    narrowed_by=(Measurement.MK,),
 )
 
 # Recover every conversation but Codex's own (v0.6.16-beta.3; users asked, the owner's plan of 2026-10-13). At P19 it
@@ -1181,7 +1199,8 @@ IDLE_UPDATE_CHECK = CapabilityDef(
 # core's reader) - the narrower route, never a reason to withhold it. It departs from B6 (rollouts read beyond the
 # first line and the usage-limit scan), C4 (it reads on its own, on a schedule), C9 (usage readings kept when no
 # recovery is due), D2 (per-project digests and token counts kept 90 days) and F3 (the CSV written where the person
-# chooses); stands on usage_probe, as the meter it requires, and rests on MTOK and MU. No gate reads any of it, and it
+# chooses); stands on usage_probe, as the meter it requires, and rests on MU; MTOK only narrows it (`narrowed_by`,
+# v0.6.21) - failed, the lifetime totals alone, and it stays on. No gate reads any of it, and it
 # sends nothing: its ceilings are the schema's floor and never bind.
 USAGE_ANALYTICS = CapabilityDef(
     id="usage_analytics",
@@ -1193,7 +1212,8 @@ USAGE_ANALYTICS = CapabilityDef(
     journal_prefix="analytic",
     make=make_usage_analytics,
     codes=("ingested", "capped", "unreadable"),
-    measurements=(Measurement.MTOK, Measurement.MU),
+    measurements=(Measurement.MU,),
+    narrowed_by=(Measurement.MTOK,),
     options=(Option(OptionKey.ANALYTICS_DAYS, ANALYTICS_DAYS, ANALYTICS_DEFAULT_DAYS),),
     requires=("usage_meter",),
 )

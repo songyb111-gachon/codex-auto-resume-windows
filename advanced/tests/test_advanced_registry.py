@@ -490,22 +490,24 @@ class ShippedTests(unittest.TestCase):
         self.assertEqual(registry.LONG_RESET_MESSAGE.revision, 2)
 
     def test_keep_going_departs_and_rests_on_what_the_design_says(self):
-        """A13, A26 and B9; it stands on outcome_observation and rests on MK; core's five a conversation, two dozen a
+        """A13, A26 and B9; it stands on outcome_observation and is narrowed by MK; core's five a conversation, two dozen a
         day; at P8 and P2."""
         found = registry.REGISTRY.get("keep_going")
         self.assertEqual(found.departs_from, ("A13", "A26", "B9"))
-        self.assertEqual((found.compat, found.measurements, found.journal_prefix),
-                         ("outcome_observation", (Measurement.MK,), "keep"))
+        # v0.6.21: MK only narrows it - read where its part is decided, never a tripwire.
+        self.assertEqual((found.compat, found.measurements, found.narrowed_by, found.journal_prefix),
+                         ("outcome_observation", (), (Measurement.MK,), "keep"))
         self.assertEqual(found.points, frozenset({Point.TICK, Point.RECORDS}))
         self.assertEqual((found.ceilings.per_day, found.ceilings.per_conversation), (24, registry.CORE_DAILY_CAP))
 
     def test_the_subagent_recovery_departs_and_rests_on_what_the_design_says(self):
-        """0.5, A15 and A26; it stands on thread_eligibility and rests on MS; three a conversation, a dozen a day;
+        """0.5, A15 and A26; it stands on thread_eligibility and is narrowed by MS; three a conversation, a dozen a day;
         at P4 (5a), P8 and P2 (5b)."""
         found = registry.REGISTRY.get("subagent_parent")
         self.assertEqual(found.departs_from, ("0.5", "A15", "A26"))
-        self.assertEqual((found.compat, found.measurements, found.journal_prefix),
-                         ("thread_eligibility", (Measurement.MS,), "sub"))
+        # v0.6.21: MS only narrows it - read where its part is decided, never a tripwire.
+        self.assertEqual((found.compat, found.measurements, found.narrowed_by, found.journal_prefix),
+                         ("thread_eligibility", (), (Measurement.MS,), "sub"))
         self.assertEqual(found.points, frozenset({Point.TEXT, Point.TICK, Point.RECORDS}))
         self.assertEqual((found.ceilings.per_day, found.ceilings.per_conversation), (12, 3))
 

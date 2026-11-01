@@ -831,6 +831,7 @@ has not, they go one at a time, and the journal says so.
 
 **Ceilings.** 48 a day, and core's 5 in any one conversation. **Measurement MQ: not made yet;
 MQP: passed** on `codex-cli 0.163.0-alpha.10.2`.
+MQ failing only holds it to 2 workers; it never turns it off.
 
 ### Queue for when a conversation is opened
 
@@ -983,7 +984,8 @@ word for why it stopped are told - never anything it said.
 [A26](STANDARDS.md#a-what-it-may-send-to-codex-and-when).
 
 **Ceilings.** 12 a day, and 3 in any one conversation. **Measurement MS: not made yet** - until it is, a
-parent that finished normally is told nothing.
+parent that finished normally is told nothing,
+and MS failing does the same; it never turns it off.
 
 ### Keep a conversation going
 
@@ -1006,6 +1008,7 @@ conversation off. It is paced like every recovery.
 read from the content of a conversation's items).
 
 **Ceilings.** 24 a day, and core's 5 in any one conversation. **Measurement MK: not made yet.**
+Until it passes, or where it fails, no more than 3 are sent; its failing never turns it off.
 
 ### Queue messages for later
 
@@ -1308,7 +1311,7 @@ product's own folders: the CSV goes where you choose).
 
 **Ceilings.** None come into play: it sends nothing to Codex. **Measurement MTOK: not made yet** - what Codex's
 rollout files carry of token counts; until it passes, the statement carries the warning that it was not measured,
-and where it fails, the narrower route above. **MU: passed** (codex-cli 0.162.0-alpha.17.2, 2026-10-10) for the
+and where it fails, the narrower route above - its failing never turns it off. **MU: passed** (codex-cli 0.162.0-alpha.17.2, 2026-10-10) for the
 meter's readings.
 
 ### Start the 5-hour window early

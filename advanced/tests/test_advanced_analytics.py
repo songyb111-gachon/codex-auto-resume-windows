@@ -127,7 +127,9 @@ class DefinitionTests(unittest.TestCase):
         self.assertEqual(USAGE_ANALYTICS.departs_from, ("B6", "C4", "C9", "D2", "F3"))
         self.assertEqual((USAGE_ANALYTICS.points, USAGE_ANALYTICS.compat, USAGE_ANALYTICS.requires),
                          (frozenset({Point.TICK}), "usage_probe", ("usage_meter",)))
-        self.assertEqual(USAGE_ANALYTICS.measurements, (Measurement.MTOK, Measurement.MU))
+        # MTOK only narrows it (v0.6.21): failed, the lifetime totals alone, and never a tripwire.
+        self.assertEqual((USAGE_ANALYTICS.measurements, USAGE_ANALYTICS.narrowed_by),
+                         ((Measurement.MU,), (Measurement.MTOK,)))
         self.assertEqual((USAGE_ANALYTICS.ceilings.per_day, USAGE_ANALYTICS.ceilings.per_conversation), (1, 1))
         self.assertEqual(USAGE_ANALYTICS.codes, ("ingested", "capped", "unreadable"))
         self.assertEqual(USAGE_ANALYTICS.option(OptionKey.ANALYTICS_DAYS).choices, (7, 30, 90))
