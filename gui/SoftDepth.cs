@@ -124,6 +124,14 @@ namespace CodexAutoResume
         /// of `g`), drawing only the pieces that meet `clip`. Its inset shadows are the body's own.
         internal static void StampOuter(Graphics g, Rectangle body, string recipe, float radius, Rectangle clip)
         {
+            if (!Palette.Depth) return;
+            StampOuter(g, body, recipe, radius, clip, true);
+        }
+
+        /// `lights` false leaves out the highlight - the shadow thrown up and to the left - and keeps the drops (v0.6.20
+        /// final, the owner: no lit edge round a scroll bar's pill).
+        internal static void StampOuter(Graphics g, Rectangle body, string recipe, float radius, Rectangle clip, bool lights)
+        {
             if (!Palette.Depth || body.Width <= 0 || body.Height <= 0) return;
             int count = Count(recipe);
             if (count == 0) return;
@@ -132,7 +140,17 @@ namespace CodexAutoResume
             if (!band.IntersectsWith(clip)) return;
             // Last to first, as CSS paints a shadow list.
             for (int index = count - 1; index >= 0; index--)
-                if (!IsInset(recipe, index)) StampOne(g, recipe, index, SettingsForm.DpiScale, body, radius, clip);
+                if (!IsInset(recipe, index) && (lights || !IsLight(recipe, index)))
+                    StampOne(g, recipe, index, SettingsForm.DpiScale, body, radius, clip);
+        }
+
+        /// Whether shadow `index` of `recipe` is a highlight: an outer one thrown up or to the left.
+        private static bool IsLight(string recipe, int index)
+        {
+            double dx, dy, blur, alpha;
+            bool inset;
+            Color tone;
+            return Shadow(recipe, index, out dx, out dy, out blur, out alpha, out inset, out tone) && !inset && (dx < 0 || dy < 0);
         }
 
         /// A well's inset shadow inside `box` - the well inside its hairline - whose corners have
