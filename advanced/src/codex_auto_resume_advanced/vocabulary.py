@@ -606,6 +606,13 @@ class Measurement(StrEnum):
     # Desktop's own IPC pipe - the connection this product already uses for the forced stop (MIPC): one line added to the
     # running turn of a throwaway conversation the app holds (thread-follower-steer-turn), called once, never again.
     MSTEER2 = "msteer2"
+    # v0.6.21 (model_fallback beside codex_gave_up, plans/v0620-capability-pairs.md): which code a failed turn records
+    # when its model stays at capacity (serverOverloaded) through Codex's own retries - read from a Codex home's
+    # history and rollouts, codes and counts only (a real overload cannot be made on demand). PASS: every failed turn
+    # whose last retry Codex made for capacity recorded serverOverloaded, the code model_fallback already answers. FAIL:
+    # one recorded responseTooManyFailedAttempts - codex_gave_up's kind (terminal_failure) - which model_fallback would
+    # then also have to answer where the last retry's cause was capacity.
+    MGAVE = "mgave"
 
 
 class ObservedWord(StrEnum):

@@ -198,7 +198,9 @@ class TableTests(unittest.TestCase):
                          # v0.6.15-beta's own, for several conversations at once: not made yet.
                          {Measurement.MQ, Measurement.ME, Measurement.MS, Measurement.MK, Measurement.MT,
                           # v0.6.19's groundwork probes, made while its stage is built: not made yet.
-                          Measurement.MTOK, Measurement.MWAKE, Measurement.M4B})
+                          Measurement.MTOK, Measurement.MWAKE, Measurement.M4B,
+                          # v0.6.21: which code a turn kept at capacity through Codex's retries records.
+                          Measurement.MGAVE})
 
 
 if __name__ == "__main__":
