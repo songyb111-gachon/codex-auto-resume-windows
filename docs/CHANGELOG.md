@@ -139,8 +139,8 @@ an older version brings the runtime that version was built with (3.14.9 for v0.6
   only after Codex is restarted in full. The card and its statement say the button is hidden because its measurement failed (they
   had said "until it is measured"), and how to switch in Codex instead; the button is offered once a Codex passes.
 - **A measurement that only a part of a capability rests on never turns the capability off** (new since beta.4). A count, a second
-  worker, a parent's follow-up, the token estimate and the account button each rest on a measurement of their own (MK, MQ, MS, MTOK
-  and MAL). Listed among the capability's measurements, a failed one would have turned the whole capability off, as MAL's did to a
+  worker, a parent's follow-up, the token estimate, the account button, a scheduled message's *after this turn* and spending a
+  reset credit without asking first each rest on a measurement of their own (MK, MQ, MS, MTOK, MAL, MT and MR). Listed among the capability's measurements, a failed one would have turned the whole capability off, as MAL's did to a
   watched account switch in a candidate of this release; now it narrows only its part and the statement says that it failed, while
   the capability stays as you left it. The words for a count, a choice after this turn and a reset's ask-first note say *failed*
   where the measurement failed, not *unmeasured*.
