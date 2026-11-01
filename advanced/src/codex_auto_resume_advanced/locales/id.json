@@ -686,6 +686,7 @@
   "page.watchlog.answer.hold": "Membuatnya tetap menunggu",
   "page.watchlog.answer.notice": "Mengirim notifikasi ke ponsel atau kotak masuk Anda",
   "page.watchlog.answer.other": "Hal lain",
+  "page.watchlog.answer.power": "Memberi tahu keadaan tugas yang Anda pilih",
   "page.watchlog.answer.queue_for_open": "Mengantrekannya untuk saat percakapan dibuka",
   "page.watchlog.answer.records": "Pesan Anda yang akan dikirimnya",
   "page.watchlog.answer.resend": "Mengirim sekali lagi",

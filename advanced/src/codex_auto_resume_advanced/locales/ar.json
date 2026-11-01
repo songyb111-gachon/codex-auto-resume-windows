@@ -686,6 +686,7 @@
   "page.watchlog.answer.hold": "إبقاؤها في الانتظار",
   "page.watchlog.answer.notice": "أرسل الإشعار إلى هاتفك أو بريدك",
   "page.watchlog.answer.other": "شيء آخر",
+  "page.watchlog.answer.power": "أخبر بحال المهام التي اخترتها",
   "page.watchlog.answer.queue_for_open": "وضعها في قائمة الانتظار إلى أن تُفتح المحادثة",
   "page.watchlog.answer.records": "رسالة منك كان سيرسلها",
   "page.watchlog.answer.resend": "الإرسال مرة أخرى",

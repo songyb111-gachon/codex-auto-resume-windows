@@ -201,7 +201,7 @@ namespace CodexAutoResume
             string question = Word("page.confirm.power_after_tasks",
                 "Turn this on for {n} tasks?\n\nThen: {action}\nWarn me first for: {grace}\n\nIt waits until every task you picked has finished as you chose, no recovery waits or runs, no turn is running and no input is queued in Codex, and nobody has used this PC for 2 minutes. Then a notice gives you {grace} to stop it. It happens once. You can turn it off here, in Settings, from the notification-area icon or from the notice.",
                 "n", Mirror.Embed(picked.Count.ToString(CultureInfo.CurrentCulture)))
-                .Replace("{action}", action.ToString()).Replace("{grace}", grace.ToString());
+                .Replace("{action}", Mirror.Embed(action.ToString())).Replace("{grace}", Mirror.Embed(grace.ToString()));
             if (action.Value == "shut_down")
                 question += "\n\n" + S("power.confirm.shut_down",
                     "Shutting down closes every program, so save your work first. It never shuts down while someone else is signed in.");

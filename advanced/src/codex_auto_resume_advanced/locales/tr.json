@@ -686,6 +686,7 @@
   "page.watchlog.answer.hold": "Bekletmek",
   "page.watchlog.answer.notice": "Bildirimi telefonunuza veya e-postanıza gönderdi",
   "page.watchlog.answer.other": "Başka bir şey",
+  "page.watchlog.answer.power": "Seçtiğiniz görevlerin durumunu bildirdi",
   "page.watchlog.answer.queue_for_open": "Sohbet açıldığında çalışmak üzere sıraya koymak",
   "page.watchlog.answer.records": "Göndereceği bir mesajınız",
   "page.watchlog.answer.resend": "Bir kez daha göndermek",

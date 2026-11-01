@@ -686,6 +686,7 @@
   "page.watchlog.answer.hold": "让它继续等待",
   "page.watchlog.answer.notice": "把通知发到了你的手机或邮箱",
   "page.watchlog.answer.other": "其他",
+  "page.watchlog.answer.power": "说明了你选择的任务的状态",
   "page.watchlog.answer.queue_for_open": "已排队，待对话打开时运行",
   "page.watchlog.answer.records": "本会发送的你的消息",
   "page.watchlog.answer.resend": "再发送一次",

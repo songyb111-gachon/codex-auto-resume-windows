@@ -686,6 +686,7 @@
   "page.watchlog.answer.hold": "기다리게 함",
   "page.watchlog.answer.notice": "알림을 휴대폰이나 메일로 보냄",
   "page.watchlog.answer.other": "기타",
+  "page.watchlog.answer.power": "고른 작업이 어떤지 알림",
   "page.watchlog.answer.queue_for_open": "대화를 열 때 실행되도록 대기열에 넣음",
   "page.watchlog.answer.records": "보냈을 사용자의 메시지",
   "page.watchlog.answer.resend": "한 번 더 보냄",

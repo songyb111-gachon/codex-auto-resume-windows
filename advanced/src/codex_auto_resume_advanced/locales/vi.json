@@ -686,6 +686,7 @@
   "page.watchlog.answer.hold": "Để nó tiếp tục chờ",
   "page.watchlog.answer.notice": "Đã gửi thông báo đến điện thoại hoặc hộp thư của bạn",
   "page.watchlog.answer.other": "Điều khác",
+  "page.watchlog.answer.power": "Đã cho biết các tác vụ bạn chọn ra sao",
   "page.watchlog.answer.queue_for_open": "Đưa vào hàng đợi cho đến khi cuộc trò chuyện được mở",
   "page.watchlog.answer.records": "Một tin nhắn của bạn mà nó lẽ ra đã gửi",
   "page.watchlog.answer.resend": "Gửi thêm một lần",
