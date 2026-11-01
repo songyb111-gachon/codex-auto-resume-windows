@@ -2483,7 +2483,7 @@ def _msteer(ctx):
                     "no new turn begun by it and nothing else sent, then set the verdict", **observed)
 
 
-# MGAVE (v0.6.21): which code a turn records when its model stays at capacity through Codex's own retries.
+# MGAVE (v0.6.20): which code a turn records when its model stays at capacity through Codex's own retries.
 _MGAVE_DAYS = 90                              # how far back the failed turns are read, by their end
 _MGAVE_TURNS = 2000                           # how many failed turns at most, the latest first
 _MGAVE_SCAN_BYTES = 4 * 1024 * 1024           # how much of a rollout before a failed turn's end is read
@@ -2538,7 +2538,7 @@ def _turn_retries(path, turn_id, end):
 
 def _mgave(ctx):
     """Which code a turn records when its model stays at capacity through Codex's own retries (model_fallback beside
-    codex_gave_up, v0.6.21). A real overload cannot be made on demand, and Codex's schema offers no read of a past
+    codex_gave_up, v0.6.20). A real overload cannot be made on demand, and Codex's schema offers no read of a past
     turn's retries (thread/read gives a turn's error, never the retries before it; the error notification's willRetry
     is live only), so this reads what a Codex home kept: every failed turn of the history's database in the last
     _MGAVE_DAYS days (at most _MGAVE_TURNS), its recorded code, and in its rollout the stream_error events - Codex's

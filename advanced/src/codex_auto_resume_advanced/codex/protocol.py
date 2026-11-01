@@ -127,7 +127,7 @@ MEASUREMENT_METHODS = {
     Measurement.MSTEER: ("turn/steer",),
     # MSTEER2 uses the Desktop's IPC pipe (codex/ipc.py), not an app-server session: no protocol method.
     Measurement.MSTEER2: (),
-    # v0.6.21: MGAVE reads the history's database and the rollouts of a Codex home - no session.
+    # v0.6.20: MGAVE reads the history's database and the rollouts of a Codex home - no session.
     Measurement.MGAVE: (),
 }
 

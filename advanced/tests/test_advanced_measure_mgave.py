@@ -1,4 +1,4 @@
-"""MGAVE: which code a turn records when its model stays at capacity through Codex's own retries (v0.6.21).
+"""MGAVE: which code a turn records when its model stays at capacity through Codex's own retries (v0.6.20).
 
 The question of plans/v0620-capability-pairs.md: a turn whose model stays serverOverloaded while Codex retries - does
 the failed turn record serverOverloaded, or responseTooManyFailedAttempts (codex_gave_up's terminal_failure)? A real
