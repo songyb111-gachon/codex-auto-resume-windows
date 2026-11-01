@@ -257,7 +257,7 @@ namespace CodexAutoResume
             string longestWait = "stale", longestEnd = "stale";
             foreach (string word in new[] { "no_batch", "recovery_open", "delivery_unknown", "turn_running", "queued_input",
                                             "codex_unknown", "history_behind", "other_people", "person_active",
-                                            "idle_unknown", "paused", "watcher" })
+                                            "idle_unknown", "paused", "watcher", "tasks_running", "tasks_unknown" })
                 if (TextRenderer.MeasureText(PowerWaitLine(word), Font).Width >
                     TextRenderer.MeasureText(PowerWaitLine(longestWait), Font).Width) longestWait = word;
             foreach (string end in new[] { "done", "failed", "skipped", "not_met", "stale", "lapsed", "unavailable" })
@@ -270,6 +270,12 @@ namespace CodexAutoResume
                     PowerAuditOptions(action, "grace", null, now + 1800, longestEnd, now, false, "no_sleep_state", "hibernate_off", null)));
                 states.Add(new KeyValuePair<string, Dictionary<string, object>>("waiting (" + longestWait + ") to " + action,
                     PowerAuditOptions(action, "waiting", longestWait, 0, longestEnd, now, false, "no_sleep_state", "hibernate_off", null)));
+                // v0.6.21: armed for tasks a person picked, whose switch says so in a sentence of its own (PowerTasksLine).
+                var forTasks = PowerAuditOptions(action, "waiting", "tasks_running", 0, longestEnd, now, false, "no_sleep_state",
+                                                 "hibernate_off", null);
+                Map(Map(forTasks, "view"), "armed")["tasks"] = true;
+                states.Add(new KeyValuePair<string, Dictionary<string, object>>("for the tasks picked, waiting to " + action,
+                                                                                forTasks));
             }
             states.Add(new KeyValuePair<string, Dictionary<string, object>>("managed, with no privilege",
                 PowerAuditOptions("shut_down", null, null, 0, longestEnd, now, true, "no_privilege", "no_privilege", "no_privilege")));
