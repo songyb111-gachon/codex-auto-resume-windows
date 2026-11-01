@@ -48,7 +48,9 @@ Project creator and maintainer. Copyright holder.
 Everyone below is a person outside the project who helped it, in the order they first did.
 
 - [@cervinho](https://github.com/cervinho) asked for the computer to shut down or sleep once every recovery has
-  finished ([discussion #22](https://github.com/songyb111-gachon/codex-auto-resume-windows/discussions/22)).
+  finished ([discussion #22](https://github.com/songyb111-gachon/codex-auto-resume-windows/discussions/22)), and later for the
+  same once tasks they picked have finished, which v0.6.20 brought to the advanced edition
+  ([discussion #57](https://github.com/songyb111-gachon/codex-auto-resume-windows/discussions/57)).
 - [@barkshah2002-pixel](https://github.com/barkshah2002-pixel) reported a usage-limit interruption that was not
   detected ([#27](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/27)) and suggested logging every failed turn the watcher does not take up, with why.
 - [@ZionZhang42](https://github.com/ZionZhang42) proved the cause of that missed detection ([#27](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/27)).
