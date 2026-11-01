@@ -142,14 +142,14 @@ file or a log. That is the package's one way to keep a secret, and it never read
 
 ## Today's capabilities
 
-Forty-two: twenty-three that change how a recovery is made, which conversations are recovered or what
+Forty-three: twenty-three that change how a recovery is made, which conversations are recovered or what
 follows a turn, two that tell you elsewhere - notices sent to your phone or inbox, and OpenAI's service status
 on the Overview (v0.6.20) - one that shows where your usage and tokens go (v0.6.20), three that send at a time you
 pick - the two at a usage reset, and queued messages - one that adds a line to the turn running now (v0.6.20; the
 Codex app does not show that line, only History does) - three
 before a usage limit is reached - the usage meter, and the wrap-up and the forced stop that need it - one that
 starts the 5-hour window early when it is idle (v0.6.20), one that switches the Codex account (v0.6.20), one that
-checks for updates once a week, two that look after the watcher and the PC - restart the watcher if it stops unexpectedly,
+checks for updates once a week, one that puts this PC to sleep or shuts it down after tasks you pick (v0.6.21), two that look after the watcher and the PC - restart the watcher if it stops unexpectedly,
 and wake this PC for a reset (v0.6.19) - and four actions: Longer messages, which only lets a message be longer, Open Codex on a notice, which only makes a click on a notice
 show a conversation, chat with a conversation in the Dashboard (v0.6.19), which sends a message of yours, and the
 compatibility report, which only you start. Five rest on a measurement each that was made - the first three, queue for when a conversation
@@ -161,7 +161,7 @@ measurements not made yet - wake this PC for a reset, on MWAKE, and the usage an
 switching the Codex account rests on MA, which passed, and on MAL, which failed on `codex-cli 0.166.0-alpha.5.1` on
 2026-11-01, so its button is hidden - the chat rests on M7, MC1 and MC2, which were made, as its own
 section below says, starting the 5-hour window early on MANCHOR, made on `codex-cli 0.165.0-alpha.1.2` on 2026-10-29, steering the running turn on MSTEER2,
-made the same day, and the other sixteen on none. Each measurement made was made by hand, on the
+made the same day, and the other seventeen on none. Each measurement made was made by hand, on the
 owner's machine, first on `codex-cli 0.158.0-alpha.2.1`, again on `codex-cli 0.162.0-alpha.17.2` and, for those this release's
 capabilities rest on, once more on `codex-cli 0.163.0-alpha.10.2` (2026-10-17) - and MQO, MQP and MQG, which decide how
 the continuation with no marker, several conversations at once and the goal continuation sit beside the queue for
@@ -1310,6 +1310,35 @@ product's own folders: the CSV goes where you choose).
 rollout files carry of token counts; until it passes, the statement carries the warning that it was not measured,
 and where it fails, the narrower route above. **MU: passed** (codex-cli 0.162.0-alpha.17.2, 2026-10-10) for the
 meter's readings.
+
+### Sleep or shut down after tasks you pick
+
+**What it does.** Its card on the Advanced features page lists your own conversations whose turn is running now. Pick
+one or more, choose **Then** (Sleep, Hibernate or Shut down - what the power action in Settings offers on this PC) and
+**Warn me first for** (2 to 30 minutes, 5 by default), say whether a task that **failed** or was **interrupted** counts
+too (a completed one always does), and press **Turn on...**, which asks first. It arms the very power action of
+Settings, once: once every task you picked has ended in an ending you count, and - as for the power action after
+recoveries - no recovery waits or runs anywhere, Codex has finished recording, no turn runs in any conversation, no
+input is queued, nobody has used this PC for 2 minutes and the notice's countdown has run out unstopped, this PC does
+what you picked. The notice says it is for the tasks you picked and has the same stop button, for this one time. A
+task cut off by a usage limit is recovered as usual, and the power action waits for that task's real end, after its
+recovery. While armed, the card shows each task and how it stands, and **Turn off**; Settings, the notification-area
+icon and the notice turn it off too. It reads each task's turn status and core's records of it - ids and statuses,
+never what a conversation says - and sends nothing to Codex.
+
+**When it helps.** When you leave long tasks running and want the PC off once they are done, whether or not a usage
+limit comes in between.
+
+**What it risks.** Only Codex in this Codex home is checked: other programs, downloads and unsaved work are not, and
+Shut down closes every program. A task that never ends - one left running by a crash - keeps it waiting until you turn
+it off. Anything it cannot read means it waits.
+
+**Departs from** [H14](STANDARDS.md#h-user-control) (the power action is armed on this page for tasks you started, and
+decided by how they end, not only by usage-limit recoveries). The rest of H14 holds: off until you turn it on, a stop
+first, every way to turn it off, nothing unreadable lets it act, nothing sent.
+
+**Ceilings.** None come into play: it sends nothing to Codex. It rests on no measurement: the turn statuses it reads
+are the ones every recovery already reads.
 
 ### Start the 5-hour window early
 
