@@ -614,6 +614,7 @@
           "status.unavailable": "Status unavailable",
           "status.unavailable_detail": "Settings can still be changed and saved",
           "status.unknown": "Watcher status unknown",
+          "status.loading": "Loading...",
           "status.watching": "Watching for interruptions",
           "stay.after_sleep": "Tasks waiting after a long sleep",
           "time.ago": "{time} ago",
