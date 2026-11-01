@@ -144,6 +144,16 @@ an older version brings the runtime that version was built with (3.14.9 for v0.6
   watched account switch in a candidate of this release; now it narrows only its part and the statement says that it failed, while
   the capability stays as you left it. The words for a count, a choice after this turn and a reset's ask-first note say *failed*
   where the measurement failed, not *unmeasured*.
+- **Sleep, hibernate or shut down after tasks you pick** (new since beta.4; asked for in
+  [Discussion #57](https://github.com/songyb111-gachon/codex-auto-resume-windows/discussions/57) by
+  [@cervinho](https://github.com/cervinho)). The Advanced features page lists your own conversations whose turn is running now:
+  pick one or more, choose what the PC does and how long the notice warns first, say whether a task that failed or was
+  interrupted counts too, and the power action of Settings is armed once for them. It acts only when every task you picked
+  has ended, no recovery waits or runs anywhere, no turn runs in any conversation, nothing is queued, Codex has finished
+  recording, nobody has used the PC for two minutes and the countdown ran out unstopped; a task cut off by a usage limit is
+  recovered first. The notice says it is for the tasks you picked and stops it for this one time; Settings, the icon and the
+  notice turn it off. It reads only how the turns end and sends nothing to Codex. The standard edition decides its power
+  action exactly as before.
 - **Push notices and OpenAI's service status, through one courier process.** With *Send notices to your phone or inbox* on, a notice
   you picked goes as a short message to an ntfy topic, a webhook, a Telegram bot or an e-mail server you set up on the capability's
   card; with *Show OpenAI's service status* on, the same process reads OpenAI's public status page, and the Overview says when it
