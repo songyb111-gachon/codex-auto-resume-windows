@@ -60,27 +60,14 @@ class NoGlowTests(unittest.TestCase):
                     found.append((x, y, tuple(min(255, int(round(value * 255.0 / alpha))) for value in (red, green, blue)), alpha))
         return found
 
-    def test_round_the_card_there_is_only_the_drop_shadow_in_the_shadow_s_colour_never_a_glow(self):
+    def test_round_the_card_nothing_is_drawn_neither_a_glow_nor_a_shadow(self):
+        """Fails with the drop shadow put back: light's shadow colour, a pale blue-grey, shone round the menu as a halo on
+        a dark taskbar (the owner's look of 2026-11-02, after the highlight had gone)."""
         for theme in ("light", "dark"):
-            dark = brand.rgb(brand.palette(theme)["shadow_dark"])
             for locale in LOCALES:
                 with self.subTest(theme=theme, locale=locale):
                     plan, pixels = self.draw(theme, locale=locale)
-                    around = self.outside(plan, pixels)
-                    self.assertGreater(len(around), 100, "the drop shadow is still there")
-                    # Where the shadow is strong enough for its colour to be read back out of a premultiplied pixel.
-                    bright = [(x, y, colour) for x, y, colour, alpha in around
-                              if alpha >= 32 and max(abs(a - b) for a, b in zip(colour, dark)) > 12]
-                    self.assertEqual(bright[:5], [], "a pixel round the card is lit, not the drop shadow's colour")
-
-    def test_the_drop_shadow_still_falls_below_and_to_the_right(self):
-        plan, pixels = self.draw("light")
-        left, top, right, bottom = plan["card"]
-        middle_x, middle_y = (left + right) // 2, (top + bottom) // 2
-        below = self.pixel(plan, pixels, middle_x, bottom + 3)[3]
-        above = self.pixel(plan, pixels, middle_x, top - 3)[3]
-        self.assertGreater(below, above, "deeper below than above, as the cards' own lift")
-        self.assertGreater(self.pixel(plan, pixels, right + 3, middle_y)[3], 0)
+                    self.assertEqual(self.outside(plan, pixels)[:5], [], "a pixel round the card is drawn")
 
     def test_in_dark_the_card_has_no_one_pixel_top_light_inside_its_border(self):
         plan, pixels = self.draw("dark")
@@ -115,7 +102,7 @@ class SourceTests(unittest.TestCase):
     def test_only_the_menu_leaves_the_lit_edge_out(self):
         from codex_auto_resume.ui.popup import menuwindow, renderer
         menu = Path(menuwindow.__file__).read_text(encoding="utf-8")
-        self.assertIn('self._lift(paint, "card", card, radius, scale, lights=False)', menu)
+        self.assertNotIn('self._lift(paint, "card"', menu)
         self.assertNotIn("self._inner(paint", menu)
         base = Path(renderer.__file__).read_text(encoding="utf-8")
         self.assertIn("def _lift(self, paint, recipe, rect, radius, scale, lights=True):", base)

@@ -150,10 +150,9 @@ class MenuRenderer(Renderer):
         pill = radii["small"] * scale
         hairline = max(1.0, round(scale))
         with _Painter(canvas, PIXEL_FORMAT_32BPP_PARGB) as paint:
-            # The card as the popup's card is drawn - its drop shadow, its ground, its hairline - but with no bright edge: not
-            # light's highlight glowing round it, not dark's one-pixel top light inside it (the owner, 2026-11-01: the
-            # raised look's lit edge does not belong round a menu).
-            self._lift(paint, "card", card, radius, scale, lights=False)
+            # The card's ground and hairline, and nothing round it: no lit edge (light's highlight, dark's one-pixel top
+            # light) and no drop shadow either - light's shadow colour is a pale blue-grey that shone as a halo on a dark
+            # taskbar (the owner, 2026-11-01 and 11-02: the raised look's lit edge does not belong round a menu).
             ground = (self._argb("surface") if self.contrast
                       else _pack(brand.rgb(brand.card_ground(self._theme(), self._design()))))
             paint.fill_round(card, radius, ground)

@@ -510,11 +510,13 @@ class LookTests(unittest.TestCase):
                 self.assertEqual(self.ground(plan, pixels), (brand.rgb(brand.card_ground(theme, "soft")), 255))
         self.assertNotEqual(self.ground(*self.draw("light")), self.ground(*self.draw("dark")))
 
-    def test_its_lift_falls_outside_the_card_and_past_it_there_is_nothing(self):
+    def test_round_the_card_there_is_nothing(self):
+        """v0.6.20 final (the owner, 2026-11-02): no shadow round the menu - light's pale shadow shone as a halo on a dark
+        taskbar (test_tray_menu_no_glow holds every pixel round it)."""
         plan, pixels = self.draw("light")
         card = plan["card"]
         _, beside = self.pixel(plan, pixels, card[2] + 3, (card[1] + card[3]) // 2)
-        self.assertGreater(beside, 0, "the shadow")
+        self.assertEqual(beside, 0, "no shadow beside the card")
         self.assertEqual(self.pixel(plan, pixels, 0, 0)[1], 0, "the window's corner is nothing")
         self.assertEqual(self.pixel(plan, pixels, card[0] + 1, card[1] + 1)[1] < 255, True, "the card's round corner")
 
