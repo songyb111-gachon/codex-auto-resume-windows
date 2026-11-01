@@ -67,7 +67,7 @@ CASES = [
     (["--outside"], False, True, ""),
     ([], True, False, ""),
     (["--page=pending", "--bounds=10,20,800,600", "--reopened=1"], False, False, "pending"),
-    (["--page=advanced", "--capability=codex_chat", "--chat=00000001-0000-7000-8000-000000000000"], False, False, ""),
+    (["--page=advanced", "--capability=codex_chat", "--chat=11111111-0000-7000-8000-000000000000"], False, False, ""),
     (["--page=nowhere"], False, False, ""),
     (["--section=general"], False, False, ""),
     (["--theme=dark"], False, False, ""),
