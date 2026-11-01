@@ -494,7 +494,11 @@ class Arming:
     def _hook_declaration(self) -> None:
         """v0.6.20: the Stop hook's declaration follows its capability's stored state (control/hookplugin.py) - written
         while it is on, removed at every way off - and only where this registry has the capability, so nothing is
-        touched while it waits hidden (registry.WAITING). Never raises."""
+        touched while it waits hidden (registry.WAITING). Never raises.
+
+        v0.6.21: so does core's power action armed for tasks a person picked (control/powertasks.follow) - turned off,
+        and its list gone, at every way power_after_tasks goes off, so nothing waits on an answer that never comes."""
+        self._power_tasks_follow()
         from .control import hookplugin
         if self.registry.get(hookplugin.CAPABILITY) is None:
             return
@@ -502,6 +506,19 @@ class Arming:
             from .codex import inuse
             row = self.state.arming().get(hookplugin.CAPABILITY) or {}
             hookplugin.follow(self.state.paths, inuse.home(self.state.paths), row.get("state") == ArmingState.ARMED)
+        except Exception:
+            pass
+
+    def _power_tasks_follow(self) -> None:
+        """v0.6.21: core's power action armed for tasks follows power_after_tasks' stored state (control/powertasks.py),
+        only where this registry has the capability. Never raises."""
+        from .control import powertasks
+        from .engine.powertasks import CAPABILITY
+        if self.registry.get(CAPABILITY) is None:
+            return
+        try:
+            row = self.state.arming().get(CAPABILITY) or {}
+            powertasks.follow(self.state.paths, row.get("state") == ArmingState.ARMED)
         except Exception:
             pass
 

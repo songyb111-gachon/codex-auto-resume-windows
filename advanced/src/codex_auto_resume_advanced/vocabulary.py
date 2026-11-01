@@ -187,6 +187,9 @@ class Refusal(StrEnum):
     IMAGE_TOO_LARGE = "image_too_large"
     IMAGES_FULL = "images_full"
     IMAGES_UNAVAILABLE = "images_unavailable"
+    # v0.6.21 (power_after_tasks): core's power action refused the arming - an administrator's DisablePowerAction, an
+    # older watcher holding the state, or an action Windows will not do here; the answer names core's own code.
+    POWER_REFUSED = "power_refused"
 
 
 class JournalCode(StrEnum):
@@ -480,6 +483,10 @@ class BridgeCommand(StrEnum):
     ADVANCED_PROMPTS_CLEAR_DONE = "advanced-prompts-clear-done"
     ADVANCED_ACCOUNT = "advanced-account"
     ADVANCED_ACCOUNT_SWITCH = "advanced-account-switch"
+    # v0.6.21 (power_after_tasks, Discussion #57): the card's read - the conversations running now, and the tasks the power
+    # action waits for - and core's power action armed for the ones a person picked. The Dashboard's alone, never MCP.
+    ADVANCED_POWER_TASKS = "advanced-power-tasks"
+    ADVANCED_POWER_TASKS_ARM = "advanced-power-tasks-arm"
 
 
 class Measurement(StrEnum):
