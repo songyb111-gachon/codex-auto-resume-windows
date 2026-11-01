@@ -799,7 +799,8 @@ SIGN_IN_RETRY = CapabilityDef(
 # window, it answers EARLY at P7 for the recoveries that wait, so they go at core's next early window. It departs
 # from A12 (a look before the reset time), B3 and B4 (account/rateLimitResetCredit/consume changes the account),
 # B10 (it keeps the count and the soonest expiry), C4 (it reads and spends on its own) and C9 (it reads usage when no
-# recovery is due); it stands on usage_probe and rests on MU, MN and MR. A spend whose result cannot be known turns
+# recovery is due); it stands on usage_probe and rests on MU and MN; MR only narrows it (`narrowed_by`, v0.6.20: failed or
+# unmeasured, it asks first and stays on). A spend whose result cannot be known turns
 # it off, as a send it paid for gone submission_unknown does (K7). Ceilings: the early looks it causes, three a
 # conversation, a dozen a day. It comes before early_reset, whose hold lets go of a look it made (not_taken).
 RESET_CREDIT = CapabilityDef(
@@ -812,7 +813,8 @@ RESET_CREDIT = CapabilityDef(
     journal_prefix="credit",
     make=make_reset_credit,
     codes=("hit", "spent", "nothing", "no_credit", "asked", "lapsed", "unknown", "gap", "gone"),
-    measurements=(Measurement.MU, Measurement.MN, Measurement.MR),
+    measurements=(Measurement.MU, Measurement.MN),
+    narrowed_by=(Measurement.MR,),
 )
 
 # A message of a person's own when the window they picked resets (v0.6.14, the owner's request of 2026-10-06; the
@@ -940,7 +942,8 @@ PARALLEL_DISPATCH = CapabilityDef(
 # words, a P2 MESSAGE core sends exactly as typed: in order, each once, one waiting for the one before it to arrive
 # where asked, paced like every recovery (A20 kept, the owner's answer). Cancel and a Pause take back one Codex already
 # holds (the owner's answer of 2026-10-09). It departs from A8, A17, A26, A27, C4, D2, H4 and H6 as its statement says,
-# and stands on exact_thread_recovery. Its after_turn route rests on MT. Ceilings: core's five a conversation, thirty a
+# and stands on exact_thread_recovery. Only its after_turn route rests on MT, which only narrows it (`narrowed_by`, v0.6.20:
+# failed or unmeasured, that choice is marked and the rest stays on). Ceilings: core's five a conversation, thirty a
 # day. Before the edition's own continuations, so a person's message is handed first (P2's eight). Revision 2 (v0.6.19,
 # issue #50): a message at a time or on a schedule waits while a turn of its conversation runs, or goes into Codex's
 # queue at once, as the person chooses (engine/promptqueue.py) - the statement describes the default, so a person who
@@ -958,7 +961,7 @@ PROMPT_QUEUE = CapabilityDef(
     journal_prefix="queue",
     make=make_prompt_queue,
     codes=("due", "sent", "delivered", "unknown", "expired", "missed", "held", "superseded"),
-    measurements=(Measurement.MT,),
+    narrowed_by=(Measurement.MT,),
 )
 
 # Steer the running turn (v0.6.20, issue #50 item 2; the owner's decision of 2026-10-29, "경고와 함께 만들기"). A person

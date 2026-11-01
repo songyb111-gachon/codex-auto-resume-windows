@@ -253,7 +253,8 @@ class ShippedTests(unittest.TestCase):
         credit = registry.REGISTRY.get("reset_credit")
         self.assertEqual(credit.departs_from, ("A12", "B3", "B4", "B10", "C4", "C9"))
         self.assertEqual((credit.compat, credit.revision, credit.kind), ("usage_probe", 1, CapabilityKind.ROUTE))
-        self.assertEqual(credit.measurements, (Measurement.MU, Measurement.MN, Measurement.MR))
+        # v0.6.20: MR only decides asking first, so it narrows and never trips (test_advanced_narrowing_parts).
+        self.assertEqual((credit.measurements, credit.narrowed_by), ((Measurement.MU, Measurement.MN), (Measurement.MR,)))
         self.assertEqual(credit.points, frozenset({Point.TICK, Point.SCHEDULE}))
         self.assertEqual((credit.ceilings.per_day, credit.ceilings.per_conversation), (12, 3))
         self.assertEqual(credit.codes, ("hit", "spent", "nothing", "no_credit", "asked", "lapsed", "unknown", "gap",
@@ -489,8 +490,9 @@ class ShippedTests(unittest.TestCase):
         self.assertEqual(found.departs_from, ("A2", "A4", "A8", "A17", "A26", "A27", "B3", "B4", "C4", "D2", "H4",
                                               "H6"))
         self.assertNotIn("A20", found.departs_from)
-        self.assertEqual((found.compat, found.measurements, found.journal_prefix),
-                         ("exact_thread_recovery", (Measurement.MT,), "queue"))
+        # v0.6.20: only the after_turn route rests on MT, so it narrows and never trips (test_advanced_narrowing_parts).
+        self.assertEqual((found.compat, found.measurements, found.narrowed_by, found.journal_prefix),
+                         ("exact_thread_recovery", (), (Measurement.MT,), "queue"))
         self.assertEqual(found.points, frozenset({Point.RECORDS, Point.SENDER, Point.DELIVERY}))
         self.assertEqual((found.ceilings.per_day, found.ceilings.per_conversation), (30, registry.CORE_DAILY_CAP))
         self.assertEqual(registry.LONG_RESET_MESSAGE.revision, 2)

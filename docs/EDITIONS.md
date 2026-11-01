@@ -746,7 +746,8 @@ the person's own second yes, spent exactly one credit, which lifted the limit, a
 the same key spent no second one. On that version of Codex the statement carries none of them as a
 warning, and a credit is used at the limit you picked by itself, unless you chose *Ask me first*; on
 any other version each is a warning until it is measured there, and a credit is spent only when you
-press *Use a reset credit now...*.
+press *Use a reset credit now...*. MR only decides whether a credit is spent without asking first, so its failing never
+turns the capability off: it asks first.
 
 ### Send your own message when a limit resets
 
@@ -1070,7 +1071,8 @@ on or cancel) and [H6](STANDARDS.md#h-user-control) (Cancel no longer reaches a 
 A20.
 
 **Ceilings.** 30 a day, and core's 5 in any one conversation. **Measurement MT: not made yet** - "after this
-turn" says it is unproven until it is. Its statement is at revision 2 since the send mode (v0.6.19): if it was on,
+turn" says it is unproven until it is, and where it fails that choice says so; its failing never turns the capability
+off. Its statement is at revision 2 since the send mode (v0.6.19): if it was on,
 you read the new statement once and turn it on again.
 
 ### Steer the running turn
