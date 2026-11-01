@@ -66,7 +66,7 @@ class Point(StrEnum):
     its category word, its record's place in Pending and when, closed words and numbers only (Guarded.notice), and
     only while the plug wants it. Its answer is not read.
 
-    P21 (v0.6.21, Discussion #57) is asked by the watcher's power action, and only for an arming made for tasks a
+    P21 (v0.6.20, Discussion #57) is asked by the watcher's power action, and only for an arming made for tasks a
     person picked (control/poweraction.py, `tasks`): how those tasks stand, one closed word (PowerTasks) and the ids of
     their conversations, checked before core takes it (Guarded.power). Core decides from the word as it decides from
     its own batch; an arming without `tasks` - every one the standard edition makes - never asks."""

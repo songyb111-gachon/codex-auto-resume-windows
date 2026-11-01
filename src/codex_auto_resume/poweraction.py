@@ -32,7 +32,7 @@ no input queued) and asks Windows (steps 12-14: still available, nobody else sig
 down, nobody at this PC for two minutes - `judge_presence`), and only then counts down. Anything
 that cannot be read is a reason to wait, never to act (E1).
 
-Tasks a person picked (v0.6.21, Discussion #57). In the advanced edition an arming may be made for the tasks a
+Tasks a person picked (v0.6.20, Discussion #57). In the advanced edition an arming may be made for the tasks a
 person picked instead (`tasks` true, written only while the edition's plug answers for them - control/poweraction.py):
 a Once, carrying nothing. Its steps 6 to 10 are the plug's word (P21, PowerTasks), and core's own records still hold
 it - a recovery open anywhere, the watched tasks' own included, waits first:
@@ -112,7 +112,7 @@ PERSON_SUPERSEDED = frozenset({ReasonCode.LATEST_TURN_CHANGED, ReasonCode.PARENT
 
 _TOP = ("format", "armed", "shown", "last")
 _ARMED = ("nonce", "action", "after", "repeat", "grace_seconds", "armed_at", "since", "carried", "stop_at")
-# v0.6.21: the one key an arming for tasks a person picked has beside them, and only as True.
+# v0.6.20: the one key an arming for tasks a person picked has beside them, and only as True.
 TASKS_KEY = "tasks"
 _SHOWN = ("nonce", "phase", "waiting_for", "grace_until")
 _LAST = ("action", "result", "at")
@@ -145,7 +145,7 @@ def _count(value) -> bool:
 
 def _armed(armed, now) -> bool:
     if isinstance(armed, dict) and TASKS_KEY in armed:
-        # v0.6.21: an arming for tasks a person picked - `tasks` exactly True, a Once, carrying nothing.
+        # v0.6.20: an arming for tasks a person picked - `tasks` exactly True, a Once, carrying nothing.
         if armed[TASKS_KEY] is not True or armed.get("repeat") != PowerRepeat.ONCE or armed.get("carried") != []:
             return False
         armed = {key: value for key, value in armed.items() if key != TASKS_KEY}
@@ -213,14 +213,14 @@ def blank() -> dict:
 
 
 def for_tasks(armed) -> bool:
-    """Whether an arming is one for tasks a person picked (v0.6.21): its `tasks` key, True. Never for None."""
+    """Whether an arming is one for tasks a person picked (v0.6.20): its `tasks` key, True. Never for None."""
     return isinstance(armed, dict) and armed.get(TASKS_KEY) is True
 
 
 def view(document) -> dict:
     """What every surface is told of the file (PowerView): the arming's choices and times, what the
     watcher last showed, and how the last batch ended - never the nonce. All None for no file. An
-    arming for tasks a person picked says `tasks` True too (v0.6.21); no other arming has the key."""
+    arming for tasks a person picked says `tasks` True too (v0.6.20); no other arming has the key."""
     document = document if isinstance(document, dict) else {}
     armed, shown, last = document.get("armed"), document.get("shown"), document.get("last")
     viewed = None if armed is None else {key: armed[key] for key in _VIEW_ARMED}
@@ -314,7 +314,7 @@ class Facts:
     rows: tuple = field(default=())
     saw_open: bool = False
     follow_window: float = FOLLOW_SECONDS
-    # v0.6.21: for an arming for tasks a person picked, the plug's word (PowerTasks) - None where it said nothing.
+    # v0.6.20: for an arming for tasks a person picked, the plug's word (PowerTasks) - None where it said nothing.
     tasks: str | None = None
 
 

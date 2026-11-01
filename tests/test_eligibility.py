@@ -140,7 +140,7 @@ class PointTests(PluggedCase):
 
     def test_p19_is_the_last_point_core_asks_and_its_hook_is_eligibility(self):
         # P19 is the last question the engine asks; after it come only P20 (v0.6.19), which tells and is not asked, and
-        # P21 (v0.6.21), which the watcher's power action asks, never the engine.
+        # P21 (v0.6.20), which the watcher's power action asks, never the engine.
         points = list(Point)
         self.assertEqual(points[points.index(Point.ELIGIBILITY) + 1:], [Point.NOTICE, Point.POWER])
         self.assertEqual(Point.ELIGIBILITY.value, "eligibility")

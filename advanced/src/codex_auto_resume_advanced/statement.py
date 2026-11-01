@@ -113,7 +113,7 @@ PAGE_KEYS = tuple(PAGE_PREFIX + name for name in (
     "watchlog.answer.supervise", "watchlog.answer.restart",
     # v0.6.20 (push_notices): a notice it would have pushed.
     "watchlog.answer.notice",
-    # v0.6.21 (power_after_tasks): how the tasks a person picked stand, said to the power action.
+    # v0.6.20 (power_after_tasks): how the tasks a person picked stand, said to the power action.
     "watchlog.answer.power",
     # v0.6.16-beta.3: a message a watched capability would have sent.
     "watchlog.answer.records",
@@ -346,7 +346,7 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "account.signed_out", "account.unknown", "account.guidance", "account.guidance_failed", "account.waiting", "account.button",
     "account.button_help", "confirm.account_switch", "account.result.signed_in", "account.result.cancelled",
     "account.result.timed_out", "account.result.failed", "refused.switch_unmeasured", "refused.switch_running"))
-# v0.6.21 (power_after_tasks, Discussion #57): the tasks the power action waits for, or the form they are picked with
+# v0.6.20 (power_after_tasks, Discussion #57): the tasks the power action waits for, or the form they are picked with
 # (advanced/gui/AdvancedPowerTasks.cs).
 PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "powertasks.title", "powertasks.help", "powertasks.none", "powertasks.failed", "powertasks.interrupted",

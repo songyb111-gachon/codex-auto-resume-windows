@@ -1,4 +1,4 @@
-"""MB asks codex-cli 0.166's config writes in the shape its schema takes (v0.6.21).
+"""MB asks codex-cli 0.166's config writes in the shape its schema takes (v0.6.20).
 
 MB failed on codex-cli 0.166.0-alpha.5.1 (2026-10-31) as on 0.162.0-alpha.17.2: config/value/write refused with -32600.
 The 0.162 run read the reason on a scratch home: "model_providers contains reserved built-in provider IDs: `openai`.

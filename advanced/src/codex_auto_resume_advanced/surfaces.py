@@ -116,7 +116,7 @@ UNANSWERED = frozenset({
 # v0.6.20 (account_switch): the account card's read and its Codex sign-out and sign-in, answered (control/account.py).
 ARGUMENTS[BridgeCommand.ADVANCED_ACCOUNT] = frozenset()
 ARGUMENTS[BridgeCommand.ADVANCED_ACCOUNT_SWITCH] = frozenset()
-# v0.6.21 (power_after_tasks, control/powertasks.py): the card's read, and core's power action armed for picked tasks.
+# v0.6.20 (power_after_tasks, control/powertasks.py): the card's read, and core's power action armed for picked tasks.
 ARGUMENTS[BridgeCommand.ADVANCED_POWER_TASKS] = frozenset()
 ARGUMENTS[BridgeCommand.ADVANCED_POWER_TASKS_ARM] = frozenset({"threads", "action", "grace_minutes", "failed",
                                                                "interrupted", "generation"})
@@ -516,7 +516,7 @@ def bridge(runtime, command, argument):
         from .control import account as account_card
         return account_card.switch(runtime)
     if command == BridgeCommand.ADVANCED_POWER_TASKS:
-        # v0.6.21 (power_after_tasks): the conversations running now and the tasks the power action waits for.
+        # v0.6.20 (power_after_tasks): the conversations running now and the tasks the power action waits for.
         from .control import powertasks
         return powertasks.view(runtime)
     if command == BridgeCommand.ADVANCED_POWER_TASKS_ARM:

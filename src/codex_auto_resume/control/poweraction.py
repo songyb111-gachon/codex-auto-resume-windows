@@ -14,7 +14,7 @@ Who writes what:
     arm_power_action      the Dashboard, through the bridge, and nothing else (H14): a person's choice,
                           refused while an administrator's DisablePowerAction is set, while an older
                           watcher holds the state, or when Windows will not do it for this account. From
-                          v0.6.21 the advanced edition's page arms it for tasks a person picked too
+                          v0.6.20 the advanced edition's page arms it for tasks a person picked too
                           (`tasks`), only while the edition's plug answers for them (P21)
     disarm_power_action   anyone: the Dashboard, MCP, the icon, a notice, the watcher - it only reduces
     stop_power_countdown  a notice's stop button, from the card or a toast: stops one batch, named by
@@ -197,7 +197,7 @@ class PowerActionMixin:
         A second arming replaces the first. It carries the usage-limit recoveries open now, and begins its
         batch now; a fresh nonce names it.
 
-        `tasks` (v0.6.21, Discussion #57): an arming for tasks a person picked on the advanced edition's page -
+        `tasks` (v0.6.20, Discussion #57): an arming for tasks a person picked on the advanced edition's page -
         a Once whatever `repeat` says, carrying nothing, with `tasks` True - refused unless the edition's plug
         wants P21 now, so the standard edition, whose plug wants nothing, never writes one. Which tasks they
         are is the plug's own; core reads only its word (poweraction.decide)."""

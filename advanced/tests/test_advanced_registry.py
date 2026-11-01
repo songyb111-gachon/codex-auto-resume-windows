@@ -107,14 +107,14 @@ class ShippedTests(unittest.TestCase):
                "push_notices", "status_feed", "account_switch",
                # v0.6.20 (#50): steering the running turn, at P8 before the wake timer.
                "steer_send",
-               # v0.6.21 (Discussion #57): the power action after tasks a person picked, the one answer at P21.
+               # v0.6.20 (Discussion #57): the power action after tasks a person picked, the one answer at P21.
                "power_after_tasks",
                "wake_for_reset",
                "open_codex_button",
                "long_reset_message", "compat_report")
 
     # v0.6.20: open_to_send passed its measurement (MOPEN, codex-cli 0.165.0-alpha.1.2, 2026-10-29) and is offered whole,
-    # after the 41 of DEFINITIONS (registry.offered): 42 in the registry this edition runs. v0.6.21: power_after_tasks
+    # after the 41 of DEFINITIONS (registry.offered): 42 in the registry this edition runs. v0.6.20: power_after_tasks
     # joins DEFINITIONS - 42 of them, 43 in the registry.
     OFFERED = ("open_to_send",)
 
@@ -148,7 +148,7 @@ class ShippedTests(unittest.TestCase):
                                   "open_to_send"),
                      # v0.6.20: a notice core raised, told to the courier's push notices.
                      Point.NOTICE: ("push_notices",),
-                     # v0.6.21: how the tasks a person picked stand, for the power action.
+                     # v0.6.20: how the tasks a person picked stand, for the power action.
                      Point.POWER: ("power_after_tasks",),
                      Point.RECORDS: ("reset_message", "prompt_queue", "empty_response", "subagent_parent",
                                      "keep_going", "usage_wrap_up", "codex_chat"),
@@ -500,7 +500,7 @@ class ShippedTests(unittest.TestCase):
         day; at P8 and P2."""
         found = registry.REGISTRY.get("keep_going")
         self.assertEqual(found.departs_from, ("A13", "A26", "B9"))
-        # v0.6.21: MK only narrows it - read where its part is decided, never a tripwire.
+        # v0.6.20: MK only narrows it - read where its part is decided, never a tripwire.
         self.assertEqual((found.compat, found.measurements, found.narrowed_by, found.journal_prefix),
                          ("outcome_observation", (), (Measurement.MK,), "keep"))
         self.assertEqual(found.points, frozenset({Point.TICK, Point.RECORDS}))
@@ -511,7 +511,7 @@ class ShippedTests(unittest.TestCase):
         at P4 (5a), P8 and P2 (5b)."""
         found = registry.REGISTRY.get("subagent_parent")
         self.assertEqual(found.departs_from, ("0.5", "A15", "A26"))
-        # v0.6.21: MS only narrows it - read where its part is decided, never a tripwire.
+        # v0.6.20: MS only narrows it - read where its part is decided, never a tripwire.
         self.assertEqual((found.compat, found.measurements, found.narrowed_by, found.journal_prefix),
                          ("thread_eligibility", (), (Measurement.MS,), "sub"))
         self.assertEqual(found.points, frozenset({Point.TEXT, Point.TICK, Point.RECORDS}))

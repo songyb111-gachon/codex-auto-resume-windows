@@ -1,4 +1,4 @@
-"""MAL looks at the account on a fresh session each time, for up to ten minutes (v0.6.21).
+"""MAL looks at the account on a fresh session each time, for up to ten minutes (v0.6.20).
 
 The 2026-11-01 MAL on codex-cli 0.166.0-alpha.5.1 (plans/measure-20261101-result.md): the probe kept one app-server for
 its five minutes, and a running app-server never reads the sign-in from disk again on account/read - it answered "signed

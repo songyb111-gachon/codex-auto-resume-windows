@@ -149,7 +149,7 @@ pick - the two at a usage reset, and queued messages - one that adds a line to t
 Codex app does not show that line, only History does) - three
 before a usage limit is reached - the usage meter, and the wrap-up and the forced stop that need it - one that
 starts the 5-hour window early when it is idle (v0.6.20), one that switches the Codex account (v0.6.20), one that
-checks for updates once a week, one that puts this PC to sleep or shuts it down after tasks you pick (v0.6.21), two that look after the watcher and the PC - restart the watcher if it stops unexpectedly,
+checks for updates once a week, one that puts this PC to sleep or shuts it down after tasks you pick (v0.6.20), two that look after the watcher and the PC - restart the watcher if it stops unexpectedly,
 and wake this PC for a reset (v0.6.19) - and four actions: Longer messages, which only lets a message be longer, Open Codex on a notice, which only makes a click on a notice
 show a conversation, chat with a conversation in the Dashboard (v0.6.19), which sends a message of yours, and the
 compatibility report, which only you start. Five rest on a measurement each that was made - the first three, queue for when a conversation

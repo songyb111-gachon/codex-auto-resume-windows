@@ -108,7 +108,7 @@ class NullPlugTests(unittest.TestCase):
         self.assertGreaterEqual(plug.PLUG_API, 1)
         # 3 (v0.6.14): P8's errand, and P2's records carried out - a package written for 2 is refused. 4
         # (v0.6.15-beta): P12's whole number of workers carried out, P2's purposes and moves. 6 (v0.6.19): P13 asked at
-        # the watcher's start and end with SUPERVISE and RESTART, and P20, a notice told. 7 (v0.6.21): P21, how the tasks
+        # the watcher's start and end with SUPERVISE and RESTART, and P20, a notice told. 7 (v0.6.20): P21, how the tasks
         # a person armed the power action for stand.
         self.assertEqual(plug.PLUG_API, 7)
 
@@ -272,7 +272,7 @@ class GuardTests(unittest.TestCase):
                 elif point is Point.SESSIONS:
                     self.assertEqual(answer, frozenset(), "the app's conversations alone (A15, plughands.kinds_of)")
                 elif point is Point.POWER:
-                    self.assertIsNone(answer, "no word for any tasks: the power action waits (P21, v0.6.21)")
+                    self.assertIsNone(answer, "no word for any tasks: the power action waits (P21, v0.6.20)")
                 else:
                     self.assertIs(answer, DEFER)
         self.assertEqual(guarded.failures, 0)

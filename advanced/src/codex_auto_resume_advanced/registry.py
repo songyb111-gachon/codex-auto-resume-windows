@@ -23,7 +23,7 @@ asked to agree to and everything the plug holds it to:
 * `measurements` - the measurements its route rests on (measure.py), if any. One that failed, or
   has no pass for the Codex in force (measured.py), is a warning in its statement, never a
   reason to withhold it; a fail the person did not confirm turns it off (arming.py);
-* `narrowed_by` - the measurements only a part of it rests on (v0.6.21): warned of as `measurements` are, read
+* `narrowed_by` - the measurements only a part of it rests on (v0.6.20): warned of as `measurements` are, read
   where the part is decided, and never a tripwire - a fail narrows that part and leaves it on;
 * `ceilings` - how many sends it may make in a day, overall and in one conversation. Beside them
   stands one global ceiling for every capability together, GLOBAL_HOURLY an hour, which a person
@@ -190,7 +190,7 @@ class CapabilityDef:
     kind: CapabilityKind = CapabilityKind.ROUTE
     # v0.6.16-beta.4: the WordingKeys of a person's own text it keeps (state `wordings`): the wrap-up's Custom text.
     wordings: tuple = ()
-    # v0.6.21: the measurements only a part of it rests on - a narrower route taken until it passes (keep_going's three
+    # v0.6.20: the measurements only a part of it rests on - a narrower route taken until it passes (keep_going's three
     # continuations until MK, parallel_dispatch's two workers until MQ, subagent_parent's 5a alone until MS,
     # usage_analytics' lifetime totals where MTOK failed). Each still shows in its statement as `measurements` do - a
     # fail as MEASUREMENT_FAILED, no pass for the Codex in force as UNMEASURED (arming.warnings_for) - and its code reads
@@ -919,7 +919,7 @@ SEND_NOW = CapabilityDef(
 # claim and look stays on the tick (core's engine/launches.py). Each pooled claim pays one unit, so a pooled send whose
 # fate cannot be known turns it off (K7). It departs from 0.5 (one recovery dispatched at a time) and A19 (in sequence,
 # under one lock) - and keeps A19's one continuation in flight per conversation - and stands on exact_thread_recovery.
-# MQ only narrows it (`narrowed_by`, v0.6.21): failed or unmeasured, two workers at most, and it stays on.
+# MQ only narrows it (`narrowed_by`, v0.6.20): failed or unmeasured, two workers at most, and it stays on.
 # Ceilings: core's five a conversation a day, 48 a day in all.
 PARALLEL_DISPATCH = CapabilityDef(
     id="parallel_dispatch",
@@ -1019,7 +1019,7 @@ EMPTY_RESPONSE = CapabilityDef(
 # continuation of its own to a parent that finished normally after a subagent stopped (5b). Every record is the
 # parent's: nothing is ever sent to a subagent. It departs from 0.5 (only failed turns are recovered), A15 (subagents
 # are never detected or recovered) and A26 (words of its own), and stands on thread_eligibility, which conversations
-# are a person's own. Its 5b rests on MS, which only narrows it (`narrowed_by`, v0.6.21): failed or unmeasured, 5a
+# are a person's own. Its 5b rests on MS, which only narrows it (`narrowed_by`, v0.6.20): failed or unmeasured, 5a
 # alone runs and it stays on. Ceilings: three a conversation, a dozen a day.
 SUBAGENT_PARENT = CapabilityDef(
     id="subagent_parent",
@@ -1041,7 +1041,7 @@ SUBAGENT_PARENT = CapabilityDef(
 # active goal, a failed or interrupted turn, and the conversation switched off. Until MK passes on the Codex in force,
 # three at most are sent. It departs from A13 (only failures are recovered), A26 (words of its own) and B9 (a plan's
 # step statuses are read from an item's content), and stands on outcome_observation. MK only narrows it (`narrowed_by`,
-# v0.6.21): failed or unmeasured, three at most, and it stays on. Ceilings: core's five a conversation, two dozen a day.
+# v0.6.20): failed or unmeasured, three at most, and it stays on. Ceilings: core's five a conversation, two dozen a day.
 KEEP_GOING = CapabilityDef(
     id="keep_going",
     points=frozenset({Point.TICK, Point.RECORDS}),
@@ -1201,7 +1201,7 @@ IDLE_UPDATE_CHECK = CapabilityDef(
 # first line and the usage-limit scan), C4 (it reads on its own, on a schedule), C9 (usage readings kept when no
 # recovery is due), D2 (per-project digests and token counts kept 90 days) and F3 (the CSV written where the person
 # chooses); stands on usage_probe, as the meter it requires, and rests on MU; MTOK only narrows it (`narrowed_by`,
-# v0.6.21) - failed, the lifetime totals alone, and it stays on. No gate reads any of it, and it
+# v0.6.20) - failed, the lifetime totals alone, and it stays on. No gate reads any of it, and it
 # sends nothing: its ceilings are the schema's floor and never bind.
 USAGE_ANALYTICS = CapabilityDef(
     id="usage_analytics",
@@ -1219,7 +1219,7 @@ USAGE_ANALYTICS = CapabilityDef(
     requires=("usage_meter",),
 )
 
-# Sleep, hibernate or shut down after tasks a person picked (v0.6.21, Discussion #57, the owner's decision of 2026-11-01;
+# Sleep, hibernate or shut down after tasks a person picked (v0.6.20, Discussion #57, the owner's decision of 2026-11-01;
 # plans/v0621-watch-power-design.md). A person picks conversations whose turn runs now on its card and arms core's own
 # power action for them, once (control/powertasks.py): core keeps the arming, the countdown, its notice and the Stop of
 # that one batch, every way to turn it off, and every condition of its own - a stop first, DisablePowerAction, a pause, no
@@ -1450,7 +1450,7 @@ DEFINITIONS = (START_WITH_CODEX, CRASH_RESTART, GOAL_CONTINUATION, QUEUE_FOR_OPE
                # v0.6.20 (the usage and token analytics; the 5-hour window started early; the courier; the account switch;
                # #50's steer), before the wake timer, whose errand reads last at P8.
                USAGE_ANALYTICS, WINDOW_ANCHOR, PUSH_NOTICES, STATUS_FEED, ACCOUNT_SWITCH, STEER_SEND,
-               # v0.6.21 (Discussion #57): the power action after tasks a person picked, the one answer at P21.
+               # v0.6.20 (Discussion #57): the power action after tasks a person picked, the one answer at P21.
                POWER_AFTER_TASKS,
                WAKE_FOR_RESET,
                OPEN_CODEX_BUTTON, LONG_RESET_MESSAGE,

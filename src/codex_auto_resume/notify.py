@@ -674,7 +674,7 @@ def _power_word(action) -> str:
 
 
 def power_grace_content(action, until, nonce, tasks=False) -> dict:
-    """The countdown's notice: what happens at `until`, why, what puts it off, and its two buttons (`tasks`: v0.6.21)."""
+    """The countdown's notice: what happens at `until`, why, what puts it off, and its two buttons (`tasks`: v0.6.20)."""
     word = _power_word(action)
     return _content(l10n.message("toast_power_grace." + word).replace("{time}", _local_time(until)),
                     l10n.message("toast_power_grace_body_tasks" if tasks is True else "toast_power_grace_body"),

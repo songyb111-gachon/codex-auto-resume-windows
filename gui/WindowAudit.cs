@@ -273,7 +273,7 @@ namespace CodexAutoResume
                     PowerAuditOptions(action, "grace", null, now + 1800, longestEnd, now, false, "no_sleep_state", "hibernate_off", null)));
                 states.Add(new KeyValuePair<string, Dictionary<string, object>>("waiting (" + longestWait + ") to " + action,
                     PowerAuditOptions(action, "waiting", longestWait, 0, longestEnd, now, false, "no_sleep_state", "hibernate_off", null)));
-                // v0.6.21: armed for tasks a person picked, whose switch says so in a sentence of its own (PowerTasksLine).
+                // v0.6.20: armed for tasks a person picked, whose switch says so in a sentence of its own (PowerTasksLine).
                 var forTasks = PowerAuditOptions(action, "waiting", "tasks_running", 0, longestEnd, now, false, "no_sleep_state",
                                                  "hibernate_off", null);
                 Map(Map(forTasks, "view"), "armed")["tasks"] = true;

@@ -1,6 +1,6 @@
 // ADVANCED-EDITION-CODE: in the advanced edition's window, never the standard one's.
 //
-// Codex Auto Resume - the power action after tasks a person picked, on the Advanced features page (v0.6.21, Discussion #57).
+// Codex Auto Resume - the power action after tasks a person picked, on the Advanced features page (v0.6.20, Discussion #57).
 //
 // While power_after_tasks is on or watched, its column has a card under its limits. Unarmed: the person's own conversations
 // whose turn runs now, each a flat check row (the window's lists stay flat hairline rows, never raised tiles); Also when a

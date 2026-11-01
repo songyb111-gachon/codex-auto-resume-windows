@@ -60,7 +60,7 @@ VALUE_POINTS = (Point.TEXT, Point.SENDER, Point.TICK, Point.START_ROUTE, Point.U
                 Point.RECORDS,
                 # v0.6.20: a notice push_notices would have pushed (P20, told; engine/push.py answers the point's name).
                 Point.NOTICE,
-                # v0.6.21: how the tasks a person picked stand (P21; engine/powertasks.py answers a word and the ids).
+                # v0.6.20: how the tasks a person picked stand (P21; engine/powertasks.py answers a word and the ids).
                 Point.POWER)
 # Every answer the log names; anything else reads as null.
 WORDS = tuple(Alternative) + VALUE_POINTS

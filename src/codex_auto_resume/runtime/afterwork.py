@@ -17,7 +17,7 @@ before anything is done - a write that fails does nothing - and only then is the
 go, the line logged, the last notice raised and Windows asked, once. A refusal is logged and said; the
 batch is spent, so nothing is retried.
 
-An arming for tasks a person picked (v0.6.21, the advanced edition's) asks the edition's plug how they stand (P21,
+An arming for tasks a person picked (v0.6.20, the advanced edition's) asks the edition's plug how they stand (P21,
 `_tasks`) where the records would decide - and only it does: an arming without `tasks` asks nothing new. Its notices
 say they are for those tasks.
 
@@ -99,7 +99,7 @@ class AfterWork:
         return self._go(armed, rows, engine, waking, now, tasks)
 
     def _tasks(self, armed, now):
-        """P21 (v0.6.21): how the tasks a person armed this for stand - the plug's checked answer (Guarded.power), or
+        """P21 (v0.6.20): how the tasks a person armed this for stand - the plug's checked answer (Guarded.power), or
         None, on which the look waits. Asked with the arming's nonce and times, nothing else."""
         try:
             return self._control.plug.power({"nonce": armed["nonce"], "armed_at": armed["armed_at"], "now": now})
@@ -303,7 +303,7 @@ class AfterWork:
 
 
 def _for(armed, detail) -> dict:
-    """A notice's detail, saying `tasks` True for an arming for tasks a person picked (v0.6.21), so its words say so;
+    """A notice's detail, saying `tasks` True for an arming for tasks a person picked (v0.6.20), so its words say so;
     any other arming's detail is as it always was."""
     return dict(detail, tasks=True) if decision.for_tasks(armed) else detail
 

@@ -1,4 +1,4 @@
-"""Sleep, hibernate or shut down after tasks a person picked (power_after_tasks, v0.6.21, Discussion #57).
+"""Sleep, hibernate or shut down after tasks a person picked (power_after_tasks, v0.6.20, Discussion #57).
 
 The advanced half: the capability is offered with its statement (departing from H14 only) in every language and its
 place on the page; a task's end followed through any usage limit and its recovery, ids and statuses only; the endings a

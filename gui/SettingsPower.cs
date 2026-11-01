@@ -174,7 +174,7 @@ namespace CodexAutoResume
             string state;
             if (armed == null) state = S("power.state.off", "Off");
             else if (Str(shown, "phase") == "grace" && until > 0) state = PowerGraceLine(action, ClockTime(until));
-            // v0.6.21: an arming the advanced edition's page made for tasks a person picked says so.
+            // v0.6.20: an arming the advanced edition's page made for tasks a person picked says so.
             else if (Equals(Get(armed, "tasks"), true)) state = PowerTasksLine(action);
             else state = PowerOnLine(action);
             powerSwitch.Text = state;
@@ -378,7 +378,7 @@ namespace CodexAutoResume
             }
         }
 
-        /// v0.6.21: the switch's line for an arming made for tasks a person picked (`tasks` in the view).
+        /// v0.6.20: the switch's line for an arming made for tasks a person picked (`tasks` in the view).
         private string PowerTasksLine(string action)
         {
             switch (action)

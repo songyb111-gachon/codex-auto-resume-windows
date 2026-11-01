@@ -60,13 +60,13 @@ from .plughands import (Channel, Errand, RecordMove, RecordPurpose, Route, Sessi
 # argument, would be called the old way or not at all, and nothing would say so. 2: P17 and `wants`.
 # 3 (v0.6.14): P8's errand, and P2's records carried out. 4 (v0.6.15-beta): P12, QUEUE_FOR_OPEN.
 # 5 (v0.6.16-beta.4): P16 asked with the app closed, and a route that takes core's words. 6 (v0.6.19): P13 asked at the
-# watcher's start and once it ended, with SUPERVISE and RESTART; P20, a notice told. 7 (v0.6.21): P21, how the tasks a
+# watcher's start and once it ended, with SUPERVISE and RESTART; P20, a notice told. 7 (v0.6.20): P21, how the tasks a
 # person armed the power action for stand.
 PLUG_API = 7
 
 
 POINTS = tuple(Point)
-# P21's words (v0.6.21), and how many conversations its answer may name at most.
+# P21's words (v0.6.20), and how many conversations its answer may name at most.
 POWER_TASKS = tuple(PowerTasks)
 POWER_THREADS = 64
 SURFACES = tuple(Surface)
@@ -239,7 +239,7 @@ class Plug:
         return DEFER
 
     def power(self, facts):                           # P21
-        """How the tasks a person armed the power action for stand (v0.6.21, Discussion #57): asked by the watcher's
+        """How the tasks a person armed the power action for stand (v0.6.20, Discussion #57): asked by the watcher's
         power action only for an arming made for them (`tasks`), with `{"nonce", "armed_at", "now"}` - the arming's
         own nonce and times, nothing of any conversation. `{"tasks": a PowerTasks word, "threads": [their ids]}`, held
         to Guarded.power; DEFER - NULL's - is no answer, on which core waits (fail closed)."""
@@ -568,7 +568,7 @@ class Guarded:
             self._ask(Point.NOTICE, facts)
 
     def power(self, facts):
-        """P21 (v0.6.21): `{"tasks": a PowerTasks word, "threads": a tuple of conversation ids}`, or None - for NULL, a
+        """P21 (v0.6.20): `{"tasks": a PowerTasks word, "threads": a tuple of conversation ids}`, or None - for NULL, a
         plug that does not want P21 now, a hook that raised, and any answer not exactly that shape (two keys, a closed
         word, at most POWER_THREADS canonical ids). Core waits on None (poweraction.decide, fail closed)."""
         if not self.wants(Point.POWER):

@@ -1,4 +1,4 @@
-"""A measurement only a part rests on narrows that part and never turns the capability off (v0.6.21).
+"""A measurement only a part rests on narrows that part and never turns the capability off (v0.6.20).
 
 MK (keep_going: three continuations until it passes), MQ (parallel_dispatch: two workers), MS (subagent_parent: 5a
 alone, 5b waits) and MTOK (usage_analytics: the lifetime totals alone where it failed) each decide one part of their

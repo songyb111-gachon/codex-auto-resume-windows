@@ -1,5 +1,5 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
-"""The power action after tasks a person picked, on the Dashboard (power_after_tasks, v0.6.21, Discussion #57).
+"""The power action after tasks a person picked, on the Dashboard (power_after_tasks, v0.6.20, Discussion #57).
 
 `advanced-power-tasks` reads what the card shows: the person's own conversations whose latest turn runs now, with their
 names (codex/turns.running, codex/threads.own - never a word a conversation says, none the person switched off), and,

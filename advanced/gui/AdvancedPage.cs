@@ -700,7 +700,7 @@ namespace CodexAutoResume
                 MethodInvoker after = done;
                 done = delegate { ReadAccount(after); };
             }
-            // v0.6.21: the conversations running now and the tasks the power action waits for (AdvancedPowerTasks.cs) -
+            // v0.6.20: the conversations running now and the tasks the power action waits for (AdvancedPowerTasks.cs) -
             // asked only while the capability is on or watched.
             if (id == PowerTasksId && Standing(item))
             {
@@ -1139,7 +1139,7 @@ namespace CodexAutoResume
             BuildAnalytics(item);
             // v0.6.20: the Codex account signed in, and how to switch it (AdvancedAccount.cs).
             BuildAccount(item);
-            // v0.6.21: the tasks the power action waits for, or the form they are picked with (AdvancedPowerTasks.cs).
+            // v0.6.20: the tasks the power action waits for, or the form they are picked with (AdvancedPowerTasks.cs).
             BuildPowerTasks(item);
 
             // Its own choices, the rules a person writes for Codex's error codes and the samples of what nothing classified,

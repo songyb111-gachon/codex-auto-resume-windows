@@ -292,7 +292,7 @@ class PowerArmed(TypedDict):
     grace_seconds: int
     armed_at: float
     since: float
-    # v0.6.21 (Discussion #57): True for an arming the advanced edition's page made for tasks a person picked, and
+    # v0.6.20 (Discussion #57): True for an arming the advanced edition's page made for tasks a person picked, and
     # there only then - no arming the standard edition makes has it (poweraction.view).
     tasks: NotRequired[bool]
 

@@ -49,7 +49,7 @@ namespace CodexAutoResume
             { "start_route", "Started the watcher its own way" }, { "unloaded", "Opened the conversation itself" },
             // v0.6.16-beta.3: a message of the person's that a watched capability would have sent (runtime._watched_records).
             { "records", "A message of yours it would have sent" },
-            // v0.6.21: how the tasks a person picked stand, said to the power action (P21).
+            // v0.6.20: how the tasks a person picked stand, said to the power action (P21).
             { "power", "Said how the tasks you picked stand" },
         };
 

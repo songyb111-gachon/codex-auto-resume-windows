@@ -1471,7 +1471,7 @@ class SubagentFollowUpBesideEveryConversationTests(SubagentCase):
 
 
 class _PowerTasksPair(ac.AdvancedCase):
-    """power_after_tasks (v0.6.21, Discussion #57) armed beside another: its runtime, its code given the test's own
+    """power_after_tasks (v0.6.20, Discussion #57) armed beside another: its runtime, its code given the test's own
     Codex history and core records, and core's power action file on the scratch home."""
     TURN = "11111111-1111-7111-8111-111111111111"
     RECOVERY = "22222222-2222-7222-8222-222222222222"

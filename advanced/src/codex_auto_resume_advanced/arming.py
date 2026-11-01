@@ -136,7 +136,7 @@ def warnings_for(definition, view, measured=MEASURED, *, parts=True) -> tuple:
     on; one with no verdict, or a pass on another Codex than the one in force, is UNMEASURED - a
     pass counts only for the version it was made on. Then the compatibility grade of what it
     stands on (`compat_warning`), and ENGINE_UNKNOWN where no Codex version is known. The measurements only a part
-    rests on (`narrowed_by`, v0.6.21) are warned of the same way; `parts=False` leaves them out - the warnings a
+    rests on (`narrowed_by`, v0.6.20) are warned of the same way; `parts=False` leaves them out - the warnings a
     tripwire reads (`standing`), since such a fail narrows the part and never turns the capability off."""
     version = engine_version(view)
     found = set()
@@ -499,7 +499,7 @@ class Arming:
         while it is on, removed at every way off - and only where this registry has the capability, so nothing is
         touched while it waits hidden (registry.WAITING). Never raises.
 
-        v0.6.21: so does core's power action armed for tasks a person picked (control/powertasks.follow) - turned off,
+        v0.6.20: so does core's power action armed for tasks a person picked (control/powertasks.follow) - turned off,
         and its list gone, at every way power_after_tasks goes off, so nothing waits on an answer that never comes."""
         self._power_tasks_follow()
         from .control import hookplugin
@@ -513,7 +513,7 @@ class Arming:
             pass
 
     def _power_tasks_follow(self) -> None:
-        """v0.6.21: core's power action armed for tasks follows power_after_tasks' stored state (control/powertasks.py),
+        """v0.6.20: core's power action armed for tasks follows power_after_tasks' stored state (control/powertasks.py),
         only where this registry has the capability. Never raises."""
         from .control import powertasks
         from .engine.powertasks import CAPABILITY
@@ -1227,7 +1227,7 @@ class Arming:
                 "requires_off": [other for other in self.registry.requires(definition.id)
                                  if states.get(other, ArmingState.OFF) != ArmingState.ARMED],
                 "departs_from": departs(definition, row), "compat": definition.compat,
-                # Every measurement its statement warns of (v0.6.21): those only a part rests on, then its route's -
+                # Every measurement its statement warns of (v0.6.20): those only a part rests on, then its route's -
                 # usage_analytics' MTOK before MU, as they were listed before, so the answer is the one it was.
                 "measurements": [str(measurement) for measurement in
                                  tuple(getattr(definition, "narrowed_by", ())) + definition.measurements],

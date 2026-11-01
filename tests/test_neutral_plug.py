@@ -128,7 +128,7 @@ class ScenarioListTests(unittest.TestCase):
                          {Point.START_ROUTE, Point.SURFACES, Point.SUPERVISION,
                           # v0.6.19: P20, told by the watcher as a notice goes (runtime/app.py).
                           Point.NOTICE,
-                          # v0.6.21: P21, asked by the watcher's power action (runtime/afterwork.py), never the engine.
+                          # v0.6.20: P21, asked by the watcher's power action (runtime/afterwork.py), never the engine.
                           Point.POWER})
 
 

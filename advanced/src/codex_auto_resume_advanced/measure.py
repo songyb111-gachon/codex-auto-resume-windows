@@ -1336,7 +1336,7 @@ def _version_of(read):
     config/read answered one of its own ("version"); codex-cli 0.166's has none - each layer carries its own
     (ConfigLayer.version, a string, with includeLayers) and the user layer, $CODEX_HOME/config.toml, is the one a write
     goes to. Without this every write on 0.166 carried a null expectedVersion, which Codex never checks, so a stale
-    version could never be refused and MB could not pass even where the writes were taken (v0.6.21)."""
+    version could never be refused and MB could not pass even where the writes were taken (v0.6.20)."""
     found = read.get("version") if isinstance(read, dict) else None
     if isinstance(found, (str, int)) and not isinstance(found, bool):
         return found
@@ -2020,7 +2020,7 @@ def _account(reply):
 
 
 def _mal_read(ctx):
-    """One account/read on a session opened for it alone and closed after it (MAL, v0.6.21): (whether one is signed in -
+    """One account/read on a session opened for it alone and closed after it (MAL, v0.6.20): (whether one is signed in -
     None where Codex did not answer as one - and its plan word), or None where the read could not be made. A running
     app-server never reads the sign-in from disk again on account/read (2026-11-01: MAL's one server answered "signed
     in" for four minutes after `codex logout` had removed it), so each look is a new server - as the account card's

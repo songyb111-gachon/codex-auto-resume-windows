@@ -1,4 +1,4 @@
-"""v0.6.21 (Discussion #57): the power action armed for tasks a person picked - core's half.
+"""v0.6.20 (Discussion #57): the power action armed for tasks a person picked - core's half.
 
 The advanced edition's page arms core's one power action for tasks a person picked (`tasks` True in the arming) and
 its plug answers how they stand (P21, PowerTasks). Core keeps everything else: the stop for one batch, DisablePowerAction,

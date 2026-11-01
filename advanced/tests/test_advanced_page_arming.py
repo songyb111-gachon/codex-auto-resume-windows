@@ -335,7 +335,7 @@ class PageTests(PageCase):
         # other sessions, compacting, the model fallback, no words; v0.6.18: Open Codex on a notice, the weekly update
         # check; v0.6.19: the crash restart, the wake timer, chat with a conversation; v0.6.20: the courier's two, the
         # usage and token analytics, the 5-hour window started early, switching the Codex account, the steer, and
-        # open_to_send, offered since MOPEN passed (codex-cli 0.165.0-alpha.1.2); v0.6.21: the power action after tasks a
+        # open_to_send, offered since MOPEN passed (codex-cli 0.165.0-alpha.1.2); v0.6.20: the power action after tasks a
         # person picked: 43 rows.
         self.assertEqual(len(IDS), 43)
         self.assertEqual(result["page"], "advanced")

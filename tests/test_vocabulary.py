@@ -223,7 +223,7 @@ LISTS = {
     # And RESEND, P7's word for an uncertain submission sent once more, which core proves may go, and
     # SEND_NOW, its word for a waiting record a person asked to send now.
     # v0.6.16-beta.3: P19 eligibility; beta.4: P18; v0.6.19: P20 notice - and P13's SUPERVISE and RESTART.
-    # v0.6.21: P21, how the tasks a person armed the power action for stand.
+    # v0.6.20: P21, how the tasks a person armed the power action for stand.
     "domain.plug.POINTS": ("tuple", 20, "8756e1c47abe20a3"),
     "domain.plug.ANSWERS": ("set", 17, "4e304e4fc7bba412"),
     "domain.plug.FAILURE_FORMS": ("tuple", 5, "bcc0ad1bd6f81009"),

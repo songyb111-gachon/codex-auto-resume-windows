@@ -93,7 +93,7 @@ class AdvancedPlug(Plug):
         return self.runtime.ask(Point.NOTICE, facts)
 
     def power(self, facts):
-        """P21 (v0.6.21, Discussion #57): how the tasks a person armed the power action for stand - power_after_tasks'
+        """P21 (v0.6.20, Discussion #57): how the tasks a person armed the power action for stand - power_after_tasks'
         word (engine/powertasks.py), or NULL's DEFER."""
         return self.runtime.ask(Point.POWER, facts)
 

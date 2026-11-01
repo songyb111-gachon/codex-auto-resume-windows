@@ -513,7 +513,7 @@ def _power(reasons=(), *, arm=None, end=None, show=None, tasks=False, **managed_
     """The power action's port stood in for, for this one case (v0.6.12), and - in this order, through the
     product's own control layer, and left as they are for the cases after it - an arming, the end of its
     first batch, and what the watcher shows of the next. `managed_values` are an administrator's keys. `tasks`
-    (v0.6.21): the arming made for tasks a person picked, as the advanced edition's page makes it - through a plug of
+    (v0.6.20): the arming made for tasks a person picked, as the advanced edition's page makes it - through a plug of
     this file's own that answers for them (P21), since the standard edition's never does."""
     @contextmanager
     def using(workspace):
@@ -830,7 +830,7 @@ BRIDGE_CASES = {
         Case("an account Windows lets do none of them", using=_power(NONE_FOR_THIS_ACCOUNT)),
         Case("while an administrator's DisablePowerAction is set", using=_power(disable_power_action=True)),
         Case("armed to shut down every time", using=_power(arm=SHUT_DOWN_ALWAYS)),
-        # v0.6.21 (Discussion #57): armed on the advanced edition's page for tasks a person picked - once, with `tasks`.
+        # v0.6.20 (Discussion #57): armed on the advanced edition's page for tasks a person picked - once, with `tasks`.
         Case("armed for tasks a person picked", using=_power(arm=SLEEP_ONCE, tasks=True))],
     "power-arm": [
         Case("armed to sleep once, after every recovery succeeded", SLEEP_ONCE, using=_power()),

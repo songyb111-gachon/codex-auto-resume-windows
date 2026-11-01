@@ -1,5 +1,5 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
-"""The power action after tasks a person picked (power_after_tasks, v0.6.21, Discussion #57): its list, and its answer
+"""The power action after tasks a person picked (power_after_tasks, v0.6.20, Discussion #57): its list, and its answer
 at P21.
 
 A person picks one or more conversations whose turn runs now and arms core's own power action for them, once
