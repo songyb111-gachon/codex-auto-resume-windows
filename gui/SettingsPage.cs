@@ -1372,6 +1372,7 @@ namespace CodexAutoResume
             if (snapshot == null) TellTaskbar(status, null, Now());
             ShowVersion(versionText, status);
             if (startButton != null) startButton.Visible = Equals(running, false);
+            FollowWatcher(running);
             ApplyPowerStatus(status);
             ApplyHomesStatus(status);
             header.Invalidate(true);
@@ -1426,6 +1427,36 @@ namespace CodexAutoResume
         }
 
         // ------------------------------------------------------------------ actions
+        // Whether the status last read says the watcher is stopped: what the header's Start watcher shows for, and what
+        // Diagnostics' watcher button follows (FollowWatcher).
+        private bool watcherStopped;
+
+        /// Diagnostics' watcher button follows the watcher's state from the same status the header's Start reads
+        /// (ApplyStatus), both ways (v0.6.20 final, the live re-check's finding 4: it kept offering Stop watcher while the
+        /// watcher was stopped): Stop watcher while it runs - or is not known to - and Start watcher while it is stopped.
+        /// Greyed while an action or the start is in flight (UpdateWatcherButton), as the header's is, while the header's
+        /// light shows the work (StartWatcher, BusyLight).
+        private void FollowWatcher(object running)
+        {
+            watcherStopped = Equals(running, false);
+            if (stopButton == null) return;
+            stopButton.Text = watcherStopped ? S("action.start", "Start watcher") : S("action.stop_watcher", "Stop watcher");
+            UpdateWatcherButton();
+        }
+
+        /// The button's use: what the header's Start does while the watcher is stopped, Stop watcher's own question and
+        /// call while it runs.
+        private void WatcherButton()
+        {
+            if (watcherStopped) StartWatcher();
+            else StopWatcher();
+        }
+
+        private void UpdateWatcherButton()
+        {
+            if (stopButton != null) stopButton.Enabled = busy == 0 && !starting;
+        }
+
         private void StartWatcher()
         {
             // Off the UI thread, because the wait is now real.
@@ -1442,6 +1473,7 @@ namespace CodexAutoResume
             // which is the only way to touch these controls from off the UI thread.
             starting = true;
             startButton.Enabled = false;
+            UpdateWatcherButton();
             heroHeld = true;                // until the answer is read (ApplyStatus)
             stateDot.State = "checking";    // v0.6.20: the working light while it starts, as the headline says (ApplyStatus puts the read one back)
             headline.Text = S("start.working", "Starting the watcher...");
@@ -1508,6 +1540,7 @@ namespace CodexAutoResume
             // Back as SetBusy has it: still greyed while an action is in flight (v0.6.12).
             starting = false;
             startButton.Enabled = busy == 0 && !starting;
+            UpdateWatcherButton();
         }
 
         private void Save()
