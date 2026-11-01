@@ -110,7 +110,7 @@
       "passed": true,
       "worst": 0
     },
-    "window": "cdb31aea35c9a5b2ea4c33f0c159a6474e110e52b16a7cfe40be4c20eec56c5d"
+    "window": "08badb4fda2f66a001cf4454b816de8079a250608834be77e979208565dc7148"
   },
   "images": {
     "assets/logo-motion-dark.png": {
@@ -164,61 +164,61 @@
       "size": "776x540"
     },
     "docs/images/readme-motion-ko.png": {
-      "bytes": 6625165,
+      "bytes": 6615440,
       "frames": 1621,
       "ms": 45697,
       "scenes": {
         "S0": 108127,
-        "S1": 199940,
-        "S10": 172966,
-        "S11": 609528,
+        "S1": 199888,
+        "S10": 172904,
+        "S11": 608788,
         "S12": 40288,
         "S12b": 702928,
-        "S13": 70417,
+        "S13": 69842,
         "S14": 20660,
         "S15": 275903,
         "S15b": 204999,
         "S16": 62132,
         "S1m": 424274,
         "S2a": 213811,
-        "S2b": 649814,
+        "S2b": 645338,
         "S2c": 739859,
         "S5": 218272,
         "S6": 139149,
-        "S7": 181951,
-        "S8": 190063,
-        "S9": 1399981
+        "S7": 181903,
+        "S8": 189999,
+        "S9": 1396273
       },
-      "sha256": "debb653918cc138d02b7a3618fccf9dfe9ab050d0a2928ca563780de6a1746d0",
+      "sha256": "b7b3f62049576bb30b5181232feacfa3f7f8e08634736fec8a6376274969b77a",
       "size": "1500x1041"
     },
     "docs/images/readme-motion.png": {
-      "bytes": 7230730,
+      "bytes": 7220652,
       "frames": 1625,
       "ms": 45917,
       "scenes": {
         "S0": 113697,
-        "S1": 228919,
-        "S10": 201238,
-        "S11": 659769,
+        "S1": 228854,
+        "S10": 201178,
+        "S11": 659061,
         "S12": 47807,
         "S12b": 848372,
-        "S13": 58688,
+        "S13": 58103,
         "S14": 19806,
         "S15": 236640,
         "S15b": 188034,
         "S16": 61894,
         "S1m": 489048,
         "S2a": 234529,
-        "S2b": 716382,
+        "S2b": 711969,
         "S2c": 797928,
         "S5": 249610,
         "S6": 165348,
-        "S7": 216177,
-        "S8": 239797,
-        "S9": 1456944
+        "S7": 216114,
+        "S8": 239724,
+        "S9": 1452833
       },
-      "sha256": "4f3a01b570a68512291d056ba833e8c435fa321d063b2997ef7c42ddc5b3a7de",
+      "sha256": "fb12d655e09e19f43e947e203b902d9ea648ea66bfeb0e49f89cb238e10e9fd8",
       "size": "1500x1041"
     },
     "docs/images/tray-popup-motion-ko.png": {
@@ -253,13 +253,13 @@
     }
   },
   "inputs": {
-    "<motion:card-en>": "6a3deddb6fe965fc9324bf3058a4267a7900788c704c38a548f81784eb1e3dc5",
-    "<motion:card-ko>": "448023dbb6042f5a269bfcb618d4ef82a0e54ef78ea451db992183be66194a10",
+    "<motion:card-en>": "696b656fdf2d66a08d95ef53c1414287a51d64ae5b47425f4d1a3584c5161874",
+    "<motion:card-ko>": "3bd4b59de06470fca5d08599530ff06d570b91c93c51bc0ab3a136d4da51f55c",
     "<motion:logo-dark>": "4dfe3238f39ea88c7af2d9415561f25a758b58ac419575cbaa549f3bd811d159",
     "<motion:logo-light>": "e30f23a553b3ff5cc333efa162e11d280073213b463e80e2da1ce125326216f9",
-    "<motion:popup-en>": "c0f4678a0d124facab9517a42e8d37a722f36cc96b31db849f2d7f3d4fc35495",
-    "<motion:popup-ko>": "a48875ccb5124eb3719f467c07fb89f6f0ed5a00c4e88b6895b9790d8919385e",
-    "<motion:readme-en>": "2935faed5b26637efc090488d5dfbe73fa9d8d7fee9ecfc2a4c3311f0d5818e4",
-    "<motion:readme-ko>": "40623798cbaf3a18a8b77651db23424a6dd1751b51fe94109e6ffcf2f9b7a871"
+    "<motion:popup-en>": "fd009c6bd6df0ecf987afc5d38e9010f8c281aa9a86eedb75df3dc65cd675e5c",
+    "<motion:popup-ko>": "45b322e3879c5c2bd2506fc39d51356a5034db08124d1b89f44afb8c1a07e689",
+    "<motion:readme-en>": "cb15f02be5b68ac58caf7a75697feb347f26c883d85d7330be35103210711632",
+    "<motion:readme-ko>": "c6c81bbebae91bb7e2abf6ec082994bb8b221b8afca85605225b4ad6575b045b"
   }
 }
