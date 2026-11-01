@@ -1762,7 +1762,7 @@ _SCHEMA_ARGUMENTS = ("app-server", "generate-json-schema", "--out")
 # after the link and the app took the lock 13.4 s after it.
 _MOPEN_SECONDS = 30.0
 _MOPEN_POLL_SECONDS = 0.3                     # and how often the lock's holder count is read meanwhile (a read is ~0.5 s)
-_MAL_SECONDS = 300.0                          # how long MAL follows the account while the person signs out and in
+_MAL_SECONDS = 600.0                          # how long MAL follows the account while the person signs out and in
 _MAL_POLL_SECONDS = 2.0
 _MWAKE_SECONDS = 180                          # the wake timer MWAKE sets, from when it starts
 _MWAKE_BOUND = 900                            # how long it waits for that timer, at most
@@ -2001,33 +2001,58 @@ def _account(reply):
     return True, plan.lower() if plan.lower() in {str(word) for word in PlanWord} else str(PlanWord.OTHER)
 
 
+def _mal_read(ctx):
+    """One account/read on a session opened for it alone and closed after it (MAL, v0.6.21): (whether one is signed in -
+    None where Codex did not answer as one - and its plan word), or None where the read could not be made. A running
+    app-server never reads the sign-in from disk again on account/read (2026-11-01: MAL's one server answered "signed
+    in" for four minutes after `codex logout` had removed it), so each look is a new server - as the account card's
+    own read is (codex/account.read). account/read's one parameter, refreshToken, is never sent: it asks Codex to
+    refresh the person's tokens, a write, and still reads no sign-in made outside it."""
+    try:
+        with ctx.open() as session:
+            return _account(session.call("account/read", {}))
+    except (AdapterError, SessionRefused, OSError):
+        return None
+
+
 def _mal(ctx):
-    """An account switch made outside the app (account_switch): with the app open and signed in, the person signs out
-    with `codex logout` and back in with `codex login` in a terminal, with their own account. The harness reads the
-    account (account/read: whether one is signed in, and its plan word - never the address) before, then every
-    _MAL_POLL_SECONDS for up to _MAL_SECONDS, and records whether it saw the sign-out and the sign-in after it. That
-    the running app shows the new sign-in without a restart is the person's to confirm."""
+    """An account switch made outside the app (account_switch): with the app open and signed in, the measurement session
+    runs `codex logout` and then `codex login` with the app's own engine, and the person signs in in the browser with
+    their own account - never with the app's own sign-in buttons. The harness reads the account (account/read: whether
+    one is signed in, and its plan word - never the address) before, then every _MAL_POLL_SECONDS for up to
+    _MAL_SECONDS (ten minutes: a browser sign-in only just fitted five on 2026-11-01), each time on a fresh session,
+    and records whether it saw the sign-out and the sign-in after it, and how many looks were made and failed. That the
+    running app shows the new sign-in without a restart is the person's to confirm."""
     with ctx.open() as session:
         present, plan = _account(session.call("account/read", {}))
-        if not present:
-            return _blocked("sign in to Codex first, then run mal again", account_read=present is not None,
-                            signed_in_before=False)
-        out = back = False
-        after = None
-        deadline = time.monotonic() + _MAL_SECONDS
-        while time.monotonic() < deadline:
-            time.sleep(_MAL_POLL_SECONDS)
-            now, found = _account(session.call("account/read", {}))
-            if now is False:
-                out = True
-            elif now and out:
-                back, after = True, found
-                break
+    if not present:
+        return _blocked("sign in to Codex first, then run mal again", account_read=present is not None,
+                        signed_in_before=False, fresh_session_each_read=True)
+    out = back = False
+    after = None
+    reads = failed = 0
+    deadline = time.monotonic() + _MAL_SECONDS
+    while time.monotonic() < deadline:
+        time.sleep(_MAL_POLL_SECONDS)
+        found = _mal_read(ctx)
+        reads += 1
+        if found is None:
+            failed += 1
+            continue
+        now, word = found
+        if now is False:
+            out = True
+        elif now and out:
+            back, after = True, word
+            break
     observed = {"account_read": True, "signed_in_before": True, "plan_before": plan, "signed_out_seen": out,
-                "signed_in_again_seen": back, "plan_after": after}
-    return _blocked("run `codex logout` and then `codex login` in a terminal within five minutes of starting this; "
-                    "confirm the running app shows the new sign-in without a restart, then set the verdict",
-                    **observed)
+                "signed_in_again_seen": back, "plan_after": after, "fresh_session_each_read": True,
+                "reads": reads, "reads_failed": failed}
+    return _blocked("with the app open and signed in, run `codex logout` and then `codex login` with the app's own "
+                    "engine (the codex.exe in the app's bin folder under LOCALAPPDATA, never a codex on PATH) within "
+                    "ten minutes of starting this; the person signs in in the browser only and never with the app's "
+                    "own sign-in buttons; confirm the running app shows the new sign-in without a restart, then set "
+                    "the verdict", **observed)
 
 
 def _power_source(on_battery) -> str:
