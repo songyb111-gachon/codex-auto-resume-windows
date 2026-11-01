@@ -33,8 +33,9 @@ def _offered(runtime):
     from ..codex.turns import Turns
     with Store(runtime.paths.state_dir) as store:
         off = store.disabled_threads()
+        booted = (store.watcher_status() or {}).get("booted_at")
     home = inuse.home(runtime.paths)
-    running = set(Turns(home).running())
+    running = set(Turns(home).running(booted=booted))
     return [(thread, name) for thread, name in Threads(home).own(LIMIT, off) if thread in running]
 
 

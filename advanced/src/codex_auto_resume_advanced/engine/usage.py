@@ -40,7 +40,7 @@ from codex_auto_resume import continuation, settings
 from .. import statement
 
 from ..codex import credits, inuse
-from ..codex.turns import Turns
+from ..codex.turns import Turns, booted_of
 from ..vocabulary import (ContinuationKind, ContinuationReason, OptionKey, RecordState, SpendOutcome,
                           WordingKey)
 from .continued import answer_key, handed
@@ -360,7 +360,7 @@ class UsageWrapUp:
             return
         turns = Turns(self._codex_home())
         source = self._source()
-        for thread in turns.running():
+        for thread in turns.running(booted=booted_of(self.paths)):
             try:
                 if view.thread_enabled(thread) is not True or source.latest(thread) is None:
                     continue                    # switched off, or not a conversation core would recover
