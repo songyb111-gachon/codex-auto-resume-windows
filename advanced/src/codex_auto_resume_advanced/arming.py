@@ -1210,9 +1210,10 @@ class Arming:
                 "requires_off": [other for other in self.registry.requires(definition.id)
                                  if states.get(other, ArmingState.OFF) != ArmingState.ARMED],
                 "departs_from": departs(definition, row), "compat": definition.compat,
-                # Every measurement its statement warns of: its route's, then those only a part rests on (v0.6.21).
+                # Every measurement its statement warns of (v0.6.21): those only a part rests on, then its route's -
+                # usage_analytics' MTOK before MU, as they were listed before, so the answer is the one it was.
                 "measurements": [str(measurement) for measurement in
-                                 definition.measurements + tuple(getattr(definition, "narrowed_by", ()))],
+                                 tuple(getattr(definition, "narrowed_by", ())) + definition.measurements],
                 "points": sorted(str(point) for point in definition.points),
                 # Whether any point it answers at leads to a send, and so whether its ceilings can
                 # ever bind. A capability that only starts, or only shadows, spends no unit; a
