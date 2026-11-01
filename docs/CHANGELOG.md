@@ -91,7 +91,8 @@ an older version brings the runtime that version was built with (3.14.9 for v0.6
   that monitor's scale, shows the item in hand as a raised pill, takes the arrow keys, Home and End, Enter, an item's first letter
   and Esc, closes on a click outside, is read as a menu by a screen reader, follows High Contrast, and opens mirrored in Arabic and
   Hebrew. It has no bright edge round it, as the popup's raised cards have. Its items are the ones Windows' menu had, from one list;
-  where it cannot open, Windows' menu opens as before.
+  where it cannot open, Windows' menu opens as before. The popup's row menus open in the same drawn menu, with *Postpone* and the
+  tier choices as submenus beside their items (to the left in Arabic and Hebrew); their items and actions are the ones they had.
 - **Starting the Dashboard again brings the open one forward** (new since beta.4). A Start menu shortcut or the program started
   directly now hands over to the Dashboard already open, on the page asked for, as the notification area's opens do since beta.2,
   instead of opening a second window.
