@@ -8,9 +8,11 @@ control's lift, its words in the ink; an item that cannot be used is in the mute
 in the accent; a line between groups is a hairline.
 
 The items themselves - their words, order, states and what each does - are the icon's (ui/tray/menu.py menu_items), the
-same list its Windows menu is built from, so the two cannot drift apart. This half is pure: it asks Windows nothing and
-paints nothing, which is what lets it be checked at every scale and in every language without a screen. The window that
-draws it and hears the keys is menuwindow.py.
+same list its Windows menu is built from, so the two cannot drift apart. The popup's row menus (model.row_menu) are drawn
+by the same code since the owner asked for it the same day: theirs have submenus, an item whose `items` is a list, drawn
+with an arrow at its far end and opened beside it (menu_beside) as a second menu of the same kind. This half is pure: it
+asks Windows nothing and paints nothing, which is what lets it be checked at every scale and in every language without a
+screen. The window that draws it and hears the keys is menuwindow.py.
 """
 from __future__ import annotations
 
@@ -35,10 +37,11 @@ MENU_REACH = _reach()
 def menu_layout(entries, scale, measure, max_width=None) -> dict:
     """Every rectangle of the menu in device pixels, left to right, and the window's size.
 
-    `entries` is the icon's list: a dict per item (`id`, `text`, `enabled`, `checked`) and None for a line between
-    groups. `measure(role, text, width, wrap)` returns the (width, height) of a line in the popup's font role. The card
-    is as wide as its widest item needs and no narrower than MENU_MIN_WIDTH; `max_width` (the work area) caps the
-    window, and a line wider than what is left is shortened with an ellipsis by the renderer, never wrapped.
+    `entries` is the icon's list: a dict per item (`id`, `text`, `enabled`, `checked`, and `items` when it opens a
+    submenu) and None for a line between groups. `measure(role, text, width, wrap)` returns the (width, height) of a
+    line in the popup's font role. The card is as wide as its widest item needs and no narrower than MENU_MIN_WIDTH;
+    `max_width` (the work area) caps the window, and a line wider than what is left is shortened with an ellipsis by
+    the renderer, never wrapped.
     """
     space = brand.SPACING
 
@@ -74,11 +77,14 @@ def menu_layout(entries, scale, measure, max_width=None) -> dict:
         rect = (left, y, right, y + item_h)
         dot = max(px(6), check // 4)
         cx, cy = left + check // 2, y + item_h // 2
-        items.append({"kind": "item", "index": index, "id": entry["id"], "text": entry["text"],
-                      "enabled": bool(entry["enabled"]), "checked": bool(entry.get("checked")), "rect": rect,
-                      "text_rect": (left + check, y, right - after, y + item_h),
-                      "dot": (cx - dot // 2, cy - dot // 2, cx - dot // 2 + dot, cy - dot // 2 + dot),
-                      "align": "left"})
+        laid = {"kind": "item", "index": index, "id": entry.get("id"), "text": entry["text"],
+                "enabled": bool(entry["enabled"]), "checked": bool(entry.get("checked")), "rect": rect,
+                "text_rect": (left + check, y, right - after, y + item_h),
+                "dot": (cx - dot // 2, cy - dot // 2, cx - dot // 2 + dot, cy - dot // 2 + dot),
+                "align": "left", "submenu": bool(entry.get("items"))}
+        if laid["submenu"]:
+            laid["arrow"] = (right - after, y, right - pad, y + item_h)     # where its arrow is drawn
+        items.append(laid)
         if entry["enabled"]:
             targets.append((index, rect))
         y += item_h + gap
@@ -100,7 +106,7 @@ def menu_mirror(plan) -> dict:
     items = []
     for item in plan["items"]:
         turned = dict(item, rect=across(item["rect"]))
-        for key in ("text_rect", "dot"):
+        for key in ("text_rect", "dot", "arrow"):
             if key in item:
                 turned[key] = across(item[key])
         if "align" in item:
@@ -129,6 +135,46 @@ def menu_place(plan, point, work) -> tuple:
     x = max(left, min(x, right - width)) if right - left >= width else left
     y = max(top, min(y, bottom - height)) if bottom - top >= height else top
     return x - card[0], y - card[1]
+
+
+def menu_beside(plan, beside, work) -> tuple:
+    """Where a submenu's window goes, (x, y): its card beside `beside` - the parent's card's left and right and its
+    item's top and bottom, on the screen - to the right, or to the left right to left or where the right has no room
+    (and the other way round), its first item level with the parent's item, kept inside the work area as a menu is."""
+    card = plan["card"]
+    width, height = card[2] - card[0], card[3] - card[1]
+    left, top, right, bottom = work
+    first = next((item["rect"][1] for item in plan["items"] if item["kind"] == "item"), card[1])
+    if plan.get("rtl"):
+        x = beside[0] - width if beside[0] - width >= left else beside[2]
+    else:
+        x = beside[2] if beside[2] + width <= right else beside[0] - width
+    y = beside[1] - (first - card[1])
+    x = max(left, min(x, right - width)) if right - left >= width else left
+    y = max(top, min(y, bottom - height)) if bottom - top >= height else top
+    return x - card[0], y - card[1]
+
+
+def menu_numbered(entries) -> tuple:
+    """A row menu's entries (model.row_menu: `action` and `items`) as both menus take them: each item that does
+    something numbered from 1, depth first, as Windows' menu numbers its commands - `id`, and None for an item that
+    opens a submenu - and {number: action}, None for an item that cannot be used. Pure."""
+    actions = {}
+
+    def number(items):
+        found = []
+        for entry in items:
+            if entry is None:
+                found.append(None)
+                continue
+            if entry.get("items"):
+                found.append(dict(entry, id=None, items=number(entry["items"])))
+                continue
+            command = len(actions) + 1
+            actions[command] = entry.get("action") if entry.get("enabled") else None
+            found.append(dict(entry, id=command, items=None))
+        return found
+    return number(entries), actions
 
 
 # ------------------------------------------------------------------------------ keys
@@ -189,6 +235,8 @@ def menu_accessible_items(plan, selected=None, strings=None) -> list:
         states = set()
         if item["checked"]:
             states.add("checked")
+        if item.get("submenu"):
+            states.add("haspopup")
         if item["enabled"]:
             states.add("focusable")
             if item["index"] == selected:

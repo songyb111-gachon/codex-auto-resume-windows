@@ -564,7 +564,10 @@ while that power action is armed, and **Stop the watcher**. It opens at the poin
 as the popup is, in the system's colours in High Contrast, and right to left in Arabic and Hebrew.
 The arrow keys, Home and End move through it, Enter or an item's first letter chooses, and Esc, Alt,
 a click anywhere else or switching to another window closes it; a screen reader reads it as a menu.
-Where it cannot be drawn, Windows' own menu opens with the same items. The popup and the menu take up a new
+Where it cannot be drawn, Windows' own menu opens with the same items. A task's own menu in the popup is drawn
+the same way, and its **Postpone** and **How this conversation resumes** open their choices beside them: the right
+arrow, Enter, a click or resting the pointer opens them, and the left arrow or Esc closes them - the other way round in
+Arabic and Hebrew. The popup and the menu take up a new
 language or theme the next time they open, without restarting the watcher. The countdown only means the watcher looks again — nothing is sent because it
 reaches zero. The icon is on by default and can be switched off on the Settings page.
 

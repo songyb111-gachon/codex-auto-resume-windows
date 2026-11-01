@@ -99,6 +99,8 @@ SURFACE = {
     # v0.6.20: the icon's right-click menu, drawn - its plan (menuplan) and its window (menuwindow).
     "MENU_CHECK", "MENU_MIN_WIDTH", "MENU_REACH", "Menu", "MenuAccessible", "MenuRenderer", "menu_accessible_items",
     "menu_end", "menu_layout", "menu_letter", "menu_mirror", "menu_place", "menu_step", "menu_usable",
+    # The popup's row menus drawn by the same code (v0.6.20): a submenu's place, and a row menu's items numbered.
+    "menu_beside", "menu_numbered",
 }
 
 

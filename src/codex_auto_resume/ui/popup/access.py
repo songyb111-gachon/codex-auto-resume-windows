@@ -33,6 +33,7 @@ A11Y_ROLES = {"dialog": 0x12, "text": 0x29, "row": 0x22, "switch": 0x2C, "button
               # v0.6.20: the icon's drawn menu (menuwindow.py) - a menu popup, its items and the lines between them.
               "menu": 0x0B, "menuitem": 0x0C, "separator": 0x15}
 A11Y_STATES = {"unavailable": 0x1, "focused": 0x4, "checked": 0x10, "hot": 0x80, "focusable": 0x100000,
+               "haspopup": 0x40000000,     # v0.6.20: a row menu's item that opens a submenu
           "readonly": 0x40}
 OBJID_CLIENT, OBJID_WINDOW, CHILDID_SELF = -4, 0, 0
 WM_GETOBJECT = 0x003D
