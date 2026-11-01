@@ -1695,7 +1695,9 @@ class ThemeSourceRuleTests(unittest.TestCase):
         self.assertIn("if (!Palette.Dark || form == null) return;", title)
         self.assertLess(title.index("DarkTitleBarAttribute, ref on"), title.index("DarkTitleBarAttributeBefore20H1, ref on"))
         self.assertIn("Soft.TitleBar(this);", guiscan.settings())
-        self.assertIn("Soft.TitleBar(dialog);", guiscan.dashboard(), "the Timeline dialog too")
+        # v0.6.20 final: a dialog takes it through Soft.DialogBar, which hides its icon and calls Soft.TitleBar.
+        self.assertIn("Soft.DialogBar(dialog);", guiscan.dashboard(), "the Timeline dialog too")
+        self.assertIn("TitleBar(dialog);", guiscan.member_body("Soft", "DialogBar"))
 
     def test_every_elevation_reads_each_shadows_own_inset_flag(self):
         """Dark's card mixes outer shadows with an inset top light; a recipe's name says nothing."""
