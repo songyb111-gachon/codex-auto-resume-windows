@@ -1332,14 +1332,32 @@ def _config_value(read, key):
 
 
 def _version_of(read):
+    """The version of the configuration config/value/write writes, as its expectedVersion takes it, or None. An older
+    config/read answered one of its own ("version"); codex-cli 0.166's has none - each layer carries its own
+    (ConfigLayer.version, a string, with includeLayers) and the user layer, $CODEX_HOME/config.toml, is the one a write
+    goes to. Without this every write on 0.166 carried a null expectedVersion, which Codex never checks, so a stale
+    version could never be refused and MB could not pass even where the writes were taken (v0.6.21)."""
     found = read.get("version") if isinstance(read, dict) else None
-    return found if isinstance(found, (str, int)) and not isinstance(found, bool) else None
+    if isinstance(found, (str, int)) and not isinstance(found, bool):
+        return found
+    layers = read.get("layers") if isinstance(read, dict) else None
+    for layer in layers if isinstance(layers, list) else ():
+        name = layer.get("name") if isinstance(layer, dict) else None
+        if isinstance(name, dict) and name.get("type") == "user":
+            version = layer.get("version")
+            return version if isinstance(version, str) else None
+    return None
 
 
 def _mb(ctx):
     """Codex's own config writes (codex_retry_settings), on a scratch Codex home the harness makes and removes - no
     config of the person's is ever opened or written: config/read with its layers, both keys written (upsert) and read
-    back, the first one removed and read back, and a write against a stale version refused. Booleans only."""
+    back, the first one removed and read back, and a write against a stale version refused. Booleans only.
+
+    Every write's parameters are ConfigValueWriteParams' (keyPath, value, mergeStrategy, expectedVersion as a string
+    or null) on codex-cli 0.162 and 0.166 alike. Both refuse the first write by design, whatever its shape: -32600,
+    "model_providers contains reserved built-in provider IDs: `openai`. Built-in providers cannot be overridden" (read
+    on a scratch home on 2026-10-16) - a fail that says the built-in provider's retry settings cannot be written there."""
     import shutil
     import tempfile
     scratch = Path(tempfile.mkdtemp(prefix="car-mb-"))
