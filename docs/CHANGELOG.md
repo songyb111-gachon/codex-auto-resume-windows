@@ -90,7 +90,8 @@ an older version brings the runtime that version was built with (3.14.9 for v0.6
 - **The icon's right-click menu is drawn in the popup's design** (new since beta.4; the owner's request). It opens at the pointer on
   that monitor's scale, shows the item in hand as a raised pill, takes the arrow keys, Home and End, Enter, an item's first letter
   and Esc, closes on a click outside, is read as a menu by a screen reader, follows High Contrast, and opens mirrored in Arabic and
-  Hebrew. It has no bright edge round it, as the popup's raised cards have. Its items are the ones Windows' menu had, from one list;
+  Hebrew. It has no bright edge round it, as the popup's raised cards have, and no shadow either (light's pale shadow shone like a
+  glow on a dark taskbar). Its items are the ones Windows' menu had, from one list;
   where it cannot open, Windows' menu opens as before. The popup's row menus open in the same drawn menu, with *Postpone* and the
   tier choices as submenus beside their items (to the left in Arabic and Hebrew); their items and actions are the ones they had.
 - **Starting the Dashboard again brings the open one forward** (new since beta.4). A Start menu shortcut or the program started
@@ -106,7 +107,7 @@ an older version brings the runtime that version was built with (3.14.9 for v0.6
   watcher records, by the rule recovery already used for a turn left in progress; with no such time it does nothing, as before.
 - **Smaller things** (new since beta.4): the Timeline dialog lists its lines in time order (its receipts came after all its events);
   the word the header shows while the window loads comes from the catalog in every language instead of English; the dialogs that hold
-  a list are no longer shown with Windows' default icon; the Diagnostics page offers *Start watcher* while the watcher is
+  a list are no longer shown with Windows' default icon; a scroll bar's pill keeps its shadow but no lit edge; the Diagnostics page offers *Start watcher* while the watcher is
   stopped (it kept offering *Stop watcher*), and is greyed while a start or a stop is on its way.
 - **Windows opened inside the Dashboard have no icon** (new since beta.4; the owner's choice): every dialog, picker, statement and
   confirmation the Dashboard opens shows no icon in its title bar; the Dashboard's own window keeps it, as do the taskbar and the
