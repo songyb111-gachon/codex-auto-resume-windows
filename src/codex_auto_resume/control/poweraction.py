@@ -13,7 +13,9 @@ Who writes what:
 
     arm_power_action      the Dashboard, through the bridge, and nothing else (H14): a person's choice,
                           refused while an administrator's DisablePowerAction is set, while an older
-                          watcher holds the state, or when Windows will not do it for this account
+                          watcher holds the state, or when Windows will not do it for this account. From
+                          v0.6.21 the advanced edition's page arms it for tasks a person picked too
+                          (`tasks`), only while the edition's plug answers for them (P21)
     disarm_power_action   anyone: the Dashboard, MCP, the icon, a notice, the watcher - it only reduces
     stop_power_countdown  a notice's stop button, from the card or a toast: stops one batch, named by
                           its nonce, so a notice of a batch that is over stops nothing
@@ -38,6 +40,7 @@ import time
 
 from .. import config, poweraction
 from ..domain import ids
+from ..domain.plug import Point
 from ..domain.power_vocabulary import PowerEnd, PowerRepeat
 from ..openstate import UPGRADE_PENDING
 from ..store import LegacyStore
@@ -53,6 +56,7 @@ STOPPED, IGNORED = "stopped", "ignored"
 BUSY = "the state is busy"
 FAILED = "the request could not be completed: %s"
 UNAVAILABLE = "that power action is not available on this PC"
+NO_TASKS = "nothing here answers for tasks a person picked"
 MANAGED = "your administrator has set this"
 # Windows will not replace a file another handle holds open, and Python opens without FILE_SHARE_DELETE, so
 # a reader of the file - the watcher's look, a status read, the icon's menu - refuses a write for as long
@@ -187,16 +191,27 @@ class PowerActionMixin:
         finally:
             lock.__exit__(None, None, None)
 
-    def arm_power_action(self, choice, actor="dashboard") -> dict:
+    def arm_power_action(self, choice, actor="dashboard", tasks=False) -> dict:
         """Arm it as a person chose in the Dashboard - the only place it is armed - and return the view.
 
         A second arming replaces the first. It carries the usage-limit recoveries open now, and begins its
-        batch now; a fresh nonce names it."""
+        batch now; a fresh nonce names it.
+
+        `tasks` (v0.6.21, Discussion #57): an arming for tasks a person picked on the advanced edition's page -
+        a Once whatever `repeat` says, carrying nothing, with `tasks` True - refused unless the edition's plug
+        wants P21 now, so the standard edition, whose plug wants nothing, never writes one. Which tasks they
+        are is the plug's own; core reads only its word (poweraction.decide)."""
         if actor != "dashboard":
             raise ControlError(FAILED % "it is turned on only in the Dashboard", code="request_failed")
+        if tasks is not False and tasks is not True:
+            raise ControlError(FAILED % "tasks is true or false", code="request_failed")
+        if tasks:
+            choice = dict(choice, repeat=PowerRepeat.ONCE.value) if isinstance(choice, dict) else choice
         problem = poweraction.choice_problem(choice)
         if problem is not None:
             raise ControlError(FAILED % problem, code="request_failed")
+        if tasks and not self.plug.wants(Point.POWER):
+            raise ControlError(FAILED % NO_TASKS, code="request_failed")
         if self.managed().disable_power_action:
             raise ControlError(MANAGED, code="managed_by_policy")
         with self._open() as store:
@@ -211,6 +226,8 @@ class PowerActionMixin:
                  "after": choice["after"], "repeat": choice["repeat"],
                  "grace_seconds": choice["grace_minutes"] * 60, "armed_at": now, "since": now,
                  "carried": list(dict.fromkeys(carried))[:poweraction.MAX_CARRIED], "stop_at": None}
+        if tasks:
+            armed.update(carried=[], **{poweraction.TASKS_KEY: True})
 
         def change(why, document):
             kept = document if why == poweraction.READ_OK else poweraction.blank()

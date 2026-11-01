@@ -673,11 +673,12 @@ def _power_word(action) -> str:
     return action if action in POWER_ACTIONS else "sleep"
 
 
-def power_grace_content(action, until, nonce) -> dict:
-    """The countdown's notice: what happens at `until`, why, what puts it off, and its two buttons."""
+def power_grace_content(action, until, nonce, tasks=False) -> dict:
+    """The countdown's notice: what happens at `until`, why, what puts it off, and its two buttons. `tasks` True
+    (v0.6.21): an arming for tasks a person picked, whose notice says it is for them."""
     word = _power_word(action)
     return _content(l10n.message("toast_power_grace." + word).replace("{time}", _local_time(until)),
-                    l10n.message("toast_power_grace_body"),
+                    l10n.message("toast_power_grace_body_tasks" if tasks is True else "toast_power_grace_body"),
                     button=l10n.message("toast_power_stop." + word), uri=power_stop_uri(nonce),
                     extra=[l10n.message("toast_power_grace_next")],
                     more=[(l10n.message("toast_button_open"), open_uri("settings"))])
@@ -688,13 +689,14 @@ def power_content(event, detail) -> dict:
     detail = detail if isinstance(detail, dict) else {}
     action = _power_word(detail.get("action"))
     if event == "power_grace":
-        return power_grace_content(action, detail.get("until"), detail.get("nonce"))
+        return power_grace_content(action, detail.get("until"), detail.get("nonce"), detail.get("tasks") is True)
     if event == "power_now":
         return _content(l10n.message("toast_power_now." + action), "")
     if event == "power_failed":
         return _content(l10n.message("toast_power_failed"), l10n.message("toast_power_failed_body"),
                         more=[(l10n.message("toast_button_open"), open_uri("settings"))])
     if event == "power_not_met":
-        return _content(l10n.message("toast_power_not_met"), "",
+        return _content(l10n.message("toast_power_not_met_tasks" if detail.get("tasks") is True
+                                     else "toast_power_not_met"), "",
                         more=[(l10n.message("toast_button_open"), open_uri("settings"))])
     return _content(l10n.message("toast_power_stopped"), "")

@@ -174,6 +174,8 @@ namespace CodexAutoResume
             string state;
             if (armed == null) state = S("power.state.off", "Off");
             else if (Str(shown, "phase") == "grace" && until > 0) state = PowerGraceLine(action, ClockTime(until));
+            // v0.6.21: an arming the advanced edition's page made for tasks a person picked says so.
+            else if (Equals(Get(armed, "tasks"), true)) state = PowerTasksLine(action);
             else state = PowerOnLine(action);
             powerSwitch.Text = state;
             powerSwitch.AccessibleDescription = state;
@@ -376,6 +378,17 @@ namespace CodexAutoResume
             }
         }
 
+        /// v0.6.21: the switch's line for an arming made for tasks a person picked (`tasks` in the view).
+        private string PowerTasksLine(string action)
+        {
+            switch (action)
+            {
+                case "hibernate": return S("power.state.tasks.hibernate", "On: this PC hibernates when the tasks you picked finish.");
+                case "shut_down": return S("power.state.tasks.shut_down", "On: this PC shuts down when the tasks you picked finish.");
+                default: return S("power.state.tasks.sleep", "On: this PC goes to sleep when the tasks you picked finish.");
+            }
+        }
+
         private string PowerGraceLine(string action, string time)
         {
             switch (action)
@@ -401,6 +414,8 @@ namespace CodexAutoResume
             if (word == "idle_unknown") return S("power.wait.idle_unknown", "Waiting: Windows did not say whether this PC is in use.");
             if (word == "paused") return S("power.wait.paused", "Waiting: recovery is paused.");
             if (word == "watcher") return S("power.wait.watcher", "The watcher is not running, so nothing happens until it runs.");
+            if (word == "tasks_running") return S("power.wait.tasks_running", "Waiting for the tasks you picked to finish.");
+            if (word == "tasks_unknown") return S("power.wait.tasks_unknown", "Waiting: how the tasks you picked stand could not be read.");
             return "";
         }
 

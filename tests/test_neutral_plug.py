@@ -127,7 +127,9 @@ class ScenarioListTests(unittest.TestCase):
         self.assertEqual(set(Point) - neutral.ENGINE_POINTS,
                          {Point.START_ROUTE, Point.SURFACES, Point.SUPERVISION,
                           # v0.6.19: P20, told by the watcher as a notice goes (runtime/app.py).
-                          Point.NOTICE})
+                          Point.NOTICE,
+                          # v0.6.21: P21, asked by the watcher's power action (runtime/afterwork.py), never the engine.
+                          Point.POWER})
 
 
 class NeutralPlugTests(unittest.TestCase):

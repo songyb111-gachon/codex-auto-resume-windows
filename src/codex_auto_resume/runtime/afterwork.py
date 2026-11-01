@@ -17,6 +17,10 @@ before anything is done - a write that fails does nothing - and only then is the
 go, the line logged, the last notice raised and Windows asked, once. A refusal is logged and said; the
 batch is spent, so nothing is retried.
 
+An arming for tasks a person picked (v0.6.21, the advanced edition's) asks the edition's plug how they stand (P21,
+`_tasks`) where the records would decide - and only it does: an arming without `tasks` asks nothing new. Its notices
+say they are for those tasks.
+
 Nothing here sends anything to Codex, changes a record, or changes a setting of Windows'. A failure
 inside a look costs that look, as keeping awake's does: the loop records it and ends any countdown.
 """
@@ -69,18 +73,21 @@ class AfterWork:
         armed = (document or {}).get("armed") if why == decision.READ_OK else None
         self._note(why, armed)
         held = bool(getattr(managed, "disable_power_action", False))
-        paused, rows, follow = False, (), decision.FOLLOW_SECONDS
+        paused, rows, follow, tasks = False, (), decision.FOLLOW_SECONDS, None
         if armed is not None and not held and armed["stop_at"] is None and ok:
             paused = self._paused(store, settings, managed)
             if not paused:
                 rows = tuple(store.all_records())
                 follow = _follow_window(engine)
+                if decision.for_tasks(armed):
+                    tasks = self._tasks(armed, now)
         nonce = armed["nonce"] if armed is not None else None
         if self._countdown is not None and self._countdown["nonce"] != nonce:
             self._stop_countdown(TURNED_OFF)        # armed again, or ended elsewhere: not this batch
         saw = self._seen[1] if self._seen[0] == nonce and nonce is not None else False
         found = decision.decide(decision.Facts(now=now, read=why, document=document, managed=held, ok=ok,
-                                               paused=paused, rows=rows, saw_open=saw, follow_window=follow))
+                                               paused=paused, rows=rows, saw_open=saw, follow_window=follow,
+                                               tasks=None if tasks is None else tasks["tasks"]))
         if nonce is not None:
             self._seen = (nonce, found.saw_open)
         if found.verdict == decision.OFF:
@@ -89,12 +96,24 @@ class AfterWork:
             return self._wait(armed, found.word, now)
         if found.verdict == decision.END:
             return self._end(armed, found.word, now)
-        return self._go(armed, rows, engine, waking, now)
+        return self._go(armed, rows, engine, waking, now, tasks)
 
-    def _go(self, armed, rows, engine, waking, now):
-        """Steps 11 to 16, once steps 1 to 10 have passed."""
-        batch = decision.members(rows, armed)
-        threads = sorted({row.get("thread_id") for row in batch if isinstance(row.get("thread_id"), str)})
+    def _tasks(self, armed, now):
+        """P21 (v0.6.21): how the tasks a person armed this for stand - the plug's checked answer (Guarded.power), or
+        None, on which the look waits. Asked with the arming's nonce and times, nothing else."""
+        try:
+            return self._control.plug.power({"nonce": armed["nonce"], "armed_at": armed["armed_at"], "now": now})
+        except Exception:
+            return None
+
+    def _go(self, armed, rows, engine, waking, now, tasks=None):
+        """Steps 11 to 16, once steps 1 to 10 have passed - for an arming for tasks, the conversations the plug named
+        are the batch's whose history must have caught up."""
+        if decision.for_tasks(armed):
+            threads = sorted(tasks["threads"]) if tasks is not None else []
+        else:
+            batch = decision.members(rows, armed)
+            threads = sorted({row.get("thread_id") for row in batch if isinstance(row.get("thread_id"), str)})
         word = decision.judge_activity(engine.activity(threads) if engine is not None else None)
         if word is not None:
             return self._wait(armed, word, now)
@@ -172,7 +191,7 @@ class AfterWork:
         self._forget()
         self._line("power_batch_ended", result)
         if result == PowerEnd.NOT_MET and armed["repeat"] == PowerRepeat.ONCE:
-            self._raise(NOT_MET, {"action": armed["action"]})
+            self._raise(NOT_MET, _for(armed, {"action": armed["action"]}))
         elif result == PowerEnd.UNAVAILABLE:
             self._raise(FAILED, {"action": armed["action"]})
         return None
@@ -185,7 +204,7 @@ class AfterWork:
         self._show(armed, {"phase": PowerPhase.GRACE.value, "waiting_for": None, "grace_until": until})
         self._said = None
         self._line("power_countdown", armed["action"], armed["grace_seconds"])
-        self._raise(GRACE, {"action": armed["action"], "until": until, "nonce": armed["nonce"]})
+        self._raise(GRACE, _for(armed, {"action": armed["action"], "until": until, "nonce": armed["nonce"]}))
         return None
 
     def _finish(self, armed, waking, now):
@@ -281,6 +300,12 @@ class AfterWork:
         stored = store.settings()
         return (not stored["enabled"] or bool(getattr(managed, "disable_auto_resume", False))
                 or bool(stored.get("observe_only")) or (settings or {}).get("observe_only") is True)
+
+
+def _for(armed, detail) -> dict:
+    """A notice's detail, saying `tasks` True for an arming for tasks a person picked (v0.6.21), so its words say so;
+    any other arming's detail is as it always was."""
+    return dict(detail, tasks=True) if decision.for_tasks(armed) else detail
 
 
 def _follow_window(engine) -> float:

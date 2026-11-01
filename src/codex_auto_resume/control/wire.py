@@ -285,7 +285,9 @@ class PowerArmed(TypedDict):
     """What is armed of the power action after usage-limit recoveries (v0.6.12, control/poweraction.py):
     the action, after what and how often - PowerAction, PowerAfter and PowerRepeat words - how long its
     notice warns first, and when it was armed and its batch began. Never the batch's nonce, which only
-    a notice's stop button carries."""
+    a notice's stop button carries. (v0.6.21: an arming the advanced edition's page made for tasks a person
+    picked adds `tasks`, True - the edition's own key, which no standard answer carries and so none of its
+    goldens (poweraction.view).)"""
     action: str
     after: str
     repeat: str
