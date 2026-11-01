@@ -49,12 +49,11 @@ namespace CodexAutoResume
             dialog.Font = Font;
             dialog.BackColor = Canvas;
             dialog.ForeColor = Ink;
-            Soft.TitleBar(dialog);
+            Soft.DialogBar(dialog);
             dialog.StartPosition = FormStartPosition.CenterParent;
             dialog.ClientSize = new Size(Px(760), Px(560));
             dialog.MinimizeBox = false;
             dialog.ShowInTaskbar = false;
-            dialog.Icon = Icon;
 
             var well = new SoftTextArea();
             well.Dock = DockStyle.Fill;

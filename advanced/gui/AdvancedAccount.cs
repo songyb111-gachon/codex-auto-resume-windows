@@ -105,6 +105,10 @@ namespace CodexAutoResume
                                            delegate { SwitchAccount(); });
                 accountSwitch.Margin = Pad(0, 8, 0, 4);
             }
+            else if (Equals(Get(advancedAccount, "measurement_failed"), true))
+                // A part hidden because its measurement failed says so (the owner, 2026-10-31); not "until it is measured".
+                card.Controls.Add(HelpText(Word("page.account.guidance_failed",
+                    "The sign-out and sign-in button is hidden because its measurement failed on this Codex. To switch, sign out in Codex (Settings > Account), then sign in there with the other account.")));
             else
                 card.Controls.Add(HelpText(Word("page.account.guidance",
                     "To switch, sign out in Codex (Settings > Account), then sign in there with the other account. Until it has been measured on this Codex that the running app follows a sign-in made from here, this page offers no button for it.")));

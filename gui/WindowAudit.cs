@@ -193,7 +193,10 @@ namespace CodexAutoResume
                         {
                             form.ApplySnapshot(WithStoppedWatcher(snapshot, ended));
                             form.ShowPage("diagnostics");
+                            // The watcher button says Start watcher while it is stopped (FollowWatcher), as it is audited.
+                            form.FollowWatcher(false);
                             form.Audit("diagnostics with a watcher stopped (" + ended + ")", findings);
+                            form.FollowWatcher(true);
                         }
                         form.ApplySnapshot(snapshot);
                         form.AuditTimeline(snapshot, findings);

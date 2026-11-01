@@ -86,11 +86,14 @@ def view(runtime) -> dict:
             item["images"] = copies.of(runtime.paths, row["prompt_id"])
         shown.append(item)
     try:
-        unproven = runtime.arming.verdict(Measurement.MT) != "pass"
+        verdict = runtime.arming.verdict(Measurement.MT)
+        unproven, after_turn_failed = verdict != "pass", verdict == "fail"
     except Exception:
-        unproven = True
+        unproven, after_turn_failed = True, False
     from .steer import rows as steers
     return {"done": True, "refusal": None, "generation": generation, "prompts": shown, "after_turn_unproven": unproven,
+            # v0.6.20: ... and whether that is because MT failed (the card says so).
+            "after_turn_failed": after_turn_failed,
             # v0.6.20 (#50): the steers History lists, with their words and outcomes (control/steer.py).
             "steers": steers(runtime),
             "limits": {"prompts": PROMPTS_LIMIT, "per_conversation": PER_CONVERSATION, "words": words_limit(runtime),

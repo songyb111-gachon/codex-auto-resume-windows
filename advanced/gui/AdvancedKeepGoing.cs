@@ -97,9 +97,16 @@ namespace CodexAutoResume
             if (keepCount.SelectedItem == null) keepCount.SelectedIndex = 2;
             card.Controls.Add(NewRow(count, keepCount));
             if (Equals(Get(advancedKeepGoing, "count_capped"), true))
-                card.Controls.Add(HelpText(Word("page.keep.capped",
-                    "Until this has been measured on this Codex, no more than {n} are sent.", "n",
-                    Whole(Get(Map(advancedKeepGoing, "limits"), "unmeasured")))));
+            {
+                bool failed = Equals(Get(advancedKeepGoing, "count_failed"), true);
+                card.Controls.Add(HelpText(failed
+                    ? Word("page.keep.capped_failed",
+                        "Because its measurement failed on this Codex, no more than {n} are sent.", "n",
+                        Whole(Get(Map(advancedKeepGoing, "limits"), "unmeasured")))
+                    : Word("page.keep.capped",
+                        "Until this has been measured on this Codex, no more than {n} are sent.", "n",
+                        Whole(Get(Map(advancedKeepGoing, "limits"), "unmeasured")))));
+            }
             keepAdd = CardButton(card, Word("page.keep.button", "Keep it going..."), delegate { AddKeepGoing(); });
             keepAdd.Margin = Pad(0, 8, 0, 4);
         }

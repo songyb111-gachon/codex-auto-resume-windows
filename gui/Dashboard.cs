@@ -1605,9 +1605,11 @@ namespace CodexAutoResume
             // allocated two hundred and forty brushes every time it repainted, and it repaints on every
             // scroll, selection and refresh.
             e.Graphics.FillRectangle(Soft.Fill(back), bounds);
-            // The hairline across what Windows hands the cell: for the first column, mirrored, that is the whole row, and a
-            // full hairline is what every row has.
-            e.Graphics.FillRectangle(Soft.Fill(Line), e.Bounds.Left, e.Bounds.Bottom - Soft.Hairline, e.Bounds.Width, Soft.Hairline);
+            // The hairline across the cell's own bounds, wherever its column stands, so that the cells' lines are the row's
+            // whole width. Not across what Windows hands the cell: for the first column that is a rectangle at the row's
+            // left edge, which mirrored is the wrong end - the line stopped before the first column in Arabic and Hebrew
+            // (v0.6.20 final, the live re-check's finding 3).
+            e.Graphics.FillRectangle(Soft.Fill(Line), bounds.Left, bounds.Bottom - Soft.Hairline, bounds.Width, Soft.Hairline);
             var row = e.Item.Tag as Dictionary<string, object>;
             var cell = new Rectangle(bounds.X + (mirrored ? Px(4) : Px(10)), bounds.Y, Math.Max(0, bounds.Width - Px(14)), bounds.Height);
             string text = e.SubItem == null ? "" : e.SubItem.Text;

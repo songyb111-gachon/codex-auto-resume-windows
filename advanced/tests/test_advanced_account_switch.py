@@ -141,7 +141,8 @@ class CardTests(CardCase):
         self.on()
         answer = card.view(self.rt, reader=self.reader)
         self.assertEqual(answer, {"done": True, "refusal": None, "present": True, "plan": "plus", "kind": "chatgpt",
-                                  "mask": account.mask("someone@example.com"), "button": False, "switch": None})
+                                  "mask": account.mask("someone@example.com"), "button": False,
+                                  "measurement_failed": False, "switch": None})
         self.assertNotIn("someone@example.com", str(answer))
 
     def test_until_mal_passed_no_button_and_a_switch_is_refused(self):

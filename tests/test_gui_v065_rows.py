@@ -701,7 +701,10 @@ class RowSourceTests(unittest.TestCase):
                     "e.Bounds.Width, Soft.Hairline);")
         cell = self.method(self.dashboard, "private void DrawCell(")
         self.assertIn("Color back = !selected ? Card : Palette.Contrast ? Palette.AccentSoft : Palette.Inset;", cell)
-        self.assertIn(hairline, cell, "a full hairline under every row")
+        # v0.6.20 final: each cell draws its line across its own bounds, which the mirrored first column's are not
+        # Windows' (tests/test_gui_mirrored_rows.py); left to right they are the same.
+        own = hairline.replace("e.Bounds.Left, e.Bounds.Bottom", "bounds.Left, bounds.Bottom").replace("e.Bounds.Width", "bounds.Width")
+        self.assertIn(own, cell, "a full hairline under every row")
         self.assertNotIn("StampOuter", cell, "no lift under a row")
         header = self.method(self.dashboard, "private void DrawHeader(")
         self.assertIn(hairline, header, "and under the headings")

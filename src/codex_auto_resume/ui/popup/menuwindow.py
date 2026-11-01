@@ -137,12 +137,13 @@ class MenuRenderer(Renderer):
         pill = radii["small"] * scale
         hairline = max(1.0, round(scale))
         with _Painter(canvas, PIXEL_FORMAT_32BPP_PARGB) as paint:
-            # The card as the popup's card is drawn: its lift, its ground, dark's top light, its hairline.
-            self._lift(paint, "card", card, radius, scale)
+            # The card as the popup's card is drawn - its drop shadow, its ground, its hairline - but with no bright edge: not
+            # light's highlight glowing round it, not dark's one-pixel top light inside it (the owner, 2026-11-01: the
+            # raised look's lit edge does not belong round a menu).
+            self._lift(paint, "card", card, radius, scale, lights=False)
             ground = (self._argb("surface") if self.contrast
                       else _pack(brand.rgb(brand.card_ground(self._theme(), self._design()))))
             paint.fill_round(card, radius, ground)
-            self._inner(paint, "card", card, radius, scale)
             paint.stroke_round(card, radius, self._argb("line"), hairline)
             for item in plan["items"]:
                 if item["kind"] == "rule":

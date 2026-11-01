@@ -12,6 +12,9 @@ Two causes, both in how the pictures are made; the real window was never affecte
 
 The build test compiles the window once (csc); the pixel test loads the compiled window and asks IconImage for the 24 px
 icon, then holds it to the .ico's own 24 px image. Run on its own.
+
+Since 2026-11-01 (the owner: a window opened inside the app has no icon) the Timeline dialog wears none - the picture of it
+draws none (RenderDialog) - and IconImage serves the picture of whatever window does carry one.
 """
 from __future__ import annotations
 
@@ -126,9 +129,14 @@ class SourceTests(unittest.TestCase):
         self.assertIn('Path.Combine(root, "codex-auto-resume.ico")', body)
         self.assertIn("Icon = new Icon(icon);", body)
 
-    def test_the_timeline_dialog_wears_the_windows_icon(self):
+    def test_the_timeline_dialog_wears_no_icon_and_a_picture_of_it_draws_none(self):
+        # The owner, 2026-11-01: a window opened inside the app has no icon (tests/test_gui_dialog_icons.py). The window's
+        # own icon is still loaded above, for its title bar and the taskbar.
         body = guiscan.member_body("SettingsForm", "BuildTimeline")
-        self.assertIn("dialog.Icon = Icon;", body)
+        self.assertIn("Soft.DialogBar(dialog);", body)
+        self.assertNotIn("dialog.Icon", body)
+        render = guiscan.member_body("SettingsForm", "RenderDialog")
+        self.assertIn("form.ShowIcon ? form.Icon : null", render, "a form's Icon is Windows' default where none is set")
 
     def test_a_rendered_dialog_draws_the_decoded_icon(self):
         body = guiscan.member_body("SettingsForm", "PaintDialog")

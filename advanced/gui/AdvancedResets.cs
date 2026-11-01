@@ -374,8 +374,11 @@ namespace CodexAutoResume
             card.Controls.Add(NewRow(which, resetOrdinal));
             // Until MU is measured on the Codex in force, how the windows are counted past the next one is unproven.
             if (Equals(Get(advancedResets, "count_unproven"), true))
-                card.Controls.Add(HelpText(Word("page.resets.unproven",
-                    "Past the next one, the count is unproven on this Codex until it has been measured.")));
+                card.Controls.Add(HelpText(Equals(Get(advancedResets, "count_failed"), true)
+                    ? Word("page.resets.unproven_failed",
+                        "Past the next one, the count may be wrong on this Codex: its measurement failed.")
+                    : Word("page.resets.unproven",
+                        "Past the next one, the count is unproven on this Codex until it has been measured.")));
             resetFamily.SelectionChangeCommitted += delegate { FillOrdinals(kind); };
             FillOrdinals(kind);
             if (credit)
@@ -392,8 +395,11 @@ namespace CodexAutoResume
                 resetAsk.Items.Add(new Choice("ask", Word("page.resets.ask.yes", "Ask me first")));
                 PickDraft(resetAsk, kind + "ask");
                 card.Controls.Add(NewRow(ask, resetAsk));
-                card.Controls.Add(HelpText(Word("page.resets.ask.note",
-                    "Until using a reset credit from here has been measured on this Codex, each one waits for your click. None is used unless a recovery is waiting for usage.")));
+                card.Controls.Add(HelpText(Equals(Get(advancedResets, "credit_failed"), true)
+                    ? Word("page.resets.ask.note_failed",
+                        "Because using a reset credit from here failed its measurement on this Codex, each one waits for your click. None is used unless a recovery is waiting for usage.")
+                    : Word("page.resets.ask.note",
+                        "Until using a reset credit from here has been measured on this Codex, each one waits for your click. None is used unless a recovery is waiting for usage.")));
             }
             resetAdd = CardButton(card, credit ? Word("page.resets.credit.button", "Add rule...") : Word("page.resets.message.button", "Add message..."),
                                   delegate { AddReset(credit); });

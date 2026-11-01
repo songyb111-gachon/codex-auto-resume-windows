@@ -25,9 +25,17 @@ def _measured(runtime) -> bool:
         return False
 
 
+def _failed(runtime) -> bool:
+    """Whether MK failed (arming.verdict): the card says the count is held because the measurement failed."""
+    try:
+        return runtime.arming.verdict(Measurement.MK) == "fail"
+    except Exception:
+        return False
+
+
 def view(runtime) -> dict:
-    """advanced-keep-going: every conversation kept going or stopped, what it may have now, and whether the count is
-    held to UNMEASURED_COUNT on this Codex."""
+    """advanced-keep-going: every conversation kept going or stopped, what it may have now, whether the count is
+    held to UNMEASURED_COUNT on this Codex (`count_capped`) and whether that is because MK failed (`count_failed`)."""
     try:
         rows = runtime.state.keep_going()
         generation = runtime.state.meta()["generation"]
@@ -36,7 +44,7 @@ def view(runtime) -> dict:
     measured = _measured(runtime)
     shown = [dict({name: row.get(name) for name in SHOWN}, allowed=allowed(row["count"], measured)) for row in rows]
     return {"done": True, "refusal": None, "generation": generation, "rows": shown,
-            "count_capped": not measured, "limits": {"count": max(KEEP_COUNTS), "unmeasured": UNMEASURED_COUNT}}
+            "count_capped": not measured, "count_failed": _failed(runtime), "limits": {"count": max(KEEP_COUNTS), "unmeasured": UNMEASURED_COUNT}}
 
 
 def set_one(runtime, argument) -> dict:
