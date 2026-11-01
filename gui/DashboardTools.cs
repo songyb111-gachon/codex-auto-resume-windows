@@ -70,12 +70,11 @@ namespace CodexAutoResume
             dialog.Font = Font;
             dialog.BackColor = Canvas;
             dialog.ForeColor = Ink;
-            Soft.TitleBar(dialog);
+            Soft.DialogBar(dialog);
             dialog.StartPosition = FormStartPosition.CenterParent;
             dialog.MinimizeBox = false;
             dialog.MaximizeBox = false;
             dialog.ShowInTaskbar = false;
-            dialog.ShowIcon = false;
             dialog.ClientSize = new Size(Px(600), Px(520));
 
             var body = new SoftStack();
@@ -260,12 +259,11 @@ namespace CodexAutoResume
             dialog.Font = Font;
             dialog.BackColor = Canvas;
             dialog.ForeColor = Ink;
-            Soft.TitleBar(dialog);
+            Soft.DialogBar(dialog);
             dialog.StartPosition = FormStartPosition.CenterParent;
             dialog.MinimizeBox = false;
             dialog.MaximizeBox = false;
             dialog.ShowInTaskbar = false;
-            dialog.ShowIcon = false;
             dialog.ClientSize = new Size(Px(600), Px(520));
 
             var body = new SoftStack();
@@ -424,14 +422,11 @@ namespace CodexAutoResume
             dialog.Font = Font;
             dialog.BackColor = Canvas;
             dialog.ForeColor = Ink;
-            Soft.TitleBar(dialog);
+            Soft.DialogBar(dialog);
             dialog.StartPosition = FormStartPosition.CenterParent;
             dialog.ClientSize = new Size(Px(760), Px(500));
             dialog.MinimizeBox = false;
             dialog.ShowInTaskbar = false;
-            // The product's icon in the title bar, as the window has it: without one Windows draws its
-            // default form icon there (owner, 2026-10-10).
-            dialog.Icon = Icon;
 
             var top = new SoftStack();
             top.Dock = DockStyle.Top;
@@ -640,12 +635,11 @@ namespace CodexAutoResume
             dialog.Font = Font;
             dialog.BackColor = Canvas;
             dialog.ForeColor = Ink;
-            Soft.TitleBar(dialog);
+            Soft.DialogBar(dialog);
             dialog.StartPosition = FormStartPosition.CenterParent;
             dialog.ClientSize = new Size(Px(760), Px(520));
             dialog.MinimizeBox = false;
             dialog.ShowInTaskbar = false;
-            dialog.Icon = Icon;
 
             var well = new SoftTextArea();
             well.Dock = DockStyle.Fill;

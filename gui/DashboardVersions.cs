@@ -91,14 +91,11 @@ namespace CodexAutoResume
             dialog.Font = Font;
             dialog.BackColor = Canvas;
             dialog.ForeColor = Ink;
-            Soft.TitleBar(dialog);
+            Soft.DialogBar(dialog);
             dialog.StartPosition = FormStartPosition.CenterParent;
             dialog.ClientSize = new Size(Px(740), Px(460));
             dialog.MinimizeBox = false;
             dialog.ShowInTaskbar = false;
-            // The product's icon in the title bar, as the window has it: without one Windows draws its
-            // default form icon there (owner, 2026-10-10).
-            dialog.Icon = Icon;
 
             // Flat hairline rows, owner-drawn as every list here is (DrawCell): 660 px of columns in the 691 the
             // card's room and padding leave, shared out by FitColumns.

@@ -217,7 +217,7 @@ class SourceTests(unittest.TestCase):
         self.assertIn('\\"once_words\\":', build)
         self.assertIn("RefusalText(result)", build)
         self.assertIn("UpdateCount(area, count)", build)
-        self.assertIn("dialog.ShowIcon = false", build)
+        self.assertIn("Soft.DialogBar(dialog)", build, "and so no icon in its title bar (test_gui_dialog_icons)")
 
     def test_the_list_refills_when_a_row_gains_or_loses_words_and_the_note_follows(self):
         self.assertIn("HasOnceWords(row)", guiscan.member_body("SettingsForm", "ListSignature"))

@@ -52,13 +52,12 @@ namespace CodexAutoResume
                 dialog.BackColor = Canvas;
                 dialog.ForeColor = Ink;
                 // In the window's theme, title bar and all.
-                Soft.TitleBar(dialog);
+                Soft.DialogBar(dialog);
                 dialog.FormBorderStyle = FormBorderStyle.FixedDialog;
                 dialog.StartPosition = FormStartPosition.CenterParent;
                 dialog.MinimizeBox = false;
                 dialog.MaximizeBox = false;
                 dialog.ShowInTaskbar = false;
-                dialog.ShowIcon = false;
 
                 // A measure a sentence is read at, not a box stretched to whatever it holds: the words
                 // wrap inside it, and a short one still gets a dialog wide enough to look deliberate.
@@ -1306,14 +1305,11 @@ namespace CodexAutoResume
                 dialog.BackColor = Canvas;
                 dialog.ForeColor = Ink;
                 // In the window's theme, title bar and all.
-                Soft.TitleBar(dialog);
+                Soft.DialogBar(dialog);
                 dialog.StartPosition = FormStartPosition.CenterParent;
                 dialog.ClientSize = new Size(Px(640), Px(420));
                 dialog.MinimizeBox = false;
                 dialog.ShowInTaskbar = false;
-                // The product's icon in the title bar, as the window has it: without one Windows draws its
-                // default form icon there (owner, 2026-10-10).
-                dialog.Icon = Icon;
                 var view = List(S("timeline.title", "Timeline"),
                                 Col(S("timeline.col_time", "Time"), 140),
                                 Col(S("timeline.col_event", "Event"), 250),

@@ -882,6 +882,16 @@ namespace CodexAutoResume
             if (form.IsHandleCreated) apply(form, EventArgs.Empty);
         }
 
+        /// A dialog's title bar: Soft.TitleBar's, and no icon in it (the owner, 2026-11-01: a window the Dashboard opens inside
+        /// itself is better with none; its own main window, the tray icon and the popup keep theirs). Every dialog the window
+        /// builds calls this and not Soft.TitleBar, so one that is added has no icon without asking; a dialog is never in the
+        /// taskbar (ShowInTaskbar = false), so there is no button to give an icon either. tests/test_gui_dialog_icons.py.
+        internal static void DialogBar(Form dialog)
+        {
+            if (dialog != null) dialog.ShowIcon = false;
+            TitleBar(dialog);
+        }
+
         /// The scroll bars Windows draws on a native control - a text box's - in its dark style, in the
         /// dark theme only. Best effort: an older Windows keeps its light ones.
         internal static void NativeScrollBars(Control control)

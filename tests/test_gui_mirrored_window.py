@@ -66,8 +66,9 @@ class MirrorSourceTests(unittest.TestCase):
                         "what is built inherits the form's RightToLeft only if the form has it first")
 
     def test_every_window_and_dialog_takes_it(self):
-        """Every form here calls Soft.TitleBar - the window, each dialog and the setup window - and a dialog is a window of
-        its own, which does not inherit its owner's RightToLeft."""
+        """Every form here calls Soft.TitleBar - the window and the setup window - or Soft.DialogBar, which calls it for each
+        dialog (and hides its icon, test_gui_dialog_icons) - and a dialog is a window of its own, which does not inherit its
+        owner's RightToLeft."""
         title = guiscan.member_body("Soft", "TitleBar")
         self.assertLess(title.index("Mirror.Apply(form);"), title.index("if (!Palette.Dark"),
                         "mirrored in light as in dark")
@@ -75,7 +76,8 @@ class MirrorSourceTests(unittest.TestCase):
             text = source.read_text(encoding="utf-8")
             for match in re.finditer(r"var dialog = new Form\(\);|using \(var dialog = new Form\(\)\)", text):
                 with self.subTest(source=source.name, at=match.start()):
-                    self.assertIn("Soft.TitleBar(dialog);", text[match.start():match.start() + 800])
+                    self.assertIn("Soft.DialogBar(dialog);", text[match.start():match.start() + 800])
+        self.assertIn("TitleBar(dialog);", guiscan.member_body("Soft", "DialogBar"))
 
     def test_left_to_right_never_reaches_the_mirror(self):
         """Every answer of Mirror is its argument unchanged when not mirrored, so a window in a language written left to
