@@ -159,7 +159,7 @@ no words - and four more (the reset credit, the reset message, the usage meter a
 measurements made on `codex-cli 0.162.0-alpha.17.2` and, for the forced stop, again on the newer one. Eight rest on
 measurements not made yet - wake this PC for a reset, on MWAKE, and the usage and token analytics, on MTOK, are the new ones -
 switching the Codex account rests on MA, which passed, and its button on MALR - the sign-in, then the product's restart
-of Codex - not made yet (MAL, the sign-in alone, failed on `codex-cli 0.166.0-alpha.5.1` on 2026-11-01) - the chat rests on M7, MC1 and MC2, which were made, as its own
+of Codex - which passed on `codex-cli 0.166.0-alpha.5.1` on 2026-11-02 (MAL, the sign-in alone, failed there on 2026-11-01) - the chat rests on M7, MC1 and MC2, which were made, as its own
 section below says, starting the 5-hour window early on MANCHOR, made on `codex-cli 0.165.0-alpha.1.2` on 2026-10-29, steering the running turn on MSTEER2,
 made the same day, and the other seventeen on none. Each measurement made was made by hand, on the
 owner's machine, first on `codex-cli 0.158.0-alpha.2.1`, again on `codex-cli 0.162.0-alpha.17.2` and, for those this release's
@@ -1479,8 +1479,9 @@ if Windows' request to close it was not enough),
 
 **Ceilings.** None come into play: it sends nothing to Codex. **Measurements MA: passed** on
 `codex-cli 0.162.0-alpha.17.2`; **MAL: failed** on `codex-cli 0.166.0-alpha.5.1` (2026-11-01, partial: the
-sign-out reached the running app, the sign-in did not), kept as the record of the plain route; **MALR: not made
-yet**. MA without a pass on the version in force is a warning; MALR without one only hides the button - and, failed,
+sign-out reached the running app, the sign-in did not), kept as the record of the plain route; **MALR: passed** on
+`codex-cli 0.166.0-alpha.5.1` (2026-11-02: after the same sign-out and sign-in, Windows asked Codex to quit, it did, and
+it came back signed in). MA without a pass on the version in force is a warning; MALR without one only hides the button - and, failed,
 it is hidden because its measurement failed - and never turns the switch off.
 
 ### Compatibility report
