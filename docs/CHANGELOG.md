@@ -99,6 +99,10 @@ an older version brings the runtime that version was built with (3.14.9 for v0.6
   built narrow scrolled to its first column and kept that scroll once it widened. Every list now starts from its first pixel when it
   takes a new size; a left-to-right list scrolled sideways had the same fault. Each row's line now runs the whole width in Arabic
   and Hebrew too (it stopped short of the rightmost column), in History, Pending, the Timeline and *Install another version...*.
+- **The power action no longer waits for a crash's leftovers** (new since beta.4). A turn Codex still records as in progress
+  though it began before Windows last started, and an item queued before then, counted as Codex still working, so on a PC that
+  ever had Codex end abruptly the power action waited for good. Both now count only since Windows last started, the time the
+  watcher records, by the rule recovery already used for a turn left in progress; with no such time it does nothing, as before.
 - **Smaller things** (new since beta.4): the Timeline dialog lists its lines in time order (its receipts came after all its events);
   the word the header shows while the window loads comes from the catalog in every language instead of English; the dialogs that hold
   a list are no longer shown with Windows' default icon; the Diagnostics page offers *Start watcher* while the watcher is
@@ -132,12 +136,14 @@ an older version brings the runtime that version was built with (3.14.9 for v0.6
   per account (new since beta.4): after *Switch the Codex account* sees another account signed in, its start and its resets follow
   the account now signed in, and a time picked within five hours of a start made on the other account is no longer refused.
 - **Switch the Codex account.** The account card shows the plan and a masked address of the account this PC is signed in to, and a
-  change of account holds every recovery waiting for a limit until you let it continue. Its button, which would run Codex's own
-  sign-out and sign-in, is hidden because its measurement failed (MAL, on codex-cli 0.166.0-alpha.5.1, 2026-11-01): a sign-out made
-  with `codex logout` reached the running Codex app, but the `codex login` after it did not until the app's own sign-in was used.
-  Measured again the same day with a probe that reads the account afresh each time: the running app takes a sign-in made outside it
-  only after Codex is restarted in full. The card and its statement say the button is hidden because its measurement failed (they
-  had said "until it is measured"), and how to switch in Codex instead; the button is offered once a Codex passes.
+  change of account holds every recovery waiting for a limit until you let it continue. Its button runs Codex's own sign-out and
+  sign-in, and then asks *Restart Codex now so it uses the new account?* (new since beta.4): a sign-in made outside the running
+  Codex app reaches it only after a full restart (MAL, on codex-cli 0.166.0-alpha.5.1, 2026-11-01). *Restart Codex* waits until
+  no turn runs in any conversation, no recovery waits or runs and nothing is queued, asks Windows to close the Codex app - ending it
+  only if that does not - opens it again on your newest conversation and reads the account afresh; *Not now* leaves the new account
+  for the next time Codex starts. The button is offered only where this route passed (MALR, on codex-cli 0.166.0-alpha.5.1,
+  2026-11-02: Codex closed on Windows' request and came back signed in); elsewhere the card says the button's measurement failed or
+  is not made yet, and how to switch in Codex. Its statement changed, so if you had it on or watched it, you read it again once.
 - **A measurement that only a part of a capability rests on never turns the capability off** (new since beta.4). A count, a second
   worker, a parent's follow-up, the token estimate, the account button, a scheduled message's *after this turn* and spending a
   reset credit without asking first each rest on a measurement of their own (MK, MQ, MS, MTOK, MAL, MT and MR). Listed among the capability's measurements, a failed one would have turned the whole capability off, as MAL's did to a
