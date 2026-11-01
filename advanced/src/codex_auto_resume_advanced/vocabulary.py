@@ -187,6 +187,9 @@ class Refusal(StrEnum):
     IMAGE_TOO_LARGE = "image_too_large"
     IMAGES_FULL = "images_full"
     IMAGES_UNAVAILABLE = "images_unavailable"
+    # v0.6.21 (power_after_tasks): core's power action refused the arming - an administrator's DisablePowerAction, an
+    # older watcher holding the state, or an action Windows will not do here; the answer names core's own code.
+    POWER_REFUSED = "power_refused"
 
 
 class JournalCode(StrEnum):
@@ -456,6 +459,10 @@ class BridgeCommand(StrEnum):
     # started - its turn, the limit that cut it off, the recovery of that turn, to the end (control/follow.py). Read-only,
     # part of the prompt queue, the Dashboard's alone, never MCP.
     ADVANCED_PROMPT_FOLLOW = "advanced-prompt-follow"
+    # v0.6.21 (power_after_tasks, Discussion #57): the card's read - the conversations running now, and the tasks the power
+    # action waits for - and core's power action armed for the ones a person picked. The Dashboard's alone, never MCP.
+    ADVANCED_POWER_TASKS = "advanced-power-tasks"
+    ADVANCED_POWER_TASKS_ARM = "advanced-power-tasks-arm"
     # v0.6.19 (the groundwork): every command the stage's designs name, in one block, each the Dashboard's alone and
     # reached by no MCP tool. Until the capability that answers one is built, the bridge passes it over as it passes a
     # command this edition does not have (surfaces.UNANSWERED). The analytics' aggregates and their CSV

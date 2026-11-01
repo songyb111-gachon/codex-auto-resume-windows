@@ -107,19 +107,22 @@ class ShippedTests(unittest.TestCase):
                "push_notices", "status_feed", "account_switch",
                # v0.6.20 (#50): steering the running turn, at P8 before the wake timer.
                "steer_send",
+               # v0.6.21 (Discussion #57): the power action after tasks a person picked, the one answer at P21.
+               "power_after_tasks",
                "wake_for_reset",
                "open_codex_button",
                "long_reset_message", "compat_report")
 
     # v0.6.20: open_to_send passed its measurement (MOPEN, codex-cli 0.165.0-alpha.1.2, 2026-10-29) and is offered whole,
-    # after the 41 of DEFINITIONS (registry.offered): 42 in the registry this edition runs.
+    # after the 41 of DEFINITIONS (registry.offered): 42 in the registry this edition runs. v0.6.21: power_after_tasks
+    # joins DEFINITIONS - 42 of them, 43 in the registry.
     OFFERED = ("open_to_send",)
 
     def test_the_registry_this_edition_ships_is_its_capabilities_in_their_order(self):
         self.assertEqual([d.id for d in registry.DEFINITIONS], list(self.SHIPPED))
-        self.assertEqual(len(registry.DEFINITIONS), 41)
+        self.assertEqual(len(registry.DEFINITIONS), 42)
         self.assertEqual(len(registry.REGISTRY), len(self.SHIPPED) + len(self.OFFERED))
-        self.assertEqual(len(registry.REGISTRY), 42)
+        self.assertEqual(len(registry.REGISTRY), 43)
         self.assertEqual(registry.REGISTRY.ids, self.SHIPPED + self.OFFERED)
         self.assertEqual([definition.id for definition in registry.offered(measured.MEASURED)], list(self.OFFERED))
         # The compatibility report is an action, last: it answers at no point, so it is in no list below.
@@ -145,6 +148,8 @@ class ShippedTests(unittest.TestCase):
                                   "open_to_send"),
                      # v0.6.20: a notice core raised, told to the courier's push notices.
                      Point.NOTICE: ("push_notices",),
+                     # v0.6.21: how the tasks a person picked stand, for the power action.
+                     Point.POWER: ("power_after_tasks",),
                      Point.RECORDS: ("reset_message", "prompt_queue", "empty_response", "subagent_parent",
                                      "keep_going", "usage_wrap_up", "codex_chat"),
                      # v0.6.15-beta: the lines a parent's continuation is given of its subagents' stops (5a).
@@ -178,6 +183,7 @@ class ShippedTests(unittest.TestCase):
              # 2) (open_to_send is hidden until MOPEN passes)
              "reset_message", "long_reset_message", "keep_going", "prompt_queue", "usage_meter", "usage_wrap_up", "usage_pause",
              "push_notices", "send_now", "open_to_send", "open_codex_button", "codex_chat", "steer_send", "usage_analytics",
+             "power_after_tasks",
              # 3)
              "empty_response", "once_more_when_unsure", "capacity_retry", "model_fallback", "compact_continue", "codex_gave_up",
              "goal_continuation", "subagent_parent", "sign_in_retry", "unknown_failure_budget",

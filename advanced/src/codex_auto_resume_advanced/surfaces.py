@@ -116,6 +116,10 @@ UNANSWERED = frozenset({
 # v0.6.20 (account_switch): the account card's read and its Codex sign-out and sign-in, answered (control/account.py).
 ARGUMENTS[BridgeCommand.ADVANCED_ACCOUNT] = frozenset()
 ARGUMENTS[BridgeCommand.ADVANCED_ACCOUNT_SWITCH] = frozenset()
+# v0.6.21 (power_after_tasks, control/powertasks.py): the card's read, and core's power action armed for picked tasks.
+ARGUMENTS[BridgeCommand.ADVANCED_POWER_TASKS] = frozenset()
+ARGUMENTS[BridgeCommand.ADVANCED_POWER_TASKS_ARM] = frozenset({"threads", "action", "grace_minutes", "failed",
+                                                               "interrupted", "generation"})
 ARGUMENTS.update({command: frozenset() for command in UNANSWERED})
 # usage_analytics (v0.6.20, control/analytics.py): its card read, and its CSV saved where the person chose.
 ARGUMENTS.update({BridgeCommand.ADVANCED_ANALYTICS: frozenset({"days"}),
@@ -511,6 +515,15 @@ def bridge(runtime, command, argument):
         # and Codex's own sign-out and sign-in, after the window asked first - never MCP's, the icon's or a card's.
         from .control import account as account_card
         return account_card.switch(runtime)
+    if command == BridgeCommand.ADVANCED_POWER_TASKS:
+        # v0.6.21 (power_after_tasks): the conversations running now and the tasks the power action waits for.
+        from .control import powertasks
+        return powertasks.view(runtime)
+    if command == BridgeCommand.ADVANCED_POWER_TASKS_ARM:
+        # and core's power action armed for the ones a person picked, after the window asked first - never MCP's.
+        from .control import powertasks
+        return powertasks.arm(runtime, argument.get("threads"), argument.get("action"), argument.get("grace_minutes"),
+                              argument.get("failed"), argument.get("interrupted"), argument.get("generation"))
     if command == BridgeCommand.ADVANCED_KEEP_ON:
         return arming.set_keep_on(argument.get("capability"), argument.get("keep_on"),
                                   send_again=argument.get("send_again", False),

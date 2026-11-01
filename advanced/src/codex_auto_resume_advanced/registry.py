@@ -109,6 +109,7 @@ from .engine.steer import make as make_steer_send
 from .engine.silent import make as make_silent_continuation
 from .engine.oncemore import make as make_once_more
 from .engine.parallel import DEFAULT_WORKERS, WORKERS, make as make_parallel
+from .engine.powertasks import make as make_power_after_tasks
 from .engine.updatecheck import make as make_idle_update_check
 from .engine.wake import DEFAULT_LEAD as WAKE_DEFAULT_LEAD, LEADS as WAKE_LEADS, make as make_wake_for_reset
 # v0.6.20 (the courier): push notices and the status feed.
@@ -1218,6 +1219,29 @@ USAGE_ANALYTICS = CapabilityDef(
     requires=("usage_meter",),
 )
 
+# Sleep, hibernate or shut down after tasks a person picked (v0.6.21, Discussion #57, the owner's decision of 2026-11-01;
+# plans/v0621-watch-power-design.md). A person picks conversations whose turn runs now on its card and arms core's own
+# power action for them, once (control/powertasks.py): core keeps the arming, the countdown, its notice and the Stop of
+# that one batch, every way to turn it off, and every condition of its own - a stop first, DisablePowerAction, a pause, no
+# recovery open anywhere, Codex's history caught up, no turn running in any conversation, nothing queued, two idle
+# minutes, the countdown run out. At P21 it answers the one thing core does not know: whether those tasks have ended as
+# the person chose to count them - completed, and failed or interrupted where chosen - followed through any usage limit
+# and its recovery to their real end, ids and statuses only (engine/powertasks.py). It departs from H14 (the power
+# action is armed for, and decided by, tasks a person started, not usage-limit recoveries, and armed on this page); it
+# keeps everything else of H14, B16 and A28 as amended. It sends nothing to Codex and stands on recovery_turn_tracking -
+# the history its turns are read from; its ceilings are the schema's floor and never bind. Turning it off turns a tasks
+# arming off with it (arming.py).
+POWER_AFTER_TASKS = CapabilityDef(
+    id="power_after_tasks",
+    points=frozenset({Point.POWER}),
+    revision=1,
+    departs_from=("H14",),
+    compat="recovery_turn_tracking",
+    ceilings=Ceilings(per_day=1, per_conversation=1),
+    journal_prefix="pwrtask",
+    make=make_power_after_tasks,
+)
+
 # Switch the Codex account (v0.6.20, plans/v0619-design/D-account.md): its card in the Dashboard shows the account this
 # PC is signed in to - its plan and a masked address, read by account/read in the Dashboard's process and never stored -
 # and, once MAL passed on the Codex in force, offers Codex's own `codex logout` then `codex login` (codex/account.py);
@@ -1426,6 +1450,8 @@ DEFINITIONS = (START_WITH_CODEX, CRASH_RESTART, GOAL_CONTINUATION, QUEUE_FOR_OPE
                # v0.6.20 (the usage and token analytics; the 5-hour window started early; the courier; the account switch;
                # #50's steer), before the wake timer, whose errand reads last at P8.
                USAGE_ANALYTICS, WINDOW_ANCHOR, PUSH_NOTICES, STATUS_FEED, ACCOUNT_SWITCH, STEER_SEND,
+               # v0.6.21 (Discussion #57): the power action after tasks a person picked, the one answer at P21.
+               POWER_AFTER_TASKS,
                WAKE_FOR_RESET,
                OPEN_CODEX_BUTTON, LONG_RESET_MESSAGE,
                COMPAT_REPORT)
@@ -1549,6 +1575,8 @@ SHOWN_ORDER = (
     # is told and does about one conversation). open_to_send is shown once MOPEN passes.
     "reset_message", "long_reset_message", "keep_going", "prompt_queue", "usage_meter", "usage_wrap_up", "usage_pause",
     "push_notices", "send_now", "open_to_send", "open_codex_button", "codex_chat", "steer_send", "usage_analytics",
+    # 2026-11-01 (Discussion #57): it spares the person waiting at the PC for the tasks they started to finish.
+    "power_after_tasks",
     # 2026-10-31, group 3: the other common failures.
     "empty_response", "once_more_when_unsure", "capacity_retry", "model_fallback", "compact_continue", "codex_gave_up",
     "goal_continuation", "subagent_parent", "sign_in_retry", "unknown_failure_budget",

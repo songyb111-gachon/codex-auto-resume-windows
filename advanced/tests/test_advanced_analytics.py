@@ -140,7 +140,9 @@ class DefinitionTests(unittest.TestCase):
         order = registry.SHOWN_ORDER
         # 2026-10-31: the last of the second group (what saves the person work), right after steering the turn.
         self.assertEqual(order[order.index("usage_analytics") - 1], "steer_send")
-        self.assertEqual(order[order.index("usage_analytics") + 1], "empty_response")
+        # 2026-11-01 (Discussion #57): the power action after tasks a person picked follows it, the end of group 2.
+        self.assertEqual(order[order.index("usage_analytics") + 1], "power_after_tasks")
+        self.assertEqual(order[order.index("power_after_tasks") + 1], "empty_response")
         # The wake timer stays last at P8, so its errand reads the due times the others' errands kept.
         ticks = [d.id for d in registry.REGISTRY.at(Point.TICK)]
         self.assertLess(ticks.index("usage_analytics"), ticks.index("wake_for_reset"))

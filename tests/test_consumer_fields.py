@@ -200,6 +200,8 @@ _LOCAL = {
     "gui/SettingsHomes.cs": {"entry", "changes"},
     # v0.6.16: the installer window reads a plugin.json's version, never a reply.
     "gui/InstallerFlow.cs": {"manifest"},
+    # v0.6.21: the layout audit's own sample of the power action armed for tasks a person picked, never a reply.
+    "gui/WindowAudit.cs": {"forTasks"},
     # v0.6.16: the render mode's job (build/motion_window.py writes it, not the bridge): the job, its forms and
     # frames, and a frame's own parts - never a reply's.
     # v0.6.18: and a frame's chosen Pending row and its open row menu.

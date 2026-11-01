@@ -51,7 +51,11 @@ RUNNING = ("SELECT t.thread_id FROM thread_turns t WHERE t.status='inProgress' A
 # v0.6.16-beta.4 (model_fallback): one failed turn's error, read only to be dropped to Codex's code at once (core's
 # failures.shape - a tag of letters and digits, never a word of its message, B9).
 ERROR = "SELECT error_json FROM thread_turns WHERE thread_id=? AND turn_id=?"
-STATEMENTS = (LATEST, KINDS, RECENT, HAS_PLAN, PLAN, BETWEEN, RUNNING, ERROR)
+# v0.6.21 (power_after_tasks, Discussion #57): one turn's status by its id - a status word, never a word of the turn.
+STATUS = "SELECT status FROM thread_turns WHERE thread_id=? AND turn_id=?"
+STATEMENTS = (LATEST, KINDS, RECENT, HAS_PLAN, PLAN, BETWEEN, RUNNING, ERROR, STATUS)
+# The statuses Codex writes a turn in; anything else reads "other".
+TURN_STATUSES = frozenset({"completed", "failed", "interrupted", "inProgress"})
 # A plan step's statuses as Codex writes them; anything else reads "unknown".
 STEP_STATUSES = frozenset({"pending", "in_progress", "completed"})
 UNKNOWN = "unknown"
@@ -177,6 +181,22 @@ class Turns:
         error = _json(raw) if isinstance(raw, str) else None
         info = error.get("codexErrorInfo") if isinstance(error, dict) else None
         return failures.shape(info)["code"]
+
+    def status(self, thread_id, turn_id):
+        """The status of turn `turn_id` of conversation `thread_id` - completed, failed, interrupted, inProgress or
+        "other" - looked for under every id the conversation's turns are recorded under (a split, issue #30), or None
+        where no such turn is recorded (v0.6.21, power_after_tasks)."""
+        if not ids.is_uuid(thread_id) or not ids.is_uuid(turn_id):
+            raise TurnsUnavailable("not a turn")
+        chain = self._core("turn_chain", thread_id)
+
+        def run(connection):
+            for other in reversed(chain):
+                row = connection.execute(STATUS, (other, turn_id)).fetchone()
+                if row is not None:
+                    return row[0] if row[0] in TURN_STATUSES else "other"
+            return None
+        return self._read(run)
 
     def recent(self, since) -> list:
         """The conversations with a turn completed at `since` or later (Codex's seconds), the latest first, at

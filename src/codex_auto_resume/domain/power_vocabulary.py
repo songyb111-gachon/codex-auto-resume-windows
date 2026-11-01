@@ -54,6 +54,10 @@ class PowerWait(StrEnum):
     IDLE_UNKNOWN = "idle_unknown"
     PAUSED = "paused"
     WATCHER = "watcher"
+    # v0.6.21 (Discussion #57): an arming for tasks a person picked, answered by the edition's plug (P21): some still
+    # run, or their ends could not be read - the plug said nothing, or said it could not tell.
+    TASKS_RUNNING = "tasks_running"
+    TASKS_UNKNOWN = "tasks_unknown"
 
 
 class PowerEnd(StrEnum):
@@ -67,6 +71,16 @@ class PowerEnd(StrEnum):
     STALE = "stale"
     LAPSED = "lapsed"
     UNAVAILABLE = "unavailable"
+
+
+class PowerTasks(StrEnum):
+    """v0.6.21 (Discussion #57): how the tasks a person picked stand, as the edition's plug answers for an arming that
+    is theirs (poweraction.TASKS, P21): one still runs; every one ended in an ending the person chose to count; one
+    ended in another; or it cannot tell. Core decides from the word alone - it reads no task of its own."""
+    RUNNING = "running"
+    MET = "met"
+    NOT_MET = "not_met"
+    UNKNOWN = "unknown"
 
 
 class PowerClass(StrEnum):

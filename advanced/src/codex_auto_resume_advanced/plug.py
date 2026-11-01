@@ -16,7 +16,7 @@ from codex_auto_resume.domain.plug import Edition, Plug, Point
 
 # Written out rather than read from core. The check is whether this package was written for the
 # core beside it, and a number taken from that core would agree with any core at all.
-PLUG_API = 6
+PLUG_API = 7
 
 
 class AdvancedPlug(Plug):
@@ -91,6 +91,11 @@ class AdvancedPlug(Plug):
         """P20 (v0.6.20): a notice core raised, told to push_notices (engine/push.py) - only while the plug wants it, as
         core's Guarded.notice asks first; its answer is not read."""
         return self.runtime.ask(Point.NOTICE, facts)
+
+    def power(self, facts):
+        """P21 (v0.6.21, Discussion #57): how the tasks a person armed the power action for stand - power_after_tasks'
+        word (engine/powertasks.py), or NULL's DEFER."""
+        return self.runtime.ask(Point.POWER, facts)
 
     def delivery(self, record):
         return self.runtime.ask(Point.DELIVERY, record)

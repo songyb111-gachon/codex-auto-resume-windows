@@ -368,6 +368,14 @@ namespace CodexAutoResume
                    Scene(Says(f => f.Word("page.pending.kind.steer", "Steer") + " · " + f.Word("page.steer.state.accepted", "accepted")),
                          Says(f => f.Word("page.steer.note.accepted", "The Codex app took it into the running turn.")),
                          Says(f => f.Word("page.editor.steer.warning", "The Codex app does not show the steered line anywhere.")))),
+                // v0.6.21 (Discussion #57): the tasks a person picked, and the power action waiting for them.
+                Ex("power_after_tasks",
+                   Scene(Says(f => f.ExampleField("power_after_tasks", "instead"))),
+                   Scene(Says(f => f.Word("page.powertasks.line", "{conversation} · {end}", "conversation", ExampleProject)
+                                    .Replace("{end}", f.PowerTaskEnd("completed"))),
+                         Says(f => f.Word("page.powertasks.line", "{conversation} · {end}", "conversation", ExampleService)
+                                    .Replace("{end}", f.PowerTaskEnd("running"))),
+                         Says(f => f.PowerWaitLine("tasks_running")))),
                 // Hidden on the page until MHK, M4 and M4B are measured: its example waits with it.
                 Ex("stop_hook_continuation",
                    Scene(OnHistory(Rec(ExampleProject, "recovered", "network_transient", -60, -44)),

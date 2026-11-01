@@ -1469,5 +1469,140 @@ class SubagentFollowUpBesideEveryConversationTests(SubagentCase):
         self.assertEqual([call[0] for call in self.h.backend.send_calls], [T1])
         self.assertEqual(len(self.lines(self.h.backend.send_calls[0][1])), 1)
 
+
+class _PowerTasksPair(ac.AdvancedCase):
+    """power_after_tasks (v0.6.21, Discussion #57) armed beside another: its runtime, its code given the test's own
+    Codex history and core records, and core's power action file on the scratch home."""
+    TURN = "11111111-1111-7111-8111-111111111111"
+    RECOVERY = "22222222-2222-7222-8222-222222222222"
+
+    class Statuses:
+        def __init__(self, statuses):
+            self.statuses = statuses
+
+        def status(self, thread, turn):
+            return self.statuses.get(turn)
+
+    def setUp(self):
+        super().setUp()
+        from codex_auto_resume import managed
+        from codex_auto_resume.control import policy as control_policy, poweraction as control_power
+        from codex_auto_resume_advanced.registry import POWER_AFTER_TASKS
+        self.paths.ensure()
+        for stand_in in (patch.object(control_power.PowerActionMixin, "power_port", _AlwaysOffered()),
+                         patch.object(control_policy, "managed_policy", return_value=managed.NONE)):
+            stand_in.start()
+            self.addCleanup(stand_in.stop)
+        self.compat = {"status": "ok", "engine": {"found": True, "version": ac.ENGINE},
+                       "capabilities": {name: {"state": "COMPATIBLE", "reason": "local_checks_passed"}
+                                        for name in ("recovery_turn_tracking", "usage_probe", "loaded_state_detection")}}
+        self.plug_ = self.plug(POWER_AFTER_TASKS, *self.beside())
+        self.rt = self.plug_.runtime
+        self.rt.arming.catalogs = statement.CATALOGS
+        self.statuses = self.Statuses({self.TURN: "failed"})
+        self.records = []
+        from codex_auto_resume_advanced.engine import powertasks
+        self.powertasks = powertasks
+        code = self.rt._code_of(POWER_AFTER_TASKS)
+        code._records, code._turns = (lambda: self.records), self.statuses
+
+    def beside(self):
+        return ()
+
+    def on(self, capability):
+        definition = self.rt.registry.get(capability)
+        result = self.rt.arming.arm(capability, state="armed", revision=definition.revision,
+                                    generation=self.rt.state.meta()["generation"], acknowledged_version=ac.ENGINE,
+                                    warnings=[str(w) for w in self.rt.arming.warnings(definition)], actor=Actor.DASHBOARD)
+        self.assertTrue(result["done"], result)
+        self.rt.states(fresh=True)
+
+    def arm_tasks(self):
+        """Core's power action armed for one task, as the card arms it, and the list written under its nonce."""
+        from codex_auto_resume.control import Control
+        from codex_auto_resume_advanced.control.powertasks import _plug_of
+        Control(self.paths, plug=_plug_of(self.rt)).arm_power_action(
+            {"action": "sleep", "after": "any_end", "repeat": "once", "grace_minutes": 5}, tasks=True)
+        armed = self.stored()["armed"]
+        self.assertTrue(self.powertasks.write(self.paths, {
+            "format": self.powertasks.FORMAT, "nonce": armed["nonce"], "armed_at": armed["armed_at"], "failed": False,
+            "interrupted": False, "tasks": [{"thread_id": ac.THREAD, "turn_id": self.TURN}]}))
+        return armed["nonce"]
+
+    def stored(self):
+        return json.loads(self.paths.power_action_file.read_text(encoding="utf-8"))
+
+    def answer(self, nonce):
+        from codex_auto_resume.domain.plug import guard
+        return guard(self.plug_).power({"nonce": nonce})
+
+
+class _AlwaysOffered:
+    def available(self, action):
+        return True, None
+
+    def act(self, action):
+        raise AssertionError("nothing here acts")
+
+
+class PowerTasksBesideThePowerActionTests(_PowerTasksPair):
+    """power_after_tasks beside the standard power action after recoveries: ONE POWER ACTION AT A TIME. Both are the one
+    arming of config/power-action.json: arming either replaces the other, as a second arming always did; the list of an
+    arming that was replaced answers nothing for the new one, and an arming without `tasks` never asks the plug."""
+
+    def test_settings_arming_after_a_tasks_arming_replaces_it_and_the_list_decides_nothing(self):
+        from codex_auto_resume import poweraction
+        from codex_auto_resume.control import Control
+        self.on("power_after_tasks")
+        nonce = self.arm_tasks()
+        Control(self.paths).arm_power_action({"action": "sleep", "after": "all_recovered", "repeat": "once",
+                                              "grace_minutes": 5})
+        armed = self.stored()["armed"]
+        self.assertFalse(poweraction.for_tasks(armed), "the usage-limit batch decides it")
+        self.assertEqual(self.answer(armed["nonce"])["tasks"], "unknown", "the old list is another arming's")
+        self.assertNotEqual(armed["nonce"], nonce)
+
+    def test_a_tasks_arming_after_settings_arming_replaces_it(self):
+        from codex_auto_resume import poweraction
+        from codex_auto_resume.control import Control
+        Control(self.paths).arm_power_action({"action": "hibernate", "after": "all_recovered", "repeat": "always",
+                                              "grace_minutes": 10})
+        self.on("power_after_tasks")
+        self.arm_tasks()
+        armed = self.stored()["armed"]
+        self.assertTrue(poweraction.for_tasks(armed))
+        self.assertEqual((armed["action"], armed["repeat"]), ("sleep", "once"))
+
+
+class PowerTasksBesideRecoveryTests(_PowerTasksPair):
+    """power_after_tasks beside a recovery capability (reset_credit): RECOVERY FIRST. A watched task cut off by a usage
+    limit is recovered as the other capability and core recover it; while its record waits, the plug says running and
+    core waits for the recovery anyway; once recovered, the task's end is its recovery turn's."""
+
+    def beside(self):
+        return (RESET_CREDIT,)
+
+    def test_a_watched_task_waits_for_its_recovery_then_its_recovery_turn_decides(self):
+        from codex_auto_resume import poweraction
+        self.on("power_after_tasks")
+        self.on("reset_credit")
+        nonce = self.arm_tasks()
+        waiting = {"interruption_id": "%064x" % 9, "thread_id": ac.THREAD, "turn_id": self.TURN, "state": "waiting_reset",
+                   "recovery_turn_id": None, "parent_interruption_id": None, "detected_at": 1000, "category": "usage_limit",
+                   "outcome_at": None, "last_error": None, "queue_id": None, "submitted_at": None}
+        self.records = [waiting]
+        self.assertEqual(self.answer(nonce)["tasks"], "running")
+        found = poweraction.decide(poweraction.Facts(now=ac.NOW, read=poweraction.READ_OK,
+                                                     document={"armed": self.stored()["armed"]}, rows=(waiting,),
+                                                     tasks="met"))
+        self.assertEqual(found.word, "recovery_open", "core waits for any recovery, whatever the plug says")
+        self.records = [dict(waiting, state="recovered", recovery_turn_id=self.RECOVERY)]
+        self.statuses.statuses[self.RECOVERY] = "inProgress"
+        self.assertEqual(self.answer(nonce)["tasks"], "running")
+        self.statuses.statuses[self.RECOVERY] = "completed"
+        self.assertEqual(self.answer(nonce), {"tasks": "met", "threads": (ac.THREAD,)})
+        self.assertEqual(self.rt.registry.at(Point.POWER)[0].id, "power_after_tasks", "the other answers nothing there")
+
+
 if __name__ == "__main__":
     unittest.main()

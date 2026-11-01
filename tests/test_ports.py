@@ -187,7 +187,8 @@ STORE_TO_LEDGER = {"claim_ledger_checked", "null"}
 # switch (a reset message, a queued prompt) - told by the control layer that wrote the switch.
 # `start_held` (v0.6.16-beta.3, issue #31): why the start route just asked named none, for the line
 # the start with Codex writes - asked only after DEFER at P9, and not a point.
-CONTROL_TO_PLUG = {"conversation_off", "start_held", "start_route", "surface"}
+# v0.6.21: and whether it answers for tasks a person picked (P21), before the power action is armed for them.
+CONTROL_TO_PLUG = {"conversation_off", "start_held", "start_route", "surface", "wants"}
 # What the one layer a front end calls asks of the state: what to show, and the four things a
 # person can ask for - pause, cancel, retry now, give the attempts back.
 CONTROL_TO_STORE = {

@@ -1388,6 +1388,13 @@ Codex, changes no Windows setting, starts no program and needs no administrator.
 leave Windows' wake timers as they are, and a shut down forces no program closed. What it keeps is one
 file, `config\power-action.json`: ids, times and closed words, never a title or a path.
 
+**After tasks you pick, in the advanced edition.** The advanced edition can arm this same power action for
+conversations whose turn is running now, on the Advanced features page, once it is turned on there: it acts when
+every task you picked has ended - completed, or also failed or interrupted if you chose so, after any usage-limit
+recovery of it - and every other condition above holds. The card here then says the PC acts when the tasks you
+picked finish, its notice says it is for them, and everything under **Turning it off** turns it off. See
+[Sleep or shut down after tasks you pick](EDITIONS.md#sleep-or-shut-down-after-tasks-you-pick).
+
 ### The watcher's memory, how it stopped, and a status file
 
 From v0.6.11 the watcher asks Windows, after every check, how much memory its own process has
