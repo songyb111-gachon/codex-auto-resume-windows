@@ -16,7 +16,7 @@ the fallback, in exactly these cases:
   could not close on a click elsewhere): that opening is Windows' menu, and the next is drawn.
 
 Asking Windows to draw its own menu dark - by ordinal, below - is kept for that fallback and for
-the popup's row menus, which are still Windows' (ui/popup/window.py).
+the popup's row menus' same fallback: they open in the same drawn menu (ui/popup/window.py).
 """
 from __future__ import annotations
 

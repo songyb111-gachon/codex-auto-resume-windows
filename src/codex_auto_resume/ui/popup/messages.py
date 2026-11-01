@@ -93,8 +93,8 @@ class PopupMessages:
             return 0
         if message == WM_ACTIVATE:
             if (wparam & 0xFFFF) == WA_INACTIVE:
-                if self.visible:
-                    self.hide()                  # a click anywhere else closes it
+                if self.visible and not self._menu_has(lparam):
+                    self.hide()                  # a click anywhere else closes it; its own row menu does not
                 return 0
             return None                          # activated: let Windows give it the keyboard
         if message == WM_CLOSE:

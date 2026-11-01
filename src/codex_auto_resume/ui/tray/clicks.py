@@ -23,7 +23,8 @@ class ClicksMixin:
                                            strings=strings, on_dashboard=self.on_dashboard,
                                            log=self.log,
                                            anchor=lambda: tray_popup.icon_rect(self._hwnd, 1),
-                                           theme_menu=self._theme_menu)
+                                           theme_menu=self._theme_menu,
+                                           make_menu=lambda: tray_popup.Menu(log=self.log))
         return self._popup
 
     def _popup_broke(self, exc):

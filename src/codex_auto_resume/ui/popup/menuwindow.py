@@ -14,6 +14,11 @@ chooses, a letter chooses the one item it starts or steps through several; the p
 release of either button on it chooses it. A screen reader is told it is a menu and each item's name, role and state,
 and hears the item in hand move. Choosing hands the item's id to the icon (`on_choose`) after the menu has closed, which
 is all it can do: nothing here acts, starts a process, or has any way to reach a conversation.
+
+The popup's row menus open in it too (v0.6.20), at their row, handing the keyboard back to the popup as they close, and
+theirs have submenus: an item with an arrow opens a second Menu beside it - the same window, never activated, its keys
+heard by the first - on Enter, the arrow towards it, a click, or the pointer resting on it for Windows' menu delay. One
+is open at a time; the arrow back or Esc closes it, and closing the menu closes it.
 """
 from __future__ import annotations
 
@@ -29,6 +34,7 @@ from . import access
 from . import theme as look                # the questions below are asked through it, as the popup asks them
 from .gdiplus import PIXEL_FORMAT_32BPP_PARGB, _Painter
 from .menuplan import (menu_accessible_items,
+                       menu_beside,
                        menu_end,
                        menu_layout,
                        menu_letter,
@@ -38,7 +44,8 @@ from .menuplan import (menu_accessible_items,
 from .placement import hit_test
 from .renderer import Renderer
 from .theme import design_setting, effective_theme, theme_setting
-from .win32 import (DT_END_ELLIPSIS,
+from .win32 import (DT_CENTER,
+                    DT_END_ELLIPSIS,
                     DT_NOPREFIX,
                     DT_RIGHT,
                     DT_RTLREADING,
@@ -51,6 +58,7 @@ from .win32 import (DT_END_ELLIPSIS,
                     SWP_NOACTIVATE,
                     SW_HIDE,
                     SW_SHOW,
+                    SW_SHOWNOACTIVATE,
                     TME_LEAVE,
                     TRACKMOUSEEVENT,
                     VK_DOWN,
@@ -67,6 +75,7 @@ from .win32 import (DT_END_ELLIPSIS,
                     WM_MOUSEMOVE,
                     WM_SETTINGCHANGE,
                     WM_SYSCOLORCHANGE,
+                    WM_TIMER,
                     WS_EX_TOOLWINDOW,
                     WS_EX_TOPMOST,
                     WS_POPUP,
@@ -82,6 +91,10 @@ WS_EX_LAYERED, ULW_ALPHA, AC_SRC_ALPHA = 0x00080000, 0x2, 0x1
 WM_CANCELMODE, WM_ACTIVATEAPP, WM_CHAR = 0x001F, 0x001C, 0x0102
 WM_SYSKEYDOWN, WM_RBUTTONDOWN, WM_RBUTTONUP = 0x0104, 0x0204, 0x0205
 VK_MENU, VK_END, VK_HOME, VK_F10 = 0x12, 0x23, 0x24, 0x79
+VK_LEFT, VK_RIGHT = 0x25, 0x27
+# A submenu's window is never activated: its parent keeps the keyboard and hears its keys.
+WS_EX_NOACTIVATE, WM_MOUSEACTIVATE, MA_NOACTIVATE = 0x08000000, 0x0021, 3
+SPI_GETMENUSHOWDELAY, HOVER_TIMER = 0x006A, 1
 # What Windows tells whoever listens as a menu opens and closes, as its own menus do.
 EVENT_SYSTEM_MENUPOPUPSTART, EVENT_SYSTEM_MENUPOPUPEND = 0x0006, 0x0007
 
@@ -186,6 +199,13 @@ class MenuRenderer(Renderer):
                 left, top, right, bottom = (int(value) for value in item["text_rect"])
                 user32.DrawTextW(dc, item["text"], -1, C.byref(W.RECT(left, top, right, bottom)), flags)
                 drawn.append((left, top, right, bottom))
+                if item.get("arrow"):
+                    # The submenu's arrow, pointing the way it opens: away from the words, as Windows' menus draw it.
+                    left, top, right, bottom = (int(value) for value in item["arrow"])
+                    user32.DrawTextW(dc, "\u2039" if plan.get("rtl") else "\u203a", -1,
+                                     C.byref(W.RECT(left, top, right, bottom)),
+                                     DT_NOPREFIX | DT_SINGLELINE | DT_VCENTER | DT_CENTER)
+                    drawn.append((left, top, right, bottom))
         finally:
             gdi32.SelectObject(dc, previous)
             gdi32.GdiFlush()
@@ -203,8 +223,12 @@ class Menu:
     """The menu's window: made the first time the icon is right-clicked, shown and hidden after that, and destroyed
     with the icon. On the icon's thread only."""
 
-    def __init__(self, *, log=None):
+    def __init__(self, *, log=None, parent=None):
         self.log = log or (lambda *unused: None)
+        self.parent = parent                     # the menu whose item this one opened beside, or None
+        self.owner, self.on_leave = None, None   # the window the keyboard goes back to; what a click away tells it
+        self._child, self._child_index, self._hover = None, None, None
+        self._work = (0, 0, 0, 0)
         self.hwnd = None
         self.visible = False
         self.entries, self.strings, self.locale = [], {}, l10n.DEFAULT
@@ -237,7 +261,8 @@ class Menu:
             raise OSError("RegisterClassW")
         try:
             with _PerMonitorDpi():
-                self.hwnd = user32.CreateWindowExW(WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_TOPMOST, self._class,
+                style = WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_TOPMOST | (WS_EX_NOACTIVATE if self.parent else 0)
+                self.hwnd = user32.CreateWindowExW(style, self._class,
                                                    say(self.strings, "tray.title"), WS_POPUP, 0, 0, 1, 1,
                                                    None, None, instance, None)
             if not self.hwnd:
@@ -249,6 +274,9 @@ class Menu:
 
     def destroy(self):
         user32 = _dll("user32")
+        child, self._child = self._child, None
+        if child is not None:
+            child.destroy()
         access.disconnect(self)
         hwnd, self.hwnd = self.hwnd, None
         self.visible = False
@@ -263,17 +291,20 @@ class Menu:
             self._class = None
 
     # ------------------------------------------------------------------ the icon asks
-    def open(self, entries, strings, on_choose) -> bool:
-        """Show `entries` at the pointer and take the keyboard; `on_choose(id)` once one is chosen. False when it
-        could not take the foreground - Windows refused it the focus - and it is hidden again: the icon shows
-        Windows' own menu for that opening, which has the same need and its own ways round it."""
+    def open(self, entries, strings, on_choose, point=None, owner=None, on_leave=None) -> bool:
+        """Show `entries` at the pointer - or at `point`, on the screen - and take the keyboard; `on_choose(id)` once
+        one is chosen. `owner` is given the keyboard back as the menu closes, and `on_leave()` is called when it closes
+        because something else was clicked or took the foreground. False when it could not take the foreground -
+        Windows refused it the focus - and it is hidden again: the caller shows Windows' own menu for that opening,
+        which has the same need and its own ways round it."""
         if self.hwnd is None:
             self.create()
         self.entries, self.strings, self.on_choose = list(entries), dict(strings or {}), on_choose
+        self.owner, self.on_leave = owner, on_leave
         self.locale = locale_of(self.strings)
         self.selected = None
         self._read_look()
-        screen = self._screen_now()
+        screen = self._screen_now(point)
         scale = screen["dpi"] / 96.0
         work = screen["work"]
         plan = self._renderer.menu_layout(self.entries, scale, self.locale, work[2] - work[0])
@@ -282,7 +313,7 @@ class Menu:
         if fit > 1.0:
             # Windows' text size draws the whole menu that much larger, as it does the popup, as far as the screen holds.
             plan = self._renderer.menu_layout(self.entries, scale * fit, self.locale, work[2] - work[0])
-        self._plan = plan
+        self._plan, self._work = plan, work
         self._origin = menu_place(plan, screen["cursor"], work)
         self._push()
         user32 = _dll("user32")
@@ -302,10 +333,15 @@ class Menu:
         return True
 
     def close(self, quietly=False):
-        """Hidden, with nothing chosen."""
+        """Hidden, with nothing chosen, and its submenu with it."""
         if not self.visible:
             return
         self.visible = False
+        if self._child is not None:
+            self._child.close()
+        self._child_index = self._hover = None
+        if self.hwnd:
+            _dll("user32").KillTimer(self.hwnd, HOVER_TIMER)
         self.selected = None
         self._tracking = False
         if self.hwnd:
@@ -314,18 +350,107 @@ class Menu:
             self._tell(EVENT_SYSTEM_MENUPOPUPEND)
         self._spoken = []
 
-    def _activate(self, index):
+    def _dismiss(self):
+        """Closed by the person - Esc, Alt, F10, a choice: the keyboard goes back to the window it came from first,
+        while the menu still has it to give, so that window is never left without it."""
+        if self.owner and self.visible:
+            _dll("user32").SetForegroundWindow(self.owner)
+        self.close()
+
+    def _activate(self, index, keyboard=False):
         """Choose the item at `index` - by a click, Enter, its letter, or a screen reader's default action: the menu
-        closes, then the icon is handed the item's id. An item that cannot be used does nothing, as in Windows'."""
+        closes, then the icon is handed the item's id. An item that cannot be used does nothing, as in Windows'; one
+        with a submenu opens it, its first item in hand when the keyboard opened it."""
         if not self.visible or not (0 <= index < len(self.entries)):
             return
         entry = self.entries[index]
         if entry is None or not entry.get("enabled"):
             return
+        if entry.get("items"):
+            self._open_child(index, keyboard)
+            return
+        self._chosen_below(entry["id"])
+
+    # ------------------------------------------------------------------ a submenu
+    def _chosen_below(self, identifier):
+        """`identifier` was chosen, here or in the submenu: the whole menu closes - a submenu by its parent - and then
+        the caller is handed it."""
         chosen = self.on_choose
-        self.close()
+        if self.parent is not None:
+            self.close()                         # the parent hears the choice, closes, and hands it on
+        else:
+            self._dismiss()
         if chosen is not None:
-            chosen(entry["id"])
+            chosen(identifier)
+
+    def _open_child(self, index, first=False):
+        """The submenu of the item at `index` beside it, in place of any other: the item stays in hand."""
+        if self._child is None:
+            self._child = Menu(log=self.log, parent=self)
+        self._child.close()
+        if self.hwnd:
+            _dll("user32").KillTimer(self.hwnd, HOVER_TIMER)
+        self._child_index, self._hover = index, None
+        self._select(index)
+        self._child.show_beside(self, index, first)
+
+    def show_beside(self, parent, index, first):
+        """Open as `parent`'s item `index`'s submenu, at its scale and in its look, without taking the keyboard."""
+        if self.hwnd is None:
+            self.create()
+        self.entries, self.strings, self.locale = list(parent.entries[index]["items"]), parent.strings, parent.locale
+        self.on_choose = parent._chosen_below
+        self.contrast, self._theme, self._design = parent.contrast, parent._theme, parent._design
+        self._work = work = parent._work
+        self._plan = self._renderer.menu_layout(self.entries, parent._plan["scale"], self.locale, work[2] - work[0])
+        rect = next(item["rect"] for item in parent._plan["items"] if item["index"] == index)
+        card, (x, y) = parent._plan["card"], parent._origin
+        self._origin = menu_beside(self._plan, (x + card[0], y + rect[1], x + card[2], y + rect[3]), work)
+        self.selected = menu_end(self.entries) if first else None
+        self._push()
+        user32, (width, height) = _dll("user32"), self._plan["size"]
+        with _PerMonitorDpi():
+            user32.SetWindowPos(self.hwnd, C.c_void_p(HWND_TOPMOST), self._origin[0], self._origin[1], width, height,
+                                SWP_NOACTIVATE)
+        user32.ShowWindow(self.hwnd, SW_SHOWNOACTIVATE)
+        self.visible = True
+        self._spoken = self.accessible_items()
+        self._tell(EVENT_SYSTEM_MENUPOPUPSTART)
+
+    def _child_open(self):
+        return self._child is not None and self._child.visible
+
+    def _close_child(self):
+        if self._child is not None:
+            self._child.close()
+        self._child_index = None
+
+    def _rest(self, index):
+        """The pointer came to rest on `index`: after Windows' menu delay its submenu opens, or the open one closes."""
+        if index == self._hover:
+            return
+        self._hover = index
+        user32 = _dll("user32")
+        if self.hwnd:
+            user32.KillTimer(self.hwnd, HOVER_TIMER)
+        if not self.hwnd or index is None or index == self._child_index:
+            return
+        delay = W.DWORD(400)
+        user32.SystemParametersInfoW(SPI_GETMENUSHOWDELAY, 0, C.byref(delay), 0)
+        user32.SetTimer(self.hwnd, HOVER_TIMER, max(1, int(delay.value)), None)
+
+    def _rested(self):
+        """Windows' menu delay passed with the pointer on one item."""
+        if self.hwnd:
+            _dll("user32").KillTimer(self.hwnd, HOVER_TIMER)
+        index, self._hover = self._hover, None
+        if not self.visible or index is None or index == self._child_index:
+            return
+        entry = self.entries[index]
+        if entry is not None and entry.get("enabled") and entry.get("items"):
+            self._open_child(index)
+        else:
+            self._close_child()
 
     # ------------------------------------------------------------------ what it looks like
     def _read_look(self):
@@ -335,12 +460,15 @@ class Menu:
         self._theme = effective_theme(theme_setting(), look.apps_use_light_theme())
         self._design = design_setting()
 
-    def _screen_now(self):
-        """The pointer, the work area of the monitor it is on, and that monitor's scale, in physical pixels."""
+    def _screen_now(self, at=None):
+        """The pointer (or `at`), the work area of the monitor it is on, and that monitor's scale, in physical pixels."""
         user32 = _dll("user32")
         with _PerMonitorDpi():
             point = W.POINT()
-            user32.GetCursorPos(C.byref(point))
+            if at is None:
+                user32.GetCursorPos(C.byref(point))
+            else:
+                point.x, point.y = int(at[0]), int(at[1])
             probe = W.RECT(point.x, point.y, point.x + 1, point.y + 1)
             monitor = user32.MonitorFromRect(C.byref(probe), MONITOR_DEFAULTTONEAREST)
             info = MONITORINFO()
@@ -419,9 +547,14 @@ class Menu:
     def _handle(self, message, wparam, lparam):
         if message == access.WM_GETOBJECT:
             return access.answer(self, wparam, lparam, MenuAccessible)
+        if message == WM_MOUSEACTIVATE and self.parent is not None:
+            return MA_NOACTIVATE                 # a click on a submenu leaves the keyboard with its parent
+        if message == WM_TIMER and wparam == HOVER_TIMER:
+            self._rested()
+            return 0
         if message == WM_ACTIVATE:
             if (wparam & 0xFFFF) == WA_INACTIVE:
-                self.close()                     # a click anywhere else, or anything that takes the focus
+                self._leave(lparam)              # a click anywhere else, or anything that takes the focus
                 return 0
             return None
         if message in (WM_CANCELMODE, WM_CLOSE):
@@ -429,34 +562,31 @@ class Menu:
             return 0
         if message == WM_ACTIVATEAPP:
             if not wparam:
-                self.close()                     # another program took the foreground
+                self._leave(None)                # another program took the foreground
             return None
         if message == WM_KEYDOWN:
             return self._key(wparam)
         if message == WM_SYSKEYDOWN:
             if wparam in (VK_MENU, VK_F10):
-                self.close()                     # Alt or F10 leaves a menu, as Windows' does
+                self._dismiss()                  # Alt or F10 leaves a menu, as Windows' does
                 return 0
             return None
         if message == WM_CHAR:
-            if not self.visible or (wparam & 0xFFFF) < 0x20:
-                return 0                         # Enter's and Esc's own characters, after their keys
-            index, choose = menu_letter(self.entries, self.selected, chr(wparam & 0xFFFF))
-            if choose:
-                self._activate(index)
-            else:
-                self._select(index)
-            return 0
+            return self._char(wparam & 0xFFFF)
         if message == WM_MOUSEMOVE:
             self._mouse_move(lparam)
             return 0
         if message == WM_MOUSELEAVE:
             self._tracking = False
-            self._select(None)
+            self._rest(None)
+            self._select(self._child_index if self._child_open() else None)
             return 0
         if message in (WM_LBUTTONDOWN, WM_RBUTTONDOWN):
             if not self._on_card(lparam):
-                self.close()                     # its shadow is not the menu
+                root = self
+                while root.parent is not None:
+                    root = root.parent
+                root._dismiss()                  # its shadow is not the menu
             return 0
         if message in (WM_LBUTTONUP, WM_RBUTTONUP):
             target = self._hit(lparam)
@@ -486,8 +616,33 @@ class Menu:
         left, top, right, bottom = self._plan["card"]
         return left <= x < right and top <= y < bottom
 
+    def _leave(self, to):
+        """Closed as the focus went elsewhere: the window it came from is told, unless the focus went back to it."""
+        was = self.visible
+        self.close()
+        if was and self.on_leave is not None and not (self.owner and to == self.owner):
+            self.on_leave()
+
+    def _char(self, code):
+        if self._child_open():
+            return self._child._char(code)       # the submenu's letters, while it is open
+        if not self.visible or code < 0x20:
+            return 0                             # Enter's and Esc's own characters, after their keys
+        index, choose = menu_letter(self.entries, self.selected, chr(code))
+        if choose:
+            self._activate(index, keyboard=True)
+        else:
+            self._select(index)
+        return 0
+
     def _mouse_move(self, lparam):
-        self._select(self._hit(lparam))
+        parent = self.parent
+        if parent is not None:                   # on a submenu: its parent's item stays in hand, nothing else opens
+            parent._rest(parent._child_index)
+            parent._select(parent._child_index)
+        target = self._hit(lparam)
+        self._rest(target)
+        self._select(target if target is not None or not self._child_open() else self._child_index)
         if not self._tracking and self.hwnd:
             track = TRACKMOUSEEVENT()
             track.cbSize = C.sizeof(TRACKMOUSEEVENT)
@@ -496,15 +651,26 @@ class Menu:
             self._tracking = bool(_dll("user32").TrackMouseEvent(C.byref(track)))
 
     def _key(self, key):
+        # The arrow towards where a submenu opens, and the one back: right and left, the other way right to left.
+        onward, back = (VK_LEFT, VK_RIGHT) if (self._plan or {}).get("rtl") else (VK_RIGHT, VK_LEFT)
+        if self._child_open():
+            if key in (VK_ESCAPE, back):
+                self._close_child()              # one level back, as Windows' menus go
+                return 0
+            return self._child._key(key)
         if key == VK_ESCAPE:
-            self.close()
+            self._dismiss()
+        elif key == onward:
+            entry = self.entries[self.selected] if self.selected is not None else None
+            if entry is not None and entry.get("enabled") and entry.get("items"):
+                self._open_child(self.selected, True)
         elif key in (VK_UP, VK_DOWN):
             self._select(menu_step(self.entries, self.selected, backwards=key == VK_UP))
         elif key in (VK_HOME, VK_END):
             self._select(menu_end(self.entries, last=key == VK_END))
         elif key == VK_RETURN:
             if self.selected is not None:
-                self._activate(self.selected)
+                self._activate(self.selected, keyboard=True)
         else:
             return None
         return 0
