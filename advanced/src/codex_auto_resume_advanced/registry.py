@@ -1230,11 +1230,11 @@ USAGE_ANALYTICS = CapabilityDef(
 # Codex's own sign-in, which handles the credentials), C4 (it reads on a schedule), C9 (Codex is asked when no recovery
 # is due), D2 (a digest of the account is kept), F6 (`codex logout` and `codex login` are not listed processes) and H7
 # (a change of account holds recoveries, beside the settings that do). It stands on usage_probe - the app server's
-# reads, as the usage meter's - rests on MA, and sends nothing: its ceilings are the floor and never bind. MAL is not
-# among its measurements: only the button rests on it, and its code reads MAL where the button is offered
-# (control/account.offered, arming.Arming.verdict), as the goal continuation reads M2b and the marker-free continuation
-# MQO and MQP. So MAL failed hides the button and is never a warning that a tripwire turns the capability off for
-# (2026-11-01: listed here, MAL's fail turned the owner's watched account_switch off at the v0.6.20 update).
+# reads, as the usage meter's - rests on MA, and sends nothing: its ceilings are the floor and never bind. MAL only
+# narrows it (`narrowed_by`, as MK, MQ, MS and MTOK do): only the button rests on it, and its code reads MAL where the
+# button is offered (control/account.offered, arming.Arming.verdict). So MAL failed hides the button and the statement
+# says so, and no tripwire turns the capability off for it (2026-11-01: listed among its measurements, MAL's fail turned
+# the owner's watched account_switch off at the v0.6.20 update).
 ACCOUNT_SWITCH = CapabilityDef(
     id="account_switch",
     points=frozenset({Point.TICK}),
@@ -1246,6 +1246,7 @@ ACCOUNT_SWITCH = CapabilityDef(
     make=make_account_switch,
     codes=("changed", "held", "switch_asked", "signed_in", "not_signed_in", "switch_failed"),
     measurements=(Measurement.MA,),
+    narrowed_by=(Measurement.MAL,),
 )
 
 # Wake this PC for a reset (v0.6.19, plans/v0619-design/D-watcher-ops.md B). At P8 it finds the earliest time something

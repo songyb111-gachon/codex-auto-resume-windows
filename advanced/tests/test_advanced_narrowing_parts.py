@@ -27,13 +27,13 @@ from codex_auto_resume.domain.plug import DEFER  # noqa: E402
 from codex_auto_resume_advanced import arming, registry, statement  # noqa: E402
 from codex_auto_resume_advanced.engine import keepgoing, parallel, subagent  # noqa: E402
 from codex_auto_resume_advanced.engine.analytics import UsageAnalytics  # noqa: E402
-from codex_auto_resume_advanced.registry import (KEEP_GOING, PARALLEL_DISPATCH, SUBAGENT_PARENT,  # noqa: E402
+from codex_auto_resume_advanced.registry import (ACCOUNT_SWITCH, KEEP_GOING, PARALLEL_DISPATCH, SUBAGENT_PARENT,  # noqa: E402
                                                  USAGE_ANALYTICS, USAGE_METER)
 from codex_auto_resume_advanced.vocabulary import (Actor, ArmingState, ArmingWarning, Measurement,  # noqa: E402
                                                    OffReason, OptionKey, Verdict)
 
 NARROWED = ((KEEP_GOING, Measurement.MK), (PARALLEL_DISPATCH, Measurement.MQ), (SUBAGENT_PARENT, Measurement.MS),
-            (USAGE_ANALYTICS, Measurement.MTOK))
+            (USAGE_ANALYTICS, Measurement.MTOK), (ACCOUNT_SWITCH, Measurement.MAL))
 
 
 class DefinitionTests(unittest.TestCase):

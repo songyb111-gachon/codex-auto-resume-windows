@@ -64,10 +64,11 @@ class MalFailTests(ac.AdvancedCase):
         row = self.rt.state.arming()[CAP]
         self.assertEqual((row["state"], row["actor"], row["reason"]), (state, Actor.DASHBOARD, None))
         self.assertNotIn("account.tripped", " ".join(self.codes()))
-        self.assertNotIn(ArmingWarning.MEASUREMENT_FAILED, self.rt.arming.warnings(ACCOUNT_SWITCH))
+        # The statement says MAL failed (it narrows the capability, as MK, MQ, MS and MTOK do); nothing trips on it.
+        self.assertIn(ArmingWarning.MEASUREMENT_FAILED, self.rt.arming.warnings(ACCOUNT_SWITCH))
         listed = next(item for item in self.rt.arming.listing()["capabilities"] if item["id"] == CAP)
         self.assertEqual((listed["state"], listed["reason"], listed["notice"]), (state, None, None))
-        self.assertNotIn(str(ArmingWarning.MEASUREMENT_FAILED), listed["warnings"])
+        self.assertIn(str(ArmingWarning.MEASUREMENT_FAILED), listed["warnings"])
         return card.view(self.rt, reader=lambda paths: account.parse(ONE))
 
     def test_on_it_stays_on_with_the_card_and_without_the_button(self):
