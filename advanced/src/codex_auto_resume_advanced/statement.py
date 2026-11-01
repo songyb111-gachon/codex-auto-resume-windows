@@ -346,6 +346,14 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "account.signed_out", "account.unknown", "account.guidance", "account.guidance_failed", "account.waiting", "account.button",
     "account.button_help", "confirm.account_switch", "account.result.signed_in", "account.result.cancelled",
     "account.result.timed_out", "account.result.failed", "refused.switch_unmeasured", "refused.switch_running"))
+# v0.6.20 final: the restart after a sign-in - its question, why it waits, its buttons, its wait, how it ended, and its
+# question and refusals (advanced/gui/AdvancedAccount.cs, control/account.restart).
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
+    "account.restart.ask", "account.restart.needed", "account.restart.help", "account.restart.busy",
+    "account.restart.button", "account.restart.not_now", "account.restart.restarting", "account.restart.result.restarted",
+    "account.restart.result.signed_out", "account.restart.result.not_running", "account.restart.result.not_ended",
+    "account.restart.result.not_started", "account.restart.result.failed", "confirm.account_restart",
+    "refused.restart_running", "refused.nothing_to_restart"))
 # v0.6.20 (power_after_tasks, Discussion #57): the tasks the power action waits for, or the form they are picked with
 # (advanced/gui/AdvancedPowerTasks.cs).
 PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (

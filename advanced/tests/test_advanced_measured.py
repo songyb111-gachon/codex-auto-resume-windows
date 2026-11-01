@@ -161,7 +161,8 @@ class TableTests(unittest.TestCase):
         probe made its own failed turn, and Codex ran a plugin's Stop hook after a completed turn but none after it.
         2026-11-01, on the same engine, MAL failed, partial: a sign-out made with `codex logout` outside the app reached the
         running app, but the `codex login` after it did not within about a minute; the app came back signed in through its
-        own sign-in."""
+        own sign-in. 2026-11-02, the same engine: MALR passed - after that sign-out and sign-in, the product's own restart
+        of Codex brought the app up signed in."""
         passed = {m for m, (verdict, _v) in measured.MEASURED.items() if verdict == Verdict.PASS}
         failed = {m for m, (verdict, _v) in measured.MEASURED.items() if verdict == Verdict.FAIL}
         self.assertEqual(passed, {Measurement.MW, Measurement.M1, Measurement.M2B, Measurement.M5,
@@ -171,7 +172,7 @@ class TableTests(unittest.TestCase):
                                   Measurement.MXA, Measurement.MX, Measurement.MF, Measurement.MO,
                                   Measurement.M3B, Measurement.M6B, Measurement.MQO, Measurement.MQP,
                                   Measurement.MQG, Measurement.MANCHOR, Measurement.MIMG, Measurement.MOPEN,
-                                  Measurement.MHK})
+                                  Measurement.MHK, Measurement.MALR})
         self.assertEqual(failed, {Measurement.M2, Measurement.M3, Measurement.M4, Measurement.MAWS,
                                   Measurement.MCLOUD, Measurement.MB, Measurement.MC2, Measurement.MSTEER,
                                   Measurement.MSTEER2, Measurement.MAL})
@@ -193,7 +194,7 @@ class TableTests(unittest.TestCase):
         # v0.6.20, before its final: MB and M4 made again and MHK made, on the Codex of 2026-10-31.
         self.assertEqual({m for m, (_v, version) in measured.MEASURED.items()
                           if version == "codex-cli 0.166.0-alpha.5.1"},
-                         {Measurement.MB, Measurement.MHK, Measurement.M4, Measurement.MAL})
+                         {Measurement.MB, Measurement.MHK, Measurement.M4, Measurement.MAL, Measurement.MALR})
         self.assertEqual(set(Measurement) - passed - failed,
                          # v0.6.15-beta's own, for several conversations at once: not made yet.
                          {Measurement.MQ, Measurement.ME, Measurement.MS, Measurement.MK, Measurement.MT,

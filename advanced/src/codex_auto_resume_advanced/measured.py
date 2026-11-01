@@ -107,5 +107,8 @@ MEASURED = {
     # the app reached the running app, but the `codex login` after it did not within about a minute - the app came back
     # signed in only through its own sign-in - so the button stays hidden: hidden because its measurement failed (partial).
     Measurement.MAL: (Verdict.FAIL, CLI_0166_ALPHA_5_1),
+    # 2026-11-02 (measure-20261101f): the sign-out and sign-in, then the product's own restart of Codex (Windows asked
+    # it to quit, and it did), brought the app up signed in - the account switch's button rests on it.
+    Measurement.MALR: (Verdict.PASS, CLI_0166_ALPHA_5_1),
     Measurement.MSTEER2: (Verdict.FAIL, CLI_0165_ALPHA_1_2),
 }

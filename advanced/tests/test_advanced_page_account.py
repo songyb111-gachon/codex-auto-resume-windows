@@ -24,10 +24,11 @@ CAP = "account_switch"
 MASK = "s•••@e•••.com"
 
 
-def account(button=False, switch=None, present=True):
+def account(button=False, switch=None, present=True, restart=None, busy=()):
     return {"ok": True, "result": {"done": True, "refusal": None, "present": present,
                                    "plan": "plus" if present else None, "kind": "chatgpt" if present else None,
-                                   "mask": MASK if present else None, "button": button, "switch": switch}}
+                                   "mask": MASK if present else None, "button": button, "switch": switch,
+                                   "restart": restart, "busy": list(busy)}}
 
 
 @unittest.skipUnless(CSC.is_file() and POWERSHELL.is_file(), "needs the in-box compiler and PowerShell")
@@ -58,6 +59,32 @@ class PageTests(PageCase):
                 {"do": "reply", "key": "advanced-account", "with": [account(True, "signed_in")]},
                 {"do": "poll_account"}, {"do": "look"}]
         return cls.opened(bridge, "armed", [account(True)], more, answers=[True])
+
+    @classmethod
+    def scenario_restart(cls, bridge):
+        """v0.6.20 final: after a sign-in the card asks to restart Codex; busy, Restart is greyed and the card reads
+        itself again; clear, Restart asks first, sends {"now": true}, and the card says Codex restarts, then how it
+        ended."""
+        more = [{"do": "reply", "key": "advanced-account",
+                 "with": [account(True, "signed_in", restart="ask")]},
+                {"do": "poll_account"}, {"do": "look"},
+                {"do": "reply", "key": "advanced-account-restart",
+                 "with": [{"ok": True, "result": {"done": True, "refusal": None, "restart": "restarting"}}]},
+                {"do": "reply", "key": "advanced-account", "with": [account(True, "signed_in", restart="restarting")]},
+                {"do": "press", "button": "account_restart"}, {"do": "look"},
+                {"do": "reply", "key": "advanced-account", "with": [account(True, "signed_in", restart="restarted")]},
+                {"do": "poll_account"}, {"do": "look"}]
+        return cls.opened(bridge, "armed", [account(True, "signed_in", restart="ask", busy=["turn_running"])], more,
+                          answers=[True])
+
+    @classmethod
+    def scenario_not_now(cls, bridge):
+        """Not now: sent with {"now": false} and no question; the card says Codex needs a restart, Restart still there."""
+        more = [{"do": "reply", "key": "advanced-account-restart",
+                 "with": [{"ok": True, "result": {"done": True, "refusal": None, "restart": "not_now"}}]},
+                {"do": "reply", "key": "advanced-account", "with": [account(True, "signed_in", restart="not_now")]},
+                {"do": "press", "button": "account_later"}, {"do": "look"}]
+        return cls.opened(bridge, "armed", [account(True, "signed_in", restart="ask")], more)
 
     @classmethod
     def scenario_declined(cls, bridge):
@@ -99,6 +126,32 @@ class PageTests(PageCase):
         self.assertFalse(waiting["account_switch"], "greyed while the sign-in waits")
         self.assertIn(words["page.account.result.signed_in"], self.card(ended, words))
         self.assertTrue(ended["account_switch"])
+
+    def test_after_a_sign_in_it_asks_to_restart_codex_and_never_while_busy(self):
+        result, expected = self.of("scenario_restart")
+        words = expected["words"]
+        busy, clear, restarting, ended = result["looks"]
+        card = self.card(busy, words)
+        for key in ("page.account.restart.ask", "page.account.restart.help", "page.account.restart.busy"):
+            self.assertIn(words[key], card)
+        self.assertEqual((busy["account_restart"], busy["account_later"], busy["account_switch"]), (False, True, None))
+        self.assertNotIn(words["page.account.restart.busy"], self.card(clear, words))
+        self.assertTrue(clear["account_restart"])
+        self.assertEqual(result["asked"], [words["page.confirm.account_restart"]])
+        self.assertEqual(sent(result, "advanced-account-restart"), [{"now": True}])
+        self.assertIn(words["page.account.restart.restarting"], self.card(restarting, words))
+        self.assertIsNone(restarting["account_restart"])
+        self.assertIn(words["page.account.restart.result.restarted"], self.card(ended, words))
+        self.assertTrue(ended["account_switch"], "the switch button is back once the restart has ended")
+
+    def test_not_now_says_codex_needs_a_restart_and_keeps_restart(self):
+        result, expected = self.of("scenario_not_now")
+        words = expected["words"]
+        self.assertEqual(result["asked"], [])
+        self.assertEqual(sent(result, "advanced-account-restart"), [{"now": False}])
+        look = result["looks"][1]
+        self.assertIn(words["page.account.restart.needed"], self.card(look, words))
+        self.assertEqual((look["account_restart"], look["account_later"]), (True, None))
 
     def test_declined_nothing_is_sent(self):
         result, _expected = self.of("scenario_declined")

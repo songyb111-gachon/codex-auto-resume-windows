@@ -388,10 +388,13 @@ def audit_data(locale: str, bridge: Bridge) -> dict:  # noqa: C901 - one layout'
                      "advanced-prompts": fullest_prompts(shot, listing["generation"]),
                      "advanced-analytics": fullest_analytics(), "snapshot": shot,
                      # v0.6.20: the account card at its fullest - the plan, the masked address, the button and the
-                     # longest way a sign-in can end (advanced/gui/AdvancedAccount.cs).
+                     # longest way a sign-in can end (advanced/gui/AdvancedAccount.cs); v0.6.20 final: after a sign-in,
+                     # a restart that could not close Codex, asked again while Codex is busy - every line and both
+                     # buttons of the restart.
                      "advanced-account": {"done": True, "refusal": None, "present": True, "plan": "enterprise",
                                           "kind": "chatgpt", "mask": "s•••@e•••.com",
-                                          "button": True, "switch": "failed"}},
+                                          "button": True, "switch": "signed_in", "restart": "not_ended",
+                                          "busy": ["turn_running"]}},
             "reports": report_states()}
 
 

@@ -106,8 +106,9 @@ class CardCase(ac.AdvancedCase):
         self.rt = self.runtime(ACCOUNT_SWITCH)
         self.rt.arming.catalogs = statement.CATALOGS
         self.reads, self.jobs, self.ran = [], [], []
-        card._SWITCHES.clear()
-        self.addCleanup(card._SWITCHES.clear)
+        for held in (card._SWITCHES, card._RESTARTS, card._SHOWN):
+            held.clear()
+            self.addCleanup(held.clear)
         self.reader = lambda paths: self.reads.append(paths) or account.parse(ONE)
 
     def on(self, state="armed"):
@@ -119,10 +120,11 @@ class CardCase(ac.AdvancedCase):
         self.assertTrue(result["done"], result)
 
     def measure(self):
-        self.measured[Measurement.MAL] = (Verdict.PASS, ac.ENGINE)
+        self.measured[Measurement.MALR] = (Verdict.PASS, ac.ENGINE)
 
     def start(self):
-        return card.switch(self.rt, start=self.jobs.append, run=lambda paths: self.ran.append(paths) or self.outcome)
+        return card.switch(self.rt, start=self.jobs.append, run=lambda paths: self.ran.append(paths) or self.outcome,
+                           reader=self.reader)
 
     def codes(self):
         with self.rt.state._read() as connection:
@@ -142,7 +144,7 @@ class CardTests(CardCase):
         answer = card.view(self.rt, reader=self.reader)
         self.assertEqual(answer, {"done": True, "refusal": None, "present": True, "plan": "plus", "kind": "chatgpt",
                                   "mask": account.mask("someone@example.com"), "button": False,
-                                  "measurement_failed": False, "switch": None})
+                                  "measurement_failed": False, "switch": None, "restart": None, "busy": []})
         self.assertNotIn("someone@example.com", str(answer))
 
     def test_until_mal_passed_no_button_and_a_switch_is_refused(self):
@@ -179,7 +181,7 @@ class CardTests(CardCase):
 
         def broken(paths):
             raise RuntimeError("no codex")
-        card.switch(self.rt, start=self.jobs.append, run=broken)
+        card.switch(self.rt, start=self.jobs.append, run=broken, reader=self.reader)
         self.jobs[0]()
         self.assertEqual(card.switching(self.rt), account.FAILED)
         self.outcome = account.SIGNED_IN

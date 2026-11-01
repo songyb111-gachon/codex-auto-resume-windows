@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from .. import failures, machine
 from ..machine import OBSERVING, TERMINAL, WAITING, WATCHED
+from ..domain.states import BOOT_MARGIN, ended_by_boot
 
 
 class OutcomeMixin:
@@ -90,8 +91,8 @@ class OutcomeMixin:
             elif status == "interrupted":
                 self.transition(row, "stopped_by_user", "turn_interrupted", recovery_turn_status=status)
 
-    # A Windows start this many seconds after the turn was seen starting ended it.
-    CUT_OFF_BOOT_MARGIN = 5.0
+    # A Windows start this many seconds after the turn was seen starting ended it (domain/states.ended_by_boot's).
+    CUT_OFF_BOOT_MARGIN = BOOT_MARGIN
 
     def _cut_off(self, row, seen) -> bool:
         """Whether a recovery turn whose row still says inProgress can no longer finish: a later
@@ -106,8 +107,7 @@ class OutcomeMixin:
             status = self.store.watcher_status() or {}
         except Exception:
             return False
-        booted = status.get("booted_at")
-        return machine.epoch(booted, *machine.EPOCH_STORE) and booted > started + self.CUT_OFF_BOOT_MARGIN
+        return ended_by_boot(started, status.get("booted_at"))
 
     def observe_all(self):
         for row in self._records(OBSERVING):

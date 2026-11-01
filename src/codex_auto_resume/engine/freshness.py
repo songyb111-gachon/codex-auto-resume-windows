@@ -205,9 +205,15 @@ class FreshnessMixin:
         history has caught up - every conversation written in the last hour, and each of `threads`, the
         batch's own - and then how many turns run and how many items are queued. Read only when the
         power action has passed every check of its own, and never at the defaults. Anything the source
-        cannot say, or a source that cannot be asked, is None: the power action then waits (E1)."""
+        cannot say, or a source that cannot be asked, is None: the power action then waits (E1). v0.6.20 final: with
+        the boot time the watcher's heartbeat records (store.watcher_status, as a cut-off turn is judged), so a turn
+        or a queued item left from before Windows started holds nothing; without one the counts are None."""
         try:
-            found = self.source.activity(tuple(threads), self.clock())
+            booted = (self.store.watcher_status() or {}).get("booted_at")
+        except Exception:
+            booted = None
+        try:
+            found = self.source.activity(tuple(threads), self.clock(), booted=booted)
         except Exception:
             found = None
         if not isinstance(found, dict):

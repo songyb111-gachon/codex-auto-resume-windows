@@ -34,8 +34,9 @@ from codex_auto_resume_advanced.vocabulary import (Actor, ArmingState, ArmingWar
                                                    OffReason, OptionKey, Verdict)
 
 NARROWED = ((KEEP_GOING, Measurement.MK), (PARALLEL_DISPATCH, Measurement.MQ), (SUBAGENT_PARENT, Measurement.MS),
-            (USAGE_ANALYTICS, Measurement.MTOK), (ACCOUNT_SWITCH, Measurement.MAL), (PROMPT_QUEUE, Measurement.MT),
-            (RESET_CREDIT, Measurement.MR))
+            (USAGE_ANALYTICS, Measurement.MTOK), (PROMPT_QUEUE, Measurement.MT), (RESET_CREDIT, Measurement.MR),
+            # v0.6.20 final: the button rests on MALR, the sign-in then the restart, in place of MAL.
+            (ACCOUNT_SWITCH, Measurement.MALR))
 
 
 class DefinitionTests(unittest.TestCase):

@@ -390,29 +390,35 @@ class EngineActivityTests(unittest.TestCase):
     """engine.activity hands the source the batch's conversations and its own clock, and turns anything
     it cannot say into None, which judge_activity reads as codex_unknown."""
 
+    BOOTED = 978307200.0                 # v0.6.20 final: the heartbeat's Windows start, long before any turn here
+
     def engine(self, source, clock=lambda: NOW):
         from codex_auto_resume.engine import Engine
-        return Engine(None, source, None, clock=clock)
+
+        class Heartbeat:
+            def watcher_status(inner):
+                return {"booted_at": self.BOOTED}
+        return Engine(Heartbeat(), source, None, clock=clock)
 
     def test_the_source_is_asked_with_the_batch_and_the_engine_s_clock(self):
         asked = []
 
         class Source:
-            def activity(self, threads, now):
-                asked.append((threads, now))
+            def activity(self, threads, now, booted=None):
+                asked.append((threads, now, booted))
                 return {"history": True, "running": 0, "queued": 0, "extra": "dropped"}
         found = self.engine(Source()).activity(["t1", "t2"])
         self.assertEqual(found, {"history": True, "running": 0, "queued": 0})
-        self.assertEqual(asked, [(("t1", "t2"), NOW)])
+        self.assertEqual(asked, [(("t1", "t2"), NOW, self.BOOTED)], "with the heartbeat's boot time")
         self.assertIsNone(pa.judge_activity(found))
 
     def test_a_source_that_cannot_answer_is_unknown(self):
         class Raising:
-            def activity(self, threads, now):
+            def activity(self, threads, now, booted=None):
                 raise OSError("locked")
 
         class Odd:
-            def activity(self, threads, now):
+            def activity(self, threads, now, booted=None):
                 return ["not", "a", "dict"]
         for source in (Raising(), Odd(), object()):
             with self.subTest(source=type(source).__name__):
