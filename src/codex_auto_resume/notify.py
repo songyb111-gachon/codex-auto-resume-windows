@@ -674,8 +674,7 @@ def _power_word(action) -> str:
 
 
 def power_grace_content(action, until, nonce, tasks=False) -> dict:
-    """The countdown's notice: what happens at `until`, why, what puts it off, and its two buttons. `tasks` True
-    (v0.6.21): an arming for tasks a person picked, whose notice says it is for them."""
+    """The countdown's notice: what happens at `until`, why, what puts it off, and its two buttons (`tasks`: v0.6.21)."""
     word = _power_word(action)
     return _content(l10n.message("toast_power_grace." + word).replace("{time}", _local_time(until)),
                     l10n.message("toast_power_grace_body_tasks" if tasks is True else "toast_power_grace_body"),
@@ -696,7 +695,6 @@ def power_content(event, detail) -> dict:
         return _content(l10n.message("toast_power_failed"), l10n.message("toast_power_failed_body"),
                         more=[(l10n.message("toast_button_open"), open_uri("settings"))])
     if event == "power_not_met":
-        return _content(l10n.message("toast_power_not_met_tasks" if detail.get("tasks") is True
-                                     else "toast_power_not_met"), "",
+        return _content(l10n.message("toast_power_not_met" + ("_tasks" if detail.get("tasks") is True else "")), "",
                         more=[(l10n.message("toast_button_open"), open_uri("settings"))])
     return _content(l10n.message("toast_power_stopped"), "")
