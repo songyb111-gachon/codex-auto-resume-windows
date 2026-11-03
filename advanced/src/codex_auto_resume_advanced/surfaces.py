@@ -118,6 +118,10 @@ ARGUMENTS[BridgeCommand.ADVANCED_ACCOUNT] = frozenset()
 ARGUMENTS[BridgeCommand.ADVANCED_ACCOUNT_SWITCH] = frozenset()
 # v0.6.20 final: Restart or Not now, after a sign-in (control/account.restart).
 ARGUMENTS[BridgeCommand.ADVANCED_ACCOUNT_RESTART] = frozenset({"now"})
+# v0.6.22 (account_auto_switch): the saved accounts (control/autoswitch.py).
+ARGUMENTS.update({BridgeCommand.ADVANCED_ACCOUNTS: frozenset(), BridgeCommand.ADVANCED_ACCOUNTS_ADD: frozenset(),
+                  BridgeCommand.ADVANCED_ACCOUNTS_SAVE: frozenset(),
+                  BridgeCommand.ADVANCED_ACCOUNTS_DELETE: frozenset({"id", "all"})})
 # v0.6.20 (power_after_tasks, control/powertasks.py): the card's read, and core's power action armed for picked tasks.
 ARGUMENTS[BridgeCommand.ADVANCED_POWER_TASKS] = frozenset()
 ARGUMENTS[BridgeCommand.ADVANCED_POWER_TASKS_ARM] = frozenset({"threads", "action", "grace_minutes", "failed",
@@ -521,6 +525,17 @@ def bridge(runtime, command, argument):
         # v0.6.20 final: and Restart Codex or Not now, after that sign-in - the Dashboard's alone, as the switch is.
         from .control import account as account_card
         return account_card.restart(runtime, argument)
+    if command in (BridgeCommand.ADVANCED_ACCOUNTS, BridgeCommand.ADVANCED_ACCOUNTS_ADD, BridgeCommand.ADVANCED_ACCOUNTS_SAVE,
+                   BridgeCommand.ADVANCED_ACCOUNTS_DELETE):
+        # v0.6.22 (account_auto_switch): the saved accounts - the Dashboard's alone, as the account card is.
+        from .control import autoswitch as accounts
+        if command == BridgeCommand.ADVANCED_ACCOUNTS:
+            return accounts.view(runtime)
+        if command == BridgeCommand.ADVANCED_ACCOUNTS_ADD:
+            return accounts.add(runtime)
+        if command == BridgeCommand.ADVANCED_ACCOUNTS_SAVE:
+            return accounts.save(runtime)
+        return accounts.delete(runtime, argument)
     if command == BridgeCommand.ADVANCED_POWER_TASKS:
         # v0.6.20 (power_after_tasks): the conversations running now and the tasks the power action waits for.
         from .control import powertasks
