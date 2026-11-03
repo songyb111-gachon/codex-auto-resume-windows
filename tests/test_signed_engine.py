@@ -114,9 +114,21 @@ class EmptyBinTests(SignedEngineCase):
         self.assertTrue(self.moved(0))
         self.assertEqual(self.app.backend().codex_exe, self.package)
         self.assertIsNotNone(self.paired())
+
+    def test_a_reader_with_no_watcher_and_nothing_in_bin_starts_no_process(self):
+        self.serve(self.package)
+        self.first.codex_exe.unlink()
+        listed = self.listings
         backend, record = probes.discover(self.fixture.home.root)
-        self.assertEqual(backend.codex_exe, self.package, "a reader with no watcher chooses as the watcher does")
-        self.assertEqual({key(path) for path in record}, {key(self.package)})
+        self.assertIsNone(backend, "a per-call reader asks the app nothing where bin is empty, as it never did")
+        self.assertEqual(record, {})
+        self.assertEqual(self.listings, listed)
+        self.assertEqual(self.signatures_read, [])
+        with self.assertRaises(config.ConfigError):
+            config.discover_codex_exe(None, self.compatible, running=pairing.app_engines)
+        self.assertEqual(self.listings, listed)
+        self.assertEqual(config.discover_codex_exe(None, self.compatible, running=pairing.app_engines,
+                                                   ask_app_if_none=True), self.package)
 
     def test_with_the_app_closed_and_nothing_in_bin_nothing_is_found_as_before(self):
         self.first.codex_exe.unlink()

@@ -78,7 +78,7 @@ def backend(paths=None):
     else:
         where = config.codex_home()
         exe = config.discover_codex_exe(_pinned(paths), lambda path: Backend(where, path)._compatible(),
-                                        running=app_engines)
+                                        running=app_engines, ask_app_if_none=True)
     made = Backend(where, exe)
     made._compatible()
     return made
