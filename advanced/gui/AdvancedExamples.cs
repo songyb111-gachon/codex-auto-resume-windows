@@ -249,6 +249,11 @@ namespace CodexAutoResume
                 Ex("early_reset",
                    Scene(OnHistory(Rec(ExampleProject, "recovered", "usage_limit", Detected, Reset + 1))),
                    Scene(OnHistory(Rec(ExampleProject, "recovered", "usage_limit", Detected, -290)))),
+                // v0.6.22: hidden on the page until MPROFILE and MSWAP are measured - its example waits with it. Before: the
+                // recovery waits for the reset; after: another saved account with room takes it up minutes after the limit.
+                Ex("account_auto_switch",
+                   Scene(OnHistory(Rec(ExampleProject, "recovered", "usage_limit", Detected, Reset + 1))),
+                   Scene(OnHistory(Rec(ExampleProject, "recovered", "usage_limit", Detected, Detected + 7)))),
                 Ex("parallel_dispatch",
                    Scene(OnHistory(Rec(ExampleProject, "recovered", "usage_limit", Detected, Reset + 1),
                                    Rec(ExampleService, "recovered", "usage_limit", -400, Reset + 1),
