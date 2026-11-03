@@ -32,8 +32,10 @@ class HiddenTests(unittest.TestCase):
         self.assertIsNone(registry.REGISTRY.get("codex_retry_settings"))
         self.assertNotIn(CODEX_RETRY_SETTINGS, registry.DEFINITIONS)
         self.assertNotIn("codex_retry_settings", registry.SHOWN_ORDER)
+        # v0.6.22: its statement is written, as Continue inside the turn's is, so a pass offers it whole; it is shown
+        # nowhere while no row is (test_advanced_page_* build the page from the registry this edition runs).
         english = statement.CATALOGS.words("en")
-        self.assertFalse([key for key in english if "codex_retry_settings" in key], "no statement shown")
+        self.assertIn("name.codex_retry_settings", english)
 
     def test_on_a_pass_it_is_offered_after_the_others(self):
         let_out = offered({Measurement.MB2: (Verdict.PASS, ENGINE)})
