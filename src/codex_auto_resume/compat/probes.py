@@ -8,6 +8,7 @@ from pathlib import Path
 
 from .. import config
 from .. import compat
+from ..codex.pairing import official_engine
 from .files import (path_digest)
 from .cache import (_coerce, _columns, _newest)
 
@@ -161,7 +162,7 @@ def _served_engines():
         served = list(windows.app_engines())
     except Exception:
         return
-    yield from (Path(path) for path in served)
+    yield from (Path(path) for path in served if official_engine(path)[0])
 
 
 def discover(codex_home, explicit=None):

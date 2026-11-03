@@ -164,7 +164,7 @@ class NeverDrivenTests(SignedEngineCase):
             with self.subTest(refusal), stub:
                 self.serve(self.package)
                 self.assertIsNone(self.paired())
-                self.assertEqual(self.first.served_elsewhere, frozenset())
+                self.assertEqual(self.app._served_elsewhere(), frozenset())
                 self.assertFalse(self.moved(0))
                 self.first.codex_exe.rename(self.first.codex_exe.with_suffix(".away"))
                 try:
