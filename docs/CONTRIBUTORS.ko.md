@@ -70,6 +70,8 @@
   그 원인을 코드의 정확한 규칙까지 짚어 주셨습니다([#54](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/54)).
 - [@CuuuuteBrainGoo](https://github.com/CuuuuteBrainGoo) 님은 알림 영역에서 대시보드를 열 때마다 창이 하나 더 열리는 문제를
   알려 주셨습니다([#55](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/55)).
+- [@Chen017](https://github.com/Chen017) 님은 Codex 앱이 엔진을 늘 쓰던 폴더가 아니라 자기 패키지에서 실행하는 PC에서 모든 복구가 기다리기만 한다는
+  것을, 엔진 경로를 코드에서 읽어 정확히 짚고 진단 정보를 붙여 알려 주셨습니다([#58](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/58)).
 
 ## AI 기여자에 대한 참고
 
