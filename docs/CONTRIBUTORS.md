@@ -75,6 +75,8 @@ Everyone below is a person outside the project who helped it, in the order they 
   person went on using it from the input box, and traced it to the exact rule in the code ([#54](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/54)).
 - [@CuuuuteBrainGoo](https://github.com/CuuuuteBrainGoo) reported that opening the Dashboard from the notification area opened another
   window each time ([#55](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/55)).
+- [@Chen017](https://github.com/Chen017) reported that every recovery waited when the Codex app ran its engine from its own package instead of the
+  usual folder, with the engine path read out of the code and the diagnostics attached ([#58](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/58)).
 
 ## A note on the AI contributors
 

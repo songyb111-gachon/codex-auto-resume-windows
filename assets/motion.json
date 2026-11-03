@@ -164,19 +164,19 @@
       "size": "776x540"
     },
     "docs/images/readme-motion-ko.png": {
-      "bytes": 6615440,
+      "bytes": 6615645,
       "frames": 1621,
       "ms": 45697,
       "scenes": {
-        "S0": 108127,
+        "S0": 108139,
         "S1": 199888,
         "S10": 172904,
-        "S11": 608788,
+        "S11": 608828,
         "S12": 40288,
-        "S12b": 702928,
+        "S12b": 703050,
         "S13": 69842,
         "S14": 20660,
-        "S15": 275903,
+        "S15": 275907,
         "S15b": 204999,
         "S16": 62132,
         "S1m": 424274,
@@ -185,27 +185,27 @@
         "S2c": 739859,
         "S5": 218272,
         "S6": 139149,
-        "S7": 181903,
-        "S8": 189999,
+        "S7": 181916,
+        "S8": 190013,
         "S9": 1396273
       },
-      "sha256": "b7b3f62049576bb30b5181232feacfa3f7f8e08634736fec8a6376274969b77a",
+      "sha256": "d0a1105588a6bfabbd915790513bfb37f6fedfb378f96cf24e0e615dda10d749",
       "size": "1500x1041"
     },
     "docs/images/readme-motion.png": {
-      "bytes": 7220652,
+      "bytes": 7220751,
       "frames": 1625,
       "ms": 45917,
       "scenes": {
-        "S0": 113697,
+        "S0": 113710,
         "S1": 228854,
         "S10": 201178,
-        "S11": 659061,
+        "S11": 659094,
         "S12": 47807,
-        "S12b": 848372,
+        "S12b": 848389,
         "S13": 58103,
         "S14": 19806,
-        "S15": 236640,
+        "S15": 236655,
         "S15b": 188034,
         "S16": 61894,
         "S1m": 489048,
@@ -214,11 +214,11 @@
         "S2c": 797928,
         "S5": 249610,
         "S6": 165348,
-        "S7": 216114,
-        "S8": 239724,
+        "S7": 216131,
+        "S8": 239728,
         "S9": 1452833
       },
-      "sha256": "fb12d655e09e19f43e947e203b902d9ea648ea66bfeb0e49f89cb238e10e9fd8",
+      "sha256": "058341ef780adbf520093243cccecef55b4008a86f03b52e59d728d075382952",
       "size": "1500x1041"
     },
     "docs/images/tray-popup-motion-ko.png": {
@@ -259,7 +259,7 @@
     "<motion:logo-light>": "e30f23a553b3ff5cc333efa162e11d280073213b463e80e2da1ce125326216f9",
     "<motion:popup-en>": "fd009c6bd6df0ecf987afc5d38e9010f8c281aa9a86eedb75df3dc65cd675e5c",
     "<motion:popup-ko>": "45b322e3879c5c2bd2506fc39d51356a5034db08124d1b89f44afb8c1a07e689",
-    "<motion:readme-en>": "cb15f02be5b68ac58caf7a75697feb347f26c883d85d7330be35103210711632",
-    "<motion:readme-ko>": "c6c81bbebae91bb7e2abf6ec082994bb8b221b8afca85605225b4ad6575b045b"
+    "<motion:readme-en>": "65442ccf5ebc173d54eb285beed63a1b93a5a887bb28ffc6f4b5b18da04abb35",
+    "<motion:readme-ko>": "6e08a7d47a60f0d441775695dec373dfbd8faec7f96c14b956e3e4008cc3e7c0"
   }
 }

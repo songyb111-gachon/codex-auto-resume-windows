@@ -23,7 +23,7 @@ from .. import (compatio, config, edition, l10n, managed, needsyou, notice_kinds
                settings as policy)
 from ..codex import LocalSource
 from ..codex.chains import memory as chain_memory
-from ..codex.pairing import app_engines
+from ..codex.pairing import app_engines, official_engine
 from ..domain.plug import DEFER, EXTRA, Surface, guard
 from ..engine import Engine
 from ..logbook import LOGGER_NAME, EngineLog, setup_logging
@@ -164,16 +164,17 @@ class App(WatchLoop):
             asked = []
 
             def running():
-                # v0.6.13: asked only where several official builds pass (config.discover_codex_exe).
-                asked.append(True)
+                # v0.6.13: asked only where several official builds pass, v0.6.21 (#58) also where none in bin
+                asked.append(True)  # does or the app was seen serving from another engine (discover_codex_exe).
                 return app_engines()
             try:
-                exe = config.discover_codex_exe(self._codex_exe_override, compatible, running=running)
+                exe = config.discover_codex_exe(self._codex_exe_override, compatible, running=running,
+                                                ask_app=bool(self._elsewhere_seen), ask_app_if_none=True)
             finally:
                 self._discovery = discovery
             if asked:
-                self.logger.info("more than one official Codex engine passes the engine checks; "
-                                 "the one the ChatGPT app runs as its Codex server is the one driven")
+                self.logger.info("the ChatGPT app was asked which Codex server it runs; where more than one official "
+                                 "Codex engine passes the engine checks, the one it runs is the one driven")
             backend = Backend(self.codex_home, exe)
             # Discovery probed a throwaway instance; run the check on the one we keep so
             # engine_version/engine_verified are populated for status, doctor and logs.
@@ -236,19 +237,15 @@ class App(WatchLoop):
         return True
 
     def _served_elsewhere(self) -> frozenset:
-        """The official engines (E1, config.candidate_codex_exes) the app main ran as its children
-        the last time the pairing found none at the held path, each with its file's stamp; nothing
-        where an engine was named (--codex-exe, the setting or the environment), which is never
-        second-guessed, and nothing where the official location cannot be read."""
+        """The official engines (E1, codex/pairing.py official_engine: in bin, or v0.6.21 signed by OpenAI) the app
+        main ran as its children the last time the pairing found none at the held path, each with its file's stamp;
+        nothing where an engine was named (--codex-exe, the setting or the environment), which is never
+        second-guessed, and nothing that is not there or cannot be read."""
         served = getattr(self._backend, "served_elsewhere", None)
         if not served or self._codex_exe_override or os.environ.get(config.ENV_CODEX_EXE):
             return frozenset()
-        try:
-            official = {os.path.normcase(str(path)): path for path in config.candidate_codex_exes()}
-            keys = {os.path.normcase(path) for path in served}
-        except (config.ConfigError, OSError, TypeError):
-            return frozenset()
-        return frozenset((key, _file_stamp(official[key])) for key in keys if key in official)
+        stamps = {os.path.normcase(str(path)): _file_stamp(path) for path in served if official_engine(path)[0]}
+        return frozenset((key, stamp) for key, stamp in stamps.items() if stamp is not None)
 
     def engine_state(self) -> str:
         """The word the engine's `engine_compatible` gate reads, and the heartbeat stores.

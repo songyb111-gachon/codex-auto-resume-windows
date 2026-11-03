@@ -5,10 +5,12 @@ import json
 import os
 from pathlib import Path, PureWindowsPath
 import re
+import stat
 import subprocess as S
 import threading
 
 from ..domain.errors import AdapterError
+from ..win import authenticode
 from ..win.inventory import resource_users
 from ..win.kernel import NO_WINDOW, process_identity
 from .paths import newest_generation
@@ -36,6 +38,57 @@ def inventory():
         return rows if isinstance(rows, list) else [rows]
     except (OSError, S.SubprocessError, ValueError):
         raise AdapterError("process_inventory_unavailable") from None
+
+
+# v0.6.21 (#58): the one signer whose signature makes a codex.exe outside the official folder official, compared
+# exactly - the subject common name of the certificate on the engines OpenAI ships, in the app's package and in bin.
+OPENAI_SIGNER = "OpenAI OpCo, LLC"
+# Each file's answer by its path, size and modification time: a 369 MB engine is hashed once, not on every tick.
+_OFFICIAL = {}
+_OFFICIAL_LOCK = threading.Lock()
+
+
+def at_official_location(path) -> bool:
+    """Whether `path` is `%LOCALAPPDATA%\\OpenAI\\Codex\\bin\\<hex>\\codex.exe`, the official, content-addressed folder."""
+    local = Path(os.environ.get("LOCALAPPDATA", "")) / "OpenAI/Codex/bin"
+    return bool(re.fullmatch(re.escape(str(local)) + r"\\[0-9a-f]+\\codex\.exe", str(path), re.I))
+
+
+def official_engine(path) -> tuple:
+    """Whether the codex.exe at `path` is an official Codex engine, and why: the one rule that the engine check
+    (E1, codex/transport.py), discovery (through app_engines), the watcher's look for a moved engine
+    (runtime/app.py) and the compatibility readers all ask.
+
+    v0.6.21 (#58): official when it sits in the official folder (`at_official_location`, no file read) or when the
+    file carries a valid Authenticode signature, chained to a root this PC trusts, whose signer is OpenAI
+    (`OPENAI_SIGNER`) - the Codex app can run its engine from its own package. Returns (True, "official_location"),
+    (True, "openai_signature") or (False, reason): `engine_unreadable`, `wrong_signer`, or the signature's own
+    (win/authenticode.py). Never raises: anything that cannot be read is not official."""
+    try:
+        if at_official_location(path):
+            return True, "official_location"
+        text = str(path)
+        found = os.stat(text)
+    except (OSError, TypeError, ValueError):
+        return False, "engine_unreadable"
+    if not stat.S_ISREG(found.st_mode):
+        return False, "engine_unreadable"
+    key = (os.path.normcase(text), found.st_size, found.st_mtime_ns)
+    with _OFFICIAL_LOCK:
+        known = _OFFICIAL.get(key)
+    if known is not None:
+        return known
+    try:
+        answer = (True, "openai_signature") if authenticode.signer(text) == OPENAI_SIGNER else (False, "wrong_signer")
+    except AdapterError as refused:
+        answer = (False, str(refused))
+    except Exception:
+        answer = (False, "signature_unreadable")
+    with _OFFICIAL_LOCK:
+        if len(_OFFICIAL) >= 32:
+            _OFFICIAL.clear()
+        _OFFICIAL[key] = answer
+    return answer
 
 
 def _state_holder(servers, codex_home):
@@ -101,6 +154,10 @@ def server_engines(rows) -> frozenset:
     v0.6.13: what the watcher asks where the engine it found no longer names the app's server. A
     Codex update can start the app's server from a build in another bin/<hex> folder and leave the
     old one on disk, which then still passes every engine check (runtime/app.py, engine_moved).
+
+    v0.6.21 (#58): the app can run its engine from its own package. Whoever reads these asks `official_engine` of
+    each before it counts: discovery through the engine check (E1), the watcher in runtime/app.py `_served_elsewhere`
+    and the compatibility readers in compat/probes.py `_served_engines`.
     """
     main = _app_main(rows)
     return frozenset(row["path"] for row in rows if isinstance(row, dict) and isinstance(row.get("path"), str)
@@ -110,7 +167,8 @@ def server_engines(rows) -> frozenset:
 
 def app_engines() -> frozenset:
     """`server_engines` of the processes running now: what discovery asks where more than one
-    official build passes the engine checks (config.discover_codex_exe), and only then."""
+    official build passes the engine checks, where none in the official folder does, or after the app was
+    seen serving from another engine (config.discover_codex_exe), and only then."""
     return server_engines(inventory())
 
 

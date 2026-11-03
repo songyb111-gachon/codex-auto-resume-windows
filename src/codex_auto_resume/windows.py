@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from .codex.appserver import PROTOCOL_METHODS, Protocol
 from .codex.errors import AdapterError
-from .codex.pairing import app_engines, desktop_pair, inventory
+from .codex.pairing import app_engines, desktop_pair, inventory, official_engine
 from .codex.transport import (Backend, FAIL, PASS, REQUIRED_QUEUE_FLAGS, UNAVAILABLE,
                               canonical_uuid, verified_versions)
 from .codex.usage import parse_usage
@@ -29,6 +29,6 @@ __all__ = ["APPMODEL_ERROR_NO_PACKAGE", "AdapterError", "Backend", "CREATE_BREAK
            "JOB_SILENT_BREAKAWAY_OK", "Mutex", "NO_WINDOW", "PASS", "PROTOCOL_METHODS",
            "Protocol", "REQUIRED_QUEUE_FLAGS", "StopEvent", "UNAVAILABLE", "WakeEvent",
            "app_engines", "canonical_uuid", "desktop_pair",
-           "install_in_progress", "inventory", "parse_usage", "process_context",
+           "install_in_progress", "inventory", "official_engine", "parse_usage", "process_context",
            "process_identity", "resource_users", "restart_manager_available",
            "verified_versions", "wait_any"]

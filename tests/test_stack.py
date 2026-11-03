@@ -1,6 +1,6 @@
 """Where every module goes when the core is Rust, and what may call what once it is.
 
-`docs/ROADMAP.md` names the stack v0.6.22 is planned to arrive at: the Windows interface in
+`docs/ROADMAP.md` names the stack v0.6.24 is planned to arrive at: the Windows interface in
 C# and the core in Rust, in eight parts -
 
     Watcher · Recovery engine · Classifier / Policy · State machine ·
@@ -226,6 +226,8 @@ ITEM = {_q(name): item for item, names in {
                  "win.folderid",
                  # v0.6.20 (#55): asking the settings window that is open to come forward on a page.
                  "win.handover",
+                 # v0.6.21 (#58): who signed a file, as Windows judges its signature.
+                 "win.authenticode",
                  "pwsh", "shortcut", "startup", "addremove"),
     "config": ("", "config", "logbook"),
 }.items() for name in names}

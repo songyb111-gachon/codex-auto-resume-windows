@@ -713,8 +713,12 @@ ownership information. It never acquires a lock on the app's file.
 ## Requirements
 
 - Windows 10/11.
-- The official Windows ChatGPT/Codex desktop app, running, with its engine at
-  `%LOCALAPPDATA%\OpenAI\Codex\bin\<hash>\codex.exe`.
+- The official Windows ChatGPT/Codex desktop app, running. Its engine is official where it sits at
+  `%LOCALAPPDATA%\OpenAI\Codex\bin\<hash>\codex.exe`, or anywhere else where the file carries a valid
+  signature by OpenAI (OpenAI OpCo, LLC), as the engine in the app's own package does. Outside that
+  folder only the engine the app is running as its Codex server is picked up on its own; nothing else
+  on the disk is searched. Windows checks the signature on this PC alone, with no revocation lookup and
+  nothing sent anywhere.
 - The engine is located automatically, and no version is trusted by its version string alone:
   whichever one is found, before a Codex update or after one, is accepted only if `codex queue`
   still offers `--thread` and `--message`. `status`/`doctor` then name it with one of three words
@@ -733,7 +737,8 @@ ownership information. It never acquires a lock on the app's file.
 - Where more than one build passes those checks - an update can leave the old one beside the new -
   the one the ChatGPT app is running as its Codex server is the one driven. If that is not exactly
   one of them, none is chosen and recoveries wait until `--codex-exe` or the `codex_exe` setting
-  names one. An engine named that way is always used as named.
+  names one. An engine named that way is always used as named, if it sits in that folder or carries
+  OpenAI's signature.
 - Your own machine can say something about a version too.
   [codex-compat-reporter](https://github.com/songyb111-gachon/codex-compat-reporter) is a separate,
   public tool that turns this installation's own records into one report — counts, states and

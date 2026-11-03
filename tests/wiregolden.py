@@ -992,6 +992,11 @@ def _no_process():
         yield
 
 
+def _no_process_list():
+    from codex_auto_resume.domain.errors import AdapterError
+    raise AdapterError("process_inventory_unavailable")
+
+
 def _seed_exhausted(paths) -> None:
     """Record 9: a server error on a conversation of its own that ran out of attempts, and whose
     conversation was switched off - so "give attempts back" has something to give back, with
@@ -1024,6 +1029,9 @@ def installation(*, watching=True, mcp=False, engine=False):
         workspace = Path(name)
         # Before anything is built, so the building cannot start a process either.
         stack.enter_context(_no_process())
+        # v0.6.21 (#58): discovery that finds no engine in bin asks the ChatGPT app which it runs. A golden reads no
+        # process list - this PC's app would answer - so the app is one that cannot be seen, on every machine.
+        stack.enter_context(patch("codex_auto_resume.codex.pairing.inventory", side_effect=_no_process_list))
         # The installer's lock under a name of the golden's own, where win/homelock.py reads it: an
         # installation running on this PC changes no answer, and no case ever holds the real lock.
         stack.enter_context(patch("codex_auto_resume.win.homelock.INSTALL_LOCK", GOLDEN_INSTALL_LOCK))
