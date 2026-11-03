@@ -149,6 +149,8 @@ LAYER = {_q(name): layer for layer, names in {
                  "win.folderid",
                  # v0.6.20 (#55): asking the settings window that is open to come forward on a page.
                  "win.handover",
+                 # v0.6.21 (#58): who signed a file, as Windows judges its signature, with no network.
+                 "win.authenticode",
                  # v0.6.10-alpha: source.py became source/, and every part of it reads Codex;
                  # windows.py's other half - the CLI, the App Server, the pairing - joined it.
                  "codex.appserver", "codex.errors", "codex.history", "codex.labels",

@@ -226,6 +226,8 @@ ITEM = {_q(name): item for item, names in {
                  "win.folderid",
                  # v0.6.20 (#55): asking the settings window that is open to come forward on a page.
                  "win.handover",
+                 # v0.6.21 (#58): who signed a file, as Windows judges its signature.
+                 "win.authenticode",
                  "pwsh", "shortcut", "startup", "addremove"),
     "config": ("", "config", "logbook"),
 }.items() for name in names}

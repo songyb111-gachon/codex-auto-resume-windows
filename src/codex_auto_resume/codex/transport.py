@@ -17,7 +17,8 @@ from .. import machine
 from ..domain import ids, vocabulary
 from ..win.inventory import resource_users
 from ..win.kernel import NO_WINDOW
-from .pairing import app_running, desktop_pair, engines_instead, inventory, own_holder, session_kind
+from .pairing import (app_running, desktop_pair, engines_instead, inventory, official_engine, own_holder,
+                      session_kind)
 from .appserver import PROTOCOL_METHODS, Protocol
 from .errors import AdapterError
 from .usage import parse_usage
@@ -143,7 +144,8 @@ class Backend:
     def engine_checks(self) -> dict:
         """The engine's three structural checks, as the Compatibility Registry reads them.
 
-        E1 `official_location` - the binary sits at the official, content-addressed path;
+        E1 `official_location` - the binary sits at the official, content-addressed path, or (v0.6.21, #58)
+            carries OpenAI's valid signature (pairing.official_engine);
         E2 `version_runs` - `codex --version` runs and exits 0;
         E4 `queue_flags` - `codex queue --help` exits 0 and offers --thread and --message.
 
@@ -156,11 +158,9 @@ class Backend:
         `_compatible()` always did, and a full PASS is what `_compatible()` accepts - so the
         registry and the adapter can never disagree about the binary in use.
         """
-        local = Path(os.environ.get("LOCALAPPDATA", "")) / "OpenAI/Codex/bin"
-        expected = re.compile(re.escape(str(local)) + r"\\[0-9a-f]+\\codex\.exe", re.I)
         checks = {"official_location": FAIL, "version_runs": UNAVAILABLE,
                   "queue_flags": UNAVAILABLE, "version": None, "signature": None}
-        if not expected.fullmatch(str(self.codex_exe)):
+        if not official_engine(self.codex_exe)[0]:
             self._last_checks = checks
             return dict(checks)
         checks["official_location"] = PASS
