@@ -20,7 +20,7 @@ if _HERE not in sys.path:
 from test_engine_moved import TwoBuildsCase, key  # noqa: E402
 from codex_auto_resume import config  # noqa: E402
 from codex_auto_resume.codex import pairing, transport  # noqa: E402
-from codex_auto_resume.compat import probes  # noqa: E402
+from codex_auto_resume.compat import files, probes, views  # noqa: E402
 from codex_auto_resume.domain.errors import AdapterError  # noqa: E402
 from codex_auto_resume.runtime import app as runtime_app  # noqa: E402
 from codex_auto_resume.win import authenticode  # noqa: E402
@@ -181,6 +181,33 @@ class NeverDrivenTests(SignedEngineCase):
         unsigned.write_bytes(b"MZ")
         with self.assertRaisesRegex(AdapterError, "unsupported_codex_location"):
             config.discover_codex_exe(str(unsigned), self.compatible)
+
+
+class ReaderTests(SignedEngineCase):
+    """The watcher's report names the engine it drives by a digest of its path: a reader binds it to the app's
+    signed engine too, so compatibility reads as it did in bin rather than "engine changed"."""
+
+    def report_on(self, path):
+        return {"engine": {"found": True, "path_digest": files.path_digest(path), "signature": files._signature(path)}}
+
+    def test_a_report_on_the_apps_signed_engine_still_binds(self):
+        self.serve(self.package)
+        self.assertTrue(views._binding_holds(self.report_on(self.package)))
+        self.rows = []
+        self.assertFalse(views._binding_holds(self.report_on(self.package)), "bound with no app to say so")
+        self.serve(self.package)
+        unsigned = self.fixture.root / "unsigned" / "codex.exe"
+        unsigned.parent.mkdir()
+        unsigned.write_bytes(b"MZ")
+        self.serve(unsigned)
+        self.assertFalse(views._binding_holds(self.report_on(unsigned)))
+
+    def test_a_report_on_a_build_in_bin_reads_no_process_list(self):
+        self.serve(self.package)
+        listed = self.listings
+        self.assertTrue(views._binding_holds(self.report_on(self.first.codex_exe)))
+        self.assertEqual(self.listings, listed)
+        self.assertEqual(self.signatures_read, [])
 
 
 if __name__ == "__main__":

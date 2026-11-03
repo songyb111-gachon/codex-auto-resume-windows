@@ -152,6 +152,18 @@ def _candidate_paths(explicit=None) -> list:
     return found
 
 
+def _served_engines():
+    """v0.6.21 (#58): the official engines the ChatGPT app main runs as its children (codex/pairing.py app_engines,
+    official_engine), which can sit outside bin, signed by OpenAI. A generator, so that the process list is read
+    only where the candidates searched before it did not answer; nothing where it cannot be read."""
+    from .. import windows
+    try:
+        served = list(windows.app_engines())
+    except Exception:
+        return
+    yield from (Path(path) for path in served)
+
+
 def discover(codex_home, explicit=None):
     """Discovery as the watcher does it, recording every candidate's checks. For per-call
     readers that have no watcher backend to ask. Returns (backend or None, discovery).

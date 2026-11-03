@@ -41,14 +41,15 @@ class CompatCheck(StrEnum):
     """Every local structural check, each grounded in the code path that relies on it (compat.CHECKS).
     None of them sends anything, starts `codex app-server`, or writes anywhere."""
     # E1 windows.Backend.engine_checks: the binary sits at the official, content-addressed
-    #    %LOCALAPPDATA%\OpenAI\Codex\bin\<hex>\codex.exe.
+    #    %LOCALAPPDATA%\OpenAI\Codex\bin\<hex>\codex.exe - or, from v0.6.21 (#58), carries a valid
+    #    signature by OpenAI (codex/pairing.py official_engine), as the app's own package engine does.
     OFFICIAL_LOCATION = "official_location"
     # E2 `codex --version` runs and exits 0.
     VERSION_RUNS = "version_runs"
     # E5 config.discover_codex_exe: exactly one candidate passes (or one was named) - or, from
     #    v0.6.13, of several that pass exactly one is the build the ChatGPT app main runs as its
-    #    Codex server (its codex.exe children's image paths, codex/pairing.py app_engines).
-    #    Anything else is ambiguous, and nothing is chosen.
+    #    Codex server (its codex.exe children's image paths, codex/pairing.py app_engines), which from
+    #    v0.6.21 are candidates too where none in bin passes. Anything else is ambiguous, and nothing is chosen.
     SINGLE_CANDIDATE = "single_candidate"
     # E4 `codex queue --help` exits 0 and still offers the two flags the one interface
     #    windows.Backend.send drives needs.

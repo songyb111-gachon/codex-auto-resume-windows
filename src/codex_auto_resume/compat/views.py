@@ -2,6 +2,7 @@
 """
 from __future__ import annotations
 
+import itertools
 import os
 from pathlib import Path
 import time
@@ -101,7 +102,9 @@ def _binding_holds(report, explicit=None) -> bool:
     if engine["found"]:
         if not engine["path_digest"] or engine["signature"] is None:
             return False
-        for candidate in _candidate_paths(explicit):
+        # v0.6.21 (#58): the engine the watcher drives can be the app's, outside bin and signed by OpenAI; the app
+        # is asked only where no candidate in bin is the report's.
+        for candidate in itertools.chain(_candidate_paths(explicit), probes._served_engines()):
             if path_digest(candidate) == engine["path_digest"]:
                 return _signature(candidate) == engine["signature"]
         return False
