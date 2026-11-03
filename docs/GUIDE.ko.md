@@ -639,8 +639,12 @@ VS Code)에서 열려 있습니다. Codex 앱이 잡으면 이어집니다."라�
 ## 요구 사항
 
 - Windows 10/11.
-- 공식 Windows ChatGPT/Codex 데스크톱 앱. 실행 중이어야 하며, 엔진이
-  `%LOCALAPPDATA%\OpenAI\Codex\bin\<hash>\codex.exe`에 있어야 합니다.
+- 공식 Windows ChatGPT/Codex 데스크톱 앱. 실행 중이어야 합니다. 엔진은
+  `%LOCALAPPDATA%\OpenAI\Codex\bin\<hash>\codex.exe`에 있거나, 다른 곳에 있더라도 파일에
+  OpenAI(OpenAI OpCo, LLC)의 유효한 서명이 있으면 공식 엔진입니다. 앱 자체 패키지 안의 엔진이 그렇습니다.
+  그 폴더 밖에서는 앱이 Codex 서버로 실행하고 있는 엔진만 저절로 찾으며, 디스크의 다른 곳은 뒤지지
+  않습니다. 서명은 이 PC의 Windows가 혼자 확인하며, 인증서 폐기 여부를 묻지 않고 아무것도 밖으로
+  보내지 않습니다.
 - 엔진은 자동으로 찾으며, 어떤 버전도 버전 문자열만으로 신뢰하지 않습니다. Codex 업데이트 전이든
   뒤든, 찾은 버전은 `codex queue`가 여전히 `--thread`와 `--message`를 제공할 때만 받아들입니다. 그러면
   `status`와 `doctor`가 그 버전을 세 단어 가운데 하나로 부르며, 셋 모두 똑같이 보냅니다. 그 정확한 버전에서
@@ -658,7 +662,7 @@ VS Code)에서 열려 있습니다. Codex 앱이 잡으면 이어집니다."라�
 - 그 확인을 통과하는 빌드가 둘 이상이면(업데이트가 옛 빌드를 새 빌드 옆에 남겨 둘 수 있습니다)
   ChatGPT 앱이 Codex 서버로 실행하고 있는 빌드를 씁니다. 그런 빌드가 정확히 하나가 아니면 아무것도
   고르지 않으며, `--codex-exe`나 `codex_exe` 설정으로 하나를 지정할 때까지 복구는 기다립니다. 그렇게
-  지정한 엔진은 언제나 지정한 그대로 씁니다.
+  지정한 엔진은 그 폴더에 있거나 OpenAI의 서명이 있으면 언제나 지정한 그대로 씁니다.
 - 사용자의 PC도 어떤 버전에 대해 말할 수 있습니다.
   [codex-compat-reporter](https://github.com/songyb111-gachon/codex-compat-reporter)는 따로 있는
   공개 도구로, 이 설치본의 기록을 보고서 하나로 만듭니다. 횟수와 상태와 시각만 담고, 대화 내용도
