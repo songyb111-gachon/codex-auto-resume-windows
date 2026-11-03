@@ -65,14 +65,14 @@ def _idle():
 
 class AutoSwitch:
     """account_auto_switch's code: its P8 errand and its P7 answer. See the module."""
-    __slots__ = ("paths", "_scoped", "_store", "_session_for", "_restart", "_read_real", "_idle", "_busy", "_home",
+    __slots__ = ("paths", "_scoped", "_saved", "_session_for", "_restart", "_read_real", "_idle", "_busy", "_home",
                  "_looked", "_episode", "_switched_at")
 
     def __init__(self, paths, *, store=None, session_for=None, restart=None, read_real=None, idle=None, busy=None,
                  home=None):
         self.paths = paths
         self._scoped = None
-        self._store, self._session_for, self._restart, self._read_real = store, session_for, restart, read_real
+        self._saved, self._session_for, self._restart, self._read_real = store, session_for, restart, read_real
         self._idle = idle or _idle
         self._busy = busy
         self._home = home
@@ -85,10 +85,10 @@ class AutoSwitch:
 
     # ------------------------------------------------------------------ seams
     def store(self):
-        if self._store is None:
+        if self._saved is None:
             from ..profiles import Profiles
-            self._store = Profiles(self.paths.home)
-        return self._store
+            self._saved = Profiles(self.paths.home)
+        return self._saved
 
     def home(self):
         if self._home is None:

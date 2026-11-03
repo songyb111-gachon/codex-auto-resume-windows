@@ -28,7 +28,7 @@ _ADDING = {}
 _LOCK = threading.Lock()
 
 
-def _store(runtime):
+def _saved(runtime):
     from ..profiles import Profiles
     return Profiles(runtime.paths.home)
 
@@ -44,7 +44,7 @@ def view(runtime, *, store=None, codex_home=None) -> dict:
         return _refused(Refusal.NOT_ON)
     from ..codex import authfile
     from ..vocabulary import OptionKey
-    store = store or _store(runtime)
+    store = store or _saved(runtime)
     try:
         word = authfile.usable(codex_home if codex_home is not None else _codex_home(runtime))
     except Exception:
@@ -75,7 +75,7 @@ def add(runtime, *, start=None, run=None) -> dict:
 
     def target():
         try:
-            added = run(paths, _store(runtime)) is not None
+            added = run(paths, _saved(runtime)) is not None
         except Exception:
             added = False
         with _LOCK:
@@ -94,7 +94,7 @@ def save(runtime, *, store=None, codex_home=None, read_real=None) -> dict:
     if not _standing(runtime, CAPABILITY):
         return _refused(Refusal.NOT_ON)
     from ..codex.swap import save_current
-    saved = save_current(runtime.paths, store or _store(runtime),
+    saved = save_current(runtime.paths, store or _saved(runtime),
                          codex_home if codex_home is not None else _codex_home(runtime), read_real=read_real)
     return {"done": True, "refusal": None, "saved": saved is not None}
 
@@ -103,7 +103,7 @@ def delete(runtime, argument, *, store=None) -> dict:
     """advanced-accounts-delete: {"id": ...} or {"all": true}; see the module."""
     if not _standing(runtime, CAPABILITY):
         return _refused(Refusal.NOT_ON)
-    store = store or _store(runtime)
+    store = store or _saved(runtime)
     argument = argument if isinstance(argument, dict) else {}
     if argument.get("all") is True:
         return {"done": True, "refusal": None, "deleted": store.delete_all()}
