@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.6.21 — Recoveries when the Codex app runs its engine from its own package
+
+[The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.20...v0.6.21)
+
+**From v0.6.20, an ordinary update.** It is the latest release, for both editions, so v0.6.20's *Check for updates* offers it in
+the edition you have, and the plugin in Codex installs it too. It carries one fix and nothing else; what v0.6.20 left planned
+moved one release on (see the roadmap). Nothing stored changes - the watcher's state, the settings file and the advanced edition's
+own file are as v0.6.20 left them - so going back to v0.6.20 needs no care.
+
+### Both editions
+
+- **A recovery no longer waits when the Codex app runs its engine from its own package** (reported by
+  [@Chen017](https://github.com/Chen017), [#58](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/58)).
+  On a PC where the Codex app runs its engine from its own package instead of `%LOCALAPPDATA%\OpenAI\Codex\bin`, every recovery
+  waited, saying the app was not running, with every compatibility check passing and nothing sent. An engine now counts as
+  official in that folder, as before, or when it carries OpenAI's valid signature, which Windows checks on this PC with no
+  network. Discovery looks only at what the Codex app itself is running, never searches the disk, and picks it up with no restart
+  of the watcher. An engine named in the settings can be such a file too. Anything that cannot be read still only waits. Nothing
+  changes on a PC whose app runs from that folder.
+
 ## v0.6.20 — A status light for every state, Arabic and Hebrew with the window mirrored, a conversation an agent made recovered when you started the turn, the open Dashboard brought forward, and the advanced edition's analytics, push notices, early 5-hour window, account switch, compatibility data and the rest of issue 50
 
 [The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.19...v0.6.20)
