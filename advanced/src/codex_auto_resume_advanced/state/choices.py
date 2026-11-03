@@ -53,7 +53,10 @@ STAMPS = {"idle_update_check": (str(OptionKey.LAST_CHECK), str(OptionKey.OFFERED
                             str(OptionKey.ANCHOR_RESET_DONE), str(OptionKey.ANCHOR_INPUT_TOKENS),
                             str(OptionKey.ANCHOR_OUTPUT_TOKENS), str(OptionKey.ANCHOR_ACCOUNT_AT)),
           # v0.6.20 (the pair audit, V20-2): when account_switch last saw another account signed in (engine/account.py).
-          "account_switch": (str(OptionKey.ACCOUNT_CHANGED_AT),)}
+          "account_switch": (str(OptionKey.ACCOUNT_CHANGED_AT),),
+          # v0.6.22: when account_auto_switch last switched, and its switches today (engine/autoswitch.py).
+          "account_auto_switch": (str(OptionKey.AUTO_SWITCHED_AT), str(OptionKey.AUTO_SWITCH_DAY),
+                                  str(OptionKey.AUTO_SWITCH_COUNT))}
 RULES_LIMIT = 10
 STATUS_RANGE = (100, 599)
 # How far back the Dashboard counts a rule's hits and shows samples.

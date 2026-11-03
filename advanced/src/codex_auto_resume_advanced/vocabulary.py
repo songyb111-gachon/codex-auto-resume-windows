@@ -334,6 +334,10 @@ class OptionKey(StrEnum):
     # window_anchor last took in - its window stamps are the account's that was signed in, and go with it.
     ACCOUNT_CHANGED_AT = "account_changed_at"
     ANCHOR_ACCOUNT_AT = "anchor_account_at"
+    # v0.6.22 (account_auto_switch): when it last switched the account, and the day and count of its switches (PER_DAY).
+    AUTO_SWITCHED_AT = "auto_switched_at"
+    AUTO_SWITCH_DAY = "auto_switch_day"
+    AUTO_SWITCH_COUNT = "auto_switch_count"
 
 
 class WordingKey(StrEnum):
@@ -625,6 +629,13 @@ class Measurement(StrEnum):
     # one recorded responseTooManyFailedAttempts - codex_gave_up's kind (terminal_failure) - which model_fallback would
     # then also have to answer where the last retry's cause was capacity.
     MGAVE = "mgave"
+    # v0.6.22 (account_auto_switch, plans/v0622-account-autoswitch-design.md section 11). MPROFILE: account/read and
+    # account/rateLimits/read on a scratch Codex home made from a saved account's sign-in file answer that account, with
+    # the real home's file and the running app unchanged. MSWAP: the Codex app closed by the product's close, the real
+    # sign-in file swapped to another saved account's and the app started is signed in as that account - and after the
+    # swap back, the first account's sign-in still works.
+    MPROFILE = "mprofile"
+    MSWAP = "mswap"
 
 
 class ObservedWord(StrEnum):

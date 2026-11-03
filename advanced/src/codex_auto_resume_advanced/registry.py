@@ -79,6 +79,7 @@ from .engine.analytics import DAYS as ANALYTICS_DAYS, DEFAULT_DAYS as ANALYTICS_
 from .engine.anchor import (CODES as ANCHOR_CODES, TIME_CHOICES as ANCHOR_TIMES, TIME_OFF as ANCHOR_OFF,
                              TIME_RANGE as ANCHOR_RANGE, make as make_window_anchor)
 from .engine.account import make as make_account_switch
+from .engine.autoswitch import make as make_account_auto_switch
 from .engine.admitted import (ATTEMPTS, DEFAULT_ATTEMPTS, make_codex_gave_up, make_sign_in_retry,
                               make_structured_rules, make_unknown_failure_budget)
 from .engine.capacity import CEILING_HOURS, DEFAULT_HOURS, make as make_capacity_retry
@@ -1545,6 +1546,42 @@ STOP_HOOK = CapabilityDef(
     measurements=(Measurement.M4, Measurement.M4B, Measurement.MHK),
 )
 
+# Switch to another saved account at a usage limit (v0.6.22, the owner's decisions of 2026-11-01;
+# plans/v0622-account-autoswitch-design.md). The person saves their own other Codex accounts - Codex's own sign-in on a
+# scratch home, or the account in use - each a copy of Codex's sign-in file sealed for the current Windows user
+# (profiles.py, win/dpapi.py), shown only as a masked address and plan. At P8, once a recovery has waited for a usage
+# limit five minutes, nothing runs or is queued anywhere, no other recovery waits or runs and nobody has used the PC
+# for two minutes, it reads each saved account's usage on a scratch home, closes the Codex app as account_switch's
+# Restart does, seals the file in use back into its profile, puts the chosen account's copy in its place in one rename,
+# starts the app and reads the account; at P7, for fifteen minutes after a switch, it answers EARLY for the records
+# waiting for a usage limit, and core reads live usage before it sends (engine/autoswitch.py, codex/swap.py,
+# codex/authfile.py). At most four switches a day, one attempt for each set of waiting records, never back to an account
+# found exhausted until a reset still ahead; all exhausted, recovery waits as today. A sign-in Codex keeps outside a file
+# (keyring, auto, ephemeral) fails closed. This is the one capability that reads Codex's sign-in file: every other one,
+# and the standard edition, keep "never reads Codex's sign-in file, a token or a cookie" (B11) - and
+# codex/protocol.FORBIDDEN_METHODS stays as it is: no token method is ever asked. It departs from A12 (a waiting
+# usage-limit recovery is looked at before its reset, live usage still read first), B2 (Codex's auth.json is written),
+# B3 (Codex's state changes outside its listed interfaces), B4 (account/read, on scratch homes too), B10 (each saved
+# account's address and plan are kept, sealed), B11 (it reads and keeps sign-in files), C4 (it acts on its own), C9 (it
+# reads usage when no recovery is due on that account), D2 (sealed sign-in copies kept beside the state), E8 (it ends the
+# Codex app's process if Windows' request is not enough) and F6 (Codex's own `codex login` for Add an account). It
+# requires account_switch, whose watch holds no recovery for a switch of this capability's (profiles.switched_to) and
+# still holds for a change a person made. It stands on usage_probe and rests on MPROFILE and MSWAP; until both pass on
+# the Codex in force it waits hidden in WAITING. Ceilings: those of early_reset's EARLY.
+ACCOUNT_AUTO_SWITCH = CapabilityDef(
+    id="account_auto_switch",
+    points=frozenset({Point.TICK, Point.SCHEDULE}),
+    revision=1,
+    departs_from=("A12", "B2", "B3", "B4", "B10", "B11", "C4", "C9", "D2", "E8", "F6"),
+    compat="usage_probe",
+    ceilings=Ceilings(per_day=12, per_conversation=3),
+    journal_prefix="autoswch",
+    make=make_account_auto_switch,
+    codes=("switched", "not_signed_in", "not_usable", "not_closed", "failed", "all_exhausted", "ceiling"),
+    measurements=(Measurement.MPROFILE, Measurement.MSWAP),
+    requires=("account_switch",),
+)
+
 # The one gate for a capability that cannot work on any Codex measured so far (the owner's rule of 2026-10-16): each
 # here, with the measurement that must pass first, is hidden - not in the registry this edition runs, so no row, no
 # statement and no switch anywhere - until that measurement passes (measured.MEASURED), and then offered after
@@ -1552,7 +1589,9 @@ STOP_HOOK = CapabilityDef(
 # pass offers it whole - MOPEN's did, 2026-10-29; codex_retry_settings' is not.) v0.6.20: a tuple of measurements is
 # several, every one of which must pass (Continue inside the turn: MHK, M4 and M4B).
 WAITING = ((CODEX_RETRY_SETTINGS, Measurement.MB), (OPEN_TO_SEND, Measurement.MOPEN),
-           (STOP_HOOK, (Measurement.MHK, Measurement.M4, Measurement.M4B)))
+           (STOP_HOOK, (Measurement.MHK, Measurement.M4, Measurement.M4B)),
+           # v0.6.22: the automatic account switch, until MPROFILE and MSWAP pass on the Codex in force.
+           (ACCOUNT_AUTO_SWITCH, (Measurement.MPROFILE, Measurement.MSWAP)))
 
 
 def offered(measured) -> tuple:
@@ -1584,7 +1623,9 @@ SHOWN_ORDER = (
     # 2026-10-31, group 1: what gets work going again after a usage limit with no hands (what keeps the watcher
     # going, what starts the recovering, which conversations, and the continuations that need no marker).
     "start_with_codex", "crash_restart", "wake_for_reset", "every_conversation", "queue_for_open", "headless_run",
-    "other_sessions", "marker_free_continuation", "reset_credit", "early_reset", "window_anchor", "parallel_dispatch",
+    "other_sessions", "marker_free_continuation", "reset_credit", "early_reset",
+    # 2026-11-04 (v0.6.22): the automatic account switch is shown here once MPROFILE and MSWAP pass.
+    "account_auto_switch", "window_anchor", "parallel_dispatch",
     # 2026-10-31, group 2: what saves the person work (messages, the usage meter and what serves it, what a person
     # is told and does about one conversation). open_to_send is shown once MOPEN passes.
     "reset_message", "long_reset_message", "keep_going", "prompt_queue", "usage_meter", "usage_wrap_up", "usage_pause",

@@ -36,17 +36,71 @@ SWITCHED, NOT_SIGNED_IN, NOT_USABLE, NOT_CLOSED, FAILED = "switched", "not_signe
 OUTCOMES = (SWITCHED, NOT_SIGNED_IN, NOT_USABLE, NOT_CLOSED, FAILED)
 
 
-def default_session_for(paths):
-    """A session factory on any Codex home, with the Codex the installation drives."""
-    def session_for(home):
+def default_backend_for(paths, exe=None):
+    """Core's Backend on any Codex home, with the Codex the installation drives (or `exe`), checked."""
+    def backend_for(home):
         from codex_auto_resume.codex.transport import Backend
         from . import inuse
-        from .protocol import Session
-        driven = inuse.backend(paths)
-        made = Backend(home, driven.codex_exe)
+        made = Backend(home, exe if exe is not None else inuse.backend(paths).codex_exe)
         made._compatible()
-        return Session(made, capability=CAPABILITY)
+        return made
+    return backend_for
+
+
+def default_session_for(paths, exe=None, measurement=None):
+    """A session factory on any Codex home: this capability's own session, or a measurement's (MPROFILE, MSWAP)."""
+    backend_for = default_backend_for(paths, exe)
+
+    def session_for(home):
+        from .protocol import Session
+        if measurement is not None:
+            return Session(backend_for(home), measurement)
+        return Session(backend_for(home), capability=CAPABILITY)
     return session_for
+
+
+def add_by_login(paths, store, *, backend_for=None, session_for=None, runner=None, seconds=None):
+    """Add an account: Codex's own `codex login` on a scratch home (the person signs in in their browser, on OpenAI's
+    page - the product never sees a password), then that home's sign-in file sealed as a profile with the address and
+    plan account/read answers there; the scratch home removed whatever happened. The profile's id, or None where the
+    sign-in did not finish or no address could be read. `backend_for`, `session_for` and `runner` are a test's."""
+    from .account import LOGIN_SECONDS, _run_codex
+    backend_for = backend_for or default_backend_for(paths)
+    session_for = session_for or default_session_for(paths)
+    if runner is None:
+        from ..report.github import run_process as runner
+    scratch = authfile.Scratch(store.directory)
+    try:
+        with scratch as home:
+            backend = backend_for(home)
+            code = _run_codex(runner, list(backend._argv()) + ["login"], backend, seconds or LOGIN_SECONDS)
+            if code != 0:
+                return None
+            with session_for(home) as session:
+                account = parse(session.call(ACCOUNT_READ, {}))
+            data = authfile.read(home)
+    except Exception:
+        return None
+    if account.get("present") is not True or not account.get("email"):
+        return None
+    try:
+        return store.save(data, account["email"], account.get("plan_word"))
+    except OSError:
+        return None
+
+
+def save_current(paths, store, codex_home, *, read_real=None):
+    """Save the account in use: the real sign-in file sealed as its profile. Its id, or None where the sign-in is not a
+    file (authfile.usable) or the account cannot be told apart."""
+    if authfile.usable(codex_home) != authfile.USABLE:
+        return None
+    found = (read_real or (lambda: _read_real(paths)))()
+    if found.get("present") is not True or not found.get("email"):
+        return None
+    try:
+        return store.save(authfile.read(codex_home), found["email"], found.get("plan_word"))
+    except OSError:
+        return None
 
 
 def usage_of(reply) -> dict:

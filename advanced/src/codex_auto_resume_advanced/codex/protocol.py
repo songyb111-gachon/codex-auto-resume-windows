@@ -132,6 +132,10 @@ MEASUREMENT_METHODS = {
     Measurement.MSTEER2: (),
     # v0.6.20: MGAVE reads the history's database and the rollouts of a Codex home - no session.
     Measurement.MGAVE: (),
+    # v0.6.22 (account_auto_switch): MPROFILE reads one saved account on a scratch home as the capability does; MSWAP reads
+    # the account before and after each swap (the swap is a file renamed and the app restarted, not a call).
+    Measurement.MPROFILE: ("account/read", "account/rateLimits/read"),
+    Measurement.MSWAP: ("account/read", "account/rateLimits/read"),
 }
 
 # The methods a capability's own route may call, beyond `initialize` - each one a measurement
@@ -174,6 +178,9 @@ CAPABILITY_METHODS = {
     # else: a sign-out and a sign-in are Codex's own `codex logout` and `codex login` (codex/account.switch), never a
     # method of this session; FORBIDDEN_METHODS refuses every one of those whatever this row said.
     "account_switch": ("account/read",),
+    # v0.6.22: the automatic switch reads which account is signed in and each saved account's usage, on scratch homes, as
+    # MPROFILE and MSWAP read them - and nothing else: the switch itself is a file put in place, never a method.
+    "account_auto_switch": ("account/read", "account/rateLimits/read"),
 }
 
 # Every method some measurement declared: what a capability's own route may be given, and nothing

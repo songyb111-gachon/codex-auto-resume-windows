@@ -179,7 +179,7 @@ class ShippedTests(unittest.TestCase):
     SHOWN = ("compat_report",
              # 1)
              "start_with_codex", "crash_restart", "wake_for_reset", "every_conversation", "queue_for_open", "headless_run",
-             "other_sessions", "marker_free_continuation", "reset_credit", "early_reset", "window_anchor", "parallel_dispatch",
+             "other_sessions", "marker_free_continuation", "reset_credit", "early_reset", "account_auto_switch", "window_anchor", "parallel_dispatch",
              # 2) (open_to_send is hidden until MOPEN passes)
              "reset_message", "long_reset_message", "keep_going", "prompt_queue", "usage_meter", "usage_wrap_up", "usage_pause",
              "push_notices", "send_now", "open_to_send", "open_codex_button", "codex_chat", "steer_send", "usage_analytics",
