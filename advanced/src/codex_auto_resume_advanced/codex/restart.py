@@ -166,8 +166,10 @@ def _until(hands, seconds, done) -> bool:
         hands.sleep(LOOK_SECONDS)
 
 
-def restart(paths, *, hands=None) -> tuple:
-    """(what the restart came to - one of OUTCOMES -, how the app ended - CLOSED, ENDED or None); see the module."""
+def restart(paths, *, hands=None, between=None) -> tuple:
+    """(what the restart came to - one of OUTCOMES -, how the app ended - CLOSED, ENDED or None); see the module.
+    `between` (v0.6.22, account_auto_switch) is called once the app is gone and before it is started again - where its
+    sign-in file is swapped while nothing of the app can write it; whatever it does or raises, the app is started."""
     from codex_auto_resume.codex_link import codex_thread_uri
     hands = hands or Hands(paths)
     try:
@@ -198,6 +200,11 @@ def restart(paths, *, hands=None) -> tuple:
         if not (ended and _until(hands, KILL_SECONDS, gone)):
             return NOT_ENDED, None
         how = ENDED
+    if between is not None:
+        try:
+            between()
+        except Exception:
+            pass
     try:
         link = codex_thread_uri(hands.newest_conversation())
         opened = link is not None and hands.open(link) is True
