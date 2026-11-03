@@ -376,30 +376,9 @@ def _served(usable: list, running) -> Path | None:
     return chosen[0] if len(chosen) == 1 else None
 
 
-def discover_codex_exe(explicit: str | os.PathLike | None, compatible, running=None) -> Path:
-    """Return exactly one official codex.exe that passes ``compatible(path)``.
-
-    ``compatible`` must raise on an unsupported binary. Ambiguity fails closed.
-
-    v0.6.13: an update can leave the old build beside the new one, both passing. Where several
-    pass and ``running`` is given - a callable returning the image paths the ChatGPT app main runs
-    as its codex.exe children (codex/pairing.py, app_engines) - the one of them the app runs is
-    driven, if exactly one is; anything else, the question failing included, is the refusal it
-    always was. A path that is named (the argument or the environment) is never second-guessed:
-    `running` is not asked.
-    """
-    chosen = explicit or os.environ.get(ENV_CODEX_EXE)
-    if chosen:
-        path = Path(chosen).expanduser().resolve()
-        if not path.is_file():
-            raise ConfigError("Configured codex.exe does not exist")
-        compatible(path)
-        return path
-    candidates = candidate_codex_exes()
-    if not candidates:
-        raise ConfigError("No official Codex desktop engine found under %LOCALAPPDATA%\\OpenAI\\Codex\\bin")
-    usable = []
-    failed = set()
+def _passing(candidates, compatible):
+    """The candidates that pass ``compatible``, and the reason codes of those that do not."""
+    usable, failed = [], set()
     for candidate in candidates:
         try:
             compatible(candidate)
@@ -410,6 +389,50 @@ def discover_codex_exe(explicit: str | os.PathLike | None, compatible, running=N
             failed.add(reason if re.fullmatch(r"[a-z_]{1,48}", reason) else "check_failed")
             continue
         usable.append(candidate)
+    return usable, failed
+
+
+def discover_codex_exe(explicit: str | os.PathLike | None, compatible, running=None, ask_app=False) -> Path:
+    """Return exactly one official codex.exe that passes ``compatible(path)``.
+
+    ``compatible`` must raise on an unsupported binary. Ambiguity fails closed.
+
+    v0.6.13: an update can leave the old build beside the new one, both passing. Where several
+    pass and ``running`` is given - a callable returning the image paths the ChatGPT app main runs
+    as its codex.exe children (codex/pairing.py, app_engines) - the one of them the app runs is
+    driven, if exactly one is; anything else, the question failing included, is the refusal it
+    always was. A path that is named (the argument or the environment) is never second-guessed:
+    `running` is not asked.
+
+    v0.6.21 (#58): the app can run its engine from its own package, signed by OpenAI, rather than
+    from bin. Where no build in bin passes, or where ``ask_app`` says the app was seen serving from
+    another engine (runtime/app.py, engine_moved), ``running`` is asked once more for the engines the
+    app runs - only official ones (pairing.official_engine), never a search of the disk - and those
+    not in bin are candidates too, each checked as every candidate is. Where a build in bin passes
+    and nothing was seen, nothing more is asked.
+    """
+    chosen = explicit or os.environ.get(ENV_CODEX_EXE)
+    if chosen:
+        path = Path(chosen).expanduser().resolve()
+        if not path.is_file():
+            raise ConfigError("Configured codex.exe does not exist")
+        compatible(path)
+        return path
+    candidates = candidate_codex_exes()
+    usable, failed = _passing(candidates, compatible)
+    if running is not None and (ask_app or not usable):
+        try:
+            served = [str(path) for path in running()]
+        except Exception:
+            served = []
+        known = {os.path.normcase(str(path)) for path in candidates}
+        extra = [Path(path) for path in served if os.path.normcase(path) not in known]
+        more, why = _passing(extra, compatible)
+        candidates, usable, failed = candidates + extra, usable + more, failed | why
+        running = lambda: served  # noqa: E731 - the one answer, not a second process list
+    if not candidates:
+        raise ConfigError("No official Codex desktop engine found under %LOCALAPPDATA%\\OpenAI\\Codex\\bin, "
+                          "and the ChatGPT app runs none signed by OpenAI")
     if len(usable) > 1:
         served = _served(usable, running)
         if served is not None:
@@ -420,8 +443,8 @@ def discover_codex_exe(explicit: str | os.PathLike | None, compatible, running=N
         # The check that failed, not a version pin: no version has been required to match
         # since v0.2.0, and the registry that replaced the pin never requires one either.
         raise ConfigError("No official codex.exe passed the engine checks (%s); the official "
-                          "location, `codex --version` and `codex queue` offering --thread and "
-                          "--message are required" % ", ".join(sorted(failed)))
+                          "location or OpenAI's signature, `codex --version` and `codex queue` offering "
+                          "--thread and --message are required" % ", ".join(sorted(failed)))
     return usable[0]
 
 

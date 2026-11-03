@@ -154,16 +154,20 @@ def server_engines(rows) -> frozenset:
     v0.6.13: what the watcher asks where the engine it found no longer names the app's server. A
     Codex update can start the app's server from a build in another bin/<hex> folder and leave the
     old one on disk, which then still passes every engine check (runtime/app.py, engine_moved).
+
+    v0.6.21 (#58): only the official ones (`official_engine`) - the app can run its engine from its own package, and
+    a codex.exe that is neither in the official folder nor signed by OpenAI is never driven or looked for.
     """
     main = _app_main(rows)
     return frozenset(row["path"] for row in rows if isinstance(row, dict) and isinstance(row.get("path"), str)
                      and row.get("parent") == main["pid"]
-                     and PureWindowsPath(row["path"]).name.lower() == "codex.exe")
+                     and PureWindowsPath(row["path"]).name.lower() == "codex.exe" and official_engine(row["path"])[0])
 
 
 def app_engines() -> frozenset:
     """`server_engines` of the processes running now: what discovery asks where more than one
-    official build passes the engine checks (config.discover_codex_exe), and only then."""
+    official build passes the engine checks, where none in the official folder does, or after the app was
+    seen serving from another engine (config.discover_codex_exe), and only then."""
     return server_engines(inventory())
 
 
