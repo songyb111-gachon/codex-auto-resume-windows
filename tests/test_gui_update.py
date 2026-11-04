@@ -195,9 +195,6 @@ $out | ConvertTo-Json -Depth 5 -Compress
 """
 
 
-SOON = int(time.time()) + 1800
-
-
 def clock(seconds: int) -> str:
     """A moment as the window's ClockTime writes it: this PC's time, the hour alone today and the date too otherwise."""
     moment = datetime.datetime.fromtimestamp(seconds)
@@ -212,12 +209,21 @@ CURRENT_UNCHECKED = ("Version 0.6.0 is the newest published release, but pre-rel
                      "pre-release may have been published.")
 COULD_NOT_LIST = "GitHub could not be asked for the list of releases just now. Nothing was changed."
 COULD_NOT_ASK = "GitHub could not be asked just now, so nothing was installed and nothing was changed."
+
+
+def limited_today() -> dict:
+    """The one case of WORDS that depends on the day, so it is made right before the window answers it. Made when this
+    module was read, a run crossing midnight expected a date where the window writes the hour alone (every lane of a dev
+    run pushed at 23:59 UTC, 2026-11-04)."""
+    soon = int(time.time()) + 1800
+    return {"ahead_and_limited_today": (("update", "newer-local", "0.7.0", "0.6.0", "rate-limited %d" % soon),
+                                        NEWER_UNCHECKED + "\n\n" + LIMIT + "The limit resets at %s; try again after that." % clock(soon))}
+
+
 # name -> ((what is asked: update, list or pick; answer; current; latest; the `releases:` words), what the window says)
 WORDS = {
     "ahead_and_limited": (("update", "newer-local", "0.7.0", "0.6.0", "rate-limited 1760000000"),
                           NEWER_UNCHECKED + "\n\n" + LIMIT + "The limit resets at %s; try again after that." % clock(1760000000)),
-    "ahead_and_limited_today": (("update", "newer-local", "0.7.0", "0.6.0", "rate-limited %d" % SOON),
-                                NEWER_UNCHECKED + "\n\n" + LIMIT + "The limit resets at %s; try again after that." % clock(SOON)),
     "ahead_and_limited_unknown": (("update", "newer-local", "0.7.0", "0.6.0", "rate-limited unknown"),
                                   NEWER_UNCHECKED + "\n\n" + LIMIT + "The limit resets within an hour; try again after that."),
     "ahead_and_unread": (("update", "newer-local", "0.7.0", "0.6.0", "unread"), NEWER_UNCHECKED + "\n\nTry again later."),
@@ -295,16 +301,21 @@ class BootstrapReadingTests(unittest.TestCase):
         probe = work / "probe.ps1"
         probe.write_text(PROBE, encoding="utf-8")
         cls.entry = entry_cases(work / "homes")
-        result = subprocess.run(
-            [str(POWERSHELL), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
-             "-File", str(probe)],
-            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600,
-            env=dict(os.environ, CAR_EXE=str(exe), CAR_WORK=str(work),
-                     CAR_CASES=json.dumps({name: [printed, code]
-                                           for name, (printed, code, _) in CASES.items()}),
-                     CAR_LINES=json.dumps(list(prerelease_lines())),
-                     CAR_ENTRY=json.dumps({name: list(pair) for name, (pair, _) in cls.entry.items()}),
-                     CAR_WORDS=json.dumps({name: list(asked) for name, (asked, _) in WORDS.items()})))
+        for _ in range(2):  # Once more if midnight passed while the window answered: its "today" may be either day.
+            day = datetime.date.today()
+            cls.words = dict(WORDS, **limited_today())
+            result = subprocess.run(
+                [str(POWERSHELL), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+                 "-File", str(probe)],
+                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600,
+                env=dict(os.environ, CAR_EXE=str(exe), CAR_WORK=str(work),
+                         CAR_CASES=json.dumps({name: [printed, code]
+                                               for name, (printed, code, _) in CASES.items()}),
+                         CAR_LINES=json.dumps(list(prerelease_lines())),
+                         CAR_ENTRY=json.dumps({name: list(pair) for name, (pair, _) in cls.entry.items()}),
+                         CAR_WORDS=json.dumps({name: list(asked) for name, (asked, _) in cls.words.items()})))
+            if datetime.date.today() == day:
+                break
         cls.result = result
         cls.answer = json.loads(result.stdout) if result.returncode == 0 and result.stdout.strip() else {}
 
@@ -360,7 +371,7 @@ class BootstrapReadingTests(unittest.TestCase):
         were. Install another version... says the same after its own sentence."""
         self.assertIsNotNone(self.answer["words"],
                              "SettingsForm has no UpdateWords, ListUnavailableWords or PickUnavailableWords")
-        for name, (_, expected) in sorted(WORDS.items()):
+        for name, (_, expected) in sorted(self.words.items()):
             with self.subTest(name):
                 self.assertEqual(self.answer["words"][name].replace("\r\n", "\n"), expected)
 
