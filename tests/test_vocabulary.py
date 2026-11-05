@@ -87,7 +87,8 @@ LISTS = {
     "machine.PUBLIC_CODES": ("set", 22, "33761768f9d99cd0"),
     "machine.PAGES": ("tuple", 6, "ffad1c9f0521398d"),
     # v0.6.11: `held`, a record that waits for a person (schema 4's hold).
-    "machine.OVERLAYS": ("tuple", 8, "275fd01184c6c4e3"),
+    # #58's follow-up: app_server_unmatched, the record's own reason, which asks for a person.
+    "machine.OVERLAYS": ("tuple", 9, "d18ea9845d73daec"),
     "machine.GATE_RESULTS": ("set", 4, "9a50f41ff116a706"),
     "machine.GATES": ("tuple", 13, "547089c399324718"),
     # v0.6.11: `held`, a gate core passed and the edition's plug held (domain/plug.py, HOLD);
@@ -201,7 +202,7 @@ LISTS = {
     "windows.UNAVAILABLE": "UNAVAILABLE",
     "ui.tray.ICON_STATES": ("tuple", 5, "e94d5138669400b3"),
     "ui.popup.STATES": ("tuple", 6, "b38c816dbd792bf5"),
-    "ui.popup.ATTENTION_OVERLAYS": ("set", 4, "a707a2b300127033"),
+    "ui.popup.ATTENTION_OVERLAYS": ("set", 5, "0e4a92183586541e"),
     # v0.6.11: and the needs-you notice's light, attention; and a long sleep's, paused (power.py).
     # and Show me what happens' card, waiting.
     # v0.6.16-beta.3: near_limit; v0.6.16: the forced stop's three notices near a limit, each a kind of its own.

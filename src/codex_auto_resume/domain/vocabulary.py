@@ -189,6 +189,8 @@ class Overlay(StrEnum):
     WATCHER_NOT_TICKING = "watcher_not_ticking"
     # v0.6.11: waits for a person to let it continue (`interruptions.hold`).
     HELD = "held"
+    # #58's follow-up: the Codex app runs and no server of its could be matched, the record's own reason.
+    APP_SERVER_UNMATCHED = "app_server_unmatched"
 
 
 class HoldKind(StrEnum):

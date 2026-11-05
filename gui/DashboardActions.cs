@@ -788,7 +788,7 @@ namespace CodexAutoResume
         /// The overlays that hold a record for something only a person can put right, in the order AttentionCause
         /// names them (tray_popup.ATTENTION_OVERLAYS).
         private static readonly string[] HeldFor =
-            { "compatibility_blocked", "compatibility_failed_here", "engine_unavailable", "watcher_not_ticking" };
+            { "compatibility_blocked", "compatibility_failed_here", "engine_unavailable", "watcher_not_ticking", "app_server_unmatched" };
 
         /// A public code of a record already handed to Codex, or being followed or taken back out of it
         /// (tray_popup.MOVING_CODES): every pending record that is not waiting.
@@ -826,6 +826,8 @@ namespace CodexAutoResume
                 recovery = Said(strings, "overlay.compatibility_failed_here", "Codex checks failed on this computer");
             else if (cause == "held")
                 recovery = Said(strings, "popup.held", "Waiting for you to let it continue");
+            else if (cause == "app_server_unmatched")
+                recovery = Said(strings, "overlay.app_server_unmatched", "Codex app's server not matched");
             else if (cause != null)
                 recovery = Said(strings, "status.not_responding", "Watcher not responding");
             else
@@ -879,6 +881,7 @@ namespace CodexAutoResume
                     if (row != null && (HasOverlay(row, "compatibility_blocked") || HasOverlay(row, "compatibility_failed_here") ||
                                         HasOverlay(row, "engine_unavailable") ||
                                         HasOverlay(row, "watcher_not_ticking") ||
+                                        HasOverlay(row, "app_server_unmatched") ||      // #58's follow-up
                                         HasOverlay(row, "held")))      // v0.6.20: waiting for a person
                         return "attention";
                 }

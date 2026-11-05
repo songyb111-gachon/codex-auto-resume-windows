@@ -437,7 +437,8 @@ function attentionCause(status, rows) {
   if (watcher.ticking === false) return 'watcher_not_ticking';
   if (watcher.engine_state === 'incompatible') return 'compatibility_blocked';
   if (watcher.engine_state === 'failed_here') return 'compatibility_failed_here';
-  var held = ['compatibility_blocked', 'compatibility_failed_here', 'engine_unavailable', 'watcher_not_ticking'];
+  var held = ['compatibility_blocked', 'compatibility_failed_here', 'engine_unavailable', 'watcher_not_ticking',
+              'app_server_unmatched'];
   var list = rows || [];
   for (var i = 0; i < list.length; i++) {
     var overlays = list[i].overlays || [];
@@ -475,7 +476,8 @@ function tone(code) {
   if (code === 'recovered') return 'success';
   if (['exhausted', 'failed_terminal', 'recovery_failed'].indexOf(code) >= 0) return 'danger';
   if (['failed_retryable', 'outcome_unverified', 'submission_unknown', 'no_progress',
-       'engine_unavailable', 'watcher_not_ticking', 'compatibility_blocked', 'compatibility_failed_here']
+       'engine_unavailable', 'watcher_not_ticking', 'compatibility_blocked', 'compatibility_failed_here',
+       'app_server_unmatched']
       .indexOf(code) >= 0) return 'warning';
   return 'paused';
 }
@@ -1342,6 +1344,7 @@ function heroFacts(status, state, rows) {
             : cause === 'compatibility_failed_here'
               ? t('overlay.compatibility_failed_here', 'Codex checks failed on this computer')
             : cause === 'held' ? t('popup.held', 'Waiting for you to let it continue')
+            : cause === 'app_server_unmatched' ? t('overlay.app_server_unmatched', "Codex app's server not matched")
             : cause === 'engine_unavailable' ? t('status.not_running', 'Watcher not running')
             : t('status.not_responding', 'Watcher not responding');
     return [why, pending];
@@ -1694,7 +1697,7 @@ function clockTime(at) {
   return when.getFullYear() + '-' + pad(when.getMonth() + 1) + '-' + pad(when.getDate()) + ' ' + time;
 }
 
-function renderCompatibility(status) {
+function renderCompatibility(status, rows) {
   var view = status && status.watcher && status.watcher.compatibility;
   if (!view || typeof view !== 'object') return null;
   var overall = compatState(view.overall);
@@ -1733,6 +1736,13 @@ function renderCompatibility(status) {
   if (usable && typeof view.acting === 'string' && view.acting !== view.overall) {
     notices.push(t('panel.compat_acting_differs',
       "The watcher is still acting on what it found when it started. Stop it and start it again on the Dashboard's Diagnostics page to check again."));
+  }
+  // #58's follow-up: a task waiting because the Codex app runs and no server of its could be matched, read from the rows
+  // this page already holds: the summary a model reads is handed nothing new for it. Every part below can still read as
+  // compatible, which is what misled #58's reporter.
+  if (usable && (rows || []).some(function (row) { return (row.overlays || []).indexOf('app_server_unmatched') >= 0; })) {
+    notices.push(t('compat.server.notice',
+      'The Codex app is running, but this product could not match its server, so recoveries wait and nothing is sent, even where the parts below read as compatible. Restart the Codex app; if this stays, Codex may have changed how it runs: check for an update of this product, or report it.'));
   }
   if (usable && COMPAT_CAVEATS.indexOf(view.cache) >= 0) {
     notices.push(t('compat.cache.' + view.cache, view.cache.replace(/_/g, ' ')));
@@ -2434,7 +2444,7 @@ function render() {
   var hero = renderHero(status, now);
   HERO = hero;
   page.appendChild(hero.node);
-  [renderPending(DATA.pending), renderCompatibility(status), renderGeneral(byName), renderRecovery(status, schema, now),
+  [renderPending(DATA.pending), renderCompatibility(status, DATA.pending), renderGeneral(byName), renderRecovery(status, schema, now),
    renderNotifications(schema), renderContinuation(byName), renderPreviewCard(), renderStarters(),
    renderAppearance(byName)
   ].forEach(function (section) { if (section) page.appendChild(section); });

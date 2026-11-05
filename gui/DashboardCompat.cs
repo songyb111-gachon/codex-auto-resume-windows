@@ -54,6 +54,9 @@ namespace CodexAutoResume
             // passes through CompatState (docs/BRAND.md, "Reported beside the version").
             compatReported = Fact(facts, S("compat.reported", "Reported by others"));
             compatReported.ForeColor = Secondary;
+            // #58's follow-up: whether a server of the Codex app's was matched, the one local check shown by itself: every
+            // part below can read as compatible while none can be.
+            compatServer = Fact(facts, S("compat.server", "Codex app's server"));
             compatChecked = Fact(facts, S("compat.checked", "Checked"));
             compatData = Fact(facts, S("compat.data", "Data in force"));
             // What the view cannot vouch for - no report, one too old, an engine that changed, a watcher still acting on
@@ -192,7 +195,7 @@ namespace CodexAutoResume
             {
                 string nothing = compatUnreadable ? S("pending.unavailable", "This cannot be read right now") : "-";
                 compatOverall.Text = compatEngine.Text = compatChecked.Text = compatData.Text = compatUnreadable ? S("diag.unknown", "unknown") : "-";
-                compatReported.Text = "-";
+                compatReported.Text = compatServer.Text = "-";
                 SetCallouts(compatNotice, compatUnreadable ? new List<string> { nothing } : notices);
                 ShowParts(shown);
                 SetLines(compatLegend, notices);
@@ -210,6 +213,8 @@ namespace CodexAutoResume
             compatEngine.Text = !usable ? "-" : !string.IsNullOrEmpty(version) ? version : S("compat.engine_none", "not found");
             var reported = Map(view, "reported");
             compatReported.Text = ReportedLine(usable, reported);
+            string server = usable ? Str(Map(view, "checks"), "app_server_matched") : null;
+            compatServer.Text = ServerLine(usable, server);
             compatChecked.Text = Ago(Number(view, "checked_at"));
             compatData.Text = usable ? CompatData(Map(view, "data")) : "-";
             // Why the view cannot be used - every part is unknown then, for that one reason, so the parts are not listed.
@@ -218,6 +223,9 @@ namespace CodexAutoResume
             if (usable && acting != null && acting != Str(view, "overall"))
                 notices.Add(S("diag.compat_acting_differs",
                               "The watcher is still acting on what it found when it started. Stop it and start it again from this page to check again."));
+            if (server == "FAIL")
+                notices.Add(S("compat.server.notice",
+                              "The Codex app is running, but this product could not match its server, so recoveries wait and nothing is sent, even where the parts below read as compatible. Restart the Codex app; if this stays, Codex may have changed how it runs: check for an update of this product, or report it."));
             string cache = usable ? Str(Map(view, "data"), "cache") : null;
             if (cache == "expired" || cache == "from_the_future" || cache == "rejected" || cache == "superseded" || cache == "from_newer_product")
                 notices.Add(S("compat.cache." + cache, cache.Replace('_', ' ')));
@@ -265,6 +273,17 @@ namespace CodexAutoResume
             if (both > 0)
                 line += " · " + S("compat.reported.both", "counted in both: {both}").Replace("{both}", Mirror.Embed(Count(both)));
             return line;
+        }
+
+        /// The app_server_matched check as its one fact (#58's follow-up): matched only on that evidence, not matched, and
+        /// otherwise a plain "not checked" - the app is not running, or nothing has looked lately. "-" for a view that
+        /// cannot be used, as the version is then.
+        internal string ServerLine(bool usable, string result)
+        {
+            if (!usable) return "-";
+            if (result == "PASS") return S("compat.server.matched", "matched");
+            if (result == "FAIL") return S("compat.server.not_matched", "not matched");
+            return S("compat.server.not_checked", "not checked");
         }
 
         /// A count as the view carries it (a JSON number is a double here), written in digits whatever the language.
