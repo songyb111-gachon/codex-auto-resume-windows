@@ -9,16 +9,20 @@
 * ForkGuardTests (W4) - sync-ko and ko-watch run only in this repository, as the other automations do.
 * PayloadFolderTests (T2) - a folder inside a shipped tree named like a top-level one the build skips
   (config, logs, tests, ...) still ships; caches and virtual environments never do.
+* RuntimeDownloadTests (T3) - a runtime download whose digest is wrong is removed, so the next build
+  downloads it again instead of failing on the same cached file every time.
 """
 from __future__ import annotations
 
 import hashlib
 import importlib.util
+import io
 from pathlib import Path
 import re
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS = ROOT / ".github" / "workflows"
@@ -146,6 +150,54 @@ class PayloadFolderTests(unittest.TestCase):
                      ".github/workflows/test.yml", "comparison/a.md"):
             with self.subTest(name=name):
                 self.assertFalse(self.release._wanted(Path(name)))
+
+
+class RuntimeDownloadTests(unittest.TestCase):
+    """No network: urlopen is replaced, and the cache is a scratch folder."""
+
+    def setUp(self):
+        self.release = _load("make_release", ROOT / "build" / "make_release.py")
+        scratch = tempfile.TemporaryDirectory()
+        self.addCleanup(scratch.cleanup)
+        self.cache = Path(scratch.name)
+        patcher = mock.patch.object(self.release, "CACHE", self.cache)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _serve(self, payload: bytes):
+        return mock.patch.object(self.release.urllib.request, "urlopen",
+                                 side_effect=lambda *a, **k: io.BytesIO(payload))
+
+    def test_a_bad_download_is_not_kept(self):
+        with self._serve(b"<html>proxy error</html>") as urlopen:
+            with self.assertRaises(SystemExit) as raised:
+                self.release.fetch_runtime()
+        self.assertEqual(urlopen.call_count, 1)
+        self.assertIn("downloads it again", str(raised.exception))
+        self.assertEqual(list(self.cache.iterdir()), [])
+
+    def test_a_bad_cached_file_is_removed_and_the_next_build_downloads_again(self):
+        (self.cache / self.release.PYTHON_ZIP).write_bytes(b"cut off")
+        with self._serve(b"never asked") as urlopen:
+            with self.assertRaises(SystemExit):
+                self.release.fetch_runtime()
+        self.assertEqual(urlopen.call_count, 0)
+        self.assertFalse((self.cache / self.release.PYTHON_ZIP).exists())
+        with self._serve(b"still bad") as urlopen:
+            with self.assertRaises(SystemExit):
+                self.release.fetch_runtime()
+        self.assertEqual(urlopen.call_count, 1)
+
+    def test_a_good_download_is_kept_and_used(self):
+        payload = b"the right runtime"
+        with mock.patch.object(self.release, "PYTHON_SHA256", hashlib.sha256(payload).hexdigest()):
+            with self._serve(payload):
+                archive = self.release.fetch_runtime()
+            with self._serve(b"never asked") as urlopen:
+                self.assertEqual(self.release.fetch_runtime(), archive)
+        self.assertEqual(urlopen.call_count, 0)
+        self.assertEqual(archive.read_bytes(), payload)
+        self.assertEqual(sorted(p.name for p in self.cache.iterdir()), [self.release.PYTHON_ZIP])
 
 
 if __name__ == "__main__":

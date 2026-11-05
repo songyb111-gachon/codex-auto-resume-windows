@@ -157,11 +157,18 @@ def fetch_runtime() -> Path:
     archive = CACHE / PYTHON_ZIP
     if not archive.is_file():
         print("downloading %s" % PYTHON_URL)
+        # Under another name until it is whole, so a download cut part way is never the cached file.
+        partial = archive.with_name(archive.name + ".part")
         with urllib.request.urlopen(PYTHON_URL, timeout=180) as response:
-            archive.write_bytes(response.read())
+            partial.write_bytes(response.read())
+        partial.replace(archive)
     digest = hashlib.sha256(archive.read_bytes()).hexdigest()
     if digest != PYTHON_SHA256:
-        raise SystemExit("runtime checksum mismatch: expected %s, got %s" % (PYTHON_SHA256, digest))
+        # A proxy's error page or a short read would otherwise be trusted by every later build and
+        # fail each one the same way; removed, the next build downloads it again.
+        archive.unlink()
+        raise SystemExit("runtime checksum mismatch: expected %s, got %s; %s was removed, so the next "
+                         "build downloads it again" % (PYTHON_SHA256, digest, archive))
     return archive
 
 
