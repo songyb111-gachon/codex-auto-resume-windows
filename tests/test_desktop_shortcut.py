@@ -492,6 +492,17 @@ $out.repair_height = CallOn $window 'Arrange' @([int]$width)
 $null = $FlowType.GetMethod('Choose', $any).Invoke($flow, [object[]]@($true))
 $out.remove_height = CallOn $window 'Arrange' @([int]$width)
 $out.remove = Boxes $window
+function Says($window) {
+    $found = @()
+    foreach ($row in @(CallOn $window 'ShownRows' @())) { if ($row.GetType().Name -ceq 'WrapLabel') { $found += [string]$row.Text } }
+    ,$found
+}
+$flow = $FlowType.GetConstructors($any)[0].Invoke([object[]]@('uninstall', 'C:\Users\ExampleUser\.codex-auto-resume', 'standard', 'standard', '9.9.9'))
+$window = NewWindow $flow
+$null = CallOn $window 'ShowPage' @('confirm'); $out.confirm_absent = Says $window
+$null = $FlowType.GetMethod('KnowDesktopShortcut', $any).Invoke($flow, [object[]]@($true, [string[]]@()))
+$window = NewWindow $flow
+$null = CallOn $window 'ShowPage' @('confirm'); $out.confirm_there = Says $window
 $Lines = T 'DesktopShortcut'
 $failed = '  ' + $Lines.GetField('FailedLine', $any).GetValue($null) + '. Everything else went on as usual.'
 $taken = '  ' + $Lines.GetField('TakenLine', $any).GetValue($null) + '. It was left as it is, and none was made.'
@@ -605,6 +616,17 @@ class WindowTests(unittest.TestCase):
         self.assertEqual(self.answer["repair"], [[True, True]])
         self.assertEqual(self.answer["remove"], [])
         self.assertLess(self.answer["remove_height"], self.answer["repair_height"])
+
+    def test_the_uninstall_says_it_goes_only_where_one_of_ours_is_there(self):
+        said = ENGLISH["installer.uninstall.desktop_shortcut"]
+        self.assertIn(said, self.answer["confirm_there"])
+        self.assertNotIn(said, self.answer["confirm_absent"])
+
+    def test_the_uninstall_from_settings_apps_knows_as_the_setup_window_does(self):
+        remove = (ROOT / "gui" / "SettingsRemove.cs").read_text(encoding="utf-8")
+        self.assertIn("flow.KnowDesktopShortcut(DesktopShortcut.OursAt(home), null);", remove)
+        setup = (ROOT / "build" / "setup" / "SetupWindow.cs").read_text(encoding="utf-8")
+        self.assertIn("flow.KnowDesktopShortcut(DesktopShortcut.OursAt(home), arguments);", setup)
 
     def test_the_finish_page_says_what_could_not_be_done(self):
         self.assertEqual(self.answer["failed"], [ENGLISH["installer.done.desktop_failed"]])

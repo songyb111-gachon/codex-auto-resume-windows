@@ -714,6 +714,7 @@
   "installer.step.watcher": "正在停止正在运行的监视程序",
   "installer.uninstall.heading": "移除 Codex Auto Resume",
   "installer.uninstall.purge": "同时删除设置和恢复记录",
+  "installer.uninstall.desktop_shortcut": "桌面上的快捷方式也会被移除。",
   "installer.uninstall.what": "监视程序、登录时运行项、开始菜单项以及 Codex 中的插件都将被移除。你的 Codex 对话不会受到影响。",
   "installer.update": "更新",
   "installer.update.heading": "v{from} → v{to}",

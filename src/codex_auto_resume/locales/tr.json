@@ -714,6 +714,7 @@
   "installer.step.watcher": "Çalışan izleyici durduruluyor",
   "installer.uninstall.heading": "Codex Auto Resume'u kaldır",
   "installer.uninstall.purge": "Ayarları ve kurtarma geçmişini de sil",
+  "installer.uninstall.desktop_shortcut": "Masaüstündeki kısayolu da kaldırılır.",
   "installer.uninstall.what": "İzleyici, oturum açılınca çalışması, Başlat menüsü girdisi ve Codex'teki eklenti kaldırılır. Codex sohbetlerinize dokunulmaz.",
   "installer.update": "Güncelle",
   "installer.update.heading": "v{from} → v{to}",

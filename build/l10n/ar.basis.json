@@ -694,6 +694,7 @@
   "installer.step.verify": "a03e94e5ad349050",
   "installer.step.verify_setup": "b0e013d33887f594",
   "installer.step.watcher": "ebfb1492bf99dcd9",
+  "installer.uninstall.desktop_shortcut": "42045dc43063c40c",
   "installer.uninstall.heading": "86e5d9c3a9583537",
   "installer.uninstall.purge": "591b4a2dc0db10de",
   "installer.uninstall.what": "5c7e9e4051152625",

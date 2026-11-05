@@ -714,6 +714,7 @@
   "installer.step.watcher": "עוצר את תהליך הניטור שרץ",
   "installer.uninstall.heading": "הסרת Codex Auto Resume",
   "installer.uninstall.purge": "למחוק גם את ההגדרות ואת היסטוריית השחזורים",
+  "installer.uninstall.desktop_shortcut": "גם קיצור הדרך בשולחן העבודה יוסר.",
   "installer.uninstall.what": "תהליך הניטור, ההפעלה שלו בכניסה, הפריט שלו בתפריט \"התחל\" והתוסף ב-Codex יוסרו. השיחות שלכם ב-Codex לא ייפגעו.",
   "installer.update": "עדכון",
   "installer.update.heading": "v{from} → v{to}",

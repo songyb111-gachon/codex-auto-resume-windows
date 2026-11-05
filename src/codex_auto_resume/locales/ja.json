@@ -714,6 +714,7 @@
   "installer.step.watcher": "実行中の監視プロセスを停止しています",
   "installer.uninstall.heading": "Codex Auto Resume を削除",
   "installer.uninstall.purge": "設定と復旧履歴も削除する",
+  "installer.uninstall.desktop_shortcut": "デスクトップのショートカットも削除されます。",
   "installer.uninstall.what": "監視プロセス、サインイン時の実行、スタート メニューの項目、Codex のプラグインが削除されます。Codex の会話には影響しません。",
   "installer.update": "更新",
   "installer.update.heading": "v{from} → v{to}",

@@ -529,6 +529,9 @@ namespace CodexAutoResume
         {
             Row(Words(words.Say("installer.uninstall.heading", "Remove Codex Auto Resume"), "title", Palette.Ink), 0);
             Row(Words(words.Say("installer.uninstall.what", "The watcher, its sign-in start, its Start menu entry and the plugin in Codex are removed. Your Codex conversations are not touched."), null, Palette.Ink), 8);
+            // Only where one of ours is there (InstallerFlow.KnowDesktopShortcut, read once as the window opens).
+            if (flow.DesktopShortcutThere)
+                Row(Words(words.Say("installer.uninstall.desktop_shortcut", "Its shortcut on the desktop is removed too."), null, Palette.Ink), 6);
             Row(Words(words.Say("installer.options.location", "Installed in"), "label", Palette.Secondary), 16);
             Row(Words(flow.Home, null, Palette.Ink), 2);
             Row(Choice(words.Say("installer.uninstall.purge", "Also delete the settings and the recovery history"), flow.Purge, true,

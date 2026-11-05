@@ -714,6 +714,7 @@
   "installer.step.watcher": "Der laufende Watcher wird beendet",
   "installer.uninstall.heading": "Codex Auto Resume entfernen",
   "installer.uninstall.purge": "Auch die Einstellungen und den Wiederherstellungsverlauf löschen",
+  "installer.uninstall.desktop_shortcut": "Die Verknüpfung auf dem Desktop wird ebenfalls entfernt.",
   "installer.uninstall.what": "Der Watcher, sein Start bei der Anmeldung, sein Eintrag im Startmenü und das Plugin in Codex werden entfernt. Ihre Codex-Unterhaltungen bleiben unberührt.",
   "installer.update": "Aktualisieren",
   "installer.update.heading": "v{from} → v{to}",

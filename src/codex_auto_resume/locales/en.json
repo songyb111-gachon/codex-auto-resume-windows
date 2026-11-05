@@ -1236,6 +1236,7 @@
   "installer.step.dashboard": "Closing the Dashboard",
   "installer.uninstall.heading": "Remove Codex Auto Resume",
   "installer.uninstall.purge": "Also delete the settings and the recovery history",
+  "installer.uninstall.desktop_shortcut": "Its shortcut on the desktop is removed too.",
   "installer.uninstall.what": "The watcher, its sign-in start, its Start menu entry and the plugin in Codex are removed. Your Codex conversations are not touched.",
   "installer.update": "Update",
   "installer.welcome.guide": "Read the guide",

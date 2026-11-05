@@ -279,6 +279,13 @@ namespace CodexAutoResume
                 pick.Another = true;
                 cases.Add(Case("dashboard-pick", pick));
                 cases.Add(Case("uninstall", new InstallerFlow(InstallerFlow.Uninstall, home, InstallerFlow.Standard, InstallerFlow.Standard, "0.6.16")));
+                var desktop = new InstallerFlow(InstallerFlow.Uninstall, home, InstallerFlow.Standard, InstallerFlow.Standard, "0.6.16");
+                desktop.DesktopShortcutThere = true;
+                cases.Add(Case("uninstall-desktop", desktop));
+                var repairDesktop = new InstallerFlow(InstallerFlow.Install, home, InstallerFlow.Standard, InstallerFlow.Standard, "0.6.16");
+                repairDesktop.Maintaining = true;
+                repairDesktop.KnowDesktopShortcut(true, null);
+                cases.Add(Case("repair-desktop", repairDesktop));
                 foreach (KeyValuePair<string, InstallerFlow> each in cases)
                 {
                     // An update's pages carry what is new: a changelog section, its lines as long as the real ones.
