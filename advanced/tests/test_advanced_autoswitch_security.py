@@ -232,6 +232,114 @@ class SavedSignInsThroughTheBridge(unittest.TestCase):
                 self.assertEqual(store.ids(), [])
 
 
+class NoPlainSignInLeftBehind(SwapCase):
+    """Finding 4 (R1, R2, R3): a scratch home a kill or a held file left kept a plain sign-in file, so did a temporary
+    beside auth.json killed at the rename; nothing swept them, and no access list was set."""
+
+    def setUp(self):
+        super().setUp()
+        patcher = patch.object(authfile, "_PRIVATE", lambda directory: True)    # no real access list is changed
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def left(self, age=authfile.SCRATCH_STALE + 5):
+        import os
+        import time
+        self.store.save(TWO, "two@example.com", "plus")
+        scratch = self.store.directory / "scratch-00112233aabb"
+        (scratch / "sessions").mkdir(parents=True)
+        (scratch / "auth.json").write_bytes(TWO)
+        (scratch / "sessions" / "x.jsonl").write_text("{}", encoding="utf-8")
+        beside = self.codex / "auth.json.car-0a1b2c3d"
+        beside.write_bytes(TWO)
+        then = time.time() - age
+        for path in (scratch, beside):
+            os.utime(path, (then, then))
+        return scratch, beside
+
+    def test_a_look_sweeps_what_a_kill_left(self):
+        """Fails with the sweep removed: the plain copies stay until someone finds them."""
+        scratch, beside = self.left()
+        self.assertEqual(authfile.sweep(self.store.directory, self.codex), (2, 0))
+        self.assertFalse(scratch.exists())
+        self.assertFalse(beside.exists())
+        self.assertEqual((self.codex / "auth.json").read_bytes(), ONE)
+        self.assertEqual(len(self.store.ids()), 1, "the sealed copies stay")
+
+    def test_a_young_scratch_home_is_a_read_or_sign_in_under_way(self):
+        scratch, beside = self.left(age=5)
+        self.assertEqual(authfile.sweep(self.store.directory, self.codex), (0, 0))
+        self.assertTrue(scratch.exists())
+        self.assertEqual(self.store.delete_all(), 1)
+        self.assertFalse(scratch.exists(), "Delete all takes every scratch home, whatever its age")
+
+    def test_only_names_it_makes_and_never_through_a_link(self):
+        import _winapi
+        outside = self.dir / "outside"
+        outside.mkdir()
+        (outside / "auth.json").write_bytes(THREE)
+        self.store.save(TWO, "two@example.com", "plus")
+        _winapi.CreateJunction(str(outside), str(self.store.directory / "scratch-ffffffffffff"))
+        (self.codex / "auth.json.bak").write_bytes(THREE)                       # a person's own copy
+        (self.store.directory / "notes.txt").write_text("kept", encoding="utf-8")
+        authfile.sweep(self.store.directory, self.codex, stale=0)
+        self.assertEqual((outside / "auth.json").read_bytes(), THREE)
+        self.assertTrue((self.codex / "auth.json.bak").exists())
+        self.assertTrue((self.store.directory / "notes.txt").exists())
+
+    def test_a_removal_that_failed_is_said(self):
+        scratch, _beside = self.left()
+        held = open(scratch / "auth.json", "rb")
+        try:
+            removed, failed = authfile.sweep(self.store.directory, self.codex)
+        finally:
+            held.close()
+        self.assertEqual(failed, 1)
+        engine = (Path(__file__).resolve().parents[1] / "src" / "codex_auto_resume_advanced" / "engine"
+                  / "autoswitch.py").read_text(encoding="utf-8")
+        self.assertIn('self._count("sweep_failed")', engine)
+        from codex_auto_resume_advanced.registry import ACCOUNT_AUTO_SWITCH
+        self.assertIn("sweep_failed", ACCOUNT_AUTO_SWITCH.codes)
+
+    def test_a_scratch_home_says_whether_it_went(self):
+        scratch = authfile.Scratch(self.store.directory, TWO)
+        with scratch as where:
+            held = open(where / "auth.json", "rb")
+        try:
+            self.assertIs(scratch.removed, False)
+        finally:
+            held.close()
+        self.assertTrue(authfile.remove_tree(where))
+        with authfile.Scratch(self.store.directory, TWO) as where:
+            pass
+        self.assertFalse(where.exists())
+
+    def test_the_folder_is_made_private_as_it_is_made(self):
+        made = []
+        with patch.object(authfile, "_PRIVATE", lambda directory: made.append(Path(directory)) or True):
+            self.store.save(TWO, "two@example.com", "plus")
+            self.store.save(THREE, "three@example.com", "plus")
+        self.assertEqual(made, [self.store.directory], "once, as it is first made ours")
+
+
+class PrivateAccessList(unittest.TestCase):
+    """The access list itself, on a folder this test makes in its own temporary folder - never a real one."""
+
+    def test_only_the_current_user_may_open_it(self):
+        import shutil
+        import tempfile
+        from codex_auto_resume.win import acl
+        root = Path(tempfile.mkdtemp(prefix="car-autoswitch-acl-"))
+        self.addCleanup(lambda: shutil.rmtree(root, ignore_errors=True))
+        folder = root / "accounts"
+        folder.mkdir()
+        if not authfile._private_dacl(folder):
+            self.skipTest("this drive keeps no access list")
+        (folder / "x.dat").write_bytes(b"x")
+        self.assertEqual(acl.allowed_sids(folder), [acl._own_sid()])
+        self.assertEqual(acl.allowed_sids(folder / "x.dat"), [acl._own_sid()])
+
+
 def swap_restarts():
     from codex_auto_resume_advanced.codex import restart
     return restart

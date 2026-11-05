@@ -157,10 +157,13 @@ class Profiles:
             return False
         return self._remove(profile_id + SUFFIX)
 
-    def delete_all(self) -> int:
+    def delete_all(self, codex_home=None) -> int:
+        """Every saved account taken away, and with them the intent, the last switch's stamp, and whatever plain sign-in
+        file a kill left (authfile.sweep: every scratch home, whatever its age). How many accounts went."""
         gone = sum(self.delete(profile_id) for profile_id in self.ids())
         self._remove(INTENT)
         self._remove(LAST)
+        authfile.sweep(self.directory, codex_home, stale=0)
         return gone
 
     def state(self, found, now=None) -> str:

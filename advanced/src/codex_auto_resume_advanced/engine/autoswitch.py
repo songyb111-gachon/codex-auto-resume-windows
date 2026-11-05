@@ -170,7 +170,12 @@ class AutoSwitch:
     def look(self, view, now):
         """One look; see the module's docstring. Returns nothing: what it did is in the journal and the stamps."""
         from ..codex import swap
+        from ..codex import authfile
         store, home = self.store(), self.home()
+        # What a kill or a held file left in plain text - a scratch home, a temporary beside the sign-in file - goes first.
+        _removed, failed = authfile.sweep(store.directory, home)
+        if failed:
+            self._count("sweep_failed")
         settled = swap.recover(self.paths, store, home, read_real=self.read_real, restart=self._restart_now)
         if settled == swap.SWITCHED:
             self._switched(now)
