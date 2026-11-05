@@ -23,8 +23,9 @@ follows the tripwire every warning follows (arming.TRIPPING, its `parts=False`).
 
 What starts, all from `run_engine`, each with CREATE_NO_WINDOW and CODEX_HOME a new scratch folder removed after it: core's
 engine check on that scratch home (official_engine, `--version`, `queue --help`), `app-server generate-json-schema`, and
-`features list`. Never an app server, a turn or a sign-in: nothing goes to OpenAI and no usage is spent. Only `tend`
-starts them, only from the watcher's tick, and only for the engine the watcher told the plug (codex/inuse.py), which no
+`features list`. It asks Codex for its version, its own list of calls and its feature list, with no sign-in on that home, and
+starts no app server, turn or sign-in. What those three commands do on the network has not been watched: MAUTO runs them on
+the real engine, and nothing here says more than that. Only `tend` starts them, only from the watcher's tick, and only for the engine the watcher told the plug (codex/inuse.py), which no
 other process is told. `results_for`, what every reader reads, starts nothing.
 
 How often: once for an engine file and REVISION of this table. A run with no answer is tried again after RETRY_AFTER, at
@@ -111,6 +112,8 @@ CHECKS = {
     Measurement.MQP: Row(), Measurement.MQG: Row(), Measurement.MTOK: Row(), Measurement.MOPEN: Row(),
     Measurement.MAL: Row(), Measurement.MWAKE: Row(), Measurement.MIMG: Row(), Measurement.MSTEER: Row(),
     Measurement.MSTEER2: Row(), Measurement.MGAVE: Row(),
+    # This check's own proof on the real engine: nothing rests on it, and a check does not check itself.
+    Measurement.MAUTO: Row(),
     # What the check could answer whole with `--help`, but no capability rests on it: nothing could show the answer.
     Measurement.MAWS: Row(), Measurement.MCLOUD: Row(),
     # The probe's own pass rule (measure._mhk): plugin hooks are a feature, and Stop is one of their events.
@@ -462,24 +465,85 @@ def _child(backend, arguments, scratch):
     return done.stdout if done.returncode == 0 else None
 
 
-def run_engine(exe, scratch) -> tuple | None:
-    """(the version the engine names, judge's answer) for the codex.exe `exe`, every child on a Codex home inside the new
-    folder `scratch`, or None for no answer: an engine official_engine does not accept, a child that failed, a schema not
-    written or not whole. Never a fail, for any of those: it says nothing of a call."""
+def ask_engine(exe, scratch) -> dict:
+    """What the codex.exe `exe` answered, every child on a Codex home inside the new folder `scratch`: {"backend", "home",
+    "out", "version", "schema_answered", "schema_written", "features_answered", "answer"}. The one way the check asks, the
+    run's and MAUTO's. Raises as core's engine check does: official_engine, --version, queue --help."""
     from codex_auto_resume.codex.transport import Backend
     home, out = Path(scratch) / "codex-home", Path(scratch) / "schema"
     home.mkdir()
     out.mkdir()
     backend = Backend(home, exe)
-    backend._compatible()                               # official_engine, --version, queue --help; raises for no
-    version = safe_version(backend.engine_version)
-    if version is None or _child(backend, SCHEMA_ARGUMENTS + (str(out),), scratch) is None:
-        return None
-    document = _schema_of(out)
+    backend._compatible()
+    asked = {"backend": backend, "home": home, "out": out, "version": safe_version(backend.engine_version),
+             "schema_answered": False, "schema_written": False, "features_answered": False, "answer": {}}
+    if asked["version"] is None:
+        return asked
+    asked["schema_answered"] = _child(backend, SCHEMA_ARGUMENTS + (str(out),), scratch) is not None
+    document = _schema_of(out) if asked["schema_answered"] else None
     if document is None:
-        return None
-    answer = judge(document, _child(backend, FEATURE_ARGUMENTS, scratch))
-    return (version, answer) if answer else None
+        return asked
+    asked["schema_written"] = True
+    features = _child(backend, FEATURE_ARGUMENTS, scratch)
+    asked["features_answered"] = features is not None
+    asked["answer"] = judge(document, features)
+    return asked
+
+
+def run_engine(exe, scratch) -> tuple | None:
+    """(the version the engine names, judge's answer) for the codex.exe `exe`, or None for no answer: an engine
+    official_engine does not accept, a child that failed, a schema not written or not whole. Never a fail, for any of
+    those: it says nothing of a call."""
+    asked = ask_engine(exe, scratch)
+    return (asked["version"], asked["answer"]) if asked["version"] and asked["answer"] else None
+
+
+def _bare_schema(backend, arguments, scratch) -> bool:
+    """Whether one form of the schema's command, `arguments` and a new folder after them, runs at all: for MAUTO to say
+    why the check's own form did not."""
+    out = Path(scratch) / "schema-again"
+    shutil.rmtree(out, ignore_errors=True)
+    out.mkdir()
+    try:
+        done = subprocess.run(list(arguments) + [str(out)], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL, timeout=CHILD_SECONDS, creationflags=NO_WINDOW, shell=False,
+                              cwd=str(scratch), env=backend._environment())
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return False
+    return done.returncode == 0
+
+
+def probe_engine(exe) -> dict:
+    """The check's own commands on the real engine, for MAUTO, on a scratch home removed after: whether each answered and
+    what it found, and - only where the schema's command did not answer - which of `--experimental` and core's `-c` options
+    it would not take. Booleans, counts and this table's own words: never a path or a word Codex wrote. Writes no record of
+    the check's own: the watcher's stays the watcher's."""
+    from codex_auto_resume.codex.pairing import official_engine
+    found = {"official": official_engine(exe)[0] is True, "engine_accepted": False, "version": None,
+             "schema_answered": False, "experimental_taken": False, "schema_written": False, "schema_whole": False,
+             "features_answered": False, "options_without_flag": None, "flag_without_options": None,
+             "scratch_home_files": None, "scratch_home_signed_in": None, "results": {}}
+    scratch = tempfile.mkdtemp(prefix="car-mauto-")
+    try:
+        asked = ask_engine(exe, scratch)
+        found.update(engine_accepted=True, version=asked["version"], schema_answered=asked["schema_answered"],
+                     experimental_taken=asked["schema_answered"], schema_written=asked["schema_written"],
+                     schema_whole=bool(asked["answer"]), features_answered=asked["features_answered"],
+                     results={str(measurement): str(word) for measurement, (word, _gone) in asked["answer"].items()})
+        backend = asked["backend"]
+        if not asked["schema_answered"]:
+            options = backend._argv()
+            found["options_without_flag"] = _bare_schema(
+                backend, options + [word for word in SCHEMA_ARGUMENTS if word != "--experimental"], scratch)
+            found["flag_without_options"] = _bare_schema(backend, options[:1] + list(SCHEMA_ARGUMENTS), scratch)
+        files = [path for path in asked["home"].rglob("*") if path.is_file()]
+        found["scratch_home_files"] = len(files)
+        found["scratch_home_signed_in"] = (asked["home"] / "auth.json").exists()
+    except Exception:
+        pass
+    finally:
+        shutil.rmtree(scratch, ignore_errors=True)
+    return found
 
 
 def _attempt(paths, key, tries, now) -> dict:

@@ -141,6 +141,8 @@ MEASUREMENT_METHODS = {
     # the account before and after each swap (the swap is a file renamed and the app restarted, not a call).
     Measurement.MPROFILE: ("account/read", "account/rateLimits/read"),
     Measurement.MSWAP: ("account/read", "account/rateLimits/read"),
+    # v0.6.22: MAUTO runs the automatic check's commands on a scratch home - no session.
+    Measurement.MAUTO: (),
 }
 
 # The methods a capability's own route may call, beyond `initialize` - each one a measurement

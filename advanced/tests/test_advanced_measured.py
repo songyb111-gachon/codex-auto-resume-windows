@@ -212,7 +212,9 @@ class TableTests(unittest.TestCase):
                           # v0.6.22: Codex's own retry settings by a provider of our own, on our own server.
                           Measurement.MB2,
                           # v0.6.22: the automatic account switch's two, made by the measurement session.
-                          Measurement.MPROFILE, Measurement.MSWAP})
+                          Measurement.MPROFILE, Measurement.MSWAP,
+                          # v0.6.22: the automatic check's own proof on the real engine, for the measurement session.
+                          Measurement.MAUTO})
 
 
 if __name__ == "__main__":

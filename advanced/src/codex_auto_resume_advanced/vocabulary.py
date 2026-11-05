@@ -654,6 +654,10 @@ class Measurement(StrEnum):
     # swap back, the first account's sign-in still works.
     MPROFILE = "mprofile"
     MSWAP = "mswap"
+    # v0.6.22 (the automatic compatibility check, plans/v0622-autocheck-design.md): no hands. The check's own commands on
+    # the real engine on a scratch home: whether each answered, whether `--experimental` is taken behind core's `-c`
+    # options, and the grade each capability would read. No capability rests on it: it is the check's own proof.
+    MAUTO = "mauto"
 
 
 class ObservedWord(StrEnum):
