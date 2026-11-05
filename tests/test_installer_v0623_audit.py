@@ -245,5 +245,55 @@ class N2InstallerThatThrows(Scratch):
         self.assertIn("pick: installed 0.6.10 standard", output)
 
 
+@unittest.skipUnless(WINDOWS and POWERSHELL.is_file(), "the installer is PowerShell on Windows")
+class N3PurgeSaysWhatItKept(unittest.TestCase):
+    """A linked config, logs or accounts folder is not followed, and the purge no longer claims it was removed."""
+
+    def fresh(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.folder = Path(folder.name)
+        self.home = self.folder / "home"
+        for relative in ("app/scripts/plugin_setup.py", "runtime/python.exe", ".owned-by-codex-auto-resume",
+                         "config/settings.json", "logs/auto-resume.log", "accounts/one.dat"):
+            path = self.home / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("synthetic fixture", encoding="utf-8")
+
+    def link(self, name):
+        import _winapi
+        outside = self.folder / ("outside-" + name)
+        outside.mkdir()
+        (outside / "theirs.txt").write_text("not ours", encoding="utf-8")
+        shutil.rmtree(self.home / name)
+        _winapi.CreateJunction(str(outside), str(self.home / name))
+        return outside
+
+    def purge(self):
+        from test_installer_uninstall_sweep import tail
+        return tail(self.home, self.folder, purge=True)
+
+    def test_a_linked_folder_is_kept_and_named_and_the_purge_does_not_claim_it(self):
+        for name in ("logs", "accounts", "config"):
+            with self.subTest(name):
+                self.fresh()
+                outside = self.link(name)
+                done = self.purge()
+                self.assertNotEqual(done.returncode, 0, done.stdout + done.stderr)
+                self.assertNotIn("Removed, including settings and recovery history.", done.stdout)
+                self.assertIn("could not be removed", done.stdout)
+                self.assertIn(str(self.home / name), done.stdout)
+                self.assertIn("is a link", done.stdout)
+                self.assertEqual((outside / "theirs.txt").read_text(encoding="utf-8"), "not ours")
+
+    def test_with_no_link_it_still_says_it_removed_everything(self):
+        self.fresh()
+        done = self.purge()
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertIn("Removed, including settings and recovery history.", done.stdout)
+        for name in ("config", "logs", "accounts"):
+            self.assertFalse((self.home / name).exists(), name)
+
+
 if __name__ == "__main__":
     unittest.main()

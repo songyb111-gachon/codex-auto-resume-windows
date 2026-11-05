@@ -1592,10 +1592,14 @@ if ($Uninstall) {
         # Only on an explicit request: this is the user's recovery history.
         # Asked whether it worked: a held log file used to stay while this said it was removed (v0.6.18 audit, M3).
         $kept = @()
+        $linkedKept = $false
         # v0.6.22: and the advanced edition's saved Codex sign-ins (accounts\), never through a link or a junction there.
         foreach ($dir in @((Join-Path $OwnedHome 'config'), (Join-Path $OwnedHome 'logs'), (Join-Path $OwnedHome 'accounts'))) {
             $item = Get-Item -LiteralPath $dir -Force -ErrorAction SilentlyContinue
-            if (-not $item -or $item.LinkType) { continue }
+            if (-not $item) { continue }
+            # A folder that is a link or a junction is never followed, and is not removed: said as kept, not skipped in
+            # silence under "Removed, including settings" (v0.6.23 audit, N3 - b13c22d99 had made the skip silent).
+            if ($item.LinkType) { $kept += $dir; $linkedKept = $true; continue }
             if (-not (Remove-OwnedItem $dir)) { $kept += $dir }
         }
         Write-Host ''
@@ -1603,6 +1607,7 @@ if ($Uninstall) {
             Fail 'Removed, but some settings or recovery history could not be removed:'
             foreach ($dir in $kept) { Write-Host ('       ' + $dir) }
             Write-Host '       The program is gone; close what is using them, then delete them yourself.'
+            if ($linkedKept) { Write-Host '       A folder that is a link is not followed or removed; what it points to is yours to delete.' }
         } else {
             Write-Host 'Removed, including settings and recovery history.'
         }
