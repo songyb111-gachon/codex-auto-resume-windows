@@ -539,5 +539,43 @@ class N10LinkedProgramFolderIsNamed(Scratch):
         self.assertNotIn("Fail 'The installation root could not be resolved", INSTALL_PS1)
 
 
+@unittest.skipUnless(WINDOWS and POWERSHELL.is_file(), "the launchers are Windows batch files")
+class N11LaunchersPutTheCodePageBack(Scratch):
+    """Install.cmd and Uninstall.cmd end with the console in the code page it was in when they began."""
+
+    def pages(self, name, *arguments, code=0):
+        from test_add_remove import Launcher, SYSTEM32
+        launcher = Launcher(self, name)
+        wrapper = self.root / ("wrap-" + name.lower().replace(".cmd", "") + ".bat")
+        wrapper.write_bytes(("@echo off\r\n\"%s\" 850 >nul\r\ncall \"%s\" %%*\r\nset \"RC=%%ERRORLEVEL%%\"\r\n\"%s\"\r\n"
+                             "exit /b %%RC%%\r\n" % (SYSTEM32 / "chcp.com", launcher.script, SYSTEM32 / "chcp.com")).encode("ascii"))
+        done = subprocess.run([str(SYSTEM32 / "cmd.exe"), "/d", "/c", str(wrapper), *arguments],
+                              capture_output=True, stdin=subprocess.DEVNULL, timeout=120, creationflags=NO_WINDOW,
+                              env=dict(os.environ, STUB_RECORD=str(launcher.record), STUB_EXIT=str(code)),
+                              cwd=str(launcher.base))
+        return done.returncode, done.stdout.decode("mbcs", "replace")
+
+    def test_the_page_the_window_was_in_is_the_page_it_is_left_in(self):
+        for name in ("Install.cmd", "Uninstall.cmd"):
+            for exit_code in (0, 1):
+                with self.subTest(name=name, exit_code=exit_code):
+                    code, output = self.pages(name, "-Silent", code=exit_code)
+                    self.assertEqual(code, exit_code, output)
+                    self.assertIn("850", output.strip().splitlines()[-1], output)
+                    self.assertNotIn("65001", output)
+
+    def test_the_answer_no_to_an_edition_change_leaves_it_so_too(self):
+        code, output = self.pages("Install.cmd", code=14)
+        self.assertEqual(code, 14, output)
+        self.assertIn("850", output.strip().splitlines()[-1], output)
+
+    def test_the_old_page_is_read_before_it_is_changed_and_put_back_before_the_exit(self):
+        for name in ("Install.cmd", "Uninstall.cmd"):
+            text = (ROOT / "build" / "install" / name).read_text(encoding="ascii")
+            self.assertLess(text.index("for /f"), text.index("chcp.com\" 65001"))
+            self.assertLess(text.index("chcp.com\" %OLDCP%"), text.index("exit /b %EXIT_CODE%"))
+            self.assertEqual(text.count("exit /b"), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
