@@ -51,6 +51,8 @@ BUILT = {"advanced-prompts-clear-done": "#50, Delete completed (control/prompts.
          "advanced-analytics-csv": "usage_analytics, its CSV (control/analytics.save_csv)",
          # v0.6.22, the loopback API (control/remote.py).
          "advanced-api": "local_api, the card's read", "advanced-api-token-new": "local_api, a new token",
+         "advanced-remote-pair-start": "telegram_remote, a pairing begun",
+         "advanced-remote-pair-state": "telegram_remote, the card's read",
          "advanced-account": "account_switch, the account card's read (control/account.view)",
          "advanced-account-switch": "account_switch, Codex's own sign-out and sign-in (control/account.switch)"}
 

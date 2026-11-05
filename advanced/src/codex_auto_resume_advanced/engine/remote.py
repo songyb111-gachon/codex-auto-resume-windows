@@ -1,8 +1,9 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
 """The resident courier's capabilities (v0.6.22, plans/v0619-design/D-remote.md): the loopback API and web view
-(local_api, with local_api_actions and local_api_lan beside it).
+(local_api, with local_api_actions and local_api_lan beside it) and remote control over Telegram (telegram_remote, with
+telegram_continue beside it).
 
-While local_api stands on, the watcher keeps one resident courier running beside it - a process of its own,
+While local_api or telegram_remote stands on, the watcher keeps one resident courier running beside it - a process of its own,
 `pythonw.exe -m codex_auto_resume_advanced.courier --home <home> --serve` (courier/__main__.py), in the watcher's job
 object, so it ends with the watcher however the watcher ends. At P8 the errand starts one where none answers the
 resident's mutex (courier/resident.py, `running`), at most RESTARTS more times in an hour after the first: past that it
@@ -15,9 +16,10 @@ Watched, the errand is only journalled and never run (runtime.tick): nothing is 
 while it is off there is no process, no socket and no thread.
 
 The others are actions - core never asks them; they only widen what the resident does while the capability they require
-stands on: local_api_actions lets the API pause and cancel, local_api_lan lets it bind beyond 127.0.0.1. Paused, P8 is
-not asked, so a resident that stopped is not started again until recovery is on; one that runs goes on serving (it reads,
-and its actions only reduce).
+stands on: local_api_actions lets the API pause and cancel, local_api_lan lets it bind beyond 127.0.0.1, and
+telegram_continue adds /continue and /recovery-on. Paused, P8 is not asked, so a resident that stopped is not started
+again until recovery is on; one that runs goes on serving (it reads, and its actions only reduce - or, under
+telegram_continue, are the person's own release of a hold or lift of the pause).
 
 No network here: the errand only starts a process (courier/launch.py).
 """
@@ -28,7 +30,9 @@ from codex_auto_resume.domain.plug import DEFER
 API = "local_api"
 API_ACTIONS = "local_api_actions"
 API_LAN = "local_api_lan"
-RESIDENT = (API,)
+TELEGRAM = "telegram_remote"
+TELEGRAM_CONTINUE = "telegram_continue"
+RESIDENT = (API, TELEGRAM)
 DEFAULT_PORT = 47615
 # The port a person may type: anything a user's program may listen on, the default among them.
 PORT_RANGE = (1024, 65535)
@@ -42,6 +46,10 @@ GAVE_UP_WORD = "gave_up"
 # it carried out.
 API_CODES = (START_WORD, GAVE_UP_WORD, "started", "stopped", "port_taken", "locked")
 API_ACTION_CODES = ("paused", "cancelled", "list_again")
+# Telegram's: the resident's two, its long poll started or stopped, and each command it carried out or what it ignored.
+TELEGRAM_CODES = (START_WORD, GAVE_UP_WORD, "started", "stopped", "status", "listed", "cancelled", "paused", "list_again",
+                  "ignored")
+TELEGRAM_CONTINUE_CODES = ("continued", "recovery_on")
 
 
 def starts(journal_times, now) -> list:
@@ -70,7 +78,8 @@ class _Errand:
 
 
 class Resident:
-    """local_api's code: the P8 errand that keeps the resident courier running. `running` and `launch` are seams a test
+    """local_api's and telegram_remote's code: the P8 errand that keeps the resident courier running. Both answer, and the first in the
+    registry's order starts it - the second finds it running, or just started. `running` and `launch` are seams a test
     fills: whether a resident answers its mutex, and how one is started."""
     __slots__ = ("paths", "capability", "_scoped", "_running", "_launch", "_told")
 
@@ -108,7 +117,7 @@ class Resident:
 
 class Widening:
     """An action that widens what the resident does while what it requires stands on (local_api_actions,
-    local_api_lan): nothing of it runs at a plug point; the resident reads whether it stands on."""
+    local_api_lan, telegram_continue): nothing of it runs at a plug point; the resident reads whether it stands on."""
     __slots__ = ("paths",)
 
     def __init__(self, paths):
@@ -127,6 +136,10 @@ def _start(paths):
 
 def make_local_api(paths) -> Resident:
     return Resident(paths, API)
+
+
+def make_telegram_remote(paths) -> Resident:
+    return Resident(paths, TELEGRAM)
 
 
 def make_widening(paths) -> Widening:

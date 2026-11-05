@@ -22,7 +22,9 @@ reaches a real service.
 
 Telegram's pairing (`pair`): the Dashboard shows a one-time code of six digits, keeping only its SHA-256 digest and
 when it expires in the `remote` table (keep.begin_pairing); a courier run with `--pair` reads the bot's new messages for
-up to PAIR_SECONDS and keeps the chat whose message is that code. Five other six-digit messages end the pairing.
+up to PAIR_SECONDS and keeps the chat whose message is that code. Five other six-digit messages end the pairing - and, from
+v0.6.22, turn telegram_remote off (BAD_CODES, a tripwire no Keep on holds back): someone is guessing at the chat it obeys.
+A 409 is the resident's long poll still open on the same bot, which ends within seconds: read again, no refusal.
 """
 from __future__ import annotations
 
@@ -43,6 +45,8 @@ TELEGRAM_API = "https://api.telegram.org/bot"
 PRODUCT = "Codex Auto Resume"
 EDITION = "advanced"
 PAIR_POLL = 25                    # seconds Telegram is asked to hold one read open
+CONFLICT = 409                    # another reader of the same bot: telegram_remote's long poll, still held open
+REMOTE = "telegram_remote"
 ON = 1                            # a channel's switch (registry SWITCH: 1 on, 2 off)
 OFF = 2
 
@@ -235,6 +239,18 @@ def _updates(reply) -> list:
     return [entry for entry in result if isinstance(entry, dict)] if isinstance(result, list) else []
 
 
+def _trip_remote(runtime) -> None:
+    """Five wrong codes: telegram_remote off where it stands on or is watched (K7), with what requires it."""
+    from ..vocabulary import ArmingState, OffReason
+    if runtime.registry.get(REMOTE) is None:
+        return
+    try:
+        if runtime.states(fresh=True).get(REMOTE, ArmingState.OFF) != ArmingState.OFF:
+            runtime.arming.trip(REMOTE, OffReason.BAD_CODES)
+    except Exception:
+        pass
+
+
 def pair(runtime, secrets, *, opener=None, clock=None, sleep=None) -> int:
     """Read the bot's messages until the one-time code arrives, it expires, PAIR_SECONDS pass or BAD_CODES other codes
     came: the chat that sent it kept as push_notices' telegram_chat. The courier's exit code."""
@@ -260,7 +276,7 @@ def pair(runtime, secrets, *, opener=None, clock=None, sleep=None) -> int:
         try:
             reply = http.get(url, timeout=wait + http.TIMEOUT, opener=opener)
         except http.Failed as exc:
-            if exc.word in outbox.REFUSING:
+            if exc.word in outbox.REFUSING and exc.status != CONFLICT:
                 _end_pairing(state, offset=offset, bad=bad)
                 return EXIT_REFUSED
             sleep(2)
@@ -281,6 +297,7 @@ def pair(runtime, secrets, *, opener=None, clock=None, sleep=None) -> int:
             bad += 1
             if bad >= BAD_CODES:
                 _end_pairing(state, offset=offset, bad=BAD_CODES)
+                _trip_remote(runtime)
                 return EXIT_NOT_PAIRED
         with state._transaction() as connection:
             connection.execute("UPDATE remote SET update_offset = ?, bad_codes = ? WHERE channel = 'telegram'",

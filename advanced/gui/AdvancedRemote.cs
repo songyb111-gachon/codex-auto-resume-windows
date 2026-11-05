@@ -1,6 +1,7 @@
 // ADVANCED-EDITION-CODE: in the advanced edition's window, never the standard one's.
 //
-// Codex Auto Resume - the loopback API's card on the Advanced features page (v0.6.22, plans/v0619-design/D-remote.md).
+// Codex Auto Resume - the loopback API's card and Telegram's on the Advanced features page (v0.6.22,
+// plans/v0619-design/D-remote.md).
 //
 // While Read this PC's status from a browser or a script is on or watched, its column has a card "Address and token": how
 // the server stands (running, starting, stopped for this hour, or its port taken), the address without its token, whether
@@ -9,6 +10,11 @@
 // is; what widens it (pausing and cancelling, the local network) are rows of their own in the list. The card's requests are
 // the bridge's (advanced-api, advanced-api-token-new), the Dashboard's alone; the token is never drawn and never kept here:
 // it goes to the clipboard once and is forgotten.
+//
+// While Control recovery from Telegram is on or watched, its column has a card "Your Telegram chat": how the reading stands,
+// whether a chat is paired - or the one-time code to send the bot - Pair this chat once the bot's token is saved on the
+// notices card (one pairing, two capabilities), and what the chat may send as a plain list, the two commands of Let Telegram
+// continue among them only while that is on (advanced-remote-pair-state, advanced-remote-pair-start).
 //
 // Nothing here draws anything the page does not draw already: the card, its help lines and its buttons are the Settings
 // page's, in both themes and both designs, mirrored for Arabic and Hebrew by the page. It opens no window of its own.
@@ -23,11 +29,15 @@ namespace CodexAutoResume
 {
     internal sealed partial class SettingsForm
     {
-        private const string ApiId = "local_api";
+        private const string ApiId = "local_api", TelegramId = "telegram_remote";
 
         // advanced-api's last answer - never one asked with copy - or null where it was not read or the read failed.
         private Dictionary<string, object> advancedApi;
-        // The card's buttons by their Tag ("copy api", "token api"); what a test's run copied instead of the clipboard.
+        // advanced-remote-pair-state's last answer, or null; the one-time code the card shows.
+        private Dictionary<string, object> advancedTelegram;
+        private string telegramCode;
+        // The cards' buttons by their Tag ("copy api", "token api", "pair telegram"); what a test's run copied instead of
+        // the clipboard.
         private readonly List<Button> remoteButtons = new List<Button>();
         private List<string> remoteCopied;
 
@@ -35,7 +45,8 @@ namespace CodexAutoResume
         private string RemoteShown(Dictionary<string, object> item)
         {
             string id = Str(item, "id");
-            return id == ApiId ? AdvancedWritten(advancedApi) : "";
+            return id == ApiId ? AdvancedWritten(advancedApi)
+                 : id == TelegramId ? AdvancedWritten(advancedTelegram) + "|" + (telegramCode ?? "") : "";
         }
 
         /// Read advanced-api, keep it, and show it; `done` once it is shown.
@@ -60,6 +71,7 @@ namespace CodexAutoResume
         {
             ForgetRemoteCard();
             if (Str(item, "id") == ApiId && Standing(item) && advancedApi != null) BuildApiCard();
+            if (Str(item, "id") == TelegramId && Standing(item) && advancedTelegram != null) BuildTelegramCard();
         }
 
         private void BuildApiCard()
@@ -139,6 +151,67 @@ namespace CodexAutoResume
                 if (AdvancedDone(result) && PutOnClipboard(Str(result, "copy_url")))
                     ResetNote(Word("page.done.api_copied", "Copied. Whoever has this address can read this PC's status."));
                 else TellAdvanced(Word("page.refused.api_not_copied", "The address could not be copied."));
+            });
+        }
+
+        /// Read advanced-remote-pair-state, keep it, and show it; `done` once it is shown.
+        private void ReadTelegram(MethodInvoker done)
+        {
+            AdvancedCall("advanced-remote-pair-state", "{}", false, delegate(Dictionary<string, object> reply)
+            {
+                Dictionary<string, object> result = AdvancedResult(reply);
+                advancedTelegram = AdvancedDone(result) ? result : null;
+                if (advancedTelegram != null && !Equals(Get(advancedTelegram, "pairing"), true)) telegramCode = null;
+                ShowAdvancedDetail();
+                if (done != null) done();
+            });
+        }
+
+        private void BuildTelegramCard()
+        {
+            TableLayoutPanel card = NewGroup(Word("page.remote.card", "Your Telegram chat"), advancedStack);
+            string word = Str(advancedTelegram, "state");
+            string state = word == "running" ? Word("page.remote.state.running", "The bot is being read.")
+                         : word == "starting" ? Word("page.remote.state.starting", "Reading the bot starts with the watcher's next look.")
+                         : word == "stopped" ? Word("page.remote.state.stopped", "It stopped too often, so it is not started again for now. It is tried again within the hour.")
+                         : null;
+            if (state != null)
+            {
+                Label line = HelpText(state);
+                line.ForeColor = word == "running" ? Ink : Accent;
+                card.Controls.Add(line);
+            }
+            if (telegramCode != null)
+                card.Controls.Add(HelpText(Word("page.courier.pair_code", "Send {code} to your bot within two minutes.", "code", telegramCode)));
+            else
+                card.Controls.Add(HelpText(Equals(Get(advancedTelegram, "paired"), true)
+                    ? Word("page.remote.paired", "A chat is paired. Only that chat is obeyed.")
+                    : Word("page.remote.not_paired", "No chat is paired yet. Save the bot's token on the notices card, then pair a chat here.")));
+            if (Equals(Get(advancedTelegram, "token_saved"), true))
+                RemoteButton(card, Word("page.courier.pair", "Pair this chat"), "pair telegram", delegate { PairTelegram(); });
+            Label caption = Caption(Word("page.remote.commands", "What the chat may send"));
+            caption.Margin = Pad(0, 10, 0, 2);
+            card.Controls.Add(caption);
+            card.Controls.Add(HelpText(Word("page.remote.command.status", "/status: how the watcher and recovery stand")));
+            card.Controls.Add(HelpText(Word("page.remote.command.list", "/list: the waiting recoveries as task 1, task 2")));
+            card.Controls.Add(HelpText(Word("page.remote.command.cancel", "/cancel task 1: cancel one, from the list last sent")));
+            card.Controls.Add(HelpText(Word("page.remote.command.pause", "/pause: pause recovery")));
+            if (Equals(Get(advancedTelegram, "continue"), true))
+            {
+                card.Controls.Add(HelpText(Word("page.remote.command.continue", "/continue task 1: let one held recovery go on")));
+                card.Controls.Add(HelpText(Word("page.remote.command.recovery_on", "/recovery-on: lift a pause")));
+            }
+        }
+
+        private void PairTelegram()
+        {
+            if (busy > 0 || advancedListing == null) return;
+            AdvancedCall("advanced-remote-pair-start", "{}", true, delegate(Dictionary<string, object> reply)
+            {
+                Dictionary<string, object> result = AdvancedResult(reply);
+                telegramCode = AdvancedDone(result) ? Str(result, "code") : null;
+                ReadTelegram(null);
+                if (!AdvancedDone(result)) TellAdvanced(CourierRefusal(Str(result, "refusal")));
             });
         }
 

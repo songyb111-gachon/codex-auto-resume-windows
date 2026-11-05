@@ -978,6 +978,37 @@ class RemoteBesideEveryCapabilityTests(ac.AdvancedCase):
             self.assertNotIn(word, source)
 
 
+class TelegramBesideEveryCapabilityTests(ac.AdvancedCase):
+    """COMPOSE (v0.6.22, D-remote.md): telegram_remote only observes and reduces, as the API does. telegram_continue beside
+    every capability that sets a hold: /continue is core's release_hold, the person's own move - the one thing that takes a
+    hold away, for that record, journalled - and it sends nothing and skips no gate, so what holds a record for its own
+    reason (a postponement, quiet hours, a capability's gate at P3) still holds it after."""
+
+    def test_they_answer_at_no_deciding_point(self):
+        from codex_auto_resume_advanced.registry import TELEGRAM_CONTINUE, TELEGRAM_REMOTE
+        self.assertEqual(TELEGRAM_REMOTE.points, frozenset({Point.TICK}))
+        self.assertEqual(TELEGRAM_CONTINUE.points, frozenset())
+        self.assertEqual(TELEGRAM_REMOTE.requires, ("push_notices",))
+        self.assertEqual(TELEGRAM_CONTINUE.requires, ("telegram_remote",))
+
+    def test_continue_is_core_s_release_and_only_that(self):
+        """Fails where /continue reaches anything but release_hold: a route of its own round the gates."""
+        import inspect
+        from codex_auto_resume_advanced.control import remote
+        source = inspect.getsource(remote.release)
+        self.assertIn("layer.release_hold(", source)
+        for word in ("set_enabled", "send", "retry", "dispatch", "claim"):
+            self.assertNotIn(word, source.replace("sends", ""))
+
+    def test_a_hold_a_capability_set_is_answered_at_p3_whatever_was_released(self):
+        """The gates that hold are core's asks at P3, each record's every time: a release takes away a person's hold alone."""
+        from codex_auto_resume_advanced import registry as shipped
+        holding = [definition.id for definition in shipped.DEFINITIONS if Point.GATES in definition.points]
+        self.assertTrue(holding)
+        self.assertNotIn("telegram_continue", holding)
+        self.assertNotIn("telegram_remote", holding)
+
+
 # ---------------------------------------------------------------- v0.6.20: account_switch (plans/v0619-design/D-account.md)
 class AccountBesideResetsAndPauseTests(UsageCase):
     """account_switch beside reset_credit, reset_message and usage_pause: COMPOSE, each still doing its own. Another

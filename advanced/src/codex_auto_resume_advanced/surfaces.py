@@ -109,12 +109,13 @@ ARGUMENTS = {
 # Each is passed over - DEFER, so core says "unknown command" exactly as for a command this edition does not have -
 # until the writer of its capability builds it: that writer gives it its arguments here, takes it out of this set, and
 # answers it in `bridge`.
-UNANSWERED = frozenset({
-    BridgeCommand.ADVANCED_REMOTE_PAIR_START, BridgeCommand.ADVANCED_REMOTE_PAIR_STATE, BridgeCommand.ADVANCED_FLEET,
-    BridgeCommand.ADVANCED_FLEET_SAVE})
+UNANSWERED = frozenset({BridgeCommand.ADVANCED_FLEET, BridgeCommand.ADVANCED_FLEET_SAVE})
 # v0.6.22 (local_api): the card's read - with `copy`, the address carrying the token - and a new token (control/remote.py).
 ARGUMENTS[BridgeCommand.ADVANCED_API] = frozenset({"copy"})
 ARGUMENTS[BridgeCommand.ADVANCED_API_TOKEN_NEW] = frozenset()
+# and (telegram_remote) Telegram's pairing begun from its card, and how it stands.
+ARGUMENTS[BridgeCommand.ADVANCED_REMOTE_PAIR_START] = frozenset()
+ARGUMENTS[BridgeCommand.ADVANCED_REMOTE_PAIR_STATE] = frozenset()
 # v0.6.20 (account_switch): the account card's read and its Codex sign-out and sign-in, answered (control/account.py).
 ARGUMENTS[BridgeCommand.ADVANCED_ACCOUNT] = frozenset()
 ARGUMENTS[BridgeCommand.ADVANCED_ACCOUNT_SWITCH] = frozenset()
@@ -553,6 +554,12 @@ def bridge(runtime, command, argument):
         if command == BridgeCommand.ADVANCED_ACCOUNTS_SAVE:
             return accounts.save(runtime)
         return accounts.delete(runtime, argument)
+    if command in (BridgeCommand.ADVANCED_REMOTE_PAIR_START, BridgeCommand.ADVANCED_REMOTE_PAIR_STATE):
+        # v0.6.22 (telegram_remote): the Dashboard's alone - no MCP tool reaches a pairing.
+        from .control import remote
+        if command == BridgeCommand.ADVANCED_REMOTE_PAIR_START:
+            return remote.pair_start(runtime)
+        return remote.pair_state(runtime)
     if command in (BridgeCommand.ADVANCED_API, BridgeCommand.ADVANCED_API_TOKEN_NEW):
         # v0.6.22 (local_api): the Dashboard's alone - no MCP tool reaches the token.
         from .control import remote

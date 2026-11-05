@@ -13,8 +13,9 @@ exits:
   Dashboard's Send a test - while push_notices is on or watched;
 * `--pair`, Telegram's pairing: up to PAIR_SECONDS of reading the bot's messages for the one-time code the Dashboard
   showed, keeping the chat that sent it (channels.pair);
-* `--serve` (v0.6.22, D-remote.md), the resident role - the loopback API - for as long as local_api stands on
-  (resident.py), under the resident's own mutex, not this one: a resident never holds a notice or a pairing back.
+* `--serve` (v0.6.22, D-remote.md), the resident roles - the loopback API and Telegram's long poll - for as long as
+  local_api or telegram_remote stands on (resident.py), under the resident's own mutex, not this one: a resident never
+  holds a notice or a pairing back.
 
 Exit codes: 0 done, 3 busy, 4 refused (arguments, a home or a state that cannot be used, a capability not standing on
 or a channel not saved); a test's, per EXIT_TEST; 9 a pairing that found no code. Nothing is printed: pythonw has
@@ -59,7 +60,7 @@ def mutex(paths):
 
 def main(argv=None, **seams) -> int:
     """One round of the courier, as its arguments say; its exit code. `seams` are a test's: `runtime` (a factory given
-    the paths), `mutex`, `secrets`, `opener`, `smtp`, `paused`, `clock` and `sleep` - and, for `--serve`, `server` and
+    the paths), `mutex`, `secrets`, `opener`, `smtp`, `paused`, `clock` and `sleep` - and, for `--serve`, `server`, `poller` and
     `rounds`."""
     from codex_auto_resume import config
     found = parse(sys.argv[1:] if argv is None else argv)
@@ -102,7 +103,8 @@ def work(paths, found, **seams) -> int:
         pass
     if found["mode"] == "serve":
         from .resident import serve
-        return serve(runtime, server=seams.get("server"), sleep=seams.get("sleep"), rounds=seams.get("rounds"))
+        return serve(runtime, server=seams.get("server"), poller=seams.get("poller"), sleep=seams.get("sleep"),
+                     rounds=seams.get("rounds"))
     states = runtime.states(fresh=True)
     if runtime.registry.get(PUSH) is None and found["mode"] in ("test", "pair"):
         return EXIT_REFUSED

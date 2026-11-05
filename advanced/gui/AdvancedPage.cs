@@ -720,6 +720,12 @@ namespace CodexAutoResume
                 MethodInvoker after = done;
                 done = delegate { ReadApi(after); };
             }
+            // v0.6.22: Telegram's paired chat (AdvancedRemote.cs) - asked only while it is on or watched.
+            if (id == TelegramId && Standing(item))
+            {
+                MethodInvoker after = done;
+                done = delegate { ReadTelegram(after); };
+            }
             // v0.6.16-beta.4: the wrap-up's own wordings (AdvancedUsage.cs).
             if (id == WrapUpId)
             {
@@ -1625,6 +1631,8 @@ namespace CodexAutoResume
                 said = Word("page.tripped.not_dispatched_by_session", "Turned off: a terminal or VS Code session did not take a message queued for it in time.");
             else if (reason == "refused_by_codex")
                 said = Word("page.tripped.refused_by_codex", "Turned off: Codex refused to start a turn with no words.");
+            else if (reason == "bad_codes")
+                said = Word("page.tripped.bad_codes", "Turned off: five wrong pairing codes were sent to your bot.");
             return said ?? Word("page.tripped", "It turned itself off.");
         }
 

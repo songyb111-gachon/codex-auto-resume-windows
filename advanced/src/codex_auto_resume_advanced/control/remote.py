@@ -1,7 +1,7 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
-"""What the loopback API may read and do, through core's control layer - and its Dashboard card's bridge commands
-(v0.6.22, plans/v0619-design/D-remote.md). No network here: the courier serves (courier/api.py) in its own process, and
-comes here for every answer.
+"""What the loopback API and Telegram may read and do, through core's control layer - and their Dashboard cards' bridge
+commands (v0.6.22, plans/v0619-design/D-remote.md). No network here: the courier serves (courier/api.py) and polls
+(courier/telegram.py) in its own process, and both come here for every answer.
 
 What it reads is the standard status file's document (core's statusfile.content - its closed keys, nothing more) and
 the waiting recoveries as `task N` - each one's 1-based place in Pending as core lists it (store.pending, oldest
@@ -10,8 +10,9 @@ id, a label, a title, a path or a word of a conversation. A listing carries a `s
 listed, in their order, so a later `task N` is resolved against exactly that list or refused (Stale: "list again").
 
 What it may do is the reduce-actions alone, each core's own control call, as the Dashboard's bridge makes it: pause
-(Control.set_enabled(False)) and cancel one waiting recovery (Control.cancel_interruption). Core's journal names the
-actor `cli` (core has no word for a remote surface; the owner may add one); the advanced journal counts each under the
+(Control.set_enabled(False)) and cancel one waiting recovery (Control.cancel_interruption) - and, under
+telegram_continue, the person's own release of one held recovery (Control.release_hold) and the pause lifted
+(Control.set_enabled(True)). Core's journal names the actor `cli` (core has no word for a remote surface; the owner may add one); the advanced journal counts each under the
 capability that allowed it, with no id. Nothing here sends: the watcher alone does (a test reads the imports and every
 name called).
 
@@ -21,7 +22,11 @@ The bridge commands, the Dashboard's alone and never an MCP tool's:
   resident answers (running / stopped / starting / port_taken / off) and whether it is open to the network; with
   {"copy": true}, the address carrying the token in its fragment too, for Copy address - that answer alone;
 * advanced-api-token-new - a new token kept in Windows Credential Manager (local_api/token), the old one useless at once;
-  the address with the token in its fragment is answered this once, for the same Copy.
+  the address with the token in its fragment is answered this once, for the same Copy;
+* advanced-remote-pair-start - Telegram's pairing begun, the same pairing as the notices card's (control/courier.py):
+  the one-time code answered for the card to show;
+* advanced-remote-pair-state - whether a chat is paired, a pairing waits, and the bot's token is saved, and how the
+  resident stands.
 """
 from __future__ import annotations
 
@@ -34,6 +39,8 @@ from ..vocabulary import ArmingState, OptionKey, Refusal
 API = "local_api"
 API_ACTIONS = "local_api_actions"
 API_LAN = "local_api_lan"
+TELEGRAM = "telegram_remote"
+TELEGRAM_CONTINUE = "telegram_continue"
 TOKEN = "token"                                 # local_api's one secret: CodexAutoResume/advanced/local_api/token
 ACTOR = "cli"                                   # core's journal: the nearest word core has for a surface beside it
 ALIAS = re.compile(r"task ([1-9][0-9]{0,3})\Z")
@@ -151,6 +158,19 @@ def cancel(layer, alias, listed) -> dict:
     return {"done": True, "task": alias, "changed": bool(found.get("changed"))}
 
 
+def release(layer, alias, listed) -> dict:
+    """One recovery held for a person let go on by its `task N` (telegram_continue): core's release_hold, which sends
+    nothing and skips no gate."""
+    record = resolve(layer, alias, listed)
+    layer.release_hold(record["interruption_id"], record["thread_id"], actor=ACTOR)
+    return {"done": True, "task": alias}
+
+
+def recovery_on(layer) -> dict:
+    """The pause lifted (telegram_continue): core's set_enabled(True), which an administrator's policy still refuses."""
+    return {"done": True, "enabled": layer.set_enabled(True)["enabled"]}
+
+
 # ------------------------------------------------------------------------------ the Dashboard's card
 def _armed(runtime, capability) -> bool:
     try:
@@ -242,3 +262,45 @@ def api_token_new(runtime, *, secrets=None) -> dict:
     except SecretError:
         return {"done": False, "refusal": Refusal.SECRET_UNAVAILABLE}
     return {"done": True, "refusal": None, "copy_url": web_view(port(runtime), token)}
+
+
+def pair_state(runtime, *, secrets=None, running=None) -> dict:
+    """advanced-remote-pair-state: the shared Telegram pairing (push_notices'), as the remote card shows it."""
+    from ..courier import keep
+    from ..engine import remote
+    if runtime.registry.get(TELEGRAM) is None or runtime.registry.get(keep.CAPABILITY) is None:
+        return {"done": False, "refusal": Refusal.UNKNOWN_CAPABILITY}
+    secrets = _secrets(runtime, secrets) if secrets is not None else keep.secrets_of(runtime.registry)
+    try:
+        row = keep.pairing(runtime.state) or {}
+    except Exception:
+        return {"done": False, "refusal": Refusal.STATE_UNAVAILABLE}
+    now = runtime.clock()
+    on = _armed(runtime, TELEGRAM)
+    alive = (running or _running)(runtime) if on else False
+    word = "off" if not on else "running" if alive else ("stopped" if remote.stopped(runtime.state.journal_times, now)
+                                                         else "starting")
+    return {"done": True, "refusal": None, "paired": keep.saved(secrets, "telegram"),
+            "token_saved": _saved_token(secrets),
+            "pairing": bool(row.get("code_digest") and (row.get("code_expires_at") or 0) > now),
+            "state": word, "continue": _armed(runtime, TELEGRAM_CONTINUE)}
+
+
+def _saved_token(secrets) -> bool:
+    from ..courier.keep import read
+    try:
+        return read(secrets, "telegram_token") is not None
+    except Exception:
+        return False
+
+
+def pair_start(runtime, *, secrets=None, start=None) -> dict:
+    """advanced-remote-pair-start: the notices card's pairing begun from the remote card - telegram_remote and
+    push_notices each on or watched. The one-time code answered for the card; only its digest kept (control/courier.py)."""
+    from ..control import courier
+    from ..courier import keep
+    for capability in (TELEGRAM, keep.CAPABILITY):
+        refusal = _standing(runtime, capability)
+        if refusal is not None:
+            return {"done": False, "refusal": refusal}
+    return courier._pair(runtime, secrets if secrets is not None else keep.secrets_of(runtime.registry), start)

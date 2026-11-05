@@ -112,10 +112,10 @@ class ShippedTests(unittest.TestCase):
                # v0.6.20 (Discussion #57): the power action after tasks a person picked, the one answer at P21.
                "power_after_tasks",
                # v0.6.22: the resident courier, before the wake timer.
-               "local_api",
+               "local_api", "telegram_remote",
                "wake_for_reset",
                # v0.6.22: what widens the loopback API: actions, before the other three.
-               "local_api_actions", "local_api_lan",
+               "local_api_actions", "local_api_lan", "telegram_continue",
                "open_codex_button",
                "long_reset_message", "compat_report")
 
@@ -126,14 +126,14 @@ class ShippedTests(unittest.TestCase):
 
     def test_the_registry_this_edition_ships_is_its_capabilities_in_their_order(self):
         self.assertEqual([d.id for d in registry.DEFINITIONS], list(self.SHIPPED))
-        self.assertEqual(len(registry.DEFINITIONS), 45)
+        self.assertEqual(len(registry.DEFINITIONS), 47)
         self.assertEqual(len(registry.REGISTRY), len(self.SHIPPED) + len(self.OFFERED))
-        self.assertEqual(len(registry.REGISTRY), 46)
+        self.assertEqual(len(registry.REGISTRY), 48)
         self.assertEqual(registry.REGISTRY.ids, self.SHIPPED + self.OFFERED)
         self.assertEqual([definition.id for definition in registry.offered(measured.MEASURED)], list(self.OFFERED))
         # The compatibility report is an action, last: it answers at no point, so it is in no list below.
         self.assertEqual([d.id for d in registry.DEFINITIONS if d.kind == CapabilityKind.ACTION],
-                         ["local_api_actions", "local_api_lan", "open_codex_button", "long_reset_message", "compat_report"])
+                         ["local_api_actions", "local_api_lan", "telegram_continue", "open_codex_button", "long_reset_message", "compat_report"])
         # Start-with-Codex answers at P9 alone - it starts the watcher, it does not send; the goal
         # continuation at P16, P3 and P5 - the route, the hold while a goal carries a conversation on,
         # and the channel where M2b passed; the marker-free continuation at P5 and P15, the channel
@@ -150,7 +150,7 @@ class ShippedTests(unittest.TestCase):
                                   # v0.6.20 (#50): the steer, before the wake timer.
                                   "steer_send",
                                   # v0.6.22: the resident courier, before the wake timer.
-                                  "local_api",
+                                  "local_api", "telegram_remote",
                                   "wake_for_reset",
                                   # v0.6.20: offered after the rest, so it answers last (registry.offered).
                                   "open_to_send"),
@@ -190,7 +190,7 @@ class ShippedTests(unittest.TestCase):
              "other_sessions", "marker_free_continuation", "reset_credit", "early_reset", "account_auto_switch", "window_anchor", "parallel_dispatch",
              # 2) (open_to_send is hidden until MOPEN passes)
              "reset_message", "long_reset_message", "keep_going", "prompt_queue", "usage_meter", "usage_wrap_up", "usage_pause",
-             "push_notices", "send_now", "open_to_send", "open_codex_button", "codex_chat", "steer_send", "usage_analytics",
+             "push_notices", "telegram_remote", "telegram_continue", "send_now", "open_to_send", "open_codex_button", "codex_chat", "steer_send", "usage_analytics",
              "power_after_tasks",
              # 3)
              "empty_response", "once_more_when_unsure", "capacity_retry", "model_fallback", "compact_continue", "codex_gave_up",

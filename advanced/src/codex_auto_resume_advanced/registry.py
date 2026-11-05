@@ -118,7 +118,7 @@ from .engine.push import DEFAULT_EVENTS, EVENT_CHOICES, make as make_push_notice
 from .engine.feed import DEFAULT_MINUTES as FEED_DEFAULT_MINUTES, MINUTES as FEED_MINUTES, make as make_status_feed
 # v0.6.22 (the resident courier): the loopback API and web view, and what widens them.
 from .engine.remote import (API_ACTION_CODES, API_CODES, DEFAULT_PORT as API_DEFAULT_PORT, PORT_RANGE as API_PORT_RANGE,
-                            make_local_api, make_widening)
+                            TELEGRAM_CODES, TELEGRAM_CONTINUE_CODES, make_local_api, make_telegram_remote, make_widening)
 from .courier.outbox import codes as push_codes
 from .engine.usage import (DEFAULT_PAUSE, DEFAULT_POLL, DEFAULT_STOP_WORDS, DEFAULT_STYLE, DEFAULT_WARN,
                            DEFAULT_WRAP, ON, PERCENT_RANGE, PERCENTS, POLL_RANGE, SWITCH,
@@ -1422,6 +1422,46 @@ LOCAL_API_LAN = CapabilityDef(
     kind=CapabilityKind.ACTION,
 )
 
+# Control recovery from Telegram (v0.6.22, D-remote.md): while it stands on, the resident courier long-polls the bot
+# push_notices keeps, obeying the one chat its pairing kept and ignoring every other in silence (courier/telegram.py):
+# /status, /list, /cancel task N against the list last sent, /pause. Reads and reduce-actions; no command sends to Codex,
+# chats, changes a setting or turns a feature on, and answers are closed words, numbers and `task N`. Five wrong codes
+# during a pairing turn it off (BAD_CODES, whether or not it is kept on). It departs from C1 and C2 (the courier is a second
+# shipped file reaching the network), C3 (api.telegram.org), C8 (Telegram sees this PC's address and the courier's name),
+# D1 (how recoveries stand goes to Telegram), F6 (a process of its own) and F8 (a resident process). It requires
+# push_notices, whose bot and pairing it uses; a chat not yet paired means it waits. It stands on engine_present; its
+# ceilings are the schema's floor and never bind.
+TELEGRAM_REMOTE = CapabilityDef(
+    id="telegram_remote",
+    points=frozenset({Point.TICK}),
+    revision=1,
+    departs_from=("C1", "C2", "C3", "C8", "D1", "F6", "F8"),
+    compat="engine_present",
+    ceilings=Ceilings(per_day=1, per_conversation=1),
+    journal_prefix="tgram",
+    make=make_telegram_remote,
+    codes=TELEGRAM_CODES,
+    requires=("push_notices",),
+)
+
+# Let Telegram continue a held recovery and lift a pause (v0.6.22, D-remote.md): an action. While it stands on beside
+# telegram_remote, the paired chat may also send /continue task N (core's release_hold, the person's own move: it sends
+# nothing and skips no gate) and /recovery-on (core's set_enabled(True), which an administrator's policy still refuses).
+# It departs from H4 (a pause lifted from outside the PC). It requires telegram_remote.
+TELEGRAM_CONTINUE = CapabilityDef(
+    id="telegram_continue",
+    points=frozenset(),
+    revision=1,
+    departs_from=("H4",),
+    compat=None,
+    ceilings=None,
+    journal_prefix="tgcont",
+    make=make_widening,
+    codes=TELEGRAM_CONTINUE_CODES,
+    requires=("telegram_remote",),
+    kind=CapabilityKind.ACTION,
+)
+
 # Start the 5-hour window early (v0.6.20, the owner's request of 2026-10-28; plans/v0620-anchor-design.md). At P8,
 # when Codex's 5-hour window is idle - 0 % in two reads STEADY_GAP apart, its reset ~5 h ahead and moving with the
 # clock, as MANCHOR found an idle window reports - its errand starts one near-free request, the measured
@@ -1532,10 +1572,10 @@ DEFINITIONS = (START_WITH_CODEX, CRASH_RESTART, GOAL_CONTINUATION, QUEUE_FOR_OPE
                # v0.6.20 (Discussion #57): the power action after tasks a person picked, the one answer at P21.
                POWER_AFTER_TASKS,
                # v0.6.22: the resident courier, before the wake timer.
-               LOCAL_API,
+               LOCAL_API, TELEGRAM_REMOTE,
                WAKE_FOR_RESET,
                # v0.6.22: what widens the loopback API: actions, core never asks them.
-               LOCAL_API_ACTIONS, LOCAL_API_LAN,
+               LOCAL_API_ACTIONS, LOCAL_API_LAN, TELEGRAM_CONTINUE,
                OPEN_CODEX_BUTTON, LONG_RESET_MESSAGE,
                COMPAT_REPORT)
 # Codex's own retry settings (stage 4's item 6): Attempts (6, 8, 10 or 12; 8 by default) for both of its built-in
@@ -1700,7 +1740,10 @@ SHOWN_ORDER = (
     # 2026-10-31, group 2: what saves the person work (messages, the usage meter and what serves it, what a person
     # is told and does about one conversation). open_to_send is shown once MOPEN passes.
     "reset_message", "long_reset_message", "keep_going", "prompt_queue", "usage_meter", "usage_wrap_up", "usage_pause",
-    "push_notices", "send_now", "open_to_send", "open_codex_button", "codex_chat", "steer_send", "usage_analytics",
+    "push_notices",
+    # 2026-11-05 (v0.6.22): what is told on a phone can be answered from it, beside the notices it uses.
+    "telegram_remote", "telegram_continue",
+    "send_now", "open_to_send", "open_codex_button", "codex_chat", "steer_send", "usage_analytics",
     # 2026-11-01 (Discussion #57): it spares the person waiting at the PC for the tasks they started to finish.
     "power_after_tasks",
     # 2026-10-31, group 3: the other common failures.

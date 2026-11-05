@@ -75,7 +75,9 @@ class RegistryShapeTests(unittest.TestCase):
         self.assertEqual(shipped, {"usage_wrap_up": ("usage_meter",), "usage_pause": ("usage_meter",),
                                    "usage_analytics": ("usage_meter",), "steer_send": ("prompt_queue",),
                                # v0.6.22: what widens the loopback API.
-                               "local_api_actions": ("local_api",), "local_api_lan": ("local_api",)})
+                               "local_api_actions": ("local_api",), "local_api_lan": ("local_api",),
+                               # and Telegram: the bot and the pairing are the notices', and the second arming beside it.
+                               "telegram_remote": ("push_notices",), "telegram_continue": ("telegram_remote",)})
         self.assertEqual(registry.REGISTRY.get("long_reset_message").requires, ())
 
 

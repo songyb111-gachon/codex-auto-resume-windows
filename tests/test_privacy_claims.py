@@ -50,8 +50,9 @@ ADVANCED_NETWORK_MODULES = frozenset({"advanced/src/codex_auto_resume_advanced/c
 # notice is pushed on, and the status page's reading.
 COURIER = "advanced/src/codex_auto_resume_advanced/courier/"
 COURIER_REACHING = frozenset({COURIER + "http.py", COURIER + "channels.py", COURIER + "feed.py",
-                              # v0.6.22: the loopback API, the one file that listens (test_only_the_api_listens).
-                              COURIER + "api.py"})
+                              # v0.6.22: the loopback API, the one file that listens (test_only_the_api_listens), and
+                              # Telegram's long poll.
+                              COURIER + "api.py", COURIER + "telegram.py"})
 COURIER_IMPORT = re.compile(r"^\s*from \. import (?:[a-z_]+, )*http\b", re.MULTILINE)
 # The hosts the courier names, each only in its package: Telegram's bot API and OpenAI's status page. The hosts a
 # person types for ntfy, a webhook or e-mail are theirs, never named in a shipped file.
