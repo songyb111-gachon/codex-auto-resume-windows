@@ -245,6 +245,15 @@ class Profiles:
     def end(self) -> None:
         self._remove(INTENT)
 
+    def last_switch_at(self):
+        """When this capability last put another account in (`switch.last`), or None."""
+        try:
+            last = self._read(LAST)
+        except ProfileError:
+            return None
+        at = last.get("at") if isinstance(last, dict) else None
+        return at if type(at) is int else None
+
     def attempts(self):
         """The times of the last switches (whole seconds), or None where none was ever kept. Delete all keeps them: the
         day's ceiling is not freed by deleting the accounts."""

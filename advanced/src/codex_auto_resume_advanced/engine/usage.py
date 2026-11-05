@@ -137,6 +137,17 @@ def credit_resets(scoped, rows) -> dict:
     return found
 
 
+def _switched_at(paths):
+    """When account_auto_switch last put another Codex account in, or None (v0.6.23 audit A-R4): a window the meter read
+    before that is the old account's, so the pause holds nothing on it - or every recovery the switch was made for would
+    wait for the old account's reset through the switch's early window. Read only where a window is held."""
+    try:
+        from ..profiles import Profiles
+        return Profiles(paths.home).last_switch_at()
+    except Exception:
+        return None
+
+
 def stale(row, resets) -> bool:
     """Whether `row` was read before a reset credit of that very window was answered (v0.6.17, P-8):
     what it says of the window is from before the credit, so it is not full any more, whatever it says."""
@@ -571,7 +582,9 @@ class UsagePause:
         if not held:
             return False
         resets = credit_resets(scoped, held)
-        return any(not stale(row, resets) for row in held)
+        switched = _switched_at(self.paths)
+        return any(not stale(row, resets) and not (switched is not None and switched >= (row["read_at"] or 0))
+                   for row in held)
 
     def gate(self, name, record, facts):
         """P3: HOLD a record of core's while a window holds; nothing for anything else."""

@@ -949,6 +949,30 @@ class APutBackIsFinishedWhileOff(unittest.TestCase):
         self.assertIn("definition.id in TENDED", source)
 
 
+import test_advanced_usage as _usage  # noqa: E402
+
+
+class ThePauseLetsGoAtASwitch(_usage.UsageCase):
+    """v0.6.23 audit A-R4: usage_pause kept holding every recovery on the OLD account's window after an automatic switch,
+    until the meter read again - past the switch's fifteen-minute early window."""
+
+    CORE = {"interruption_id": _usage.ac.KEY, "thread_id": _usage.ac.THREAD}
+
+    def test_a_window_read_before_the_switch_holds_nothing(self):
+        """Fails with the mark kept: the gate still said HOLD on the new account."""
+        from codex_auto_resume.domain.plug import DEFER, Alternative, Point
+        from codex_auto_resume_advanced import profiles
+        self.on("usage_pause")
+        self.answer = _usage.reply(five=98)
+        self.look()
+        self.look()
+        self.assertIs(self.rt.ask(Point.GATES, "usage", self.CORE, {}), Alternative.HOLD)
+        read_at = self.rt.state.meter()[("codex", 300)]["read_at"]
+        with patch.object(authfile, "_PRIVATE", lambda directory: True):
+            profiles.Profiles(self.rt.paths.home, clock=lambda: int(read_at) + 5).mark_switched("two@example.com")
+        self.assertIs(self.rt.ask(Point.GATES, "usage", self.CORE, {}), DEFER)
+
+
 def swap_restarts():
     from codex_auto_resume_advanced.codex import restart
     return restart
