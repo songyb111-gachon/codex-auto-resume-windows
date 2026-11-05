@@ -452,6 +452,30 @@ class OneHandOnTheSavedAccounts(SwapCase):
         self.assertIn("with store.locked():", control)
 
 
+class AnAppThatDidNotComeBack(SwapCase):
+    """Finding 8 (R8): the restart's NOT_STARTED still came back as switched - the app stayed closed, the waiting
+    recoveries were released early into it, and nobody was told."""
+
+    def test_not_started_is_its_own_outcome(self):
+        """Fails with the old ending: the file read said the target, so it answered SWITCHED."""
+        two = self.store.save(TWO, "two@example.com", "plus")
+        fake = Fake(self)
+
+        def restart(between):
+            between()
+            return swap_restarts().NOT_STARTED, swap_restarts().CLOSED
+        fake.restart = restart
+        self.assertEqual(self.switch(fake, two), swap.NOT_STARTED)
+        self.assertEqual((self.codex / "auth.json").read_bytes(), TWO, "the target stays in: the next start reads it")
+        self.assertTrue(self.store.switched_to("two@example.com", after=NOW), "a change of ours, not a person's")
+
+    def test_the_watcher_releases_nothing_early_for_it(self):
+        source = (Path(__file__).resolve().parents[1] / "src" / "codex_auto_resume_advanced" / "engine"
+                  / "autoswitch.py").read_text(encoding="utf-8")
+        at = source.index("if outcome in (swap.SWITCHED, swap.NOT_STARTED):")
+        self.assertIn("if outcome == swap.SWITCHED:\n                self._switched(now)", source[at:at + 200])
+
+
 def swap_restarts():
     from codex_auto_resume_advanced.codex import restart
     return restart

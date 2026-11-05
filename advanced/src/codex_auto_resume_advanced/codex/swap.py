@@ -45,7 +45,9 @@ NOT_PUT_BACK = "not_put_back"
 CHANGED = "changed_under"
 # Another switch, put-back, save or delete held the saved accounts: nothing was done (profiles.Profiles.locked).
 LOCKED = "locked"
-OUTCOMES = (SWITCHED, NOT_SIGNED_IN, NOT_USABLE, NOT_CLOSED, FAILED, LEFT, NOT_PUT_BACK, CHANGED, LOCKED)
+# The target is in and signed in, but the Codex app did not start again: it stays closed until a person opens it.
+NOT_STARTED = "not_started"
+OUTCOMES = (SWITCHED, NOT_SIGNED_IN, NOT_USABLE, NOT_CLOSED, FAILED, LEFT, NOT_PUT_BACK, CHANGED, LOCKED, NOT_STARTED)
 # The most restarts later looks make to put the previous file back; after them they wait for Codex to be closed.
 BACK_TRIES = 3
 
@@ -253,7 +255,8 @@ def _switch(paths, store, codex_home, target_id, *, restart=None, read_real=None
         if identity(after) is not None and identity(after) == (target.get("email") or "").lower():
             store.update(target_id, used_at=stamp)
             store.mark_switched(target["email"])
-            return SWITCHED
+            # The app that did not come back is said as such: nothing is released early into a closed app.
+            return NOT_STARTED if outcome == restarts.NOT_STARTED else SWITCHED
         # Not the target: the previous file back, Codex started on it once more, and the target set aside. The intent
         # stays until the file in place is the previous one, so a put-back that did not happen is tried again.
         store.update(target_id, failed_at=stamp)

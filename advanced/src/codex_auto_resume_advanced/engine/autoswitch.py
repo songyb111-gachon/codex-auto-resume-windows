@@ -199,8 +199,9 @@ class AutoSwitch:
             return None
         outcome = swap.switch(self.paths, store, home, target, restart=self._restart, read_real=self.read_real, now=now)
         self._count(outcome)
-        if outcome == swap.SWITCHED:
-            self._switched(now)
+        if outcome in (swap.SWITCHED, swap.NOT_STARTED):
+            if outcome == swap.SWITCHED:
+                self._switched(now)                      # NOT_STARTED: the app is closed, so P7 releases nothing early
             day = int(now // DAY) + 1
             self._scoped.stamp(OptionKey.AUTO_SWITCH_COUNT, self._today(now) + 1)
             self._scoped.stamp(OptionKey.AUTO_SWITCH_DAY, day)
