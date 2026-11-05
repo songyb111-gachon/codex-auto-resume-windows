@@ -566,6 +566,32 @@ class AccountsFolderStaysWhereItIs(SwapCase):
         self.assertTrue((self.outside / "0123456789abcdef.dat").exists())
 
 
+class SealWhatIsThereAfterTheRead(SwapCase):
+    """Finding 14: the save-back read the file, then read the account on a session of the real home - which can refresh
+    the tokens and write the file - and sealed the copy read before it; the newer tokens went under the rename."""
+
+    def test_the_tokens_the_identity_read_refreshed_are_the_ones_sealed(self):
+        """Fails with the second read removed: the profile kept n=4, which that session had already replaced."""
+        two = self.store.save(TWO, "two@example.com", "plus")
+        one = self.store.save(ONE, "one@example.com", "plus")
+        fake = Fake(self)
+        plain_read, plain_restart = fake.read_real, fake.restart
+        calls = []
+
+        def read_real():
+            calls.append(1)
+            if len(calls) == 2:                                 # the identity read inside the save-back
+                (self.codex / "auth.json").write_bytes(fixture("one", n=9))
+            return plain_read()
+
+        def restart(between):
+            (self.codex / "auth.json").write_bytes(fixture("one", n=4))   # the app refreshed before it closed
+            return plain_restart(between)
+        fake.read_real, fake.restart = read_real, restart
+        self.assertEqual(self.switch(fake, two), swap.SWITCHED)
+        self.assertEqual(self.store.get(one)["auth"], fixture("one", n=9))
+
+
 def swap_restarts():
     from codex_auto_resume_advanced.codex import restart
     return restart

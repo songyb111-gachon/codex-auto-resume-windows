@@ -282,9 +282,13 @@ def _switch(paths, store, codex_home, target_id, *, restart=None, read_real=None
             done["engines"] = True
             return
         latest = authfile.read(codex_home)
-        if latest != current and identity(read_real()) != identity(before):
-            done["changed"] = True                           # not the account being saved back: nothing is written
-            return
+        if latest != current:
+            if identity(read_real()) != identity(before):
+                done["changed"] = True                       # not the account being saved back: nothing is written
+                return
+            # That read ran a session on the real home, which may have refreshed the tokens and written the file: what
+            # is sealed is what is there after it, never the copy read before (the review's finding 14).
+            latest = authfile.read(codex_home)
         store.update(source_id, auth=latest, used_at=stamp)
         authfile.replace(codex_home, target["auth"])
         done["swapped"] = True
