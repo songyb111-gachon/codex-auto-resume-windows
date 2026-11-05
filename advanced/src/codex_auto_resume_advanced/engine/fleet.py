@@ -387,7 +387,10 @@ class FleetView:
         scoped = self._scoped
         scoped.stamp(OptionKey.LAST_FLEET_WRITE, max(1, int(now)))
         wrote_before = scoped.stamped(OptionKey.FLEET_WROTE_AT)
-        self._worker = self._spawn(lambda: self._pass(now, alias, folder, wrote_before))
+        try:
+            self._worker = self._spawn(lambda: self._pass(now, alias, folder, wrote_before))
+        except Exception:                          # no thread to be had now: the next try is EVERY seconds on
+            self._worker = None
 
     def _pass(self, now, alias, folder, wrote_before):
         """One pass, off the watcher's tick: never raises."""

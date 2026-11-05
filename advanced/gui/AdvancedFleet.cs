@@ -61,7 +61,7 @@ namespace CodexAutoResume
                 ShowFleet();
                 return;
             }
-            if (fleetReading || auditing) { ShowFleet(); return; }
+            if (fleetReading || (auditing && advancedScript == null)) { ShowFleet(); return; }
             if (fleetEverRead && unchecked(Environment.TickCount - fleetReadAt) < FleetReadMilliseconds) { ShowFleet(); return; }
             fleetReading = true;
             ReadFleet(delegate { fleetReading = false; });
@@ -87,7 +87,7 @@ namespace CodexAutoResume
         {
             if (!fleetOn || advancedFleet == null)
             {
-                if (fleetCard != null && fleetCard.Visible)
+                if (fleetCard != null && OwnVisible(fleetCard))
                 {
                     fleetCard.Visible = false;
                     fleetShown = null;
@@ -98,7 +98,7 @@ namespace CodexAutoResume
             if (overviewGrid == null) return;
             if (fleetCard == null) BuildFleetCard();
             string written = AdvancedWritten(advancedFleet);
-            if (written == fleetShown && fleetCard.Visible) return;
+            if (written == fleetShown && OwnVisible(fleetCard)) return;
             fleetShown = written;
             List<object> peers = Items(advancedFleet, "peers") ?? new List<object>();
             fleetList.BeginUpdate();

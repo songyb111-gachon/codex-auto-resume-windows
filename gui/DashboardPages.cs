@@ -206,7 +206,8 @@ namespace CodexAutoResume
             int[] needs = OverviewRowNeeds(grid, width);
             int under = 0;
             OverviewRoomAsked(ref under);
-            int[] heights = OverviewHeights(needs, room, rest + under, Px(OverviewComfort));
+            rest += under;
+            int[] heights = OverviewHeights(needs, room, rest, Px(OverviewComfort));
             int total = under;
             foreach (int need in needs) total += need;
             bool changed = grid.MinimumSize.Height != total;

@@ -261,7 +261,7 @@ class WindowTests(unittest.TestCase):
         # point, declared once and called once (Cells). v0.6.16: RenderStateNamed - the page the render mode draws - is
         # the seventh, declared once and called once.
         # v0.6.20: HeroTold - the header's light while a chat message is on its way - the seventeenth, called once.
-        self.assertEqual(self.cut_lines, 17 + 19, "seventeen declarations and nineteen calls")
+        self.assertEqual(self.cut_lines, 18 + 20, "eighteen declarations and twenty calls")
         self.assertEqual(self.standard, (self.work / "without" / WINDOW).read_bytes())
         self.assertEqual((self.work / "standard" / LAUNCHER).read_bytes(),
                          (self.work / "without" / LAUNCHER).read_bytes())

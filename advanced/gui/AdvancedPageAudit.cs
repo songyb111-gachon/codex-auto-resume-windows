@@ -1166,7 +1166,7 @@ namespace CodexAutoResume
                     else if (what == "fleet_save")
                     {
                         if (form.fleetSave == null || !form.fleetSave.Enabled) disabled.Add("fleet_save");
-                        else form.fleetSave.PerformClick();
+                        else Pressed.Invoke(form.fleetSave, new object[] { EventArgs.Empty });
                     }
                     else if (what == "run_stop")
                     {
@@ -1580,7 +1580,7 @@ namespace CodexAutoResume
             look["feed"] = feedValue != null && OwnVisible(feedValue) ? feedValue.Text : null;
             look["courier_buttons"] = Tags(courierButtons);
             // v0.6.22: the Overview's Other PCs list while it shows, and the card's name, folder and Save.
-            bool fleetShows = fleetCard != null && fleetCard.Visible;
+            bool fleetShows = fleetCard != null && OwnVisible(fleetCard);
             look["fleet_shown"] = fleetShows;
             look["fleet_rows"] = fleetShows ? ListCells(fleetList) : new List<object>();
             look["fleet_said"] = fleetShows ? fleetSaid.Text : null;

@@ -79,8 +79,6 @@ class CardSourceTests(unittest.TestCase):
                         "SelectedIndices", "ContextMenu"):
             self.assertNotIn(handler, card)
         self.assertEqual(sorted(set(re.findall(r'AdvancedCall\("([a-z-]+)"', card))), ["advanced-fleet", "advanced-fleet-save"])
-        for command, argument in re.findall(r'argument = "\{\\"(alias)\\"', card):
-            self.assertEqual(command, argument and "alias")
         self.assertEqual(set(re.findall(r'\\"([a-z_]+)\\"', card)),
                          set(surfaces.ARGUMENTS[BridgeCommand.ADVANCED_FLEET_SAVE]))
 
@@ -105,7 +103,7 @@ class CardSourceTests(unittest.TestCase):
 
     def test_it_is_not_asked_for_while_off_or_audited(self):
         body = source()
-        self.assertIn("if (fleetReading || auditing)", body)
+        self.assertIn("if (fleetReading || (auditing && advancedScript == null))", body)
         self.assertIn("if (!fleetOn)", body)
 
     def test_the_standard_window_only_declares_the_point(self):

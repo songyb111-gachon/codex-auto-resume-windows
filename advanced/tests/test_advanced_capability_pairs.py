@@ -1604,5 +1604,64 @@ class PowerTasksBesideRecoveryTests(_PowerTasksPair):
         self.assertEqual(self.rt.registry.at(Point.POWER)[0].id, "power_after_tasks", "the other answers nothing there")
 
 
+# ------------------------------------------------------------------ v0.6.22: fleet_view
+class FleetBesideEveryCapabilityTests(ac.AdvancedCase):
+    """COMPOSE, none needed: fleet_view only writes a file and reads files. It answers at P8 alone, its errand does nothing but
+    start a thread of its own, so beside another capability's errand neither holds or trips the other - even with its pass
+    hanging on a folder that stopped answering, or failing."""
+
+    class Hanging:
+        def is_alive(self):
+            return True
+
+    def setUp(self):
+        super().setUp()
+        from codex_auto_resume_advanced.registry import FLEET_VIEW, STATUS_FEED
+        self.catalogs = statement.CATALOGS
+        self.compat = ac.view(capability="engine_present")
+        self.rt = self.runtime(FLEET_VIEW, STATUS_FEED)
+        self.rt.arming.catalogs = statement.CATALOGS
+        self.launched = []
+        self.rt._code_of(STATUS_FEED)._launch = lambda paths, now: self.launched.append(now)
+        self.fleet_code = self.rt._code_of(FLEET_VIEW)
+        for definition in (FLEET_VIEW, STATUS_FEED):
+            done = self.arm(self.rt, definition.id, warnings=[str(w) for w in self.rt.arming.warnings(definition)])
+            self.assertTrue(done["done"], done)
+        self.rt.states(fresh=True)
+        from codex_auto_resume_advanced.vocabulary import WordingKey
+        for key, words in ((WordingKey.FLEET_ALIAS, "laptop"), (WordingKey.FLEET_FOLDER, str(self.home.parent))):
+            self.rt.state.set_wording("fleet_view", key, words, generation=self.rt.state.meta()["generation"], actor="dashboard")
+
+    def view(self):
+        class View:
+            def records_in(self, states):
+                return [{"state": "waiting_reset", "category": "usage_limit"}]
+        return View()
+
+    def test_it_answers_at_no_point_that_decides_and_requires_nothing(self):
+        from codex_auto_resume_advanced import registry as shipped
+        from codex_auto_resume_advanced.registry import FLEET_VIEW
+        self.assertEqual(FLEET_VIEW.points, frozenset({Point.TICK}))
+        self.assertEqual(FLEET_VIEW.requires, ())
+        self.assertEqual(shipped.REGISTRY.required_by("fleet_view"), ())
+
+    def test_its_pass_hanging_holds_up_no_other_errand(self):
+        self.fleet_code._spawn = lambda run: self.Hanging()
+        answer = self.rt.tick(self.view())
+        answer.run(lambda: None)
+        self.assertEqual(len(self.launched), 1, "the feed's errand ran beside a pass that never ends")
+        self.assertEqual(self.rt.states(fresh=True)["fleet_view"], "armed")
+
+    def test_its_pass_failing_trips_neither(self):
+        def fails(run):
+            run()
+            raise OSError("no thread to be had")
+        self.fleet_code._spawn = fails
+        self.rt.tick(self.view()).run(lambda: None)
+        self.assertEqual(len(self.launched), 1, "the errand after it still ran")
+        states = self.rt.states(fresh=True)
+        self.assertEqual((states["status_feed"], states["fleet_view"]), ("armed", "armed"))
+
+
 if __name__ == "__main__":
     unittest.main()
