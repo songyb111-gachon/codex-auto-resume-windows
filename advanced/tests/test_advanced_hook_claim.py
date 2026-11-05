@@ -267,5 +267,26 @@ class CoreHoldsTests(HookClaimCase):
         self.assertEqual(self.hook(), HookOutcome.BLOCKED)
 
 
+class OwnPacedTests(HookClaimCase):
+    def test_the_hook_counts_the_chat_s_records_as_core_s_claim_does(self):
+        """seatB:B-M1 (v0.6.23 audit). Fails with own=() again: a chat message sent minutes ago held the hook fifteen
+        minutes, though core's claim counts the chat's records in nobody's five a day or fifteen minutes."""
+        from codex_auto_resume_advanced import ledger
+        from codex_auto_resume_advanced.state.records import own_paced
+        seen = []
+        real = ledger.held_by_records
+
+        def recording(connection, thread_id, now, own=()):
+            seen.append(tuple(own))
+            return real(connection, thread_id, now, own)
+        self.due()
+        every = Registry(registry.DEFINITIONS + (STOP_HOOK,))
+        with mock.patch.object(ledger, "held_by_records", recording):
+            self.assertEqual(hookclaims.claim(self.paths, self.failure(), turn_key(TURN_A), self.h.now, registry=every),
+                             HookOutcome.BLOCKED)
+        self.assertEqual(seen, [own_paced(every)])
+        self.assertIn("codex_chat", seen[0])
+
+
 if __name__ == "__main__":
     unittest.main()

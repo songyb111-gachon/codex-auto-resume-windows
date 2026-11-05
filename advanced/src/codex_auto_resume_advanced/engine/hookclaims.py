@@ -106,10 +106,13 @@ def spent_on(connection, schema, thread_id, now) -> tuple:
     return int(row[0] or 0), row[1]
 
 
-def _core_holds(connection, thread_id, now) -> bool:
+def _core_holds(connection, thread_id, now, registry=()) -> bool:
     """Core's own caps on one conversation, read on its file: a record of its in flight there, a claim within its
-    spacing, or five in the day once the hook's units and this edition's records are counted with them."""
+    spacing, or five in the day once the hook's units and this edition's records are counted with them - a record of a
+    capability with a pace of its own (the chat) only while in flight, as core's claim counts it (ledger.py; v0.6.23
+    audit seatB:B-M1)."""
     from ..ledger import held_by_records
+    from ..state.records import own_paced
     from ..registry import CORE_COOLDOWN_SECONDS, CORE_DAILY_CAP
     from ..state import ATTACHED
     settled = _core_settled()
@@ -124,7 +127,7 @@ def _core_holds(connection, thread_id, now) -> bool:
     hooks, _last = spent_on(connection, ATTACHED, thread_id, now)
     if sum(row[1] for row in recent) + hooks >= CORE_DAILY_CAP:
         return True
-    return held_by_records(connection, thread_id, now)
+    return held_by_records(connection, thread_id, now, own_paced(registry or ()))
 
 
 def _policy(paths, now):
@@ -243,7 +246,7 @@ def _decide(connection, state, definition, key, thread, turn_key, now, schema, a
         return HookOutcome.PASSED                     # the watcher took it first
     if _core_refuses(connection, key, limits, now):
         return HookOutcome.REFUSED                    # held, postponed, cancelled or past its budgets
-    if _core_holds(connection, thread, now):
+    if _core_holds(connection, thread, now, state.registry):
         return HookOutcome.REFUSED
     global_hourly = connection.execute("SELECT global_hourly FROM %s.meta" % schema).fetchone()[0]
     if ceiling_reached(state.counts(connection, schema, CAPABILITY, thread, now), definition, global_hourly):
