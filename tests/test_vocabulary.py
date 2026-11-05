@@ -74,7 +74,8 @@ LISTS = {
     # 2026-10-21: progress_then_turn_cut_off - a recovery turn that did work and that Codex closing, or the PC going
     # off, left inProgress for good (engine/outcome.py).
     # 2026-10-22: progress_then_user_joined - a recovery turn that did work before a person's message entered it.
-    "machine.REASONS": ("set", 81, "9768467e207d7669"),
+    # #58's follow-up: app_server_unmatched - the Codex app runs and no server of its could be matched.
+    "machine.REASONS": ("set", 82, "621ae6fdcfaa1fba"),
     # v0.6.11: postponed, held, hold_released and tier_set - a person's (or the objection window's)
     # later time, a hold, letting it go, and a conversation's tier - and observe only's would_send.
     # And dispatched_while_observing and unpostponed: one taken back for Observe only that ran all the
@@ -86,7 +87,8 @@ LISTS = {
     "machine.PUBLIC_CODES": ("set", 22, "33761768f9d99cd0"),
     "machine.PAGES": ("tuple", 6, "ffad1c9f0521398d"),
     # v0.6.11: `held`, a record that waits for a person (schema 4's hold).
-    "machine.OVERLAYS": ("tuple", 8, "275fd01184c6c4e3"),
+    # #58's follow-up: app_server_unmatched, the record's own reason, which asks for a person.
+    "machine.OVERLAYS": ("tuple", 9, "d18ea9845d73daec"),
     "machine.GATE_RESULTS": ("set", 4, "9a50f41ff116a706"),
     "machine.GATES": ("tuple", 13, "547089c399324718"),
     # v0.6.11: `held`, a gate core passed and the edition's plug held (domain/plug.py, HOLD);
@@ -100,7 +102,8 @@ LISTS = {
     # v0.6.16-beta.4: and held_by_other_session and version_newer_than_engine.
     # 2026-10-21: and progress_then_turn_cut_off, as every reason is.
     # 2026-10-22: and progress_then_user_joined, as every reason is.
-    "machine.GATE_REASONS": ("set", 99, "b69124d1a9eca7a0"),
+    # #58's follow-up: and app_server_unmatched, as every reason is.
+    "machine.GATE_REASONS": ("set", 100, "5b944a9cd555cfdd"),
     "machine.PASS": "PASS",
     "machine.WAIT": "WAIT",
     "machine.BLOCK": "BLOCK",
@@ -166,7 +169,8 @@ LISTS = {
     "compat.TIERS": ("tuple", 4, "c97af83c55d98a0e"),
     "compat.COARSE": ("dict", 6, "516c60fa0957de72"),
     "compat.ENGINE_STATES": ("tuple", 6, "36426170c5b3e61b"),
-    "compat.CHECKS": ("tuple", 13, "4f60ac9722005257"),
+    # #58's follow-up: app_server_matched - a server of the Codex app's found at the watcher's last look.
+    "compat.CHECKS": ("tuple", 14, "f3583b1bce186e3e"),
     "compat.CAPABILITIES": ("dict", 16, "2ccc411f04f2d0eb"),
     "compat.SEND_GATE": ("tuple", 2, "9f067781e177f778"),
     "compat.RESOLUTION_REASONS": ("set", 8, "d1dc0426f2a468e1"),
@@ -198,7 +202,7 @@ LISTS = {
     "windows.UNAVAILABLE": "UNAVAILABLE",
     "ui.tray.ICON_STATES": ("tuple", 5, "e94d5138669400b3"),
     "ui.popup.STATES": ("tuple", 6, "b38c816dbd792bf5"),
-    "ui.popup.ATTENTION_OVERLAYS": ("set", 4, "a707a2b300127033"),
+    "ui.popup.ATTENTION_OVERLAYS": ("set", 5, "0e4a92183586541e"),
     # v0.6.11: and the needs-you notice's light, attention; and a long sleep's, paused (power.py).
     # and Show me what happens' card, waiting.
     # v0.6.16-beta.3: near_limit; v0.6.16: the forced stop's three notices near a limit, each a kind of its own.

@@ -81,6 +81,10 @@ MODULES = ("test_compat_characterization", "test_compat_io", "test_correlation",
            # waiting record and applies what they find - an advanced installation with nothing on finds the same.
            "test_rescan")
 NOT_SCENARIOS = {
+    "test_app_server_unmatched_older": "drives this version's engine only to leave a record waiting, then runs tagged "
+                                       "releases' stores and engines on it in processes of their own",
+    "test_app_server_unmatched": "drives the engine through the real transport over a process list of its own, for #58's "
+                                 "follow-up, the app open and no server matched: a reason v0.6.10 never wrote",
     "test_retry_now_usage": "asks the engine for the usage reading a person's Retry now requests (v0.6.19-beta.2), "
                             "which no scenario requests - their engines read usage only when a recovery is due",
     "test_retry_now_usage_review": "test_retry_now_usage's review proofs (v0.6.19-beta.2), the same requests",

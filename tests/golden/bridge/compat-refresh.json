@@ -42,7 +42,8 @@
               "lock_directory": "PASS",
               "restart_manager": "PASS",
               "protocol_usage_method": "PASS",
-              "protocol_delete_method": "PASS"
+              "protocol_delete_method": "PASS",
+              "app_server_matched": "UNAVAILABLE"
             },
             "capabilities": {
               "engine_present": {
@@ -196,7 +197,8 @@
               "lock_directory": "PASS",
               "restart_manager": "PASS",
               "protocol_usage_method": "PASS",
-              "protocol_delete_method": "PASS"
+              "protocol_delete_method": "PASS",
+              "app_server_matched": "UNAVAILABLE"
             },
             "capabilities": {
               "engine_present": {

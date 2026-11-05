@@ -62,7 +62,8 @@ class SnapshotTests(unittest.TestCase):
         # The next check is the later of the schedule and the usage reset.
         # Since v0.6.8 it also carries when the newest certain failure was, and the newest claim: none here.
         # And, since v0.6.20, how many of the waiting ones are held for a person: none here.
-        self.assertEqual(snapshot, {"enabled": True, "waiting": 1, "running": 0, "held": 0, "next_at": 500.0,
+        # And how many last found the Codex app open with no server of its matched (#58's follow-up): none here.
+        self.assertEqual(snapshot, {"enabled": True, "waiting": 1, "running": 0, "held": 0, "unmatched": 0, "next_at": 500.0,
                                     "failures": {"failed_at": None, "started_at": None,
                                                  "unconfirmed_at": None}})
 

@@ -61,7 +61,8 @@ def cmd_status(args) -> int:
         _print("codex engine     : %s" % backend.codex_exe)
         _print("engine version   : %s  (%s)" % (backend.engine_version, _engine_words(app, backend)[0]))
         identity = backend.app_identity()
-        _print("ChatGPT app      : %s" % ("running (pid %d, codex server pid %d)" % (identity["pid"], identity["server"]["pid"]) if identity else "not running / not paired"))
+        _print("ChatGPT app      : %s" % ("running (pid %d, codex server pid %d)" % (identity["pid"], identity["server"]["pid"]) if identity
+                                          else UNMATCHED_APP if backend.app_look == "unmatched" else "not running / not paired"))
     except (config.ConfigError, AdapterError) as exc:
         _print("codex engine     : unavailable (%s)" % exc)
     view = compatio.reader_view(app.paths, settings=app.settings)
@@ -75,6 +76,8 @@ def cmd_status(args) -> int:
     return EXIT_OK
 
 
+# #58's follow-up: the app runs, and the look found no server of its at the configured engine.
+UNMATCHED_APP = "running, but its Codex server could not be matched"
 # The health check's checks, counted for the setup window's bar while install.ps1 runs it (progress).
 DOCTOR_CHECKS = 8
 
@@ -116,7 +119,8 @@ def cmd_doctor(args) -> int:
         _print("ChatGPT app      : main pid %d, codex app-server pid %d" % (identity["pid"], identity["server"]["pid"]))
     else:
         ok = False
-        _print("ChatGPT app      : not running or not paired with the configured engine")
+        _print("ChatGPT app      : %s" % (UNMATCHED_APP if backend.app_look == "unmatched"
+                                          else "not running or not paired with the configured engine"))
     progress("check", 4, DOCTOR_CHECKS)
     running = app.watcher_running()
     _print("watcher mutex    : %s" % {True: "held by a running watcher", False: "free", None: "unavailable"}[running])

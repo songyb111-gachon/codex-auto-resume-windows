@@ -906,7 +906,7 @@ namespace CodexAutoResume
         // Codex compatibility (v0.6.5; BuildCompatibility): its facts, what the view cannot vouch for - a callout each,
         // since v0.6.10 - the parts in two lists, what each state word means, and the refresh with what it last answered.
         // What others report of the Codex version (v0.6.10) is one muted fact under it, compatReported.
-        private Label compatOverall, compatEngine, compatReported, compatChecked, compatData, compatLegend;
+        private Label compatOverall, compatEngine, compatReported, compatServer, compatChecked, compatData, compatLegend;
         private TableLayoutPanel compatNotice;
         private GateList compatLeft, compatRight;
         private Control compatLists;

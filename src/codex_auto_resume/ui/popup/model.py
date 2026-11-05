@@ -48,7 +48,9 @@ STATES = ("monitoring", "waiting", "checking", "recovering", "paused", "attentio
 
 
 # Circumstances under which nothing will recover until a person does something.
-ATTENTION_OVERLAYS = frozenset({"compatibility_blocked", "compatibility_failed_here", "engine_unavailable", "watcher_not_ticking"})
+ATTENTION_OVERLAYS = frozenset({"compatibility_blocked", "compatibility_failed_here", "engine_unavailable", "watcher_not_ticking",
+                                # #58's follow-up: the Codex app runs and no server of its could be matched.
+                                "app_server_unmatched"})
 
 
 # v0.6.20: and the one circumstance that waits for a person without anything being wrong: a waiting record held for them
@@ -148,6 +150,9 @@ def snapshot_activity(snapshot, now, *, attention=False) -> str:
         return "attention"
     if snapshot and not snapshot.get("enabled", True):
         return "paused"
+    # #58's follow-up: a record whose last look found the app open and no server matched (under a pause, as its overlay).
+    if snapshot.get("unmatched"):
+        return "attention"
     if snapshot.get("running"):
         return "recovering"
     if snapshot.get("waiting"):
@@ -180,6 +185,9 @@ def task_item(row, strings, now) -> dict:
     if "held" in overlays and is_waiting(row):
         # v0.6.11: nothing is sent for it until a person lets it continue - no countdown says otherwise.
         status, seconds = say(strings, "popup.held"), None
+    elif "app_server_unmatched" in overlays and is_waiting(row):
+        # #58's follow-up: what it waits for, in place of a next check that would not change it.
+        status, seconds = say(strings, "overlay.app_server_unmatched"), None
     if overlays & ATTENTION_OVERLAYS or not reasons.is_recoverable(category):
         tone = "warning"
     elif not enabled or overlays & {"paused", "thread_disabled", "held"}:

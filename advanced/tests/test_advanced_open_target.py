@@ -123,6 +123,13 @@ class CandidateTests(unittest.TestCase):
         self.assertIsNone(opentarget.core_candidate(row, False))
         self.assertEqual(opentarget.core_candidate(row, True), "waiting")
 
+    def test_an_open_app_whose_server_is_not_matched_is_none(self):
+        """#58's follow-up: opening or starting Codex cannot match its server; a look that cannot be sure only waits."""
+        row = self.row((machine.WAIT, "app_server_unmatched"), state="waiting_for_app")
+        self.assertIsNone(opentarget.core_candidate(row, True))
+        own = {"record_state": "waiting", "gate": "thread_available", "gate_reason": "app_server_unmatched", "reason": None}
+        self.assertFalse(opentarget.own_candidate(own, True))
+
     def test_a_message_held_for_a_running_turn_is_none(self):
         row = {"record_state": "waiting", "gate": "thread_available", "gate_reason": "notLoaded", "reason": None}
         self.assertTrue(opentarget.own_candidate(row, False))

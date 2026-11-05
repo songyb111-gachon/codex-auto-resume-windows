@@ -301,6 +301,7 @@ function Look($window) {
               note = [string](Get-Field $window 'compatNote').Text; button = [string](Get-Field $window 'compatButton').Text
               enabled = [bool](Get-Field $window 'compatButton').Enabled
               reported = [string](Get-Field $window 'compatReported').Text
+              server = [string](Get-Field $window 'compatServer').Text
               reportedInk = [int](Get-Field $window 'compatReported').ForeColor.ToArgb()
               reportedType = [string](Get-Field $window 'compatReported').GetType().Name
               engineType = [string](Get-Field $window 'compatEngine').GetType().Name }
@@ -415,7 +416,8 @@ try {
 # so the live check's stories above see the reads they always saw. And the colours it must and must not be drawn in.
 $reportedWindow = New-Window $english
 Invoke-Window $reportedWindow 'ShowPage' @('diagnostics') | Out-Null
-foreach ($name in @('ok', 'reported', 'reported_both', 'reported_rejected', 'reported_unusable', 'reported_unknown', 'reported_missing')) {
+foreach ($name in @('ok', 'reported', 'reported_both', 'reported_rejected', 'reported_unusable', 'reported_unknown', 'reported_missing',
+                    'server_pass', 'server_fail', 'server_fail_unusable', 'server_missing')) {
     Invoke-Window $reportedWindow 'ApplyCompatibility' @((Read-Json ($name + '.json')), $false) | Out-Null
     $out.cards['r_' + $name] = Look $reportedWindow
 }
@@ -499,6 +501,16 @@ class CardTests(unittest.TestCase):
         views["reported_unusable"] = reported(views["changed800"], "reported", reports=9, worked=9)
         views["reported_unknown"] = reported(ok, "VERIFIED", reports=9, worked=9)
         views["reported_missing"] = {key: value for key, value in json.loads(json.dumps(ok)).items() if key != "reported"}
+        # #58's follow-up: the app's server, as the view's own check says it; and a report from before there was one.
+        def server(view, result):
+            made = json.loads(json.dumps(view))
+            made["checks"]["app_server_matched"] = result
+            return made
+        views["server_pass"] = server(ok, "PASS")
+        views["server_fail"] = server(ok, "FAIL")
+        views["server_fail_unusable"] = server(views["changed800"], "FAIL")
+        views["server_missing"] = json.loads(json.dumps(ok))
+        del views["server_missing"]["checks"]["app_server_matched"]
         cls.views_ = views
         for name, view in views.items():
             (work / (name + ".json")).write_text(json.dumps(view), encoding="utf-8")
@@ -624,6 +636,19 @@ class CardTests(unittest.TestCase):
                                                        for state in compat.STATES if state in states])
         self.assertFalse(card["noticeShown"], "nothing to add, so no line and no room taken")
         self.assertEqual(card["button"], ENGLISH["diag.compat_refresh"])
+
+    def test_the_app_s_server_is_a_fact_of_its_own_with_three_answers(self):
+        """#58's follow-up: every part can read as compatible while no server of the app's can be matched."""
+        self.assertEqual(self.card("r_ok")["server"], ENGLISH["compat.server.not_checked"], "no look, no pass")
+        self.assertEqual(self.card("r_server_pass")["server"], ENGLISH["compat.server.matched"])
+        self.assertEqual(self.card("r_server_fail")["server"], ENGLISH["compat.server.not_matched"])
+        self.assertEqual(self.card("r_server_missing")["server"], ENGLISH["compat.server.not_checked"])
+        self.assertEqual(self.card("r_server_fail_unusable")["server"], "-", "a view that cannot be used vouches for nothing")
+
+    def test_only_not_matched_is_said_as_a_notice(self):
+        self.assertIn(ENGLISH["compat.server.notice"], self.card("r_server_fail")["notice"])
+        for name in ("r_ok", "r_server_pass", "r_server_missing", "r_server_fail_unusable"):
+            self.assertNotIn(ENGLISH["compat.server.notice"], self.card(name)["notice"], name)
 
     def test_the_fullest_card_says_every_state_and_every_caveat(self):
         card = self.card("rich")

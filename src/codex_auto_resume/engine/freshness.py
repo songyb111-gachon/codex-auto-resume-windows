@@ -28,6 +28,13 @@ USAGE_CHECK_LONGEST = 120
 
 
 class FreshnessMixin:
+    def _no_app_reason(self) -> str:
+        """Why a record waits where the backend's last look paired no app (#58's follow-up): no app, as ever; or, only where
+        that look found a process of the app's package running, an app whose server could not be matched. A backend that
+        cannot say - one of no such attribute, or a look that read no rows - says what it always said. Starts nothing."""
+        return ("app_server_unmatched" if getattr(self.backend, "app_look", None) == "unmatched"
+                else "desktop_app_unavailable")
+
     def usage(self):
         now = self.clock()
         # v0.6.18: a clock set back (a manual change, an NTP step) ends a cached reading too.

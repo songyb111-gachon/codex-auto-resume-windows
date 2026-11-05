@@ -135,8 +135,8 @@ class DispatchMixin:
         # - unless the plug names a route that continues it otherwise, which core carries out (engine/routes.py).
         route, loaded = self._route(row, app, vector)
         if not app and route is None:
-            vector["thread_available"] = machine.gate(machine.WAIT, "desktop_app_unavailable")
-            self._wait(row, "waiting_for_app", "desktop_app_unavailable", poll, vector)
+            vector["thread_available"] = machine.gate(machine.WAIT, self._no_app_reason())
+            self._wait(row, "waiting_for_app", vector["thread_available"][1], poll, vector)
             return
         if route is None and loaded != "loaded":
             # v0.6.16-beta.4: one another Codex session holds - a terminal or VS Code - waits with a reason of its own.
