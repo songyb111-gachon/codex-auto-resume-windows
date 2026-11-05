@@ -151,6 +151,13 @@ def read_profile(paths, store, profile_id, *, session_for=None, now=None) -> dic
                 account = parse(session.call(ACCOUNT_READ, {}))
                 usage = session.call(USAGE_READ, {}) if account.get("present") is True else None
     except Exception:
+        # A read that broke after Codex refreshed the tokens there: the newer copy is kept all the same - the old one
+        # may be spent already (the security review's finding 6).
+        if scratch.after is not None and scratch.after != profile["auth"]:
+            try:
+                store.update(profile_id, auth=scratch.after)
+            except (ProfileError, OSError):
+                pass
         return found
     found["present"] = account.get("present")
     saved = profile.get("email")

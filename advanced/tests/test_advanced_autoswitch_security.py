@@ -374,6 +374,34 @@ class SaveBackKnowsWhoseFileItIs(SwapCase):
         self.assertEqual(self.store.get(one)["auth"], fixture("one", n=4))
 
 
+class RefreshedCopyKeptWhenTheReadBreaks(SwapCase):
+    """Finding 6 (R9): Codex refreshed the tokens on the scratch home, then the usage read raised, and the newer copy was
+    dropped with the scratch home - the profile kept a spent one."""
+
+    def test_the_refreshed_copy_is_sealed_before_returning(self):
+        """Fails with the except branch returning at once: the profile still held the copy Codex had replaced."""
+        two = self.store.save(TWO, "two@example.com", "plus")
+        rotated = fixture("two", n=5)
+
+        def session_for(home):
+            class Breaks:
+                def __enter__(inner):
+                    return inner
+
+                def __exit__(inner, *_exc):
+                    return False
+
+                def call(inner, method, _params):
+                    if method == swap.ACCOUNT_READ:
+                        (Path(home) / "auth.json").write_bytes(rotated)
+                        return {"account": {"type": "chatgpt", "email": "two@example.com", "planType": "plus"}}
+                    raise RuntimeError("the network dropped")
+            return Breaks()
+        found = swap.read_profile(None, self.store, two, session_for=session_for, now=NOW)
+        self.assertIsNone(found["present"])
+        self.assertEqual(self.store.get(two)["auth"], rotated)
+
+
 def swap_restarts():
     from codex_auto_resume_advanced.codex import restart
     return restart
