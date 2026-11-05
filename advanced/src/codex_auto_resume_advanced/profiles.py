@@ -52,6 +52,12 @@ class ProfileError(OSError):
     """A profile that cannot be saved, read or found."""
 
 
+def digest(data) -> str:
+    """A sign-in file's bytes as the intent keeps them for comparison: sha256, hex."""
+    import hashlib
+    return hashlib.sha256(bytes(data)).hexdigest()
+
+
 class Locked(ProfileError):
     """Another switch, put-back, save or delete holds the saved accounts - in this process or another."""
 
@@ -237,10 +243,19 @@ class Profiles:
         except ProfileError:
             return {"damaged": True}
 
-    def begin(self, source, target, step="swap", tries=0) -> None:
+    def begin(self, source, target, step="swap", tries=0, *, put_in=None, previous=None, to_email=None) -> None:
         """A switch under way from `source` to `target`; `step` "back" once only the previous file's return is left,
-        `tries` the restarts made for it since."""
-        self._write(INTENT, {"from": source, "to": target, "at": int(self._clock()), "step": step, "tries": tries})
+        `tries` the restarts made for it since. For a put-back (v0.6.23 audit A-R5) the intent carries what it needs
+        without either profile - the digest of the copy put in, the previous copy itself and the target's address - so
+        deleting the account set aside, or the previous one, no longer cancels it. The intent is sealed as profiles are."""
+        value = {"from": source, "to": target, "at": int(self._clock()), "step": step, "tries": tries}
+        if put_in is not None:
+            value["put_in"] = put_in if isinstance(put_in, str) else digest(put_in)
+        if previous is not None:
+            value["previous"] = previous if isinstance(previous, str) else base64.b64encode(bytes(previous)).decode("ascii")
+        if isinstance(to_email, str):
+            value["to_email"] = to_email
+        self._write(INTENT, value)
 
     def end(self) -> None:
         self._remove(INTENT)

@@ -994,6 +994,59 @@ class TheStatementNamesTheEarlyLooksBound(unittest.TestCase):
             self.assertIn(str(conversation), said[-160:], catalog.name)
 
 
+class APutBackOutlivesADelete(SwapCase):
+    """v0.6.23 audit A-R5: deleting the account a failed switch set aside - the obvious thing, it shows "needs a new
+    sign-in" - cancelled the pending put-back: recover could not get it, answered FAILED and cleared the intent."""
+
+    def setUp(self):
+        super().setUp()
+        self.two = self.store.save(TWO, "two@example.com", "plus")
+        patcher = patch.object(swap, "_app_running", lambda: True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def not_put_back(self):
+        fake = Fake(self)
+        calls = []
+
+        def restart(between):
+            calls.append(1)
+            if len(calls) == 1:
+                between()
+                return swap_restarts().RESTARTED, swap_restarts().CLOSED
+            return swap_restarts().NOT_ENDED, None
+        reads = iter([fake.read_real(), {"present": False, "plan_word": None, "email": None, "kind": None}])
+        self.assertEqual(swap.switch(None, self.store, self.codex, self.two, restart=restart,
+                                     read_real=lambda: next(reads), now=NOW), swap.NOT_PUT_BACK)
+
+    def test_deleting_the_account_set_aside_keeps_the_put_back(self):
+        """Fails with recover leaning on the deleted profile: FAILED, the intent gone, Codex left on the dead copy."""
+        self.not_put_back()
+        self.assertTrue(self.store.delete(self.two))
+        with patch.object(swap, "_app_running", lambda: False):
+            word = swap.recover(None, self.store, self.codex, read_real=Fake(self, signs_in=False).read_real)
+        self.assertEqual(word, swap.NOT_SIGNED_IN)
+        self.assertEqual((self.codex / "auth.json").read_bytes(), ONE)
+        self.assertIsNone(self.store.intent())
+
+    def test_deleting_the_previous_account_keeps_it_too(self):
+        self.not_put_back()
+        self.assertTrue(self.store.delete(self.store.find("one@example.com")))
+        with patch.object(swap, "_app_running", lambda: False):
+            word = swap.recover(None, self.store, self.codex, read_real=Fake(self, signs_in=False).read_real)
+        self.assertEqual(word, swap.NOT_SIGNED_IN)
+        self.assertEqual((self.codex / "auth.json").read_bytes(), ONE)
+
+    def test_a_file_not_put_in_is_still_left_alone(self):
+        self.not_put_back()
+        self.store.delete(self.two)
+        (self.codex / "auth.json").write_bytes(THREE)            # a person signed in meanwhile
+        with patch.object(swap, "_app_running", lambda: False):
+            word = swap.recover(None, self.store, self.codex, read_real=Fake(self, signs_in=False).read_real)
+        self.assertEqual(word, swap.LEFT)
+        self.assertEqual((self.codex / "auth.json").read_bytes(), THREE)
+
+
 def swap_restarts():
     from codex_auto_resume_advanced.codex import restart
     return restart

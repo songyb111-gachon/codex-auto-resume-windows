@@ -356,7 +356,8 @@ def _switch(paths, store, codex_home, target_id, *, restart=None, read_real=None
         store.update(target_id, failed_at=stamp)
         if _put_back(codex_home, target["auth"], store.get(source_id)["auth"], restart):
             return NOT_SIGNED_IN
-        store.begin(source_id, target_id, step="back")
+        store.begin(source_id, target_id, step="back", put_in=target["auth"], previous=store.get(source_id)["auth"],
+                    to_email=target.get("email"))
         done["kept"] = True
         return NOT_PUT_BACK
     except (ProfileError, OSError):
@@ -421,13 +422,19 @@ def _recover(paths, store, codex_home, *, read_real=None, restart=None) -> str |
     read_real = read_real or (lambda: _read_real(paths))
     kept = False
     try:
-        target = store.get(intent.get("to")) if isinstance(intent.get("to"), str) else None
+        try:
+            target = store.get(intent.get("to")) if isinstance(intent.get("to"), str) else None
+        except ProfileError:
+            target = None                                    # deleted since: the intent's own record serves (A-R5)
+        to_email = target.get("email") if target is not None else intent.get("to_email")
+        put_in = target["auth"] if target is not None else intent.get("put_in")
         now = identity(read_real())
-        if target is not None and now is not None and now == (target.get("email") or "").lower():
-            store.mark_switched(target["email"])
+        if isinstance(to_email, str) and now is not None and now == to_email.lower():
+            store.mark_switched(to_email)
             return SWITCHED
-        if target is None or not isinstance(intent.get("from"), str) or not _is_in_place(codex_home, target["auth"]):
+        if put_in is None or not isinstance(intent.get("from"), str) or not _is_in_place(codex_home, put_in):
             return LEFT
+        previous = _previous(store, intent)
         tries = intent.get("tries") if isinstance(intent.get("tries"), int) else 0
         made = []
 
@@ -436,9 +443,10 @@ def _recover(paths, store, codex_home, *, read_real=None, restart=None) -> str |
             made.extend(() if found is None else [found])
             return found
         hand = counted if restart is not None and tries < BACK_TRIES else None
-        if _put_back(codex_home, target["auth"], store.get(intent["from"])["auth"], hand):
+        if _put_back(codex_home, put_in, previous, hand):
             return NOT_SIGNED_IN
-        store.begin(intent["from"], intent["to"], step="back", tries=tries + len(made))
+        store.begin(intent["from"], intent["to"], step="back", tries=tries + len(made), put_in=put_in, previous=previous,
+                    to_email=to_email)
         kept = True
         return NOT_PUT_BACK
     except (ProfileError, OSError):
@@ -448,12 +456,28 @@ def _recover(paths, store, codex_home, *, read_real=None, restart=None) -> str |
             store.end()
 
 
+def _previous(store, intent) -> bytes:
+    """The copy a put-back puts in: the intent's own (A-R5), else the previous profile's. ProfileError where neither is."""
+    import base64
+    from ..profiles import ProfileError
+    kept = intent.get("previous")
+    if isinstance(kept, str):
+        try:
+            return authfile.check(base64.b64decode(kept, validate=True))
+        except (ValueError, OSError):
+            raise ProfileError("the intent's copy cannot be opened") from None
+    return store.get(intent["from"])["auth"]
+
+
 def _is_in_place(codex_home, data) -> bool:
-    """Whether the sign-in file at `codex_home` is, byte for byte, `data` - the one way to know what is there now."""
+    """Whether the sign-in file at `codex_home` is, byte for byte, `data` - or, `data` a digest (the intent's record of
+    the copy put in, profiles.digest), a file of that digest: the one way to know what is there now."""
+    from ..profiles import digest
     try:
-        return authfile.read(codex_home) == data
+        found = authfile.read(codex_home)
     except authfile.AuthFileError:
         return False
+    return digest(found) == data if isinstance(data, str) else found == data
 
 
 def _app_running() -> bool:
