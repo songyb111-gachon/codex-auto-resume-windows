@@ -78,6 +78,8 @@ namespace CodexAutoResume
                 return Word("page.kept.statement_changed", "It stayed on although what it does has changed. Read it again and turn it on to confirm.");
             if (notice == "measurement_failed")
                 return Word("page.kept.measurement_failed", "It stayed on although a measurement of what it relies on failed.");
+            if (notice == "auto_check_failed")
+                return Word("page.kept.auto_check_failed", "It stayed on although an automatic check found that this version of Codex no longer offers a call it makes.");
             if (notice == "failed_here")
                 return Word("page.kept.failed_here", "It stayed on although a compatibility check of what it relies on failed on this computer.");
             if (notice == "incompatible")

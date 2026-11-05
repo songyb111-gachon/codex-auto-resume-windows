@@ -69,7 +69,7 @@ import time
 
 from codex_auto_resume.compat.model import FAILED_HERE, INCOMPATIBLE, STATES, UNKNOWN
 
-from . import compatdata, policy as _policy
+from . import autocheck, compatdata, policy as _policy
 from .measured import MEASURED
 from .registry import GLOBAL_HOURLY, ONCE_MORE, shown as _shown
 from .state import Refused, StaleGeneration, StateError
@@ -77,7 +77,7 @@ from .state.spend import CHANNELS
 from .state.choices import DAY, RECENT_DAYS, RULES_LIMIT, aggregated, tag_problem
 from .statement import CATALOGS
 from .vocabulary import ContinuationReason, PromptReason, SteerReason  # noqa: E402  (v0.6.15-beta; v0.6.20)
-from .vocabulary import (KEPT_NOTICES, TRIPWIRES, Actor, ArmingState, ArmingWarning, CapabilityKind,
+from .vocabulary import (KEPT_NOTICES, TRIPWIRES, Actor, ArmingState, ArmingWarning, AutoResult, CapabilityKind,
                          KeepOn, Measurement, OffReason, OverrideKind, RecordState, Refusal, RuleReason,
                          RuleState, Verdict)
 from .state.resets import CREDIT
@@ -101,7 +101,8 @@ RESEND_WATCH = 86400
 TRIPPING = {ArmingWarning.FAILED_HERE: OffReason.FAILED_HERE,
             ArmingWarning.LOCAL_CHECK_FAILED: OffReason.LOCAL_CHECK_FAILED,
             ArmingWarning.INCOMPATIBLE: OffReason.INCOMPATIBLE,
-            ArmingWarning.MEASUREMENT_FAILED: OffReason.MEASUREMENT_FAILED}
+            ArmingWarning.MEASUREMENT_FAILED: OffReason.MEASUREMENT_FAILED,
+            ArmingWarning.AUTO_CHECK_FAILED: OffReason.AUTO_CHECK_FAILED}
 
 
 def engine_version(view):
@@ -129,7 +130,12 @@ def compat_warning(view, definition):
     return None
 
 
-def warnings_for(definition, view, measured=MEASURED, *, parts=True) -> tuple:
+def _rests_on(definition, *, parts=True) -> tuple:
+    """The measurements `definition`'s statement warns of: its route's, and with `parts` those only a part rests on."""
+    return definition.measurements + (tuple(getattr(definition, "narrowed_by", ())) if parts else ())
+
+
+def warnings_for(definition, view, measured=MEASURED, *, parts=True, checked=None) -> tuple:
     """Every warning `definition`'s statement shows now, in the vocabulary's order. Pure.
 
     A measurement its route rests on that failed is MEASUREMENT_FAILED, whichever Codex it failed
@@ -137,15 +143,23 @@ def warnings_for(definition, view, measured=MEASURED, *, parts=True) -> tuple:
     pass counts only for the version it was made on. Then the compatibility grade of what it
     stands on (`compat_warning`), and ENGINE_UNKNOWN where no Codex version is known. The measurements only a part
     rests on (`narrowed_by`, v0.6.20) are warned of the same way; `parts=False` leaves them out - the warnings a
-    tripwire reads (`standing`), since such a fail narrows the part and never turns the capability off."""
+    tripwire reads (`standing`), since such a fail narrows the part and never turns the capability off.
+
+    `checked` (v0.6.22) is what the automatic check found of this very Codex (autocheck.results_for), by the rules
+    autocheck.settled holds: a person's fail stands whatever it found, and a fail of its own is added beside it; a person's
+    pass on this Codex outranks it; a call gone is AUTO_CHECK_FAILED, which trips as any warning of what a capability
+    stands on does; and only a row it can carry, over a person's pass, is no UNMEASURED."""
     version = engine_version(view)
     found = set()
-    for measurement in definition.measurements + (tuple(getattr(definition, "narrowed_by", ())) if parts else ()):
-        entry = measured.get(measurement) if isinstance(measured, dict) else None
-        verdict, measured_on = entry if isinstance(entry, tuple) and len(entry) == 2 else (None, None)
-        if verdict == Verdict.FAIL:
+    for measurement in _rests_on(definition, parts=parts):
+        word = autocheck.settled(measurement, version, measured, checked)
+        if word == autocheck.FAILED:
             found.add(ArmingWarning.MEASUREMENT_FAILED)
-        elif verdict != Verdict.PASS or version is None or measured_on != version:
+            if (checked or {}).get(measurement) == AutoResult.FAIL:
+                found.add(ArmingWarning.AUTO_CHECK_FAILED)
+        elif word == autocheck.GONE:
+            found.add(ArmingWarning.AUTO_CHECK_FAILED)
+        elif word == autocheck.UNSETTLED:
             found.add(ArmingWarning.UNMEASURED)
     compat = compat_warning(view, definition)
     if compat is not None:
@@ -155,7 +169,7 @@ def warnings_for(definition, view, measured=MEASURED, *, parts=True) -> tuple:
     return tuple(warning for warning in ArmingWarning if warning in found)
 
 
-def standing(definition, row, policy, view, measured=MEASURED) -> tuple:
+def standing(definition, row, policy, view, measured=MEASURED, checked=None) -> tuple:
     """(state now, what must be done to the stored state or None, the unconfirmed warning that
     holds it back without changing anything stored, or None, what a kept-on capability notes in
     place of a turn off, or None).
@@ -178,7 +192,7 @@ def standing(definition, row, policy, view, measured=MEASURED) -> tuple:
         if row.get("statement_revision") != definition.revision:
             notice = OffReason.STATEMENT_CHANGED
     # Only what its route rests on trips it: a measurement only a part rests on (`narrowed_by`) narrows that part.
-    unconfirmed = set(warnings_for(definition, view, measured, parts=False)) - set(row.get("warnings") or ())
+    unconfirmed = set(warnings_for(definition, view, measured, parts=False, checked=checked)) - set(row.get("warnings") or ())
     if notice is None:
         notice = next((reason for warning, reason in TRIPPING.items() if warning in unconfirmed), None)
     if notice is not None and not kept:
@@ -381,6 +395,15 @@ class Arming:
             return found if isinstance(found, dict) else {}
         return self.measured(view)
 
+    def checked(self, view=None) -> dict:
+        """What the automatic check found of the Codex in force, kept apart from `measured` (v0.6.22,
+        autocheck.results_for): read from the watcher's record, and nothing started. `verdict`, which narrows routes, does
+        not read it. A record that cannot be read found nothing."""
+        try:
+            return autocheck.results_for(self.state.paths, engine_version(self.view() if view is None else view))
+        except Exception:
+            return {}
+
     def verdict(self, measurement):
         """"pass" where `measurement` passed on the Codex in force, "fail" where it failed - on whichever Codex, as
         a statement's warnings read it (`warnings_for`) - and None for neither (v0.6.14, the reset actions)."""
@@ -397,7 +420,17 @@ class Arming:
     def warnings(self, definition, view=None) -> tuple:
         """The warnings `definition`'s statement shows now."""
         view = self.view() if view is None else view
-        return warnings_for(definition, view, self._table(view))
+        return warnings_for(definition, view, self._table(view), checked=self.checked(view))
+
+    def check(self, definition, view=None, *, table=None, checked=None) -> dict:
+        """How `definition` stands for the Codex in force, as a person is told it (v0.6.22, autocheck.grade): a word of
+        CheckGrade, and the oldest earlier Codex a person measured it on where that is what an automatic pass carries.
+        `table` and `checked` are for a caller that read them once for many (`listing`)."""
+        view = self.view() if view is None else view
+        word, earlier = autocheck.grade(_rests_on(definition), engine_version(view),
+                                        self._table(view) if table is None else table,
+                                        self.checked(view) if checked is None else checked)
+        return {"grade": str(word), "version": earlier}
 
     # ------------------------------------------------------------------ now
     def current(self, *, view=None, policy=None) -> dict:
@@ -438,11 +471,11 @@ class Arming:
             if any(capability in since for capability in live) and view.get("status") != "ok":
                 view = self.live_view() or view
         policy = self.policy() if policy is None else policy
-        measured = self._table(view)
+        measured, checked = self._table(view), self.checked(view)
         states, why = {}, {}
         for definition in self.registry:
             row = rows.get(definition.id)
-            state, change, held, notice = standing(definition, row, policy, view, measured)
+            state, change, held, notice = standing(definition, row, policy, view, measured, checked)
             if change is not None:
                 self._off(definition.id, change)
             elif notice is not None and _rises((row or {}).get("reason"), notice):
@@ -1188,7 +1221,7 @@ class Arming:
         sends back the warnings' words and that version as the person's confirmation (`arm`)."""
         view = self.view()
         return dict(self.catalogs.statement(definition, locale, warnings=self.warnings(definition, view)),
-                    engine_version=engine_version(view))
+                    engine_version=engine_version(view), check=self.check(definition, view))
 
     def listing(self) -> dict:
         """Every capability as a surface shows it, in registry.SHOWN_ORDER: where it is stored, what it is now, since
@@ -1203,6 +1236,8 @@ class Arming:
         except StateError:
             rows, meta = {}, {"generation": 0, "global_hourly": GLOBAL_HOURLY}
         shown = []
+        # Read once for the whole list, which every snapshot with the page in front reads again.
+        table, checked = self._table(view), self.checked(view)
         # In the order a person reads them (registry.SHOWN_ORDER), not the order they answer in.
         for definition in _shown(self.registry):
             row = rows.get(definition.id) or {}
@@ -1218,8 +1253,10 @@ class Arming:
                 "notice": None if off else row.get("reason"), "resends": definition.resends,
                 "revision": definition.revision, "read_revision": row.get("statement_revision"),
                 "acknowledged_version": row.get("engine_version"),
-                "warnings": [str(word) for word in self.warnings(definition, view)],
+                "warnings": [str(word) for word in warnings_for(definition, view, table, checked=checked)],
                 "confirmed_warnings": [str(word) for word in row.get("warnings") or ()],
+                # v0.6.22: the grade the statement's line says (autocheck.grade), a closed word.
+                "check": self.check(definition, view, table=table, checked=checked)["grade"],
                 "kind": str(definition.kind),
                 # What it needs on (v0.6.16-beta.3): the ids it requires, and those of them not ARMED now,
                 # which turning it on must also turn on (surfaces.arm's `also`).

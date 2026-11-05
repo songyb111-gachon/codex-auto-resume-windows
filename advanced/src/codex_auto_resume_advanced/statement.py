@@ -81,6 +81,10 @@ PAGE_KEYS = tuple(PAGE_PREFIX + name for name in (
     "tripped", "tripped.measurement_failed", "tripped.failed_here", "tripped.incompatible",
     "tripped.local_check_failed", "tripped.submission_unknown", "tripped.hook_exception",
     "tripped.statement_changed", "tripped.engine_changed",
+    # v0.6.22: the automatic check (autocheck.py) - a call gone, and each line a capability's grade is said in.
+    "tripped.auto_check_failed", "kept.auto_check_failed",
+    "check.measured", "check.auto_checked", "check.auto_checked_whole", "check.offered_only",
+    "check.failed_still_offered",
     # v0.6.14: a capability's own choices, the rules for Codex's error codes and the samples of what nothing
     # classified, and what the page says of each.
     "options", "option.attempts", "option.ceiling_hours", "option.workers", "option.days", "option.hours", "done.option", "refused.option",

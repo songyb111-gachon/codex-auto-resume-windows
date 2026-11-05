@@ -355,6 +355,8 @@ def audit_data(locale: str, bridge: Bridge) -> dict:  # noqa: C901 - one layout'
         made = bridge("advanced-statement", {"capability": capability, "locale": locale})["result"]
         made["warnings"]["items"] = [{"warning": str(word), "text": statement.CATALOGS.text(statement.warning_key(word), locale)}
                                      for word in ArmingWarning]
+        # The longest line a grade is said in (v0.6.22, autocheck.grade), where the fullest statement shows it.
+        made["check"] = {"grade": "auto_checked", "version": "codex-cli 0.166.0-alpha.5.1"}
         statements[capability] = made
     rules = bridge("advanced-rules", {})["result"]
     if not rules["rules"]:

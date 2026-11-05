@@ -294,6 +294,8 @@ class KeptTests(KeepOnCase):
                                                          "incompatible", "measurement_failed",
                                                          "submission_unknown", "hook_exception",
                                                          "duplicate_seen", "not_delivered_on_open",
+                                                         # v0.6.22: the automatic check found a call gone.
+                                                         "auto_check_failed",
                                                          # v0.6.16-beta.3: a requirement is not on.
                                                          "requirement_off",
                                                          # v0.6.16-beta.4: another session did not take it.

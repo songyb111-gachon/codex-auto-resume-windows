@@ -32,10 +32,11 @@ from codex_auto_resume.codex.errors import AdapterError
 from codex_auto_resume.diagnostics import Redactor
 from codex_auto_resume.domain.ids import is_uuid
 
-from . import evidence
+from . import autocheck, evidence
 from .codex import credits, inuse
 from .codex.protocol import Session, SessionRefused, methods_for
-from .vocabulary import Measurement, NoteCode, ObservedWord, PlanWord, SpendOutcome, Verdict
+from .measured import MEASURED
+from .vocabulary import AutoResult, Measurement, NoteCode, ObservedWord, PlanWord, SpendOutcome, Verdict
 
 MEASUREMENTS = tuple(Measurement)
 
@@ -2909,6 +2910,54 @@ def _mswap(ctx):
 PROBES[Measurement.MPROFILE] = _mprofile
 PROBES[Measurement.MSWAP] = _mswap
 
+
+_MAUTO_FIELDS = ("official", "engine_accepted", "schema_answered", "experimental_taken", "schema_written", "schema_whole",
+                 "features_answered", "options_without_flag", "flag_without_options", "scratch_home_signed_in")
+
+
+def _mauto(ctx):
+    """The automatic compatibility check on the real engine (v0.6.22, autocheck.py), with no hands and on a scratch home the
+    hand makes and removes: core's engine check, `app-server generate-json-schema --experimental --out` behind core's `-c`
+    options, `features list` - the check's own code, not a copy. It records whether each answered; where the schema's
+    command did not, whether it runs without `--experimental` and whether `--experimental` runs without the `-c` options;
+    how many files Codex left on the scratch home and whether a sign-in is there; each measurement's automatic word
+    (`result_<id>`), and the grade each capability reads from them over this build's table (`grade_<id>`). Booleans, counts
+    and closed words, never a path or a word Codex wrote. It writes none of the watcher's own record, and it does not watch
+    the network: that these commands contact nothing is not what it settles.
+
+    PASS: the engine was accepted, the schema's command took `--experimental` behind the `-c` options and wrote the whole
+    schema, and the features answered. FAIL: the engine answered and one of those did not: the check would give no answer on
+    this Codex and the old warnings stay. A row's own fail is recorded and is the check's finding, not this probe's fail.
+    Blocked: the engine could not be run at all."""
+    from .registry import DEFINITIONS, WAITING
+    answered = ctx._hand("auto_check")
+    answered = answered if isinstance(answered, dict) else {}
+    observed = {field: answered.get(field) if type(answered.get(field)) is bool else None for field in _MAUTO_FIELDS}
+    files = answered.get("scratch_home_files")
+    observed["scratch_home_files"] = files if type(files) is int else None
+    words = {str(word) for word in AutoResult}
+    known = {str(measurement): measurement for measurement in Measurement}
+    results = {known[name]: AutoResult(word) for name, word in (answered.get("results") or {}).items()
+               if name in known and word in words}
+    observed.update({"result_%s" % measurement: str(word) for measurement, word in results.items()})
+    version = ctx.versions.get("codex_version")
+    for definition in DEFINITIONS + tuple(waiting for waiting, _measurement in WAITING):
+        word, _earlier = autocheck.grade(tuple(definition.measurements) + tuple(definition.narrowed_by), version, MEASURED,
+                                         results)
+        observed["grade_%s" % definition.id] = str(word)
+    if observed["engine_accepted"] is not True:
+        return _blocked("the engine could not be run on a scratch Codex home: check the Codex in force, then run mauto "
+                        "again", **observed)
+    if observed["experimental_taken"] is not True or observed["schema_whole"] is not True:
+        return (Verdict.FAIL, observed, "the schema's command did not answer with the whole schema behind the options the "
+                "check runs it with, so the check gives no answer on this Codex")
+    if observed["features_answered"] is not True:
+        return Verdict.FAIL, observed, "the feature list did not answer, so MHK's row has no answer on this Codex"
+    return Verdict.PASS, observed, None
+
+
+PROBES[Measurement.MAUTO] = _mauto
+
 # A conversation and a message id of no one's: the shape a call takes, never a real id. A probe
 # that reaches a live Codex is run by the owner against a throwaway conversation whose id they
 # put here; on their machine this constant is what a call carries when they have not.
@@ -3274,7 +3323,13 @@ def live_hands(backend=None, paths=None) -> dict:
         outcome, how = restarts.restart(paths, hands=restarts.Hands(paths, home=home, read=read))
         return {"outcome": outcome, "how": how}
 
-    return {"open_link": open_link, "power": _power_look, "wake_after": _wake_after, "scratch_cli": scratch_cli,
+    def auto_check():
+        # MAUTO (v0.6.22): the automatic check's own commands, on a scratch home of its own, on the Codex this run measures.
+        used = backend if backend is not None else live_backend(paths)
+        return autocheck.probe_engine(used.codex_exe)
+
+    return {"auto_check": auto_check,
+            "open_link": open_link, "power": _power_look, "wake_after": _wake_after, "scratch_cli": scratch_cli,
             "anchor_request": anchor_request, "stop_hook": stop_hook, "steer_ipc": steer_ipc,
             "m4_hook_note": m4_hook_note, "codex_restart": codex_restart,
             "profile_read": lambda home: _profile_read(backend, paths, home),

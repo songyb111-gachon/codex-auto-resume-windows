@@ -398,7 +398,7 @@ def diagnostics(runtime) -> dict:
     and last minute (watchlog.exported). No id of a conversation, a turn or an interruption, and never a
     word of an error or of a continuation (D5): nothing in either to alias, and nothing quoted. The
     export is the person's own, made when they ask for it; the status and the tray, which Codex sends
-    on, never carry them."""
+    on, never carry them, nor what the automatic check found (`auto_check`)."""
     shown = badge(runtime)
     try:
         found = runtime.arming.samples_view()
@@ -413,6 +413,15 @@ def diagnostics(runtime) -> dict:
         watch = []
     if watch:
         shown["watch"] = watch
+    # v0.6.22: what the automatic check last found (autocheck.py), only where it ever ran: the engine it asked, when, and
+    # each measurement's word, kept apart from every measurement. A grade, never a record of a person's.
+    from . import autocheck
+    try:
+        check = autocheck.diagnostics(runtime.paths)
+    except Exception:
+        check = None
+    if check:
+        shown["auto_check"] = check
     return shown
 
 

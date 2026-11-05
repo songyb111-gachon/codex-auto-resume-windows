@@ -1048,6 +1048,16 @@ namespace CodexAutoResume
                 line.Margin = Pad(0, Brand.SpaceS, 0, 0);
                 head.Controls.Add(line);
             }
+            // v0.6.22: how it stands on this Codex (autocheck.grade), above the warnings: measured by a person, or checked
+            // automatically, in words that tell the two apart.
+            string checkLine = CheckLine(statement);
+            if (checkLine != null)
+            {
+                Label line = HelpText(checkLine);
+                line.ForeColor = Ink;
+                line.Margin = Pad(0, Brand.SpaceS, 0, 4);
+                head.Controls.Add(line);
+            }
             // Each warning under their title, as a field of the statement is under its own, and the note that none of
             // them stops the person under them.
             Dictionary<string, object> warnings = Map(statement, "warnings");
@@ -1591,6 +1601,8 @@ namespace CodexAutoResume
             string said = null;
             if (reason == "measurement_failed")
                 said = Word("page.tripped.measurement_failed", "It turned itself off because a measurement of what it relies on failed.");
+            else if (reason == "auto_check_failed")
+                said = Word("page.tripped.auto_check_failed", "It turned itself off because an automatic check found that this version of Codex no longer offers a call it makes.");
             else if (reason == "failed_here")
                 said = Word("page.tripped.failed_here", "It turned itself off because a compatibility check of what it relies on failed on this computer.");
             else if (reason == "incompatible")
@@ -1917,11 +1929,33 @@ namespace CodexAutoResume
             return text.ToString();
         }
 
+        /// What a capability's statement says of how it stands on this Codex, in the words that keep "measured by a person"
+        /// and "checked automatically" apart (autocheck.grade), or null for a grade with no line of its own: its warnings
+        /// say it.
+        private string CheckLine(Dictionary<string, object> statement)
+        {
+            Dictionary<string, object> check = Map(statement, "check");
+            string grade = Str(check, "grade"), version = Str(check, "version");
+            if (grade == "measured")
+                return Word("page.check.measured", "Compatible: measured by a person on this Codex.");
+            if (grade == "auto_checked" && version != null)
+                return Word("page.check.auto_checked", "Compatible: checked automatically on this Codex, which still offers every call it makes. The check cannot see how Codex behaves; a person last measured that on {version}.", "version", version);
+            if (grade == "auto_checked")
+                return Word("page.check.auto_checked_whole", "Compatible: checked automatically on this Codex. That check covers everything its measurement asks, so no person needed to measure it.");
+            if (grade == "offered_only")
+                return Word("page.check.offered_only", "An automatic check found that this Codex still offers the calls it makes. That cannot show what it relies on, so it still needs measuring by a person.");
+            if (grade == "failed_still_offered")
+                return Word("page.check.failed_still_offered", "An automatic check found that this Codex still offers the calls it makes. That does not undo the failed measurement: only a person measuring it again can.");
+            return null;
+        }
+
         /// A statement as the dialog shows it: every warning, with its title and the note under them; for "on", the
         /// Codex version it is for; and its five fields.
         private void AppendStatement(StringBuilder text, string state, Dictionary<string, object> statement)
         {
             string gap = Environment.NewLine + Environment.NewLine;
+            string checkLine = CheckLine(statement);
+            if (checkLine != null) text.Append(gap).Append(checkLine);
             Dictionary<string, object> warnings = Map(statement, "warnings");
             List<object> said = Items(warnings, "items");
             if (said != null && said.Count > 0)
