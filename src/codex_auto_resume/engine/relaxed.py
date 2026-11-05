@@ -6,7 +6,7 @@ record goes on when it falls due (engine/dispatch.py). An answer is taken only i
 (failures.takes, failures.readmits), and is carried out within core's own bounds (ladder.py): what was
 taken up waits core's own waits, ends a day on the clock after it was detected, and is claimed only as
 a relaxation the plug's ledger pays for (store/ledger.py); a capacity error retried sooner (CAPACITY)
-counts against core's capacity bounds, for twelve hours on the clock from its task's first failure.
+counts against core's capacity bounds, for 24 hours on the clock from its task's first failure.
 And P7 (EARLY): a record that waits for a usage limit to reset may be looked at before its time, once a
 window, where every wait it meets is its gate vector alone - it keeps its state, reason and next look; from
 v0.6.14 so may one a usage read found waiting for usage (waiting_for_usage), as the claim takes it too.
@@ -88,7 +88,7 @@ class RelaxedMixin:
                                                "chain_continuations", "detected_at")},
             "chain_started_at": self.chain_started_at(parent), "categories": self.chain_categories(parent)}
         if chain is not None and not self.capacity_open(chain["chain_started_at"], now):
-            offered -= {Alternative.CAPACITY}        # twelve hours on the clock from its first failure
+            offered -= {Alternative.CAPACITY}        # 24 hours on the clock from its first failure
         if not offered:
             return None if admissible else (DEFER, parent)
         answer = self.plug.admission({
@@ -105,7 +105,7 @@ class RelaxedMixin:
     @staticmethod
     def capacity_open(started_at, now) -> bool:
         """Whether a task's capacity retries may go on (CAPACITY): its first failure, on the clock, less
-        than twelve hours ago (ladder.CAPACITY_MAX_SECONDS). One whose first failure is gone may not."""
+        than 24 hours ago (ladder.CAPACITY_MAX_SECONDS). One whose first failure is gone may not."""
         return started_at is not None and now - started_at < ladder.CAPACITY_MAX_SECONDS
 
     def _capacity_wait(self, parent) -> int:
@@ -131,7 +131,7 @@ class RelaxedMixin:
 
         A kind core recovers goes on as it always did while its switch is on, and is then put to
         the plug like any gate core passed: CAPACITY relaxes a server error's retries, within core's
-        capacity bounds and for twelve hours on the clock from its task's first failure, after which
+        capacity bounds and for 24 hours on the clock from its task's first failure, after which
         the standard edition's budgets hold it again. A kind it never recovers alone is a record P17
         took up (failures.ADMISSIBLE): it goes on only while the plug takes it up again with a word
         that kind takes (failures.readmits), and for a day on the clock at most (ladder.py). Without

@@ -258,7 +258,7 @@ class JournalMixin:
     def _prune_spend(connection, schema, now) -> None:
         """Spends older than 90 days, then the oldest beyond 5,000 - but never one from the last
         day, which every ceiling counts. (At most GLOBAL_HOURLY an hour can be spent, so a day
-        never holds more than 288 of them.)"""
+        never holds more than 576 of them.)"""
         connection.execute("DELETE FROM %s.spend WHERE at < ?" % schema, (now - EVENT_MAX_AGE,))
         excess = connection.execute("SELECT count(*) FROM %s.spend" % schema).fetchone()[0] - EVENT_LIMIT
         if excess > 0:

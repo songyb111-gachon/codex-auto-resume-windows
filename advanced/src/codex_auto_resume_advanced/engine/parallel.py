@@ -3,7 +3,7 @@
 (v0.6.15-beta).
 
 The standard edition sends one continuation after another on one thread, each waiting up to 45 seconds for Codex's
-receipt before the next is looked at (A19: in sequence, under one lock). With this on, core lets two to four of them
+receipt before the next is looked at (A19: in sequence, under one lock). With this on, core lets two to eight of them
 wait at once - each in a conversation of its own, the claim refusing a second in one (core's I4) - while every gate,
 every claim and every look stays on the tick, as before (core's engine/launches.py). What it answers is a number of
 workers and nothing else: the person's Workers option, 2 by default - and 2 at most until MQ passes on the Codex in
@@ -19,7 +19,7 @@ from codex_auto_resume.domain.plug import DEFER
 from ..vocabulary import Measurement, OptionKey
 
 CAPABILITY = "parallel_dispatch"
-WORKERS = (2, 3, 4)
+WORKERS = (2, 3, 4, 5, 6, 7, 8)
 DEFAULT_WORKERS = 2
 # Until MQ - two to four throwaway conversations sent to at once, each receipt matched and each marker found once -
 # passes for the Codex in force, no more than this many at once (the narrowed route; never a refusal, K6).

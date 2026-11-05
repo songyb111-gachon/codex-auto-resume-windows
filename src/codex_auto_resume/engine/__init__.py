@@ -115,7 +115,7 @@ class Engine(OptionsMixin, AnnounceMixin, FreshnessMixin, DetectMixin, Reconcile
                 return
             due = self._records(UNSENT)
             # P12 (v0.6.15-beta): how many sends may wait for their receipts at once - 1, one after another in
-            # this thread, unless the plug answers 2 to 4. Every claim and look stays here; a worker only waits for
+            # this thread, unless the plug answers 2 to 8. Every claim and look stays here; a worker only waits for
             # a receipt, and every one is joined and settled before the tick goes on (engine/launches.py).
             workers = self._workers(due)
             with LaunchPool(workers, self.open_store, self._settle_launch) if workers > 1 else nullcontext() as pool:

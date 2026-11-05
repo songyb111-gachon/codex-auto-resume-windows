@@ -7,8 +7,8 @@ on the off chance). With this on, P16 answers QUEUE_FOR_OPEN for a usage-limited
 (core asks only where it reads notLoaded, never unknown, after consent): core sends its own words, with its marker,
 through its own backend, under the one claim - which writes this capability's QUEUE_FOR_OPEN override, one per
 interruption (ledger.py) - and Codex delivers it when the conversation is opened (M1). In the watch core asks again
-whether to keep it there: yes while the override is within the person's Days (3 to 7, 3 by default), no after - and
-core takes it back at seven days and an hour whatever is answered (core's engine/foropen.py). An interruption once
+whether to keep it there: yes while the override is within the person's Days (3 to 30, 3 by default), no after - and
+core takes it back at 30 days and an hour whatever is answered (core's engine/foropen.py). An interruption once
 queued for opening is never queued for opening again: given back to waiting, it waits for the app as A11 says.
 
 Opened and not delivered within core's 180 seconds, core takes it back (not_delivered_on_open), gives it back to
@@ -49,7 +49,7 @@ GOAL_UNMEASURED, GOAL_TWO_TURNS = "goal_unmeasured", "goal_two_turns"
 CODES = (GOAL_UNMEASURED, GOAL_TWO_TURNS)
 # Records it said that for, forgotten all at once past this many: one journal line a record.
 NOTED_LIMIT = 4096
-DAYS = (3, 4, 5, 6, 7)
+DAYS = (3, 4, 5, 6, 7, 14, 30)
 DEFAULT_DAYS = 3
 DAY = 86400
 # Where core asks P16 for a conversation the running app does not hold (core's engine/delivery.APP_FREE).

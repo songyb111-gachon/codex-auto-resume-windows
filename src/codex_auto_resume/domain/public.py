@@ -20,7 +20,7 @@ SUPERSEDE_WITHDRAWALS = frozenset({"superseded", "superseded_by_user", "user_que
 # Taken back because nothing may go to Codex for now - a Pause, or (v0.6.11) Observe only - and so
 # handed back to waiting once nothing ran; the same two over an uncertain submission end it final.
 # v0.6.15-beta: and one queued for when its conversation is opened (P16's QUEUE_FOR_OPEN), taken back when the plug
-# no longer keeps it there or seven days and an hour passed, or when the conversation was opened and Codex did not
+# no longer keeps it there or 30 days and an hour passed, or when the conversation was opened and Codex did not
 # deliver it: given back to waiting once nothing ran, to go the ordinary way.
 RELEASABLE_WITHDRAWALS = frozenset({"paused", "observe_only", "window_ended", "not_delivered_on_open"})
 # v0.6.16-beta.4: what a continuation sent to another Codex session (P16's TO_SESSION, engine/tosession.py) is taken

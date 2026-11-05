@@ -271,7 +271,7 @@ class RegistryTests(TakingCase):
         # 2026-10-31: right after the capacity retry, before compact_continue.
         self.assertEqual(shown.index(self.cap), shown.index("capacity_retry") + 1)
         self.assertEqual(shown[shown.index(self.cap) + 1], "compact_continue")
-        self.assertEqual(self.DEFINITION.option(OptionKey.ATTEMPTS).choices, (1, 2, 3))
+        self.assertEqual(self.DEFINITION.option(OptionKey.ATTEMPTS).choices, (1, 2, 3, 4, 5))
 
     def test_unmeasured_on_this_codex_is_a_warning_never_a_refusal(self):
         plug = self.advanced()

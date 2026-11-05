@@ -336,13 +336,17 @@ def _count(column) -> str:
     return "CHECK (%s IS NULL OR (typeof(%s) = 'integer' AND %s >= 0))" % (column, column, column)
 
 
-_STATEMENTS_V2 = (
-    """CREATE TABLE meta (
+# The global hourly ceiling every file made before v0.6.22 holds: its highest value and its default, frozen here as those
+# files had them (GLOBAL_HOURLY was 12 until the advanced edition's ceilings were raised, v0.6.22).
+OLD_GLOBAL_HOURLY = 12
+_META_NOW = """CREATE TABLE meta (
         singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
         generation INTEGER NOT NULL CHECK (generation >= 0),
         global_hourly INTEGER NOT NULL CHECK (global_hourly BETWEEN 1 AND %d)
-    )""" % GLOBAL_HOURLY,
-    "INSERT INTO meta VALUES (1, 0, %d)" % GLOBAL_HOURLY,
+    )""" % GLOBAL_HOURLY
+_STATEMENTS_V2 = (
+    _META_NOW.replace("AND %d" % GLOBAL_HOURLY, "AND %d" % OLD_GLOBAL_HOURLY),
+    "INSERT INTO meta VALUES (1, 0, %d)" % OLD_GLOBAL_HOURLY,
     """CREATE TABLE arming (
         capability TEXT PRIMARY KEY,
         state TEXT NOT NULL %s,
@@ -842,7 +846,9 @@ _STATEMENTS_V020 = (
 )
 _STATEMENTS_V7 = _STATEMENTS_V2 + _STATEMENTS_V3 + _STATEMENTS_V4 + _STATEMENTS_V5 + _STATEMENTS_V6 + _STATEMENTS_STAGE4
 MARKED = "PRAGMA application_id=%d" % (MARK | READABLE_FROM)
-_FREED = {id(_STATEMENTS_V3[0]): _OPTIONS_FREE, id(_STATEMENTS_V6[0]): _WORDINGS_FREE}
+_FREED = {id(_STATEMENTS_V3[0]): _OPTIONS_FREE, id(_STATEMENTS_V6[0]): _WORDINGS_FREE,
+          # v0.6.22: a new file's ceiling is the registry's today (GLOBAL_HOURLY), in its CHECK and its row.
+          id(_STATEMENTS_V2[0]): _META_NOW, id(_STATEMENTS_V2[1]): "INSERT INTO meta VALUES (1, 0, %d)" % GLOBAL_HOURLY}
 STATEMENTS = (tuple(_FREED.get(id(statement), statement) for statement in _STATEMENTS_V7) + _STATEMENTS_V019
               + _STATEMENTS_V020 + (MARKED, "PRAGMA user_version=%d" % SCHEMA_VERSION))
 # The file exactly as v0.6.16 made it - its `options` CHECK on names, no mark, and the reasons and keys version 7 knew:
@@ -929,6 +935,23 @@ STATEMENTS_BEFORE_STAGE4 = (_STATEMENTS_V2 + _STATEMENTS_V3 + _STATEMENTS_V4 + _
 # READABLE_FROM - its version left at 7. Taken while names_checked, in the opening's one transaction, so a run cut short
 # leaves the old table whole, to be made again at the next opening.
 FREE_OPTIONS = _remade(_OPTIONS_FREE, "options", TABLES["options"], suffix="free") + (MARKED,)
+
+
+def hourly_bound(connection):
+    """The highest global hourly ceiling the stored `meta` still names in its CHECK, or None where it names none."""
+    stored = connection.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='meta'").fetchone()
+    found = re.search(r"global_hourly\s+BETWEEN\s+1\s+AND\s+(\d+)", stored[0], re.I) if stored is not None else None
+    return int(found.group(1)) if found is not None else None
+
+
+# v0.6.22 (the advanced edition's ceilings raised, GLOBAL_HOURLY 12 -> 24): a file whose `meta` names a lower highest
+# ceiling than today's has the table made again with today's, every row kept - SQLite cannot change a CHECK in place -
+# in the opening's one transaction, so a run cut short leaves the old table whole. The version and the mark stay: a
+# reader of v0.6.17 to v0.6.21 compares tables and columns, which are the same, and checks the ceiling only when it
+# writes one. The ceiling a file held at its old highest (and default) value is moved up to today's with it: no one
+# could have chosen the old highest as a cap, since there was no higher value to be held back from, so it is the
+# default and stays the default. Every lower value a person chose is kept as it was.
+HOURLY_REMADE = _remade(_META_NOW, "meta", TABLES["meta"], suffix="hourly")
 
 
 def wordings_checked(connection) -> bool:

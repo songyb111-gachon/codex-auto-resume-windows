@@ -118,7 +118,7 @@ def make_structured_rules(paths) -> StructuredRules:
 
 
 # How many tries a task of failures nobody classified gets: the person's choice, one by default.
-ATTEMPTS = (1, 2, 3)
+ATTEMPTS = (1, 2, 3, 4, 5)
 DEFAULT_ATTEMPTS = 1
 
 

@@ -111,6 +111,10 @@ class UpgradeTests(V8Case):
         for name, rows in before.items():
             with self.subTest(table=name):
                 kept = after[name] if name != "prompts" else [row[:-1] for row in after[name]]
+                if name == "meta":
+                    # v0.6.22: a ceiling held at the old highest, 12, is moved up to today's (schema.HOURLY_REMADE).
+                    rows = [row[:2] + (schema_module.GLOBAL_HOURLY if row[2] == schema_module.OLD_GLOBAL_HOURLY
+                                       else row[2],) for row in rows]
                 self.assertEqual(kept, rows, "every row of every version-7 table kept")
         self.assertEqual([row[-1] for row in after["prompts"]], [WhileRunning.QUEUE],
                          "a prompt already queued goes into Codex's queue as it always did")

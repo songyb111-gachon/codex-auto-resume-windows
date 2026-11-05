@@ -41,8 +41,8 @@ CAPABILITY = "steer_send"
 # How long a steer may wait for the watcher, in seconds, before it is refused as expired.
 EXPIRES = 120
 # The caps a person's requests are held to (control/steer.py): in any 24 hours, in one conversation and in all.
-PER_CONVERSATION = 30
-PER_DAY = 60
+PER_CONVERSATION = 60
+PER_DAY = 120
 DAY = 86400
 RUNNING = "inProgress"
 # What codex/ipc.steer_turn's word comes to: the outcome, and a refusal's reason.

@@ -20,7 +20,7 @@ Two things are decided:
   granted. No unit left under its own ceilings or the global one, or a capability turned off
   since it answered, and the claim is held: a disarm always wins, and a ceiling is never passed.
   A capability's own day and conversation ceilings count its units; the global hourly one counts
-  claims (v0.6.17), so the two or three capabilities one send carries cost it one of the twelve
+  claims (v0.6.17), so the two or three capabilities one send carries cost it one of the 24
   sends an hour a person is told of, not two or three (state/spend.py, `counts`).
 
 * A person's Send now (v0.6.14), SEND_NOW at P7: only with that capability's request of this very

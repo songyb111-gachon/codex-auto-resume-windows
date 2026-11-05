@@ -25,7 +25,7 @@ nothing of what was typed - unknown never opens), Windows has a handler for `cod
 and the Codex app is running - unless Also start Codex is on. Recovery paused, Observe only, an administrator's
 DisableAutoResume and quiet hours hold it: the open is made inside core's errand guard. The caps are kept in the state
 (`opens`, written before the link is opened): ten minutes between any two opens, an hour between two of one
-conversation, three for one record, twelve a day. The next look settles each open: loaded where the record no longer
+conversation, three for one record, 24 a day. The next look settles each open: loaded where the record no longer
 waits for its conversation to be opened, not_loaded where it still does after two looks.
 """
 from __future__ import annotations
@@ -48,7 +48,7 @@ ON, OFF = 1, 2
 GAP = 600
 PER_CONVERSATION = 3600
 PER_RECORD = 3
-PER_DAY = 12
+PER_DAY = 24
 DAY = 86400
 # How many looks after an open still find its record waiting for the conversation before it is not_loaded.
 LOOKS = 2

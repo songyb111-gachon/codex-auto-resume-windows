@@ -375,9 +375,9 @@ class SpendTests(LedgerCase):
 class GlobalHourTests(LedgerCase):
     """The global hourly ceiling counts sends, not the capabilities that rode them (v0.6.17, P-9).
 
-    A person is told it in sends - "Sends an hour, all advanced features together", twelve by default -
-    so with two capabilities answering for one send it used to leave six, and the second capability of
-    the seventh send was passed over at the ceiling: its answer dropped, core going its own way."""
+    A person is told it in sends - "Sends an hour, all advanced features together", 24 by default -
+    so with two capabilities answering for one send it used to leave 12, and the second capability of
+    the 13th send was passed over at the ceiling: its answer dropped, core going its own way."""
 
     CEILINGS = Ceilings(per_day=40, per_conversation=5)
 
@@ -418,13 +418,13 @@ class GlobalHourTests(LedgerCase):
     def test_one_send_two_capabilities_ride_is_one_of_the_sends_an_hour_a_person_is_told_of(self):
         plug = self.two_on()
         state = plug.runtime.state
-        self.assertEqual(state.meta()["global_hourly"], 12, "what the page says: sends an hour, all together")
+        self.assertEqual(state.meta()["global_hourly"], 24, "what the page says: sends an hour, all together")
         base = self.h.now
-        for number in range(12):
+        for number in range(24):
             self.assertIs(self.send(plug, number, base + number), DEFER, "send %d" % number)
-        self.assertIs(self.send(plug, 12, base + 12), Alternative.HOLD, "the thirteenth send")
-        self.assertEqual(len(self.spends(plug)), 24, "two capabilities paid for each of the twelve sends")
-        self.assertEqual(state.spent("test_wake", ac.THREAD)["global_hour"], 12)
+        self.assertIs(self.send(plug, 24, base + 24), Alternative.HOLD, "the 25th send")
+        self.assertEqual(len(self.spends(plug)), 48, "two capabilities paid for each of the 24 sends")
+        self.assertEqual(state.spent("test_wake", ac.THREAD)["global_hour"], 24)
 
     def test_each_capability_still_counts_its_own_units_by_day_and_by_conversation(self):
         plug = self.two_on()
@@ -454,24 +454,24 @@ class GlobalHourTests(LedgerCase):
         # A guard for behaviour this change leaves alone, not a proof of it: it passes with the fix reverted.
         plug = self.two_on()
         base = self.h.now
-        for number in range(12):
+        for number in range(24):
             self.assertIs(self.send(plug, number, base + number, "test_wake"), DEFER)
-        self.assertIs(self.send(plug, 12, base + 12, "test_wake"), Alternative.HOLD)
-        self.assertEqual(len(self.spends(plug)), 12)
+        self.assertIs(self.send(plug, 24, base + 24, "test_wake"), Alternative.HOLD)
+        self.assertEqual(len(self.spends(plug)), 24)
 
     def test_one_record_claimed_twice_at_one_reading_of_the_clock_is_two_sends(self):
         """Two claims of the one record at the identical time are two sends, though their units bear the
         one record and the one time: what a claim leaves out of its hour is the units it wrote itself."""
         plug = self.two_on()
         base = self.h.now
-        for number in range(11):
+        for number in range(23):
             self.assertIs(self.send(plug, number, base + number), DEFER)
-        self.assertIs(self.send(plug, 99, base + 11), DEFER, "the twelfth send")
-        self.assertIs(self.send(plug, 99, base + 11), Alternative.HOLD, "the thirteenth, at the same time")
+        self.assertIs(self.send(plug, 99, base + 23), DEFER, "the 24th send")
+        self.assertIs(self.send(plug, 99, base + 23), Alternative.HOLD, "the 25th, at the same time")
 
     def test_two_claims_of_one_record_at_one_reading_both_granted_are_two_sends_in_the_hour(self):
         """Two claims of the one record at a bit-identical time, both below the ceiling, used to write their units
-        under the one (record, time) and so count one send in the hour: the twelfth claim after them saw eleven and
+        under the one (record, time) and so count one send in the hour: the 24th claim after them saw 23 and
         one more send went than a person allowed. The second claim writes its units at the next float above the
         first's (state/spend.claim_time), so each counts and the ceiling holds."""
         plug = self.two_on()
@@ -487,10 +487,10 @@ class GlobalHourTests(LedgerCase):
         self.assertEqual(times[2], times[3])
         self.assertGreater(times[2], times[0], "the second claim's time is apart from the first's")
         self.assertLessEqual(times[2] - times[0], SAME_CLAIM, "and still names the claim it paid for")
-        for number in range(10):
+        for number in range(22):
             self.assertIs(self.send(plug, number, base + 1 + number), DEFER, "send %d" % (number + 3))
-        self.assertIs(self.send(plug, 50, base + 20), Alternative.HOLD, "the thirteenth send")
-        self.assertEqual(state.spent("test_wake", ac.THREAD)["global_hour"], 12)
+        self.assertIs(self.send(plug, 50, base + 30), Alternative.HOLD, "the 25th send")
+        self.assertEqual(state.spent("test_wake", ac.THREAD)["global_hour"], 24)
 
     def test_a_spend_table_v0616_wrote_counts_as_it_did(self):
         # A guard for rows this change never writes, not a proof of it: it passes with the fix reverted. v0.6.16
@@ -520,14 +520,14 @@ class GlobalHourTests(LedgerCase):
                 state.record_spend(connection, "main", "test_wake", ac.THREAD, None, self.h.now)
         self.assertEqual(state.spent("test_wake", ac.THREAD)["global_hour"], 3)
 
-    def test_the_thirteenth_send_goes_once_the_first_is_an_hour_old(self):
+    def test_the_25th_send_goes_once_the_first_is_an_hour_old(self):
         # A guard for the hour's edge, which this change leaves alone: it passes with the fix reverted.
         plug = self.two_on()
         base = self.h.now
-        for number in range(12):
+        for number in range(24):
             self.assertIs(self.send(plug, number, base + number), DEFER)
-        self.assertIs(self.send(plug, 12, base + 12), Alternative.HOLD)
-        self.assertIs(self.send(plug, 12, base + 3600), DEFER, "the first send is an hour old")
+        self.assertIs(self.send(plug, 24, base + 24), Alternative.HOLD)
+        self.assertIs(self.send(plug, 24, base + 3600), DEFER, "the first send is an hour old")
 
 
 class ChannelTests(LedgerCase):
