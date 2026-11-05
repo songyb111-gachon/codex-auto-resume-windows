@@ -238,14 +238,22 @@ class AutoSwitch:
             # One notice for this set of waiting records (core's kind accounts_exhausted, plug.NOTICE_KINDS).
             self._notice = {"key": "autoswitch:%d" % int(min(row["detected_at"] for row in rows))}
             return None
-        outcome = swap.switch(self.paths, store, home, target, restart=self._restart_now, read_real=self.read_real,
-                              now=now)
+        closed = []
+
+        def hands(between):
+            # Whether this attempt closed the Codex app (how it ended, CLOSED or ENDED): every such attempt counts toward
+            # the ceiling, a switch or not - it is about restarts in front of a person too (the v0.6.23 audit's A-M2).
+            found = self._restart_now(between)
+            if isinstance(found, tuple) and len(found) > 1 and found[1] is not None:
+                closed.append(found[1])
+            return found
+        outcome = swap.switch(self.paths, store, home, target, restart=hands, read_real=self.read_real, now=now)
         self._count(outcome)
         if outcome in NOT_FINISHED:
             self._not_finished(target)
-        if outcome in (swap.SWITCHED, swap.NOT_STARTED):
-            if outcome == swap.SWITCHED:
-                self._switched(now)                      # NOT_STARTED: the app is closed, so P7 releases nothing early
+        if outcome == swap.SWITCHED:
+            self._switched(now)                          # NOT_STARTED: the app is closed, so P7 releases nothing early
+        if outcome in (swap.SWITCHED, swap.NOT_STARTED) or closed:
             self._attempted(now)
         return None
 

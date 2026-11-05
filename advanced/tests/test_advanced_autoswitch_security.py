@@ -472,8 +472,10 @@ class AnAppThatDidNotComeBack(SwapCase):
     def test_the_watcher_releases_nothing_early_for_it(self):
         source = (Path(__file__).resolve().parents[1] / "src" / "codex_auto_resume_advanced" / "engine"
                   / "autoswitch.py").read_text(encoding="utf-8")
-        at = source.index("if outcome in (swap.SWITCHED, swap.NOT_STARTED):")
-        self.assertIn("if outcome == swap.SWITCHED:\n                self._switched(now)", source[at:at + 200])
+        at = source.index("swap.switch(self.paths, store, home, target")
+        after = source[at:at + 600]
+        self.assertIn("if outcome == swap.SWITCHED:\n            self._switched(now)", after)
+        self.assertNotIn("swap.NOT_STARTED):\n            self._switched", after)
 
 
 class SaysSoOnce(unittest.TestCase):
@@ -873,6 +875,37 @@ class TheCeilingIsARolling24Hours(unittest.TestCase):
             case.scoped.clock = midnight - 600 + autoswitch.DAY
             case.look([engine_tests.waiting("d", detected=case.scoped.clock - autoswitch.SETTLE)])
             self.assertEqual(case.scoped.counted, ["ceiling", "switched"], "the first of the ten is 24 hours old")
+        finally:
+            case.doCleanups()
+
+
+class EveryCloseCounts(unittest.TestCase):
+    """v0.6.23 audit A-M2: an attempt that closed and restarted Codex without switching did not count toward the ten."""
+
+    def test_a_switch_put_back_still_counts(self):
+        """Fails with only SWITCHED and NOT_STARTED counted: two restarts, and the ceiling saw none."""
+        import test_advanced_autoswitch as engine_tests
+        case = engine_tests.EngineCase("run")
+        case.setUp()
+        try:
+            case.code._read_real = lambda: {"present": True, "plan_word": "plus", "email": "one@example.com"}
+            case.look()
+            self.assertEqual(case.scoped.counted, ["not_signed_in"])
+            self.assertEqual(case.fake.restarts, 2)
+            self.assertEqual(case.store.attempts(), [case.scoped.clock], "one attempt, counted once")
+        finally:
+            case.doCleanups()
+
+    def test_nothing_closed_counts_nothing(self):
+        import test_advanced_autoswitch as engine_tests
+        case = engine_tests.EngineCase("run")
+        case.setUp()
+        try:
+            looks = []
+            case.code._busy = lambda: (looks.append(1), () if len(looks) == 1 else ("queued",))[1]
+            case.look()
+            self.assertEqual(case.scoped.counted, [swap.HELD])
+            self.assertIsNone(case.store.attempts())
         finally:
             case.doCleanups()
 
