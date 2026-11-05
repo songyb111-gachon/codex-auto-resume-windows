@@ -104,6 +104,17 @@ class AutoSwitch:
         from ..codex import restart as restarts
         return restarts.busy(self.paths, usage_waiting_ok=True)
 
+    def _restart_now(self, between):
+        """codex/restart.restart for a put-back a later look finishes - None where it may not restart now: something runs
+        or is queued, or someone uses this PC (the switch's own rule, `_why_not`)."""
+        idle = self._idle()
+        if self.busy() or not isinstance(idle, (int, float)) or idle < IDLE:
+            return None
+        if self._restart is not None:
+            return self._restart(between)
+        from ..codex import restart as restarts
+        return restarts.restart(self.paths, between=between)
+
     def read_real(self):
         if self._read_real is not None:
             return self._read_real()
@@ -160,7 +171,7 @@ class AutoSwitch:
         """One look; see the module's docstring. Returns nothing: what it did is in the journal and the stamps."""
         from ..codex import swap
         store, home = self.store(), self.home()
-        settled = swap.recover(self.paths, store, home, read_real=self.read_real)
+        settled = swap.recover(self.paths, store, home, read_real=self.read_real, restart=self._restart_now)
         if settled == swap.SWITCHED:
             self._switched(now)
         elif settled is not None:

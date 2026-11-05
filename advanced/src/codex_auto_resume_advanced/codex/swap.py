@@ -16,7 +16,9 @@ is available, the most used window's percentage and the latest reset of a full w
    rotate: a copy that is not saved back goes stale), then the target's copy is put in its place in one rename;
 4. the app is started again through its own codex: link, and the account read afresh on a session of its own;
 5. the target's account signed in is SWITCHED; anything else puts the previous file back - with the app closed again
-   and started, once - marks the target as needing a sign-in, and is NOT_SIGNED_IN. Never a second try.
+   and started, once, and only over the target's copy it put in - marks the target as needing a sign-in, and is
+   NOT_SIGNED_IN. Where that put-back did not happen (the app would not close, the rename was refused), the intent
+   stays - NOT_PUT_BACK - and each later look tries again (`recover`) until the file is the previous one.
 
 Each hand is a seam: `session_for` (a Codex home -> a session context manager), `restart` (codex/restart.restart's
 shape, given `between`) and `read_real` (the account read on the real home). A test fills them all.
@@ -35,7 +37,11 @@ ROOM_BELOW = 95
 SWITCHED, NOT_SIGNED_IN, NOT_USABLE, NOT_CLOSED, FAILED = "switched", "not_signed_in", "not_usable", "not_closed", "failed"
 # A switch left unfinished whose sign-in file is not the one it put in: the file is left as it is (recover).
 LEFT = "left"
-OUTCOMES = (SWITCHED, NOT_SIGNED_IN, NOT_USABLE, NOT_CLOSED, FAILED, LEFT)
+# The target was not signed in and the previous file could not be put back yet: the intent stays, the next look tries again.
+NOT_PUT_BACK = "not_put_back"
+OUTCOMES = (SWITCHED, NOT_SIGNED_IN, NOT_USABLE, NOT_CLOSED, FAILED, LEFT, NOT_PUT_BACK)
+# The most restarts later looks make to put the previous file back; after them they wait for Codex to be closed.
+BACK_TRIES = 3
 
 
 def default_backend_for(paths, exe=None):
@@ -211,20 +217,19 @@ def switch(paths, store, codex_home, target_id, *, restart=None, read_real=None,
             store.update(target_id, used_at=stamp)
             store.mark_switched(target["email"])
             return SWITCHED
-        # Not the target: the previous file back, Codex started on it once more, and the target set aside.
-        put_back = store.get(source_id)["auth"]
-
-        def back():
-            authfile.replace(codex_home, put_back)
-        outcome, _how = restart(back)
-        if outcome == restarts.NOT_RUNNING:
-            back()
+        # Not the target: the previous file back, Codex started on it once more, and the target set aside. The intent
+        # stays until the file in place is the previous one, so a put-back that did not happen is tried again.
         store.update(target_id, failed_at=stamp)
-        return NOT_SIGNED_IN
+        if _put_back(codex_home, target["auth"], store.get(source_id)["auth"], restart):
+            return NOT_SIGNED_IN
+        store.begin(source_id, target_id, step="back")
+        done["kept"] = True
+        return NOT_PUT_BACK
     except (ProfileError, OSError):
         return FAILED
     finally:
-        store.end()
+        if not done.get("kept"):
+            store.end()
 
 
 def _read_real(paths) -> dict:
@@ -232,18 +237,42 @@ def _read_real(paths) -> dict:
     return read(paths)
 
 
-def recover(paths, store, codex_home, *, read_real=None) -> str | None:
+def _put_back(codex_home, put_in, previous, restart) -> bool:
+    """The previous sign-in file back in place of `put_in` - the target's copy a switch put there, and only over it -
+    through `restart` (the app closed and started) or directly where Codex does not run. Whether the file in place is
+    the previous one now. `restart` None: only where Codex does not run."""
+    from . import restart as restarts
+
+    def back():
+        if _is_in_place(codex_home, put_in):
+            authfile.replace(codex_home, previous)
+    if restart is not None:
+        outcome = restart(back)
+    else:
+        outcome = None if _app_running() else (restarts.NOT_RUNNING, None)
+    if outcome is not None and outcome[0] == restarts.NOT_RUNNING:
+        try:
+            back()
+        except OSError:
+            pass
+    return _is_in_place(codex_home, previous)
+
+
+def recover(paths, store, codex_home, *, read_real=None, restart=None) -> str | None:
     """A switch the watcher did not see finish (an intent left behind by a crash): settled once and the intent cleared.
     The account signed in now is read: the target's - SWITCHED. Anything else: only where the sign-in file in place is,
     byte for byte, the target's copy this switch put in - and Codex does not run - the previous profile's copy goes back,
     NOT_SIGNED_IN; a file it did not put there (the switch never got that far, Codex refreshed it, or a person signed in
     since, the capability off meanwhile) is left exactly as it is, LEFT. Nothing writes the sign-in file unless it knows
-    what is there now. None where no switch was under way."""
+    what is there now. Where the previous copy cannot go back yet - Codex runs and may not be restarted now (`restart`
+    None, or answering None), or the rename is refused - the intent stays, NOT_PUT_BACK, and the next look tries again;
+    at most BACK_TRIES restarts, then only once Codex is closed. None where no switch was under way."""
     from ..profiles import ProfileError
     intent = store.intent()
     if intent is None:
         return None
     read_real = read_real or (lambda: _read_real(paths))
+    kept = False
     try:
         target = store.get(intent.get("to")) if isinstance(intent.get("to"), str) else None
         now = identity(read_real())
@@ -252,14 +281,24 @@ def recover(paths, store, codex_home, *, read_real=None) -> str | None:
             return SWITCHED
         if target is None or not isinstance(intent.get("from"), str) or not _is_in_place(codex_home, target["auth"]):
             return LEFT
-        if _app_running():
-            return LEFT
-        authfile.replace(codex_home, store.get(intent["from"])["auth"])
-        return NOT_SIGNED_IN
+        tries = intent.get("tries") if isinstance(intent.get("tries"), int) else 0
+        made = []
+
+        def counted(between):
+            found = restart(between)
+            made.extend(() if found is None else [found])
+            return found
+        hand = counted if restart is not None and tries < BACK_TRIES else None
+        if _put_back(codex_home, target["auth"], store.get(intent["from"])["auth"], hand):
+            return NOT_SIGNED_IN
+        store.begin(intent["from"], intent["to"], step="back", tries=tries + len(made))
+        kept = True
+        return NOT_PUT_BACK
     except (ProfileError, OSError):
         return FAILED
     finally:
-        store.end()
+        if not kept:
+            store.end()
 
 
 def _is_in_place(codex_home, data) -> bool:

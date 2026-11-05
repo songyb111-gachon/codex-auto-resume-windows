@@ -189,8 +189,10 @@ class Profiles:
         except ProfileError:
             return {"damaged": True}
 
-    def begin(self, source, target) -> None:
-        self._write(INTENT, {"from": source, "to": target, "at": int(self._clock())})
+    def begin(self, source, target, step="swap", tries=0) -> None:
+        """A switch under way from `source` to `target`; `step` "back" once only the previous file's return is left,
+        `tries` the restarts made for it since."""
+        self._write(INTENT, {"from": source, "to": target, "at": int(self._clock()), "step": step, "tries": tries})
 
     def end(self) -> None:
         self._remove(INTENT)
