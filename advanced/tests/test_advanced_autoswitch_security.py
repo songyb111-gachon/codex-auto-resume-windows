@@ -340,6 +340,40 @@ class PrivateAccessList(unittest.TestCase):
         self.assertEqual(acl.allowed_sids(folder / "x.dat"), [acl._own_sid()])
 
 
+class SaveBackKnowsWhoseFileItIs(SwapCase):
+    """Finding 5 (R10): a person signed in to a third account while the app closed; the save-back sealed that sign-in
+    under the first account's label, and the first account's own newest tokens were nowhere."""
+
+    def test_another_account_signed_in_meanwhile_stops_the_switch(self):
+        """Fails with the identity check removed: the first account's profile held the third account's sign-in."""
+        two = self.store.save(TWO, "two@example.com", "plus")
+        one = self.store.save(ONE, "one@example.com", "plus")
+        fake = Fake(self)
+        plain = fake.restart
+
+        def restart(between):
+            (self.codex / "auth.json").write_bytes(THREE)       # a person signed in as someone else
+            return plain(between)
+        fake.restart = restart
+        self.assertEqual(self.switch(fake, two), swap.CHANGED)
+        self.assertEqual((self.codex / "auth.json").read_bytes(), THREE, "the person's own sign-in stays")
+        self.assertEqual(self.store.get(one)["auth"], ONE, "nothing sealed under another's label")
+        self.assertIsNone(self.store.intent())
+
+    def test_the_same_account_refreshed_is_saved_back(self):
+        two = self.store.save(TWO, "two@example.com", "plus")
+        one = self.store.save(ONE, "one@example.com", "plus")
+        fake = Fake(self)
+        plain = fake.restart
+
+        def restart(between):
+            (self.codex / "auth.json").write_bytes(fixture("one", n=4))
+            return plain(between)
+        fake.restart = restart
+        self.assertEqual(self.switch(fake, two), swap.SWITCHED)
+        self.assertEqual(self.store.get(one)["auth"], fixture("one", n=4))
+
+
 def swap_restarts():
     from codex_auto_resume_advanced.codex import restart
     return restart

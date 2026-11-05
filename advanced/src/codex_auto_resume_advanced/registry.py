@@ -1581,7 +1581,7 @@ ACCOUNT_AUTO_SWITCH = CapabilityDef(
     journal_prefix="autoswch",
     make=make_account_auto_switch,
     codes=("switched", "not_signed_in", "not_usable", "not_closed", "failed", "all_exhausted", "ceiling", "left",
-           "not_put_back", "sweep_failed"),
+           "not_put_back", "sweep_failed", "changed_under"),
     measurements=(Measurement.MPROFILE, Measurement.MSWAP),
     requires=("account_switch",),
 )

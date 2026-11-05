@@ -13,7 +13,9 @@ is available, the most used window's percentage and the latest reset of a full w
 2. the Codex app is closed as account_switch's Restart closes it (codex/restart.restart: Windows' request, its process
    ended only if still running 30 s later) - or, where it does not run, nothing is closed;
 3. with nothing of the app left to write it, the sign-in file in use is sealed back into its own profile (refresh tokens
-   rotate: a copy that is not saved back goes stale), then the target's copy is put in its place in one rename;
+   rotate: a copy that is not saved back goes stale), then the target's copy is put in its place in one rename - but
+   where the file is no longer the one read at the start, the account is read again first, and another account than
+   the one being saved back (a person signed in meanwhile) stops it there: nothing saved, nothing swapped, CHANGED;
 4. the app is started again through its own codex: link, and the account read afresh on a session of its own;
 5. the target's account signed in is SWITCHED; anything else puts the previous file back - with the app closed again
    and started, once, and only over the target's copy it put in - marks the target as needing a sign-in, and is
@@ -39,7 +41,9 @@ SWITCHED, NOT_SIGNED_IN, NOT_USABLE, NOT_CLOSED, FAILED = "switched", "not_signe
 LEFT = "left"
 # The target was not signed in and the previous file could not be put back yet: the intent stays, the next look tries again.
 NOT_PUT_BACK = "not_put_back"
-OUTCOMES = (SWITCHED, NOT_SIGNED_IN, NOT_USABLE, NOT_CLOSED, FAILED, LEFT, NOT_PUT_BACK)
+# Another account was signed in while the app closed: nothing was saved back or swapped, the file left as it is.
+CHANGED = "changed_under"
+OUTCOMES = (SWITCHED, NOT_SIGNED_IN, NOT_USABLE, NOT_CLOSED, FAILED, LEFT, NOT_PUT_BACK, CHANGED)
 # The most restarts later looks make to put the previous file back; after them they wait for Codex to be closed.
 BACK_TRIES = 3
 
@@ -199,6 +203,9 @@ def switch(paths, store, codex_home, target_id, *, restart=None, read_real=None,
     def between():
         # The app is gone: the file in use goes back into its own profile, then the target's copy takes its place.
         latest = authfile.read(codex_home)
+        if latest != current and identity(read_real()) != identity(before):
+            done["changed"] = True                           # not the account being saved back: nothing is written
+            return
         store.update(source_id, auth=latest, used_at=stamp)
         authfile.replace(codex_home, target["auth"])
         done["swapped"] = True
@@ -210,6 +217,8 @@ def switch(paths, store, codex_home, target_id, *, restart=None, read_real=None,
             between()                                        # Codex is closed: the next start reads the new file
         elif outcome in (restarts.NOT_ENDED, restarts.FAILED) and not done["swapped"]:
             return NOT_CLOSED
+        if done.get("changed"):
+            return CHANGED
         if not done["swapped"]:
             return FAILED
         after = read_real()
