@@ -113,8 +113,9 @@ class AutoSwitch:
         return restarts.busy(self.paths, usage_waiting_ok=True)
 
     def _restart_now(self, between):
-        """codex/restart.restart for a put-back a later look finishes - None where it may not restart now: something runs
-        or is queued, or someone uses this PC (the switch's own rule, `_why_not`)."""
+        """codex/restart.restart for a switch, or a put-back a later look finishes - None where it may not restart now:
+        something runs or is queued, or someone uses this PC (the switch's own rule, `_why_not`), looked at again right
+        before the close: reading every saved account can take minutes (the v0.6.23 audit's A-R1)."""
         idle = self._idle()
         if self.busy() or not isinstance(idle, (int, float)) or idle < IDLE:
             return None
@@ -211,7 +212,8 @@ class AutoSwitch:
             # One notice for this set of waiting records (core's kind accounts_exhausted, plug.NOTICE_KINDS).
             self._notice = {"key": "autoswitch:%d" % int(min(row["detected_at"] for row in rows))}
             return None
-        outcome = swap.switch(self.paths, store, home, target, restart=self._restart, read_real=self.read_real, now=now)
+        outcome = swap.switch(self.paths, store, home, target, restart=self._restart_now, read_real=self.read_real,
+                              now=now)
         self._count(outcome)
         if outcome in NOT_FINISHED:
             self._not_finished(target)

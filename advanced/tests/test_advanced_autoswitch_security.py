@@ -829,6 +829,30 @@ class AStoppedSwitchSaysSo(unittest.TestCase):
         self.assertIsNone(code.notice())
 
 
+class LookAgainBeforeTheClose(unittest.TestCase):
+    """v0.6.23 audit A-R1: busy and idle were checked before reading every saved account - which can take minutes - and
+    the app was then closed without looking again."""
+
+    def test_a_person_back_while_the_accounts_were_read_closes_nothing(self):
+        """Fails with the switch given the plain restart: the app was closed under the person's hands."""
+        import test_advanced_autoswitch as engine_tests
+        case = engine_tests.EngineCase("run")
+        case.setUp()
+        try:
+            looks = []
+
+            def busy():
+                looks.append(1)
+                return () if len(looks) == 1 else ("turn_running",)   # a turn started while the accounts were read
+            case.code._busy = busy
+            case.look()
+            self.assertEqual(case.fake.restarts, 0)
+            self.assertEqual(case.scoped.counted, [swap.HELD])
+            self.assertEqual((case.codex / "auth.json").read_bytes(), ONE)
+        finally:
+            case.doCleanups()
+
+
 def swap_restarts():
     from codex_auto_resume_advanced.codex import restart
     return restart

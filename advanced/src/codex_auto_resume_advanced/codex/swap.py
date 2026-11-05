@@ -50,13 +50,15 @@ NOT_PUT_BACK = "not_put_back"
 CHANGED = "changed_under"
 # Another switch, put-back, save or delete held the saved accounts: nothing was done (profiles.Profiles.locked).
 LOCKED = "locked"
+# The restart's hands said no right before the close - something runs or someone uses this PC now: nothing was closed.
+HELD = "held"
 # The target is in and signed in, but the Codex app did not start again: it stays closed until a person opens it.
 NOT_STARTED = "not_started"
 # Another Codex engine that may use this home still ran once the app was gone, or that could not be told: nothing was
 # written - a surviving TUI, IDE or exec-server engine could write its old account's tokens after the swap.
 ENGINE_ALIVE = "engine_alive"
 OUTCOMES = (SWITCHED, NOT_SIGNED_IN, NOT_USABLE, NOT_CLOSED, FAILED, LEFT, NOT_PUT_BACK, CHANGED, LOCKED, NOT_STARTED,
-            ENGINE_ALIVE)
+            ENGINE_ALIVE, HELD)
 # The most restarts later looks make to put the previous file back; after them they wait for Codex to be closed.
 BACK_TRIES = 3
 # Seconds the switch, once the app's main is gone, gives its children to end before it says another engine runs, and
@@ -329,7 +331,10 @@ def _switch(paths, store, codex_home, target_id, *, restart=None, read_real=None
 
     store.begin(source_id, target_id)
     try:
-        outcome, _how = restart(between)
+        found = restart(between)
+        if found is None:
+            return HELD                                      # its hands said no at the last look: nothing was closed
+        outcome, _how = found
         if outcome == restarts.NOT_RUNNING:
             between()                                        # Codex is closed: the next start reads the new file
         elif outcome in (restarts.NOT_ENDED, restarts.FAILED) and not done["swapped"]:
