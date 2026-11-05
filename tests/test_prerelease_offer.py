@@ -62,10 +62,22 @@ LIST = "https://api.github.com/repos/%s/%s/releases" % (OWNER, REPO)
 NOWHERE = "https://127.0.0.1:1/releases"
 
 
+def uploaded(tag):
+    """The assets a release of this tag has uploaded, as the list names them: both editions' archives and their
+    checksums (v0.6.23, N8: the check offers a pre-release only when the edition's archive is among them)."""
+    if not isinstance(tag, str) or not tag.startswith("v"):
+        return []
+    names = []
+    for template in (RELEASE["archive"], RELEASE["advanced"]["archive"]):
+        archive = template.replace("{version}", tag[1:])
+        names += [archive, archive + ".sha256"]
+    return [{"name": name} for name in names]
+
+
 def entry(tag, prerelease=True, draft=False, **more):
     """One release as GitHub's list gives it, with the three fields the reader looks at."""
     return dict({"tag_name": tag, "prerelease": prerelease, "draft": draft,
-                 "html_url": TAG + str(tag), "assets": []}, **more)
+                 "html_url": TAG + str(tag), "assets": uploaded(tag)}, **more)
 
 
 # name -> (the list's body, or a failure; installed; newest release; what the reader must answer).

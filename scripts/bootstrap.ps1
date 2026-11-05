@@ -1038,8 +1038,12 @@ function Get-PublishedPrereleases {
         deadline of $TimeoutSec. An entry counts only when it is published (`draft` false), a
         pre-release (`prerelease` true) and tagged `v` and a version Get-PrereleaseVersion accepts;
         anything else in the list, or about an entry, is passed over.
+
+        With -Edition, an entry counts only when that edition's archive is among its uploaded assets, and its checksum
+        too where the digest is not pinned - the rule the picker applies (Get-VersionVerdict): a pre-release whose archive
+        is not uploaded yet was offered, said yes to, and downloaded to a 404 (v0.6.23 audit, N8). Without it, as before.
     #>
-    param($Release, [int]$TimeoutSec = 15)
+    param($Release, [int]$TimeoutSec = 15, [string]$Edition = '')
     foreach ($name in @('owner', 'repo', 'releases')) {
         if (-not $Release.PSObject.Properties.Match($name).Count) {
             throw ('scripts/release.json has no "' + $name + '", so there is no list to read.')
@@ -1056,7 +1060,22 @@ function Get-PublishedPrereleases {
         if ($entry.prerelease -isnot [bool] -or -not $entry.prerelease) { continue }
         $tag = $entry.tag_name
         if ($tag -isnot [string] -or -not $tag.StartsWith('v', [StringComparison]::Ordinal)) { continue }
-        try { $found += ,(Get-PrereleaseVersion $tag.Substring(1)) } catch { continue }
+        $number = $null
+        try { $number = Get-PrereleaseVersion $tag.Substring(1) } catch { continue }
+        if ($Edition) {
+            $template = Get-EditionRelease -Release $Release -Edition $Edition
+            if (-not $fields.Match('assets').Count -or $null -eq $entry.assets -or $entry.assets -isnot [array]) { continue }
+            $names = @()
+            foreach ($asset in $entry.assets) {
+                if ($asset -isnot [Management.Automation.PSCustomObject]) { continue }
+                if (-not $asset.PSObject.Properties.Match('name').Count -or $asset.name -isnot [string]) { continue }
+                $names += ,$asset.name
+            }
+            $archive = $template.archive.Replace('{version}', $number)
+            if ($names -cnotcontains $archive) { continue }
+            if (-not (Get-PinnedDigest -Release $template -Version $number) -and $names -cnotcontains ($archive + '.sha256')) { continue }
+        }
+        $found += ,$number
     }
     return ,$found
 }
@@ -1068,9 +1087,9 @@ function Get-NewerPrerelease {
         where the list cannot be read, and the caller takes that as nothing to offer, never as an
         answer about the release.
     #>
-    param($Release, [string]$Installed, [string]$Stable, [int]$TimeoutSec = 15)
+    param($Release, [string]$Installed, [string]$Stable, [int]$TimeoutSec = 15, [string]$Edition = '')
     $best = $null
-    foreach ($candidate in (Get-PublishedPrereleases -Release $Release -TimeoutSec $TimeoutSec)) {
+    foreach ($candidate in (Get-PublishedPrereleases -Release $Release -TimeoutSec $TimeoutSec -Edition $Edition)) {
         if ((Compare-ProductVersion -Left $candidate -Right $Installed) -le 0) { continue }
         if ((Compare-ProductVersion -Left $candidate -Right $Stable) -le 0) { continue }
         if ($null -eq $best -or (Compare-ProductVersion -Left $candidate -Right $best) -gt 0) { $best = $candidate }
@@ -2438,7 +2457,7 @@ if ($Version) {
     }
     Step 'Asking api.github.com for this repository''s list of releases, for the pre-release.'
     $listed = $null
-    try { $listed = Get-PublishedPrereleases -Release $release -TimeoutSec $ReleasesVersionTimeout }
+    try { $listed = Get-PublishedPrereleases -Release $release -TimeoutSec $ReleasesVersionTimeout -Edition $targetEdition }
     catch {
         Fail ('The list of releases could not be read (' + $_.Exception.Message + ').')
         Write-Host 'update: unavailable'
@@ -2503,7 +2522,8 @@ if ($CheckOnly -or $Update) {
         } else {
             Step 'Asking api.github.com for this repository''s list of releases, for a newer pre-release.'
             try {
-                $prerelease = Get-NewerPrerelease -Release $release -Installed $current -Stable $newest -TimeoutSec $listTimeout
+                $prerelease = Get-NewerPrerelease -Release $release -Installed $current -Stable $newest -TimeoutSec $listTimeout `
+                                                  -Edition $targetEdition
             } catch {
                 Step 'The list of releases could not be read, so no pre-release is offered. The answer below does not depend on it.'
                 Write-ReleasesUnread

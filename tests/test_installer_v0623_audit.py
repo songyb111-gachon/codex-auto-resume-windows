@@ -453,5 +453,54 @@ class N7BracketsInFolderNames(Scratch):
                     self.fail("%s:%d reads a path as a wildcard: %s" % (relative, number, line.strip()))
 
 
+@unittest.skipUnless(WINDOWS and POWERSHELL.is_file(), "the bootstrap is PowerShell on Windows")
+class N8PrereleaseOfferNeedsItsArchive(Scratch):
+    """The update check offers a pre-release only when the installed edition's archive is uploaded."""
+
+    def offer(self, edition):
+        code, output = run_ps(
+            "Set-StrictMode -Version 2.0\n"
+            "function Entry($tag, $names) {\n"
+            "    $assets = @(foreach ($n in $names) { [pscustomobject]@{ name = $n } })\n"
+            "    [pscustomobject]@{ draft = $false; prerelease = $true; tag_name = $tag; assets = $assets } }\n"
+            "function Read-ReleasesPage { param($Release, [string]$Uri, [int]$TimeoutSec)\n"
+            "    return ,@(\n"
+            "        (Entry 'v1.6.0-beta.2' @('Other.txt')),\n"
+            "        (Entry 'v1.5.0-beta.3' @('CodexAutoResume-v1.5.0-beta.3-win-x64.zip', 'CodexAutoResume-v1.5.0-beta.3-win-x64.zip.sha256')),\n"
+            "        (Entry 'v1.5.0-beta.2' @('CodexAutoResume-v1.5.0-beta.2-win-x64.zip')),\n"
+            "        (Entry 'v1.4.1-beta.2' @('CodexAutoResume-Advanced-v1.4.1-beta.2-win-x64.zip')) ) }\n"
+            "$Release = [pscustomobject]@{ owner = 'o'; repo = 'r'; releases = 'https://api.github.com/repos/o/r/releases'\n"
+            "    archive = 'CodexAutoResume-v{version}-win-x64.zip'; sha256 = [pscustomobject]@{}\n"
+            "    advanced = [pscustomobject]@{ archive = 'CodexAutoResume-Advanced-v{version}-win-x64.zip'\n"
+            "                                  sha256 = [pscustomobject]@{ '1.4.1-beta.2' = ('a' * 64) } } }\n"
+            "$best = Get-NewerPrerelease -Release $Release -Installed '1.4.0' -Stable '1.4.0' -TimeoutSec 5%s\n"
+            "$all = Get-PublishedPrereleases -Release $Release -TimeoutSec 5%s\n"
+            "@{ best = [string]$best; all = @($all) } | ConvertTo-Json -Compress\n"
+            % ((" -Edition " + edition, " -Edition " + edition) if edition else ("", "")),
+            script=ROOT / "scripts" / "bootstrap.ps1")
+        self.assertEqual(code, 0, output[-1500:])
+        return last_json(output)
+
+    def test_one_whose_archive_is_not_uploaded_is_not_offered(self):
+        answer = self.offer("'standard'")
+        self.assertEqual(answer["best"], "1.5.0-beta.3")
+        self.assertEqual(answer["all"], ["1.5.0-beta.3"], "no archive, or an archive with no checksum, is not listed")
+
+    def test_each_edition_reads_its_own_archive_and_a_pinned_digest_stands_for_the_sidecar(self):
+        answer = self.offer("'advanced'")
+        self.assertEqual(answer["all"], ["1.4.1-beta.2"])
+        self.assertEqual(answer["best"], "1.4.1-beta.2")
+
+    def test_asked_nothing_about_an_edition_it_lists_every_published_pre_release_as_before(self):
+        answer = self.offer(None)
+        self.assertEqual(answer["best"], "1.6.0-beta.2")
+        self.assertEqual(sorted(answer["all"]), ["1.4.1-beta.2", "1.5.0-beta.2", "1.5.0-beta.3", "1.6.0-beta.2"])
+
+    def test_the_check_and_the_pick_of_a_version_ask_for_the_edition_they_install(self):
+        self.assertIn("-Edition $targetEdition", block(BOOTSTRAP_PS1, "$prerelease = Get-NewerPrerelease", "} catch {"))
+        self.assertIn("Get-PublishedPrereleases -Release $release -TimeoutSec $ReleasesVersionTimeout -Edition $targetEdition",
+                      BOOTSTRAP_PS1)
+
+
 if __name__ == "__main__":
     unittest.main()
