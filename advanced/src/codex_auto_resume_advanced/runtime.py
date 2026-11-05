@@ -104,6 +104,9 @@ from .ledger import ClaimLedger, ceiling_reached
 from .registry import REGISTRY
 from .state import AdvancedState, StateError
 from .state.schema import HEADLESS_CAPABILITIES
+# What is tended while off or watched: the run kinds' clean-up, and (v0.6.23 audit A-M3) the automatic account switch's
+# unfinished switch - its put-back alone, never a new switch (engine/autoswitch.AutoSwitch.tend).
+TENDED = HEADLESS_CAPABILITIES + ("account_auto_switch",)
 from .vocabulary import (TRIPWIRES, ArmingState, ArmingWarning, CapabilityKind, ContinuationReason, JournalCode,
                          KeepReason, OffReason, OverrideKind, PromptReason)
 
@@ -824,7 +827,7 @@ class Runtime:
         for definition in self.registry.at(Point.TICK):
             state = states.get(definition.id, ArmingState.OFF)
             tend = (_own(self._code_of(definition), "tend")
-                    if state != ArmingState.ARMED and definition.id in HEADLESS_CAPABILITIES else None)
+                    if state != ArmingState.ARMED and definition.id in TENDED else None)
             if tend is not None:
                 # v0.6.18: what a run kind turned off or watched still owes what it started - a live run's Stop
                 # handed on and its end written, a model put back (engine/headless.follow_up, engine/fallback.py):

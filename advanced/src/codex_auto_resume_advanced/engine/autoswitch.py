@@ -67,6 +67,20 @@ class _Errand:
             return None
 
 
+class _Settle:
+    """tend's errand: the unfinished switch settled, nothing else."""
+    __slots__ = ("code",)
+
+    def __init__(self, code):
+        self.code = code
+
+    def run(self, guard):
+        try:
+            return self.code.settle()
+        except Exception:
+            return None
+
+
 def _idle():
     from .opentarget import idle_seconds
     return idle_seconds()
@@ -300,6 +314,33 @@ class AutoSwitch:
         """{"key"} of the last look that found every saved account at its limit - or {"key", "why": "not_finished"} of a
         switch that did not finish - for the watcher to show once; or None."""
         return self._notice
+
+    # ------------------------------------------------------------------ off or watched
+    def tend(self, view):
+        """While the capability is off or watched (runtime.TENDED, the v0.6.23 audit's A-M3): a switch it left unfinished -
+        a put-back still waiting - is settled at most every LOOK_EVERY seconds, by codex/swap.recover alone, through the
+        same restart hands; never a new switch, never a read of another account. DEFER where no switch is under way."""
+        scoped = self._scoped
+        if scoped is None:
+            return DEFER
+        try:
+            now = scoped.now()
+            if self._looked is not None and 0 <= now - self._looked < LOOK_EVERY:
+                return DEFER
+            self._looked = now
+            if self.store().intent() is None:
+                return DEFER
+            return _Settle(self)
+        except Exception:
+            return DEFER
+
+    def settle(self):
+        from ..codex import swap
+        settled = swap.recover(self.paths, self.store(), self.home(), read_real=self.read_real,
+                               restart=self._restart_now)
+        if settled is not None:
+            self._count(settled)
+        return None
 
     # ------------------------------------------------------------------ P7
     def schedule(self, record, eligible_at):

@@ -910,6 +910,45 @@ class EveryCloseCounts(unittest.TestCase):
             case.doCleanups()
 
 
+class APutBackIsFinishedWhileOff(unittest.TestCase):
+    """v0.6.23 audit A-M3: a switch left NOT_PUT_BACK was never finished once the capability was turned off - only the
+    armed look called recover."""
+
+    def test_off_the_put_back_is_still_finished_and_nothing_new_is_switched(self):
+        """Fails with no tend: nothing settled the intent while off, and Codex stayed on the dead copy."""
+        import test_advanced_autoswitch as engine_tests
+        case = engine_tests.EngineCase("run")
+        case.setUp()
+        try:
+            case.code._read_real = lambda: {"present": False, "plan_word": None, "email": None}
+            one = case.store.save(ONE, "one@example.com", "plus")
+            case.store.begin(one, case.two, step="back")
+            authfile.replace(case.codex, TWO)                    # the target's dead copy left in
+            errand = case.code.tend(None)
+            self.assertIsNotNone(getattr(errand, "run", None))
+            with patch.object(swap, "_app_running", lambda: True):
+                errand.run(None)
+            self.assertEqual((case.codex / "auth.json").read_bytes(), ONE)
+            self.assertIsNone(case.store.intent())
+            self.assertEqual(case.fake.restarts, 1, "the put-back's restart, and no switch")
+        finally:
+            case.doCleanups()
+
+    def test_nothing_under_way_is_nothing_to_tend(self):
+        import test_advanced_autoswitch as engine_tests
+        from codex_auto_resume.domain.plug import DEFER
+        case = engine_tests.EngineCase("run")
+        case.setUp()
+        try:
+            self.assertIs(case.code.tend(None), DEFER)
+        finally:
+            case.doCleanups()
+        source = (Path(__file__).resolve().parents[1] / "src" / "codex_auto_resume_advanced" / "runtime.py").read_text(
+            encoding="utf-8")
+        self.assertIn('TENDED = HEADLESS_CAPABILITIES + ("account_auto_switch",)', source)
+        self.assertIn("definition.id in TENDED", source)
+
+
 def swap_restarts():
     from codex_auto_resume_advanced.codex import restart
     return restart
