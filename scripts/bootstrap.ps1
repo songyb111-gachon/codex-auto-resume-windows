@@ -2759,9 +2759,19 @@ try {
     # otherwise on its way out.
     $started = $true
     if ($progressLines) { $env:CODEX_AUTO_RESUME_PROGRESS_LINES = '1' }
-    & $installer @arguments
-    $code = $LASTEXITCODE
-    if ($null -eq $code) { $code = 0 }
+    # A throw out of the installer - an unreadable journal, a codex.exe that cannot start - is a failed installer like a
+    # non-zero code, so a pick below puts back what it changed in either case (v0.6.23 audit, N2); it used to cross
+    # this line into the catch at the end, which only reports, and left the watcher off and the state converted.
+    try {
+        & $installer @arguments
+        $code = $LASTEXITCODE
+        if ($null -eq $code) { $code = 0 }
+    } catch {
+        Write-Host ''
+        Fail $_.Exception.Message
+        Step 'The installer had already started; read its messages above.'
+        $code = 1
+    }
     if ($Pick -and $code -eq 0) { Write-Host ('pick: installed ' + $target + ' ' + $targetEdition) }
     # A failed pick leaves the version that was installed as it was: its state, its entry in Add or remove programs
     # and its watcher (v0.6.18 installer audit, R4). The exit code stays the installer's.

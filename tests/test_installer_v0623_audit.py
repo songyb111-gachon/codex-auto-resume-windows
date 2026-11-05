@@ -194,5 +194,56 @@ class N1CodexJsonIsUtf8(Scratch):
         self.assertIn("Remove-Item -Force -ErrorAction SilentlyContinue -LiteralPath $out, $err", body)
 
 
+@unittest.skipUnless(WINDOWS and POWERSHELL.is_file(), "the bootstrap is PowerShell on Windows")
+class N2InstallerThatThrows(Scratch):
+    """A pick whose installer throws (rather than exits with a code) is put back, like one that exits non-zero."""
+
+    def run_it(self, pick, installer_body):
+        installer = self.root / "install.ps1"
+        installer.write_text(installer_body, encoding="utf-8-sig")
+        start = BOOTSTRAP_PS1.index("    if ($progressLines) { $env:CODEX_AUTO_RESUME_PROGRESS_LINES = '1' }")
+        region = BOOTSTRAP_PS1[start:BOOTSTRAP_PS1.index("    exit $code\n", start) + len("    exit $code")]
+        script = (
+            "Set-StrictMode -Version 2.0\n$ErrorActionPreference = 'Stop'\n"
+            "function Step { param([string]$m) Write-Host ('  ' + $m) }\n"
+            "function Fail { param([string]$m) Write-Host ('  [!] ' + $m) }\n"
+            "function Restore-AfterFailedPick { param($Home_, $Installed, $Converted, $Since, $KeptCopy, [switch]$NoStartup, [switch]$WasStopped)\n"
+            "    Write-Host 'RESTORED'; return $true }\n"
+            "$progressLines = $false; $Pick = $%s; $installer = '%s'; $arguments = @{}; $NoStartup = $false\n"
+            "$installHome = 'C:/scratch'; $installed = '0.6.20'; $converted = 'converted 5'; $pickSince = Get-Date\n"
+            "$pickKeptCopy = 'C:/scratch/k.ps1'; $pickWatcherStopped = $true; $target = '0.6.10'; $targetEdition = 'standard'\n"
+            "$started = $true\n" % ("true" if pick else "false", str(installer).replace("'", "''")) + region + "\n")
+        path = self.root / "region.ps1"
+        path.write_text(script, encoding="utf-8-sig")
+        done = subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File",
+                               str(path)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8",
+                              errors="replace", timeout=120, creationflags=NO_WINDOW)
+        return done.returncode, done.stdout
+
+    def test_a_throw_from_the_installer_restores_a_pick_and_fails_with_one(self):
+        code, output = self.run_it(True, "throw 'The interrupted-installation journal has no usable move records.'")
+        self.assertEqual(code, 1, output)
+        self.assertIn("RESTORED", output)
+        self.assertIn("The interrupted-installation journal has no usable move records.", output)
+        self.assertIn("The installer had already started; read its messages above.", output)
+
+    def test_a_throw_outside_a_pick_is_reported_and_restores_nothing(self):
+        code, output = self.run_it(False, "throw 'codex.exe cannot start'")
+        self.assertEqual(code, 1, output)
+        self.assertNotIn("RESTORED", output)
+        self.assertIn("codex.exe cannot start", output)
+
+    def test_a_non_zero_code_still_restores_and_keeps_the_installers_code(self):
+        code, output = self.run_it(True, "exit 14")
+        self.assertEqual(code, 14, output)
+        self.assertIn("RESTORED", output)
+
+    def test_a_good_installer_is_untouched(self):
+        code, output = self.run_it(True, "exit 0")
+        self.assertEqual(code, 0, output)
+        self.assertNotIn("RESTORED", output)
+        self.assertIn("pick: installed 0.6.10 standard", output)
+
+
 if __name__ == "__main__":
     unittest.main()
