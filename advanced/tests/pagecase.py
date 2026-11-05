@@ -394,7 +394,15 @@ def audit_data(locale: str, bridge: Bridge) -> dict:  # noqa: C901 - one layout'
                      "advanced-account": {"done": True, "refusal": None, "present": True, "plan": "enterprise",
                                           "kind": "chatgpt", "mask": "s•••@e•••.com",
                                           "button": True, "switch": "signed_in", "restart": "not_ended",
-                                          "busy": ["turn_running"]}},
+                                          "busy": ["turn_running"]},
+                     # v0.6.22: the saved accounts at their fullest - every state word, the line for a sign-in outside
+                     # a file and an add that did not finish (advanced/gui/AdvancedAccounts.cs); drawn once offered.
+                     "advanced-accounts": {"done": True, "refusal": None, "store": "not_file", "adding": "not_added",
+                                           "switched_at": None,
+                                           "profiles": [{"id": "%016x" % index, "mask": "s•••@e•••.com", "plan": plan,
+                                                         "state": state} for index, (plan, state) in enumerate(
+                                                             (("enterprise", "needs_sign_in"), ("plus", "exhausted"),
+                                                              ("pro", "ready"), ("other", "damaged")))]}},
             "reports": report_states()}
 
 
