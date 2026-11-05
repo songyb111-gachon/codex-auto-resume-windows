@@ -538,7 +538,9 @@ def probe_engine(exe) -> dict:
             found["flag_without_options"] = _bare_schema(backend, options[:1] + list(SCHEMA_ARGUMENTS), scratch)
         files = [path for path in asked["home"].rglob("*") if path.is_file()]
         found["scratch_home_files"] = len(files)
-        found["scratch_home_signed_in"] = (asked["home"] / "auth.json").exists()
+        # Whether the scratch home holds a sign-in file - by codex/authfile's name, the one module that names it.
+        from .codex import authfile
+        found["scratch_home_signed_in"] = (asked["home"] / authfile.NAME).exists()
     except Exception:
         pass
     finally:
