@@ -885,11 +885,13 @@ function Get-CodexCli {
     # The desktop app keeps its engine in a content-addressed directory and does not put
     # it on PATH, so look there rather than relying on the environment.
     $root = Join-Path $env:LOCALAPPDATA 'OpenAI\Codex\bin'
-    if (-not (Test-Path $root)) { return $null }
-    $found = @(Get-ChildItem -Path $root -Directory -ErrorAction SilentlyContinue |
+    # Every path literally: a profile or temp folder with a [ or ] in its name made the wildcard forms find nothing
+    # (v0.6.23 audit, N7), and the install was refused with "the ChatGPT/Codex desktop app was not found".
+    if (-not (Test-Path -LiteralPath $root)) { return $null }
+    $found = @(Get-ChildItem -LiteralPath $root -Directory -ErrorAction SilentlyContinue |
         ForEach-Object { Join-Path $_.FullName 'codex.exe' } |
-        Where-Object { Test-Path $_ } |
-        Sort-Object { (Get-Item $_).LastWriteTime } -Descending)
+        Where-Object { Test-Path -LiteralPath $_ } |
+        Sort-Object { (Get-Item -LiteralPath $_).LastWriteTime } -Descending)
     if ($found.Count -eq 0) { return $null }
     return $found[0]
 }

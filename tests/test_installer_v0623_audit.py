@@ -405,5 +405,53 @@ class N6PickLockAndTheRelaunchedInstaller(Scratch):
         self.assertLess(BOOTSTRAP_PS1.index("$pickLock = New-Object System.Threading.Mutex"), at)
 
 
+@unittest.skipUnless(WINDOWS and POWERSHELL.is_file(), "the installer is PowerShell on Windows")
+class N7BracketsInFolderNames(Scratch):
+    """A folder with [ or ] in its name is a folder: the paths the scripts read are literal."""
+
+    def folder(self):
+        folder = self.root / "Kim [work] x64"
+        folder.mkdir()
+        return folder
+
+    def test_the_engine_is_found_under_a_profile_with_brackets(self):
+        local = self.folder() / "Local"
+        engine = local / "OpenAI" / "Codex" / "bin" / "abc123"
+        engine.mkdir(parents=True)
+        (engine / "codex.exe").write_bytes(b"MZ")
+        code, output = run_ps("@{ found = [string](Get-CodexCli) } | ConvertTo-Json -Compress\n", LOCALAPPDATA=str(local))
+        self.assertEqual(code, 0, output[-1500:])
+        self.assertEqual(last_json(output)["found"], str(engine / "codex.exe"))
+
+    def test_the_bootstrap_hashes_and_reads_files_under_such_a_folder(self):
+        folder = self.folder()
+        (folder / "x.zip").write_bytes(b"abc")
+        (folder / "plugin.json").write_text('{"version": "1.2.3"}', encoding="utf-8")
+        code, output = run_ps(
+            "$digest = Get-Sha256 -Path (Join-Path $env:CAR_DIR 'x.zip')\n"
+            "$json = Read-Json -Path (Join-Path $env:CAR_DIR 'plugin.json')\n"
+            "@{ digest = $digest; version = $json.version } | ConvertTo-Json -Compress\n",
+            script=ROOT / "scripts" / "bootstrap.ps1", CAR_DIR=str(folder))
+        self.assertEqual(code, 0, output[-1500:])
+        self.assertEqual(last_json(output), {"digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+                                             "version": "1.2.3"})
+
+    def test_no_path_a_script_reads_goes_through_a_wildcard(self):
+        """Every Test-Path, Get-Item, Get-ChildItem, Get-Content, Resolve-Path and Remove-Item of the scripts names its
+        path with -LiteralPath (a New-Item or an Env: drive path is no wildcard)."""
+        pattern = re.compile(r"\b(Test-Path|Get-Item|Get-ChildItem|Get-Content|Resolve-Path|Remove-Item|Copy-Item|Move-Item)\b")
+        for relative in ("build/install/install.ps1", "scripts/bootstrap.ps1", "build/make_gui.ps1"):
+            lines = (ROOT / relative).read_text(encoding="utf-8").splitlines()
+            for number, line in enumerate(lines, 1):
+                code = line.split("#")[0] if line.lstrip().startswith("#") else line
+                if line.lstrip().startswith("#") or not pattern.search(code):
+                    continue
+                if "-LiteralPath" in line or "Env:" in line or "-Literal" in line:
+                    continue
+                # Prose in a comment after code, or inside a here-string, is not a call.
+                if re.search(r"(Test-Path|Get-Item|Get-ChildItem|Get-Content|Resolve-Path|Remove-Item|Copy-Item|Move-Item)\s+(-\w+\s+)*[$(\"']", line):
+                    self.fail("%s:%d reads a path as a wildcard: %s" % (relative, number, line.strip()))
+
+
 if __name__ == "__main__":
     unittest.main()

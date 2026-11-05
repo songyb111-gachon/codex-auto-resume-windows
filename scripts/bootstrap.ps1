@@ -632,7 +632,7 @@ function Get-Sha256 {
     param([string]$Path)
     $sha = [Security.Cryptography.SHA256]::Create()
     try {
-        $stream = [IO.File]::OpenRead((Resolve-Path $Path))
+        $stream = [IO.File]::OpenRead((Resolve-Path -LiteralPath $Path))
         try { return [BitConverter]::ToString($sha.ComputeHash($stream)).Replace('-', '').ToLower() }
         finally { $stream.Dispose() }
     } finally { $sha.Dispose() }
@@ -640,8 +640,8 @@ function Get-Sha256 {
 
 function Read-Json {
     param([string]$Path)
-    if (-not (Test-Path $Path)) { throw ('This plugin is incomplete: ' + $Path + ' is missing.') }
-    return Get-Content -Path $Path -Raw -Encoding UTF8 | ConvertFrom-Json
+    if (-not (Test-Path -LiteralPath $Path)) { throw ('This plugin is incomplete: ' + $Path + ' is missing.') }
+    return Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
 }
 
 function Get-PluginVersion {
@@ -1851,7 +1851,7 @@ function Test-Archive {
                   'install/install.ps1',
                   'Install.cmd')
     Add-Type -AssemblyName System.IO.Compression.FileSystem
-    $archive = [IO.Compression.ZipFile]::OpenRead((Resolve-Path $Zip))
+    $archive = [IO.Compression.ZipFile]::OpenRead((Resolve-Path -LiteralPath $Zip))
     try {
         $names = @($archive.Entries.FullName)
         foreach ($entry in $required) {
@@ -2685,7 +2685,7 @@ try {
     } else {
         $sidecar = $zip + '.sha256'
         Get-Remote -Uri ($base + $name + '.sha256') -OutFile $sidecar -What 'The checksum'
-        $recorded = ((Get-Content $sidecar -Raw) -split '\s+')[0].Trim().ToLower()
+        $recorded = ((Get-Content -LiteralPath $sidecar -Raw) -split '\s+')[0].Trim().ToLower()
         if ($recorded -notmatch '^[0-9a-f]{64}$') { throw 'The published checksum file is not a SHA-256.' }
         if ($actual -ne $recorded) { throw 'The download does not match its published checksum.' }
         Ok 'SHA-256 matches the checksum published beside it (no pinned digest for this version)'
@@ -2695,7 +2695,7 @@ try {
     Ok ('Archive contents verified as Codex Auto Resume v' + $target)
 
     $unpacked = Join-Path $work 'unpacked'
-    [IO.Compression.ZipFile]::ExtractToDirectory((Resolve-Path $zip), $unpacked)
+    [IO.Compression.ZipFile]::ExtractToDirectory((Resolve-Path -LiteralPath $zip), $unpacked)
 
     # What is new, from the archive just verified, and the person's word before anything is installed. The folder is
     # this run's own and goes with it; the caller reads the changelog there while this waits.
@@ -2812,5 +2812,5 @@ try {
 } finally {
     # The download is deleted whether it was used or not: a rejected archive should not
     # be left on disk where someone could run it by hand.
-    Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue
+    Remove-Item -Recurse -Force -LiteralPath $work -ErrorAction SilentlyContinue
 }

@@ -40,10 +40,10 @@ if (-not $Out) {
 }
 
 $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
-if (-not (Test-Path $csc)) { throw 'The in-box C# compiler was not found.' }
+if (-not (Test-Path -LiteralPath $csc)) { throw 'The in-box C# compiler was not found.' }
 # Recorded because reproducing a release needs the same compiler build: two builds of
 # the in-box csc can emit different IL for the same source.
-$cscVersion = (Get-Item $csc).VersionInfo.FileVersion
+$cscVersion = (Get-Item -LiteralPath $csc).VersionInfo.FileVersion
 Write-Host ('compiler ' + $csc + ' ' + $cscVersion)
 
 # The release build needs Python anyway (make_release.py); this needs it to make the
@@ -57,7 +57,7 @@ $normalizer = Join-Path $Root 'build\normalize_pe.py'
 # Smart App Control prompts - the places a person looks to decide whether to trust a file.
 # The in-box compiler builds the Win32 version resource from these attributes, and the
 # text is a pure function of the manifest, so the build stays reproducible.
-$pluginManifest = Get-Content (Join-Path $Root '.codex-plugin\plugin.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+$pluginManifest = Get-Content -LiteralPath (Join-Path $Root '.codex-plugin\plugin.json') -Raw -Encoding UTF8 | ConvertFrom-Json
 $version = [string]$pluginManifest.version
 # The rule every check of this product's version applies (tests/test_version_rule.py): ASCII
 # digits, one of the two words in lower case, a number from 2 to 999 after it if any, and nothing
@@ -107,9 +107,9 @@ function Build {
     $arguments = @('/nologo', ('/target:' + $Target), '/platform:x64', '/optimize+',
                    ('/out:' + $exe))
     foreach ($reference in $References) { $arguments += ('/reference:' + $reference) }
-    if (Test-Path $icon) { $arguments += ('/win32icon:' + $icon) }
+    if (Test-Path -LiteralPath $icon) { $arguments += ('/win32icon:' + $icon) }
     # Only the window declares per-monitor DPI awareness; the launcher draws nothing.
-    if ($WithManifest -and (Test-Path $manifest)) { $arguments += ('/win32manifest:' + $manifest) }
+    if ($WithManifest -and (Test-Path -LiteralPath $manifest)) { $arguments += ('/win32manifest:' + $manifest) }
     $arguments += $Sources
     & $csc @arguments
     if ($LASTEXITCODE -ne 0) { throw ($Name + ' failed to compile.') }
@@ -126,11 +126,11 @@ function Build {
     # The digest is a line of output; it is not worth a dependency on module autoloading.
     $sha = [Security.Cryptography.SHA256]::Create()
     try {
-        $stream = [IO.File]::OpenRead((Resolve-Path $exe))
+        $stream = [IO.File]::OpenRead((Resolve-Path -LiteralPath $exe))
         try { $digest = [BitConverter]::ToString($sha.ComputeHash($stream)).Replace('-', '').ToLower() }
         finally { $stream.Dispose() }
     } finally { $sha.Dispose() }
-    Write-Host ('built ' + $exe + ' (' + (Get-Item $exe).Length + ' bytes, sha256 ' + $digest + ')')
+    Write-Host ('built ' + $exe + ' (' + (Get-Item -LiteralPath $exe).Length + ' bytes, sha256 ' + $digest + ')')
 }
 
 # The compile list is gui/window.sources, and only there. It used to be written out here and
@@ -147,7 +147,7 @@ function Build {
 # every source in the order they are written.
 function Read-SourceList([string]$List) {
     @(
-        Get-Content (Join-Path $Root $List) |
+        Get-Content -LiteralPath (Join-Path $Root $List) |
             ForEach-Object { ($_ -split '#', 2)[0].Trim() } |
             Where-Object { $_ -and -not $_.StartsWith('[') } |
             ForEach-Object { Join-Path $Root ($_ -replace '/', '\') }
