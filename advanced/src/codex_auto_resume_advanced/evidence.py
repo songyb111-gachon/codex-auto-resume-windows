@@ -24,6 +24,7 @@ import re
 from codex_auto_resume import failures, machine
 from codex_auto_resume.diagnostics import EMAIL_RE, KEY_RE, PATH_RE, UUID_RE
 
+from .codex import authfile as _authfile
 from .vocabulary import AutoResult, CheckGrade, Measurement, NoteCode, ObservedWord, PlanWord, SpendOutcome, Verdict
 
 # The same tag scripts/live_evidence.py skips these files by; tests/test_advanced_measure.py
@@ -49,7 +50,10 @@ CLOSED_WORDS = (frozenset(str(word) for word in machine.TURN_STATUSES)
                 | frozenset(str(word) for word in PlanWord)
                 # v0.6.22: and what the automatic check found and the grade it comes to (MAUTO).
                 | frozenset(str(word) for word in AutoResult)
-                | frozenset(str(word) for word in CheckGrade))
+                | frozenset(str(word) for word in CheckGrade)
+                # v0.6.22: and how Codex keeps its sign-in (MPROFILE, MSWAP: codex/authfile's four words). Without them
+                # both records were refused after their probe had run (the measurement session, 2026-11-06).
+                | frozenset((_authfile.USABLE, _authfile.NOT_FILE, _authfile.NO_FILE, _authfile.UNREADABLE)))
 
 
 def _closed(value: str) -> bool:

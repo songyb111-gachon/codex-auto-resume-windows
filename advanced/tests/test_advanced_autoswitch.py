@@ -264,6 +264,44 @@ class ProbeTests(unittest.TestCase):
         self.assertIn("still signed in as the other account", stuck[2], "A-M5: the person is told where Codex is")
 
 
+class RecordTests(unittest.TestCase):
+    """Both probes' records can be written with every word their hands answer (2026-11-06: MPROFILE passed on the
+    owner's PC and its record was refused, since evidence did not know authfile's "usable")."""
+
+    def setUp(self):
+        import shutil
+        import tempfile
+        self.directory = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.directory, True)
+
+    def record(self, measurement, hand, answered):
+        import json
+        versions = {"product_version": "0.6.22", "codex_version": ENGINE, "windows_build": "10.0.26300"}
+        measure.run(measurement, versions=versions, directory=self.directory, hands={hand: lambda home: answered})
+        written = list(self.directory.glob("measurement-%s.json" % measurement.value))
+        self.assertEqual(len(written), 1, "the record is written")
+        return json.loads(written[0].read_text(encoding="utf-8"))
+
+    def test_every_store_word_can_be_recorded(self):
+        """Fails with authfile's words taken out of evidence.CLOSED_WORDS."""
+        from codex_auto_resume_advanced.codex import authfile
+        good = {"profile_given": True, "added_by_login": True, "account_read": True, "own_account": True,
+                "usage_read": True, "real_file_unchanged": True, "app_unchanged": True, "real_still_signed_in": True}
+        for word in (authfile.USABLE, authfile.NOT_FILE, authfile.NO_FILE, authfile.UNREADABLE):
+            with self.subTest(word=word):
+                written = self.record(Measurement.MPROFILE, "profile_read", dict(good, store_word=word))
+                self.assertEqual(written["observed"]["store_word"], word)
+
+    def test_mswap_s_record_is_written(self):
+        answered = {"store_word": "usable", "profiles_given": True, "app_was_running": True, "swapped": True,
+                    "signed_in_as_target": True, "swapped_back": True, "signed_in_as_first": True,
+                    "first_usage_read": True, "target_usage_read": True, "other_engine_alive": False,
+                    "other_engine_alive_open": False, "looked": True}
+        written = self.record(Measurement.MSWAP, "account_swap", answered)
+        self.assertEqual(written["observed"]["store_word"], "usable")
+        self.assertIs(written["observed"]["looked"], True)
+
+
 class LookTests(unittest.TestCase):
     """MSWAP waits between its two switches for the person to look (2026-11-06: with no wait, the app was closed again
     seconds after it came up as the other account, so no one could see Settings > Account)."""
