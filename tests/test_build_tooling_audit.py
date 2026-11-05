@@ -15,6 +15,8 @@
   manifest is missing, instead of building executables without them.
 * LauncherCacheRaceTests (S1) - watcher_launcher passes over a cached copy removed between its listing
   and the newest-copy pick, instead of ending the launch.
+* DurationsCommentTests (documentation drift) - durations.yml's comment names the part counts its
+  refresh passes.
 """
 from __future__ import annotations
 
@@ -294,6 +296,16 @@ class WindowBuildInputTests(unittest.TestCase):
         self.assertIn("codex-auto-resume.ico is missing", run.stderr + run.stdout)
         self.assertEqual(run.built, [])
 
+
+class DurationsCommentTests(unittest.TestCase):
+    def test_the_comment_names_the_counts_the_refresh_passes(self):
+        text = (WORKFLOWS / "durations.yml").read_text(encoding="utf-8")
+        said = re.search(r"deals the standard lane into (\d+) and the advanced into (\d+),\s*#\s*"
+                         r"and release\.yml and the main-tree job deal the release lane into (\d+)\.", text)
+        passed = re.search(r"--parts standard=(\d+),advanced=(\d+),release=(\d+)", text)
+        self.assertIsNotNone(said)
+        self.assertIsNotNone(passed)
+        self.assertEqual(said.groups(), passed.groups())
 
 if __name__ == "__main__":
     unittest.main()
