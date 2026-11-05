@@ -136,6 +136,8 @@ METHODS = {
     # the identity gate - Codex's history caught up, and no newer Codex than the engine's - out of dispatch.py at
     # its size (engine/freshness.py);
     "_identity_waits",
+    # why a record waits where the last look paired no app (#58's follow-up), out of dispatch.py at its size too;
+    "_no_app_reason",
     # a continuation sent to another Codex session (P16's TO_SESSION, engine/tosession.py);
     "to_session", "_session", "_session_reason",
     # and the compaction turns after a full context window (engine/compaction.py).

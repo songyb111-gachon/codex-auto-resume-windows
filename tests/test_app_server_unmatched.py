@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import sys
 import tempfile
+import types
 import unittest
 from unittest.mock import patch
 
@@ -24,7 +25,7 @@ from codexsim import CodexHome, SimBackend  # noqa: E402
 from codex_auto_resume import l10n, logbook, machine  # noqa: E402
 from codex_auto_resume.codex import pairing, transport  # noqa: E402
 from codex_auto_resume.domain.errors import AdapterError  # noqa: E402
-from codex_auto_resume.engine.dispatch import no_app_reason  # noqa: E402
+from codex_auto_resume.engine.freshness import FreshnessMixin  # noqa: E402
 from codex_auto_resume.ownreport import evidence  # noqa: E402
 from test_engine import EngineCase, T1  # noqa: E402
 
@@ -193,13 +194,17 @@ class EngineWaitTests(LookCase, EngineCase):
         self.assertEqual([call[0] for call in self.h.backend.send_calls], [T1])
 
 
+def no_app_reason(backend) -> str:
+    return FreshnessMixin._no_app_reason(types.SimpleNamespace(backend=backend))
+
+
 class WordsTests(unittest.TestCase):
     def test_a_backend_that_cannot_say_says_what_it_always_said(self):
         """codexsim's backend, frozen at v0.6.10's, has no such attribute."""
         self.assertEqual(no_app_reason(object()), CLOSED)
         for look in (None, "closed", "matched", "anything else"):
-            self.assertEqual(no_app_reason(type("Told", (), {"app_look": look})()), CLOSED, look)
-        self.assertEqual(no_app_reason(type("Told", (), {"app_look": "unmatched"})()), UNMATCHED)
+            self.assertEqual(no_app_reason(types.SimpleNamespace(app_look=look)), CLOSED, look)
+        self.assertEqual(no_app_reason(types.SimpleNamespace(app_look="unmatched")), UNMATCHED)
 
     def test_it_is_a_reason_of_the_vocabulary_and_the_gates(self):
         self.assertIn(UNMATCHED, machine.REASONS)
