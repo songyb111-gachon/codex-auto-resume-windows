@@ -123,7 +123,10 @@ Apps starts copies the Dashboard program into a new folder of its own in the tem
 the folder is removed once the copy has ended.
 
 **Never reads**: `auth.json`, tokens, cookies, authorization headers, or process memory. The Codex
-processes it starts use Codex's own stored sign-in; this tool never sees it.
+processes it starts use Codex's own stored sign-in; this tool never sees it. The one exception is a
+feature of the advanced edition, off until a person turns it on, that switches between the person's own
+saved Codex accounts: it reads and replaces `auth.json` and keeps sealed copies of it (*Saved Codex
+accounts*, under *The advanced edition*).
 
 **Never opens for writing**: a Codex database, rollout or configuration file. If a Codex database
 uses SQLite's write-ahead log, SQLite may still update the shared-memory index file (`-shm`) beside
@@ -559,6 +562,19 @@ The standards are the project's own list, kept by the owner and published in
 section names one by its id it also says in a few words what that standard is, as each
 capability's statement does. [EDITIONS.md](EDITIONS.md) describes the two editions, and each
 capability, in plain words.
+
+**Saved Codex accounts.** One feature of this edition, off until a person turns it on and hidden until its
+measurements pass on the Codex in force, departs from *Never reads* above. To switch between the person's own Codex
+accounts at a usage limit, it reads Codex's sign-in file `auth.json`, keeps a copy of each saved account's file - with
+the account's address and plan - in the installation's `accounts` folder, each sealed with Windows' data protection for
+the current Windows user (a copy opens only for that user, and on another PC only where that user's profile roams with
+its keys), and puts another saved account's copy in place of `auth.json` while the Codex app is closed. That folder's
+access list lets in the current user alone. For a moment a copy is a plain file in a private Codex home under that
+folder, removed after each read; one a crash left is swept at the next look. It writes `auth.json` only where the file
+there is the one it expects, never over a sign-in a person made, and never while another Codex engine may use that
+home. Nothing of a copy reaches the settings, a log, the journal, diagnostics, a report or the network; the Dashboard
+shows the address masked. The saved accounts can be deleted on their card in every state, and an uninstall that
+deletes the settings deletes them too.
 
 **How the two editions are kept apart.**
 
