@@ -78,6 +78,18 @@ class PageTests(PageCase):
         words = script["advanced-words"][0]["result"]["words"]
         return "en", {"script": script, "steps": steps}, {"words": words}
 
+    @classmethod
+    def scenario_typing(cls, bridge):
+        """A turn running; the person writes while reads change the card, then sends."""
+        script, steps = cls.opened(bridge, reading(running=True))
+        steps += [{"do": "chat_type", "text": "Hello world", "caret": 5, "selected": 0}, {"do": "look"}]
+        steps += poll(reading("waiting", running=True))
+        steps += [{"do": "chat_type", "text": "Hello world", "caret": 2, "selected": 3}]
+        steps += poll(reading("in_flight", running=True))
+        script["advanced-chat-send"] = [reading("in_flight", "waiting", running=True)]
+        steps += [{"do": "answer", "with": [True]}, {"do": "chat_send", "text": "Hello world"}, {"do": "look"}]
+        return "en", {"script": script, "steps": steps}, {}
+
     # ---------------------------------------------------------------- C1
     def test_a_read_with_no_answer_keeps_the_view_and_the_two_second_read(self):
         """Fails with the view dropped on any failed read: the light goes back and the read stops."""
@@ -97,6 +109,22 @@ class PageTests(PageCase):
         self.assertFalse(refused["viewed"])
         self.assertEqual(refused["light"], "monitoring")
         self.assertEqual(len(sent(result, "advanced-chat-read")), 6, "the arrival's two reads and the four polls")
+
+    # ---------------------------------------------------------------- C2
+    def test_a_rebuild_keeps_the_caret_and_what_is_chosen(self):
+        """Fails with the box made again on each rebuild: its caret is back at the start."""
+        result, _expected = self.of("scenario_typing")
+        typed, rebuilt, chosen, _sent = (look["chat"] for look in result["looks"][1:])
+        self.assertEqual((typed["words"], typed["caret"], typed["selected"]), ("Hello world", 5, 0))
+        self.assertEqual((rebuilt["words"], rebuilt["caret"], rebuilt["selected"]), ("Hello world", 5, 0))
+        self.assertEqual(rebuilt["light"], WORKING, "the read was shown: the card was built again")
+        self.assertEqual((chosen["words"], chosen["caret"], chosen["selected"]), ("Hello world", 2, 3))
+
+    def test_a_message_sent_leaves_the_box_empty(self):
+        result, _expected = self.of("scenario_typing")
+        after = result["looks"][-1]["chat"]
+        self.assertEqual(after["words"], "")
+        self.assertEqual(len(sent(result, "advanced-chat-send")), 1)
 
 
 
