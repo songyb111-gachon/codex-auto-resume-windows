@@ -147,8 +147,9 @@ them `thread/goal/set`, `thread/queue/add` with words this product wrote, and `t
   networking module, and a test fails if one gains an import of a networking module, so the
   watcher opens no connection of its own. That is a property of the code, checked by that test,
   not a sandbox. In the advanced edition, from v0.6.20, the courier (the package's `courier/`) is the
-  one exception, and only while push notices or the status feed is on: a short-lived process of its
-  own that sends to the services a person typed in and reads status.openai.com (*The courier*, under
+  one exception, and only while push notices, the status feed or the status server is on: a short-lived process of its
+  own that sends to the services a person typed in and reads status.openai.com - or, for the status server, a resident
+  one that listens on 127.0.0.1 (*The courier*, under
   [The advanced edition](#the-advanced-edition)). The advanced edition's compatibility report reaches GitHub only by starting gh, the
   GitHub CLI the person installed, when they ask in the Dashboard (*The compatibility report*, under
   [The advanced edition](#the-advanced-edition)). The traffic we know the product causes comes from elsewhere:
@@ -699,7 +700,7 @@ advanced edition's only network code: `pythonw.exe` running the advanced package
 the watcher at most once a minute while a notice waits or a status reading is due (or by the
 Dashboard's service for a test notice, a Telegram pairing or a reading now), windowless, in the
 starting process's job object made KILL_ON_JOB_CLOSE, one per installation under a named mutex. It
-sends, then exits; it never listens. Every request is HTTPS with the certificate verified (Windows'
+sends, then exits; that run never listens. Every request is HTTPS with the certificate verified (Windows'
 store, TLS 1.2 or later, never downgraded), no redirect followed, no user name or password in an
 address, no IP literal or loopback host; a body of at most 4 KiB, a reply read to 64 KiB. Its hosts
 are the ones a person types (an ntfy topic, a webhook, an SMTP server on 465 or 587), api.telegram.org
@@ -710,6 +711,27 @@ word of a conversation. Addresses, tokens and passwords are kept in Windows Cred
 diagnostics or a bridge answer. At most 30 notices an hour across channels, three tries each,
 dropped after seven days; twenty refusals in a day switch a channel off. Paused, nothing is written,
 sent or read. The status feed's words are shown, never read by any decision.
+
+**The resident courier and the loopback API** (v0.6.22; each off until a person turns it on). The same program with
+`--serve`, kept running by the watcher while the status server is on: at most three restarts an hour, then its card says
+stopped; a mutex of its own, so it never holds a notice back; windowless, in the watcher's job object, so it ends with the
+watcher. It holds the one listening socket of this product (a test fails if a second shipped file can listen,
+`tests/test_privacy_claims.py`), bound to 127.0.0.1 alone, with exclusive use of its port - or to every network only
+while *Open the status server to your local network* is on too, where Windows asks about its firewall and the product
+changes no rule. Each request, in this order: closed for five minutes after ten wrong tokens in a minute (503); exactly
+one Host header, naming 127.0.0.1 or localhost with the port - or, open to the network, an IPv4 address with the port -
+or 421, which is what stops a web page rebinding a name to it; an unknown path 404, another method 405; a Bearer token kept
+in Windows Credential Manager and compared in constant time, or 401; an action while actions are off 403; a body over 1 KiB
+413. No answer carries a CORS header, a cookie or a server's version; a query string is never read, and nothing is logged:
+no request, no address, no failure. At most eight requests at once, ten seconds each. What it serves is the status file's
+closed keys and the waiting recoveries as `task N` with their public codes, never an id, a label or a path. What it does is
+core's own pause and cancel, by the list the caller read or 409: it reduces, and has no route that sends, chats, changes a
+setting, turns a feature on, sends now or gives attempts back (a test holds the routes to the design's table). Only the
+watcher sends: neither its code nor anything it calls by name touches a claim or a dispatch (a test reads the imports and
+the names, and drives every route with a spy on each claim method). Its web page names no host and loads nothing, under a
+Content-Security-Policy that lets it connect only to itself; it takes the token from the address's fragment, which a browser
+never sends, and writes what it reads as text. Its token is the second secret of this edition, kept and never shown as
+the courier's are. On a network the connection is not encrypted; the statement says so.
 
 **The measurement harness.** The advanced edition's archive also carries `measure` (the advanced
 package's `measure.py`), with which the owner finds out whether a

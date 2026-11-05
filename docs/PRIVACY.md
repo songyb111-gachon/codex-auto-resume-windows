@@ -818,7 +818,8 @@ checks the standard edition's code (`tests/test_privacy_claims.py`), and what it
 anything, they ask of the Codex already on this machine - but for the compatibility report, which asks
 gh, the GitHub CLI you installed, to reach GitHub, and only when you start it (*What it sends to
 GitHub*, below); and, from v0.6.20, the courier, the advanced edition's only network code, which runs
-only while push notices or the status feed is on (*What the courier sends*, below).
+only while push notices, the status feed or the status server is on (*What the courier sends* and *What the status server
+shows*, below).
 
 - **What the courier sends** (v0.6.20). With *Send notices to your phone or inbox* on, a notice you
   picked - a usage limit detected, a recovery done or failed, a conversation that needs you, the
@@ -832,6 +833,14 @@ only while push notices or the status feed is on (*What the courier sends*, belo
   and keeps two words and a count; that page sees this PC's address and the time. The addresses,
   tokens and passwords you type are kept in Windows Credential Manager, never in a file, a log or
   the diagnostics. While recovery is paused nothing is sent or read.
+
+- **What the status server shows** (v0.6.22). With *Read this PC's status from a browser or a script* on, a program on this
+  PC holding its token can read what the status file holds - whether the watcher runs, whether recovery is on, how many
+  recoveries wait and at which state, the next check, usage as last read - and the waiting recoveries as `task 1`, `task 2`,
+  never a conversation's title or words, a project, a path, an id or an account. The token is kept in Windows Credential
+  Manager; the address the card copies carries it, so that address is as private as the token. Nothing is logged. With
+  *Open the status server to your local network* on too, the same is open to whoever on your network holds the token, over
+  a connection that is not encrypted, so the token and the status can be read by anyone watching that network.
 
 - **What it reads.** Three values an administrator may set under
   `Software\Policies\CodexAutoResume`, in `HKEY_LOCAL_MACHINE` and `HKEY_CURRENT_USER` -
