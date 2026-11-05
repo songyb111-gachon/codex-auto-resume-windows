@@ -148,6 +148,20 @@ jobs:
           # still holds `contents: read`, and the repository is public.
           fetch-depth: 0
 
+      # A release is built from main, and a tag push publishes: a tag put on a dev commit would
+      # publish a release of dev's tree, and a published version is never replaced. sync-ko
+      # refuses the same way. A dispatch publishes nothing, so it may still build any ref.
+      - name: Refuse a tag that is not on main
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor HEAD FETCH_HEAD; then
+            echo "::error::${GITHUB_REF_NAME} is on $(git rev-parse HEAD), which is not on main; a release is only ever built from main"
+            exit 1
+          fi
+
       - name: Set up Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:

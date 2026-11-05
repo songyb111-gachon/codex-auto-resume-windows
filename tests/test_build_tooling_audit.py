@@ -4,6 +4,8 @@
   `sha256sum -c` finds the file it names; the digest is the file's, as before.
 * JobTimeoutTests (W1, W2) - each long job of test.yml, release.yml and sync-ko.yml has a limit far
   above a healthy run and far below GitHub's six-hour default.
+* TagOnMainTests (W3) - release.yml's build refuses a pushed tag whose commit is not on main, before it
+  builds anything; a dispatch, which publishes nothing, is not refused.
 """
 from __future__ import annotations
 
@@ -82,6 +84,27 @@ class JobTimeoutTests(unittest.TestCase):
         for (workflow, name), minutes in self.LIMITS.items():
             with self.subTest(workflow=workflow, job=name):
                 self.assertEqual(_timeout(workflow, name), minutes)
+
+
+class TagOnMainTests(unittest.TestCase):
+    def setUp(self):
+        self.build = _job("release.yml", "build")
+        found = re.search(r"- name: Refuse a tag that is not on main\n(.*?)(?=\n      - |\Z)", self.build, re.S)
+        self.assertIsNotNone(found, "release.yml's build has no step refusing a tag that is not on main")
+        self.step = found.group(1)
+
+    def test_the_step_runs_for_a_tag_push_only(self):
+        self.assertIn("if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')", self.step)
+
+    def test_the_tagged_commit_must_be_on_main(self):
+        self.assertIn("git fetch --no-tags origin main", self.step)
+        self.assertIn("git merge-base --is-ancestor HEAD FETCH_HEAD", self.step)
+        self.assertIn("exit 1", self.step)
+
+    def test_it_comes_before_anything_is_built(self):
+        self.assertLess(self.build.index("Refuse a tag that is not on main"),
+                        self.build.index("make_release.py"))
+        self.assertIn("fetch-depth: 0", self.build[:self.build.index("Refuse a tag that is not on main")])
 
 
 if __name__ == "__main__":
