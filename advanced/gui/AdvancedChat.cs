@@ -503,7 +503,11 @@ namespace CodexAutoResume
                 {
                     if (thread != chatThread) return;
                     Dictionary<string, object> result = AdvancedResult(reply);
-                    chatView = AdvancedDone(result) ? result : null;
+                    // v0.6.23: a read that got no answer - a timeout, the long-lived bridge being reconnected - keeps the
+                    // last view, and with it the two-second read while a message was last seen waiting or on its way: one
+                    // failed read used to blank the card and stop the read for good (ChatGoingOn of no view is false).
+                    // An answer that refuses (not done) still empties it.
+                    if (result != null || chatView == null) chatView = AdvancedDone(result) ? result : null;
                     FillChatPage(null);
                     UpdateCountdowns();
                 });
