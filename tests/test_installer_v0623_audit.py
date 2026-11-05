@@ -440,7 +440,7 @@ class N7BracketsInFolderNames(Scratch):
         """Every Test-Path, Get-Item, Get-ChildItem, Get-Content, Resolve-Path and Remove-Item of the scripts names its
         path with -LiteralPath (a New-Item or an Env: drive path is no wildcard)."""
         pattern = re.compile(r"\b(Test-Path|Get-Item|Get-ChildItem|Get-Content|Resolve-Path|Remove-Item|Copy-Item|Move-Item)\b")
-        for relative in ("build/install/install.ps1", "scripts/bootstrap.ps1", "build/make_gui.ps1"):
+        for relative in ("build/install/install.ps1", "scripts/bootstrap.ps1", "build/make_gui.ps1", "build/preview_gui.ps1"):
             lines = (ROOT / relative).read_text(encoding="utf-8").splitlines()
             for number, line in enumerate(lines, 1):
                 code = line.split("#")[0] if line.lstrip().startswith("#") else line
@@ -628,6 +628,60 @@ class N12WhatAnUninstallLeaves(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
         self.assertNotIn("saved for switching", done.stdout)
         self.assertIn("Removed. Settings and pending recoveries were kept.", done.stdout)
+
+
+@unittest.skipUnless(WINDOWS and POWERSHELL.is_file(), "the tool is PowerShell on Windows")
+class N13PreviewToolRefusesTheRealInstallation(Scratch):
+    """build/preview_gui.ps1 deployed over the real installation and stopped every settings window. It is never run
+    here: its refusal is lifted out and asked about paths, and the order of the script is read."""
+
+    PREVIEW = ROOT / "build" / "preview_gui.ps1"
+    SOURCE = PREVIEW.read_text(encoding="utf-8")
+
+    def refusal(self, target, profile, override=""):
+        code, output = run_ps(
+            "$r = Get-PreviewRefusal -Target $env:CAR_T -Profile $env:CAR_P -Override $env:CAR_O\n"
+            "@{ refusal = $r } | ConvertTo-Json -Compress\n", script=self.PREVIEW,
+            CAR_T=target, CAR_P=profile, CAR_O=override)
+        self.assertEqual(code, 0, output[-1500:])
+        return last_json(output)["refusal"]
+
+    def test_the_real_installations_are_refused_in_every_form(self):
+        sep = os.sep
+        profile = str(self.root / "profile")
+        override = str(self.root / "elsewhere" / "car-home")
+        real = profile + sep + ".codex-auto-resume"
+        for target in (real, real + sep, real.upper(), real + sep + "app", real + sep + "app" + sep + "src" + sep + ".." + sep + "..",
+                       profile, override, override + sep + "runtime", str(self.root / "elsewhere")):
+            with self.subTest(target=target):
+                why = self.refusal(target, profile, override)
+                self.assertIsNotNone(why)
+                self.assertIn("real installation", why)
+
+    def test_no_target_is_refused_and_says_what_to_pass(self):
+        for target in ("", "   "):
+            why = self.refusal(target, str(self.root / "profile"))
+            self.assertIn("-Target", why)
+            self.assertIn("never uses the real installation", why)
+
+    def test_a_scratch_copy_is_the_only_thing_it_will_deploy_over(self):
+        profile = str(self.root / "profile")
+        self.assertIsNone(self.refusal(str(self.root / "scratch-copy"), profile, str(self.root / "elsewhere" / "car-home")))
+        self.assertIsNone(self.refusal(str(self.root / "profile-copy" / ".codex-auto-resume"), profile))
+
+    def test_it_refuses_before_it_builds_stops_or_copies_anything(self):
+        text = self.SOURCE[self.SOURCE.index("#>") + 2:]            # the code, not the header
+        call = text.index("$refusal = Get-PreviewRefusal -Target $Target")
+        self.assertIn("exit 2", text[call:call + 300])
+        for later in ("Add-Type @'", "make_gui.ps1') -Root", "Get-Process -Name", "Copy-Item", "Start-Process", "CopyFromScreen"):
+            self.assertLess(call, text.index(later), later)
+
+    def test_it_stops_only_the_window_that_runs_from_the_target_and_never_names_the_profile(self):
+        text = self.SOURCE
+        for found in re.finditer(r"Get-Process -Name 'CodexAutoResumeSettings'", text):
+            self.assertIn("$_.Path -ieq $target", text[found.start():found.start() + 220])
+        self.assertNotIn("Join-Path $env:USERPROFILE '.codex-auto-resume'", text.replace("(Join-Path $Profile", ""))
+        self.assertEqual(text.count("$_.Kill()"), 1)
 
 
 if __name__ == "__main__":
