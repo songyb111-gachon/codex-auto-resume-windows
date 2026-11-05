@@ -358,8 +358,10 @@ def build_setup(archive: Path, edition: str, release: str) -> Path:
 def write_sidecar(target: Path) -> str:
     """`<sha256>  <name>` in <name>.sha256 beside the file, as every file of a release has; the digest."""
     digest = hashlib.sha256(target.read_bytes()).hexdigest()
-    (target.parent / (target.name + ".sha256")).write_text(
-        "%s  %s\n" % (digest, target.name), encoding="utf-8")
+    # LF, not the runner's CRLF: `sha256sum -c` reads the name up to the line end, and with a
+    # carriage return it looks for "<name>\r" and calls a good download unreadable.
+    with open(target.parent / (target.name + ".sha256"), "w", encoding="utf-8", newline="\n") as sidecar:
+        sidecar.write("%s  %s\n" % (digest, target.name))
     return digest
 
 

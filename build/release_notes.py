@@ -113,7 +113,8 @@ def main(argv=None) -> int:
     text = Path(args.changelog).read_text(encoding="utf-8")
     body = notes(text, args.version)
     if args.output:
-        Path(args.output).write_text(body + "\n", encoding="utf-8")
+        with open(args.output, "w", encoding="utf-8", newline="\n") as output:
+            output.write(body + "\n")
     else:
         # The changelog contains em dashes and other punctuation a legacy console
         # codepage cannot represent, and printing it should not depend on which
