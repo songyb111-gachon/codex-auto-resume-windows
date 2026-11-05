@@ -422,6 +422,13 @@ class Arming:
         view = self.view() if view is None else view
         return warnings_for(definition, view, self._table(view), checked=self.checked(view))
 
+    def check(self, definition, view=None) -> dict:
+        """How `definition` stands for the Codex in force, as a person is told it (v0.6.22, autocheck.grade): a word of
+        CheckGrade, and the oldest earlier Codex a person measured it on where that is what an automatic pass carries."""
+        view = self.view() if view is None else view
+        word, earlier = autocheck.grade(_rests_on(definition), engine_version(view), self._table(view), self.checked(view))
+        return {"grade": str(word), "version": earlier}
+
     # ------------------------------------------------------------------ now
     def current(self, *, view=None, policy=None) -> dict:
         """{id: state now} for every capability of the registry, carrying out every trip and
@@ -1211,7 +1218,7 @@ class Arming:
         sends back the warnings' words and that version as the person's confirmation (`arm`)."""
         view = self.view()
         return dict(self.catalogs.statement(definition, locale, warnings=self.warnings(definition, view)),
-                    engine_version=engine_version(view))
+                    engine_version=engine_version(view), check=self.check(definition, view))
 
     def listing(self) -> dict:
         """Every capability as a surface shows it, in registry.SHOWN_ORDER: where it is stored, what it is now, since
@@ -1243,6 +1250,8 @@ class Arming:
                 "acknowledged_version": row.get("engine_version"),
                 "warnings": [str(word) for word in self.warnings(definition, view)],
                 "confirmed_warnings": [str(word) for word in row.get("warnings") or ()],
+                # v0.6.22: the grade the statement's line says (autocheck.grade), a closed word.
+                "check": self.check(definition, view)["grade"],
                 "kind": str(definition.kind),
                 # What it needs on (v0.6.16-beta.3): the ids it requires, and those of them not ARMED now,
                 # which turning it on must also turn on (surfaces.arm's `also`).

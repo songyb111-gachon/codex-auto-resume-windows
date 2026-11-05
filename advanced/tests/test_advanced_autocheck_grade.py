@@ -275,6 +275,67 @@ class StandingTests(RecordCase):
         self.assertEqual(made.arming.warnings(made.registry.get("test_wake")), (ArmingWarning.UNMEASURED,))
 
 
+class SurfaceTests(RecordCase):
+    """Every surface that shows how a capability stands: the statement, the list, Diagnostics - and none that Codex sends on."""
+
+    def setUp(self):
+        super().setUp()
+        self.measured = {Measurement.M6: (Verdict.PASS, EARLIER)}
+        self.made = self.runtime(ac.definition(measurements=(Measurement.M6,)))
+        self.definition = self.made.registry.get("test_wake")
+
+    def test_with_no_check_the_statement_says_unmeasured_as_ever(self):
+        shown = self.made.arming.statement(self.definition, "en")
+        self.assertEqual(shown["check"], {"grade": "unmeasured", "version": None})
+        self.assertEqual([item["warning"] for item in shown["warnings"]["items"]], ["unmeasured"])
+
+    def test_the_statement_carries_the_grade_and_the_person_s_earlier_codex(self):
+        self.found(m6="pass")
+        shown = self.made.arming.statement(self.definition, "en")
+        self.assertEqual(shown["check"], {"grade": "auto_checked", "version": EARLIER})
+        self.assertEqual(shown["warnings"]["items"], [], "compatible: nothing to confirm")
+
+    def test_a_person_turns_it_on_confirming_what_the_statement_showed(self):
+        self.found(m6="pass")
+        self.armed(self.made)
+        self.assertFalse(self.made.state.arming()["test_wake"]["warnings"])
+
+    def test_a_call_gone_is_a_warning_with_its_line_and_the_page_has_a_word_for_each_way_off(self):
+        self.found(m6="fail")
+        shown = self.made.arming.statement(self.definition, "ko")
+        self.assertEqual(shown["check"]["grade"], "check_failed")
+        (item,) = shown["warnings"]["items"]
+        self.assertEqual(item["warning"], "auto_check_failed")
+        self.assertIn("자동 검사", item["text"])
+        from codex_auto_resume_advanced import statement
+        self.assertIn("page.tripped.auto_check_failed", statement.PAGE_KEYS)
+        self.assertIn("page.kept.auto_check_failed", statement.PAGE_KEYS)
+
+    def test_the_list_carries_the_word_and_what_a_model_is_told_does_not(self):
+        self.found(m6="pass")
+        listing = self.made.arming.listing()
+        self.assertEqual(listing["capabilities"][0]["check"], "auto_checked")
+        from codex_auto_resume_advanced import surfaces
+        told = surfaces.mcp(self.made, {"request": "call", "tool": "list_advanced_capabilities", "arguments": {}})
+        self.assertNotIn("check", told["data"]["capabilities"][0])
+
+    def test_diagnostics_say_what_it_found_only_where_it_ran(self):
+        from codex_auto_resume_advanced import surfaces
+        self.assertNotIn("auto_check", surfaces.diagnostics(self.made))
+        self.found(m6="pass", m7="fail")
+        shown = surfaces.diagnostics(self.made)["auto_check"]
+        self.assertEqual(shown["engine"], HERE)
+        self.assertEqual(shown["results"], {"m6": "pass", "m7": "fail"})
+        self.assertEqual(shown["gone"], {"m7": ["thread/resume"]})
+        self.assertNotIn(str(self.home), str(shown), "no path")
+
+    def test_the_status_and_the_tray_never_carry_it(self):
+        from codex_auto_resume_advanced import surfaces
+        self.found(m6="pass")
+        self.assertNotIn("auto_check", surfaces.status(self.made))
+        self.assertNotIn("auto_check", surfaces.badge(self.made))
+
+
 class NeverAMeasurementTests(RecordCase):
     """A grade of its own: nothing that widens a route reads it."""
 
