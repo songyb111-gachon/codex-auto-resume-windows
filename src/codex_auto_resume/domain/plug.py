@@ -61,8 +61,8 @@ from .plughands import (Channel, Errand, RecordMove, RecordPurpose, Route, Sessi
 # 3 (v0.6.14): P8's errand, and P2's records carried out. 4 (v0.6.15-beta): P12, QUEUE_FOR_OPEN.
 # 5 (v0.6.16-beta.4): P16 asked with the app closed, and a route that takes core's words. 6 (v0.6.19): P13 asked at the
 # watcher's start and once it ended, with SUPERVISE and RESTART; P20, a notice told. 7 (v0.6.20): P21, how the tasks a
-# person armed the power action for stand.
-PLUG_API = 7
+# person armed the power action for stand. 8 (v0.6.22): P22, the residents asked while recovery is paused.
+PLUG_API = 8
 
 
 POINTS = tuple(Point)
@@ -238,6 +238,11 @@ class Plug:
         while the plug wants it (Guarded.notice). Its answer is not read."""
         return DEFER
 
+    def resident(self, view):                         # P22
+        """While recovery is paused, and only then (v0.6.22): an errand that keeps a resident running which sends nothing
+        to Codex - held as P8's is (Guarded.resident) - or DEFER. NULL keeps none: the standard edition has no resident."""
+        return DEFER
+
     def power(self, facts):                           # P21
         """How the tasks a person armed the power action for stand (v0.6.20, Discussion #57): asked by the watcher's
         power action only for an arming made for them (`tasks`), with `{"nonce", "armed_at", "now"}` - the arming's
@@ -295,7 +300,7 @@ HOOKS = {
     Point.CLAIM_LEDGER: "claim_ledger", Point.CONCURRENCY: "partition",
     Point.SUPERVISION: "supervise", Point.MOVED: "moved", Point.DELIVERY: "delivery",
     Point.UNLOADED: "unloaded", Point.ADMISSION: "admission", Point.ELIGIBILITY: "eligibility", Point.SESSIONS: "sessions",
-    Point.NOTICE: "notice", Point.POWER: "power",
+    Point.NOTICE: "notice", Point.POWER: "power", Point.RESIDENT: "resident",
 }
 
 # A hook may always restrict. HOLD keeps a record waiting, exactly as a gate that says WAIT
@@ -509,6 +514,17 @@ class Guarded:
         try:
             run = getattr(answer, "run", None)
         except Exception:                              # a `run` that raises when it is looked up
+            return DEFER
+        return Errand(run) if callable(run) else DEFER
+
+    def resident(self, view):
+        """P22: the errand the plug answered while recovery is paused, held as P8's (plughands.Errand) - or DEFER."""
+        answer = self._ask(Point.RESIDENT, view)
+        if answer is DEFER:
+            return DEFER
+        try:
+            run = getattr(answer, "run", None)
+        except Exception:
             return DEFER
         return Errand(run) if callable(run) else DEFER
 

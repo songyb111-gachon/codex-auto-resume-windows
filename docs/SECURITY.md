@@ -742,7 +742,9 @@ closed words, numbers and `task N`. `/status` and `/list` read; `/cancel task N`
 refused with "list again", and `/pause` reduce; `/continue task N` (core's release of a hold, which sends nothing and skips
 no gate) and `/recovery-on` (which an administrator's policy still refuses) need a second capability of their own. The
 offset is kept before a command is carried out, so it runs at most once. Five wrong codes during a pairing turn it off,
-whether or not it is kept on. It answers while recovery is paused, only the paired chat and only what that chat asked.
+whether or not it is kept on. It answers while recovery is paused, only the paired chat and only what that chat asked - after a watcher restart
+too: while paused, core asks the plug one question alone, P22, and only the residents that declare they send nothing to
+Codex answer it (the owner's word of 2026-11-06); no other capability is asked, so a pause still beats every send.
 Group chats: every member of a paired group is obeyed; the statement says so. The bot's token is only ever in the request's
 path, never in a log, the journal or an answer.
 

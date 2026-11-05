@@ -956,7 +956,7 @@ class RemoteBesideEveryCapabilityTests(ac.AdvancedCase):
 
     def test_they_answer_at_no_deciding_point(self):
         from codex_auto_resume_advanced.registry import LOCAL_API, LOCAL_API_ACTIONS, LOCAL_API_LAN
-        self.assertEqual(LOCAL_API.points, frozenset({Point.TICK}))
+        self.assertEqual(LOCAL_API.points, frozenset({Point.TICK, Point.RESIDENT}))
         self.assertEqual((LOCAL_API_ACTIONS.points, LOCAL_API_LAN.points), (frozenset(), frozenset()))
 
     def test_beside_every_shipped_capability_only_p8_is_shared_and_the_wake_timer_stays_last(self):
@@ -965,7 +965,7 @@ class RemoteBesideEveryCapabilityTests(ac.AdvancedCase):
         for definition in shipped.DEFINITIONS:
             if definition.id != LOCAL_API.id:
                 with self.subTest(definition.id):
-                    self.assertLessEqual(LOCAL_API.points & definition.points, frozenset({Point.TICK}))
+                    self.assertLessEqual(LOCAL_API.points & definition.points, frozenset({Point.TICK, Point.RESIDENT}))
         ticking = [definition.id for definition in shipped.DEFINITIONS if Point.TICK in definition.points]
         self.assertEqual(ticking[-1], "wake_for_reset")
 
@@ -986,7 +986,7 @@ class TelegramBesideEveryCapabilityTests(ac.AdvancedCase):
 
     def test_they_answer_at_no_deciding_point(self):
         from codex_auto_resume_advanced.registry import TELEGRAM_CONTINUE, TELEGRAM_REMOTE
-        self.assertEqual(TELEGRAM_REMOTE.points, frozenset({Point.TICK}))
+        self.assertEqual(TELEGRAM_REMOTE.points, frozenset({Point.TICK, Point.RESIDENT}))
         self.assertEqual(TELEGRAM_CONTINUE.points, frozenset())
         self.assertEqual(TELEGRAM_REMOTE.requires, ("push_notices",))
         self.assertEqual(TELEGRAM_CONTINUE.requires, ("telegram_remote",))

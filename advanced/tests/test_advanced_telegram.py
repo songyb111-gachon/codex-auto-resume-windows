@@ -31,6 +31,7 @@ from codex_auto_resume_advanced.courier import __main__ as courier  # noqa: E402
 from codex_auto_resume_advanced.engine import remote as engine_remote  # noqa: E402
 from codex_auto_resume_advanced.registry import PUSH_NOTICES, TELEGRAM_CONTINUE, TELEGRAM_REMOTE  # noqa: E402
 from codex_auto_resume_advanced.vocabulary import ArmingState, OffReason, Refusal, TRIPWIRES  # noqa: E402
+from codex_auto_resume.domain.plug import DEFER, Point  # noqa: E402
 
 CHAT = 1234567
 OTHER = 7654321
@@ -653,6 +654,101 @@ class CardTests(TelegramCase):
 
     def test_the_bridge_answers_both_and_no_more_is_passed_over_than_the_other_pcs(self):
         self.assertEqual(sorted(str(command) for command in surfaces.UNANSWERED), ["advanced-fleet", "advanced-fleet-save"])
+
+
+class PausedTests(TelegramCase):
+    """R3, as the owner decided on 2026-11-06 ("기다리게 해"): while recovery is paused core asks P22, and only of the residents
+    that declare they send nothing to Codex - so Telegram keeps waiting for commands after a watcher restart too."""
+
+    def setUp(self):
+        super().setUp()
+        self.on("push_notices", "telegram_remote", "telegram_continue")
+        from codex_auto_resume import control as core_control
+        self.paths.ensure()
+        self.control = core_control.Control(self.paths)
+        self.control.set_enabled(False)
+
+    def restarted(self, *definitions):
+        """A watcher that started again: a runtime of its own, its resident's mutex free, its starts noted."""
+        made = self.runtime(*(definitions or (PUSH_NOTICES, TELEGRAM_REMOTE, TELEGRAM_CONTINUE)))
+        made.arming.catalogs = statement.CATALOGS
+        self.started = []
+        for definition in made.registry.at(Point.RESIDENT):
+            code = made._code_of(definition)
+            code._running = lambda paths: False
+            code._launch = lambda paths: self.started.append(paths) or True
+        return made
+
+    def test_after_a_restart_while_paused_the_poller_is_started_and_recovery_on_lifts_the_pause(self):
+        """Fails with P22 reverse-applied: the new watcher asks nothing while paused, no resident starts, and the pause
+        made from the phone can only be lifted at the PC."""
+        made = self.restarted()
+        answer = made.resident({})
+        self.assertTrue(callable(getattr(answer, "run", None)))
+        answer.run(None)
+        self.assertEqual(len(self.started), 1, "one resident for both")
+        poller = telegram.Poller(made, secrets=self.secrets, opener=Bot(), layer=self.control, clock=lambda: self.now,
+                                 locale="en")
+        self.assertEqual(self.said("/recovery-on", poller=poller), ["Recovery is on again."])
+        with self.control._open() as store:
+            self.assertTrue(store.settings()["enabled"])
+
+    def test_the_edition_s_plug_answers_p22_and_wants_it_while_a_resident_stands_on(self):
+        """Through the plug core holds (Guarded over AdvancedPlug): fails where the plug leaves P22 to NULL's answer."""
+        from codex_auto_resume.domain.plug import guard
+        made = self.plug(PUSH_NOTICES, TELEGRAM_REMOTE, TELEGRAM_CONTINUE)
+        self.started = []
+        code = made.runtime._code_of(made.runtime.registry.get("telegram_remote"))
+        code._running = lambda paths: False
+        code._launch = lambda paths: self.started.append(paths) or True
+        held = guard(made)
+        self.assertTrue(held.wants(Point.RESIDENT))
+        answer = held.resident({})
+        self.assertTrue(callable(getattr(answer, "run", None)))
+        answer.run(lambda: None)
+        self.assertEqual(len(self.started), 1)
+
+    def test_while_paused_no_other_capability_s_errand_runs(self):
+        """Only what answers at P22 is asked: a capability that sends - or any that only answers at P8 - is not."""
+        sends = ac.definition(points=frozenset({Point.TICK, Point.GATES}))
+        made = self.restarted(PUSH_NOTICES, TELEGRAM_REMOTE, TELEGRAM_CONTINUE, sends)
+        made.arming.catalogs = ac.catalogs(Path(self.home).parent / "with-sends", sends)
+        warned = [str(word) for word in made.arming.warnings(sends)]
+        self.assertTrue(self.arm(made, "test_wake", warnings=warned)["done"])
+        asked = []
+        ac.code_of(made).answers["tick"] = lambda view: asked.append("tick") or Errand()
+        ac.code_of(made).answers["resident"] = lambda view: asked.append("resident") or Errand()
+        answer = made.resident({})
+        self.assertEqual([definition.id for definition, _errand in answer.errands], ["telegram_remote"])
+        self.assertEqual(asked, [])
+
+    def test_a_resident_that_does_not_declare_is_refused_and_one_that_declares_little_else(self):
+        """A capability answering at P22 says it sends nothing: the registry refuses one that also answers where core
+        decides or sends."""
+        from codex_auto_resume_advanced.registry import problems
+        self.assertIn("a resident answers at P8 and P22 alone: it sends nothing to Codex",
+                      problems(ac.definition(points=frozenset({Point.RESIDENT, Point.SENDER}))))
+        self.assertEqual(problems(ac.definition(points=frozenset({Point.RESIDENT, Point.TICK}))), [])
+
+    def test_watched_it_is_journalled_and_nothing_starts(self):
+        self.rt.arming.disarm("telegram_remote", actor="dashboard")
+        self.on("telegram_remote")
+        self.rt.arming.disarm("telegram_remote", actor="dashboard")
+        self.assertTrue(self.arm(self.rt, "telegram_remote", state="shadow")["done"])
+        made = self.restarted()
+        self.assertIs(made.resident({}), DEFER)
+        self.assertEqual(self.started, [])
+
+    def test_off_nothing_is_asked(self):
+        self.rt.arming.disarm("push_notices", actor="dashboard")
+        made = self.restarted()
+        self.assertIs(made.resident({}), DEFER)
+        self.assertEqual(self.started, [])
+
+
+class Errand:
+    def run(self, guard):
+        return None
 
 
 if __name__ == "__main__":

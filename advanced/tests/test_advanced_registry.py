@@ -158,6 +158,8 @@ class ShippedTests(unittest.TestCase):
                      Point.NOTICE: ("push_notices",),
                      # v0.6.20: how the tasks a person picked stand, for the power action.
                      Point.POWER: ("power_after_tasks",),
+                     # v0.6.22: while paused, the residents that send nothing to Codex (the owner's word of 2026-11-06).
+                     Point.RESIDENT: ("local_api", "telegram_remote"),
                      Point.RECORDS: ("reset_message", "prompt_queue", "empty_response", "subagent_parent",
                                      "keep_going", "usage_wrap_up", "codex_chat"),
                      # v0.6.15-beta: the lines a parent's continuation is given of its subagents' stops (5a).

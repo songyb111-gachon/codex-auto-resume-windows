@@ -101,7 +101,7 @@ class ArmedTests(ResidentCase):
 
     def test_a_paused_watcher_asks_nothing_core_s_rule(self):
         """Core asks P8 only after its consent gate (K5): nothing here starts anything of its own accord."""
-        self.assertEqual(self.rt.registry.get("local_api").points, frozenset({Point.TICK}))
+        self.assertEqual(self.rt.registry.get("local_api").points, frozenset({Point.TICK, Point.RESIDENT}))
         self.assertEqual(self.rt.registry.get("local_api_actions").points, frozenset())
 
 

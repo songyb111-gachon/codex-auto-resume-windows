@@ -303,6 +303,10 @@ def problems(definition) -> list:
     if type(definition.resends) is not bool or (
             definition.resends is True and Point.SCHEDULE not in (points if isinstance(points, frozenset) else ())):
         found.append("resends")
+    # v0.6.22: P22 is asked while recovery is paused, so answering there says the capability sends nothing to Codex: a
+    # resident answers at P8 and P22 alone, never at a point that decides or sends.
+    if isinstance(points, frozenset) and Point.RESIDENT in points and not points <= {Point.TICK, Point.RESIDENT}:
+        found.append("a resident answers at P8 and P22 alone: it sends nothing to Codex")
     requires = definition.requires
     if (not isinstance(requires, tuple)
             or not all(isinstance(other, str) for other in requires)
@@ -1375,7 +1379,7 @@ STATUS_FEED = CapabilityDef(
 # does; its ceilings are the schema's floor and never bind: it sends nothing to Codex.
 LOCAL_API = CapabilityDef(
     id="local_api",
-    points=frozenset({Point.TICK}),
+    points=frozenset({Point.TICK, Point.RESIDENT}),
     revision=1,
     departs_from=("C1", "C2", "B14", "F8", "F6", "D1", "C12"),
     compat="engine_present",
@@ -1423,6 +1427,8 @@ LOCAL_API_LAN = CapabilityDef(
     kind=CapabilityKind.ACTION,
 )
 
+# Both declare they send nothing to Codex by answering at P22 (the owner's word of 2026-11-06), so core keeps their resident
+# running while recovery is paused too, a watcher restart included: a pause made from the phone can be lifted from it.
 # Control recovery from Telegram (v0.6.22, D-remote.md): while it stands on, the resident courier long-polls the bot
 # push_notices keeps, obeying the one chat its pairing kept and ignoring every other in silence (courier/telegram.py):
 # /status, /list, /cancel task N against the list last sent, /pause. Reads and reduce-actions; no command sends to Codex,
@@ -1434,7 +1440,7 @@ LOCAL_API_LAN = CapabilityDef(
 # ceilings are the schema's floor and never bind.
 TELEGRAM_REMOTE = CapabilityDef(
     id="telegram_remote",
-    points=frozenset({Point.TICK}),
+    points=frozenset({Point.TICK, Point.RESIDENT}),
     revision=1,
     departs_from=("C1", "C2", "C3", "C8", "D1", "F6", "F8"),
     compat="engine_present",

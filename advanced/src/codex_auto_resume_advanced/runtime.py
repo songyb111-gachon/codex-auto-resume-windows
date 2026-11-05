@@ -852,6 +852,34 @@ class Runtime:
             errands.append((definition, answer))
         return _Errands(self, errands) if errands else DEFER
 
+    def resident(self, view):
+        """P22 (v0.6.22, the owner's word of 2026-11-06): asked by core only while recovery is paused - the errands of the
+        capabilities that declare, by answering at P22, that they send nothing to Codex (registry.problems holds them to
+        P8 and P22 alone): each one on with an errand, joined as P8's are; a watched one's journalled, never run. Nothing
+        else is asked, so a pause still beats every capability's send."""
+        if not len(self.registry):
+            return DEFER
+        states = self.states(fresh=True)
+        errands = []
+        for definition in self.registry.at(Point.RESIDENT):
+            state = states.get(definition.id, ArmingState.OFF)
+            if state == ArmingState.OFF:
+                continue
+            try:
+                answer = self._code_of(definition).resident(view)
+                run = None if answer is DEFER else getattr(answer, "run", None)
+            except Exception:
+                self._tripped(definition)
+                continue
+            if not callable(run):
+                continue
+            if state == ArmingState.SHADOW:
+                self._once(JournalCode.WOULD_HAVE, definition, Point.RESIDENT, Point.TICK, None)
+                continue
+            self._once(JournalCode.ACTED, definition, Point.RESIDENT, Point.TICK, None)
+            errands.append((definition, answer))
+        return _Errands(self, errands) if errands else DEFER
+
     def records(self, view):
         """P2: the records of this edition's own that core is to try, or to watch (v0.6.14): every message in
         flight, whatever its capability stands at now - core watches each to its end - but one claimed whose launch

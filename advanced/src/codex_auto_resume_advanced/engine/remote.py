@@ -15,11 +15,14 @@ turned off, so turning one off ends its role within seconds and turning all off 
 Watched, the errand is only journalled and never run (runtime.tick): nothing is started. Off, nothing is asked. So
 while it is off there is no process, no socket and no thread.
 
+Paused, core asks P8 nothing - but it asks P22, and both answer there (v0.6.22, the owner's word of 2026-11-06): they
+declare they send nothing to Codex, so the resident is started while paused too, after a watcher restart included, and
+Telegram's /recovery-on can still arrive. The same errand, under the same cap.
+
 The others are actions - core never asks them; they only widen what the resident does while the capability they require
 stands on: local_api_actions lets the API pause and cancel, local_api_lan lets it bind beyond 127.0.0.1, and
-telegram_continue adds /continue and /recovery-on. Paused, P8 is not asked, so a resident that stopped is not started
-again until recovery is on; one that runs goes on serving (it reads, and its actions only reduce - or, under
-telegram_continue, are the person's own release of a hold or lift of the pause).
+telegram_continue adds /continue and /recovery-on. Paused, what the resident does still only reads and reduces - or, under
+telegram_continue, is the person's own release of a hold or lift of the pause.
 
 No network here: the errand only starts a process (courier/launch.py).
 """
@@ -93,6 +96,10 @@ class Resident:
 
     def bind(self, scoped):
         self._scoped = scoped
+
+    def resident(self, view):
+        """P22, asked only while recovery is paused: the same errand, so the courier stays reachable."""
+        return self.tick(view)
 
     def tick(self, view):
         scoped = self._scoped
