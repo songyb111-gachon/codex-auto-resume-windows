@@ -973,6 +973,27 @@ class ThePauseLetsGoAtASwitch(_usage.UsageCase):
         self.assertIs(self.rt.ask(Point.GATES, "usage", self.CORE, {}), DEFER)
 
 
+class TheStatementNamesTheEarlyLooksBound(unittest.TestCase):
+    """v0.6.23 audit A-M7: the statement said the waiting recoveries are looked at at once, but the capability's own
+    ceilings bound those early looks, and the statement did not say so."""
+
+    def test_every_catalog_names_the_bound_the_registry_keeps(self):
+        """Fails with the old statement: no catalog named the bound."""
+        import json
+        from codex_auto_resume_advanced.registry import ACCOUNT_AUTO_SWITCH
+        day, conversation = ACCOUNT_AUTO_SWITCH.ceilings.per_day, ACCOUNT_AUTO_SWITCH.ceilings.per_conversation
+        catalogs = sorted((Path(__file__).resolve().parents[1] / "src" / "codex_auto_resume_advanced" / "locales")
+                          .glob("*.json"))
+        self.assertEqual(len(catalogs), 18)
+        english = json.loads(catalogs[[c.stem for c in catalogs].index("en")].read_text(encoding="utf-8"))
+        self.assertIn("at most %d a day and %d for any one conversation" % (day, conversation),
+                      english["statement.account_auto_switch.does"])
+        for catalog in catalogs:
+            said = json.loads(catalog.read_text(encoding="utf-8"))["statement.account_auto_switch.does"]
+            self.assertIn(str(day), said[-160:], catalog.name)
+            self.assertIn(str(conversation), said[-160:], catalog.name)
+
+
 def swap_restarts():
     from codex_auto_resume_advanced.codex import restart
     return restart
