@@ -166,7 +166,11 @@ class TableTests(unittest.TestCase):
         2026-11-05, on codex-cli 0.166.0-alpha.6, the measurement session's no-hands sitting: MW, MHK, M3B and MF passed, M3
         and MB failed as before. MB2's scratch part held and waits for its live part; MGAVE and MN stayed blocked by their
         probes, MN because this account has reset credits now, so its record at zero credits stands.
-        2026-11-06, the same engine: MAUTO passed - the automatic check's own commands answered on a scratch home."""
+        2026-11-06, the same engine: MAUTO passed - the automatic check's own commands answered on a scratch home. MB2
+        failed: Codex refused thread/resume (-32600) of a conversation made under the built-in openai provider under a
+        provider of our own (modelProviderMismatch). MPROFILE passed - a second saved account read on a scratch home, the
+        real sign-in left as it was - and MSWAP passed by the owner's word: the app came up as the other saved account and
+        back, each with no sign-in page and no other Codex engine running."""
         passed = {m for m, (verdict, _v) in measured.MEASURED.items() if verdict == Verdict.PASS}
         failed = {m for m, (verdict, _v) in measured.MEASURED.items() if verdict == Verdict.FAIL}
         self.assertEqual(passed, {Measurement.MW, Measurement.M1, Measurement.M2B, Measurement.M5,
@@ -176,10 +180,11 @@ class TableTests(unittest.TestCase):
                                   Measurement.MXA, Measurement.MX, Measurement.MF, Measurement.MO,
                                   Measurement.M3B, Measurement.M6B, Measurement.MQO, Measurement.MQP,
                                   Measurement.MQG, Measurement.MANCHOR, Measurement.MIMG, Measurement.MOPEN,
-                                  Measurement.MHK, Measurement.MALR, Measurement.MAUTO})
+                                  Measurement.MHK, Measurement.MALR, Measurement.MAUTO, Measurement.MPROFILE,
+                                  Measurement.MSWAP})
         self.assertEqual(failed, {Measurement.M2, Measurement.M3, Measurement.M4, Measurement.MAWS,
                                   Measurement.MCLOUD, Measurement.MB, Measurement.MC2, Measurement.MSTEER,
-                                  Measurement.MSTEER2, Measurement.MAL})
+                                  Measurement.MSTEER2, Measurement.MAL, Measurement.MB2})
         new = "codex-cli 0.163.0-alpha.10.2"
         again = {Measurement.M1, Measurement.M5, Measurement.M6,
                  Measurement.M7, Measurement.MP1, Measurement.MP2, Measurement.MP3, Measurement.MIPC,
@@ -203,18 +208,14 @@ class TableTests(unittest.TestCase):
         self.assertEqual({m for m, (_v, version) in measured.MEASURED.items()
                           if version == "codex-cli 0.166.0-alpha.6"},
                          {Measurement.MW, Measurement.MHK, Measurement.M3B, Measurement.MF, Measurement.M3, Measurement.MB,
-                          Measurement.MAUTO})
+                          Measurement.MAUTO, Measurement.MB2, Measurement.MPROFILE, Measurement.MSWAP})
         self.assertEqual(set(Measurement) - passed - failed,
                          # v0.6.15-beta's own, for several conversations at once: not made yet.
                          {Measurement.MQ, Measurement.ME, Measurement.MS, Measurement.MK, Measurement.MT,
                           # v0.6.19's groundwork probes, made while its stage is built: not made yet.
                           Measurement.MTOK, Measurement.MWAKE, Measurement.M4B,
                           # v0.6.20: which code a turn kept at capacity through Codex's retries records.
-                          Measurement.MGAVE,
-                          # v0.6.22: Codex's own retry settings by a provider of our own, on our own server.
-                          Measurement.MB2,
-                          # v0.6.22: the automatic account switch's two, made by the measurement session.
-                          Measurement.MPROFILE, Measurement.MSWAP})
+                          Measurement.MGAVE})
 
 
 if __name__ == "__main__":

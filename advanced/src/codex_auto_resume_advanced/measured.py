@@ -118,4 +118,12 @@ MEASURED = {
     # 2026-11-06 (v0.6.22), the measurement session, no hands: the automatic check's own commands answered on the app's
     # engine, on a scratch Codex home the probe made and removed, with --experimental taken behind core's options.
     Measurement.MAUTO: (Verdict.PASS, CLI_0166_ALPHA_6),
+    # 2026-11-06 (v0.6.22), the measurement session: Codex refused thread/resume (-32600) of a conversation made under the
+    # built-in openai provider under a provider of our own (modelProviderMismatch), though the scratch part held (MB2). A
+    # second saved account was read on a scratch home, the real sign-in file, the app and its account left as they were
+    # (MPROFILE); the app came up as the other saved account and back, each with no sign-in page and no other Codex engine
+    # running - the probe blocked, completed by the owner's word (MSWAP).
+    Measurement.MB2: (Verdict.FAIL, CLI_0166_ALPHA_6),
+    Measurement.MPROFILE: (Verdict.PASS, CLI_0166_ALPHA_6),
+    Measurement.MSWAP: (Verdict.PASS, CLI_0166_ALPHA_6),
 }
