@@ -502,5 +502,42 @@ class N8PrereleaseOfferNeedsItsArchive(Scratch):
                       BOOTSTRAP_PS1)
 
 
+@unittest.skipUnless(WINDOWS and POWERSHELL.is_file(), "the installer is PowerShell on Windows")
+class N10LinkedProgramFolderIsNamed(Scratch):
+    """A runtime or app folder that is a link is refused as before, and the refusal says that is why."""
+
+    def say(self, linked):
+        import _winapi
+        home = self.root / "home"
+        (home / "app").mkdir(parents=True)
+        outside = self.root / "other-drive-runtime"
+        outside.mkdir()
+        if linked == "runtime":
+            _winapi.CreateJunction(str(outside), str(home / "runtime"))
+        else:
+            (home / "runtime").mkdir()
+        code, output = run_ps(
+            "$InstallHome = $env:CAR_HOME; $AppDir = Join-Path $InstallHome 'app'; $RunDir = Join-Path $InstallHome 'runtime'\n"
+            "Write-RootNotResolved -Done 'installed'\n"
+            "@{ said = @($script:Said); failed = $script:Failed } | ConvertTo-Json -Compress\n", CAR_HOME=str(home))
+        self.assertEqual(code, 0, output[-1500:])
+        return last_json(output), output
+
+    def test_a_linked_runtime_is_named(self):
+        answer, output = self.say("runtime")
+        self.assertIs(answer["failed"], True)
+        self.assertIn("fail: The installation root could not be resolved; nothing was installed.", answer["said"])
+        self.assertIn("is a link to another place", output)
+        self.assertIn(str(self.root / "home" / "runtime"), output)
+
+    def test_without_a_link_the_refusal_is_the_one_line_it_was(self):
+        answer, output = self.say(None)
+        self.assertEqual(answer["said"], ["fail: The installation root could not be resolved; nothing was installed."])
+
+    def test_both_refusals_use_it(self):
+        self.assertEqual(INSTALL_PS1.count("Write-RootNotResolved -Done"), 2)
+        self.assertNotIn("Fail 'The installation root could not be resolved", INSTALL_PS1)
+
+
 if __name__ == "__main__":
     unittest.main()

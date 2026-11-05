@@ -462,6 +462,24 @@ function Test-PathInside {
     return $c.StartsWith($p + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)
 }
 
+function Write-RootNotResolved {
+    <#
+        The refusal when the installation root cannot be proved to hold app\ and runtime\: `$Done` is "removed" or
+        "installed". A program folder that is a link or a junction - runtime\ moved to another drive and linked - resolves
+        outside the root and is refused for that, safely, and this says so (v0.6.23 audit, N10) instead of leaving the
+        person to guess. Nothing is followed or changed.
+    #>
+    param([string]$Done)
+    Fail ('The installation root could not be resolved; nothing was ' + $Done + '.')
+    foreach ($dir in @($AppDir, $RunDir)) {
+        $item = Get-Item -LiteralPath $dir -Force -ErrorAction SilentlyContinue
+        if ($item -and $item.LinkType) {
+            Write-Host ('       ' + $dir + ' is a link to another place, and this installer never follows a link.')
+            Write-Host ('       Move that folder back under ' + $InstallHome + ', then run this again.')
+        }
+    }
+}
+
 function Get-Edition {
     <#
         Which edition the tree whose `src` this is: the advanced one when the advanced
@@ -1410,7 +1428,7 @@ if ($Uninstall) {
     }
     $OwnedHome = Resolve-Canonical (@($verify)[-1])
     if (-not $OwnedHome -or -not (Test-PathInside $AppDir $OwnedHome)) {
-        Fail 'The installation root could not be resolved; nothing was removed.'
+        Write-RootNotResolved -Done 'removed'
         exit 1
     }
     # Before the first removal: the Dashboard asked to close, and nothing else of this installation's left holding
@@ -1684,7 +1702,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 $OwnedHome = Resolve-Canonical (@($claim)[1])
 if (-not $OwnedHome -or -not (Test-PathInside $AppDir $OwnedHome)) {
-    Fail 'The installation root could not be resolved; nothing was installed.'
+    Write-RootNotResolved -Done 'installed'
     exit 1
 }
 # A root outside the profile is made private to the person before a file of the program goes into it (R2).
