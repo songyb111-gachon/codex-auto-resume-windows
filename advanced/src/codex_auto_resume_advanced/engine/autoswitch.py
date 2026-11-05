@@ -48,8 +48,10 @@ EARLY_FOR = 900
 PER_DAY = 10
 DAY = 86400
 USAGE_LIMIT = "usage_limit"
-# What a switch or a settled crash came to that a person is told of once (codex/swap.py's closed words).
-NOT_FINISHED = ("not_signed_in", "not_put_back", "not_started", "changed_under", "failed", "left")
+# What a switch or a settled crash came to that a person is told of once (codex/swap.py's closed words). engine_alive
+# from a switch too (the review's finding 18): the app was closed and started in front of nobody and nothing came of it.
+# The look's own engine_alive (`_why_not`, nothing closed) stays silent.
+NOT_FINISHED = ("not_signed_in", "not_put_back", "not_started", "changed_under", "failed", "left", "engine_alive")
 
 
 class _Errand:

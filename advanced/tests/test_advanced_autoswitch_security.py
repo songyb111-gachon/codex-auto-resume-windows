@@ -796,6 +796,39 @@ class TheAppsOwnEnginesAreTheApps(SwapCase):
         self.assertEqual((self.codex / "auth.json").read_bytes(), ONE)
 
 
+class AStoppedSwitchSaysSo(unittest.TestCase):
+    """Finding 18: a switch that closed and reopened the app and then did nothing, because another engine still ran,
+    said nothing."""
+
+    def test_engine_alive_from_a_switch_asks_for_the_notice(self):
+        """Fails with engine_alive left out of NOT_FINISHED: notice() stayed None."""
+        from types import SimpleNamespace
+        from codex_auto_resume_advanced.engine import autoswitch
+        code = autoswitch.AutoSwitch(SimpleNamespace(home=Path(".")), store=SimpleNamespace(
+            directory=Path("does-not-exist"), intent=lambda: None), home=Path("does-not-exist"))
+        code._scoped = SimpleNamespace(count=lambda word: True, stamped=lambda key: None, stamp=lambda *a: None)
+        rows = [{"interruption_id": 1, "detected_at": 0}]
+        with patch.object(code, "waiting", lambda view, now: rows), \
+                patch.object(code, "_why_not", lambda view, found: None), \
+                patch.object(code, "choose", lambda store, now: "0123456789abcdef"), \
+                patch.object(swap, "recover", lambda *a, **k: None), \
+                patch.object(swap, "switch", lambda *a, **k: swap.ENGINE_ALIVE):
+            code.look(None, 1000)
+        self.assertEqual(code.notice(), {"key": "autoswitch:not_finished:0123456789abcdef", "why": "not_finished"})
+
+    def test_the_look_s_own_engine_alive_stays_silent(self):
+        from types import SimpleNamespace
+        from codex_auto_resume_advanced.engine import autoswitch
+        code = autoswitch.AutoSwitch(SimpleNamespace(home=Path(".")), store=SimpleNamespace(
+            directory=Path("does-not-exist"), intent=lambda: None), home=Path("does-not-exist"))
+        code._scoped = SimpleNamespace(count=lambda word: True, stamped=lambda key: None, stamp=lambda *a: None)
+        with patch.object(code, "waiting", lambda view, now: [{"interruption_id": 1, "detected_at": 0}]), \
+                patch.object(code, "_why_not", lambda view, found: "engine_alive"), \
+                patch.object(swap, "recover", lambda *a, **k: None):
+            code.look(None, 1000)
+        self.assertIsNone(code.notice())
+
+
 def swap_restarts():
     from codex_auto_resume_advanced.codex import restart
     return restart
