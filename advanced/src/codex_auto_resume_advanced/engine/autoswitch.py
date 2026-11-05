@@ -163,6 +163,8 @@ class AutoSwitch:
         settled = swap.recover(self.paths, store, home, read_real=self.read_real)
         if settled == swap.SWITCHED:
             self._switched(now)
+        elif settled is not None:
+            self._count(settled)
         rows = self.waiting(view, now)
         if self._why_not(view, rows) is not None:
             return None

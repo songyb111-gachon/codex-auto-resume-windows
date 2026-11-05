@@ -33,7 +33,9 @@ USAGE_READ = "account/rateLimits/read"
 ROOM_BELOW = 95
 # What a switch came to (closed words: the journal's and the card's).
 SWITCHED, NOT_SIGNED_IN, NOT_USABLE, NOT_CLOSED, FAILED = "switched", "not_signed_in", "not_usable", "not_closed", "failed"
-OUTCOMES = (SWITCHED, NOT_SIGNED_IN, NOT_USABLE, NOT_CLOSED, FAILED)
+# A switch left unfinished whose sign-in file is not the one it put in: the file is left as it is (recover).
+LEFT = "left"
+OUTCOMES = (SWITCHED, NOT_SIGNED_IN, NOT_USABLE, NOT_CLOSED, FAILED, LEFT)
 
 
 def default_backend_for(paths, exe=None):
@@ -232,8 +234,11 @@ def _read_real(paths) -> dict:
 
 def recover(paths, store, codex_home, *, read_real=None) -> str | None:
     """A switch the watcher did not see finish (an intent left behind by a crash): settled once and the intent cleared.
-    The account signed in now is read: the target's - SWITCHED; anything else - the previous profile's copy is put back
-    where Codex does not run, NOT_SIGNED_IN. None where no switch was under way."""
+    The account signed in now is read: the target's - SWITCHED. Anything else: only where the sign-in file in place is,
+    byte for byte, the target's copy this switch put in - and Codex does not run - the previous profile's copy goes back,
+    NOT_SIGNED_IN; a file it did not put there (the switch never got that far, Codex refreshed it, or a person signed in
+    since, the capability off meanwhile) is left exactly as it is, LEFT. Nothing writes the sign-in file unless it knows
+    what is there now. None where no switch was under way."""
     from ..profiles import ProfileError
     intent = store.intent()
     if intent is None:
@@ -245,13 +250,24 @@ def recover(paths, store, codex_home, *, read_real=None) -> str | None:
         if target is not None and now is not None and now == (target.get("email") or "").lower():
             store.mark_switched(target["email"])
             return SWITCHED
-        if isinstance(intent.get("from"), str) and not _app_running():
-            authfile.replace(codex_home, store.get(intent["from"])["auth"])
+        if target is None or not isinstance(intent.get("from"), str) or not _is_in_place(codex_home, target["auth"]):
+            return LEFT
+        if _app_running():
+            return LEFT
+        authfile.replace(codex_home, store.get(intent["from"])["auth"])
         return NOT_SIGNED_IN
     except (ProfileError, OSError):
         return FAILED
     finally:
         store.end()
+
+
+def _is_in_place(codex_home, data) -> bool:
+    """Whether the sign-in file at `codex_home` is, byte for byte, `data` - the one way to know what is there now."""
+    try:
+        return authfile.read(codex_home) == data
+    except authfile.AuthFileError:
+        return False
 
 
 def _app_running() -> bool:
