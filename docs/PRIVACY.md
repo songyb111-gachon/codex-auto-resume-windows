@@ -881,7 +881,8 @@ only while push notices or the status feed is on (*What the courier sends*, belo
   and reads each saved account's usage on a private Codex home there. The Dashboard shows the address
   masked; nothing of it goes into the settings, a log, diagnostics, a report or anywhere else. Delete
   them on their card at any time - the feature on, off or hidden - or with an uninstall that deletes
-  the settings.
+  the settings. Turning it off stops every switch, with one exception: a switch that did not finish is
+  still undone - the account signed in before it is put back - and nothing else is switched.
 - **What it stores.** `config/advanced/advanced.sqlite`, made only when something is first turned
   on or changed: each capability's state, since when, from which surface and why, the statement
   revision and the Codex version it was turned on for, and the warnings confirmed; each unit a

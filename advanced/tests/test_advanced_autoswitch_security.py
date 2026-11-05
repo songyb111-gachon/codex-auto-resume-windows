@@ -472,8 +472,10 @@ class AnAppThatDidNotComeBack(SwapCase):
     def test_the_watcher_releases_nothing_early_for_it(self):
         source = (Path(__file__).resolve().parents[1] / "src" / "codex_auto_resume_advanced" / "engine"
                   / "autoswitch.py").read_text(encoding="utf-8")
-        at = source.index("if outcome in (swap.SWITCHED, swap.NOT_STARTED):")
-        self.assertIn("if outcome == swap.SWITCHED:\n                self._switched(now)", source[at:at + 200])
+        at = source.index("swap.switch(self.paths, store, home, target")
+        after = source[at:at + 600]
+        self.assertIn("if outcome == swap.SWITCHED:\n            self._switched(now)", after)
+        self.assertNotIn("swap.NOT_STARTED):\n            self._switched", after)
 
 
 class SaysSoOnce(unittest.TestCase):
@@ -827,6 +829,247 @@ class AStoppedSwitchSaysSo(unittest.TestCase):
                 patch.object(swap, "recover", lambda *a, **k: None):
             code.look(None, 1000)
         self.assertIsNone(code.notice())
+
+
+class LookAgainBeforeTheClose(unittest.TestCase):
+    """v0.6.23 audit A-R1: busy and idle were checked before reading every saved account - which can take minutes - and
+    the app was then closed without looking again."""
+
+    def test_a_person_back_while_the_accounts_were_read_closes_nothing(self):
+        """Fails with the switch given the plain restart: the app was closed under the person's hands."""
+        import test_advanced_autoswitch as engine_tests
+        case = engine_tests.EngineCase("run")
+        case.setUp()
+        try:
+            looks = []
+
+            def busy():
+                looks.append(1)
+                return () if len(looks) == 1 else ("turn_running",)   # a turn started while the accounts were read
+            case.code._busy = busy
+            case.look()
+            self.assertEqual(case.fake.restarts, 0)
+            self.assertEqual(case.scoped.counted, [swap.HELD])
+            self.assertEqual((case.codex / "auth.json").read_bytes(), ONE)
+        finally:
+            case.doCleanups()
+
+
+class TheCeilingIsARolling24Hours(unittest.TestCase):
+    """v0.6.23 audit A-R2: "at most ten a day" was counted by UTC calendar day, so twenty could happen within minutes
+    around midnight UTC."""
+
+    def test_ten_before_midnight_utc_hold_the_ceiling_after_it(self):
+        """Fails with the calendar-day count: the eleventh switch went through one second after UTC midnight."""
+        import test_advanced_autoswitch as engine_tests
+        from codex_auto_resume_advanced.engine import autoswitch
+        case = engine_tests.EngineCase("run")
+        case.setUp()
+        try:
+            midnight = (engine_tests.NOW // autoswitch.DAY + 1) * autoswitch.DAY
+            case.store.note_attempts([midnight - 600 + index for index in range(autoswitch.PER_DAY)])
+            case.scoped.clock = midnight + 1
+            case.look([engine_tests.waiting("c", detected=case.scoped.clock - autoswitch.SETTLE)])
+            self.assertEqual(case.scoped.counted, ["ceiling"])
+            self.assertEqual((case.codex / "auth.json").read_bytes(), ONE)
+            case.scoped.clock = midnight - 600 + autoswitch.DAY
+            case.look([engine_tests.waiting("d", detected=case.scoped.clock - autoswitch.SETTLE)])
+            self.assertEqual(case.scoped.counted, ["ceiling", "switched"], "the first of the ten is 24 hours old")
+        finally:
+            case.doCleanups()
+
+
+class EveryCloseCounts(unittest.TestCase):
+    """v0.6.23 audit A-M2: an attempt that closed and restarted Codex without switching did not count toward the ten."""
+
+    def test_a_switch_put_back_still_counts(self):
+        """Fails with only SWITCHED and NOT_STARTED counted: two restarts, and the ceiling saw none."""
+        import test_advanced_autoswitch as engine_tests
+        case = engine_tests.EngineCase("run")
+        case.setUp()
+        try:
+            case.code._read_real = lambda: {"present": True, "plan_word": "plus", "email": "one@example.com"}
+            case.look()
+            self.assertEqual(case.scoped.counted, ["not_signed_in"])
+            self.assertEqual(case.fake.restarts, 2)
+            self.assertEqual(case.store.attempts(), [case.scoped.clock], "one attempt, counted once")
+        finally:
+            case.doCleanups()
+
+    def test_nothing_closed_counts_nothing(self):
+        import test_advanced_autoswitch as engine_tests
+        case = engine_tests.EngineCase("run")
+        case.setUp()
+        try:
+            looks = []
+            case.code._busy = lambda: (looks.append(1), () if len(looks) == 1 else ("queued",))[1]
+            case.look()
+            self.assertEqual(case.scoped.counted, [swap.HELD])
+            self.assertIsNone(case.store.attempts())
+        finally:
+            case.doCleanups()
+
+
+class APutBackIsFinishedWhileOff(unittest.TestCase):
+    """v0.6.23 audit A-M3: a switch left NOT_PUT_BACK was never finished once the capability was turned off - only the
+    armed look called recover."""
+
+    def test_off_the_put_back_is_still_finished_and_nothing_new_is_switched(self):
+        """Fails with no tend: nothing settled the intent while off, and Codex stayed on the dead copy."""
+        import test_advanced_autoswitch as engine_tests
+        case = engine_tests.EngineCase("run")
+        case.setUp()
+        try:
+            case.code._read_real = lambda: {"present": False, "plan_word": None, "email": None}
+            one = case.store.save(ONE, "one@example.com", "plus")
+            case.store.begin(one, case.two, step="back")
+            authfile.replace(case.codex, TWO)                    # the target's dead copy left in
+            errand = case.code.tend(None)
+            self.assertIsNotNone(getattr(errand, "run", None))
+            with patch.object(swap, "_app_running", lambda: True):
+                errand.run(None)
+            self.assertEqual((case.codex / "auth.json").read_bytes(), ONE)
+            self.assertIsNone(case.store.intent())
+            self.assertEqual(case.fake.restarts, 1, "the put-back's restart, and no switch")
+        finally:
+            case.doCleanups()
+
+    def test_nothing_under_way_is_nothing_to_tend(self):
+        import test_advanced_autoswitch as engine_tests
+        from codex_auto_resume.domain.plug import DEFER
+        case = engine_tests.EngineCase("run")
+        case.setUp()
+        try:
+            self.assertIs(case.code.tend(None), DEFER)
+        finally:
+            case.doCleanups()
+        source = (Path(__file__).resolve().parents[1] / "src" / "codex_auto_resume_advanced" / "runtime.py").read_text(
+            encoding="utf-8")
+        self.assertIn('TENDED = HEADLESS_CAPABILITIES + ("account_auto_switch",)', source)
+        self.assertIn("definition.id in TENDED", source)
+
+
+import test_advanced_usage as _usage  # noqa: E402
+
+
+class ThePauseLetsGoAtASwitch(_usage.UsageCase):
+    """v0.6.23 audit A-R4: usage_pause kept holding every recovery on the OLD account's window after an automatic switch,
+    until the meter read again - past the switch's fifteen-minute early window."""
+
+    CORE = {"interruption_id": _usage.ac.KEY, "thread_id": _usage.ac.THREAD}
+
+    def test_a_window_read_before_the_switch_holds_nothing(self):
+        """Fails with the mark kept: the gate still said HOLD on the new account."""
+        from codex_auto_resume.domain.plug import DEFER, Alternative, Point
+        from codex_auto_resume_advanced import profiles
+        self.on("usage_pause")
+        self.answer = _usage.reply(five=98)
+        self.look()
+        self.look()
+        self.assertIs(self.rt.ask(Point.GATES, "usage", self.CORE, {}), Alternative.HOLD)
+        read_at = self.rt.state.meter()[("codex", 300)]["read_at"]
+        with patch.object(authfile, "_PRIVATE", lambda directory: True):
+            profiles.Profiles(self.rt.paths.home, clock=lambda: int(read_at) + 5).mark_switched("two@example.com")
+        self.assertIs(self.rt.ask(Point.GATES, "usage", self.CORE, {}), DEFER)
+
+
+class TheStatementNamesTheEarlyLooksBound(unittest.TestCase):
+    """v0.6.23 audit A-M7: the statement said the waiting recoveries are looked at at once, but the capability's own
+    ceilings bound those early looks, and the statement did not say so."""
+
+    def test_every_catalog_names_the_bound_the_registry_keeps(self):
+        """Fails with the old statement: no catalog named the bound."""
+        import json
+        from codex_auto_resume_advanced.registry import ACCOUNT_AUTO_SWITCH
+        day, conversation = ACCOUNT_AUTO_SWITCH.ceilings.per_day, ACCOUNT_AUTO_SWITCH.ceilings.per_conversation
+        catalogs = sorted((Path(__file__).resolve().parents[1] / "src" / "codex_auto_resume_advanced" / "locales")
+                          .glob("*.json"))
+        self.assertEqual(len(catalogs), 18)
+        english = json.loads(catalogs[[c.stem for c in catalogs].index("en")].read_text(encoding="utf-8"))
+        self.assertIn("at most %d a day and %d for any one conversation" % (day, conversation),
+                      english["statement.account_auto_switch.does"])
+        for catalog in catalogs:
+            said = json.loads(catalog.read_text(encoding="utf-8"))["statement.account_auto_switch.does"]
+            self.assertIn(str(day), said[-160:], catalog.name)
+            self.assertIn(str(conversation), said[-160:], catalog.name)
+
+
+class APutBackOutlivesADelete(SwapCase):
+    """v0.6.23 audit A-R5: deleting the account a failed switch set aside - the obvious thing, it shows "needs a new
+    sign-in" - cancelled the pending put-back: recover could not get it, answered FAILED and cleared the intent."""
+
+    def setUp(self):
+        super().setUp()
+        self.two = self.store.save(TWO, "two@example.com", "plus")
+        patcher = patch.object(swap, "_app_running", lambda: True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def not_put_back(self):
+        fake = Fake(self)
+        calls = []
+
+        def restart(between):
+            calls.append(1)
+            if len(calls) == 1:
+                between()
+                return swap_restarts().RESTARTED, swap_restarts().CLOSED
+            return swap_restarts().NOT_ENDED, None
+        reads = iter([fake.read_real(), {"present": False, "plan_word": None, "email": None, "kind": None}])
+        self.assertEqual(swap.switch(None, self.store, self.codex, self.two, restart=restart,
+                                     read_real=lambda: next(reads), now=NOW), swap.NOT_PUT_BACK)
+
+    def test_deleting_the_account_set_aside_keeps_the_put_back(self):
+        """Fails with recover leaning on the deleted profile: FAILED, the intent gone, Codex left on the dead copy."""
+        self.not_put_back()
+        self.assertTrue(self.store.delete(self.two))
+        with patch.object(swap, "_app_running", lambda: False):
+            word = swap.recover(None, self.store, self.codex, read_real=Fake(self, signs_in=False).read_real)
+        self.assertEqual(word, swap.NOT_SIGNED_IN)
+        self.assertEqual((self.codex / "auth.json").read_bytes(), ONE)
+        self.assertIsNone(self.store.intent())
+
+    def test_deleting_the_previous_account_keeps_it_too(self):
+        self.not_put_back()
+        self.assertTrue(self.store.delete(self.store.find("one@example.com")))
+        with patch.object(swap, "_app_running", lambda: False):
+            word = swap.recover(None, self.store, self.codex, read_real=Fake(self, signs_in=False).read_real)
+        self.assertEqual(word, swap.NOT_SIGNED_IN)
+        self.assertEqual((self.codex / "auth.json").read_bytes(), ONE)
+
+    def test_a_file_not_put_in_is_still_left_alone(self):
+        self.not_put_back()
+        self.store.delete(self.two)
+        (self.codex / "auth.json").write_bytes(THREE)            # a person signed in meanwhile
+        with patch.object(swap, "_app_running", lambda: False):
+            word = swap.recover(None, self.store, self.codex, read_real=Fake(self, signs_in=False).read_real)
+        self.assertEqual(word, swap.LEFT)
+        self.assertEqual((self.codex / "auth.json").read_bytes(), THREE)
+
+
+class TheStopTextNamesItsOneException(unittest.TestCase):
+    """After A-M3 a switch that did not finish is still undone once the capability is off; the stop text said
+    "nothing is switched from then on" and named no exception."""
+
+    def test_every_catalog_and_both_documents_name_it_and_the_revision_moved(self):
+        """Fails with the old words: no catalog's stop text, and no document, named the exception."""
+        import json
+        from codex_auto_resume_advanced.registry import ACCOUNT_AUTO_SWITCH
+        self.assertEqual(ACCOUNT_AUTO_SWITCH.revision, 2, "a person who turned it on reads the statement again")
+        root = Path(__file__).resolve().parents[2]
+        catalogs = sorted((root / "advanced" / "src" / "codex_auto_resume_advanced" / "locales").glob("*.json"))
+        self.assertEqual(len(catalogs), 18)
+        stops = {c.stem: json.loads(c.read_text(encoding="utf-8"))["statement.account_auto_switch.stop"] for c in catalogs}
+        self.assertIn("a switch that did not finish is still undone", stops["en"])
+        self.assertIn("끝나지 않은 전환", stops["ko"])
+        self.assertEqual(len(set(stops.values())), 18)
+        for name in ("SECURITY.md", "PRIVACY.md"):
+            self.assertIn("a switch that did\nnot finish is still undone" if name == "SECURITY.md"
+                          else "a switch that did not finish is\n  still undone",
+                          (root / "docs" / name).read_text(encoding="utf-8"), name)
+        import languages
+        for name in ("SECURITY.ko.md", "PRIVACY.ko.md") if languages.both_languages() else ():
+            self.assertIn("끝나지 않은 전환은 여전히", (root / "docs" / name).read_text(encoding="utf-8"), name)
 
 
 def swap_restarts():

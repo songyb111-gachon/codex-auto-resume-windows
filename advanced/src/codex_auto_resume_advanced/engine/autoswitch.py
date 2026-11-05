@@ -67,6 +67,20 @@ class _Errand:
             return None
 
 
+class _Settle:
+    """tend's errand: the unfinished switch settled, nothing else."""
+    __slots__ = ("code",)
+
+    def __init__(self, code):
+        self.code = code
+
+    def run(self, guard):
+        try:
+            return self.code.settle()
+        except Exception:
+            return None
+
+
 def _idle():
     from .opentarget import idle_seconds
     return idle_seconds()
@@ -113,8 +127,9 @@ class AutoSwitch:
         return restarts.busy(self.paths, usage_waiting_ok=True)
 
     def _restart_now(self, between):
-        """codex/restart.restart for a put-back a later look finishes - None where it may not restart now: something runs
-        or is queued, or someone uses this PC (the switch's own rule, `_why_not`)."""
+        """codex/restart.restart for a switch, or a put-back a later look finishes - None where it may not restart now:
+        something runs or is queued, or someone uses this PC (the switch's own rule, `_why_not`), looked at again right
+        before the close: reading every saved account can take minutes (the v0.6.23 audit's A-R1)."""
         idle = self._idle()
         if self.busy() or not isinstance(idle, (int, float)) or idle < IDLE:
             return None
@@ -173,10 +188,36 @@ class AutoSwitch:
         return None
 
     def _today(self, now) -> int:
-        day = int(now // DAY) + 1
-        if self._scoped.stamped(OptionKey.AUTO_SWITCH_DAY) != day:
-            return 0
-        return self._scoped.stamped(OptionKey.AUTO_SWITCH_COUNT) or 0
+        """How many switches were made in the last DAY seconds - a rolling 24 hours, not a UTC calendar day, which let
+        twenty through around midnight UTC (the v0.6.23 audit's A-R2)."""
+        return len(self._recent(now))
+
+    def _recent(self, now) -> list:
+        store = self.store()
+        try:
+            times = store.attempts()
+        except Exception:
+            times = None
+        if times is None:
+            # Before v0.6.23 the count was the UTC day's, in two stamps: kept as switches made now, so an update never
+            # frees that day's ceiling early.
+            day = int(now // DAY) + 1
+            legacy = self._scoped.stamped(OptionKey.AUTO_SWITCH_COUNT) or 0
+            legacy = legacy if self._scoped.stamped(OptionKey.AUTO_SWITCH_DAY) == day else 0
+            times = [int(now)] * min(int(legacy), PER_DAY)
+            if times:
+                self._keep(times)
+        return [value for value in times if 0 <= now - value < DAY]
+
+    def _attempted(self, now) -> None:
+        """One more switch counted toward the 24-hour ceiling."""
+        self._keep((self._recent(now) + [int(now)])[-PER_DAY:])
+
+    def _keep(self, times) -> None:
+        try:
+            self.store().note_attempts(times)
+        except Exception:
+            pass
 
     def look(self, view, now):
         """One look; see the module's docstring. Returns nothing: what it did is in the journal and the stamps."""
@@ -211,16 +252,23 @@ class AutoSwitch:
             # One notice for this set of waiting records (core's kind accounts_exhausted, plug.NOTICE_KINDS).
             self._notice = {"key": "autoswitch:%d" % int(min(row["detected_at"] for row in rows))}
             return None
-        outcome = swap.switch(self.paths, store, home, target, restart=self._restart, read_real=self.read_real, now=now)
+        closed = []
+
+        def hands(between):
+            # Whether this attempt closed the Codex app (how it ended, CLOSED or ENDED): every such attempt counts toward
+            # the ceiling, a switch or not - it is about restarts in front of a person too (the v0.6.23 audit's A-M2).
+            found = self._restart_now(between)
+            if isinstance(found, tuple) and len(found) > 1 and found[1] is not None:
+                closed.append(found[1])
+            return found
+        outcome = swap.switch(self.paths, store, home, target, restart=hands, read_real=self.read_real, now=now)
         self._count(outcome)
         if outcome in NOT_FINISHED:
             self._not_finished(target)
-        if outcome in (swap.SWITCHED, swap.NOT_STARTED):
-            if outcome == swap.SWITCHED:
-                self._switched(now)                      # NOT_STARTED: the app is closed, so P7 releases nothing early
-            day = int(now // DAY) + 1
-            self._scoped.stamp(OptionKey.AUTO_SWITCH_COUNT, self._today(now) + 1)
-            self._scoped.stamp(OptionKey.AUTO_SWITCH_DAY, day)
+        if outcome == swap.SWITCHED:
+            self._switched(now)                          # NOT_STARTED: the app is closed, so P7 releases nothing early
+        if outcome in (swap.SWITCHED, swap.NOT_STARTED) or closed:
+            self._attempted(now)
         return None
 
     def choose(self, store, now):
@@ -266,6 +314,33 @@ class AutoSwitch:
         """{"key"} of the last look that found every saved account at its limit - or {"key", "why": "not_finished"} of a
         switch that did not finish - for the watcher to show once; or None."""
         return self._notice
+
+    # ------------------------------------------------------------------ off or watched
+    def tend(self, view):
+        """While the capability is off or watched (runtime.TENDED, the v0.6.23 audit's A-M3): a switch it left unfinished -
+        a put-back still waiting - is settled at most every LOOK_EVERY seconds, by codex/swap.recover alone, through the
+        same restart hands; never a new switch, never a read of another account. DEFER where no switch is under way."""
+        scoped = self._scoped
+        if scoped is None:
+            return DEFER
+        try:
+            now = scoped.now()
+            if self._looked is not None and 0 <= now - self._looked < LOOK_EVERY:
+                return DEFER
+            self._looked = now
+            if self.store().intent() is None:
+                return DEFER
+            return _Settle(self)
+        except Exception:
+            return DEFER
+
+    def settle(self):
+        from ..codex import swap
+        settled = swap.recover(self.paths, self.store(), self.home(), read_real=self.read_real,
+                               restart=self._restart_now)
+        if settled is not None:
+            self._count(settled)
+        return None
 
     # ------------------------------------------------------------------ P7
     def schedule(self, record, eligible_at):

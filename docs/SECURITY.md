@@ -574,7 +574,8 @@ folder, removed after each read; one a crash left is swept at the next look. It 
 there is the one it expects, never over a sign-in a person made, and never while another Codex engine may use that
 home. Nothing of a copy reaches the settings, a log, the journal, diagnostics, a report or the network; the Dashboard
 shows the address masked. The saved accounts can be deleted on their card in every state, and an uninstall that
-deletes the settings deletes them too.
+deletes the settings deletes them too. Turning the feature off stops every switch, with one exception: a switch that did
+not finish is still undone - the account signed in before it is put back - and nothing else is switched.
 
 **How the two editions are kept apart.**
 

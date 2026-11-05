@@ -32,6 +32,8 @@ FOLDER = "accounts"
 SUFFIX = ".dat"
 INTENT = "switch.intent"
 LAST = "switch.last"
+# When the last switches were made (v0.6.23 audit A-R2): the 24-hour ceiling counts these, not a calendar day's.
+TIMES = "switch.times"
 _ID = re.compile(r"^[0-9a-f]{16}$")
 # A profile's state word (the card's): ready to be switched to, at its limit until a time, or needing a fresh sign-in.
 READY, EXHAUSTED, NEEDS_SIGN_IN, DAMAGED = "ready", "exhausted", "needs_sign_in", "damaged"
@@ -48,6 +50,12 @@ KEEP_SECONDS = 60.0
 
 class ProfileError(OSError):
     """A profile that cannot be saved, read or found."""
+
+
+def digest(data) -> str:
+    """A sign-in file's bytes as the intent keeps them for comparison: sha256, hex."""
+    import hashlib
+    return hashlib.sha256(bytes(data)).hexdigest()
 
 
 class Locked(ProfileError):
@@ -235,13 +243,44 @@ class Profiles:
         except ProfileError:
             return {"damaged": True}
 
-    def begin(self, source, target, step="swap", tries=0) -> None:
+    def begin(self, source, target, step="swap", tries=0, *, put_in=None, previous=None, to_email=None) -> None:
         """A switch under way from `source` to `target`; `step` "back" once only the previous file's return is left,
-        `tries` the restarts made for it since."""
-        self._write(INTENT, {"from": source, "to": target, "at": int(self._clock()), "step": step, "tries": tries})
+        `tries` the restarts made for it since. For a put-back (v0.6.23 audit A-R5) the intent carries what it needs
+        without either profile - the digest of the copy put in, the previous copy itself and the target's address - so
+        deleting the account set aside, or the previous one, no longer cancels it. The intent is sealed as profiles are."""
+        value = {"from": source, "to": target, "at": int(self._clock()), "step": step, "tries": tries}
+        if put_in is not None:
+            value["put_in"] = put_in if isinstance(put_in, str) else digest(put_in)
+        if previous is not None:
+            value["previous"] = previous if isinstance(previous, str) else base64.b64encode(bytes(previous)).decode("ascii")
+        if isinstance(to_email, str):
+            value["to_email"] = to_email
+        self._write(INTENT, value)
 
     def end(self) -> None:
         self._remove(INTENT)
+
+    def last_switch_at(self):
+        """When this capability last put another account in (`switch.last`), or None."""
+        try:
+            last = self._read(LAST)
+        except ProfileError:
+            return None
+        at = last.get("at") if isinstance(last, dict) else None
+        return at if type(at) is int else None
+
+    def attempts(self):
+        """The times of the last switches (whole seconds), or None where none was ever kept. Delete all keeps them: the
+        day's ceiling is not freed by deleting the accounts."""
+        try:
+            found = self._read(TIMES)
+        except ProfileError:
+            return None
+        times = found.get("times") if isinstance(found, dict) else None
+        return [value for value in times if type(value) is int] if isinstance(times, list) else None
+
+    def note_attempts(self, times) -> None:
+        self._write(TIMES, {"times": [int(value) for value in times]})
 
     def mark_switched(self, email) -> None:
         self._write(LAST, {"email": email.lower(), "at": int(self._clock())})
