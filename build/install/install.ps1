@@ -2040,7 +2040,13 @@ try {
         $null = Remove-OwnedItem $stale.FullName
     }
     if (-not (Test-Path -LiteralPath $Python)) { Fail 'The bundled Python runtime is missing from the payload.'; exit 1 }
-    $runtimeVersion = & $Python -X disable-remote-debug -c 'import sys;print(str(sys.version_info[0])+chr(46)+str(sys.version_info[1]))'
+    # Under 'Stop' a line the interpreter writes to stderr is, run outside another app (streams merged, `*>&1`), a
+    # terminating NativeCommandError that ended the update after the program trees were replaced (v0.6.23 audit, N4).
+    # For this call alone it is only written, and the version is the text it printed.
+    $runtimeVersion = @(& {
+        $ErrorActionPreference = 'Continue'
+        & $Python -X disable-remote-debug -c 'import sys;print(str(sys.version_info[0])+chr(46)+str(sys.version_info[1]))'
+    }) | Where-Object { $_ -is [string] } | Select-Object -First 1
     Ok ('Bundled Python ' + $runtimeVersion + ' (no system Python needed)')
 
     # The payload is itself a valid local marketplace, so the plugin installs from the bytes

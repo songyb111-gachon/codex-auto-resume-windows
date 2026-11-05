@@ -295,5 +295,38 @@ class N3PurgeSaysWhatItKept(unittest.TestCase):
             self.assertFalse((self.home / name).exists(), name)
 
 
+@unittest.skipUnless(WINDOWS and POWERSHELL.is_file(), "the installer is PowerShell on Windows")
+class N4RuntimeVersionProbe(Scratch):
+    """The bundled interpreter's version probe survives a line on stderr when the streams are merged (run outside)."""
+
+    def probe(self, interpreter_body):
+        start = INSTALL_PS1.index("    $runtimeVersion = ")
+        end = INSTALL_PS1.index("    Ok ('Bundled Python '", start) + len("    Ok ('Bundled Python ' + $runtimeVersion + ' (no system Python needed)')")
+        python = self.root / "python.cmd"
+        python.write_text("@echo off\r\n" + interpreter_body, encoding="ascii")
+        script = ("Set-StrictMode -Version 2.0\n$ErrorActionPreference = 'Stop'\n"
+                  "function Ok { param([string]$m) Write-Host ('  [ok] ' + $m) }\n"
+                  "$Python = '%s'\nWrite-Host 'start'\n" % str(python).replace("'", "''") + INSTALL_PS1[start:end] +
+                  "\nWrite-Host 'went on'\n")
+        path = self.root / "probe.ps1"
+        path.write_text(script, encoding="utf-8-sig")
+        # The outside wrapper's own merge: every stream of the script into one.
+        done = subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command",
+                               "& '%s' *>&1 | ForEach-Object { [string]$_ }" % str(path).replace("'", "''")],
+                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8",
+                              errors="replace", timeout=120, creationflags=NO_WINDOW)
+        return done.stdout
+
+    def test_a_line_on_stderr_does_not_end_the_update(self):
+        output = self.probe("echo a warning from the interpreter 1>&2\r\necho 3.13\r\n")
+        self.assertIn("Bundled Python 3.13 (no system Python needed)", output)
+        self.assertIn("went on", output)
+
+    def test_a_quiet_interpreter_is_read_as_before(self):
+        output = self.probe("echo 3.15\r\n")
+        self.assertIn("Bundled Python 3.15 (no system Python needed)", output)
+        self.assertIn("went on", output)
+
+
 if __name__ == "__main__":
     unittest.main()
