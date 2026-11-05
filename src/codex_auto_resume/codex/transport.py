@@ -30,6 +30,12 @@ from .usage import parse_usage
 # this tool drives. Anything that cannot prove it is refused: a failed local check always
 # wins, whatever the Compatibility Registry says about the version.
 REQUIRED_QUEUE_FLAGS = ("--thread", "--message")
+
+
+def offers(help_text, flag) -> bool:
+    """Whether a `--help` text lists `flag` as an option of its own (v0.6.23, audit C6) - never the start of a longer
+    one: `--remote-auth-token` is not --remote, `--thread-id` is not --thread."""
+    return re.search(r"(?<![\w-])" + re.escape(flag) + r"(?![\w-])", help_text) is not None
 # The only App Server methods the finite helper may call.
 
 
@@ -118,8 +124,8 @@ class Backend:
         if result.returncode != 0:
             return False
         text = result.stdout
-        self.queue_remote_supported = "--remote" in text
-        return all(flag in text for flag in REQUIRED_QUEUE_FLAGS)
+        self.queue_remote_supported = offers(text, "--remote")
+        return all(offers(text, flag) for flag in REQUIRED_QUEUE_FLAGS)
 
     def _queue_daemon_remote(self) -> bool:
         """Choose the local managed daemon explicitly when Codex offers that route.
@@ -127,7 +133,10 @@ class Backend:
         Recent Codex refuses an embedded queue server with any -c override
         while a managed app-server daemon runs. Removing overrides would weaken
         the telemetry safeguards. --remote unix:// retains all the overrides.
-        Fail closed to the existing invocation if the home or process is unknown.
+        Fail closed to the existing invocation where the process list shows no
+        daemon of this home. v0.6.23 (audit C5): a process list that cannot be
+        read raises AdapterError - the send is not started this look and tried
+        again, since without --remote a running daemon refuses it after Popen.
         Never try both routes for one send, since delivery could be uncertain.
         """
         if not self.queue_remote_supported:
@@ -136,7 +145,7 @@ class Backend:
         try:
             rows = inventory()
         except (AdapterError, OSError, ValueError):
-            return False
+            raise AdapterError("process_inventory_unavailable") from None
         return any(
             isinstance(row, dict)
             and type(row.get("pid")) is int and row["pid"] > 0
@@ -324,9 +333,9 @@ class Backend:
             if not isinstance(prompt, str) or not prompt or len(prompt) > 8192 or "\0" in prompt:
                 raise ValueError("invalid_prompt")
             self._compatible()
+            remote = self._queue_daemon_remote()
         except (AdapterError, ValueError):
             return {"outcome": "not_started", "error_code": "queue_preflight_failed"}
-        remote = self._queue_daemon_remote()
         process = None
         try:
             with launch_guard if launch_guard is not None else nullcontext(True) as permitted:
