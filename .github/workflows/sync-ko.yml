@@ -73,8 +73,9 @@ jobs:
     # commits behind for four days the first time, and missed a release the second. Split
     # round-robin, the four parts took 9, 18, 18 and 32 minutes; scripts/test_parts.py deals them by
     # each file's measured duration, so each takes about an equal share and the suite can grow
-    # several times over before this limit is near.
-    timeout-minutes: 60
+    # several times over before this limit is near. 60 was still under a slow runner: on 2026-10-19
+    # one standard part took 85 minutes against its usual 25, so the limit is 90.
+    timeout-minutes: 90
     strategy:
       # Every part runs to the end, so one run shows every failure there is.
       fail-fast: false

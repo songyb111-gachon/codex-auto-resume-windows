@@ -74,6 +74,8 @@ class JobTimeoutTests(unittest.TestCase):
         ("release.yml", "test"): 150,
         ("release.yml", "build"): 150,
         ("release.yml", "publish"): 15,
+        ("sync-ko.yml", "test"): 90,
+        ("sync-ko.yml", "publish"): 15,
     }
 
     def test_each_job_has_its_limit(self):
