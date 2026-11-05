@@ -754,6 +754,48 @@ class TheCardOffTouchesNothingOfCodex(unittest.TestCase):
             self.assertNotIn(button, add_and_save, "Delete and Delete all stand in every state")
 
 
+class TheAppsOwnEnginesAreTheApps(SwapCase):
+    """Finding 17: with the app open only its main's direct children were excused, so an exec-server under the app server
+    read as another engine for ever; and once the main was gone its children, ending a moment later, gave ENGINE_ALIVE -
+    the app closed and started for nothing."""
+
+    MAIN = {"pid": 10, "parent": 1, "path": "C:\\WindowsApps\\ChatGPT.exe"}
+    SERVER = {"pid": 11, "parent": 10, "path": "C:\\app\\codex.exe"}
+    EXEC = {"pid": 12, "parent": 11, "path": "C:\\app\\codex.exe"}
+
+    def test_every_descendant_of_the_app_is_the_app_s(self):
+        """Fails with the old rule: the exec-server under the app server counted as another engine."""
+        from codex_auto_resume.codex import pairing
+        with patch.object(pairing, "_app_main", lambda rows: self.MAIN):
+            self.assertFalse(swap.other_engines([self.MAIN, self.SERVER, self.EXEC], app_open=True))
+            stray = {"pid": 40, "parent": 39, "path": "C:\\x\\codex.exe"}
+            self.assertTrue(swap.other_engines([self.MAIN, self.SERVER, stray], app_open=True))
+            loop = [{"pid": 50, "parent": 51, "path": "C:\\x\\codex.exe"},
+                    {"pid": 51, "parent": 50, "path": "C:\\x\\codex.exe"}]
+            self.assertTrue(swap.other_engines([self.MAIN] + loop, app_open=True), "a loop is not the app's")
+
+    def test_children_ending_after_the_main_get_their_time(self):
+        """Fails with the single look: the server still listed a moment after the main went gave ENGINE_ALIVE."""
+        two = self.store.save(TWO, "two@example.com", "plus")
+        looks = []
+
+        def inventory():
+            looks.append(self.clock[0])
+            return [self.SERVER, self.EXEC] if self.clock[0] < 2.0 else []
+        with patch.object(swap, "_inventory", inventory):
+            self.assertEqual(self.switch(Fake(self), two), swap.SWITCHED)
+        self.assertGreater(len(looks), 1)
+        self.assertEqual((self.codex / "auth.json").read_bytes(), TWO)
+
+    def test_an_engine_that_stays_is_engine_alive_once_the_time_is_up(self):
+        two = self.store.save(TWO, "two@example.com", "plus")
+        with patch.object(swap, "_inventory", lambda: None):
+            self.assertEqual(self.switch(Fake(self), two), swap.ENGINE_ALIVE)
+        self.assertGreaterEqual(self.clock[0], swap.ENGINES_SETTLE)
+        self.assertLess(self.clock[0], swap.ENGINES_SETTLE + 1)
+        self.assertEqual((self.codex / "auth.json").read_bytes(), ONE)
+
+
 def swap_restarts():
     from codex_auto_resume_advanced.codex import restart
     return restart

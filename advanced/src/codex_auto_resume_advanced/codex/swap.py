@@ -30,6 +30,7 @@ shape, given `between`) and `read_real` (the account read on the real home). A t
 from __future__ import annotations
 
 from pathlib import Path
+import time
 
 from . import authfile
 from .account import identity, parse
@@ -58,6 +59,13 @@ OUTCOMES = (SWITCHED, NOT_SIGNED_IN, NOT_USABLE, NOT_CLOSED, FAILED, LEFT, NOT_P
             ENGINE_ALIVE)
 # The most restarts later looks make to put the previous file back; after them they wait for Codex to be closed.
 BACK_TRIES = 3
+# Seconds the switch, once the app's main is gone, gives its children to end before it says another engine runs, and
+# how often it looks meanwhile (the review's finding 17: they end a moment after the main).
+ENGINES_SETTLE = 15.0
+ENGINES_LOOK = 0.5
+# The clock and the sleep of that wait: a test's, so no test really waits.
+_clock = time.monotonic
+_sleep = time.sleep
 
 
 def default_backend_for(paths, exe=None):
@@ -142,8 +150,11 @@ def _inventory():
 def other_engines(rows, *, app_open) -> bool:
     """Whether a Codex engine runs that may use this Codex home and is not the app's own (the security review's finding
     10). The inventory cannot tell a codex.exe's home - it reads no command line and no environment - so every codex.exe
-    counts but the app main's own children while the app is open (they end with it) and the app servers this process
-    started and holds (codex/pairing.own_server); rows that cannot be read count as one. It ends no process."""
+    counts but the app main's descendants while the app is open - its app server, and an exec-server under that (they
+    end with it), found by walking parents through the rows, a loop or a chain longer than the rows counting as not the
+    app's - and the app servers this process started and holds (codex/pairing.own_server); rows that cannot be read
+    count as one. It ends no process. The inventory carries no creation times, so a parent id Windows reused for a
+    process under the app is not told apart: a chain is walked by ids alone."""
     if not isinstance(rows, list):
         return True
     from codex_auto_resume.codex import pairing
@@ -155,15 +166,38 @@ def other_engines(rows, *, app_open) -> bool:
             main = pairing._app_main(rows)["pid"]
         except Exception:
             main = None
+    parents = {row.get("pid"): row.get("parent") for row in rows if isinstance(row, dict)}
+
+    def under_main(row) -> bool:
+        seen, at = set(), row.get("parent")
+        while at is not None and at not in seen and len(seen) <= len(rows):
+            if at == main:
+                return True
+            seen.add(at)
+            at = parents.get(at)
+        return False
     for row in rows:
         if not isinstance(row, dict) or not isinstance(row.get("path"), str):
             return True
         if Path(row["path"]).name.lower() != "codex.exe" or row.get("pid") in own:
             continue
-        if main is not None and row.get("parent") == main:
+        if main is not None and row.get("pid") != main and under_main(row):
             continue
         return True
     return False
+
+
+def engines_gone(seconds=ENGINES_SETTLE) -> bool:
+    """Whether no other engine runs (other_engines, the app closed), looking again every ENGINES_LOOK seconds for at
+    most `seconds`: the app's children end a moment after its main. Rows that cannot be read count as an engine once
+    the time is up. It ends no process."""
+    deadline = _clock() + seconds
+    while True:
+        if not other_engines(_inventory(), app_open=False):
+            return True
+        if _clock() >= deadline:
+            return False
+        _sleep(ENGINES_LOOK)
 
 
 def usage_of(reply) -> dict:
@@ -278,7 +312,7 @@ def _switch(paths, store, codex_home, target_id, *, restart=None, read_real=None
     def between():
         # The app is gone: the file in use goes back into its own profile, then the target's copy takes its place -
         # unless another engine that may use this home still runs (or that cannot be told): then nothing is written.
-        if other_engines(_inventory(), app_open=False):
+        if not engines_gone():
             done["engines"] = True
             return
         latest = authfile.read(codex_home)

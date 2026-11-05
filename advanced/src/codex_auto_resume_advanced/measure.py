@@ -2837,9 +2837,12 @@ PROBES = {
 _MPROFILE_FIELDS = ("profile_given", "added_by_login", "account_read", "own_account", "usage_read",
                     "real_file_unchanged", "app_unchanged", "real_still_signed_in")
 # MSWAP's `other_engine_alive`: a switch held because another Codex engine that may use this home still ran once the
-# app was gone, or that could not be told (codex/swap.ENGINE_ALIVE, the security review's finding 10).
+# app was gone and its children had their time to end, or that could not be told (codex/swap.ENGINE_ALIVE, the security
+# review's finding 10); `other_engine_alive_open`: the same question asked before the first switch with the app open -
+# what the watcher's look asks before it closes anything (engine/autoswitch `_why_not`, finding 17).
 _MSWAP_FIELDS = ("profiles_given", "app_was_running", "swapped", "signed_in_as_target", "swapped_back",
-                 "signed_in_as_first", "first_usage_read", "target_usage_read", "other_engine_alive")
+                 "signed_in_as_first", "first_usage_read", "target_usage_read", "other_engine_alive",
+                 "other_engine_alive_open")
 _STORE_WORDS = ("usable", "not_file", "no_file", "unreadable")
 
 
@@ -3383,6 +3386,7 @@ def _account_swap(backend, paths, home):
         found["app_was_running"] = None
     if restarts.busy(paths, source=LocalSource(Path(home)), store=_NoRecords()):
         return found
+    found["other_engine_alive_open"] = swap.other_engines(swap._inventory(), app_open=True)
     outcome = swap.switch(paths, store, home, others[0], restart=restart, read_real=read_real)
     found["other_engine_alive"] = outcome == swap.ENGINE_ALIVE
     found["swapped"] = outcome in (swap.SWITCHED, swap.NOT_SIGNED_IN)

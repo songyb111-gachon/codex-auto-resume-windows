@@ -95,6 +95,13 @@ class SwapCase(Temp):
         patcher = patch.object(swap, "_inventory", lambda: [])
         patcher.start()
         self.addCleanup(patcher.stop)
+        # The wait for the app's children to end runs on a clock of the test's: no test really waits.
+        self.clock = [0.0]
+        for name, value in (("_clock", lambda: self.clock[0]),
+                            ("_sleep", lambda seconds: self.clock.__setitem__(0, self.clock[0] + seconds))):
+            patcher = patch.object(swap, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
         self.store = profiles.Profiles(self.home, seal=sealed, open_=opened, clock=lambda: NOW)
         (self.codex / "auth.json").write_bytes(ONE)
 
