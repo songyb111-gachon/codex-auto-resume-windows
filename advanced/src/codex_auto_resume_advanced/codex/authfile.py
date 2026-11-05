@@ -132,6 +132,8 @@ def own_folder(directory) -> None:
     from codex_auto_resume import config
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
+    if not confined(directory):
+        raise AuthFileError("the saved accounts folder is a link")
     marker = directory / config.OWNER_MARKER
     if not marker.exists():
         try:
@@ -139,6 +141,21 @@ def own_folder(directory) -> None:
         except OSError:
             pass
         private(directory)
+
+
+def confined(directory) -> bool:
+    """Whether `directory` - the saved accounts folder - is no link or junction and resolves where it stands, under its
+    own parent (the security review's finding 12: a junction there sent the sealed copies and the plain scratch homes
+    outside). False where that cannot be told."""
+    from codex_auto_resume.config import is_link
+    directory = Path(directory)
+    try:
+        if is_link(directory):
+            return False
+        resolved = directory.resolve()
+        return resolved.parent == directory.parent.resolve() and resolved.name.lower() == directory.name.lower()
+    except (OSError, RuntimeError):
+        return False
 
 
 def _private_dacl(directory) -> bool:
@@ -282,6 +299,8 @@ class Scratch:
         own_folder(self.root)
         self.path = self.root / ("scratch-" + secrets.token_hex(6))
         self.path.mkdir()
+        if not confined(self.path):
+            raise AuthFileError("a scratch home is a link")
         (self.path / CONFIG).write_text('%s = "file"\n' % KEY, encoding="utf-8")
         if self.data is not None:
             write_atomic(self.path / NAME, check(self.data))

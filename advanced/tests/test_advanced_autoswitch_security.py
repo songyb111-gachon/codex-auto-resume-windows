@@ -541,6 +541,31 @@ class NoSwapBesideAnotherEngine(SwapCase):
         self.assertIn("other_engine_alive", measure._MSWAP_FIELDS)
 
 
+class AccountsFolderStaysWhereItIs(SwapCase):
+    """Finding 12 (R4): a junction at the accounts folder sent the sealed profiles and the plain scratch homes outside."""
+
+    def setUp(self):
+        super().setUp()
+        import _winapi
+        self.outside = self.dir / "outside"
+        self.outside.mkdir()
+        self.home.mkdir(parents=True, exist_ok=True)
+        _winapi.CreateJunction(str(self.outside), str(self.store.directory))
+
+    def test_nothing_is_written_read_or_made_through_it(self):
+        """Fails with the check removed: the profile and the scratch home landed in the junction's target."""
+        with self.assertRaises(OSError):
+            self.store.save(TWO, "two@example.com", "plus")
+        with self.assertRaises(OSError):
+            with authfile.Scratch(self.store.directory, TWO):
+                pass
+        self.assertEqual(list(self.outside.iterdir()), [])
+        (self.outside / "0123456789abcdef.dat").write_bytes(b"planted")
+        self.assertEqual(self.store.ids(), [])
+        self.assertFalse(self.store.delete("0123456789abcdef"))
+        self.assertTrue((self.outside / "0123456789abcdef.dat").exists())
+
+
 def swap_restarts():
     from codex_auto_resume_advanced.codex import restart
     return restart

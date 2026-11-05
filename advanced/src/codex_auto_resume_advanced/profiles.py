@@ -98,6 +98,8 @@ class Profiles:
         authfile.write_atomic(self.directory / name, self._seal(json.dumps(value, sort_keys=True).encode("utf-8")))
 
     def _read(self, name):
+        if not authfile.confined(self.directory):
+            raise ProfileError("the saved accounts folder is a link")
         try:
             blob = (self.directory / name).read_bytes()
         except FileNotFoundError:
@@ -113,6 +115,8 @@ class Profiles:
         return value
 
     def _remove(self, name) -> bool:
+        if not authfile.confined(self.directory):
+            return False                                     # never through a link at the folder
         try:
             (self.directory / name).unlink()
             return True
@@ -121,6 +125,8 @@ class Profiles:
 
     # ------------------------------------------------------------------ profiles
     def ids(self) -> list:
+        if not authfile.confined(self.directory):
+            return []
         try:
             names = sorted(path.name for path in self.directory.iterdir())
         except OSError:
