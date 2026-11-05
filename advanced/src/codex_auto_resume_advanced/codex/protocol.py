@@ -132,6 +132,11 @@ MEASUREMENT_METHODS = {
     Measurement.MSTEER2: (),
     # v0.6.20: MGAVE reads the history's database and the rollouts of a Codex home - no session.
     Measurement.MGAVE: (),
+    # v0.6.22: MB2 reads the config of our own server started with the retry provider's `-c` settings (on a scratch home),
+    # then on a throwaway conversation reads the account, lists, resumes, runs one turn and lets go, and on a plain
+    # server reads and lists that conversation again.
+    Measurement.MB2: ("config/read", "account/read", "thread/list", "thread/resume", "turn/start", "turn/interrupt",
+                      "thread/unsubscribe", "thread/read"),
 }
 
 # The methods a capability's own route may call, beyond `initialize` - each one a measurement
@@ -174,6 +179,10 @@ CAPABILITY_METHODS = {
     # else: a sign-out and a sign-in are Codex's own `codex logout` and `codex login` (codex/account.switch), never a
     # method of this session; FORBIDDEN_METHODS refuses every one of those whatever this row said.
     "account_switch": ("account/read",),
+    # v0.6.22: Codex's own retry settings (engine/retries.py) read the configuration and the account kind on our own
+    # server, MB2's first two reads, to know whether the retry provider fits - and nothing else: the settings are `-c`
+    # settings of the servers headless turns start, never a config write.
+    "codex_retry_settings": ("config/read", "account/read"),
 }
 
 # Every method some measurement declared: what a capability's own route may be given, and nothing

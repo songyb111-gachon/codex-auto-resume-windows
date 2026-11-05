@@ -72,6 +72,22 @@ EMPTY_REFUSED = False
 
 PREFLIGHT = {"outcome": "not_started", "error_code": "queue_preflight_failed"}
 SPAWN_FAILED = {"outcome": "not_started", "error_code": "queue_spawn_failed"}
+# v0.6.22: Codex's own retry settings (engine/retries.py) - the `-c` settings every server started here takes while that
+# capability holds them, renewed by its tick; settings not renewed by `until` (time.monotonic) lapse by themselves.
+_retry_lock = threading.Lock()
+_retry = {"settings": (), "until": 0.0}
+
+
+def hold_retry_settings(settings, until) -> None:
+    with _retry_lock:
+        _retry["settings"], _retry["until"] = tuple(settings), float(until)
+
+
+def retry_settings(now=None) -> tuple:
+    """The retry settings in force now, or () - none held, or held too long ago."""
+    moment = time.monotonic() if now is None else now
+    with _retry_lock:
+        return _retry["settings"] if moment < _retry["until"] else ()
 
 
 def settings_allowed(resumed) -> bool:
@@ -429,5 +445,5 @@ def live_session(paths):
     methods (protocol.CAPABILITY_METHODS). Never reached by a test."""
     def factory(capability):
         from . import inuse
-        return Session(inuse.backend(paths), capability=capability, config=HEADLESS_CONFIG)
+        return Session(inuse.backend(paths), capability=capability, config=HEADLESS_CONFIG + retry_settings())
     return factory

@@ -625,6 +625,15 @@ class Measurement(StrEnum):
     # one recorded responseTooManyFailedAttempts - codex_gave_up's kind (terminal_failure) - which model_fallback would
     # then also have to answer where the last retry's cause was capacity.
     MGAVE = "mgave"
+    # v0.6.22 (codex_retry_settings' new route, plans/v0622-retry-settings-design.md): MB's plain route stays refused, so
+    # Codex's own retries are set by a provider of our own - a copy of the built-in one with the person's Attempts, and
+    # model_provider naming it - given as `-c` settings to the app server this product starts for its own turns, and
+    # written nowhere. Scratch part: on a scratch Codex home our server so started says the provider is in force and
+    # writes no config.toml. Live part, on a throwaway conversation: a ChatGPT sign-in, one turn completed under that
+    # provider, and afterwards a plain server still says the conversation is OpenAI's and lists it. PASS: all of it, and
+    # the person sees the conversation in the app's sidebar. FAIL: the provider not in force, a config written, no
+    # ChatGPT sign-in, no completed turn, or the conversation's provider rewritten or no longer listed.
+    MB2 = "mb2"
 
 
 class ObservedWord(StrEnum):

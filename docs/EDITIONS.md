@@ -1617,10 +1617,13 @@ headings as the last four bullets below.
   model at capacity; a continuation with no words - all built in v0.6.16-beta.4, described
   [above](#todays-capabilities); and a continuation inside the turn through a Codex Stop hook, built in v0.6.20 and
   hidden because its measurement M4 failed (`codex-cli 0.162.0-alpha.17.2`, 2026-10-10, and `codex-cli 0.166.0-alpha.5.1`,
-  2026-10-31: Codex does not run the hook after a failed turn). (Codex's own retry settings stay in the product, hidden
-  because their measurement MB failed: Codex refuses the write under `model_providers.openai` (`config/value/write`,
-  -32600) on `codex-cli 0.162.0-alpha.17.2` (2026-10-16) and again on `codex-cli 0.166.0-alpha.5.1` (2026-10-31). They
-  are offered only once a Codex passes MB.)
+  2026-10-31: Codex does not run the hook after a failed turn). (Codex's own retry settings stay in the product, hidden.
+  Their first route failed its measurement MB: Codex refuses the write under `model_providers.openai`
+  (`config/value/write`, -32600) on `codex-cli 0.162.0-alpha.17.2` (2026-10-16) and again on `codex-cli
+  0.166.0-alpha.5.1` (2026-10-31), by design - its built-in provider cannot be overridden. Their new route copies that
+  provider, with the retries set, into a provider of the product's own, given only to the Codex server the product
+  starts for its own turns and written nowhere in Codex's configuration; it is offered only once a Codex passes its
+  measurement MB2, not made yet.)
 - **Around recovery** - usage analytics (the live usage meter and the wrap-up near a limit are built,
   described [above](#todays-capabilities)); a provider status feed and push notifications through one courier process, the advanced edition's only
   outbound network code; a local API and web view, remote control over Telegram and a read-only view
