@@ -334,6 +334,10 @@ class OptionKey(StrEnum):
     # window_anchor last took in - its window stamps are the account's that was signed in, and go with it.
     ACCOUNT_CHANGED_AT = "account_changed_at"
     ANCHOR_ACCOUNT_AT = "anchor_account_at"
+    # v0.6.22 (account_auto_switch): when it last switched the account, and the day and count of its switches (PER_DAY).
+    AUTO_SWITCHED_AT = "auto_switched_at"
+    AUTO_SWITCH_DAY = "auto_switch_day"
+    AUTO_SWITCH_COUNT = "auto_switch_count"
 
 
 class WordingKey(StrEnum):
@@ -471,6 +475,12 @@ class BridgeCommand(StrEnum):
     ADVANCED_POWER_TASKS_ARM = "advanced-power-tasks-arm"
     # v0.6.20 final (account_switch): the card's answer to "Restart Codex now so it uses the new account?" (control/account.restart).
     ADVANCED_ACCOUNT_RESTART = "advanced-account-restart"
+    # v0.6.22 (account_auto_switch): the saved accounts read, one added by Codex's own sign-in, the one in use saved, and
+    # one or all deleted (control/autoswitch.py). The Dashboard's alone, never MCP.
+    ADVANCED_ACCOUNTS = "advanced-accounts"
+    ADVANCED_ACCOUNTS_ADD = "advanced-accounts-add"
+    ADVANCED_ACCOUNTS_SAVE = "advanced-accounts-save"
+    ADVANCED_ACCOUNTS_DELETE = "advanced-accounts-delete"
     # v0.6.19 (the groundwork): every command the stage's designs name, in one block, each the Dashboard's alone and
     # reached by no MCP tool. Until the capability that answers one is built, the bridge passes it over as it passes a
     # command this edition does not have (surfaces.UNANSWERED). The analytics' aggregates and their CSV
@@ -634,6 +644,13 @@ class Measurement(StrEnum):
     # the person sees the conversation in the app's sidebar. FAIL: the provider not in force, a config written, no
     # ChatGPT sign-in, no completed turn, or the conversation's provider rewritten or no longer listed.
     MB2 = "mb2"
+    # v0.6.22 (account_auto_switch, plans/v0622-account-autoswitch-design.md section 11). MPROFILE: account/read and
+    # account/rateLimits/read on a scratch Codex home made from a saved account's sign-in file answer that account, with
+    # the real home's file and the running app unchanged. MSWAP: the Codex app closed by the product's close, the real
+    # sign-in file swapped to another saved account's and the app started is signed in as that account - and after the
+    # swap back, the first account's sign-in still works.
+    MPROFILE = "mprofile"
+    MSWAP = "mswap"
 
 
 class ObservedWord(StrEnum):

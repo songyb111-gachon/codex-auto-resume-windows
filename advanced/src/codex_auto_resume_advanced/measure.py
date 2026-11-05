@@ -2832,6 +2832,83 @@ PROBES = {
     Measurement.MGAVE: _mgave, Measurement.MB2: _mb2,
 }
 
+# v0.6.22 (account_auto_switch): what each hand may answer, and nothing else reaches the record - booleans, and the
+# sign-in store's closed word (codex/authfile).
+_MPROFILE_FIELDS = ("profile_given", "added_by_login", "account_read", "own_account", "usage_read",
+                    "real_file_unchanged", "app_unchanged", "real_still_signed_in")
+_MSWAP_FIELDS = ("profiles_given", "app_was_running", "swapped", "signed_in_as_target", "swapped_back",
+                 "signed_in_as_first", "first_usage_read", "target_usage_read")
+_STORE_WORDS = ("usable", "not_file", "no_file", "unreadable")
+
+
+def _closed(answered, fields) -> dict:
+    answered = answered if isinstance(answered, dict) else {}
+    observed = {field: answered.get(field) if type(answered.get(field)) is bool else None for field in fields}
+    word = answered.get("store_word")
+    observed["store_word"] = word if word in _STORE_WORDS else None
+    return observed
+
+
+def _mprofile(ctx):
+    """A saved account read on a scratch home (account_auto_switch, v0.6.22): the run's `profile_read` hand takes the
+    Codex home measured; where no other account of the person's is saved in the product home, it first runs Codex's own
+    `codex login` on a scratch home and the person signs in in the browser with ANOTHER account of their own (Add an
+    account, codex/swap.add_by_login). It then notes the real sign-in file's digest and time and the app's main process,
+    reads the saved account exactly as the capability does (codex/swap.read_profile: account/read and
+    account/rateLimits/read on a scratch home made from the sealed copy, the scratch home removed), and looks again. It
+    records whether the saved account answered as itself with usage, and whether the real file, the app's main process
+    and the account signed in are all unchanged - never an address, a digest or a time.
+
+    PASS: the saved account answered as itself with usage, and nothing real changed. FAIL: something real changed, or
+    the saved account did not answer. Blocked where no account could be saved or the store is not a file."""
+    observed = _closed(ctx._hand("profile_read", getattr(ctx.backend, "codex_home", None)), _MPROFILE_FIELDS)
+    if observed["store_word"] not in (None, "usable"):
+        return _blocked("Codex keeps its sign-in outside a file here (cli_auth_credentials_store), so no account can be "
+                        "switched: set it to file or leave it unset, sign in again, then run mprofile again", **observed)
+    if observed["profile_given"] is not True:
+        return _blocked("no other account of yours was saved: run mprofile again and sign in in the browser with "
+                        "another account of your own when Codex's page opens", **observed)
+    if False in (observed["real_file_unchanged"], observed["app_unchanged"], observed["real_still_signed_in"]):
+        return (Verdict.FAIL, observed, "a read on a saved account changed the real Codex home, the running app or the "
+                "account signed in")
+    if observed["account_read"] and observed["own_account"] and observed["usage_read"]:
+        return Verdict.PASS, observed, None
+    return Verdict.FAIL, observed, "the saved account did not answer as itself with its usage on a scratch home"
+
+
+def _mswap(ctx):
+    """The swap itself (account_auto_switch, v0.6.22): with two accounts of the person's saved (MPROFILE's step saves
+    the second), the run's `account_swap` hand switches the Codex app to the other one exactly as the capability does
+    (codex/swap.switch: the intent, the app closed as account_switch's Restart closes it, the file in use sealed back
+    into its profile, the other's copy renamed in, the app started, the account read afresh), reads the target's usage on
+    the real home, then switches back the same way and reads the first account's usage. Where no turn runs and nothing is
+    queued (codex/restart.busy) only. It records whether each switch signed in as the account it put in and whether each
+    usage read answered - never an address. That the app showed each account without its own sign-in page is the
+    person's to confirm.
+
+    FAIL: a switch did not sign in as its account, or the first account's sign-in no longer works after coming back.
+    Blocked otherwise, for the person to confirm and set the verdict."""
+    observed = _closed(ctx._hand("account_swap", getattr(ctx.backend, "codex_home", None)), _MSWAP_FIELDS)
+    if observed["store_word"] not in (None, "usable"):
+        return _blocked("Codex keeps its sign-in outside a file here, so no account can be switched", **observed)
+    if observed["profiles_given"] is not True:
+        return _blocked("save a second account of yours first (run mprofile), let no turn run and nothing be queued "
+                        "in Codex, then run mswap again", **observed)
+    if observed["swapped"] is not True:
+        return _blocked("the switch was not made: a turn ran, something was queued, the app could not be closed or "
+                        "the file could not be put in place; run mswap again once Codex is idle", **observed)
+    if observed["signed_in_as_target"] is False or observed["signed_in_as_first"] is False:
+        return (Verdict.FAIL, observed, "the app did not come up signed in as the account the switch put in, or the "
+                "first account's sign-in no longer works after coming back")
+    if observed["swapped_back"] is True and observed["first_usage_read"] is False:
+        return Verdict.FAIL, observed, "after coming back, the first account's usage could not be read"
+    return _blocked("confirm the Codex app showed the other account, then yours again, each without its own sign-in "
+                    "page, then set the verdict", **observed)
+
+
+PROBES[Measurement.MPROFILE] = _mprofile
+PROBES[Measurement.MSWAP] = _mswap
+
 # A conversation and a message id of no one's: the shape a call takes, never a real id. A probe
 # that reaches a live Codex is run by the owner against a throwaway conversation whose id they
 # put here; on their machine this constant is what a call carries when they have not.
@@ -3199,7 +3276,122 @@ def live_hands(backend=None, paths=None) -> dict:
 
     return {"open_link": open_link, "power": _power_look, "wake_after": _wake_after, "scratch_cli": scratch_cli,
             "anchor_request": anchor_request, "stop_hook": stop_hook, "steer_ipc": steer_ipc,
-            "m4_hook_note": m4_hook_note, "codex_restart": codex_restart}
+            "m4_hook_note": m4_hook_note, "codex_restart": codex_restart,
+            "profile_read": lambda home: _profile_read(backend, paths, home),
+            "account_swap": lambda home: _account_swap(backend, paths, home)}
+
+
+def _profile_read(backend, paths, home):
+    """MPROFILE's real hand (v0.6.22): the capability's own read of a saved account, the real home looked at before and
+    after; a second account of the person's saved first by Codex's own sign-in where none is (codex/swap.add_by_login)."""
+    import hashlib
+    from codex_auto_resume.codex import pairing
+    from .codex import authfile, swap
+    from .codex.account import identity, parse
+    from .profiles import Profiles
+    if home is None or paths is None:
+        return {}
+    exe = getattr(backend, "codex_exe", None)
+    session_for = swap.default_session_for(paths, exe, Measurement.MPROFILE)
+    found = {"store_word": authfile.usable(home)}
+    if found["store_word"] != authfile.USABLE:
+        return found
+    real = Path(home) / authfile.NAME
+
+    def stat():
+        try:
+            return hashlib.sha256(real.read_bytes()).hexdigest(), real.stat().st_mtime_ns
+        except OSError:
+            return None
+
+    def main():
+        try:
+            rows = pairing.inventory()
+            return pairing._app_main(rows)["pid"] if pairing.app_running(rows) else None
+        except Exception:
+            return "unknown"
+
+    def signed_in():
+        with session_for(home) as session:
+            return identity(parse(session.call("account/read", {})))
+    store = Profiles(paths.home)
+    before, app, current = stat(), main(), signed_in()
+    if current is None:
+        return found
+
+    def others():
+        return [each for each in store.ids() if (store.get(each).get("email") or "").lower() != current]
+    if not others():
+        found["added_by_login"] = swap.add_by_login(paths, store, backend_for=swap.default_backend_for(paths, exe),
+                                                    session_for=session_for) is not None
+    listed = others()
+    if not listed:
+        return dict(found, profile_given=False)
+    read = swap.read_profile(paths, store, listed[0], session_for=session_for)
+    return dict(found, profile_given=True, account_read=read["present"] is True, own_account=read["own"] is True,
+                usage_read=read["available"] is not None, real_file_unchanged=stat() == before,
+                app_unchanged=main() == app, real_still_signed_in=signed_in() == current)
+
+
+def _account_swap(backend, paths, home):
+    """MSWAP's real hand (v0.6.22): codex/swap.switch to the other saved account and back, with the product's own
+    restart (as MALR's), only where no turn runs and nothing is queued."""
+    from codex_auto_resume.codex import LocalSource, pairing
+    from codex_auto_resume.win.ownprocess import booted_at
+    from .codex import authfile, restart as restarts, swap
+    from .codex.account import parse
+    from .profiles import Profiles
+    if home is None or paths is None:
+        return {}
+    found = {"store_word": authfile.usable(home)}
+    if found["store_word"] != authfile.USABLE:
+        return found
+    exe = getattr(backend, "codex_exe", None)
+    session_for = swap.default_session_for(paths, exe, Measurement.MSWAP)
+
+    class _NoRecords:
+        def pending(self):
+            return []
+
+        def watcher_status(self):
+            return {"booted_at": booted_at()}
+
+    def read_real():
+        with session_for(home) as session:
+            return parse(session.call("account/read", {}))
+
+    def usage_read():
+        with session_for(home) as session:
+            return swap.usage_of(session.call("account/rateLimits/read", {}))["available"] is not None
+
+    def restart(between):
+        return restarts.restart(paths, hands=restarts.Hands(paths, home=home, read=read_real), between=between)
+    store = Profiles(paths.home)
+    first = read_real()
+    email = (first.get("email") or "").lower()
+    first_id = swap.save_current(paths, store, home, read_real=lambda: first)
+    others = [each for each in store.ids() if each != first_id]
+    found["profiles_given"] = first_id is not None and bool(others)
+    if not found["profiles_given"]:
+        return found
+    try:
+        found["app_was_running"] = bool(pairing.app_running(pairing.inventory()))
+    except Exception:
+        found["app_was_running"] = None
+    if restarts.busy(paths, source=LocalSource(Path(home)), store=_NoRecords()):
+        return found
+    outcome = swap.switch(paths, store, home, others[0], restart=restart, read_real=read_real)
+    found["swapped"] = outcome in (swap.SWITCHED, swap.NOT_SIGNED_IN)
+    found["signed_in_as_target"] = outcome == swap.SWITCHED if found["swapped"] else None
+    if outcome != swap.SWITCHED:
+        return found
+    found["target_usage_read"] = usage_read()
+    back = swap.switch(paths, store, home, first_id, restart=restart, read_real=read_real)
+    found["swapped_back"] = back in (swap.SWITCHED, swap.NOT_SIGNED_IN)
+    if found["swapped_back"]:
+        found["signed_in_as_first"] = back == swap.SWITCHED and (read_real().get("email") or "").lower() == email
+    found["first_usage_read"] = usage_read() if found.get("signed_in_as_first") else None
+    return found
 
 
 def _guid(text):

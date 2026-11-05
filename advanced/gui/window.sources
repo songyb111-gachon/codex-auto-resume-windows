@@ -43,5 +43,6 @@ advanced/gui/AdvancedCourier.cs
 advanced/gui/AdvancedAnalytics.cs
 advanced/gui/AdvancedAccount.cs
 advanced/gui/AdvancedPowerTasks.cs
+advanced/gui/AdvancedAccounts.cs
 advanced/gui/AdvancedPageAudit.cs
 advanced/gui/AdvancedRender.cs

@@ -22,6 +22,11 @@ its plan word, in state `account_seen` (state/account.py). Never the address, ne
 * A reading that failed, or that finds no one signed in, changes nothing (E1: unknown is not "changed"): the digest
   is compared again once an account is read.
 
+v0.6.22 (account_auto_switch, which requires this capability): a change to the account that capability itself put in
+since the last reading (profiles.switched_to) holds no recovery - those recoveries are what it switched for - while
+its reset rules are still held and window_anchor's stamp still moves, since both count one account's windows. A change
+a person made holds as before.
+
 Turned off, the row and the salt are taken away (`forget`, from arming.Arming.sweep, the watcher's), so a digest never
 outlives the capability. Nothing here signs anyone out or in: that is the Dashboard's (codex/account.switch).
 """
@@ -52,6 +57,16 @@ def _hold_core(paths, keys, now) -> int:
     from codex_auto_resume.store import Store
     with Store(paths.state_dir) as store:
         return store.hold_waiting(keys, HOLD, now, actor="engine")
+
+
+def _switched_by_us(paths, text, after) -> bool:
+    """Whether account_auto_switch put in the account `text` at or after `after` (profiles.switched_to); False for
+    anything that cannot be read."""
+    try:
+        from ..profiles import Profiles
+        return Profiles(paths.home).switched_to(text, after) is True
+    except Exception:
+        return False
 
 
 def forget(state, secrets=None) -> bool:
@@ -88,14 +103,15 @@ class AccountWatch:
     """account_switch's code: its P8 errand, and the notice it asks the watcher to show. `read`, `secrets` and `hold`
     are seams a test fills: the account read (codex/account.read's shape), Credential Manager (credentials.Secrets'
     shape) and core's hold (`_hold_core`'s)."""
-    __slots__ = ("paths", "_scoped", "_read", "_secrets", "_hold", "_looked", "_notice")
+    __slots__ = ("paths", "_scoped", "_read", "_secrets", "_hold", "_looked", "_notice", "_ours")
 
-    def __init__(self, paths, *, read=None, secrets=None, hold=None):
+    def __init__(self, paths, *, read=None, secrets=None, hold=None, ours=None):
         self.paths = paths
         self._scoped = None
         self._read = read or account.read
         self._secrets = secrets
         self._hold = hold or _hold_core
+        self._ours = ours or _switched_by_us
         self._looked = None
         self._notice = None
 
@@ -143,7 +159,8 @@ class AccountWatch:
         if seen == row["identity_digest"]:
             handle.save(seen, plan, at=now)
             return None
-        held = self._hold_waiting(view, now) + self._hold_rules()
+        ours = self._ours(self.paths, text, row["read_at"])
+        held = (0 if ours else self._hold_waiting(view, now)) + self._hold_rules()
         handle.save(seen, plan, at=now)
         # v0.6.20 (the pair audit, V20-2): when, for window_anchor - whose window stamps are the other account's.
         self._scoped.stamp(OptionKey.ACCOUNT_CHANGED_AT, max(1, int(now)))

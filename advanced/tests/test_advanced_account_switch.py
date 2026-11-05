@@ -230,14 +230,20 @@ class StructureTests(unittest.TestCase):
                 self.assertNotIn(word, text, path.relative_to(PACKAGE).as_posix())
 
     def test_no_product_code_opens_codex_s_sign_in_file(self):
-        """No string the code holds names it - a comment or a docstring that says it is never read aside."""
+        """No string the code holds names it - a comment or a docstring that says it is never read aside - except
+        codex/authfile.py: v0.6.22's account_auto_switch is the one capability that departs from B11 (the owner's
+        decision of 2026-11-01), and every reader of the file goes through that one module."""
+        allowed = PACKAGE / "codex" / "authfile.py"
+        naming = []
         for root in (ac.ROOT / "src" / "codex_auto_resume", PACKAGE):
             for path in self.sources(root):
                 tree = ast.parse(path.read_text(encoding="utf-8"))
                 documents = {id(node.value) for node in ast.walk(tree) if isinstance(node, ast.Expr)}
                 held = [node.value for node in ast.walk(tree) if isinstance(node, ast.Constant)
                         and isinstance(node.value, str) and id(node) not in documents]
-                self.assertFalse([text for text in held if "auth.json" in text.lower()], path.as_posix())
+                if [text for text in held if "auth.json" in text.lower()]:
+                    naming.append(path.resolve())
+        self.assertEqual(naming, [allowed.resolve()])
 
 
 if __name__ == "__main__":

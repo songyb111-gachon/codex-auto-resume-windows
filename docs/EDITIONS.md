@@ -1486,6 +1486,43 @@ sign-out reached the running app, the sign-in did not), kept as the record of th
 it came back signed in). MA without a pass on the version in force is a warning; MALR without one only hides the button - and, failed,
 it is hidden because its measurement failed - and never turns the switch off.
 
+### Switch to another saved account at a usage limit
+
+**Hidden until it is measured.** Built, and hidden - no row, no switch - until MPROFILE and MSWAP pass on the Codex in
+force; it needs Switch the Codex account on.
+
+**What it does.** You save your own other Codex accounts on its card: **Add an account...** runs Codex's own
+`codex login` in a private folder under the product's home, and you sign in in your browser on OpenAI's page - the
+product never sees a password; **Save the account in use** keeps the one signed in now. Each is a copy of Codex's
+sign-in file, encrypted with Windows' data protection for your Windows user (`<home>\accounts\`), never in the
+settings, a log, the journal, diagnostics or a report; the card shows a masked address and the plan. When a recovery
+has waited for a usage limit for 5 minutes, no turn runs, nothing is queued in Codex, no other recovery waits or runs,
+and nobody has used the PC for 2 minutes, the watcher reads each other saved account's usage in a private folder (never
+the account in use, whose tokens a second reader could rotate), closes the Codex app as Switch the Codex account's
+Restart does, saves the sign-in in use back into its copy (refresh tokens rotate), puts the account with the most room
+in its place in one rename, starts Codex and reads the account. Only if it is that account are the waiting recoveries
+looked at at once - live usage is still read before anything is sent; anything else puts the previous file back once.
+A change of account it made holds no recovery, while a change a person made is held as before. At most 10 switches a
+day, one try for each set of waiting recoveries, never back to an account still at its limit; all at their limit, the
+recoveries wait for the reset as usual.
+
+**When it helps.** You have more than one Codex account of your own and want work to go on at a limit with no hands.
+
+**What it risks.** OpenAI's Terms of Use forbid using its services to "circumvent any rate limits or restrictions", and OpenAI can suspend or end an account for breaking them. Whether moving between your own accounts at a usage limit counts is OpenAI's decision, not this product's. Use it only with accounts that are your own. A sign-in Codex keeps outside a file (`cli_auth_credentials_store` keyring,
+auto or ephemeral) is never switched. A copy left unused long enough can stop working and is set aside until you add the
+account again. Closing the Codex app may lose what you had not sent. Anyone who can sign in as your Windows user can open
+the copies.
+
+**Departs from** A12 (a waiting recovery is looked at before its reset), B2 (Codex's sign-in file is written), B3
+(Codex's sign-in changes outside its listed interfaces), B4 (`account/read` on private folders too), B10 (each saved
+account's address and plan are kept, encrypted), B11 (it reads and keeps Codex's sign-in file - the only feature that
+does; nothing asks Codex for a token), C4 (it acts on its own), C9 (usage of accounts no recovery is due on is read), D2
+(encrypted sign-in copies are kept), E8 (it ends the Codex app's process if Windows' request is not enough) and F6
+(`codex login` is not a listed process).
+
+**Ceilings.** Those of the early look at P7 (12 a day, 3 in one conversation), beside its own 10 switches a day.
+**Measurements MPROFILE and MSWAP: not measured** - hidden until both pass.
+
 ### Compatibility report
 
 **What it does.** Writes a compatibility report from this PC's own records, as codex-compat-reporter

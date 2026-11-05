@@ -137,6 +137,10 @@ MEASUREMENT_METHODS = {
     # server reads and lists that conversation again.
     Measurement.MB2: ("config/read", "account/read", "thread/list", "thread/resume", "turn/start", "turn/interrupt",
                       "thread/unsubscribe", "thread/read"),
+    # v0.6.22 (account_auto_switch): MPROFILE reads one saved account on a scratch home as the capability does; MSWAP reads
+    # the account before and after each swap (the swap is a file renamed and the app restarted, not a call).
+    Measurement.MPROFILE: ("account/read", "account/rateLimits/read"),
+    Measurement.MSWAP: ("account/read", "account/rateLimits/read"),
 }
 
 # The methods a capability's own route may call, beyond `initialize` - each one a measurement
@@ -183,6 +187,9 @@ CAPABILITY_METHODS = {
     # server, MB2's first two reads, to know whether the retry provider fits - and nothing else: the settings are `-c`
     # settings of the servers headless turns start, never a config write.
     "codex_retry_settings": ("config/read", "account/read"),
+    # v0.6.22: the automatic switch reads which account is signed in and each saved account's usage, on scratch homes, as
+    # MPROFILE and MSWAP read them - and nothing else: the switch itself is a file put in place, never a method.
+    "account_auto_switch": ("account/read", "account/rateLimits/read"),
 }
 
 # Every method some measurement declared: what a capability's own route may be given, and nothing

@@ -154,7 +154,9 @@ NOTICE_KINDS = (("near_limit", ("near_limit",), "msg.toast_near_limit"),
                 # v0.6.19: the crash restart left the watcher stopped after its third restart in an hour.
                 ("restart_gave_up", ("restart_gave_up",), "msg.toast_restart_gave_up"),
                 # v0.6.20: another Codex account signed in, and what waited for a usage limit waits for you (account_switch).
-                ("account_changed", ("account_changed",), "msg.toast_account_changed"))
+                ("account_changed", ("account_changed",), "msg.toast_account_changed"),
+                # v0.6.22: every saved account at its limit, and recoveries waiting for the reset (account_auto_switch).
+                ("accounts_exhausted", ("accounts_exhausted",), "msg.toast_accounts_exhausted"))
 
 
 def register_notice_kinds():

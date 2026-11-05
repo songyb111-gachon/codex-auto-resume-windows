@@ -75,7 +75,9 @@ def standards_text(rule) -> str:
 # (open_to_send, MOPEN): their names and statements are in every catalog, waiting or offered. MOPEN passed on
 # codex-cli 0.165.0-alpha.1.2 (2026-10-29), so open_to_send is offered - and already in registry.DEFINITIONS + this.
 # v0.6.20: and Continue inside the turn (stop_hook_continuation, MHK, M4 and M4B), still waiting.
-STATED_WAITING = (registry.OPEN_TO_SEND, registry.STOP_HOOK, registry.CODEX_RETRY_SETTINGS)  # v0.6.22: on MB2
+# v0.6.22: Codex's own retry settings on MB2, and the automatic account switch on MPROFILE and MSWAP, still waiting.
+STATED_WAITING = (registry.OPEN_TO_SEND, registry.STOP_HOOK, registry.CODEX_RETRY_SETTINGS,
+                  registry.ACCOUNT_AUTO_SWITCH)
 
 class ShippedTests(unittest.TestCase):
     SHIPPED = ("start_with_codex",
@@ -179,7 +181,7 @@ class ShippedTests(unittest.TestCase):
     SHOWN = ("compat_report",
              # 1)
              "start_with_codex", "crash_restart", "wake_for_reset", "every_conversation", "queue_for_open", "headless_run",
-             "other_sessions", "marker_free_continuation", "reset_credit", "early_reset", "window_anchor", "parallel_dispatch",
+             "other_sessions", "marker_free_continuation", "reset_credit", "early_reset", "account_auto_switch", "window_anchor", "parallel_dispatch",
              # 2) (open_to_send is hidden until MOPEN passes)
              "reset_message", "long_reset_message", "keep_going", "prompt_queue", "usage_meter", "usage_wrap_up", "usage_pause",
              "push_notices", "send_now", "open_to_send", "open_codex_button", "codex_chat", "steer_send", "usage_analytics",

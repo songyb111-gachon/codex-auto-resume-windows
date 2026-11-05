@@ -104,10 +104,11 @@ class Hands:
         time.sleep(seconds)
 
 
-def busy(paths, *, source=None, store=None, now=None) -> tuple:
+def busy(paths, *, source=None, store=None, now=None, usage_waiting_ok=False) -> tuple:
     """Why Codex may not be restarted now - (TURN_RUNNING or QUEUED, RECOVERY) as they stand, (UNKNOWN,) where any of
     them cannot be read - or () when it may. `source` (core's LocalSource's shape: `activity`), `store` (core's Store,
-    opened: `pending` and `watcher_status`) and `now` are a test's."""
+    opened: `pending` and `watcher_status`) and `now` are a test's. `usage_waiting_ok` (v0.6.22, account_auto_switch,
+    whose reason to restart is exactly those): a recovery that waits for a usage limit is no RECOVERY; any other is."""
     from codex_auto_resume import poweraction
     from codex_auto_resume.domain.power_vocabulary import PowerWait
     try:
@@ -129,7 +130,11 @@ def busy(paths, *, source=None, store=None, now=None) -> tuple:
     found = {PowerWait.TURN_RUNNING: [TURN_RUNNING], PowerWait.QUEUED_INPUT: [QUEUED], None: []}.get(word)
     if found is None:
         return (UNKNOWN,)
-    if any(not row.get("hold") and not row.get("cancel_requested") for row in rows):
+    from codex_auto_resume.domain import states
+
+    def usage_waiting(row):
+        return usage_waiting_ok and row.get("category") == "usage_limit" and row.get("state") in states.WAITING
+    if any(not row.get("hold") and not row.get("cancel_requested") and not usage_waiting(row) for row in rows):
         found.append(RECOVERY)
     return tuple(found)
 
@@ -166,8 +171,10 @@ def _until(hands, seconds, done) -> bool:
         hands.sleep(LOOK_SECONDS)
 
 
-def restart(paths, *, hands=None) -> tuple:
-    """(what the restart came to - one of OUTCOMES -, how the app ended - CLOSED, ENDED or None); see the module."""
+def restart(paths, *, hands=None, between=None) -> tuple:
+    """(what the restart came to - one of OUTCOMES -, how the app ended - CLOSED, ENDED or None); see the module.
+    `between` (v0.6.22, account_auto_switch) is called once the app is gone and before it is started again - where its
+    sign-in file is swapped while nothing of the app can write it; whatever it does or raises, the app is started."""
     from codex_auto_resume.codex_link import codex_thread_uri
     hands = hands or Hands(paths)
     try:
@@ -198,6 +205,11 @@ def restart(paths, *, hands=None) -> tuple:
         if not (ended and _until(hands, KILL_SECONDS, gone)):
             return NOT_ENDED, None
         how = ENDED
+    if between is not None:
+        try:
+            between()
+        except Exception:
+            pass
     try:
         link = codex_thread_uri(hands.newest_conversation())
         opened = link is not None and hands.open(link) is True

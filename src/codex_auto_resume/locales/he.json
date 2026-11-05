@@ -849,6 +849,8 @@
   "msg.toast_update_offered_prerelease_body": "גרסת טרום־ההפצה {version} פורסמה; היא נבדקה פחות מגרסה רגילה. אפשר להתקין אותה מלוח המחוונים אם רוצים.",
   "msg.toast_account_changed": "חשבון Codex אחר מחובר",
   "msg.toast_account_changed_count": "משימות שחיכו למגבלת שימוש ממתינות לך: {n}",
+  "msg.toast_accounts_exhausted": "כל החשבונות השמורים שלך הגיעו למגבלה",
+  "msg.toast_accounts_exhausted_body": "ההמשך ממתין לאיפוס הקרוב ביותר, כמו בלי החלפה. שום דבר לא נשלח עד אז.",
   "why.account_changed": "אחרי שנעצרה התחבר חשבון Codex אחר: שום דבר לא נשלח עד לאישורך להמשיך.",
   "msg.toast_usage_at": "הגעת למגבלת השימוש של Codex. המשימה הזו תחודש ב-{time}.",
   "msg.toast_usage_soon": "הגעת למגבלת השימוש של Codex. המשימה הזו תחודש אחרי האיפוס.",
