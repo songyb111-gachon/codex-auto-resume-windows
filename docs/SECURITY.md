@@ -147,9 +147,9 @@ them `thread/goal/set`, `thread/queue/add` with words this product wrote, and `t
   networking module, and a test fails if one gains an import of a networking module, so the
   watcher opens no connection of its own. That is a property of the code, checked by that test,
   not a sandbox. In the advanced edition, from v0.6.20, the courier (the package's `courier/`) is the
-  one exception, and only while push notices, the status feed or the status server is on: a short-lived process of its
-  own that sends to the services a person typed in and reads status.openai.com - or, for the status server, a resident
-  one that listens on 127.0.0.1 (*The courier*, under
+  one exception, and only while push notices, the status feed, the status server or Telegram's commands are on: a
+  short-lived process of its own that sends to the services a person typed in and reads status.openai.com - or, for the
+  last two, a resident one that listens on 127.0.0.1 or reads the paired Telegram bot (*The courier*, under
   [The advanced edition](#the-advanced-edition)). The advanced edition's compatibility report reaches GitHub only by starting gh, the
   GitHub CLI the person installed, when they ask in the Dashboard (*The compatibility report*, under
   [The advanced edition](#the-advanced-edition)). The traffic we know the product causes comes from elsewhere:
@@ -732,6 +732,19 @@ the names, and drives every route with a spy on each claim method). Its web page
 Content-Security-Policy that lets it connect only to itself; it takes the token from the address's fragment, which a browser
 never sends, and writes what it reads as text. Its token is the second secret of this edition, kept and never shown as
 the courier's are. On a network the connection is not encrypted; the statement says so.
+
+**Commands from Telegram** (v0.6.22; each off until a person turns it on). The same resident process long-polls the bot
+push notices keep, over the courier's one HTTPS request (above), and waits while a pairing reads the bot. It obeys the one
+chat the pairing kept: a message from any other is ignored with no answer, and so is one older than five minutes. A reply
+is bounded by asking for two messages a read, so strangers' long messages cannot stop it. The text is read as one of six
+commands (a test holds them to the design's table) and nothing else, and no word of it reaches a conversation; answers are
+closed words, numbers and `task N`. `/status` and `/list` read; `/cancel task N`, resolved against the list last sent or
+refused with "list again", and `/pause` reduce; `/continue task N` (core's release of a hold, which sends nothing and skips
+no gate) and `/recovery-on` (which an administrator's policy still refuses) need a second capability of their own. The
+offset is kept before a command is carried out, so it runs at most once. Five wrong codes during a pairing turn it off,
+whether or not it is kept on. It answers while recovery is paused, only the paired chat and only what that chat asked.
+Group chats: every member of a paired group is obeyed; the statement says so. The bot's token is only ever in the request's
+path, never in a log, the journal or an answer.
 
 **The measurement harness.** The advanced edition's archive also carries `measure` (the advanced
 package's `measure.py`), with which the owner finds out whether a

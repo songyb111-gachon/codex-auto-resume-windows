@@ -130,7 +130,7 @@ interruption, the samples of failures it could not classify, the reset rules and
 the usage windows - and, until each is sent, cancelled or ended, the words of a message you wrote for a
 reset - are kept in
 `config/advanced/advanced.sqlite`, in fixed words, ids, numbers and Codex's own error codes - never a
-word of an error or a conversation, and of yours only a message waiting for a reset - and nothing of it is written into the standard edition's state. Its only network code is the courier, which runs only while *Send notices to your phone or inbox*, *Show OpenAI's service status* or *Read this PC's status from a browser or a script* is on (below). Two capabilities cause GitHub traffic: the compatibility report asks gh - the GitHub CLI you
+word of an error or a conversation, and of yours only a message waiting for a reset - and nothing of it is written into the standard edition's state. Its only network code is the courier, which runs only while *Send notices to your phone or inbox*, *Show OpenAI's service status*, *Read this PC's status from a browser or a script* or *Control recovery from Telegram* is on (below). Two capabilities cause GitHub traffic: the compatibility report asks gh - the GitHub CLI you
 installed - to reach GitHub, and only when you start it in the Dashboard (below), and
 *Check for updates once a week* runs the installed `bootstrap.ps1 -CheckOnly` once a week (below). Its archive also carries
 the harness the project uses to measure whether a capability's route works on a given version of
@@ -143,10 +143,10 @@ to keep a secret, and it never reads Codex's own credentials.
 
 ## Today's capabilities
 
-Forty-six: twenty-three that change how a recovery is made, which conversations are recovered or what
+Forty-eight: twenty-three that change how a recovery is made, which conversations are recovered or what
 follows a turn, two that tell you elsewhere - notices sent to your phone or inbox, and OpenAI's service status
 on the Overview (v0.6.20) - three that let a browser or a script of yours read how this PC stands, pause and cancel,
-and reach it from your network (v0.6.22) - one that shows where your usage and tokens go (v0.6.20), three that send at a time you
+and reach it from your network, and two that take commands from the Telegram chat you paired (v0.6.22) - one that shows where your usage and tokens go (v0.6.20), three that send at a time you
 pick - the two at a usage reset, and queued messages - one that adds a line to the turn running now (v0.6.20; the
 Codex app does not show that line, only History does) - three
 before a usage limit is reached - the usage meter, and the wrap-up and the forced stop that need it - one that
@@ -772,6 +772,54 @@ trust, never on a public one.
 [F8](STANDARDS.md#f-footprint-on-the-machine) (the server's process) and
 [D1](STANDARDS.md#d-privacy-and-the-data-it-keeps) (the status can reach whoever on your network holds the token). It needs
 *Read this PC's status from a browser or a script* on.
+
+**Ceilings.** None: it is an action, and sends nothing. It rests on no measurement.
+
+### Control recovery from Telegram
+
+**What it does.** The Telegram bot you paired for notices also takes commands, from that one chat and no other. `/status`
+says whether the watcher runs, whether recovery is on and how many recoveries wait. `/list` lists them as `task 1`,
+`task 2` and so on, with their state and next check. `/cancel task 1` cancels one, against the list it last sent: if the
+list has changed it asks you to list again. `/pause` pauses recovery. Anything else is answered with the list of commands,
+and a message from any other chat gets no answer at all. A process stays running beside the watcher to read the bot,
+restarted at most three times an hour, and after that its card says it stopped.
+
+**When it helps.** When you are away from the PC, a notice told you something, and you want to look or stop it from your
+phone.
+
+**What it risks.** Whoever holds your Telegram account or the paired chat - in a group, every member - can pause recovery
+and cancel recoveries that wait. Telegram's servers see the bot's token and every command and answer. It goes on answering
+while recovery is paused: that is what its `/status` is for.
+
+**How it is held.** No command can send to Codex, chat, change a setting or turn a feature on, and no word of a message
+reaches a conversation; answers carry task numbers and state words alone. A command older than five minutes, sent while
+this PC was off, is ignored, and each is carried out at most once. Five wrong codes during a pairing turn it off, whether or
+not you keep it on: someone is guessing at the chat it obeys.
+
+**Departs from** [C1](STANDARDS.md#c-network) and [C2](STANDARDS.md#c-network) (no network code, and one
+shipped file reaching the network: this reads api.telegram.org too), [C3](STANDARDS.md#c-network) (only the listed
+hosts: api.telegram.org is one more), [C8](STANDARDS.md#c-network) (Telegram sees this PC's address and the courier's
+name), [D1](STANDARDS.md#d-privacy-and-the-data-it-keeps) (how your recoveries stand goes to Telegram),
+[F6](STANDARDS.md#f-footprint-on-the-machine) (a process of its own beside the listed ones) and
+[F8](STANDARDS.md#f-footprint-on-the-machine) (a process that stays running). It needs *Send notices to your phone or inbox*
+on, whose bot and pairing it uses.
+
+**Ceilings.** None come into play: it sends nothing to Codex. It rests on no measurement.
+
+### Let Telegram continue a held recovery and lift a pause
+
+**What it does.** While it and *Control recovery from Telegram* are on, the paired chat may also send `/continue task 1`,
+which lets one recovery held for you go on, and `/recovery-on`, which lifts a pause. Neither sends anything itself: the
+watcher still checks everything before it sends, and an administrator's policy still holds a pause.
+
+**When it helps.** When you paused from your phone, or a conversation asks first, and you want it to go on without going
+back to the PC.
+
+**What it risks.** Whoever holds the paired chat can undo a pause you made on purpose and let go on a recovery you held
+back; recoveries then send their continuations as usual. A pause is no longer yours alone while this is on.
+
+**Departs from** [H4](STANDARDS.md#h-user-control) (a pause is a kill switch at this PC: here it can be lifted from
+outside it). It needs *Control recovery from Telegram* on.
 
 **Ceilings.** None: it is an action, and sends nothing. It rests on no measurement.
 
