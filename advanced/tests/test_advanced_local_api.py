@@ -345,6 +345,44 @@ class MethodTests(ServerCase):
         self.assertNotIn(TOKEN.encode(), reply)
 
 
+class SlowClientTests(ServerCase):
+    def setUp(self):
+        patcher = patch.object(api, "DEADLINE", 1.5)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        super().setUp()
+
+    def test_clients_that_trickle_a_byte_at_a_time_hold_no_slot_past_the_deadline(self):
+        """R2 (the security review of 2026-11-06): fails with the deadline reverted - TIMEOUT is per read, so eight
+        clients that send one byte every second hold all THREADS slots and everyone else is closed unanswered."""
+        import threading
+        import time
+        stop = threading.Event()
+        self.addCleanup(stop.set)
+        holders = []
+        for _ in range(api.THREADS):
+            raw = socket.create_connection(("127.0.0.1", self.port), timeout=10)
+            self.addCleanup(raw.close)
+            holders.append(raw)
+
+        def trickle(raw):
+            for byte in b"GET /status.json HTTP/1.0\r\nX-Slow: " + b"a" * 200:
+                if stop.is_set():
+                    return
+                try:
+                    raw.sendall(bytes([byte]))
+                except OSError:
+                    return
+                time.sleep(0.25)
+        threads = [threading.Thread(target=trickle, args=(raw,), daemon=True) for raw in holders]
+        for thread in threads:
+            thread.start()
+        time.sleep(api.DEADLINE + 1.5)
+        with patch.object(remote, "status_document", lambda layer, now: {"format": "x"}):
+            self.assertEqual(self.status("/status.json"), 200)
+        stop.set()
+
+
 class HeaderTests(ServerCase):
     def test_no_answer_carries_cors_a_cookie_or_a_version(self):
         with patch.object(remote, "status_document", lambda layer, now: {"format": "x"}):

@@ -723,7 +723,7 @@ one Host header, naming 127.0.0.1 or localhost with the port - or, open to the n
 or 421, which is what stops a web page rebinding a name to it; an unknown path 404, another method 405; a Bearer token kept
 in Windows Credential Manager and compared in constant time, or 401; an action while actions are off 403; a body over 1 KiB
 413. No answer carries a CORS header, a cookie or a server's version; a query string is never read, and nothing is logged:
-no request, no address, no failure. At most eight requests at once, ten seconds each. What it serves is the status file's
+no request, no address, no failure. At most eight requests at once; each has ten seconds in all, from its connection to its answer, and then its connection is shut, so clients that send a byte at a time cannot hold every slot. What it serves is the status file's
 closed keys and the waiting recoveries as `task N` with their public codes, never an id, a label or a path. What it does is
 core's own pause and cancel, by the list the caller read or 409: it reduces, and has no route that sends, chats, changes a
 setting, turns a feature on, sends now or gives attempts back (a test holds the routes to the design's table). Only the

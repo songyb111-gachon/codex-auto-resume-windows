@@ -23,8 +23,9 @@ an unknown path is 404 and a method a route does not take 405; every route but `
 offered and wrong counts towards the lock, so a request with none, which any web page can make, never closes it; an action while
 local_api_actions does not stand on is 403; a body over MAX_BODY is 413. No answer carries a CORS header, a cookie or a
 server's version, and a query string is never read: the token never travels in an address. Requests are served by at
-most THREADS threads at a time, each with TIMEOUT seconds, and nothing is logged: not a request, not an address, not
-a failure.
+most THREADS threads at a time; each read waits TIMEOUT seconds at most, and each request, from its connection to its
+answer, has DEADLINE seconds in all - then its connection is shut - so a few clients that trickle a byte at a time cannot
+hold every slot. Nothing is logged: not a request, not an address, not a failure.
 """
 from __future__ import annotations
 
@@ -45,7 +46,8 @@ LOOPBACK = "127.0.0.1"
 EVERYWHERE = "0.0.0.0"
 MAX_BODY = 1024
 THREADS = 8
-TIMEOUT = 10
+TIMEOUT = 10                       # seconds one read may wait
+DEADLINE = 10                      # seconds one request may take in all, its connection to its answer
 LOCK_AFTER, LOCK_WINDOW, LOCK_SECONDS = 10, 60, 300
 # Every route, with the methods it takes and whether it changes anything (an action, local_api_actions'). A test holds
 # this table to the design's: reads and reduce-actions, nothing else.
@@ -174,6 +176,26 @@ class Handler(BaseHTTPRequestHandler):
     sys_version = ""
     protocol_version = "HTTP/1.0"
     timeout = TIMEOUT
+
+    def setup(self):
+        super().setup()
+        self._deadline = threading.Timer(DEADLINE, self._expire)
+        self._deadline.daemon = True
+        self._deadline.start()
+
+    def _expire(self):
+        """The request's time is up: its connection is shut, so a read that waits returns and its slot is free."""
+        try:
+            self.connection.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+
+    def finish(self):
+        self._deadline.cancel()
+        try:
+            super().finish()
+        except OSError:
+            pass
 
     def log_message(self, *unused):            # nothing is logged: an address can carry a token by mistake
         return
