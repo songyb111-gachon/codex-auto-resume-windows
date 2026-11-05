@@ -72,6 +72,12 @@ class CompatCheck(StrEnum):
     # the adapter allowlists (a code-level check; nothing is started).
     PROTOCOL_USAGE_METHOD = "protocol_usage_method"
     PROTOCOL_DELETE_METHOD = "protocol_delete_method"
+    # #58's follow-up: windows.Backend.app_identity: whether the last look the watcher already took found a server of the
+    # Codex app's paired with the engine. PASS only on that evidence, FAIL where the app runs and none was; UNAVAILABLE
+    # ("not checked") where the app is not running or nothing has looked lately. No capability stands on it, so no
+    # decision moves, and no report sends it: every other check here can pass while no server can be matched, which is
+    # what misled #58.
+    APP_SERVER_MATCHED = "app_server_matched"
 
 
 class Capability(StrEnum):

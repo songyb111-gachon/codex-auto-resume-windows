@@ -15,7 +15,7 @@ from . import files, probes
 from .files import (REFRESH_EXIT, REFRESH_TIMEOUT_SECONDS, _stamp, product_version,
                     write_json_atomic)
 from .cache import (_cache_empty, _coerce, _sources_of, judge_cache, read_cache)
-from .probes import (_candidate_paths, engine_from_backend, engine_from_discovery)
+from .probes import (_candidate_paths, engine_from_backend, engine_from_discovery, server_check)
 from .views import (assemble)
 
 # ------------------------------------------------------------------------------ the watcher
@@ -63,9 +63,9 @@ class Evaluator:
     def _engine_key_of(self, backend, discovery):
         if backend is not None:
             try:
-                return ("backend", id(backend), _stamp(backend.codex_exe))
+                return ("backend", id(backend), _stamp(backend.codex_exe), server_check(backend))
             except Exception:
-                return ("backend", id(backend), None)
+                return ("backend", id(backend), None, server_check(backend))
         items = []
         for path, result in sorted((discovery or {}).items()):
             result = result if isinstance(result, dict) else {}
@@ -134,11 +134,14 @@ class Evaluator:
                          for name, entry in report["capabilities"].items()
                          if entry["state"] in (compat.INCOMPATIBLE, compat.UNKNOWN)
                          and entry["reason"] != "not_implemented")
+        unmatched = report["checks"]["app_server_matched"] == compat.FAIL
         said = (report.get("acting"), report["overall"], report["engine"]["version"],
-                report["data"]["cache"], tuple(failing))
+                report["data"]["cache"], tuple(failing), unmatched)
         if said == self._said:
             return
         self._said = said
+        if unmatched:
+            self.log("compatibility: the ChatGPT app runs, and no Codex server of its could be matched")
         self.log("compatibility: acting %s, found %s (engine %s; data %s, cache %s)%s" % (
             report.get("acting"), report["overall"], report["engine"]["version"] or "not found",
             report["data"]["source"], report["data"]["cache"],

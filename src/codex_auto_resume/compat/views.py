@@ -15,6 +15,9 @@ from .files import (_read_capped, _signature, path_digest, product_version)
 from .cache import (_sources_of, read_cache)
 from .probes import (_candidate_paths, discover, engine_from_backend, engine_from_discovery)
 
+SERVER_CHECK = "app_server_matched"
+
+
 # ------------------------------------------------------------------------------ the report
 def assemble(*, engine_checks, engine, other_checks, bundled, bundled_state, cache,
              product, now, acting=None) -> dict:
@@ -35,6 +38,16 @@ def assemble(*, engine_checks, engine, other_checks, bundled, bundled_state, cac
                                checks=checks, capabilities=capabilities, acting=acting)
 
 
+def _watchers_server_check(paths, now) -> str:
+    """#58's follow-up: what the watcher's own report last found of the app's server, for a live check, which asks the app
+    nothing (a per-call reader starts no process for it) and so would say "not checked" over a server the watcher could
+    not match. Not checked where the report cannot be used, or is too old to be relied on."""
+    report, _status = read_report(paths, now=now)
+    if report is None or now - report["checked_at"] > compat.REPORT_MAX_AGE:
+        return compat.UNAVAILABLE
+    return report["checks"][SERVER_CHECK]
+
+
 def live_report(paths, codex_home, *, backend=None, discovery=None, explicit=None,
                 source=None, now=None) -> dict:
     """A fresh evaluation for a reader with no watcher to ask. Never written anywhere:
@@ -48,6 +61,8 @@ def live_report(paths, codex_home, *, backend=None, discovery=None, explicit=Non
     else:
         engine_checks, engine = engine_from_discovery(discovery,
                                                       candidates=len(_candidate_paths(explicit)))
+    if engine_checks.get(SERVER_CHECK, compat.UNAVAILABLE) == compat.UNAVAILABLE:
+        engine_checks = dict(engine_checks, **{SERVER_CHECK: _watchers_server_check(paths, now)})
     if source is None:
         source = codex_source.LocalSource(codex_home)
     bundled, bundled_state = files.load_bundled(product=product, now=now)

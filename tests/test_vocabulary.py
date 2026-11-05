@@ -168,7 +168,8 @@ LISTS = {
     "compat.TIERS": ("tuple", 4, "c97af83c55d98a0e"),
     "compat.COARSE": ("dict", 6, "516c60fa0957de72"),
     "compat.ENGINE_STATES": ("tuple", 6, "36426170c5b3e61b"),
-    "compat.CHECKS": ("tuple", 13, "4f60ac9722005257"),
+    # #58's follow-up: app_server_matched - a server of the Codex app's found at the watcher's last look.
+    "compat.CHECKS": ("tuple", 14, "f3583b1bce186e3e"),
     "compat.CAPABILITIES": ("dict", 16, "2ccc411f04f2d0eb"),
     "compat.SEND_GATE": ("tuple", 2, "9f067781e177f778"),
     "compat.RESOLUTION_REASONS": ("set", 8, "d1dc0426f2a468e1"),

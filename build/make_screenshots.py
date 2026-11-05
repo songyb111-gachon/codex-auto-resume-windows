@@ -570,6 +570,8 @@ def seed_compatibility(home: Path, codex: Path, local: Path, now: float) -> str:
         if backend is None:
             raise RuntimeError("the stand-in Codex engine was not accepted: %r" % sorted(
                 (result or {}).get("official_location") for result in discovery.values()))
+        # The stand-in app's server, matched at the last look, as on a PC whose recoveries go on.
+        backend.app_look, backend.app_looked_at = "matched", time.monotonic()
         word = compatio.Evaluator(paths, codex, clock=lambda: now - 40).tick(backend, discovery)
         view = compatio.read_view(paths, now=now)
     if view["status"] != "ok":
