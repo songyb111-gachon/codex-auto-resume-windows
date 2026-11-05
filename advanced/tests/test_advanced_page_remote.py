@@ -1,4 +1,4 @@
-"""The loopback API's card on the Advanced features page (v0.6.22, advanced/gui/AdvancedRemote.cs).
+"""The loopback API's card and Telegram's on the Advanced features page (v0.6.22, advanced/gui/AdvancedRemote.cs).
 
 While Read this PC's status from a browser or a script is on, its column has "Address and token": how the server stands, the
 address with no token in it, whether a token is kept, Copy address and New token... - and off, no card and no read. Copy
@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from pagecase import PageCase, sent, snapshot  # noqa: E402
 
 API = "local_api"
+TELEGRAM = "telegram_remote"
 ADDRESS = "http://127.0.0.1:47615/"
 COPIED = ADDRESS + "#made-up-token-for-the-test"
 
@@ -26,6 +27,11 @@ COPIED = ADDRESS + "#made-up-token-for-the-test"
 def card(token=True, state="running", lan=False):
     return {"ok": True, "result": {"done": True, "refusal": None, "port": 47615, "url": ADDRESS, "token_saved": token,
                                    "state": state, "lan": lan, "actions": False}}
+
+
+def telegram(paired=True, token=True, state="running", also=False, pairing=False):
+    return {"ok": True, "result": {"done": True, "refusal": None, "paired": paired, "token_saved": token, "pairing": pairing,
+                                   "state": state, "continue": also}}
 
 
 def done(**more):
@@ -74,6 +80,36 @@ class PageTests(PageCase):
         steps = [{"do": "snapshot", "reply": snapshot()}, {"do": "show"}, {"do": "choose", "id": API}, {"do": "look"}]
         return "en", {"script": script, "steps": steps}, {"words": script["advanced-words"][0]["result"]["words"]}
 
+    @classmethod
+    def scenario_telegram(cls, bridge):
+        """On, paired: the card and its four commands; Pair this chat shows the code to send the bot."""
+        cls.watched(bridge, "push_notices", state="armed")
+        cls.watched(bridge, TELEGRAM, state="armed")
+        script = cls.opening(bridge, "en")
+        script["advanced-remote-pair-state"] = [telegram()] * 4 + [telegram(pairing=True)] * 4
+        steps = [{"do": "snapshot", "reply": snapshot()}, {"do": "show"}, {"do": "choose", "id": TELEGRAM}, {"do": "look"},
+                 {"do": "reply", "key": "advanced-remote-pair-state", "with": [telegram(pairing=True)] * 4},
+                 {"do": "reply", "key": "advanced-remote-pair-start", "with": [done(code="042317", expires_at=1.0)]},
+                 {"do": "remote", "button": "pair telegram"}, {"do": "look"}]
+        return "en", {"script": script, "steps": steps}, {"words": script["advanced-words"][0]["result"]["words"]}
+
+    @classmethod
+    def scenario_telegram_more(cls, bridge):
+        """Not paired, no token, stopped, and the second capability on: its two commands listed, no Pair."""
+        cls.watched(bridge, "push_notices", state="armed")
+        cls.watched(bridge, TELEGRAM, state="armed")
+        script = cls.opening(bridge, "en")
+        script["advanced-remote-pair-state"] = [telegram(paired=False, token=False, state="stopped", also=True)] * 8
+        steps = [{"do": "snapshot", "reply": snapshot()}, {"do": "show"}, {"do": "choose", "id": TELEGRAM}, {"do": "look"}]
+        return "en", {"script": script, "steps": steps}, {"words": script["advanced-words"][0]["result"]["words"]}
+
+    @classmethod
+    def scenario_telegram_off(cls, bridge):
+        script = cls.opening(bridge, "en")
+        script["advanced-remote-pair-state"] = [telegram()]
+        steps = [{"do": "snapshot", "reply": snapshot()}, {"do": "show"}, {"do": "choose", "id": TELEGRAM}, {"do": "look"}]
+        return "en", {"script": script, "steps": steps}, {"words": script["advanced-words"][0]["result"]["words"]}
+
     def card(self, look, title):
         return next((each for each in look["cards"] if each[0] == title), None)
 
@@ -116,6 +152,38 @@ class PageTests(PageCase):
         self.assertIn(words["page.api.state.port_taken"], where)
         self.assertIn(words["page.api.lan"], where)
         self.assertEqual(look["remote_buttons"], ["token api"])
+
+    def test_telegram_s_card_lists_what_may_be_sent_and_pairing_shows_the_code(self):
+        result, expected = self.of("scenario_telegram")
+        words = expected["words"]
+        first = self.card(result["looks"][0], words["page.remote.card"])
+        self.assertIsNotNone(first, result["looks"][0]["cards"])
+        self.assertIn(words["page.remote.state.running"], first)
+        self.assertIn(words["page.remote.paired"], first)
+        for name in ("status", "list", "cancel", "pause"):
+            self.assertIn(words["page.remote.command." + name], first)
+        for name in ("continue", "recovery_on"):
+            self.assertNotIn(words["page.remote.command." + name], first, "only while that is on")
+        self.assertEqual(result["looks"][0]["remote_buttons"], ["pair telegram"])
+        self.assertEqual(sent(result, "advanced-remote-pair-start"), [{}])
+        self.assertIn(words["page.courier.pair_code"].replace("{code}", "042317"),
+                      self.card(result["looks"][1], words["page.remote.card"]))
+
+    def test_telegram_s_card_with_nothing_saved_says_so_and_offers_no_pairing(self):
+        result, expected = self.of("scenario_telegram_more")
+        words = expected["words"]
+        look = result["looks"][0]
+        where = self.card(look, words["page.remote.card"])
+        self.assertIn(words["page.remote.not_paired"], where)
+        self.assertIn(words["page.remote.state.stopped"], where)
+        for name in ("continue", "recovery_on"):
+            self.assertIn(words["page.remote.command." + name], where)
+        self.assertEqual(look["remote_buttons"], [])
+
+    def test_telegram_off_there_is_no_card_and_it_is_not_read(self):
+        result, expected = self.of("scenario_telegram_off")
+        self.assertIsNone(self.card(result["looks"][0], expected["words"]["page.remote.card"]))
+        self.assertEqual(sent(result, "advanced-remote-pair-state"), [])
 
     def test_off_there_is_no_card_and_it_is_not_read(self):
         result, expected = self.of("scenario_off")

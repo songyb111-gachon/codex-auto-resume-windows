@@ -380,6 +380,15 @@ class NothingLoggedTests(ServerCase):
                 raw.shutdown(socket.SHUT_RDWR)
         self.assertEqual((out.getvalue(), err.getvalue()), ("", ""))
 
+    def test_a_failure_in_the_server_itself_is_not_printed_either(self):
+        """Fails with handle_error put back: socketserver prints the client's address and a traceback to stderr."""
+        err = io.StringIO()
+        with patch.object(sys, "stderr", err), patch.object(api, "host_allowed", lambda *unused: 1 / 0):
+            with socket.create_connection(("127.0.0.1", self.port), timeout=10) as raw:
+                raw.sendall(b"GET / HTTP/1.0\r\nHost: 127.0.0.1\r\n\r\n")
+                raw.recv(1024)
+        self.assertEqual(err.getvalue(), "")
+
     def test_the_token_is_nowhere_in_the_state_file(self):
         with patch.object(remote, "status_document", lambda layer, now: {"format": "x"}):
             for _ in range(10):
