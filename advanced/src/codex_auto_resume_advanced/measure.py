@@ -2843,7 +2843,9 @@ _MPROFILE_FIELDS = ("profile_given", "added_by_login", "account_read", "own_acco
 # what the watcher's look asks before it closes anything (engine/autoswitch `_why_not`, finding 17).
 _MSWAP_FIELDS = ("profiles_given", "app_was_running", "swapped", "signed_in_as_target", "swapped_back",
                  "signed_in_as_first", "first_usage_read", "target_usage_read", "other_engine_alive",
-                 "other_engine_alive_open")
+                 "other_engine_alive_open",
+                 # `looked`: the person said they had looked at the other account before the switch back (_wait_for_look).
+                 "looked")
 _STORE_WORDS = ("usable", "not_file", "no_file", "unreadable")
 
 
@@ -2909,6 +2911,9 @@ def _mswap(ctx):
                 "first account's sign-in no longer works after coming back")
     if observed["swapped_back"] is True and observed["first_usage_read"] is False:
         return Verdict.FAIL, observed, "after coming back, the first account's usage could not be read"
+    if observed["looked"] is not True:
+        return _blocked("no one said they had looked at the other account before the switch back; confirm only what "
+                        "you saw, or run mswap again and look at Settings > Account after the first restart", **observed)
     return _blocked("confirm the Codex app showed the other account, then yours again, each without its own sign-in "
                     "page, then set the verdict", **observed)
 
@@ -3394,6 +3399,31 @@ def _profile_read(backend, paths, home):
                 app_unchanged=main() == app, real_still_signed_in=signed_in() == current)
 
 
+# MSWAP waits between its two switches, so the person can open Settings > Account and see the other account signed in:
+# until this file appears in the measurement's own product home (the measurement session makes it when the person
+# says they looked), at most MSWAP_LOOK_SECONDS.
+MSWAP_LOOK_FILE = "mswap-looked"
+MSWAP_LOOK_SECONDS = 180
+
+
+def _wait_for_look(home, *, seconds=MSWAP_LOOK_SECONDS, clock=time.monotonic, sleep=time.sleep) -> bool:
+    """Whether the person said they looked - the file appeared in `home` - before `seconds` passed. The file is taken
+    away either way, so the next run waits again."""
+    marker = Path(home) / MSWAP_LOOK_FILE
+    deadline = clock() + seconds
+    try:
+        while not marker.exists():
+            if clock() >= deadline:
+                return False
+            sleep(1.0)
+        return True
+    finally:
+        try:
+            marker.unlink()
+        except OSError:
+            pass
+
+
 def _account_swap(backend, paths, home):
     """MSWAP's real hand (v0.6.22): codex/swap.switch to the other saved account and back, with the product's own
     restart (as MALR's), only where no turn runs and nothing is queued."""
@@ -3442,6 +3472,10 @@ def _account_swap(backend, paths, home):
     if restarts.busy(paths, source=LocalSource(Path(home)), store=_NoRecords()):
         return found
     found["other_engine_alive_open"] = swap.other_engines(swap._inventory(), app_open=True)
+    try:
+        (Path(paths.home) / MSWAP_LOOK_FILE).unlink()     # one an earlier run left would let this one go on unseen
+    except OSError:
+        pass
     outcome = swap.switch(paths, store, home, others[0], restart=restart, read_real=read_real)
     found["other_engine_alive"] = outcome == swap.ENGINE_ALIVE
     found["swapped"] = outcome in (swap.SWITCHED, swap.NOT_SIGNED_IN)
@@ -3449,6 +3483,7 @@ def _account_swap(backend, paths, home):
     if outcome != swap.SWITCHED:
         return found
     found["target_usage_read"] = usage_read()
+    found["looked"] = _wait_for_look(paths.home)       # the person looks at Settings > Account before the switch back
     back = swap.switch(paths, store, home, first_id, restart=restart, read_real=read_real)
     found["other_engine_alive"] = back == swap.ENGINE_ALIVE
     found["swapped_back"] = back in (swap.SWITCHED, swap.NOT_SIGNED_IN)
