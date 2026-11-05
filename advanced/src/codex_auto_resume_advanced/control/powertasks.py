@@ -124,6 +124,15 @@ def arm(runtime, threads, action, grace_minutes, failed, interrupted, generation
         except ControlError:
             pass
         return _refused(Refusal.STATE_UNAVAILABLE, runtime)
+    # Turned off while this armed (v0.6.23 audit seatA:B-M8): a way off that ran between the first look and the arming
+    # found nothing armed to turn off, so this turns it off - an arming for tasks never outlives its capability.
+    if not _on(runtime, powertasks.CAPABILITY):
+        try:
+            layer.disarm_power_action("dashboard")
+        except ControlError:
+            pass
+        powertasks.remove(runtime.paths)
+        return _refused(Refusal.NOT_ON, runtime)
     return view(runtime)
 
 

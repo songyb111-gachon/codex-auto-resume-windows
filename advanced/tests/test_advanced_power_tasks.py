@@ -289,6 +289,25 @@ class ArmTests(ac.AdvancedCase):
         self.assertIsNone(self.stored()["armed"])
         self.assertIsNone(powertasks.read(self.paths))
 
+    def test_turned_off_while_it_armed_the_arming_is_turned_off_too(self):
+        """seatA:B-M8 (v0.6.23 audit). Fails without the second look: the tray's every-feature-off ran between the
+        card's first look and the arming, found nothing armed, and the arming stood with the capability off."""
+        self.arm(self.run_, "power_after_tasks")
+        real = card._on
+        looks = []
+
+        def on(runtime, capability):
+            looks.append(capability)
+            if len(looks) == 1:
+                answer = real(runtime, capability)
+                self.run_.arming.disarm("power_after_tasks", actor="dashboard")
+                return answer
+            return real(runtime, capability)
+        with mock.patch.object(card, "_on", on):
+            self.assertEqual(self.arm_tasks()["refusal"], "not_on")
+        self.assertIsNone(self.stored()["armed"])
+        self.assertIsNone(powertasks.read(self.paths))
+
     def test_a_standard_arming_is_left_alone_when_it_goes_off(self):
         Control(self.paths).arm_power_action({"action": "sleep", "after": "all_recovered", "repeat": "once",
                                              "grace_minutes": 5})
