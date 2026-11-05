@@ -119,7 +119,7 @@ class DefinitionTests(unittest.TestCase):
         self.assertEqual(WINDOW_ANCHOR.option(OptionKey.ANCHOR_AT_1).default, anchor.TIME_OFF)
         order = registry.SHOWN_ORDER
         # 2026-10-31: among what gets work going again, after the early reset and before the parallel dispatch.
-        self.assertEqual(order[order.index(CAP) - 1:order.index(CAP) + 2], ("early_reset", CAP, "parallel_dispatch"))
+        self.assertEqual(order[order.index(CAP) - 1:order.index(CAP) + 2], ("account_auto_switch", CAP, "parallel_dispatch"))
 
     def test_its_session_reads_usage_and_whether_an_account_is_signed_in_and_nothing_more(self):
         self.assertEqual(protocol.methods_for_capability(CAP),
