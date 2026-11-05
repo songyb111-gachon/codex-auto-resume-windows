@@ -718,7 +718,8 @@ never sends; the page reads it from there and puts it in a header.
 stand without opening the Dashboard.
 
 **What it risks.** Any program on this PC holding the token can read how your recoveries stand, and the address carries
-it: keep it out of screenshots and shared notes. It shows state and counts, no conversation's title, path or words. A
+it, so Windows' clipboard history and your browser's history keep it once you copy and open it: keep it out of
+screenshots and shared notes. Copy address is offered only while the server runs. It shows state and counts, no conversation's title, path or words. A
 server is one more process and one more port; a program already on that port keeps it from starting, and the card says so.
 
 **How it is held.** A request naming the server by any other host name is refused (421), so a web page cannot reach it
@@ -761,8 +762,10 @@ script* on.
 ### Open the status server to your local network
 
 **What it does.** While it and the status server are on, the server answers on every network this PC is on, so another
-device can read it at this PC's IP address and the port, with the token. A request must name the server by an IP address;
-any other name is refused. Windows asks about its firewall the first time. This product never changes a firewall rule.
+device can read it at this PC's IP address and the port, with the token. A request must name the server by an IP address
+or as localhost; any other name is refused. Windows asks about its firewall the first time. This product never changes a
+firewall rule, so one you allowed stays after this is off and after an uninstall: remove it in Windows Security, Firewall &
+network protection, Allow an app through firewall (the entry for this product's pythonw.exe).
 
 **When it helps.** A phone or another PC at home that wants to see how this one stands.
 
