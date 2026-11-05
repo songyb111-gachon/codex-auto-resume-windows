@@ -280,17 +280,20 @@ class ResetCredit:
             opened = session()
         except Exception:
             opened = None
-        sequence = None
+        sequence, written = None, False
         if opened is not None:
             try:
                 with guard() as permitted:
                     if permitted is True:
+                        written = True                                   # from here the request may reach Codex
                         sequence = opened.submit(credits.CONSUME, {"idempotencyKey": key})
             except AdapterError:
                 sequence = None
         if sequence is None:
-            if not retry:
+            if not retry and not written:
                 handle.drop_credit_spend(spend)                          # nothing was asked: next look tries again
+            # A write that failed part way (v0.6.23 audit A-M1) may have reached Codex: the spend stays, unknown, and
+            # is settled as any unknown answer is - the same key once more where MR passed - never a second key.
             return None
         try:
             outcome = credits.outcome(opened.receive(credits.CONSUME, sequence))
