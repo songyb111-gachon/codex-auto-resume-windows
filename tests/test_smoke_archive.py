@@ -158,6 +158,8 @@ class ContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {"APPDATA": temp}):
             self.assertEqual(shortcut.shortcut_path(), Path(temp) / smoke.START_MENU_ENTRY,
                              "the Start Menu entry follows APPDATA, which the run redirects")
+        self.assertEqual(smoke.DESKTOP_ENV, shortcut.DESKTOP_ENV)
+        self.assertEqual(smoke.DESKTOP_SHORTCUT, shortcut.SHORTCUT_NAME)
 
     def test_the_child_environment_stays_in_the_workspace(self):
         base = {"PATH": r"C:\Windows", "SystemRoot": r"C:\Windows", "TEMP": r"C:\t",
@@ -169,7 +171,8 @@ class ContractTests(unittest.TestCase):
             child = smoke.child_environment(workspace, base)
             for name in smoke.REDIRECTED:
                 self.assertTrue(smoke._inside(child[name], workspace), name)
-            self.assertFalse([name for name in child if name.upper().startswith("CODEX_AUTO_RESUME")])
+            self.assertEqual([name for name in child if name.upper().startswith("CODEX_AUTO_RESUME")],
+                             [smoke.DESKTOP_ENV], "only the run's own Desktop, which is in the workspace")
             for name in ("PATH", "SystemRoot", "TEMP"):
                 self.assertEqual(child[name], base[name])
         self.assertIn("CODEX_AUTO_RESUME_HOME", base, "the caller's mapping is not changed")

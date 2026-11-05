@@ -716,13 +716,13 @@ on the message.
 Outside that directory it also registers ordinary per-user Windows plumbing, none of it
 needing administrator rights and none of it containing anything about your conversations: a
 Start Menu shortcut carrying the tool's notification identity, which Windows requires before
-it will draw a toast at all; the registry entry that gives that identity its name and icon;
+it will draw a toast at all; a shortcut on your Desktop, only if you asked for one; the registry entry that gives that identity its name and icon;
 the sign-in autostart value (unless you skip it); and the handler for the notification
 button's `codex-auto-resume:` link; and, from v0.6.16, the entry in Add or remove programs (one per-user key under
 Windows' Uninstall key that names the version, the folder and the command that removes it, with a copy of the
 installer's own uninstall, `uninstall\install.ps1`, kept in the installation for it to name). Through the `codex plugin` commands it registers this
 plugin and its local marketplace in your Codex configuration, and Codex keeps its own copy
-of the plugin. Uninstalling removes those Windows entries, the Add or remove programs entry among them, each only while it
+of the plugin. Uninstalling removes those Windows entries and the Desktop shortcut, the Add or remove programs entry among them, each only while it
 belongs to this installation, and asks Codex to remove the plugin and the marketplace only while they still point at this
 installation; Codex then removes its own copy.
 

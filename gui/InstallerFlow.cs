@@ -8,7 +8,7 @@
 // It asks only what the installer really has a choice about. install.ps1 decides everything else itself -
 // where it installs, that it adds the plugin to Codex, that an update keeps the settings and the sign-in
 // choice - and the window says those as facts. The answers become the installer's own switches: -SkipStartup,
-// -AllowEditionChange and, for an uninstall, -Purge. -Silent is always passed, because the window is the one
+// -AllowEditionChange, -DesktopShortcut, -NoDesktopShortcut and, for an uninstall, -Purge. -Silent is always passed, because the window is the one
 // asking and nothing may wait for a key in a console nobody sees.
 //
 // C# 5 only: the setup programs are compiled by the in-box csc (build/make_setup.py), as the window is.
@@ -17,6 +17,8 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace CodexAutoResume
@@ -66,6 +68,11 @@ namespace CodexAutoResume
 
         /// Run at Windows sign-in, on a first installation: off is -SkipStartup.
         internal bool StartAtSignIn = true;
+        /// A shortcut on the Desktop: on is -DesktopShortcut, and off is -NoDesktopShortcut where one is there. Starts as
+        /// what is true now (KnowDesktopShortcut), so off on a first installation.
+        internal bool MakeDesktopShortcut;
+        /// Whether this installation's shortcut is on the Desktop as the window opens.
+        internal bool DesktopShortcutThere;
         /// Replace the other edition, which is installed: -AllowEditionChange. Off until it is asked for.
         internal bool ChangeEdition;
         /// Delete the settings and the recovery history too, on an uninstall: -Purge. Off until it is asked for.
@@ -119,6 +126,13 @@ namespace CodexAutoResume
             if (Maintaining) Mode = remove ? Uninstall : Install;
         }
 
+        /// The box's first answer: what the setup program's command line said, else what is true now.
+        internal void KnowDesktopShortcut(bool there, IEnumerable<string> given)
+        {
+            DesktopShortcutThere = there;
+            MakeDesktopShortcut = !Has(given, "-NoDesktopShortcut") && (Has(given, "-DesktopShortcut") || there);
+        }
+
         /// Whether this run repairs the installation: the Maintain page's Repair.
         internal bool Repair { get { return Maintaining && Mode == Install; } }
 
@@ -169,6 +183,8 @@ namespace CodexAutoResume
                 // A first installation's choice only: on an update install.ps1 keeps the sign-in entry as it is.
                 if (!Upgrade && !StartAtSignIn) switches.Add("-SkipStartup");
                 if (EditionChange && ChangeEdition) switches.Add("-AllowEditionChange");
+                if (MakeDesktopShortcut) switches.Add("-DesktopShortcut");
+                else if (DesktopShortcutThere) switches.Add("-NoDesktopShortcut");
             }
             if (given != null)
             {
@@ -185,7 +201,8 @@ namespace CodexAutoResume
         // The switches the answers above decide, which a setup program's own command line only presets.
         private static bool IsAnswered(string word)
         {
-            foreach (string answered in new[] { "-SkipStartup", "-AllowEditionChange", "-Silent", "-Uninstall", "-Purge" })
+            foreach (string answered in new[] { "-SkipStartup", "-AllowEditionChange", "-Silent", "-Uninstall", "-Purge",
+                                                "-DesktopShortcut", "-NoDesktopShortcut" })
                 if (string.Equals(word, answered, StringComparison.OrdinalIgnoreCase)) return true;
             return false;
         }
@@ -276,6 +293,65 @@ namespace CodexAutoResume
 
     /// What is new in a version (v0.6.16): its section of the changelog an archive carries, docs\CHANGELOG.md - or the
     /// person's language's, CHANGELOG.<language>.md, where the archive carries one. Pure but for FileFor.
+    /// Whether this installation's shortcut is on the Desktop, for the setup window's box. Reads only: what makes and
+    /// removes it is the engine's (src/codex_auto_resume/shortcut.py), which holds the same rule: the exact file name, and
+    /// a target inside the installation. Any other shortcut there is the person's.
+    internal static class DesktopShortcut
+    {
+        internal const string FileName = "Codex Auto Resume.lnk";
+        internal const string FolderVariable = "CODEX_AUTO_RESUME_DESKTOP";
+        /// The lines install.ps1 says of a shortcut it could not make, which the Finish page repeats.
+        internal const string FailedLine = "[!]  The desktop shortcut could not be changed";
+        internal const string TakenLine = "[!]  Another shortcut with the same name is on the Desktop";
+
+        /// The Desktop, where Windows says it is: its known folder, wherever that is redirected.
+        internal static string Folder()
+        {
+            string given = Environment.GetEnvironmentVariable(FolderVariable);
+            return !string.IsNullOrEmpty(given) ? given : Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+        }
+
+        /// Pure.
+        internal static bool Inside(string target, string home)
+        {
+            if (string.IsNullOrEmpty(target) || string.IsNullOrEmpty(home)) return false;
+            try
+            {
+                string root = Path.GetFullPath(home).TrimEnd('\\') + "\\";
+                return Path.GetFullPath(target).StartsWith(root, StringComparison.OrdinalIgnoreCase);
+            }
+            catch (Exception) { return false; }
+        }
+
+        /// False too where it cannot be told: then the box starts off, and the shortcut stays as it is.
+        internal static bool OursAt(string home)
+        {
+            try
+            {
+                string folder = Folder();
+                if (string.IsNullOrEmpty(folder)) return false;
+                string link = Path.Combine(folder, FileName);
+                if (!File.Exists(link) || (File.GetAttributes(link) & FileAttributes.ReparsePoint) != 0) return false;
+                return Inside(TargetOf(link), home);
+            }
+            catch (Exception) { return false; }
+        }
+
+        // The shell's own reading of a shortcut. WScript.Shell saves nothing until it is asked to.
+        private static string TargetOf(string link)
+        {
+            Type type = Type.GetTypeFromProgID("WScript.Shell");
+            object shell = Activator.CreateInstance(type);
+            try
+            {
+                object shortcut = type.InvokeMember("CreateShortcut", BindingFlags.InvokeMethod, null, shell, new object[] { link });
+                try { return shortcut.GetType().InvokeMember("TargetPath", BindingFlags.GetProperty, null, shortcut, null) as string; }
+                finally { Marshal.ReleaseComObject(shortcut); }
+            }
+            finally { Marshal.ReleaseComObject(shell); }
+        }
+    }
+
     internal static class InstallerNotes
     {
         /// The changelog to read in `docs`: the language's own where it is there, else the English one.

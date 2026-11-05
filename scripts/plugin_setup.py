@@ -37,6 +37,8 @@ MIN_PYTHON = (3, 13)
 CHECK = "✓"
 EXIT_OK = 0
 EXIT_ERROR = 1
+# desktop-shortcut make: a shortcut with this name that is not ours is on the Desktop. It stays, and none was made.
+EXIT_DESKTOP_TAKEN = 3
 # Everything asked for was done, but the watcher could not be confirmed running.
 # Distinct from both, because the caller has to be able to tell the difference:
 # an installer that treats it as failure rolls back a good install, and one that
@@ -44,9 +46,10 @@ EXIT_ERROR = 1
 EXIT_UNCONFIRMED = 2
 
 sys.path.insert(0, str(PLUGIN_ROOT / "src"))
-from codex_auto_resume import addremove, config, control, edition, l10n, startup # noqa: E402
+from codex_auto_resume import addremove, config, control, edition, l10n, shortcut, startup # noqa: E402
 from codex_auto_resume.app import App                        # noqa: E402
 from codex_auto_resume.commands.base import PROGRESS_LINES, progress  # noqa: E402
+from codex_auto_resume.commands.install import make_desktop_shortcut  # noqa: E402
 
 # Setup's own steps, counted for the setup window's bar while the installer runs it (progress): the launcher, the
 # state, recovery switched on, the sign-in start, the link handler, the entry in Add or remove programs, the watcher.
@@ -544,6 +547,24 @@ def cmd_remove_entry(args) -> int:
     return EXIT_OK
 
 
+def cmd_desktop_shortcut(args) -> int:
+    """The setup window's box, or the installer's -DesktopShortcut and -NoDesktopShortcut: make this installation's
+    shortcut on the Desktop, or remove it. The installer says what became of it; nothing else depends on it."""
+    paths = config.Paths(runtime_home())
+    try:
+        if args.action == "make":
+            make_desktop_shortcut(paths)
+        else:
+            shortcut.uninstall_desktop(paths.home)
+    except shortcut.DesktopTaken as exc:
+        print(str(exc))
+        return EXIT_DESKTOP_TAKEN
+    except shortcut.ShortcutError as exc:
+        print(str(exc))
+        return EXIT_ERROR
+    return EXIT_OK
+
+
 def cmd_downgrade_state(args) -> int:
     """For Install another version... (the bootstrap's -Pick): the state converted for an older
     release, the watcher asked to stop and waited for first, and one line saying what was done
@@ -591,6 +612,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--purge", action="store_true",
                    help="also delete settings, pending recoveries and logs")
     sub.add_parser("remove-entry", help="remove the Add or remove programs entry and the uninstaller kept for it")
+    p = sub.add_parser("desktop-shortcut", help="make or remove this installation's shortcut on the Desktop")
+    p.add_argument("action", choices=["make", "remove"])
     p = sub.add_parser("logs")
     p.add_argument("-n", "--lines", type=int, default=30)
     p = sub.add_parser("downgrade-state", help="convert the state for an older release (v0.6.0 to v0.6.14)")
@@ -607,6 +630,7 @@ COMMANDS = {
     "disable": cmd_disable, "cancel": cmd_cancel, "uninstall": cmd_uninstall,
     "verify-home": cmd_verify_home, "watcher-running": cmd_watcher_running,
     "claim-home": cmd_claim_home, "downgrade-state": cmd_downgrade_state, "remove-entry": cmd_remove_entry,
+    "desktop-shortcut": cmd_desktop_shortcut,
     "stop": passthrough("stop"), "doctor": passthrough("doctor"), "logs": passthrough("logs"),
 }
 

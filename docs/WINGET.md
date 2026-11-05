@@ -28,7 +28,8 @@ From v0.6.16 both Setup programs meet what the community repository asks of an i
 
 - **Silent install.** `CodexAutoResume-Setup-vX.Y.Z.exe -Silent` (and the Advanced one) asks nothing and waits for
   no key, and shows no window: without it the Setup program is the installer window, which winget never sees.
-  The manifest's `Silent` and `SilentWithProgress` switches are both `-Silent`. Exit codes are the ones the
+  The manifest's `Silent` and `SilentWithProgress` switches are both `-Silent`, which makes no Desktop shortcut and
+  leaves one that is there. Exit codes are the ones the
   installer has always had; 14, the other edition being installed (nothing changed, nobody to ask), is listed under
   `ExpectedReturnCodes` with a link to EDITIONS.md.
 - **An entry in Add or remove programs**, so `winget list`, `winget upgrade` and `winget uninstall` find the
