@@ -147,7 +147,12 @@ namespace CodexAutoResume
                              Col(Word("page.fleet.col.pc", "PC"), 190), Col(Word("page.fleet.col.state", "State"), 150),
                              Col(Word("page.fleet.col.waiting", "Waiting"), 80), Col(Word("page.fleet.col.next", "Next check"), 140),
                              Col(Word("page.fleet.col.written", "Written"), 150));
-            var host = new SoftListHost(fleetList);
+            // The window's one list host, out of the card ListCard gives it: this card is the list's card, never a tile in a tile.
+            Control made = ListCard(fleetList);
+            Control host = made.Controls[0];
+            made.Controls.Remove(host);
+            made.Dispose();
+            host.Dock = DockStyle.None;
             host.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top;
             host.Margin = Pad(0, 2, 0, 0);
             fleetHost = host;

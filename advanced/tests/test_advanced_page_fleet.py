@@ -65,7 +65,7 @@ class CardSourceTests(unittest.TestCase):
     def test_it_draws_only_the_window_s_own_pieces_and_opens_no_window_of_its_own(self):
         """A flat list of the window's own (DrawCell), help lines, buttons: no tile, picture, icon, colour or Form."""
         card = source()
-        for piece in ("MakeCard(", "NewGroup(", "List(", "SoftListHost(", "HelpText(", "CardButton("):
+        for piece in ("MakeCard(", "NewGroup(", "List(", "ListCard(fleetList)", "HelpText(", "CardButton("):
             self.assertIn(piece, card)
         for foreign in ("new Panel", "PictureBox", "Icon", "BackColor", "Color.", "new Button", "new Label", "new Form",
                         "Tile", "DrawSubItem"):
