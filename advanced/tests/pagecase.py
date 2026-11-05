@@ -395,6 +395,18 @@ def audit_data(locale: str, bridge: Bridge) -> dict:  # noqa: C901 - one layout'
                                           "kind": "chatgpt", "mask": "s•••@e•••.com",
                                           "button": True, "switch": "signed_in", "restart": "not_ended",
                                           "busy": ["turn_running"]},
+                     # v0.6.22: the other PCs at their fullest - rows that fill the list, each way a row can read, a
+                     # long path and a count of what was ignored (advanced/gui/AdvancedFleet.cs).
+                     "advanced-fleet": {"done": True, "refusal": None, "state": "armed", "alias": "W" * 32,
+                                        "folder": "C:\\Sync\\" + "shared-folder-" * 15, "stand": "ok", "ignored": 16,
+                                        "peers": [{"alias": ("W%d" % index) * 10, "watcher": watcher, "recovery": recovery,
+                                                   "pending": 100000, "seen": seen, "written_at": None if seen == "clock"
+                                                   else ac.NOW - 60, "next_check_at": ac.NOW + 600}
+                                                  for index, (watcher, recovery, seen) in enumerate(
+                                                      (("running", "on", "fresh"), ("running", "paused", "fresh"),
+                                                       ("running", "observe_only", "fresh"), ("stopped", "on", "fresh"),
+                                                       ("running", "on", "clock"), ("running", "on", "old"),
+                                                       ("running", "on", "fresh"), ("running", "on", "fresh")))]},
                      # v0.6.22: the saved accounts at their fullest - every state word, the line for a sign-in outside
                      # a file and an add that did not finish (advanced/gui/AdvancedAccounts.cs); drawn once offered.
                      "advanced-accounts": {"done": True, "refusal": None, "store": "not_file", "add_state": "not_added",

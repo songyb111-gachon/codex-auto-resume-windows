@@ -371,6 +371,13 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "confirm.accounts_add", "confirm.accounts_delete", "confirm.accounts_delete_all", "done.accounts_saved",
     "done.accounts_deleted", "refused.accounts_not_saved",
 ))
+# v0.6.22 (fleet_view): the Overview's Other PCs list, its columns and state words, how the folder stands, and the card
+# this PC's name and folder are chosen on (advanced/gui/AdvancedFleet.cs, control/fleet.py).
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + "fleet." + name for name in (
+    "title", "col.pc", "col.state", "col.waiting", "col.next", "col.written", "state.running", "state.stopped",
+    "state.paused", "state.observing", "state.not_seen", "state.clock", "stand.none", "stand.unset", "stand.missing",
+    "stand.held", "stand.not_ours", "stand.refused", "ignored", "card", "help", "alias", "alias_help", "folder",
+    "no_folder", "pick", "save", "saved", "off_note", "refused_alias"))
 # The edition's own continuations' words (v0.6.15-beta): what empty_response, subagent_parent and keep_going send -
 # fixed, each passing core's continuation.validate_continuation in every language (nothing is filled in but, for a
 # subagent's line, its id and a closed kind word).

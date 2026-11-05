@@ -109,6 +109,8 @@ class ShippedTests(unittest.TestCase):
                "push_notices", "status_feed", "account_switch",
                # v0.6.20 (#50): steering the running turn, at P8 before the wake timer.
                "steer_send",
+               # v0.6.22: this PC's status in a folder the person syncs, and the other PCs'.
+               "fleet_view",
                # v0.6.20 (Discussion #57): the power action after tasks a person picked, the one answer at P21.
                "power_after_tasks",
                "wake_for_reset",
@@ -117,14 +119,14 @@ class ShippedTests(unittest.TestCase):
 
     # v0.6.20: open_to_send passed its measurement (MOPEN, codex-cli 0.165.0-alpha.1.2, 2026-10-29) and is offered whole,
     # after the 41 of DEFINITIONS (registry.offered): 42 in the registry this edition runs. v0.6.20: power_after_tasks
-    # joins DEFINITIONS - 42 of them, 43 in the registry.
+    # joins DEFINITIONS - 42 of them, 43 in the registry. v0.6.22: fleet_view joins - 43, 44.
     OFFERED = ("open_to_send",)
 
     def test_the_registry_this_edition_ships_is_its_capabilities_in_their_order(self):
         self.assertEqual([d.id for d in registry.DEFINITIONS], list(self.SHIPPED))
-        self.assertEqual(len(registry.DEFINITIONS), 42)
+        self.assertEqual(len(registry.DEFINITIONS), 43)
         self.assertEqual(len(registry.REGISTRY), len(self.SHIPPED) + len(self.OFFERED))
-        self.assertEqual(len(registry.REGISTRY), 43)
+        self.assertEqual(len(registry.REGISTRY), 44)
         self.assertEqual(registry.REGISTRY.ids, self.SHIPPED + self.OFFERED)
         self.assertEqual([definition.id for definition in registry.offered(measured.MEASURED)], list(self.OFFERED))
         # The compatibility report is an action, last: it answers at no point, so it is in no list below.
@@ -145,6 +147,8 @@ class ShippedTests(unittest.TestCase):
                                   "usage_analytics", "window_anchor", "push_notices", "status_feed", "account_switch",
                                   # v0.6.20 (#50): the steer, before the wake timer.
                                   "steer_send",
+                                  # v0.6.22: this PC's status in the folder a person syncs.
+                                  "fleet_view",
                                   "wake_for_reset",
                                   # v0.6.20: offered after the rest, so it answers last (registry.offered).
                                   "open_to_send"),
@@ -191,7 +195,7 @@ class ShippedTests(unittest.TestCase):
              "goal_continuation", "subagent_parent", "sign_in_retry", "unknown_failure_budget",
              # 4) (stop_hook_continuation is hidden until MHK, M4 and M4B pass)
              "silent_continuation", "stop_hook_continuation", "status_feed", "account_switch", "idle_update_check",
-             "structured_rules")
+             "fleet_view", "structured_rules")
 
     def test_the_shown_order_names_every_capability_of_the_registry_exactly_once(self):
         order, ids = registry.SHOWN_ORDER, registry.REGISTRY.ids

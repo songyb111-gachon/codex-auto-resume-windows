@@ -833,6 +833,16 @@ only while push notices or the status feed is on (*What the courier sends*, belo
   tokens and passwords you type are kept in Windows Credential Manager, never in a file, a log or
   the diagnostics. While recovery is paused nothing is sent or read.
 
+- **What goes into the folder you sync** (v0.6.22). With *See your other PCs* on, this PC writes one file every 5
+  minutes into the folder you chose, named with the name you gave this PC: that name, the edition, when it was written,
+  the version, whether the watcher runs, whether recovery is on, paused or only observing, the engine's compatibility word,
+  how many recoveries wait and at which closed state, the next check, and Codex's usage as last read - no conversation's
+  id or title, no path, no user name, no account. This program sends it nowhere; whatever your sync tool does with the
+  folder, it does with this file. The name and the folder are kept in this edition's state and in no log or journal. It
+  reads the other `.json` files there, at most 16 of at most 16 KiB; one that is not exactly this shape is ignored and
+  counted, and shows nowhere. It refuses a folder inside this program's folder or Codex's, a link or junction, and a
+  network path. Turned off, nothing more is written or read and this PC's file stays in the folder until you delete it.
+
 - **What it reads.** Three values an administrator may set under
   `Software\Policies\CodexAutoResume`, in `HKEY_LOCAL_MACHINE` and `HKEY_CURRENT_USER` -
   `ForbidAdvanced`, `ForceShadow` and `AllowedCapabilities` - read and never written: when the

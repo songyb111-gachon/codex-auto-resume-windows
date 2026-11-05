@@ -204,8 +204,10 @@ namespace CodexAutoResume
             int rest = page.Padding.Bottom;
             if (!fitOverview || width <= 0 || room - rest <= 0) return;
             int[] needs = OverviewRowNeeds(grid, width);
-            int[] heights = OverviewHeights(needs, room, rest, Px(OverviewComfort));
-            int total = 0;
+            int under = 0;
+            OverviewRoomAsked(ref under);
+            int[] heights = OverviewHeights(needs, room, rest + under, Px(OverviewComfort));
+            int total = under;
             foreach (int need in needs) total += need;
             bool changed = grid.MinimumSize.Height != total;
             for (int i = 0; i < heights.Length && !changed; i++)

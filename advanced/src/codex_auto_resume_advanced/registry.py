@@ -115,6 +115,7 @@ from .engine.updatecheck import make as make_idle_update_check
 from .engine.wake import DEFAULT_LEAD as WAKE_DEFAULT_LEAD, LEADS as WAKE_LEADS, make as make_wake_for_reset
 # v0.6.20 (the courier): push notices and the status feed.
 from .engine.push import DEFAULT_EVENTS, EVENT_CHOICES, make as make_push_notices, SWITCH as PUSH_SWITCH
+from .engine.fleet import CODES as FLEET_CODES, make as make_fleet_view
 from .engine.feed import DEFAULT_MINUTES as FEED_DEFAULT_MINUTES, MINUTES as FEED_MINUTES, make as make_status_feed
 from .courier.outbox import codes as push_codes
 from .engine.usage import (DEFAULT_PAUSE, DEFAULT_POLL, DEFAULT_STOP_WORDS, DEFAULT_STYLE, DEFAULT_WARN,
@@ -1358,6 +1359,26 @@ STATUS_FEED = CapabilityDef(
     options=(Option(OptionKey.FEED_MINUTES, FEED_MINUTES, FEED_DEFAULT_MINUTES),),
 )
 
+# See your other PCs (v0.6.22, the owner's choice of 2026-11-05; plans/v0619-design/D-remote.md): at P8, at most every 5
+# minutes and on a thread of its own, this PC's status as statusfile holds it, with an alias and the edition, goes whole
+# into a file in a folder the person syncs themselves, and the Overview lists the other PCs' files, read-only - each
+# checked against the closed shape. No network, and no action on a peer. It departs from D1 (state leaves this PC through
+# the person's own sync tool - the reading push_notices gave it: to whom a person chose, never to the developer), D2 (the
+# state keeps a folder path), F3 (a file outside the home) and C4 (it writes on a schedule). Its ceilings are the schema's
+# floor and never bind: it sends nothing to Codex. Paused, P8 is not asked, so nothing is written or read by the watcher.
+FLEET_VIEW = CapabilityDef(
+    id="fleet_view",
+    points=frozenset({Point.TICK}),
+    revision=1,
+    departs_from=("C4", "D1", "D2", "F3"),
+    compat="engine_present",
+    ceilings=Ceilings(per_day=1, per_conversation=1),
+    journal_prefix="fleet",
+    make=make_fleet_view,
+    codes=FLEET_CODES,
+    wordings=(WordingKey.FLEET_ALIAS, WordingKey.FLEET_FOLDER),
+)
+
 # Start the 5-hour window early (v0.6.20, the owner's request of 2026-10-28; plans/v0620-anchor-design.md). At P8,
 # when Codex's 5-hour window is idle - 0 % in two reads STEADY_GAP apart, its reset ~5 h ahead and moving with the
 # clock, as MANCHOR found an idle window reports - its errand starts one near-free request, the measured
@@ -1465,6 +1486,8 @@ DEFINITIONS = (START_WITH_CODEX, CRASH_RESTART, GOAL_CONTINUATION, QUEUE_FOR_OPE
                # v0.6.20 (the usage and token analytics; the 5-hour window started early; the courier; the account switch;
                # #50's steer), before the wake timer, whose errand reads last at P8.
                USAGE_ANALYTICS, WINDOW_ANCHOR, PUSH_NOTICES, STATUS_FEED, ACCOUNT_SWITCH, STEER_SEND,
+               # v0.6.22: this PC's status in a folder the person syncs, and the other PCs' (engine/fleet.py).
+               FLEET_VIEW,
                # v0.6.20 (Discussion #57): the power action after tasks a person picked, the one answer at P21.
                POWER_AFTER_TASKS,
                WAKE_FOR_RESET,
@@ -1641,6 +1664,8 @@ SHOWN_ORDER = (
     # 2026-10-31, group 4: rare cases and expert settings. stop_hook_continuation is hidden (WAITING) until MHK, M4
     # and M4B pass and then takes this place.
     "silent_continuation", "stop_hook_continuation", "status_feed", "account_switch", "idle_update_check",
+    # 2026-11-05 (v0.6.22): for a person with several PCs and a folder they sync: rare, and it restarts nothing.
+    "fleet_view",
     "structured_rules")
 
 

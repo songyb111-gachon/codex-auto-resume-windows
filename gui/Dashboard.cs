@@ -931,6 +931,8 @@ namespace CodexAutoResume
         // The Dashboard's pages and navigation are built, and the snapshot is shown on those
         // built so far.
         partial void DashboardBuilt();
+        // v0.6.22: how much the Overview keeps under its two rows of cards, for what the edition shows there; nothing here.
+        partial void OverviewRoomAsked(ref int under);
         // A snapshot has been shown (ApplySnapshot), or there is none and the pages say so
         // (MarkUnavailable, with null). A page of the advanced edition follows the same read.
         partial void SnapshotApplied(Dictionary<string, object> reply);

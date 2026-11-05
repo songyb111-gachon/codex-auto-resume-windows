@@ -315,6 +315,10 @@ class OptionKey(StrEnum):
     LAST_INGEST = "last_ingest"
     LAST_FEED = "last_feed"
     LAST_FLEET_WRITE = "last_fleet_write"
+    # v0.6.22 (fleet_view): what its last pass is waiting on, as a number (engine/fleet.WAITING_WORDS), and when this PC last
+    # wrote its file, so a file newer than that is another PC's under the same name.
+    FLEET_WAITING = "fleet_waiting"
+    FLEET_WROTE_AT = "fleet_wrote_at"
     # v0.6.20 (window_anchor, the owner's request of 2026-10-28): the times of day it starts an idle 5-hour window at
     # (three, each off or a time - TIME_OFF, or the minute of the day plus two), and whether it starts one right after
     # a reset. And its stamps: when it last started one, the reset that start fixed, the running reset it last saw, the

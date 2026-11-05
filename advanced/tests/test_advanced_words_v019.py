@@ -41,7 +41,9 @@ COMMANDS = ("advanced-analytics", "advanced-analytics-csv", "advanced-courier", 
             "advanced-fleet-save", "advanced-prompt-edit", "advanced-prompts-clear-done", "advanced-account",
             "advanced-account-switch")
 # The commands whose capability has been built since, each with what answers it now: no longer passed over.
-BUILT = {"advanced-prompts-clear-done": "#50, Delete completed (control/prompts.clear_done)",
+BUILT = {"advanced-fleet": "v0.6.22, See your other PCs (control/fleet.view)",
+         "advanced-fleet-save": "v0.6.22, this PC's name and folder (control/fleet.save)",
+         "advanced-prompts-clear-done": "#50, Delete completed (control/prompts.clear_done)",
          "advanced-prompt-edit": "#50, the editor's Save and return on a waiting message (control/prompts.edit)",
          # v0.6.20, the courier (control/courier.py).
          "advanced-courier": "the courier's card read", "advanced-courier-save": "one channel saved, or Telegram paired",

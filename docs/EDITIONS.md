@@ -701,6 +701,37 @@ a schedule) and [C8](STANDARDS.md#c-network) (the status page sees this PC's add
 
 **Ceilings.** None come into play: it sends nothing to Codex. It rests on no measurement.
 
+### See your other PCs
+
+**What it does.** This PC writes its status every 5 minutes, as one small file named after it, into a folder
+you choose and keep in sync with a tool of your own - OneDrive, Syncthing, whatever you already use - and
+the Overview gains an **Other PCs** list of the files your other PCs put there: each one's name, whether its
+watcher runs, how many recoveries wait, its next check and when it wrote. There is nothing to press on a
+row: it only reads. This program never contacts another PC, and there is no network code in it: whatever
+moves the file is your tool. The file holds the status the status file for other tools holds (counts by
+closed state, the usage last read, the version, the engine's word) and the name you give this PC, and no
+conversation's id or title, no path, no user name and no account.
+
+**When it helps.** When you run Codex on several PCs and want to see from one whether the others are waiting
+or stopped.
+
+**What it risks.** Whoever can read the folder, your sync service among them, sees this PC's name, its counts,
+its usage and when it wrote. A file another PC or program put there is ignored, and counted in the journal,
+unless it is exactly what this program writes: at most 16 files of at most 16 KiB are read, and every word and
+number is checked before the window shows it. While recovery is paused nothing is written, so this PC looks
+older on the others. A file older than a week shows greyed as *not seen since*, and a clock set wrong on another
+PC is said rather than believed. If the folder vanishes or your sync tool holds a file, it waits, says so and
+tries again 5 minutes later. It refuses a folder inside this program's folder or Codex's, a link or junction, and
+a network path, and it overwrites only a file it wrote itself. Turned off, this PC's file stays in the folder,
+so the other PCs show it greyed instead of it vanishing: delete it there if you want it gone.
+
+**Departs from** [C4](STANDARDS.md#c-network) (nothing happens on its own: it writes on a schedule),
+[D1](STANDARDS.md#d-privacy-and-the-data-it-keeps) (this PC's status leaves it through your sync tool, never to
+the developer), [D2](STANDARDS.md#d-privacy-and-the-data-it-keeps) (the state keeps the folder's path and this
+PC's name) and [F3](STANDARDS.md#f-footprint-on-the-machine) (a file outside its own folder).
+
+**Ceilings.** None come into play: it sends nothing to Codex. It rests on no measurement.
+
 ### Use a reset credit at the limit you pick
 
 **What it does.** On the page you pick a usage limit ahead of time - the next time the 5-hour limit

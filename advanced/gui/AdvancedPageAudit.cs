@@ -170,6 +170,8 @@ namespace CodexAutoResume
                 form.advancedAccount = Map(kept, "advanced-account");
                 // v0.6.22: the saved accounts at their fullest (AdvancedAccounts.cs), drawn once the capability is offered.
                 form.advancedAccounts = Map(kept, "advanced-accounts");
+                // v0.6.22: this PC's name and folder and the other PCs at their fullest (AdvancedFleet.cs).
+                form.advancedFleet = Map(kept, "advanced-fleet");
                 Dictionary<string, object> shot = Map(kept, "snapshot");
                 form.AdoptAdvancedWords(Json.Parse(wordsJson) as Dictionary<string, object>);
                 // The conversations the reset forms offer, and Pending's list, are the snapshot's.
@@ -240,6 +242,9 @@ namespace CodexAutoResume
                 // v0.6.20 (#50): a delivered message followed through - linked exactly with the longest chain, by time for a
                 // series, not linked, and unread.
                 form.AuditFollow("follow", findings);
+                // v0.6.22: the Overview with its Other PCs list, full, and saying each way the folder can stand.
+                form.AuditFleet("overview/other pcs", findings);
+                form.ShowAdvanced();
                 form.ShowAdvancedList(null);
                 form.AuditAdvanced("advanced unread", findings);
                 if (ids.Count > 0)
@@ -316,6 +321,34 @@ namespace CodexAutoResume
             PerformLayout();
             Walk(nav, where + "/" + AuditName(nav), findings);
             if (advancedList != null) AuditList(where + "/" + AuditName(advancedList), advancedList, findings);
+        }
+
+        /// The Overview with its Other PCs list (AdvancedFleet.cs), held to the standard audit's checks and to its width: as
+        /// `advanced-fleet` has it at its fullest, then saying the longest thing the folder's stand can, with no rows.
+        private void AuditFleet(string where, List<string> findings)
+        {
+            if (advancedFleet == null) return;
+            Dictionary<string, object> fullest = advancedFleet;
+            fleetOn = true;
+            ShowPage("overview");
+            foreach (string stand in new[] { "ok", "unset", "missing", "held", "not_ours", "inside" })
+            {
+                var answer = new Dictionary<string, object>(fullest);
+                answer["stand"] = stand;
+                if (stand != "ok") answer["peers"] = new List<object>();
+                advancedFleet = answer;
+                ShowFleet();
+                AdvancedAudited++;
+                Materialise(this);
+                PerformLayout();
+                Audit(where + "/" + stand, findings);
+                AuditSpoken(where + "/" + stand, this, findings);
+                if (fleetList != null) AuditList(where + "/" + stand + "/" + AuditName(fleetList), fleetList, findings);
+            }
+            advancedFleet = fullest;
+            ShowFleet();
+            fleetOn = false;
+            ShowFleet();
         }
 
         /// The prompt queue's editor (AdvancedEditor.cs), built and never shown, held to the standard audit's checks: nothing
@@ -1123,6 +1156,18 @@ namespace CodexAutoResume
                         if (!form.courierBoxes.TryGetValue(Str(step, "into") ?? "", out box)) disabled.Add("courier_type " + Str(step, "into"));
                         else box.Box.Text = Str(step, "text") ?? "";
                     }
+                    else if (what == "fleet_alias")
+                    {
+                        // v0.6.22: this PC's name typed into the card, and a folder as Windows' own dialog would hand it over.
+                        if (form.fleetAlias == null) disabled.Add("fleet_alias");
+                        else form.fleetAlias.Box.Text = Str(step, "text") ?? "";
+                    }
+                    else if (what == "fleet_folder") form.ChooseFleetFolder(Str(step, "path") ?? "");
+                    else if (what == "fleet_save")
+                    {
+                        if (form.fleetSave == null || !form.fleetSave.Enabled) disabled.Add("fleet_save");
+                        else form.fleetSave.PerformClick();
+                    }
                     else if (what == "run_stop")
                     {
                         Button stop = form.runStops.Find(delegate(Button each) { return Equals(each.Tag, Str(step, "key")); });
@@ -1534,6 +1579,14 @@ namespace CodexAutoResume
             // v0.6.20: the Overview's OpenAI status line, while it is shown (AdvancedCourier.cs), and the courier card's buttons.
             look["feed"] = feedValue != null && OwnVisible(feedValue) ? feedValue.Text : null;
             look["courier_buttons"] = Tags(courierButtons);
+            // v0.6.22: the Overview's Other PCs list while it shows, and the card's name, folder and Save.
+            bool fleetShows = fleetCard != null && fleetCard.Visible;
+            look["fleet_shown"] = fleetShows;
+            look["fleet_rows"] = fleetShows ? ListCells(fleetList) : new List<object>();
+            look["fleet_said"] = fleetShows ? fleetSaid.Text : null;
+            look["fleet_alias"] = fleetAlias == null ? null : fleetAlias.Box.Text;
+            look["fleet_folder"] = fleetFolderLine == null ? null : fleetFolderLine.Text;
+            look["fleet_save"] = fleetSave == null ? (object)null : fleetSave.Enabled;
             // v0.6.20: the account card's button - whether it can be pressed, or null where it is not offered.
             look["account_switch"] = accountSwitch == null ? (object)null : accountSwitch.Enabled;
             // v0.6.20 final: and its Restart Codex and Not now, after a sign-in - the same, each.

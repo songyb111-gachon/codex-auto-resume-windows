@@ -177,6 +177,8 @@ namespace CodexAutoResume
             RunsApplied(reply);
             // v0.6.20: OpenAI's status on the Overview, while the status feed says something is wrong (AdvancedCourier.cs).
             FeedApplied(reply);
+            // v0.6.22: the Overview's Other PCs list, while See your other PCs is on (AdvancedFleet.cs).
+            FleetApplied(reply);
             // early_reset's line on Pending, while the status carries it (AdvancedEarly.cs, v0.6.19 #50).
             EarlyApplied(reply);
             // The reset window_anchor's last start fixed, for its card (AdvancedAnchor.cs, v0.6.20).
@@ -709,6 +711,12 @@ namespace CodexAutoResume
             }
             // v0.6.22: the saved accounts of the automatic account switch (AdvancedAccounts.cs) - asked only while the
             // capability is on or watched.
+            // v0.6.22: this PC's name and folder (AdvancedFleet.cs) - off, the answer is the state's alone: no folder is touched.
+            if (id == FleetId)
+            {
+                MethodInvoker after = done;
+                done = delegate { ReadFleet(after); };
+            }
             if (id == AccountsId && Standing(item))
             {
                 MethodInvoker after = done;
@@ -955,7 +963,7 @@ namespace CodexAutoResume
                            (IsReport(item) ? ReportShown() : "") + "|" +
                            ResetsShown(item) + "|" + KeepGoingShown(item) + "|" + QueueShown(item) + "|" +
                            WordingsShown(item) + "|" + RunsShown(item) + "|" + CourierShown(item) + "|" + AnalyticsShown(item)
-                           + "|" + AnchorShownText(item) + "|" + AccountShown(item) + "|" + PowerTasksShown(item) + "|" + AccountsShown(item);
+                           + "|" + AnchorShownText(item) + "|" + AccountShown(item) + "|" + PowerTasksShown(item) + "|" + AccountsShown(item) + "|" + FleetCardShown(item);
             if (shown == advancedShown)
             {
                 UpdateAdvancedButtons();
@@ -988,6 +996,7 @@ namespace CodexAutoResume
             ForgetQueueCard();
             ForgetPowerTasksCard();
             ForgetAccountsCard();
+            ForgetFleetCard();
             if (item == null)
             {
                 TableLayoutPanel card = NewGroup(Word("page.nav", "Advanced features"), advancedStack);
@@ -1151,6 +1160,8 @@ namespace CodexAutoResume
             BuildPowerTasks(item);
             // v0.6.22: the saved accounts the automatic switch moves between, and their buttons (AdvancedAccounts.cs).
             BuildAccounts(item);
+            // v0.6.22: this PC's name and folder among the person's PCs (AdvancedFleet.cs).
+            BuildFleet(item);
 
             // Its own choices, the rules a person writes for Codex's error codes and the samples of what nothing classified,
             // each only for a capability that has them - the last two once they have been read.
@@ -1658,6 +1669,7 @@ namespace CodexAutoResume
             UpdateAccountButtons(idle);
             UpdatePowerTasksButtons(idle);
             UpdateAccountsButtons(idle);
+            UpdateFleetButtons(idle);
             UpdateReportButtons();
         }
 

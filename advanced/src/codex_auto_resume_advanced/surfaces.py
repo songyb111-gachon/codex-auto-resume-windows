@@ -111,8 +111,7 @@ ARGUMENTS = {
 # answers it in `bridge`.
 UNANSWERED = frozenset({
     BridgeCommand.ADVANCED_API, BridgeCommand.ADVANCED_API_TOKEN_NEW,
-    BridgeCommand.ADVANCED_REMOTE_PAIR_START, BridgeCommand.ADVANCED_REMOTE_PAIR_STATE, BridgeCommand.ADVANCED_FLEET,
-    BridgeCommand.ADVANCED_FLEET_SAVE})
+    BridgeCommand.ADVANCED_REMOTE_PAIR_START, BridgeCommand.ADVANCED_REMOTE_PAIR_STATE})
 # v0.6.20 (account_switch): the account card's read and its Codex sign-out and sign-in, answered (control/account.py).
 ARGUMENTS[BridgeCommand.ADVANCED_ACCOUNT] = frozenset()
 ARGUMENTS[BridgeCommand.ADVANCED_ACCOUNT_SWITCH] = frozenset()
@@ -127,6 +126,9 @@ ARGUMENTS[BridgeCommand.ADVANCED_POWER_TASKS] = frozenset()
 ARGUMENTS[BridgeCommand.ADVANCED_POWER_TASKS_ARM] = frozenset({"threads", "action", "grace_minutes", "failed",
                                                                "interrupted", "generation"})
 ARGUMENTS.update({command: frozenset() for command in UNANSWERED})
+# v0.6.22 (fleet_view, control/fleet.py): the other PCs read, and this PC's alias and folder saved.
+ARGUMENTS[BridgeCommand.ADVANCED_FLEET] = frozenset()
+ARGUMENTS[BridgeCommand.ADVANCED_FLEET_SAVE] = frozenset({"alias", "folder", "generation"})
 # usage_analytics (v0.6.20, control/analytics.py): its card read, and its CSV saved where the person chose.
 ARGUMENTS.update({BridgeCommand.ADVANCED_ANALYTICS: frozenset({"days"}),
                   BridgeCommand.ADVANCED_ANALYTICS_CSV: frozenset({"days", "path", "replace"})})
@@ -252,6 +254,8 @@ def status(runtime) -> dict:
     shown.update(meter_view(runtime))
     # v0.6.20: what OpenAI's status page last said, only while it says something is wrong (status_feed).
     shown.update(feed_view(runtime))
+    # v0.6.22: only that the Overview has an Other PCs list to read, while fleet_view is on (control/fleet.py).
+    shown.update(fleet_view(runtime))
     # v0.6.16-beta.4: the turns run here now, only where there are any - and what Pending and History say of a row
     # the edition had a hand in, keyed by interruption id, only where there is something to say.
     found = runs(runtime)
@@ -551,6 +555,12 @@ def bridge(runtime, command, argument):
         if command == BridgeCommand.ADVANCED_ACCOUNTS_SAVE:
             return accounts.save(runtime)
         return accounts.delete(runtime, argument)
+    if command in (BridgeCommand.ADVANCED_FLEET, BridgeCommand.ADVANCED_FLEET_SAVE):
+        # v0.6.22 (fleet_view): the other PCs, read-only, and this PC's alias and folder - the Dashboard's alone.
+        from .control import fleet as fleet_card
+        if command == BridgeCommand.ADVANCED_FLEET:
+            return fleet_card.view(runtime)
+        return fleet_card.save(runtime, argument.get("alias"), argument.get("folder"), argument.get("generation"))
     if command == BridgeCommand.ADVANCED_POWER_TASKS:
         # v0.6.20 (power_after_tasks): the conversations running now and the tasks the power action waits for.
         from .control import powertasks
@@ -599,6 +609,18 @@ def feed_view(runtime) -> dict:
         return {}
     return {"feed": {"word": row["word"], "codex_word": row["codex_word"], "incidents": row["incidents"],
                      "checked_at": row["checked_at"]}}
+
+
+def fleet_view(runtime) -> dict:
+    """{"fleet_on": True} while See your other PCs is on, {} otherwise - for the window to ask for the list (advanced-fleet)
+    on its own, never a read of the folder inside the status."""
+    from .engine import fleet
+    try:
+        if runtime.registry.get(fleet.CAPABILITY) is None or runtime.states().get(fleet.CAPABILITY) != ArmingState.ARMED:
+            return {}
+    except Exception:
+        return {}
+    return {"fleet_on": True}
 
 
 def headless_stop(runtime, interruption_id):

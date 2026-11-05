@@ -361,6 +361,12 @@ namespace CodexAutoResume
                    Scene(OnPending(Due(Rec(ExampleProject, "scheduled", "server_5xx", -20, 0), 15))),
                    Scene(OnPending(Due(Rec(ExampleProject, "scheduled", "server_5xx", -20, 0), 15)),
                          Says(f => f.Word("page.feed.degraded", "OpenAI reports degraded service")))),
+                // v0.6.22: the other PCs' rows on the Overview, flat and read-only.
+                Ex("fleet_view",
+                   Scene(Says(f => f.ExampleField("fleet_view", "instead"))),
+                   Scene(Says(f => f.Word("page.fleet.title", "Other PCs")),
+                         Says(f => ExampleApp + " · " + f.Word("page.fleet.state.running", "running")),
+                         Says(f => ExampleDocs + " · " + f.Word("page.fleet.state.not_seen", "not seen since")))),
                 Ex("account_switch",
                    Scene(Says(f => f.ExampleField("account_switch", "instead"))),
                    // Its button waits for the MALR measurement: the card says so, and the example says what the card says.
