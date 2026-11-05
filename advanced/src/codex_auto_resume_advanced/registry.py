@@ -1368,7 +1368,8 @@ STATUS_FEED = CapabilityDef(
 # as JSON and Prometheus' text, the waiting recoveries as `task N` and their public codes, and a small page (courier/api.py,
 # page.py). Host checked (421), a Bearer token kept in Credential Manager and compared in constant time (401), ten wrong
 # in a minute close it for five minutes, no CORS, no query string read, nothing logged. Nothing it serves sends, chats or
-# changes a setting; only the watcher sends. It departs from B14 (a listening socket and a localhost server), F8 (a
+# changes a setting; only the watcher sends. It departs from C1 and C2 (its server's file imports networking modules: one
+# more shipped file the privacy test counts beside the courier's), B14 (a listening socket and a localhost server), F8 (a
 # resident process), F6 (a process of its own besides the listed ones), D1 (state readable by whatever local program
 # holds the token) and C12 (the window's words reach a page a browser shows). It stands on engine_present as push_notices
 # does; its ceilings are the schema's floor and never bind: it sends nothing to Codex.
@@ -1376,7 +1377,7 @@ LOCAL_API = CapabilityDef(
     id="local_api",
     points=frozenset({Point.TICK}),
     revision=1,
-    departs_from=("B14", "F8", "F6", "D1", "C12"),
+    departs_from=("C1", "C2", "B14", "F8", "F6", "D1", "C12"),
     compat="engine_present",
     ceilings=Ceilings(per_day=1, per_conversation=1),
     journal_prefix="api",

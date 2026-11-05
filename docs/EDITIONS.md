@@ -729,7 +729,9 @@ never read, and nothing is logged. Nothing here can send to Codex, chat, change 
 watcher restarts the server at most three times an hour; after that the card says it stopped. **New token...** makes the
 old address useless at once.
 
-**Departs from** [B14](STANDARDS.md#b-what-it-reads-and-how) (a listening socket and a localhost server),
+**Departs from** [C1](STANDARDS.md#c-network) and [C2](STANDARDS.md#c-network) (its server's file imports networking
+modules: one more shipped file reaching the network beside the courier's), [B14](STANDARDS.md#b-what-it-reads-and-how) (a
+listening socket and a localhost server),
 [F8](STANDARDS.md#f-footprint-on-the-machine) (a second process for as long as it is on),
 [F6](STANDARDS.md#f-footprint-on-the-machine) (a process of its own beside the listed ones),
 [D1](STANDARDS.md#d-privacy-and-the-data-it-keeps) (any local program holding the token can read the status) and
