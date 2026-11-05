@@ -868,12 +868,16 @@ function Invoke-Codex {
         $env:OTEL_SDK_DISABLED = 'true'
         $p = Start-Process -FilePath $Exe -ArgumentList $line -NoNewWindow -Wait -PassThru `
              -RedirectStandardOutput $out -RedirectStandardError $err
+        # A native program writes UTF-8 to the file its output is redirected to, and Windows PowerShell 5.1 reads a file
+        # without a byte-order mark in the ANSI code page (949 on a Korean PC): a path with Korean letters in codex's
+        # JSON came back wrong, the parse failed, and an uninstall left the plugin registered saying there was nothing
+        # to remove (v0.6.23 audit, N1). The files are named literally, as a folder with a bracket in its name needs (N7).
         return @{ Code = $p.ExitCode
-                  Out  = (Get-Content -Raw -ErrorAction SilentlyContinue $out)
-                  Err  = (Get-Content -Raw -ErrorAction SilentlyContinue $err) }
+                  Out  = (Get-Content -LiteralPath $out -Raw -Encoding UTF8 -ErrorAction SilentlyContinue)
+                  Err  = (Get-Content -LiteralPath $err -Raw -Encoding UTF8 -ErrorAction SilentlyContinue) }
     } finally {
         $env:OTEL_SDK_DISABLED = $otelBefore
-        Remove-Item -Force -ErrorAction SilentlyContinue $out, $err
+        Remove-Item -Force -ErrorAction SilentlyContinue -LiteralPath $out, $err
     }
 }
 
