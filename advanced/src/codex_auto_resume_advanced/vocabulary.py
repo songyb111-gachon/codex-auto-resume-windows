@@ -56,6 +56,8 @@ class OffReason(StrEnum):
     HOOK_EXCEPTION = "hook_exception"
     STATEMENT_CHANGED = "statement_changed"
     MEASUREMENT_FAILED = "measurement_failed"
+    # The automatic check found this Codex no longer offers a call its route makes (v0.6.22, autocheck.py).
+    AUTO_CHECK_FAILED = "auto_check_failed"
     # A continuation it sent once more was found twice in Codex's history (v0.6.14, stage 3b): the
     # harm a resend risks. It turns off what sent it again whether or not it is kept on - the
     # once-more capability, or Keep on's Send again alone (arming.py).
@@ -78,13 +80,13 @@ class OffReason(StrEnum):
 
 TRIPWIRES = frozenset({OffReason.SUBMISSION_UNKNOWN, OffReason.LOCAL_CHECK_FAILED,
                        OffReason.FAILED_HERE, OffReason.INCOMPATIBLE, OffReason.HOOK_EXCEPTION,
-                       OffReason.STATEMENT_CHANGED, OffReason.MEASUREMENT_FAILED,
+                       OffReason.STATEMENT_CHANGED, OffReason.MEASUREMENT_FAILED, OffReason.AUTO_CHECK_FAILED,
                        OffReason.DUPLICATE_SEEN, OffReason.NOT_DELIVERED_ON_OPEN, OffReason.REQUIREMENT_OFF,
                        OffReason.NOT_DISPATCHED_BY_SESSION, OffReason.REFUSED_BY_CODEX})
 # What a capability kept on (KeepOn, K8) notes instead of turning off, most serious first: the order
 # in which one notice gives way to another (state/arming.py, note_kept). A notice only ever rises.
 KEPT_NOTICES = (OffReason.DUPLICATE_SEEN, OffReason.STATEMENT_CHANGED, OffReason.FAILED_HERE,
-                OffReason.LOCAL_CHECK_FAILED, OffReason.INCOMPATIBLE, OffReason.MEASUREMENT_FAILED,
+                OffReason.LOCAL_CHECK_FAILED, OffReason.INCOMPATIBLE, OffReason.MEASUREMENT_FAILED, OffReason.AUTO_CHECK_FAILED,
                 OffReason.NOT_DELIVERED_ON_OPEN, OffReason.NOT_DISPATCHED_BY_SESSION, OffReason.REFUSED_BY_CODEX,
                 OffReason.REQUIREMENT_OFF,
                 OffReason.ENGINE_CHANGED,
@@ -105,6 +107,7 @@ class ArmingWarning(StrEnum):
     LOCAL_CHECK_FAILED = "local_check_failed"  # a local check found it incompatible
     COMPAT_UNKNOWN = "compat_unknown"        # nothing is known of it for this Codex
     ENGINE_UNKNOWN = "engine_unknown"        # no Codex version to acknowledge
+    AUTO_CHECK_FAILED = "auto_check_failed"  # the automatic check found a call it makes gone (autocheck.py)
 
 
 class Refusal(StrEnum):

@@ -1591,6 +1591,8 @@ namespace CodexAutoResume
             string said = null;
             if (reason == "measurement_failed")
                 said = Word("page.tripped.measurement_failed", "It turned itself off because a measurement of what it relies on failed.");
+            else if (reason == "auto_check_failed")
+                said = Word("page.tripped.auto_check_failed", "It turned itself off because an automatic check found that this version of Codex no longer offers a call it makes.");
             else if (reason == "failed_here")
                 said = Word("page.tripped.failed_here", "It turned itself off because a compatibility check of what it relies on failed on this computer.");
             else if (reason == "incompatible")
