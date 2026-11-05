@@ -13,7 +13,9 @@ steer waits, and core runs it last in the tick, with its guards. For each steer 
 
 1. asked more than EXPIRES ago - refused `expired`: a steer is for the turn running now, never a later one;
 2. its conversation switched off - refused `conversation_off`;
-3. Codex's history (its own database, read only) not saying the conversation's latest turn is running - `no_turn`;
+3. Codex's history (its own database, read only) not saying the conversation's latest turn is running, or saying it
+   began after the steer was asked (or not saying when it began) - `no_turn`: the turn the person wrote it for has
+   ended, and a later one is never steered (v0.6.23 audit, seatB:B-R3);
 4. the app not holding the conversation - `not_held`: first the fast count of who holds its writer lock (Restart
    Manager, as core's loaded check reads it: none is not held), then one identity check, core's own loaded check with
    the app paired by its identity;
@@ -92,6 +94,16 @@ def latest_status(home, thread):
     except Exception:
         return None
     return None if latest is None else latest.status
+
+
+def latest_started(home, thread):
+    """When `thread`'s latest turn began in Codex's history (codex/turns.py, read only), in seconds, or None."""
+    from ..codex.turns import Turns
+    try:
+        latest = Turns(home).latest(thread)
+    except Exception:
+        return None
+    return None if latest is None else latest.started_at
 
 
 class _Errand:
@@ -189,6 +201,9 @@ class SteerSend:
         status = (self._status or latest_status)(home, thread)
         if status != RUNNING:
             return SteerReason.NO_TURN
+        started = latest_started(home, thread)
+        if type(started) is not int or started > row["created_at"]:
+            return SteerReason.NO_TURN               # a later turn than the one it was asked for, or unknown
         count = (self._holders or holders)(home, thread)
         if not count:
             return SteerReason.NOT_HELD              # nothing holds it, or who does cannot be read

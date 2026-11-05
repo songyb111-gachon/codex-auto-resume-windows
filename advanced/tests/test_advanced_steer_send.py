@@ -161,6 +161,7 @@ class SteerCase(TakingCase):
         self.measured = {Measurement.MIPC: (Verdict.PASS, ac.ENGINE), Measurement.MSTEER2: (Verdict.FAIL, ac.ENGINE),
                          Measurement.MT: (Verdict.PASS, ac.ENGINE)}
         self.status = "inProgress"
+        self.started = 1                             # the running turn began long before the steer was asked
         self.holders = 1
         self.app_holds = True
         self.answer = ipc.Steer.STEERED
@@ -169,6 +170,7 @@ class SteerCase(TakingCase):
         self.app = None
         for target, name, value in ((steer_engine, "latest_status", lambda home, thread: self.status),
                                     (steer_control, "latest_status", lambda home, thread: self.status),
+                                    (steer_engine, "latest_started", lambda home, thread: self.started),
                                     (steer_engine, "holders", lambda home, thread: self.holders),
                                     (steer_engine, "held_by_app", lambda paths, thread: self.app_holds),
                                     (steer_engine.ipc, "steer_turn", self.steer)):
@@ -207,6 +209,30 @@ class SteerCase(TakingCase):
 
     def rows(self, runtime):
         return runtime.state.steers(0)
+
+
+class LaterTurnTests(SteerCase):
+    """seatB:B-R3 (v0.6.23 audit): a steer is for the turn running when it was asked, never a later one."""
+
+    def test_a_turn_begun_after_the_steer_was_asked_is_not_steered(self):
+        """Fails with the start check taken out of engine/steer.py: the line went into the later turn."""
+        plug, runtime = self.on()
+        self.assertTrue(self.ask(runtime)["done"])
+        (row,) = self.rows(runtime)
+        self.started = int(row["created_at"]) + 30
+        self.h.tick()
+        (row,) = self.rows(runtime)
+        self.assertEqual((row["state"], row["reason"]), (SteerState.REFUSED, SteerReason.NO_TURN))
+        self.assertEqual(self.calls, [])
+
+    def test_a_turn_whose_start_cannot_be_read_is_not_steered(self):
+        plug, runtime = self.on()
+        self.assertTrue(self.ask(runtime)["done"])
+        self.started = None
+        self.h.tick()
+        (row,) = self.rows(runtime)
+        self.assertEqual((row["state"], row["reason"]), (SteerState.REFUSED, SteerReason.NO_TURN))
+        self.assertEqual(self.calls, [])
 
 
 class SendTests(SteerCase):
