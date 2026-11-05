@@ -1246,14 +1246,18 @@ function Write-CopyJournal {
         ConvertTo-Json, so whoever finds the file can read what happened to their
         installation without needing this script to explain it.
     #>
-    param([string]$Path, [string]$Root, $Entries)
+    param([string]$Path, [string]$Root, $Entries, [switch]$Copied)
     $moved = @()
     foreach ($entry in $Entries) {
         $moved += @{ name = $entry.src; target = $entry.dst; movedAside = $entry.aside }
     }
+    # `copied` says whether the new trees were all in place when this was written: false before the copy starts, true
+    # once it is done. A run that finds the journal with `copied` false knows a target that is there is half a copy,
+    # not a tree to keep (v0.6.23 audit, N9); a journal without the field is an older run's and is read as before.
     $record = @{ version = 1
                  written = (Get-Date -Format 'yyyy-MM-ddTHH:mm:ssK')
                  home    = $Root
+                 copied  = [bool]$Copied
                  moved   = $moved }
     $temp = $Path + '.writing'
     Set-Content -LiteralPath $temp -Value (ConvertTo-Json $record -Depth 4) -Encoding UTF8 -ErrorAction Stop
@@ -1302,6 +1306,7 @@ function Restore-InterruptedCopy {
             }
         }
     }
+    $unfinished = $record.PSObject.Properties.Match('copied').Count -gt 0 -and $record.copied -eq $false
     foreach ($entry in @($record.moved)) {
         $target = $entry.target
         $aside  = $entry.movedAside
@@ -1314,7 +1319,20 @@ function Restore-InterruptedCopy {
         if ($canonical) { $claimed += $canonical }
         # The target being there means the copy got far enough to recreate it, so the
         # aside copy is a leftover this run will replace rather than the only one left.
-        if (Test-Path -LiteralPath $target) { continue }
+        #
+        # Unless the journal says the copy was not finished (`copied` false): then the target is half a copy, and the
+        # aside tree is still the installation. Left as it was, the half-copied `app\src` could lack the advanced
+        # package, read as the standard edition, and an agreed "change" installed the advanced edition from standard
+        # with every feature off (v0.6.23 audit, N9). The half is cleared and the whole tree put back, as a failed
+        # copy's own rollback does, before anything reads which edition is installed.
+        if (Test-Path -LiteralPath $target) {
+            if (-not $unfinished -or -not (Test-Path -LiteralPath $aside)) { continue }
+            Step ('Clearing the half-copied ' + $entry.name + ' folder an interrupted installation left')
+            if (-not (Remove-OwnedItem $target)) {
+                Warn ('Could not clear ' + $target + '; it was left as it is, with the whole copy aside.')
+                continue
+            }
+        }
         if (-not (Test-Path -LiteralPath $aside)) { continue }
         Step ('Putting back the ' + $entry.name + ' folder an interrupted installation left aside')
         try {
@@ -1956,6 +1974,8 @@ try {
             $copied++
             Progress 'files' $copied $copyFiles
         }
+        # Every file is in place: the journal now says so, so a run cut short from here on keeps the trees (N9).
+        if ($plan.Count -gt 0) { Write-CopyJournal -Path $Journal -Root $OwnedHome -Entries $plan -Copied }
     } catch {
         Warn ('Could not replace the installation: ' + $_.Exception.Message)
         $notBack = @()
