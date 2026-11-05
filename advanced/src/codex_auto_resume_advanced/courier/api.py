@@ -19,7 +19,8 @@ Nothing else: no route sends, chats, changes a setting, turns a feature on or of
 wrong tokens in LOCK_WINDOW seconds (503); exactly one Host header, 127.0.0.1:<port> or localhost:<port> - or, open to
 the network, an IPv4 address with the port - so a web page served under another name (DNS rebinding) is refused 421;
 an unknown path is 404 and a method a route does not take 405; every route but `/` needs `Authorization: Bearer
-<token>` (local_api's token in Windows Credential Manager, compared in constant time) or is 401; an action while
+<token>` (local_api's token in Windows Credential Manager, compared in constant time) or is 401 - and only a Bearer token
+offered and wrong counts towards the lock, so a request with none, which any web page can make, never closes it; an action while
 local_api_actions does not stand on is 403; a body over MAX_BODY is 413. No answer carries a CORS header, a cookie or a
 server's version, and a query string is never read: the token never travels in an address. Requests are served by at
 most THREADS threads at a time, each with TIMEOUT seconds, and nothing is logged: not a request, not an address, not
@@ -206,6 +207,11 @@ class Handler(BaseHTTPRequestHandler):
         self.close_connection = True
         self._refuse(code, "bad_request")
 
+    def _offered(self) -> bool:
+        """Whether the request offers a Bearer token at all: one that does not is refused and never counted."""
+        given = self.headers.get("Authorization") or ""
+        return given.startswith("Bearer ") and len(given) > len("Bearer ")
+
     def _authorized(self, service) -> bool:
         token = service.token()
         given = self.headers.get("Authorization") or ""
@@ -234,7 +240,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._refuse(503, "unavailable")
             return self._answer(200, page, "text/html; charset=utf-8", {"Content-Security-Policy": CSP})
         if not self._authorized(service):
-            if gate.wrong():
+            if self._offered() and gate.wrong():
                 service.locked()
             return self._refuse(401, "unauthorized", {"WWW-Authenticate": "Bearer"})
         body = b""

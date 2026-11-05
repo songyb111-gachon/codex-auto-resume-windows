@@ -263,6 +263,17 @@ class LockTests(ServerCase):
         self.now += 1
         self.assertEqual(self.status("/status.json"), 200)
 
+    def test_requests_with_no_token_never_close_it(self):
+        """R1 (the security review of 2026-11-06): fails with every refusal counted - ten requests any web page can send,
+        an <img> or a no-cors fetch, with no Authorization at all, would lock the person's own scraper out for five minutes,
+        again and again."""
+        for _ in range(30):
+            self.assertEqual(self.status("/status.json", token=None), 401)
+            self.assertEqual(self.status("/status.json", token=None, headers={"Authorization": "Basic " + TOKEN}), 401)
+            self.assertEqual(self.status("/status.json", token=None, headers={"Authorization": "Bearer "}), 401)
+        self.assertEqual(self.status("/status.json"), 200)
+        self.assertNotIn("api.locked", [line["code"] for line in self.rt.state.journal(capability="local_api")])
+
     def test_nine_do_not(self):
         self.wrong(9)
         self.assertEqual(self.status("/status.json"), 200)
