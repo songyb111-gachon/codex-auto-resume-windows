@@ -365,5 +365,45 @@ class N5SetupThatCannotStart(Scratch):
                 self.assertEqual(last_json(output)["code"], 1)
 
 
+@unittest.skipUnless(WINDOWS and POWERSHELL.is_file(), "the bootstrap is PowerShell on Windows")
+class N6PickLockAndTheRelaunchedInstaller(Scratch):
+    """A pick from inside a packaged app must not hold the install lock the relaunched installer needs."""
+
+    def child_can_take(self, inside_app):
+        name = "Local\\CarV0623Audit-" + os.urandom(6).hex()
+        code, output = run_ps(
+            "function Find-PackagedAncestor { param($Table, $Self) %s }\n"
+            "function Get-ProcessTable { param($Self) return @() }\n"
+            "$lock = New-Object System.Threading.Mutex($false, $env:CAR_MUTEX)\n"
+            "$held = $lock.WaitOne(0)\n"
+            "$held = Release-PickLockForRunOutside -Lock $lock -Held $held\n"
+            "$child = @'\n"
+            "$m = New-Object System.Threading.Mutex($false, $env:CAR_MUTEX)\n"
+            "try { $got = $m.WaitOne(0) } catch { $got = $true }\n"
+            "if ($got) { 'free' } else { 'busy' }\n"
+            "'@\n"
+            "$answer = & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command $child\n"
+            "@{ held = $held; child = [string]$answer } | ConvertTo-Json -Compress\n" % ("return 'OpenAI.Codex_1_x64__abc'" if inside_app else "return $null"),
+            script=ROOT / "scripts" / "bootstrap.ps1", CAR_MUTEX=name)
+        self.assertEqual(code, 0, output[-1500:])
+        return last_json(output)
+
+    def test_inside_a_packaged_app_the_lock_is_let_go_so_the_relaunched_installer_can_take_it(self):
+        answer = self.child_can_take(True)
+        self.assertEqual(answer, {"held": False, "child": "free"})
+
+    def test_anywhere_else_the_lock_is_kept(self):
+        answer = self.child_can_take(False)
+        self.assertEqual(answer, {"held": True, "child": "busy"})
+
+    def test_it_is_let_go_of_after_the_state_is_converted_and_right_before_the_installer(self):
+        call = "$pickHeld = Release-PickLockForRunOutside -Lock $pickLock -Held $pickHeld"
+        self.assertEqual(BOOTSTRAP_PS1.count(call), 1)
+        at = BOOTSTRAP_PS1.index(call)
+        self.assertGreater(at, BOOTSTRAP_PS1.index("$converted = Convert-StateForOlder"))
+        self.assertLess(at, BOOTSTRAP_PS1.index("& $installer @arguments"))
+        self.assertLess(BOOTSTRAP_PS1.index("$pickLock = New-Object System.Threading.Mutex"), at)
+
+
 if __name__ == "__main__":
     unittest.main()

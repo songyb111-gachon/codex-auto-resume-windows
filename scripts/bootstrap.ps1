@@ -596,6 +596,23 @@ function Resolve-OutsideRun {
 }
 # <<< the outside gate
 
+function Release-PickLockForRunOutside {
+    <#
+        The install lock a pick holds, let go of just before the installer runs - where that installer will relaunch
+        itself outside another app's private view (v0.6.23 audit, N6). The relaunched copy is another process, and its
+        WaitOne(0) on a mutex this process owns fails: "Another Codex Auto Resume installation is already running", so a
+        pick from inside the Codex app or Claude desktop could never succeed. Where the installer runs here, on this
+        thread, it takes the lock again as its owner, and the lock is kept to the end as before. Returns whether the lock
+        is still held.
+    #>
+    param($Lock, [bool]$Held)
+    if (-not $Held -or $env:CODEX_AUTO_RESUME_OUTSIDE -eq '1') { return $Held }
+    $app = $null
+    try { $app = Find-PackagedAncestor -Table (Get-ProcessTable -Self $PID) -Self $PID } catch { $app = $null }
+    if (-not $app) { return $Held }
+    try { $Lock.ReleaseMutex(); return $false } catch { return $Held }
+}
+
 function Get-Sha256 {
     <#
         The digest of a downloaded archive, computed with .NET rather than `Get-FileHash`.
@@ -2761,6 +2778,7 @@ try {
     # been touched. It reports and rolls back its own work; this script must not claim
     # otherwise on its way out.
     $started = $true
+    if ($Pick) { $pickHeld = Release-PickLockForRunOutside -Lock $pickLock -Held $pickHeld }
     if ($progressLines) { $env:CODEX_AUTO_RESUME_PROGRESS_LINES = '1' }
     # A throw out of the installer - an unreadable journal, a codex.exe that cannot start - is a failed installer like a
     # non-zero code, so a pick below puts back what it changed in either case (v0.6.23 audit, N2); it used to cross
