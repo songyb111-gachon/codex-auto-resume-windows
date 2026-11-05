@@ -7,6 +7,8 @@
 * TagOnMainTests (W3) - release.yml's build refuses a pushed tag whose commit is not on main, before it
   builds anything; a dispatch, which publishes nothing, is not refused.
 * ForkGuardTests (W4) - sync-ko and ko-watch run only in this repository, as the other automations do.
+* PayloadFolderTests (T2) - a folder inside a shipped tree named like a top-level one the build skips
+  (config, logs, tests, ...) still ships; caches and virtual environments never do.
 """
 from __future__ import annotations
 
@@ -124,6 +126,26 @@ class ForkGuardTests(unittest.TestCase):
 
     def test_ko_watch_runs_only_here(self):
         self.assertEqual(self._condition("ko-watch.yml", "watch"), self.GUARD)
+
+
+class PayloadFolderTests(unittest.TestCase):
+    def setUp(self):
+        self.release = _load("make_release", ROOT / "build" / "make_release.py")
+
+    def test_a_folder_named_like_a_top_level_one_inside_a_shipped_tree_ships(self):
+        for name in ("src/codex_auto_resume/config/__init__.py", "src/codex_auto_resume/logs/view.py",
+                     "skills/example/tests/case.md", "scripts/build/step.py", "assets/comparison/a.png",
+                     "advanced/src/codex_auto_resume_advanced/tests/x.py"):
+            with self.subTest(name=name):
+                self.assertTrue(self.release._wanted(Path(name)))
+
+    def test_caches_and_the_top_level_folders_still_do_not(self):
+        for name in ("src/codex_auto_resume/__pycache__/a.cpython-314.pyc", "src/x/__pycache__/b.py",
+                     "skills/example/node_modules/m/index.js", "src/.venv/lib/a.py", "scripts/.git/HEAD",
+                     "build/make_release.py", "tests/test_x.py", "config/settings.toml", "logs/a.txt",
+                     ".github/workflows/test.yml", "comparison/a.md"):
+            with self.subTest(name=name):
+                self.assertFalse(self.release._wanted(Path(name)))
 
 
 if __name__ == "__main__":
