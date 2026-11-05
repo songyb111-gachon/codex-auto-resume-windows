@@ -55,6 +55,8 @@ from ..vocabulary import OptionKey
 CAPABILITY = "window_anchor"
 FIVE_HOUR, WEEKLY = 300, 10080
 WINDOW_SECONDS = FIVE_HOUR * 60
+# The span its ceiling of starts a day is counted over (registry: Ceilings.per_day).
+DAY = 86400
 # Two reads at least this far apart tell an idle window (its reset moves with the clock) from a running one.
 STEADY_GAP = 20
 # An idle window's reset offset is ~5 h (17,998-17,999 s were read); how far from it still counts, and how much
@@ -91,7 +93,7 @@ IDLE, RUNNING, WEEKLY_FULL, UNREADABLE = "idle", "running", "weekly", "unreadabl
 # the errand used to raise and its tripwire caught it (hook_exception, the owner's journal at 2026-10-31 10:08:17).
 SKIPS = {"running": "skip_running", "weekly": "skip_weekly", "paused": "skip_paused", "signed_out": "skip_signed_out",
          "unreadable": "skip_unreadable", "home": "skip_home", "once": "skip_once", "folder": "skip_folder",
-         "state": "skip_state"}
+         "state": "skip_state", "ceiling": "skip_ceiling"}
 CODES = ("started", "fixed", "unfixed", "failed", "timed_out") + tuple(SKIPS.values())
 # What an occasion is: a time picked, or a reset seen.
 SLOT, RESET, VERIFY = "slot", "reset", "verify"
@@ -470,6 +472,15 @@ class WindowAnchor:
             return "state"              # one start a window cannot be told: none is made
         if type(started) is int and 0 <= now - started < WINDOW_SECONDS:
             return "once"
+        # Its ceiling, starts in any 24 hours (registry: Ceilings.per_day) - one a window keeps under it but for the
+        # restarts an account change allows (v0.6.23 audit seatA:B-M2).
+        from ..registry import WINDOW_ANCHOR
+        try:
+            made = self._scoped.counted_since("started", now - DAY)
+        except Exception:
+            return "state"
+        if type(made) is not int or made >= WINDOW_ANCHOR.ceilings.per_day:
+            return "ceiling"
         return None
 
     def _start(self, why, occurrence, guard, now) -> None:

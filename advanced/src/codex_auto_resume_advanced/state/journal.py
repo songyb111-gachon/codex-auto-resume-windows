@@ -158,6 +158,19 @@ class JournalMixin:
             self._note(connection, now, definition.code(code), capability=capability)
         return True
 
+    def counted_since(self, capability, code, since) -> int:
+        """How many times `capability`'s own `code` was counted at `since` or later, by its journal lines (v0.6.22: a
+        ceiling over any 24 hours, window_anchor's starts a day - the v0.6.23 audit's seatA:B-M2). 0 for a code that
+        is not its own or where there is no file."""
+        definition = self.registry.get(capability)
+        if definition is None or code not in definition.codes or isinstance(since, bool)                 or not isinstance(since, (int, float)):
+            return 0
+        with self._read() as connection:
+            if connection is None:
+                return 0
+            return int(connection.execute("SELECT count(*) FROM journal WHERE capability=? AND code=? AND at>=?",
+                                          (capability, definition.code(code), float(since))).fetchone()[0])
+
     def samples(self, capability) -> dict:
         """{code: count} over the days the sampler keeps."""
         with self._read() as connection:

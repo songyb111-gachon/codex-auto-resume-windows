@@ -289,6 +289,27 @@ class OffTests(AnchorCase):
         self.assertEqual((self.world.calls, self.world.started), ([], []))
 
 
+class CeilingTests(AnchorCase):
+    def test_its_starts_a_day_ceiling_is_consulted(self):
+        """seatA:B-M2 (v0.6.23 audit). Fails without the ceiling in _before: five starts in the last 24 hours (account
+        changes each allowing one more) and a sixth was made."""
+        self.on(anchor_at_1=anchor.encode_time(7, 0), anchor_after_reset=2)
+        for _start in range(WINDOW_ANCHOR.ceilings.per_day):
+            self.assertTrue(self.rt.state.counted(CAP, "started"))
+        self.look(10)
+        self.run_through()
+        self.assertEqual(self.world.started, [])
+        self.assertIn("anchor.skip_ceiling", self.codes())
+
+    def test_starts_older_than_a_day_do_not_count(self):
+        self.on(anchor_at_1=anchor.encode_time(7, 0), anchor_after_reset=2)
+        for _start in range(WINDOW_ANCHOR.ceilings.per_day):
+            self.assertTrue(self.rt.state.counted(CAP, "started", at=self.now - anchor.DAY - 60))
+        self.look(10)
+        self.run_through()
+        self.assertEqual(len(self.world.started), 1)
+
+
 class AtTimesTests(AnchorCase):
     def test_at_a_time_picked_an_idle_window_is_started_once_and_its_reset_kept(self):
         self.on(anchor_at_1=anchor.encode_time(7, 0), anchor_after_reset=2)
