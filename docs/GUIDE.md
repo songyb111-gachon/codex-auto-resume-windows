@@ -606,6 +606,18 @@ open. It waits with a reason of its own, "Open in another Codex session (a termi
 continues once the Codex app holds it.", and nothing is sent to it. It continues once the Codex app holds
 the conversation.
 
+While a recovery waits for the app, it says which of two things it found. With no Codex app running it says
+"The Codex app is not running." With the app running and none of its servers matched to the engine, it says
+"The Codex app is running, but this product could not match its server, so nothing was sent." That can pass by
+itself while the app starts. If it stays, Codex may have changed how it runs: the light asks for your attention,
+and nothing is sent until a server is matched. Restart the Codex app; if that does not help, check for an update
+of this product, or report it. The Codex compatibility card on the Diagnostics page says the same under **Codex
+app's server**: *matched* only where the watcher's last look found a server, *not matched* where it found the app
+and no server, and a plain *not checked* where the app is not running or nothing has looked lately, because the
+watcher looks only when a recovery needs the app and starts nothing to find out. Its other parts can read as
+compatible all the while: they check the engine, not the app's server. This one stays on your PC; no report
+sends it.
+
 This is not fully unattended auto-resume across app restarts, and this guide will not pretend otherwise.
 
 ## Project direction
