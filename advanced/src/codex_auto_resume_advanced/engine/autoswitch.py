@@ -162,6 +162,9 @@ class AutoSwitch:
             return "not_usable"
         if self.busy():
             return "busy"
+        from ..codex import swap
+        if swap.other_engines(swap._inventory(), app_open=True):
+            return "engine_alive"                        # a TUI, IDE or exec-server engine of its own: it waits
         idle = self._idle()
         if not isinstance(idle, (int, float)) or idle < IDLE:
             return "in_use"

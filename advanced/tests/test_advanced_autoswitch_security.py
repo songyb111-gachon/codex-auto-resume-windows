@@ -506,6 +506,41 @@ def json_of(content):
     return json.dumps(content, ensure_ascii=False, default=str)
 
 
+class NoSwapBesideAnotherEngine(SwapCase):
+    """Finding 10: the restart waited for the app's main only; a TUI, IDE or exec-server codex.exe left running could
+    write its old account's tokens after the swap. Nothing is ended: the switch waits."""
+
+    TUI = {"pid": 4242, "parent": 1, "path": "C:\\Tools\\codex.exe"}
+
+    def test_an_engine_left_running_holds_the_swap(self):
+        """Fails with the check removed: the target's copy went in beside an engine of the old account."""
+        two = self.store.save(TWO, "two@example.com", "plus")
+        with patch.object(swap, "_inventory", lambda: [self.TUI]):
+            self.assertEqual(self.switch(Fake(self), two), swap.ENGINE_ALIVE)
+        self.assertEqual((self.codex / "auth.json").read_bytes(), ONE)
+        self.assertIsNone(self.store.intent())
+
+    def test_what_cannot_be_told_waits_too(self):
+        two = self.store.save(TWO, "two@example.com", "plus")
+        with patch.object(swap, "_inventory", lambda: None):
+            self.assertEqual(self.switch(Fake(self), two), swap.ENGINE_ALIVE)
+        self.assertEqual((self.codex / "auth.json").read_bytes(), ONE)
+
+    def test_the_app_s_own_children_and_our_own_servers_do_not_count(self):
+        from codex_auto_resume.codex import pairing
+        main = {"pid": 10, "parent": 1, "path": "x"}
+        child = {"pid": 11, "parent": 10, "path": "C:\\x\\codex.exe"}
+        with patch.object(pairing, "_app_main", lambda rows: main):
+            self.assertFalse(swap.other_engines([main, child], app_open=True))
+            self.assertTrue(swap.other_engines([main, child], app_open=False), "once the app is gone, it is not its")
+        with patch.object(pairing, "_OWN", {(4242, 1.0)}):
+            self.assertFalse(swap.other_engines([self.TUI], app_open=False))
+
+    def test_mswap_records_it(self):
+        from codex_auto_resume_advanced import measure
+        self.assertIn("other_engine_alive", measure._MSWAP_FIELDS)
+
+
 def swap_restarts():
     from codex_auto_resume_advanced.codex import restart
     return restart

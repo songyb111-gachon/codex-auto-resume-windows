@@ -13,7 +13,9 @@ is available, the most used window's percentage and the latest reset of a full w
 2. the Codex app is closed as account_switch's Restart closes it (codex/restart.restart: Windows' request, its process
    ended only if still running 30 s later) - or, where it does not run, nothing is closed;
 3. with nothing of the app left to write it, the sign-in file in use is sealed back into its own profile (refresh tokens
-   rotate: a copy that is not saved back goes stale), then the target's copy is put in its place in one rename - but
+   rotate: a copy that is not saved back goes stale), then the target's copy is put in its place in one rename - while
+   no other Codex engine runs that may use this home (`other_engines`: a TUI, IDE or exec-server engine left would write
+   its old account's tokens after the swap; where that cannot be told, it waits - ENGINE_ALIVE, nothing written) - but
    where the file is no longer the one read at the start, the account is read again first, and another account than
    the one being saved back (a person signed in meanwhile) stops it there: nothing saved, nothing swapped, CHANGED;
 4. the app is started again through its own codex: link, and the account read afresh on a session of its own;
@@ -26,6 +28,8 @@ Each hand is a seam: `session_for` (a Codex home -> a session context manager), 
 shape, given `between`) and `read_real` (the account read on the real home). A test fills them all.
 """
 from __future__ import annotations
+
+from pathlib import Path
 
 from . import authfile
 from .account import identity, parse
@@ -47,7 +51,11 @@ CHANGED = "changed_under"
 LOCKED = "locked"
 # The target is in and signed in, but the Codex app did not start again: it stays closed until a person opens it.
 NOT_STARTED = "not_started"
-OUTCOMES = (SWITCHED, NOT_SIGNED_IN, NOT_USABLE, NOT_CLOSED, FAILED, LEFT, NOT_PUT_BACK, CHANGED, LOCKED, NOT_STARTED)
+# Another Codex engine that may use this home still ran once the app was gone, or that could not be told: nothing was
+# written - a surviving TUI, IDE or exec-server engine could write its old account's tokens after the swap.
+ENGINE_ALIVE = "engine_alive"
+OUTCOMES = (SWITCHED, NOT_SIGNED_IN, NOT_USABLE, NOT_CLOSED, FAILED, LEFT, NOT_PUT_BACK, CHANGED, LOCKED, NOT_STARTED,
+            ENGINE_ALIVE)
 # The most restarts later looks make to put the previous file back; after them they wait for Codex to be closed.
 BACK_TRIES = 3
 
@@ -119,6 +127,43 @@ def save_current(paths, store, codex_home, *, read_real=None):
             return store.save(authfile.read(codex_home), found["email"], found.get("plan_word"))
     except OSError:
         return None
+
+
+def _inventory():
+    """The Codex app's and every codex.exe's process rows, as core reads them (codex/pairing.inventory: a pid, a parent
+    and an image path - no command line, no memory); None where they cannot be read. A test replaces it."""
+    try:
+        from codex_auto_resume.codex.pairing import inventory
+        return inventory()
+    except Exception:
+        return None
+
+
+def other_engines(rows, *, app_open) -> bool:
+    """Whether a Codex engine runs that may use this Codex home and is not the app's own (the security review's finding
+    10). The inventory cannot tell a codex.exe's home - it reads no command line and no environment - so every codex.exe
+    counts but the app main's own children while the app is open (they end with it) and the app servers this process
+    started and holds (codex/pairing.own_server); rows that cannot be read count as one. It ends no process."""
+    if not isinstance(rows, list):
+        return True
+    from codex_auto_resume.codex import pairing
+    with pairing._OWN_LOCK:
+        own = {mark[0] for mark in pairing._OWN}
+    main = None
+    if app_open:
+        try:
+            main = pairing._app_main(rows)["pid"]
+        except Exception:
+            main = None
+    for row in rows:
+        if not isinstance(row, dict) or not isinstance(row.get("path"), str):
+            return True
+        if Path(row["path"]).name.lower() != "codex.exe" or row.get("pid") in own:
+            continue
+        if main is not None and row.get("parent") == main:
+            continue
+        return True
+    return False
 
 
 def usage_of(reply) -> dict:
@@ -231,7 +276,11 @@ def _switch(paths, store, codex_home, target_id, *, restart=None, read_real=None
     done = {"swapped": False}
 
     def between():
-        # The app is gone: the file in use goes back into its own profile, then the target's copy takes its place.
+        # The app is gone: the file in use goes back into its own profile, then the target's copy takes its place -
+        # unless another engine that may use this home still runs (or that cannot be told): then nothing is written.
+        if other_engines(_inventory(), app_open=False):
+            done["engines"] = True
+            return
         latest = authfile.read(codex_home)
         if latest != current and identity(read_real()) != identity(before):
             done["changed"] = True                           # not the account being saved back: nothing is written
@@ -249,6 +298,8 @@ def _switch(paths, store, codex_home, target_id, *, restart=None, read_real=None
             return NOT_CLOSED
         if done.get("changed"):
             return CHANGED
+        if done.get("engines"):
+            return ENGINE_ALIVE
         if not done["swapped"]:
             return FAILED
         after = read_real()

@@ -90,6 +90,11 @@ class Fake:
 class SwapCase(Temp):
     def setUp(self):
         super().setUp()
+        # No real process is read: no other Codex engine runs here (the security review's finding 10 has its own tests).
+        from unittest.mock import patch
+        patcher = patch.object(swap, "_inventory", lambda: [])
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.store = profiles.Profiles(self.home, seal=sealed, open_=opened, clock=lambda: NOW)
         (self.codex / "auth.json").write_bytes(ONE)
 
