@@ -14,6 +14,7 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+import time
 import unittest
 from unittest.mock import patch
 
@@ -287,6 +288,28 @@ class OffTests(AnchorCase):
         self.on(state="shadow", anchor_at_1=anchor.encode_time(7, 0))
         self.run_through()
         self.assertEqual((self.world.calls, self.world.started), ([], []))
+
+
+class DaylightSavingTests(unittest.TestCase):
+    """seatA:B-M3 (v0.6.23 audit): tomorrow's time picked is that time on the clock across a daylight-saving change."""
+
+    def test_tomorrow_s_time_picked_after_a_spring_change(self):
+        import calendar
+        saturday = calendar.timegm((2027, 3, 27, 23, 0, 0))     # 23:00 on the clock, an hour before the change
+        change = calendar.timegm((2027, 3, 28, 1, 0, 0))        # from 01:00 the clock reads one hour more
+
+        def local(at):
+            return time.gmtime(at + (3600 if at >= change else 0))
+
+        def mktime(fields):
+            at = calendar.timegm(fields[:6])
+            return at - 3600 if at - 3600 >= change else at
+        eight = anchor.encode_time(8, 0)
+        due = anchor.next_due({OptionKey.ANCHOR_AT_1: eight, OptionKey.ANCHOR_AFTER_RESET: 2}, saturday, None, None,
+                              None, local=local, mktime=mktime)
+        self.assertEqual(time.gmtime(due + 3600)[3:5], (8, 0), "08:00 on Sunday's clock, not 09:00")
+        self.assertEqual(anchor.slot_due({OptionKey.ANCHOR_AT_1: eight}, due + 60, None, local=local, mktime=mktime),
+                         due, "and the slot is due at the time the wake was set for")
 
 
 class CeilingTests(AnchorCase):

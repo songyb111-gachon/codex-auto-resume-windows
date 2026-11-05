@@ -143,12 +143,20 @@ def midnight(now, local=time.localtime) -> int:
     return int(now) - (moment.tm_hour * 3600 + moment.tm_min * 60 + moment.tm_sec)
 
 
-def slot_due(options, now, done, local=time.localtime):
+def occurrence(now, days, minute, local=time.localtime, mktime=time.mktime) -> int:
+    """The time picked `minute` (minutes after midnight) on the day `days` from the one `now` is in, in whole seconds -
+    by the calendar, so across a daylight-saving change it is still that time on the clock (v0.6.23 audit seatA:B-M3:
+    seconds arithmetic put tomorrow's 08:00 at 09:00 after a spring change, and the wake for it missed it)."""
+    moment = local(int(now))
+    return int(mktime((moment.tm_year, moment.tm_mon, moment.tm_mday + days, minute // 60, minute % 60, 0, 0, 0, -1)))
+
+
+def slot_due(options, now, done, local=time.localtime, mktime=time.mktime):
     """The occurrence - its time, in whole seconds - of a time picked that is due now: at or before `now`, at most
     SLOT_GRACE before it, and after `done` (the last one handled). The latest such, or None."""
-    start = midnight(now, local)
-    due = [occurrence for minute in picked(options) for occurrence in (start + minute * 60, start - 86400 + minute * 60)
-           if occurrence <= now < occurrence + SLOT_GRACE and (done is None or occurrence > done)]
+    due = [found for minute in picked(options)
+           for found in (occurrence(now, 0, minute, local, mktime), occurrence(now, -1, minute, local, mktime))
+           if found <= now < found + SLOT_GRACE and (done is None or found > done)]
     return max(due) if due else None
 
 
@@ -161,13 +169,13 @@ def reset_due(options, now, seen, done):
     return seen
 
 
-def next_due(options, now, slot_done, seen, reset_done, local=time.localtime):
+def next_due(options, now, slot_done, seen, reset_done, local=time.localtime, mktime=time.mktime):
     """The earliest occasion still to come, in whole seconds, or None - for wake_for_reset (v0.6.20, the pair audit; the
     owner's word of 2026-10-31): the next occurrence of a time picked, today's or tomorrow's, not handled already, and -
     Start right after a reset on - the reset seen not handled yet, AFTER_RESET after it. Pure."""
-    start = midnight(now, local)
-    found = [occurrence for minute in picked(options) for occurrence in (start + minute * 60, start + 86400 + minute * 60)
-             if occurrence > now and (type(slot_done) is not int or occurrence > slot_done)]
+    found = [at for minute in picked(options)
+             for at in (occurrence(now, 0, minute, local, mktime), occurrence(now, 1, minute, local, mktime))
+             if at > now and (type(slot_done) is not int or at > slot_done)]
     if after_reset_on(options) and type(seen) is int and (type(reset_done) is not int or seen > reset_done):
         if seen + AFTER_RESET > now:
             found.append(seen + AFTER_RESET)
