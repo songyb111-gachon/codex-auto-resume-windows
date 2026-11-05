@@ -1243,6 +1243,7 @@
   "installer.step.dashboard": "Closing the Dashboard",
   "installer.uninstall.heading": "Remove Codex Auto Resume",
   "installer.uninstall.purge": "Also delete the settings and the recovery history",
+  "installer.uninstall.saved_accounts": "Ticked, the Codex accounts you saved for switching are deleted too, with their sign-ins.",
   "installer.uninstall.desktop_shortcut": "Its shortcut on the desktop is removed too.",
   "installer.uninstall.what": "The watcher, its sign-in start, its Start menu entry and the plugin in Codex are removed. Your Codex conversations are not touched.",
   "installer.update": "Update",
@@ -1276,5 +1277,7 @@
   "msg.toast_account_changed_count": "Tasks that waited for a usage limit wait for you: {n}",
   "msg.toast_accounts_exhausted": "All your saved accounts are at their limit",
   "msg.toast_accounts_exhausted_body": "Recovery waits for the earliest reset, as it would with no switch. Nothing is sent until then.",
+  "msg.toast_switch_not_finished": "The automatic account switch did not finish",
+  "msg.toast_switch_not_finished_body": "Open Codex and check which account is signed in. Recovery waits for the earliest reset, as it would with no switch. Nothing is sent until then.",
   "why.account_changed": "Another Codex account was signed in after it stopped: nothing is sent until you let it continue."
 }

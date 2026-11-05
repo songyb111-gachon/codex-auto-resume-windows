@@ -60,6 +60,7 @@ namespace CodexAutoResumeSetup
                 Read(Path.Combine(Path.Combine(Path.Combine(home, "app"), ".codex-plugin"), "plugin.json")));
             var flow = FlowFor(arguments, home, carried.Edition, installed, carried.Version, from);
             flow.KnowDesktopShortcut(DesktopShortcut.OursAt(home), arguments);
+            flow.SavedAccountsThere = InstallerFlow.SavedAccountsAt(home);
             string language = InstallerLanguages.FromSystem(InstallerLanguages.Preferred());
             // An update says from what to what, and what is new in the version this program carries (v0.6.16); a repair
             // of the same version has nothing new to say.

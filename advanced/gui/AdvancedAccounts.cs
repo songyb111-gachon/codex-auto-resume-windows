@@ -2,7 +2,10 @@
 //
 // Codex Auto Resume - the saved accounts of the automatic account switch, on the Advanced features page (v0.6.22).
 //
-// While account_auto_switch is on or watched, its column has a card under its limits: the person's saved Codex accounts,
+// v0.6.22 after the security review (finding 3): a saved sign-in can be deleted in every state. While account_auto_switch
+// is on or watched, its column has the whole card; off with accounts still kept, the card lists them with Delete and
+// Delete all only; hidden (registry.WAITING) with accounts kept, that same card stands under account_switch's column.
+// The card: the person's saved Codex accounts,
 // each a flat check row (the window's lists stay flat hairline rows, never raised tiles) saying the address masked as the
 // account card masks it, the plan and a state word - ready, at its limit, needs a new sign-in, cannot be opened; a line
 // when Codex keeps its sign-in outside a file here, so nothing can be switched; Add an account..., which asks first and
@@ -41,7 +44,7 @@ namespace CodexAutoResume
         /// What the card is built from, for ShowAdvancedDetail to build it again only when it changed.
         private string AccountsShown(Dictionary<string, object> item)
         {
-            if (item == null || Str(item, "id") != AccountsId) return "";
+            if (item == null || (Str(item, "id") != AccountsId && Str(item, "id") != AccountId)) return "";
             return AdvancedWritten(advancedAccounts);
         }
 
@@ -105,15 +108,35 @@ namespace CodexAutoResume
             return string.Join(" · ", parts.ToArray());
         }
 
-        /// The open capability's card, while account_auto_switch is on or watched: the saved accounts and their buttons.
+        /// Whether any saved account is kept, by advanced-accounts' last answer.
+        private bool AccountsKept()
+        {
+            List<object> kept = Items(advancedAccounts, "profiles");
+            return kept != null && kept.Count > 0;
+        }
+
+        /// Whether the open column shows the card: account_auto_switch's while it is on or watched, or off with accounts
+        /// kept; account_switch's while account_auto_switch is hidden and accounts are kept.
+        private bool AccountsHere(Dictionary<string, object> item)
+        {
+            if (advancedAccounts == null) return false;
+            string id = Str(item, "id");
+            if (id == AccountsId) return Standing(item) || AccountsKept();
+            return id == AccountId && !Equals(Get(advancedAccounts, "offered"), true) && AccountsKept();
+        }
+
+        /// The open capability's card: the saved accounts and their buttons - Add and Save only while account_auto_switch
+        /// is on or watched; Delete and Delete all in every state.
         private void BuildAccounts(Dictionary<string, object> item)
         {
             ForgetAccountsCard();
-            if (Str(item, "id") != AccountsId || !Standing(item) || advancedAccounts == null) return;
+            if (!AccountsHere(item)) return;
+            bool standing = Str(item, "id") == AccountsId && Standing(item);
             TableLayoutPanel card = NewGroup(Word("page.accounts.title", "Saved accounts"), advancedStack);
             card.Controls.Add(HelpText(Word("page.accounts.help",
                 "Your own other Codex accounts. When a recovery waits for a usage limit, the one with the most room is switched in.")));
-            if (Str(advancedAccounts, "store") != "usable")
+            // Only while it stands: off or hidden, the bridge reads nothing of Codex's home and "store" is null.
+            if (standing && Str(advancedAccounts, "store") != "usable")
                 card.Controls.Add(HelpText(Word("page.accounts.not_file",
                     "Codex keeps its sign-in outside a file here, so accounts cannot be switched.")));
             foreach (object entry in Items(advancedAccounts, "profiles") ?? new List<object>())
@@ -136,10 +159,14 @@ namespace CodexAutoResume
                 card.Controls.Add(HelpText(Word("page.accounts.added", "The account was saved.")));
             else if (addState == "not_added")
                 card.Controls.Add(HelpText(Word("page.accounts.not_added", "No account was saved: the sign-in did not finish.")));
-            accountsAdd = CardButton(card, Word("page.accounts.add", "Add an account..."), delegate { AddAccount(); });
-            accountsAdd.Margin = Pad(0, 8, 0, 4);
-            accountsSave = CardButton(card, Word("page.accounts.save", "Save the account in use"), delegate { SaveAccount(); });
+            if (standing)
+            {
+                accountsAdd = CardButton(card, Word("page.accounts.add", "Add an account..."), delegate { AddAccount(); });
+                accountsAdd.Margin = Pad(0, 8, 0, 4);
+                accountsSave = CardButton(card, Word("page.accounts.save", "Save the account in use"), delegate { SaveAccount(); });
+            }
             accountsDelete = CardButton(card, Word("page.accounts.delete", "Delete"), delegate { DeleteAccounts(false); });
+            if (!standing) accountsDelete.Margin = Pad(0, 8, 0, 4);
             accountsDeleteAll = CardButton(card, Word("page.accounts.delete_all", "Delete all"), delegate { DeleteAccounts(true); });
         }
 

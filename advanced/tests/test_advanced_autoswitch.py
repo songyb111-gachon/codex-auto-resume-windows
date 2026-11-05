@@ -230,8 +230,12 @@ class ProbeTests(unittest.TestCase):
 
     def test_mswap(self):
         good = {"store_word": "usable", "profiles_given": True, "swapped": True, "signed_in_as_target": True,
-                "swapped_back": True, "signed_in_as_first": True, "first_usage_read": True, "target_usage_read": True}
+                "swapped_back": True, "signed_in_as_first": True, "first_usage_read": True, "target_usage_read": True,
+                "other_engine_alive": False, "other_engine_alive_open": False}
         self.assertEqual(self.run_probe(measure._mswap, good)[0], Verdict.BLOCKED, "the person confirms what the app showed")
+        recorded = self.run_probe(measure._mswap, dict(good, other_engine_alive_open=True))[1]
+        self.assertIs(recorded.get("other_engine_alive_open"), True, "a sitting shows the look's own view")
+        self.assertIs(recorded.get("other_engine_alive"), False)
         self.assertEqual(self.run_probe(measure._mswap, dict(good, signed_in_as_target=False))[0], Verdict.FAIL)
         self.assertEqual(self.run_probe(measure._mswap, dict(good, signed_in_as_first=False))[0], Verdict.FAIL)
         self.assertEqual(self.run_probe(measure._mswap, dict(good, first_usage_read=False))[0], Verdict.FAIL)

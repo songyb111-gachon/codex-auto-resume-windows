@@ -1,8 +1,9 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
 """Windows' data protection for the current user (account_auto_switch, v0.6.22): CryptProtectData and
 CryptUnprotectData with no prompt, no machine scope and a fixed entropy label, so a blob made here opens only for this
-Windows user on this PC, and only for this product's label. What it protects is a saved Codex sign-in file
-(state/profiles.py); nothing else in the edition uses it.
+Windows user - on another PC only where that user's profile roams with its keys (a domain's roaming profile) - and only
+for this product's label; anyone who runs as this user can open it. What it protects is a saved Codex sign-in file
+(profiles.py); nothing else in the edition uses it.
 """
 from __future__ import annotations
 

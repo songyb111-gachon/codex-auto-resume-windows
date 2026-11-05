@@ -874,6 +874,14 @@ only while push notices or the status feed is on (*What the courier sends*, belo
   app server on this PC, started by this program and signed in as you, under the conversation's own
   saved settings. Like every turn it reaches OpenAI through Codex. The program reads only the kinds of
   items the turn left and Codex's error codes, never what anyone wrote.
+- **Saved Codex accounts.** One feature, off until you turn it on, switches between your own Codex
+  accounts at a usage limit, and is the one exception to this page's word that the program never sees
+  your sign-in: for each account you save it keeps a copy of Codex's sign-in file `auth.json`, with the
+  account's address and plan, sealed for your Windows user, in the installation's `accounts` folder,
+  and reads each saved account's usage on a private Codex home there. The Dashboard shows the address
+  masked; nothing of it goes into the settings, a log, diagnostics, a report or anywhere else. Delete
+  them on their card at any time - the feature on, off or hidden - or with an uninstall that deletes
+  the settings.
 - **What it stores.** `config/advanced/advanced.sqlite`, made only when something is first turned
   on or changed: each capability's state, since when, from which surface and why, the statement
   revision and the Codex version it was turned on for, and the warnings confirmed; each unit a

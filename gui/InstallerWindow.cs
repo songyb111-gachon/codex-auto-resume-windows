@@ -536,6 +536,9 @@ namespace CodexAutoResume
             Row(Words(flow.Home, null, Palette.Ink), 2);
             Row(Choice(words.Say("installer.uninstall.purge", "Also delete the settings and the recovery history"), flow.Purge, true,
                        delegate(bool on) { flow.Purge = on; }), 16);
+            // v0.6.22: only where the advanced edition's saved Codex sign-ins are kept (InstallerFlow.SavedAccountsAt).
+            if (flow.SavedAccountsThere)
+                Row(Words(words.Say("installer.uninstall.saved_accounts", "Ticked, the Codex accounts you saved for switching are deleted too, with their sign-ins."), null, Palette.Ink), 6);
             InsideNote(16);
         }
 

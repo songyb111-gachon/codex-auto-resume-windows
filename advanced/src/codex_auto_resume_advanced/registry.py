@@ -1580,7 +1580,9 @@ ACCOUNT_AUTO_SWITCH = CapabilityDef(
     ceilings=Ceilings(per_day=12, per_conversation=3),
     journal_prefix="autoswch",
     make=make_account_auto_switch,
-    codes=("switched", "not_signed_in", "not_usable", "not_closed", "failed", "all_exhausted", "ceiling"),
+    codes=("switched", "not_signed_in", "not_usable", "not_closed", "failed", "all_exhausted", "ceiling", "left",
+           "not_put_back", "sweep_failed", "changed_under",
+           "locked", "not_started", "engine_alive"),
     measurements=(Measurement.MPROFILE, Measurement.MSWAP),
     requires=("account_switch",),
 )

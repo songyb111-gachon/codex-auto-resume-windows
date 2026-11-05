@@ -2837,8 +2837,13 @@ PROBES = {
 # sign-in store's closed word (codex/authfile).
 _MPROFILE_FIELDS = ("profile_given", "added_by_login", "account_read", "own_account", "usage_read",
                     "real_file_unchanged", "app_unchanged", "real_still_signed_in")
+# MSWAP's `other_engine_alive`: a switch held because another Codex engine that may use this home still ran once the
+# app was gone and its children had their time to end, or that could not be told (codex/swap.ENGINE_ALIVE, the security
+# review's finding 10); `other_engine_alive_open`: the same question asked before the first switch with the app open -
+# what the watcher's look asks before it closes anything (engine/autoswitch `_why_not`, finding 17).
 _MSWAP_FIELDS = ("profiles_given", "app_was_running", "swapped", "signed_in_as_target", "swapped_back",
-                 "signed_in_as_first", "first_usage_read", "target_usage_read")
+                 "signed_in_as_first", "first_usage_read", "target_usage_read", "other_engine_alive",
+                 "other_engine_alive_open")
 _STORE_WORDS = ("usable", "not_file", "no_file", "unreadable")
 
 
@@ -2896,8 +2901,9 @@ def _mswap(ctx):
         return _blocked("save a second account of yours first (run mprofile), let no turn run and nothing be queued "
                         "in Codex, then run mswap again", **observed)
     if observed["swapped"] is not True:
-        return _blocked("the switch was not made: a turn ran, something was queued, the app could not be closed or "
-                        "the file could not be put in place; run mswap again once Codex is idle", **observed)
+        return _blocked("the switch was not made: a turn ran, something was queued, another Codex engine ran, the app "
+                        "could not be closed or the file could not be put in place; run mswap again once Codex is idle "
+                        "and nothing else of Codex runs", **observed)
     if observed["signed_in_as_target"] is False or observed["signed_in_as_first"] is False:
         return (Verdict.FAIL, observed, "the app did not come up signed in as the account the switch put in, or the "
                 "first account's sign-in no longer works after coming back")
@@ -3435,13 +3441,16 @@ def _account_swap(backend, paths, home):
         found["app_was_running"] = None
     if restarts.busy(paths, source=LocalSource(Path(home)), store=_NoRecords()):
         return found
+    found["other_engine_alive_open"] = swap.other_engines(swap._inventory(), app_open=True)
     outcome = swap.switch(paths, store, home, others[0], restart=restart, read_real=read_real)
+    found["other_engine_alive"] = outcome == swap.ENGINE_ALIVE
     found["swapped"] = outcome in (swap.SWITCHED, swap.NOT_SIGNED_IN)
     found["signed_in_as_target"] = outcome == swap.SWITCHED if found["swapped"] else None
     if outcome != swap.SWITCHED:
         return found
     found["target_usage_read"] = usage_read()
     back = swap.switch(paths, store, home, first_id, restart=restart, read_real=read_real)
+    found["other_engine_alive"] = back == swap.ENGINE_ALIVE
     found["swapped_back"] = back in (swap.SWITCHED, swap.NOT_SIGNED_IN)
     if found["swapped_back"]:
         found["signed_in_as_first"] = back == swap.SWITCHED and (read_real().get("email") or "").lower() == email

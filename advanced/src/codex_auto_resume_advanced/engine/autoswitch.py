@@ -16,7 +16,11 @@ At P8, as an errand, at most every LOOK_EVERY seconds while it stands on:
    until a reset still ahead nor needing a sign-in is read on a scratch home (codex/swap.read_profile); the one with
    the most room (the lowest most-used window, ties to the least recently used) is switched in (codex/swap.switch);
 5. none with room: the journal counts `all_exhausted` once for the episode, one notice says so (core's kind
-   accounts_exhausted, registered by plug.py; surfaces.autoswitch_view), and recovery waits as today.
+   accounts_exhausted, registered by plug.py; surfaces.autoswitch_view), and recovery waits as today;
+6. a switch that did not finish - its target not signed in, the previous file not back yet, the app not started again,
+   another account signed in meanwhile, a failure - or one a crash left that was settled other than as switched, says so
+   once too: the same kind, with the closed word `why` "not_finished" (the security review's finding 9), once for each
+   target in this watcher's life.
 
 After a switch the watcher's P7 answers EARLY for every record that waits for a usage limit, for EARLY_FOR seconds:
 core then reads live usage (A12's check kept) and recovers as usual on the new account. account_switch's watch, which
@@ -44,6 +48,10 @@ EARLY_FOR = 900
 PER_DAY = 10
 DAY = 86400
 USAGE_LIMIT = "usage_limit"
+# What a switch or a settled crash came to that a person is told of once (codex/swap.py's closed words). engine_alive
+# from a switch too (the review's finding 18): the app was closed and started in front of nobody and nothing came of it.
+# The look's own engine_alive (`_why_not`, nothing closed) stays silent.
+NOT_FINISHED = ("not_signed_in", "not_put_back", "not_started", "changed_under", "failed", "left", "engine_alive")
 
 
 class _Errand:
@@ -104,6 +112,17 @@ class AutoSwitch:
         from ..codex import restart as restarts
         return restarts.busy(self.paths, usage_waiting_ok=True)
 
+    def _restart_now(self, between):
+        """codex/restart.restart for a put-back a later look finishes - None where it may not restart now: something runs
+        or is queued, or someone uses this PC (the switch's own rule, `_why_not`)."""
+        idle = self._idle()
+        if self.busy() or not isinstance(idle, (int, float)) or idle < IDLE:
+            return None
+        if self._restart is not None:
+            return self._restart(between)
+        from ..codex import restart as restarts
+        return restarts.restart(self.paths, between=between)
+
     def read_real(self):
         if self._read_real is not None:
             return self._read_real()
@@ -145,6 +164,9 @@ class AutoSwitch:
             return "not_usable"
         if self.busy():
             return "busy"
+        from ..codex import swap
+        if swap.other_engines(swap._inventory(), app_open=True):
+            return "engine_alive"                        # a TUI, IDE or exec-server engine of its own: it waits
         idle = self._idle()
         if not isinstance(idle, (int, float)) or idle < IDLE:
             return "in_use"
@@ -159,10 +181,20 @@ class AutoSwitch:
     def look(self, view, now):
         """One look; see the module's docstring. Returns nothing: what it did is in the journal and the stamps."""
         from ..codex import swap
+        from ..codex import authfile
         store, home = self.store(), self.home()
-        settled = swap.recover(self.paths, store, home, read_real=self.read_real)
+        intent = store.intent()
+        # What a kill or a held file left in plain text - a scratch home, a temporary beside the sign-in file - goes first.
+        _removed, failed = authfile.sweep(store.directory, home)
+        if failed:
+            self._count("sweep_failed")
+        settled = swap.recover(self.paths, store, home, read_real=self.read_real, restart=self._restart_now)
         if settled == swap.SWITCHED:
             self._switched(now)
+        elif settled is not None:
+            self._count(settled)
+            if settled in NOT_FINISHED and isinstance(intent, dict):
+                self._not_finished(intent.get("to"))
         rows = self.waiting(view, now)
         if self._why_not(view, rows) is not None:
             return None
@@ -181,8 +213,11 @@ class AutoSwitch:
             return None
         outcome = swap.switch(self.paths, store, home, target, restart=self._restart, read_real=self.read_real, now=now)
         self._count(outcome)
-        if outcome == swap.SWITCHED:
-            self._switched(now)
+        if outcome in NOT_FINISHED:
+            self._not_finished(target)
+        if outcome in (swap.SWITCHED, swap.NOT_STARTED):
+            if outcome == swap.SWITCHED:
+                self._switched(now)                      # NOT_STARTED: the app is closed, so P7 releases nothing early
             day = int(now // DAY) + 1
             self._scoped.stamp(OptionKey.AUTO_SWITCH_COUNT, self._today(now) + 1)
             self._scoped.stamp(OptionKey.AUTO_SWITCH_DAY, day)
@@ -222,8 +257,14 @@ class AutoSwitch:
         except Exception:
             pass
 
+    def _not_finished(self, target) -> None:
+        """One notice that a switch did not finish, keyed by its target: once for each in this watcher's life."""
+        self._notice = {"key": "autoswitch:not_finished:%s" % (target if isinstance(target, str) else "unknown"),
+                        "why": "not_finished"}
+
     def notice(self):
-        """{"key"} of the last look that found every saved account at its limit, for the watcher to show once - or None."""
+        """{"key"} of the last look that found every saved account at its limit - or {"key", "why": "not_finished"} of a
+        switch that did not finish - for the watcher to show once; or None."""
         return self._notice
 
     # ------------------------------------------------------------------ P7

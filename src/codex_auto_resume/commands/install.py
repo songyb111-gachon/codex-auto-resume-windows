@@ -253,7 +253,9 @@ def cmd_uninstall(args) -> int:
                   + ([] if keep_state else edition_state + [paths.state_dir]))
     owned_dirs = [d for d in considered if paths.owns(d)]
     skipped = [d for d in considered if d.is_dir() and not paths.owns(d)]
-    targets = ([] if keep_state else list(paths.owned_state_files()))
+    targets = ([] if keep_state else list(paths.owned_state_files()) + paths.owned_account_files())
+    # v0.6.22: the advanced edition's saved sign-ins go with the settings, deepest folder first (config.owned_account_dirs).
+    owned_dirs = ([] if keep_state else paths.owned_account_dirs()) + owned_dirs
     if not args.keep_logs:
         targets += list(paths.owned_log_files())
     for path in targets:

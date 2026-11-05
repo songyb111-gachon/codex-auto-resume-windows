@@ -6,8 +6,10 @@ A profile is one file, `<product home>\\accounts\\<id>.dat`: Windows' data prote
 account/read answered them, and when it was saved, last switched to, found exhausted until, and found unusable. Nothing
 of it is in settings.json, the state, a log, the journal, diagnostics, a compatibility report or a statement; what
 leaves this module for a person to see is `view`: an id, the address masked as the account card masks it, the plan
-word and a closed state word. Delete takes the file away; Delete all takes every one. Turning the capability off keeps
-them (the person saved them), and nothing reads them while it is off.
+word and a closed state word. Delete takes the file away; Delete all takes every one - in every state, on, watched, off
+or hidden, the card listing them while any is kept. Turning the capability off keeps them (the person saved them), and
+nothing but that card reads them while it is off. The folder carries the product's provenance marker, so uninstall's
+purge (config.Paths.owned_account_files, and the installer's) takes it whole.
 
 Two more sealed files sit beside them: `switch.intent` - a switch under way (from, to, step), so a crash in the middle is
 finished or undone at the next look - and `switch.last` - the account a switch of this capability put in and when, so
@@ -16,7 +18,9 @@ account_switch's watch tells that change from one a person made (`switched_to`).
 from __future__ import annotations
 
 import base64
+from contextlib import contextmanager
 import json
+import os
 from pathlib import Path
 import re
 import secrets
@@ -34,10 +38,27 @@ READY, EXHAUSTED, NEEDS_SIGN_IN, DAMAGED = "ready", "exhausted", "needs_sign_in"
 STATES = (READY, EXHAUSTED, NEEDS_SIGN_IN, DAMAGED)
 # The most profiles a person may keep.
 MOST = 8
+# Seconds a save, a delete or a profile's update waits for the saved accounts' lock (`locked`).
+LOCK_SECONDS = 5.0
+# Seconds keeping a copy Codex refreshed on a scratch home waits for it: as long as core's Mutex allows (it caps at 60).
+# A switch holds the lock through a whole app restart, and a refreshed copy not kept may leave only a spent one (the
+# review's finding 15).
+KEEP_SECONDS = 60.0
 
 
 class ProfileError(OSError):
     """A profile that cannot be saved, read or found."""
+
+
+class Locked(ProfileError):
+    """Another switch, put-back, save or delete holds the saved accounts - in this process or another."""
+
+
+def _mutex(directory, seconds):
+    """One named mutex for the saved accounts of one product home, across every process of the person's (the watcher,
+    the bridge, a measurement's hand): core's win/sync.Mutex, which an abandoned holder releases."""
+    from codex_auto_resume.win.sync import Mutex
+    return Mutex("account-switch:" + os.path.normcase(str(Path(directory).absolute())), timeout=seconds)
 
 
 def _seal(data):
@@ -53,18 +74,36 @@ def _open(blob):
 class Profiles:
     """The profiles under `home` (the product's home). `seal` and `open_` are Windows' data protection, or a test's."""
 
-    def __init__(self, home, *, seal=None, open_=None, clock=None):
+    def __init__(self, home, *, seal=None, open_=None, clock=None, lock=None):
         self.directory = Path(home) / FOLDER
         self._seal = seal or _seal
         self._open = open_ or _open
         self._clock = clock or time.time
+        self._lock = lock or _mutex
+
+    @contextmanager
+    def locked(self, seconds=LOCK_SECONDS):
+        """The saved accounts held for one switch, put-back, save or delete (the security review's finding 7: the intent
+        had no owner, so a measurement's hand beside an armed watcher, or the bridge's save beside a switch, raced).
+        Locked where another holds them after `seconds`. The same thread may take it again inside."""
+        try:
+            held = self._lock(self.directory, seconds)
+            held.__enter__()
+        except Exception:
+            raise Locked("the saved accounts are held") from None
+        try:
+            yield
+        finally:
+            held.__exit__(None, None, None)
 
     # ------------------------------------------------------------------ sealed files
     def _write(self, name, value) -> None:
-        self.directory.mkdir(parents=True, exist_ok=True)
+        authfile.own_folder(self.directory)
         authfile.write_atomic(self.directory / name, self._seal(json.dumps(value, sort_keys=True).encode("utf-8")))
 
     def _read(self, name):
+        if not authfile.confined(self.directory):
+            raise ProfileError("the saved accounts folder is a link")
         try:
             blob = (self.directory / name).read_bytes()
         except FileNotFoundError:
@@ -80,6 +119,8 @@ class Profiles:
         return value
 
     def _remove(self, name) -> bool:
+        if not authfile.confined(self.directory):
+            return False                                     # never through a link at the folder
         try:
             (self.directory / name).unlink()
             return True
@@ -88,6 +129,8 @@ class Profiles:
 
     # ------------------------------------------------------------------ profiles
     def ids(self) -> list:
+        if not authfile.confined(self.directory):
+            return []
         try:
             names = sorted(path.name for path in self.directory.iterdir())
         except OSError:
@@ -155,10 +198,13 @@ class Profiles:
             return False
         return self._remove(profile_id + SUFFIX)
 
-    def delete_all(self) -> int:
+    def delete_all(self, codex_home=None) -> int:
+        """Every saved account taken away, and with them the intent, the last switch's stamp, and whatever plain sign-in
+        file a kill left (authfile.sweep: every scratch home, whatever its age). How many accounts went."""
         gone = sum(self.delete(profile_id) for profile_id in self.ids())
         self._remove(INTENT)
         self._remove(LAST)
+        authfile.sweep(self.directory, codex_home, stale=0)
         return gone
 
     def state(self, found, now=None) -> str:
@@ -189,8 +235,10 @@ class Profiles:
         except ProfileError:
             return {"damaged": True}
 
-    def begin(self, source, target) -> None:
-        self._write(INTENT, {"from": source, "to": target, "at": int(self._clock())})
+    def begin(self, source, target, step="swap", tries=0) -> None:
+        """A switch under way from `source` to `target`; `step` "back" once only the previous file's return is left,
+        `tries` the restarts made for it since."""
+        self._write(INTENT, {"from": source, "to": target, "at": int(self._clock()), "step": step, "tries": tries})
 
     def end(self) -> None:
         self._remove(INTENT)
