@@ -663,6 +663,19 @@ class CardTests(ac.AdvancedCase):
         self.assertEqual(copied["copy_url"], "http://127.0.0.1:47615/#" + self.secrets.token)
         self.assertNotIn("?", copied["copy_url"], "never in a query string")
 
+    def test_copy_carries_nothing_while_another_program_holds_the_port_or_it_stopped(self):
+        """R7 (the security review of 2026-11-06): fails with the state unread - the address would hand the token in its
+        fragment to whatever page the program holding the port serves."""
+        self.assertTrue(self.arm(self.rt, "local_api")["done"])
+        self.secrets.token = TOKEN
+        self.rt.state.counted("local_api", "port_taken")
+        self.assertNotIn("copy_url", remote.api_view(self.rt, copy=True, secrets=self.secrets, running=lambda r: True))
+        self.now += 1
+        self.rt.state.counted("local_api", "started")
+        self.assertIn("copy_url", remote.api_view(self.rt, copy=True, secrets=self.secrets, running=lambda r: True))
+        with patch.object(remote, "_word", lambda runtime, on, alive: "stopped"):
+            self.assertNotIn("copy_url", remote.api_view(self.rt, copy=True, secrets=self.secrets, running=lambda r: False))
+
     def test_copy_while_off_carries_nothing(self):
         self.secrets.token = TOKEN
         self.assertNotIn("copy_url", remote.api_view(self.rt, copy=True, secrets=self.secrets))

@@ -65,6 +65,14 @@ class PageTests(PageCase):
         return "en", {"script": script, "steps": steps}, {"words": script["advanced-words"][0]["result"]["words"]}
 
     @classmethod
+    def scenario_port_taken(cls, bridge):
+        cls.watched(bridge, API, state="armed")
+        script = cls.opening(bridge, "en")
+        script["advanced-api"] = [card(token=True, state="port_taken")] * 8
+        steps = [{"do": "snapshot", "reply": snapshot()}, {"do": "show"}, {"do": "choose", "id": API}, {"do": "look"}]
+        return "en", {"script": script, "steps": steps}, {"words": script["advanced-words"][0]["result"]["words"]}
+
+    @classmethod
     def scenario_no_token(cls, bridge):
         """On, none kept yet: no Copy address, and New token... asks nothing, there being nothing to replace."""
         cls.watched(bridge, API, state="armed")
@@ -152,6 +160,11 @@ class PageTests(PageCase):
         self.assertIn(words["page.api.state.port_taken"], where)
         self.assertIn(words["page.api.lan"], where)
         self.assertEqual(look["remote_buttons"], ["token api"])
+
+    def test_while_another_program_holds_the_port_there_is_no_copy(self):
+        """R7: fails with the card offering Copy address whatever the server's state."""
+        result, expected = self.of("scenario_port_taken")
+        self.assertEqual(result["looks"][0]["remote_buttons"], ["token api"])
 
     def test_telegram_s_card_lists_what_may_be_sent_and_pairing_shows_the_code(self):
         result, expected = self.of("scenario_telegram")

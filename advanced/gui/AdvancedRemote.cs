@@ -23,6 +23,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Windows.Forms;
 
 namespace CodexAutoResume
@@ -95,7 +96,10 @@ namespace CodexAutoResume
                 lan.ForeColor = Accent;
                 card.Controls.Add(lan);
             }
-            if (kept) RemoteButton(card, Word("page.api.copy", "Copy address"), "copy api", delegate { CopyApiAddress(); });
+            // Not while another program holds the port, or the server is not up: that program's page would read the token.
+            string up = Str(advancedApi, "state");
+            if (kept && (up == "running" || up == "starting"))
+                RemoteButton(card, Word("page.api.copy", "Copy address"), "copy api", delegate { CopyApiAddress(); });
             RemoteButton(card, Word("page.api.new_token", "New token..."), "token api", delegate { NewApiToken(kept); });
         }
 
@@ -123,6 +127,8 @@ namespace CodexAutoResume
         }
 
         /// The address carrying the token, onto the clipboard - or, in a test's run, into its list: never the real one there.
+        /// Marked for Windows to keep out of its clipboard history and its cloud clipboard (the formats Windows documents for
+        /// that), so the token stays on this PC as far as Windows keeps the promise.
         private bool PutOnClipboard(string text)
         {
             if (string.IsNullOrEmpty(text)) return false;
@@ -133,7 +139,12 @@ namespace CodexAutoResume
             }
             try
             {
-                Clipboard.SetText(text);
+                var data = new DataObject();
+                data.SetData(DataFormats.UnicodeText, text);
+                data.SetData("ExcludeClipboardContentFromMonitorProcessing", new MemoryStream(new byte[] { 0, 0, 0, 0 }));
+                data.SetData("CanIncludeInClipboardHistory", new MemoryStream(BitConverter.GetBytes(0)));
+                data.SetData("CanUploadToCloudClipboard", new MemoryStream(BitConverter.GetBytes(0)));
+                Clipboard.SetDataObject(data, true);
                 return true;
             }
             catch (Exception)

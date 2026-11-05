@@ -20,7 +20,8 @@ The bridge commands, the Dashboard's alone and never an MCP tool's:
 
 * advanced-api - the card read: the port, the address without its token, whether a token is kept, whether the
   resident answers (running / stopped / starting / port_taken / off) and whether it is open to the network; with
-  {"copy": true}, the address carrying the token in its fragment too, for Copy address - that answer alone;
+  {"copy": true}, the address carrying the token in its fragment too, for Copy address - that answer alone, and only while
+  the server runs or is starting, never while another program holds its port;
 * advanced-api-token-new - a new token kept in Windows Credential Manager (local_api/token), the old one useless at once;
   the address with the token in its fragment is answered this once, for the same Copy;
 * advanced-remote-pair-start - Telegram's pairing begun, the same pairing as the notices card's (control/courier.py):
@@ -244,7 +245,9 @@ def api_view(runtime, *, copy=False, secrets=None, running=None) -> dict:
     found = {"done": True, "refusal": None, "port": chosen, "url": web_view(chosen),
              "token_saved": isinstance(token, str) and bool(token), "state": _word(runtime, on, alive),
              "lan": on and _armed(runtime, API_LAN), "actions": on and _armed(runtime, API_ACTIONS)}
-    if copy is True and found["token_saved"] and _standing(runtime, API) is None:
+    # Never while another program holds the port (or the server is not up): opened, the address would hand the token in
+    # its fragment to that program's page (R7, the security review of 2026-11-06).
+    if copy is True and found["token_saved"] and _standing(runtime, API) is None and found["state"] in ("running", "starting"):
         found["copy_url"] = web_view(chosen, token)
     return found
 
