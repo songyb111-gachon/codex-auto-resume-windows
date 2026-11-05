@@ -115,7 +115,7 @@ class ShippedTests(unittest.TestCase):
                "local_api",
                "wake_for_reset",
                # v0.6.22: what widens the loopback API: actions, before the other three.
-               "local_api_actions",
+               "local_api_actions", "local_api_lan",
                "open_codex_button",
                "long_reset_message", "compat_report")
 
@@ -126,14 +126,14 @@ class ShippedTests(unittest.TestCase):
 
     def test_the_registry_this_edition_ships_is_its_capabilities_in_their_order(self):
         self.assertEqual([d.id for d in registry.DEFINITIONS], list(self.SHIPPED))
-        self.assertEqual(len(registry.DEFINITIONS), 44)
+        self.assertEqual(len(registry.DEFINITIONS), 45)
         self.assertEqual(len(registry.REGISTRY), len(self.SHIPPED) + len(self.OFFERED))
-        self.assertEqual(len(registry.REGISTRY), 45)
+        self.assertEqual(len(registry.REGISTRY), 46)
         self.assertEqual(registry.REGISTRY.ids, self.SHIPPED + self.OFFERED)
         self.assertEqual([definition.id for definition in registry.offered(measured.MEASURED)], list(self.OFFERED))
         # The compatibility report is an action, last: it answers at no point, so it is in no list below.
         self.assertEqual([d.id for d in registry.DEFINITIONS if d.kind == CapabilityKind.ACTION],
-                         ["local_api_actions", "open_codex_button", "long_reset_message", "compat_report"])
+                         ["local_api_actions", "local_api_lan", "open_codex_button", "long_reset_message", "compat_report"])
         # Start-with-Codex answers at P9 alone - it starts the watcher, it does not send; the goal
         # continuation at P16, P3 and P5 - the route, the hold while a goal carries a conversation on,
         # and the channel where M2b passed; the marker-free continuation at P5 and P15, the channel
@@ -199,7 +199,7 @@ class ShippedTests(unittest.TestCase):
              "silent_continuation", "stop_hook_continuation", "status_feed", "account_switch", "idle_update_check",
              "structured_rules",
              # 2026-11-05 (v0.6.22): what a person's own scripts and browser may read and do.
-             "local_api", "local_api_actions")
+             "local_api", "local_api_actions", "local_api_lan")
 
     def test_the_shown_order_names_every_capability_of_the_registry_exactly_once(self):
         order, ids = registry.SHOWN_ORDER, registry.REGISTRY.ids

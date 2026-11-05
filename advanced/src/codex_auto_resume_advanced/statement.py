@@ -379,7 +379,7 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "confirm.api_token", "done.api_copied", "done.api_token", "done.api_token_kept", "refused.api_not_copied",
     "api.title", "api.watcher", "api.recovery", "api.pending", "api.next_check", "api.ask_token", "api.refused",
     "api.word.running", "api.word.stopped", "api.word.on", "api.word.paused", "api.word.observe_only",
-    "api.example.cancelled"))
+    "api.example.cancelled", "api.example.lan"))
 # The edition's own continuations' words (v0.6.15-beta): what empty_response, subagent_parent and keep_going send -
 # fixed, each passing core's continuation.validate_continuation in every language (nothing is filled in but, for a
 # subagent's line, its id and a closed kind word).

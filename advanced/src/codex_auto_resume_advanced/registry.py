@@ -1404,6 +1404,24 @@ LOCAL_API_ACTIONS = CapabilityDef(
     kind=CapabilityKind.ACTION,
 )
 
+# Open the status server to the local network (v0.6.22, D-remote.md): an action - core never asks it. While it stands on
+# beside local_api, the resident binds to every network instead of 127.0.0.1 and takes a Host that is an IPv4 address with
+# its port; every other check stays. Windows asks about its firewall; the product never edits a rule. It departs from B14
+# (a listening socket, reachable from other devices), F8 (the resident process) and D1 (the status can reach whoever on the
+# network holds the token). It requires local_api.
+LOCAL_API_LAN = CapabilityDef(
+    id="local_api_lan",
+    points=frozenset(),
+    revision=1,
+    departs_from=("B14", "F8", "D1"),
+    compat=None,
+    ceilings=None,
+    journal_prefix="apilan",
+    make=make_widening,
+    requires=("local_api",),
+    kind=CapabilityKind.ACTION,
+)
+
 # Start the 5-hour window early (v0.6.20, the owner's request of 2026-10-28; plans/v0620-anchor-design.md). At P8,
 # when Codex's 5-hour window is idle - 0 % in two reads STEADY_GAP apart, its reset ~5 h ahead and moving with the
 # clock, as MANCHOR found an idle window reports - its errand starts one near-free request, the measured
@@ -1517,7 +1535,7 @@ DEFINITIONS = (START_WITH_CODEX, CRASH_RESTART, GOAL_CONTINUATION, QUEUE_FOR_OPE
                LOCAL_API,
                WAKE_FOR_RESET,
                # v0.6.22: what widens the loopback API: actions, core never asks them.
-               LOCAL_API_ACTIONS,
+               LOCAL_API_ACTIONS, LOCAL_API_LAN,
                OPEN_CODEX_BUTTON, LONG_RESET_MESSAGE,
                COMPAT_REPORT)
 # Codex's own retry settings (stage 4's item 6): Attempts (6, 8, 10 or 12; 8 by default) for both of its built-in
@@ -1693,7 +1711,7 @@ SHOWN_ORDER = (
     "silent_continuation", "stop_hook_continuation", "status_feed", "account_switch", "idle_update_check",
     "structured_rules",
     # 2026-11-05 (v0.6.22): what a person's own scripts and browser may read and do: rare and expert.
-    "local_api", "local_api_actions")
+    "local_api", "local_api_actions", "local_api_lan")
 
 
 def shown(registry) -> tuple:

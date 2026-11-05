@@ -390,6 +390,10 @@ namespace CodexAutoResume
                 Ex("local_api_actions",
                    Scene(OnPending(Due(Rec(ExampleProject, "scheduled", "usage_limit", Detected, 0), Ahead))),
                    Scene(Says(f => f.Word("page.api.example.cancelled", "POST /cancel/1: task 1 is cancelled.")))),
+                Ex("local_api_lan",
+                   Scene(Says(f => f.ExampleField("local_api_lan", "instead"))),
+                   Scene(Says(f => f.Word("page.api.example.lan", "From another device: http://192.168.0.2:47615/")),
+                         Says(f => f.Word("page.api.lan", "Open to your local network, without encryption.")))),
                 // Hidden on the page until MHK, M4 and M4B are measured: its example waits with it.
                 Ex("stop_hook_continuation",
                    Scene(OnHistory(Rec(ExampleProject, "recovered", "network_transient", -60, -44)),

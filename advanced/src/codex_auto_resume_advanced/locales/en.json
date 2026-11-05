@@ -1037,5 +1037,12 @@
   "page.api.word.on": "on",
   "page.api.word.paused": "paused",
   "page.api.word.observe_only": "only watching",
-  "page.api.example.cancelled": "POST /cancel/1: task 1 is cancelled."
+  "page.api.example.cancelled": "POST /cancel/1: task 1 is cancelled.",
+  "name.local_api_lan": "Open the status server to your local network",
+  "statement.local_api_lan.does": "While it and the status server are on, the server answers on every network this PC is on, not only on this PC, so another device can read it at this PC's IP address and the port, with the token. A request must name the server by an IP address; any other name is refused. Windows asks about its firewall the first time. This product never changes a firewall rule.",
+  "statement.local_api_lan.instead": "The standard edition has no server, and without this the server answers on this PC alone.",
+  "statement.local_api_lan.departs": "B14 (no listening socket: this one is reachable from other devices), F8 (no resident helper: the server's process) and D1 (nothing leaves the product: how your recoveries stand can reach whoever on your network holds the token). It needs Read this PC's status from a browser or a script on.",
+  "statement.local_api_lan.risks": "The connection is not encrypted. Anyone who can watch your network can read the status and the token as they pass, and with the token ask for the same - and pause and cancel, if that is on too. Use it only on a network you trust, never on a public one. Windows' firewall answer is yours; if you allow it for public networks, this is open there too.",
+  "statement.local_api_lan.stop": "Turn it off here, or turn the status server off, which turns this off too: within seconds the server listens on this PC alone again, or not at all.",
+  "page.api.example.lan": "From another device: http://192.168.0.2:47615/"
 }
