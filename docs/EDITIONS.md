@@ -1502,8 +1502,8 @@ it is hidden because its measurement failed - and never turns the switch off.
 
 ### Switch to another saved account at a usage limit
 
-**Hidden until it is measured.** Built, and hidden - no row, no switch - until MPROFILE and MSWAP pass on the Codex in
-force; it needs Switch the Codex account on.
+**Offered, off until you turn it on.** It was hidden until MPROFILE and MSWAP passed; both did on `codex-cli
+0.166.0-alpha.6` (2026-11-06). On any other Codex it shows the unmeasured warning. It needs Switch the Codex account on.
 
 **What it does.** You save your own other Codex accounts on its card: **Add an account...** runs Codex's own
 `codex login` in a private folder under the product's home, and you sign in in your browser on OpenAI's page - the
@@ -1535,7 +1535,9 @@ does; nothing asks Codex for a token), C4 (it acts on its own), C9 (usage of acc
 (`codex login` is not a listed process).
 
 **Ceilings.** Those of the early look at P7 (12 a day, 3 in one conversation), beside its own 10 switches a day.
-**Measurements MPROFILE and MSWAP: not measured** - hidden until both pass.
+**Measurements MPROFILE and MSWAP: passed** on `codex-cli 0.166.0-alpha.6` (2026-11-06) - a second saved account read
+on a scratch home left the real sign-in, the app and its account as they were (MPROFILE); the app came up as the other
+saved account and back, each with no sign-in page and no other Codex engine running (MSWAP, completed by the owner).
 
 ### Compatibility report
 
@@ -1674,7 +1676,9 @@ headings as the last four bullets below.
   0.166.0-alpha.5.1` (2026-10-31), by design - its built-in provider cannot be overridden. Their new route copies that
   provider, with the retries set, into a provider of the product's own, given only to the Codex server the product
   starts for its own turns and written nowhere in Codex's configuration; it is offered only once a Codex passes its
-  measurement MB2, not made yet.)
+  measurement MB2, which failed on `codex-cli 0.166.0-alpha.6` (2026-11-06): Codex refuses to resume (`thread/resume`,
+  -32600) a conversation made under its built-in provider under a provider of the product's own
+  (`modelProviderMismatch`), so they stay hidden because their measurement failed.)
 - **Around recovery** - usage analytics (the live usage meter and the wrap-up near a limit are built,
   described [above](#todays-capabilities)); a provider status feed and push notifications through one courier process, the advanced edition's only
   outbound network code; a local API and web view, remote control over Telegram and a read-only view
