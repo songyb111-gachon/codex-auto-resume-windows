@@ -1558,7 +1558,7 @@ STOP_HOOK = CapabilityDef(
 # Restart does, seals the file in use back into its profile, puts the chosen account's copy in its place in one rename,
 # starts the app and reads the account; at P7, for fifteen minutes after a switch, it answers EARLY for the records
 # waiting for a usage limit, and core reads live usage before it sends (engine/autoswitch.py, codex/swap.py,
-# codex/authfile.py). At most four switches a day, one attempt for each set of waiting records, never back to an account
+# codex/authfile.py). At most ten switches a day, one attempt for each set of waiting records, never back to an account
 # found exhausted until a reset still ahead; all exhausted, recovery waits as today. A sign-in Codex keeps outside a file
 # (keyring, auto, ephemeral) fails closed. This is the one capability that reads Codex's sign-in file: every other one,
 # and the standard edition, keep "never reads Codex's sign-in file, a token or a cookie" (B11) - and

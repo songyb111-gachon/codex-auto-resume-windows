@@ -126,7 +126,9 @@ class WhenTests(EngineCase):
         self.assertEqual(self.store.view()[[v["id"] for v in self.store.view()].index(self.two)]["state"],
                          profiles.NEEDS_SIGN_IN)
 
-    def test_at_most_four_a_day(self):
+    def test_at_most_ten_a_day(self):
+        """The owner, 2026-11-05: ten switches in 24 hours."""
+        self.assertEqual(autoswitch.PER_DAY, 10)
         self.scoped.stamps.update({str(OptionKey.AUTO_SWITCH_DAY): int(NOW // autoswitch.DAY) + 1,
                                    str(OptionKey.AUTO_SWITCH_COUNT): autoswitch.PER_DAY})
         self.look()

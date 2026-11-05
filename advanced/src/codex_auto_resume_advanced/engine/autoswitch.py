@@ -39,8 +39,8 @@ LOOK_EVERY = 60
 SETTLE = 300
 IDLE = 120
 EARLY_FOR = 900
-# The most switches in 24 hours.
-PER_DAY = 4
+# The most switches in 24 hours (the owner, 2026-11-05: ten, "최대에 더 여유만 줘").
+PER_DAY = 10
 DAY = 86400
 USAGE_LIMIT = "usage_limit"
 

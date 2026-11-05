@@ -1502,14 +1502,13 @@ the account in use, whose tokens a second reader could rotate), closes the Codex
 Restart does, saves the sign-in in use back into its copy (refresh tokens rotate), puts the account with the most room
 in its place in one rename, starts Codex and reads the account. Only if it is that account are the waiting recoveries
 looked at at once - live usage is still read before anything is sent; anything else puts the previous file back once.
-A change of account it made holds no recovery, while a change a person made is held as before. At most 4 switches a
+A change of account it made holds no recovery, while a change a person made is held as before. At most 10 switches a
 day, one try for each set of waiting recoveries, never back to an account still at its limit; all at their limit, the
 recoveries wait for the reset as usual.
 
 **When it helps.** You have more than one Codex account of your own and want work to go on at a limit with no hands.
 
-**What it risks.** OpenAI's terms may forbid getting around rate or usage limits, and an account could be suspended or
-closed: use it only with your own accounts. A sign-in Codex keeps outside a file (`cli_auth_credentials_store` keyring,
+**What it risks.** OpenAI's Terms of Use forbid using its services to "circumvent any rate limits or restrictions", and OpenAI can suspend or end an account for breaking them. Whether moving between your own accounts at a usage limit counts is OpenAI's decision, not this product's. Use it only with accounts that are your own. A sign-in Codex keeps outside a file (`cli_auth_credentials_store` keyring,
 auto or ephemeral) is never switched. A copy left unused long enough can stop working and is set aside until you add the
 account again. Closing the Codex app may lose what you had not sent. Anyone who can sign in as your Windows user can open
 the copies.
@@ -1521,7 +1520,7 @@ does; nothing asks Codex for a token), C4 (it acts on its own), C9 (usage of acc
 (encrypted sign-in copies are kept), E8 (it ends the Codex app's process if Windows' request is not enough) and F6
 (`codex login` is not a listed process).
 
-**Ceilings.** Those of the early look at P7 (12 a day, 3 in one conversation), beside its own 4 switches a day.
+**Ceilings.** Those of the early look at P7 (12 a day, 3 in one conversation), beside its own 10 switches a day.
 **Measurements MPROFILE and MSWAP: not measured** - hidden until both pass.
 
 ### Compatibility report
