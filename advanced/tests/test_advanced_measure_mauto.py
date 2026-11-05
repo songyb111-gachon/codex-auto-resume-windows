@@ -151,7 +151,9 @@ class ProbeTests(unittest.TestCase):
         self.assertEqual(protocol.MEASUREMENT_METHODS[Measurement.MAUTO], ())
         self.assertIs(measure.PROBES[Measurement.MAUTO], measure._mauto)
         self.assertEqual(autocheck.CHECKS[Measurement.MAUTO].reach, CheckReach.NONE)
-        self.assertNotIn(Measurement.MAUTO, MEASURED)
+        # Settled since 2026-11-06 by the measurement session's record, which test_advanced_measured pins; it narrows
+        # nothing, since no capability rests on it (the test below).
+        self.assertIn(Measurement.MAUTO, MEASURED)
 
     def test_no_capability_rests_on_it(self):
         from codex_auto_resume_advanced import registry
