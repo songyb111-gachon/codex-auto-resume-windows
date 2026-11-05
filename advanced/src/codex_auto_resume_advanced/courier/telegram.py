@@ -182,7 +182,7 @@ class Poller:
             self.offered = None
             said = self.answer(message.get("text"))
             try:
-                self.send(token, chat, said)
+                self.reply(token, chat, said)
             except (http.Failed, ValueError):
                 continue                 # a list the person never saw is never what a later `task N` means
             if self.offered is not None:
@@ -213,7 +213,8 @@ class Poller:
             return False
         return first.split("@", 1)[1].lower() != self.own_name(token)
 
-    def send(self, token, chat, text) -> str:
+    def reply(self, token, chat, text) -> str:
+        """The paired chat answered (sendMessage): a Telegram message, never anything to Codex."""
         body = json.dumps({"chat_id": chat, "text": text, "disable_web_page_preview": True},
                           ensure_ascii=False).encode("utf-8")
         return http.post("%s%s/sendMessage" % (TELEGRAM_API, token), body, {"Content-Type": "application/json"},
