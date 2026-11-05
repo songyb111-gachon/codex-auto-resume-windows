@@ -641,6 +641,119 @@ class KeepWaitsOutASwitch(SwapCase):
         self.assertEqual(store.get(two)["auth"], rotated, "the read that broke kept the newer copy too")
 
 
+class TheCardOffTouchesNothingOfCodex(unittest.TestCase):
+    """Finding 16: Delete all never swept beside the real sign-in file; the card's read looked at Codex's home in every
+    state; and a kill's leftovers stayed in plain text while the capability was off, since only a look swept."""
+
+    def setUp(self):
+        import shutil
+        import tempfile
+        from types import SimpleNamespace
+        from test_advanced_autoswitch_profiles import opened, sealed
+        from codex_auto_resume_advanced import profiles
+        from codex_auto_resume_advanced.control import autoswitch as card
+        from codex_auto_resume_advanced.vocabulary import ArmingState
+        self.card = card
+        self.root = Path(tempfile.mkdtemp(prefix="car-autoswitch-card-"))
+        self.addCleanup(lambda: shutil.rmtree(self.root, ignore_errors=True))
+        self.codex = self.root / "codex"
+        self.codex.mkdir()
+        self.store = profiles.Profiles(self.root / "home", seal=sealed, open_=opened)
+        self.state = {card.CAPABILITY: ArmingState.OFF}
+        self.runtime = SimpleNamespace(paths=SimpleNamespace(home=self.root / "home"),
+                                       states=lambda fresh=False: self.state, registry={card.CAPABILITY: object()},
+                                       state=SimpleNamespace(stamped=lambda *_a: None))
+        patcher = patch.object(authfile, "_PRIVATE", lambda directory: True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def old(self, path):
+        import os
+        import time
+        then = time.time() - authfile.SCRATCH_STALE - 5
+        os.utime(path, (then, then))
+        return path
+
+    def test_delete_all_sweeps_beside_the_sign_in_file(self):
+        """Fails with delete_all() given no home: the plain temporary beside auth.json stayed."""
+        self.store.save(TWO, "two@example.com", "plus")
+        beside = self.codex / "auth.json.car-0a1b2c3d"
+        beside.write_bytes(TWO)
+        self.old(beside)
+        with patch.object(self.card, "_codex_home", lambda runtime: self.codex):
+            self.assertEqual(self.card.delete(self.runtime, {"all": True}, store=self.store)["deleted"], 1)
+        self.assertFalse(beside.exists())
+
+    def test_a_home_that_cannot_be_told_stops_no_delete(self):
+        self.store.save(TWO, "two@example.com", "plus")
+
+        def broken(runtime):
+            raise OSError("no Codex home")
+        with patch.object(self.card, "_codex_home", broken):
+            self.assertEqual(self.card.delete(self.runtime, {"all": True}, store=self.store)["deleted"], 1)
+
+    def test_off_the_card_reads_nothing_of_codex_and_sweeps_its_own_folder(self):
+        """Fails with the old view: it asked Codex's home whether its sign-in is a file while the feature was off."""
+        self.store.save(TWO, "two@example.com", "plus")
+        left = self.store.directory / "scratch-00112233aabb"
+        left.mkdir()
+        (left / "auth.json").write_bytes(TWO)
+        self.old(left)
+
+        def touched(runtime):
+            raise AssertionError("Codex's home was looked at while the feature is off")
+        with patch.object(self.card, "_codex_home", touched):
+            shown = self.card.view(self.runtime, store=self.store)
+        self.assertIsNone(shown["store"])
+        self.assertFalse(left.exists(), "the kill's leftover is swept while off")
+        self.assertEqual(len(shown["profiles"]), 1)
+
+    def test_a_held_lock_changes_nothing_in_the_answer(self):
+        import threading
+        self.store.save(TWO, "two@example.com", "plus")
+        left = self.store.directory / "scratch-00112233aabb"
+        left.mkdir()
+        self.old(left)
+        held, release = threading.Event(), threading.Event()
+
+        def holder():
+            with self.store.locked(0):
+                held.set()
+                release.wait(10)
+        worker = threading.Thread(target=holder)
+        worker.start()
+        held.wait(10)
+        try:
+            shown = self.card.view(self.runtime, store=self.store)
+        finally:
+            release.set()
+            worker.join(10)
+        self.assertIsNone(shown["refusal"])
+        self.assertTrue(left.exists(), "never swept beside a switch")
+
+    def test_the_card_off_with_no_store_word_still_offers_delete(self):
+        source = (Path(__file__).resolve().parents[1] / "gui" / "AdvancedAccounts.cs").read_text(encoding="utf-8")
+        start = source.index("private void BuildAccounts(")
+        depth, at = 0, source.index("{", start)
+        for end in range(at, len(source)):
+            depth += {"{": 1, "}": -1}.get(source[end], 0)
+            if depth == 0:
+                break
+        body = source[at:end]
+        self.assertIn('if (standing && Str(advancedAccounts, "store") != "usable")', body)
+        block_at = body.index("if (standing)" + chr(10))
+        depth, open_at = 0, body.index("{", block_at)
+        for close in range(open_at, len(body)):
+            depth += {"{": 1, "}": -1}.get(body[close], 0)
+            if depth == 0:
+                break
+        add_and_save = body[open_at:close]
+        self.assertIn("accountsAdd = CardButton(", add_and_save)
+        for button in ("accountsDelete = CardButton(", "accountsDeleteAll = CardButton("):
+            self.assertIn(button, body)
+            self.assertNotIn(button, add_and_save, "Delete and Delete all stand in every state")
+
+
 def swap_restarts():
     from codex_auto_resume_advanced.codex import restart
     return restart

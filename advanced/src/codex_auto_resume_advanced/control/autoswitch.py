@@ -41,15 +41,32 @@ def _codex_home(runtime):
     return inuse.home(runtime.paths)
 
 
+def _sweep(store, codex_home=None) -> None:
+    """What a kill left in plain text in the saved accounts folder (and beside `codex_home`'s sign-in file, where given)
+    swept with the normal stale ages - only if nothing holds the saved accounts now (never beside a switch, never
+    waiting); a held lock or a failure changes nothing (the review's finding 16)."""
+    from ..codex import authfile
+    try:
+        with store.locked(0):
+            authfile.sweep(store.directory, codex_home)
+    except Exception:
+        pass
+
+
 def view(runtime, *, store=None, codex_home=None) -> dict:
-    """advanced-accounts, in every state; see the module. `store` and `codex_home` are a test's."""
+    """advanced-accounts, in every state; see the module. `store` and `codex_home` are a test's. While the capability is
+    not on or watched it touches nothing of Codex's home - `store` is None - and sweeps only the saved accounts folder."""
     from ..codex import authfile
     from ..vocabulary import OptionKey
     store = store or _saved(runtime)
-    try:
-        word = authfile.usable(codex_home if codex_home is not None else _codex_home(runtime))
-    except Exception:
-        word = authfile.UNREADABLE
+    standing = _standing(runtime, CAPABILITY)
+    word = None
+    if standing:
+        try:
+            word = authfile.usable(codex_home if codex_home is not None else _codex_home(runtime))
+        except Exception:
+            word = authfile.UNREADABLE
+    _sweep(store)
     try:
         switched = runtime.state.stamped(CAPABILITY, OptionKey.AUTO_SWITCHED_AT)
     except Exception:
@@ -61,7 +78,7 @@ def view(runtime, *, store=None, codex_home=None) -> dict:
     except Exception:
         offered = False
     return {"done": True, "refusal": None, "profiles": store.view(), "store": word, "add_state": add_state,
-            "switched_at": switched, "offered": offered, "standing": _standing(runtime, CAPABILITY)}
+            "switched_at": switched, "offered": offered, "standing": standing}
 
 
 def add(runtime, *, start=None, run=None) -> dict:
@@ -104,15 +121,21 @@ def save(runtime, *, store=None, codex_home=None, read_real=None) -> dict:
     return {"done": True, "refusal": None, "saved": saved is not None}
 
 
-def delete(runtime, argument, *, store=None) -> dict:
-    """advanced-accounts-delete: {"id": ...} or {"all": true}, in every state; see the module."""
+def delete(runtime, argument, *, store=None, codex_home=None) -> dict:
+    """advanced-accounts-delete: {"id": ...} or {"all": true}, in every state; see the module. Delete all sweeps beside
+    Codex's sign-in file too (`codex_home`, a test's; else the one in use) - a home that cannot be told stops nothing."""
     from ..profiles import Locked
     store = store or _saved(runtime)
+    if codex_home is None and isinstance(argument, dict) and argument.get("all") is True:
+        try:
+            codex_home = _codex_home(runtime)
+        except Exception:
+            codex_home = None
     argument = argument if isinstance(argument, dict) else {}
     try:
         with store.locked():
             if argument.get("all") is True:
-                return {"done": True, "refusal": None, "deleted": store.delete_all()}
+                return {"done": True, "refusal": None, "deleted": store.delete_all(codex_home)}
             profile_id = argument.get("id")
             if not isinstance(profile_id, str) or profile_id not in store.ids():
                 return _refused(Refusal.OPTION_INVALID)

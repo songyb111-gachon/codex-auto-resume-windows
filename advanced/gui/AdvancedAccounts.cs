@@ -135,7 +135,8 @@ namespace CodexAutoResume
             TableLayoutPanel card = NewGroup(Word("page.accounts.title", "Saved accounts"), advancedStack);
             card.Controls.Add(HelpText(Word("page.accounts.help",
                 "Your own other Codex accounts. When a recovery waits for a usage limit, the one with the most room is switched in.")));
-            if (Str(advancedAccounts, "store") != "usable")
+            // Only while it stands: off or hidden, the bridge reads nothing of Codex's home and "store" is null.
+            if (standing && Str(advancedAccounts, "store") != "usable")
                 card.Controls.Add(HelpText(Word("page.accounts.not_file",
                     "Codex keeps its sign-in outside a file here, so accounts cannot be switched.")));
             foreach (object entry in Items(advancedAccounts, "profiles") ?? new List<object>())

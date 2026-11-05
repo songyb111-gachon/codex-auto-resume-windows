@@ -51,6 +51,11 @@ class ControlCase(ac.AdvancedCase):
         self.codex.mkdir()
         (self.codex / "auth.json").write_bytes(ONE)
         self.store = profiles.Profiles(self.dir / "home", seal=sealed, open_=opened)
+        # The Codex home in use is this test's own: the card's read and Delete all never reach the real one.
+        from unittest.mock import patch
+        patcher = patch.object(accounts, "_codex_home", lambda runtime: self.codex)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def on(self):
         for capability in ("account_switch", "account_auto_switch"):
