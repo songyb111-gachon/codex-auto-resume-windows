@@ -92,6 +92,20 @@ your version of Codex, a compatibility grade of Failed here, Incompatible or Unk
 version not known yet is shown in its statement as a warning. It does not stop you turning the
 capability on; turning it on confirms you read it (K6).
 
+**Checked automatically.** When the Codex in force changes, the watcher asks that Codex once what it still offers: its
+version, its own generated app-server schema and its feature list, on an empty scratch Codex home it then removes, with
+no window. No app server, turn or sign-in is started, nothing is sent to OpenAI and no usage is spent; a run with no answer
+waits six hours, three tries for one build. This is not a measurement, and it says so. Where a person measured a capability
+on an earlier Codex and its route is this edition's own calls on its own server, a pass reads *Compatible: checked
+automatically on this Codex*, says the check cannot see how Codex behaves, and names the Codex a person last measured that
+on; *Compatible: measured by a person on this Codex* is a different line. That is five capabilities today: a turn run here,
+another model at capacity, a reset credit at the limit you pick, your own message at a reset, and the usage meter. Most of
+what a measurement asks only the app, a usage limit, a sign-in, a real conversation or a person's eyes can answer, so those
+stay as they are, with the warning: where the calls are all still there, a line says that this cannot settle it. An
+automatic pass never turns a failed measurement into a pass (a line says so), never widens a route a measurement narrows,
+and never lets a hidden capability out. A call gone from the schema is a warning at once, for every capability that makes
+it, and turns off one whose route rests on it as any such warning does.
+
 **Tripwires.** A capability turns itself off when its statement gets a new revision; when a warning
 you did not confirm says that what it stands on went wrong; when one of its parts fails; when a send
 it made becomes one whose delivery cannot be proven; and, while it is on, when Codex is updated. The
