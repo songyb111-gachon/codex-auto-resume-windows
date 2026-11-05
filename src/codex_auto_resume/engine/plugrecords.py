@@ -48,6 +48,7 @@ from __future__ import annotations
 from .. import continuation, machine, power
 from ..domain.plug import RecordMove
 from ..domain.plughands import RecordPurpose
+from .dispatch import no_app_reason
 
 # The two states a record the plug hands over is in (Guarded.records).
 WAITING_RECORD, IN_FLIGHT_RECORD = "waiting", "in_flight"
@@ -196,7 +197,7 @@ class PlugRecordsMixin:
             return self._record_told(record, move, gate, reason)
         app = self.backend.app_identity()
         if not app:
-            return self._record_waits(record, "thread_available", "desktop_app_unavailable")
+            return self._record_waits(record, "thread_available", no_app_reason(self.backend))
         loaded = self.backend.loaded(thread, app)
         if loaded != "loaded":
             return self._record_waits(record, "thread_available",

@@ -29,6 +29,13 @@ from .reconcile import UNSENT
 _WAITS = {"notLoaded": "notLoaded", "elsewhere": "held_by_other_session"}
 
 
+def no_app_reason(backend) -> str:
+    """Why a record waits where the backend's last look paired no app (#58's follow-up): no app, as ever; or, only where
+    that look found a process of the app's package running, an app whose server could not be matched. A backend that
+    cannot say - one of no such attribute, or a look that read no rows - says what it always said. Starts nothing."""
+    return "app_server_unmatched" if getattr(backend, "app_look", None) == "unmatched" else "desktop_app_unavailable"
+
+
 class DispatchMixin:
     def attempt(self, row):
         """Look at one record: every gate, and the send if all pass. A record looked at early (EARLY)
@@ -135,8 +142,9 @@ class DispatchMixin:
         # - unless the plug names a route that continues it otherwise, which core carries out (engine/routes.py).
         route, loaded = self._route(row, app, vector)
         if not app and route is None:
-            vector["thread_available"] = machine.gate(machine.WAIT, "desktop_app_unavailable")
-            self._wait(row, "waiting_for_app", "desktop_app_unavailable", poll, vector)
+            reason = no_app_reason(self.backend)
+            vector["thread_available"] = machine.gate(machine.WAIT, reason)
+            self._wait(row, "waiting_for_app", reason, poll, vector)
             return
         if route is None and loaded != "loaded":
             # v0.6.16-beta.4: one another Codex session holds - a terminal or VS Code - waits with a reason of its own.

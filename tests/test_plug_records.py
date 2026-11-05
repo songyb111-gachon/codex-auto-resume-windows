@@ -103,6 +103,9 @@ class WaitingTests(RecordCase):
                           ("single_owner", "home_lock_unavailable")),
             "stale": (lambda h: h.home.make_stale(T1), ("identity", "projection_stale")),
             "no app": (lambda h: setattr(h.backend, "app", None), ("thread_available", "desktop_app_unavailable")),
+            # #58's follow-up: the app open and no server of its matched, in its own words.
+            "no server": (lambda h: (setattr(h.backend, "app", None), setattr(h.backend, "app_look", "unmatched")),
+                          ("thread_available", "app_server_unmatched")),
             "not loaded": (lambda h: h.backend.loaded_map.update({T1: "notLoaded"}), ("thread_available", "notLoaded")),
             "queued": (lambda h: h.home.enqueue(T1, "someone else's"), ("no_newer_user_work", "user_input_queued")),
             "offline": (lambda h: setattr(h.engine, "offline", lambda: True), ("usage", "offline")),

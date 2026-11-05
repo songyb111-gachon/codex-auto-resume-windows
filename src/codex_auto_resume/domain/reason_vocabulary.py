@@ -37,6 +37,10 @@ class ReasonCode(StrEnum):
     """Every reason the engine or the store writes, a withdrawal's among them (machine.REASONS)."""
     # waiting
     DESKTOP_APP_UNAVAILABLE = "desktop_app_unavailable"
+    # #58's follow-up: a process of the Codex app runs, and no server of its could be matched to the engine: where Codex
+    # moved its internals again, "the app is not running" would be untrue. Local: a report never carries the word
+    # (ownreport/evidence.py). An older version reads it as "other", and rewrites it the next time it looks.
+    APP_SERVER_UNMATCHED = "app_server_unmatched"
     NOTLOADED = "notLoaded"
     LOADED_STATE_UNKNOWN = "loaded_state_unknown"
     # v0.6.16-beta.4: open in another Codex session - a terminal or VS Code - which the app's queue cannot reach.

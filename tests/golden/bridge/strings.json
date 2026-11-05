@@ -728,6 +728,7 @@
           "why.daily_submission_cap": "This conversation has had five continuations in a day; it waits for the oldest to age out.",
           "why.thread_submission_cooldown": "A continuation went to this conversation less than 15 minutes ago.",
           "why.desktop_app_unavailable": "The Codex app is not running.",
+          "why.app_server_unmatched": "The Codex app is running, but this product could not match its server, so nothing was sent.",
           "why.notLoaded": "The conversation is not open in the Codex app.",
           "why.loaded_state_unknown": "Whether the conversation is open cannot be told yet.",
           "why.held_by_other_session": "Open in another Codex session (a terminal or VS Code); it continues once the Codex app holds it.",

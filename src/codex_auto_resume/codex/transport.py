@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import re
 import subprocess as S
+import time
 
 from .. import machine
 from ..domain import ids, vocabulary
@@ -86,6 +87,11 @@ class Backend:
         # none of them ran this engine - an update that started the app's server from another
         # build - and nothing whenever that is not what the last pairing saw (app_identity).
         self.served_elsewhere = frozenset()
+        # #58's follow-up: what the last app_identity() found of the app, read off the rows it reads anyway, so no process
+        # is started for it: "matched", "unmatched" (a process of the app's package runs and no server of its was
+        # paired), "closed" (none runs), or None where that look read no rows; and when, on the monotonic clock.
+        self.app_look = None
+        self.app_looked_at = None
         # v0.6.16-beta.4: the inventory rows the last app_identity() read - in memory only, for loaded() and holder()
         # to tell another Codex session holding a conversation from anything unknown without reading them again -
         # or None where that look could not read them.
@@ -221,14 +227,19 @@ class Backend:
 
     def app_identity(self):
         self.served_elsewhere = frozenset()
+        self.app_look = None
         try:
             self._compatible()
             self._rows = None
             rows = self._rows = inventory()
+            self.app_look, self.app_looked_at = "unmatched" if app_running(rows) else "closed", time.monotonic()
             try:
                 if self.require_holder:
-                    return desktop_pair(rows, self.codex_exe, self.codex_home, require_holder=True)
-                return desktop_pair(rows, self.codex_exe, self.codex_home)
+                    paired = desktop_pair(rows, self.codex_exe, self.codex_home, require_holder=True)
+                else:
+                    paired = desktop_pair(rows, self.codex_exe, self.codex_home)
+                self.app_look = "matched"
+                return paired
             except AdapterError:
                 # The same rows, read again for one thing: the paths the app main runs instead,
                 # which the watcher asks before its next tick (runtime/app.py, engine_moved).

@@ -90,6 +90,7 @@ _MESSAGES = {
     ("waiting_reset", None): "waiting for reset",
     ("waiting_poll", None): "waiting (no reset timestamp; conservative polling)",
     ("waiting_for_app", "desktop_app_unavailable"): "ChatGPT app or its Codex server not running; waiting",
+    ("waiting_for_app", "app_server_unmatched"): "ChatGPT app is running, but its Codex server could not be matched; waiting",
     ("waiting_for_loaded_thread", "notLoaded"): "notLoaded\nwaiting until user opens this thread in ChatGPT app",
     ("waiting_for_loaded_thread", "loaded_state_unknown"): "loaded state unknown; waiting safely without queueing",
     ("waiting_for_loaded_thread", "held_by_other_session"):
