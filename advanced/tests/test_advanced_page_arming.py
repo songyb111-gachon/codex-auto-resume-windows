@@ -336,8 +336,9 @@ class PageTests(PageCase):
         # check; v0.6.19: the crash restart, the wake timer, chat with a conversation; v0.6.20: the courier's two, the
         # usage and token analytics, the 5-hour window started early, switching the Codex account, the steer, and
         # open_to_send, offered since MOPEN passed (codex-cli 0.165.0-alpha.1.2); v0.6.20: the power action after tasks a
-        # person picked: 43 rows.
-        self.assertEqual(len(IDS), 43)
+        # person picked: 43 rows; v0.6.22: the automatic account switch, offered since MPROFILE and MSWAP passed
+        # (codex-cli 0.166.0-alpha.6): 44 rows.
+        self.assertEqual(len(IDS), 44)
         self.assertEqual(result["page"], "advanced")
         # The row chosen is the capability open, and nothing else is.
         self.assertEqual(result["open"], IDS[1])

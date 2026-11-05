@@ -25,7 +25,7 @@ class HiddenTests(unittest.TestCase):
     def test_on_a_fail_or_none_it_is_nowhere_a_person_looks(self):
         """Fails with the gate reverted: the switch for a capability that cannot work would be offered."""
         self.assertEqual(MEASURED[Measurement.MB][0], Verdict.FAIL)
-        self.assertNotIn(Measurement.MB2, MEASURED)
+        self.assertEqual(MEASURED[Measurement.MB2][0], Verdict.FAIL, "2026-11-06: Codex refused the resume")
         self.assertEqual(offered({}), ())
         self.assertEqual(offered({Measurement.MB2: (Verdict.FAIL, ENGINE)}), ())
         self.assertEqual(offered({Measurement.MB: (Verdict.PASS, ENGINE)}), (), "the plain route no longer lets it out")

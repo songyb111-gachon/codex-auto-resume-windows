@@ -553,11 +553,11 @@ class ShownOrderTests(SurfaceCase):
         """Fails with arming.listing walking the registry again: the report would be last."""
         listed = [item["id"] for item in self.bridge("advanced-list", {})["result"]["capabilities"]]
         # v0.6.20: the owner's order in full - open_to_send, which waited in registry.WAITING for MOPEN, is offered -
-        # but for Continue inside the turn, still waiting hidden on MHK, M4 and M4B - and (v0.6.22) the automatic account
-        # switch, waiting hidden on MPROFILE and MSWAP.
+        # but for Continue inside the turn, still waiting hidden on MHK, M4 and M4B. (v0.6.22) The automatic account switch
+        # waited hidden on MPROFILE and MSWAP; both passed on 2026-11-06, so it is offered too.
         shown = [capability for capability in registry.SHOWN_ORDER if capability in registry.REGISTRY.ids]
         self.assertEqual([each for each in registry.SHOWN_ORDER if each not in shown],
-                         ["account_auto_switch", "stop_hook_continuation"])
+                         ["stop_hook_continuation"])
         # 2026-10-31: open_to_send is among the work savers, after send now and before Open Codex on a notice.
         self.assertEqual(shown[shown.index("send_now"):shown.index("send_now") + 3],
                          ["send_now", "open_to_send", "open_codex_button"])

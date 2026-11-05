@@ -27,8 +27,9 @@ ENGINE = "codex-cli 0.166.0-alpha.5.1"
 
 class HiddenTests(unittest.TestCase):
     def test_hidden_until_both_measurements_pass_on_the_codex_in_force(self):
-        """Fails with the WAITING row taken out: a switch no Codex was measured to take would be offered."""
-        self.assertIsNone(registry.REGISTRY.get("account_auto_switch"))
+        """Fails with the WAITING row taken out: a switch no Codex was measured to take would be offered. MPROFILE and
+        MSWAP passed on codex-cli 0.166.0-alpha.6 (2026-11-06), so this build's table lets it out."""
+        self.assertIs(registry.REGISTRY.get("account_auto_switch"), ACCOUNT_AUTO_SWITCH)
         self.assertNotIn(ACCOUNT_AUTO_SWITCH, registry.DEFINITIONS)
         passed, failed = (Verdict.PASS, ENGINE), (Verdict.FAIL, ENGINE)
         self.assertNotIn(ACCOUNT_AUTO_SWITCH, offered({}))

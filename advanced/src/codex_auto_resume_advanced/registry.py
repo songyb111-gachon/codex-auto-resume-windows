@@ -1476,7 +1476,9 @@ DEFINITIONS = (START_WITH_CODEX, CRASH_RESTART, GOAL_CONTINUATION, QUEUE_FOR_OPE
 # again on codex-cli 0.166.0-alpha.5.1 (2026-10-31), MB failed the same way: hidden because its measurement failed.
 # v0.6.22 (plans/v0622-retry-settings-design.md): a new route - a provider of our own copying the built-in one with the
 # Attempts, given as `-c` settings to the servers this product starts for its own turns and written nowhere - rests on
-# MB2; MB stays the record of the plain route. Still hidden: MB2 is not made yet.
+# MB2; MB stays the record of the plain route. Still hidden, because its measurement failed: on codex-cli
+# 0.166.0-alpha.6 (2026-11-06) MB2 found that Codex refuses thread/resume (-32600) of a conversation made under the
+# built-in openai provider under a provider of our own (modelProviderMismatch), though its scratch part held.
 CODEX_RETRY_SETTINGS = CapabilityDef(
     id="codex_retry_settings",
     points=frozenset({Point.TICK}),
@@ -1569,8 +1571,9 @@ STOP_HOOK = CapabilityDef(
 # reads usage when no recovery is due on that account), D2 (sealed sign-in copies kept beside the state), E8 (it ends the
 # Codex app's process if Windows' request is not enough) and F6 (Codex's own `codex login` for Add an account). It
 # requires account_switch, whose watch holds no recovery for a switch of this capability's (profiles.switched_to) and
-# still holds for a change a person made. It stands on usage_probe and rests on MPROFILE and MSWAP; until both pass on
-# the Codex in force it waits hidden in WAITING. Ceilings: those of early_reset's EARLY.
+# still holds for a change a person made. It stands on usage_probe and rests on MPROFILE and MSWAP. It waited hidden in
+# WAITING until both passed; both passed on codex-cli 0.166.0-alpha.6 (2026-11-06), so it is offered, off until a person
+# turns it on, with the UNMEASURED warning on any other Codex (arming.warnings_for). Ceilings: those of early_reset's EARLY.
 # Revision 2 (v0.6.23 audit): the statement names the bound on its early looks (A-M7), and its stop text the one thing
 # that still happens once it is off - a switch that did not finish is undone (A-M3, AutoSwitch.tend).
 ACCOUNT_AUTO_SWITCH = CapabilityDef(
@@ -1594,10 +1597,11 @@ ACCOUNT_AUTO_SWITCH = CapabilityDef(
 # statement and no switch anywhere - until that measurement passes (measured.MEASURED), and then offered after
 # DEFINITIONS. Its code and its probe stay in the tree. (v0.6.19: open_to_send's statement was written already, so a
 # pass offers it whole - MOPEN's did, 2026-10-29; codex_retry_settings' is not.) v0.6.20: a tuple of measurements is
-# several, every one of which must pass (Continue inside the turn: MHK, M4 and M4B).
+# several, every one of which must pass (Continue inside the turn: MHK, M4 and M4B). Waiting now: codex_retry_settings
+# (MB2 failed) and stop_hook_continuation (M4 failed); open_to_send and account_auto_switch are offered.
 WAITING = ((CODEX_RETRY_SETTINGS, Measurement.MB2), (OPEN_TO_SEND, Measurement.MOPEN),
            (STOP_HOOK, (Measurement.MHK, Measurement.M4, Measurement.M4B)),
-           # v0.6.22: the automatic account switch, until MPROFILE and MSWAP pass on the Codex in force.
+           # v0.6.22: the automatic account switch; MPROFILE and MSWAP passed on 2026-11-06, so it is offered.
            (ACCOUNT_AUTO_SWITCH, (Measurement.MPROFILE, Measurement.MSWAP)))
 
 
@@ -1631,7 +1635,7 @@ SHOWN_ORDER = (
     # going, what starts the recovering, which conversations, and the continuations that need no marker).
     "start_with_codex", "crash_restart", "wake_for_reset", "every_conversation", "queue_for_open", "headless_run",
     "other_sessions", "marker_free_continuation", "reset_credit", "early_reset",
-    # 2026-11-04 (v0.6.22): the automatic account switch is shown here once MPROFILE and MSWAP pass.
+    # 2026-11-04 (v0.6.22): the automatic account switch, shown here since MPROFILE and MSWAP passed (2026-11-06).
     "account_auto_switch", "window_anchor", "parallel_dispatch",
     # 2026-10-31, group 2: what saves the person work (messages, the usage meter and what serves it, what a person
     # is told and does about one conversation). open_to_send is shown once MOPEN passes.

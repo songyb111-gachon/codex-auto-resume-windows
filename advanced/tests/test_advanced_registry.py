@@ -75,7 +75,8 @@ def standards_text(rule) -> str:
 # (open_to_send, MOPEN): their names and statements are in every catalog, waiting or offered. MOPEN passed on
 # codex-cli 0.165.0-alpha.1.2 (2026-10-29), so open_to_send is offered - and already in registry.DEFINITIONS + this.
 # v0.6.20: and Continue inside the turn (stop_hook_continuation, MHK, M4 and M4B), still waiting.
-# v0.6.22: Codex's own retry settings on MB2, and the automatic account switch on MPROFILE and MSWAP, still waiting.
+# v0.6.22: Codex's own retry settings on MB2, still waiting (MB2 failed, 2026-11-06), and the automatic account switch on
+# MPROFILE and MSWAP, offered since both passed (2026-11-06).
 STATED_WAITING = (registry.OPEN_TO_SEND, registry.STOP_HOOK, registry.CODEX_RETRY_SETTINGS,
                   registry.ACCOUNT_AUTO_SWITCH)
 
@@ -117,14 +118,15 @@ class ShippedTests(unittest.TestCase):
 
     # v0.6.20: open_to_send passed its measurement (MOPEN, codex-cli 0.165.0-alpha.1.2, 2026-10-29) and is offered whole,
     # after the 41 of DEFINITIONS (registry.offered): 42 in the registry this edition runs. v0.6.20: power_after_tasks
-    # joins DEFINITIONS - 42 of them, 43 in the registry.
-    OFFERED = ("open_to_send",)
+    # joins DEFINITIONS - 42 of them, 43 in the registry. v0.6.22: the automatic account switch passed both its
+    # measurements (MPROFILE and MSWAP, codex-cli 0.166.0-alpha.6, 2026-11-06) and is offered after it: 44.
+    OFFERED = ("open_to_send", "account_auto_switch")
 
     def test_the_registry_this_edition_ships_is_its_capabilities_in_their_order(self):
         self.assertEqual([d.id for d in registry.DEFINITIONS], list(self.SHIPPED))
         self.assertEqual(len(registry.DEFINITIONS), 42)
         self.assertEqual(len(registry.REGISTRY), len(self.SHIPPED) + len(self.OFFERED))
-        self.assertEqual(len(registry.REGISTRY), 43)
+        self.assertEqual(len(registry.REGISTRY), 44)
         self.assertEqual(registry.REGISTRY.ids, self.SHIPPED + self.OFFERED)
         self.assertEqual([definition.id for definition in registry.offered(measured.MEASURED)], list(self.OFFERED))
         # The compatibility report is an action, last: it answers at no point, so it is in no list below.
@@ -139,7 +141,9 @@ class ShippedTests(unittest.TestCase):
         answering = {Point.START_ROUTE: ("start_with_codex",),
                      # v0.6.19: the launcher's two questions about the watcher.
                      Point.SUPERVISION: ("crash_restart",),
-                     Point.SCHEDULE: ("reset_credit", "early_reset", "once_more_when_unsure", "send_now"),
+                     # v0.6.22: the automatic account switch, offered after the rest (MPROFILE and MSWAP passed), last.
+                     Point.SCHEDULE: ("reset_credit", "early_reset", "once_more_when_unsure", "send_now",
+                                      "account_auto_switch"),
                      Point.TICK: ("compact_continue", "model_fallback", "headless_run", "reset_credit", "reset_message", "empty_response", "subagent_parent",
                                   "keep_going", "usage_meter", "usage_wrap_up", "usage_pause", "idle_update_check",
                                   "usage_analytics", "window_anchor", "push_notices", "status_feed", "account_switch",
@@ -147,7 +151,9 @@ class ShippedTests(unittest.TestCase):
                                   "steer_send",
                                   "wake_for_reset",
                                   # v0.6.20: offered after the rest, so it answers last (registry.offered).
-                                  "open_to_send"),
+                                  "open_to_send",
+                                  # v0.6.22: offered after open_to_send (registry.WAITING's order).
+                                  "account_auto_switch"),
                      # v0.6.20: a notice core raised, told to the courier's push notices.
                      Point.NOTICE: ("push_notices",),
                      # v0.6.20: how the tasks a person picked stand, for the power action.
