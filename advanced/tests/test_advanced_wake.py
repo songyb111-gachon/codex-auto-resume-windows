@@ -259,6 +259,14 @@ class WatchTests(WakeCase):
         self.assertFalse(self.code.look())
         self.assertIsNone(self.timer.due)
 
+    def test_turned_off_the_next_look_takes_it_back_before_any_tick(self):
+        """seatA:B-M5 (v0.6.23 audit). Fails without the fresh read: the watch read the runtime's view, refreshed only at
+        a tick, so a turn-off took up to a tick and a look - not the quarter of a minute the statement says."""
+        self.armed_and_set()
+        self.rt.arming.disarm(CAP, actor=Actor.DASHBOARD)
+        self.assertFalse(self.code.look())
+        self.assertIsNone(self.timer.due)
+
     def test_no_tick_for_a_while_a_pause_takes_it_back(self):
         """A pause asks the plug nothing at P8: no tick comes, and after STALE seconds the timer goes."""
         self.armed_and_set()

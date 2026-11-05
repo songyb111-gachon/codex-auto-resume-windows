@@ -205,7 +205,9 @@ class WakeForReset:
         with self._lock:
             ticked = self._ticked
         try:
-            standing = scoped.armed(CAPABILITY) is True
+            # Its stored state read afresh too: a turn-off takes the timer back at this look, not after the next tick
+            # has refreshed the runtime's view (v0.6.23 audit seatA:B-M5).
+            standing = scoped.armed(CAPABILITY) is True and scoped.stored_on() is True
             fresh = ticked is not None and 0 <= scoped.now() - ticked < STALE
         except Exception:                              # noqa: BLE001
             standing = fresh = False

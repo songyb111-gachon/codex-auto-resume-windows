@@ -227,6 +227,9 @@ class Scoped:
             # v0.6.22: how many times one of its own codes was counted since a time (JournalMixin.counted_since) - the
             # starts window_anchor's ceiling bounds in any 24 hours.
             "counted_since": lambda code, since: state.counted_since(capability, code, since),
+            # and whether its own stored state is on now, read afresh - not the runtime's view, refreshed at a tick (the
+            # wake timer's watch takes the timer back within its quarter of a minute of a turn-off: seatA:B-M5).
+            "stored_on": lambda: (state.arming().get(capability) or {}).get("state") == "armed",
         }
         # v0.6.14, the reset actions: their rules, windows and spends (state/resets.ResetsHandle - writes only while
         # on), whether a measurement passed or failed on the Codex in force (arming.Arming.verdict), and whether
