@@ -6,6 +6,7 @@
   above a healthy run and far below GitHub's six-hour default.
 * TagOnMainTests (W3) - release.yml's build refuses a pushed tag whose commit is not on main, before it
   builds anything; a dispatch, which publishes nothing, is not refused.
+* ForkGuardTests (W4) - sync-ko and ko-watch run only in this repository, as the other automations do.
 """
 from __future__ import annotations
 
@@ -105,6 +106,24 @@ class TagOnMainTests(unittest.TestCase):
         self.assertLess(self.build.index("Refuse a tag that is not on main"),
                         self.build.index("make_release.py"))
         self.assertIn("fetch-depth: 0", self.build[:self.build.index("Refuse a tag that is not on main")])
+
+
+class ForkGuardTests(unittest.TestCase):
+    GUARD = "github.repository == 'songyb111-gachon/codex-auto-resume-windows'"
+
+    def _condition(self, workflow: str, name: str) -> str:
+        found = re.search(r"^    if: (>-\n(?:      .*\n)+|.*\n)", _job(workflow, name), re.M)
+        self.assertIsNotNone(found, "%s's %s has no if" % (workflow, name))
+        return " ".join(found.group(1).replace(">-", "").split())
+
+    def test_sync_ko_runs_only_here_whatever_the_trigger(self):
+        condition = self._condition("sync-ko.yml", "test")
+        self.assertTrue(condition.startswith(self.GUARD + " && ("), condition)
+        self.assertTrue(condition.endswith(")"), condition)
+        self.assertIn("needs: test", _job("sync-ko.yml", "publish"))
+
+    def test_ko_watch_runs_only_here(self):
+        self.assertEqual(self._condition("ko-watch.yml", "watch"), self.GUARD)
 
 
 if __name__ == "__main__":

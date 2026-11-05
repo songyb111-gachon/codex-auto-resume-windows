@@ -53,12 +53,14 @@ jobs:
   test:
     # Only a green tests run, only from this repository, and only from main. A fork's
     # pull request cannot satisfy `head_repository.full_name == github.repository`, and
-    # a red main cannot satisfy the conclusion.
+    # a red main cannot satisfy the conclusion. A fork's own copy of this workflow does not run
+    # at all: it would force-push a `ko` of its own, or fail red on its main (publish needs this job).
     if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.head_branch == 'main' &&
-       github.event.workflow_run.head_repository.full_name == github.repository)
+      github.repository == 'songyb111-gachon/codex-auto-resume-windows' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_branch == 'main' &&
+        github.event.workflow_run.head_repository.full_name == github.repository))
     # Windows, because that is where this product's tests run. The step below runs the
     # suite against the tree about to be published, and a suite that ran somewhere the
     # product does not support would prove nothing about the branch it is guarding.

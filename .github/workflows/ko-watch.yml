@@ -21,6 +21,8 @@ permissions: {}
 
 jobs:
   watch:
+    # Only here: a fork has no `ko` to watch, and would fail red every six hours.
+    if: github.repository == 'songyb111-gachon/codex-auto-resume-windows'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
