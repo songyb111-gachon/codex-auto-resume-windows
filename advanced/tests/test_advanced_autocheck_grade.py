@@ -319,6 +319,14 @@ class SurfaceTests(RecordCase):
         told = surfaces.mcp(self.made, {"request": "call", "tool": "list_advanced_capabilities", "arguments": {}})
         self.assertNotIn("check", told["data"]["capabilities"][0])
 
+    def test_the_list_reads_the_record_once_however_long_it_is(self):
+        """The list is read again at every snapshot with the page in front."""
+        from unittest import mock
+        self.found(m6="pass")
+        with mock.patch.object(autocheck, "read_record", wraps=autocheck.read_record) as read:
+            self.made.arming.listing()
+        self.assertLessEqual(read.call_count, 2, "once for the list, and once for what `current` reads before it")
+
     def test_diagnostics_say_what_it_found_only_where_it_ran(self):
         from codex_auto_resume_advanced import surfaces
         self.assertNotIn("auto_check", surfaces.diagnostics(self.made))

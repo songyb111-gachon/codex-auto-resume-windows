@@ -76,6 +76,8 @@ class VocabularyTests(unittest.TestCase):
         self.assertEqual({str(word) for word in vocabulary.TRIPWIRES},
                          {"submission_unknown", "local_check_failed", "failed_here", "incompatible",
                           "hook_exception", "statement_changed", "measurement_failed", "duplicate_seen",
+                          # v0.6.22: the automatic check found a call gone (autocheck.py).
+                          "auto_check_failed",
                           # v0.6.15-beta: queue_for_open's, Codex not running on open what was queued for it.
                           "not_delivered_on_open",
                           # v0.6.16-beta.3: a capability it requires is not on (registry.CapabilityDef.requires).

@@ -422,11 +422,14 @@ class Arming:
         view = self.view() if view is None else view
         return warnings_for(definition, view, self._table(view), checked=self.checked(view))
 
-    def check(self, definition, view=None) -> dict:
+    def check(self, definition, view=None, *, table=None, checked=None) -> dict:
         """How `definition` stands for the Codex in force, as a person is told it (v0.6.22, autocheck.grade): a word of
-        CheckGrade, and the oldest earlier Codex a person measured it on where that is what an automatic pass carries."""
+        CheckGrade, and the oldest earlier Codex a person measured it on where that is what an automatic pass carries.
+        `table` and `checked` are for a caller that read them once for many (`listing`)."""
         view = self.view() if view is None else view
-        word, earlier = autocheck.grade(_rests_on(definition), engine_version(view), self._table(view), self.checked(view))
+        word, earlier = autocheck.grade(_rests_on(definition), engine_version(view),
+                                        self._table(view) if table is None else table,
+                                        self.checked(view) if checked is None else checked)
         return {"grade": str(word), "version": earlier}
 
     # ------------------------------------------------------------------ now
@@ -1233,6 +1236,8 @@ class Arming:
         except StateError:
             rows, meta = {}, {"generation": 0, "global_hourly": GLOBAL_HOURLY}
         shown = []
+        # Read once for the whole list, which every snapshot with the page in front reads again.
+        table, checked = self._table(view), self.checked(view)
         # In the order a person reads them (registry.SHOWN_ORDER), not the order they answer in.
         for definition in _shown(self.registry):
             row = rows.get(definition.id) or {}
@@ -1248,10 +1253,10 @@ class Arming:
                 "notice": None if off else row.get("reason"), "resends": definition.resends,
                 "revision": definition.revision, "read_revision": row.get("statement_revision"),
                 "acknowledged_version": row.get("engine_version"),
-                "warnings": [str(word) for word in self.warnings(definition, view)],
+                "warnings": [str(word) for word in warnings_for(definition, view, table, checked=checked)],
                 "confirmed_warnings": [str(word) for word in row.get("warnings") or ()],
                 # v0.6.22: the grade the statement's line says (autocheck.grade), a closed word.
-                "check": self.check(definition, view)["grade"],
+                "check": self.check(definition, view, table=table, checked=checked)["grade"],
                 "kind": str(definition.kind),
                 # What it needs on (v0.6.16-beta.3): the ids it requires, and those of them not ARMED now,
                 # which turning it on must also turn on (surfaces.arm's `also`).
