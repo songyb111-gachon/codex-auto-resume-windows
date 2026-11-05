@@ -1272,6 +1272,8 @@
           "event.rescan_changed": "Rescan: changed meanwhile, left as it was",
           "msg.toast_account_changed": "Another Codex account is signed in",
           "msg.toast_account_changed_count": "Tasks that waited for a usage limit wait for you: {n}",
+          "msg.toast_accounts_exhausted": "All your saved accounts are at their limit",
+          "msg.toast_accounts_exhausted_body": "Recovery waits for the earliest reset, as it would with no switch. Nothing is sent until then.",
           "why.account_changed": "Another Codex account was signed in after it stopped: nothing is sent until you let it continue."
         },
         "preference": "system",

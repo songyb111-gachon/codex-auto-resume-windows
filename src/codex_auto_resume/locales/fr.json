@@ -840,6 +840,8 @@
   "msg.toast_update_offered_prerelease_body": "La préversion {version} a été publiée ; elle est moins testée qu'une version finale. Installez-la depuis le Tableau de bord si vous le souhaitez.",
   "msg.toast_account_changed": "Un autre compte Codex est connecté",
   "msg.toast_account_changed_count": "Des tâches qui attendaient une limite d'utilisation vous attendent : {n}",
+  "msg.toast_accounts_exhausted": "Tous vos comptes enregistrés ont atteint leur limite",
+  "msg.toast_accounts_exhausted_body": "La reprise attend la réinitialisation la plus proche, comme sans changement. Rien n'est envoyé d'ici là.",
   "why.account_changed": "Un autre compte Codex s'est connecté après son arrêt : rien n'est envoyé tant que vous ne la laissez pas continuer.",
   "msg.toast_usage_at": "Limite d'utilisation de Codex atteinte. Cette tâche reprendra à {time}.",
   "msg.toast_usage_soon": "Limite d'utilisation de Codex atteinte. Cette tâche reprendra après la réinitialisation.",

@@ -840,6 +840,8 @@
   "msg.toast_update_offered_prerelease_body": "Bản phát hành trước {version} đã được phát hành; bản này được kiểm thử ít hơn bản chính thức. Hãy cài đặt từ Bảng điều khiển nếu bạn muốn.",
   "msg.toast_account_changed": "Một tài khoản Codex khác đang đăng nhập",
   "msg.toast_account_changed_count": "Tác vụ đang chờ giới hạn sử dụng giờ chờ bạn: {n}",
+  "msg.toast_accounts_exhausted": "Tất cả tài khoản đã lưu của bạn đều đã chạm giới hạn",
+  "msg.toast_accounts_exhausted_body": "Việc khôi phục chờ lần đặt lại sớm nhất, như khi không chuyển. Không có gì được gửi cho đến lúc đó.",
   "why.account_changed": "Một tài khoản Codex khác đã đăng nhập sau khi nó dừng: không gửi gì cho đến khi bạn cho phép tiếp tục.",
   "msg.toast_usage_at": "Đã đạt giới hạn sử dụng Codex. Tác vụ này sẽ tiếp tục lúc {time}.",
   "msg.toast_usage_soon": "Đã đạt giới hạn sử dụng Codex. Tác vụ này sẽ tiếp tục sau khi giới hạn được đặt lại.",

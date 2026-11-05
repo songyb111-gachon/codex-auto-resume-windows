@@ -139,11 +139,24 @@ class WhenTests(EngineCase):
         self.assertEqual(self.scoped.stamps[str(OptionKey.AUTO_SWITCH_COUNT)], 1)
 
     def test_all_exhausted_waits_and_says_so_once(self):
+        """Fails without the notice: the person would learn of it only from the journal."""
+        self.assertIsNone(self.code.notice())
         self.fake.usages = {"two@example.com": usage(100.0, reached=True), "three@example.com": usage(97.0)}
         self.look()
+        notice = self.code.notice()
         self.look()
         self.assertEqual(self.scoped.counted, ["all_exhausted"])
         self.assertEqual((self.codex / "auth.json").read_bytes(), ONE)
+        self.assertEqual(notice, {"key": "autoswitch:%d" % (NOW - autoswitch.SETTLE)}, "one key for the set")
+        self.assertEqual(self.code.notice(), notice, "the same set asks for no second notice")
+
+    def test_the_notice_is_core_s_kind_with_its_words(self):
+        from codex_auto_resume import notifier
+        from codex_auto_resume_advanced import plug
+        self.assertIn(("accounts_exhausted", ("accounts_exhausted",), "msg.toast_accounts_exhausted"), plug.NOTICE_KINDS)
+        self.assertEqual(notifier.STATUS["accounts_exhausted"], "paused")
+        made = notifier.build("accounts_exhausted", {})
+        self.assertIsNotNone(made, "core builds the notice the plug asks for")
 
     def test_never_back_to_an_account_exhausted_until_a_reset_ahead(self):
         """No ping-pong: an account found full is not read again before its reset."""

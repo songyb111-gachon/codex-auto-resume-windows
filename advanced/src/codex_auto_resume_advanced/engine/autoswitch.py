@@ -15,7 +15,8 @@ At P8, as an errand, at most every LOOK_EVERY seconds while it stands on:
    account in use could rotate the running app's tokens - and every other saved account that is neither exhausted
    until a reset still ahead nor needing a sign-in is read on a scratch home (codex/swap.read_profile); the one with
    the most room (the lowest most-used window, ties to the least recently used) is switched in (codex/swap.switch);
-5. none with room: the journal counts `all_exhausted` once for the episode and recovery waits as today.
+5. none with room: the journal counts `all_exhausted` once for the episode, one notice says so (core's kind
+   accounts_exhausted, registered by plug.py; surfaces.autoswitch_view), and recovery waits as today.
 
 After a switch the watcher's P7 answers EARLY for every record that waits for a usage limit, for EARLY_FOR seconds:
 core then reads live usage (A12's check kept) and recovers as usual on the new account. account_switch's watch, which
@@ -66,7 +67,7 @@ def _idle():
 class AutoSwitch:
     """account_auto_switch's code: its P8 errand and its P7 answer. See the module."""
     __slots__ = ("paths", "_scoped", "_saved", "_session_for", "_restart", "_read_real", "_idle", "_busy", "_home",
-                 "_looked", "_episode", "_switched_at")
+                 "_looked", "_episode", "_switched_at", "_notice")
 
     def __init__(self, paths, *, store=None, session_for=None, restart=None, read_real=None, idle=None, busy=None,
                  home=None):
@@ -79,6 +80,7 @@ class AutoSwitch:
         self._looked = None
         self._episode = None
         self._switched_at = None
+        self._notice = None
 
     def bind(self, scoped):
         self._scoped = scoped
@@ -174,6 +176,8 @@ class AutoSwitch:
         target = self.choose(store, now)
         if target is None:
             self._count("all_exhausted")
+            # One notice for this set of waiting records (core's kind accounts_exhausted, plug.NOTICE_KINDS).
+            self._notice = {"key": "autoswitch:%d" % int(min(row["detected_at"] for row in rows))}
             return None
         outcome = swap.switch(self.paths, store, home, target, restart=self._restart, read_real=self.read_real, now=now)
         self._count(outcome)
@@ -217,6 +221,10 @@ class AutoSwitch:
             self._scoped.count(code)
         except Exception:
             pass
+
+    def notice(self):
+        """{"key"} of the last look that found every saved account at its limit, for the watcher to show once - or None."""
+        return self._notice
 
     # ------------------------------------------------------------------ P7
     def schedule(self, record, eligible_at):

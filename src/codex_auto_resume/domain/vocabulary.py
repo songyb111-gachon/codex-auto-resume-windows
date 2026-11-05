@@ -629,3 +629,6 @@ class NoticeKind(StrEnum):
     # v0.6.20: the advanced edition's account switch saw another Codex account signed in, and recoveries waiting for a
     # usage limit wait for a person - shown only from its plug's surface.
     ACCOUNT_CHANGED = "account_changed"
+    # v0.6.22: the advanced edition's automatic account switch found every saved account at its limit, so recoveries wait
+    # for the earliest reset as they would without it - shown only from its plug's surface, once a set of waiting records.
+    ACCOUNTS_EXHAUSTED = "accounts_exhausted"

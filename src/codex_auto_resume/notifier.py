@@ -76,6 +76,7 @@ NOTICE_STATUS = {
     "update_offered": "attention",  # v0.6.18: the advanced edition's weekly update check offers a newer version
     "restart_gave_up": "attention",  # v0.6.19: the advanced edition's crash restart left the watcher stopped
     "account_changed": "paused",    # v0.6.20: the advanced edition saw another account signed in; what waited, waits
+    "accounts_exhausted": "paused",  # v0.6.22: its automatic switch found every saved account at its limit
 }
 # v0.6.12: the power action after usage-limit recoveries (runtime/afterwork.py), whose kinds are words of
 # its own (domain/power_vocabulary.PowerNotice). Its notices are raised whatever the notification switches
@@ -312,11 +313,11 @@ def _build(event, detail, identity=None, *, sound=False):
         # About this installation, not a conversation, so it has no key and replaces no card; its one button opens the
         # Dashboard's Overview, where the watcher is started again.
         return _notice("restart_gave_up", notify.restart_gave_up_content(), key=None)
-    if event == "account_changed":
+    if event in ("account_changed", "accounts_exhausted"):
         # v0.6.20: the advanced edition's account switch saw another Codex account signed in, and held what waited for a
-        # usage limit for a person. About this PC, not a conversation, so it has no key and replaces no card; its one
-        # button opens Pending, where each is let continue or cancelled.
-        return _notice("account_changed", _account_changed_content(detail.get("count")), key=None)
+        # usage limit for a person - or (v0.6.22) its automatic switch found every saved account at its limit. About this
+        # PC, not a conversation, so it has no key and replaces no card; its one button opens Pending.
+        return _notice(event, _account_changed_content(detail.get("count"), event), key=None)
     if event in POWER_EVENTS:
         # v0.6.12: the power action (runtime/afterwork.py). About this PC, not a conversation, so it has
         # no key and replaces no card. Only the countdown's has a stop button, named by its batch (A28).
@@ -682,9 +683,13 @@ def _power_stop(nonce, control, announce, say, stay=()) -> str:
     return "stopped"
 
 
-def _account_changed_content(count) -> dict:
+def _account_changed_content(count, event="account_changed") -> dict:
     """v0.6.20, the advanced edition's account switch: another Codex account is signed in, how many recoveries waiting
-    for a usage limit now wait for a person, what to do next, and Open Dashboard at Pending."""
+    for a usage limit now wait for a person, what to do next, and Open Dashboard at Pending. v0.6.22: or every saved
+    account at its limit (accounts_exhausted), and that recovery waits for the earliest reset."""
+    if event == "accounts_exhausted":
+        return notify._content(l10n.message("toast_accounts_exhausted"), l10n.message("toast_accounts_exhausted_body"),
+                               more=[(l10n.message("toast_button_open"), notify.open_uri("pending"))])
     try:
         waiting = max(1, int(count))
     except (TypeError, ValueError, OverflowError):

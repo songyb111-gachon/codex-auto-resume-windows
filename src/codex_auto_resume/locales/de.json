@@ -840,6 +840,8 @@
   "msg.toast_update_offered_prerelease_body": "Die Vorabversion {version} wurde veröffentlicht; sie ist weniger getestet als ein Release. Installieren Sie sie über das Dashboard, wenn Sie sie möchten.",
   "msg.toast_account_changed": "Ein anderes Codex-Konto ist angemeldet",
   "msg.toast_account_changed_count": "Aufgaben, die auf ein Nutzungslimit warteten, warten auf Sie: {n}",
+  "msg.toast_accounts_exhausted": "Alle gespeicherten Konten sind an ihrem Limit",
+  "msg.toast_accounts_exhausted_body": "Die Wiederaufnahme wartet auf den frühesten Reset, wie ohne Wechsel. Bis dahin wird nichts gesendet.",
   "why.account_changed": "Nachdem sie angehalten hat, wurde ein anderes Codex-Konto angemeldet: Es wird nichts gesendet, bis Sie sie fortfahren lassen.",
   "msg.toast_usage_at": "Codex-Nutzungslimit erreicht. Diese Aufgabe wird um {time} fortgesetzt.",
   "msg.toast_usage_soon": "Codex-Nutzungslimit erreicht. Diese Aufgabe wird nach dem Zurücksetzen fortgesetzt.",

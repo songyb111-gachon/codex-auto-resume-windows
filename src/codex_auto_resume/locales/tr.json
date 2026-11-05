@@ -840,6 +840,8 @@
   "msg.toast_update_offered_prerelease_body": "{version} ön sürümü yayımlandı; kararlı bir sürümden daha az test edilmiştir. İsterseniz Gösterge Paneli'nden yükleyin.",
   "msg.toast_account_changed": "Başka bir Codex hesabıyla oturum açıldı",
   "msg.toast_account_changed_count": "Kullanım sınırını bekleyen ve sizi bekleyen görevler: {n}",
+  "msg.toast_accounts_exhausted": "Kayıtlı hesaplarınızın tümü sınırında",
+  "msg.toast_accounts_exhausted_body": "Kurtarma, geçiş olmadan olduğu gibi en erken sıfırlamayı bekler. O zamana kadar hiçbir şey gönderilmez.",
   "why.account_changed": "Durduktan sonra başka bir Codex hesabıyla oturum açıldı: siz devam etmesine izin verene kadar hiçbir şey gönderilmez.",
   "msg.toast_usage_at": "Codex kullanım sınırına ulaşıldı. Bu görev saat {time} olunca sürdürülecek.",
   "msg.toast_usage_soon": "Codex kullanım sınırına ulaşıldı. Bu görev sıfırlamadan sonra sürdürülecek.",
