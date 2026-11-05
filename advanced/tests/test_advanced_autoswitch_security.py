@@ -808,9 +808,9 @@ class AStoppedSwitchSaysSo(unittest.TestCase):
             directory=Path("does-not-exist"), intent=lambda: None), home=Path("does-not-exist"))
         code._scoped = SimpleNamespace(count=lambda word: True, stamped=lambda key: None, stamp=lambda *a: None)
         rows = [{"interruption_id": 1, "detected_at": 0}]
-        with patch.object(code, "waiting", lambda view, now: rows), \
-                patch.object(code, "_why_not", lambda view, found: None), \
-                patch.object(code, "choose", lambda store, now: "0123456789abcdef"), \
+        with patch.object(autoswitch.AutoSwitch, "waiting", lambda self, view, now: rows), \
+                patch.object(autoswitch.AutoSwitch, "_why_not", lambda self, view, found: None), \
+                patch.object(autoswitch.AutoSwitch, "choose", lambda self, store, now: "0123456789abcdef"), \
                 patch.object(swap, "recover", lambda *a, **k: None), \
                 patch.object(swap, "switch", lambda *a, **k: swap.ENGINE_ALIVE):
             code.look(None, 1000)
@@ -822,8 +822,8 @@ class AStoppedSwitchSaysSo(unittest.TestCase):
         code = autoswitch.AutoSwitch(SimpleNamespace(home=Path(".")), store=SimpleNamespace(
             directory=Path("does-not-exist"), intent=lambda: None), home=Path("does-not-exist"))
         code._scoped = SimpleNamespace(count=lambda word: True, stamped=lambda key: None, stamp=lambda *a: None)
-        with patch.object(code, "waiting", lambda view, now: [{"interruption_id": 1, "detected_at": 0}]), \
-                patch.object(code, "_why_not", lambda view, found: "engine_alive"), \
+        with patch.object(autoswitch.AutoSwitch, "waiting", lambda self, view, now: [{"interruption_id": 1, "detected_at": 0}]), \
+                patch.object(autoswitch.AutoSwitch, "_why_not", lambda self, view, found: "engine_alive"), \
                 patch.object(swap, "recover", lambda *a, **k: None):
             code.look(None, 1000)
         self.assertIsNone(code.notice())
