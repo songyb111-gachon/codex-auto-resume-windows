@@ -456,6 +456,11 @@ class WindowAnchor:
         found = judge(pending["first"], reading) if reading is not None else UNREADABLE
         if why == VERIFY:
             return self._verified(found, reading, pending)
+        if not 0 <= now - pending["first"]["at"] <= SLOT_GRACE:
+            # A first read held past a slot's own grace - recovery paused or the capability turned off or watched
+            # between the two reads - says nothing of the window now: the occasion is skipped, never started hours
+            # late at a time nobody picked (v0.6.23 audit seatA:B-M1).
+            return self._skip(why, occurrence, "unreadable")
         if found != IDLE:
             return self._skip(why, occurrence, {RUNNING: "running", WEEKLY_FULL: "weekly"}.get(found, "unreadable"))
         reason = self._before(view, now)

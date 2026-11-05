@@ -312,6 +312,23 @@ class DaylightSavingTests(unittest.TestCase):
                          due, "and the slot is due at the time the wake was set for")
 
 
+class HeldFirstReadTests(AnchorCase):
+    def test_a_first_read_held_across_a_long_pause_starts_nothing_hours_later(self):
+        """seatA:B-M1 (v0.6.23 audit). Fails without the bound in _second: the 07:00 occasion's first read, held while
+        recovery was paused (core asks the plug nothing then), started a window when it resumed hours later."""
+        self.on(anchor_at_1=anchor.encode_time(7, 0), anchor_after_reset=2)
+        code = self.rt._code_of(WINDOW_ANCHOR)
+        for _look in range(4):
+            self.look(anchor.LOOK_EVERY)
+            if code._pending is not None:
+                break
+        self.assertIsNotNone(code._pending, "the first read is held")
+        self.now += 7 * 3600                         # paused: no tick
+        self.run_through()
+        self.assertEqual(self.world.started, [])
+        self.assertIn("anchor.skip_unreadable", self.codes())
+
+
 class CeilingTests(AnchorCase):
     def test_its_starts_a_day_ceiling_is_consulted(self):
         """seatA:B-M2 (v0.6.23 audit). Fails without the ceiling in _before: five starts in the last 24 hours (account
