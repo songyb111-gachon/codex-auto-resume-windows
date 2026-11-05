@@ -47,6 +47,7 @@ AFTER_FAILURE = 10                 # ... after no answer, or another reader of t
 CONFLICT = 409
 FRESH = 300                        # seconds a message may be old and still be obeyed
 UPDATES = 2                        # messages one read may bring: each at most 4,096 characters
+IGNORED_EVERY = 3600               # seconds between two journal lines for what other chats sent: one an hour at most
 MAX_TEXT = 64                      # characters of a message read; a longer one is no command
 LISTED = 20                        # rows of one /list answer: a Telegram message has a limit, and task N stays right
 # Every command, with the capability that allows it. A test holds this table to the design's.
@@ -92,6 +93,7 @@ class Poller:
         self.clock = clock or time.time
         self.locale = locale
         self.listed = None               # the snapshot of the list last answered to the paired chat
+        self.ignored_at = None           # when what other chats sent was last journalled
 
     @property
     def secrets(self):
@@ -176,7 +178,9 @@ class Poller:
                 self.send(token, chat, said)
             except (http.Failed, ValueError):
                 pass
-        if ignored:
+        if ignored and (self.ignored_at is None or not 0 <= now - self.ignored_at < IGNORED_EVERY):
+            # One line an hour, however much strangers send: a flood must not wear the journal every capability shares.
+            self.ignored_at = now
             self.runtime.state.counted(TELEGRAM, "ignored")
         return 0
 

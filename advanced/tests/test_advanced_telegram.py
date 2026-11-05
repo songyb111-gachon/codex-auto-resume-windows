@@ -177,6 +177,22 @@ class PairedChatTests(TelegramCase):
         self.assertEqual(self.layer.calls, [])
         self.assertIn("tgram.ignored", [line["code"] for line in self.rt.state.journal(capability="telegram_remote")])
 
+    def test_a_flood_from_strangers_is_journalled_once_an_hour(self):
+        """R4 (the security review of 2026-11-06): fails with a line per read - someone sending the bot a message a second
+        would push every capability's history out of the journal's 5,000 rows within an hour and a half."""
+        poller = self.poller(Bot())
+        for _ in range(300):
+            poller._opener = Bot([self.message("spam", OTHER)])
+            poller.once()
+            self.now += 1
+        lines = [line["code"] for line in self.rt.state.journal(capability="telegram_remote")]
+        self.assertEqual(lines.count("tgram.ignored"), 1)
+        self.now += telegram.IGNORED_EVERY
+        poller._opener = Bot([self.message("spam", OTHER)])
+        poller.once()
+        lines = [line["code"] for line in self.rt.state.journal(capability="telegram_remote")]
+        self.assertEqual(lines.count("tgram.ignored"), 2)
+
     def test_one_message_with_no_chat_or_a_chat_that_is_no_number_is_another_chat(self):
         for update in ({"update_id": 1}, {"update_id": 2, "message": {"text": "/pause", "date": int(self.now)}},
                        {"update_id": 3, "message": {"chat": {"id": str(CHAT)}, "text": "/pause", "date": int(self.now)}},
