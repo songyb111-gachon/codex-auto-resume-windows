@@ -136,7 +136,7 @@ class WhenTests(EngineCase):
         self.scoped.clock += autoswitch.DAY
         self.look([waiting("b", detected=self.scoped.clock - autoswitch.SETTLE)])
         self.assertEqual(self.scoped.counted, ["ceiling", "switched"])
-        self.assertEqual(self.scoped.stamps[str(OptionKey.AUTO_SWITCH_COUNT)], 1)
+        self.assertEqual(self.store.attempts(), [self.scoped.clock], "the day's stamps read once, then the times kept")
 
     def test_all_exhausted_waits_and_says_so_once(self):
         """Fails without the notice: the person would learn of it only from the journal."""

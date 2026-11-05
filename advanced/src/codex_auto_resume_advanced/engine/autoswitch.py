@@ -174,10 +174,36 @@ class AutoSwitch:
         return None
 
     def _today(self, now) -> int:
-        day = int(now // DAY) + 1
-        if self._scoped.stamped(OptionKey.AUTO_SWITCH_DAY) != day:
-            return 0
-        return self._scoped.stamped(OptionKey.AUTO_SWITCH_COUNT) or 0
+        """How many switches were made in the last DAY seconds - a rolling 24 hours, not a UTC calendar day, which let
+        twenty through around midnight UTC (the v0.6.23 audit's A-R2)."""
+        return len(self._recent(now))
+
+    def _recent(self, now) -> list:
+        store = self.store()
+        try:
+            times = store.attempts()
+        except Exception:
+            times = None
+        if times is None:
+            # Before v0.6.23 the count was the UTC day's, in two stamps: kept as switches made now, so an update never
+            # frees that day's ceiling early.
+            day = int(now // DAY) + 1
+            legacy = self._scoped.stamped(OptionKey.AUTO_SWITCH_COUNT) or 0
+            legacy = legacy if self._scoped.stamped(OptionKey.AUTO_SWITCH_DAY) == day else 0
+            times = [int(now)] * min(int(legacy), PER_DAY)
+            if times:
+                self._keep(times)
+        return [value for value in times if 0 <= now - value < DAY]
+
+    def _attempted(self, now) -> None:
+        """One more switch counted toward the 24-hour ceiling."""
+        self._keep((self._recent(now) + [int(now)])[-PER_DAY:])
+
+    def _keep(self, times) -> None:
+        try:
+            self.store().note_attempts(times)
+        except Exception:
+            pass
 
     def look(self, view, now):
         """One look; see the module's docstring. Returns nothing: what it did is in the journal and the stamps."""
@@ -220,9 +246,7 @@ class AutoSwitch:
         if outcome in (swap.SWITCHED, swap.NOT_STARTED):
             if outcome == swap.SWITCHED:
                 self._switched(now)                      # NOT_STARTED: the app is closed, so P7 releases nothing early
-            day = int(now // DAY) + 1
-            self._scoped.stamp(OptionKey.AUTO_SWITCH_COUNT, self._today(now) + 1)
-            self._scoped.stamp(OptionKey.AUTO_SWITCH_DAY, day)
+            self._attempted(now)
         return None
 
     def choose(self, store, now):

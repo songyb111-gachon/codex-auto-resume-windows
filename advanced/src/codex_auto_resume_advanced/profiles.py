@@ -32,6 +32,8 @@ FOLDER = "accounts"
 SUFFIX = ".dat"
 INTENT = "switch.intent"
 LAST = "switch.last"
+# When the last switches were made (v0.6.23 audit A-R2): the 24-hour ceiling counts these, not a calendar day's.
+TIMES = "switch.times"
 _ID = re.compile(r"^[0-9a-f]{16}$")
 # A profile's state word (the card's): ready to be switched to, at its limit until a time, or needing a fresh sign-in.
 READY, EXHAUSTED, NEEDS_SIGN_IN, DAMAGED = "ready", "exhausted", "needs_sign_in", "damaged"
@@ -242,6 +244,19 @@ class Profiles:
 
     def end(self) -> None:
         self._remove(INTENT)
+
+    def attempts(self):
+        """The times of the last switches (whole seconds), or None where none was ever kept. Delete all keeps them: the
+        day's ceiling is not freed by deleting the accounts."""
+        try:
+            found = self._read(TIMES)
+        except ProfileError:
+            return None
+        times = found.get("times") if isinstance(found, dict) else None
+        return [value for value in times if type(value) is int] if isinstance(times, list) else None
+
+    def note_attempts(self, times) -> None:
+        self._write(TIMES, {"times": [int(value) for value in times]})
 
     def mark_switched(self, email) -> None:
         self._write(LAST, {"email": email.lower(), "at": int(self._clock())})

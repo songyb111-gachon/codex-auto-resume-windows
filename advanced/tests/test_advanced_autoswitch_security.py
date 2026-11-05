@@ -853,6 +853,30 @@ class LookAgainBeforeTheClose(unittest.TestCase):
             case.doCleanups()
 
 
+class TheCeilingIsARolling24Hours(unittest.TestCase):
+    """v0.6.23 audit A-R2: "at most ten a day" was counted by UTC calendar day, so twenty could happen within minutes
+    around midnight UTC."""
+
+    def test_ten_before_midnight_utc_hold_the_ceiling_after_it(self):
+        """Fails with the calendar-day count: the eleventh switch went through one second after UTC midnight."""
+        import test_advanced_autoswitch as engine_tests
+        from codex_auto_resume_advanced.engine import autoswitch
+        case = engine_tests.EngineCase("run")
+        case.setUp()
+        try:
+            midnight = (engine_tests.NOW // autoswitch.DAY + 1) * autoswitch.DAY
+            case.store.note_attempts([midnight - 600 + index for index in range(autoswitch.PER_DAY)])
+            case.scoped.clock = midnight + 1
+            case.look([engine_tests.waiting("c", detected=case.scoped.clock - autoswitch.SETTLE)])
+            self.assertEqual(case.scoped.counted, ["ceiling"])
+            self.assertEqual((case.codex / "auth.json").read_bytes(), ONE)
+            case.scoped.clock = midnight - 600 + autoswitch.DAY
+            case.look([engine_tests.waiting("d", detected=case.scoped.clock - autoswitch.SETTLE)])
+            self.assertEqual(case.scoped.counted, ["ceiling", "switched"], "the first of the ten is 24 hours old")
+        finally:
+            case.doCleanups()
+
+
 def swap_restarts():
     from codex_auto_resume_advanced.codex import restart
     return restart
