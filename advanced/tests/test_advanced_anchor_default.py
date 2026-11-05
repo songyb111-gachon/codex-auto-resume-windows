@@ -60,5 +60,24 @@ class StoredTests(ac.AdvancedCase):
                 self.assertEqual(anchor.after_reset_on(rt.state.options(CAP)), value == ON)
 
 
+class TheStatementSaysItRepeatsTests(unittest.TestCase):
+    """seatA:B-R1 (v0.6.23 audit): the reset a start fixed is stamped as one it has seen (engine/anchor._verified), so
+    with Start right after a reset on it starts again about every five hours, day and night; the statement says so."""
+
+    def test_every_catalog_says_its_own_reset_counts_and_names_the_wake(self):
+        """Fails with the old statement: no catalog said a reset it fixed itself counts too."""
+        import json
+        folder = Path(anchor.__file__).resolve().parents[1] / "locales"
+        catalogs = sorted(folder.glob("*.json"))
+        self.assertEqual(len(catalogs), 18)
+        for catalog in catalogs:
+            words = json.loads(catalog.read_text(encoding="utf-8"))
+            does = words["statement.window_anchor.does"]
+            self.assertIn(words["name.wake_for_reset"], does, catalog.name)
+            if catalog.stem == "en":
+                self.assertIn("A reset it fixed itself counts as one it has seen", does)
+                self.assertIn("about every five hours, day and night", does)
+
+
 if __name__ == "__main__":
     unittest.main()
