@@ -88,11 +88,11 @@ class ControlTests(ControlCase):
         self.on()
         jobs = []
         first = accounts.add(self.rt, start=jobs.append, run=lambda paths, store: "a" * 16)
-        self.assertEqual(first["adding"], accounts.WAITING)
+        self.assertEqual(first["add_state"], accounts.WAITING)
         self.assertEqual(accounts.add(self.rt, start=jobs.append, run=lambda p, s: None)["refusal"],
                          Refusal.SWITCH_RUNNING)
         jobs[0]()
-        self.assertEqual(accounts.view(self.rt, store=self.store, codex_home=self.codex)["adding"], accounts.ADDED)
+        self.assertEqual(accounts.view(self.rt, store=self.store, codex_home=self.codex)["add_state"], accounts.ADDED)
 
     def test_the_bridge_takes_only_its_arguments(self):
         self.on()

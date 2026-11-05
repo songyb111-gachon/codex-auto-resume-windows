@@ -3,12 +3,12 @@
 
 `advanced-accounts` reads the saved accounts as a person may see them - {id, mask, plan, state} each, the address only
 masked (profiles.Profiles.view) - with whether Codex keeps its sign-in in a file here (codex/authfile.usable's word),
-whether an Add an account is under way or how the last one ended, and when the account was last switched. Nothing of a
+whether an Add an account is under way or how the last one ended (`add_state`), and when the account was last switched. Nothing of a
 saved account's address or sign-in file leaves this module.
 
 `advanced-accounts-add` is Add an account: Codex's own `codex login` on a scratch home (codex/swap.add_by_login), on a
 thread of this process's own, one at a time per installation (SWITCH_RUNNING while one waits); the card then reads
-`adding` - WAITING, then ADDED or NOT_ADDED. `advanced-accounts-save` is Save the account in use (codex/swap.save_current).
+`add_state` - WAITING, then ADDED or NOT_ADDED. `advanced-accounts-save` is Save the account in use (codex/swap.save_current).
 `advanced-accounts-delete` takes {"id": <a profile's id>} or {"all": true} and deletes the files.
 
 Each is refused NOT_ON unless the capability is on or watched - and so while it waits hidden in registry.WAITING, when
@@ -54,8 +54,8 @@ def view(runtime, *, store=None, codex_home=None) -> dict:
     except Exception:
         switched = None
     with _LOCK:
-        adding = _ADDING.get(Path(runtime.paths.home))
-    return {"done": True, "refusal": None, "profiles": store.view(), "store": word, "adding": adding,
+        add_state = _ADDING.get(Path(runtime.paths.home))
+    return {"done": True, "refusal": None, "profiles": store.view(), "store": word, "add_state": add_state,
             "switched_at": switched}
 
 
@@ -86,7 +86,7 @@ def add(runtime, *, start=None, run=None) -> dict:
         with _LOCK:
             _ADDING[home] = NOT_ADDED
         return _refused(Refusal.STATE_UNAVAILABLE)
-    return {"done": True, "refusal": None, "adding": WAITING}
+    return {"done": True, "refusal": None, "add_state": WAITING}
 
 
 def save(runtime, *, store=None, codex_home=None, read_real=None) -> dict:

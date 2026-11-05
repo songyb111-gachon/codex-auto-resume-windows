@@ -62,7 +62,7 @@ namespace CodexAutoResume
         /// window, which reads the card itself.
         private void WatchAccounts()
         {
-            bool waiting = Str(advancedAccounts, "adding") == "waiting";
+            bool waiting = Str(advancedAccounts, "add_state") == "waiting";
             if (!waiting || advancedScript != null || auditing)
             {
                 if (accountsTimer != null) accountsTimer.Stop();
@@ -129,12 +129,12 @@ namespace CodexAutoResume
             }
             if (accountsRows.Count == 0)
                 card.Controls.Add(HelpText(Word("page.accounts.none", "No account saved yet.")));
-            string adding = Str(advancedAccounts, "adding");
-            if (adding == "waiting")
+            string addState = Str(advancedAccounts, "add_state");
+            if (addState == "waiting")
                 card.Controls.Add(HelpText(Word("page.account.waiting", "Waiting for the sign-in in your browser...")));
-            else if (adding == "added")
+            else if (addState == "added")
                 card.Controls.Add(HelpText(Word("page.accounts.added", "The account was saved.")));
-            else if (adding == "not_added")
+            else if (addState == "not_added")
                 card.Controls.Add(HelpText(Word("page.accounts.not_added", "No account was saved: the sign-in did not finish.")));
             accountsAdd = CardButton(card, Word("page.accounts.add", "Add an account..."), delegate { AddAccount(); });
             accountsAdd.Margin = Pad(0, 8, 0, 4);
@@ -162,7 +162,7 @@ namespace CodexAutoResume
             bool listed = idle && advancedListing != null && advancedAccounts != null;
             bool usable = listed && Str(advancedAccounts, "store") == "usable";
             foreach (CheckBox row in accountsRows) row.Enabled = listed;
-            if (accountsAdd != null) accountsAdd.Enabled = usable && Str(advancedAccounts, "adding") != "waiting";
+            if (accountsAdd != null) accountsAdd.Enabled = usable && Str(advancedAccounts, "add_state") != "waiting";
             if (accountsSave != null) accountsSave.Enabled = usable;
             if (accountsDelete != null) accountsDelete.Enabled = listed && AccountsPicked().Count > 0;
             if (accountsDeleteAll != null) accountsDeleteAll.Enabled = listed && accountsRows.Count > 0;
