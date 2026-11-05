@@ -20,6 +20,13 @@ edition's records - five a conversation a day, fifteen minutes apart (`spent_on`
 a block is refused another, under any interruption id (`refused`). The hold lasts HOLD_SECONDS, core's own spacing
 between claims, and no longer: a block Codex did not carry out leaves core to recover the record as it always would.
 
+What holds core's own sends back holds the hook's too (v0.6.22, the v0.6.23 audit's seatB:B-R1 and B-R2), read where
+core reads it: an administrator's DisableAutoResume or ForceObserveOnly, Observe only and quiet hours (a person's own
+or an administrator's) from the settings file and the policy keys (`_policy`: nothing is written, the hook passes),
+and on core's record of the interruption where there is one, its consent and budget gates (domain/gates: a Cancel, a
+hold, a postponement, the attempt, chain and no-progress budgets, an administrator's MaxRecoveryAttempts among them -
+`refused`).
+
 P8: while the capability is on, its declaration stands in our plugin copies - written back after a Repair replaced
 the plugin's files (control/hookplugin.py); arming writes and removes it as the capability moves (arming.py).
 """
@@ -120,6 +127,48 @@ def _core_holds(connection, thread_id, now) -> bool:
     return held_by_records(connection, thread_id, now)
 
 
+def _policy(paths, now):
+    """core's budget limits as its engine adopts them (engine/options.apply_policy: the settings file clamped by an
+    administrator's policy keys), or None where nothing may be sent now - an administrator's DisableAutoResume or
+    ForceObserveOnly, Observe only, or quiet hours, a person's own or an administrator's - or where either cannot be
+    read."""
+    from codex_auto_resume import ladder, managed as admin, quiet, settings as policy
+    from codex_auto_resume.control import policy as control
+    try:
+        held = control.managed_policy()
+        own = policy.coerce(config.load_settings(paths))
+        values = admin.clamp(own, held)
+        if held.disable_auto_resume or held.force_observe_only or values.get("observe_only"):
+            return None
+        sources = admin.quiet_sources(own, held) if held.quiet_hours else (values,)
+        if any(quiet.quiet_until(now, source) is not None for source in sources):
+            return None
+        limits = {name: values[name] for name in
+                  ("max_recovery_attempts", "max_no_progress", "max_chain_continuations")}
+        ceiling = ladder.ceiling(values)
+        if ceiling is not None:
+            limits["max_chain_seconds"] = ceiling
+        return limits
+    except Exception:
+        return None
+
+
+def _core_refuses(connection, key, limits, now) -> bool:
+    """Whether core's own record of the interruption, where there is one, refuses a continuation now: its consent gate
+    (a Cancel, a hold for a person), a postponement still to come, or its budgets."""
+    from codex_auto_resume import failures, machine
+    row = connection.execute("SELECT * FROM main.interruptions WHERE interruption_id=?", (key,)).fetchone()
+    if row is None:
+        return False
+    row = dict(row)
+    if machine.gate_consent(True, True, row.get("cancel_requested"), hold=row.get("hold"))[0] != machine.PASS:
+        return True
+    if isinstance(row.get("not_before"), (int, float)) and row["not_before"] > now:
+        return True
+    budgets = machine.gate_budgets(row, limits, row.get("category") == failures.USAGE_LIMIT)
+    return any(answer[0] != machine.PASS for answer in budgets.values())
+
+
 def claim(paths, failure, turn_key, now, *, registry=None, busy=BUSY_SECONDS):
     """The hook's claim of `failure` - core's detection of the latest turn, with its interruption id - for the turn
     digested as `turn_key`: the HookOutcome it wrote, or None where nothing was written (recovery or the capability
@@ -137,6 +186,9 @@ def claim(paths, failure, turn_key, now, *, registry=None, busy=BUSY_SECONDS):
     core = Path(paths.state_dir) / CORE_FILE
     if definition is None or not is_interruption_id(key) or not _readable(core):
         return None
+    limits = _policy(paths, now)
+    if limits is None:
+        return None                                   # core sends nothing now either
     state = AdvancedState(paths, registry=registry)
     connection = None
     try:
@@ -148,7 +200,7 @@ def claim(paths, failure, turn_key, now, *, registry=None, busy=BUSY_SECONDS):
         connection.execute("BEGIN IMMEDIATE")
         try:
             outcome = _decide(connection, state, definition, key, thread, turn_key, now, ATTACHED,
-                              ArmingState.ARMED, ceiling_reached)
+                              ArmingState.ARMED, ceiling_reached, limits)
             if outcome is not None:
                 connection.execute("INSERT INTO %s.hook_claims (interruption_id, turn_digest, at, outcome) "
                                    "VALUES (?,?,?,?)" % ATTACHED, (key, turn_key, now, outcome))
@@ -169,7 +221,7 @@ def claim(paths, failure, turn_key, now, *, registry=None, busy=BUSY_SECONDS):
         state.close()
 
 
-def _decide(connection, state, definition, key, thread, turn_key, now, schema, armed, ceiling_reached):
+def _decide(connection, state, definition, key, thread, turn_key, now, schema, armed, ceiling_reached, limits):
     """The outcome to write, inside the claim's transaction, or None for nothing written."""
     settings = connection.execute("SELECT enabled, observe_only FROM main.settings").fetchone()
     if settings is None or not settings[0] or settings[1]:
@@ -189,6 +241,8 @@ def _decide(connection, state, definition, key, thread, turn_key, now, schema, a
     from codex_auto_resume import machine
     if core is not None and core[0] not in machine.WAITING:
         return HookOutcome.PASSED                     # the watcher took it first
+    if _core_refuses(connection, key, limits, now):
+        return HookOutcome.REFUSED                    # held, postponed, cancelled or past its budgets
     if _core_holds(connection, thread, now):
         return HookOutcome.REFUSED
     global_hourly = connection.execute("SELECT global_hourly FROM %s.meta" % schema).fetchone()[0]

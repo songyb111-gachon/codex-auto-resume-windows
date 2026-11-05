@@ -219,5 +219,53 @@ class ClaimTests(HookClaimCase):
         self.assertEqual(self.rows(), [])
 
 
+class CoreHoldsTests(HookClaimCase):
+    """seatB:B-R1 and B-R2 (v0.6.23 audit): what holds core's own sends back holds the hook's - an administrator's
+    policy keys, Observe only, quiet hours, a Cancel, a hold, a postponement and core's budgets."""
+
+    def set_core(self, **columns):
+        key = self.h.record()["interruption_id"]
+        with self.h.store._transaction() as connection:
+            for name, value in columns.items():
+                connection.execute("UPDATE interruptions SET %s=? WHERE interruption_id=?" % name, (value, key))
+
+    def test_an_administrator_s_pause_or_observe_only_or_quiet_hours_writes_nothing(self):
+        """Fails with `_policy` taken out of claim: the hook continued while the administrator held recovery back."""
+        from codex_auto_resume import managed as admin, quiet
+        from codex_auto_resume.control import policy as control
+        self.due()
+        for held in (admin.Managed(disable_auto_resume=True), admin.Managed(force_observe_only=True)):
+            with self.subTest(held=held), mock.patch.object(control, "managed_policy", lambda held=held: held):
+                self.assertIsNone(self.hook())
+        with mock.patch.object(quiet, "quiet_until", lambda now, values, **_: now + 60):
+            self.assertIsNone(self.hook(), "quiet hours")
+        self.assertEqual(self.rows(), [])
+        self.assertEqual(self.hook(), HookOutcome.BLOCKED, "and with none of them, it continues")
+
+    def test_a_cancel_a_hold_or_a_postponement_on_core_s_record_refuses(self):
+        """Fails with `_core_refuses` taken out of _decide: the hook blocked on a record a person held or cancelled."""
+        self.due()
+        for columns in ({"cancel_requested": 1}, {"hold": "ask"}, {"not_before": self.h.now + 3600}):
+            with self.subTest(columns=columns):
+                self.set_core(**columns)
+                other = dict(self.failure(), interruption_id=self.h.record()["interruption_id"])
+                self.assertEqual(self.hook(other, turn="%s-%d" % (TURN_A[:-2], len(columns))), HookOutcome.REFUSED)
+                self.set_core(cancel_requested=0, hold=None, not_before=None)
+                with contextlib.closing(sqlite3.connect(self.plug.runtime.state.path)) as connection, connection:
+                    connection.execute("DELETE FROM hook_claims")
+        self.assertEqual(self.hook(), HookOutcome.BLOCKED)
+
+    def test_core_s_chain_and_no_progress_budgets_refuse(self):
+        self.due()
+        for columns in ({"chain_continuations": 99}, {"no_progress_count": 99}):
+            with self.subTest(columns=columns):
+                self.set_core(**columns)
+                self.assertEqual(self.hook(), HookOutcome.REFUSED)
+                self.set_core(chain_continuations=0, no_progress_count=0)
+                with contextlib.closing(sqlite3.connect(self.plug.runtime.state.path)) as connection, connection:
+                    connection.execute("DELETE FROM hook_claims")
+        self.assertEqual(self.hook(), HookOutcome.BLOCKED)
+
+
 if __name__ == "__main__":
     unittest.main()
