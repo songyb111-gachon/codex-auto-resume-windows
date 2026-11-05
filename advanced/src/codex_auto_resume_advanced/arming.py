@@ -1272,7 +1272,9 @@ class Arming:
                 # Whether any point it answers at leads to a send, and so whether its ceilings can
                 # ever bind. A capability that only starts, or only shadows, spends no unit; a
                 # surface shows its ceilings as nominal rather than as a limit that will be met.
-                "sends": bool(definition.points & SENDING_POINTS),
+                # A capability that sends at a point of its own (steer_send at P8) says so itself.
+                "sends": (definition.sends if isinstance(definition.sends, bool)
+                          else bool(definition.points & SENDING_POINTS)),
                 # An action has none: it sends nothing to Codex, so there is no limit to show.
                 "ceilings": None if definition.ceilings is None else
                 {"per_day": definition.ceilings.per_day,

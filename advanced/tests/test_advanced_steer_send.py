@@ -235,6 +235,16 @@ class LaterTurnTests(SteerCase):
         self.assertEqual(self.calls, [])
 
 
+class ListingTests(SteerCase):
+    def test_the_listing_says_it_sends_so_the_page_never_calls_its_limits_nominal(self):
+        """seatB:B-R4 (v0.6.23 audit). Fails without registry.STEER_SEND's `sends`: its only point is P8, which leads to no
+        send of core's, so the page said its 30 and 60 never come into play."""
+        plug, runtime = self.on()
+        (item,) = [each for each in runtime.arming.listing()["capabilities"] if each["id"] == "steer_send"]
+        self.assertIs(item["sends"], True)
+        self.assertEqual(item["ceilings"], {"per_day": 60, "per_conversation": 30})
+
+
 class SendTests(SteerCase):
     def test_the_arming_flow_carries_msteer2s_warning_and_turns_it_on_once_confirmed(self):
         plug = self.advanced()
