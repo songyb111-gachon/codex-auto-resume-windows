@@ -852,6 +852,8 @@
   "msg.toast_account_changed_count": "使用量の上限を待っていたタスクがあなたの許可を待っています: {n} 件",
   "msg.toast_accounts_exhausted": "保存したアカウントはすべて上限に達しています",
   "msg.toast_accounts_exhausted_body": "切り替えないときと同じく、復旧は最も早いリセットを待ちます。それまで何も送信されません。",
+  "msg.toast_switch_not_finished": "アカウントの自動切り替えが完了しませんでした",
+  "msg.toast_switch_not_finished_body": "Codex を開き、どのアカウントでサインインしているか確認してください。切り替えないときと同じく、復旧は最も早いリセットを待ちます。それまで何も送信されません。",
   "why.account_changed": "止まった後に別の Codex アカウントでサインインされました。続行を許可するまで何も送信されません。",
   "msg.toast_usage_at": "Codex の使用量の上限に達しました。このタスクは {time} に再開します。",
   "msg.toast_usage_soon": "Codex の使用量の上限に達しました。このタスクはリセット後に再開します。",

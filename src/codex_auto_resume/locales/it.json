@@ -852,6 +852,8 @@
   "msg.toast_account_changed_count": "Attività che aspettavano un limite di utilizzo ti aspettano: {n}",
   "msg.toast_accounts_exhausted": "Tutti i tuoi account salvati sono al limite",
   "msg.toast_accounts_exhausted_body": "Il ripristino attende il reset più vicino, come senza cambio. Nulla viene inviato fino ad allora.",
+  "msg.toast_switch_not_finished": "Il cambio automatico di account non è stato completato",
+  "msg.toast_switch_not_finished_body": "Apri Codex e controlla quale account ha effettuato l'accesso. Il ripristino attende il reset più vicino, come senza cambio. Nulla viene inviato fino ad allora.",
   "why.account_changed": "Dopo che si è fermata ha effettuato l'accesso un altro account Codex: non viene inviato nulla finché non la lasci continuare.",
   "msg.toast_usage_at": "Limite di utilizzo di Codex raggiunto. Questa attività riprenderà alle {time}.",
   "msg.toast_usage_soon": "Limite di utilizzo di Codex raggiunto. Questa attività riprenderà dopo il ripristino.",

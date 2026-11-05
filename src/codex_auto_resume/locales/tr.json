@@ -852,6 +852,8 @@
   "msg.toast_account_changed_count": "Kullanım sınırını bekleyen ve sizi bekleyen görevler: {n}",
   "msg.toast_accounts_exhausted": "Kayıtlı hesaplarınızın tümü sınırında",
   "msg.toast_accounts_exhausted_body": "Kurtarma, geçiş olmadan olduğu gibi en erken sıfırlamayı bekler. O zamana kadar hiçbir şey gönderilmez.",
+  "msg.toast_switch_not_finished": "Otomatik hesap geçişi tamamlanmadı",
+  "msg.toast_switch_not_finished_body": "Codex'i açın ve hangi hesabın oturum açtığını kontrol edin. Kurtarma, geçiş olmadan olduğu gibi en erken sıfırlamayı bekler. O zamana kadar hiçbir şey gönderilmez.",
   "why.account_changed": "Durduktan sonra başka bir Codex hesabıyla oturum açıldı: siz devam etmesine izin verene kadar hiçbir şey gönderilmez.",
   "msg.toast_usage_at": "Codex kullanım sınırına ulaşıldı. Bu görev saat {time} olunca sürdürülecek.",
   "msg.toast_usage_soon": "Codex kullanım sınırına ulaşıldı. Bu görev sıfırlamadan sonra sürdürülecek.",

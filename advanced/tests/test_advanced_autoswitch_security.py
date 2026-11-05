@@ -476,6 +476,36 @@ class AnAppThatDidNotComeBack(SwapCase):
         self.assertIn("if outcome == swap.SWITCHED:\n                self._switched(now)", source[at:at + 200])
 
 
+class SaysSoOnce(unittest.TestCase):
+    """Finding 9: a failed switch or a settled crash was only counted - the design's "says so once" was not built."""
+
+    def test_a_switch_that_did_not_finish_asks_for_one_notice(self):
+        """Fails with the notice removed: notice() stayed None after a failed switch."""
+        from types import SimpleNamespace
+        from codex_auto_resume_advanced.engine import autoswitch
+        code = autoswitch.AutoSwitch(SimpleNamespace(home=Path(".")))
+        code._scoped = SimpleNamespace(count=lambda word: True)
+        for word in autoswitch.NOT_FINISHED:
+            self.assertIn(word, swap.OUTCOMES)
+        code._not_finished("0123456789abcdef")
+        self.assertEqual(code.notice(), {"key": "autoswitch:not_finished:0123456789abcdef", "why": "not_finished"})
+
+    def test_the_watcher_shows_the_words_of_a_switch_that_did_not_finish(self):
+        from codex_auto_resume import l10n, notifier
+        said = notifier._account_changed_content(None, "accounts_exhausted", "not_finished")
+        self.assertIn(l10n.message("toast_switch_not_finished"), json_of(said))
+        plain = notifier._account_changed_content(None, "accounts_exhausted")
+        self.assertIn(l10n.message("toast_accounts_exhausted"), json_of(plain))
+        app = (Path(__file__).resolve().parents[2] / "src" / "codex_auto_resume" / "runtime" / "app.py").read_text(
+            encoding="utf-8")
+        self.assertIn('self._watcher_notice("accounts_exhausted", {"why": notice.get("why")})', app)
+
+
+def json_of(content):
+    import json
+    return json.dumps(content, ensure_ascii=False, default=str)
+
+
 def swap_restarts():
     from codex_auto_resume_advanced.codex import restart
     return restart
