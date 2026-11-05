@@ -8,6 +8,7 @@ import re
 import stat
 import subprocess as S
 import threading
+import time
 
 from ..domain.errors import AdapterError
 from ..win import authenticode
@@ -45,6 +46,11 @@ def inventory():
 OPENAI_SIGNER = "OpenAI OpCo, LLC"
 # Each file's answer by its path, size and modification time: a 369 MB engine is hashed once, not on every tick.
 _OFFICIAL = {}
+# v0.6.23 (audit C1): but an answer that can change while the file does not - the file held by an antivirus scanning
+# a fresh engine (`signature_unreadable`), a chain whose certificate this PC has not cached yet (`signature_untrusted`)
+# - is kept a minute only, so a check that failed once is asked again; every other answer is kept with the file.
+PASSING = frozenset({"signature_unreadable", "signature_untrusted"})
+PASSING_SECONDS = 60.0
 _OFFICIAL_LOCK = threading.Lock()
 
 
@@ -76,8 +82,8 @@ def official_engine(path) -> tuple:
     key = (os.path.normcase(text), found.st_size, found.st_mtime_ns)
     with _OFFICIAL_LOCK:
         known = _OFFICIAL.get(key)
-    if known is not None:
-        return known
+    if known is not None and (known[1] is None or 0 <= known[1] - time.monotonic() <= PASSING_SECONDS):
+        return known[0]
     try:
         answer = (True, "openai_signature") if authenticode.signer(text) == OPENAI_SIGNER else (False, "wrong_signer")
     except AdapterError as refused:
@@ -87,7 +93,7 @@ def official_engine(path) -> tuple:
     with _OFFICIAL_LOCK:
         if len(_OFFICIAL) >= 32:
             _OFFICIAL.clear()
-        _OFFICIAL[key] = answer
+        _OFFICIAL[key] = (answer, time.monotonic() + PASSING_SECONDS if answer[1] in PASSING else None)
     return answer
 
 
