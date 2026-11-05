@@ -227,6 +227,20 @@ class ProbeTests(unittest.TestCase):
         self.assertEqual(self.run_probe(measure._mprofile, dict(good, profile_given=False))[0], Verdict.BLOCKED)
         self.assertEqual(self.run_probe(measure._mprofile, {"store_word": "not_file"})[0], Verdict.BLOCKED)
         self.assertEqual(self.run_probe(measure._mprofile, None)[0], Verdict.BLOCKED)
+        unseen = self.run_probe(measure._mprofile, dict(good, app_unchanged=None))
+        self.assertEqual(unseen[0], Verdict.BLOCKED, "no app seen, no pass (A-M4)")
+        self.assertEqual(self.run_probe(measure._mprofile, dict(good, app_unchanged=None, real_file_unchanged=False))[0],
+                         Verdict.FAIL, "a changed real file still fails")
+
+    def test_mprofile_pictures_the_real_home_right_around_the_saved_read(self):
+        """A-R3: fails with `before` taken ahead of the probe's own read on the real home or the sign-in."""
+        import inspect
+        source = inspect.getsource(measure._profile_read)
+        last = source.rindex("read = swap.read_profile(")
+        self.assertLess(source.index("current = signed_in()"), source.index("before, app = stat(), main()"))
+        self.assertLess(source.index("swap.add_by_login("), source.index("before, app = stat(), main()"))
+        self.assertLess(source.index("before, app = stat(), main()"), last)
+        self.assertLess(last, source.index("after, app_after = stat(), main()"))
 
     def test_mswap(self):
         good = {"store_word": "usable", "profiles_given": True, "swapped": True, "signed_in_as_target": True,
@@ -244,6 +258,10 @@ class ProbeTests(unittest.TestCase):
         self.assertEqual(self.run_probe(measure._mswap, dict(good, signed_in_as_first=False))[0], Verdict.FAIL)
         self.assertEqual(self.run_probe(measure._mswap, dict(good, first_usage_read=False))[0], Verdict.FAIL)
         self.assertEqual(self.run_probe(measure._mswap, dict(good, swapped=False))[0], Verdict.BLOCKED)
+        stuck = self.run_probe(measure._mswap, dict(good, swapped_back=False, signed_in_as_first=None,
+                                                    first_usage_read=None))
+        self.assertEqual(stuck[0], Verdict.BLOCKED)
+        self.assertIn("still signed in as the other account", stuck[2], "A-M5: the person is told where Codex is")
 
 
 class LookTests(unittest.TestCase):

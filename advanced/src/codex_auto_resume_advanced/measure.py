@@ -2876,6 +2876,9 @@ def _mprofile(ctx):
     if observed["profile_given"] is not True:
         return _blocked("no other account of yours was saved: run mprofile again and sign in in the browser with "
                         "another account of your own when Codex's page opens", **observed)
+    if observed["app_unchanged"] is None and observed["real_file_unchanged"] is not False:
+        return _blocked("the Codex app was not running, or its process could not be read, so nothing shows it was left "
+                        "alone: open Codex, then run mprofile again", **observed)
     if False in (observed["real_file_unchanged"], observed["app_unchanged"], observed["real_still_signed_in"]):
         return (Verdict.FAIL, observed, "a read on a saved account changed the real Codex home, the running app or the "
                 "account signed in")
@@ -2911,6 +2914,9 @@ def _mswap(ctx):
                 "first account's sign-in no longer works after coming back")
     if observed["swapped_back"] is True and observed["first_usage_read"] is False:
         return Verdict.FAIL, observed, "after coming back, the first account's usage could not be read"
+    if observed["signed_in_as_target"] is True and observed["swapped_back"] is not True:
+        return _blocked("the switch back did not happen: Codex is still signed in as the other account; switch back "
+                        "on the Saved accounts card or run mswap again", **observed)
     if observed["looked"] is not True:
         return _blocked("no one said they had looked at the other account before the switch back; confirm only what "
                         "you saw, or run mswap again and look at Settings > Account after the first restart", **observed)
@@ -3375,13 +3381,13 @@ def _profile_read(backend, paths, home):
             rows = pairing.inventory()
             return pairing._app_main(rows)["pid"] if pairing.app_running(rows) else None
         except Exception:
-            return "unknown"
+            return None                                 # not read: no proof the app is unchanged (A-M4)
 
     def signed_in():
         with session_for(home) as session:
             return identity(parse(session.call("account/read", {})))
     store = Profiles(paths.home)
-    before, app, current = stat(), main(), signed_in()
+    current = signed_in()
     if current is None:
         return found
 
@@ -3393,10 +3399,16 @@ def _profile_read(backend, paths, home):
     listed = others()
     if not listed:
         return dict(found, profile_given=False)
+    # The real home pictured right before the saved account's read and again right after it - not before this probe's
+    # own read on the real home or the minutes a sign-in in the browser takes, when Codex may refresh its own tokens
+    # (the v0.6.23 audit's A-R3: that was a false FAIL waiting to happen).
+    before, app = stat(), main()
     read = swap.read_profile(paths, store, listed[0], session_for=session_for)
+    after, app_after = stat(), main()
     return dict(found, profile_given=True, account_read=read["present"] is True, own_account=read["own"] is True,
-                usage_read=read["available"] is not None, real_file_unchanged=stat() == before,
-                app_unchanged=main() == app, real_still_signed_in=signed_in() == current)
+                usage_read=read["available"] is not None, real_file_unchanged=after == before,
+                app_unchanged=(app_after == app) if app is not None and app_after is not None else None,
+                real_still_signed_in=signed_in() == current)
 
 
 # MSWAP waits between its two switches, so the person can open Settings > Account and see the other account signed in:
