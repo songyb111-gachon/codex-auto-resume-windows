@@ -11,16 +11,18 @@ from __future__ import annotations
 from pathlib import Path
 import sys
 import unittest
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import advancedcase as ac  # noqa: E402
 from codex_auto_resume_advanced import arming, autocheck, compatdata, registry  # noqa: E402
 from codex_auto_resume_advanced.measured import MEASURED  # noqa: E402
+from codex_auto_resume_advanced.runtime import Runtime  # noqa: E402
 from codex_auto_resume_advanced.vocabulary import (TRIPWIRES, ArmingState, ArmingWarning, AutoResult, CheckGrade,  # noqa: E402
                                                    CheckReach, KEPT_NOTICES, Measurement, OffReason, Verdict)
 
-HERE = "codex-cli 0.166.0-alpha.6"
+HERE = "codex-cli 0.199.0"                    # the next Codex: one no person has measured, whatever this build's table holds
 EARLIER = "codex-cli 0.163.0-alpha.10.2"
 OLDER = "codex-cli 0.162.0-alpha.17.2"
 P, F, U = AutoResult.PASS, AutoResult.FAIL, AutoResult.UNKNOWN
@@ -188,13 +190,6 @@ class ShippedTests(unittest.TestCase):
         self.assertEqual(graded["goal_continuation"], CheckGrade.FAILED_STILL_OFFERED)
         self.assertEqual(graded["steer_send"], CheckGrade.FAILED)
 
-    def test_it_never_lets_a_hidden_capability_out(self):
-        """registry.offered reads the table it is given, and the automatic answer is never in that table."""
-        before = registry.offered(MEASURED)
-        table = dict(MEASURED)
-        self.assertEqual(registry.offered(table), before)
-        self.assertNotIn("stop_hook_continuation", {definition.id for definition in before})
-
 
 class RecordCase(ac.AdvancedCase):
     def setUp(self):
@@ -354,11 +349,49 @@ class NeverAMeasurementTests(RecordCase):
         self.assertIsNone(made.arming.verdict(Measurement.M6), "a narrowed route stays narrowed until a person measures")
         self.assertEqual(made.arming.checked(), {Measurement.M6: AutoResult.PASS})
 
+    def every_row_passes(self):
+        self.found(**{str(measurement): "pass" for measurement, row in autocheck.CHECKS.items()
+                      if row.reach != CheckReach.NONE})
+
+    def real_arming(self):
+        """An Arming with no table handed in: the one the product has, this build's table with the data in force."""
+        made = Runtime(self.paths, **dict(self.options(), measured=None))
+        self.addCleanup(made.state.close)
+        return made.arming
+
+    def test_it_never_lets_a_hidden_capability_out(self):
+        """Three of the four hidden capabilities rest only on rows the check passes or on no record at all, so an automatic
+        pass in any table handed to registry.offered, or read by it, would let them out."""
+        self.every_row_passes()
+        table = self.real_arming().measured(self.compat)
+        self.assertEqual({definition.id for definition in registry.offered(table)},
+                         {definition.id for definition in registry.offered(MEASURED)})
+        hidden = {"codex_retry_settings", "account_auto_switch", "stop_hook_continuation"}
+        self.assertFalse(hidden & {definition.id for definition in registry.offered(table)})
+        with mock.patch.object(autocheck, "results_for", side_effect=AssertionError("the registry read the check")):
+            self.assertEqual({definition.id for definition in registry._registry()},
+                             {definition.id for definition in registry.REGISTRY})
+        source = Path(registry.__file__).read_text(encoding="utf-8")
+        self.assertNotRegex(source, r"import[^\n]*autocheck|autocheck\.", "the registry must not reach the check")
+
     def test_the_table_and_the_compatibility_data_do_not_hold_it(self):
-        self.found(m6="pass", m7="fail")
-        self.assertEqual(compatdata.table_for(self.paths, HERE), compatdata.table_for(None, HERE))
-        self.assertEqual(self.paths.advanced_dir / autocheck.FILE,
-                         autocheck._path(self.paths), "not in the data's own place, config/compat-advanced.json")
+        """No table a route or a surface reads gains a word of it, and it is written nowhere the data or a record lives."""
+        self.every_row_passes()
+        arming_ = self.real_arming()
+        self.assertEqual(compatdata.table_for(self.paths, HERE), dict(MEASURED))
+        self.assertEqual(arming_.measured(self.compat), dict(MEASURED))
+        for measurement in (Measurement.M6, Measurement.MU, Measurement.MHK):
+            self.assertNotEqual(arming_.verdict(measurement), "pass", measurement)
+        self.assertIsNone(compatdata.in_force(self.paths.state_dir))
+        # Exactly one file, in the edition's own folder: not the data's, its download's, or a measurement's.
+        written = autocheck._path(self.paths).resolve()
+        self.assertEqual(written, (self.home / "config" / "advanced" / "autocheck.json").resolve())
+        self.assertFalse([path.name for path in self.paths.state_dir.iterdir()
+                          if path.name.startswith("compat-advanced")])
+        self.assertEqual(list(self.home.rglob("measurement-*.json")), [])
+        # And were it ever put there, the data's reader would refuse it whole.
+        with self.assertRaises(compatdata.Refused):
+            compatdata.validate(written.read_bytes(), product=(9, 9, 9))
 
     def test_a_data_pass_for_this_engine_reads_as_measured(self):
         self.assertEqual(autocheck.grade((Measurement.M6,), HERE, {Measurement.M6: (Verdict.PASS, HERE)},
