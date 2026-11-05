@@ -810,6 +810,34 @@ class GoalStatus(StrEnum):
     COMPLETE = "complete"
 
 
+class AutoResult(StrEnum):
+    """What the automatic check found of one measurement's row, on one engine (autocheck.py). Not a verdict: a person's
+    verdict is never made of it, and it is kept apart from every record of theirs."""
+    PASS = "pass"
+    FAIL = "fail"
+    UNKNOWN = "unknown"                      # a type it asks about is not there: says nothing either way
+
+
+class CheckReach(StrEnum):
+    """How much of what a measurement asks the automatic check can answer (autocheck.CHECKS)."""
+    WHOLE = "whole"                          # all of it: a pass needs no person
+    PART = "part"                            # the calls: a pass carries a person's earlier pass forward, and says so
+    FAILS_ONLY = "fails_only"                # a call gone proves the route broken; its being there proves nothing
+    NONE = "none"                            # nothing: the app, a limit, a sign-in, a conversation, a person's eyes
+
+
+class CheckGrade(StrEnum):
+    """How a capability stands for the Codex in force, as a person is told it (autocheck.grade)."""
+    MEASURED = "measured"                    # measured by a person on this Codex
+    AUTO_CHECKED = "auto_checked"            # checked automatically on this Codex, no more than that
+    OFFERED_ONLY = "offered_only"            # still unmeasured: the calls are there, which cannot settle it
+    UNMEASURED = "unmeasured"
+    FAILED = "failed"
+    FAILED_STILL_OFFERED = "failed_still_offered"  # a person's fail stands, though the calls are still there
+    CHECK_FAILED = "check_failed"            # the automatic check found a call gone
+    NONE = "none"                            # it rests on no measurement
+
+
 class Verdict(StrEnum):
     """What a measurement found, in the live-acceptance record's own words (scripts/live_evidence)."""
     PASS = "pass"

@@ -96,6 +96,7 @@ from codex_auto_resume.domain.plug import (ALTERNATIVES, ANSWERS, DEFER, HOOKS, 
                                            RESTRICTIONS, TAKE_UP, Alternative, Point, RecordMove)
 from codex_auto_resume.domain.plughands import RECORDS_LIMIT, kinds_of, widening_of, workers
 
+from . import autocheck
 from .arming import Arming
 from .codex import headless
 from .engine import chat, foropen, sessions, silent
@@ -816,6 +817,7 @@ class Runtime:
         self._texted.clear()
         if not len(self.registry):
             return DEFER
+        self._auto_check()
         self.arming.sweep(view)
         states = self.states(fresh=True)
         errands = []
@@ -851,6 +853,14 @@ class Runtime:
             self._once(JournalCode.ACTED, definition, Point.TICK, Point.TICK, None)
             errands.append((definition, answer))
         return _Errands(self, errands) if errands else DEFER
+
+    def _auto_check(self) -> None:
+        """v0.6.22: the automatic compatibility check, where one is due for the engine the watcher told the plug
+        (autocheck.tend, which starts it and returns). Whatever it does, it costs the tick nothing."""
+        try:
+            autocheck.tend(self.paths, clock=self.clock)
+        except Exception:
+            pass
 
     def records(self, view):
         """P2: the records of this edition's own that core is to try, or to watch (v0.6.14): every message in
