@@ -119,8 +119,8 @@ class StaticTests(unittest.TestCase):
 
     def test_the_shortcut_to_the_interpreter_carries_the_option(self):
         text = (ROOT / "src" / "codex_auto_resume" / "commands" / "install.py").read_text(encoding="utf-8")
-        call = text[text.index("shortcut.install(target=startup.python_launcher()") - 400:
-                    text.index("shortcut.install(target=startup.python_launcher()")]
+        call = text[text.index('"target": startup.python_launcher()') - 400:
+                    text.index('"target": startup.python_launcher()')]
         self.assertIn("*startup.NO_REMOTE_DEBUG, str(target)", call)
 
     def test_every_python_exe_the_window_and_the_mcp_launcher_start_is_given_the_option_first(self):

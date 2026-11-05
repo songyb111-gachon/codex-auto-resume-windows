@@ -102,7 +102,7 @@ The Codex processes it starts (`codex app-server`, `codex queue`) may also updat
 and caches, as any Codex process does.
 
 **Writes** at install time, for the current user only and never system-wide: a Start Menu
-shortcut, the sign-in autostart value unless you decline it, the notification sender identity
+shortcut, a shortcut on the Desktop only if you asked for one, the sign-in autostart value unless you decline it, the notification sender identity
 Windows requires before it will draw a toast at all, and the handler for the notification
 button's own URL scheme, and, from v0.6.16, the entry in Windows' Add or remove programs: one per-user key
 under `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall` (`CodexAutoResume`; the other edition's adds its
@@ -808,7 +808,9 @@ under.
 - **Uninstalling: registry and Start Menu.** The sign-in entry, the notification identity, the
   Start Menu shortcut, the `codex-auto-resume:` handler and the Add or remove programs entry are per-user singletons that a second
   installation would overwrite, so each is removed only when it still belongs to the
-  installation being removed.
+  installation being removed. A shortcut on the Desktop is no singleton of ours, since the Desktop is yours: it is
+  replaced or removed only when its file name is exact and its target is inside the installation, and any other is
+  left alone.
 
 Uninstall first asks a running watcher to stop through its stop event. If a watcher is still
 running, or if it cannot verify whether one is running, uninstall aborts before removing anything

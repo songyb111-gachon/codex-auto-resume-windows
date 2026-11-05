@@ -4,6 +4,8 @@ setlocal
 title Codex Auto Resume - install
 rem -Silent (winget, a script): nothing is asked and nothing waits for a key. Every line, and
 rem every exit code, is as it is without it; it is passed on to install.ps1 with the rest.
+rem -DesktopShortcut adds a shortcut on the Desktop, and -NoDesktopShortcut removes this installation's; with neither,
+rem as winget runs it, the Desktop is left as it is.
 set "SILENT="
 for %%A in (%*) do if /i "%%~A"=="-Silent" set "SILENT=1"
 "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0install\install.ps1" %*

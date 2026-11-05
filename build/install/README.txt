@@ -18,6 +18,9 @@ registers belongs to your user account only.
 Re-run Install.cmd to update or repair; your settings and anything waiting to be
 recovered are kept.
 
+To add a shortcut on your Desktop, run Install.cmd with -DesktopShortcut. With
+-NoDesktopShortcut it removes this installation's. With neither, it stays as it is.
+
 Uninstall.cmd removes the program but keeps your settings. To remove those too,
 run it with -Purge.
 

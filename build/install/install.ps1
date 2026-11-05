@@ -21,6 +21,8 @@ param(
     [switch]$Purge,              # with -Uninstall: also delete settings, state and logs
     [switch]$AllowEditionChange, # replace the installed edition with this archive's other one
     [switch]$Silent,             # for Install.cmd and Uninstall.cmd, which ask nothing and wait for no key with it
+    [switch]$DesktopShortcut,    # make this installation's shortcut on the Desktop; with neither, it is left as it is
+    [switch]$NoDesktopShortcut,  # remove it, if it is this installation's
     [string]$PluginName      = 'codex-auto-resume',
     [string]$MarketplaceName = 'codex-auto-resume-windows'
 )
@@ -300,7 +302,13 @@ function Resolve-OutsideRun {
 }
 # <<< the outside gate
 
-$outsideSwitches = @(foreach ($name in 'SkipStartup', 'Uninstall', 'Purge', 'AllowEditionChange', 'Silent') {
+if ($DesktopShortcut -and $NoDesktopShortcut) {
+    Fail '-DesktopShortcut and -NoDesktopShortcut ask for opposite things; nothing was changed.'
+    exit 1
+}
+
+$outsideSwitches = @(foreach ($name in 'SkipStartup', 'Uninstall', 'Purge', 'AllowEditionChange', 'Silent',
+                                       'DesktopShortcut', 'NoDesktopShortcut') {
     if (Get-Variable -Name $name -ValueOnly) { $name }
 })
 $outsideCode = Resolve-OutsideRun -Script $PSCommandPath -Switches $outsideSwitches `
@@ -1009,6 +1017,25 @@ function Invoke-Setup {
     try { & $Python -X disable-remote-debug $setup @Arguments | ForEach-Object { Write-Host ('    ' + $_) } }
     finally { if ($counted) { $env:CODEX_AUTO_RESUME_PROGRESS_LINES = $null } }
     return $LASTEXITCODE
+}
+
+function Set-DesktopShortcut {
+    <#
+        The shortcut on the Desktop, where this run was asked about it: the setup window's box, or -DesktopShortcut and
+        -NoDesktopShortcut. Asked about nothing - -Silent alone, as winget runs it, and every update - it is left as it
+        is. Either way it decides nothing: one that cannot be written is said (InstallerFlow reads these two lines for
+        the Finish page), and the run goes on and ends as it would have.
+    #>
+    if (-not $DesktopShortcut -and -not $NoDesktopShortcut) { return }
+    $word = if ($DesktopShortcut) { 'make' } else { 'remove' }
+    try { $code = Invoke-Setup @('desktop-shortcut', $word) } catch { $code = 1 }
+    if ($code -eq 0) {
+        if ($DesktopShortcut) { Ok 'The shortcut on the Desktop is there' } else { Ok 'No shortcut of this installation is on the Desktop' }
+    } elseif ($code -eq 3) {
+        Warn 'Another shortcut with the same name is on the Desktop. It was left as it is, and none was made.'
+    } else {
+        Warn 'The desktop shortcut could not be changed. Everything else went on as usual.'
+    }
 }
 
 function Install-KeptUninstaller {
@@ -2089,6 +2116,8 @@ try {
         }
         exit 1
     }
+
+    Set-DesktopShortcut
 
     Step 'Checking the installation'
     $null = Invoke-Setup @('doctor')

@@ -52,6 +52,7 @@ GUID_ALLOWLIST = {"gui/app.manifest",
                   "gui/HostApp.cs",
                   "build/setup/setup.manifest",
                   "src/codex_auto_resume/shortcut.py",
+                  "build/smoke_archive.py",
                   "src/codex_auto_resume/notify.py",
                   "advanced/src/codex_auto_resume_advanced/measure.py",
                   # Windows' published power-setting GUIDs (the sleep subgroup and Allow wake timers), read by

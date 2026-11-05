@@ -14,9 +14,14 @@ artefact serves both purposes.
 The shortcut is written through the shell's own COM interfaces, driven from PowerShell
 because setting ``System.AppUserModel.ID`` needs ``IPropertyStore`` and there is no
 supported way to attach it with a plain .lnk writer.
+
+The setup window also offers one on the Desktop, off unless a person ticks it (the owner, 2026-11-05). It is the same
+shortcut in a second place, but not a singleton of ours: the Desktop is the person's, and a shortcut there with our
+name may be theirs. So nothing here writes over or removes one unless its target is inside this installation.
 """
 from __future__ import annotations
 
+import ctypes
 import os
 from pathlib import Path
 import subprocess
@@ -25,6 +30,11 @@ from . import pwsh
 
 SHORTCUT_NAME = "Codex Auto Resume.lnk"
 TIMEOUT_SECONDS = 60
+
+# Where the Desktop shortcut goes instead of the person's Desktop: what a smoke run or a test sets, as they point APPDATA
+# for the Start Menu entry. Windows' known folder ignores a scratch USERPROFILE, so without it there is no scratch Desktop.
+DESKTOP_ENV = "CODEX_AUTO_RESUME_DESKTOP"
+FOLDERID_DESKTOP = "{B4BFCC3A-DB2C-424C-B029-7FE99A87C641}"
 
 # PKEY_AppUserModel_ID = {9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3}, 5
 _MAKER = r"""
@@ -97,6 +107,17 @@ namespace CodexAutoResumeShell {
 [CodexAutoResumeShell.Maker]::Create($env:CODEX_AUTO_RESUME_ARG_LNK, $env:CODEX_AUTO_RESUME_ARG_TARGET, $env:CODEX_AUTO_RESUME_ARG_ARGS, $env:CODEX_AUTO_RESUME_ARG_WORKDIR, $env:CODEX_AUTO_RESUME_ARG_ICON, $env:CODEX_AUTO_RESUME_ARG_AUMID, $env:CODEX_AUTO_RESUME_ARG_DESC)
 """
 
+# Reads a shortcut, and saves nothing: whether its target is inside the installation (0) or not (3). 4: it has no target.
+_READER = r"""
+$ErrorActionPreference = 'Stop'
+$shell = New-Object -ComObject WScript.Shell
+$target = $shell.CreateShortcut($env:CODEX_AUTO_RESUME_ARG_LNK).TargetPath
+if ([string]::IsNullOrEmpty($target)) { exit 4 }
+$root = [IO.Path]::GetFullPath($env:CODEX_AUTO_RESUME_ARG_ROOT).TrimEnd('\') + '\'
+if ([IO.Path]::GetFullPath($target).StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) { exit 0 }
+exit 3
+"""
+
 
 class ShortcutError(RuntimeError):
     """Static reason only; never includes a shell transcript."""
@@ -122,14 +143,18 @@ def install(target, arguments="", icon=None, aumid=None, description="Codex Auto
     """Create or replace our Start Menu shortcut. Returns True when written."""
     if pwsh.executable() is None:
         raise ShortcutError("PowerShell is unavailable; cannot create the Start Menu entry")
-    if aumid is None:
-        from .startup import AUMID
-        aumid = AUMID
     destination = shortcut_path()
     try:
         destination.parent.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
         raise ShortcutError("Cannot create the Start Menu folder") from exc
+    return _write(destination, target, arguments, icon, aumid, description, "the Start Menu entry")
+
+
+def _write(destination, target, arguments, icon, aumid, description, what) -> bool:
+    if aumid is None:
+        from .startup import AUMID
+        aumid = AUMID
     # Paths come from the install location, which can contain any character the user's
     # profile name does - an apostrophe included. They are passed beside the constant
     # script, never inside it; see pwsh.py for why quoting them was not enough.
@@ -145,9 +170,9 @@ def install(target, arguments="", icon=None, aumid=None, description="Codex Auto
     try:
         code = pwsh.run(_MAKER, values, timeout=TIMEOUT_SECONDS)
     except (OSError, subprocess.SubprocessError, pwsh.PowerShellError) as exc:
-        raise ShortcutError("Cannot create the Start Menu entry") from exc
+        raise ShortcutError("Cannot create %s" % what) from exc
     if code != 0 or not destination.is_file():
-        raise ShortcutError("The Start Menu entry could not be written")
+        raise ShortcutError("%s could not be written" % (what[0].upper() + what[1:]))
     return True
 
 
@@ -161,3 +186,90 @@ def uninstall() -> bool:
     except OSError:
         pass
     return False
+
+
+class DesktopTaken(ShortcutError):
+    """A shortcut with our name is on the Desktop, and it is not ours. It stays as it is."""
+
+
+def desktop_dir() -> Path | None:
+    """The person's Desktop, where Windows says it is: a Desktop redirected to OneDrive is there, never under
+    %USERPROFILE%. None where Windows cannot say."""
+    given = os.environ.get(DESKTOP_ENV)
+    if given:
+        return Path(given)
+    if os.name != "nt":
+        return None
+    try:
+        ole32 = ctypes.WinDLL("ole32")
+        shell32 = ctypes.WinDLL("shell32")
+        folder = (ctypes.c_ubyte * 16)()
+        if ole32.CLSIDFromString(FOLDERID_DESKTOP, ctypes.byref(folder)) != 0:
+            return None
+        path = ctypes.c_wchar_p()
+        if shell32.SHGetKnownFolderPath(ctypes.byref(folder), 0, None, ctypes.byref(path)) != 0:
+            return None
+        try:
+            return Path(path.value) if path.value else None
+        finally:
+            ole32.CoTaskMemFree(path)
+    except (OSError, ValueError, AttributeError):
+        return None
+
+
+def desktop_path() -> Path | None:
+    folder = desktop_dir()
+    return None if folder is None else folder / SHORTCUT_NAME
+
+
+def _present(link: Path) -> bool:
+    try:
+        return os.path.lexists(link)
+    except OSError:
+        return False
+
+
+def _inside(link: Path, home) -> bool:
+    """Whether the shortcut `link` opens something inside the installation at `home`. Asked of the shell, which reads
+    it and saves nothing. Raises ShortcutError where it cannot be told, which is never an answer of yes."""
+    if not link.is_file() or link.is_symlink():
+        return False
+    try:
+        code = pwsh.run(_READER, {"LNK": link, "ROOT": Path(home).resolve()}, timeout=TIMEOUT_SECONDS)
+    except (OSError, subprocess.SubprocessError, pwsh.PowerShellError) as exc:
+        raise ShortcutError("The shortcut on the Desktop could not be read") from exc
+    if code in (0, 3, 4):
+        return code == 0
+    raise ShortcutError("The shortcut on the Desktop could not be read")
+
+
+def install_desktop(home, target, arguments="", icon=None, aumid=None, description="Codex Auto Resume") -> bool:
+    """Create or replace this installation's shortcut on the Desktop. Raises DesktopTaken where another shortcut has
+    the name, and ShortcutError where it cannot be written; what it opens must be inside the installation, or it
+    would not be ours to remove afterwards."""
+    root = Path(home).resolve()
+    if root not in Path(target).resolve().parents:
+        raise ShortcutError("What the Desktop shortcut would open is not inside this installation")
+    link = desktop_path()
+    if link is None:
+        raise ShortcutError("Windows did not say where the Desktop is")
+    if _present(link) and not _inside(link, root):
+        raise DesktopTaken("Another shortcut with this name is on the Desktop")
+    if pwsh.executable() is None:
+        raise ShortcutError("PowerShell is unavailable; cannot create the Desktop shortcut")
+    if not link.parent.is_dir():
+        raise ShortcutError("The Desktop folder is not there")
+    return _write(link, target, arguments, icon, aumid, description, "the Desktop shortcut")
+
+
+def uninstall_desktop(home) -> bool:
+    """Remove the shortcut on the Desktop if it is this installation's, and nothing else. Idempotent. Raises
+    ShortcutError where it is there and could not be read or removed."""
+    link = desktop_path()
+    if link is None or not _present(link) or not _inside(link, home):
+        return False
+    try:
+        link.unlink()
+    except OSError as exc:
+        raise ShortcutError("The Desktop shortcut could not be removed") from exc
+    return True
