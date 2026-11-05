@@ -519,7 +519,7 @@ class PeerTests(FleetCase):
         self.put("fleet-123.tmp", b"x")
         self.assertEqual(fleet.read_peers(str(self.folder), "laptop"), ([], 0, 0))
 
-    def test_ignored_files_are_counted_in_the_journal_once_each_not_each_pass(self):
+    def test_ignored_files_are_told_once_not_each_pass(self):
         self.on()
         self.save()
         self.put("bad-1.json", b"{")
@@ -528,7 +528,35 @@ class PeerTests(FleetCase):
         self.look(after=fleet.EVERY)
         self.look(after=fleet.EVERY)
         self.look(after=fleet.EVERY)
-        self.assertEqual(self.journal().count("fleet.ignored"), 2)
+        self.assertEqual(self.journal().count("fleet.ignored"), 1)
+
+    def test_a_thousand_junk_files_coming_and_going_write_one_line_an_hour_and_hold_no_tick(self):
+        """F1 (security review 2026-11-06): with one line for each file, 1,000 junk files added and removed every ten
+        minutes wrote 1,000 lines a cycle, held the tick 6-9 s, and erased the 5,000-row journal within an hour. Fails with
+        the line for each file put back."""
+        import time
+        self.on()
+        self.save()
+        self.look()
+        self.look(after=1)
+        before = len(self.rt.state.journal(limit=5000))
+        slowest = 0.0
+        for _cycle in range(6):
+            for index in range(1000):
+                self.put("junk%04d.json" % index, b"{}")
+            self.look(after=fleet.EVERY + 1)
+            started = time.perf_counter()
+            self.look(after=1)
+            slowest = max(slowest, time.perf_counter() - started)
+            for path in self.folder.glob("junk*.json"):
+                path.unlink()
+            self.look(after=fleet.EVERY + 1)
+            self.look(after=1)
+        told = self.journal().count("fleet.ignored")
+        self.assertLessEqual(told, 2, "one line an hour at most, whatever the count")
+        self.assertGreaterEqual(told, 1)
+        self.assertLess(len(self.rt.state.journal(limit=5000)) - before, 20)
+        self.assertLess(slowest, 1.0, "the tick that takes a pass up writes a few rows, never one for each file")
 
     def test_the_bridge_answers_only_checked_words_and_bounded_numbers(self):
         self.on()

@@ -53,6 +53,9 @@ CLOCK_SLACK = 10 * 60
 # How far on a peer's next check is shown: a usage window is at most a week, and a later time says nothing.
 NEXT_MOST = 8 * 24 * 60 * 60
 PENDING_MOST = 100000
+# How often files ignored are told to the journal, at most: one line, whatever their count (a folder of a thousand junk
+# files added and removed again and again wrote a line for each, and took the watcher's tick seconds to write them).
+IGNORED_EVERY = 60 * 60
 VERSION_MOST = 32
 
 # What a pass came to, the word the Dashboard says. Each but OK and UNSET is stamped, by its place + 1.
@@ -349,7 +352,7 @@ class _Errand:
 class FleetView:
     """fleet_view's code: its P8 errand. `status` and `spawn` are the seams a test fills: what is written, and how a pass
     is run. What a pass came to is taken up by the next tick, which alone writes to the state."""
-    __slots__ = ("paths", "_scoped", "_status", "_spawn", "_worker", "_came_to", "_word", "_ignored")
+    __slots__ = ("paths", "_scoped", "_status", "_spawn", "_worker", "_came_to", "_word", "_ignored", "_ignored_told")
 
     def __init__(self, paths, *, status=None, spawn=None):
         self.paths = paths
@@ -360,6 +363,7 @@ class FleetView:
         self._came_to = None
         self._word = None
         self._ignored = 0
+        self._ignored_told = None
 
     def bind(self, scoped):
         self._scoped = scoped
@@ -412,8 +416,9 @@ class FleetView:
         self._came_to = (word, ignored, wrote)
 
     def _take_up(self):
-        """What the last pass came to, into the stamps and the journal: one line when the word changes, and one for each
-        file more than were ignored last time - so a folder that stays gone, or a bad file that stays, says so once."""
+        """What the last pass came to, into the stamps and the journal: one line when the word changes, and one line when
+        files are ignored where none or fewer were, at most once an hour whatever their count - so a folder that stays gone,
+        a bad file that stays, or a thousand that come and go, say so once and cost the tick one write."""
         came_to, self._came_to = self._came_to, None
         if came_to is None:
             return
@@ -428,8 +433,11 @@ class FleetView:
         if word != self._word:
             self._word = word
             scoped.count(WROTE if word == OK else REFUSED if word in REFUSALS or word == NOT_OURS else WAITING)
-        for _more in range(max(0, ignored - self._ignored)):
-            scoped.count(IGNORED)
+        if ignored > self._ignored:
+            now = scoped.now()
+            if self._ignored_told is None or not 0 <= now - self._ignored_told < IGNORED_EVERY:
+                self._ignored_told = now
+                scoped.count(IGNORED)
         self._ignored = ignored
 
 
