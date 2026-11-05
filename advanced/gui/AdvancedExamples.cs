@@ -381,6 +381,15 @@ namespace CodexAutoResume
                          Says(f => f.Word("page.powertasks.line", "{conversation} · {end}", "conversation", ExampleService)
                                     .Replace("{end}", f.PowerTaskEnd("running"))),
                          Says(f => f.PowerWaitLine("tasks_running")))),
+                // v0.6.22: the loopback API: a browser or a script reads what the Dashboard shows.
+                Ex("local_api",
+                   Scene(Says(f => f.ExampleField("local_api", "instead"))),
+                   Scene(OnPending(Due(Rec(ExampleProject, "scheduled", "usage_limit", Detected, 0), Ahead)),
+                         Says(f => f.Word("page.api.address", "Address: {url}", "url", "http://127.0.0.1:47615/")),
+                         Says(f => f.Word("page.api.word.running", "running") + " · task 1"))),
+                Ex("local_api_actions",
+                   Scene(OnPending(Due(Rec(ExampleProject, "scheduled", "usage_limit", Detected, 0), Ahead))),
+                   Scene(Says(f => f.Word("page.api.example.cancelled", "POST /cancel/1: task 1 is cancelled.")))),
                 // Hidden on the page until MHK, M4 and M4B are measured: its example waits with it.
                 Ex("stop_hook_continuation",
                    Scene(OnHistory(Rec(ExampleProject, "recovered", "network_transient", -60, -44)),

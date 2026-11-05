@@ -714,6 +714,12 @@ namespace CodexAutoResume
                 MethodInvoker after = done;
                 done = delegate { ReadAccounts(after); };
             }
+            // v0.6.22: the loopback API's address and token (AdvancedRemote.cs) - asked only while it is on or watched.
+            if (id == ApiId && Standing(item))
+            {
+                MethodInvoker after = done;
+                done = delegate { ReadApi(after); };
+            }
             // v0.6.16-beta.4: the wrap-up's own wordings (AdvancedUsage.cs).
             if (id == WrapUpId)
             {
@@ -955,7 +961,8 @@ namespace CodexAutoResume
                            (IsReport(item) ? ReportShown() : "") + "|" +
                            ResetsShown(item) + "|" + KeepGoingShown(item) + "|" + QueueShown(item) + "|" +
                            WordingsShown(item) + "|" + RunsShown(item) + "|" + CourierShown(item) + "|" + AnalyticsShown(item)
-                           + "|" + AnchorShownText(item) + "|" + AccountShown(item) + "|" + PowerTasksShown(item) + "|" + AccountsShown(item);
+                           + "|" + AnchorShownText(item) + "|" + AccountShown(item) + "|" + PowerTasksShown(item) + "|" + AccountsShown(item)
+                           + "|" + RemoteShown(item);
             if (shown == advancedShown)
             {
                 UpdateAdvancedButtons();
@@ -988,6 +995,7 @@ namespace CodexAutoResume
             ForgetQueueCard();
             ForgetPowerTasksCard();
             ForgetAccountsCard();
+            ForgetRemoteCard();
             if (item == null)
             {
                 TableLayoutPanel card = NewGroup(Word("page.nav", "Advanced features"), advancedStack);
@@ -1151,6 +1159,8 @@ namespace CodexAutoResume
             BuildPowerTasks(item);
             // v0.6.22: the saved accounts the automatic switch moves between, and their buttons (AdvancedAccounts.cs).
             BuildAccounts(item);
+            // v0.6.22: the loopback API's address and token (AdvancedRemote.cs).
+            BuildRemote(item);
 
             // Its own choices, the rules a person writes for Codex's error codes and the samples of what nothing classified,
             // each only for a capability that has them - the last two once they have been read.
@@ -1658,6 +1668,7 @@ namespace CodexAutoResume
             UpdateAccountButtons(idle);
             UpdatePowerTasksButtons(idle);
             UpdateAccountsButtons(idle);
+            UpdateRemoteButtons(idle);
             UpdateReportButtons();
         }
 

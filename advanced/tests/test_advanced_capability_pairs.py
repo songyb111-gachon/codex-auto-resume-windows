@@ -948,6 +948,36 @@ class CourierBesideEveryCapabilityTests(ac.AdvancedCase):
                 self.assertNotIn(Point.NOTICE, definition.points)
 
 
+class RemoteBesideEveryCapabilityTests(ac.AdvancedCase):
+    """COMPOSE, none needed (v0.6.22, D-remote.md): the loopback API only observes, and what widens it only reduces. It
+    answers at no point that decides or sends: P8's errand only starts its process, the other two answer at none. A pause
+    or a cancel through it is core's own, as a person's in the Dashboard is, so with it on beside any other capability,
+    every answer the other gives at every point is the one it gives alone."""
+
+    def test_they_answer_at_no_deciding_point(self):
+        from codex_auto_resume_advanced.registry import LOCAL_API, LOCAL_API_ACTIONS, LOCAL_API_LAN
+        self.assertEqual(LOCAL_API.points, frozenset({Point.TICK}))
+        self.assertEqual((LOCAL_API_ACTIONS.points, LOCAL_API_LAN.points), (frozenset(), frozenset()))
+
+    def test_beside_every_shipped_capability_only_p8_is_shared_and_the_wake_timer_stays_last(self):
+        from codex_auto_resume_advanced import registry as shipped
+        from codex_auto_resume_advanced.registry import LOCAL_API
+        for definition in shipped.DEFINITIONS:
+            if definition.id != LOCAL_API.id:
+                with self.subTest(definition.id):
+                    self.assertLessEqual(LOCAL_API.points & definition.points, frozenset({Point.TICK}))
+        ticking = [definition.id for definition in shipped.DEFINITIONS if Point.TICK in definition.points]
+        self.assertEqual(ticking[-1], "wake_for_reset")
+
+    def test_its_errand_keeps_nothing_another_capability_reads(self):
+        """What it writes is its own journal lines: no record, no claim, no spend, no due time another's errand reads."""
+        import inspect
+        from codex_auto_resume_advanced.engine import remote
+        source = inspect.getsource(remote)
+        for word in ("claim", "dispatch", "spend", "records", "continuations", "prompts", "resets"):
+            self.assertNotIn(word, source)
+
+
 # ---------------------------------------------------------------- v0.6.20: account_switch (plans/v0619-design/D-account.md)
 class AccountBesideResetsAndPauseTests(UsageCase):
     """account_switch beside reset_credit, reset_message and usage_pause: COMPOSE, each still doing its own. Another

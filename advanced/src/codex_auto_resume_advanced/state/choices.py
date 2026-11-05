@@ -224,6 +224,9 @@ class Scoped:
             # v0.6.20 (the pair audit, V20-2): another capability's stamp read, never written - as `options_of` reads its
             # choices (window_anchor reads when account_switch saw another account).
             "stamped_of": lambda other, key: state.stamped(other, key),
+            # v0.6.22 (the resident courier, engine/remote.py): when a capability journalled one of its own words - read,
+            # never written - so a cap on starts outlives the watcher that made them.
+            "journal_times": lambda other, word, since: state.journal_times(other, word, since),
         }
         # v0.6.14, the reset actions: their rules, windows and spends (state/resets.ResetsHandle - writes only while
         # on), whether a measurement passed or failed on the Codex in force (arming.Arming.verdict), and whether

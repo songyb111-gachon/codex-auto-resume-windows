@@ -1,6 +1,6 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
 """The courier process: `pythonw.exe -m codex_auto_resume_advanced.courier --home <home> [--feed | --test <channel> |
---pair]`.
+--pair | --serve]`.
 
 It takes this home's courier mutex first - a second courier for the same home exits at once with EXIT_BUSY, and one
 whose mutex a lower-integrity process made first is refused (core's win/sync.Mutex, E12) - then does one round and
@@ -12,7 +12,9 @@ exits:
 * `--test <channel>`, the fixed test notice on one channel, now, its outcome as the exit code (EXIT_TEST), for the
   Dashboard's Send a test - while push_notices is on or watched;
 * `--pair`, Telegram's pairing: up to PAIR_SECONDS of reading the bot's messages for the one-time code the Dashboard
-  showed, keeping the chat that sent it (channels.pair).
+  showed, keeping the chat that sent it (channels.pair);
+* `--serve` (v0.6.22, D-remote.md), the resident role - the loopback API - for as long as local_api stands on
+  (resident.py), under the resident's own mutex, not this one: a resident never holds a notice or a pairing back.
 
 Exit codes: 0 done, 3 busy, 4 refused (arguments, a home or a state that cannot be used, a capability not standing on
 or a channel not saved); a test's, per EXIT_TEST; 9 a pairing that found no code. Nothing is printed: pythonw has
@@ -33,14 +35,14 @@ FEED = "status_feed"
 
 def parse(argv):
     """{"home", "mode", "channel"} from `argv`, or None for anything else: exactly `--home <path>` and at most one of
-    `--feed`, `--test <channel>`, `--pair`."""
+    `--feed`, `--test <channel>`, `--pair`, `--serve`."""
     from ..vocabulary import CourierChannel
     argv, found = list(argv), {"home": None, "mode": "drain", "channel": None}
     while argv:
         word = argv.pop(0)
         if word == "--home" and argv and found["home"] is None:
             found["home"] = argv.pop(0)
-        elif word in ("--feed", "--pair") and found["mode"] == "drain":
+        elif word in ("--feed", "--pair", "--serve") and found["mode"] == "drain":
             found["mode"] = word[2:]
         elif word == "--test" and argv and found["mode"] == "drain" and argv[0] in tuple(CourierChannel):
             found["mode"], found["channel"] = "test", argv.pop(0)
@@ -57,7 +59,8 @@ def mutex(paths):
 
 def main(argv=None, **seams) -> int:
     """One round of the courier, as its arguments say; its exit code. `seams` are a test's: `runtime` (a factory given
-    the paths), `mutex`, `secrets`, `opener`, `smtp`, `paused`, `clock` and `sleep`."""
+    the paths), `mutex`, `secrets`, `opener`, `smtp`, `paused`, `clock` and `sleep` - and, for `--serve`, `server` and
+    `rounds`."""
     from codex_auto_resume import config
     found = parse(sys.argv[1:] if argv is None else argv)
     if found is None:
@@ -66,7 +69,11 @@ def main(argv=None, **seams) -> int:
         paths = config.Paths(found["home"])
     except Exception:
         return EXIT_REFUSED
-    lock = (seams.get("mutex") or mutex)(paths)
+    if found["mode"] == "serve":
+        from .resident import mutex as resident_mutex
+        lock = (seams.get("mutex") or resident_mutex)(paths)
+    else:
+        lock = (seams.get("mutex") or mutex)(paths)
     try:
         lock.__enter__()
     except Exception as exc:
@@ -93,6 +100,9 @@ def work(paths, found, **seams) -> int:
         l10n.set_preference(settings.load(paths.settings_file).get("interface_language"))
     except Exception:
         pass
+    if found["mode"] == "serve":
+        from .resident import serve
+        return serve(runtime, server=seams.get("server"), sleep=seams.get("sleep"), rounds=seams.get("rounds"))
     states = runtime.states(fresh=True)
     if runtime.registry.get(PUSH) is None and found["mode"] in ("test", "pair"):
         return EXIT_REFUSED

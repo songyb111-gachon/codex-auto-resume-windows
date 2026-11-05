@@ -49,11 +49,21 @@ ADVANCED_NETWORK_MODULES = frozenset({"advanced/src/codex_auto_resume_advanced/c
 # networking module or the courier's own request function (`from . import http`) - the request itself, the channels a
 # notice is pushed on, and the status page's reading.
 COURIER = "advanced/src/codex_auto_resume_advanced/courier/"
-COURIER_REACHING = frozenset({COURIER + "http.py", COURIER + "channels.py", COURIER + "feed.py"})
+COURIER_REACHING = frozenset({COURIER + "http.py", COURIER + "channels.py", COURIER + "feed.py",
+                              # v0.6.22: the loopback API, the one file that listens (test_only_the_api_listens).
+                              COURIER + "api.py"})
 COURIER_IMPORT = re.compile(r"^\s*from \. import (?:[a-z_]+, )*http\b", re.MULTILINE)
 # The hosts the courier names, each only in its package: Telegram's bot API and OpenAI's status page. The hosts a
 # person types for ntfy, a webhook or e-mail are theirs, never named in a shipped file.
-COURIER_HOSTS = re.compile(r"^https://(?:api\.telegram\.org/bot|status\.openai\.com/api/v2/summary\.json$)")
+COURIER_HOSTS = re.compile(r"^https://(?:api\.telegram\.org/bot|status\.openai\.com/api/v2/summary\.json$)"
+                           # v0.6.22: the loopback web view's own address, formed where it is served from.
+                           r"|^http://%s:%d/$")
+# What listens, in any shipped language: a socket's own calls, the standard library's servers, .NET's listeners. Python's
+# `bind` and `listen` are looked for as calls on something, so a word in a sentence is not one.
+LISTENING = re.compile(r"\.listen\(|\.bind\(\(|\bsocket\.socket\(|\b(?:Threading)?HTTPServer\b|\bTCPServer\b|\bUDPServer\b"
+                       r"|\bTcpListener\b|\bHttpListener\b|\bSocket\.Bind\b|\bcreate_server\b|\bstart_server\b")
+# The one file that may: the loopback API (courier/api.py), while local_api stands on.
+LISTENS = frozenset({COURIER + "api.py"})
 
 
 def network_allowed(relative: str) -> bool:
@@ -175,6 +185,22 @@ class CodePropertyTests(unittest.TestCase):
                 reaching.add(relative)
         self.assertEqual(reaching, {"scripts/bootstrap.ps1"} | set(COURIER_REACHING),
                          "the set of files that reach the network has changed")
+
+    def test_only_the_api_listens(self):
+        """B14 for the standard edition - nothing listens - and, in the advanced edition, one file (v0.6.22): the
+        loopback API. SECURITY.md says so, and fails here the day a second file opens a listening socket."""
+        listening = set()
+        for path in (tracked("scripts/*") + tracked("build/install/*") + tracked("src/*") + tracked("gui/*")
+                     + tracked("advanced/src/*") + tracked("advanced/gui/*")):
+            if path.suffix.lower() not in (".py", ".ps1", ".psm1", ".cs", ".cmd", ".bat"):
+                continue
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, OSError):
+                continue
+            if LISTENING.search(text):
+                listening.add(str(path.relative_to(ROOT)).replace("\\", "/"))
+        self.assertEqual(listening, set(LISTENS), "the set of shipped files that can listen has changed")
 
     def test_only_the_report_starts_gh_and_only_for_github_com(self):
         """The advanced edition's compatibility report is the one thing that asks the network for anything
