@@ -188,7 +188,7 @@ def has_room(found) -> bool:
 
 def read_profile(paths, store, profile_id, *, session_for=None, now=None) -> dict:
     """One read of a saved account on a scratch home; see the module. {present: None, ...} where it could not be read."""
-    from ..profiles import ProfileError
+    from ..profiles import KEEP_SECONDS, ProfileError
     found = {"present": None, "own": None, "plan": None, "available": None, "most_used": None, "full_until": None}
     try:
         profile = store.get(profile_id)
@@ -206,7 +206,7 @@ def read_profile(paths, store, profile_id, *, session_for=None, now=None) -> dic
         # may be spent already (the security review's finding 6).
         if scratch.after is not None and scratch.after != profile["auth"]:
             try:
-                with store.locked():
+                with store.locked(KEEP_SECONDS):
                     store.update(profile_id, auth=scratch.after)
             except (ProfileError, OSError):
                 pass
@@ -218,7 +218,7 @@ def read_profile(paths, store, profile_id, *, session_for=None, now=None) -> dic
     if usage is not None:
         found.update(usage_of(usage))
     try:
-        with store.locked():
+        with store.locked(KEEP_SECONDS):
             _note_read(store, profile_id, profile, scratch, found, now)
     except (ProfileError, OSError):
         pass

@@ -592,6 +592,55 @@ class SealWhatIsThereAfterTheRead(SwapCase):
         self.assertEqual(self.store.get(one)["auth"], fixture("one", n=9))
 
 
+class KeepWaitsOutASwitch(SwapCase):
+    """Finding 15: keeping a copy Codex refreshed on a scratch home waited five seconds for the lock, which a switch holds
+    through a whole app restart - so a read beside one dropped the newer copy."""
+
+    def store_held_for(self, seconds_held):
+        from codex_auto_resume_advanced import profiles
+        from test_advanced_autoswitch_profiles import opened, sealed
+
+        class Held:
+            def __init__(self, seconds):
+                self.seconds = seconds
+
+            def __enter__(self):
+                if self.seconds < seconds_held:
+                    raise OSError("mutex_busy")
+                return self
+
+            def __exit__(self, *_exc):
+                return False
+        return profiles.Profiles(self.home, seal=sealed, open_=opened, clock=lambda: NOW,
+                                 lock=lambda directory, seconds: Held(seconds))
+
+    def test_both_keeps_wait_as_long_as_the_mutex_allows(self):
+        """Fails with LOCK_SECONDS kept: a switch holding the lock 30 s cost both refreshed copies."""
+        from codex_auto_resume_advanced import profiles
+        self.assertEqual(profiles.KEEP_SECONDS, 60.0)
+        store = self.store_held_for(30)
+        two = store.save(TWO, "two@example.com", "plus")
+        refreshed = fixture("two", n=6)
+        swap.read_profile(None, store, two, session_for=Fake(self, refresh=refreshed).session_for, now=NOW)
+        self.assertEqual(store.get(two)["auth"], refreshed, "the read that answered kept the newer copy")
+        rotated = fixture("two", n=7)
+
+        def session_for(home):
+            class Breaks:
+                def __enter__(inner):
+                    return inner
+
+                def __exit__(inner, *_exc):
+                    return False
+
+                def call(inner, method, _params):
+                    (Path(home) / "auth.json").write_bytes(rotated)
+                    raise RuntimeError("the network dropped")
+            return Breaks()
+        swap.read_profile(None, store, two, session_for=session_for, now=NOW)
+        self.assertEqual(store.get(two)["auth"], rotated, "the read that broke kept the newer copy too")
+
+
 def swap_restarts():
     from codex_auto_resume_advanced.codex import restart
     return restart

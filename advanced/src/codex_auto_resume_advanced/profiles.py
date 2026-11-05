@@ -40,6 +40,10 @@ STATES = (READY, EXHAUSTED, NEEDS_SIGN_IN, DAMAGED)
 MOST = 8
 # Seconds a save, a delete or a profile's update waits for the saved accounts' lock (`locked`).
 LOCK_SECONDS = 5.0
+# Seconds keeping a copy Codex refreshed on a scratch home waits for it: as long as core's Mutex allows (it caps at 60).
+# A switch holds the lock through a whole app restart, and a refreshed copy not kept may leave only a spent one (the
+# review's finding 15).
+KEEP_SECONDS = 60.0
 
 
 class ProfileError(OSError):
