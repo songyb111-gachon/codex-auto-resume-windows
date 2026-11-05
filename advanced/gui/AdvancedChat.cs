@@ -44,6 +44,8 @@ namespace CodexAutoResume
         private string chatThread, chatDraft = "";
         // advanced-chat-read's last answer for chatThread, or null.
         private Dictionary<string, object> chatView;
+        // Whether an advanced-chat-read is on its way (ReadChat), so the two-second read never queues a second.
+        private bool chatReading;
         private Timer chatTimer;
         private SoftCombo chatClick;
         // The Chat page, its column of cards as the Advanced features page has one, and what they were last built from.
@@ -541,12 +543,22 @@ namespace CodexAutoResume
 
         private void ReadChat()
         {
-            if (chatThread == null) return;
+            // v0.6.23: one read at a time, as the log dialog's and the accounts card's are: behind a slow bridge every
+            // two-second tick queued another, and when it freed they all answered and each built the card again. The
+            // window audit's AdvancedCall answers nothing, so it sets no flag.
+            if (chatThread == null || chatReading || (auditing && advancedScript == null)) return;
+            chatReading = true;
             string thread = chatThread;
             AdvancedCall("advanced-chat-read", "{\"thread_id\":" + Json.Escape(thread) + "}", false,
                 delegate(Dictionary<string, object> reply)
                 {
-                    if (thread != chatThread) return;
+                    chatReading = false;
+                    // Another conversation picked while this one was read: that one is read now.
+                    if (thread != chatThread)
+                    {
+                        ReadChat();
+                        return;
+                    }
                     Dictionary<string, object> result = AdvancedResult(reply);
                     // v0.6.23: a read that got no answer - a timeout, the long-lived bridge being reconnected - keeps the
                     // last view, and with it the two-second read while a message was last seen waiting or on its way: one

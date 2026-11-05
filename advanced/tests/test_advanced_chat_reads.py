@@ -90,6 +90,16 @@ class PageTests(PageCase):
         steps += [{"do": "answer", "with": [True]}, {"do": "chat_send", "text": "Hello world"}, {"do": "look"}]
         return "en", {"script": script, "steps": steps}, {}
 
+    @classmethod
+    def scenario_slow_bridge(cls, bridge):
+        """A message waiting, and the bridge slow for three ticks; then it answers, and the next tick reads again."""
+        script, steps = cls.opened(bridge, reading("waiting"))
+        steps += [{"do": "reply", "key": "advanced-chat-read", "with": [reading("in_flight")]},
+                  {"do": "hold", "on": True}, {"do": "chat_poll"}, {"do": "chat_poll"}, {"do": "chat_poll"},
+                  {"do": "look"}, {"do": "hold", "on": False}, {"do": "look"}, {"do": "chat_poll"}, {"do": "look"}]
+        words = script["advanced-words"][0]["result"]["words"]
+        return "en", {"script": script, "steps": steps}, {"words": words}
+
     # ---------------------------------------------------------------- C1
     def test_a_read_with_no_answer_keeps_the_view_and_the_two_second_read(self):
         """Fails with the view dropped on any failed read: the light goes back and the read stops."""
@@ -126,6 +136,16 @@ class PageTests(PageCase):
         self.assertEqual(after["words"], "")
         self.assertEqual(len(sent(result, "advanced-chat-send")), 1)
 
+    # ---------------------------------------------------------------- C3
+    def test_one_read_is_on_its_way_at_a_time(self):
+        """Fails with no flag: each of the three ticks behind the slow bridge asks again."""
+        result, expected = self.of("scenario_slow_bridge")
+        held, answered, again = (look["chat"] for look in result["looks"][1:])
+        self.assertEqual(held["headline"], expected["words"]["page.chat.sending"], "nothing answered yet")
+        self.assertEqual(answered["headline"], expected["words"]["page.chat.sent"])
+        self.assertEqual(len(sent(result, "advanced-chat-read")), 4,
+                         "the arrival's two reads, one for the three slow ticks, and the tick after the answer")
+        self.assertTrue(again["polling"])
 
 
 if __name__ == "__main__":

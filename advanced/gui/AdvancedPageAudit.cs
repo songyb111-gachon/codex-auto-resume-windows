@@ -41,6 +41,9 @@ namespace CodexAutoResume
         private readonly List<string> advancedSent = new List<string>();
         private readonly List<string> advancedAsked = new List<string>();
         private readonly List<string> advancedTold = new List<string>();
+        // v0.6.23: while a test holds the replies ("hold"), the answers of the requests made, in order, until it lets go.
+        private bool advancedHolding;
+        private readonly List<MethodInvoker> advancedHeld = new List<MethodInvoker>();
 
         /// The test's reply to one request of the page's, and the request written down as "<command> <argument>".
         private Dictionary<string, object> AdvancedScripted(string command, string argument)
@@ -725,6 +728,8 @@ namespace CodexAutoResume
         ///   {"do": "answer", "with": [...]}                   what the person answers the next questions
         ///   {"do": "busy", "on": bool}                        another action under way, or over (SetBusy), as a request
         ///                                                     in flight holds the page
+        ///   {"do": "hold", "on": bool}                        the bridge's answers held from now on, as a slow bridge holds
+        ///                                                     them - or let go, each request's answer in turn (v0.6.23)
         ///   {"do": "chat_type", "text": ..., "caret": n,      the chat's box written in, its caret at n with `selected`
         ///    "selected": n}                                   characters chosen after it, as a person leaves it (v0.6.23)
         ///   {"do": "courier", "button": "save ntfy"}          a courier card's button pressed, if it can be (v0.6.20)
@@ -1105,6 +1110,16 @@ namespace CodexAutoResume
                         }
                         record["saved"] = (double)form.editorSaved;
                         dialogs.Add(record);
+                    }
+                    else if (what == "hold")
+                    {
+                        form.advancedHolding = Equals(Get(step, "on"), true);
+                        if (!form.advancedHolding)
+                        {
+                            var held = new List<MethodInvoker>(form.advancedHeld);
+                            form.advancedHeld.Clear();
+                            foreach (MethodInvoker answer in held) answer();
+                        }
                     }
                     else if (what == "chat_type")
                     {
