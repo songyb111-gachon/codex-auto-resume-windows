@@ -719,6 +719,7 @@
   "installer.step.watcher": "Zatrzymywanie działającego monitora",
   "installer.uninstall.heading": "Usuń Codex Auto Resume",
   "installer.uninstall.purge": "Usuń także ustawienia i historię odzyskiwania",
+  "installer.uninstall.saved_accounts": "Po zaznaczeniu usuwane są też konta Codex zapisane do przełączania, razem z ich danymi logowania.",
   "installer.uninstall.desktop_shortcut": "Skrót na pulpicie również zostanie usunięty.",
   "installer.uninstall.what": "Monitor, jego uruchamianie przy logowaniu, wpis w menu Start i wtyczka w Codex zostaną usunięte. Twoje rozmowy w Codex pozostają nietknięte.",
   "installer.update": "Aktualizuj",

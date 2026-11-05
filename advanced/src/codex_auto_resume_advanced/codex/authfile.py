@@ -113,6 +113,20 @@ def replace(codex_home, data) -> None:
         raise AuthFileError("the sign-in file could not be put in place") from None
 
 
+def own_folder(directory) -> None:
+    """`directory` made where it is not, with the product's provenance marker in it - what lets uninstall's purge take
+    the saved accounts folder whole (config.Paths.owned_account_files), and nothing else."""
+    from codex_auto_resume import config
+    directory = Path(directory)
+    directory.mkdir(parents=True, exist_ok=True)
+    marker = directory / config.OWNER_MARKER
+    if not marker.exists():
+        try:
+            marker.write_text(config.OWNER_TEXT, encoding="utf-8")
+        except OSError:
+            pass
+
+
 class Scratch:
     """A private Codex home made for one read on a saved account (or Codex's own sign-in for a new one): a folder under
     the product's own accounts folder (never AppData - standard F3 kept), whose config keeps the sign-in in a file, and
@@ -126,7 +140,7 @@ class Scratch:
         self.after = None
 
     def __enter__(self):
-        self.root.mkdir(parents=True, exist_ok=True)
+        own_folder(self.root)
         self.path = self.root / ("scratch-" + secrets.token_hex(6))
         self.path.mkdir()
         (self.path / CONFIG).write_text('%s = "file"\n' % KEY, encoding="utf-8")

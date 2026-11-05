@@ -719,6 +719,7 @@
   "installer.step.watcher": "Зупинка запущеного монітора",
   "installer.uninstall.heading": "Видалити Codex Auto Resume",
   "installer.uninstall.purge": "Також видалити параметри та історію відновлень",
+  "installer.uninstall.saved_accounts": "Якщо позначено, також видаляються збережені для перемикання облікові записи Codex разом з їхніми даними входу.",
   "installer.uninstall.desktop_shortcut": "Ярлик на робочому столі теж буде видалено.",
   "installer.uninstall.what": "Буде видалено монітор, його запуск під час входу, пункт меню «Пуск» і плагін у Codex. Ваші розмови в Codex не зачіпаються.",
   "installer.update": "Оновити",

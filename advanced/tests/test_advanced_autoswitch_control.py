@@ -64,13 +64,14 @@ class ControlCase(ac.AdvancedCase):
 
 
 class ControlTests(ControlCase):
-    def test_off_nothing_is_read_or_kept(self):
-        """Fails if a command answered while the capability is off (or hidden, when no runtime has it)."""
-        self.assertEqual(accounts.view(self.rt, store=self.store, codex_home=self.codex)["refusal"], Refusal.NOT_ON)
+    def test_off_nothing_is_kept_and_what_is_kept_can_go(self):
+        """Fails if Add or Save answered while the capability is off (or hidden, when no runtime has it) - or if the
+        card or Delete did not (the security review's finding 3: a saved sign-in is deletable in every state)."""
         self.assertEqual(accounts.save(self.rt, store=self.store, codex_home=self.codex)["refusal"], Refusal.NOT_ON)
         self.assertEqual(accounts.add(self.rt, start=lambda job: job(), run=lambda p, s: "x")["refusal"], Refusal.NOT_ON)
-        self.assertEqual(surfaces.bridge(self.rt, "advanced-accounts-delete", {"all": True})["refusal"], Refusal.NOT_ON)
         self.assertEqual(self.store.ids(), [])
+        self.assertIsNone(accounts.view(self.rt, store=self.store, codex_home=self.codex)["refusal"])
+        self.assertTrue(surfaces.bridge(self.rt, "advanced-accounts-delete", {"all": True})["done"])
 
     def test_save_view_and_delete_show_only_a_masked_address(self):
         self.on()

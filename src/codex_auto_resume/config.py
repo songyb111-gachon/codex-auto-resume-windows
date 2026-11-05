@@ -111,6 +111,9 @@ class Paths:
         # carrying the same marker config/ does. Core never writes there and the standard edition
         # never creates it; it is named here only so a purge can take it (owned_state_files).
         self.advanced_dir = self.state_dir / "advanced"
+        # v0.6.22: the advanced edition's saved Codex sign-ins (sealed copies, and the scratch homes it reads them on),
+        # carrying the same marker; named here only so a purge can take it (owned_account_files).
+        self.accounts_dir = self.home / "accounts"
         self.log_file = self.logs_dir / "auto-resume.log"
         self.error_log = self.logs_dir / "errors.log"
         # v0.6.9: one line each time Codex starts the MCP server and it considers starting the
@@ -258,6 +261,43 @@ class Paths:
         except OSError:
             return []
         return found + [directory / OWNER_MARKER]
+
+    def owned_account_files(self) -> list[Path]:
+        """What a purge takes from `accounts_dir` (v0.6.22): every file in it and in the folders below it, its marker
+        last, and only while that marker is there - the generic rule owned_advanced_files keeps, one level deeper,
+        since a scratch Codex home is a folder. Nothing that is a link or a junction is followed or listed, and
+        nothing that resolves outside the home. Empty where there is no such folder (the standard edition)."""
+        directory = self.accounts_dir
+        try:
+            if is_link(directory) or not self.owns(directory):
+                return []
+        except OSError:
+            return []
+        found = []
+
+        def walk(folder, depth):
+            try:
+                entries = sorted(folder.iterdir())
+            except OSError:
+                return
+            for path in entries:
+                if is_link(path) or not self.confined(path) or path.name == OWNER_MARKER and folder == directory:
+                    continue
+                if path.is_dir() and depth < 8:
+                    walk(path, depth + 1)
+                elif path.is_file():
+                    found.append(path)
+        walk(directory, 0)
+        return found + [directory / OWNER_MARKER]
+
+    def owned_account_dirs(self) -> list[Path]:
+        """The folders a purge empties under `accounts_dir`, deepest first and that folder last - only while it is
+        ours (owned_account_files)."""
+        if not self.owned_account_files():
+            return []
+        folders = sorted({path.parent for path in self.owned_account_files()}, key=lambda p: len(p.parts),
+                         reverse=True)
+        return [folder for folder in folders if folder != self.accounts_dir] + [self.accounts_dir]
 
     def owned_log_files(self) -> list[Path]:
         if not self.owns(self.logs_dir):

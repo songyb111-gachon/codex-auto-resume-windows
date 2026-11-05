@@ -1542,8 +1542,11 @@ if ($Uninstall) {
         # Only on an explicit request: this is the user's recovery history.
         # Asked whether it worked: a held log file used to stay while this said it was removed (v0.6.18 audit, M3).
         $kept = @()
-        foreach ($dir in @((Join-Path $OwnedHome 'config'), (Join-Path $OwnedHome 'logs'))) {
-            if ((Test-Path -LiteralPath $dir) -and -not (Remove-OwnedItem $dir)) { $kept += $dir }
+        # v0.6.22: and the advanced edition's saved Codex sign-ins (accounts\), never through a link or a junction there.
+        foreach ($dir in @((Join-Path $OwnedHome 'config'), (Join-Path $OwnedHome 'logs'), (Join-Path $OwnedHome 'accounts'))) {
+            $item = Get-Item -LiteralPath $dir -Force -ErrorAction SilentlyContinue
+            if (-not $item -or $item.LinkType) { continue }
+            if (-not (Remove-OwnedItem $dir)) { $kept += $dir }
         }
         Write-Host ''
         if ($kept.Count -gt 0) {

@@ -719,6 +719,7 @@
   "installer.step.watcher": "Đang dừng bộ theo dõi đang chạy",
   "installer.uninstall.heading": "Gỡ bỏ Codex Auto Resume",
   "installer.uninstall.purge": "Xóa cả cài đặt và lịch sử khôi phục",
+  "installer.uninstall.saved_accounts": "Nếu chọn, các tài khoản Codex đã lưu để chuyển đổi cũng bị xóa, cùng thông tin đăng nhập của chúng.",
   "installer.uninstall.desktop_shortcut": "Lối tắt trên màn hình nền cũng sẽ bị gỡ bỏ.",
   "installer.uninstall.what": "Bộ theo dõi, mục chạy khi đăng nhập, mục trong menu Bắt đầu và plugin trong Codex sẽ bị gỡ bỏ. Các cuộc trò chuyện Codex của bạn không bị đụng đến.",
   "installer.update": "Cập nhật",

@@ -707,9 +707,9 @@ namespace CodexAutoResume
                 MethodInvoker after = done;
                 done = delegate { ReadPowerTasks(after); };
             }
-            // v0.6.22: the saved accounts of the automatic account switch (AdvancedAccounts.cs) - asked only while the
-            // capability is on or watched.
-            if (id == AccountsId && Standing(item))
+            // v0.6.22: the saved accounts of the automatic account switch (AdvancedAccounts.cs) - asked in every state, and
+            // on account_switch's column too, so a saved sign-in can be deleted while the switch is off or hidden.
+            if (id == AccountsId || id == AccountId)
             {
                 MethodInvoker after = done;
                 done = delegate { ReadAccounts(after); };

@@ -11,8 +11,11 @@ thread of this process's own, one at a time per installation (SWITCH_RUNNING whi
 `add_state` - WAITING, then ADDED or NOT_ADDED. `advanced-accounts-save` is Save the account in use (codex/swap.save_current).
 `advanced-accounts-delete` takes {"id": <a profile's id>} or {"all": true} and deletes the files.
 
-Each is refused NOT_ON unless the capability is on or watched - and so while it waits hidden in registry.WAITING, when
-no runtime has it at all. Adding and saving keep a person's own accounts; nothing here switches one.
+Adding and saving are refused NOT_ON unless the capability is on or watched - and so while it waits hidden in
+registry.WAITING, when no runtime has it at all. Reading the card and deleting answer in every state - on, watched, off
+and hidden - so a saved sign-in can always be taken off this PC (the security review's finding 3); `offered` says
+whether the capability is in this runtime at all, so the window shows the card under account_switch's while it is
+hidden and copies are kept. Adding and saving keep a person's own accounts; nothing here switches one.
 """
 from __future__ import annotations
 
@@ -39,9 +42,7 @@ def _codex_home(runtime):
 
 
 def view(runtime, *, store=None, codex_home=None) -> dict:
-    """advanced-accounts; see the module. `store` and `codex_home` are a test's."""
-    if not _standing(runtime, CAPABILITY):
-        return _refused(Refusal.NOT_ON)
+    """advanced-accounts, in every state; see the module. `store` and `codex_home` are a test's."""
     from ..codex import authfile
     from ..vocabulary import OptionKey
     store = store or _saved(runtime)
@@ -55,8 +56,12 @@ def view(runtime, *, store=None, codex_home=None) -> dict:
         switched = None
     with _LOCK:
         add_state = _ADDING.get(Path(runtime.paths.home))
+    try:
+        offered = runtime.registry.get(CAPABILITY) is not None
+    except Exception:
+        offered = False
     return {"done": True, "refusal": None, "profiles": store.view(), "store": word, "add_state": add_state,
-            "switched_at": switched}
+            "switched_at": switched, "offered": offered, "standing": _standing(runtime, CAPABILITY)}
 
 
 def add(runtime, *, start=None, run=None) -> dict:
@@ -100,9 +105,7 @@ def save(runtime, *, store=None, codex_home=None, read_real=None) -> dict:
 
 
 def delete(runtime, argument, *, store=None) -> dict:
-    """advanced-accounts-delete: {"id": ...} or {"all": true}; see the module."""
-    if not _standing(runtime, CAPABILITY):
-        return _refused(Refusal.NOT_ON)
+    """advanced-accounts-delete: {"id": ...} or {"all": true}, in every state; see the module."""
     store = store or _saved(runtime)
     argument = argument if isinstance(argument, dict) else {}
     if argument.get("all") is True:

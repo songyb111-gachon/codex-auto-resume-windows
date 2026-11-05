@@ -719,6 +719,7 @@
   "installer.step.watcher": "Parando o monitor em execução",
   "installer.uninstall.heading": "Remover o Codex Auto Resume",
   "installer.uninstall.purge": "Excluir também as configurações e o histórico de recuperações",
+  "installer.uninstall.saved_accounts": "Se marcado, as contas do Codex salvas para alternar também são excluídas, com seus logins.",
   "installer.uninstall.desktop_shortcut": "O atalho na área de trabalho também é removido.",
   "installer.uninstall.what": "O monitor, a execução ao entrar no Windows, a entrada no menu Iniciar e o plugin no Codex são removidos. Suas conversas do Codex não são alteradas.",
   "installer.update": "Atualizar",

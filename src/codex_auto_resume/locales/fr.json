@@ -719,6 +719,7 @@
   "installer.step.watcher": "Arrêt du surveillant en cours d'exécution",
   "installer.uninstall.heading": "Supprimer Codex Auto Resume",
   "installer.uninstall.purge": "Supprimer aussi les paramètres et l'historique des récupérations",
+  "installer.uninstall.saved_accounts": "Si la case est cochée, les comptes Codex enregistrés pour basculer sont aussi supprimés, avec leurs connexions.",
   "installer.uninstall.desktop_shortcut": "Son raccourci sur le Bureau est également supprimé.",
   "installer.uninstall.what": "Le surveillant, son lancement à la connexion, son entrée du menu Démarrer et le plugin dans Codex sont supprimés. Vos conversations Codex ne sont pas touchées.",
   "installer.update": "Mettre à jour",

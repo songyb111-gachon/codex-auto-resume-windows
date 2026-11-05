@@ -719,6 +719,7 @@
   "installer.step.watcher": "جارٍ إيقاف المراقِب العامل",
   "installer.uninstall.heading": "إزالة Codex Auto Resume",
   "installer.uninstall.purge": "احذف أيضًا الإعدادات وسجل الاستعادة",
+  "installer.uninstall.saved_accounts": "عند تحديده، تُحذف أيضًا حسابات Codex المحفوظة للتبديل، مع بيانات تسجيل الدخول الخاصة بها.",
   "installer.uninstall.desktop_shortcut": "يُزال أيضًا اختصاره على سطح المكتب.",
   "installer.uninstall.what": "سيُزال المراقِب وتشغيله عند تسجيل الدخول وعنصره في قائمة «ابدأ» والمكوّن الإضافي في Codex. لا تُمَسّ محادثات Codex لديك.",
   "installer.update": "تحديث",

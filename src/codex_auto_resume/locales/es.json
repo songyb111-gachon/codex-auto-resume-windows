@@ -719,6 +719,7 @@
   "installer.step.watcher": "Deteniendo el monitor en ejecución",
   "installer.uninstall.heading": "Eliminar Codex Auto Resume",
   "installer.uninstall.purge": "Eliminar también la configuración y el historial de recuperaciones",
+  "installer.uninstall.saved_accounts": "Si se marca, también se eliminan las cuentas de Codex guardadas para cambiar, con sus inicios de sesión.",
   "installer.uninstall.desktop_shortcut": "También se quita su acceso directo del escritorio.",
   "installer.uninstall.what": "Se eliminan el monitor, su inicio al iniciar sesión, su entrada del menú Inicio y el plugin de Codex. Tus conversaciones de Codex no se tocan.",
   "installer.update": "Actualizar",

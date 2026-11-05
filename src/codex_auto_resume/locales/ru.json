@@ -719,6 +719,7 @@
   "installer.step.watcher": "Остановка работающего монитора",
   "installer.uninstall.heading": "Удаление Codex Auto Resume",
   "installer.uninstall.purge": "Также удалить настройки и журнал восстановлений",
+  "installer.uninstall.saved_accounts": "Если отмечено, также удаляются сохранённые для переключения учётные записи Codex вместе с их данными входа.",
   "installer.uninstall.desktop_shortcut": "Ярлык на рабочем столе тоже будет удалён.",
   "installer.uninstall.what": "Будут удалены монитор, его запуск при входе, пункт меню «Пуск» и плагин в Codex. Ваши беседы в Codex не затрагиваются.",
   "installer.update": "Обновить",

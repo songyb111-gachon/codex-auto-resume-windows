@@ -25,6 +25,8 @@ from codex_auto_resume_advanced.win import dpapi  # noqa: E402
 
 FIRST = json.dumps({"fixture": "first account", "n": 1}).encode("utf-8")
 SECOND = json.dumps({"fixture": "second account", "n": 2}).encode("utf-8")
+# The product's provenance marker the accounts folder carries, so uninstall's purge takes it (config.owned_account_files).
+MARKER = ".owned-by-codex-auto-resume"
 
 
 def sealed(data):
@@ -113,7 +115,7 @@ class ProfileTests(Temp):
     def test_a_profile_is_sealed_and_named_by_nothing_of_the_account(self):
         store = self.store()
         profile_id = store.save(FIRST, "Someone@Example.com", "plus")
-        files = list((self.home / "accounts").iterdir())
+        files = [path for path in (self.home / "accounts").iterdir() if path.name != MARKER]
         self.assertEqual([path.name for path in files], [profile_id + ".dat"])
         raw = files[0].read_bytes()
         self.assertNotIn(b"someone", raw.lower())
@@ -153,7 +155,7 @@ class ProfileTests(Temp):
         store.begin("a" * 16, "b" * 16)
         store.mark_switched("two@example.com")
         self.assertEqual(store.delete_all(), 1)
-        self.assertEqual(list((self.home / "accounts").iterdir()), [])
+        self.assertEqual([path.name for path in (self.home / "accounts").iterdir()], [MARKER], "only the folder's marker")
 
     def test_states_follow_the_times(self):
         now = [1_800_000_000]

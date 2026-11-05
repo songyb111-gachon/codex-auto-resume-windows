@@ -73,6 +73,9 @@ namespace CodexAutoResume
         internal bool MakeDesktopShortcut;
         /// Whether this installation's shortcut is on the Desktop as the window opens.
         internal bool DesktopShortcutThere;
+        /// Whether the advanced edition's saved Codex sign-ins are kept here as the window opens (SavedAccountsAt, v0.6.22):
+        /// the uninstall page then says the purge takes them too.
+        internal bool SavedAccountsThere;
         /// Replace the other edition, which is installed: -AllowEditionChange. Off until it is asked for.
         internal bool ChangeEdition;
         /// Delete the settings and the recovery history too, on an uninstall: -Purge. Off until it is asked for.
@@ -241,6 +244,18 @@ namespace CodexAutoResume
             {
                 return Standard;
             }
+        }
+
+        /// Whether `home` keeps the advanced edition's saved Codex sign-ins (v0.6.22): its accounts folder is there and is no
+        /// link or junction - the folder the purge takes (install.ps1, config.Paths.owned_account_files). Reads only.
+        internal static bool SavedAccountsAt(string home)
+        {
+            try
+            {
+                var folder = new DirectoryInfo(Path.Combine(home, "accounts"));
+                return folder.Exists && (folder.Attributes & FileAttributes.ReparsePoint) == 0;
+            }
+            catch (Exception) { return false; }
         }
 
         /// The edition installed at `home`, as install.ps1 reads it before it moves anything: none where there is

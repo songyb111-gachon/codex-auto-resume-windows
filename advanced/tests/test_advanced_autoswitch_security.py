@@ -134,6 +134,104 @@ class PutBackUntilItIsBack(SwapCase):
         self.assertEqual((self.codex / "auth.json").read_bytes(), ONE)
 
 
+class SavedSignInsCanAlwaysGo(SwapCase):
+    """Finding 3 (R11, R12): saved sign-ins outlasted "removed" - no accounts folder in either purge, Delete refused while
+    the capability was off or hidden, and the card gone."""
+
+    ROOT = Path(__file__).resolve().parents[2]
+
+    def paths(self):
+        from codex_auto_resume import config
+        return config.Paths(self.home)
+
+    def test_the_purge_lists_every_saved_copy_and_scratch_home(self):
+        """Fails with owned_account_files gone: uninstall --purge left live sign-ins behind."""
+        self.store.save(TWO, "two@example.com", "plus")
+        left = self.store.directory / "scratch-0123456789ab"
+        left.mkdir()
+        (left / "auth.json").write_bytes(TWO)                   # a scratch home a killed watcher left
+        paths = self.paths()
+        listed = {path.relative_to(self.home).as_posix() for path in paths.owned_account_files()}
+        self.assertIn("accounts/scratch-0123456789ab/auth.json", listed)
+        self.assertTrue(any(name.endswith(".dat") for name in listed))
+        self.assertEqual(paths.owned_account_dirs()[-1], paths.accounts_dir)
+        self.assertEqual(paths.owned_account_dirs()[0], left)
+        source = (self.ROOT / "src" / "codex_auto_resume" / "commands" / "install.py").read_text(encoding="utf-8")
+        self.assertIn("paths.owned_account_files()", source)
+        self.assertIn("paths.owned_account_dirs()", source)
+
+    def test_no_folder_or_one_not_ours_is_never_touched(self):
+        paths = self.paths()
+        self.assertEqual((paths.owned_account_files(), paths.owned_account_dirs()), ([], []))
+        paths.accounts_dir.mkdir(parents=True)
+        (paths.accounts_dir / "a person's file.txt").write_text("kept", encoding="utf-8")
+        self.assertEqual(paths.owned_account_files(), [], "no marker: not ours")
+
+    def test_a_junction_at_the_accounts_folder_is_not_followed(self):
+        import _winapi
+        outside = self.dir / "outside"
+        self.store.save(TWO, "two@example.com", "plus")
+        self.store.directory.rename(outside)
+        _winapi.CreateJunction(str(outside), str(self.store.directory))
+        self.assertEqual(self.paths().owned_account_files(), [])
+
+    def test_the_installer_purge_takes_the_folder_never_through_a_link(self):
+        source = (self.ROOT / "build" / "install" / "install.ps1").read_text(encoding="utf-8")
+        block = source[source.index("if ($Purge) {", source.index("$kept = Join-Path $OwnedHome 'uninstall'")):]
+        block = block[:block.index("Write-Host ''")]
+        self.assertIn("(Join-Path $OwnedHome 'accounts')", block)
+        self.assertIn("$item.LinkType", block)
+
+    def test_the_uninstall_question_says_so_where_copies_are_kept(self):
+        import json
+        source = (self.ROOT / "gui" / "InstallerWindow.cs").read_text(encoding="utf-8")
+        at = source.index('"installer.uninstall.saved_accounts"')
+        self.assertIn("if (flow.SavedAccountsThere)", source[at - 200:at])
+        for name in ("SettingsRemove.cs",):
+            self.assertIn("InstallerFlow.SavedAccountsAt(home)", (self.ROOT / "gui" / name).read_text(encoding="utf-8"))
+        self.assertIn("InstallerFlow.SavedAccountsAt(home)",
+                      (self.ROOT / "build" / "setup" / "SetupWindow.cs").read_text(encoding="utf-8"))
+        catalogs = sorted((self.ROOT / "src" / "codex_auto_resume" / "locales").glob("*.json"))
+        self.assertEqual(len(catalogs), 18)
+        for catalog in catalogs:
+            words = json.loads(catalog.read_text(encoding="utf-8"))
+            self.assertIn("Codex", words["installer.uninstall.saved_accounts"], catalog.name)
+
+    def test_the_card_stands_in_every_state_while_copies_are_kept(self):
+        source = (self.ROOT / "advanced" / "gui" / "AdvancedAccounts.cs").read_text(encoding="utf-8")
+        self.assertIn("if (id == AccountsId) return Standing(item) || AccountsKept();", source)
+        self.assertIn('return id == AccountId && !Equals(Get(advancedAccounts, "offered"), true) && AccountsKept();', source)
+        page = (self.ROOT / "advanced" / "gui" / "AdvancedPage.cs").read_text(encoding="utf-8")
+        self.assertIn("if (id == AccountsId || id == AccountId)", page)
+
+
+class SavedSignInsThroughTheBridge(unittest.TestCase):
+    """Finding 3: hidden in registry.WAITING (no runtime has it) or off, the card's read and Delete still answer."""
+
+    def test_hidden_or_off_the_card_reads_and_deletes(self):
+        import shutil
+        import tempfile
+        from types import SimpleNamespace
+        from test_advanced_autoswitch_profiles import opened, sealed
+        from codex_auto_resume_advanced import profiles
+        from codex_auto_resume_advanced.control import autoswitch as card
+        from codex_auto_resume_advanced.vocabulary import ArmingState
+        root = Path(tempfile.mkdtemp(prefix="car-autoswitch-hidden-"))
+        self.addCleanup(lambda: shutil.rmtree(root, ignore_errors=True))
+        store = profiles.Profiles(root / "home", seal=sealed, open_=opened)
+        for states, registry in (({}, {}), ({card.CAPABILITY: ArmingState.OFF}, {card.CAPABILITY: object()})):
+            with self.subTest(states=states):
+                store.save(TWO, "two@example.com", "plus")
+                runtime = SimpleNamespace(paths=SimpleNamespace(home=root / "home"), states=lambda fresh=False: states,
+                                          registry=registry, state=SimpleNamespace(stamped=lambda *_a: None))
+                shown = card.view(runtime, store=store, codex_home=root)
+                self.assertIsNone(shown["refusal"])
+                self.assertEqual(len(shown["profiles"]), 1)
+                self.assertEqual(shown["offered"], bool(registry))
+                self.assertEqual(card.delete(runtime, {"all": True}, store=store)["deleted"], 1)
+                self.assertEqual(store.ids(), [])
+
+
 def swap_restarts():
     from codex_auto_resume_advanced.codex import restart
     return restart

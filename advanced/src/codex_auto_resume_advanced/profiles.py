@@ -6,8 +6,10 @@ A profile is one file, `<product home>\\accounts\\<id>.dat`: Windows' data prote
 account/read answered them, and when it was saved, last switched to, found exhausted until, and found unusable. Nothing
 of it is in settings.json, the state, a log, the journal, diagnostics, a compatibility report or a statement; what
 leaves this module for a person to see is `view`: an id, the address masked as the account card masks it, the plan
-word and a closed state word. Delete takes the file away; Delete all takes every one. Turning the capability off keeps
-them (the person saved them), and nothing reads them while it is off.
+word and a closed state word. Delete takes the file away; Delete all takes every one - in every state, on, watched, off
+or hidden, the card listing them while any is kept. Turning the capability off keeps them (the person saved them), and
+nothing but that card reads them while it is off. The folder carries the product's provenance marker, so uninstall's
+purge (config.Paths.owned_account_files, and the installer's) takes it whole.
 
 Two more sealed files sit beside them: `switch.intent` - a switch under way (from, to, step), so a crash in the middle is
 finished or undone at the next look - and `switch.last` - the account a switch of this capability put in and when, so
@@ -61,7 +63,7 @@ class Profiles:
 
     # ------------------------------------------------------------------ sealed files
     def _write(self, name, value) -> None:
-        self.directory.mkdir(parents=True, exist_ok=True)
+        authfile.own_folder(self.directory)
         authfile.write_atomic(self.directory / name, self._seal(json.dumps(value, sort_keys=True).encode("utf-8")))
 
     def _read(self, name):

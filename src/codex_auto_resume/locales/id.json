@@ -719,6 +719,7 @@
   "installer.step.watcher": "Menghentikan pemantau yang sedang berjalan",
   "installer.uninstall.heading": "Hapus Codex Auto Resume",
   "installer.uninstall.purge": "Hapus juga pengaturan dan riwayat pemulihan",
+  "installer.uninstall.saved_accounts": "Jika dicentang, akun Codex yang disimpan untuk berpindah juga dihapus, beserta info masuknya.",
   "installer.uninstall.desktop_shortcut": "Pintasannya di desktop juga dihapus.",
   "installer.uninstall.what": "Pemantau, jalannya saat masuk, entri menu Mulai, dan plugin di Codex akan dihapus. Percakapan Codex Anda tidak disentuh.",
   "installer.update": "Perbarui",
