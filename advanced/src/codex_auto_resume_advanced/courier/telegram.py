@@ -94,7 +94,8 @@ class Poller:
         self._layer = layer
         self.clock = clock or time.time
         self.locale = locale
-        self.listed = None               # the snapshot of the list last answered to the paired chat
+        self.listed = None               # the snapshot of the list last answered to the paired chat - once it was sent
+        self.offered = None              # the snapshot of a list being answered, until its answer is sent
         self.ignored_at = None           # when what other chats sent was last journalled
         self.name = None                 # this bot's own name, lower case, once getMe answered it
 
@@ -178,11 +179,14 @@ class Poller:
                 continue
             if self.elsewhere(token, message.get("text")):
                 continue                 # a command for another bot, in a group: not this one's to answer
+            self.offered = None
             said = self.answer(message.get("text"))
             try:
                 self.send(token, chat, said)
             except (http.Failed, ValueError):
-                pass
+                continue                 # a list the person never saw is never what a later `task N` means
+            if self.offered is not None:
+                self.listed = self.offered
         if ignored and (self.ignored_at is None or not 0 <= now - self.ignored_at < IGNORED_EVERY):
             # One line an hour, however much strangers send: a flood must not wear the journal every capability shares.
             self.ignored_at = now
@@ -280,7 +284,7 @@ class Poller:
 
     def list(self) -> str:
         found = self._remote.pending(self.layer)
-        self.listed = found["snapshot"]
+        self.offered = found["snapshot"]
         if not found["pending"]:
             return self.word("page.remote.answer.list_none", "Nothing waits.")
         lines = []

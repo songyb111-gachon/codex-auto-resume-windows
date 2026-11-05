@@ -286,6 +286,26 @@ class CommandTests(TelegramCase):
         self.assertEqual(self.said("/cancel task 2", poller=poller), ["task 2 is cancelled."])
         self.assertEqual(self.layer.calls, [("cancel", KEY_2, "cli")])
 
+    def test_a_list_whose_answer_did_not_arrive_is_not_what_task_n_means(self):
+        """R6 (the security review of 2026-11-06): fails with the snapshot moved as the answer is made - after a /list
+        whose answer failed, `task 1` would be resolved against a list the person never saw, and another recovery
+        cancelled."""
+        poller = self.poller(Bot())
+        self.said("/list", poller=poller)
+        self.rows = [row(KEY_2), row()]
+        bot = Bot([self.message("/list")])
+        real = bot.open
+
+        def failing(request, timeout=None):
+            if request.full_url.endswith("/sendMessage"):
+                raise urllib.error.URLError("no way there")
+            return real(request, timeout)
+        bot.open = failing
+        poller._opener = bot
+        poller.once()
+        self.assertEqual(self.said("/cancel task 1", poller=poller), ["The list has changed. Send /list again."])
+        self.assertEqual(self.layer.calls, [])
+
     def test_cancel_with_no_list_sent_says_list_again(self):
         self.assertEqual(self.said("/cancel task 1"), ["The list has changed. Send /list again."])
         self.assertEqual(self.layer.calls, [])
