@@ -65,6 +65,8 @@ class Bot:
         self.reads, self.answers = [], []
 
     def open(self, request, timeout=None):
+        if request.full_url.endswith("/getMe"):
+            return Reply(b'{"ok":true,"result":{"id":1,"is_bot":true,"username":"My_Bot"}}')
         if request.full_url.endswith("/sendMessage"):
             self.answers.append(json.loads(request.data.decode("utf-8")))
             return Reply(b'{"ok":true}')
@@ -192,6 +194,23 @@ class PairedChatTests(TelegramCase):
         poller.once()
         lines = [line["code"] for line in self.rt.state.journal(capability="telegram_remote")]
         self.assertEqual(lines.count("tgram.ignored"), 2)
+
+    def test_a_command_named_for_another_bot_is_passed_over_and_one_for_this_bot_obeyed(self):
+        """R5 (the security review of 2026-11-06): fails with the name dropped unread - in a group, /pause@OtherBot, meant
+        for another bot, would pause recovery here."""
+        for text in ("/pause@OtherBot", "/cancel@OtherBot 1", "/status@my_bot_not"):
+            self.assertEqual(self.said(text), [], text)
+        self.assertEqual(self.layer.calls, [])
+        self.assertEqual(self.said("/pause@my_bot"), ["Recovery is paused."], "its own name, in any case")
+        self.assertEqual(self.said("/status@MY_BOT"), ["Watcher running, recovery on, 2 waiting."])
+
+    def test_with_its_name_unread_a_named_command_is_passed_over(self):
+        bot = Bot([self.message("/pause@my_bot")])
+        real = bot.open
+        bot.open = lambda request, timeout=None: (_ for _ in ()).throw(urllib.error.URLError("no")) \
+            if request.full_url.endswith("/getMe") else real(request, timeout)
+        self.poller(bot).once()
+        self.assertEqual((bot.answers, self.layer.calls), ([], []))
 
     def test_one_message_with_no_chat_or_a_chat_that_is_no_number_is_another_chat(self):
         for update in ({"update_id": 1}, {"update_id": 2, "message": {"text": "/pause", "date": int(self.now)}},

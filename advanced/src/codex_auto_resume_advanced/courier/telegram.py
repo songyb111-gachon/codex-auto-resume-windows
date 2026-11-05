@@ -15,7 +15,9 @@ hours later. The paired chat's text is read as one of COMMANDS and nothing else:
     /continue task N   one held for the person let go on - telegram_continue only (core's release_hold)
     /recovery-on       the pause lifted - telegram_continue only
 
-Anything else is answered with the list of commands it may send. No command sends to Codex, chats, changes a setting,
+A command addressed to a bot by name (`/pause@name`, as Telegram writes them in a group) is obeyed only when the name is
+this bot's own, asked of Telegram once (getMe); for another bot - or while this one's name cannot be read - it is passed
+over without an answer. Anything else is answered with the list of commands it may send. No command sends to Codex, chats, changes a setting,
 turns a feature on or off, sends now or gives attempts back (a test holds COMMANDS to the design's table); no text of a
 message reaches a conversation. Answers are in the person's language, closed words, numbers and `task N` alone, sent to
 the paired chat by sendMessage - the bot's token only ever in the request's path, never in a log or the journal.
@@ -94,6 +96,7 @@ class Poller:
         self.locale = locale
         self.listed = None               # the snapshot of the list last answered to the paired chat
         self.ignored_at = None           # when what other chats sent was last journalled
+        self.name = None                 # this bot's own name, lower case, once getMe answered it
 
     @property
     def secrets(self):
@@ -173,6 +176,8 @@ class Poller:
                     or not 0 <= now - sent_at <= FRESH):
                 ignored = True
                 continue
+            if self.elsewhere(token, message.get("text")):
+                continue                 # a command for another bot, in a group: not this one's to answer
             said = self.answer(message.get("text"))
             try:
                 self.send(token, chat, said)
@@ -183,6 +188,26 @@ class Poller:
             self.ignored_at = now
             self.runtime.state.counted(TELEGRAM, "ignored")
         return 0
+
+    def own_name(self, token):
+        """This bot's name (getMe), lower case - asked once and kept - or None where it cannot be read."""
+        if self.name is None:
+            try:
+                found = json.loads(http.get("%s%s/getMe" % (TELEGRAM_API, token), opener=self._opener).decode("utf-8"))
+                name = found.get("result", {}).get("username") if found.get("ok") is True else None
+            except (http.Failed, ValueError, UnicodeDecodeError, AttributeError):
+                return None
+            self.name = name.lower() if isinstance(name, str) and name else None
+        return self.name
+
+    def elsewhere(self, token, text) -> bool:
+        """Whether `text` is a command addressed by name to another bot (or to a name this one cannot confirm)."""
+        if not isinstance(text, str) or not text.strip().startswith("/"):
+            return False
+        first = text.strip().split()[0]
+        if "@" not in first:
+            return False
+        return first.split("@", 1)[1].lower() != self.own_name(token)
 
     def send(self, token, chat, text) -> str:
         body = json.dumps({"chat_id": chat, "text": text, "disable_web_page_preview": True},
