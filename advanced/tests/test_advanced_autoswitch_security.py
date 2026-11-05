@@ -402,6 +402,56 @@ class RefreshedCopyKeptWhenTheReadBreaks(SwapCase):
         self.assertEqual(self.store.get(two)["auth"], rotated)
 
 
+class OneHandOnTheSavedAccounts(SwapCase):
+    """Finding 7 (R16): the intent had no owner and no lock - another process's look (MSWAP's hand beside an armed
+    watcher) settled a switch still under way, writing the old copy back, and a save beside it raced. A second thread
+    stands for that other process here: a Windows mutex belongs to a thread."""
+
+    def other(self, job):
+        import threading
+        found = []
+        worker = threading.Thread(target=lambda: found.append(job()))
+        worker.start()
+        worker.join(30)
+        return found[0]
+
+    def test_a_look_elsewhere_does_not_settle_a_switch_under_way(self):
+        """Fails with the lock removed: the other look put the first account's old copy back mid-switch."""
+        two = self.store.save(TWO, "two@example.com", "plus")
+        one = self.store.save(fixture("one", n=0), "one@example.com", "plus")      # an old copy
+        fake = Fake(self)
+        plain = fake.restart
+        seen = {}
+
+        def restart(between):
+            with patch.object(swap, "_app_running", lambda: False):
+                seen["recover"] = self.other(lambda: swap.recover(None, self.store, self.codex, read_real=fake.read_real))
+                seen["switch"] = self.other(lambda: swap.switch(None, self.store, self.codex, two, restart=plain,
+                                                                read_real=fake.read_real, now=NOW))
+                seen["delete"] = self.other(lambda: self.store_locked_delete(one))
+            return plain(between)
+        fake.restart = restart
+        self.assertEqual(self.switch(fake, two), swap.SWITCHED)
+        self.assertEqual(seen, {"recover": swap.LOCKED, "switch": swap.LOCKED, "delete": "locked"})
+        self.assertEqual(self.store.get(one)["auth"], ONE, "the newest copy was saved back, not undone")
+
+    def store_locked_delete(self, profile_id):
+        from codex_auto_resume_advanced.profiles import Locked
+        try:
+            with self.store.locked(0.2):
+                return self.store.delete(profile_id)
+        except Locked:
+            return "locked"
+
+    def test_every_write_path_takes_the_lock(self):
+        source = (Path(__file__).resolve().parents[1] / "src" / "codex_auto_resume_advanced" / "codex"
+                  / "swap.py").read_text(encoding="utf-8")
+        self.assertGreaterEqual(source.count("with store.locked("), 6)
+        control = (Path(__file__).resolve().parents[1] / "src" / "codex_auto_resume_advanced" / "control"
+                   / "autoswitch.py").read_text(encoding="utf-8")
+        self.assertIn("with store.locked():", control)
+
+
 def swap_restarts():
     from codex_auto_resume_advanced.codex import restart
     return restart

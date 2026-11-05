@@ -43,7 +43,9 @@ LEFT = "left"
 NOT_PUT_BACK = "not_put_back"
 # Another account was signed in while the app closed: nothing was saved back or swapped, the file left as it is.
 CHANGED = "changed_under"
-OUTCOMES = (SWITCHED, NOT_SIGNED_IN, NOT_USABLE, NOT_CLOSED, FAILED, LEFT, NOT_PUT_BACK, CHANGED)
+# Another switch, put-back, save or delete held the saved accounts: nothing was done (profiles.Profiles.locked).
+LOCKED = "locked"
+OUTCOMES = (SWITCHED, NOT_SIGNED_IN, NOT_USABLE, NOT_CLOSED, FAILED, LEFT, NOT_PUT_BACK, CHANGED, LOCKED)
 # The most restarts later looks make to put the previous file back; after them they wait for Codex to be closed.
 BACK_TRIES = 3
 
@@ -96,7 +98,8 @@ def add_by_login(paths, store, *, backend_for=None, session_for=None, runner=Non
     if account.get("present") is not True or not account.get("email"):
         return None
     try:
-        return store.save(data, account["email"], account.get("plan_word"))
+        with store.locked():
+            return store.save(data, account["email"], account.get("plan_word"))
     except OSError:
         return None
 
@@ -110,7 +113,8 @@ def save_current(paths, store, codex_home, *, read_real=None):
     if found.get("present") is not True or not found.get("email"):
         return None
     try:
-        return store.save(authfile.read(codex_home), found["email"], found.get("plan_word"))
+        with store.locked():
+            return store.save(authfile.read(codex_home), found["email"], found.get("plan_word"))
     except OSError:
         return None
 
@@ -155,7 +159,8 @@ def read_profile(paths, store, profile_id, *, session_for=None, now=None) -> dic
         # may be spent already (the security review's finding 6).
         if scratch.after is not None and scratch.after != profile["auth"]:
             try:
-                store.update(profile_id, auth=scratch.after)
+                with store.locked():
+                    store.update(profile_id, auth=scratch.after)
             except (ProfileError, OSError):
                 pass
         return found
@@ -166,23 +171,39 @@ def read_profile(paths, store, profile_id, *, session_for=None, now=None) -> dic
     if usage is not None:
         found.update(usage_of(usage))
     try:
-        if found["present"] is False or found["own"] is False:
-            store.update(profile_id, failed_at=int(now or store._clock()))
-        else:
-            changes = {}
-            if scratch.after is not None and scratch.after != profile["auth"]:
-                changes["auth"] = scratch.after                  # Codex refreshed the tokens there: keep the newer copy
-            if found["full_until"]:
-                changes["exhausted_until"] = int(found["full_until"])
-            if changes:
-                store.update(profile_id, **changes)
+        with store.locked():
+            _note_read(store, profile_id, profile, scratch, found, now)
     except (ProfileError, OSError):
         pass
     return found
 
 
+def _note_read(store, profile_id, profile, scratch, found, now) -> None:
+    """What one read found, kept in the profile: needing a sign-in, or the newer copy and the reset it is full until."""
+    if found["present"] is False or found["own"] is False:
+        store.update(profile_id, failed_at=int(now or store._clock()))
+    else:
+        changes = {}
+        if scratch.after is not None and scratch.after != profile["auth"]:
+            changes["auth"] = scratch.after                  # Codex refreshed the tokens there: keep the newer copy
+        if found["full_until"]:
+            changes["exhausted_until"] = int(found["full_until"])
+        if changes:
+            store.update(profile_id, **changes)
+
+
 def switch(paths, store, codex_home, target_id, *, restart=None, read_real=None, now=None) -> str:
-    """Put the saved account `target_id` in as Codex's sign-in at `codex_home`; see the module. One of OUTCOMES."""
+    """Put the saved account `target_id` in as Codex's sign-in at `codex_home`; see the module. One of OUTCOMES - LOCKED,
+    and nothing done, where another switch, put-back, save or delete holds the saved accounts."""
+    from ..profiles import Locked
+    try:
+        with store.locked(0):
+            return _switch(paths, store, codex_home, target_id, restart=restart, read_real=read_real, now=now)
+    except Locked:
+        return LOCKED
+
+
+def _switch(paths, store, codex_home, target_id, *, restart=None, read_real=None, now=None) -> str:
     from ..profiles import ProfileError
     from . import restart as restarts
     if authfile.usable(codex_home) != authfile.USABLE:
@@ -275,6 +296,19 @@ def _put_back(codex_home, put_in, previous, restart) -> bool:
 
 
 def recover(paths, store, codex_home, *, read_real=None, restart=None) -> str | None:
+    """_recover, holding the saved accounts: LOCKED, and nothing settled, where another process's switch is under way -
+    its intent is its own. None where no switch was under way."""
+    from ..profiles import Locked
+    if store.intent() is None:
+        return None
+    try:
+        with store.locked(0):
+            return _recover(paths, store, codex_home, read_real=read_real, restart=restart)
+    except Locked:
+        return LOCKED
+
+
+def _recover(paths, store, codex_home, *, read_real=None, restart=None) -> str | None:
     """A switch the watcher did not see finish (an intent left behind by a crash): settled once and the intent cleared.
     The account signed in now is read: the target's - SWITCHED. Anything else: only where the sign-in file in place is,
     byte for byte, the target's copy this switch put in - and Codex does not run - the previous profile's copy goes back,

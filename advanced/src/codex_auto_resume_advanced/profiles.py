@@ -18,7 +18,9 @@ account_switch's watch tells that change from one a person made (`switched_to`).
 from __future__ import annotations
 
 import base64
+from contextlib import contextmanager
 import json
+import os
 from pathlib import Path
 import re
 import secrets
@@ -36,10 +38,23 @@ READY, EXHAUSTED, NEEDS_SIGN_IN, DAMAGED = "ready", "exhausted", "needs_sign_in"
 STATES = (READY, EXHAUSTED, NEEDS_SIGN_IN, DAMAGED)
 # The most profiles a person may keep.
 MOST = 8
+# Seconds a save, a delete or a profile's update waits for the saved accounts' lock (`locked`).
+LOCK_SECONDS = 5.0
 
 
 class ProfileError(OSError):
     """A profile that cannot be saved, read or found."""
+
+
+class Locked(ProfileError):
+    """Another switch, put-back, save or delete holds the saved accounts - in this process or another."""
+
+
+def _mutex(directory, seconds):
+    """One named mutex for the saved accounts of one product home, across every process of the person's (the watcher,
+    the bridge, a measurement's hand): core's win/sync.Mutex, which an abandoned holder releases."""
+    from codex_auto_resume.win.sync import Mutex
+    return Mutex("account-switch:" + os.path.normcase(str(Path(directory).absolute())), timeout=seconds)
 
 
 def _seal(data):
@@ -55,11 +70,27 @@ def _open(blob):
 class Profiles:
     """The profiles under `home` (the product's home). `seal` and `open_` are Windows' data protection, or a test's."""
 
-    def __init__(self, home, *, seal=None, open_=None, clock=None):
+    def __init__(self, home, *, seal=None, open_=None, clock=None, lock=None):
         self.directory = Path(home) / FOLDER
         self._seal = seal or _seal
         self._open = open_ or _open
         self._clock = clock or time.time
+        self._lock = lock or _mutex
+
+    @contextmanager
+    def locked(self, seconds=LOCK_SECONDS):
+        """The saved accounts held for one switch, put-back, save or delete (the security review's finding 7: the intent
+        had no owner, so a measurement's hand beside an armed watcher, or the bridge's save beside a switch, raced).
+        Locked where another holds them after `seconds`. The same thread may take it again inside."""
+        try:
+            held = self._lock(self.directory, seconds)
+            held.__enter__()
+        except Exception:
+            raise Locked("the saved accounts are held") from None
+        try:
+            yield
+        finally:
+            held.__exit__(None, None, None)
 
     # ------------------------------------------------------------------ sealed files
     def _write(self, name, value) -> None:

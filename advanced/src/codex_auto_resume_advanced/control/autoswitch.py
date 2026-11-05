@@ -106,11 +106,16 @@ def save(runtime, *, store=None, codex_home=None, read_real=None) -> dict:
 
 def delete(runtime, argument, *, store=None) -> dict:
     """advanced-accounts-delete: {"id": ...} or {"all": true}, in every state; see the module."""
+    from ..profiles import Locked
     store = store or _saved(runtime)
     argument = argument if isinstance(argument, dict) else {}
-    if argument.get("all") is True:
-        return {"done": True, "refusal": None, "deleted": store.delete_all()}
-    profile_id = argument.get("id")
-    if not isinstance(profile_id, str) or profile_id not in store.ids():
-        return _refused(Refusal.OPTION_INVALID)
-    return {"done": True, "refusal": None, "deleted": int(store.delete(profile_id))}
+    try:
+        with store.locked():
+            if argument.get("all") is True:
+                return {"done": True, "refusal": None, "deleted": store.delete_all()}
+            profile_id = argument.get("id")
+            if not isinstance(profile_id, str) or profile_id not in store.ids():
+                return _refused(Refusal.OPTION_INVALID)
+            return {"done": True, "refusal": None, "deleted": int(store.delete(profile_id))}
+    except Locked:
+        return _refused(Refusal.SWITCH_RUNNING)
