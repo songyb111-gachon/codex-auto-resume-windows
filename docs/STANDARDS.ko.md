@@ -329,7 +329,7 @@ K군은 2026-09-28에 더했습니다. 실행 중에 이 파일을 읽는 것은
 **F2** 레지스트리 쓰기는 모두 HKCU 아래입니다: Run 값(고른 경우에만 쓰고, 우리 것일 때만 지움), Software\Classes\codex-auto-resume, Software\Classes\AppUserModelId\CodexAutoResume.Watcher, 그리고 설치를 설정 > 앱 목록에 올리는 Software\Microsoft\Windows\CurrentVersion\Uninstall 아래 키 하나 - 표준판은 CodexAutoResume, 고급판은 CodexAutoResumeAdvanced이며 둘이 함께 있는 일은 없습니다. 설치 프로그램이 가리킬 제거 프로그램을 보관해 둔 경우에만 쓰고, 이 설치를 가리킬 때만 바꾸거나 지웁니다(2026-10-16 소유자가 고침).  
 *키마다 테스트; 다른 키를 쓰지 않는 것은 코드*: `test_cli.py`, `test_notify.py`, `test_plugin.py`, `test_add_remove.py`
 
-**F3** 자기 파일: 출처 표시가 있는 config/와 logs/, 홈(%USERPROFILE%\.codex-auto-resume, AppData가 아님)의 프로그램 파일, 시작 메뉴 바로 가기, 그리고 요청한 곳에만 쓰는 진단.  
+**F3** 자기 파일: 출처 표시가 있는 config/와 logs/, 홈(%USERPROFILE%\.codex-auto-resume, AppData가 아님)의 프로그램 파일, 시작 메뉴 바로 가기, 사람이 요청한 곳에만 만드는 바탕 화면 바로 가기(소유자가 2026-11-05에 개정), 그리고 요청한 곳에만 쓰는 진단.  
 *테스트*: `test_plugin.py`
 
 **F4** 경로 가두기: 링크이거나 홈 바깥으로 풀리는(NTFS 정션 포함) 소유 디렉터리는 거부합니다.  

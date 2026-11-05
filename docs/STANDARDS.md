@@ -328,7 +328,7 @@ changed).
 **F2** Registry writes, all under HKCU: the Run value (only if chosen, removed only while it is ours), Software\Classes\codex-auto-resume and Software\Classes\AppUserModelId\CodexAutoResume.Watcher, and the one Software\Microsoft\Windows\CurrentVersion\Uninstall key that lists the installation in Add or remove programs - CodexAutoResume, or CodexAutoResumeAdvanced for the advanced edition, never both - written only where the installer has kept an uninstaller for it to name, and replaced or removed only while it names this installation (amended by the owner on 2026-10-16).  
 *tested per key; code that no other key is written*: `test_cli.py`, `test_notify.py`, `test_plugin.py`, `test_add_remove.py`
 
-**F3** Its own files: config/ and logs/ with a provenance marker, program files in the home (%USERPROFILE%\.codex-auto-resume, never AppData), a Start Menu shortcut, and diagnostics only where asked.  
+**F3** Its own files: config/ and logs/ with a provenance marker, program files in the home (%USERPROFILE%\.codex-auto-resume, never AppData), a Start Menu shortcut, a Desktop shortcut only where a person asks for one (amended by the owner on 2026-11-05), and diagnostics only where asked.  
 *tested*: `test_plugin.py`
 
 **F4** Path confinement: an owned directory that is a link or resolves outside the home (NTFS junctions included) is refused.  
