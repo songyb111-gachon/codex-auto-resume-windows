@@ -11,14 +11,19 @@
   (config, logs, tests, ...) still ships; caches and virtual environments never do.
 * RuntimeDownloadTests (T3) - a runtime download whose digest is wrong is removed, so the next build
   downloads it again instead of failing on the same cached file every time.
+* WindowBuildInputTests (T4) - make_gui.ps1 stops, before compiling, when the icon or the window's DPI
+  manifest is missing, instead of building executables without them.
 """
 from __future__ import annotations
 
 import hashlib
 import importlib.util
 import io
+import os
 from pathlib import Path
 import re
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -198,6 +203,43 @@ class RuntimeDownloadTests(unittest.TestCase):
         self.assertEqual(urlopen.call_count, 0)
         self.assertEqual(archive.read_bytes(), payload)
         self.assertEqual(sorted(p.name for p in self.cache.iterdir()), [self.release.PYTHON_ZIP])
+
+
+POWERSHELL = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
+
+
+@unittest.skipUnless(POWERSHELL.is_file(), "needs Windows PowerShell")
+class WindowBuildInputTests(unittest.TestCase):
+    """make_gui.ps1 on a scratch copy of what it reads, one input taken away: it stops before compiling."""
+
+    def _build_without(self, missing: str) -> subprocess.CompletedProcess:
+        with tempfile.TemporaryDirectory() as scratch:
+            root = Path(scratch) / "root"
+            shutil.copytree(ROOT / "gui", root / "gui")
+            for name in (".codex-plugin/plugin.json", "assets/codex-auto-resume.ico", "build/make_gui.ps1",
+                         "build/normalize_pe.py"):
+                (root / name).parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(ROOT / name, root / name)
+            (root / missing).unlink()
+            out = Path(scratch) / "out"
+            run = subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+                                  "-File", str(root / "build" / "make_gui.ps1"), "-Root", str(root), "-Out", str(out)],
+                                 capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600,
+                                 stdin=subprocess.DEVNULL, creationflags=subprocess.CREATE_NO_WINDOW)
+            run.built = sorted(p.name for p in out.glob("*.exe")) if out.is_dir() else []
+            return run
+
+    def test_no_manifest_no_window(self):
+        run = self._build_without("gui/app.manifest")
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn("app.manifest is missing", run.stderr + run.stdout)
+        self.assertEqual(run.built, [])
+
+    def test_no_icon_no_executables(self):
+        run = self._build_without("assets/codex-auto-resume.ico")
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn("codex-auto-resume.ico is missing", run.stderr + run.stdout)
+        self.assertEqual(run.built, [])
 
 
 if __name__ == "__main__":

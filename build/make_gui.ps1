@@ -90,6 +90,14 @@ New-Item -ItemType Directory -Force $Out | Out-Null
 
 $icon     = Join-Path $Root 'assets\codex-auto-resume.ico'
 $manifest = Join-Path $Root 'gui\app.manifest'
+# Both are fixed files of the repository. Without the icon every executable compiles with none, and
+# without the manifest the window is not per-monitor DPI aware (blurry at 150%), and either one would
+# still build, normalise and reproduce: so a missing one stops the build here.
+foreach ($required in @($icon, $manifest)) {
+    if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
+        throw ($required + ' is missing; the executables are not built without it.')
+    }
+}
 
 function Build {
     param(
@@ -107,9 +115,9 @@ function Build {
     $arguments = @('/nologo', ('/target:' + $Target), '/platform:x64', '/optimize+',
                    ('/out:' + $exe))
     foreach ($reference in $References) { $arguments += ('/reference:' + $reference) }
-    if (Test-Path $icon) { $arguments += ('/win32icon:' + $icon) }
+    $arguments += ('/win32icon:' + $icon)
     # Only the window declares per-monitor DPI awareness; the launcher draws nothing.
-    if ($WithManifest -and (Test-Path $manifest)) { $arguments += ('/win32manifest:' + $manifest) }
+    if ($WithManifest) { $arguments += ('/win32manifest:' + $manifest) }
     $arguments += $Sources
     & $csc @arguments
     if ($LASTEXITCODE -ne 0) { throw ($Name + ' failed to compile.') }
