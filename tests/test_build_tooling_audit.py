@@ -13,6 +13,8 @@
   downloads it again instead of failing on the same cached file every time.
 * WindowBuildInputTests (T4) - make_gui.ps1 stops, before compiling, when the icon or the window's DPI
   manifest is missing, instead of building executables without them.
+* LauncherCacheRaceTests (S1) - watcher_launcher passes over a cached copy removed between its listing
+  and the newest-copy pick, instead of ending the launch.
 """
 from __future__ import annotations
 
@@ -203,6 +205,57 @@ class RuntimeDownloadTests(unittest.TestCase):
         self.assertEqual(urlopen.call_count, 0)
         self.assertEqual(archive.read_bytes(), payload)
         self.assertEqual(sorted(p.name for p in self.cache.iterdir()), [self.release.PYTHON_ZIP])
+
+
+class LauncherCacheRaceTests(unittest.TestCase):
+    """A scratch Codex home whose plugin cache holds two copies; one is removed between the listing and
+    the newest-copy pick, as a plugin update does."""
+
+    def setUp(self):
+        self.launcher = _load("watcher_launcher", ROOT / "scripts" / "watcher_launcher.py")
+        scratch = tempfile.TemporaryDirectory()
+        self.addCleanup(scratch.cleanup)
+        self.scratch = Path(scratch.name)
+        versions = self.scratch / "codex" / "plugins" / "cache" / "codex-auto-resume-windows" / "codex-auto-resume"
+        self.old, self.new = versions / "1.0.0", versions / "1.0.1"
+        for copy, stamp in ((self.old, 1_000_000_000), (self.new, 1_000_000_100)):
+            for name in ("src/auto_resume.py", "src/codex_auto_resume/cli.py"):
+                (copy / name).parent.mkdir(parents=True, exist_ok=True)
+                (copy / name).write_text("", encoding="utf-8")
+            os.utime(copy, (stamp, stamp))
+        self.recorded = self.scratch / "recorded"
+        for name in ("src/auto_resume.py", "src/codex_auto_resume/cli.py"):
+            (self.recorded / name).parent.mkdir(parents=True, exist_ok=True)
+            (self.recorded / name).write_text("", encoding="utf-8")
+        patcher = mock.patch.dict(os.environ, {"CODEX_HOME": str(self.scratch / "codex")})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.config = {"mode": "plugin", "plugin_name": "codex-auto-resume", "home": str(self.scratch / "home"),
+                       "plugin_root": str(self.recorded)}
+
+    def _removing(self, *gone: Path):
+        """_usable as it is, and once the listing has seen every copy, the named ones removed."""
+        usable, seen = self.launcher._usable, []
+
+        def listing(root):
+            result = usable(root)
+            seen.append(root)
+            if len(seen) == 2 + 1:  # home/app, then the two cached copies
+                for copy in gone:
+                    shutil.rmtree(copy)
+            return result
+        return mock.patch.object(self.launcher, "_usable", side_effect=listing)
+
+    def test_the_newest_copy_without_a_race(self):
+        self.assertEqual(self.launcher.resolve_plugin_root(self.config), self.new)
+
+    def test_a_copy_removed_after_the_listing_is_passed_over(self):
+        with self._removing(self.new):
+            self.assertEqual(self.launcher.resolve_plugin_root(self.config), self.old)
+
+    def test_every_copy_removed_falls_through_to_the_recorded_root(self):
+        with self._removing(self.old, self.new):
+            self.assertEqual(self.launcher.resolve_plugin_root(self.config), self.recorded)
 
 
 POWERSHELL = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
