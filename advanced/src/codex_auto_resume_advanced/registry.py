@@ -1571,10 +1571,12 @@ STOP_HOOK = CapabilityDef(
 # requires account_switch, whose watch holds no recovery for a switch of this capability's (profiles.switched_to) and
 # still holds for a change a person made. It stands on usage_probe and rests on MPROFILE and MSWAP; until both pass on
 # the Codex in force it waits hidden in WAITING. Ceilings: those of early_reset's EARLY.
+# Revision 2 (v0.6.23 audit): the statement names the bound on its early looks (A-M7), and its stop text the one thing
+# that still happens once it is off - a switch that did not finish is undone (A-M3, AutoSwitch.tend).
 ACCOUNT_AUTO_SWITCH = CapabilityDef(
     id="account_auto_switch",
     points=frozenset({Point.TICK, Point.SCHEDULE}),
-    revision=1,
+    revision=2,
     departs_from=("A12", "B2", "B3", "B4", "B10", "B11", "C4", "C9", "D2", "E8", "F6"),
     compat="usage_probe",
     ceilings=Ceilings(per_day=12, per_conversation=3),

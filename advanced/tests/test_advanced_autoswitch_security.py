@@ -1047,6 +1047,31 @@ class APutBackOutlivesADelete(SwapCase):
         self.assertEqual((self.codex / "auth.json").read_bytes(), THREE)
 
 
+class TheStopTextNamesItsOneException(unittest.TestCase):
+    """After A-M3 a switch that did not finish is still undone once the capability is off; the stop text said
+    "nothing is switched from then on" and named no exception."""
+
+    def test_every_catalog_and_both_documents_name_it_and_the_revision_moved(self):
+        """Fails with the old words: no catalog's stop text, and no document, named the exception."""
+        import json
+        from codex_auto_resume_advanced.registry import ACCOUNT_AUTO_SWITCH
+        self.assertEqual(ACCOUNT_AUTO_SWITCH.revision, 2, "a person who turned it on reads the statement again")
+        root = Path(__file__).resolve().parents[2]
+        catalogs = sorted((root / "advanced" / "src" / "codex_auto_resume_advanced" / "locales").glob("*.json"))
+        self.assertEqual(len(catalogs), 18)
+        stops = {c.stem: json.loads(c.read_text(encoding="utf-8"))["statement.account_auto_switch.stop"] for c in catalogs}
+        self.assertIn("a switch that did not finish is still undone", stops["en"])
+        self.assertIn("끝나지 않은 전환", stops["ko"])
+        self.assertEqual(len(set(stops.values())), 18)
+        for name in ("SECURITY.md", "PRIVACY.md"):
+            self.assertIn("a switch that did\nnot finish is still undone" if name == "SECURITY.md"
+                          else "a switch that did not finish is\n  still undone",
+                          (root / "docs" / name).read_text(encoding="utf-8"), name)
+        import languages
+        for name in ("SECURITY.ko.md", "PRIVACY.ko.md") if languages.both_languages() else ():
+            self.assertIn("끝나지 않은 전환은 여전히", (root / "docs" / name).read_text(encoding="utf-8"), name)
+
+
 def swap_restarts():
     from codex_auto_resume_advanced.codex import restart
     return restart
