@@ -49,6 +49,16 @@ class PageTests(PageCase):
         return "en", {"script": script, "steps": steps}, {"words": script["advanced-words"][0]["result"]["words"]}
 
     @classmethod
+    def scenario_declined(cls, bridge):
+        """A token kept, and the person says no to replacing it: nothing is asked of the bridge."""
+        cls.watched(bridge, API, state="armed")
+        script = cls.opening(bridge, "en")
+        script["advanced-api"] = [card()] * 8
+        steps = [{"do": "snapshot", "reply": snapshot()}, {"do": "show"}, {"do": "choose", "id": API},
+                 {"do": "answer", "with": [False]}, {"do": "remote", "button": "token api"}, {"do": "look"}]
+        return "en", {"script": script, "steps": steps}, {"words": script["advanced-words"][0]["result"]["words"]}
+
+    @classmethod
     def scenario_no_token(cls, bridge):
         """On, none kept yet: no Copy address, and New token... asks nothing, there being nothing to replace."""
         cls.watched(bridge, API, state="armed")
@@ -90,7 +100,12 @@ class PageTests(PageCase):
         result, _expected = self.of("scenario_on")
         self.assertEqual(sent(result, "advanced-api-token-new"), [{}])
         self.assertEqual(result["looks"][2]["remote_copied"], [COPIED, COPIED + "2"])
-        self.assertTrue(result["dialogs"], "it asked")
+
+    def test_it_asks_first_and_a_no_makes_no_token(self):
+        """Fails with the question reverted: a press would make the old address useless with no word."""
+        result, _expected = self.of("scenario_declined")
+        self.assertEqual(sent(result, "advanced-api-token-new"), [])
+        self.assertEqual(result["looks"][0]["remote_copied"], [])
 
     def test_with_no_token_there_is_no_copy_and_the_card_says_what_is_wrong(self):
         result, expected = self.of("scenario_no_token")
