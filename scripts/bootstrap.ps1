@@ -2004,6 +2004,9 @@ function Invoke-InstalledSetup {
         if ($null -ne $outsideCode) { return [pscustomobject]@{ Printed = @(); Code = $outsideCode } }
     }
     $ErrorActionPreference = 'Continue'
+    # Nothing, until the interpreter sets it: one that cannot be started left the last native call's code here, which
+    # read as success (v0.6.23 audit, N5); null is 1 below, and under Set-StrictMode the variable now always exists.
+    $global:LASTEXITCODE = $null
     $printed = @(& $python -X disable-remote-debug $setup @Arguments)
     $code = $LASTEXITCODE
     if ($null -eq $code) { $code = 1 }

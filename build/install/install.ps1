@@ -1044,6 +1044,9 @@ function Invoke-Setup {
     # and failed the install (v0.6.18 installer audit, R1). For this call alone; the bootstrap's Invoke-InstalledSetup
     # does the same.
     $ErrorActionPreference = 'Continue'
+    # Failed until the interpreter says otherwise: a python.exe that cannot be started leaves $LASTEXITCODE as the last
+    # native call set it, and this returned that - a setup step that never ran read as success (v0.6.23 audit, N5).
+    $global:LASTEXITCODE = 1
     # -X disable-remote-debug, before anything else, wherever this script runs the bundled interpreter: remote debugging
     # off (PEP 768, Python 3.14; src/codex_auto_resume/startup.py, NO_REMOTE_DEBUG).
     try { & $Python -X disable-remote-debug $setup @Arguments | ForEach-Object { Write-Host ('    ' + $_) } }

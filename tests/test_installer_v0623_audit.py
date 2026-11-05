@@ -328,5 +328,42 @@ class N4RuntimeVersionProbe(Scratch):
         self.assertIn("went on", output)
 
 
+@unittest.skipUnless(WINDOWS and POWERSHELL.is_file(), "the installer is PowerShell on Windows")
+class N5SetupThatCannotStart(Scratch):
+    """An interpreter that cannot be started is a failed setup step, never the last native call's exit code."""
+
+    def installer_code(self, earlier_native_call):
+        code, output = run_ps(
+            "Set-StrictMode -Version 2.0\n"
+            "$AppDir = Join-Path $env:CAR_DIR 'app'; $Python = Join-Path $env:CAR_DIR 'runtime/python.exe'\n"
+            "$script:ProgressLines = $false\n"
+            + ("& cmd.exe /c exit 0\n" if earlier_native_call else "") +
+            "$got = @(Invoke-Setup @('doctor'))\n"
+            "@{ code = $got[-1]; count = $got.Count } | ConvertTo-Json -Compress\n", CAR_DIR=str(self.root))
+        self.assertEqual(code, 0, output[-1500:])
+        return last_json(output)
+
+    def test_install_ps1_reads_a_missing_interpreter_as_failure(self):
+        for earlier in (True, False):
+            with self.subTest(earlier_native_call=earlier):
+                self.assertEqual(self.installer_code(earlier)["code"], 1)
+
+    def bootstrap_code(self, earlier_native_call):
+        code, output = run_ps(
+            "Set-StrictMode -Version 2.0\n"
+            + ("& cmd.exe /c exit 0\n" if earlier_native_call else "") +
+            "$got = Invoke-InstalledSetup -Home_ $env:CAR_DIR -Arguments @('doctor')\n"
+            "@{ code = $got.Code } | ConvertTo-Json -Compress\n", script=ROOT / "scripts" / "bootstrap.ps1",
+            CAR_DIR=str(self.root))
+        return code, output
+
+    def test_the_bootstraps_installed_setup_reads_it_the_same_way(self):
+        for earlier in (True, False):
+            with self.subTest(earlier_native_call=earlier):
+                code, output = self.bootstrap_code(earlier)
+                self.assertEqual(code, 0, output[-1500:])
+                self.assertEqual(last_json(output)["code"], 1)
+
+
 if __name__ == "__main__":
     unittest.main()
