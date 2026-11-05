@@ -165,7 +165,8 @@ class TableTests(unittest.TestCase):
         of Codex brought the app up signed in.
         2026-11-05, on codex-cli 0.166.0-alpha.6, the measurement session's no-hands sitting: MW, MHK, M3B and MF passed, M3
         and MB failed as before. MB2's scratch part held and waits for its live part; MGAVE and MN stayed blocked by their
-        probes, MN because this account has reset credits now, so its record at zero credits stands."""
+        probes, MN because this account has reset credits now, so its record at zero credits stands.
+        2026-11-06, the same engine: MAUTO passed - the automatic check's own commands answered on a scratch home."""
         passed = {m for m, (verdict, _v) in measured.MEASURED.items() if verdict == Verdict.PASS}
         failed = {m for m, (verdict, _v) in measured.MEASURED.items() if verdict == Verdict.FAIL}
         self.assertEqual(passed, {Measurement.MW, Measurement.M1, Measurement.M2B, Measurement.M5,
@@ -175,7 +176,7 @@ class TableTests(unittest.TestCase):
                                   Measurement.MXA, Measurement.MX, Measurement.MF, Measurement.MO,
                                   Measurement.M3B, Measurement.M6B, Measurement.MQO, Measurement.MQP,
                                   Measurement.MQG, Measurement.MANCHOR, Measurement.MIMG, Measurement.MOPEN,
-                                  Measurement.MHK, Measurement.MALR})
+                                  Measurement.MHK, Measurement.MALR, Measurement.MAUTO})
         self.assertEqual(failed, {Measurement.M2, Measurement.M3, Measurement.M4, Measurement.MAWS,
                                   Measurement.MCLOUD, Measurement.MB, Measurement.MC2, Measurement.MSTEER,
                                   Measurement.MSTEER2, Measurement.MAL})
@@ -201,7 +202,8 @@ class TableTests(unittest.TestCase):
         # v0.6.22: the no-hands sitting of 2026-11-05 toward the re-measure.
         self.assertEqual({m for m, (_v, version) in measured.MEASURED.items()
                           if version == "codex-cli 0.166.0-alpha.6"},
-                         {Measurement.MW, Measurement.MHK, Measurement.M3B, Measurement.MF, Measurement.M3, Measurement.MB})
+                         {Measurement.MW, Measurement.MHK, Measurement.M3B, Measurement.MF, Measurement.M3, Measurement.MB,
+                          Measurement.MAUTO})
         self.assertEqual(set(Measurement) - passed - failed,
                          # v0.6.15-beta's own, for several conversations at once: not made yet.
                          {Measurement.MQ, Measurement.ME, Measurement.MS, Measurement.MK, Measurement.MT,
@@ -212,9 +214,7 @@ class TableTests(unittest.TestCase):
                           # v0.6.22: Codex's own retry settings by a provider of our own, on our own server.
                           Measurement.MB2,
                           # v0.6.22: the automatic account switch's two, made by the measurement session.
-                          Measurement.MPROFILE, Measurement.MSWAP,
-                          # v0.6.22: the automatic check's own proof on the real engine, for the measurement session.
-                          Measurement.MAUTO})
+                          Measurement.MPROFILE, Measurement.MSWAP})
 
 
 if __name__ == "__main__":

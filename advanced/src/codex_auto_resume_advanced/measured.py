@@ -115,4 +115,7 @@ MEASURED = {
     # it to quit, and it did), brought the app up signed in - the account switch's button rests on it.
     Measurement.MALR: (Verdict.PASS, CLI_0166_ALPHA_5_1),
     Measurement.MSTEER2: (Verdict.FAIL, CLI_0165_ALPHA_1_2),
+    # 2026-11-06 (v0.6.22), the measurement session, no hands: the automatic check's own commands answered on the app's
+    # engine, on a scratch Codex home the probe made and removed, with --experimental taken behind core's options.
+    Measurement.MAUTO: (Verdict.PASS, CLI_0166_ALPHA_6),
 }
