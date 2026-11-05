@@ -2,12 +2,15 @@
 
 * SidecarLineEndingTests (T1) - a .sha256 sidecar and release-notes.md are written with LF, so
   `sha256sum -c` finds the file it names; the digest is the file's, as before.
+* JobTimeoutTests (W1, W2) - each long job of test.yml, release.yml and sync-ko.yml has a limit far
+  above a healthy run and far below GitHub's six-hour default.
 """
 from __future__ import annotations
 
 import hashlib
 import importlib.util
 from pathlib import Path
+import re
 import sys
 import tempfile
 import unittest
@@ -24,6 +27,20 @@ def _load(name: str, path: Path):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def _job(workflow: str, name: str) -> str:
+    """The text of one job of a workflow: its header line up to the next job's, read as text."""
+    text = (WORKFLOWS / workflow).read_text(encoding="utf-8")
+    found = re.search(r"^  %s:\n(.*?)(?=^  [A-Za-z0-9_-]+:\n|\Z)" % re.escape(name), text, re.M | re.S)
+    if not found:
+        raise AssertionError("%s has no job %s" % (workflow, name))
+    return found.group(1)
+
+
+def _timeout(workflow: str, name: str):
+    found = re.search(r"^    timeout-minutes: (\d+)\s*$", _job(workflow, name), re.M)
+    return int(found.group(1)) if found else None
 
 
 class SidecarLineEndingTests(unittest.TestCase):
@@ -48,6 +65,21 @@ class SidecarLineEndingTests(unittest.TestCase):
             written = output.read_bytes()
         self.assertIn(b"One line.", written)
         self.assertNotIn(b"\r", written)
+
+
+class JobTimeoutTests(unittest.TestCase):
+    LIMITS = {
+        ("test.yml", "test"): 150,
+        ("test.yml", "main-tree"): 150,
+        ("release.yml", "test"): 150,
+        ("release.yml", "build"): 150,
+        ("release.yml", "publish"): 15,
+    }
+
+    def test_each_job_has_its_limit(self):
+        for (workflow, name), minutes in self.LIMITS.items():
+            with self.subTest(workflow=workflow, job=name):
+                self.assertEqual(_timeout(workflow, name), minutes)
 
 
 if __name__ == "__main__":

@@ -72,6 +72,9 @@ jobs:
   test:
     # Windows, where the product and its suite run.
     runs-on: windows-latest
+    # A hung part is stopped here, not at the six-hour default: healthy parts take 65-67 minutes, once
+    # 85-92, and with cancel-in-progress off a hung release run holds every later one of its tag group.
+    timeout-minutes: 150
     permissions:
       contents: read
     strategy:
@@ -118,6 +121,7 @@ jobs:
     # The product is Windows-only, and the release contains two Windows executables
     # compiled with the in-box C# compiler, so it can only be built on Windows.
     runs-on: windows-latest
+    timeout-minutes: 150
     permissions:
       contents: read
     outputs:
@@ -334,6 +338,7 @@ jobs:
     # publish from a "dry run".
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       # To create the release.
       contents: write
