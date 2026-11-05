@@ -266,6 +266,8 @@ class WriteTests(FleetCase):
         real = os.replace
 
         def spy(source, target):
+            if Path(target).parent != self.folder:          # what the pass read, kept in the edition's own folder
+                return real(source, target)
             self.assertTrue(Path(source).name.endswith(".tmp"))
             self.assertEqual(Path(source).parent, Path(target).parent, "beside it, so the replace is atomic")
             replaced.append(json.loads(Path(source).read_text(encoding="utf-8")))
@@ -563,12 +565,69 @@ class PeerTests(FleetCase):
         self.save()
         self.put("desk.json", peer("desk"))
         self.put("evil.json", dict(peer("evil"), watcher="<script>"))
+        self.look()
+        self.look(after=1)
         found = card.view(self.rt, now=ac.NOW)
         self.assertEqual(found["ignored"], 1)
         (row,) = found["peers"]
         self.assertEqual(set(row), {"alias", "watcher", "recovery", "pending", "seen", "written_at", "next_check_at"})
         self.assertEqual(row["alias"], "desk")
         self.assertNotIn("script", json.dumps(found))
+
+
+class DashboardReadTests(FleetCase):
+    """T3 (security review 2026-11-06): the Dashboard's call never waits on the synced folder."""
+
+    def test_the_card_never_touches_the_folder_it_answers_from_the_last_pass(self):
+        """Fails with the bridge reading the folder itself again."""
+        self.on()
+        self.save()
+        self.put("desk.json", peer("desk"))
+        self.look()
+        self.look(after=1)
+        with patch.object(fleet, "read_peers", side_effect=AssertionError("the folder was read")), \
+                patch.object(fleet, "folder_problem", side_effect=AssertionError("the folder was looked at")), \
+                patch.object(os, "scandir", side_effect=AssertionError("the folder was listed")):
+            found = card.view(self.rt, now=ac.NOW)
+        self.assertEqual([row["alias"] for row in found["peers"]], ["desk"])
+        self.assertEqual(found["stand"], fleet.OK)
+
+    def test_a_folder_that_stopped_answering_holds_no_call(self):
+        self.on()
+        self.save()
+        self.look()
+        release = threading.Event()
+        self.addCleanup(release.set)
+        with patch.object(fleet, "folder_problem", side_effect=lambda *a: release.wait(30)):
+            done = []
+            worker = threading.Thread(target=lambda: done.append(card.view(self.rt)), daemon=True)
+            worker.start()
+            worker.join(5)
+        self.assertTrue(done, "the Dashboard's call waited on the folder")
+
+    def test_what_the_pass_kept_is_checked_again_when_read(self):
+        self.on()
+        self.save()
+        self.put("desk.json", peer("desk"))
+        self.look()
+        self.look(after=1)
+        path = Path(fleet.seen_path(self.paths))
+        kept = json.loads(path.read_text(encoding="utf-8"))
+        kept["peers"][0]["watcher"] = "<script>"
+        path.write_text(json.dumps(kept), encoding="utf-8")
+        self.assertIsNone(fleet.read_seen(self.paths))
+        self.assertEqual(card.view(self.rt)["peers"], [])
+
+    def test_another_folder_forgets_what_the_last_one_showed(self):
+        self.on()
+        self.save()
+        self.put("desk.json", peer("desk"))
+        self.look()
+        self.look(after=1)
+        other = self.scratch / "other"
+        other.mkdir()
+        self.save(folder=other)
+        self.assertEqual(card.view(self.rt)["peers"], [])
 
 
 class TimeTests(unittest.TestCase):

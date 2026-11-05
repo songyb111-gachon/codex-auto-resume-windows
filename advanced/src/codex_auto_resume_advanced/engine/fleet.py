@@ -324,6 +324,69 @@ def read_peers(folder, own) -> tuple:
     return kept, ignored, held
 
 
+# ------------------------------------------------------------------------------ what the last pass read
+# The other PCs as the last pass read them, in this edition's own state folder, for the Dashboard to answer from: its
+# call never waits on the synced folder (a drive that stopped answering, or online-only files a cloud tool must fetch
+# first). Written whole by the pass, on its own thread; read, and every file in it checked again, by the bridge.
+SEEN_NAME = "fleet-seen.json"
+SEEN_FORMAT = "codex-auto-resume/fleet-seen/1"
+SEEN_KEYS = ("format", "read_at", "ignored", "held", "peers")
+SEEN_LIMIT = (MOST + 1) * LIMIT
+
+
+def seen_path(paths):
+    return os.path.join(str(paths.advanced_dir), SEEN_NAME)
+
+
+def write_seen(paths, now, kept, ignored, held) -> None:
+    """What a pass read, kept whole (a temporary file beside it, then a replace)."""
+    value = {"format": SEEN_FORMAT, "read_at": float(now), "ignored": int(ignored), "held": int(held),
+             "peers": [clean(each) for each in kept[:MOST]]}
+    target = seen_path(paths)
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    if _linked(target):
+        return
+    descriptor, temporary = tempfile.mkstemp(dir=os.path.dirname(target), prefix="fleet-seen.", suffix=".tmp")
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            json.dump(value, stream, allow_nan=False)
+        os.replace(temporary, target)
+    except OSError:
+        try:
+            os.unlink(temporary)
+        except OSError:
+            pass
+
+
+def read_seen(paths):
+    """{"read_at", "ignored", "held", "peers"} as the last pass kept it, each peer checked again - or None."""
+    target = seen_path(paths)
+    try:
+        if _linked(target) or os.lstat(target).st_size > SEEN_LIMIT:
+            return None
+        with open(target, "rb") as stream:
+            value = json.loads(stream.read(SEEN_LIMIT + 1).decode("utf-8"))
+        if not isinstance(value, dict) or tuple(value) != SEEN_KEYS or value["format"] != SEEN_FORMAT:
+            return None
+        counts = (value["ignored"], value["held"])
+        if not all(type(count) is int and 0 <= count <= SCAN_MOST for count in counts) \
+                or not _bounded_time(value["read_at"]) or not isinstance(value["peers"], list):
+            return None
+        return {"read_at": value["read_at"], "ignored": counts[0], "held": counts[1],
+                "peers": [clean(each, each.get("alias") if isinstance(each, dict) else None)
+                          for each in value["peers"][:MOST]]}
+    except (OSError, ValueError, TypeError, KeyError, RecursionError, AttributeError):
+        return None
+
+
+def forget_seen(paths) -> None:
+    try:
+        if not _linked(seen_path(paths)):
+            os.unlink(seen_path(paths))
+    except OSError:
+        pass
+
+
 # ------------------------------------------------------------------------------ at P8
 def _status_now(paths, now):
     """statusfile's document as the watcher's own status file would say it now, from what core's store holds."""
@@ -406,7 +469,8 @@ class FleetView:
                 word = write(folder, alias, value, wrote_before)
                 if word == OK:
                     wrote = max(1, int(value["written_at"]))
-                _kept, ignored, held = read_peers(folder, alias)
+                kept, ignored, held = read_peers(folder, alias)
+                write_seen(self.paths, now, kept, ignored, held)
                 if held and word == OK:
                     word = HELD
         except FileNotFoundError:

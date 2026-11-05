@@ -2,8 +2,10 @@
 """See your other PCs, on the Dashboard (fleet_view, v0.6.22).
 
 `advanced-fleet` reads what the Overview's Other PCs list and the capability's card show: this PC's alias and folder, how
-the folder stands, and each other PC as its file says - read-only, checked and bounded (engine/fleet.py). Off or watched the
-folder is not touched: the answer is what the state holds. `advanced-fleet-save` keeps the alias and the folder chosen in a
+the folder stands, and each other PC as its file says - read-only, checked and bounded (engine/fleet.py). It never touches
+the synced folder: it answers from what the watcher's last pass read and kept in this edition's state folder, so a drive
+that stopped answering, or a cloud tool fetching online-only files, never holds the Dashboard's call (security review
+T3, 2026-11-06). Off or watched, nothing of the folder is shown. `advanced-fleet-save` keeps the alias and the folder chosen in a
 dialog of the window, each checked here; both the Dashboard's alone (surfaces.py): no MCP tool reaches them, and nothing
 here acts on a peer. A rename takes this PC's file under its old name with it, where it says it is that one's.
 """
@@ -26,19 +28,11 @@ def view(runtime, *, now=None) -> dict:
         return _refused(Refusal.STATE_UNAVAILABLE, runtime)
     if state != ArmingState.ARMED or not fleet.alias_valid(alias) or not folder:
         return found
-    problem = fleet.folder_problem(folder, runtime.paths)
-    if problem is not None:
-        found["stand"] = problem
-        return found
-    try:
-        kept, ignored, held = fleet.read_peers(folder, alias)
-    except OSError:
-        found["stand"] = fleet.MISSING
-        return found
     now = runtime.state.clock() if now is None else now
     waiting = fleet.waiting_word(runtime.state.stamped(fleet.CAPABILITY, OptionKey.FLEET_WAITING))
-    found.update(stand=fleet.HELD if held else waiting or fleet.OK, ignored=ignored,
-                 peers=[fleet.shown(each, now) for each in kept])
+    seen = fleet.read_seen(runtime.paths) or {"ignored": 0, "held": 0, "peers": []}
+    found.update(stand=waiting or (fleet.HELD if seen["held"] else fleet.OK), ignored=seen["ignored"],
+                 peers=[fleet.shown(each, now) for each in seen["peers"] if each["alias"].casefold() != alias.casefold()])
     return found
 
 
@@ -65,6 +59,8 @@ def save(runtime, alias, folder, generation) -> dict:
         runtime.state.unstamp(fleet.CAPABILITY, OptionKey.LAST_FLEET_WRITE)
         runtime.state.unstamp(fleet.CAPABILITY, OptionKey.FLEET_WAITING)
         runtime.state.unstamp(fleet.CAPABILITY, OptionKey.FLEET_WROTE_AT)
+        if was_folder != folder:
+            fleet.forget_seen(runtime.paths)        # the other folder's PCs are not this one's
     except StateError:
         return _refused(Refusal.STATE_UNAVAILABLE, runtime)
     if was_alias and was_alias != alias and was_folder == folder and fleet.alias_valid(was_alias):
