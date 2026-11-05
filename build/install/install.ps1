@@ -1625,6 +1625,13 @@ if ($Uninstall) {
             if ($item.LinkType) { $kept += $dir; $linkedKept = $true; continue }
             if (-not (Remove-OwnedItem $dir)) { $kept += $dir }
         }
+        # The folder itself goes when nothing is left in it - not recursively, so a file that is somebody's, or a folder
+        # still held, keeps it (v0.6.23 audit, N12: an empty .codex-auto-resume was left after every purge).
+        $homeItem = Get-Item -LiteralPath $OwnedHome -Force -ErrorAction SilentlyContinue
+        if ($homeItem -and $homeItem.PSIsContainer -and -not $homeItem.LinkType -and
+            @(Get-ChildItem -LiteralPath $OwnedHome -Force -ErrorAction SilentlyContinue).Count -eq 0) {
+            try { [IO.Directory]::Delete($homeItem.FullName) } catch { }
+        }
         Write-Host ''
         if ($kept.Count -gt 0) {
             Fail 'Removed, but some settings or recovery history could not be removed:'
@@ -1638,6 +1645,12 @@ if ($Uninstall) {
         Write-Host ''
         Write-Host 'Removed. Settings and pending recoveries were kept.'
         Write-Host ('They are in ' + $InstallHome + ' - re-installing picks them up again.')
+        # The advanced edition's saved Codex sign-ins stay too, and the closing text used to list only the settings and the
+        # recoveries (v0.6.23 audit, N12).
+        if (Test-Path -LiteralPath (Join-Path $OwnedHome 'accounts')) {
+            Write-Host 'The Codex accounts you saved for switching were kept too, sealed for this Windows user.'
+            Write-Host 'Uninstall again with the settings deleted (-Purge) to remove them.'
+        }
     }
     Write-Host 'Your Codex conversations were not touched.'
     # `Fail` records rather than exits, so a step that could not finish - a plugin Codex

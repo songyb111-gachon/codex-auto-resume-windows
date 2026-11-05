@@ -577,5 +577,58 @@ class N11LaunchersPutTheCodePageBack(Scratch):
             self.assertEqual(text.count("exit /b"), 1)
 
 
+@unittest.skipUnless(WINDOWS and POWERSHELL.is_file(), "the installer is PowerShell on Windows")
+class N12WhatAnUninstallLeaves(unittest.TestCase):
+    """A purge leaves no empty installation folder, and a plain uninstall names the saved accounts it keeps."""
+
+    def fresh(self, accounts=False, stray=False):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.folder = Path(folder.name)
+        self.home = self.folder / "home"
+        files = ["app/scripts/plugin_setup.py", "runtime/python.exe", ".owned-by-codex-auto-resume",
+                 "config/settings.json", "logs/auto-resume.log"]
+        if accounts:
+            files.append("accounts/one.dat")
+        if stray:
+            files.append("somebodys-notes.txt")
+        for relative in files:
+            path = self.home / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("synthetic fixture", encoding="utf-8")
+
+    def uninstall(self, purge):
+        from test_installer_uninstall_sweep import tail
+        return tail(self.home, self.folder, purge=purge)
+
+    def test_a_purge_that_took_everything_takes_the_folder(self):
+        self.fresh(accounts=True)
+        done = self.uninstall(True)
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertIn("Removed, including settings and recovery history.", done.stdout)
+        self.assertFalse(self.home.exists(), "an empty installation folder was left")
+
+    def test_a_folder_with_anything_else_in_it_stays_with_it(self):
+        self.fresh(stray=True)
+        done = self.uninstall(True)
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertEqual((self.home / "somebodys-notes.txt").read_text(encoding="utf-8"), "synthetic fixture")
+
+    def test_a_plain_uninstall_keeps_the_folder_and_says_the_accounts_stay(self):
+        self.fresh(accounts=True)
+        done = self.uninstall(False)
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertIn("The Codex accounts you saved for switching were kept too", done.stdout)
+        self.assertTrue((self.home / "accounts" / "one.dat").is_file())
+        self.assertTrue((self.home / "config" / "settings.json").is_file())
+
+    def test_with_no_saved_accounts_it_says_nothing_of_them(self):
+        self.fresh()
+        done = self.uninstall(False)
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertNotIn("saved for switching", done.stdout)
+        self.assertIn("Removed. Settings and pending recoveries were kept.", done.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()
