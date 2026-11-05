@@ -202,6 +202,8 @@ class TableTests(unittest.TestCase):
                           Measurement.MTOK, Measurement.MWAKE, Measurement.M4B,
                           # v0.6.20: which code a turn kept at capacity through Codex's retries records.
                           Measurement.MGAVE,
+                          # v0.6.22: Codex's own retry settings by a provider of our own, on our own server.
+                          Measurement.MB2,
                           # v0.6.22: the automatic account switch's two, made by the measurement session.
                           Measurement.MPROFILE, Measurement.MSWAP})
 

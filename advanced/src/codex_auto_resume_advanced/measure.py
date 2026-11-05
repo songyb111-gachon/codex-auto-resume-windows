@@ -110,6 +110,21 @@ class Context:
             raise EvidenceUnavailable("this session cannot be opened on a scratch Codex home")
         return self._session_factory(self.measurement, home=home)
 
+    def open_with(self, config, home=None):
+        """MB2's sessions (v0.6.22): one started with Codex's own `-c` settings `config`, on the Codex home `home` the
+        harness made where one is given - only through a factory that takes both (its `config` and `home` arguments);
+        any other is refused, so MB2 never runs a server that is not started as the route starts it."""
+        import inspect
+        if self._session_factory is None:
+            raise EvidenceUnavailable("no session was provided")
+        try:
+            takes = {"config", "home"} <= set(inspect.signature(self._session_factory).parameters)
+        except (TypeError, ValueError):
+            takes = False
+        if not takes:
+            raise EvidenceUnavailable("this session cannot be opened with settings of its own")
+        return self._session_factory(self.measurement, home=home, config=tuple(config))
+
     def given(self, observed) -> dict:
         """The probe's observation, with whether a real thread was given added - a boolean, and
         never the id itself."""
@@ -1389,6 +1404,74 @@ def _mb(ctx):
     passed = all(observed.values())
     return (Verdict.PASS if passed else Verdict.FAIL, dict(observed, scratch_home=True),
             None if passed else "a write, its read back, its removal or the stale version did not hold")
+
+
+def _listed(listed, thread) -> bool:
+    """Whether a thread/list answer lists the conversation `thread`."""
+    rows = listed.get("data") if isinstance(listed, dict) else None
+    return isinstance(rows, list) and any(isinstance(row, dict) and row.get("id") == thread for row in rows)
+
+
+def _mb2(ctx):
+    """Codex's own retry settings by a provider of our own (codex_retry_settings, v0.6.22): engine/retries.overrides
+    given as `-c` settings to our own server - exactly as codex/headless.live_session starts one - and written nowhere.
+
+    Scratch part, on a Codex home the harness makes and removes: config/read says model_provider is ours
+    (override_in_force), the entry's retries read back where config/read shows providers (retries_read, recorded
+    only), and no config.toml was written (nothing_written). Live part, only with a throwaway conversation given: on
+    the person's Codex, our server so started reads the account (signed_in_chatgpt) and lists with no filter
+    (listed_under_ours: whether a global switch of model_provider would keep that conversation in a default list -
+    the route not taken, recorded only), resumes the conversation under our provider and runs one short turn
+    (turn_completed), then a plain server reads it (thread_kept_openai) and lists it (listed_after). Booleans only."""
+    import shutil
+    import tempfile
+    from .codex.account import parse as parse_account
+    from .codex.headless import HEADLESS_CONFIG
+    from .engine.retries import BUILT_IN, DEFAULT_ATTEMPTS, PROVIDER, overrides
+    settings = HEADLESS_CONFIG + overrides(DEFAULT_ATTEMPTS)
+    scratch = Path(tempfile.mkdtemp(prefix="car-mb2-"))
+    try:
+        with ctx.open_with(settings, home=scratch) as session:
+            read = session.call("config/read", {"includeLayers": True})
+        written = (scratch / "config.toml").exists()
+    finally:
+        shutil.rmtree(scratch, ignore_errors=True)
+    observed = {"scratch_home": True,
+                "override_in_force": _config_value(read, "model_provider") == PROVIDER,
+                "retries_read": all(_config_value(read, "model_providers.%s.%s" % (PROVIDER, key)) == DEFAULT_ATTEMPTS
+                                    for key in ("request_max_retries", "stream_max_retries")),
+                "nothing_written": not written}
+    if not (observed["override_in_force"] and observed["nothing_written"]):
+        return Verdict.FAIL, observed, "our server did not take the retry provider, or it wrote a configuration"
+    if not ctx.thread_given:
+        return _blocked("the scratch part held: run mb2 again with -Thread <a throwaway conversation> for the turn",
+                        **observed)
+    thread, status = ctx.probe_thread, None
+    with ctx.open_with(settings) as session:
+        observed["signed_in_chatgpt"] = parse_account(session.call("account/read", {})).get("kind") == "chatgpt"
+        observed["listed_under_ours"] = _listed(session.call("thread/list", {"limit": 100,
+                                                                             "sortKey": "updated_at"}), thread)
+        if observed["signed_in_chatgpt"]:
+            session.call("thread/resume", {"threadId": thread, "modelProvider": PROVIDER})
+            started = session.call("turn/start", {"threadId": thread,
+                                                  "input": [{"type": "text", "text": _M2B_PROMPT}]})
+            turn = (started.get("turn") or {}).get("id") if isinstance(started, dict) else None
+            status = _await_turn(session, thread, turn, _M6_TURN_SECONDS) if turn else None
+            if turn and status is None:
+                session.call("turn/interrupt", {"threadId": thread, "turnId": turn})
+            session.call("thread/unsubscribe", {"threadId": thread})
+    observed["turn_completed"] = status == "completed"
+    with ctx.open_with(()) as session:
+        found = session.call("thread/read", {"threadId": thread, "includeTurns": False})
+        listed = session.call("thread/list", {"limit": 100, "sortKey": "updated_at"})
+    found = found.get("thread") if isinstance(found, dict) else None
+    observed["thread_kept_openai"] = isinstance(found, dict) and found.get("modelProvider") == BUILT_IN
+    observed["listed_after"] = _listed(listed, thread)
+    if not all(observed[key] for key in ("signed_in_chatgpt", "turn_completed", "thread_kept_openai", "listed_after")):
+        return Verdict.FAIL, observed, ("no ChatGPT sign-in, no turn completed under the retry provider, or the "
+                                        "conversation's provider rewritten or no longer listed")
+    return _blocked("confirm in the Codex app that the throwaway conversation is still in the sidebar, opens and shows "
+                    "the new turn, and that an older conversation is still listed, then set the verdict", **observed)
 
 
 def _mc1(ctx):
@@ -2746,7 +2829,7 @@ PROBES = {
     Measurement.MHK: _mhk, Measurement.M4B: _m4b,
     Measurement.MANCHOR: _manchor,
     Measurement.MIMG: _mimg, Measurement.MSTEER: _msteer, Measurement.MSTEER2: _msteer2,
-    Measurement.MGAVE: _mgave,
+    Measurement.MGAVE: _mgave, Measurement.MB2: _mb2,
 }
 
 # v0.6.22 (account_auto_switch): what each hand may answer, and nothing else reaches the record - booleans, and the
@@ -2956,7 +3039,7 @@ def live_session_factory(paths, backend=None):
     the alpha exists for that - so it is thin and does the discovery core already does. `backend`
     is the one the run's record reads its Codex version from, so the session and the record are
     of the same Codex."""
-    def factory(measurement, home=None):
+    def factory(measurement, home=None, config=None):
         used = backend if backend is not None else live_backend(paths)
         if home is not None:
             # MB (v0.6.16-beta.4): the same Codex on a scratch home the harness made, never the person's.
@@ -2964,6 +3047,9 @@ def live_session_factory(paths, backend=None):
             used = Backend(home, used.codex_exe)
         # M6B (v0.6.16-beta.4): the headless turn's server starts as the route starts it (codex/headless.py).
         from .codex.headless import HEADLESS_CONFIG
+        if config is not None:
+            # MB2 (v0.6.22): our own server with the settings the route starts it with.
+            return Session(used, measurement, config=config)
         if measurement == Measurement.M6B:
             return Session(used, measurement, config=HEADLESS_CONFIG)
         return Session(used, measurement)

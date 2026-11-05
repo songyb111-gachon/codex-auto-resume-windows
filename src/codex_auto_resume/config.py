@@ -392,7 +392,8 @@ def _passing(candidates, compatible):
     return usable, failed
 
 
-def discover_codex_exe(explicit: str | os.PathLike | None, compatible, running=None, ask_app=False) -> Path:
+def discover_codex_exe(explicit: str | os.PathLike | None, compatible, running=None, ask_app=False,
+                       ask_app_if_none=False) -> Path:
     """Return exactly one official codex.exe that passes ``compatible(path)``.
 
     ``compatible`` must raise on an unsupported binary. Ambiguity fails closed.
@@ -405,9 +406,10 @@ def discover_codex_exe(explicit: str | os.PathLike | None, compatible, running=N
     `running` is not asked.
 
     v0.6.21 (#58): the app can run its engine from its own package, signed by OpenAI, rather than
-    from bin. Where no build in bin passes, or where ``ask_app`` says the app was seen serving from
-    another engine (runtime/app.py, engine_moved), ``running`` is asked once more for the engines the
-    app runs - only official ones (pairing.official_engine), never a search of the disk - and those
+    from bin. Where ``ask_app`` says the app was seen serving from another engine (runtime/app.py,
+    engine_moved), or where no build in bin passes and ``ask_app_if_none`` is given - by the watcher,
+    never by a per-call reader, which starts no process where bin is empty, as it never has -
+    ``running`` is asked once more for the engines the app runs - only official ones (pairing.official_engine), never a search of the disk - and those
     not in bin are candidates too, each checked as every candidate is. Where a build in bin passes
     and nothing was seen, nothing more is asked.
     """
@@ -420,7 +422,7 @@ def discover_codex_exe(explicit: str | os.PathLike | None, compatible, running=N
         return path
     candidates = candidate_codex_exes()
     usable, failed = _passing(candidates, compatible)
-    if running is not None and (ask_app or not usable):
+    if running is not None and (ask_app or (ask_app_if_none and not usable)):
         try:
             served = [str(path) for path in running()]
         except Exception:

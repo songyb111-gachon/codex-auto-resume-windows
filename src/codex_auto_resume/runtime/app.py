@@ -169,7 +169,7 @@ class App(WatchLoop):
                 return app_engines()
             try:
                 exe = config.discover_codex_exe(self._codex_exe_override, compatible, running=running,
-                                                ask_app=bool(self._elsewhere_seen))
+                                                ask_app=bool(self._elsewhere_seen), ask_app_if_none=True)
             finally:
                 self._discovery = discovery
             if asked:

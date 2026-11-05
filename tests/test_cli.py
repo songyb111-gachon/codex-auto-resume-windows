@@ -124,6 +124,11 @@ _SHORTCUT_GUARDS = []
 
 
 def setUpModule():
+    # v0.6.21 (#58): the watcher asks the running app for its engine where bin has none. These tests mean "no engine",
+    # and on a PC with the Codex app open the real answer would make them drive its real engine.
+    asked = patch("codex_auto_resume.runtime.app.app_engines", return_value=frozenset())
+    asked.start()
+    unittest.addModuleCleanup(asked.stop)
     for name, result in (("install", True), ("uninstall", False)):
         guard = patch.object(shortcut, name, return_value=result)
         guard.start()

@@ -1474,6 +1474,9 @@ DEFINITIONS = (START_WITH_CODEX, CRASH_RESTART, GOAL_CONTINUATION, QUEUE_FOR_OPE
 # provider's retry keys, written at P8 and put back (engine/retries.py). MB failed on codex-cli 0.162.0-alpha.17.2 -
 # Codex refuses any write under model_providers.openai - so it waits in WAITING: hidden, its statement unwritten. Made
 # again on codex-cli 0.166.0-alpha.5.1 (2026-10-31), MB failed the same way: hidden because its measurement failed.
+# v0.6.22 (plans/v0622-retry-settings-design.md): a new route - a provider of our own copying the built-in one with the
+# Attempts, given as `-c` settings to the servers this product starts for its own turns and written nowhere - rests on
+# MB2; MB stays the record of the plain route. Still hidden: MB2 is not made yet.
 CODEX_RETRY_SETTINGS = CapabilityDef(
     id="codex_retry_settings",
     points=frozenset({Point.TICK}),
@@ -1484,7 +1487,7 @@ CODEX_RETRY_SETTINGS = CapabilityDef(
     journal_prefix="retry",
     make=make_retry_settings,
     options=(Option(OptionKey.ATTEMPTS, RETRY_ATTEMPTS, RETRY_DEFAULT_ATTEMPTS),),
-    measurements=(Measurement.MB,),
+    measurements=(Measurement.MB2,),
 )
 
 # Open a waiting conversation in Codex (v0.6.19, issue #50). At P8, as an errand, a recovery or a scheduled message
@@ -1588,7 +1591,7 @@ ACCOUNT_AUTO_SWITCH = CapabilityDef(
 # DEFINITIONS. Its code and its probe stay in the tree. (v0.6.19: open_to_send's statement was written already, so a
 # pass offers it whole - MOPEN's did, 2026-10-29; codex_retry_settings' is not.) v0.6.20: a tuple of measurements is
 # several, every one of which must pass (Continue inside the turn: MHK, M4 and M4B).
-WAITING = ((CODEX_RETRY_SETTINGS, Measurement.MB), (OPEN_TO_SEND, Measurement.MOPEN),
+WAITING = ((CODEX_RETRY_SETTINGS, Measurement.MB2), (OPEN_TO_SEND, Measurement.MOPEN),
            (STOP_HOOK, (Measurement.MHK, Measurement.M4, Measurement.M4B)),
            # v0.6.22: the automatic account switch, until MPROFILE and MSWAP pass on the Codex in force.
            (ACCOUNT_AUTO_SWITCH, (Measurement.MPROFILE, Measurement.MSWAP)))
