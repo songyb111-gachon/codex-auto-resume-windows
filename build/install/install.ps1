@@ -20,6 +20,7 @@ param(
     [switch]$Uninstall,          # remove the program, keeping settings and pending state
     [switch]$Purge,              # with -Uninstall: also delete settings, state and logs
     [switch]$AllowEditionChange, # replace the installed edition with this archive's other one
+    [switch]$DeleteSavedAccounts, # with -AllowEditionChange to the standard edition: also delete the saved Codex accounts
     [switch]$Silent,             # for Install.cmd and Uninstall.cmd, which ask nothing and wait for no key with it
     [switch]$DesktopShortcut,    # make this installation's shortcut on the Desktop; with neither, it is left as it is
     [switch]$NoDesktopShortcut,  # remove it, if it is this installation's
@@ -308,7 +309,7 @@ if ($DesktopShortcut -and $NoDesktopShortcut) {
 }
 
 $outsideSwitches = @(foreach ($name in 'SkipStartup', 'Uninstall', 'Purge', 'AllowEditionChange', 'Silent',
-                                       'DesktopShortcut', 'NoDesktopShortcut') {
+                                       'DesktopShortcut', 'NoDesktopShortcut', 'DeleteSavedAccounts') {
     if (Get-Variable -Name $name -ValueOnly) { $name }
 })
 $outsideCode = Resolve-OutsideRun -Script $PSCommandPath -Switches $outsideSwitches `
@@ -956,6 +957,33 @@ function Remove-OwnedItem {
     }
     Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue
     return (-not (Test-Path -LiteralPath $Path))
+}
+
+function Remove-SavedAccounts {
+    <#
+        v0.6.22: -DeleteSavedAccounts. The advanced edition keeps sealed copies of Codex's sign-in file in the accounts
+        folder, and a change to the standard edition would leave them with no card to delete them on. The person asked
+        for them to go together with that change, so they go exactly as the uninstall's purge takes them: through
+        Remove-OwnedItem, and never a folder that is a link or a junction. A held file is reported as kept.
+        Asked of an install that is not a change to the standard edition, it deletes nothing and says so.
+        Returns $true when the folder is gone or was never there.
+    #>
+    param([bool]$Asked, [bool]$EditionChange, [string]$Edition)
+    if (-not $Asked) { return $true }
+    if (-not $EditionChange -or $Edition -ne 'standard') {
+        Warn '-DeleteSavedAccounts only goes with a change to the standard edition, so the saved Codex accounts were kept.'
+        return $true
+    }
+    $dir = Join-Path $OwnedHome 'accounts'
+    $item = Get-Item -LiteralPath $dir -Force -ErrorAction SilentlyContinue
+    if (-not $item -or $item.LinkType) { return $true }
+    if (Remove-OwnedItem $dir) {
+        Ok 'Deleted the Codex accounts saved for switching'
+        return $true
+    }
+    Warn ('Some of the saved Codex accounts could not be deleted: ' + $dir)
+    Write-Host '       Close what is using them, then delete that folder yourself.'
+    return $false
 }
 
 # How much of a step is done, for the setup window's bar: `progress: <step> <done>/<total>`, an English line of its own
@@ -2119,6 +2147,9 @@ try {
         }
         exit 1
     }
+
+    # After the change succeeded, never before: setup has finished, so the standard edition is what is installed.
+    $null = Remove-SavedAccounts -Asked ([bool]$DeleteSavedAccounts) -EditionChange $editionChange -Edition $edition
 
     Set-DesktopShortcut
 

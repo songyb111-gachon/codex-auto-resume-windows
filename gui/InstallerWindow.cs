@@ -456,8 +456,15 @@ namespace CodexAutoResume
                                  ? words.Say("installer.options.to_advanced", "Changing it keeps the settings and pending recoveries; every advanced feature starts off.")
                                  : words.Say("installer.options.to_standard", "Changing it keeps the settings and pending recoveries; the advanced features go, and their code with them."));
                 Row(new SoftCallout(change), 16);
+                // v0.6.22: leaving the advanced edition from an installation that keeps saved Codex sign-ins says what
+                // becomes of them and offers to delete them; off, they stay (InstallerFlow.OffersAccountDeletion).
+                if (flow.OffersAccountDeletion)
+                    Row(Words(words.Say("installer.options.saved_accounts", "The Codex accounts you saved for switching stay on this PC, sealed for this Windows user, and the standard edition does not use them."), null, Palette.Ink), 16);
                 Row(Choice(words.Say("installer.options.edition_confirm", "Change the edition"), flow.ChangeEdition, true,
                            delegate(bool on) { flow.ChangeEdition = on; forward.Enabled = flow.CanStart(); }), 10);
+                if (flow.OffersAccountDeletion)
+                    Row(Choice(words.Say("installer.options.delete_saved_accounts", "Also delete the Codex accounts you saved for switching"), flow.DeleteSavedAccounts, true,
+                               delegate(bool on) { flow.DeleteSavedAccounts = on; }), 10);
             }
             else if (flow.Upgrade)
                 Row(Words(words.Say("installer.options.kept", "This updates the installation here. Your settings, everything waiting and your sign-in choice are kept."), null, Palette.Ink), 16);
