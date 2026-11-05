@@ -199,7 +199,7 @@ namespace CodexAutoResume
             if (Equals(Get(advancedTelegram, "continue"), true))
             {
                 card.Controls.Add(HelpText(Word("page.remote.command.continue", "/continue task 1: let one held recovery go on")));
-                card.Controls.Add(HelpText(Word("page.remote.command.recovery_on", "/recovery-on: lift a pause")));
+                card.Controls.Add(HelpText(Word("page.remote.command.lift_pause", "/recovery-on: lift a pause")));
             }
         }
 

@@ -166,7 +166,7 @@ def release(layer, alias, listed) -> dict:
     return {"done": True, "task": alias}
 
 
-def recovery_on(layer) -> dict:
+def lift_pause(layer) -> dict:
     """The pause lifted (telegram_continue): core's set_enabled(True), which an administrator's policy still refuses."""
     return {"done": True, "enabled": layer.set_enabled(True)["enabled"]}
 

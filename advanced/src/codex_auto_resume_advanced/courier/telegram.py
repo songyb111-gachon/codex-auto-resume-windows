@@ -54,7 +54,7 @@ COMMANDS = {"/status": TELEGRAM, "/list": TELEGRAM, "/cancel": TELEGRAM, "/pause
             "/continue": TELEGRAM_CONTINUE, "/recovery-on": TELEGRAM_CONTINUE}
 TAKES_TASK = ("/cancel", "/continue")
 CODES = ("status", "listed", "cancelled", "paused", "list_again", "ignored")
-CONTINUE_CODES = ("continued", "recovery_on")
+CONTINUE_CODES = ("continued", "pause_lifted")
 
 
 def parse(text):
@@ -221,9 +221,9 @@ class Poller:
                 self.runtime.state.counted(TELEGRAM, "paused")
                 return self.word("page.remote.answer.paused", "Recovery is paused.")
             if command == "/recovery-on":
-                self._remote.recovery_on(self.layer)
-                self.runtime.state.counted(TELEGRAM_CONTINUE, "recovery_on")
-                return self.word("page.remote.answer.recovery_on", "Recovery is on again.")
+                self._remote.lift_pause(self.layer)
+                self.runtime.state.counted(TELEGRAM_CONTINUE, "pause_lifted")
+                return self.word("page.remote.answer.pause_lifted", "Recovery is on again.")
             return self.by_task(command, alias)
         except self._remote.Stale:
             self.runtime.state.counted(TELEGRAM, "list_again")

@@ -162,7 +162,7 @@ class PageTests(PageCase):
         self.assertIn(words["page.remote.paired"], first)
         for name in ("status", "list", "cancel", "pause"):
             self.assertIn(words["page.remote.command." + name], first)
-        for name in ("continue", "recovery_on"):
+        for name in ("continue", "lift_pause"):
             self.assertNotIn(words["page.remote.command." + name], first, "only while that is on")
         self.assertEqual(result["looks"][0]["remote_buttons"], ["pair telegram"])
         self.assertEqual(sent(result, "advanced-remote-pair-start"), [{}])
@@ -176,7 +176,7 @@ class PageTests(PageCase):
         where = self.card(look, words["page.remote.card"])
         self.assertIn(words["page.remote.not_paired"], where)
         self.assertIn(words["page.remote.state.stopped"], where)
-        for name in ("continue", "recovery_on"):
+        for name in ("continue", "lift_pause"):
             self.assertIn(words["page.remote.command." + name], where)
         self.assertEqual(look["remote_buttons"], [])
 

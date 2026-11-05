@@ -402,7 +402,7 @@ namespace CodexAutoResume
                 Ex("telegram_continue",
                    Scene(Says(f => f.ExampleField("telegram_continue", "instead"))),
                    Scene(Says(f => f.Word("page.remote.answer.continued", "task {n} goes on. Nothing is sent until every check passes.", "n", 1)),
-                         Says(f => f.Word("page.remote.answer.recovery_on", "Recovery is on again.")))),
+                         Says(f => f.Word("page.remote.answer.pause_lifted", "Recovery is on again.")))),
                 // Hidden on the page until MHK, M4 and M4B are measured: its example waits with it.
                 Ex("stop_hook_continuation",
                    Scene(OnHistory(Rec(ExampleProject, "recovered", "network_transient", -60, -44)),

@@ -384,9 +384,9 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
 # is sent (courier/telegram.py), and the tripwire of five wrong codes.
 PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "remote.card", "remote.paired", "remote.not_paired", "remote.commands", "remote.command.status", "remote.command.list",
-    "remote.command.cancel", "remote.command.pause", "remote.command.continue", "remote.command.recovery_on",
+    "remote.command.cancel", "remote.command.pause", "remote.command.continue", "remote.command.lift_pause",
     "remote.state.running", "remote.state.starting", "remote.state.stopped", "remote.answer.help",
-    "remote.answer.not_allowed", "remote.answer.paused", "remote.answer.recovery_on", "remote.answer.list_again",
+    "remote.answer.not_allowed", "remote.answer.paused", "remote.answer.pause_lifted", "remote.answer.list_again",
     "remote.answer.refused", "remote.answer.cancelled", "remote.answer.continued", "remote.answer.status",
     "remote.answer.list_none", "remote.answer.list_item", "remote.word.running", "remote.word.stopped", "remote.word.on",
     "remote.word.paused", "remote.word.observe_only", "tripped.bad_codes"))

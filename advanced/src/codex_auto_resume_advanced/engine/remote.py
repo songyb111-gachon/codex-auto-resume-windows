@@ -49,7 +49,7 @@ API_ACTION_CODES = ("paused", "cancelled", "list_again")
 # Telegram's: the resident's two, its long poll started or stopped, and each command it carried out or what it ignored.
 TELEGRAM_CODES = (START_WORD, GAVE_UP_WORD, "started", "stopped", "status", "listed", "cancelled", "paused", "list_again",
                   "ignored")
-TELEGRAM_CONTINUE_CODES = ("continued", "recovery_on")
+TELEGRAM_CONTINUE_CODES = ("continued", "pause_lifted")
 
 
 def starts(journal_times, now) -> list:
