@@ -6,7 +6,9 @@ once when the PC wakes; it never wakes a sleeping PC on a schedule of its own (C
 questions (B16). With this capability on, at P8 - once a tick, as an errand - the watcher finds the earliest time
 something it waits for falls due:
 
-* core's waiting usage-limit records: next_check_at of each record in category usage_limit (core's view, `records_in`);
+* core's waiting usage-limit records: when each record in category usage_limit is next looked at (core's view,
+  `records_in`; domain/public.eligible_at - its schedule, its reset or a person's postponement, whichever is last; none
+  for a record held for a person);
 * the reset actions' pending rules - a reset credit, a message of a person's own - that know when they act (`due_at`);
 * the forced stop's held window (usage_pause): the reset its pause holds for (the meter's `paused_reset_at`);
 * (v0.6.20, the pair audit; the owner's word of 2026-10-31) while Start the 5-hour window early stands on too, its next
@@ -105,11 +107,12 @@ class WakeForReset:
     def earliest(self, view):
         """The earliest time something waits for that is still to come, in Unix seconds, or None."""
         from codex_auto_resume.domain import states
+        from codex_auto_resume.domain.public import eligible_at
         now = self._scoped.now()
         found = []
         for row in view.records_in(getattr(states, WAITING)):
             if row.get("category") == USAGE_LIMIT:
-                found.append(_number(row.get("next_check_at")))
+                found.append(_number(eligible_at(row)))
         for rule in self._scoped.resets.reset_rules():
             found.append(_number(rule.get("due_at")))
         for row in self._scoped.meter.rows().values():

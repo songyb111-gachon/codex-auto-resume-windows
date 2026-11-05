@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import advancedcase as ac  # noqa: E402
 from codex_auto_resume.domain.plug import DEFER, Point  # noqa: E402
+from codex_auto_resume.store.columns import _RECORD_COLUMNS  # noqa: E402
 from codex_auto_resume_advanced import registry, statement  # noqa: E402
 from codex_auto_resume_advanced.engine import wake  # noqa: E402
 from codex_auto_resume_advanced.registry import WAKE_FOR_RESET  # noqa: E402
@@ -39,8 +40,12 @@ class View:
         return [row for row in self.rows if row["state"] in states]
 
 
-def waiting(due, category="usage_limit", state="waiting_reset"):
-    return {"state": state, "category": category, "next_check_at": due}
+def waiting(due, category="usage_limit", state="waiting_reset", **columns):
+    """A record row as core's store gives it (store/columns._RECORD_COLUMNS): its reset `due`, every other column None
+    unless named."""
+    row = dict.fromkeys(_RECORD_COLUMNS)
+    row.update(state=state, category=category, reset_at=due, **columns)
+    return row
 
 
 class Timer:
@@ -189,7 +194,30 @@ class SetTests(WakeCase):
         self.assertEqual(self.codes().count("wake.not_allowed"), 1)
         self.timer.windows_allows = True
         self.tick(after=wake.ASK_EVERY)
-        self.assertEqual(self.timer.due, self.view.rows[0]["next_check_at"] - 120)
+        self.assertEqual(self.timer.due, self.view.rows[0]["reset_at"] - 120)
+
+
+class RecordTimeTests(WakeCase):
+    """seatA:B-R2 (v0.6.23 audit): the time read from core's record is one a store row has - when core looks at it next."""
+
+    def test_a_record_row_from_the_store_wakes_for_its_reset(self):
+        self.assertTrue(set(waiting(ac.NOW + HOUR)) <= set(_RECORD_COLUMNS))
+        self.on()
+        self.view = View([waiting(ac.NOW + HOUR)])
+        self.tick()
+        self.assertEqual(self.timer.due, ac.NOW + HOUR - 120)
+
+    def test_a_postponement_or_a_later_retry_moves_the_wake_and_a_hold_takes_it(self):
+        self.on()
+        self.view = View([waiting(ac.NOW + HOUR, not_before=ac.NOW + 2 * HOUR)])
+        self.tick()
+        self.assertEqual(self.timer.due, ac.NOW + 2 * HOUR - 120)
+        self.view = View([waiting(ac.NOW + HOUR, next_retry_at=ac.NOW + 3 * HOUR)])
+        self.tick()
+        self.assertEqual(self.timer.due, ac.NOW + 3 * HOUR - 120)
+        self.view = View([waiting(ac.NOW + HOUR, hold="person")])
+        self.tick()
+        self.assertIsNone(self.timer.due)
 
 
 class WatchTests(WakeCase):
