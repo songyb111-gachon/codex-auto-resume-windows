@@ -65,6 +65,7 @@ class _Errand:
         self.code, self.view = code, view
 
     def run(self, guard):
+        self.code.learn_poll(self.view)
         try:
             due = self.code.earliest(self.view)
         except Exception:                              # noqa: BLE001 - what cannot be read wakes nothing
@@ -77,7 +78,8 @@ class WakeForReset:
     """wake_for_reset's code: its P8 errand and the watch beside it. `timer` (win/waketimer.WakeTimer's shape) and
     `start` (how the watch's thread is started, `start(target)`) are the seams a test fills; no real timer is set and no
     thread is started in a test."""
-    __slots__ = ("paths", "_scoped", "_timer", "_start", "_lock", "_ticked", "_watching", "_allowed", "_asked")
+    __slots__ = ("paths", "_scoped", "_timer", "_start", "_lock", "_ticked", "_stale", "_watching", "_allowed",
+                 "_asked")
 
     def __init__(self, paths, *, timer=None, start=None):
         self.paths = paths
@@ -86,6 +88,7 @@ class WakeForReset:
         self._start = start or (lambda target: threading.Thread(target=target, name="wake-timer", daemon=True).start())
         self._lock = threading.Lock()
         self._ticked = None
+        self._stale = STALE           # STALE, or longer where the watcher ticks less often (`learn_poll`)
         self._watching = False
         self._allowed, self._asked = None, None
 
@@ -103,6 +106,20 @@ class WakeForReset:
         if self._scoped is None:
             return DEFER
         return _Errand(self, view)
+
+    def learn_poll(self, view) -> None:
+        """How long the watch waits for a tick before it takes the timer back: STALE, or two of the watcher's own tick
+        intervals and a look where those are longer (the settings' poll_seconds, up to an hour) - so a watcher that
+        ticks every five minutes keeps its timer between two ticks (v0.6.23 audit seatA:B-M4)."""
+        try:
+            poll = (view.settings() or {}).get("poll_seconds")
+        except Exception:                              # noqa: BLE001
+            poll = None
+        stale = STALE
+        if type(poll) is int and 0 < poll <= 3600:
+            stale = max(STALE, 2 * poll + WATCH_EVERY)
+        with self._lock:
+            self._stale = stale
 
     def earliest(self, view):
         """The earliest time something waits for that is still to come, in Unix seconds, or None."""
@@ -203,12 +220,12 @@ class WakeForReset:
                 self._watching = False
             return False
         with self._lock:
-            ticked = self._ticked
+            ticked, stale = self._ticked, self._stale
         try:
             # Its stored state read afresh too: a turn-off takes the timer back at this look, not after the next tick
             # has refreshed the runtime's view (v0.6.23 audit seatA:B-M5).
             standing = scoped.armed(CAPABILITY) is True and scoped.stored_on() is True
-            fresh = ticked is not None and 0 <= scoped.now() - ticked < STALE
+            fresh = ticked is not None and 0 <= scoped.now() - ticked < stale
         except Exception:                              # noqa: BLE001
             standing = fresh = False
         if standing and fresh:

@@ -39,6 +39,9 @@ class View:
     def records_in(self, states):
         return [row for row in self.rows if row["state"] in states]
 
+    def settings(self):
+        return {"enabled": True, "observe_only": False, "poll_seconds": getattr(self, "poll", 30)}
+
 
 def waiting(due, category="usage_limit", state="waiting_reset", **columns):
     """A record row as core's store gives it (store/columns._RECORD_COLUMNS): its reset `due`, every other column None
@@ -266,6 +269,17 @@ class WatchTests(WakeCase):
         self.rt.arming.disarm(CAP, actor=Actor.DASHBOARD)
         self.assertFalse(self.code.look())
         self.assertIsNone(self.timer.due)
+
+    def test_a_watcher_that_ticks_every_five_minutes_keeps_its_timer_between_ticks(self):
+        """seatA:B-M4 (v0.6.23 audit). Fails with STALE alone: at poll 300 the watch took the timer back about 195
+        seconds after each tick, and a PC put to sleep before the next tick was not woken."""
+        self.armed_and_set()
+        self.view.poll = 300
+        self.tick()
+        self.now += 2 * 300 + wake.WATCH_EVERY - 1
+        self.assertTrue(self.code.look())
+        self.now += 2
+        self.assertFalse(self.code.look(), "two ticks missed: a pause, and the timer goes")
 
     def test_no_tick_for_a_while_a_pause_takes_it_back(self):
         """A pause asks the plug nothing at P8: no tick comes, and after STALE seconds the timer goes."""
