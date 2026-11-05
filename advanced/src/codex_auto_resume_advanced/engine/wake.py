@@ -164,6 +164,8 @@ class WakeForReset:
             if first:
                 scoped.count("set")          # a move is not counted: core's next look moves it often
             self._watch()
+        elif timer.cancel():                 # a move Windows refused leaves no timer at the old time (seatA:B-M6)
+            scoped.count("cancelled")
 
     def _windows_allows(self, now) -> bool:
         """Windows' Allow wake timers for the power source in use, asked at most once in ASK_EVERY seconds; a change to

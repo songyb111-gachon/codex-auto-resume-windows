@@ -60,6 +60,8 @@ class Timer:
 
     def set(self, when):
         self.calls.append(("set", when))
+        if getattr(self, "refuses", False):
+            return False
         self.due = when
         return True
 
@@ -218,6 +220,22 @@ class RecordTimeTests(WakeCase):
         self.view = View([waiting(ac.NOW + HOUR, hold="person")])
         self.tick()
         self.assertIsNone(self.timer.due)
+
+
+class FailedMoveTests(WakeCase):
+    def test_a_move_windows_refuses_leaves_no_timer_at_the_old_time(self):
+        """seatA:B-M6 (v0.6.23 audit). Fails without the cancel: the old timer stayed armed for a time nothing waits for."""
+        self.on()
+        self.view = View([waiting(ac.NOW + 2 * HOUR)])
+        self.tick()
+        self.assertEqual(self.timer.due, ac.NOW + 2 * HOUR - 120)
+        self.timer.refuses = True
+        self.view = View([waiting(ac.NOW + HOUR)])
+        self.tick()
+        self.assertIsNone(self.timer.due)
+        self.timer.refuses = False
+        self.tick()
+        self.assertEqual(self.timer.due, ac.NOW + HOUR - 120, "the next tick sets it again")
 
 
 class WatchTests(WakeCase):
