@@ -477,7 +477,7 @@ class ActionsMixin:
             raise ControlError("the project of that conversation cannot be read",
                                code="project_unreadable")
         try:
-            changes = projects.rule(self.get_settings(), project, always)
+            changes = projects.rule(self.stored_settings(), project, always)
         except ValueError:
             raise ControlError("at most %d projects can be listed" % projects.MAX_KEYS,
                                code="too_many_projects") from None

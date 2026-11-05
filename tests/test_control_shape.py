@@ -94,6 +94,8 @@ METHODS = {
     "once_words", "set_once_words",
     # v0.6.16: a Save keeps the kinds of notice an edition registered that this process draws no box for.
     "_keep_unlisted_kinds",
+    # v0.6.23 (audit C2): the stored settings an edit builds a whole list on, refused where they cannot be read now.
+    "stored_settings",
     "list_pending", "preview_continuation", "request_retry_now", "reset_recovery_budget",
     "restore_defaults", "_strict_homes", "homes_view",
     # v0.6.18: the Codex home Settings > Advanced offers to watch too, and Not now for it (control/policy.py).
