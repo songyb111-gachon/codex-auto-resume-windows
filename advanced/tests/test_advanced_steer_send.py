@@ -242,7 +242,10 @@ class ListingTests(SteerCase):
         plug, runtime = self.on()
         (item,) = [each for each in runtime.arming.listing()["capabilities"] if each["id"] == "steer_send"]
         self.assertIs(item["sends"], True)
-        self.assertEqual(item["ceilings"], {"per_day": 60, "per_conversation": 30})
+        # The registry's own ceilings (120 and 60 since the owner's table of 2026-11-05), as the listing hands them on.
+        self.assertEqual(item["ceilings"], {"per_day": STEER_SEND.ceilings.per_day,
+                                            "per_conversation": STEER_SEND.ceilings.per_conversation})
+        self.assertEqual((STEER_SEND.ceilings.per_day, STEER_SEND.ceilings.per_conversation), (120, 60))
 
 
 class SendTests(SteerCase):
