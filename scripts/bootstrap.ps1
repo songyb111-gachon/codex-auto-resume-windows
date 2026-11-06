@@ -2799,11 +2799,11 @@ try {
     # otherwise on its way out.
     $started = $true
     if ($Pick) { $pickHeld = Release-PickLockForRunOutside -Lock $pickLock -Held $pickHeld }
-    if ($progressLines) { $env:CODEX_AUTO_RESUME_PROGRESS_LINES = '1' }
     # A throw out of the installer - an unreadable journal, a codex.exe that cannot start - is a failed installer like a
     # non-zero code, so a pick below puts back what it changed in either case (v0.6.23 audit, N2); it used to cross
     # this line into the catch at the end, which only reports, and left the watcher off and the state converted.
     try {
+        if ($progressLines) { $env:CODEX_AUTO_RESUME_PROGRESS_LINES = '1' }
         & $installer @arguments
         $code = $LASTEXITCODE
         if ($null -eq $code) { $code = 0 }

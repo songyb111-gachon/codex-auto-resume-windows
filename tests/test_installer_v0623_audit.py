@@ -201,7 +201,7 @@ class N2InstallerThatThrows(Scratch):
     def run_it(self, pick, installer_body):
         installer = self.root / "install.ps1"
         installer.write_text(installer_body, encoding="utf-8-sig")
-        start = BOOTSTRAP_PS1.index("    if ($progressLines) { $env:CODEX_AUTO_RESUME_PROGRESS_LINES = '1' }")
+        start = BOOTSTRAP_PS1.index("    $started = $true\n    if ($Pick) { $pickHeld")
         region = BOOTSTRAP_PS1[start:BOOTSTRAP_PS1.index("    exit $code\n", start) + len("    exit $code")]
         script = (
             "Set-StrictMode -Version 2.0\n$ErrorActionPreference = 'Stop'\n"
@@ -212,7 +212,8 @@ class N2InstallerThatThrows(Scratch):
             "$progressLines = $false; $Pick = $%s; $installer = '%s'; $arguments = @{}; $NoStartup = $false\n"
             "$installHome = 'C:/scratch'; $installed = '0.6.20'; $converted = 'converted 5'; $pickSince = Get-Date\n"
             "$pickKeptCopy = 'C:/scratch/k.ps1'; $pickWatcherStopped = $true; $target = '0.6.10'; $targetEdition = 'standard'\n"
-            "$started = $true\n" % ("true" if pick else "false", str(installer).replace("'", "''")) + region + "\n")
+            "function Release-PickLockForRunOutside { param($Lock, [bool]$Held) return $Held }\n"
+            "$pickLock = $null; $pickHeld = $true\n" % ("true" if pick else "false", str(installer).replace("'", "''")) + region + "\n")
         path = self.root / "region.ps1"
         path.write_text(script, encoding="utf-8-sig")
         done = subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File",
