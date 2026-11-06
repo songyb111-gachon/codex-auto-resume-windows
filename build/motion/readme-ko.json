@@ -57,6 +57,7 @@
     "cap": 9000000
   },
   "light_step_ms": 33,
+  "clock_step_ms": 1000,
   "variants": [
     "paused"
   ]
