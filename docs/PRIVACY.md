@@ -883,6 +883,8 @@ only while push notices or the status feed is on (*What the courier sends*, belo
   them on their card at any time - the feature on, off or hidden - or with an uninstall that deletes
   the settings. Turning it off stops every switch, with one exception: a switch that did not finish is
   still undone - the account signed in before it is put back - and nothing else is switched.
+  A change to the standard edition keeps the saved accounts, unused, and the setup window says so; a box
+  there, off unless you tick it, deletes them with the change.
 - **What it stores.** `config/advanced/advanced.sqlite`, made only when something is first turned
   on or changed: each capability's state, since when, from which surface and why, the statement
   revision and the Codex version it was turned on for, and the warnings confirmed; each unit a

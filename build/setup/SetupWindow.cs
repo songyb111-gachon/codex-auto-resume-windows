@@ -92,6 +92,7 @@ namespace CodexAutoResumeSetup
             var flow = new InstallerFlow(mode, home, edition, installed, version);
             flow.StartAtSignIn = !InstallerFlow.Has(arguments, "-SkipStartup");
             flow.ChangeEdition = InstallerFlow.Has(arguments, "-AllowEditionChange");
+            flow.DeleteSavedAccounts = InstallerFlow.Has(arguments, "-DeleteSavedAccounts");
             flow.Purge = InstallerFlow.Has(arguments, "-Purge");
             flow.From = from ?? "";
             flow.Maintaining = mode == InstallerFlow.Install && flow.Upgrade && !flow.EditionChange &&

@@ -78,6 +78,9 @@ namespace CodexAutoResume
         internal bool SavedAccountsThere;
         /// Replace the other edition, which is installed: -AllowEditionChange. Off until it is asked for.
         internal bool ChangeEdition;
+        /// With a change from the advanced edition to the standard one: also delete the saved Codex sign-ins, which the
+        /// standard edition has no card to delete on: -DeleteSavedAccounts (v0.6.22). Off until it is asked for.
+        internal bool DeleteSavedAccounts;
         /// Delete the settings and the recovery history too, on an uninstall: -Purge. Off until it is asked for.
         internal bool Purge;
         /// Open the Dashboard once it is done.
@@ -109,6 +112,14 @@ namespace CodexAutoResume
 
         /// Whether the other edition is installed here: then installing is a change of edition, asked for or refused.
         internal bool EditionChange { get { return Installed != null && Installed != Edition; } }
+
+        /// Whether the edition-change page says what happens to the saved Codex sign-ins and offers to delete them
+        /// (v0.6.22): a change that takes the advanced edition away, from an installation that keeps some. Nothing else
+        /// has anything to say about them: the advanced edition has its card, and a standard installation has none.
+        internal bool OffersAccountDeletion
+        {
+            get { return Mode == Install && EditionChange && Edition == Standard && Installed == Advanced && SavedAccountsThere; }
+        }
 
         /// The pages the window goes through, in order.
         internal string[] Pages()
@@ -186,6 +197,8 @@ namespace CodexAutoResume
                 // A first installation's choice only: on an update install.ps1 keeps the sign-in entry as it is.
                 if (!Upgrade && !StartAtSignIn) switches.Add("-SkipStartup");
                 if (EditionChange && ChangeEdition) switches.Add("-AllowEditionChange");
+                // Only when ticked, and only on the change it belongs to; an answer nobody gave leaves the saved accounts where they are.
+                if (EditionChange && ChangeEdition && OffersAccountDeletion && DeleteSavedAccounts) switches.Add("-DeleteSavedAccounts");
                 if (MakeDesktopShortcut) switches.Add("-DesktopShortcut");
                 else if (DesktopShortcutThere) switches.Add("-NoDesktopShortcut");
             }
@@ -204,8 +217,8 @@ namespace CodexAutoResume
         // The switches the answers above decide, which a setup program's own command line only presets.
         private static bool IsAnswered(string word)
         {
-            foreach (string answered in new[] { "-SkipStartup", "-AllowEditionChange", "-Silent", "-Uninstall", "-Purge",
-                                                "-DesktopShortcut", "-NoDesktopShortcut" })
+            foreach (string answered in new[] { "-SkipStartup", "-AllowEditionChange", "-DeleteSavedAccounts", "-Silent", "-Uninstall",
+                                                "-Purge", "-DesktopShortcut", "-NoDesktopShortcut" })
                 if (string.Equals(word, answered, StringComparison.OrdinalIgnoreCase)) return true;
             return false;
         }

@@ -576,6 +576,8 @@ home. Nothing of a copy reaches the settings, a log, the journal, diagnostics, a
 shows the address masked. The saved accounts can be deleted on their card in every state, and an uninstall that
 deletes the settings deletes them too. Turning the feature off stops every switch, with one exception: a switch that did
 not finish is still undone - the account signed in before it is put back - and nothing else is switched.
+A change to the standard edition, which shows no such card, keeps the saved accounts - sealed, and unused by that
+edition - and the setup window says so first; it offers a box, off unless ticked, to delete them with the change.
 
 **How the two editions are kept apart.**
 
