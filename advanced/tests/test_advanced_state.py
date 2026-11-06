@@ -92,7 +92,7 @@ class FileTests(StateCase):
     def test_nothing_is_created_until_something_is_turned_on(self):
         state = self.state()
         self.assertEqual(state.arming(), {})
-        self.assertEqual(state.meta(), {"generation": 0, "global_hourly": 12})
+        self.assertEqual(state.meta(), {"generation": 0, "global_hourly": 24})
         self.assertEqual(state.journal(), [])
         self.assertEqual(state.all_off(actor=Actor.MCP, reason=OffReason.ALL_OFF), (0, 0))
         self.assertEqual(state.move("test_wake", ArmingState.OFF, actor=Actor.MCP,
@@ -110,7 +110,7 @@ class FileTests(StateCase):
         empty.write_bytes(b"")
         marker = self.paths.advanced_dir / config.OWNER_MARKER
         state = self.state()
-        self.assertEqual(state.meta(), {"generation": 0, "global_hourly": 12})
+        self.assertEqual(state.meta(), {"generation": 0, "global_hourly": 24})
         self.assertEqual(state.arming(), {})
         self.assertEqual(state.journal(), [])
         self.assertEqual(empty.stat().st_size, 0)
@@ -181,7 +181,8 @@ class FileTests(StateCase):
         with contextlib.closing(sqlite3.connect(path)) as connection:
             self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], SCHEMA_VERSION)
             self.assertEqual(AdvancedState._tables(connection), TABLES)
-        self.assertEqual(self.state().meta(), {"generation": 0, "global_hourly": 12})
+        self.assertEqual(self.state().meta(), {"generation": 0, "global_hourly": 24},
+                         "a file that held the old highest ceiling, 12, holds today's, 24: schema.HOURLY_REMADE")
 
     def version_two(self):
         """A file exactly as v0.6.11 and v0.6.12 made it - version 2, seven tables - with a row in
@@ -351,7 +352,7 @@ class ClosedWordTests(StateCase):
                           "INSERT INTO records VALUES ('%s','test_wake','%s','sent',1,NULL,0,NULL,NULL,0)"
                           % (ac.KEY, ac.THREAD),
                           "INSERT INTO overrides VALUES ('%s','test_wake','forever',1,NULL)" % ac.KEY,
-                          "UPDATE meta SET global_hourly=13",
+                          "UPDATE meta SET global_hourly=25",
                           "UPDATE arming SET warnings='failed here'",
                           "UPDATE arming SET warnings='FAILED_HERE'"):
             with self.subTest(statement):

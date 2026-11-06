@@ -28,7 +28,7 @@ class WithdrawReason(StrEnum):
     OBSERVE_ONLY = "observe_only"
     OBSERVE_ONLY_UNKNOWN = "observe_only_unknown"
     # v0.6.15-beta: one queued for when its conversation is opened (P16's QUEUE_FOR_OPEN) - the plug no longer
-    # keeps it there, or seven days and an hour passed; or the conversation was opened and Codex did not deliver it.
+    # keeps it there, or 30 days and an hour passed; or the conversation was opened and Codex did not deliver it.
     WINDOW_ENDED = "window_ended"
     NOT_DELIVERED_ON_OPEN = "not_delivered_on_open"
 
@@ -83,7 +83,7 @@ class ReasonCode(StrEnum):
     CATEGORY_DISABLED = "category_disabled"
     NOT_RECOVERABLE = "not_recoverable"      # v0.6.14: a failure taken up (P17) nothing takes up now
     ADMISSION_EXPIRED = "admission_expired"  # and one taken up a day ago on the clock, ended unsent
-    CAPACITY_WINDOW = "capacity_window"      # and capacity retries past twelve hours on the clock
+    CAPACITY_WINDOW = "capacity_window"      # and capacity retries past 24 hours on the clock
     # v0.6.15-beta: a Codex home taken out of Settings, its waiting records cancelled (runtime/homes.py); and,
     # going back to a version that watches one home, another home's waiting records (store/downgrade.py).
     HOME_REMOVED = "home_removed"

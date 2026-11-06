@@ -71,7 +71,7 @@ class DashboardTests(SurfaceCase):
         reply = self.bridge("advanced-list", {})
         self.assertTrue(reply["ok"])
         listing = reply["result"]
-        self.assertEqual((listing["generation"], listing["global_hourly"], listing["on"]), (0, 12, 0))
+        self.assertEqual((listing["generation"], listing["global_hourly"], listing["on"]), (0, 24, 0))
         (item,) = listing["capabilities"]
         self.assertEqual((item["id"], item["state"], item["departs_from"]), ("test_wake", "off", ["A11"]))
         statement = self.bridge("advanced-statement", {"capability": "test_wake", "locale": "ko"})["result"]
@@ -141,8 +141,9 @@ class DashboardTests(SurfaceCase):
     def test_the_global_ceiling_is_the_dashboards_to_lower(self):
         self.assertTrue(self.bridge("advanced-ceiling", {"global_hourly": 4, "generation": 0})["result"]["done"])
         self.assertEqual(self.bridge("advanced-list", {})["result"]["global_hourly"], 4)
-        self.assertEqual(self.bridge("advanced-ceiling", {"global_hourly": 20, "generation": 1})["result"]["refusal"],
+        self.assertEqual(self.bridge("advanced-ceiling", {"global_hourly": 25, "generation": 1})["result"]["refusal"],
                          Refusal.INVALID_REQUEST)
+        self.assertTrue(self.bridge("advanced-ceiling", {"global_hourly": 24, "generation": 1})["result"]["done"])
 
     def test_a_command_this_edition_does_not_have_is_refused_as_every_unknown_one_is(self):
         self.assertEqual(self.bridge("advanced-arm-everything", {}),

@@ -24,7 +24,7 @@ from .states import EPOCH_STORE, epoch
 RECORDS_LIMIT = 8
 # P12 (v0.6.15-beta): at most this many sends wait for their receipts at once, whatever a plug answers - one in each
 # conversation, the claim refusing a second (engine/launches.py).
-MAX_WORKERS = 4
+MAX_WORKERS = 8
 
 
 def workers(answer) -> int:

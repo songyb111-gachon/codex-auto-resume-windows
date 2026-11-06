@@ -13,7 +13,7 @@ synchronous=FULL, and a file whose tables, columns or version are not exactly th
 rather than repaired - but for a file of an earlier version, exactly as that version made it, which
 is brought to this version when it is opened (schema.UPGRADE_FROM_1, UPGRADE_FROM_2, ADD_RESETS, ... and from v0.6.19
 UPGRADE_TO_V019), a read's
-opening too: it is the one write a read makes, and it adds a column and tables and changes no row - and for a file of
+opening too: it is the one write a read makes, and it adds a column and tables and changes no row but, from v0.6.22, a global ceiling held at its old highest (schema.HOURLY_REMADE) - and for a file of
 a later version marked readable from this one (schema.READABLE_FROM, v0.6.17), which is used as it is, nothing
 upgraded and nothing taken away. Reading never creates the file: an
 installation where nothing was ever turned on has none, and every question about it has the
@@ -35,13 +35,14 @@ import time
 from codex_auto_resume import config, machine
 from codex_auto_resume.domain import ids
 
+from ..registry import GLOBAL_HOURLY
 from .schema import (ADD_RESETS, ATTACHED, FILE_NAME, SCHEMA_VERSION, STATEMENTS, TABLES, TABLES_V1,
                      TABLES_V2, TABLES_V3, TABLES_V3_BEFORE_RESETS, TABLES_V4, TABLES_V5, UPGRADE_FROM_1,
                      UPGRADE_FROM_2, UPGRADE_FROM_3, UPGRADE_FROM_4, UPGRADE_FROM_5, STAGE4_VERSION,
                      TABLES_BEFORE_STAGE4, UPGRADE_TO_STAGE4, WINDOW_CHOICES, WINDOW_FOLLOWERS, WINDOW_LEADER,
                      WINDOW_OFF, WINDOW_ON, FREE_OPTIONS, MARKED, READABLE_FROM, holds, names_checked,
                      readable_from, TABLES_V7, UPGRADE_TO_V019, FREE_WORDINGS, wordings_checked, TABLES_V8,
-                     UPGRADE_TO_V020, V019_VERSION)
+                     UPGRADE_TO_V020, V019_VERSION, HOURLY_REMADE, hourly_bound)
 
 
 class StateError(RuntimeError):
@@ -227,6 +228,13 @@ class SessionMixin:
             if wordings_checked(connection):
                 for statement in FREE_WORDINGS:
                     connection.execute(statement)
+            # v0.6.22: `meta` made again with today's highest global ceiling, once (schema.HOURLY_REMADE), the value a file
+            # held at its old highest moved up with it - a ceiling a person lowered is kept - no generation moved.
+            old = hourly_bound(connection)
+            if old is not None and old < GLOBAL_HOURLY:
+                for statement in HOURLY_REMADE:
+                    connection.execute(statement)
+                connection.execute("UPDATE meta SET global_hourly=? WHERE global_hourly=?", (GLOBAL_HOURLY, old))
         if connection.execute("SELECT count(*) FROM meta").fetchone()[0] != 1:
             raise StateError("malformed advanced state")
         self._carry_windows(connection)

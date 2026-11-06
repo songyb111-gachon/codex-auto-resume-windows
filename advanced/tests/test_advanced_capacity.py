@@ -27,7 +27,7 @@ from codex_auto_resume.domain.plug import DEFER, Alternative, Point  # noqa: E40
 from codex_auto_resume.machine import TERMINAL  # noqa: E402
 from codex_auto_resume_advanced import policy, surfaces  # noqa: E402
 from codex_auto_resume_advanced.engine.capacity import CapacityRetry  # noqa: E402
-from codex_auto_resume_advanced.registry import CAPACITY_RETRY  # noqa: E402
+from codex_auto_resume_advanced.registry import CAPACITY_RETRY, GLOBAL_HOURLY  # noqa: E402
 from codex_auto_resume_advanced.vocabulary import (Actor, ArmingState, JournalCode, McpTool,  # noqa: E402
                                                    OffReason, OptionKey, Refusal)
 from test_engine import T1, fail_turn  # noqa: E402
@@ -187,7 +187,7 @@ class CeilingTests(CapacityCase):
 
     def test_past_the_global_hour_too_and_a_record_it_took_up_is_not_parked(self):
         plug = self.vouched()
-        self.fill(plug, 12, lambda index: OTHER % (index + 16))
+        self.fill(plug, GLOBAL_HOURLY, lambda index: OTHER % (index + 16))
         self.h.tick(advance=60)
         self.assertIn((JournalCode.CEILING, Point.GATES, Alternative.CAPACITY), self.journal(plug))
         self.assertNotEqual(json.loads(self.h.record()["gate_eval"])["known_failure"], ["WAIT", "held"])

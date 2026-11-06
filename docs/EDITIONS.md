@@ -75,11 +75,11 @@ record that it was claimed and the last look before it stay the standard edition
 
 **Ceilings.** Each capability may send only so many times a day, in all and in any one
 conversation, counted when the send is claimed. Over them stands one ceiling for all capabilities
-together, 12 sends an hour - a send counts once, however many capabilities answered for it - which you can
-lower on the page, as far as one an hour, and never raise past 12. The page shows a capability's own ceilings beside its statement. Every send also counts
+together, 24 sends an hour - a send counts once, however many capabilities answered for it - which you can
+lower on the page, as far as one an hour, and never raise past 24. The page shows a capability's own ceilings beside its statement. Every send also counts
 against the standard edition's own limits for the conversation: five in any 24 hours, at least 15
 minutes apart (A20) - except where a capability says it departs from A20: a send of the short retries
-when Codex is at capacity counts against the program's own capacity limits instead, 48 a day, a minute
+when Codex is at capacity counts against the program's own capacity limits instead, 96 a day, a minute
 apart, and Send now skips the 15 minutes for the one recovery you choose, still within the five a day.
 
 **Two capabilities, one send.** Two capabilities may answer for the same send in ways Codex cannot carry together.
@@ -290,7 +290,7 @@ marker is found), [B3](STANDARDS.md#b-what-it-reads-and-how) (Codex's state chan
 queue, the withdrawal of a queued message and the plugin commands) and B4 (the app server is asked
 only for usage and to withdraw a queued message).
 
-**Ceilings.** 24 a day, and 5 in any one conversation - the standard edition's own limit for a
+**Ceilings.** 48 a day, and 5 in any one conversation - the standard edition's own limit for a
 conversation.
 
 **Measurement M7: passed.** The app server accepted a message added with such an id, and delivered
@@ -336,7 +336,7 @@ the watcher's own claim decides a send), A26 (a continuation is a message added 
 the hook's declaration in the plugin copies) and [F6](STANDARDS.md#f-footprint-on-the-machine) (Codex starts the
 hook's program, which is not a listed process).
 
-**Ceilings.** 24 a day, and 5 in any one conversation - each continuation of the hook's counts as a claim toward the
+**Ceilings.** 48 a day, and 5 in any one conversation - each continuation of the hook's counts as a claim toward the
 standard edition's five a day and fifteen minutes apart, as the watcher's count toward the hook's. **Measurements
 MHK, M4 and M4B: not passed** - M4 failed on `codex-cli 0.162.0-alpha.17.2` (2026-10-10), where no plugin Stop hook
 existed to run, and again on `codex-cli 0.166.0-alpha.5.1` (2026-10-31), where Codex ran the hook after a completed
@@ -373,7 +373,7 @@ Codex to stop it.
 **Departs from** [0.5](STANDARDS.md#0-the-edition-boundary) (a goal's state is never changed), A2
 (one channel only), A11 (nothing is done for a conversation the app does not have open), B3 and B4.
 
-**Ceilings.** 12 a day, and 3 in any one conversation.
+**Ceilings.** 24 a day, and 5 in any one conversation.
 
 **Measurement M2: failed**, for a conversation the app holds; its statement shows that as a warning.
 **Measurement M2b: passed** on `codex-cli 0.163.0-alpha.10.2` - a goal set active beside a queued turn
@@ -388,8 +388,8 @@ goal continuation carries the send.
 **What it does.** When Codex says it is at capacity - its own error code `serverOverloaded`, a server
 error the standard edition recovers already - it tries again sooner and more often: about a minute
 after the failure, then two, four and five minutes, each lengthened by up to a fifth, at least a
-minute apart and at most 48 times a day in one conversation. It keeps this up for as long as you
-choose on the page, one to twelve hours (two by default), counted on the clock from the task's first
+minute apart and at most 96 times a day in one conversation. It keeps this up for as long as you
+choose on the page, one to 24 hours (two by default), counted on the clock from the task's first
 failure; after that the standard edition's waits and limits apply again, and they may end the task.
 Each try is the ordinary continuation through Codex's queue, with its marker. Other server errors,
 rate limits and usage limits keep the standard edition's waits.
@@ -400,8 +400,8 @@ standard edition's retry timing and stopped after four attempts.
 **What it risks.** Retrying a busy service often adds to its load and spends usage on continuations
 that may fail again, and each try is a visible message in the conversation. While the ceiling for
 all capabilities together is reached, a capacity error is handled as the standard edition handles
-it. However long it keeps answering, the program itself never retries one task for more than twelve
-hours on the clock, 48 times a day, or sooner than a minute apart.
+it. However long it keeps answering, the program itself never retries one task for more than 24
+hours on the clock, 96 times a day, or sooner than a minute apart.
 
 **Departs from** [A20](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (five continuations a
 conversation in 24 hours, 15 minutes apart), A21 (the attempt, no-progress and continuation budgets),
@@ -409,7 +409,7 @@ A22 (waits come only from the retry timing you chose), [B9](STANDARDS.md#b-what-
 (only a failure's kind is kept: this also reads Codex's own error code, never its words) and
 [H2](STANDARDS.md#h-user-control) (nothing can move a limit the program fixes: A20's are the engine's).
 
-**Ceilings.** 48 a day, and 48 in any one conversation - the one capability whose conversation
+**Ceilings.** 96 a day, and 96 in any one conversation - the one capability whose conversation
 ceiling is above the standard edition's five, because it departs from A20.
 
 ### Compact a full conversation, then continue
@@ -435,14 +435,14 @@ continuation follows the compaction turn, so the failure is no longer the latest
 turn does not supersede the record) and A26 (the continuation's words for a failure the standard edition does
 not recover).
 
-**Ceilings.** 6 a day, and 2 in any one conversation - the compaction's and its continuation's.
+**Ceilings.** 12 a day, and 4 in any one conversation - the compaction's and its continuation's.
 **Measurement M7: made** (a queued `/compact` reaches Codex as plain text) and **MX: passed** on `codex-cli
 0.163.0-alpha.10.2`; **MXA: passed** on `codex-cli 0.162.0-alpha.17.2`. On any other version, a warning each.
 
 ### Use Codex's default model when one is at capacity
 
 **What it does.** When a turn keeps failing because its model is at capacity, for as many attempts as you
-choose (one to three, two by default), and nothing has the conversation open while Codex is closed, it runs
+choose (one to five, two by default), and nothing has the conversation open while Codex is closed, it runs
 the next turn here on Codex's default model instead, then puts the conversation's own model back. Only where
 the conversation is on another model than the default; never for a usage, rate, sign-in or billing failure.
 
@@ -457,7 +457,7 @@ through `thread/settings/update`, and reading it back, was measured (MF).
 a turn of its own), A2, A11, B3, B4, E8 and F8 (as Run a conversation here while Codex is closed) and
 [B9](STANDARDS.md#b-what-it-reads-and-how) (it reads Codex's error code, not only a kind).
 
-**Ceilings.** 6 a day, and 2 in any one conversation. **Measurement MF: passed** on `codex-cli 0.163.0-alpha.10.2`; on any other version, a warning.
+**Ceilings.** 12 a day, and 4 in any one conversation. **Measurement MF: passed** on `codex-cli 0.163.0-alpha.10.2`; on any other version, a warning.
 
 ### Rules for Codex's error codes
 
@@ -483,12 +483,12 @@ retried), A13 (only the classified kinds are recovered), A14 (anything unclassif
 retried), A26 (continuation text only for a kind that is recovered), B9 and
 [H2](STANDARDS.md#h-user-control) (nothing can retry an unknown failure: a rule is a setting of yours).
 
-**Ceilings.** 24 a day, and 5 in any one conversation.
+**Ceilings.** 48 a day, and 5 in any one conversation.
 
 ### Retry failures it cannot name
 
 **What it does.** When a turn fails with an error code of Codex's that the program cannot classify,
-it continues the conversation anyway, on a budget of its own: one to three tries a task, as you
+it continues the conversation anyway, on a budget of its own: one to five tries a task, as you
 choose on the page (one by default), the first ten minutes after the failure, then 15 and 30. It
 never takes up a failure that came with no code, or a code whose name speaks of a policy, budget,
 quota, permission, approval, sign-in or cancellation; a rule that names the code comes first. Each
@@ -508,7 +508,7 @@ more than the program's own words. Samples are kept 90 days at most.
 (state holds only the program's own fixed words, never a code Codex chose) and
 [H2](STANDARDS.md#h-user-control) (nothing can retry an unknown failure).
 
-**Ceilings.** 12 a day, and 3 in any one conversation.
+**Ceilings.** 24 a day, and 5 in any one conversation.
 
 ### Retry when Codex gave up
 
@@ -525,13 +525,13 @@ fail the same way and use your usage.
 
 **Departs from** A14 (Codex giving up without a 429 is never retried), A26 and B9.
 
-**Ceilings.** 12 a day, and 2 in any one conversation.
+**Ceilings.** 24 a day, and 4 in any one conversation.
 
 ### Retry a sign-in failure after proof
 
 **What it does.** When a turn fails because Codex was not signed in (its error code `unauthorized`, or
 status 401), it waits at least ten minutes and continues the conversation once - and only when the
-usage read every continuation already needs shows Codex is signed in again. Once a task and twice a
+usage read every continuation already needs shows Codex is signed in again. Once a task and four a
 day in all; if the continuation fails at sign-in again, it stops there, and after a day without a
 working usage read it gives up. It never reads or changes Codex's sign-in, its `auth.json` or any
 token, and never asks Codex to sign in or out. A permission refusal (403) is never retried.
@@ -546,7 +546,7 @@ conversation continues under that one.
 **Departs from** 0.5 (a sign-in failure is never retried), A14 (401 and 403 are never retried) and
 A26.
 
-**Ceilings.** 2 a day, and 2 in any one conversation.
+**Ceilings.** 4 a day, and 2 in any one conversation.
 
 ### Notice a usage limit that lifts early
 
@@ -574,7 +574,7 @@ may meet the limit again; the usage check every continuation makes still applies
 **Departs from** [A12](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (never before the real reset
 time) and [C9](STANDARDS.md#c-network) (Codex is asked about usage only when a recovery is due).
 
-**Ceilings.** 12 a day, and 3 in any one conversation.
+**Ceilings.** 24 a day, and 5 in any one conversation.
 
 ### Once more when unsure
 
@@ -598,7 +598,7 @@ itself off. The words are built again from your settings as they are then.
 [A6](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (an uncertain delivery is never sent again), [E2](STANDARDS.md#e-failure-behaviour) (better to miss a resume than resume
 twice) and [H2](STANDARDS.md#h-user-control) (nothing can resend an uncertain submission).
 
-**Ceilings.** 6 a day, and 2 in any one conversation.
+**Ceilings.** 12 a day, and 4 in any one conversation.
 
 ### Send now
 
@@ -623,7 +623,7 @@ something else is queued for it, or without usage.
 [A20](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (at least 15 minutes between two continuations in a conversation), [A21](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (the attempt
 budget stops a recovery) and [H2](STANDARDS.md#h-user-control) (nothing can force a send).
 
-**Ceilings.** 24 a day, and 5 in any one conversation.
+**Ceilings.** 48 a day, and 5 in any one conversation.
 
 None of the eight rests on a measurement: what each sends is the continuation the standard edition sends.
 Each of the four that take up a failure the standard edition leaves for you takes up only failures
@@ -749,7 +749,7 @@ you have and when the soonest expires), [C4](STANDARDS.md#c-network) (it reads u
 its own, at the time you chose) and [C9](STANDARDS.md#c-network) (it reads usage when no recovery is
 due).
 
-**Ceilings.** 12 a day, and 3 in any one conversation; and never more than one credit for one filling
+**Ceilings.** 24 a day, and 5 in any one conversation; and never more than one credit for one filling
 of a window, two a day or seven a week. Four rules may wait at once.
 
 **Measurements MU, MN and MR: passed** on codex-cli 0.162.0-alpha.17.2 (2026-10-10,
@@ -800,7 +800,7 @@ than returning it to waiting; revision 2, from v0.6.16-beta, first published as 
 message is at most 2,000 characters, as the Custom message is, unless Longer reset messages is on.
 Switching its conversation off cancels it (H5).
 
-**Ceilings.** 10 a day, and 2 in any one conversation.
+**Ceilings.** 20 a day, and 4 in any one conversation.
 
 **Measurement MU: passed** on codex-cli 0.162.0-alpha.17.2 (2026-10-10). It counts resets from the same
 usage readings as the reset credit, so it rests on MU; on any other version of Codex, until MU is made
@@ -826,7 +826,7 @@ is at most 2,000 characters), and from nothing else: on its own it does nothing.
 ### Several conversations at once
 
 **What it does.** The standard edition sends one continuation at a time and waits up to 45 seconds for
-Codex's answer before it looks at the next. With this on, two to four continuations wait for Codex's
+Codex's answer before it looks at the next. With this on, two to eight continuations wait for Codex's
 answer at once, each in a conversation of its own - one conversation still never has two on their way -
 while every check, every claim and the last look before each send still run one at a time. You choose
 how many (2 by default); until MQ passes on your version of Codex, never more than 2.
@@ -844,7 +844,7 @@ one lock). It keeps A19's one continuation in flight per conversation.
 The sends of the continuation with no marker are pooled with the rest where MQP passed on your Codex; where it
 has not, they go one at a time, and the journal says so.
 
-**Ceilings.** 48 a day, and core's 5 in any one conversation. **Measurement MQ: not made yet;
+**Ceilings.** 96 a day, and core's 5 in any one conversation. **Measurement MQ: not made yet;
 MQP: passed** on `codex-cli 0.163.0-alpha.10.2`.
 MQ failing only holds it to 2 workers; it never turns it off.
 
@@ -854,7 +854,7 @@ MQ failing only holds it to 2 workers; it never turns it off.
 the ordinary continuation anyway - the program's own words and marker, through every check; with the
 continuation with no marker on, and MQO passed on your Codex, with no marker, under its id - and leaves it
 in Codex's queue, so Codex runs it when you open the conversation. It stays there for the days you choose (3
-by default, 7 at most); the program takes it back at seven days and an hour whatever it is told, and at once
+by default, 30 at most); the program takes it back at 30 days and an hour whatever it is told, and at once
 when this is turned off. An interruption is queued this way once; taken back, it waits for the app as usual.
 It takes up conversations a usage limit stopped, and no others: a full context window waits for its compaction,
 and a network or server failure waits for the app. Beside the goal continuation: where MQG passed on your Codex - a
@@ -872,7 +872,7 @@ is taken back, sent the ordinary way, and this turns itself off.
 **Departs from** [A11](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (nothing is queued on the off
 chance that a conversation will be opened). It keeps A17, H4 and H6: every withdrawal still happens at once.
 
-**Ceilings.** 12 a day, and 3 in any one conversation. **Measurement M1: made** on `codex-cli
+**Ceilings.** 24 a day, and 5 in any one conversation. **Measurement M1: made** on `codex-cli
 0.163.0-alpha.10.2`; on any other version, a warning. **MQO and MQG: passed** there too (MQO is described
 under Marker-free continuation).
 
@@ -903,7 +903,7 @@ the link). It keeps B13 - it simulates no input and drives no window - and A11: 
 check finds the conversation loaded.
 
 **Ceilings.** Ten minutes between any two opens, an hour between two of one conversation, three for one message and
-twelve a day - kept on disk, so they hold after a restart. **Measurement MOPEN: passed** on `codex-cli
+24 a day - kept on disk, so they hold after a restart. **Measurement MOPEN: passed** on `codex-cli
 0.165.0-alpha.1.2` - a conversation the app did not hold, opened through its link, brought Codex to the front and
 was held by the app within ten seconds (thirty are allowed); on any other version, a warning.
 
@@ -913,7 +913,7 @@ was held by the app within ten seconds (thirty are allowed); on any other versio
 and no terminal or VS Code session holds it - it runs that one turn here, on Codex's own app server on this
 PC, with the program's ordinary continuation, marker included, and the settings Codex saved for that
 conversation. Every approval the turn asks for is declined: open the conversation in Codex to approve. The
-turn runs for the hours you choose at most, one to six (one by default), and is stopped at once when the
+turn runs for the hours you choose at most, one to six, eight or twelve (one by default), and is stopped at once when the
 Codex app starts. A running turn can be stopped from the Dashboard (the Advanced features page); no Codex
 tool (MCP) can stop it.
 
@@ -932,7 +932,7 @@ its own), A2 (a way to Codex beside `codex queue`), [A11](STANDARDS.md#a-what-it
 lives for the turn, which this program ends). It keeps A4: the continuation carries its marker, and the
 marker proves its arrival.
 
-**Ceilings.** 12 a day, and 3 in any one conversation. **Measurement M6: made** on `codex-cli
+**Ceilings.** 24 a day, and 5 in any one conversation. **Measurement M6: made** on `codex-cli
 0.163.0-alpha.10.2`. **M6B: passed** there too; on any other version, a warning.
 
 ### Recover CLI, TUI and VS Code conversations
@@ -958,7 +958,7 @@ conversations are detected) and A11 (it sends while a Codex session other than t
 conversation). It keeps A2, A3, A4, A17, H4 and H6: one channel, the exact conversation, the marker, newer
 work wins, and Pause and Cancel take a queued continuation back.
 
-**Ceilings.** 24 a day, and 3 in any one conversation. **Measurement M5: made** on `codex-cli
+**Ceilings.** 48 a day, and 5 in any one conversation. **Measurement M5: made** on `codex-cli
 0.163.0-alpha.10.2`. **MO: passed** there too; on any other version, a warning.
 
 ### Continue a turn that ended with no reply
@@ -979,7 +979,7 @@ the conversation's latest, and never twice for one turn.
 [A26](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (its continuations are its fixed templates or your
 Custom message).
 
-**Ceilings.** 12 a day, and 2 in any one conversation. **Measurement ME: not made yet.**
+**Ceilings.** 24 a day, and 4 in any one conversation. **Measurement ME: not made yet.**
 
 ### Tell a parent which of its subagents stopped
 
@@ -998,7 +998,7 @@ word for why it stopped are told - never anything it said.
 (subagent conversations are never detected or recovered) and
 [A26](STANDARDS.md#a-what-it-may-send-to-codex-and-when).
 
-**Ceilings.** 12 a day, and 3 in any one conversation. **Measurement MS: not made yet** - until it is, a
+**Ceilings.** 24 a day, and 5 in any one conversation. **Measurement MS: not made yet** - until it is, a
 parent that finished normally is told nothing,
 and MS failing does the same; it never turns it off.
 
@@ -1022,7 +1022,7 @@ conversation off. It is paced like every recovery.
 [A26](STANDARDS.md#a-what-it-may-send-to-codex-and-when) and [B9](STANDARDS.md#b-what-it-reads-and-how) (nothing is
 read from the content of a conversation's items).
 
-**Ceilings.** 24 a day, and core's 5 in any one conversation. **Measurement MK: not made yet.**
+**Ceilings.** 48 a day, and core's 5 in any one conversation. **Measurement MK: not made yet.**
 Until it passes, or where it fails, no more than 3 are sent; its failing never turns it off.
 
 ### Queue messages for later
@@ -1084,7 +1084,7 @@ is on), [C4](STANDARDS.md#c-network), [D2](STANDARDS.md#d-privacy-and-the-data-i
 on or cancel) and [H6](STANDARDS.md#h-user-control) (Cancel no longer reaches a message being sent). It keeps
 A20.
 
-**Ceilings.** 30 a day, and core's 5 in any one conversation. **Measurement MT: not made yet** - "after this
+**Ceilings.** 60 a day, and core's 5 in any one conversation. **Measurement MT: not made yet** - "after this
 turn" says it is unproven until it is, and where it fails that choice says so; its failing never turns the capability
 off. Its statement is at revision 2 since the send mode (v0.6.19): if it was on,
 you read the new statement once and turn it on again.
@@ -1133,7 +1133,7 @@ dispatch), [A8](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (its own chec
 [H2](STANDARDS.md#h-user-control) (its own limits, not the engine's) and [H6](STANDARDS.md#h-user-control) (nothing
 takes a written line back). It keeps A3, A6 and B13.
 
-**Ceilings.** 30 in one conversation and 60 a day. **Measurement MSTEER2: failed** on `codex-cli
+**Ceilings.** 60 in one conversation and 120 a day. **Measurement MSTEER2: failed** on `codex-cli
 0.165.0-alpha.1.2` - the line reached the running turn once and the model obeyed it, but the app never showed it -
 which its statement shows as a warning you confirm when you turn it on; MIPC (the pipe the forced stop uses) passed
 on `codex-cli 0.163.0-alpha.10.2`. MSTEER, the same steer from this product's own connection to Codex, was refused.
@@ -1250,7 +1250,7 @@ gets none. Your own words are sent as you wrote them, with only the numbers fill
 **Departs from** [A13](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (only failures are recovered) and
 [A26](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (words of its own).
 
-**Ceilings.** 12 a day, and 2 in any one conversation - the five-hour and the weekly window's. **Measurement
+**Ceilings.** 24 a day, and 4 in any one conversation - the five-hour and the weekly window's. **Measurement
 MT: not made yet.**
 
 ### Stop near a limit
@@ -1417,7 +1417,7 @@ and the page notes it; the next continuation still carries words.
 **Departs from** [A4](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (no marker: the turn is proven by
 its id) and A26 (no words at all).
 
-**Ceilings.** 24 a day, and 5 in any one conversation. **Measurement M3B: passed** on `codex-cli 0.163.0-alpha.10.2`; on any other version, a warning.
+**Ceilings.** 48 a day, and 5 in any one conversation. **Measurement M3B: passed** on `codex-cli 0.163.0-alpha.10.2`; on any other version, a warning.
 
 ### Check for updates once a week
 
@@ -1534,7 +1534,7 @@ does; nothing asks Codex for a token), C4 (it acts on its own), C9 (usage of acc
 (encrypted sign-in copies are kept), E8 (it ends the Codex app's process if Windows' request is not enough) and F6
 (`codex login` is not a listed process).
 
-**Ceilings.** Those of the early look at P7 (12 a day, 3 in one conversation), beside its own 10 switches a day.
+**Ceilings.** Those of the early look at P7 (24 a day, 5 in one conversation), beside its own 10 switches a day.
 **Measurements MPROFILE and MSWAP: passed** on `codex-cli 0.166.0-alpha.6` (2026-11-06) - a second saved account read
 on a scratch home left the real sign-in, the app and its account as they were (MPROFILE); the app came up as the other
 saved account and back, each with no sign-in page and no other Codex engine running (MSWAP, completed by the owner).

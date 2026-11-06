@@ -38,7 +38,7 @@ from .headless import HOUR, _app_running, follow_up, unheld
 CAPABILITY = "model_fallback"
 KIND = "server_5xx"
 CODE = "serverOverloaded"
-ATTEMPTS = (1, 2, 3)
+ATTEMPTS = (1, 2, 3, 4, 5)
 DEFAULT_ATTEMPTS = 2
 NOT_RESTORED = "model_not_restored"
 # How often a model still owed back is tried again, in seconds: a restore Codex refuses is not asked every tick.

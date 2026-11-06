@@ -33,7 +33,7 @@ from ..codex.account import parse as parse_account
 from ..vocabulary import OptionKey
 
 CAPABILITY = "codex_retry_settings"
-ATTEMPTS = (6, 8, 10, 12)
+ATTEMPTS = (6, 8, 10, 12, 16, 20)
 DEFAULT_ATTEMPTS = 8
 # Our provider's id: never a built-in one (openai, ollama, lmstudio are reserved), and one a person is unlikely to own.
 PROVIDER = "codex_auto_resume_retries"

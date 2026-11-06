@@ -18,7 +18,7 @@ queue never compacts here, and no source of either edition sends a text beginnin
   waits again, its claim counted. Once the compaction turn is the latest, the same route continues it with core's
   words ("ran"). A compaction that takes ten minutes is let go (codex/headless.COMPACT_SECONDS).
 
-Its ceilings are two a conversation - the compaction's claim and its continuation's - and six a day. Until MX (the
+Its ceilings are four a conversation - the compaction's claim and its continuation's, twice over - and twelve a day. Until MX (the
 headless half) and MXA (the app half) pass for the Codex in force, its statement carries the UNMEASURED warning.
 """
 from __future__ import annotations

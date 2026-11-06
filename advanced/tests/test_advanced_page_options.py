@@ -247,7 +247,7 @@ class PageTests(PageCase):
         words = expected["words"]
         (shown,) = result["looks"]
         self.assertEqual(shown["choices"], [{"key": "ceiling_hours", "enabled": True, "value": "2 h",
-                                             "items": ["%d h" % hours for hours in (1, 2, 3, 4, 6, 8, 12)]}])
+                                             "items": ["%d h" % hours for hours in (1, 2, 3, 4, 6, 8, 12, 24)]}])
         titles = [card[0] for card in shown["cards"]]
         self.assertEqual(titles[-1], words["page.options"])
         self.assertIn(words["page.option.ceiling_hours"], shown["cards"][-1])
@@ -466,7 +466,7 @@ class PageTests(PageCase):
                                    "%s: %s \u00b7 %s: - \u00b7 %s: 1" % (
                                        words["page.sample.code"], words["page.sample.no_code"], words["page.sample.status"],
                                        words["page.sample.count"])])
-        self.assertEqual(seen["choices"], [{"key": "attempts", "enabled": True, "value": "1", "items": ["1", "2", "3"]}])
+        self.assertEqual(seen["choices"], [{"key": "attempts", "enabled": True, "value": "1", "items": ["1", "2", "3", "4", "5"]}])
         self.assertEqual(none["cards"][-1], [words["page.samples"], words["page.samples.none"]])
         self.assertIsNone(seen["rules"])
 

@@ -103,7 +103,7 @@ class Alternative(StrEnum):
     # under the client id it derives, its proof (engine/routes.py). Through a channel or core's queue, ignored.
     SILENT = "silent"
     # P16 (v0.6.15-beta): the ordinary send to a conversation the app does not hold, left in Codex's queue for
-    # when it is opened - kept there only while the plug says so, and seven days and an hour at most.
+    # when it is opened - kept there only while the plug says so, and 30 days and an hour at most.
     QUEUE_FOR_OPEN = "queue_for_open"
     # P16 (v0.6.16-beta.4): the ordinary send to a conversation another Codex session holds - a terminal's, VS
     # Code's - left in Codex's queue for that session to take, and taken back when it ends (engine/tosession.py).
