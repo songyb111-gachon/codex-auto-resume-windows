@@ -37,6 +37,7 @@ if _BUILD not in sys.path:
     sys.path.insert(0, _BUILD)
 
 import guiscan  # noqa: E402
+import languages  # noqa: E402
 from test_add_remove import Launcher  # noqa: E402
 from test_cli import FakeWinreg  # noqa: E402
 from test_installer_window import _build, _powershell, CSC  # noqa: E402
@@ -391,6 +392,7 @@ class ScriptTests(unittest.TestCase):
         for word in ("DesktopShortcut", "desktop-shortcut"):
             self.assertNotIn(word, BOOTSTRAP, "an update with no setup window creates nothing and removes nothing")
 
+    @unittest.skipIf(languages.generated_ko_branch(), "the generated ko branch's GUIDE.md is the Korean guide")
     def test_it_is_documented_beside_silent(self):
         guide = (ROOT / "docs" / "GUIDE.md").read_text(encoding="utf-8")
         silent = guide.index("`-Silent` installs without a question")
