@@ -123,6 +123,10 @@ ADVANCED_WORD = "Advanced"
 
 EXCLUDE_DIRS = {"__pycache__", ".git", ".github", "node_modules", ".pytest_cache",
                 "comparison", "config", "logs", "build", "tests", ".venv", "venv"}
+# Of those, the ones left out wherever they are. The rest are the repository's own top-level
+# folders: matched at any depth, they would silently drop a package named `config` under src/
+# or a skill's `tests` folder from every archive, and the first to notice would be a user's import.
+EXCLUDE_ANYWHERE = {"__pycache__", ".git", "node_modules", ".pytest_cache", ".venv", "venv"}
 EXCLUDE_SUFFIXES = {".pyc", ".pyo", ".log", ".sqlite", ".sqlite-wal", ".sqlite-shm"}
 EXCLUDE_NAMES = {".owned-by-codex-auto-resume", "runtime.json", "settings.json",
                  "state.sqlite", ".DS_Store", "Thumbs.db"}
@@ -153,18 +157,27 @@ def fetch_runtime() -> Path:
     archive = CACHE / PYTHON_ZIP
     if not archive.is_file():
         print("downloading %s" % PYTHON_URL)
+        # Under another name until it is whole, so a download cut part way is never the cached file.
+        partial = archive.with_name(archive.name + ".part")
         with urllib.request.urlopen(PYTHON_URL, timeout=180) as response:
-            archive.write_bytes(response.read())
+            partial.write_bytes(response.read())
+        partial.replace(archive)
     digest = hashlib.sha256(archive.read_bytes()).hexdigest()
     if digest != PYTHON_SHA256:
-        raise SystemExit("runtime checksum mismatch: expected %s, got %s" % (PYTHON_SHA256, digest))
+        # A proxy's error page or a short read would otherwise be trusted by every later build and
+        # fail each one the same way; removed, the next build downloads it again.
+        archive.unlink()
+        raise SystemExit("runtime checksum mismatch: expected %s, got %s; %s was removed, so the next "
+                         "build downloads it again" % (PYTHON_SHA256, digest, archive))
     return archive
 
 
 def _wanted(path: Path) -> bool:
     if path.name in EXCLUDE_NAMES or path.suffix.lower() in EXCLUDE_SUFFIXES:
         return False
-    return not any(part in EXCLUDE_DIRS for part in path.parts)
+    if any(part in EXCLUDE_ANYWHERE for part in path.parts):
+        return False
+    return not (path.parts and path.parts[0] in EXCLUDE_DIRS)
 
 
 def collect_app(stage: Path) -> int:
@@ -358,8 +371,10 @@ def build_setup(archive: Path, edition: str, release: str) -> Path:
 def write_sidecar(target: Path) -> str:
     """`<sha256>  <name>` in <name>.sha256 beside the file, as every file of a release has; the digest."""
     digest = hashlib.sha256(target.read_bytes()).hexdigest()
-    (target.parent / (target.name + ".sha256")).write_text(
-        "%s  %s\n" % (digest, target.name), encoding="utf-8")
+    # LF, not the runner's CRLF: `sha256sum -c` reads the name up to the line end, and with a
+    # carriage return it looks for "<name>\r" and calls a good download unreadable.
+    with open(target.parent / (target.name + ".sha256"), "w", encoding="utf-8", newline="\n") as sidecar:
+        sidecar.write("%s  %s\n" % (digest, target.name))
     return digest
 
 

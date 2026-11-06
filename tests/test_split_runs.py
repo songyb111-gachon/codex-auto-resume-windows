@@ -206,11 +206,18 @@ class DealTests(unittest.TestCase):
         self.assertEqual(parts.deal(sorted(seconds), 2, seconds),
                          [["tests/test_a.py", "tests/test_d.py"], ["tests/test_b.py", "tests/test_c.py"]])
 
-    def test_files_never_measured_go_round_robin_after_the_measured_ones(self):
+    def test_files_never_measured_count_as_the_median_and_go_to_the_lightest_part(self):
+        """Until v0.6.22 they went round-robin from part 1 after the measured ones, whatever each part held."""
         seconds = {"tests/test_a.py": 5}
         self.assertEqual(parts.deal(self.FILES[:5], 2, seconds),
-                         [["tests/test_a.py", "tests/test_b.py", "tests/test_d.py"],
-                          ["tests/test_c.py", "tests/test_e.py"]])
+                         [["tests/test_a.py", "tests/test_c.py", "tests/test_e.py"],
+                          ["tests/test_b.py", "tests/test_d.py"]])
+        # A heavy part 1 gets none of the new files; the median (10) weighs each of them.
+        seconds = {"tests/test_a.py": 100, "tests/test_b.py": 10, "tests/test_c.py": 1}
+        self.assertEqual(parts.deal(self.FILES[:6], 2, seconds),
+                         [["tests/test_a.py"],
+                          ["tests/test_b.py", "tests/test_c.py", "tests/test_d.py", "tests/test_e.py",
+                           "tests/test_f.py"]])
 
     def test_no_part_may_be_empty_or_count_below_one(self):
         with self.assertRaises(SystemExit):

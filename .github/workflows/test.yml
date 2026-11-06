@@ -28,6 +28,8 @@ jobs:
   test:
     # This tool targets Windows only, so CI runs on Windows only.
     runs-on: windows-latest
+    # A hung part is stopped here, not at the six-hour default: healthy parts take 65-67 minutes, once 85-92.
+    timeout-minutes: 150
     # `scripts/python_support.json` is where these are decided, and
     # `tests/test_python_support.py` fails if this list and that file stop agreeing.
     # A matrix cannot read a file, so the list is repeated here and the test is what
@@ -232,6 +234,7 @@ jobs:
     # Python, and not on main or a pull request into it, whose tree already is main's.
     if: github.ref != 'refs/heads/main' && github.base_ref != 'main'
     runs-on: windows-latest
+    timeout-minutes: 150
     strategy:
       fail-fast: false
       matrix:
