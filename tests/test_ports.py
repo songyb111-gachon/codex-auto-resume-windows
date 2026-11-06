@@ -182,7 +182,9 @@ ENGINE_TO_SOURCE = {
 # `eligibility` is P19 (v0.6.16-beta.3): which conversations besides a person's own detection takes up; `sessions` P18
 # (v0.6.16-beta.4): which conversations besides the app's are watched.
 ENGINE_TO_PLUG = {"admission", "delivery", "eligibility", "gate", "moved", "null", "outcome", "partition", "records",
-                  "schedule", "sender", "sessions", "text", "tick", "unloaded", "wants"}
+                  "schedule", "sender", "sessions", "text", "tick", "unloaded", "wants",
+                  # v0.6.22: P22, asked while recovery is paused alone (the owner's word of 2026-11-06).
+                  "resident"}
 # `claim_ledger_checked` is how the claim asks: it says whether that one call raised, so a
 # failure on another thread holding the same plug is not read as this claim's (domain/plug.py).
 STORE_TO_LEDGER = {"claim_ledger_checked", "null"}
