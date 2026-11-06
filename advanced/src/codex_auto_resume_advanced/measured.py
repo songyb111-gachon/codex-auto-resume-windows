@@ -40,16 +40,20 @@ CLI_0165_ALPHA_1_2 = CODEX_0165_ALPHA_1_2
 # that wait on them stay hidden (registry.WAITING), marked as hidden because their measurement failed.
 CLI_0166_ALPHA_5_1 = "codex-cli 0.166.0-alpha.5.1"
 
+# The Codex of 2026-11-05, a no-hands sitting toward the v0.6.22 re-measure: MW, MHK, M3B and MF pass again; M3 and MB fail
+# as before. MN's record stays the one at zero credits, since this account has some now and its probe called nothing.
+CLI_0166_ALPHA_6 = "codex-cli 0.166.0-alpha.6"
+
 MEASURED = {
     Measurement.M1: (Verdict.PASS, CLI_0163_ALPHA_10_2),
     Measurement.M2: (Verdict.FAIL, CLI_0162_ALPHA_17_2),
     Measurement.M2B: (Verdict.PASS, CLI_0164_ALPHA_11_1),
-    Measurement.M3: (Verdict.FAIL, CLI_0162_ALPHA_17_2),
+    Measurement.M3: (Verdict.FAIL, CLI_0166_ALPHA_6),
     Measurement.M4: (Verdict.FAIL, CLI_0166_ALPHA_5_1),
     Measurement.M5: (Verdict.PASS, CLI_0163_ALPHA_10_2),
     Measurement.M6: (Verdict.PASS, CLI_0163_ALPHA_10_2),
     Measurement.M7: (Verdict.PASS, CLI_0163_ALPHA_10_2),
-    Measurement.MW: (Verdict.PASS, CLI_0163_ALPHA_10_2),
+    Measurement.MW: (Verdict.PASS, CLI_0166_ALPHA_6),
     Measurement.MA: (Verdict.PASS, CLI_0162_ALPHA_17_2),
     Measurement.MH: (Verdict.PASS, CLI_0162_ALPHA_17_2),
     Measurement.MP1: (Verdict.PASS, CLI_0163_ALPHA_10_2),
@@ -71,13 +75,13 @@ MEASURED = {
     Measurement.MC1: (Verdict.PASS, CLI_0162_ALPHA_17_2),
     Measurement.MXA: (Verdict.PASS, CLI_0162_ALPHA_17_2),
     Measurement.MX: (Verdict.PASS, CLI_0163_ALPHA_10_2),
-    Measurement.MF: (Verdict.PASS, CLI_0163_ALPHA_10_2),
+    Measurement.MF: (Verdict.PASS, CLI_0166_ALPHA_6),
     # A fail narrows a route or is its capability's warning, never its end (the owner's rule).
-    Measurement.MB: (Verdict.FAIL, CLI_0166_ALPHA_5_1),
+    Measurement.MB: (Verdict.FAIL, CLI_0166_ALPHA_6),
     Measurement.MC2: (Verdict.FAIL, CLI_0162_ALPHA_17_2),
     # 2026-10-17, made again on codex-cli 0.163.0-alpha.10.2: all three passed there (they had failed on 0.162).
     Measurement.MO: (Verdict.PASS, CLI_0163_ALPHA_10_2),
-    Measurement.M3B: (Verdict.PASS, CLI_0163_ALPHA_10_2),
+    Measurement.M3B: (Verdict.PASS, CLI_0166_ALPHA_6),
     Measurement.M6B: (Verdict.PASS, CLI_0163_ALPHA_10_2),
     # 2026-10-20 (v0.6.17, issues #42 and #47), the Desktop not holding the conversations: a continuation queued for
     # opening with no marker ran once on open and was found by its client id; two at once each ran once in its own
@@ -102,7 +106,7 @@ MEASURED = {
     # the conversation within 2-10 s, so it passed - and open_to_send is offered.
     Measurement.MOPEN: (Verdict.PASS, CLI_0165_ALPHA_1_2),
     # 2026-10-31 (v0.6.20, Continue inside the turn's declaration): on a scratch Codex home the probe made and removed.
-    Measurement.MHK: (Verdict.PASS, CLI_0166_ALPHA_5_1),
+    Measurement.MHK: (Verdict.PASS, CLI_0166_ALPHA_6),
     # 2026-11-01 (v0.6.20, account_switch's button), the measurement session with the owner: a `codex logout` made outside
     # the app reached the running app, but the `codex login` after it did not within about a minute - the app came back
     # signed in only through its own sign-in - so the button stays hidden: hidden because its measurement failed (partial).
@@ -111,4 +115,15 @@ MEASURED = {
     # it to quit, and it did), brought the app up signed in - the account switch's button rests on it.
     Measurement.MALR: (Verdict.PASS, CLI_0166_ALPHA_5_1),
     Measurement.MSTEER2: (Verdict.FAIL, CLI_0165_ALPHA_1_2),
+    # 2026-11-06 (v0.6.22), the measurement session, no hands: the automatic check's own commands answered on the app's
+    # engine, on a scratch Codex home the probe made and removed, with --experimental taken behind core's options.
+    Measurement.MAUTO: (Verdict.PASS, CLI_0166_ALPHA_6),
+    # 2026-11-06 (v0.6.22), the measurement session: Codex refused thread/resume (-32600) of a conversation made under the
+    # built-in openai provider under a provider of our own (modelProviderMismatch), though the scratch part held (MB2). A
+    # second saved account was read on a scratch home, the real sign-in file, the app and its account left as they were
+    # (MPROFILE); the app came up as the other saved account and back, each with no sign-in page and no other Codex engine
+    # running - the probe blocked, completed by the owner's word (MSWAP).
+    Measurement.MB2: (Verdict.FAIL, CLI_0166_ALPHA_6),
+    Measurement.MPROFILE: (Verdict.PASS, CLI_0166_ALPHA_6),
+    Measurement.MSWAP: (Verdict.PASS, CLI_0166_ALPHA_6),
 }

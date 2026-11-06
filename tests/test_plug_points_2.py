@@ -32,8 +32,8 @@ from codex_auto_resume.machine import TERMINAL, WAITING  # noqa: E402
 
 class CapacityTests(PluggedCase):
     """CAPACITY: a capacity error the plug vouches for retries sooner and more often, within core's
-    own bounds - a minute, two, four and five, each lengthened by up to a fifth, a minute apart, 48
-    a day, for twelve hours on the clock from its task's first failure - however long a plug says so."""
+    own bounds - a minute, two, four and five, each lengthened by up to a fifth, a minute apart, 96
+    a day, for 24 hours on the clock from its task's first failure - however long a plug says so."""
 
     def vouched(self, h=None, draw=0.0, plug=None):
         h = h or self.h
@@ -86,7 +86,7 @@ class CapacityTests(PluggedCase):
     def test_never_more_than_core_allows_however_long_the_plug_says_so(self):
         h = self.h
         self.vouched(h)
-        for _ in range(60):
+        for _ in range(ladder.CAPACITY_PER_DAY + 12):
             if h.records()[-1]["state"] in TERMINAL:
                 break
             self.continue_and_fail(h, step=60)
@@ -115,7 +115,7 @@ class CapacityTests(PluggedCase):
         engine.apply_policy(settings.defaults())
         self.assertEqual(engine.capacity_limits()["max_recovery_attempts"], ladder.CAPACITY_PER_DAY)
 
-    def test_twelve_hours_on_the_clock_end_it_whatever_it_waited_aside(self):
+    def test_24_hours_on_the_clock_end_it_whatever_it_waited_aside(self):
         h = self.h
         self.vouched(h)
         for _ in range(5):
@@ -128,12 +128,12 @@ class CapacityTests(PluggedCase):
         while h.now + 600 - origin["detected_at"] < ladder.CAPACITY_MAX_SECONDS:
             h.tick(advance=600)
             self.assertNotIn(h.records()[-1]["state"], TERMINAL)
-        h.tick(advance=600)                    # and now twelve hours on the clock have passed
+        h.tick(advance=600)                    # and now 24 hours on the clock have passed
         row = h.records()[-1]
         self.assertEqual((row["state"], row["last_error"]), ("retry_budget_exhausted", "recovery_budget"))
         self.assertEqual(len(h.backend.send_calls), sent)
         # Held at the usage gate all that time, which counts toward no time ceiling: on the clock it
-        # is twelve hours, counted it is a few minutes - and the clock is what bounds CAPACITY.
+        # is 24 hours, counted it is a few minutes - and the clock is what bounds CAPACITY.
         self.assertLess(h.now - row["chain_first_detected_at"], 3600)
 
     def test_another_server_error_is_never_vouched_for(self):
@@ -148,7 +148,7 @@ class CapacityTests(PluggedCase):
                 self.assertEqual(admissions(plug), [])
         self.assertEqual(rows[0], rows[1])
 
-    def test_the_claim_takes_a_capacity_retry_only_within_its_twelve_hours(self):
+    def test_the_claim_takes_a_capacity_retry_only_within_its_24_hours(self):
         self.vouched()
         row = self.h.record()
         ledger, key = guard(admitting(Alternative.CAPACITY)), row["interruption_id"]
@@ -162,8 +162,8 @@ class CapacityTests(PluggedCase):
         self.assertEqual(self.h.store.reserve_detailed(key, late - 1, relaxed="capacity", ledger=ledger,
                                                        carried={Point.GATES}), (True, None, None))
 
-    def test_a_task_older_than_twelve_hours_is_not_offered_capacity(self):
-        """At P17 too: a capacity failure of a task that first failed twelve hours ago on the clock is
+    def test_a_task_older_than_24_hours_is_not_offered_capacity(self):
+        """At P17 too: a capacity failure of a task that first failed 24 hours ago on the clock is
         offered nothing, and is registered as the standard edition registers it."""
         h = self.h
         self.vouched(h)

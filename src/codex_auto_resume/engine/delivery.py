@@ -143,15 +143,23 @@ class DeliveryMixin:
         continuation carries what the person wrote; spending the old words would delete the new ones unsent, and a
         continuation sent without words just added would let them be deleted with the record. Asked under the
         file's lock after the claim, where the Dashboard can no longer add any (control/actions.py set_once_words
-        checks under the same lock); a file that cannot be had just now changes nothing."""
+        checks under the same lock). v0.6.23 (audit C3): a file that cannot be had just now is no proof they stayed -
+        words written just before the claim would go unsent and be pruned with the record - so the claim is given back
+        once for it too; a second look that cannot be had goes on as before, so a file that stays unreadable never
+        holds a recovery for good."""
         key = claim["interruption_id"]
         if key not in self._once_seen:
             return False
         seen = self._once_seen.pop(key)
         try:
-            moved = self.once_words.unchanged(key, seen) is False
+            unchanged = self.once_words.unchanged(key, seen)
         except Exception:
-            moved = False
+            unchanged = None
+        moved = unchanged is False or (unchanged is None and key not in self._once_doubted)
+        if unchanged is None and moved:
+            self._once_doubted.add(key)
+        else:
+            self._once_doubted.discard(key)
         if moved:                       # given back as a pre-send look gives one back: nothing was sent
             self._release(key, claim, "waiting_retry", "released_before_send", self.options["state_poll_seconds"])
             self.log(claim["thread_id"], "waiting_retry", "released_before_send")

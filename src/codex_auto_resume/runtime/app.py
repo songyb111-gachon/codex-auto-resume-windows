@@ -671,9 +671,12 @@ class App(WatchLoop):
 
     def _account_changed(self, added):
         """v0.6.20: the advanced edition's account switch saw another Codex account signed in - each change, with how
-        many recoveries it held, shown once in this watcher's life (_unshown), as the update check's offers are."""
+        many recoveries it held, shown once in this watcher's life (_unshown), as the update check's offers are; v0.6.22:
+        and each time the automatic switch found every saved account at its limit, the same way."""
         for notice in _unshown(self, added, "account"):
             self._watcher_notice("account_changed", {"count": notice.get("count")})
+        for notice in _unshown(self, added, "autoswitch"):
+            self._watcher_notice("accounts_exhausted", {"why": notice.get("why")})
 
     def _near_limit(self, added):
         """The advanced edition's usage meter at a warning (v0.6.16-beta.3, issue #29): each notice shown once in this

@@ -11,7 +11,7 @@ conversation saved with full access or with another reviewer of approvals before
 
 It answers nothing - DEFER, the standard edition's wait - unless the record was asked with no app and no holder, it is
 not one this edition's compaction continues (a full context window: compact_continue's), and no run is live in this
-watcher (one at a time, R3). The turn is capped at the person's Hours (1 to 6, 1 by default); a person's Stop on
+watcher (one at a time, R3). The turn is capped at the person's Hours (1 to 12, 1 by default); a person's Stop on
 Pending's row (advanced-headless-stop, the Dashboard's bridge alone - never MCP) interrupts it, and so does the Codex
 app starting (Q3: at once, until a measurement shows what the app does then).
 
@@ -34,7 +34,7 @@ from ..vocabulary import OptionKey, RunEnd
 CAPABILITY = "headless_run"
 # A full context window is compact_continue's to continue (engine/compact.py), never this one's.
 TERMINAL_INVALID = "terminal_invalid"
-HOURS = (1, 2, 3, 4, 5, 6)
+HOURS = (1, 2, 3, 4, 5, 6, 8, 12)
 DEFAULT_HOURS = 1
 HOUR = 3600
 # How long an ended run's row is kept for the Dashboard to show how it ended.

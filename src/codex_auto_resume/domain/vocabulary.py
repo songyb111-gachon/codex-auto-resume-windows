@@ -189,6 +189,8 @@ class Overlay(StrEnum):
     WATCHER_NOT_TICKING = "watcher_not_ticking"
     # v0.6.11: waits for a person to let it continue (`interruptions.hold`).
     HELD = "held"
+    # #58's follow-up: the Codex app runs and no server of its could be matched, the record's own reason.
+    APP_SERVER_UNMATCHED = "app_server_unmatched"
 
 
 class HoldKind(StrEnum):
@@ -629,3 +631,6 @@ class NoticeKind(StrEnum):
     # v0.6.20: the advanced edition's account switch saw another Codex account signed in, and recoveries waiting for a
     # usage limit wait for a person - shown only from its plug's surface.
     ACCOUNT_CHANGED = "account_changed"
+    # v0.6.22: the advanced edition's automatic account switch found every saved account at its limit, so recoveries wait
+    # for the earliest reset as they would without it - shown only from its plug's surface, once a set of waiting records.
+    ACCOUNTS_EXHAUSTED = "accounts_exhausted"

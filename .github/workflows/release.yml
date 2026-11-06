@@ -72,6 +72,9 @@ jobs:
   test:
     # Windows, where the product and its suite run.
     runs-on: windows-latest
+    # A hung part is stopped here, not at the six-hour default: healthy parts take 65-67 minutes, once
+    # 85-92, and with cancel-in-progress off a hung release run holds every later one of its tag group.
+    timeout-minutes: 150
     permissions:
       contents: read
     strategy:
@@ -118,6 +121,7 @@ jobs:
     # The product is Windows-only, and the release contains two Windows executables
     # compiled with the in-box C# compiler, so it can only be built on Windows.
     runs-on: windows-latest
+    timeout-minutes: 150
     permissions:
       contents: read
     outputs:
@@ -143,6 +147,20 @@ jobs:
           # It costs history, not privilege: the token is still not persisted, the job
           # still holds `contents: read`, and the repository is public.
           fetch-depth: 0
+
+      # A release is built from main, and a tag push publishes: a tag put on a dev commit would
+      # publish a release of dev's tree, and a published version is never replaced. sync-ko
+      # refuses the same way. A dispatch publishes nothing, so it may still build any ref.
+      - name: Refuse a tag that is not on main
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor HEAD FETCH_HEAD; then
+            echo "::error::${GITHUB_REF_NAME} is on $(git rev-parse HEAD), which is not on main; a release is only ever built from main"
+            exit 1
+          fi
 
       - name: Set up Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -334,6 +352,7 @@ jobs:
     # publish from a "dry run".
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       # To create the release.
       contents: write

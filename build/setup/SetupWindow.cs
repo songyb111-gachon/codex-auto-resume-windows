@@ -59,6 +59,8 @@ namespace CodexAutoResumeSetup
             string from = installed == null ? "" : InstallerFlow.VersionOf(
                 Read(Path.Combine(Path.Combine(Path.Combine(home, "app"), ".codex-plugin"), "plugin.json")));
             var flow = FlowFor(arguments, home, carried.Edition, installed, carried.Version, from);
+            flow.KnowDesktopShortcut(DesktopShortcut.OursAt(home), arguments);
+            flow.SavedAccountsThere = InstallerFlow.SavedAccountsAt(home);
             string language = InstallerLanguages.FromSystem(InstallerLanguages.Preferred());
             // An update says from what to what, and what is new in the version this program carries (v0.6.16); a repair
             // of the same version has nothing new to say.
@@ -90,6 +92,7 @@ namespace CodexAutoResumeSetup
             var flow = new InstallerFlow(mode, home, edition, installed, version);
             flow.StartAtSignIn = !InstallerFlow.Has(arguments, "-SkipStartup");
             flow.ChangeEdition = InstallerFlow.Has(arguments, "-AllowEditionChange");
+            flow.DeleteSavedAccounts = InstallerFlow.Has(arguments, "-DeleteSavedAccounts");
             flow.Purge = InstallerFlow.Has(arguments, "-Purge");
             flow.From = from ?? "";
             flow.Maintaining = mode == InstallerFlow.Install && flow.Upgrade && !flow.EditionChange &&
@@ -278,6 +281,13 @@ namespace CodexAutoResume
                 pick.Another = true;
                 cases.Add(Case("dashboard-pick", pick));
                 cases.Add(Case("uninstall", new InstallerFlow(InstallerFlow.Uninstall, home, InstallerFlow.Standard, InstallerFlow.Standard, "0.6.16")));
+                var desktop = new InstallerFlow(InstallerFlow.Uninstall, home, InstallerFlow.Standard, InstallerFlow.Standard, "0.6.16");
+                desktop.DesktopShortcutThere = true;
+                cases.Add(Case("uninstall-desktop", desktop));
+                var repairDesktop = new InstallerFlow(InstallerFlow.Install, home, InstallerFlow.Standard, InstallerFlow.Standard, "0.6.16");
+                repairDesktop.Maintaining = true;
+                repairDesktop.KnowDesktopShortcut(true, null);
+                cases.Add(Case("repair-desktop", repairDesktop));
                 foreach (KeyValuePair<string, InstallerFlow> each in cases)
                 {
                     // An update's pages carry what is new: a changelog section, its lines as long as the real ones.
@@ -305,7 +315,8 @@ namespace CodexAutoResume
                             }
                             window.Finished(ended, ended == 0
                                 ? "The watcher could not be confirmed running, so nothing is being watched yet.\n" +
-                                  "The previous version of the watcher was asked to stop and is still finishing"
+                                  "The previous version of the watcher was asked to stop and is still finishing\n" +
+                                  DesktopShortcut.FailedLine + "\n" + DesktopShortcut.TakenLine
                                 : "  [x]  Something did not work.");
                             Check(window, where, findings);
                         }

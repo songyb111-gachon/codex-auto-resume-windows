@@ -3,7 +3,7 @@
 A conversation the Codex app does not hold may be sent the ordinary continuation - core's backend, its marker, its
 claim; or (v0.6.17) the plug's channel under the plug's client id, with no marker - and left in Codex's queue for when
 a person opens it, where the plug answers QUEUE_FOR_OPEN at P16
-(domain/plug.py). Core keeps it there only while the plug still says so, and seven days and an hour at most
+(domain/plug.py). Core keeps it there only while the plug still says so, and 30 days and an hour at most
 (DEFERRED_LONGEST); opened, it has the delivery window like any queued item, and then is taken back as not
 delivered on open. Each of these withdrawals is given back to waiting once nothing ran (domain/public.py
 RELEASABLE_WITHDRAWALS), and every other withdrawal core makes of a queued item fires as it always does.
@@ -14,8 +14,8 @@ from .. import machine
 from ..domain.plug import Alternative
 
 # The longest a continuation is kept in Codex's queue for when its conversation is opened, whatever the plug says:
-# seven days and an hour from when it was queued.
-DEFERRED_LONGEST = 7 * 86400 + 3600
+# 30 days and an hour from when it was queued (v0.6.22: the plug's Days choice goes up to 30).
+DEFERRED_LONGEST = 30 * 86400 + 3600
 
 
 class ForOpenMixin:
@@ -46,7 +46,7 @@ class ForOpenMixin:
 
     def _open_reason(self, row, loaded, now):
         """Why a continuation queued for its conversation to be opened is taken back now, or None to keep it queued.
-        Not held: kept while the plug still answers QUEUE_FOR_OPEN, asked again with when it was queued, and seven
+        Not held: kept while the plug still answers QUEUE_FOR_OPEN, asked again with when it was queued, and 30
         days and an hour at most (DEFERRED_LONGEST) - anything else is window_ended. Held: kept for the delivery
         window after core first saw it held (in memory; after a restart, from the first look then) - then Codex did
         not deliver it on open, not_delivered_on_open. Both are given back to waiting once nothing ran."""

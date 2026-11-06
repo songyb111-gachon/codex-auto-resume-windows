@@ -81,6 +81,10 @@ PAGE_KEYS = tuple(PAGE_PREFIX + name for name in (
     "tripped", "tripped.measurement_failed", "tripped.failed_here", "tripped.incompatible",
     "tripped.local_check_failed", "tripped.submission_unknown", "tripped.hook_exception",
     "tripped.statement_changed", "tripped.engine_changed",
+    # v0.6.22: the automatic check (autocheck.py) - a call gone, and each line a capability's grade is said in.
+    "tripped.auto_check_failed", "kept.auto_check_failed",
+    "check.measured", "check.auto_checked", "check.auto_checked_whole", "check.offered_only",
+    "check.failed_still_offered",
     # v0.6.14: a capability's own choices, the rules for Codex's error codes and the samples of what nothing
     # classified, and what the page says of each.
     "options", "option.attempts", "option.ceiling_hours", "option.workers", "option.days", "option.hours", "done.option", "refused.option",
@@ -361,6 +365,16 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "powertasks.button", "powertasks.off", "powertasks.line", "powertasks.end.running", "powertasks.end.completed",
     "powertasks.end.failed", "powertasks.end.interrupted", "powertasks.end.unknown", "confirm.power_after_tasks",
     "done.power_after_tasks", "refused.power_no_turn", "refused.power_refused"))
+# v0.6.22 (account_auto_switch): the saved accounts, their state words, the line for a sign-in kept outside a file,
+# Add an account..., Save the account in use, Delete and Delete all, their questions and what came of them
+# (advanced/gui/AdvancedAccounts.cs, control/autoswitch.py).
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
+    "accounts.title", "accounts.help", "accounts.not_file", "accounts.none", "accounts.state.ready",
+    "accounts.state.exhausted", "accounts.state.needs_sign_in", "accounts.state.damaged", "accounts.added",
+    "accounts.not_added", "accounts.add", "accounts.save", "accounts.delete", "accounts.delete_all",
+    "confirm.accounts_add", "confirm.accounts_delete", "confirm.accounts_delete_all", "done.accounts_saved",
+    "done.accounts_deleted", "refused.accounts_not_saved",
+))
 # The edition's own continuations' words (v0.6.15-beta): what empty_response, subagent_parent and keep_going send -
 # fixed, each passing core's continuation.validate_continuation in every language (nothing is filled in but, for a
 # subagent's line, its id and a closed kind word).

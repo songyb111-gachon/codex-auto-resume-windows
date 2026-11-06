@@ -55,6 +55,8 @@ from ..vocabulary import OptionKey
 CAPABILITY = "window_anchor"
 FIVE_HOUR, WEEKLY = 300, 10080
 WINDOW_SECONDS = FIVE_HOUR * 60
+# The span its ceiling of starts a day is counted over (registry: Ceilings.per_day).
+DAY = 86400
 # Two reads at least this far apart tell an idle window (its reset moves with the clock) from a running one.
 STEADY_GAP = 20
 # An idle window's reset offset is ~5 h (17,998-17,999 s were read); how far from it still counts, and how much
@@ -91,7 +93,7 @@ IDLE, RUNNING, WEEKLY_FULL, UNREADABLE = "idle", "running", "weekly", "unreadabl
 # the errand used to raise and its tripwire caught it (hook_exception, the owner's journal at 2026-10-31 10:08:17).
 SKIPS = {"running": "skip_running", "weekly": "skip_weekly", "paused": "skip_paused", "signed_out": "skip_signed_out",
          "unreadable": "skip_unreadable", "home": "skip_home", "once": "skip_once", "folder": "skip_folder",
-         "state": "skip_state"}
+         "state": "skip_state", "ceiling": "skip_ceiling"}
 CODES = ("started", "fixed", "unfixed", "failed", "timed_out") + tuple(SKIPS.values())
 # What an occasion is: a time picked, or a reset seen.
 SLOT, RESET, VERIFY = "slot", "reset", "verify"
@@ -141,12 +143,20 @@ def midnight(now, local=time.localtime) -> int:
     return int(now) - (moment.tm_hour * 3600 + moment.tm_min * 60 + moment.tm_sec)
 
 
-def slot_due(options, now, done, local=time.localtime):
+def occurrence(now, days, minute, local=time.localtime, mktime=time.mktime) -> int:
+    """The time picked `minute` (minutes after midnight) on the day `days` from the one `now` is in, in whole seconds -
+    by the calendar, so across a daylight-saving change it is still that time on the clock (v0.6.23 audit seatA:B-M3:
+    seconds arithmetic put tomorrow's 08:00 at 09:00 after a spring change, and the wake for it missed it)."""
+    moment = local(int(now))
+    return int(mktime((moment.tm_year, moment.tm_mon, moment.tm_mday + days, minute // 60, minute % 60, 0, 0, 0, -1)))
+
+
+def slot_due(options, now, done, local=time.localtime, mktime=time.mktime):
     """The occurrence - its time, in whole seconds - of a time picked that is due now: at or before `now`, at most
     SLOT_GRACE before it, and after `done` (the last one handled). The latest such, or None."""
-    start = midnight(now, local)
-    due = [occurrence for minute in picked(options) for occurrence in (start + minute * 60, start - 86400 + minute * 60)
-           if occurrence <= now < occurrence + SLOT_GRACE and (done is None or occurrence > done)]
+    due = [found for minute in picked(options)
+           for found in (occurrence(now, 0, minute, local, mktime), occurrence(now, -1, minute, local, mktime))
+           if found <= now < found + SLOT_GRACE and (done is None or found > done)]
     return max(due) if due else None
 
 
@@ -159,13 +169,13 @@ def reset_due(options, now, seen, done):
     return seen
 
 
-def next_due(options, now, slot_done, seen, reset_done, local=time.localtime):
+def next_due(options, now, slot_done, seen, reset_done, local=time.localtime, mktime=time.mktime):
     """The earliest occasion still to come, in whole seconds, or None - for wake_for_reset (v0.6.20, the pair audit; the
     owner's word of 2026-10-31): the next occurrence of a time picked, today's or tomorrow's, not handled already, and -
     Start right after a reset on - the reset seen not handled yet, AFTER_RESET after it. Pure."""
-    start = midnight(now, local)
-    found = [occurrence for minute in picked(options) for occurrence in (start + minute * 60, start + 86400 + minute * 60)
-             if occurrence > now and (type(slot_done) is not int or occurrence > slot_done)]
+    found = [at for minute in picked(options)
+             for at in (occurrence(now, 0, minute, local, mktime), occurrence(now, 1, minute, local, mktime))
+             if at > now and (type(slot_done) is not int or at > slot_done)]
     if after_reset_on(options) and type(seen) is int and (type(reset_done) is not int or seen > reset_done):
         if seen + AFTER_RESET > now:
             found.append(seen + AFTER_RESET)
@@ -446,6 +456,11 @@ class WindowAnchor:
         found = judge(pending["first"], reading) if reading is not None else UNREADABLE
         if why == VERIFY:
             return self._verified(found, reading, pending)
+        if not 0 <= now - pending["first"]["at"] <= SLOT_GRACE:
+            # A first read held past a slot's own grace - recovery paused or the capability turned off or watched
+            # between the two reads - says nothing of the window now: the occasion is skipped, never started hours
+            # late at a time nobody picked (v0.6.23 audit seatA:B-M1).
+            return self._skip(why, occurrence, "unreadable")
         if found != IDLE:
             return self._skip(why, occurrence, {RUNNING: "running", WEEKLY_FULL: "weekly"}.get(found, "unreadable"))
         reason = self._before(view, now)
@@ -470,6 +485,15 @@ class WindowAnchor:
             return "state"              # one start a window cannot be told: none is made
         if type(started) is int and 0 <= now - started < WINDOW_SECONDS:
             return "once"
+        # Its ceiling, starts in any 24 hours (registry: Ceilings.per_day) - one a window keeps under it but for the
+        # restarts an account change allows (v0.6.23 audit seatA:B-M2).
+        from ..registry import WINDOW_ANCHOR
+        try:
+            made = self._scoped.counted_since("started", now - DAY)
+        except Exception:
+            return "state"
+        if type(made) is not int or made >= WINDOW_ANCHOR.ceilings.per_day:
+            return "ceiling"
         return None
 
     def _start(self, why, occurrence, guard, now) -> None:

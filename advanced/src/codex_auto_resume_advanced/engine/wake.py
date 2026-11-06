@@ -6,7 +6,9 @@ once when the PC wakes; it never wakes a sleeping PC on a schedule of its own (C
 questions (B16). With this capability on, at P8 - once a tick, as an errand - the watcher finds the earliest time
 something it waits for falls due:
 
-* core's waiting usage-limit records: next_check_at of each record in category usage_limit (core's view, `records_in`);
+* core's waiting usage-limit records: when each record in category usage_limit is next looked at (core's view,
+  `records_in`; domain/public.eligible_at - its schedule, its reset or a person's postponement, whichever is last; none
+  for a record held for a person);
 * the reset actions' pending rules - a reset credit, a message of a person's own - that know when they act (`due_at`);
 * the forced stop's held window (usage_pause): the reset its pause holds for (the meter's `paused_reset_at`);
 * (v0.6.20, the pair audit; the owner's word of 2026-10-31) while Start the 5-hour window early stands on too, its next
@@ -63,6 +65,7 @@ class _Errand:
         self.code, self.view = code, view
 
     def run(self, guard):
+        self.code.learn_poll(self.view)
         try:
             due = self.code.earliest(self.view)
         except Exception:                              # noqa: BLE001 - what cannot be read wakes nothing
@@ -75,7 +78,8 @@ class WakeForReset:
     """wake_for_reset's code: its P8 errand and the watch beside it. `timer` (win/waketimer.WakeTimer's shape) and
     `start` (how the watch's thread is started, `start(target)`) are the seams a test fills; no real timer is set and no
     thread is started in a test."""
-    __slots__ = ("paths", "_scoped", "_timer", "_start", "_lock", "_ticked", "_watching", "_allowed", "_asked")
+    __slots__ = ("paths", "_scoped", "_timer", "_start", "_lock", "_ticked", "_stale", "_watching", "_allowed",
+                 "_asked")
 
     def __init__(self, paths, *, timer=None, start=None):
         self.paths = paths
@@ -84,6 +88,7 @@ class WakeForReset:
         self._start = start or (lambda target: threading.Thread(target=target, name="wake-timer", daemon=True).start())
         self._lock = threading.Lock()
         self._ticked = None
+        self._stale = STALE           # STALE, or longer where the watcher ticks less often (`learn_poll`)
         self._watching = False
         self._allowed, self._asked = None, None
 
@@ -102,14 +107,29 @@ class WakeForReset:
             return DEFER
         return _Errand(self, view)
 
+    def learn_poll(self, view) -> None:
+        """How long the watch waits for a tick before it takes the timer back: STALE, or two of the watcher's own tick
+        intervals and a look where those are longer (the settings' poll_seconds, up to an hour) - so a watcher that
+        ticks every five minutes keeps its timer between two ticks (v0.6.23 audit seatA:B-M4)."""
+        try:
+            poll = (view.settings() or {}).get("poll_seconds")
+        except Exception:                              # noqa: BLE001
+            poll = None
+        stale = STALE
+        if type(poll) is int and 0 < poll <= 3600:
+            stale = max(STALE, 2 * poll + WATCH_EVERY)
+        with self._lock:
+            self._stale = stale
+
     def earliest(self, view):
         """The earliest time something waits for that is still to come, in Unix seconds, or None."""
         from codex_auto_resume.domain import states
+        from codex_auto_resume.domain.public import eligible_at
         now = self._scoped.now()
         found = []
         for row in view.records_in(getattr(states, WAITING)):
             if row.get("category") == USAGE_LIMIT:
-                found.append(_number(row.get("next_check_at")))
+                found.append(_number(eligible_at(row)))
         for rule in self._scoped.resets.reset_rules():
             found.append(_number(rule.get("due_at")))
         for row in self._scoped.meter.rows().values():
@@ -161,6 +181,8 @@ class WakeForReset:
             if first:
                 scoped.count("set")          # a move is not counted: core's next look moves it often
             self._watch()
+        elif timer.cancel():                 # a move Windows refused leaves no timer at the old time (seatA:B-M6)
+            scoped.count("cancelled")
 
     def _windows_allows(self, now) -> bool:
         """Windows' Allow wake timers for the power source in use, asked at most once in ASK_EVERY seconds; a change to
@@ -198,10 +220,12 @@ class WakeForReset:
                 self._watching = False
             return False
         with self._lock:
-            ticked = self._ticked
+            ticked, stale = self._ticked, self._stale
         try:
-            standing = scoped.armed(CAPABILITY) is True
-            fresh = ticked is not None and 0 <= scoped.now() - ticked < STALE
+            # Its stored state read afresh too: a turn-off takes the timer back at this look, not after the next tick
+            # has refreshed the runtime's view (v0.6.23 audit seatA:B-M5).
+            standing = scoped.armed(CAPABILITY) is True and scoped.stored_on() is True
+            fresh = ticked is not None and 0 <= scoped.now() - ticked < stale
         except Exception:                              # noqa: BLE001
             standing = fresh = False
         if standing and fresh:

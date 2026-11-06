@@ -124,9 +124,18 @@ def resolve_plugin_root(config: dict) -> Path | None:
                         candidates.append(version)
         except OSError:
             candidates = []
-        if candidates:
-            # Newest by mtime: version strings carry cachebuster suffixes and do not sort.
-            return max(candidates, key=lambda path: path.stat().st_mtime)
+        # Newest by mtime: version strings carry cachebuster suffixes and do not sort. A copy a
+        # plugin update removes between the listing and here is passed over, not the launch's end.
+        newest = None
+        for candidate in candidates:
+            try:
+                stamp = candidate.stat().st_mtime
+            except OSError:
+                continue
+            if newest is None or stamp > newest[0]:
+                newest = (stamp, candidate)
+        if newest is not None:
+            return newest[1]
     recorded = config.get("plugin_root")
     if recorded:
         root = Path(recorded)

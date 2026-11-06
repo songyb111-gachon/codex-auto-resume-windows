@@ -96,6 +96,7 @@ from codex_auto_resume.domain.plug import (ALTERNATIVES, ANSWERS, DEFER, HOOKS, 
                                            RESTRICTIONS, TAKE_UP, Alternative, Point, RecordMove)
 from codex_auto_resume.domain.plughands import RECORDS_LIMIT, kinds_of, widening_of, workers
 
+from . import autocheck
 from .arming import Arming
 from .codex import headless
 from .engine import chat, foropen, sessions, silent
@@ -103,6 +104,9 @@ from .ledger import ClaimLedger, ceiling_reached
 from .registry import REGISTRY
 from .state import AdvancedState, StateError
 from .state.schema import HEADLESS_CAPABILITIES
+# What is tended while off or watched: the run kinds' clean-up, and (v0.6.23 audit A-M3) the automatic account switch's
+# unfinished switch - its put-back alone, never a new switch (engine/autoswitch.AutoSwitch.tend).
+TENDED = HEADLESS_CAPABILITIES + ("account_auto_switch",)
 from .vocabulary import (TRIPWIRES, ArmingState, ArmingWarning, CapabilityKind, ContinuationReason, JournalCode,
                          KeepReason, OffReason, OverrideKind, PromptReason)
 
@@ -816,13 +820,14 @@ class Runtime:
         self._texted.clear()
         if not len(self.registry):
             return DEFER
+        self._auto_check()
         self.arming.sweep(view)
         states = self.states(fresh=True)
         errands = []
         for definition in self.registry.at(Point.TICK):
             state = states.get(definition.id, ArmingState.OFF)
             tend = (_own(self._code_of(definition), "tend")
-                    if state != ArmingState.ARMED and definition.id in HEADLESS_CAPABILITIES else None)
+                    if state != ArmingState.ARMED and definition.id in TENDED else None)
             if tend is not None:
                 # v0.6.18: what a run kind turned off or watched still owes what it started - a live run's Stop
                 # handed on and its end written, a model put back (engine/headless.follow_up, engine/fallback.py):
@@ -851,6 +856,14 @@ class Runtime:
             self._once(JournalCode.ACTED, definition, Point.TICK, Point.TICK, None)
             errands.append((definition, answer))
         return _Errands(self, errands) if errands else DEFER
+
+    def _auto_check(self) -> None:
+        """v0.6.22: the automatic compatibility check, where one is due for the engine the watcher told the plug
+        (autocheck.tend, which starts it and returns). Whatever it does, it costs the tick nothing."""
+        try:
+            autocheck.tend(self.paths, clock=self.clock)
+        except Exception:
+            pass
 
     def records(self, view):
         """P2: the records of this edition's own that core is to try, or to watch (v0.6.14): every message in

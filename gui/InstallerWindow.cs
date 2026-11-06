@@ -60,6 +60,10 @@ namespace CodexAutoResume
 
         private string page;
         private bool running, logShown, unconfirmed, previousRunning, closingAsked;
+        // What install.ps1 said of the shortcut on the Desktop, for the Finish page.
+        private bool desktopFailed, desktopTaken;
+        // The Maintain page's box: for Repair, and gone with no room kept while Remove is chosen.
+        private SoftCheck desktopBox;
         // The installer opened again the Dashboard that was open before it (install.ps1): there is none to offer.
         private bool reopened;
         // Which buttons the page has. Kept here, not read back from Visible: a control answers false there until its
@@ -342,6 +346,7 @@ namespace CodexAutoResume
             rows.Clear();
             stepLabel = null;
             busyNote = null;
+            desktopBox = null;
             // Not a seventh case: a string switch that long is compiled to a class named at random (build/normalize_pe.py).
             if (name == InstallerFlow.Maintain) BuildMaintain();
             else switch (name)
@@ -451,18 +456,33 @@ namespace CodexAutoResume
                                  ? words.Say("installer.options.to_advanced", "Changing it keeps the settings and pending recoveries; every advanced feature starts off.")
                                  : words.Say("installer.options.to_standard", "Changing it keeps the settings and pending recoveries; the advanced features go, and their code with them."));
                 Row(new SoftCallout(change), 16);
+                // v0.6.22: leaving the advanced edition from an installation that keeps saved Codex sign-ins says what
+                // becomes of them and offers to delete them; off, they stay (InstallerFlow.OffersAccountDeletion).
+                if (flow.OffersAccountDeletion)
+                    Row(Words(words.Say("installer.options.saved_accounts", "The Codex accounts you saved for switching stay on this PC, sealed for this Windows user, and the standard edition does not use them."), null, Palette.Ink), 16);
                 Row(Choice(words.Say("installer.options.edition_confirm", "Change the edition"), flow.ChangeEdition, true,
                            delegate(bool on) { flow.ChangeEdition = on; forward.Enabled = flow.CanStart(); }), 10);
+                if (flow.OffersAccountDeletion)
+                    Row(Choice(words.Say("installer.options.delete_saved_accounts", "Also delete the Codex accounts you saved for switching"), flow.DeleteSavedAccounts, true,
+                               delegate(bool on) { flow.DeleteSavedAccounts = on; }), 10);
             }
             else if (flow.Upgrade)
                 Row(Words(words.Say("installer.options.kept", "This updates the installation here. Your settings, everything waiting and your sign-in choice are kept."), null, Palette.Ink), 16);
             if (!flow.Upgrade)
                 Row(Choice(words.Say("field.startup", "Run at Windows sign-in"), flow.StartAtSignIn, false,
                            delegate(bool on) { flow.StartAtSignIn = on; }), 16);
+            Row(DesktopChoice(), flow.Upgrade ? 16 : 10);
             Row(Words(words.Say("installer.options.plugin", "The plugin - its panel and its skill - is added to Codex as part of every installation."), null, Palette.Secondary), 16);
             // An update says what it updates to, as the Dashboard's does (BuildNotes).
             if (flow.Upgrade && !flow.EditionChange && flow.NotesText != null) WhatsNew(16);
             InsideNote(16);
+        }
+
+        /// The box for a shortcut on the Desktop: what is true now as it opens, so off on a first installation.
+        private SoftCheck DesktopChoice()
+        {
+            return Choice(words.Say("installer.options.desktop_shortcut", "Add a shortcut to the desktop"), flow.MakeDesktopShortcut, true,
+                          delegate(bool on) { flow.MakeDesktopShortcut = on; });
         }
 
         /// v0.6.17: a setup program that could not get out of another app's private view of Windows
@@ -487,6 +507,8 @@ namespace CodexAutoResume
                     words.Say("installer.maintain.repair_help", "Installs this version again in place. Your settings, everything waiting and your sign-in choice are kept.")), 16);
             Row(Way(true, words.Say("installer.remove", "Remove"),
                     words.Say("installer.maintain.remove_help", "Removes Codex Auto Resume from this PC. Next, you choose whether the settings and the recovery history go too.")), 8);
+            desktopBox = DesktopChoice();
+            Row(desktopBox, 16);
             InsideNote(16);
         }
 
@@ -504,6 +526,7 @@ namespace CodexAutoResume
                 if (!way.Checked) return;
                 flow.Choose(remove);
                 forward.Text = remove ? words.Say("installer.next", "Next") : words.Say("installer.maintain.repair", "Repair");
+                Arrange(Inner(ClientSize.Width));
                 PerformLayout();
             };
             return way;
@@ -513,10 +536,16 @@ namespace CodexAutoResume
         {
             Row(Words(words.Say("installer.uninstall.heading", "Remove Codex Auto Resume"), "title", Palette.Ink), 0);
             Row(Words(words.Say("installer.uninstall.what", "The watcher, its sign-in start, its Start menu entry and the plugin in Codex are removed. Your Codex conversations are not touched."), null, Palette.Ink), 8);
+            // Only where one of ours is there (InstallerFlow.KnowDesktopShortcut, read once as the window opens).
+            if (flow.DesktopShortcutThere)
+                Row(Words(words.Say("installer.uninstall.desktop_shortcut", "Its shortcut on the desktop is removed too."), null, Palette.Ink), 6);
             Row(Words(words.Say("installer.options.location", "Installed in"), "label", Palette.Secondary), 16);
             Row(Words(flow.Home, null, Palette.Ink), 2);
             Row(Choice(words.Say("installer.uninstall.purge", "Also delete the settings and the recovery history"), flow.Purge, true,
                        delegate(bool on) { flow.Purge = on; }), 16);
+            // v0.6.22: only where the advanced edition's saved Codex sign-ins are kept (InstallerFlow.SavedAccountsAt).
+            if (flow.SavedAccountsThere)
+                Row(Words(words.Say("installer.uninstall.saved_accounts", "Ticked, the Codex accounts you saved for switching are deleted too, with their sign-ins."), null, Palette.Ink), 6);
             InsideNote(16);
         }
 
@@ -607,6 +636,10 @@ namespace CodexAutoResume
                 Row(new SoftCallout(words.Say("installer.done.unconfirmed", "The watcher could not be confirmed running, so nothing is being watched yet. Start it from the Dashboard.")), 12);
             if (code == 0 && previousRunning)
                 Row(new SoftCallout(words.Say("installer.done.previous_running", "The previous watcher is still finishing what it was doing. Once it has stopped, start the watcher from the Dashboard.")), 12);
+            if (code == 0 && desktopFailed)
+                Row(new SoftCallout(words.Say("installer.done.desktop_failed", "The desktop shortcut could not be changed. Everything else went on as usual; the log says more.")), 12);
+            if (code == 0 && desktopTaken)
+                Row(new SoftCallout(words.Say("installer.done.desktop_taken", "Another shortcut with the same name is on the desktop. It was left as it is, and none was made.")), 12);
             if (code != 0 && code != InstallerFlow.StillRunning)
                 Row(Words(words.Say("installer.done.read_log", "The log below is what the installer said."), null, Palette.Secondary), 8);
             // An update's Dashboard comes back by itself (OpenDashboard); a first installation asks.
@@ -649,6 +682,7 @@ namespace CodexAutoResume
             {
                 Control control = row.Key;
                 control.Visible = Wanted(control);
+                if (control == desktopBox && !Wanted(control)) continue;
                 y += row.Value;
                 int height = HeightAt(control, width);
                 int wide = control is SoftCombo ? Math.Min(width, Px(260)) : width;
@@ -765,6 +799,8 @@ namespace CodexAutoResume
             if (said.StartsWith("The watcher could not be confirmed running", StringComparison.Ordinal)) unconfirmed = true;
             if (said.StartsWith("The previous version of the watcher was asked to stop", StringComparison.Ordinal)) previousRunning = true;
             if (said.StartsWith("[ok] The Dashboard was opened again on the new version", StringComparison.Ordinal)) reopened = true;
+            if (said.StartsWith(DesktopShortcut.FailedLine, StringComparison.Ordinal)) desktopFailed = true;
+            if (said.StartsWith(DesktopShortcut.TakenLine, StringComparison.Ordinal)) desktopTaken = true;
             // Measured from the milestone, not from where a progress line took the bar: a step counted to its end stands
             // at the next milestone's place, and that milestone's line still begins its step.
             double place = reached;
@@ -906,6 +942,7 @@ namespace CodexAutoResume
         {
             if (control == logArea) return logShown;
             if (control == busyNote) return closingAsked;
+            if (control == desktopBox) return flow.Mode != InstallerFlow.Uninstall;
             return true;
         }
 

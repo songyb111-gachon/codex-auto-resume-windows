@@ -371,6 +371,27 @@ class UnknownTests(CreditCase):
         self.assertEqual(plug.runtime.state.credit_spends()[0]["outcome"], SpendOutcome.ALREADY_REDEEMED)
         self.assertEqual(self.found(plug, rule)["reason"], RuleReason.SPENT)
 
+    def test_a_write_that_failed_part_way_keeps_its_key_and_is_never_asked_under_a_second_one(self):
+        """v0.6.23 audit A-M1. Fails with the spend dropped on any AdapterError from the write: the next look asked again
+        under a new key, a second consume for one occasion."""
+        self.waiting()
+        plug = self.armed()
+        rule = self.rule(plug)
+        failures = [AdapterError("protocol_unavailable")]
+
+        def flush_fails(params):
+            if failures:
+                raise failures.pop()
+        self.codex.on_submit = flush_fails
+        self.codex.consumes = [{"outcome": "alreadyRedeemed"}]
+        self.fill(plug)
+        self.assertEqual(len(plug.runtime.state.credit_spends()), 1, "the spend is kept")
+        self.assertIsNone(plug.runtime.state.credit_spends()[0]["outcome"])
+        self.h.tick(advance=reset_credit.UNKNOWN_AFTER)
+        keys = [params["idempotencyKey"] for params in self.codex.consumed()]
+        self.assertEqual((len(keys), len(set(keys))), (2, 1), "asked once more, with its own key")
+        self.assertEqual(plug.runtime.state.credit_spends()[0]["outcome"], SpendOutcome.ALREADY_REDEEMED)
+
     def test_without_mr_an_unknown_answer_ends_the_rule_and_turns_it_off(self):
         self.measured = {Measurement.MU: (Verdict.PASS, ac.ENGINE)}
         self.waiting()

@@ -25,7 +25,7 @@ from codex_auto_resume.domain.plug import Alternative, Point
 from ..vocabulary import Actor, ArmingWarning, JournalCode, OffReason, RecordState
 
 EVENT_LIMIT = 5000
-WATCH_LIMIT = 115                 # would_have lines kept a capability, its newest (250; 200; 180; 150 until v0.6.19: 34 fit; 140 until v0.6.20: 35; 130 at its 38; 120 at 41; 115 from open_to_send offered, 42 in the registry: 43 fit)
+WATCH_LIMIT = 110                 # would_have lines kept a capability, its newest (250; 200; 180; 150 until v0.6.19: 34 fit; 140 until v0.6.20: 35; 130 at its 38; 120 at 41; 115 from open_to_send offered, 42 in the registry: 43 fit; 110 from account_auto_switch offered, 44: 45 fit)
 EVENT_MAX_AGE = 90 * 86400
 _PRUNE_EVERY = 256
 _DAY = 86400
@@ -158,6 +158,19 @@ class JournalMixin:
             self._note(connection, now, definition.code(code), capability=capability)
         return True
 
+    def counted_since(self, capability, code, since) -> int:
+        """How many times `capability`'s own `code` was counted at `since` or later, by its journal lines (v0.6.22: a
+        ceiling over any 24 hours, window_anchor's starts a day - the v0.6.23 audit's seatA:B-M2). 0 for a code that
+        is not its own or where there is no file."""
+        definition = self.registry.get(capability)
+        if definition is None or code not in definition.codes or isinstance(since, bool)                 or not isinstance(since, (int, float)):
+            return 0
+        with self._read() as connection:
+            if connection is None:
+                return 0
+            return int(connection.execute("SELECT count(*) FROM journal WHERE capability=? AND code=? AND at>=?",
+                                          (capability, definition.code(code), float(since))).fetchone()[0])
+
     def samples(self, capability) -> dict:
         """{code: count} over the days the sampler keeps."""
         with self._read() as connection:
@@ -258,7 +271,7 @@ class JournalMixin:
     def _prune_spend(connection, schema, now) -> None:
         """Spends older than 90 days, then the oldest beyond 5,000 - but never one from the last
         day, which every ceiling counts. (At most GLOBAL_HOURLY an hour can be spent, so a day
-        never holds more than 288 of them.)"""
+        never holds more than 576 of them.)"""
         connection.execute("DELETE FROM %s.spend WHERE at < ?" % schema, (now - EVENT_MAX_AGE,))
         excess = connection.execute("SELECT count(*) FROM %s.spend" % schema).fetchone()[0] - EVENT_LIMIT
         if excess > 0:

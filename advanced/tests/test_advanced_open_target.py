@@ -36,8 +36,10 @@ class HiddenTests(unittest.TestCase):
         (a pass would not offer it)."""
         self.assertIs(registry.REGISTRY.get("open_to_send"), OPEN_TO_SEND)
         self.assertEqual(measured.MEASURED[Measurement.MOPEN][0], Verdict.PASS)
-        self.assertEqual(offered(measured.MEASURED), (OPEN_TO_SEND,))
-        self.assertEqual(registry.REGISTRY.ids[-1], "open_to_send", "offered after DEFINITIONS")
+        # Among the others the measurements let out (v0.6.22: the automatic account switch after MPROFILE and MSWAP).
+        self.assertIn(OPEN_TO_SEND, offered(measured.MEASURED))
+        self.assertGreaterEqual(registry.REGISTRY.ids.index("open_to_send"), len(registry.DEFINITIONS),
+                                "offered after DEFINITIONS")
         self.assertNotIn(OPEN_TO_SEND, registry.DEFINITIONS)
         self.assertIn((OPEN_TO_SEND, Measurement.MOPEN), registry.WAITING)
         self.assertEqual(offered({}), ())
@@ -122,6 +124,13 @@ class CandidateTests(unittest.TestCase):
         row = self.row((machine.WAIT, "desktop_app_unavailable"), state="waiting_for_app")
         self.assertIsNone(opentarget.core_candidate(row, False))
         self.assertEqual(opentarget.core_candidate(row, True), "waiting")
+
+    def test_an_open_app_whose_server_is_not_matched_is_none(self):
+        """#58's follow-up: opening or starting Codex cannot match its server; a look that cannot be sure only waits."""
+        row = self.row((machine.WAIT, "app_server_unmatched"), state="waiting_for_app")
+        self.assertIsNone(opentarget.core_candidate(row, True))
+        own = {"record_state": "waiting", "gate": "thread_available", "gate_reason": "app_server_unmatched", "reason": None}
+        self.assertFalse(opentarget.own_candidate(own, True))
 
     def test_a_message_held_for_a_running_turn_is_none(self):
         row = {"record_state": "waiting", "gate": "thread_available", "gate_reason": "notLoaded", "reason": None}

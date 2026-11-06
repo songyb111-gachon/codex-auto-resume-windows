@@ -823,17 +823,18 @@ class EditionEntryTests(ArmingCase):
 
 
 class CeilingTests(ArmingCase):
-    def test_the_global_ceiling_is_lowered_in_the_dashboard_and_never_raised_past_twelve(self):
+    def test_the_global_ceiling_is_lowered_in_the_dashboard_and_never_raised_past_24(self):
         arming = self.rt.arming
         self.assertEqual(arming.set_global_hourly(3, generation=0, actor=Actor.MCP)["refusal"],
                          Refusal.NOT_THE_DASHBOARD)
-        for value in (0, 13, 12.0, True, "5"):
+        for value in (0, 25, 24.0, True, "5"):
             self.assertEqual(arming.set_global_hourly(value, generation=0, actor=Actor.DASHBOARD)["refusal"],
                              Refusal.INVALID_REQUEST)
         self.assertTrue(arming.set_global_hourly(3, generation=0, actor=Actor.DASHBOARD)["done"])
         self.assertEqual(self.rt.state.meta(), {"generation": 1, "global_hourly": 3})
         self.assertEqual(arming.set_global_hourly(4, generation=0, actor=Actor.DASHBOARD)["refusal"],
                          Refusal.STALE_GENERATION)
+        self.assertTrue(arming.set_global_hourly(24, generation=1, actor=Actor.DASHBOARD)["done"], "up to 24, as far as it goes")
 
 
 if __name__ == "__main__":

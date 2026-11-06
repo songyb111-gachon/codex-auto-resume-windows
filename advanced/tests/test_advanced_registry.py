@@ -75,7 +75,10 @@ def standards_text(rule) -> str:
 # (open_to_send, MOPEN): their names and statements are in every catalog, waiting or offered. MOPEN passed on
 # codex-cli 0.165.0-alpha.1.2 (2026-10-29), so open_to_send is offered - and already in registry.DEFINITIONS + this.
 # v0.6.20: and Continue inside the turn (stop_hook_continuation, MHK, M4 and M4B), still waiting.
-STATED_WAITING = (registry.OPEN_TO_SEND, registry.STOP_HOOK)
+# v0.6.22: Codex's own retry settings on MB2, still waiting (MB2 failed, 2026-11-06), and the automatic account switch on
+# MPROFILE and MSWAP, offered since both passed (2026-11-06).
+STATED_WAITING = (registry.OPEN_TO_SEND, registry.STOP_HOOK, registry.CODEX_RETRY_SETTINGS,
+                  registry.ACCOUNT_AUTO_SWITCH)
 
 class ShippedTests(unittest.TestCase):
     SHIPPED = ("start_with_codex",
@@ -115,14 +118,15 @@ class ShippedTests(unittest.TestCase):
 
     # v0.6.20: open_to_send passed its measurement (MOPEN, codex-cli 0.165.0-alpha.1.2, 2026-10-29) and is offered whole,
     # after the 41 of DEFINITIONS (registry.offered): 42 in the registry this edition runs. v0.6.20: power_after_tasks
-    # joins DEFINITIONS - 42 of them, 43 in the registry.
-    OFFERED = ("open_to_send",)
+    # joins DEFINITIONS - 42 of them, 43 in the registry. v0.6.22: the automatic account switch passed both its
+    # measurements (MPROFILE and MSWAP, codex-cli 0.166.0-alpha.6, 2026-11-06) and is offered after it: 44.
+    OFFERED = ("open_to_send", "account_auto_switch")
 
     def test_the_registry_this_edition_ships_is_its_capabilities_in_their_order(self):
         self.assertEqual([d.id for d in registry.DEFINITIONS], list(self.SHIPPED))
         self.assertEqual(len(registry.DEFINITIONS), 42)
         self.assertEqual(len(registry.REGISTRY), len(self.SHIPPED) + len(self.OFFERED))
-        self.assertEqual(len(registry.REGISTRY), 43)
+        self.assertEqual(len(registry.REGISTRY), 44)
         self.assertEqual(registry.REGISTRY.ids, self.SHIPPED + self.OFFERED)
         self.assertEqual([definition.id for definition in registry.offered(measured.MEASURED)], list(self.OFFERED))
         # The compatibility report is an action, last: it answers at no point, so it is in no list below.
@@ -137,7 +141,9 @@ class ShippedTests(unittest.TestCase):
         answering = {Point.START_ROUTE: ("start_with_codex",),
                      # v0.6.19: the launcher's two questions about the watcher.
                      Point.SUPERVISION: ("crash_restart",),
-                     Point.SCHEDULE: ("reset_credit", "early_reset", "once_more_when_unsure", "send_now"),
+                     # v0.6.22: the automatic account switch, offered after the rest (MPROFILE and MSWAP passed), last.
+                     Point.SCHEDULE: ("reset_credit", "early_reset", "once_more_when_unsure", "send_now",
+                                      "account_auto_switch"),
                      Point.TICK: ("compact_continue", "model_fallback", "headless_run", "reset_credit", "reset_message", "empty_response", "subagent_parent",
                                   "keep_going", "usage_meter", "usage_wrap_up", "usage_pause", "idle_update_check",
                                   "usage_analytics", "window_anchor", "push_notices", "status_feed", "account_switch",
@@ -145,7 +151,9 @@ class ShippedTests(unittest.TestCase):
                                   "steer_send",
                                   "wake_for_reset",
                                   # v0.6.20: offered after the rest, so it answers last (registry.offered).
-                                  "open_to_send"),
+                                  "open_to_send",
+                                  # v0.6.22: offered after open_to_send (registry.WAITING's order).
+                                  "account_auto_switch"),
                      # v0.6.20: a notice core raised, told to the courier's push notices.
                      Point.NOTICE: ("push_notices",),
                      # v0.6.20: how the tasks a person picked stand, for the power action.
@@ -179,7 +187,7 @@ class ShippedTests(unittest.TestCase):
     SHOWN = ("compat_report",
              # 1)
              "start_with_codex", "crash_restart", "wake_for_reset", "every_conversation", "queue_for_open", "headless_run",
-             "other_sessions", "marker_free_continuation", "reset_credit", "early_reset", "window_anchor", "parallel_dispatch",
+             "other_sessions", "marker_free_continuation", "reset_credit", "early_reset", "account_auto_switch", "window_anchor", "parallel_dispatch",
              # 2) (open_to_send is hidden until MOPEN passes)
              "reset_message", "long_reset_message", "keep_going", "prompt_queue", "usage_meter", "usage_wrap_up", "usage_pause",
              "push_notices", "send_now", "open_to_send", "open_codex_button", "codex_chat", "steer_send", "usage_analytics",
@@ -256,7 +264,7 @@ class ShippedTests(unittest.TestCase):
         # v0.6.20: MR only decides asking first, so it narrows and never trips (test_advanced_narrowing_parts).
         self.assertEqual((credit.measurements, credit.narrowed_by), ((Measurement.MU, Measurement.MN), (Measurement.MR,)))
         self.assertEqual(credit.points, frozenset({Point.TICK, Point.SCHEDULE}))
-        self.assertEqual((credit.ceilings.per_day, credit.ceilings.per_conversation), (12, 3))
+        self.assertEqual((credit.ceilings.per_day, credit.ceilings.per_conversation), (24, 5))
         self.assertEqual(credit.codes, ("hit", "spent", "nothing", "no_credit", "asked", "lapsed", "unknown", "gap",
                                         "gone"))
         ids = registry.REGISTRY.ids
@@ -277,7 +285,7 @@ class ShippedTests(unittest.TestCase):
         self.assertNotIn("H5", message.departs_from)
         self.assertEqual((message.compat, message.measurements), ("exact_thread_recovery", (Measurement.MU,)))
         self.assertEqual(message.points, frozenset({Point.TICK, Point.RECORDS, Point.GATES}))
-        self.assertEqual((message.ceilings.per_day, message.ceilings.per_conversation), (10, 2))
+        self.assertEqual((message.ceilings.per_day, message.ceilings.per_conversation), (20, 4))
         self.assertEqual(protocol.methods_for_capability("reset_message") - {"initialize", "initialized"},
                          {"account/rateLimits/read"})
         longer = registry.REGISTRY.get("long_reset_message")
@@ -315,47 +323,47 @@ class ShippedTests(unittest.TestCase):
     def test_the_capacity_retries_depart_and_rest_on_what_the_design_says(self):
         """A20 (five a conversation a day, fifteen minutes apart), A21 (the budgets), A22 (waits only
         from the retry timing), B9 (it reads Codex's code) and H2 (nothing can move an engine constant -
-        revision 2 names it); 48 a day in one conversation - core's capacity day, which only the A20
-        departure allows - and one to twelve hours, two by default."""
+        revision 2 names it); 96 a day in one conversation - core's capacity day, which only the A20
+        departure allows - and one to 24 hours, two by default."""
         from codex_auto_resume_advanced.vocabulary import OptionKey
         cap = registry.REGISTRY.get("capacity_retry")
         self.assertEqual(cap.departs_from, ("A20", "A21", "A22", "B9", "H2"))
         self.assertEqual((cap.compat, cap.measurements, cap.revision), ("transient_classification", (), 2))
         self.assertEqual(cap.points, frozenset({Point.ADMISSION, Point.GATES}))
-        self.assertEqual((cap.ceilings.per_day, cap.ceilings.per_conversation), (48, 48))
+        self.assertEqual((cap.ceilings.per_day, cap.ceilings.per_conversation), (96, 96))
         from codex_auto_resume import ladder
         self.assertEqual(cap.ceilings.per_conversation, ladder.CAPACITY_PER_DAY)
         option = cap.option(OptionKey.CEILING_HOURS)
-        self.assertEqual((option.choices, option.default), ((1, 2, 3, 4, 6, 8, 12), 2))
-        self.assertLessEqual(max(option.choices) * 3600, ladder.CAPACITY_MAX_SECONDS)
+        self.assertEqual((option.choices, option.default), ((1, 2, 3, 4, 6, 8, 12, 24), 2))
+        self.assertEqual(max(option.choices) * 3600, ladder.CAPACITY_MAX_SECONDS)
         self.assertEqual((cap.rules_editor, cap.samples, cap.codes), (False, False, ()))
 
     def test_the_rules_depart_and_rest_on_what_the_design_says(self):
         """0.5, A13, A14 (an unknown failure is never retried), A26 (continuation text only for a
         recovered kind), B9 (it reads Codex's code) and H2 (no setting retries an unknown failure, and
-        a rule is a person's setting - revision 2 names it); five a conversation, two dozen a day; the
+        a rule is a person's setting - revision 2 names it); five a conversation, 48 a day; the
         one capability whose rules the Dashboard edits, counting its hits as `matched`."""
         rules = registry.REGISTRY.get("structured_rules")
         self.assertEqual(rules.departs_from, ("0.5", "A13", "A14", "A26", "B9", "H2"))
         self.assertEqual((rules.compat, rules.measurements, rules.revision), ("transient_classification", (), 2))
         self.assertEqual(rules.points, frozenset({Point.ADMISSION, Point.GATES}))
-        self.assertEqual((rules.ceilings.per_day, rules.ceilings.per_conversation), (24, 5))
+        self.assertEqual((rules.ceilings.per_day, rules.ceilings.per_conversation), (48, 5))
         self.assertEqual((rules.rules_editor, rules.samples, rules.codes, rules.options), (True, False, ("matched",), ()))
         self.assertEqual([definition.id for definition in registry.DEFINITIONS if definition.rules_editor],
                          ["structured_rules"])
 
     def test_the_unknown_failure_budget_departs_and_rests_on_what_the_design_says(self):
-        """As the rules, H2 among them, and D2 too - a sample keeps a code Codex chose; three a
-        conversation, a dozen a day; one to three tries a task, one by default; the one capability that
+        """As the rules, H2 among them, and D2 too - a sample keeps a code Codex chose; five a
+        conversation, 24 a day; one to five tries a task, one by default; the one capability that
         samples. Revision 2 names H2."""
         from codex_auto_resume_advanced.vocabulary import OptionKey
         unknown = registry.REGISTRY.get("unknown_failure_budget")
         self.assertEqual(unknown.departs_from, ("0.5", "A13", "A14", "A26", "B9", "D2", "H2"))
         self.assertEqual((unknown.compat, unknown.measurements, unknown.revision), ("transient_classification", (), 2))
         self.assertEqual(unknown.points, frozenset({Point.ADMISSION, Point.GATES}))
-        self.assertEqual((unknown.ceilings.per_day, unknown.ceilings.per_conversation), (12, 3))
+        self.assertEqual((unknown.ceilings.per_day, unknown.ceilings.per_conversation), (24, 5))
         option = unknown.option(OptionKey.ATTEMPTS)
-        self.assertEqual((option.choices, option.default), ((1, 2, 3), 1))
+        self.assertEqual((option.choices, option.default), ((1, 2, 3, 4, 5), 1))
         self.assertEqual((unknown.rules_editor, unknown.samples, unknown.codes), (False, True, ("sampled",)))
         self.assertEqual([definition.id for definition in registry.DEFINITIONS if definition.samples],
                          ["unknown_failure_budget"])
@@ -363,35 +371,35 @@ class ShippedTests(unittest.TestCase):
         self.assertLess(ids.index("structured_rules"), ids.index("unknown_failure_budget"), "rules come first")
 
     def test_the_retries_when_codex_gave_up_depart_and_rest_on_what_the_design_says(self):
-        """A14 (Codex giving up without a 429 is never retried), A26 and B9; two a conversation, a
-        dozen a day; no choice, no rules, no samples."""
+        """A14 (Codex giving up without a 429 is never retried), A26 and B9; four a conversation, 24 a
+        day; no choice, no rules, no samples."""
         gave_up = registry.REGISTRY.get("codex_gave_up")
         self.assertEqual(gave_up.departs_from, ("A14", "A26", "B9"))
         self.assertEqual((gave_up.compat, gave_up.measurements, gave_up.revision), ("transient_classification", (), 1))
         self.assertEqual(gave_up.points, frozenset({Point.ADMISSION, Point.GATES}))
-        self.assertEqual((gave_up.ceilings.per_day, gave_up.ceilings.per_conversation), (12, 2))
+        self.assertEqual((gave_up.ceilings.per_day, gave_up.ceilings.per_conversation), (24, 4))
         self.assertEqual((gave_up.options, gave_up.rules_editor, gave_up.samples, gave_up.codes), ((), False, False, ()))
 
     def test_the_sign_in_retry_departs_and_rests_on_what_the_design_says(self):
         """0.5 (sign-in failures are never retried), A14 (401 and 403) and A26; the usage read is its
-        proof, so it stands on usage_probe; two a conversation and two a day; no choice, no rules, no
+        proof, so it stands on usage_probe; two a conversation and four a day; no choice, no rules, no
         samples, and no app-server method of its own."""
         sign_in = registry.REGISTRY.get("sign_in_retry")
         self.assertEqual(sign_in.departs_from, ("0.5", "A14", "A26"))
         self.assertEqual((sign_in.compat, sign_in.measurements, sign_in.revision), ("usage_probe", (), 1))
         self.assertEqual(sign_in.points, frozenset({Point.ADMISSION, Point.GATES}))
-        self.assertEqual((sign_in.ceilings.per_day, sign_in.ceilings.per_conversation), (2, 2))
+        self.assertEqual((sign_in.ceilings.per_day, sign_in.ceilings.per_conversation), (4, 2))
         self.assertEqual((sign_in.options, sign_in.rules_editor, sign_in.samples, sign_in.codes), ((), False, False, ()))
 
     def test_the_early_reset_departs_and_rests_on_what_the_design_says(self):
         """A12 (never before the real reset time) and C9 (usage read only when a recovery is due); the
-        usage read is what it asks, so it stands on usage_probe; three a conversation, a dozen a day; its
+        usage read is what it asks, so it stands on usage_probe; five a conversation, 24 a day; its
         two words; no choice, no rules, no samples, and no app-server method of its own."""
         early = registry.REGISTRY.get("early_reset")
         self.assertEqual(early.departs_from, ("A12", "C9"))
         self.assertEqual((early.compat, early.measurements, early.revision), ("usage_probe", (), 1))
         self.assertEqual(early.points, frozenset({Point.SCHEDULE, Point.GATES}))
-        self.assertEqual((early.ceilings.per_day, early.ceilings.per_conversation), (12, 3))
+        self.assertEqual((early.ceilings.per_day, early.ceilings.per_conversation), (24, 5))
         self.assertEqual((early.options, early.rules_editor, early.samples, early.codes),
                          ((), False, False, ("probed", "lifted")))
 
@@ -455,13 +463,13 @@ class ShippedTests(unittest.TestCase):
     def test_once_more_when_unsure_departs_and_rests_on_what_the_design_says(self):
         """0.2 (never again when the first may have been delivered), A6 (an uncertain delivery is never
         resent), E2 (better to miss a resume than resume twice) and H2 (nothing can resend an uncertain
-        submission); it stands on recovery_turn_tracking, the tables its proof reads; two a conversation,
-        six a day; the one capability that resends, at P7 alone, with no choice, rules or samples."""
+        submission); it stands on recovery_turn_tracking, the tables its proof reads; four a conversation,
+        twelve a day; the one capability that resends, at P7 alone, with no choice, rules or samples."""
         once = registry.REGISTRY.get("once_more_when_unsure")
         self.assertEqual(once.departs_from, ("0.2", "A6", "E2", "H2"))
         self.assertEqual((once.compat, once.measurements, once.revision), ("recovery_turn_tracking", (), 1))
         self.assertEqual(once.points, frozenset({Point.SCHEDULE}))
-        self.assertEqual((once.ceilings.per_day, once.ceilings.per_conversation), (6, 2))
+        self.assertEqual((once.ceilings.per_day, once.ceilings.per_conversation), (12, 4))
         self.assertEqual((once.options, once.rules_editor, once.samples, once.codes), ((), False, False, ()))
         self.assertEqual([definition.id for definition in registry.DEFINITIONS if definition.resends],
                          ["once_more_when_unsure"])
@@ -469,16 +477,16 @@ class ShippedTests(unittest.TestCase):
 
     def test_queue_for_open_departs_and_rests_on_what_the_design_says(self):
         """A11 (nothing is queued on the off chance); it stands on loaded_state_detection, what decides that a
-        conversation is not held, and rests on M1; a dozen a day, three a conversation; at P16 alone, its one choice
-        the Days, 3 to 7."""
+        conversation is not held, and rests on M1; 24 a day, five a conversation; at P16 alone, its one choice
+        the Days, 3 to 7, then 14 and 30."""
         found = registry.REGISTRY.get("queue_for_open")
         self.assertEqual(found.departs_from, ("A11",))
         self.assertEqual((found.compat, found.measurements, found.revision, found.journal_prefix),
                          ("loaded_state_detection", (Measurement.M1,), 1, "qfo"))
         self.assertEqual(found.points, frozenset({Point.UNLOADED}))
-        self.assertEqual((found.ceilings.per_day, found.ceilings.per_conversation), (12, 3))
+        self.assertEqual((found.ceilings.per_day, found.ceilings.per_conversation), (24, 5))
         self.assertEqual([(option.key, option.choices, option.default) for option in found.options],
-                         [(OptionKey.DAYS, (3, 4, 5, 6, 7), 3)])
+                         [(OptionKey.DAYS, (3, 4, 5, 6, 7, 14, 30), 3)])
         self.assertIs(registry.QUEUE_FOR_OPEN, found)
 
     def test_the_prompt_queue_departs_and_rests_on_what_the_design_says(self):
@@ -494,11 +502,11 @@ class ShippedTests(unittest.TestCase):
         self.assertEqual((found.compat, found.measurements, found.narrowed_by, found.journal_prefix),
                          ("exact_thread_recovery", (), (Measurement.MT,), "queue"))
         self.assertEqual(found.points, frozenset({Point.RECORDS, Point.SENDER, Point.DELIVERY}))
-        self.assertEqual((found.ceilings.per_day, found.ceilings.per_conversation), (30, registry.CORE_DAILY_CAP))
+        self.assertEqual((found.ceilings.per_day, found.ceilings.per_conversation), (60, registry.CORE_DAILY_CAP))
         self.assertEqual(registry.LONG_RESET_MESSAGE.revision, 2)
 
     def test_keep_going_departs_and_rests_on_what_the_design_says(self):
-        """A13, A26 and B9; it stands on outcome_observation and is narrowed by MK; core's five a conversation, two dozen a
+        """A13, A26 and B9; it stands on outcome_observation and is narrowed by MK; core's five a conversation, 48 a
         day; at P8 and P2."""
         found = registry.REGISTRY.get("keep_going")
         self.assertEqual(found.departs_from, ("A13", "A26", "B9"))
@@ -506,10 +514,10 @@ class ShippedTests(unittest.TestCase):
         self.assertEqual((found.compat, found.measurements, found.narrowed_by, found.journal_prefix),
                          ("outcome_observation", (), (Measurement.MK,), "keep"))
         self.assertEqual(found.points, frozenset({Point.TICK, Point.RECORDS}))
-        self.assertEqual((found.ceilings.per_day, found.ceilings.per_conversation), (24, registry.CORE_DAILY_CAP))
+        self.assertEqual((found.ceilings.per_day, found.ceilings.per_conversation), (48, registry.CORE_DAILY_CAP))
 
     def test_the_subagent_recovery_departs_and_rests_on_what_the_design_says(self):
-        """0.5, A15 and A26; it stands on thread_eligibility and is narrowed by MS; three a conversation, a dozen a day;
+        """0.5, A15 and A26; it stands on thread_eligibility and is narrowed by MS; five a conversation, 24 a day;
         at P4 (5a), P8 and P2 (5b)."""
         found = registry.REGISTRY.get("subagent_parent")
         self.assertEqual(found.departs_from, ("0.5", "A15", "A26"))
@@ -517,28 +525,28 @@ class ShippedTests(unittest.TestCase):
         self.assertEqual((found.compat, found.measurements, found.narrowed_by, found.journal_prefix),
                          ("thread_eligibility", (), (Measurement.MS,), "sub"))
         self.assertEqual(found.points, frozenset({Point.TEXT, Point.TICK, Point.RECORDS}))
-        self.assertEqual((found.ceilings.per_day, found.ceilings.per_conversation), (12, 3))
+        self.assertEqual((found.ceilings.per_day, found.ceilings.per_conversation), (24, 5))
 
     def test_the_empty_response_recovery_departs_and_rests_on_what_the_design_says(self):
-        """0.5 (a completed turn is no failure), A13 and A26; it stands on outcome_observation and rests on ME; two a
-        conversation, a dozen a day; at P8 and P2."""
+        """0.5 (a completed turn is no failure), A13 and A26; it stands on outcome_observation and rests on ME; four a
+        conversation, 24 a day; at P8 and P2."""
         found = registry.REGISTRY.get("empty_response")
         self.assertEqual(found.departs_from, ("0.5", "A13", "A26"))
         self.assertEqual((found.compat, found.measurements, found.journal_prefix),
                          ("outcome_observation", (Measurement.ME,), "empty"))
         self.assertEqual(found.points, frozenset({Point.TICK, Point.RECORDS}))
-        self.assertEqual((found.ceilings.per_day, found.ceilings.per_conversation), (12, 2))
+        self.assertEqual((found.ceilings.per_day, found.ceilings.per_conversation), (24, 4))
         self.assertIs(registry.EMPTY_RESPONSE, found)
 
     def test_send_now_departs_and_rests_on_what_the_design_says(self):
         """A8 (the claim's re-check passes nothing), A20 (fifteen minutes between two continuations), A21 (the attempt
         budget stops a recovery) and H2 (nothing can force a send); it stands on exact_thread_recovery, what every
-        send rests on; core's five a conversation, two dozen a day; at P7 alone, its one word a person's request."""
+        send rests on; core's five a conversation, 48 a day; at P7 alone, its one word a person's request."""
         now = registry.REGISTRY.get("send_now")
         self.assertEqual(now.departs_from, ("A8", "A20", "A21", "H2"))
         self.assertEqual((now.compat, now.measurements, now.revision), ("exact_thread_recovery", (), 1))
         self.assertEqual(now.points, frozenset({Point.SCHEDULE}))
-        self.assertEqual((now.ceilings.per_day, now.ceilings.per_conversation), (24, registry.CORE_DAILY_CAP))
+        self.assertEqual((now.ceilings.per_day, now.ceilings.per_conversation), (48, registry.CORE_DAILY_CAP))
         self.assertEqual((now.options, now.rules_editor, now.samples, now.codes, now.resends),
                          ((), False, False, ("requested",), False))
         self.assertIs(registry.SEND_NOW, now)
@@ -566,9 +574,9 @@ class ShippedTests(unittest.TestCase):
         self.assertEqual(swc.measurements, (Measurement.MW,))
         self.assertEqual(swc.points, frozenset({Point.START_ROUTE}))
 
-    def test_the_global_ceiling_is_twelve_an_hour_and_core_caps_are_cores(self):
+    def test_the_global_ceiling_is_24_an_hour_and_core_caps_are_cores(self):
         from codex_auto_resume.engine import Engine
-        self.assertEqual(registry.GLOBAL_HOURLY, 12)
+        self.assertEqual(registry.GLOBAL_HOURLY, 24)
         options = Engine(None, None, None).options
         self.assertEqual((registry.CORE_DAILY_CAP, registry.CORE_COOLDOWN_SECONDS),
                          (options["max_submissions_per_thread_per_day"],
@@ -626,7 +634,7 @@ class DefinitionTests(unittest.TestCase):
             with self.subTest(rule):
                 self.assertIn(rule, problems(ac.definition(**change)))
         self.assertIn("revision", problems(ac.definition(revision=True)))
-        self.assertIn("ceilings", problems(ac.definition(ceilings=Ceilings(per_day=300, per_conversation=1))))
+        self.assertIn("ceilings", problems(ac.definition(ceilings=Ceilings(per_day=600, per_conversation=1))))
         self.assertIn("ceilings", problems(ac.definition(ceilings=Ceilings(per_day=6, per_conversation=6))))
         self.assertEqual(problems("not a definition"), ["not a definition"])
         self.assertIn("measurements", problems(ac.definition(measurements=[Measurement.M1])))
@@ -636,7 +644,7 @@ class DefinitionTests(unittest.TestCase):
     def test_one_conversations_ceiling_passes_cores_five_only_for_one_that_departs_from_a20(self):
         """A20 is the standard edition's five a conversation a day, fifteen minutes apart: a ceiling
         above it is a departure the statement has to name (v0.6.14, the capacity retries)."""
-        over = Ceilings(per_day=48, per_conversation=48)
+        over = Ceilings(per_day=96, per_conversation=96)
         self.assertIn("ceilings", problems(ac.definition(ceilings=over)))
         self.assertIn("ceilings", problems(ac.definition(ceilings=over, departs_from=("A21", "A22"))))
         self.assertEqual(problems(ac.definition(ceilings=over, departs_from=("A20",))), [])

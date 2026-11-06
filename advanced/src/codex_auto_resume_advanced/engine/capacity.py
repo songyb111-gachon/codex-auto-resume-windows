@@ -6,12 +6,12 @@ error core recovers already - the standard edition waits its retry timing, at mo
 a conversation a day, fifteen minutes apart, and stops the task after four attempts. This answers
 CAPACITY instead, at P17 as the failure is detected and again at known_failure as its record falls
 due, and core carries it out within bounds of its own a capability cannot widen (core's ladder.py):
-a minute, then two, four and five, each lengthened by up to a fifth, a minute apart, 48 a day, for
-twelve hours on the clock from the task's first failure at most - and the claim pays a unit of this
+a minute, then two, four and five, each lengthened by up to a fifth, a minute apart, 96 a day, for
+24 hours on the clock from the task's first failure at most - and the claim pays a unit of this
 capability's for each.
 
-What this decides is only for how long, of those twelve hours, it keeps answering: the person's
-choice of one to twelve (`ceiling_hours`, two by default), counted on the clock from the first
+What this decides is only for how long, of those 24 hours, it keeps answering: the person's
+choice of one to 24 (`ceiling_hours`, two by default), counted on the clock from the first
 failure of the task - core's `chain_started_at` - whatever the task waited for meanwhile. Past it, it
 answers DEFER, and the standard edition's waits and budgets hold the record again, which may end the
 task. Any other server error, and every other kind, it leaves alone; core offers CAPACITY for nothing
@@ -28,7 +28,7 @@ from ..vocabulary import OptionKey
 CAPABILITY = "capacity_retry"
 CODE = "serverOverloaded"
 KIND = "server_5xx"
-CEILING_HOURS = (1, 2, 3, 4, 6, 8, 12)
+CEILING_HOURS = (1, 2, 3, 4, 6, 8, 12, 24)
 DEFAULT_HOURS = 2
 HOUR = 3600
 

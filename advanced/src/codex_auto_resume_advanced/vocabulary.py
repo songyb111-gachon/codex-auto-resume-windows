@@ -56,6 +56,8 @@ class OffReason(StrEnum):
     HOOK_EXCEPTION = "hook_exception"
     STATEMENT_CHANGED = "statement_changed"
     MEASUREMENT_FAILED = "measurement_failed"
+    # The automatic check found this Codex no longer offers a call its route makes (v0.6.22, autocheck.py).
+    AUTO_CHECK_FAILED = "auto_check_failed"
     # A continuation it sent once more was found twice in Codex's history (v0.6.14, stage 3b): the
     # harm a resend risks. It turns off what sent it again whether or not it is kept on - the
     # once-more capability, or Keep on's Send again alone (arming.py).
@@ -78,13 +80,13 @@ class OffReason(StrEnum):
 
 TRIPWIRES = frozenset({OffReason.SUBMISSION_UNKNOWN, OffReason.LOCAL_CHECK_FAILED,
                        OffReason.FAILED_HERE, OffReason.INCOMPATIBLE, OffReason.HOOK_EXCEPTION,
-                       OffReason.STATEMENT_CHANGED, OffReason.MEASUREMENT_FAILED,
+                       OffReason.STATEMENT_CHANGED, OffReason.MEASUREMENT_FAILED, OffReason.AUTO_CHECK_FAILED,
                        OffReason.DUPLICATE_SEEN, OffReason.NOT_DELIVERED_ON_OPEN, OffReason.REQUIREMENT_OFF,
                        OffReason.NOT_DISPATCHED_BY_SESSION, OffReason.REFUSED_BY_CODEX})
 # What a capability kept on (KeepOn, K8) notes instead of turning off, most serious first: the order
 # in which one notice gives way to another (state/arming.py, note_kept). A notice only ever rises.
 KEPT_NOTICES = (OffReason.DUPLICATE_SEEN, OffReason.STATEMENT_CHANGED, OffReason.FAILED_HERE,
-                OffReason.LOCAL_CHECK_FAILED, OffReason.INCOMPATIBLE, OffReason.MEASUREMENT_FAILED,
+                OffReason.LOCAL_CHECK_FAILED, OffReason.INCOMPATIBLE, OffReason.MEASUREMENT_FAILED, OffReason.AUTO_CHECK_FAILED,
                 OffReason.NOT_DELIVERED_ON_OPEN, OffReason.NOT_DISPATCHED_BY_SESSION, OffReason.REFUSED_BY_CODEX,
                 OffReason.REQUIREMENT_OFF,
                 OffReason.ENGINE_CHANGED,
@@ -105,6 +107,7 @@ class ArmingWarning(StrEnum):
     LOCAL_CHECK_FAILED = "local_check_failed"  # a local check found it incompatible
     COMPAT_UNKNOWN = "compat_unknown"        # nothing is known of it for this Codex
     ENGINE_UNKNOWN = "engine_unknown"        # no Codex version to acknowledge
+    AUTO_CHECK_FAILED = "auto_check_failed"  # the automatic check found a call it makes gone (autocheck.py)
 
 
 class Refusal(StrEnum):
@@ -334,6 +337,10 @@ class OptionKey(StrEnum):
     # window_anchor last took in - its window stamps are the account's that was signed in, and go with it.
     ACCOUNT_CHANGED_AT = "account_changed_at"
     ANCHOR_ACCOUNT_AT = "anchor_account_at"
+    # v0.6.22 (account_auto_switch): when it last switched the account, and the day and count of its switches (PER_DAY).
+    AUTO_SWITCHED_AT = "auto_switched_at"
+    AUTO_SWITCH_DAY = "auto_switch_day"
+    AUTO_SWITCH_COUNT = "auto_switch_count"
 
 
 class WordingKey(StrEnum):
@@ -471,6 +478,12 @@ class BridgeCommand(StrEnum):
     ADVANCED_POWER_TASKS_ARM = "advanced-power-tasks-arm"
     # v0.6.20 final (account_switch): the card's answer to "Restart Codex now so it uses the new account?" (control/account.restart).
     ADVANCED_ACCOUNT_RESTART = "advanced-account-restart"
+    # v0.6.22 (account_auto_switch): the saved accounts read, one added by Codex's own sign-in, the one in use saved, and
+    # one or all deleted (control/autoswitch.py). The Dashboard's alone, never MCP.
+    ADVANCED_ACCOUNTS = "advanced-accounts"
+    ADVANCED_ACCOUNTS_ADD = "advanced-accounts-add"
+    ADVANCED_ACCOUNTS_SAVE = "advanced-accounts-save"
+    ADVANCED_ACCOUNTS_DELETE = "advanced-accounts-delete"
     # v0.6.19 (the groundwork): every command the stage's designs name, in one block, each the Dashboard's alone and
     # reached by no MCP tool. Until the capability that answers one is built, the bridge passes it over as it passes a
     # command this edition does not have (surfaces.UNANSWERED). The analytics' aggregates and their CSV
@@ -625,6 +638,26 @@ class Measurement(StrEnum):
     # one recorded responseTooManyFailedAttempts - codex_gave_up's kind (terminal_failure) - which model_fallback would
     # then also have to answer where the last retry's cause was capacity.
     MGAVE = "mgave"
+    # v0.6.22 (codex_retry_settings' new route, plans/v0622-retry-settings-design.md): MB's plain route stays refused, so
+    # Codex's own retries are set by a provider of our own - a copy of the built-in one with the person's Attempts, and
+    # model_provider naming it - given as `-c` settings to the app server this product starts for its own turns, and
+    # written nowhere. Scratch part: on a scratch Codex home our server so started says the provider is in force and
+    # writes no config.toml. Live part, on a throwaway conversation: a ChatGPT sign-in, one turn completed under that
+    # provider, and afterwards a plain server still says the conversation is OpenAI's and lists it. PASS: all of it, and
+    # the person sees the conversation in the app's sidebar. FAIL: the provider not in force, a config written, no
+    # ChatGPT sign-in, no completed turn, or the conversation's provider rewritten or no longer listed.
+    MB2 = "mb2"
+    # v0.6.22 (account_auto_switch, plans/v0622-account-autoswitch-design.md section 11). MPROFILE: account/read and
+    # account/rateLimits/read on a scratch Codex home made from a saved account's sign-in file answer that account, with
+    # the real home's file and the running app unchanged. MSWAP: the Codex app closed by the product's close, the real
+    # sign-in file swapped to another saved account's and the app started is signed in as that account - and after the
+    # swap back, the first account's sign-in still works.
+    MPROFILE = "mprofile"
+    MSWAP = "mswap"
+    # v0.6.22 (the automatic compatibility check, plans/v0622-autocheck-design.md): no hands. The check's own commands on
+    # the real engine on a scratch home: whether each answered, whether `--experimental` is taken behind core's `-c`
+    # options, and the grade each capability would read. No capability rests on it: it is the check's own proof.
+    MAUTO = "mauto"
 
 
 class ObservedWord(StrEnum):
@@ -782,6 +815,34 @@ class GoalStatus(StrEnum):
     USAGE_LIMITED = "usage_limited"
     BUDGET_LIMITED = "budget_limited"
     COMPLETE = "complete"
+
+
+class AutoResult(StrEnum):
+    """What the automatic check found of one measurement's row, on one engine (autocheck.py). Not a verdict: a person's
+    verdict is never made of it, and it is kept apart from every record of theirs."""
+    PASS = "pass"
+    FAIL = "fail"
+    UNKNOWN = "unknown"                      # a type it asks about is not there: says nothing either way
+
+
+class CheckReach(StrEnum):
+    """How much of what a measurement asks the automatic check can answer (autocheck.CHECKS)."""
+    WHOLE = "whole"                          # all of it: a pass needs no person
+    PART = "part"                            # the calls: a pass carries a person's earlier pass forward, and says so
+    FAILS_ONLY = "fails_only"                # a call gone proves the route broken; its being there proves nothing
+    NONE = "none"                            # nothing: the app, a limit, a sign-in, a conversation, a person's eyes
+
+
+class CheckGrade(StrEnum):
+    """How a capability stands for the Codex in force, as a person is told it (autocheck.grade)."""
+    MEASURED = "measured"                    # measured by a person on this Codex
+    AUTO_CHECKED = "auto_checked"            # checked automatically on this Codex, no more than that
+    OFFERED_ONLY = "offered_only"            # still unmeasured: the calls are there, which cannot settle it
+    UNMEASURED = "unmeasured"
+    FAILED = "failed"
+    FAILED_STILL_OFFERED = "failed_still_offered"  # a person's fail stands, though the calls are still there
+    CHECK_FAILED = "check_failed"            # the automatic check found a call gone
+    NONE = "none"                            # it rests on no measurement
 
 
 class Verdict(StrEnum):

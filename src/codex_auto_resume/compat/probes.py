@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import time
 
 from .. import config
 from .. import compat
@@ -81,6 +82,19 @@ def _engine_part(raw) -> dict:
     return {name: _coerce(raw.get(name)) for name in ("official_location", "version_runs", "queue_flags")}
 
 
+def server_check(backend) -> str:
+    """#58's follow-up: the app_server_matched check, read off the last look `backend` already took (Backend.app_look),
+    so it starts no process and asks nothing: PASS on a server paired, FAIL on an app that runs with none, and otherwise
+    UNAVAILABLE, "not checked": the app is not running, nothing has looked yet (a backend the watcher has not needed the
+    app for, or a per-call reader's), or the look is older than a report may be."""
+    look, at = getattr(backend, "app_look", None), getattr(backend, "app_looked_at", None)
+    if look not in ("matched", "unmatched") or not isinstance(at, (int, float)):
+        return compat.UNAVAILABLE
+    if time.monotonic() - at > compat.REPORT_MAX_AGE:
+        return compat.UNAVAILABLE
+    return compat.PASS if look == "matched" else compat.FAIL
+
+
 def engine_from_backend(backend):
     """(checks, engine) for the backend the watcher is driving."""
     try:
@@ -89,6 +103,7 @@ def engine_from_backend(backend):
         raw = None
     checks = _engine_part(raw)
     checks["single_candidate"] = compat.PASS
+    checks["app_server_matched"] = server_check(backend)
     raw = raw if isinstance(raw, dict) else {}
     signature = raw.get("signature")
     if not (isinstance(signature, (list, tuple)) and len(signature) == 2

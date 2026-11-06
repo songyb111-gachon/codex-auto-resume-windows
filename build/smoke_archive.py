@@ -73,6 +73,10 @@ AUMID_DISPLAY_NAME = "Codex Auto Resume"
 PROTOCOL_KEY = r"Software\Classes\codex-auto-resume"
 PROTOCOL_COMMAND_KEY = PROTOCOL_KEY + r"\shell\open\command"
 START_MENU_ENTRY = Path("Microsoft", "Windows", "Start Menu", "Programs", "Codex Auto Resume.lnk")
+DESKTOP_SHORTCUT = "Codex Auto Resume.lnk"
+# Where the product puts a shortcut on the Desktop instead of the person's. Windows' known folder ignores USERPROFILE, so
+# this is the one variable of the product's own the run sets: a Desktop in the workspace, as APPDATA is for the Start Menu.
+DESKTOP_ENV = "CODEX_AUTO_RESUME_DESKTOP"
 
 # The bootstrap's first argument, and the exit code of a refusal: distinct from every code
 # the command line uses, so a refusal is never read as the product failing.
@@ -83,7 +87,7 @@ MARKER = "CodexAutoResumeSmokeIsolation"
 # In every real user hive, never in the private one: the second, independent proof.
 EVERY_PROFILE_HAS = "Control Panel"
 # The per-user folders a command may write to. All of them must lie inside the workspace.
-REDIRECTED = ("USERPROFILE", "APPDATA", "LOCALAPPDATA", "CODEX_HOME")
+REDIRECTED = ("USERPROFILE", "APPDATA", "LOCALAPPDATA", "CODEX_HOME", DESKTOP_ENV)
 HIVE_NAME = "user.dat"
 KEY_READ = 0x20019
 KEY_ALL_ACCESS = 0xF003F
@@ -173,12 +177,41 @@ def start_menu_entry(appdata):
     return [stat.st_size, stat.st_mtime_ns, hashlib.sha256(data).hexdigest()]
 
 
+def real_desktop():
+    """This machine's Desktop, where Windows says it is, read only; None where Windows cannot say."""
+    folder = (ctypes.c_ubyte * 16)()
+    path = ctypes.c_wchar_p()
+    ole32, shell32 = ctypes.WinDLL("ole32"), ctypes.WinDLL("shell32")
+    if ole32.CLSIDFromString("{B4BFCC3A-DB2C-424C-B029-7FE99A87C641}", ctypes.byref(folder)) != 0:
+        return None
+    if shell32.SHGetKnownFolderPath(ctypes.byref(folder), 0, None, ctypes.byref(path)) != 0:
+        return None
+    try:
+        return path.value
+    finally:
+        ole32.CoTaskMemFree(path)
+
+
+def desktop_shortcut(folder):
+    """[size, mtime_ns, sha256] of the product's name on the Desktop ``folder``, or None."""
+    if not folder:
+        return None
+    path = Path(folder) / DESKTOP_SHORTCUT
+    try:
+        data = path.read_bytes()
+        stat = path.stat()
+    except FileNotFoundError:
+        return None
+    return [stat.st_size, stat.st_mtime_ns, hashlib.sha256(data).hexdigest()]
+
+
 def machine_state() -> dict:
     """This machine's own registrations, read only: the run's tripwire."""
     import winreg
     state = registrations(winreg.HKEY_CURRENT_USER)
     appdata = os.environ.get("APPDATA") or str(Path.home() / "AppData" / "Roaming")
     state["Start Menu entry"] = start_menu_entry(appdata)
+    state["desktop shortcut"] = desktop_shortcut(real_desktop())
     return state
 
 
@@ -195,7 +228,8 @@ def child_environment(workspace, base) -> dict:
     # No engine directory exists under this LOCALAPPDATA, so no Codex process is ever
     # started - not the machine's own Codex either, whatever it has installed.
     return dict(kept, USERPROFILE=str(workspace / "profile"), APPDATA=str(workspace / "appdata"),
-                LOCALAPPDATA=str(workspace / "no-engines"), CODEX_HOME=str(workspace / "codex"))
+                LOCALAPPDATA=str(workspace / "no-engines"), CODEX_HOME=str(workspace / "codex"),
+                **{DESKTOP_ENV: str(workspace / "desktop")})
 
 
 # The interpreter's own options, before the bootstrap: remote debugging off (PEP 768). An archive
@@ -405,6 +439,7 @@ def main():
         check("install writes the Start Menu entry", start_menu_entry(appdata) is not None)
         check("install leaves sign-in autostart alone unasked",
               seen["sign-in autostart"] is None, json.dumps(seen))
+        check("install leaves the Desktop alone unasked", desktop_shortcut(environment[DESKTOP_ENV]) is None)
 
         code, out = cli("--quiet", "status")
         check("status reads that home", code == 0, out)

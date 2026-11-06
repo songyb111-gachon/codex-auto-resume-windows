@@ -716,13 +716,13 @@ on the message.
 Outside that directory it also registers ordinary per-user Windows plumbing, none of it
 needing administrator rights and none of it containing anything about your conversations: a
 Start Menu shortcut carrying the tool's notification identity, which Windows requires before
-it will draw a toast at all; the registry entry that gives that identity its name and icon;
+it will draw a toast at all; a shortcut on your Desktop, only if you asked for one; the registry entry that gives that identity its name and icon;
 the sign-in autostart value (unless you skip it); and the handler for the notification
 button's `codex-auto-resume:` link; and, from v0.6.16, the entry in Add or remove programs (one per-user key under
 Windows' Uninstall key that names the version, the folder and the command that removes it, with a copy of the
 installer's own uninstall, `uninstall\install.ps1`, kept in the installation for it to name). Through the `codex plugin` commands it registers this
 plugin and its local marketplace in your Codex configuration, and Codex keeps its own copy
-of the plugin. Uninstalling removes those Windows entries, the Add or remove programs entry among them, each only while it
+of the plugin. Uninstalling removes those Windows entries and the Desktop shortcut, the Add or remove programs entry among them, each only while it
 belongs to this installation, and asks Codex to remove the plugin and the marketplace only while they still point at this
 installation; Codex then removes its own copy.
 
@@ -874,14 +874,25 @@ only while push notices or the status feed is on (*What the courier sends*, belo
   app server on this PC, started by this program and signed in as you, under the conversation's own
   saved settings. Like every turn it reaches OpenAI through Codex. The program reads only the kinds of
   items the turn left and Codex's error codes, never what anyone wrote.
+- **Saved Codex accounts.** One feature, off until you turn it on, switches between your own Codex
+  accounts at a usage limit, and is the one exception to this page's word that the program never sees
+  your sign-in: for each account you save it keeps a copy of Codex's sign-in file `auth.json`, with the
+  account's address and plan, sealed for your Windows user, in the installation's `accounts` folder,
+  and reads each saved account's usage on a private Codex home there. The Dashboard shows the address
+  masked; nothing of it goes into the settings, a log, diagnostics, a report or anywhere else. Delete
+  them on their card at any time - the feature on, off or hidden - or with an uninstall that deletes
+  the settings. Turning it off stops every switch, with one exception: a switch that did not finish is
+  still undone - the account signed in before it is put back - and nothing else is switched.
+  A change to the standard edition keeps the saved accounts, unused, and the setup window says so; a box
+  there, off unless you tick it, deletes them with the change.
 - **What it stores.** `config/advanced/advanced.sqlite`, made only when something is first turned
   on or changed: each capability's state, since when, from which surface and why, the statement
   revision and the Codex version it was turned on for, and the warnings confirmed; each unit a
   capability spent, with the ids of the conversation and interruption it spent it on; the edition's
   own records and what a capability asked of a standard one, as ids, states and times; the global
   ceiling a person set; a journal and per-day counts of closed codes, bounded as the standard
-  journal is, and what a watched capability would have done at most 115 lines each (180 until
-  v0.6.16-beta.4, then 150, 140 and 130 as capabilities were added); and, for the
+  journal is, and what a watched capability would have done at most 110 lines each (180 until
+  v0.6.16-beta.4, then 150, 140, 130, 120 and 115 as capabilities were added); and, for the
   capabilities that use them, the choices you made, the rules you wrote (an
   error code, status numbers, a kind), which capability took up which interruption, and samples of
   failures it could not classify: Codex's error code, the status number, the form of the error, item

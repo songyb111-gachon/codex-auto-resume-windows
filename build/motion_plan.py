@@ -47,6 +47,14 @@ open), a button of the card (`card.<target>`), `{"at": [x, y]}` on the canvas, o
 pointer is. Window states use the keys `STATE_KEYS`; the render mode refuses any
 other. Every frame is a moment `t` in ms from the start, and everything that moves by itself - the window's lights,
 the card's light, the tray icon - is drawn at that moment, so a plan only says what a person does.
+
+The times the window shows move on with that clock too (v0.6.22: the owner asked for the README's first motion to
+show time passing). A plan that names `"clock_step_ms": 1000` - the window's own clock, its one-second timer
+(DashboardData.StartClock) - has every frame's window read the moment `clock_at(t)`, the last tick of that timer at or
+before `t`, as that far past the pinned moment its answers were seeded at (make_screenshots.ENVELOPE_NOW): every countdown to a next check, every age
+(Last check, the usage reading, Why it is waiting's Last checked) is worked out by the window from that one moment, so
+they move on together and agree with each other within a frame, while a time of day a record gives (a reset, a
+Timeline entry) stays where it is. A plan without it shows the pinned moment throughout, as the stills do.
 """
 from __future__ import annotations
 
@@ -80,6 +88,9 @@ SHORTEST = 15
 CLOSEST = 2 * SHORTEST
 # How long a click's ripple lasts (TOOLING 2.3), in ms.
 RIPPLE_MS = 240
+# How often the window's own clock ticks, in ms (DashboardData.StartClock: its Timer's Interval): the only step a plan's
+# `clock_step_ms` may name.
+WINDOW_CLOCK_MS = 1000
 NAME = re.compile(r"(page\.(%s)|section\.(%s)|save|restore|start|close|setting\.[a-z_]+|row\.[A-Za-z_-]+|card\.[a-z_]+"
                   r"|task\.[0-9]+|menu\.[0-9]+|popup\.switch\.[0-9]+|pending\.(retry|timeline|explain)|overview\.toggle"
                   r"|dialog\.close)\Z"
@@ -200,6 +211,8 @@ def check(plan: dict) -> None:
                 raise PlanError("%s: only the row menu is dismissed, not %r" % (name, step["dismiss"]))
             if "set" in step:
                 _check_state(name, step["set"])
+    if "clock_step_ms" in plan and plan["clock_step_ms"] != WINDOW_CLOCK_MS:
+        raise PlanError("the window's clock ticks every %d ms, not %r" % (WINDOW_CLOCK_MS, plan["clock_step_ms"]))
     run = _walk(plan)
     frames, end = run.frames, run.t
     lo, hi = plan.get("length") or (0, 10 ** 9)
@@ -514,6 +527,13 @@ def _settle_scroll(run):
 
 
 # ---------------------------------------------------------------------------------------------------- the clock
+def clock_at(t: int, step: int) -> int:
+    """The window's clock at the picture's moment `t` (ms): the last tick of its own timer, every `step` ms from the
+    start, at or before `t` - as on a screen, where a countdown moves on at the tick and not between two. With no step
+    (0), 0: the pinned moment throughout."""
+    return (int(t) // int(step)) * int(step) if step else 0
+
+
 def fill(frames: list, end: int, light_step: int, also=(), first_hold: int = 0, ripple_step: int = 0) -> list:
     """`frames` with a frame added wherever something moves by itself between two of them: every `light_step` ms of
     the picture's clock (the lights, at their own timer's step), at each moment in `also` (the tray icon's own frame

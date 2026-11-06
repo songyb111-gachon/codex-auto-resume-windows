@@ -124,6 +124,9 @@ ENGINE_TO_BACKEND = {"app_identity", "delete_queue", "holder", "loaded", "send",
                      # v0.6.16-beta.4: who holds a conversation loaded() said is "elsewhere" (pid, creation time), for
                      # the TO_SESSION re-check under the dispatch lock (engine/tosession.py) - read, never set.
                      "session_holder",
+                     # #58's follow-up: what the last app_identity() found of the app, read off the rows it read
+                     # (engine/dispatch.py no_app_reason), so a record waiting for the app says which case it is.
+                     "app_look",
                      # v0.6.16-beta.4: the engine's own `codex --version`, which the version skew guard holds a terminal's
                      # or VS Code's conversation to (engine/kinds.py) - read only while the plug names such a kind.
                      "engine_version",

@@ -94,6 +94,14 @@ which waits, shows its lines and leaves its exit code in `$LASTEXITCODE`. `winge
 same switch works on the archive's `Install.cmd` and `Uninstall.cmd`, and the setup program does not wait for Enter
 when it stops.
 
+The setup window can add a shortcut on your Desktop, which opens what the Start Menu entry opens: *Add a shortcut to
+the desktop*, off unless you tick it. Setup over an installation shows what is true now, and unticking it removes this
+installation's shortcut. `-Silent` makes none: add `-DesktopShortcut` to make one, or `-NoDesktopShortcut` to remove
+it (`CodexAutoResume-Setup-vX.Y.Z.exe -Silent -DesktopShortcut`); with neither, as `winget` runs it, the Desktop is
+left as it is. An update from the Dashboard leaves it as it is too. Only a shortcut named `Codex Auto Resume.lnk`
+whose target is inside this installation counts as ours: any other, even one you made with that name, is never changed
+or removed, and one that cannot be written stops nothing, and the finished page and the log say so.
+
 From v0.6.16 an installation also appears in Windows' Settings > Apps and in `winget list`, as *Codex Auto Resume*
 (*Codex Auto Resume Advanced* for the advanced edition), for your Windows user only. Its Uninstall button runs the
 uninstaller the installer keeps in `%USERPROFILE%\.codex-auto-resume\uninstall\`, the same one as `Uninstall.cmd`, in
@@ -146,7 +154,7 @@ version, because a release cannot contain its own digest and after installation 
 from the installed copy. It then checks the contents really are this product at this version,
 and only then installs, for your Windows user only: files in the installation folder (by
 default `%USERPROFILE%\.codex-auto-resume`), a Start Menu entry (when notifications are on, as
-they are by default), per-user registry values, and
+they are by default), a shortcut on your Desktop only if you asked for one, per-user registry values, and
 this plugin's marketplace and plugin registration in Codex, pointed at that installation. The
 plugin's instructions have Codex tell you before it does any of that.
 
@@ -605,6 +613,18 @@ a different case. The Codex app does not hold it, but it is not unloaded either:
 open. It waits with a reason of its own, "Open in another Codex session (a terminal or VS Code); it
 continues once the Codex app holds it.", and nothing is sent to it. It continues once the Codex app holds
 the conversation.
+
+While a recovery waits for the app, it says which of two things it found. With no Codex app running it says
+"The Codex app is not running." With the app running and none of its servers matched to the engine, it says
+"The Codex app is running, but this product could not match its server, so nothing was sent." That can pass by
+itself while the app starts. If it stays, Codex may have changed how it runs: the light asks for your attention,
+and nothing is sent until a server is matched. Restart the Codex app; if that does not help, check for an update
+of this product, or report it. The Codex compatibility card on the Diagnostics page says the same under **Codex
+app's server**: *matched* only where the watcher's last look found a server, *not matched* where it found the app
+and no server, and a plain *not checked* where the app is not running or nothing has looked lately, because the
+watcher looks only when a recovery needs the app and starts nothing to find out. Its other parts can read as
+compatible all the while: they check the engine, not the app's server. This one stays on your PC; no report
+sends it.
 
 This is not fully unattended auto-resume across app restarts, and this guide will not pretend otherwise.
 
@@ -1703,7 +1723,8 @@ Uninstall is deliberately conservative:
   entry only while they belong to **this** installation. A value that starts a different copy of the tool is reported and
   kept, never silently removed. The Start Menu entry is kept while the notification identity
   belongs to a different installation; if no notification identity is registered at all, the
-  entry at its fixed location is removed without an ownership check.
+  entry at its fixed location is removed without an ownership check. A shortcut on the Desktop goes whichever answer
+  you give about keeping your data, but only while its target is inside this installation.
 - It deletes only inside directories it can prove it owns. The source command requires this
   tool's provenance marker (`.owned-by-codex-auto-resume`) in each directory it deletes from;
   `Uninstall.cmd` requires the marker at the installation root or in `config/`, or a
@@ -1852,7 +1873,7 @@ has SQLite search that conversation's user and queued messages for its own marke
 is handled in memory and discarded; none of it is stored, and the main log does not record it.
 
 Its own records live in the installation folder (by default `%USERPROFILE%\.codex-auto-resume\`).
-Elsewhere it leaves a Start Menu shortcut, a sign-in entry, the Windows registrations its
+Elsewhere it leaves a Start Menu shortcut, a Desktop shortcut if you asked for one, a sign-in entry, the Windows registrations its
 notifications need, and this plugin and its marketplace registered in Codex; `Uninstall.cmd`
 removes those that belong to this installation. Separately, Windows' notification history keeps
 the notifications it showed, and each resumed conversation keeps the continuation message and

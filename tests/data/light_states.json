@@ -33,6 +33,10 @@
   "now": 1800000000.0,
   "moving": ["submission_claimed", "submitted", "withdrawing", "turn_running", "turn_finishing"],
   "vectors": [
+    {"name": "one waiting because the Codex app runs and no server of its could be matched",
+     "status": {"watcher_running": true, "enabled": true, "watcher": {"running": true, "ticking": true, "engine_state": "structurally_compatible"}, "upgrade_pending": false, "pending": 1, "codes": {"waiting_thread": 1}, "failure_unseen": false},
+     "rows": [{"state": "waiting_for_app", "code": "waiting_thread", "eligible_at": 1800000600.0, "overlays": ["app_server_unmatched"]}],
+     "word": "attention", "light": "attention", "taskbar": "attention"},
     {"name": "nothing could be read",
      "status": null, "rows": null,
      "word": "attention", "light": "idle"},

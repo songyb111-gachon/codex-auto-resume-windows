@@ -162,7 +162,15 @@ class TableTests(unittest.TestCase):
         2026-11-01, on the same engine, MAL failed, partial: a sign-out made with `codex logout` outside the app reached the
         running app, but the `codex login` after it did not within about a minute; the app came back signed in through its
         own sign-in. 2026-11-02, the same engine: MALR passed - after that sign-out and sign-in, the product's own restart
-        of Codex brought the app up signed in."""
+        of Codex brought the app up signed in.
+        2026-11-05, on codex-cli 0.166.0-alpha.6, the measurement session's no-hands sitting: MW, MHK, M3B and MF passed, M3
+        and MB failed as before. MB2's scratch part held and waits for its live part; MGAVE and MN stayed blocked by their
+        probes, MN because this account has reset credits now, so its record at zero credits stands.
+        2026-11-06, the same engine: MAUTO passed - the automatic check's own commands answered on a scratch home. MB2
+        failed: Codex refused thread/resume (-32600) of a conversation made under the built-in openai provider under a
+        provider of our own (modelProviderMismatch). MPROFILE passed - a second saved account read on a scratch home, the
+        real sign-in left as it was - and MSWAP passed by the owner's word: the app came up as the other saved account and
+        back, each with no sign-in page and no other Codex engine running."""
         passed = {m for m, (verdict, _v) in measured.MEASURED.items() if verdict == Verdict.PASS}
         failed = {m for m, (verdict, _v) in measured.MEASURED.items() if verdict == Verdict.FAIL}
         self.assertEqual(passed, {Measurement.MW, Measurement.M1, Measurement.M2B, Measurement.M5,
@@ -172,14 +180,15 @@ class TableTests(unittest.TestCase):
                                   Measurement.MXA, Measurement.MX, Measurement.MF, Measurement.MO,
                                   Measurement.M3B, Measurement.M6B, Measurement.MQO, Measurement.MQP,
                                   Measurement.MQG, Measurement.MANCHOR, Measurement.MIMG, Measurement.MOPEN,
-                                  Measurement.MHK, Measurement.MALR})
+                                  Measurement.MHK, Measurement.MALR, Measurement.MAUTO, Measurement.MPROFILE,
+                                  Measurement.MSWAP})
         self.assertEqual(failed, {Measurement.M2, Measurement.M3, Measurement.M4, Measurement.MAWS,
                                   Measurement.MCLOUD, Measurement.MB, Measurement.MC2, Measurement.MSTEER,
-                                  Measurement.MSTEER2, Measurement.MAL})
+                                  Measurement.MSTEER2, Measurement.MAL, Measurement.MB2})
         new = "codex-cli 0.163.0-alpha.10.2"
-        again = {Measurement.MW, Measurement.M1, Measurement.M5, Measurement.M6,
+        again = {Measurement.M1, Measurement.M5, Measurement.M6,
                  Measurement.M7, Measurement.MP1, Measurement.MP2, Measurement.MP3, Measurement.MIPC,
-                 Measurement.MO, Measurement.M6B, Measurement.MX, Measurement.MF, Measurement.M3B}
+                 Measurement.MO, Measurement.M6B, Measurement.MX}
         v0617 = {Measurement.MQO, Measurement.MQP, Measurement.MQG}
         self.assertEqual({m for m, (_v, version) in measured.MEASURED.items() if version == new}, again | v0617)
         self.assertTrue(all(measured.MEASURED[m][0] == Verdict.PASS for m in again | v0617))
@@ -194,7 +203,12 @@ class TableTests(unittest.TestCase):
         # v0.6.20, before its final: MB and M4 made again and MHK made, on the Codex of 2026-10-31.
         self.assertEqual({m for m, (_v, version) in measured.MEASURED.items()
                           if version == "codex-cli 0.166.0-alpha.5.1"},
-                         {Measurement.MB, Measurement.MHK, Measurement.M4, Measurement.MAL, Measurement.MALR})
+                         {Measurement.M4, Measurement.MAL, Measurement.MALR})
+        # v0.6.22: the no-hands sitting of 2026-11-05 toward the re-measure.
+        self.assertEqual({m for m, (_v, version) in measured.MEASURED.items()
+                          if version == "codex-cli 0.166.0-alpha.6"},
+                         {Measurement.MW, Measurement.MHK, Measurement.M3B, Measurement.MF, Measurement.M3, Measurement.MB,
+                          Measurement.MAUTO, Measurement.MB2, Measurement.MPROFILE, Measurement.MSWAP})
         self.assertEqual(set(Measurement) - passed - failed,
                          # v0.6.15-beta's own, for several conversations at once: not made yet.
                          {Measurement.MQ, Measurement.ME, Measurement.MS, Measurement.MK, Measurement.MT,

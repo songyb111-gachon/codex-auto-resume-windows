@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import re
 import subprocess as S
+import time
 
 from .. import machine
 from ..domain import ids, vocabulary
@@ -29,6 +30,12 @@ from .usage import parse_usage
 # this tool drives. Anything that cannot prove it is refused: a failed local check always
 # wins, whatever the Compatibility Registry says about the version.
 REQUIRED_QUEUE_FLAGS = ("--thread", "--message")
+
+
+def offers(help_text, flag) -> bool:
+    """Whether a `--help` text lists `flag` as an option of its own (v0.6.23, audit C6) - never the start of a longer
+    one: `--remote-auth-token` is not --remote, `--thread-id` is not --thread."""
+    return re.search(r"(?<![\w-])" + re.escape(flag) + r"(?![\w-])", help_text) is not None
 # The only App Server methods the finite helper may call.
 
 
@@ -86,6 +93,11 @@ class Backend:
         # none of them ran this engine - an update that started the app's server from another
         # build - and nothing whenever that is not what the last pairing saw (app_identity).
         self.served_elsewhere = frozenset()
+        # #58's follow-up: what the last app_identity() found of the app, read off the rows it reads anyway, so no process
+        # is started for it: "matched", "unmatched" (a process of the app's package runs and no server of its was
+        # paired), "closed" (none runs), or None where that look read no rows; and when, on the monotonic clock.
+        self.app_look = None
+        self.app_looked_at = None
         # v0.6.16-beta.4: the inventory rows the last app_identity() read - in memory only, for loaded() and holder()
         # to tell another Codex session holding a conversation from anything unknown without reading them again -
         # or None where that look could not read them.
@@ -112,8 +124,8 @@ class Backend:
         if result.returncode != 0:
             return False
         text = result.stdout
-        self.queue_remote_supported = "--remote" in text
-        return all(flag in text for flag in REQUIRED_QUEUE_FLAGS)
+        self.queue_remote_supported = offers(text, "--remote")
+        return all(offers(text, flag) for flag in REQUIRED_QUEUE_FLAGS)
 
     def _queue_daemon_remote(self) -> bool:
         """Choose the local managed daemon explicitly when Codex offers that route.
@@ -121,7 +133,10 @@ class Backend:
         Recent Codex refuses an embedded queue server with any -c override
         while a managed app-server daemon runs. Removing overrides would weaken
         the telemetry safeguards. --remote unix:// retains all the overrides.
-        Fail closed to the existing invocation if the home or process is unknown.
+        Fail closed to the existing invocation where the process list shows no
+        daemon of this home. v0.6.23 (audit C5): a process list that cannot be
+        read raises AdapterError - the send is not started this look and tried
+        again, since without --remote a running daemon refuses it after Popen.
         Never try both routes for one send, since delivery could be uncertain.
         """
         if not self.queue_remote_supported:
@@ -130,7 +145,7 @@ class Backend:
         try:
             rows = inventory()
         except (AdapterError, OSError, ValueError):
-            return False
+            raise AdapterError("process_inventory_unavailable") from None
         return any(
             isinstance(row, dict)
             and type(row.get("pid")) is int and row["pid"] > 0
@@ -221,14 +236,19 @@ class Backend:
 
     def app_identity(self):
         self.served_elsewhere = frozenset()
+        self.app_look = None
         try:
             self._compatible()
             self._rows = None
             rows = self._rows = inventory()
+            self.app_look, self.app_looked_at = "unmatched" if app_running(rows) else "closed", time.monotonic()
             try:
                 if self.require_holder:
-                    return desktop_pair(rows, self.codex_exe, self.codex_home, require_holder=True)
-                return desktop_pair(rows, self.codex_exe, self.codex_home)
+                    paired = desktop_pair(rows, self.codex_exe, self.codex_home, require_holder=True)
+                else:
+                    paired = desktop_pair(rows, self.codex_exe, self.codex_home)
+                self.app_look = "matched"
+                return paired
             except AdapterError:
                 # The same rows, read again for one thing: the paths the app main runs instead,
                 # which the watcher asks before its next tick (runtime/app.py, engine_moved).
@@ -313,9 +333,9 @@ class Backend:
             if not isinstance(prompt, str) or not prompt or len(prompt) > 8192 or "\0" in prompt:
                 raise ValueError("invalid_prompt")
             self._compatible()
+            remote = self._queue_daemon_remote()
         except (AdapterError, ValueError):
             return {"outcome": "not_started", "error_code": "queue_preflight_failed"}
-        remote = self._queue_daemon_remote()
         process = None
         try:
             with launch_guard if launch_guard is not None else nullcontext(True) as permitted:

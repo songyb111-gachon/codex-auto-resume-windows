@@ -102,7 +102,7 @@ The Codex processes it starts (`codex app-server`, `codex queue`) may also updat
 and caches, as any Codex process does.
 
 **Writes** at install time, for the current user only and never system-wide: a Start Menu
-shortcut, the sign-in autostart value unless you decline it, the notification sender identity
+shortcut, a shortcut on the Desktop only if you asked for one, the sign-in autostart value unless you decline it, the notification sender identity
 Windows requires before it will draw a toast at all, and the handler for the notification
 button's own URL scheme, and, from v0.6.16, the entry in Windows' Add or remove programs: one per-user key
 under `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall` (`CodexAutoResume`; the other edition's adds its
@@ -123,7 +123,10 @@ Apps starts copies the Dashboard program into a new folder of its own in the tem
 the folder is removed once the copy has ended.
 
 **Never reads**: `auth.json`, tokens, cookies, authorization headers, or process memory. The Codex
-processes it starts use Codex's own stored sign-in; this tool never sees it.
+processes it starts use Codex's own stored sign-in; this tool never sees it. The one exception is a
+feature of the advanced edition, off until a person turns it on, that switches between the person's own
+saved Codex accounts: it reads and replaces `auth.json` and keeps sealed copies of it (*Saved Codex
+accounts*, under *The advanced edition*).
 
 **Never opens for writing**: a Codex database, rollout or configuration file. If a Codex database
 uses SQLite's write-ahead log, SQLite may still update the shared-memory index file (`-shm`) beside
@@ -560,6 +563,22 @@ section names one by its id it also says in a few words what that standard is, a
 capability's statement does. [EDITIONS.md](EDITIONS.md) describes the two editions, and each
 capability, in plain words.
 
+**Saved Codex accounts.** One feature of this edition, off until a person turns it on and hidden until its
+measurements pass on the Codex in force, departs from *Never reads* above. To switch between the person's own Codex
+accounts at a usage limit, it reads Codex's sign-in file `auth.json`, keeps a copy of each saved account's file - with
+the account's address and plan - in the installation's `accounts` folder, each sealed with Windows' data protection for
+the current Windows user (a copy opens only for that user, and on another PC only where that user's profile roams with
+its keys), and puts another saved account's copy in place of `auth.json` while the Codex app is closed. That folder's
+access list lets in the current user alone. For a moment a copy is a plain file in a private Codex home under that
+folder, removed after each read; one a crash left is swept at the next look. It writes `auth.json` only where the file
+there is the one it expects, never over a sign-in a person made, and never while another Codex engine may use that
+home. Nothing of a copy reaches the settings, a log, the journal, diagnostics, a report or the network; the Dashboard
+shows the address masked. The saved accounts can be deleted on their card in every state, and an uninstall that
+deletes the settings deletes them too. Turning the feature off stops every switch, with one exception: a switch that did
+not finish is still undone - the account signed in before it is put back - and nothing else is switched.
+A change to the standard edition, which shows no such card, keeps the saved accounts - sealed, and unused by that
+edition - and the setup window says so first; it offers a box, off unless ticked, to delete them with the change.
+
 **How the two editions are kept apart.**
 
 - **The standard archive holds none of the advanced code.** It is built from a list of trees that
@@ -808,7 +827,9 @@ under.
 - **Uninstalling: registry and Start Menu.** The sign-in entry, the notification identity, the
   Start Menu shortcut, the `codex-auto-resume:` handler and the Add or remove programs entry are per-user singletons that a second
   installation would overwrite, so each is removed only when it still belongs to the
-  installation being removed.
+  installation being removed. A shortcut on the Desktop is no singleton of ours, since the Desktop is yours: it is
+  replaced or removed only when its file name is exact and its target is inside the installation, and any other is
+  left alone.
 
 Uninstall first asks a running watcher to stop through its stop event. If a watcher is still
 running, or if it cannot verify whether one is running, uninstall aborts before removing anything

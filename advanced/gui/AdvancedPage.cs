@@ -707,6 +707,13 @@ namespace CodexAutoResume
                 MethodInvoker after = done;
                 done = delegate { ReadPowerTasks(after); };
             }
+            // v0.6.22: the saved accounts of the automatic account switch (AdvancedAccounts.cs) - asked in every state, and
+            // on account_switch's column too, so a saved sign-in can be deleted while the switch is off or hidden.
+            if (id == AccountsId || id == AccountId)
+            {
+                MethodInvoker after = done;
+                done = delegate { ReadAccounts(after); };
+            }
             // v0.6.16-beta.4: the wrap-up's own wordings (AdvancedUsage.cs).
             if (id == WrapUpId)
             {
@@ -948,7 +955,7 @@ namespace CodexAutoResume
                            (IsReport(item) ? ReportShown() : "") + "|" +
                            ResetsShown(item) + "|" + KeepGoingShown(item) + "|" + QueueShown(item) + "|" +
                            WordingsShown(item) + "|" + RunsShown(item) + "|" + CourierShown(item) + "|" + AnalyticsShown(item)
-                           + "|" + AnchorShownText(item) + "|" + AccountShown(item) + "|" + PowerTasksShown(item);
+                           + "|" + AnchorShownText(item) + "|" + AccountShown(item) + "|" + PowerTasksShown(item) + "|" + AccountsShown(item);
             if (shown == advancedShown)
             {
                 UpdateAdvancedButtons();
@@ -980,6 +987,7 @@ namespace CodexAutoResume
             ForgetAnalyticsCard();
             ForgetQueueCard();
             ForgetPowerTasksCard();
+            ForgetAccountsCard();
             if (item == null)
             {
                 TableLayoutPanel card = NewGroup(Word("page.nav", "Advanced features"), advancedStack);
@@ -1038,6 +1046,16 @@ namespace CodexAutoResume
                 Label line = HelpText(refused);
                 line.ForeColor = Accent;
                 line.Margin = Pad(0, Brand.SpaceS, 0, 0);
+                head.Controls.Add(line);
+            }
+            // v0.6.22: how it stands on this Codex (autocheck.grade), above the warnings: measured by a person, or checked
+            // automatically, in words that tell the two apart.
+            string checkLine = CheckLine(statement);
+            if (checkLine != null)
+            {
+                Label line = HelpText(checkLine);
+                line.ForeColor = Ink;
+                line.Margin = Pad(0, Brand.SpaceS, 0, 4);
                 head.Controls.Add(line);
             }
             // Each warning under their title, as a field of the statement is under its own, and the note that none of
@@ -1141,6 +1159,8 @@ namespace CodexAutoResume
             BuildAccount(item);
             // v0.6.20: the tasks the power action waits for, or the form they are picked with (AdvancedPowerTasks.cs).
             BuildPowerTasks(item);
+            // v0.6.22: the saved accounts the automatic switch moves between, and their buttons (AdvancedAccounts.cs).
+            BuildAccounts(item);
 
             // Its own choices, the rules a person writes for Codex's error codes and the samples of what nothing classified,
             // each only for a capability that has them - the last two once they have been read.
@@ -1581,6 +1601,8 @@ namespace CodexAutoResume
             string said = null;
             if (reason == "measurement_failed")
                 said = Word("page.tripped.measurement_failed", "It turned itself off because a measurement of what it relies on failed.");
+            else if (reason == "auto_check_failed")
+                said = Word("page.tripped.auto_check_failed", "It turned itself off because an automatic check found that this version of Codex no longer offers a call it makes.");
             else if (reason == "failed_here")
                 said = Word("page.tripped.failed_here", "It turned itself off because a compatibility check of what it relies on failed on this computer.");
             else if (reason == "incompatible")
@@ -1647,6 +1669,7 @@ namespace CodexAutoResume
             UpdateQueueButtons(idle);
             UpdateAccountButtons(idle);
             UpdatePowerTasksButtons(idle);
+            UpdateAccountsButtons(idle);
             UpdateReportButtons();
         }
 
@@ -1906,11 +1929,33 @@ namespace CodexAutoResume
             return text.ToString();
         }
 
+        /// What a capability's statement says of how it stands on this Codex, in the words that keep "measured by a person"
+        /// and "checked automatically" apart (autocheck.grade), or null for a grade with no line of its own: its warnings
+        /// say it.
+        private string CheckLine(Dictionary<string, object> statement)
+        {
+            Dictionary<string, object> check = Map(statement, "check");
+            string grade = Str(check, "grade"), version = Str(check, "version");
+            if (grade == "measured")
+                return Word("page.check.measured", "Compatible: measured by a person on this Codex.");
+            if (grade == "auto_checked" && version != null)
+                return Word("page.check.auto_checked", "Compatible: checked automatically on this Codex, which still offers every call it makes. The check cannot see how Codex behaves; a person last measured that on {version}.", "version", version);
+            if (grade == "auto_checked")
+                return Word("page.check.auto_checked_whole", "Compatible: checked automatically on this Codex. That check covers everything its measurement asks, so no person needed to measure it.");
+            if (grade == "offered_only")
+                return Word("page.check.offered_only", "An automatic check found that this Codex still offers the calls it makes. That cannot show what it relies on, so it still needs measuring by a person.");
+            if (grade == "failed_still_offered")
+                return Word("page.check.failed_still_offered", "An automatic check found that this Codex still offers the calls it makes. That does not undo the failed measurement: only a person measuring it again can.");
+            return null;
+        }
+
         /// A statement as the dialog shows it: every warning, with its title and the note under them; for "on", the
         /// Codex version it is for; and its five fields.
         private void AppendStatement(StringBuilder text, string state, Dictionary<string, object> statement)
         {
             string gap = Environment.NewLine + Environment.NewLine;
+            string checkLine = CheckLine(statement);
+            if (checkLine != null) text.Append(gap).Append(checkLine);
             Dictionary<string, object> warnings = Map(statement, "warnings");
             List<object> said = Items(warnings, "items");
             if (said != null && said.Count > 0)
@@ -2083,9 +2128,15 @@ namespace CodexAutoResume
             if (advancedScript != null)
             {
                 Dictionary<string, object> scripted = AdvancedScripted(command, argument);
-                if (Str(scripted, "error_code") == PersistentBridge.ReconnectingCode) AdvancedReconnecting(action, done, scripted);
-                else done(scripted);
-                UpdateAdvancedButtons();
+                MethodInvoker answer = delegate
+                {
+                    if (Str(scripted, "error_code") == PersistentBridge.ReconnectingCode) AdvancedReconnecting(action, done, scripted);
+                    else done(scripted);
+                    UpdateAdvancedButtons();
+                };
+                // A test's answers held, as a slow bridge holds them, until the test lets them go (AdvancedPageRun "hold").
+                if (advancedHolding) advancedHeld.Add(answer);
+                else answer();
                 return;
             }
             if (auditing) return;

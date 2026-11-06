@@ -53,7 +53,7 @@ lane (`lanes`). One file can take one lane far longer than another: tests/test_n
 1305 s in the advanced lane, with the advanced package beside core, and 841 s in the standard one; dealt
 by one table for every lane, the advanced lane's four parts took 21 to 41 minutes on GitHub's runners.
 So a lane deals its files by its own table; a file its table lacks, by the figure for every lane
-(`seconds`); a file with neither, round-robin after the measured ones. The same files, count and tables
+(`seconds`); a file with neither, as if it took the median of the lane's measured files. The same files, count and tables
 always give the same deal. `--record-durations` writes the run it ends into its lane's table, keeping
 that table's other files and the other lanes'; a file the figures for every lane lack takes this run's
 figure there too, so the other lanes deal it by a measurement; a file that is gone is dropped everywhere.
@@ -179,21 +179,24 @@ def load_durations(lane: str | None = None, path: Path | None = None) -> dict:
 
 
 def deal(files: list[str], count: int, seconds: dict) -> list[list[str]]:
-    """`files` in `count` parts: the measured ones longest first, each to the part with the least so far
-    (the lowest-numbered on a tie), then the unmeasured ones round-robin in name order. Deterministic: the
-    same files, count and durations always give the same parts. Each part keeps the lane's order."""
+    """`files` in `count` parts: longest first, each to the part with the least so far (the lowest-numbered
+    on a tie). A file `seconds` lacks counts as the median of the measured ones (one second if none is), so
+    a new file goes to a light part rather than to part 1 by its name. Equal figures go in name order.
+    Deterministic: the same files, count and durations always give the same parts. Each part keeps the
+    lane's order."""
     if count < 1:
         raise Refused("a suite in %d parts is no suite" % count)
     if count > len(files):
         raise Refused("%d parts of %d files would leave a part with nothing to run" % (count, len(files)))
     parts = [[] for _ in range(count)]
     load = [0.0] * count
-    for name in sorted((f for f in files if f in seconds), key=lambda f: (-seconds[f], f)):
+    measured = [seconds[f] for f in files if f in seconds]
+    estimate = statistics.median(measured) if measured else 1.0
+    weight = {name: seconds.get(name, estimate) for name in files}
+    for name in sorted(files, key=lambda f: (-weight[f], f)):
         smallest = min(range(count), key=lambda index: (load[index], index))
         parts[smallest].append(name)
-        load[smallest] += seconds[name]
-    for index, name in enumerate(sorted(f for f in files if f not in seconds)):
-        parts[index % count].append(name)
+        load[smallest] += weight[name]
     order = {name: index for index, name in enumerate(files)}
     return [sorted(part, key=order.__getitem__) for part in parts]
 

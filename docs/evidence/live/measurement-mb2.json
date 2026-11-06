@@ -1,0 +1,15 @@
+{
+  "format": "codex-auto-resume-measurement/1",
+  "step": "mb2",
+  "verdict": "fail",
+  "recorded_at": "2026-11-05T21:27Z",
+  "product_version": "0.6.21",
+  "codex_version": "codex-cli 0.166.0-alpha.6",
+  "windows_build": "10.0.26300",
+  "observed": {
+    "refused_method": "thread/resume",
+    "refusal_code": -32600,
+    "thread_given": true
+  },
+  "note": "Codex refused a call this measurement needs"
+}

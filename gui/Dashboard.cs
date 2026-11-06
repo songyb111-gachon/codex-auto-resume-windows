@@ -147,8 +147,12 @@ namespace CodexAutoResume
                         if (closed) throw;
                     }
                 }
-                return once.Call(command, argument);
             }
+            // v0.6.23: the one-shot answer past the lock. It can take up to Bridge.CallMilliseconds, and held under the
+            // lock it held every other read of the window - the Dashboard's, the chat's, the previews' - behind it, up to
+            // about 92 s after a pipe that hung (the long-lived reply limit, the 2 s stop, then the one-shot limit). The
+            // one-shot bridge needs no lock: each call is a process of its own (CallOnce never took it).
+            return once.Call(command, argument);
         }
 
         /// v0.6.19: the code of the answer CallAdvanced gives while the long-lived process cannot be reached.
@@ -906,7 +910,7 @@ namespace CodexAutoResume
         // Codex compatibility (v0.6.5; BuildCompatibility): its facts, what the view cannot vouch for - a callout each,
         // since v0.6.10 - the parts in two lists, what each state word means, and the refresh with what it last answered.
         // What others report of the Codex version (v0.6.10) is one muted fact under it, compatReported.
-        private Label compatOverall, compatEngine, compatReported, compatChecked, compatData, compatLegend;
+        private Label compatOverall, compatEngine, compatReported, compatServer, compatChecked, compatData, compatLegend;
         private TableLayoutPanel compatNotice;
         private GateList compatLeft, compatRight;
         private Control compatLists;

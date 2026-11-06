@@ -53,17 +53,7 @@ def cmd_install(args) -> int:
             # Prefer the settings window: the Start Menu entry should open something a
             # person can use, not a headless command. It also carries the AUMID that
             # makes Windows display our notifications at all.
-            window = app.paths.home / "CodexAutoResumeSettings.exe"
-            if window.is_file():
-                shortcut.install(target=window, icon=icon,
-                                 description="Codex Auto Resume Settings")
-            else:
-                launcher = app.paths.home / "watcher-launcher.py"
-                target = launcher if launcher.is_file() else app.paths.entry_script
-                arguments = " ".join(startup.quote_argument(argument) for argument in
-                                     (*startup.NO_REMOTE_DEBUG, str(target), "--home", str(app.paths.home), "status"))
-                shortcut.install(target=startup.python_launcher(), arguments=arguments,
-                                 icon=icon, description="Codex Auto Resume")
+            shortcut.install(**_what_the_entry_opens(app.paths))
             _print("notification sender   : %s" % startup.AUMID_DISPLAY_NAME)
             _print("start menu entry      : %s" % shortcut.shortcut_path().name)
         except (startup.StartupError, shortcut.ShortcutError) as exc:
@@ -80,6 +70,29 @@ def cmd_install(args) -> int:
         _print("notification action   : notifications are disabled in settings")
     _print("auto-resume is %s; use `enable` then `run`." % ("enabled" if enabled else "disabled"))
     return EXIT_OK
+
+
+def _what_the_entry_opens(paths) -> dict:
+    """What the Start Menu entry, and a shortcut on the Desktop, open and look like."""
+    icon = paths.icon_file if paths.icon_file.is_file() else None
+    window = paths.home / "CodexAutoResumeSettings.exe"
+    if window.is_file():
+        return {"target": window, "icon": icon, "description": "Codex Auto Resume Settings"}
+    launcher = paths.home / "watcher-launcher.py"
+    target = launcher if launcher.is_file() else paths.entry_script
+    arguments = " ".join(startup.quote_argument(argument) for argument in
+                         (*startup.NO_REMOTE_DEBUG, str(target), "--home", str(paths.home), "status"))
+    return {"target": startup.python_launcher(), "arguments": arguments, "icon": icon,
+            "description": "Codex Auto Resume"}
+
+
+def make_desktop_shortcut(paths) -> None:
+    """This installation's shortcut on the Desktop: what the setup window's box, or -DesktopShortcut, asked for."""
+    try:
+        opens = _what_the_entry_opens(paths)
+    except startup.StartupError as exc:
+        raise shortcut.ShortcutError(str(exc)) from None
+    shortcut.install_desktop(paths.home, **opens)
 
 
 def _edition_changed(app, previous: Edition) -> None:
@@ -199,6 +212,12 @@ def cmd_uninstall(args) -> int:
             _print("warning: %s" % exc)
         if shortcut.uninstall():
             removed.append("start menu entry")
+    # Not a per-user singleton, so not the check above: whose it is is read from the shortcut itself.
+    try:
+        if shortcut.uninstall_desktop(paths.home):
+            removed.append("desktop shortcut")
+    except shortcut.ShortcutError as exc:
+        _print("warning: %s" % exc)
     try:
         registered = startup.protocol_value()
         if registered and startup.belongs_to(registered, paths.home):
@@ -234,7 +253,9 @@ def cmd_uninstall(args) -> int:
                   + ([] if keep_state else edition_state + [paths.state_dir]))
     owned_dirs = [d for d in considered if paths.owns(d)]
     skipped = [d for d in considered if d.is_dir() and not paths.owns(d)]
-    targets = ([] if keep_state else list(paths.owned_state_files()))
+    targets = ([] if keep_state else list(paths.owned_state_files()) + paths.owned_account_files())
+    # v0.6.22: the advanced edition's saved sign-ins go with the settings, deepest folder first (config.owned_account_dirs).
+    owned_dirs = ([] if keep_state else paths.owned_account_dirs()) + owned_dirs
     if not args.keep_logs:
         targets += list(paths.owned_log_files())
     for path in targets:

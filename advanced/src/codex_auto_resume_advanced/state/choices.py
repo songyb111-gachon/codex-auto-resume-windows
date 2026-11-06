@@ -53,7 +53,10 @@ STAMPS = {"idle_update_check": (str(OptionKey.LAST_CHECK), str(OptionKey.OFFERED
                             str(OptionKey.ANCHOR_RESET_DONE), str(OptionKey.ANCHOR_INPUT_TOKENS),
                             str(OptionKey.ANCHOR_OUTPUT_TOKENS), str(OptionKey.ANCHOR_ACCOUNT_AT)),
           # v0.6.20 (the pair audit, V20-2): when account_switch last saw another account signed in (engine/account.py).
-          "account_switch": (str(OptionKey.ACCOUNT_CHANGED_AT),)}
+          "account_switch": (str(OptionKey.ACCOUNT_CHANGED_AT),),
+          # v0.6.22: when account_auto_switch last switched, and its switches today (engine/autoswitch.py).
+          "account_auto_switch": (str(OptionKey.AUTO_SWITCHED_AT), str(OptionKey.AUTO_SWITCH_DAY),
+                                  str(OptionKey.AUTO_SWITCH_COUNT))}
 RULES_LIMIT = 10
 STATUS_RANGE = (100, 599)
 # How far back the Dashboard counts a rule's hits and shows samples.
@@ -221,6 +224,12 @@ class Scoped:
             # v0.6.20 (the pair audit, V20-2): another capability's stamp read, never written - as `options_of` reads its
             # choices (window_anchor reads when account_switch saw another account).
             "stamped_of": lambda other, key: state.stamped(other, key),
+            # v0.6.22: how many times one of its own codes was counted since a time (JournalMixin.counted_since) - the
+            # starts window_anchor's ceiling bounds in any 24 hours.
+            "counted_since": lambda code, since: state.counted_since(capability, code, since),
+            # and whether its own stored state is on now, read afresh - not the runtime's view, refreshed at a tick (the
+            # wake timer's watch takes the timer back within its quarter of a minute of a turn-off: seatA:B-M5).
+            "stored_on": lambda: (state.arming().get(capability) or {}).get("state") == "armed",
         }
         # v0.6.14, the reset actions: their rules, windows and spends (state/resets.ResetsHandle - writes only while
         # on), whether a measurement passed or failed on the Codex in force (arming.Arming.verdict), and whether

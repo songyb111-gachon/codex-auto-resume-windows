@@ -196,7 +196,7 @@ class PlugRecordsMixin:
             return self._record_told(record, move, gate, reason)
         app = self.backend.app_identity()
         if not app:
-            return self._record_waits(record, "thread_available", "desktop_app_unavailable")
+            return self._record_waits(record, "thread_available", self._no_app_reason())
         loaded = self.backend.loaded(thread, app)
         if loaded != "loaded":
             return self._record_waits(record, "thread_available",
