@@ -42,6 +42,16 @@ class SettingsMixin:
     def get_settings(self) -> dict:
         return managed.clamp(settings.load(self.settings_path()), self.managed())
 
+    def stored_settings(self) -> dict:
+        """v0.6.23: the stored settings an edit builds a whole list or table on, read as a save keeps them
+        (settings.kept) - never the defaults `get_settings` shows for a file a sync tool or an antivirus holds just
+        now: an edit merged into those saved them over the person's own (every other conversation's message, the
+        Always and Never lists, the folders set aside). Such a read is refused, as the save itself is: try again."""
+        try:
+            return managed.clamp(settings.kept(self.settings_path()), self.managed())
+        except settings.SettingsError as exc:
+            raise ControlError(str(exc), code="request_failed") from None
+
     def update_settings(self, changes: dict) -> dict:
         held = self.managed()
         try:
@@ -49,7 +59,7 @@ class SettingsMixin:
                 # Checked as ever first, so a wrong value is refused in the validator's own words;
                 # then a setting a key decides keeps what the key says (managed.admit).
                 settings.validate_update(changes)
-                effective = managed.clamp(settings.load(self.settings_path()), held)
+                effective = managed.clamp(settings.kept(self.settings_path()), held)
                 changes, refused = managed.admit(changes, effective, held)
                 if refused is not None:
                     raise ControlError("%s is set by your administrator" % refused, code="managed_by_policy")
@@ -91,7 +101,7 @@ class SettingsMixin:
         person's behalf, when nobody is watching (A27). Nothing is sent now."""
         thread = _thread_id(thread_id)
         field = settings.CONVERSATION_MESSAGES
-        held = dict(self.get_settings().get(field) or {})
+        held = dict(self.stored_settings().get(field) or {})
         if text is None or (isinstance(text, str) and not text.strip()):
             held.pop(thread, None)
         else:
@@ -123,7 +133,7 @@ class SettingsMixin:
         self.plug
         written = changes[notice_kinds.FIELD]
         listed = set(notice_kinds.ids())
-        stored = notice_kinds.coerce(settings.load(self.settings_path()).get(notice_kinds.FIELD), [])
+        stored = notice_kinds.coerce(settings.kept(self.settings_path()).get(notice_kinds.FIELD), [])
         kept = [kind for kind in stored if kind not in listed and kind not in written]
         return dict(changes, **{notice_kinds.FIELD: written + kept}) if kept else changes
 
@@ -151,7 +161,7 @@ class SettingsMixin:
         """v0.6.18: Not now - `path` is never offered again (homefind.DISMISSED) - and what is offered next."""
         if not isinstance(path, str) or not path.strip():
             raise ControlError("name the folder to set aside", code="request_failed")
-        stored = settings.load(self.settings_path()).get(homefind.DISMISSED)
+        stored = self.stored_settings().get(homefind.DISMISSED)
         self.update_settings({homefind.DISMISSED: homefind.dismissed_with(stored, path.strip())})
         return self.home_suggestion()
 
