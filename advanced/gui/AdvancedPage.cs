@@ -2128,9 +2128,15 @@ namespace CodexAutoResume
             if (advancedScript != null)
             {
                 Dictionary<string, object> scripted = AdvancedScripted(command, argument);
-                if (Str(scripted, "error_code") == PersistentBridge.ReconnectingCode) AdvancedReconnecting(action, done, scripted);
-                else done(scripted);
-                UpdateAdvancedButtons();
+                MethodInvoker answer = delegate
+                {
+                    if (Str(scripted, "error_code") == PersistentBridge.ReconnectingCode) AdvancedReconnecting(action, done, scripted);
+                    else done(scripted);
+                    UpdateAdvancedButtons();
+                };
+                // A test's answers held, as a slow bridge holds them, until the test lets them go (AdvancedPageRun "hold").
+                if (advancedHolding) advancedHeld.Add(answer);
+                else answer();
                 return;
             }
             if (auditing) return;

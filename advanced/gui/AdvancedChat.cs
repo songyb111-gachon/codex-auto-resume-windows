@@ -38,10 +38,14 @@ namespace CodexAutoResume
         private NavButton chatTab;
         private SoftCombo chatConversation;
         private SoftTextArea chatWords;
+        // The box taken out of the card being built again, for the new card to take (FillChatPage, BuildChat).
+        private SoftTextArea chatWordsKept;
         private Button chatSend, chatCancel;
         private string chatThread, chatDraft = "";
         // advanced-chat-read's last answer for chatThread, or null.
         private Dictionary<string, object> chatView;
+        // Whether an advanced-chat-read is on its way (ReadChat), so the two-second read never queues a second.
+        private bool chatReading;
         private Timer chatTimer;
         private SoftCombo chatClick;
         // The Chat page, its column of cards as the Advanced features page has one, and what they were last built from.
@@ -240,6 +244,23 @@ namespace CodexAutoResume
             }
             chatPageShown = forced == null ? shown : null;
             bool typing = chatWords != null && chatWords.ContainsFocus;
+            // v0.6.23: the box the message is written in is kept across the rebuild, not made again: a new box's caret is
+            // at its start, so while a turn ran every changed read moved what the person typed next to the front. Taken
+            // out before the old cards go, and put in the new card by BuildChat with its caret, choice and scroll as
+            // they were; the page's own scroll is held too.
+            // (chatWordsKept: a read answered at once inside BuildChat builds the page again before the box is placed.)
+            SoftTextArea keeping = chatWords ?? chatWordsKept;
+            int caret = 0, chosen = 0;
+            string written = null;
+            if (keeping != null)
+            {
+                caret = keeping.Box.SelectionStart;
+                chosen = keeping.Box.SelectionLength;
+                written = keeping.Box.Text;
+                if (keeping.Parent != null) keeping.Parent.Controls.Remove(keeping);
+            }
+            chatWordsKept = keeping;
+            int scrolled = chatScroll == null ? 0 : chatScroll.Offset;
             chatStack.SuspendLayout();
             var old = new List<Control>();
             foreach (Control control in chatStack.Controls) old.Add(control);
@@ -257,8 +278,16 @@ namespace CodexAutoResume
                 chatSend = chatCancel = null;
             }
             else BuildChat(item, chatStack);
+            // Not taken by the new card (chat off, no conversation): it goes with the old ones.
+            if (chatWordsKept != null) chatWordsKept.Dispose();
+            else if (keeping != null && chatWords == keeping && keeping.Box.Text == written) keeping.Box.Select(caret, chosen);
+            chatWordsKept = null;
             chatStack.ResumeLayout(true);
-            if (chatScroll != null) chatScroll.PerformLayout();
+            if (chatScroll != null)
+            {
+                chatScroll.PerformLayout();
+                chatScroll.ScrollTo(scrolled, false);
+            }
             if (typing && chatWords != null && chatWords.Box.CanFocus) chatWords.Box.Focus();
         }
 
@@ -359,21 +388,39 @@ namespace CodexAutoResume
                 card.Controls.Add(said);
             }
             string words = Word("page.chat.words", "Message");
-            chatWords = new SoftTextArea();
-            chatWords.Font = Font;
-            chatWords.Box.Font = Font;
-            chatWords.Box.MaxLength = Math.Max(1, Whole(Get(chatView, "words_limit")));
-            chatWords.Box.AccessibleName = words;
-            chatWords.Height = Px(72);
-            chatWords.Dock = DockStyle.Fill;
-            chatWords.Margin = Pad(0, 4, 0, 2);
-            chatWords.Box.Text = chatDraft;
-            SoftTextArea box = chatWords;
-            box.Box.TextChanged += delegate
+            if (chatWordsKept != null)
             {
-                chatDraft = box.Box.Text;
-                UpdateChatButtons(busy == 0);
-            };
+                // The box of the card before, as the person left it (FillChatPage); its words changed only by a send. Its
+                // looks as a new one's would be (each set to what it holds already changes nothing).
+                chatWords = chatWordsKept;
+                chatWordsKept = null;
+                chatWords.Font = Font;
+                chatWords.Height = Px(72);
+                chatWords.Margin = Pad(0, 4, 0, 2);
+                TextBox kept = chatWords.Box;
+                kept.Font = Font;
+                kept.MaxLength = Math.Max(1, Whole(Get(chatView, "words_limit")));
+                kept.AccessibleName = words;
+                if (kept.Text != chatDraft) kept.Text = chatDraft;
+            }
+            else
+            {
+                chatWords = new SoftTextArea();
+                chatWords.Font = Font;
+                chatWords.Box.Font = Font;
+                chatWords.Box.MaxLength = Math.Max(1, Whole(Get(chatView, "words_limit")));
+                chatWords.Box.AccessibleName = words;
+                chatWords.Height = Px(72);
+                chatWords.Dock = DockStyle.Fill;
+                chatWords.Margin = Pad(0, 4, 0, 2);
+                chatWords.Box.Text = chatDraft;
+                SoftTextArea box = chatWords;
+                box.Box.TextChanged += delegate
+                {
+                    chatDraft = box.Box.Text;
+                    UpdateChatButtons(busy == 0);
+                };
+            }
             card.Controls.Add(Caption(words));
             card.Controls.Add(chatWords);
             chatSend = CardButton(card, Word("page.chat.send", "Send..."), delegate { SendChat(); });
@@ -496,14 +543,28 @@ namespace CodexAutoResume
 
         private void ReadChat()
         {
-            if (chatThread == null) return;
+            // v0.6.23: one read at a time, as the log dialog's and the accounts card's are: behind a slow bridge every
+            // two-second tick queued another, and when it freed they all answered and each built the card again. The
+            // window audit's AdvancedCall answers nothing, so it sets no flag.
+            if (chatThread == null || chatReading || (auditing && advancedScript == null)) return;
+            chatReading = true;
             string thread = chatThread;
             AdvancedCall("advanced-chat-read", "{\"thread_id\":" + Json.Escape(thread) + "}", false,
                 delegate(Dictionary<string, object> reply)
                 {
-                    if (thread != chatThread) return;
+                    chatReading = false;
+                    // Another conversation picked while this one was read: that one is read now.
+                    if (thread != chatThread)
+                    {
+                        ReadChat();
+                        return;
+                    }
                     Dictionary<string, object> result = AdvancedResult(reply);
-                    chatView = AdvancedDone(result) ? result : null;
+                    // v0.6.23: a read that got no answer - a timeout, the long-lived bridge being reconnected - keeps the
+                    // last view, and with it the two-second read while a message was last seen waiting or on its way: one
+                    // failed read used to blank the card and stop the read for good (ChatGoingOn of no view is false).
+                    // An answer that refuses (not done) still empties it.
+                    if (result != null || chatView == null) chatView = AdvancedDone(result) ? result : null;
                     FillChatPage(null);
                     UpdateCountdowns();
                 });

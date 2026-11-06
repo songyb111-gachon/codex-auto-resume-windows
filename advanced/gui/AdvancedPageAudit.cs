@@ -41,6 +41,9 @@ namespace CodexAutoResume
         private readonly List<string> advancedSent = new List<string>();
         private readonly List<string> advancedAsked = new List<string>();
         private readonly List<string> advancedTold = new List<string>();
+        // v0.6.23: while a test holds the replies ("hold"), the answers of the requests made, in order, until it lets go.
+        private bool advancedHolding;
+        private readonly List<MethodInvoker> advancedHeld = new List<MethodInvoker>();
 
         /// The test's reply to one request of the page's, and the request written down as "<command> <argument>".
         private Dictionary<string, object> AdvancedScripted(string command, string argument)
@@ -725,6 +728,10 @@ namespace CodexAutoResume
         ///   {"do": "answer", "with": [...]}                   what the person answers the next questions
         ///   {"do": "busy", "on": bool}                        another action under way, or over (SetBusy), as a request
         ///                                                     in flight holds the page
+        ///   {"do": "hold", "on": bool}                        the bridge's answers held from now on, as a slow bridge holds
+        ///                                                     them - or let go, each request's answer in turn (v0.6.23)
+        ///   {"do": "chat_type", "text": ..., "caret": n,      the chat's box written in, its caret at n with `selected`
+        ///    "selected": n}                                   characters chosen after it, as a person leaves it (v0.6.23)
         ///   {"do": "courier", "button": "save ntfy"}          a courier card's button pressed, if it can be (v0.6.20)
         ///   {"do": "courier_type", "into": "ntfy.url",       one of the courier card's boxes filled
         ///    "text": ...}
@@ -1103,6 +1110,28 @@ namespace CodexAutoResume
                         }
                         record["saved"] = (double)form.editorSaved;
                         dialogs.Add(record);
+                    }
+                    else if (what == "hold")
+                    {
+                        form.advancedHolding = Equals(Get(step, "on"), true);
+                        if (!form.advancedHolding)
+                        {
+                            var held = new List<MethodInvoker>(form.advancedHeld);
+                            form.advancedHeld.Clear();
+                            foreach (MethodInvoker answer in held) answer();
+                        }
+                    }
+                    else if (what == "chat_type")
+                    {
+                        if (form.chatWords == null) disabled.Add("chat_type");
+                        else
+                        {
+                            TextBox box = form.chatWords.Box;
+                            // A box with no window of its own keeps no caret: given one first, as showing it would.
+                            IntPtr made = box.Handle;
+                            box.Text = Str(step, "text") ?? "";
+                            box.Select(Whole(Get(step, "caret")), Whole(Get(step, "selected")));
+                        }
                     }
                     else if (what == "busy")
                     {
@@ -1693,6 +1722,13 @@ namespace CodexAutoResume
             chat["on_advanced"] = chatConversation != null && advancedPage != null && Within(chatConversation, advancedPage);
             chat["link"] = chatOpen != null && Within(chatOpen, advancedPage);
             chat["thread"] = chatThread;
+            // v0.6.23: whether the two-second read goes on, whether a view of the conversation is held, and the box
+            // the message is written in - its words, its caret and what is chosen after it.
+            chat["polling"] = chatTimer != null && chatTimer.Enabled;
+            chat["viewed"] = chatView != null;
+            chat["words"] = chatWords == null ? null : chatWords.Box.Text;
+            chat["caret"] = chatWords == null ? 0.0 : (double)chatWords.Box.SelectionStart;
+            chat["selected"] = chatWords == null ? 0.0 : (double)chatWords.Box.SelectionLength;
             // v0.6.20: the Dashboard header's light and headline - busy ("checking") while a message waits or is on its way.
             chat["light"] = stateDot.State;
             chat["headline"] = headline.Text;
