@@ -141,9 +141,10 @@ class NowhereElseTests(unittest.TestCase):
 
     def test_only_the_courier_and_the_account_switch_call_the_seam(self):
         """The capabilities with secrets: push_notices (v0.6.20, the courier) - only what it keeps (courier/keep.py) and its
-        card's bridge commands (control/courier.py) name the seam - and account_switch's salt (engine/account.py); nothing
-        else does."""
-        users = {"courier/keep.py", "control/courier.py", "engine/account.py"}
+        card's bridge commands (control/courier.py) name the seam - and account_switch's salt (engine/account.py) - and,
+        from v0.6.22, local_api's token: the card's commands (control/remote.py) and the server that compares it
+        (courier/api.py). Telegram's commands use the notices' own, through courier/keep.py. Nothing else does."""
+        users = {"courier/keep.py", "control/courier.py", "engine/account.py", "control/remote.py", "courier/api.py"}
         for path in sorted(PACKAGE.rglob("*.py")):
             if path.name == "credentials.py" or path.relative_to(PACKAGE).as_posix() in users:
                 continue
