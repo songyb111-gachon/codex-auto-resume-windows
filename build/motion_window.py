@@ -128,15 +128,27 @@ def answers(locale: str, stored: dict | None = None, paused: bool = False) -> li
     return out
 
 
-def frame_state(frame: motion_plan.Frame, index: int, light_step: int = 0) -> dict:
+def frame_state(frame: motion_plan.Frame, index: int, light_step: int = 0, clock_step: int = 0) -> dict:
     """What the render mode is told for one frame: its window state and the moment of its lights - the last tick of
     the light's own timer (`light_step` ms, HaloDot's) at or before the frame, as on a screen: a frame the pointer or a
     glide draws between two ticks shows the light as the last tick left it, and does not move it. Without a step the
-    light is at the frame's own moment."""
+    light is at the frame's own moment. With `clock_step` (the plan's `clock_step_ms`), also `clock`: how far, in ms,
+    the window's own clock has gone on from the pinned moment (motion_plan.clock_at), which every countdown and age it
+    shows is read at (WindowRender.RenderClock)."""
     state = motion_plan.thawed(frame.window)
     state["index"] = index
     state["light"] = (frame.t // light_step) * light_step if light_step else frame.t
+    if clock_step:
+        state["clock"] = motion_plan.clock_at(frame.t, clock_step)
     return state
+
+
+def shown_now(state: dict) -> float:
+    """The moment, in seconds since 1970, the window reads a frame's countdowns and ages at: the pinned moment its
+    answers were seeded at (make_screenshots.ENVELOPE_NOW, CODEX_AR_STILL_NOW) and the frame's `clock` past it
+    (DashboardData.Now in the render mode)."""
+    import make_screenshots
+    return make_screenshots.ENVELOPE_NOW + state.get("clock", 0) / 1000.0
 
 
 def chrome(plan: dict) -> dict:
@@ -166,7 +178,7 @@ def job(plan: dict, frames: list, out: Path, forms: dict | None = None) -> dict:
     return {"out": str(out), "theme": canvas.get("theme", "light"), "design": canvas.get("design", "soft"),
             "scale": make_screenshots.PINNED_SCALE,
             "forms": forms, "targets": targets, "outer": list(canvas.get("size") or []), "chrome": chrome(plan),
-            "frames": [frame_state(frame, index, int(plan.get("light_step_ms") or 0))
+            "frames": [frame_state(frame, index, int(plan.get("light_step_ms") or 0), int(plan.get("clock_step_ms") or 0))
                        for index, frame in enumerate(frames)]}
 
 

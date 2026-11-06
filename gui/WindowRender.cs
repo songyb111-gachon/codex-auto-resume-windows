@@ -312,10 +312,33 @@ namespace CodexAutoResume
         private int renderCombo = -1;
         private string renderComboField;
 
+        /// v0.6.22: how far the window's clock has gone on from the moment it is told it is (Soft.StillNow), in seconds:
+        /// the frame's `clock` (build/motion_window.frame_state - the last tick of the window's own one-second clock at
+        /// or before the frame's moment on the picture's clock, build/motion_plan.clock_at). Every countdown and age the
+        /// window works out from now (Now) is read that much later, so they move on as the picture plays; a frame without
+        /// one, and every window a person opens, is at the pinned moment itself. Set only here.
+        private static double renderClock;
+
+        /// The window's clock at the frame's moment (renderClock), and every time it shows said again at it, as its own
+        /// clock and refresh say them (ApplySnapshot: Right now's Last check, the waiting line's usage age, Why it is
+        /// waiting's Last checked, the countdowns) - so what a frame shows is that moment's, whenever the window's own
+        /// timer happened to tick while it was drawn.
+        private void RenderClock(Dictionary<string, object> frame)
+        {
+            object given;
+            double clock = frame.TryGetValue("clock", out given) && given != null
+                ? Convert.ToDouble(given, CultureInfo.InvariantCulture) / 1000.0 : 0;
+            if (clock == renderClock) return;
+            renderClock = clock;
+            if (snapshot != null) ApplySnapshot(snapshot);
+        }
+
         /// Puts the window in a frame's state, and waits for it to hold still when that took a read or a layout.
         private void RenderState(Dictionary<string, object> frame, RenderWriter writer)
         {
             bool moved = false;
+            // The clock first: a page shown below writes its countdowns at it (ShowPage).
+            RenderClock(frame);
             string page = Str(frame, "page") ?? "overview";
             if (currentPage != page && Array.IndexOf(PageOrder, page) >= 0)
             {
