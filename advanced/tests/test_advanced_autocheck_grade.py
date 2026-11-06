@@ -181,7 +181,9 @@ class ShippedTests(unittest.TestCase):
         self.assertEqual(warned, {"headless_run", "model_fallback", "reset_credit", "reset_message", "usage_meter",
                                   "marker_free_continuation", "goal_continuation", "compact_continue",
                                   "silent_continuation", "codex_chat", "account_switch", "window_anchor", "usage_pause",
-                                  "usage_analytics"})
+                                  "usage_analytics",
+                                  # 2026-11-06: offered since MPROFILE and MSWAP passed; its rows read account/read.
+                                  "account_auto_switch"})
 
     def test_what_stays_unmeasured_or_failed_says_so(self):
         graded = self.grade_all(self.every_row_passes())
@@ -360,13 +362,16 @@ class NeverAMeasurementTests(RecordCase):
         return made.arming
 
     def test_it_never_lets_a_hidden_capability_out(self):
-        """Three of the four hidden capabilities rest only on rows the check passes or on no record at all, so an automatic
-        pass in any table handed to registry.offered, or read by it, would let them out."""
+        """The hidden capabilities rest only on rows the check passes or on no record at all, so an automatic pass in any
+        table handed to registry.offered, or read by it, would let them out. 2026-11-06: MPROFILE and MSWAP passed by
+        hand, so the automatic account switch is offered by this build's table, not by the check; two stay hidden."""
         self.every_row_passes()
         table = self.real_arming().measured(self.compat)
         self.assertEqual({definition.id for definition in registry.offered(table)},
                          {definition.id for definition in registry.offered(MEASURED)})
-        hidden = {"codex_retry_settings", "account_auto_switch", "stop_hook_continuation"}
+        hidden = {"codex_retry_settings", "stop_hook_continuation"}
+        self.assertEqual({definition.id for definition, _measurement in registry.WAITING}
+                         - {definition.id for definition in registry.offered(MEASURED)}, hidden)
         self.assertFalse(hidden & {definition.id for definition in registry.offered(table)})
         with mock.patch.object(autocheck, "results_for", side_effect=AssertionError("the registry read the check")):
             self.assertEqual({definition.id for definition in registry._registry()},

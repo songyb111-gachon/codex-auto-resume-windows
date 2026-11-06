@@ -979,10 +979,10 @@ class BoundTests(StateCase):
 
     def test_the_watch_bound_sits_inside_the_journal_s(self):
         from codex_auto_resume_advanced import registry
-        self.assertEqual(WATCH_LIMIT, 115, "250 until v0.6.15-beta, 200 until v0.6.16-beta.3 (25), 180 until beta.4 (30), "
+        self.assertEqual(WATCH_LIMIT, 110, "250 until v0.6.15-beta, 200 until v0.6.16-beta.3 (25), 180 until beta.4 (30), "
                          "150 until v0.6.19 (34), 140 until v0.6.20 (35), 130 for its 38 (the courier's two, usage_analytics), "
                          "120 from the window anchor (39; the account switch 40, the steer 41), 115 from open_to_send offered "
-                         "(42 in the registry; 43 fit)")
+                         "(42 in the registry; 43 fit), 110 from account_auto_switch offered (44; 45 fit)")
         # Every capability watched at once, each at its bound, still fits inside the journal's - every one the edition
         # runs, those offered after a measurement passed among them.
         self.assertLess(len(registry.REGISTRY) * WATCH_LIMIT, EVENT_LIMIT)
