@@ -29,7 +29,7 @@ from codex_auto_resume_advanced.vocabulary import AutoResult, CheckReach, Measur
 
 SCHEMA = json.loads((Path(__file__).resolve().parent / "data" / "autocheck_schema.json").read_text(encoding="utf-8"))
 VERSION = "codex-cli 0.199.0"                 # a Codex no one has measured, whatever this build's table holds
-SECRET = "PRIVATE-WORDS-5c1e"
+PRIVATE = "PRIVATE-WORDS-5c1e"
 PASSING = {"official": True, "engine_accepted": True, "version": VERSION, "schema_answered": True,
            "experimental_taken": True, "schema_written": True, "schema_whole": True, "features_answered": True,
            "options_without_flag": None, "flag_without_options": None, "scratch_home_files": 0,
@@ -57,8 +57,8 @@ class Engine:
                 (Path(argv[argv.index("--out") + 1]) / autocheck.SCHEMA_FILE).write_text(json.dumps(SCHEMA), encoding="utf-8")
         elif "features" in argv:
             code = 0 if self.features else 1
-            printed = "plugin_hooks removed false " + SECRET + "\n"
-        return subprocess.CompletedProcess(argv, code, printed, SECRET)
+            printed = "plugin_hooks removed false " + PRIVATE + "\n"
+        return subprocess.CompletedProcess(argv, code, printed, PRIVATE)
 
 
 def accepted(backend):
@@ -132,7 +132,7 @@ class ProbeEngineTests(unittest.TestCase):
 
     def test_it_carries_no_path_or_word_of_codex(self):
         text = json.dumps(self.probe(Engine()))
-        self.assertNotIn(SECRET, text)
+        self.assertNotIn(PRIVATE, text)
         self.assertNotIn(str(self.where), text)
         self.assertNotIn("car-mauto", text)
 
@@ -174,12 +174,12 @@ class ProbeTests(unittest.TestCase):
         self.assertIn("grade_account_auto_switch", observed, "hidden ones too")
 
     def test_the_record_is_written_and_holds_no_path_or_text(self):
-        answered = dict(PASSING, results=every_row(), version="C:\\Users\\ExampleUser\\" + SECRET)
+        answered = dict(PASSING, results=every_row(), version="C:\\Users\\ExampleUser\\" + PRIVATE)
         made = self.run_it(answered)
         written = Path(made["recorded"]).read_text(encoding="utf-8")
         record = json.loads(written)
         self.assertEqual(record["format"], evidence.MEASUREMENT_FORMAT)
-        self.assertNotIn(SECRET, written)
+        self.assertNotIn(PRIVATE, written)
         self.assertNotIn("ExampleUser", written)
         self.assertNotIn("version\": \"C:", written)
         self.assertEqual(evidence.outcome(record)[0], Verdict.PASS)
@@ -207,10 +207,10 @@ class ProbeTests(unittest.TestCase):
         self.assertEqual(made["verdict"], str(Verdict.BLOCKED))
 
     def test_a_word_or_an_id_outside_the_closed_lists_never_reaches_the_record(self):
-        made = self.run_it(dict(PASSING, scratch_home_files="many", official=SECRET,
-                                results=dict(every_row(), m6=SECRET, nothing="pass")))
+        made = self.run_it(dict(PASSING, scratch_home_files="many", official=PRIVATE,
+                                results=dict(every_row(), m6=PRIVATE, nothing="pass")))
         written = Path(made["recorded"]).read_text(encoding="utf-8")
-        self.assertNotIn(SECRET, written)
+        self.assertNotIn(PRIVATE, written)
         self.assertNotIn("result_nothing", written)
         self.assertIsNone(made["observed"]["official"])
         self.assertIsNone(made["observed"]["scratch_home_files"])
