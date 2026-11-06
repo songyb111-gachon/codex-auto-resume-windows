@@ -1549,7 +1549,7 @@ example for every capability; the Stop hook continuation built and hidden becaus
 
         ↓
 
-v0.6.21  🚧 In development
+v0.6.21  ✅ Released
 A hotfix final: recoveries when the Codex app runs its engine from its own package (#58), both editions
 
         ↓
