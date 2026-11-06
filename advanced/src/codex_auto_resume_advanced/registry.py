@@ -199,6 +199,10 @@ class CapabilityDef:
     # (arming.standing): it narrows the part and never turns the capability off (2026-11-01: MAL's fail, listed among
     # account_switch's measurements, turned the owner's watched capability off at the v0.6.20 update).
     narrowed_by: tuple = ()
+    # v0.6.22 (v0.6.23 audit seatB:B-R4): whether it sends to Codex where none of its points is a sending one - steer_send
+    # writes each steer into the running turn at P8 and holds them to its own ceilings - or None: its points decide
+    # (arming's listing `sends`, which the Advanced page reads to say whether its limits can bind).
+    sends: bool | None = None
     # No `keepable` (v0.6.16-beta.4 to v0.6.19-beta.2): the owner's word of 2026-10-24 is that a person may keep every
     # capability on (K8) - the choice is offered on each, and none is kept on unless the person chose it there.
 
@@ -993,6 +997,7 @@ STEER_SEND = CapabilityDef(
     codes=("accepted", "unconfirmed", "refused"),
     measurements=(Measurement.MIPC, Measurement.MSTEER2),
     requires=("prompt_queue",),
+    sends=True,
 )
 
 # Empty-response recovery (v0.6.15-beta; the plan's item 3). At P8, at most once a minute, it looks at the

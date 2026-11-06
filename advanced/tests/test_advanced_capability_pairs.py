@@ -588,7 +588,7 @@ class WakeBesideTheResetCapabilitiesTests(ac.AdvancedCase):
     def test_the_timer_is_set_for_the_earliest_due_time_of_them_all(self):
         self.on("wake_for_reset")
         self.on("reset_credit")
-        core = {"state": "waiting_reset", "category": "usage_limit", "next_check_at": self.now + 3 * 3600}
+        core = {"state": "waiting_reset", "category": "usage_limit", "reset_at": self.now + 3 * 3600}
         self.errand([core])
         self.assertEqual(self.timer.due, self.now + 3 * 3600 - 120)
         rule = self.rt.state.add_reset_rule("reset_credit", "codex", 300, 1)
@@ -1399,7 +1399,7 @@ class WakeBesideAnchorTests(WakeBesideTheResetCapabilitiesTests):
         self.choose("anchor_after_reset", 2)
         self.errand([])
         self.assertEqual(self.timer.due, seven - 120, "with it off, the time picked alone")
-        core = {"state": "waiting_reset", "category": "usage_limit", "next_check_at": self.now + 600}
+        core = {"state": "waiting_reset", "category": "usage_limit", "reset_at": self.now + 600}
         self.errand([core])
         self.assertEqual(self.timer.due, self.now + 600 - 120, "core's earlier due time still first")
 

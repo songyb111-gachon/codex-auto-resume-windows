@@ -34,7 +34,7 @@ TURN_COLUMNS = frozenset({"thread_id", "turn_id", "status", "error_json", "compl
                           "final_agent_item_id", "started_at"})
 ITEM_COLUMNS = frozenset({"thread_id", "turn_id", "item_type", "item_json", "rollout_ordinal"})
 LATEST = ("SELECT turn_id, status, error_json IS NOT NULL AND error_json NOT IN ('', 'null'), completed_at, "
-          "final_agent_item_id IS NOT NULL, rollout_ordinal FROM thread_turns WHERE thread_id=? "
+          "final_agent_item_id IS NOT NULL, rollout_ordinal, started_at FROM thread_turns WHERE thread_id=? "
           "ORDER BY rollout_ordinal DESC LIMIT 1")
 KINDS = "SELECT item_type, count(*) FROM thread_items WHERE thread_id=? AND turn_id=? GROUP BY item_type"
 RECENT = ("SELECT thread_id FROM thread_turns WHERE status='completed' AND completed_at >= ? "
@@ -80,6 +80,7 @@ class Turn(NamedTuple):
     final_agent: bool           # Codex recorded a final agent item
     ordinal: int
     kinds: dict                 # {item_type: count}, a kind of no shape this knows counted as "other"
+    started_at: int | None = None   # when it began, in seconds (v0.6.22: steer_send's "this turn, never a later one")
 
 
 def connect(home, kind, tables):
@@ -171,7 +172,7 @@ class Turns:
                     break
             else:
                 return None
-            turn_id, status, errored, completed, final, ordinal = row
+            turn_id, status, errored, completed, final, ordinal, started = row
             if not ids.is_uuid(turn_id) or type(ordinal) is not int:
                 raise TurnsUnavailable("a turn of no shape this knows")
             kinds = {}
@@ -179,7 +180,8 @@ class Turns:
                 kinds[_kind(kind)] = kinds.get(_kind(kind), 0) + int(count)
             status = status if status in ("completed", "failed", "interrupted", "inProgress") else "other"
             completed = completed if type(completed) is int and completed > 0 else None
-            return Turn(turn_id, status, bool(errored), completed, bool(final), index * SPAN + ordinal, kinds)
+            started = started if states.epoch(started, *states.EPOCH_STORE) else None
+            return Turn(turn_id, status, bool(errored), completed, bool(final), index * SPAN + ordinal, kinds, started)
         return self._read(run)
 
     def turn_code(self, thread_id, turn_id):

@@ -14,6 +14,7 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+import time
 import unittest
 from unittest.mock import patch
 
@@ -287,6 +288,66 @@ class OffTests(AnchorCase):
         self.on(state="shadow", anchor_at_1=anchor.encode_time(7, 0))
         self.run_through()
         self.assertEqual((self.world.calls, self.world.started), ([], []))
+
+
+class DaylightSavingTests(unittest.TestCase):
+    """seatA:B-M3 (v0.6.23 audit): tomorrow's time picked is that time on the clock across a daylight-saving change."""
+
+    def test_tomorrow_s_time_picked_after_a_spring_change(self):
+        import calendar
+        saturday = calendar.timegm((2027, 3, 27, 23, 0, 0))     # 23:00 on the clock, an hour before the change
+        change = calendar.timegm((2027, 3, 28, 1, 0, 0))        # from 01:00 the clock reads one hour more
+
+        def local(at):
+            return time.gmtime(at + (3600 if at >= change else 0))
+
+        def mktime(fields):
+            at = calendar.timegm(fields[:6])
+            return at - 3600 if at - 3600 >= change else at
+        eight = anchor.encode_time(8, 0)
+        due = anchor.next_due({OptionKey.ANCHOR_AT_1: eight, OptionKey.ANCHOR_AFTER_RESET: 2}, saturday, None, None,
+                              None, local=local, mktime=mktime)
+        self.assertEqual(time.gmtime(due + 3600)[3:5], (8, 0), "08:00 on Sunday's clock, not 09:00")
+        self.assertEqual(anchor.slot_due({OptionKey.ANCHOR_AT_1: eight}, due + 60, None, local=local, mktime=mktime),
+                         due, "and the slot is due at the time the wake was set for")
+
+
+class HeldFirstReadTests(AnchorCase):
+    def test_a_first_read_held_across_a_long_pause_starts_nothing_hours_later(self):
+        """seatA:B-M1 (v0.6.23 audit). Fails without the bound in _second: the 07:00 occasion's first read, held while
+        recovery was paused (core asks the plug nothing then), started a window when it resumed hours later."""
+        self.on(anchor_at_1=anchor.encode_time(7, 0), anchor_after_reset=2)
+        code = self.rt._code_of(WINDOW_ANCHOR)
+        for _look in range(4):
+            self.look(anchor.LOOK_EVERY)
+            if code._pending is not None:
+                break
+        self.assertIsNotNone(code._pending, "the first read is held")
+        self.now += 7 * 3600                         # paused: no tick
+        self.run_through()
+        self.assertEqual(self.world.started, [])
+        self.assertIn("anchor.skip_unreadable", self.codes())
+
+
+class CeilingTests(AnchorCase):
+    def test_its_starts_a_day_ceiling_is_consulted(self):
+        """seatA:B-M2 (v0.6.23 audit). Fails without the ceiling in _before: five starts in the last 24 hours (account
+        changes each allowing one more) and a sixth was made."""
+        self.on(anchor_at_1=anchor.encode_time(7, 0), anchor_after_reset=2)
+        for _start in range(WINDOW_ANCHOR.ceilings.per_day):
+            self.assertTrue(self.rt.state.counted(CAP, "started"))
+        self.look(10)
+        self.run_through()
+        self.assertEqual(self.world.started, [])
+        self.assertIn("anchor.skip_ceiling", self.codes())
+
+    def test_starts_older_than_a_day_do_not_count(self):
+        self.on(anchor_at_1=anchor.encode_time(7, 0), anchor_after_reset=2)
+        for _start in range(WINDOW_ANCHOR.ceilings.per_day):
+            self.assertTrue(self.rt.state.counted(CAP, "started", at=self.now - anchor.DAY - 60))
+        self.look(10)
+        self.run_through()
+        self.assertEqual(len(self.world.started), 1)
 
 
 class AtTimesTests(AnchorCase):
