@@ -422,7 +422,8 @@ class N7BracketsInFolderNames(Scratch):
         (engine / "codex.exe").write_bytes(b"MZ")
         code, output = run_ps("@{ found = [string](Get-CodexCli) } | ConvertTo-Json -Compress\n", LOCALAPPDATA=str(local))
         self.assertEqual(code, 0, output[-1500:])
-        self.assertEqual(last_json(output)["found"], str(engine / "codex.exe"))
+        # Resolved both: PowerShell answers the long name, and a CI runner's TEMP is an 8.3 short name (RUNNER~1).
+        self.assertEqual(Path(last_json(output)["found"]).resolve(), (engine / "codex.exe").resolve())
 
     def test_the_bootstrap_hashes_and_reads_files_under_such_a_folder(self):
         folder = self.folder()

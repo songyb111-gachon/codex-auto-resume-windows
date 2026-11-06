@@ -31,6 +31,7 @@ _BUILD = str(ROOT / "build")
 if _BUILD not in sys.path:
     sys.path.insert(0, _BUILD)
 
+import languages  # noqa: E402
 from test_installer_window import _build, _powershell, CSC  # noqa: E402
 
 WINDOWS = os.name == "nt"
@@ -409,8 +410,10 @@ class WordsTests(unittest.TestCase):
     def test_the_documents_name_the_change_and_no_advanced_identifier(self):
         for name in ("SECURITY", "PRIVACY"):
             english = (ROOT / "docs" / (name + ".md")).read_text(encoding="utf-8")
-            korean = (ROOT / "docs" / (name + ".ko.md")).read_text(encoding="utf-8")
             self.assertIn("change to the standard edition", english, name)
+            if not languages.both_languages():
+                continue  # main and the release carry no Korean documents
+            korean = (ROOT / "docs" / (name + ".ko.md")).read_text(encoding="utf-8")
             self.assertIn("표준판", korean[korean.index("accounts"):], name)
 
 
