@@ -151,12 +151,13 @@ CHECKS = {
                         params=(("thread/goal/set", "threadId"), ("thread/goal/set", "status"))),
     Measurement.M7: _QUEUE_ADD, Measurement.MC1: _QUEUE_ADD,
     Measurement.M3B: Row(CheckReach.FAILS_ONLY, methods=("turn/start",), params=(("turn/start", "input"),)),
-    # v0.6.22 (v0.6.23 audit A-M6): nothing. hooks/list is a call only M4's and M4B's probes make - the capability's
-    # route (its plugin declaration and the hook program) never does - so its going proves no route broken, and a FAIL
-    # on it would turn a kept-on Continue inside the turn off as "a call its route makes". What the route does rest on,
-    # the Stop event in the declaration's schema, is MHK's row, and MHK is among the capability's measurements.
-    Measurement.M4: Row(CheckReach.NONE),
-    Measurement.M4B: Row(CheckReach.NONE),
+    # v0.6.22 (v0.6.23 audit A-M6): the declaration's own words, as MHK's row has them - not hooks/list, a call only
+    # M4's and M4B's probes make (the capability's route, its plugin declaration and the hook program, never does), whose
+    # going would have turned a kept-on Continue inside the turn off as "a call its route makes". The Stop event in the
+    # declaration's schema is what the route rests on: its going fails the route; its being there proves nothing more,
+    # and keeps a person's fail graded as still offered.
+    Measurement.M4: Row(CheckReach.FAILS_ONLY, words=(("HookEventName", "stop"),), feature="plugin_hooks"),
+    Measurement.M4B: Row(CheckReach.FAILS_ONLY, words=(("HookEventName", "stop"),), feature="plugin_hooks"),
     Measurement.MA: Row(CheckReach.FAILS_ONLY, methods=("account/read",)),
     Measurement.MALR: Row(CheckReach.FAILS_ONLY, methods=("account/read",)),
     Measurement.MANCHOR: Row(CheckReach.FAILS_ONLY, methods=(_USAGE,)),

@@ -61,7 +61,10 @@ class TableTests(unittest.TestCase):
         """v0.6.23 audit A-M6. Fails with M4's and M4B's rows on hooks/list again: a Codex without that call - one only
         their probes make - would turn Continue inside the turn off as a call its route makes."""
         for measurement in (Measurement.M4, Measurement.M4B):
-            self.assertEqual(autocheck.CHECKS[measurement].reach, CheckReach.NONE, measurement)
+            row = autocheck.CHECKS[measurement]
+            self.assertEqual(row.reach, CheckReach.FAILS_ONLY, measurement)
+            self.assertEqual((row.words, row.feature), (autocheck.CHECKS[Measurement.MHK].words,
+                                                        autocheck.CHECKS[Measurement.MHK].feature), measurement)
         self.assertNotIn("hooks/list", {method for row in autocheck.CHECKS.values() for method in row.methods})
 
     def test_what_stays_a_hand_measurement_stays_one(self):
