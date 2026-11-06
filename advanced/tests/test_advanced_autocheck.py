@@ -249,7 +249,9 @@ class RunTests(ac.AdvancedCase):
             self.assertEqual(keywords["timeout"], autocheck.CHILD_SECONDS)
             self.assertEqual(Path(keywords["env"]["CODEX_HOME"]), homes[0])
             self.assertEqual(Path(keywords["env"]["CODEX_HOME"]).name, "codex-home")
-            self.assertEqual(Path(keywords["cwd"]), homes[0].parent, "no project's own Codex config beside it")
+            # Resolved both: the backend resolves its Codex home, and a CI runner's TEMP is an 8.3 short name.
+            self.assertEqual(Path(keywords["cwd"]).resolve(), homes[0].parent.resolve(),
+                             "no project's own Codex config beside it")
             self.assertEqual(keywords["env"]["OTEL_SDK_DISABLED"], "true")
         self.assertNotIn(str(real_home), json.dumps([argv for argv, _keywords in engine.calls]))
         self.assertNotEqual(homes[0], real_home)

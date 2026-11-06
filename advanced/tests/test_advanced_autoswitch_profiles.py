@@ -41,7 +41,9 @@ def opened(blob):
 
 class Temp(unittest.TestCase):
     def setUp(self):
-        self.dir = Path(tempfile.mkdtemp(prefix="car-autoswitch-"))
+        # Resolved, as config.Paths resolves its home: a CI runner's TEMP is an 8.3 short name (RUNNER~1), and a
+        # path Paths lists would not be under the unresolved one.
+        self.dir = Path(tempfile.mkdtemp(prefix="car-autoswitch-")).resolve()
         self.addCleanup(lambda: shutil.rmtree(self.dir, ignore_errors=True))
         self.codex = self.dir / "codex-home"
         self.codex.mkdir()
