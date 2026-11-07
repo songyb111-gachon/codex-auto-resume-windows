@@ -167,7 +167,7 @@ namespace CodexAutoResume
 
             Font font = Look(home);
             var flow = new InstallerFlow(InstallerFlow.Uninstall, home, InstallerFlow.InstalledAt(home), null, VersionAt(home));
-            flow.KnowDesktopShortcut(DesktopShortcut.OursAt(home), null);
+            flow.KnowDesktopShortcut(DesktopShortcut.OursAt(home));
             flow.SavedAccountsThere = InstallerFlow.SavedAccountsAt(home);
             var window = new InstallerWindow(flow, Words(home), null,
                 delegate(InstallerFlow answered, Action<string> heard, Action<double> unpacked)
