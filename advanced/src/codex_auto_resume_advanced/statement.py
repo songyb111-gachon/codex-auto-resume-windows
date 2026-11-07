@@ -119,6 +119,8 @@ PAGE_KEYS = tuple(PAGE_PREFIX + name for name in (
     "watchlog.answer.notice",
     # v0.6.20 (power_after_tasks): how the tasks a person picked stand, said to the power action.
     "watchlog.answer.power",
+    # v0.6.22 (#59): a failure a watched goal continuation would take up at a reset the watcher saw (VERIFIED_RESET).
+    "watchlog.answer.verified_reset",
     # v0.6.16-beta.3: a message a watched capability would have sent.
     "watchlog.answer.records",
     "watchlog.answer.other",

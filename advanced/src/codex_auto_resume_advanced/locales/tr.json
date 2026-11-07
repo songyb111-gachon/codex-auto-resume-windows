@@ -782,6 +782,7 @@
   "page.watchlog.answer.tick": "İki kontrol arasında harekete geçmek",
   "page.watchlog.answer.to_session": "Sohbeti açık tutan diğer Codex oturumu için sıraya koymak",
   "page.watchlog.answer.unloaded": "Sohbeti kendisi açmak",
+  "page.watchlog.answer.verified_reset": "İzleyicinin gördüğü bir sıfırlamadan sonra üstlenmek",
   "page.watchlog.from": "{time} itibarıyla sayılıyor: daha eski yanıtlar bırakıldı.",
   "page.watchlog.last": "Son",
   "page.watchlog.none": "Henüz yok: harekete geçeceği hiçbir konuda ona sorulmadı.",

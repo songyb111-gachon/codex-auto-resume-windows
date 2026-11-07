@@ -782,6 +782,7 @@
   "page.watchlog.answer.tick": "Hành động giữa hai lần xem",
   "page.watchlog.answer.to_session": "Đã xếp hàng cho phiên Codex khác đang mở cuộc trò chuyện",
   "page.watchlog.answer.unloaded": "Tự mở cuộc trò chuyện",
+  "page.watchlog.answer.verified_reset": "Tiếp nhận sau lần đặt lại mà trình theo dõi đã thấy",
   "page.watchlog.from": "Đếm từ {time}: các câu trả lời cũ hơn đã bị bỏ đi.",
   "page.watchlog.last": "Gần nhất",
   "page.watchlog.none": "Chưa có gì: nó chưa được hỏi về điều gì mà nó lẽ ra sẽ hành động.",

@@ -782,6 +782,7 @@
   "page.watchlog.answer.tick": "確認の合間に動いた",
   "page.watchlog.answer.to_session": "会話を開いている別の Codex セッションのためにキューに入れた",
   "page.watchlog.answer.unloaded": "会話を自分で開いた",
+  "page.watchlog.answer.verified_reset": "ウォッチャーが確かめたリセットの後に引き受けた",
   "page.watchlog.from": "{time} から数えています。それより古い回答は破棄しました。",
   "page.watchlog.last": "最終",
   "page.watchlog.none": "まだありません。動くはずの場面で問い合わせを受けたことはありません。",

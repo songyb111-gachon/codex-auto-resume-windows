@@ -782,6 +782,7 @@
   "page.watchlog.answer.tick": "Bertindak di antara dua pemeriksaan",
   "page.watchlog.answer.to_session": "Diantrekan untuk sesi Codex lain yang membuka percakapan itu",
   "page.watchlog.answer.unloaded": "Membuka percakapan sendiri",
+  "page.watchlog.answer.verified_reset": "Menanganinya setelah reset yang dilihat pengawas",
   "page.watchlog.from": "Dihitung sejak {time}: jawaban yang lebih lama dilepas.",
   "page.watchlog.last": "Terakhir",
   "page.watchlog.none": "Belum ada: fitur ini belum ditanya apa pun yang akan membuatnya bertindak.",

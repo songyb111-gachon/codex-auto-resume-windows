@@ -761,6 +761,7 @@
   "page.watchlog.answer.tick": "확인 사이에 동작함",
   "page.watchlog.answer.to_session": "대화를 연 다른 Codex 세션이 가져가도록 대기열에 넣음",
   "page.watchlog.answer.unloaded": "대화를 직접 엶",
+  "page.watchlog.answer.verified_reset": "워처가 확인한 재설정 뒤에 맡음",
   "page.watchlog.from": "{time}부터 셉니다. 그보다 오래된 답은 남기지 않았습니다.",
   "page.watchlog.last": "마지막",
   "page.watchlog.none": "아직 없습니다. 이 기능이 동작했을 만한 일로 질문을 받은 적이 없습니다.",

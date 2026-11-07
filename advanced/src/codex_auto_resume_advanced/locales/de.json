@@ -782,6 +782,7 @@
   "page.watchlog.answer.tick": "Zwischen zwei Prüfungen handeln",
   "page.watchlog.answer.to_session": "Für die andere Codex-Sitzung eingereiht, die die Unterhaltung offen hat",
   "page.watchlog.answer.unloaded": "Die Unterhaltung selbst öffnen",
+  "page.watchlog.answer.verified_reset": "Nach einem vom Wächter gesehenen Zurücksetzen übernehmen",
   "page.watchlog.from": "Gezählt ab {time}: Ältere Antworten wurden verworfen.",
   "page.watchlog.last": "Zuletzt",
   "page.watchlog.none": "Noch nichts: Die Funktion wurde noch zu nichts gefragt, bei dem sie gehandelt hätte.",

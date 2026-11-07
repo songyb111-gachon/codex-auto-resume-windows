@@ -317,6 +317,7 @@
   "page.watchlog.answer.text": "Wrote its own words",
   "page.watchlog.answer.tick": "Acted between looks",
   "page.watchlog.answer.unloaded": "Opened the conversation itself",
+  "page.watchlog.answer.verified_reset": "Took it up after a reset the watcher saw",
   "page.watchlog.from": "Counted from {time}: older answers were let go.",
   "page.watchlog.last": "Last",
   "page.watchlog.none": "Nothing yet: it has not been asked anything it would have acted on.",

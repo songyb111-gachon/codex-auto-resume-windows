@@ -782,6 +782,7 @@
   "page.watchlog.answer.tick": "Agir entre deux vérifications",
   "page.watchlog.answer.to_session": "Mis en file pour l'autre session Codex qui a la conversation",
   "page.watchlog.answer.unloaded": "Ouvrir la conversation elle-même",
+  "page.watchlog.answer.verified_reset": "Le prendre en charge après une réinitialisation vue par le surveillant",
   "page.watchlog.from": "Compté depuis {time} : les réponses plus anciennes ont été abandonnées.",
   "page.watchlog.last": "Dernière",
   "page.watchlog.none": "Rien pour l'instant : elle n'a été consultée sur rien où elle aurait agi.",

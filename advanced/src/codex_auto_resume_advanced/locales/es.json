@@ -782,6 +782,7 @@
   "page.watchlog.answer.tick": "Actuar entre dos revisiones",
   "page.watchlog.answer.to_session": "La puso en cola para la otra sesión de Codex que tiene la conversación",
   "page.watchlog.answer.unloaded": "Abrir la conversación por sí misma",
+  "page.watchlog.answer.verified_reset": "Hacerse cargo tras un restablecimiento que vio el vigilante",
   "page.watchlog.from": "Contado desde {time}: las respuestas más antiguas se descartaron.",
   "page.watchlog.last": "Última",
   "page.watchlog.none": "Nada aún: no se le ha consultado nada en lo que habría actuado.",

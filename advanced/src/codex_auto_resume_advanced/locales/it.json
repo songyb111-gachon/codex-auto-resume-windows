@@ -782,6 +782,7 @@
   "page.watchlog.answer.tick": "Agire tra due controlli",
   "page.watchlog.answer.to_session": "Messo in coda per l'altra sessione di Codex che ha la conversazione",
   "page.watchlog.answer.unloaded": "Aprire da sé la conversazione",
+  "page.watchlog.answer.verified_reset": "Prenderlo in carico dopo un azzeramento visto dal controllore",
   "page.watchlog.from": "Contato da {time}: le risposte più vecchie sono state scartate.",
   "page.watchlog.last": "Ultima",
   "page.watchlog.none": "Ancora niente: non è stata interpellata su nulla su cui avrebbe agito.",

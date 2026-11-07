@@ -782,6 +782,7 @@
   "page.watchlog.answer.tick": "Действовать между проверками",
   "page.watchlog.answer.to_session": "Поставлено в очередь для другого сеанса Codex, в котором открыта беседа",
   "page.watchlog.answer.unloaded": "Самой открыть беседу",
+  "page.watchlog.answer.verified_reset": "Взять на себя после сброса, который увидел наблюдатель",
   "page.watchlog.from": "Считается с {time}: более старые ответы отброшены.",
   "page.watchlog.last": "Последний раз",
   "page.watchlog.none": "Пока ничего: её ещё ни о чём не спрашивали там, где она бы действовала.",

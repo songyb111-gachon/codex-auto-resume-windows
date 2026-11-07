@@ -782,6 +782,7 @@
   "page.watchlog.answer.tick": "在两次查看之间行动",
   "page.watchlog.answer.to_session": "已为打开该对话的另一个 Codex 会话排队",
   "page.watchlog.answer.unloaded": "自己打开对话",
+  "page.watchlog.answer.verified_reset": "在监视器确认的重置之后接手",
   "page.watchlog.from": "从 {time} 起计数：更早的回答已舍弃。",
   "page.watchlog.last": "最近",
   "page.watchlog.none": "还没有：它还没有被询问过任何它会采取行动的事。",

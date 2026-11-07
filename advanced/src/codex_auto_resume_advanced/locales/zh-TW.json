@@ -782,6 +782,7 @@
   "page.watchlog.answer.tick": "在兩次查看之間行動",
   "page.watchlog.answer.to_session": "已為開啟該對話的另一個 Codex 工作階段排入佇列",
   "page.watchlog.answer.unloaded": "自己開啟對話",
+  "page.watchlog.answer.verified_reset": "在監看程式確認的重設之後接手",
   "page.watchlog.from": "從 {time} 起計數：更早的回答已捨棄。",
   "page.watchlog.last": "最近",
   "page.watchlog.none": "還沒有：它還沒有被詢問過任何它會採取行動的事。",

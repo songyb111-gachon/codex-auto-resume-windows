@@ -782,6 +782,7 @@
   "page.watchlog.answer.tick": "Дія між перевірками",
   "page.watchlog.answer.to_session": "Поставлено в чергу для іншого сеансу Codex, у якому відкрито розмову",
   "page.watchlog.answer.unloaded": "Розмову відкрито самостійно",
+  "page.watchlog.answer.verified_reset": "Взято в роботу після скидання, яке побачив спостерігач",
   "page.watchlog.from": "Рахується з {time}: старіші відповіді відкинуто.",
   "page.watchlog.last": "Востаннє",
   "page.watchlog.none": "Поки нічого: її ще ні про що не питали там, де вона діяла б.",

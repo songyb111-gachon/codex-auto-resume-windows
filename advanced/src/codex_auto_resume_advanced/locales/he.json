@@ -782,6 +782,7 @@
   "page.watchlog.answer.tick": "לפעול בין שתי בדיקות",
   "page.watchlog.answer.to_session": "להכניס לתור עבור הפעלת Codex האחרת שבה פתוחה השיחה",
   "page.watchlog.answer.unloaded": "לפתוח את השיחה בעצמה",
+  "page.watchlog.answer.verified_reset": "לקחת על עצמה אחרי איפוס שהמשגיח ראה",
   "page.watchlog.from": "נספר מאז {time}: תשובות ישנות יותר הושמטו.",
   "page.watchlog.last": "לאחרונה",
   "page.watchlog.none": "עדיין כלום: עוד לא שאלו אותה על שום דבר שבו הייתה פועלת.",

@@ -782,6 +782,7 @@
   "page.watchlog.answer.tick": "Działano między sprawdzeniami",
   "page.watchlog.answer.to_session": "Dodano do kolejki dla innej sesji Codex, która ma tę rozmowę",
   "page.watchlog.answer.unloaded": "Samodzielnie otwarto rozmowę",
+  "page.watchlog.answer.verified_reset": "Podjęto po odnowieniu, które widział strażnik",
   "page.watchlog.from": "Liczone od {time}: starsze odpowiedzi odrzucono.",
   "page.watchlog.last": "Ostatnio",
   "page.watchlog.none": "Na razie nic: nie pytano jej jeszcze o nic, przy czym by zadziałała.",

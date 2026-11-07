@@ -782,6 +782,7 @@
   "page.watchlog.answer.tick": "Agir entre duas verificações",
   "page.watchlog.answer.to_session": "Colocou na fila para a outra sessão do Codex que está com a conversa",
   "page.watchlog.answer.unloaded": "Abrir a conversa por conta própria",
+  "page.watchlog.answer.verified_reset": "Assumir após uma redefinição que o vigia viu",
   "page.watchlog.from": "Contado desde {time}: as respostas mais antigas foram descartadas.",
   "page.watchlog.last": "Última",
   "page.watchlog.none": "Nada ainda: ele não foi consultado sobre nada em que teria agido.",

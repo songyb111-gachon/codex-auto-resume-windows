@@ -782,6 +782,7 @@
   "page.watchlog.answer.tick": "التصرف بين نظرتين",
   "page.watchlog.answer.to_session": "وضعها في قائمة الانتظار لجلسة Codex الأخرى التي تفتح المحادثة",
   "page.watchlog.answer.unloaded": "فتح المحادثة بنفسها",
+  "page.watchlog.answer.verified_reset": "تولّيه بعد إعادة تعيين رآها المراقب",
   "page.watchlog.from": "العدّ منذ {time}: تُركت الإجابات الأقدم.",
   "page.watchlog.last": "آخر مرة",
   "page.watchlog.none": "لا شيء بعد: لم تُسأل بعد عن أي شيء كانت ستتصرف فيه.",
