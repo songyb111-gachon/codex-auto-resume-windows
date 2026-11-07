@@ -179,7 +179,7 @@ is opened, and open a waiting conversation in Codex (MOPEN, on `codex-cli 0.165.
 here, the other sessions, compacting a full conversation, another model at capacity and a continuation with
 no words - and four more (the reset credit, the reset message, the usage meter and the forced stop) rest on
 measurements made on `codex-cli 0.162.0-alpha.17.2` and, for the forced stop, again on the newer one. Six rest on
-measurements not made yet - wake this PC for a reset, on MWAKE, and the usage and token analytics, on MTOK, were new ones and were made on `codex-cli 0.167.0-alpha.3.2` on 2026-11-08: MWAKE failed and MTOK passed -
+measurements made later - wake this PC for a reset, on MWAKE, and the usage and token analytics, on MTOK, were new ones and were made on `codex-cli 0.167.0-alpha.3.2` on 2026-11-08: MWAKE failed and MTOK passed -
 switching the Codex account rests on MA, which passed, and its button on MALR - the sign-in, then the product's restart
 of Codex - which passed on `codex-cli 0.166.0-alpha.5.1` on 2026-11-02 (MAL, the sign-in alone, failed there on 2026-11-01) - the chat rests on M7, MC1 and MC2, which were made, as its own
 section below says, starting the 5-hour window early on MANCHOR, made on `codex-cli 0.165.0-alpha.1.2` on 2026-10-29, steering the running turn on MSTEER2,
