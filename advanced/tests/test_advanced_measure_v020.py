@@ -93,9 +93,10 @@ class AllowListTests(Case):
     def test_both_were_measured_on_0165(self):
         """2026-10-29, by the measurement session on codex-cli 0.165.0-alpha.1.2: MIMG passed (a local image file beside
         the words, shown as the person's own and run); MSTEER failed (turn/steer refused, -32600, from the product's own
-        app-server session for the turn the Desktop was running)."""
-        self.assertEqual(measured.MEASURED[MIMG], (Verdict.PASS, "codex-cli 0.165.0-alpha.1.2"))
-        self.assertEqual(measured.MEASURED[MSTEER], (Verdict.FAIL, "codex-cli 0.165.0-alpha.1.2"))
+        app-server session for the turn the Desktop was running). Made again on codex-cli 0.167.0-alpha.3.2 on 2026-11-08, with
+        the same verdicts."""
+        self.assertEqual(measured.MEASURED[MIMG], (Verdict.PASS, "codex-cli 0.167.0-alpha.3.2"))
+        self.assertEqual(measured.MEASURED[MSTEER], (Verdict.FAIL, "codex-cli 0.167.0-alpha.3.2"))
 
     def test_the_ids_are_the_words_the_bridge_and_the_runbook_use(self):
         self.assertEqual((str(MIMG), str(MSTEER)), ("mimg", "msteer"))
@@ -279,7 +280,8 @@ class Steer2Tests(Case):
         self.assertIs(measure.PROBES[MSTEER2], measure._msteer2)
         self.assertEqual(protocol.MEASUREMENT_METHODS[MSTEER2], ())
         self.assertEqual(str(MSTEER2), "msteer2")
-        self.assertEqual(measured.MEASURED[MSTEER2], (Verdict.FAIL, "codex-cli 0.165.0-alpha.1.2"))
+        # failed on 0.165.0-alpha.1.2 (the app never showed the line), passed on 0.167.0-alpha.3.2 (2026-11-08)
+        self.assertEqual(measured.MEASURED[MSTEER2], (Verdict.PASS, "codex-cli 0.167.0-alpha.3.2"))
         self.run_ipc()
         self.assertEqual(self.sessions, [])
 

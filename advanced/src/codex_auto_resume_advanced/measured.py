@@ -44,21 +44,29 @@ CLI_0166_ALPHA_5_1 = "codex-cli 0.166.0-alpha.5.1"
 # as before. MN's record stays the one at zero credits, since this account has some now and its probe called nothing.
 CLI_0166_ALPHA_6 = "codex-cli 0.166.0-alpha.6"
 
+# The Codex of 2026-11-08 (the app's own engine), the advanced re-measure before the v0.6.22 final: the measurement session
+# made again every reading that could be made without a sign-in, a credit or typing into a terminal or an IDE, and made two
+# for the first time - MTOK (the token counts read, a pass) and MWAKE (the wake timer fired but did not end Modern Standby,
+# a fail). MSTEER2 now passes. M5 and MO came back blocked without a completion, and MN blocked (this account has reset
+# credits): their older settled records stay as they were, for their own engines. M4B, MA, MAL, MALR, MH, MR, MU, MQ, MT, ME,
+# MS and MANCHOR were not made again, and MK and MGAVE stayed blocked.
+CLI_0167_ALPHA_3_2 = "codex-cli 0.167.0-alpha.3.2"
+
 MEASURED = {
-    Measurement.M1: (Verdict.PASS, CLI_0163_ALPHA_10_2),
-    Measurement.M2: (Verdict.FAIL, CLI_0162_ALPHA_17_2),
-    Measurement.M2B: (Verdict.PASS, CLI_0164_ALPHA_11_1),
-    Measurement.M3: (Verdict.FAIL, CLI_0166_ALPHA_6),
-    Measurement.M4: (Verdict.FAIL, CLI_0166_ALPHA_5_1),
+    Measurement.M1: (Verdict.PASS, CLI_0167_ALPHA_3_2),
+    Measurement.M2: (Verdict.FAIL, CLI_0167_ALPHA_3_2),
+    Measurement.M2B: (Verdict.PASS, CLI_0167_ALPHA_3_2),
+    Measurement.M3: (Verdict.FAIL, CLI_0167_ALPHA_3_2),
+    Measurement.M4: (Verdict.FAIL, CLI_0167_ALPHA_3_2),
     Measurement.M5: (Verdict.PASS, CLI_0163_ALPHA_10_2),
-    Measurement.M6: (Verdict.PASS, CLI_0163_ALPHA_10_2),
-    Measurement.M7: (Verdict.PASS, CLI_0163_ALPHA_10_2),
-    Measurement.MW: (Verdict.PASS, CLI_0166_ALPHA_6),
+    Measurement.M6: (Verdict.PASS, CLI_0167_ALPHA_3_2),
+    Measurement.M7: (Verdict.PASS, CLI_0167_ALPHA_3_2),
+    Measurement.MW: (Verdict.PASS, CLI_0167_ALPHA_3_2),
     Measurement.MA: (Verdict.PASS, CLI_0162_ALPHA_17_2),
     Measurement.MH: (Verdict.PASS, CLI_0162_ALPHA_17_2),
-    Measurement.MP1: (Verdict.PASS, CLI_0163_ALPHA_10_2),
-    Measurement.MP2: (Verdict.PASS, CLI_0163_ALPHA_10_2),
-    Measurement.MP3: (Verdict.PASS, CLI_0163_ALPHA_10_2),
+    Measurement.MP1: (Verdict.PASS, CLI_0167_ALPHA_3_2),
+    Measurement.MP2: (Verdict.PASS, CLI_0167_ALPHA_3_2),
+    Measurement.MP3: (Verdict.PASS, CLI_0167_ALPHA_3_2),
     # 2026-10-11, at the owner's word that one reset credit may be spent.
     Measurement.MR: (Verdict.PASS, CLI_0162_ALPHA_17_2),
     # 2026-10-11, once that credit was spent and the account had none left.
@@ -68,28 +76,28 @@ MEASURED = {
     # 2026-10-16 (records 22f19fb7, da367839, f0f1f1fd): the Desktop's IPC pipe starts, adds to and interrupts a turn of
     # a conversation the app holds; Codex documents no supported shared app-server the app uses; `codex cloud` reads a
     # cloud task's state but nothing continues one - partial, which is not a pass.
-    Measurement.MIPC: (Verdict.PASS, CLI_0163_ALPHA_10_2),
-    Measurement.MAWS: (Verdict.FAIL, CLI_0162_ALPHA_17_2),
-    Measurement.MCLOUD: (Verdict.FAIL, CLI_0162_ALPHA_17_2),
+    Measurement.MIPC: (Verdict.PASS, CLI_0167_ALPHA_3_2),
+    Measurement.MAWS: (Verdict.FAIL, CLI_0167_ALPHA_3_2),
+    Measurement.MCLOUD: (Verdict.FAIL, CLI_0167_ALPHA_3_2),
     # 2026-10-15 and 16, stage 4's nine (v0.6.16-beta.4), Codex closed or open as each needs.
-    Measurement.MC1: (Verdict.PASS, CLI_0162_ALPHA_17_2),
-    Measurement.MXA: (Verdict.PASS, CLI_0162_ALPHA_17_2),
-    Measurement.MX: (Verdict.PASS, CLI_0163_ALPHA_10_2),
-    Measurement.MF: (Verdict.PASS, CLI_0166_ALPHA_6),
+    Measurement.MC1: (Verdict.PASS, CLI_0167_ALPHA_3_2),
+    Measurement.MXA: (Verdict.PASS, CLI_0167_ALPHA_3_2),
+    Measurement.MX: (Verdict.PASS, CLI_0167_ALPHA_3_2),
+    Measurement.MF: (Verdict.PASS, CLI_0167_ALPHA_3_2),
     # A fail narrows a route or is its capability's warning, never its end (the owner's rule).
-    Measurement.MB: (Verdict.FAIL, CLI_0166_ALPHA_6),
-    Measurement.MC2: (Verdict.FAIL, CLI_0162_ALPHA_17_2),
+    Measurement.MB: (Verdict.FAIL, CLI_0167_ALPHA_3_2),
+    Measurement.MC2: (Verdict.FAIL, CLI_0167_ALPHA_3_2),
     # 2026-10-17, made again on codex-cli 0.163.0-alpha.10.2: all three passed there (they had failed on 0.162).
     Measurement.MO: (Verdict.PASS, CLI_0163_ALPHA_10_2),
-    Measurement.M3B: (Verdict.PASS, CLI_0166_ALPHA_6),
-    Measurement.M6B: (Verdict.PASS, CLI_0163_ALPHA_10_2),
+    Measurement.M3B: (Verdict.PASS, CLI_0167_ALPHA_3_2),
+    Measurement.M6B: (Verdict.PASS, CLI_0167_ALPHA_3_2),
     # 2026-10-20 (v0.6.17, issues #42 and #47), the Desktop not holding the conversations: a continuation queued for
     # opening with no marker ran once on open and was found by its client id; two at once each ran once in its own
     # conversation. MQG, made again the same night with a goal that takes many turns: on open the queued message ran
     # first and once, then the goal carried on, a turn at a time, until it reached its own end.
-    Measurement.MQO: (Verdict.PASS, CLI_0163_ALPHA_10_2),
-    Measurement.MQP: (Verdict.PASS, CLI_0163_ALPHA_10_2),
-    Measurement.MQG: (Verdict.PASS, CLI_0163_ALPHA_10_2),
+    Measurement.MQO: (Verdict.PASS, CLI_0167_ALPHA_3_2),
+    Measurement.MQP: (Verdict.PASS, CLI_0167_ALPHA_3_2),
+    Measurement.MQG: (Verdict.PASS, CLI_0167_ALPHA_3_2),
     # 2026-10-29 (v0.6.20, window_anchor): one ephemeral, read-only, low-effort `codex exec` on an idle 5-hour window
     # fixed its reset five hours after the request and left no conversation, rollout or history line; a second request
     # in the running window did not move the reset.
@@ -97,16 +105,17 @@ MEASURED = {
     # 2026-10-29 (v0.6.20, issue #50), the measurement session: a queued message with a local image file was shown at once
     # as the person's own with its picture and ran (MIMG); turn/steer from the product's own app-server session was
     # refused (-32600) for a turn the Desktop was running (MSTEER).
-    Measurement.MIMG: (Verdict.PASS, CLI_0165_ALPHA_1_2),
-    Measurement.MSTEER: (Verdict.FAIL, CLI_0165_ALPHA_1_2),
+    Measurement.MIMG: (Verdict.PASS, CLI_0167_ALPHA_3_2),
+    Measurement.MSTEER: (Verdict.FAIL, CLI_0167_ALPHA_3_2),
     # The same evening, the measurement session again: a steer over the Desktop's IPC pipe was accepted and reached the
-    # running turn once, but the app never showed the line as the person's message (MSTEER2). MOPEN first failed against
+    # running turn once, but the app never showed the line as the person's message (MSTEER2; made again on 2026-11-08 it
+    # passed, below). MOPEN first failed against
     # ten seconds (the app held a conversation opened through its link after about 13 s); made again that night against
     # the owner's thirty, its load timed by the lock's holder count alone, the window came to the front and the app held
     # the conversation within 2-10 s, so it passed - and open_to_send is offered.
-    Measurement.MOPEN: (Verdict.PASS, CLI_0165_ALPHA_1_2),
+    Measurement.MOPEN: (Verdict.PASS, CLI_0167_ALPHA_3_2),
     # 2026-10-31 (v0.6.20, Continue inside the turn's declaration): on a scratch Codex home the probe made and removed.
-    Measurement.MHK: (Verdict.PASS, CLI_0166_ALPHA_6),
+    Measurement.MHK: (Verdict.PASS, CLI_0167_ALPHA_3_2),
     # 2026-11-01 (v0.6.20, account_switch's button), the measurement session with the owner: a `codex logout` made outside
     # the app reached the running app, but the `codex login` after it did not within about a minute - the app came back
     # signed in only through its own sign-in - so the button stays hidden: hidden because its measurement failed (partial).
@@ -114,16 +123,23 @@ MEASURED = {
     # 2026-11-02 (measure-20261101f): the sign-out and sign-in, then the product's own restart of Codex (Windows asked
     # it to quit, and it did), brought the app up signed in - the account switch's button rests on it.
     Measurement.MALR: (Verdict.PASS, CLI_0166_ALPHA_5_1),
-    Measurement.MSTEER2: (Verdict.FAIL, CLI_0165_ALPHA_1_2),
+    # 2026-11-08: the steer over the Desktop's pipe was accepted, the line appeared once inside the running turn as the
+    # person's own message with no new turn, and the turn ended with it - the app shows it now (MSTEER2).
+    Measurement.MSTEER2: (Verdict.PASS, CLI_0167_ALPHA_3_2),
     # 2026-11-06 (v0.6.22), the measurement session, no hands: the automatic check's own commands answered on the app's
     # engine, on a scratch Codex home the probe made and removed, with --experimental taken behind core's options.
-    Measurement.MAUTO: (Verdict.PASS, CLI_0166_ALPHA_6),
+    Measurement.MAUTO: (Verdict.PASS, CLI_0167_ALPHA_3_2),
     # 2026-11-06 (v0.6.22), the measurement session: Codex refused thread/resume (-32600) of a conversation made under the
     # built-in openai provider under a provider of our own (modelProviderMismatch), though the scratch part held (MB2). A
     # second saved account was read on a scratch home, the real sign-in file, the app and its account left as they were
     # (MPROFILE); the app came up as the other saved account and back, each with no sign-in page and no other Codex engine
     # running - the probe blocked, completed by the owner's word (MSWAP).
-    Measurement.MB2: (Verdict.FAIL, CLI_0166_ALPHA_6),
-    Measurement.MPROFILE: (Verdict.PASS, CLI_0166_ALPHA_6),
-    Measurement.MSWAP: (Verdict.PASS, CLI_0166_ALPHA_6),
+    Measurement.MB2: (Verdict.FAIL, CLI_0167_ALPHA_3_2),
+    Measurement.MPROFILE: (Verdict.PASS, CLI_0167_ALPHA_3_2),
+    Measurement.MSWAP: (Verdict.PASS, CLI_0167_ALPHA_3_2),
+    # 2026-11-08 (v0.6.22), the measurement session, first records of their own: the token counts of a conversation read
+    # from its rollout and Codex's own columns, read-only (MTOK); a waitable wake timer set for 180 s fired while the PC
+    # slept in Modern Standby, but the PC left standby only at a mouse move six minutes later (MWAKE).
+    Measurement.MTOK: (Verdict.PASS, CLI_0167_ALPHA_3_2),
+    Measurement.MWAKE: (Verdict.FAIL, CLI_0167_ALPHA_3_2),
 }
