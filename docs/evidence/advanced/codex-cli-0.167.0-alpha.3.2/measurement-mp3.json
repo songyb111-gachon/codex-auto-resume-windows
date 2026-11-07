@@ -1,0 +1,19 @@
+{
+  "format": "codex-auto-resume-measurement/1",
+  "step": "mp3",
+  "verdict": "blocked",
+  "recorded_at": "2026-11-07T16:56Z",
+  "product_version": "0.6.22-beta.2",
+  "codex_version": "codex-cli 0.167.0-alpha.3.2",
+  "windows_build": "10.0.26300",
+  "observed": {
+    "session_opened": false,
+    "thread_given": false
+  },
+  "note": "in that side panel tab press Preview, click away for 15 seconds and back (the panel redraws), set Theme to Dark and Save, then back and Save: confirm each works and no new item appears in the conversation, note whether an approval prompt appeared, then set the verdict",
+  "completion": {
+    "verdict": "pass",
+    "note": "as_expected",
+    "recorded_at": "2026-11-07T17:03Z"
+  }
+}

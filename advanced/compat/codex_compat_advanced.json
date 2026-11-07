@@ -1,9 +1,265 @@
 {
   "_edition": "ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.",
   "format": "codex-auto-resume-compat-advanced/1",
-  "sequence": 1,
-  "published_at": "2026-10-30T00:00:00Z",
-  "expires_at": "2027-01-28T00:00:00Z",
+  "sequence": 2,
+  "published_at": "2026-11-07T21:59:48Z",
+  "expires_at": "2027-02-05T21:59:48Z",
   "min_product": "0.6.20",
-  "engines": []
+  "engines": [
+    {
+      "version": "codex-cli 0.162.0-alpha.17.2",
+      "measurements": {
+        "ma": {
+          "verdict": "pass",
+          "recorded_at": "2026-10-10T12:57Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.162.0-alpha.17.2/measurement-ma.json"
+        },
+        "mh": {
+          "verdict": "pass",
+          "recorded_at": "2026-10-10T13:04Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.162.0-alpha.17.2/measurement-mh.json"
+        },
+        "mn": {
+          "verdict": "pass",
+          "recorded_at": "2026-10-10T19:20Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.162.0-alpha.17.2/measurement-mn.json"
+        },
+        "mr": {
+          "verdict": "pass",
+          "recorded_at": "2026-10-10T19:18Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.162.0-alpha.17.2/measurement-mr.json"
+        },
+        "mu": {
+          "verdict": "pass",
+          "recorded_at": "2026-10-12T16:43Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.162.0-alpha.17.2/measurement-mu.json"
+        }
+      }
+    },
+    {
+      "version": "codex-cli 0.163.0-alpha.10.2",
+      "measurements": {
+        "m5": {
+          "verdict": "pass",
+          "recorded_at": "2026-10-16T19:18Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.163.0-alpha.10.2/measurement-m5.json"
+        },
+        "mo": {
+          "verdict": "pass",
+          "recorded_at": "2026-10-16T19:12Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.163.0-alpha.10.2/measurement-mo.json"
+        }
+      }
+    },
+    {
+      "version": "codex-cli 0.165.0-alpha.1.2",
+      "measurements": {
+        "manchor": {
+          "verdict": "pass",
+          "recorded_at": "2026-10-29T08:23Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.165.0-alpha.1.2/measurement-manchor.json"
+        }
+      }
+    },
+    {
+      "version": "codex-cli 0.166.0-alpha.5.1",
+      "measurements": {
+        "mal": {
+          "verdict": "fail",
+          "recorded_at": "2026-11-01T01:47Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.166.0-alpha.5.1/measurement-mal.json"
+        },
+        "malr": {
+          "verdict": "pass",
+          "recorded_at": "2026-11-01T16:08Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.166.0-alpha.5.1/measurement-malr.json"
+        }
+      }
+    },
+    {
+      "version": "codex-cli 0.167.0-alpha.3.2",
+      "measurements": {
+        "m1": {
+          "verdict": "pass",
+          "recorded_at": "2026-11-07T16:38Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.167.0-alpha.3.2/measurement-m1.json"
+        },
+        "m2": {
+          "verdict": "fail",
+          "recorded_at": "2026-11-07T16:46Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.167.0-alpha.3.2/measurement-m2.json"
+        },
+        "m2b": {
+          "verdict": "pass",
+          "recorded_at": "2026-11-07T16:48Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.167.0-alpha.3.2/measurement-m2b.json"
+        },
+        "m3": {
+          "verdict": "fail",
+          "recorded_at": "2026-11-07T16:03Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.167.0-alpha.3.2/measurement-m3.json"
+        },
+        "m3b": {
+          "verdict": "pass",
+          "recorded_at": "2026-11-07T16:09Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.167.0-alpha.3.2/measurement-m3b.json"
+        },
+        "m4": {
+          "verdict": "fail",
+          "recorded_at": "2026-11-07T18:37Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.167.0-alpha.3.2/measurement-m4.json"
+        },
+        "m6": {
+          "verdict": "pass",
+          "recorded_at": "2026-11-07T16:34Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.167.0-alpha.3.2/measurement-m6.json"
+        },
+        "m6b": {
+          "verdict": "pass",
+          "recorded_at": "2026-11-07T16:36Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.167.0-alpha.3.2/measurement-m6b.json"
+        },
+        "m7": {
+          "verdict": "pass",
+          "recorded_at": "2026-11-07T16:38Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.167.0-alpha.3.2/measurement-m7.json"
+        },
+        "mauto": {
+          "verdict": "pass",
+          "recorded_at": "2026-11-07T16:11Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.167.0-alpha.3.2/measurement-mauto.json"
+        },
+        "maws": {
+          "verdict": "fail",
+          "recorded_at": "2026-11-07T16:18Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.167.0-alpha.3.2/measurement-maws.json"
+        },
+        "mb": {
+          "verdict": "fail",
+          "recorded_at": "2026-11-07T16:09Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.167.0-alpha.3.2/measurement-mb.json"
+        },
+        "mb2": {
+          "verdict": "fail",
+          "recorded_at": "2026-11-07T16:15Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.167.0-alpha.3.2/measurement-mb2.json"
+        },
+        "mc1": {
+          "verdict": "pass",
+          "recorded_at": "2026-11-07T16:39Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.167.0-alpha.3.2/measurement-mc1.json"
+        },
+        "mc2": {
+          "verdict": "fail",
+          "recorded_at": "2026-11-07T16:51Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.167.0-alpha.3.2/measurement-mc2.json"
+        },
+        "mcloud": {
+          "verdict": "fail",
+          "recorded_at": "2026-11-07T16:18Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.167.0-alpha.3.2/measurement-mcloud.json"
+        },
+        "mf": {
+          "verdict": "pass",
+          "recorded_at": "2026-11-07T16:08Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.167.0-alpha.3.2/measurement-mf.json"
+        },
+        "mhk": {
+          "verdict": "pass",
+          "recorded_at": "2026-11-07T16:10Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.167.0-alpha.3.2/measurement-mhk.json"
+        },
+        "mimg": {
+          "verdict": "pass",
+          "recorded_at": "2026-11-07T19:49Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.167.0-alpha.3.2/measurement-mimg.json"
+        },
+        "mipc": {
+          "verdict": "pass",
+          "recorded_at": "2026-11-07T16:55Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.167.0-alpha.3.2/measurement-mipc.json"
+        },
+        "mopen": {
+          "verdict": "pass",
+          "recorded_at": "2026-11-07T17:10Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.167.0-alpha.3.2/measurement-mopen.json"
+        },
+        "mp1": {
+          "verdict": "pass",
+          "recorded_at": "2026-11-07T16:56Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.167.0-alpha.3.2/measurement-mp1.json"
+        },
+        "mp2": {
+          "verdict": "pass",
+          "recorded_at": "2026-11-07T17:03Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.167.0-alpha.3.2/measurement-mp2.json"
+        },
+        "mp3": {
+          "verdict": "pass",
+          "recorded_at": "2026-11-07T17:03Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.167.0-alpha.3.2/measurement-mp3.json"
+        },
+        "mprofile": {
+          "verdict": "pass",
+          "recorded_at": "2026-11-07T17:38Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.167.0-alpha.3.2/measurement-mprofile.json"
+        },
+        "mqg": {
+          "verdict": "pass",
+          "recorded_at": "2026-11-07T17:11Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.167.0-alpha.3.2/measurement-mqg.json"
+        },
+        "mqo": {
+          "verdict": "pass",
+          "recorded_at": "2026-11-07T17:11Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.167.0-alpha.3.2/measurement-mqo.json"
+        },
+        "mqp": {
+          "verdict": "pass",
+          "recorded_at": "2026-11-07T17:16Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.167.0-alpha.3.2/measurement-mqp.json"
+        },
+        "msteer": {
+          "verdict": "fail",
+          "recorded_at": "2026-11-07T16:52Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.167.0-alpha.3.2/measurement-msteer.json"
+        },
+        "msteer2": {
+          "verdict": "pass",
+          "recorded_at": "2026-11-07T16:55Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.167.0-alpha.3.2/measurement-msteer2.json"
+        },
+        "mswap": {
+          "verdict": "pass",
+          "recorded_at": "2026-11-07T18:12Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.167.0-alpha.3.2/measurement-mswap.json"
+        },
+        "mtok": {
+          "verdict": "pass",
+          "recorded_at": "2026-11-07T16:10Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.167.0-alpha.3.2/measurement-mtok.json"
+        },
+        "mw": {
+          "verdict": "pass",
+          "recorded_at": "2026-11-07T16:02Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.167.0-alpha.3.2/measurement-mw.json"
+        },
+        "mwake": {
+          "verdict": "fail",
+          "recorded_at": "2026-11-07T18:54Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.167.0-alpha.3.2/measurement-mwake.json"
+        },
+        "mx": {
+          "verdict": "pass",
+          "recorded_at": "2026-11-07T16:36Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.167.0-alpha.3.2/measurement-mx.json"
+        },
+        "mxa": {
+          "verdict": "pass",
+          "recorded_at": "2026-11-07T16:42Z",
+          "evidence": "docs/evidence/advanced/codex-cli-0.167.0-alpha.3.2/measurement-mxa.json"
+        }
+      }
+    }
+  ]
 }

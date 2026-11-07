@@ -1,0 +1,26 @@
+{
+  "format": "codex-auto-resume-measurement/1",
+  "step": "mqo",
+  "verdict": "blocked",
+  "recorded_at": "2026-11-07T17:07Z",
+  "product_version": "0.6.22-beta.2",
+  "codex_version": "codex-cli 0.167.0-alpha.3.2",
+  "windows_build": "10.0.26300",
+  "observed": {
+    "holders_read": true,
+    "held_before": false,
+    "holders": 0,
+    "add_accepted": true,
+    "queued_while_not_held": true,
+    "taken": true,
+    "taken_seconds": "under_60s",
+    "client_id_on_user_item": true,
+    "thread_given": true
+  },
+  "note": "open the throwaway conversation in the Desktop within five minutes of starting this; confirm the message ran there once, as your own, with no marker, then set the verdict",
+  "completion": {
+    "verdict": "pass",
+    "note": "as_expected",
+    "recorded_at": "2026-11-07T17:11Z"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "format": "codex-auto-resume-measurement/1",
+  "step": "mhk",
+  "verdict": "pass",
+  "recorded_at": "2026-11-07T16:10Z",
+  "product_version": "0.6.22-beta.2",
+  "codex_version": "codex-cli 0.167.0-alpha.3.2",
+  "windows_build": "10.0.26300",
+  "observed": {
+    "features_read": true,
+    "plugin_hooks_listed": true,
+    "plugin_hooks_on": false,
+    "schema_read": true,
+    "scratch_home": true,
+    "hook_event_names": 14,
+    "stop_event": true,
+    "hook_sources": 11,
+    "plugin_source": true,
+    "stop_input_keys": 0,
+    "decision_words": 0,
+    "decision_block": false,
+    "input_session_id": false,
+    "input_turn_id": false,
+    "input_hook_event_name": false,
+    "input_transcript_path": false,
+    "input_stop_hook_active": false,
+    "thread_given": false
+  }
+}

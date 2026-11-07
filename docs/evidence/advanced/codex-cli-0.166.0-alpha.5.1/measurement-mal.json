@@ -1,0 +1,27 @@
+{
+  "format": "codex-auto-resume-measurement/1",
+  "step": "mal",
+  "verdict": "blocked",
+  "recorded_at": "2026-11-01T01:43Z",
+  "product_version": "0.6.20",
+  "codex_version": "codex-cli 0.166.0-alpha.5.1",
+  "windows_build": "10.0.26300",
+  "observed": {
+    "account_read": true,
+    "signed_in_before": true,
+    "plan_before": "plus",
+    "signed_out_seen": true,
+    "signed_in_again_seen": true,
+    "plan_after": "plus",
+    "fresh_session_each_read": true,
+    "reads": 34,
+    "reads_failed": 1,
+    "thread_given": false
+  },
+  "note": "with the app open and signed in, run `codex logout` and then `codex login` with the app's own engine (the codex.exe in the app's bin folder under LOCALAPPDATA, never a codex on PATH) within ten minutes of starting this; the person signs in in the browser only and never with the app's own sign-in buttons; confirm the running app shows the new sign-in without a restart, then set the verdict",
+  "completion": {
+    "verdict": "fail",
+    "note": "partial",
+    "recorded_at": "2026-11-01T01:47Z"
+  }
+}

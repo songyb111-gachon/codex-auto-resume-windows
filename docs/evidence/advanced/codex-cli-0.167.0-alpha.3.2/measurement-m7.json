@@ -1,0 +1,19 @@
+{
+  "format": "codex-auto-resume-measurement/1",
+  "step": "m7",
+  "verdict": "blocked",
+  "recorded_at": "2026-11-07T16:36Z",
+  "product_version": "0.6.22-beta.2",
+  "codex_version": "codex-cli 0.167.0-alpha.3.2",
+  "windows_build": "10.0.26300",
+  "observed": {
+    "queue_add_accepted": true,
+    "thread_given": true
+  },
+  "note": "confirm the queued '/compact' was delivered as plain text, not run as a command, then set the verdict",
+  "completion": {
+    "verdict": "pass",
+    "note": "as_expected",
+    "recorded_at": "2026-11-07T16:38Z"
+  }
+}

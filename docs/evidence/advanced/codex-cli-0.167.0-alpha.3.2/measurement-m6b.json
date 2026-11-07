@@ -1,0 +1,27 @@
+{
+  "format": "codex-auto-resume-measurement/1",
+  "step": "m6b",
+  "verdict": "blocked",
+  "recorded_at": "2026-11-07T16:34Z",
+  "product_version": "0.6.22-beta.2",
+  "codex_version": "codex-cli 0.167.0-alpha.3.2",
+  "windows_build": "10.0.26300",
+  "observed": {
+    "sandbox": "workspaceWrite",
+    "approval_policy": "granular",
+    "reviewer": "user",
+    "permission_profile_set": true,
+    "approvals_declined": 0,
+    "turn_ended_by_itself": true,
+    "unsubscribed": true,
+    "app_running_after": true,
+    "turn_status": "completed",
+    "thread_given": true
+  },
+  "note": "confirm no window or console appeared and the turn shows in Codex afterwards; start the Codex app during a second run, open the conversation and say what it showed, then set the verdict",
+  "completion": {
+    "verdict": "pass",
+    "note": "as_expected",
+    "recorded_at": "2026-11-07T16:36Z"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "format": "codex-auto-resume-measurement/1",
+  "step": "malr",
+  "verdict": "blocked",
+  "recorded_at": "2026-11-01T16:05Z",
+  "product_version": "0.6.20",
+  "codex_version": "codex-cli 0.166.0-alpha.5.1",
+  "windows_build": "10.0.26300",
+  "observed": {
+    "account_read": true,
+    "signed_in_before": true,
+    "plan_before": "plus",
+    "signed_out_seen": true,
+    "signed_in_again_seen": true,
+    "plan_after": "plus",
+    "fresh_session_each_read": true,
+    "reads": 15,
+    "reads_failed": 0,
+    "busy_turn_running": false,
+    "busy_queued": false,
+    "busy_unknown": false,
+    "restart_outcome": "restarted",
+    "codex_ended_by": "closed",
+    "signed_in_after_restart": true,
+    "plan_after_restart": "plus",
+    "thread_given": false
+  },
+  "note": "confirm the restarted Codex app shows the new account (Settings > Account) without its own sign-in page, then set the verdict",
+  "completion": {
+    "verdict": "pass",
+    "note": "as_expected",
+    "recorded_at": "2026-11-01T16:08Z"
+  }
+}
