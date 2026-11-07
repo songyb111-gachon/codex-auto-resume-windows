@@ -337,8 +337,9 @@ class PageTests(PageCase):
         # usage and token analytics, the 5-hour window started early, switching the Codex account, the steer, and
         # open_to_send, offered since MOPEN passed (codex-cli 0.165.0-alpha.1.2); v0.6.20: the power action after tasks a
         # person picked; v0.6.22: the automatic account switch, offered since MPROFILE and MSWAP passed
-        # (codex-cli 0.166.0-alpha.6), the status server and what widens it, and Telegram's two: 49 rows.
-        self.assertEqual(len(IDS), 49)
+        # (codex-cli 0.166.0-alpha.6), the status server and what widens it, Telegram's two, and
+        # See your other PCs: 50 rows.
+        self.assertEqual(len(IDS), 50)
         self.assertEqual(result["page"], "advanced")
         # The row chosen is the capability open, and nothing else is.
         self.assertEqual(result["open"], IDS[1])
