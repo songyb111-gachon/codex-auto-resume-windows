@@ -69,7 +69,14 @@ class Point(StrEnum):
     P21 (v0.6.20, Discussion #57) is asked by the watcher's power action, and only for an arming made for tasks a
     person picked (control/poweraction.py, `tasks`): how those tasks stand, one closed word (PowerTasks) and the ids of
     their conversations, checked before core takes it (Guarded.power). Core decides from the word as it decides from
-    its own batch; an arming without `tasks` - every one the standard edition makes - never asks."""
+    its own batch; an arming without `tasks` - every one the standard edition makes - never asks.
+
+    P22 (v0.6.22, the owner's word of 2026-11-06) is asked once a tick while recovery is paused, and only then - instead of
+    every other point, which a paused tick asks nothing. It is for a resident process a capability keeps beside the watcher
+    that sends nothing to Codex (the advanced edition's courier: a status server, a Telegram reader), so that a pause made
+    from outside the PC can be lifted from there after the watcher restarted. A capability says so by answering at P22
+    itself; nothing infers it. Its answer is an errand as P8's is, run once with core's guards; a Pause still beats every
+    send, because nothing a paused tick does reaches a send."""
     RECORDS = "records"                      # P2  records of the advanced store, due now
     GATES = "gates"                          # P3  the gates a record passes before it is sent
     TEXT = "text"                            # P4  what the continuation says
@@ -90,6 +97,7 @@ class Point(StrEnum):
     ELIGIBILITY = "eligibility"              # P19 which of the app's conversations core takes up
     NOTICE = "notice"                        # P20 a notice core raised, told
     POWER = "power"                          # P21 how the tasks a person armed the power action for stand
+    RESIDENT = "resident"                    # P22 while paused, the residents that send nothing to Codex
 
 
 class Alternative(StrEnum):

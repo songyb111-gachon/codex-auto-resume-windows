@@ -375,6 +375,25 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "confirm.accounts_add", "confirm.accounts_delete", "confirm.accounts_delete_all", "done.accounts_saved",
     "done.accounts_deleted", "refused.accounts_not_saved",
 ))
+# v0.6.22 (local_api, local_api_actions): the loopback API's card (advanced/gui/AdvancedRemote.cs), the words of its web view
+# (courier/page.py) and of the example.
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
+    "option.api_port", "api.card", "api.address", "api.token_kept", "api.no_token", "api.lan", "api.copy", "api.new_token",
+    "api.new_token_yes", "api.state.running", "api.state.starting", "api.state.stopped", "api.state.port_taken",
+    "confirm.api_token", "done.api_copied", "done.api_token", "done.api_token_kept", "refused.api_not_copied",
+    "api.title", "api.watcher", "api.recovery", "api.pending", "api.next_check", "api.ask_token", "api.refused",
+    "api.word.running", "api.word.stopped", "api.word.on", "api.word.paused", "api.word.observe_only",
+    "api.example.cancelled", "api.example.lan"))
+# v0.6.22 (telegram_remote, telegram_continue): the remote card (advanced/gui/AdvancedRemote.cs), the answers the paired chat
+# is sent (courier/telegram.py), and the tripwire of five wrong codes.
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
+    "remote.card", "remote.paired", "remote.not_paired", "remote.commands", "remote.command.status", "remote.command.list",
+    "remote.command.cancel", "remote.command.pause", "remote.command.continue", "remote.command.lift_pause",
+    "remote.state.running", "remote.state.starting", "remote.state.stopped", "remote.answer.help",
+    "remote.answer.not_allowed", "remote.answer.paused", "remote.answer.pause_lifted", "remote.answer.list_again",
+    "remote.answer.refused", "remote.answer.cancelled", "remote.answer.continued", "remote.answer.status",
+    "remote.answer.list_none", "remote.answer.list_item", "remote.word.running", "remote.word.stopped", "remote.word.on",
+    "remote.word.paused", "remote.word.observe_only", "tripped.bad_codes"))
 # The edition's own continuations' words (v0.6.15-beta): what empty_response, subagent_parent and keep_going send -
 # fixed, each passing core's continuation.validate_continuation in every language (nothing is filled in but, for a
 # subagent's line, its id and a closed kind word).

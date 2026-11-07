@@ -52,3 +52,8 @@ STANDARDS = tuple(prefix + str(number) for prefix, count in FAMILIES
 # The families a capability may say it departs from: every one but K.
 BINDING = ("K",)
 DEPARTABLE = tuple(standard for standard in STANDARDS if standard[0] not in BINDING)
+# The one rule of family K an advanced capability may also say it goes past, by the owner's word of 2026-11-06/07: K5, for
+# the capabilities core keeps asking while recovery is paused (P22: they send nothing to Codex). STANDARDS.md stays as it
+# is; this list is the registry's own bookkeeping, and DEPARTABLE (what the standard edition keeps) is unchanged.
+PAST_BY_THE_OWNER = ("K5",)
+DECLARABLE = DEPARTABLE + PAST_BY_THE_OWNER

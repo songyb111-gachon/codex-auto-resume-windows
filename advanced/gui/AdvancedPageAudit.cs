@@ -733,6 +733,8 @@ namespace CodexAutoResume
         ///   {"do": "chat_type", "text": ..., "caret": n,      the chat's box written in, its caret at n with `selected`
         ///    "selected": n}                                   characters chosen after it, as a person leaves it (v0.6.23)
         ///   {"do": "courier", "button": "save ntfy"}          a courier card's button pressed, if it can be (v0.6.20)
+        ///   {"do": "remote", "button": "copy api"}            a remote card's button pressed ("copy api", "token api", "pair telegram"),
+        ///                                                     what it copies kept (v0.6.22)
         ///   {"do": "courier_type", "into": "ntfy.url",       one of the courier card's boxes filled
         ///    "text": ...}
         ///   {"do": "look"}                                    what the page shows now, into "looks"
@@ -1143,6 +1145,15 @@ namespace CodexAutoResume
                         // v0.6.20: one of the courier card's buttons by its tag ("save ntfy", "test ntfy", "pair telegram").
                         Button found = form.courierButtons.Find(delegate(Button each) { return Equals(each.Tag, Str(step, "button")); });
                         if (found == null || !found.Enabled) disabled.Add("courier " + Str(step, "button"));
+                        else Pressed.Invoke(found, new object[] { EventArgs.Empty });
+                    }
+                    else if (what == "remote")
+                    {
+                        // v0.6.22: one of the remote cards' buttons by its tag; what it copies goes to `remote_copied`,
+                        // never the clipboard.
+                        if (form.remoteCopied == null) form.remoteCopied = new List<string>();
+                        Button found = form.remoteButtons.Find(delegate(Button each) { return Equals(each.Tag, Str(step, "button")); });
+                        if (found == null || !found.Enabled) disabled.Add("remote " + Str(step, "button"));
                         else Pressed.Invoke(found, new object[] { EventArgs.Empty });
                     }
                     else if (what == "courier_type")
@@ -1563,6 +1574,11 @@ namespace CodexAutoResume
             // v0.6.20: the Overview's OpenAI status line, while it is shown (AdvancedCourier.cs), and the courier card's buttons.
             look["feed"] = feedValue != null && OwnVisible(feedValue) ? feedValue.Text : null;
             look["courier_buttons"] = Tags(courierButtons);
+            // v0.6.22: the remote cards' buttons, and what they copied.
+            look["remote_buttons"] = Tags(remoteButtons);
+            var copied = new List<object>();
+            if (remoteCopied != null) foreach (string text in remoteCopied) copied.Add(text);
+            look["remote_copied"] = copied;
             // v0.6.20: the account card's button - whether it can be pressed, or null where it is not offered.
             look["account_switch"] = accountSwitch == null ? (object)null : accountSwitch.Enabled;
             // v0.6.20 final: and its Restart Codex and Not now, after a sign-in - the same, each.

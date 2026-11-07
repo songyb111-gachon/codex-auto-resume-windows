@@ -15,7 +15,7 @@ asked to agree to and everything the plug holds it to:
   capability off until they have read that one (a tripwire, arming.py);
 * `departs_from` - the standards it breaks (standards.py). Never empty: a capability that keeps
   every standard belongs in the standard edition, so the rule for which edition a capability is
-  in is this field. Only the standard edition's standards may be named (standards.DEPARTABLE):
+  in is this field. Only the standard edition's standards may be named (standards.DECLARABLE: DEPARTABLE and K5, the owner's word of 2026-11-06 for P22):
   family K is the advanced edition's own rules, which every capability keeps;
 * `compat` - the Compatibility Registry capability it stands on. Its grade here is shown in the
   statement - FAILED_HERE, INCOMPATIBLE or UNKNOWN as a warning the person confirms - and a
@@ -116,12 +116,15 @@ from .engine.wake import DEFAULT_LEAD as WAKE_DEFAULT_LEAD, LEADS as WAKE_LEADS,
 # v0.6.20 (the courier): push notices and the status feed.
 from .engine.push import DEFAULT_EVENTS, EVENT_CHOICES, make as make_push_notices, SWITCH as PUSH_SWITCH
 from .engine.feed import DEFAULT_MINUTES as FEED_DEFAULT_MINUTES, MINUTES as FEED_MINUTES, make as make_status_feed
+# v0.6.22 (the resident courier): the loopback API and web view, and what widens them.
+from .engine.remote import (API_ACTION_CODES, API_CODES, DEFAULT_PORT as API_DEFAULT_PORT, PORT_RANGE as API_PORT_RANGE,
+                            TELEGRAM_CODES, TELEGRAM_CONTINUE_CODES, make_local_api, make_telegram_remote, make_widening)
 from .courier.outbox import codes as push_codes
 from .engine.usage import (DEFAULT_PAUSE, DEFAULT_POLL, DEFAULT_STOP_WORDS, DEFAULT_STYLE, DEFAULT_WARN,
                            DEFAULT_WRAP, ON, PERCENT_RANGE, PERCENTS, POLL_RANGE, SWITCH,
                            POLL_CHOICES, STYLES, make_meter, make_pause, make_wrap_up)
 from .report import make as make_compat_report
-from .standards import DEPARTABLE
+from .standards import DECLARABLE
 from .vocabulary import CapabilityKind, Measurement, OptionKey, RunEnd, Verdict, WordingKey
 
 # The one ceiling over every capability together: advanced sends an hour. It is also the highest
@@ -262,7 +265,7 @@ def problems(definition) -> list:
     if not isinstance(departs, tuple) or not departs:
         found.append("departs_from is empty: it keeps every standard, so it is standard")
     elif (not all(isinstance(standard, str) for standard in departs)
-          or len(set(departs)) != len(departs) or not set(departs) <= set(DEPARTABLE)):
+          or len(set(departs)) != len(departs) or not set(departs) <= set(DECLARABLE)):
         found.append("departs_from names a standard the standard edition does not keep")
     if not action:
         if not isinstance(definition.compat, str) or not ID_SHAPE.fullmatch(definition.compat):
@@ -304,6 +307,10 @@ def problems(definition) -> list:
     if type(definition.resends) is not bool or (
             definition.resends is True and Point.SCHEDULE not in (points if isinstance(points, frozenset) else ())):
         found.append("resends")
+    # v0.6.22: P22 is asked while recovery is paused, so answering there says the capability sends nothing to Codex: a
+    # resident answers at P8 and P22 alone, never at a point that decides or sends.
+    if isinstance(points, frozenset) and Point.RESIDENT in points and not points <= {Point.TICK, Point.RESIDENT}:
+        found.append("a resident answers at P8 and P22 alone: it sends nothing to Codex")
     requires = definition.requires
     if (not isinstance(requires, tuple)
             or not all(isinstance(other, str) for other in requires)
@@ -1363,6 +1370,111 @@ STATUS_FEED = CapabilityDef(
     options=(Option(OptionKey.FEED_MINUTES, FEED_MINUTES, FEED_DEFAULT_MINUTES),),
 )
 
+# Read this PC's status from a browser or a script (v0.6.22, the owner's word of 2026-11-05, "넣되 단계별로";
+# plans/v0619-design/D-remote.md). While it stands on, the watcher keeps one resident courier beside it (courier/resident.py,
+# engine/remote.py: at most three restarts an hour, then its card says stopped), and that process - the one listening
+# socket of this product - serves on 127.0.0.1 alone (47615, or the port the person types): the status file's closed keys
+# as JSON and Prometheus' text, the waiting recoveries as `task N` and their public codes, and a small page (courier/api.py,
+# page.py). Host checked (421), a Bearer token kept in Credential Manager and compared in constant time (401), ten wrong
+# in a minute close it for five minutes, no CORS, no query string read, nothing logged. Nothing it serves sends, chats or
+# changes a setting; only the watcher sends. It departs from C1 and C2 (its server's file imports networking modules: one
+# more shipped file the privacy test counts beside the courier's), B14 (a listening socket and a localhost server), F8 (a
+# resident process), F6 (a process of its own besides the listed ones), D1 (state readable by whatever local program
+# holds the token) and C12 (the window's words reach a page a browser shows). It stands on engine_present as push_notices
+# does; its ceilings are the schema's floor and never bind: it sends nothing to Codex.
+LOCAL_API = CapabilityDef(
+    id="local_api",
+    points=frozenset({Point.TICK, Point.RESIDENT}),
+    revision=1,
+    departs_from=("C1", "C2", "B14", "F8", "F6", "D1", "C12", "K5"),
+    compat="engine_present",
+    ceilings=Ceilings(per_day=1, per_conversation=1),
+    journal_prefix="api",
+    make=make_local_api,
+    codes=API_CODES,
+    options=(Option(OptionKey.API_PORT, (API_DEFAULT_PORT,), API_DEFAULT_PORT, API_PORT_RANGE),),
+)
+
+# Let what holds the token pause and cancel (v0.6.22, D-remote.md): an action - core never asks it. While it stands on
+# beside local_api, the API also answers POST /pause, /resume-off (the same pause: there is no remote resume) and
+# /cancel/<N> against the list it was read on, through core's own control calls, each counted. Reduce-actions alone. It
+# departs from H3 (a surface beside the three that changes state) and H8 (no destructive hint: an HTTP route carries
+# none). It requires local_api.
+LOCAL_API_ACTIONS = CapabilityDef(
+    id="local_api_actions",
+    points=frozenset(),
+    revision=1,
+    departs_from=("H3", "H8"),
+    compat=None,
+    ceilings=None,
+    journal_prefix="apiact",
+    make=make_widening,
+    codes=API_ACTION_CODES,
+    requires=("local_api",),
+    kind=CapabilityKind.ACTION,
+)
+
+# Open the status server to the local network (v0.6.22, D-remote.md): an action - core never asks it. While it stands on
+# beside local_api, the resident binds to every network instead of 127.0.0.1 and takes a Host that is an IPv4 address with
+# its port; every other check stays. Windows asks about its firewall; the product never edits a rule. It departs from B14
+# (a listening socket, reachable from other devices), F8 (the resident process) and D1 (the status can reach whoever on the
+# network holds the token). It requires local_api.
+LOCAL_API_LAN = CapabilityDef(
+    id="local_api_lan",
+    points=frozenset(),
+    revision=1,
+    departs_from=("B14", "F8", "D1"),
+    compat=None,
+    ceilings=None,
+    journal_prefix="apilan",
+    make=make_widening,
+    requires=("local_api",),
+    kind=CapabilityKind.ACTION,
+)
+
+# Both declare they send nothing to Codex by answering at P22 (the owner's word of 2026-11-06), so core keeps their resident
+# running while recovery is paused too, a watcher restart included: a pause made from the phone can be lifted from it.
+# Control recovery from Telegram (v0.6.22, D-remote.md): while it stands on, the resident courier long-polls the bot
+# push_notices keeps, obeying the one chat its pairing kept and ignoring every other in silence (courier/telegram.py):
+# /status, /list, /cancel task N against the list last sent, /pause. Reads and reduce-actions; no command sends to Codex,
+# chats, changes a setting or turns a feature on, and answers are closed words, numbers and `task N`. Five wrong codes
+# during a pairing turn it off (BAD_CODES, whether or not it is kept on). It departs from C1 and C2 (the courier is a second
+# shipped file reaching the network), C3 (api.telegram.org), C8 (Telegram sees this PC's address and the courier's name),
+# D1 (how recoveries stand goes to Telegram), F6 (a process of its own), F8 (a resident process) and K5 (it answers
+# commands while the watcher is paused: the owner's word of 2026-11-06, P22; STANDARDS.md stays). It requires
+# push_notices, whose bot and pairing it uses; a chat not yet paired means it waits. It stands on engine_present; its
+# ceilings are the schema's floor and never bind.
+TELEGRAM_REMOTE = CapabilityDef(
+    id="telegram_remote",
+    points=frozenset({Point.TICK, Point.RESIDENT}),
+    revision=1,
+    departs_from=("C1", "C2", "C3", "C8", "D1", "F6", "F8", "K5"),
+    compat="engine_present",
+    ceilings=Ceilings(per_day=1, per_conversation=1),
+    journal_prefix="tgram",
+    make=make_telegram_remote,
+    codes=TELEGRAM_CODES,
+    requires=("push_notices",),
+)
+
+# Let Telegram continue a held recovery and lift a pause (v0.6.22, D-remote.md): an action. While it stands on beside
+# telegram_remote, the paired chat may also send /continue task N (core's release_hold, the person's own move: it sends
+# nothing and skips no gate) and /recovery-on (core's set_enabled(True), which an administrator's policy still refuses).
+# It departs from H4 (a pause lifted from outside the PC). It requires telegram_remote.
+TELEGRAM_CONTINUE = CapabilityDef(
+    id="telegram_continue",
+    points=frozenset(),
+    revision=1,
+    departs_from=("H4",),
+    compat=None,
+    ceilings=None,
+    journal_prefix="tgcont",
+    make=make_widening,
+    codes=TELEGRAM_CONTINUE_CODES,
+    requires=("telegram_remote",),
+    kind=CapabilityKind.ACTION,
+)
+
 # Start the 5-hour window early (v0.6.20, the owner's request of 2026-10-28; plans/v0620-anchor-design.md). At P8,
 # when Codex's 5-hour window is idle - 0 % in two reads STEADY_GAP apart, its reset ~5 h ahead and moving with the
 # clock, as MANCHOR found an idle window reports - its errand starts one near-free request, the measured
@@ -1472,7 +1584,11 @@ DEFINITIONS = (START_WITH_CODEX, CRASH_RESTART, GOAL_CONTINUATION, QUEUE_FOR_OPE
                USAGE_ANALYTICS, WINDOW_ANCHOR, PUSH_NOTICES, STATUS_FEED, ACCOUNT_SWITCH, STEER_SEND,
                # v0.6.20 (Discussion #57): the power action after tasks a person picked, the one answer at P21.
                POWER_AFTER_TASKS,
+               # v0.6.22: the resident courier, before the wake timer.
+               LOCAL_API, TELEGRAM_REMOTE,
                WAKE_FOR_RESET,
+               # v0.6.22: what widens the loopback API: actions, core never asks them.
+               LOCAL_API_ACTIONS, LOCAL_API_LAN, TELEGRAM_CONTINUE,
                OPEN_CODEX_BUTTON, LONG_RESET_MESSAGE,
                COMPAT_REPORT)
 # Codex's own retry settings (stage 4's item 6): Attempts (6, 8, 10, 12, 16 or 20; 8 by default) for both of its built-in
@@ -1645,7 +1761,10 @@ SHOWN_ORDER = (
     # 2026-10-31, group 2: what saves the person work (messages, the usage meter and what serves it, what a person
     # is told and does about one conversation). open_to_send is shown once MOPEN passes.
     "reset_message", "long_reset_message", "keep_going", "prompt_queue", "usage_meter", "usage_wrap_up", "usage_pause",
-    "push_notices", "send_now", "open_to_send", "open_codex_button", "codex_chat", "steer_send", "usage_analytics",
+    "push_notices",
+    # 2026-11-05 (v0.6.22): what is told on a phone can be answered from it, beside the notices it uses.
+    "telegram_remote", "telegram_continue",
+    "send_now", "open_to_send", "open_codex_button", "codex_chat", "steer_send", "usage_analytics",
     # 2026-11-01 (Discussion #57): it spares the person waiting at the PC for the tasks they started to finish.
     "power_after_tasks",
     # 2026-10-31, group 3: the other common failures.
@@ -1654,7 +1773,9 @@ SHOWN_ORDER = (
     # 2026-10-31, group 4: rare cases and expert settings. stop_hook_continuation is hidden (WAITING) until MHK, M4
     # and M4B pass and then takes this place.
     "silent_continuation", "stop_hook_continuation", "status_feed", "account_switch", "idle_update_check",
-    "structured_rules")
+    "structured_rules",
+    # 2026-11-05 (v0.6.22): what a person's own scripts and browser may read and do: rare and expert.
+    "local_api", "local_api_actions", "local_api_lan")
 
 
 def shown(registry) -> tuple:

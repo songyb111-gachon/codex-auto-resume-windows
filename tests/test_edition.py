@@ -110,7 +110,7 @@ class NullPlugTests(unittest.TestCase):
         # (v0.6.15-beta): P12's whole number of workers carried out, P2's purposes and moves. 6 (v0.6.19): P13 asked at
         # the watcher's start and end with SUPERVISE and RESTART, and P20, a notice told. 7 (v0.6.20): P21, how the tasks
         # a person armed the power action for stand.
-        self.assertEqual(plug.PLUG_API, 7)
+        self.assertEqual(plug.PLUG_API, 8)
 
 
 class RecordingPlug(Plug):
@@ -271,6 +271,8 @@ class GuardTests(unittest.TestCase):
                     self.assertEqual(answer, frozenset(), "a person's own conversations alone (A15, plughands.widening_of)")
                 elif point is Point.SESSIONS:
                     self.assertEqual(answer, frozenset(), "the app's conversations alone (A15, plughands.kinds_of)")
+                elif point is Point.RESIDENT:
+                    self.assertIs(answer, DEFER, "no resident kept while paused (P22, v0.6.22)")
                 elif point is Point.POWER:
                     self.assertIsNone(answer, "no word for any tasks: the power action waits (P21, v0.6.20)")
                 else:

@@ -230,6 +230,9 @@ class Scoped:
             # and whether its own stored state is on now, read afresh - not the runtime's view, refreshed at a tick (the
             # wake timer's watch takes the timer back within its quarter of a minute of a turn-off: seatA:B-M5).
             "stored_on": lambda: (state.arming().get(capability) or {}).get("state") == "armed",
+            # v0.6.22 (the resident courier, engine/remote.py): when a capability journalled one of its own words - read,
+            # never written - so a cap on starts outlives the watcher that made them.
+            "journal_times": lambda other, word, since: state.journal_times(other, word, since),
         }
         # v0.6.14, the reset actions: their rules, windows and spends (state/resets.ResetsHandle - writes only while
         # on), whether a measurement passed or failed on the Codex in force (arming.Arming.verdict), and whether

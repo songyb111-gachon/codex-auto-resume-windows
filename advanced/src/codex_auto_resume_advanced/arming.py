@@ -579,7 +579,7 @@ class Arming:
         written only where it rises above the one the row holds. Whether it was turned off;
         StateError where nothing could be written or read."""
         row = self.state.arming().get(capability) if row is None else row
-        if (row or {}).get("keep_on"):
+        if (row or {}).get("keep_on") and reason != OffReason.BAD_CODES:   # v0.6.22: no Keep on holds this one back
             if _rises(row.get("reason"), reason):
                 self.state.note_kept(capability, reason, at=self.clock())
             return False

@@ -144,21 +144,23 @@ interruption, the samples of failures it could not classify, the reset rules and
 the usage windows - and, until each is sent, cancelled or ended, the words of a message you wrote for a
 reset - are kept in
 `config/advanced/advanced.sqlite`, in fixed words, ids, numbers and Codex's own error codes - never a
-word of an error or a conversation, and of yours only a message waiting for a reset - and nothing of it is written into the standard edition's state. Its only network code is the courier, which runs only while *Send notices to your phone or inbox* or *Show OpenAI's service status* is on (below). Two capabilities cause GitHub traffic: the compatibility report asks gh - the GitHub CLI you
+word of an error or a conversation, and of yours only a message waiting for a reset - and nothing of it is written into the standard edition's state. Its only network code is the courier, which runs only while *Send notices to your phone or inbox*, *Show OpenAI's service status*, *Read this PC's status from a browser or a script* or *Control recovery from Telegram* is on (below). Two capabilities cause GitHub traffic: the compatibility report asks gh - the GitHub CLI you
 installed - to reach GitHub, and only when you start it in the Dashboard (below), and
 *Check for updates once a week* runs the installed `bootstrap.ps1 -CheckOnly` once a week (below). Its archive also carries
 the harness the project uses to measure whether a capability's route works on a given version of
 Codex; nothing runs it unless a person asks, and [SECURITY.md](SECURITY.md) says what it does.
 
-One capability stores secrets: *Send notices to your phone or inbox* keeps the addresses, tokens and passwords
-you type for it in Windows' Credential Manager, under names of its own, and never in its database, a settings
-file or a log. That is the package's one way to keep a secret, and it never reads Codex's own credentials.
+Two capabilities store secrets: *Send notices to your phone or inbox* keeps the addresses, tokens and passwords
+you type for it, and *Read this PC's status from a browser or a script* the token it makes, in Windows' Credential
+Manager, under names of their own, and never in its database, a settings file or a log. That is the package's one way
+to keep a secret, and it never reads Codex's own credentials.
 
 ## Today's capabilities
 
-Forty-three: twenty-three that change how a recovery is made, which conversations are recovered or what
+Forty-eight: twenty-three that change how a recovery is made, which conversations are recovered or what
 follows a turn, two that tell you elsewhere - notices sent to your phone or inbox, and OpenAI's service status
-on the Overview (v0.6.20) - one that shows where your usage and tokens go (v0.6.20), three that send at a time you
+on the Overview (v0.6.20) - three that let a browser or a script of yours read how this PC stands, pause and cancel,
+and reach it from your network, and two that take commands from the Telegram chat you paired (v0.6.22) - one that shows where your usage and tokens go (v0.6.20), three that send at a time you
 pick - the two at a usage reset, and queued messages - one that adds a line to the turn running now (v0.6.20; the
 Codex app does not show that line, only History does) - three
 before a usage limit is reached - the usage meter, and the wrap-up and the forced stop that need it - one that
@@ -714,6 +716,131 @@ hosts: status.openai.com is one more), [C4](STANDARDS.md#c-network) (nothing hap
 a schedule) and [C8](STANDARDS.md#c-network) (the status page sees this PC's address and the courier's name).
 
 **Ceilings.** None come into play: it sends nothing to Codex. It rests on no measurement.
+
+### Read this PC's status from a browser or a script
+
+**What it does.** While it is on, a small server runs beside the watcher, on this PC alone: 127.0.0.1, port 47615 or
+one you choose. Four things can be asked of it. `GET /status.json` answers what the [status file](GUIDE.md) holds and
+nothing more: whether the watcher runs, whether recovery is on, how many recoveries wait and at which state, the next
+check, usage as last read. `GET /metrics` says the same as Prometheus text. `GET /pending` lists the waiting recoveries as
+`task 1`, `task 2` and so on, each with its state and next check, never by name. `GET /` is a small page showing those.
+Every request but the page needs `Authorization: Bearer <token>`. The token is made on its card with **New token...**,
+kept in Windows Credential Manager, and **Copy address** copies an address that carries it after `#`, the part a browser
+never sends; the page reads it from there and puts it in a header.
+
+**When it helps.** A status bar, a Prometheus scrape or a phone on the same PC's browser that wants to know how recoveries
+stand without opening the Dashboard.
+
+**What it risks.** Any program on this PC holding the token can read how your recoveries stand, and the address carries
+it, so Windows' clipboard history and your browser's history keep it once you copy and open it: keep it out of
+screenshots and shared notes. Copy address is offered only while the server runs. It shows state and counts, no conversation's title, path or words. A
+server is one more process and one more port; a program already on that port keeps it from starting, and the card says so.
+
+**How it is held.** A request naming the server by any other host name is refused (421), so a web page cannot reach it
+by rebinding a name. The token is compared in constant time (401 otherwise); ten wrong in a minute close the server for
+five minutes (503). An unknown path is 404, another method 405, a body over 1 KiB 413. No answer carries a CORS header
+or a cookie, the page has a Content-Security-Policy that loads nothing and connects only to itself, a query string is
+never read, and nothing is logged. Nothing here can send to Codex, chat, change a setting or turn a feature on. The
+watcher restarts the server at most three times an hour; after that the card says it stopped. **New token...** makes the
+old address useless at once.
+
+**Departs from** [C1](STANDARDS.md#c-network) and [C2](STANDARDS.md#c-network) (its server's file imports networking
+modules: one more shipped file reaching the network beside the courier's), [B14](STANDARDS.md#b-what-it-reads-and-how) (a
+listening socket and a localhost server),
+[F8](STANDARDS.md#f-footprint-on-the-machine) (a second process for as long as it is on),
+[F6](STANDARDS.md#f-footprint-on-the-machine) (a process of its own beside the listed ones),
+[D1](STANDARDS.md#d-privacy-and-the-data-it-keeps) (any local program holding the token can read the status) and
+[C12](STANDARDS.md#c-network) (the page asks this server for its numbers).
+
+**Ceilings.** None come into play: it sends nothing to Codex. It rests on no measurement.
+
+### Let whoever holds the token pause and cancel
+
+**What it does.** While it and the status server are on, whoever holds the token can also pause recovery
+(`POST /pause`, or `POST /resume-off`, which is the same pause: there is no way to resume from outside) and cancel one
+waiting recovery by its place on the list (`POST /cancel/1` with the list's `snapshot` in the body). A list that changed
+since it was read gets 409 and nothing is cancelled. Turned off, each answers 403.
+
+**When it helps.** A script of your own that stops recovery when you start something else.
+
+**What it risks.** A program holding the token can pause recovery and cancel recoveries that wait, so a usage limit may
+not be recovered from until you notice. A cancelled recovery does not come back. It can only do less: nothing here sends,
+resumes, gives attempts back or changes a setting.
+
+**Departs from** [H3](STANDARDS.md#h-user-control) (a surface beside the three that changes state) and
+[H8](STANDARDS.md#h-user-control) (an address carries no warning). It needs *Read this PC's status from a browser or a
+script* on.
+
+**Ceilings.** None: it is an action, and sends nothing. It rests on no measurement.
+
+### Open the status server to your local network
+
+**What it does.** While it and the status server are on, the server answers on every network this PC is on, so another
+device can read it at this PC's IP address and the port, with the token. A request must name the server by an IP address
+or as localhost; any other name is refused. Windows asks about its firewall the first time. This product never changes a
+firewall rule, so one you allowed stays after this is off and after an uninstall: remove it in Windows Security, Firewall &
+network protection, Allow an app through firewall (the entry for this product's pythonw.exe).
+
+**When it helps.** A phone or another PC at home that wants to see how this one stands.
+
+**What it risks.** The connection is not encrypted. Anyone who can watch your network can read the status and the token as
+they pass, and with the token ask for the same - and pause and cancel, if that is on too. Use it only on a network you
+trust, never on a public one.
+
+**Departs from** [B14](STANDARDS.md#b-what-it-reads-and-how) (a listening socket other devices can reach),
+[F8](STANDARDS.md#f-footprint-on-the-machine) (the server's process) and
+[D1](STANDARDS.md#d-privacy-and-the-data-it-keeps) (the status can reach whoever on your network holds the token). It needs
+*Read this PC's status from a browser or a script* on.
+
+**Ceilings.** None: it is an action, and sends nothing. It rests on no measurement.
+
+### Control recovery from Telegram
+
+**What it does.** The Telegram bot you paired for notices also takes commands, from that one chat and no other. `/status`
+says whether the watcher runs, whether recovery is on and how many recoveries wait. `/list` lists them as `task 1`,
+`task 2` and so on, with their state and next check. `/cancel task 1` cancels one, against the list it last sent: if the
+list has changed it asks you to list again. `/pause` pauses recovery. Anything else is answered with the list of commands,
+and a message from any other chat gets no answer at all. A process stays running beside the watcher to read the bot,
+restarted at most three times an hour, and after that its card says it stopped.
+
+**When it helps.** When you are away from the PC, a notice told you something, and you want to look or stop it from your
+phone.
+
+**What it risks.** Whoever holds your Telegram account or the paired chat - in a group, every member - can pause recovery
+and cancel recoveries that wait. Telegram's servers see the bot's token and every command and answer. It goes on answering
+while recovery is paused: that is what its `/status` is for.
+
+**How it is held.** No command can send to Codex, chat, change a setting or turn a feature on, and no word of a message
+reaches a conversation; answers carry task numbers and state words alone. A command older than five minutes, sent while
+this PC was off, is ignored, and each is carried out at most once. Five wrong codes during a pairing turn it off, whether or
+not you keep it on: someone is guessing at the chat it obeys.
+
+**Departs from** [C1](STANDARDS.md#c-network) and [C2](STANDARDS.md#c-network) (no network code, and one
+shipped file reaching the network: this reads api.telegram.org too), [C3](STANDARDS.md#c-network) (only the listed
+hosts: api.telegram.org is one more), [C8](STANDARDS.md#c-network) (Telegram sees this PC's address and the courier's
+name), [D1](STANDARDS.md#d-privacy-and-the-data-it-keeps) (how your recoveries stand goes to Telegram),
+[F6](STANDARDS.md#f-footprint-on-the-machine) (a process of its own beside the listed ones) and
+[F8](STANDARDS.md#f-footprint-on-the-machine) (a process that stays running). It needs *Send notices to your phone or inbox*
+on, whose bot and pairing it uses.
+
+**Ceilings.** None come into play: it sends nothing to Codex. It rests on no measurement.
+
+### Let Telegram continue a held recovery and lift a pause
+
+**What it does.** While it and *Control recovery from Telegram* are on, the paired chat may also send `/continue task 1`,
+which lets one recovery held for you go on, and `/recovery-on`, which lifts a pause. Neither sends anything itself: the
+watcher still checks everything before it sends, and an administrator's policy still holds a pause.
+
+**When it helps.** When you paused from your phone, or a conversation asks first, and you want it to go on without going
+back to the PC.
+
+**What it risks.** Whoever holds the paired chat can undo a pause you made on purpose and let go on a recovery you held
+back; recoveries then send their continuations as usual. A pause is no longer yours alone while this is on.
+
+**Departs from** [H4](STANDARDS.md#h-user-control) (a pause is a kill switch at this PC: here it can be lifted from
+outside it). It needs *Control recovery from Telegram* on.
+
+**Ceilings.** None: it is an action, and sends nothing. It rests on no measurement.
 
 ### Use a reset credit at the limit you pick
 
