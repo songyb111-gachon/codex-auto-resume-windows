@@ -653,7 +653,8 @@ class CardTests(TelegramCase):
             self.assertEqual([name for name in names if word in name], [], word)
 
     def test_the_bridge_answers_both_and_no_more_is_passed_over_than_the_other_pcs(self):
-        self.assertEqual(sorted(str(command) for command in surfaces.UNANSWERED), ["advanced-fleet", "advanced-fleet-save"])
+        # The other PCs' two are answered too since fleet_view joined (v0.6.22 beta.2): nothing is passed over.
+        self.assertEqual(sorted(str(command) for command in surfaces.UNANSWERED), [])
 
 
 class PausedTests(TelegramCase):
