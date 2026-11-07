@@ -197,9 +197,13 @@ measurement not made yet, a capability's statement carries the warning that it w
 running and no installation is in progress, it starts the watcher, through Windows' WMI, outside
 the job Codex closes when it quits, so the watcher keeps running after Codex closes. It starts this
 installation's own launcher and nothing else, never a second watcher, and it sends nothing itself.
+Codex starts the plugin's server when a conversation is opened in it: after Windows starts, the Codex
+app waiting in the notification area starts no plugin, so nothing starts the watcher until you open a
+conversation. To have the watcher run right after sign-in, turn on the setting *Run at Windows sign-in*
+as well; with both on, a second watcher never starts.
 
 **When it helps.** When you do not have the watcher start at sign-in and want it running whenever
-Codex is. The standard edition starts nothing here: a watcher started from inside Codex ends when
+you work in Codex. The standard edition starts nothing here: a watcher started from inside Codex ends when
 Codex closes, so it says so and waits for you to start the watcher yourself (F14).
 
 **What it risks.** Its whole purpose is to step outside a limit Codex places on its plugins on
