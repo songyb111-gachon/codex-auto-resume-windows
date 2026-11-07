@@ -371,9 +371,16 @@ turns itself off. Turning it off leaves a goal it already set active as it is: p
 Codex to stop it.
 
 **Departs from** [0.5](STANDARDS.md#0-the-edition-boundary) (a goal's state is never changed), A2
-(one channel only), A11 (nothing is done for a conversation the app does not have open), B3 and B4.
+(one channel only), A11 (nothing is done for a conversation the app does not have open), A20 (at most five
+continuations a conversation in 24 hours), B3, B4 and [H2](STANDARDS.md#h-user-control) (nothing can move a limit
+the program fixes: A20's are the engine's).
 
-**Ceilings.** 24 a day, and 5 in any one conversation.
+**Ceilings.** 24 a day, and 5 in any one conversation. A continuation at a usage-limit reset the watcher verified - the
+interruption was a usage limit, its expected reset has passed, and the usage reading taken before the send shows room -
+counts toward neither the 5 in one conversation nor the standard edition's five a day, so a goal paused at every reset
+is set active again at every one. The 15 minutes between two continuations, the 24 a day, the hourly ceiling over every
+advanced feature and every recovery gate still hold, and a continuation that answers no verified reset - one after a
+failed turn, or one with no reset time - counts toward the 5 as before.
 
 **Measurement M2: failed**, for a conversation the app holds; its statement shows that as a warning.
 **Measurement M2b: passed** on `codex-cli 0.163.0-alpha.10.2` - a goal set active beside a queued turn

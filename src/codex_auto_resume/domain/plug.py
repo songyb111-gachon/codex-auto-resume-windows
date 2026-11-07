@@ -325,11 +325,12 @@ RESTRICTIONS = frozenset({Alternative.HOLD})
 # GATES the same words, which core takes only at known_failure and only for the kind each is for
 # (failures.admits, failures.readmits) - CAPACITY within core's own bounds (ladder.py). SCHEDULE
 # (P7) takes EARLY, RESEND and SEND_NOW, each carried out by core in its own (relaxed.py, resend.py).
+# GATES takes VERIFIED_RESET too (v0.6.22, #59), at known_failure alone, for a usage limit core saw reset (relaxed.py).
 TAKE_UP = frozenset({Alternative.ADMIT, Alternative.AS_NETWORK_TRANSIENT, Alternative.AS_TIMEOUT,
                      Alternative.AS_RATE_LIMIT_TRANSIENT, Alternative.AS_SERVER_5XX,
                      Alternative.AS_STREAM_INTERRUPTED, Alternative.CAPACITY})
 ALTERNATIVES = {
-    Point.GATES: RESTRICTIONS | TAKE_UP,
+    Point.GATES: RESTRICTIONS | TAKE_UP | {Alternative.VERIFIED_RESET},
     Point.OUTCOME: frozenset(),
     Point.SCHEDULE: RESTRICTIONS | {Alternative.EARLY, Alternative.RESEND, Alternative.SEND_NOW},
     Point.CLAIM_LEDGER: RESTRICTIONS,

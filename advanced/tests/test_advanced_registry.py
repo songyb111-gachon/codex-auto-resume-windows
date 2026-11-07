@@ -306,11 +306,12 @@ class ShippedTests(unittest.TestCase):
     def test_the_goal_continuation_departs_and_rests_on_what_the_owner_asked(self):
         """0.5 (goal-state manipulation), A2 (one channel), A11 (nothing for a conversation the app
         does not hold), B3 (Codex's state changes only through the queue) and B4 (the app server's
-        three methods); it stands on loaded_state_detection, which has local checks and decides its
+        three methods) - and (v0.6.22, issue #59) A20 and H2: a continuation at a reset the watcher
+        verified is not held to core's five a conversation; it stands on loaded_state_detection, which has local checks and decides its
         route - core's own goal_continuation entry has none and stays unsupported (G12) - and its
         route on M2."""
         goal = registry.REGISTRY.get("goal_continuation")
-        self.assertEqual(goal.departs_from, ("0.5", "A2", "A11", "B3", "B4"))
+        self.assertEqual(goal.departs_from, ("0.5", "A2", "A11", "A20", "B3", "B4", "H2"))
         self.assertEqual(goal.compat, "loaded_state_detection")
         from codex_auto_resume.compat.model import CAPABILITIES
         self.assertTrue(CAPABILITIES[goal.compat][0], "a compatibility capability with local checks")
@@ -406,11 +407,12 @@ class ShippedTests(unittest.TestCase):
     def test_a_capability_that_moves_an_engine_constant_departs_from_h2(self):
         """H2: no setting moves an engine constant, and A20's caps are engine constants (the standards
         file says so). A capability that departs from A20 lets a person's choice move them, so it names
-        H2 as well: the capacity retries, Send now, (v0.6.19) the chat and (v0.6.20) the steer, paced on their own."""
+        H2 as well: the capacity retries, Send now, (v0.6.19) the chat and (v0.6.20) the steer, paced on their own,
+        and (v0.6.22, issue #59) the goal continuation at a verified reset, which turning it on lets past the five."""
         self.assertIn("engine constants", standards_text("A20"))
         self.assertIn("move an engine constant", standards_text("H2"))
         moving = [definition.id for definition in registry.DEFINITIONS if "A20" in definition.departs_from]
-        self.assertEqual(moving, ["capacity_retry", "send_now", "codex_chat", "steer_send"])
+        self.assertEqual(moving, ["goal_continuation", "capacity_retry", "send_now", "codex_chat", "steer_send"])
         for definition in registry.DEFINITIONS:
             if "A20" in definition.departs_from:
                 with self.subTest(definition.id):
@@ -449,11 +451,11 @@ class ShippedTests(unittest.TestCase):
     def test_the_goal_continuations_risks_say_it_acts_where_the_app_holds_the_conversation_once_m2b_passed(self):
         """While M2b's recorded verdict is a pass (measured.py), engine/goal.py's P5 acts on a conversation the app
         holds, so no language may still say it acts only on one the app does not have open: every one names M2b in
-        its risks, at revision 2."""
+        its risks, from revision 2 (revision 3, v0.6.22, names A20 and H2 beside them: issue #59)."""
         from codex_auto_resume_advanced import measured
         self.assertEqual(measured.MEASURED[Measurement.M2B][0], Verdict.PASS)
         goal = registry.REGISTRY.get("goal_continuation")
-        self.assertEqual(goal.revision, 2)
+        self.assertEqual(goal.revision, 3)
         for locale in l10n.LOCALES:
             with self.subTest(locale):
                 risks = statement.CATALOGS.own(locale)[statement.key(goal.id, Field.RISKS)]

@@ -495,14 +495,23 @@ MARKER_FREE = CapabilityDef(
 # edition's. Its route rests on M2, which failed for a conversation the app holds - a warning in its
 # statement the person confirms; M2b only widens where it acts, and is read where it is used.
 # Ceilings: five a conversation a day - a usage limit resets a few times a day at most - and 24
-# a day in all. It comes before the marker-free continuation, so where both are on and the goal
+# a day in all. From v0.6.22 (issue #59, the owner's choice of 2026-11-07) a continuation that answers
+# a reset the watcher verified - a usage limit, its expected reset passed, core's usage reading before
+# the send showing room - is not held by the five in one conversation, nor by core's five: at P3's
+# known_failure it answers VERIFIED_RESET, which core claims within its own fifteen minutes and a day
+# of its own (ladder.RESET_PER_DAY) for a send its channel or route carries, so it departs from A20
+# too, and from H2 (nothing moves an engine constant: A20's five are the engine's, and turning this on
+# moves them here); its day, the hour and every gate still hold. Revision 3 names A20 and H2, where
+# revision 2 did not.
+# It comes before the marker-free continuation, so where both are on and the goal
 # applies its channel carries the send, under the client id P15 gives it.
 GOAL_CONTINUATION = CapabilityDef(
     id="goal_continuation",
     points=frozenset({Point.UNLOADED, Point.GATES, Point.SENDER}),
     # Revision 2 (v0.6.15-beta): its risks say it acts on a conversation the app holds where M2b passed.
-    revision=2,
-    departs_from=("0.5", "A2", "A11", "B3", "B4"),
+    # Revision 3 (v0.6.22, issue #59): it departs from A20 and H2 at a verified reset.
+    revision=3,
+    departs_from=("0.5", "A2", "A11", "A20", "B3", "B4", "H2"),
     compat="loaded_state_detection",
     ceilings=Ceilings(per_day=24, per_conversation=5),
     journal_prefix="goal",

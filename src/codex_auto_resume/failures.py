@@ -294,3 +294,13 @@ def readmits(category, answer) -> bool:
     if answer == Alternative.CAPACITY:
         return category == "server_5xx"
     return answer in PACED_AS and category == UNKNOWN
+
+
+def reset_verified(row, now) -> bool:
+    """Whether `row` is a usage limit whose reset core recorded is behind `now` (v0.6.22, issue #59): the plug's
+    VERIFIED_RESET is taken at known_failure only for such a record, and claimed only while it still is one
+    (store/ledger.py). A usage reading with room, the third thing a verified reset is, is the usage gate's, which
+    every send passes before it is claimed. A record with no reset recorded is not one."""
+    reset = row.get("reset_at") if isinstance(row, dict) else None
+    return (row.get("category") == USAGE_LIMIT if isinstance(row, dict) else False) and (
+        isinstance(reset, (int, float)) and not isinstance(reset, bool) and reset <= now)

@@ -267,6 +267,8 @@ class DispatchMixin:
             # names a channel. The one binding of the one sender; whichever it is gets the one
             # send below, after the claim and the pre-send look, inside the launch guard.
             sender = self.plug.sender(current, self.backend)
+            if relaxed == "reset" and sender is self.backend:
+                relaxed = None                  # v0.6.22 (#59): core's own send keeps core's five (relaxed.py)
             if record:
                 current = self._record_carried(current, sender)  # v0.6.19: marker-free or not (engine/recordchannel.py)
                 claimed = self._record_claim(current, sender, app)
