@@ -2417,6 +2417,7 @@ _SAMPLE_MSTEER_CLIENT_ID = "00000000-0000-7000-8000-00000000000d"
 # One half-transparent red pixel (RGBA 255, 0, 0, 127) as a PNG: the picture MIMG queues. Nothing in it says anything.
 _MIMG_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
 _MIMG_IMAGE_TYPES = ("image", "localImage")
+_MIMG_UNDER = 1024                              # how far under images.MOST_BYTES MIMG's last picture is
 # MSTEER's words: one short, harmless line for the running turn to take in. What the turn answers is never read.
 _MSTEER_TEXT = "Also end your reply with the single word: ok."
 _SAMPLE_MSTEER2_CLIENT_ID = "00000000-0000-7000-8000-00000000000e"
@@ -2439,15 +2440,47 @@ def _queued_images(added) -> tuple:
     return len(items), any(isinstance(item, dict) and item.get("type") in _MIMG_IMAGE_TYPES for item in items)
 
 
+def _mimg_pictures(folder) -> list:
+    """The pictures MIMG sends, written into `folder` (the harness's own scratch folder, never a person's file): as many
+    as a message may hold (images.MOST_IMAGES), each the one half-transparent red pixel, the last one made just under
+    images.MOST_BYTES by an ancillary chunk Codex and any reader skip - a valid PNG all the same - so the measurement
+    proves the bounds the product allows (v0.6.22)."""
+    import base64
+    import struct
+    import zlib
+    from . import images
+    pixel = base64.b64decode(_MIMG_PNG_BASE64)
+    end = pixel.rindex(b"IEND") - 4
+    pad = images.MOST_BYTES - _MIMG_UNDER - len(pixel) - 12
+    body = b"\0" * pad
+    chunk = struct.pack(">I", pad) + b"caRp" + body + struct.pack(">I", zlib.crc32(b"caRp" + body) & 0xFFFFFFFF)
+    found = []
+    for index in range(1, images.MOST_IMAGES + 1):
+        path = folder / ("sample-%d.png" % index)
+        path.write_bytes(pixel if index < images.MOST_IMAGES else pixel[:end] + chunk + pixel[end:])
+        found.append(path)
+    return found
+
+
+def _queued_image_count(added) -> int:
+    """How many of the queued submission's input items Codex answered with are images - a count only."""
+    submission = added.get("queuedSubmission") if isinstance(added, dict) else None
+    items = submission.get("input") if isinstance(submission, dict) else None
+    return sum(1 for item in items if isinstance(item, dict) and item.get("type") in _MIMG_IMAGE_TYPES) \
+        if isinstance(items, list) else 0
+
+
 def _mimg(ctx):
     """An image in a scheduled message (image_attachments): the owner names a throwaway conversation the app holds, idle.
-    A one-pixel picture the harness writes into a scratch folder of its own, with one short line of words, is added to
-    the conversation's queue under a client id of no one's (thread/queue/add, MC1's call) as a local image file - the
-    copy of a picture the product would keep until delivery. Codex refusing that shape (a coded answer, so nothing was
-    queued) is followed by the same message with the picture as a data address, once; an answer that did not come is not
+    As many pictures as a message may hold (images.MOST_IMAGES), the harness's own one-pixel PNG written into a scratch
+    folder of its own, the last one just under images.MOST_BYTES (_mimg_pictures), with one short line of words, are
+    added to the conversation's queue in one message under a client id of no one's (thread/queue/add, MC1's call) as
+    local image files - the copies of pictures the product would keep until delivery. It records how many pictures were
+    sent and how many the queued submission holds (counts and booleans only). Codex refusing that shape (a coded answer,
+    so nothing was queued) is followed by the same message with the pictures as data addresses, once; an answer that did not come is not
     followed by anything - the add is never repeated. Then, as MC1 does, the queue until the app takes the item, the
     history for a turn within ten seconds and for the client id on the person's message. The scratch folder is removed
-    when the run ends. That the message showed in Codex as the person's own with the picture in it is what the person
+    when the run ends. That the message showed in Codex as the person's own with every picture in it is what the person
     watching confirms."""
     if not ctx.thread_given:
         return _blocked("name a throwaway conversation the app holds, idle", add_calls=0)
@@ -2456,19 +2489,19 @@ def _mimg(ctx):
     import tempfile
     scratch = Path(tempfile.mkdtemp(prefix="car-mimg-"))
     try:
-        picture = scratch / "sample.png"
-        picture.write_bytes(base64.b64decode(_MIMG_PNG_BASE64))
-        shapes = (("local_image", {"type": "localImage", "path": str(picture)}),
-                  ("data_address", {"type": "image", "url": "data:image/png;base64," + _MIMG_PNG_BASE64}))
-        observed = {"add_calls": 0}
+        pictures = _mimg_pictures(scratch)
+        shapes = (("local_image", [{"type": "localImage", "path": str(picture)} for picture in pictures]),
+                  ("data_address", [{"type": "image", "url": "data:image/png;base64,"
+                                     + base64.b64encode(picture.read_bytes()).decode("ascii")} for picture in pictures]))
+        observed = {"add_calls": 0, "pictures_sent": len(pictures)}
         taken_id = None
         with ctx.open() as session:
-            for (name, image), client_id in zip(shapes, _SAMPLE_MIMG_CLIENT_IDS):
+            for (name, sent), client_id in zip(shapes, _SAMPLE_MIMG_CLIENT_IDS):
                 observed["add_calls"] += 1
                 try:
                     added = session.call("thread/queue/add", {
                         "threadId": ctx.probe_thread, "clientUserMessageId": client_id,
-                        "input": [{"type": "text", "text": _M2B_PROMPT}, image]})
+                        "input": [{"type": "text", "text": _M2B_PROMPT}] + sent})
                 except AdapterError as exc:
                     observed[name + "_accepted"] = False
                     if not hasattr(exc, "method"):
@@ -2480,13 +2513,15 @@ def _mimg(ctx):
                     observed[name + "_refusal_code"] = exc.code
                     continue
                 count, kept = _queued_images(added)
-                observed.update({name + "_accepted": True, "queued_input_items": count, "queued_keeps_image": kept})
+                held = _queued_image_count(added)
+                observed.update({name + "_accepted": True, "queued_input_items": count, "queued_keeps_image": kept,
+                                 "queued_images": held, "queued_keeps_all": held == len(pictures)})
                 taken_id = client_id
                 break
             if taken_id is None:
                 return (Verdict.FAIL, observed,
-                        "Codex refused the message with a picture in both shapes, as a local file and as a data "
-                        "address")
+                        "Codex refused the message with %d pictures in both shapes, as local files and as data "
+                        "addresses" % len(pictures))
             began = time.monotonic()
             taken = _await_taken(session, ctx.probe_thread, taken_id, _MC1_QUEUE_SECONDS)
         waited = time.monotonic() - began
@@ -2504,8 +2539,9 @@ def _mimg(ctx):
                          "client_id_on_user_item": _client_recorded(ctx, taken_id)})
     finally:
         shutil.rmtree(scratch, ignore_errors=True)
-    return _blocked("confirm the message showed in Codex at once as your own, with the picture in it (one half-transparent red pixel) "
-                    "and its line of words, nothing marked it as sent by a program, and the turn ran as one you typed, "
+    return _blocked("confirm the message showed in Codex at once as your own, with all %d pictures in it (each one "
+                    "half-transparent red pixel) and its line of words," % len(pictures)
+                    + " nothing marked it as sent by a program, and the turn ran as one you typed, "
                     "then set the verdict; if it was not taken, remove it from the conversation's queue in Codex",
                     **observed)
 

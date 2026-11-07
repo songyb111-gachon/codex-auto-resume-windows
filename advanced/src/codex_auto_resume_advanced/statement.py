@@ -96,6 +96,8 @@ PAGE_KEYS = tuple(PAGE_PREFIX + name for name in (
     # v0.6.14: Keep it on, what a kept-on capability noted instead of turning itself off, and Send now.
     "keep_on", "keep_on.off", "keep_on.on", "keep_on.again", "keep_on.turn_on", "keep_on.send_again",
     "keep_on.turn_off", "confirm.keep_on", "confirm.send_again", "done.keep_on", "done.keep_on_off",
+    # v0.6.22: Turn on's Keep it on switch, on unless turned off.
+    "confirm.keep_choice", "confirm.keep_failed_here", "confirm.keep_needs", "done.keep_on_with",
     "refused.not_on", "kept.statement_changed", "kept.measurement_failed", "kept.failed_here", "kept.incompatible",
     "kept.local_check_failed", "kept.hook_exception", "kept.submission_unknown", "kept.engine_changed",
     "kept.duplicate_seen", "tripped.duplicate_seen", "kept.not_delivered_on_open", "tripped.not_delivered_on_open", "send_now.title", "send_now.none", "send_now.button",
@@ -266,7 +268,7 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + "follow." + name for name in (
 # block - its caption, Add a picture..., the line on what it takes, each thumbnail's name and Remove - the count a row
 # says, and each word the bridge refuses a picture with.
 PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
-    "editor.images", "editor.images.add", "editor.images.help", "editor.images.remove", "editor.images.picture",
+    "editor.images", "editor.images.add", "editor.images.help", "editor.images.kept", "editor.images.remove", "editor.images.picture",
     "queue.images", "refused.image_refused", "refused.image_too_large", "refused.images_full",
     "refused.images_unavailable"))
 # Pending's one list (v0.6.19, #50; the owner's decision of 2026-10-24: advanced/gui/AdvancedSchedule.cs): the Kind of a

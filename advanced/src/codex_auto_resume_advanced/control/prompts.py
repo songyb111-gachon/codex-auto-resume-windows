@@ -98,7 +98,15 @@ def view(runtime) -> dict:
             "steers": steers(runtime),
             "limits": {"prompts": PROMPTS_LIMIT, "per_conversation": PER_CONVERSATION, "words": words_limit(runtime),
                        "occurrences": 30, "days": 30, "images": copies.MOST_IMAGES, "image_bytes": copies.MOST_BYTES},
-            "images_unavailable": _images_failed(runtime)}
+            "images_unavailable": _images_failed(runtime),
+            # v0.6.22: the copies kept for the messages still to go, as the editor says them.
+            "images_kept": _kept(runtime, rows)}
+
+
+def _kept(runtime, rows) -> dict:
+    """{"count", "bytes"} of the product's own copies of the pictures of every prompt in `rows` still to go."""
+    found, size = copies.kept(runtime.paths, [row["prompt_id"] for row in rows if row["state"] in PENDING])
+    return {"count": found, "bytes": size}
 
 
 def _images_failed(runtime) -> bool:

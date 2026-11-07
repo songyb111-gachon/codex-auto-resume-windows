@@ -822,7 +822,10 @@ class Arming:
         `keep_on` (v0.6.16-beta.4, the owner's "Keep it on turns it on"): turn it on AND keep it on (K8) in the
         same confirmation - only for ARMED, refused like any arm, and refused too where its own compatibility is
         Failed here (FAILED_HERE): Keep it on never turns itself off, so it is not taken on a grade that failed. It is
-        offered for every capability (the owner's word of 2026-10-24, v0.6.19-beta.3).
+        offered for every capability (the owner's word of 2026-10-24, v0.6.19-beta.3). From v0.6.22 it is what the
+        Dashboard's Turn on asks for unless the person unticks it (the owner's 2026-11-08), and the requirements turned
+        on with it are kept on too - each one whose own grade is Failed here only turned on (none can be today: such a
+        requirement refuses the whole arm above).
 
         {"done": bool, "refusal": Refusal or None, "warnings": the warnings that hold now, once
         read, "generation": the generation after}."""
@@ -918,6 +921,7 @@ class Arming:
         if keep_on and ArmingWarning.FAILED_HERE in shown:
             return refused(Refusal.FAILED_HERE)
         moves = [(capability, ArmingState.ARMED, revision, acknowledged_version, shown)]
+        kept = [capability] if keep_on else []
         for other in needed:
             other_def = self.registry.get(other)
             entry = entries[other]
@@ -930,11 +934,13 @@ class Arming:
             if reason is not None:
                 # A policy on the required one keeps the dependent off; a stale confirmation can be asked again.
                 return refused(reason)
-            moves.append((other, ArmingState.ARMED, other_revision, other_version,
-                          self.warnings(other_def, view)))
+            other_shown = self.warnings(other_def, view)
+            moves.append((other, ArmingState.ARMED, other_revision, other_version, other_shown))
+            if keep_on and ArmingWarning.FAILED_HERE not in other_shown:
+                kept.append(other)
         try:
             _written, after = self.state.move_set(moves, actor=actor, generation=generation, at=self.clock(),
-                                                  keep=(capability,) if keep_on else ())
+                                                  keep=tuple(kept))
         except StaleGeneration:
             return refused(Refusal.STALE_GENERATION)
         except StateError:

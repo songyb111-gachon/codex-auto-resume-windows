@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import advancedcase as ac  # noqa: E402
 from pagecase import CSC, POWERSHELL, PageCase, sent  # noqa: E402
 import test_advanced_page_editor as editor_page  # noqa: E402
+from codex_auto_resume_advanced import images  # noqa: E402
 
 WORDS = editor_page.WORDS
 _EDITOR = editor_page.PageTests.__dict__
@@ -65,14 +66,37 @@ class PageTests(PageCase):
     def scenario_refused_files(cls, bridge):
         cls.on(bridge)
         words = picture("not-a-picture.png", b"plain words, named like a picture")
-        large = picture("large.png", PNG + b"\0" * (5 * 1024 * 1024))
-        fine = [picture("p%d.png" % n) for n in range(5)]
+        large = picture("large.png", PNG + b"\0" * images.MOST_BYTES)
+        fine = [picture("p%d.png" % n) for n in range(images.MOST_IMAGES + 1)]
         return cls.opened(bridge, [{"do": "editor", "thread": cls.thread(bridge), "words": WORDS,
                                     "images": [words], "press": "cancel"},
                                    {"do": "editor", "thread": cls.thread(bridge), "words": WORDS,
                                     "images": [large], "press": "cancel"},
                                    {"do": "editor", "thread": cls.thread(bridge), "words": WORDS,
                                     "images": fine, "press": "cancel"}])
+
+    @classmethod
+    def ten(cls, bridge, scale):
+        """v0.6.22: the editor with as many pictures as a message holds, at `scale`, while one message still to go keeps
+        two."""
+        cls.add(bridge, images=[{"path": picture("kept-1.png")}, {"path": picture("kept-2.png")}])
+        many = [picture("ten-%d.png" % n) for n in range(images.MOST_IMAGES)]
+        found = cls.opened(bridge, [{"do": "editor", "thread": cls.thread(bridge), "words": WORDS, "images": many,
+                                     "press": "cancel"}])
+        found[1]["scale"] = scale
+        return found
+
+    @classmethod
+    def scenario_ten_100(cls, bridge):
+        return cls.ten(bridge, 1.0)
+
+    @classmethod
+    def scenario_ten_150(cls, bridge):
+        return cls.ten(bridge, 1.5)
+
+    @classmethod
+    def scenario_ten_200(cls, bridge):
+        return cls.ten(bridge, 2.0)
 
     @classmethod
     def scenario_edit_keeps(cls, bridge):
@@ -112,15 +136,37 @@ class PageTests(PageCase):
         files = expected["files"]
         self.assertEqual(request["images"], [{"path": files[0]}, {"path": files[2]}], "the second was removed")
 
-    def test_a_file_that_is_no_picture_too_large_or_a_fifth_is_refused_with_words(self):
+    def test_a_file_that_is_no_picture_too_large_or_one_too_many_is_refused_with_words(self):
+        """v0.6.22: ten pictures of 20 MB each (images.MOST_IMAGES, MOST_BYTES), said with the numbers the bridge gives."""
         result, expected = self.of("scenario_refused_files")
         words = expected["words"]
-        not_one, large, fifth = result["dialogs"]
+        not_one, large, eleventh = result["dialogs"]
         self.assertEqual((not_one["thumbs"], not_one["said_on_add"]), ([], words["page.refused.image_refused"]))
-        self.assertEqual((large["thumbs"], large["said_on_add"]), ([], words["page.refused.image_too_large"]))
-        self.assertEqual(len(fifth["thumbs"]), 4)
-        self.assertEqual(fifth["said_on_add"], words["page.refused.images_full"])
-        self.assertFalse(fifth["add_enabled"], "four: Add a picture... is not offered")
+        self.assertEqual((large["thumbs"], large["said_on_add"]),
+                         ([], words["page.refused.image_too_large"].replace("{mb}", "20")))
+        self.assertEqual(len(eleventh["thumbs"]), images.MOST_IMAGES)
+        self.assertEqual(eleventh["said_on_add"], words["page.refused.images_full"].replace("{n}", "10"))
+        self.assertFalse(eleventh["add_enabled"], "ten: Add a picture... is not offered")
+
+    def test_ten_pictures_wrap_inside_the_card_and_the_editor_stays_within_the_screen(self):
+        """v0.6.22, at 100, 150 and 200 %: ten thumbnails, the row wrapped inside the card (nothing scrolls sideways), and
+        the editor no taller than the screen's working area lets it be."""
+        for name in ("scenario_ten_100", "scenario_ten_150", "scenario_ten_200"):
+            with self.subTest(name):
+                result, _ = self.of(name)
+                (editor,) = result["dialogs"]
+                self.assertEqual(len(editor["thumbs"]), images.MOST_IMAGES)
+                self.assertTrue(editor["thumbs_fit"], editor)
+                self.assertEqual(editor["said_on_add"], "")
+                self.assertFalse(editor["add_enabled"])
+                self.assertTrue(editor["within_most"], editor)
+
+    def test_the_editor_says_the_pictures_kept_for_the_messages_still_to_go(self):
+        """v0.6.22: the two copies of the one message still to go - not the ten being added, which are no copies yet."""
+        result, expected = self.of("scenario_ten_100")
+        (editor,) = result["dialogs"]
+        self.assertEqual(editor["kept_line"],
+                         expected["words"]["page.editor.images.kept"].replace("{n}", "2").replace("{mb}", "0"))
         self.assertEqual(sent(result, "advanced-prompt-add"), [])
 
     def test_an_edit_opens_with_its_pictures_and_keeps_them_by_id(self):

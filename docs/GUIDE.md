@@ -655,9 +655,9 @@ the project's standards - what [Safety model](#safety-model) and [Privacy](#priv
 them - and what it gains keeps them too, each addition off, or doing what the release before it did,
 until you change it. The **advanced** edition is the standard one plus capabilities that break one of
 those standards on purpose. Each says which it breaks, is off until you turn it on after reading
-that, and turns itself off again when what you agreed to stops being true - unless you chose, on the
-same page and after its own warning, to keep it on - which turns it on as well - and which notes what would
-have turned it off instead.
+that, and turns itself off again when what you agreed to stops being true - unless it is kept on, as
+turning it on does unless you turn the dialog's Keep it on switch off (or as you can choose later on the same
+page, after its own warning), and then it notes what would have turned it off instead.
 One that needs another turns that one on with it, in the same confirmation and with both statements
 shown, and turning the needed one off turns off first what needs it.
 You turn one on in the Dashboard, on the page that edition adds, **Advanced features**, and nowhere
