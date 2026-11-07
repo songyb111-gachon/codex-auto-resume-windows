@@ -230,7 +230,7 @@ LISTS = {
     # v0.6.16-beta.3: P19 eligibility; beta.4: P18; v0.6.19: P20 notice - and P13's SUPERVISE and RESTART.
     # v0.6.20: P21, how the tasks a person armed the power action for stand.
     "domain.plug.POINTS": ("tuple", 20, "8756e1c47abe20a3"),
-    "domain.plug.ANSWERS": ("set", 17, "4e304e4fc7bba412"),
+    "domain.plug.ANSWERS": ("set", 18, "a09b3ec6779946c9"),        # v0.6.22: VERIFIED_RESET (issue #59)
     "domain.plug.FAILURE_FORMS": ("tuple", 5, "bcc0ad1bd6f81009"),
     "domain.plug.SURFACES": ("tuple", 5, "d41ac5a6d67be21b"),
     # v0.6.14: what core did with a record of the plug's own (P2), as P14 tells it.

@@ -263,12 +263,10 @@ class DispatchMixin:
                     self._resume_unloaded(current, vector, limits, route, app, relaxed=relaxed, forced=forced,
                                           words=(message, worded, once, plain))
                     return
-            # P5, decided before the claim like the words: core's own backend, unless the plug
-            # names a channel. The one binding of the one sender; whichever it is gets the one
-            # send below, after the claim and the pre-send look, inside the launch guard.
+            # P5, decided before the claim like the words: core's own backend, unless the plug names a channel - the one
+            # sender, whose one send below comes after the claim and the pre-send look, inside the launch guard.
             sender = self.plug.sender(current, self.backend)
-            if relaxed == "reset" and sender is self.backend:
-                relaxed = None                  # v0.6.22 (#59): core's own send keeps core's five (relaxed.py)
+            relaxed = failures.reset_carried(relaxed, sender is not self.backend)    # v0.6.22, issue #59
             if record:
                 current = self._record_carried(current, sender)  # v0.6.19: marker-free or not (engine/recordchannel.py)
                 claimed = self._record_claim(current, sender, app)

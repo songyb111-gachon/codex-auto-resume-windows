@@ -304,3 +304,9 @@ def reset_verified(row, now) -> bool:
     reset = row.get("reset_at") if isinstance(row, dict) else None
     return (row.get("category") == USAGE_LIMIT if isinstance(row, dict) else False) and (
         isinstance(reset, (int, float)) and not isinstance(reset, bool) and reset <= now)
+
+
+def reset_carried(relaxed, channel):
+    """The relaxation a send's claim takes (v0.6.22, issue #59): a verified reset's ("reset") only where the plug's
+    own channel carries it (`channel`) - core's own backend keeps core's five - and any other as it is."""
+    return None if relaxed == "reset" and not channel else relaxed

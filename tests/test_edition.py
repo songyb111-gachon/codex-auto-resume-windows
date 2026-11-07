@@ -173,7 +173,8 @@ class ClosedAlternativeTests(unittest.TestCase):
         self.assertEqual(plug.ANSWERS, plug.RESTRICTIONS | {Alternative.CLIENT_ID, Alternative.SILENT,
                                                             Alternative.EARLY, Alternative.RESEND, Alternative.SEND_NOW,
                                                             Alternative.QUEUE_FOR_OPEN, Alternative.TO_SESSION,
-                                                            Alternative.SUPERVISE, Alternative.RESTART}
+                                                            Alternative.SUPERVISE, Alternative.RESTART,
+                                                            Alternative.VERIFIED_RESET}
                          | take_up)
         self.assertEqual(plug.ANSWERS, frozenset(Alternative))
         for point, accepted in plug.ALTERNATIVES.items():
@@ -183,7 +184,8 @@ class ClosedAlternativeTests(unittest.TestCase):
                     self.assertLessEqual(accepted, plug.RESTRICTIONS)
         # v0.6.16-beta.4: and SILENT, carried out only through a route that takes words (engine/routes.py).
         self.assertEqual(plug.ALTERNATIVES[Point.DELIVERY], frozenset({Alternative.CLIENT_ID, Alternative.SILENT}))
-        self.assertEqual(plug.ALTERNATIVES[Point.GATES], plug.RESTRICTIONS | take_up)
+        # v0.6.22 (issue #59): and VERIFIED_RESET, at known_failure alone, for a reset core saw pass (relaxed.py).
+        self.assertEqual(plug.ALTERNATIVES[Point.GATES], plug.RESTRICTIONS | take_up | {Alternative.VERIFIED_RESET})
         self.assertEqual(plug.ALTERNATIVES[Point.ADMISSION], take_up)
         # And P7 may look at a usage-limited record early (EARLY), send an uncertain submission once
         # more (RESEND) and send a waiting one now for a person (SEND_NOW), each carried out by core.
