@@ -65,7 +65,9 @@ Everyone below is a person outside the project who helped it, in the order they 
   was left out of recovery ([#37](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/37)) and an update status that misled when GitHub could not be reached ([#41](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/41)),
   and sent the fix that resumes a goal after a usage-limit reset ([#49](https://github.com/songyb111-gachon/codex-auto-resume-windows/pull/49)) and the one that
   sends a continuation to Codex's managed daemon where one runs and says in fixed words what a queue answer without a receipt was
-  ([#53](https://github.com/songyb111-gachon/codex-auto-resume-windows/pull/53)).
+  ([#53](https://github.com/songyb111-gachon/codex-auto-resume-windows/pull/53)). They also reported a goal left paused after a
+  usage-limit reset once goal continuation reached its ceiling for one conversation, and suggested the fix: a reset the
+  watcher verified no longer counts toward that ceiling ([#59](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/59)).
 - [@weng-wen-jun](https://github.com/weng-wen-jun) asked for a manual rescan that reconciles obsolete
   pending recoveries ([#39](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/39)), then proposed the Pending and editor work for queued messages and the
   usage check behind Retry now and Rescan, and the searchable conversation picker that became Find a conversation, and
