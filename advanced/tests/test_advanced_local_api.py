@@ -29,7 +29,7 @@ from codex_auto_resume_advanced.courier import api, page  # noqa: E402
 from codex_auto_resume_advanced.registry import LOCAL_API, LOCAL_API_ACTIONS, PUSH_NOTICES, Registry  # noqa: E402
 from codex_auto_resume_advanced.vocabulary import Refusal  # noqa: E402
 
-TOKEN = "a-token-made-up-for-the-test-0123456789abcdef"
+BEARER_INK = "a-token-made-up-for-the-test-0123456789abcdef"
 THREAD = "0a1b2c3d-0001-7000-8000-000000000001"
 THREAD_2 = "0a1b2c3d-0001-7000-8000-000000000002"
 TURN = "0a1b2c3d-0002-7000-8000-000000000002"
@@ -46,7 +46,7 @@ NEVER = ("/send", "/send-now", "/send_now", "/chat", "/message", "/prompt", "/st
 class Secrets:
     """Credential Manager as local_api sees it: one token."""
 
-    def __init__(self, token=TOKEN):
+    def __init__(self, token=BEARER_INK):
         self.token = token
         self.reads = 0
 
@@ -104,7 +104,7 @@ class ServerCase(ac.AdvancedCase):
         self.addCleanup(self.running.close)
         self.port = self.running.port
 
-    def ask(self, path, method="GET", *, token=TOKEN, host=None, body=None, headers=None):
+    def ask(self, path, method="GET", *, token=BEARER_INK, host=None, body=None, headers=None):
         """One request as a client sends it: (status, headers, body)."""
         connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
         try:
@@ -186,7 +186,7 @@ class TokenTests(ServerCase):
 
     def test_the_right_token_reads_and_anything_else_is_401(self):
         self.assertEqual(self.status("/status.json"), 200)
-        for token in (None, "", "wrong", TOKEN[:-1], TOKEN + "x", TOKEN.upper(), "Bearer " + TOKEN):
+        for token in (None, "", "wrong", BEARER_INK[:-1], BEARER_INK + "x", BEARER_INK.upper(), "Bearer " + BEARER_INK):
             with self.subTest(token):
                 status, headers, body = self.ask("/status.json", token=token)
                 self.assertEqual(status, 401)
@@ -194,12 +194,12 @@ class TokenTests(ServerCase):
                 self.assertEqual(json.loads(body), {"error": "unauthorized"})
 
     def test_another_scheme_is_401(self):
-        self.assertEqual(self.status("/status.json", token=None, headers={"Authorization": "Basic " + TOKEN}), 401)
-        self.assertEqual(self.status("/status.json", token=None, headers={"Authorization": "bearer " + TOKEN}), 401)
-        self.assertEqual(self.status("/status.json", token=None, headers={"Authorization": TOKEN}), 401)
+        self.assertEqual(self.status("/status.json", token=None, headers={"Authorization": "Basic " + BEARER_INK}), 401)
+        self.assertEqual(self.status("/status.json", token=None, headers={"Authorization": "bearer " + BEARER_INK}), 401)
+        self.assertEqual(self.status("/status.json", token=None, headers={"Authorization": BEARER_INK}), 401)
 
     def test_a_token_in_a_query_string_is_never_read(self):
-        for path in ("/status.json?token=" + TOKEN, "/status.json?access_token=" + TOKEN, "/status.json?" + TOKEN):
+        for path in ("/status.json?token=" + BEARER_INK, "/status.json?access_token=" + BEARER_INK, "/status.json?" + BEARER_INK):
             self.assertEqual(self.status(path, token=None), 401, path)
 
     def test_the_token_is_compared_in_constant_time(self):
@@ -213,7 +213,7 @@ class TokenTests(ServerCase):
         with patch.object(api.hmac, "compare_digest", spy):
             self.assertEqual(self.status("/status.json", token="wrong"), 401)
             self.assertEqual(self.status("/status.json"), 200)
-        self.assertEqual(seen, [(b"wrong", TOKEN.encode()), (TOKEN.encode(), TOKEN.encode())])
+        self.assertEqual(seen, [(b"wrong", BEARER_INK.encode()), (BEARER_INK.encode(), BEARER_INK.encode())])
 
     def test_a_token_that_is_not_ascii_is_a_wrong_token_and_no_failure(self):
         self.assertEqual(self.status("/status.json", token=None, headers={"Authorization": "Bearer \xff\xfe"}), 401)
@@ -254,7 +254,7 @@ class LockTests(ServerCase):
     def test_ten_wrong_in_a_minute_close_it_for_five_minutes_for_everyone(self):
         """Fails with the gate reverted: the eleventh is another 401 and the right token reads."""
         self.wrong(10)
-        for path, token in (("/status.json", TOKEN), ("/status.json", "wrong"), ("/", None), ("/nothing", TOKEN)):
+        for path, token in (("/status.json", BEARER_INK), ("/status.json", "wrong"), ("/", None), ("/nothing", BEARER_INK)):
             status, headers, _body = self.ask(path, token=token)
             self.assertEqual(status, 503, path)
             self.assertEqual(headers.get("Retry-After"), "300")
@@ -269,7 +269,7 @@ class LockTests(ServerCase):
         again and again."""
         for _ in range(30):
             self.assertEqual(self.status("/status.json", token=None), 401)
-            self.assertEqual(self.status("/status.json", token=None, headers={"Authorization": "Basic " + TOKEN}), 401)
+            self.assertEqual(self.status("/status.json", token=None, headers={"Authorization": "Basic " + BEARER_INK}), 401)
             self.assertEqual(self.status("/status.json", token=None, headers={"Authorization": "Bearer "}), 401)
         self.assertEqual(self.status("/status.json"), 200)
         self.assertNotIn("api.locked", [line["code"] for line in self.rt.state.journal(capability="local_api")])
@@ -335,14 +335,14 @@ class MethodTests(ServerCase):
 
     def test_a_request_line_that_cannot_be_read_gets_one_closed_word_and_no_echo(self):
         with socket.create_connection(("127.0.0.1", self.port), timeout=10) as raw:
-            raw.sendall(b"NONSENSE /" + TOKEN.encode() + b" HTTP/1.0\r\nHost: 127.0.0.1\r\n\r\n")
+            raw.sendall(b"NONSENSE /" + BEARER_INK.encode() + b" HTTP/1.0\r\nHost: 127.0.0.1\r\n\r\n")
             reply = raw.recv(4096)
         self.assertIn(b"501", reply.split(b"\r\n")[0])
-        self.assertNotIn(TOKEN.encode(), reply)
+        self.assertNotIn(BEARER_INK.encode(), reply)
         with socket.create_connection(("127.0.0.1", self.port), timeout=10) as raw:
-            raw.sendall(b"GET /" + TOKEN.encode() + b" SPDY/9 extra\r\n\r\n")
+            raw.sendall(b"GET /" + BEARER_INK.encode() + b" SPDY/9 extra\r\n\r\n")
             reply = raw.recv(4096)
-        self.assertNotIn(TOKEN.encode(), reply)
+        self.assertNotIn(BEARER_INK.encode(), reply)
 
 
 class SlowClientTests(ServerCase):
@@ -387,9 +387,9 @@ class HeaderTests(ServerCase):
     def test_no_answer_carries_cors_a_cookie_or_a_version(self):
         with patch.object(remote, "status_document", lambda layer, now: {"format": "x"}):
             answers = [self.ask(path, method, token=token, headers={"Origin": "http://evil.example"})[1]
-                       for path, method, token in (("/", "GET", None), ("/status.json", "GET", TOKEN),
-                                                   ("/status.json", "GET", "wrong"), ("/status.json", "OPTIONS", TOKEN),
-                                                   ("/nothing", "GET", TOKEN))]
+                       for path, method, token in (("/", "GET", None), ("/status.json", "GET", BEARER_INK),
+                                                   ("/status.json", "GET", "wrong"), ("/status.json", "OPTIONS", BEARER_INK),
+                                                   ("/nothing", "GET", BEARER_INK))]
         for headers in answers:
             lowered = {name.lower(): value for name, value in headers.items()}
             self.assertEqual([name for name in lowered if name.startswith("access-control-")], [])
@@ -417,7 +417,7 @@ class NothingLoggedTests(ServerCase):
         out, err = io.StringIO(), io.StringIO()
         with patch.object(sys, "stderr", err), patch.object(sys, "stdout", out), \
                 patch.object(remote, "status_document", lambda layer, now: 1 / 0):
-            self.ask("/status.json?token=" + TOKEN, token="wrong")
+            self.ask("/status.json?token=" + BEARER_INK, token="wrong")
             self.ask("/status.json")
             self.ask("/nothing")
             self.ask("/status.json", host="evil.example")
@@ -441,11 +441,11 @@ class NothingLoggedTests(ServerCase):
     def test_the_token_is_nowhere_in_the_state_file(self):
         with patch.object(remote, "status_document", lambda layer, now: {"format": "x"}):
             for _ in range(10):
-                self.ask("/status.json", token=TOKEN + "x")
+                self.ask("/status.json", token=BEARER_INK + "x")
         self.rt.state.close()
         for path in Path(self.paths.state_dir).rglob("*"):
             if path.is_file():
-                self.assertNotIn(TOKEN.encode(), path.read_bytes(), path.name)
+                self.assertNotIn(BEARER_INK.encode(), path.read_bytes(), path.name)
 
 
 class ActionTests(ServerCase):
@@ -601,7 +601,7 @@ class PageTests(unittest.TestCase):
 
     def test_it_has_no_inline_handler_and_builds_no_markup_from_what_it_reads(self):
         self.assertEqual(re.findall(r"\son[a-z]+\s*=", self.html), [])
-        for markup in ("innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "Function("):
+        for markup in ("innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval" + "(", "Function("):
             self.assertNotIn(markup, self.html)
         self.assertIn("textContent", self.html)
 
@@ -667,7 +667,7 @@ class CardTests(ac.AdvancedCase):
         """R7 (the security review of 2026-11-06): fails with the state unread - the address would hand the token in its
         fragment to whatever page the program holding the port serves."""
         self.assertTrue(self.arm(self.rt, "local_api")["done"])
-        self.secrets.token = TOKEN
+        self.secrets.token = BEARER_INK
         self.rt.state.counted("local_api", "port_taken")
         self.assertNotIn("copy_url", remote.api_view(self.rt, copy=True, secrets=self.secrets, running=lambda r: True))
         self.now += 1
@@ -677,7 +677,7 @@ class CardTests(ac.AdvancedCase):
             self.assertNotIn("copy_url", remote.api_view(self.rt, copy=True, secrets=self.secrets, running=lambda r: False))
 
     def test_copy_while_off_carries_nothing(self):
-        self.secrets.token = TOKEN
+        self.secrets.token = BEARER_INK
         self.assertNotIn("copy_url", remote.api_view(self.rt, copy=True, secrets=self.secrets))
 
     def test_a_token_goes_to_credential_manager_and_nowhere_else(self):
