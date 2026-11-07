@@ -18,7 +18,7 @@
 // v0.6.20 (issue #50, steer_send): for a new message, while Steer the running turn stands on, When offers a fifth
 // choice - Now, into the turn that is running (steer). Chosen, the hour, the count and the wait for the one before are
 // not asked, the two while-running cards and the after-this-turn line give way to the steer's warning in the danger
-// colour (the Codex app does not show a steered line - only History does), and the accent button reads Steer now and
+// colour (a steer cannot be taken back; the Codex app shows the line as the person's own message), and the accent button reads Steer now and
 // sends the bridge's advanced-steer instead; the watcher alone writes it, and History shows what came of it.
 //
 // v0.6.20 (#50 item 1): pictures under the words - pasted (Ctrl+V of a picture, or of picture files copied in Explorer),
@@ -332,7 +332,7 @@ namespace CodexAutoResume
                 "\"After this turn\" goes into Codex's queue: Codex runs it when the turn now running ends."));
             card.Controls.Add(editorAfterTurn);
             editorSteerWarning = HelpText(Word("page.editor.steer.warning",
-                "A steer goes into the turn running now, through the Codex app's own connection. The Codex app does not show the steered line anywhere - only History here shows what was sent."));
+                "A steer goes into the turn running now, through the Codex app's own connection, and cannot be taken back. The Codex app shows the line in that turn as your own message; History here records what was sent too."));
             editorSteerWarning.ForeColor = Palette.Danger;
             editorSteerWarning.Visible = false;
             card.Controls.Add(editorSteerWarning);

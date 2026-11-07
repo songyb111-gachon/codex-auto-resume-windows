@@ -993,15 +993,16 @@ PROMPT_QUEUE = CapabilityDef(
 # once, through the Desktop's own IPC pipe (codex/ipc.steer_turn, inside core's errand guard): only while Codex's history
 # says the conversation's latest turn is running and the app holds it (the holder count, then core's loaded check with
 # the app's identity), claimed before the write and never written again once it may have been (engine/steer.py). The
-# Codex app never shows the steered line (MSTEER2 failed not_as_expected on codex-cli 0.165.0-alpha.1.2: delivered once,
-# into the same turn, obeyed, never shown) - its statement says so first, and every steer is kept with its words for
+# Codex app showed no steered line on codex-cli 0.165.0-alpha.1.2 (MSTEER2 failed not_as_expected there: delivered once,
+# into the same turn, obeyed, never shown) and shows it on 0.167.0-alpha.3.2 as the person's own message (MSTEER2 passed,
+# 2026-11-08) - its statement says what the app shows, and every steer is kept with its words for
 # History (state/steers.py). It departs from A4 (a send not shown as the person's message, with no marker, its arrival
 # unprovable in the conversation), A2 and B3 (an undocumented route, not codex queue), A1 (handed on by the watcher's
 # errand, not Engine.dispatch), A8 (its own checks, not core's gates), A17 (it joins the running turn), A20 (its own
 # caps, and so H2), A26 (a person's words, no continuation), D2 (the words kept after the send) and H6 (nothing takes it
 # back). It
 # needs the prompt queue, whose editor is where it is written, and stands on loaded_state_detection; its route rests on
-# MIPC and MSTEER2 - the failed MSTEER2 is the warning its statement shows and the person confirms. Ceilings: 60 a
+# MIPC and MSTEER2 - a failed MSTEER2 would be the warning its statement shows and the person confirms. Ceilings: 60 a
 # conversation and 120 a day, the request's own caps (A20 departed).
 STEER_SEND = CapabilityDef(
     id="steer_send",
@@ -1320,8 +1321,9 @@ ACCOUNT_SWITCH = CapabilityDef(
 # watcher stops (engine/wake.py, win/waketimer.py). Waking only lets the watcher's ordinary tick run sooner; every gate
 # is unchanged. Last of the capabilities at P8, so its errand reads the due times the others' errands just kept. It
 # departs from C4 (it acts on a schedule of its own) and B16 (Windows is asked the power scheme's Allow wake timers
-# value, a question not on the list); F1 is kept. It rests on MWAKE - whether such a timer wakes this PC - which the
-# measurement session makes; until then the statement says it is unmeasured. It sends nothing to Codex and stands on
+# value, a question not on the list); F1 is kept. It rests on MWAKE - whether such a timer wakes this PC - which failed on
+# codex-cli 0.167.0-alpha.3.2 (2026-11-08: the timer fired, the PC left Modern Standby only at a mouse move six minutes later), so
+# its statement shows that as a warning; it is never withheld for it. It sends nothing to Codex and stands on
 # engine_present; its ceilings are the schema's floor and never bind.
 WAKE_FOR_RESET = CapabilityDef(
     id="wake_for_reset",
