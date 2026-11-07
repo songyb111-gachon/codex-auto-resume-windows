@@ -1,0 +1,21 @@
+{
+  "format": "codex-auto-resume-measurement/1",
+  "step": "maws",
+  "verdict": "blocked",
+  "recorded_at": "2026-11-07T16:11Z",
+  "product_version": "0.6.22-beta.2",
+  "codex_version": "codex-cli 0.167.0-alpha.3.2",
+  "windows_build": "10.0.26300",
+  "observed": {
+    "help_read": true,
+    "ws_url_documented": false,
+    "shared_switch_documented": false,
+    "thread_given": false
+  },
+  "note": "a read-only look at the engine's help for a documented shared app-server. Confirm against Codex's own documentation, then set the verdict",
+  "completion": {
+    "verdict": "fail",
+    "note": "not_as_expected",
+    "recorded_at": "2026-11-07T16:18Z"
+  }
+}

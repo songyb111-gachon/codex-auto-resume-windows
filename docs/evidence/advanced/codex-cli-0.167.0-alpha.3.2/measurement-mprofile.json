@@ -1,0 +1,21 @@
+{
+  "format": "codex-auto-resume-measurement/1",
+  "step": "mprofile",
+  "verdict": "pass",
+  "recorded_at": "2026-11-07T17:38Z",
+  "product_version": "0.6.22-beta.2",
+  "codex_version": "codex-cli 0.167.0-alpha.3.2",
+  "windows_build": "10.0.26300",
+  "observed": {
+    "profile_given": true,
+    "added_by_login": null,
+    "account_read": true,
+    "own_account": true,
+    "usage_read": true,
+    "real_file_unchanged": true,
+    "app_unchanged": true,
+    "real_still_signed_in": true,
+    "store_word": "usable",
+    "thread_given": false
+  }
+}

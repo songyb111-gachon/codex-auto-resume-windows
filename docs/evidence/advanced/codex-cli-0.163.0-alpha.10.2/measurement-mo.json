@@ -1,0 +1,27 @@
+{
+  "format": "codex-auto-resume-measurement/1",
+  "step": "mo",
+  "verdict": "blocked",
+  "recorded_at": "2026-10-16T19:10Z",
+  "product_version": "0.6.16-beta.3",
+  "codex_version": "codex-cli 0.163.0-alpha.10.2",
+  "windows_build": "10.0.26300",
+  "observed": {
+    "row_read": true,
+    "first_line_read": true,
+    "source": "vscode",
+    "thread_source": "user",
+    "history_mode": "paginated",
+    "originator": "ide_originator",
+    "meta_source": "vscode",
+    "cli_version_present": true,
+    "holder": "session",
+    "thread_given": true
+  },
+  "note": "run it for the TUI's conversation and for VS Code's, confirm each is held by a session, then set the verdict",
+  "completion": {
+    "verdict": "pass",
+    "note": "as_expected",
+    "recorded_at": "2026-10-16T19:12Z"
+  }
+}

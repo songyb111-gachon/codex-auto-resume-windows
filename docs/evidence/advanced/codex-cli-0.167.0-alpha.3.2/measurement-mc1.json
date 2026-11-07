@@ -1,0 +1,23 @@
+{
+  "format": "codex-auto-resume-measurement/1",
+  "step": "mc1",
+  "verdict": "blocked",
+  "recorded_at": "2026-11-07T16:38Z",
+  "product_version": "0.6.22-beta.2",
+  "codex_version": "codex-cli 0.167.0-alpha.3.2",
+  "windows_build": "10.0.26300",
+  "observed": {
+    "add_accepted": true,
+    "taken": true,
+    "taken_seconds": "under_10s",
+    "turn_started": true,
+    "client_id_on_user_item": true,
+    "thread_given": true
+  },
+  "note": "confirm the message showed at once as your own, nothing marked it as sent by a program, and the turn ran as one you typed, then set the verdict",
+  "completion": {
+    "verdict": "pass",
+    "note": "as_expected",
+    "recorded_at": "2026-11-07T16:39Z"
+  }
+}
