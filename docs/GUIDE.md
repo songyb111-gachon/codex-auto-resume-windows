@@ -95,12 +95,16 @@ same switch works on the archive's `Install.cmd` and `Uninstall.cmd`, and the se
 when it stops.
 
 The setup window can add a shortcut on your Desktop, which opens what the Start Menu entry opens: *Add a shortcut to
-the desktop*, off unless you tick it. Setup over an installation shows what is true now, and unticking it removes this
-installation's shortcut. `-Silent` makes none: add `-DesktopShortcut` to make one, or `-NoDesktopShortcut` to remove
-it (`CodexAutoResume-Setup-vX.Y.Z.exe -Silent -DesktopShortcut`); with neither, as `winget` runs it, the Desktop is
-left as it is. An update from the Dashboard leaves it as it is too. Only a shortcut named `Codex Auto Resume.lnk`
-whose target is inside this installation counts as ours: any other, even one you made with that name, is never changed
-or removed, and one that cannot be written stops nothing, and the finished page and the log say so.
+the desktop*, on the last page - Finish, once the installation is made, as an ordinary installer has it - off unless you
+tick it. After a repair or an update, from the setup program or from the Dashboard, the box shows what is true now:
+ticked where this installation's shortcut is there. Ticking it makes the shortcut and unticking it removes it when you
+press Finish, and left as it was nothing changes. A failed installation, and an uninstall (which removes this
+installation's shortcut as it always did), have no box. `-Silent` makes none: add `-DesktopShortcut` to make one, or
+`-NoDesktopShortcut` to remove it (`CodexAutoResume-Setup-vX.Y.Z.exe -Silent -DesktopShortcut`); with neither, as
+`winget` runs it, the Desktop is left as it is. Only a shortcut named `Codex Auto Resume.lnk` whose target is inside
+this installation counts as ours: any other, even one you made with that name, is never changed or removed. One that
+cannot be made stops nothing: the Finish page says so in one line, and the log says more, and the window stays open until
+you press Finish again.
 
 From v0.6.16 an installation also appears in Windows' Settings > Apps and in `winget list`, as *Codex Auto Resume*
 (*Codex Auto Resume Advanced* for the advanced edition), for your Windows user only. Its Uninstall button runs the

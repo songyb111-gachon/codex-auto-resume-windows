@@ -1,4 +1,4 @@
-"""The shortcut on the Desktop the setup window offers, off unless a person ticks it (the owner, 2026-11-02 and 11-05).
+"""The shortcut on the Desktop the setup window offers on its Finish page, off unless a person ticks it (the owner, 2026-11-02, 11-05 and 11-07).
 
 The Desktop is the person's, not a singleton of ours, so what is held here is mostly what it may not do:
 
@@ -8,7 +8,8 @@ The Desktop is the person's, not a singleton of ours, so what is held here is mo
 * EngineTests - the core's install leaves the Desktop alone, its uninstall takes ours whichever answer was given about
   the data, and the installer's setup command says what became of it by its exit code.
 * ScriptTests - install.ps1 asks about the Desktop only when it was told to, and what fails there fails nothing.
-* FlowTests and WindowTests - the box, the switches it becomes, and what the Finish page says.
+* FlowTests, WindowTests and SourceTests - the box, which pages have it, what the Finish button asks of the installed engine
+  (a tick makes ours, an untick removes ours, left as it was nothing), and what the Finish page says when it cannot.
 
 NOTHING HERE MAY REACH THE REAL DESKTOP. `[Environment]::GetFolderPath` and SHGetKnownFolderPath ignore a scratch
 USERPROFILE, so every test that makes or removes a shortcut sets shortcut.DESKTOP_ENV, and setUp proves it took; the module
@@ -52,7 +53,7 @@ INSTALL_PS1 = (ROOT / "build" / "install" / "install.ps1").read_text(encoding="u
 BOOTSTRAP = (ROOT / "scripts" / "bootstrap.ps1").read_text(encoding="utf-8")
 FLOW = (ROOT / "gui" / "InstallerFlow.cs").read_text(encoding="utf-8")
 ENGLISH = json.loads((ROOT / "src" / "codex_auto_resume" / "locales" / "en.json").read_text(encoding="utf-8"))
-LABEL = ENGLISH["installer.options.desktop_shortcut"]
+LABEL = ENGLISH["installer.done.desktop_shortcut"]
 
 _real_before = None
 
@@ -401,6 +402,80 @@ class ScriptTests(unittest.TestCase):
         self.assertIn("`-NoDesktopShortcut`", guide)
 
 
+STUB = r"""
+using System;
+using System.Diagnostics;
+using System.IO;
+
+// Stands for <home>\runtime\python.exe: records what it was asked, then runs the test's own interpreter with the same
+// words. Refuses (99) unless its Desktop and its home are folders of the test's own: a probe that lost its variables
+// stops here rather than reach the real Desktop.
+internal static class Stub
+{
+    private static int Main()
+    {
+        string desktop = Environment.GetEnvironmentVariable("CODEX_AUTO_RESUME_DESKTOP") ?? "";
+        string home = Environment.GetEnvironmentVariable("CODEX_AUTO_RESUME_PLUGIN_HOME") ?? "";
+        string work = Environment.GetEnvironmentVariable("CAR_WORK") ?? "";
+        if (work.Length == 0 || !desktop.StartsWith(work, StringComparison.OrdinalIgnoreCase) ||
+            !home.StartsWith(work, StringComparison.OrdinalIgnoreCase)) return 99;
+        string line = Environment.CommandLine, rest;
+        if (line.StartsWith("\""))
+        {
+            int end = line.IndexOf('"', 1);
+            rest = line.Substring(end + 1).TrimStart();
+        }
+        else
+        {
+            int space = line.IndexOf(' ');
+            rest = space < 0 ? "" : line.Substring(space + 1);
+        }
+        File.AppendAllText(Environment.GetEnvironmentVariable("CAR_STUB_LOG"), rest + "|" + home + "\r\n");
+        var info = new ProcessStartInfo(Environment.GetEnvironmentVariable("CAR_REAL_PYTHON"), rest);
+        info.UseShellExecute = false;
+        info.CreateNoWindow = true;
+        info.RedirectStandardOutput = true;
+        info.RedirectStandardError = true;
+        using (Process process = Process.Start(info))
+        {
+            var failure = process.StandardError.ReadToEndAsync();
+            string output = process.StandardOutput.ReadToEnd();
+            process.WaitForExit();
+            Console.Out.Write(output);
+            Console.Error.Write(failure.Result);
+            return process.ExitCode;
+        }
+    }
+}
+"""
+
+
+def _stub_homes(work: Path) -> dict:
+    """Two installations of the test's own: one whose runtime\\python.exe is the stub above (and whose setup script runs
+    the repository's), and one with no interpreter at all."""
+    source = work / "Stub.cs"
+    source.write_text(STUB, encoding="utf-8")
+    stub = work / "stub-python.exe"
+    done = subprocess.run([str(CSC), "/nologo", "/target:exe", "/out:" + str(stub), str(source)], capture_output=True,
+                          text=True, creationflags=NO_WINDOW, timeout=300)
+    if done.returncode != 0 or not stub.is_file():
+        raise AssertionError("the stand-in interpreter did not compile: " + (done.stdout + done.stderr)[-1500:])
+    homes = {}
+    for name in ("ok", "bare"):
+        home = work / ("home-" + name)
+        home.mkdir()
+        (home / "CodexAutoResumeSettings.exe").write_bytes(b"MZ")
+        homes[name] = home
+    (homes["ok"] / "runtime").mkdir()
+    shutil.copyfile(stub, homes["ok"] / "runtime" / "python.exe")
+    scripts = homes["ok"] / "app" / "scripts"
+    scripts.mkdir(parents=True)
+    (scripts / "plugin_setup.py").write_text(
+        "import runpy, sys\nsys.path.insert(0, %r)\nrunpy.run_path(%r, run_name='__main__')\n"
+        % (str(ROOT / "src"), str(ROOT / "scripts" / "plugin_setup.py")), encoding="utf-8")
+    return homes
+
+
 FLOW_PROBE = r"""
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
@@ -411,28 +486,40 @@ $Desktop = $assembly.GetType('CodexAutoResume.DesktopShortcut', $true)
 function NewFlow($mode, $installed) {
     $FlowType.GetConstructors($any)[0].Invoke([object[]]@([string]$mode, 'C:\Users\ExampleUser\.codex-auto-resume', 'standard', $installed, '9.9.9'))
 }
-function Know($flow, $there, $given) { $null = $FlowType.GetMethod('KnowDesktopShortcut', $any).Invoke($flow, [object[]]@([bool]$there, [string[]]@($given))) }
+function Know($flow, $there) { $null = $FlowType.GetMethod('KnowDesktopShortcut', $any).Invoke($flow, [object[]]@([bool]$there)) }
 function Field($flow, $name) { $FlowType.GetField($name, $any).GetValue($flow) }
 function SetField($flow, $name, $value) { $FlowType.GetField($name, $any).SetValue($flow, $value) }
 function Switches($flow, $given) { (@($FlowType.GetMethod('Switches', $any).Invoke($flow, [object[]]@(,[string[]]@($given)))) -join ' ') }
-function Case($mode, $installed, $there, $given) {
+function Asks($flow) { [string]$FlowType.GetMethod('DesktopShortcutChange', $any).Invoke($flow, $null) }
+function Offers($flow, $code) { [bool]$FlowType.GetMethod('OffersDesktopShortcut', $any).Invoke($flow, [object[]]@([int]$code)) }
+function Case($mode, $installed, $there) {
     $flow = NewFlow $mode $installed
-    Know $flow $there $given
+    Know $flow $there
     $flow
 }
 $out = @{}
-$flow = Case 'install' $null $false @(); $out.first_box = Field $flow 'MakeDesktopShortcut'; $out.first = Switches $flow @()
-SetField $flow 'MakeDesktopShortcut' $true; $out.first_ticked = Switches $flow @()
-$flow = Case 'install' 'standard' $true @(); $out.there_box = Field $flow 'MakeDesktopShortcut'; $out.there = Switches $flow @()
-SetField $flow 'MakeDesktopShortcut' $false; $out.there_unticked = Switches $flow @()
-$flow = Case 'install' 'standard' $false @(); $out.absent_box = Field $flow 'MakeDesktopShortcut'; $out.absent = Switches $flow @()
-SetField $flow 'MakeDesktopShortcut' $true; $out.absent_ticked = Switches $flow @()
-$flow = Case 'install' 'advanced' $true @(); SetField $flow 'ChangeEdition' $true; SetField $flow 'MakeDesktopShortcut' $false; $out.edition_unticked = Switches $flow @()
-$flow = Case 'update' 'standard' $true @(); $out.update = Switches $flow @()
-$flow = Case 'uninstall' 'standard' $true @(); $out.uninstall = Switches $flow @()
-$flow = NewFlow 'install' 'standard'; SetField $flow 'Maintaining' $true; Know $flow $true @(); $null = $FlowType.GetMethod('Choose', $any).Invoke($flow, [object[]]@($true)); $out.removed = Switches $flow @()
-$flow = Case 'install' $null $false @('-DesktopShortcut'); $out.given_on_box = Field $flow 'MakeDesktopShortcut'; $out.given_on = Switches $flow @('-DesktopShortcut')
-$flow = Case 'install' 'standard' $true @('-NoDesktopShortcut'); $out.given_off_box = Field $flow 'MakeDesktopShortcut'; $out.given_off = Switches $flow @('-NoDesktopShortcut')
+$flow = Case 'install' $null $false; $out.first_box = Field $flow 'MakeDesktopShortcut'; $out.first = Switches $flow @(); $out.first_asks = Asks $flow
+SetField $flow 'MakeDesktopShortcut' $true; $out.first_ticked = Switches $flow @(); $out.first_ticked_asks = Asks $flow
+$flow = Case 'install' 'standard' $true; $out.there_box = Field $flow 'MakeDesktopShortcut'; $out.there = Switches $flow @(); $out.there_asks = Asks $flow
+SetField $flow 'MakeDesktopShortcut' $false; $out.there_unticked = Switches $flow @(); $out.there_unticked_asks = Asks $flow
+$flow = Case 'install' 'standard' $false; $out.absent_box = Field $flow 'MakeDesktopShortcut'; $out.absent_asks = Asks $flow
+SetField $flow 'MakeDesktopShortcut' $true; $out.absent_ticked = Switches $flow @(); $out.absent_ticked_asks = Asks $flow
+$flow = Case 'install' 'advanced' $true; SetField $flow 'ChangeEdition' $true; SetField $flow 'MakeDesktopShortcut' $false; $out.edition_unticked = Switches $flow @()
+$flow = Case 'update' 'standard' $true; $out.update = Switches $flow @()
+$flow = Case 'uninstall' 'standard' $true; $out.uninstall = Switches $flow @()
+$flow = NewFlow 'install' 'standard'; SetField $flow 'Maintaining' $true; Know $flow $true; $null = $FlowType.GetMethod('Choose', $any).Invoke($flow, [object[]]@($true)); $out.removed = Switches $flow @()
+$flow = Case 'install' $null $false
+$out.given_on = Switches $flow @('-DesktopShortcut')
+$out.given_off = Switches $flow @('-NoDesktopShortcut')
+$out.offers_install = Offers $flow 0
+$out.offers_failed = Offers $flow 1
+$out.offers_refused = Offers $flow 14
+$out.offers_still_running = Offers $flow -2
+$out.offers_not_started = Offers $flow -1
+$out.offers_update = Offers (Case 'update' 'standard' $true) 0
+$flow = Case 'update' 'standard' $true; SetField $flow 'Another' $true; $out.offers_pick = Offers $flow 0
+$out.offers_uninstall = Offers (Case 'uninstall' 'standard' $true) 0
+$flow = NewFlow 'install' 'standard'; SetField $flow 'Maintaining' $true; $out.offers_repair = Offers $flow 0
 $inside = $Desktop.GetMethod('Inside', $any)
 $out.inside = @(
     $inside.Invoke($null, [object[]]@('C:\a\home\x.exe', 'C:\a\home')),
@@ -448,74 +535,200 @@ $env:CODEX_AUTO_RESUME_DESKTOP = $env:CAR_GARBAGE
 $out.ours_garbage = $ours.Invoke($null, [object[]]@($env:CAR_HOME))
 [Environment]::SetEnvironmentVariable('CODEX_AUTO_RESUME_DESKTOP', $null)
 $out.folder_is_windows = ($Desktop.GetMethod('Folder', $any).Invoke($null, $null) -ceq [Environment]::GetFolderPath('DesktopDirectory'))
+# The change itself, on a Desktop and a home of the test's own: the installed engine is asked, and answers by its code.
+$change = $Desktop.GetMethod('Change', $any)
+function Ask($place, $make) {
+    $arguments = [object[]]@([string]$place, [bool]$make, $null)
+    $code = $change.Invoke($null, $arguments)
+    @($code, [string]$arguments[2])
+}
+$out.change_nowhere = (Ask $env:CAR_BARE $true)[0]
+$env:CODEX_AUTO_RESUME_DESKTOP = $env:CAR_MAKE_DESKTOP
+$link = Join-Path $env:CAR_MAKE_DESKTOP 'Codex Auto Resume.lnk'
+$out.change_made = (Ask $env:CAR_STUB_HOME $true)[0]
+$out.change_made_there = Test-Path -LiteralPath $link
+$out.change_removed = (Ask $env:CAR_STUB_HOME $false)[0]
+$out.change_removed_there = Test-Path -LiteralPath $link
+$out.change_removed_again = (Ask $env:CAR_STUB_HOME $false)[0]
+$shell = New-Object -ComObject WScript.Shell
+$foreign = $shell.CreateShortcut($link)
+$foreign.TargetPath = $env:CAR_FOREIGN
+$foreign.Save()
+$out.change_taken = (Ask $env:CAR_STUB_HOME $true)[0]
+$out.change_taken_kept = ($shell.CreateShortcut($link).TargetPath -ceq $env:CAR_FOREIGN)
+$out.change_taken_said = (Ask $env:CAR_STUB_HOME $true)[1]
+$out.change_foreign_remove = (Ask $env:CAR_STUB_HOME $false)[0]
+$out.change_foreign_remove_kept = ($shell.CreateShortcut($link).TargetPath -ceq $env:CAR_FOREIGN)
 $out | ConvertTo-Json -Depth 3 -Compress
 """
 
 WINDOW_PROBE = r"""
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
+Add-Type -AssemblyName System.Windows.Forms
+# A probe that hosts a window never shows .NET's unhandled-exception box on the desktop: it ends non-zero instead.
+[System.Windows.Forms.Application]::SetUnhandledExceptionMode('ThrowException')
+trap { [Console]::Error.WriteLine(($_ | Out-String)); exit 1 }
 $assembly = [Reflection.Assembly]::LoadFile($env:CAR_EXE)
 $any = [Reflection.BindingFlags]'Static,Instance,NonPublic,Public'
 function T($name) { $assembly.GetType('CodexAutoResume.' + $name, $true) }
 $FlowType = T 'InstallerFlow'
 $catalog = (T 'Json').GetMethod('Parse', $any).Invoke($null, [object[]]@([IO.File]::ReadAllText($env:CAR_CATALOG, [Text.Encoding]::UTF8)))
 $words = (T 'InstallerWords').GetConstructors($any)[0].Invoke([object[]]@($catalog, 'en'))
-function NewFlow($installed, $there) {
-    $flow = $FlowType.GetConstructors($any)[0].Invoke([object[]]@('install', 'C:\Users\ExampleUser\.codex-auto-resume', 'standard', $installed, '9.9.9'))
-    $null = $FlowType.GetMethod('KnowDesktopShortcut', $any).Invoke($flow, [object[]]@([bool]$there, [string[]]@()))
-    $flow
+function Desktop($name) { Join-Path $env:CAR_WORK ('d-' + $name) }
+function NewFlow($mode, $installed, $place) {
+    $FlowType.GetConstructors($any)[0].Invoke([object[]]@([string]$mode, [string]$place, 'standard', $installed, '9.9.9'))
 }
 function NewWindow($flow) { (T 'InstallerWindow').GetConstructors($any)[0].Invoke([object[]]@($flow, $words, $null, $null, $null, $null)) }
 function CallOn($object, $name, $arguments) { $object.GetType().GetMethod($name, $any).Invoke($object, [object[]]$arguments) }
+function Rows($window, $kind) {
+    $found = @()
+    foreach ($row in @(CallOn $window 'ShownRows' @())) { if ($row.GetType().Name -ceq $kind) { $found += $row } }
+    $found
+}
 function Boxes($window) {
     $found = @()
-    foreach ($row in @(CallOn $window 'ShownRows' @())) {
-        if ($row.GetType().Name -ceq 'SoftCheck' -and $row.Text -ceq $env:CAR_LABEL) {
-            $found += ,@([bool]$row.Checked, [bool]$row.GetType().GetProperty('Box', $any).GetValue($row, $null))
-        }
+    foreach ($row in @(Rows $window 'SoftCheck')) {
+        if ($row.Text -ceq $env:CAR_LABEL) { $found += (@('off', 'on')[[int][bool]$row.Checked] + ':' + @('switch', 'box')[[int][bool]$row.GetType().GetProperty('Box', $any).GetValue($row, $null)]) }
     }
-    ,$found
+    $found -join ','
 }
 function Callouts($window) {
     $found = @()
-    foreach ($row in @(CallOn $window 'ShownRows' @())) { if ($row.GetType().Name -ceq 'SoftCallout') { $found += [string]$row.AccessibleName } }
-    ,$found
+    foreach ($row in @(Rows $window 'SoftCallout')) { $found += [string]$row.AccessibleName }
+    $found -join ' | '
 }
+function Says($window) {
+    $found = @()
+    foreach ($row in @(Rows $window 'WrapLabel')) { $found += [string]$row.Text }
+    $found
+}
+function Pump($window, $limit) {
+    $clock = [Diagnostics.Stopwatch]::StartNew()
+    while (-not $window.IsDisposed -and (CallOn $window 'get_Running' @()) -and $clock.ElapsedMilliseconds -lt $limit) {
+        [System.Windows.Forms.Application]::DoEvents()
+        Start-Sleep -Milliseconds 25
+    }
+    for ($each = 0; $each -lt 8; $each++) { [System.Windows.Forms.Application]::DoEvents() }
+}
+function Calls() { if (Test-Path -LiteralPath $env:CAR_STUB_LOG) { @(Get-Content -LiteralPath $env:CAR_STUB_LOG).Count } else { 0 } }
+function LinkOf($desktop) { Join-Path $desktop 'Codex Auto Resume.lnk' }
+function Digest($path) { if (Test-Path -LiteralPath $path) { (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash } else { '' } }
+
+# One run of the window to its Finish page, then the Finish button once the box is set: `tick` is $true, $false or $null
+# (left as it is). The window is built and never shown; its worker's answer is pumped in.
+function Run($name, $mode, $installed, $place, $tick, [switch]$maintaining) {
+    $env:CODEX_AUTO_RESUME_DESKTOP = Desktop $name
+    $flow = NewFlow $mode $installed $place
+    if ($maintaining) { $FlowType.GetField('Maintaining', $any).SetValue($flow, $true) }
+    $window = NewWindow $flow
+    $null = CallOn $window 'Finished' @([int]0, '')
+    $null = $window.Handle
+    $r = @{}
+    $r.page = CallOn $window 'get_Page' @()
+    $r.box = Boxes $window
+    if ($null -ne $tick) {
+        foreach ($row in @(Rows $window 'SoftCheck')) { if ($row.Text -ceq $env:CAR_LABEL) { $row.Checked = [bool]$tick } }
+    }
+    $calls = Calls
+    $before = Digest (LinkOf (Desktop $name))
+    $null = CallOn $window 'Forward' @()
+    Pump $window 120000
+    $r.closed = [bool]$window.IsDisposed
+    $r.calls = (Calls) - $calls
+    $r.there = Test-Path -LiteralPath (LinkOf (Desktop $name))
+    $r.changed = ((Digest (LinkOf (Desktop $name))) -cne $before)
+    if (-not $r.closed) {
+        $r.callouts = Callouts $window
+        $r.log = [string](CallOn $window 'get_Log' @())
+        $r.box_after = Boxes $window
+        $r.page_after = CallOn $window 'get_Page' @()
+        $null = CallOn $window 'Forward' @()
+        Pump $window 120000
+        $r.closed_next = [bool]$window.IsDisposed
+        $r.calls_next = (Calls) - $calls - $r.calls
+        if (-not $window.IsDisposed) { $window.Dispose() }
+    }
+    $r
+}
+
 $out = @{}
-$window = NewWindow (NewFlow $null $false)
-$null = CallOn $window 'ShowPage' @('options'); $out.first = Boxes $window
-$window = NewWindow (NewFlow 'standard' $true)
-$null = CallOn $window 'ShowPage' @('options'); $out.upgrade_there = Boxes $window
-$flow = NewFlow 'standard' $true; $FlowType.GetField('Maintaining', $any).SetValue($flow, $true)
+
+# The pages before the run: no box on Options, none on Maintain, whichever way it goes.
+$env:CODEX_AUTO_RESUME_DESKTOP = Desktop 'first-keep'
+$window = NewWindow (NewFlow 'install' $null $env:CAR_HOME_OK)
+foreach ($page in @('welcome', 'options')) { $null = CallOn $window 'ShowPage' @($page); $out['first_' + $page] = Boxes $window }
+$window = NewWindow (NewFlow 'install' 'standard' $env:CAR_HOME_OK)
+$null = CallOn $window 'ShowPage' @('options'); $out.upgrade_options = Boxes $window
+$flow = NewFlow 'install' 'standard' $env:CAR_HOME_OK; $FlowType.GetField('Maintaining', $any).SetValue($flow, $true)
 $window = NewWindow $flow
-$null = CallOn $window 'ShowPage' @('maintain'); $out.repair = Boxes $window
+$null = CallOn $window 'ShowPage' @('maintain'); $out.maintain = Boxes $window
 $width = 480
 $out.repair_height = CallOn $window 'Arrange' @([int]$width)
 $null = $FlowType.GetMethod('Choose', $any).Invoke($flow, [object[]]@($true))
 $out.remove_height = CallOn $window 'Arrange' @([int]$width)
 $out.remove = Boxes $window
-function Says($window) {
-    $found = @()
-    foreach ($row in @(CallOn $window 'ShownRows' @())) { if ($row.GetType().Name -ceq 'WrapLabel') { $found += [string]$row.Text } }
-    ,$found
-}
-$flow = $FlowType.GetConstructors($any)[0].Invoke([object[]]@('uninstall', 'C:\Users\ExampleUser\.codex-auto-resume', 'standard', 'standard', '9.9.9'))
+$null = CallOn $window 'ShowPage' @('confirm'); $out.confirm = Boxes $window
+$window = NewWindow (NewFlow 'update' 'standard' $env:CAR_HOME_OK)
+$null = CallOn $window 'ShowPage' @('notes'); $out.notes = Boxes $window
+
+# The uninstall page says the shortcut goes only where one of ours is there.
+$flow = NewFlow 'uninstall' 'standard' 'C:\Users\ExampleUser\.codex-auto-resume'
 $window = NewWindow $flow
 $null = CallOn $window 'ShowPage' @('confirm'); $out.confirm_absent = Says $window
-$null = $FlowType.GetMethod('KnowDesktopShortcut', $any).Invoke($flow, [object[]]@($true, [string[]]@()))
+$null = $FlowType.GetMethod('KnowDesktopShortcut', $any).Invoke($flow, [object[]]@($true))
 $window = NewWindow $flow
 $null = CallOn $window 'ShowPage' @('confirm'); $out.confirm_there = Says $window
+
+# The Finish page: the box on a success, not on anything else.
+foreach ($case in @(@('failed', 1), @('refused', 14), @('still', -2), @('notstarted', -1))) {
+    $env:CODEX_AUTO_RESUME_DESKTOP = Desktop 'first-keep'
+    $window = NewWindow (NewFlow 'install' $null $env:CAR_HOME_OK)
+    $null = CallOn $window 'Finished' @([int]$case[1], '  [x]  Something did not work.')
+    $out['finish_' + $case[0]] = Boxes $window
+}
+$env:CODEX_AUTO_RESUME_DESKTOP = Desktop 'first-keep'
+$window = NewWindow (NewFlow 'uninstall' 'standard' $env:CAR_HOME_OK)
+$null = CallOn $window 'Finished' @([int]0, '')
+$out.finish_uninstall = Boxes $window
+$flow = NewFlow 'update' 'standard' $env:CAR_HOME_OK; $FlowType.GetField('Another', $any).SetValue($flow, $true)
+$window = NewWindow $flow
+$null = CallOn $window 'Finished' @([int]0, '')
+$out.finish_pick = Boxes $window
+
+# What the installer printed of the shortcut when the command line asked for it (-DesktopShortcut) is still said.
 $Lines = T 'DesktopShortcut'
 $failed = '  ' + $Lines.GetField('FailedLine', $any).GetValue($null) + '. Everything else went on as usual.'
 $taken = '  ' + $Lines.GetField('TakenLine', $any).GetValue($null) + '. It was left as it is, and none was made.'
 foreach ($case in @(@('failed', $failed, 0), @('taken', $taken, 0), @('quiet', '  [ok] The shortcut on the Desktop is there', 0), @('failed_run', $failed, 1))) {
-    $window = NewWindow (NewFlow $null $false)
+    $window = NewWindow (NewFlow 'install' $null $env:CAR_HOME_OK)
     $null = CallOn $window 'Finished' @([int]$case[2], [string]$case[1])
-    $out[$case[0]] = Callouts $window
-    $out[$case[0] + '_log'] = [bool]((CallOn $window 'get_Log' @()).Contains($case[1].Trim()))
+    $out['said_' + $case[0]] = Callouts $window
+    $out['said_' + $case[0] + '_log'] = [bool]((CallOn $window 'get_Log' @()).Contains($case[1].Trim()))
 }
+
+# The Finish button, on Desktops and installations of the test's own.
+$out.first_keep = Run 'first-keep' 'install' $null $env:CAR_HOME_OK $null
+$out.first_tick = Run 'first-tick' 'install' $null $env:CAR_HOME_OK $true
+$out.ours_keep = Run 'ours-keep' 'install' 'standard' $env:CAR_HOME_OK $null
+$out.ours_untick = Run 'ours-untick' 'install' 'standard' $env:CAR_HOME_OK $false
+$out.repair = Run 'repair' 'install' 'standard' $env:CAR_HOME_OK $null -maintaining
+$out.update_tick = Run 'update-tick' 'update' 'standard' $env:CAR_HOME_OK $true
+$shell = New-Object -ComObject WScript.Shell
+$theirs = $shell.CreateShortcut((LinkOf (Desktop 'taken')))
+$theirs.TargetPath = $env:CAR_FOREIGN
+$theirs.Save()
+$out.taken = Run 'taken' 'install' $null $env:CAR_HOME_OK $true
+$out.taken_target = $shell.CreateShortcut((LinkOf (Desktop 'taken'))).TargetPath
+$out.bare = Run 'bare' 'install' $null $env:CAR_HOME_BARE $true
 $out | ConvertTo-Json -Depth 4 -Compress
 """
+
+
+def _make_ours(home: Path, desktop: Path) -> None:
+    """A shortcut of ours on a Desktop of the test's own, as the engine writes one."""
+    with patch.dict(os.environ, {shortcut.DESKTOP_ENV: str(desktop)}):
+        shortcut.install_desktop(home, target=home / "CodexAutoResumeSettings.exe")
 
 
 @unittest.skipUnless(WINDOWS and CSC.is_file() and POWERSHELL.is_file(), "needs the in-box compiler and PowerShell")
@@ -533,15 +746,23 @@ class FlowTests(unittest.TestCase):
         (cls.work / "empty").mkdir()
         (cls.work / "garbage").mkdir()
         (cls.work / "garbage" / shortcut.SHORTCUT_NAME).write_bytes(b"not a shortcut")
+        (cls.work / "make").mkdir()
+        homes = _stub_homes(cls.work)
         with patch.dict(os.environ, {shortcut.DESKTOP_ENV: str(desktop), "APPDATA": str(cls.work / "AppData")}):
             shortcut.install_desktop(home, target=home / "CodexAutoResumeSettings.exe")
         environment = {key: value for key, value in os.environ.items()}
         environment.pop(shortcut.DESKTOP_ENV, None)
+        cls.log = cls.work / "stub.log"
         with patch.dict(os.environ, environment, clear=True):
-            cls.result = _powershell(FLOW_PROBE, cls.work, 300, CAR_EXE=str(exe), CAR_HOME=str(home),
+            cls.result = _powershell(FLOW_PROBE, cls.work, 600, CAR_EXE=str(exe), CAR_HOME=str(home),
                                      CAR_OTHER_HOME=str(cls.work / "home-other"), CAR_EMPTY=str(cls.work / "empty"),
-                                     CAR_GARBAGE=str(cls.work / "garbage"), CODEX_AUTO_RESUME_DESKTOP=str(desktop))
+                                     CAR_GARBAGE=str(cls.work / "garbage"), CODEX_AUTO_RESUME_DESKTOP=str(desktop),
+                                     CAR_BARE=str(homes["bare"]), CAR_STUB_HOME=str(homes["ok"]),
+                                     CAR_MAKE_DESKTOP=str(cls.work / "make"), CAR_FOREIGN=str(cls.work / "theirs.exe"),
+                                     CAR_WORK=str(cls.work), CAR_STUB_LOG=str(cls.log), CAR_REAL_PYTHON=sys.executable,
+                                     APPDATA=str(cls.work / "AppData"))
         cls.answer = json.loads(cls.result.stdout) if cls.result.returncode == 0 and cls.result.stdout.strip() else {}
+        cls.homes = homes
 
     @classmethod
     def tearDownClass(cls):
@@ -551,30 +772,33 @@ class FlowTests(unittest.TestCase):
         if not self.answer:
             self.fail("the probe did not run: " + (self.result.stderr or self.result.stdout)[-3000:])
 
-    def test_a_first_installation_starts_off_and_ticked_asks_for_it(self):
+    def test_the_box_starts_as_what_is_true_and_the_switches_no_longer_carry_it(self):
         self.assertIs(self.answer["first_box"], False)
-        self.assertEqual(self.answer["first"], "-Silent", "not ticked: today's command line exactly")
-        self.assertEqual(self.answer["first_ticked"], "-DesktopShortcut -Silent")
-
-    def test_over_an_installation_it_starts_as_what_is_true_and_only_a_change_removes(self):
         self.assertIs(self.answer["there_box"], True)
-        self.assertEqual(self.answer["there"], "-DesktopShortcut -Silent", "left on, a repair writes it again")
-        self.assertEqual(self.answer["there_unticked"], "-NoDesktopShortcut -Silent")
-        self.assertEqual(self.answer["edition_unticked"], "-AllowEditionChange -NoDesktopShortcut -Silent")
         self.assertIs(self.answer["absent_box"], False)
-        self.assertEqual(self.answer["absent"], "-Silent")
-        self.assertEqual(self.answer["absent_ticked"], "-DesktopShortcut -Silent")
-
-    def test_an_update_with_no_box_and_an_uninstall_say_nothing_about_it(self):
-        self.assertEqual(self.answer["update"], "-Silent")
+        for case in ("first", "first_ticked", "there", "there_unticked", "absent_ticked", "update"):
+            self.assertEqual(self.answer[case], "-Silent", "the box is the Finish page's: the installer is not told")
+        self.assertEqual(self.answer["edition_unticked"], "-AllowEditionChange -Silent")
         self.assertEqual(self.answer["uninstall"], "-Uninstall -Silent")
         self.assertEqual(self.answer["removed"], "-Uninstall -Silent", "Remove on the Maintain page")
 
-    def test_a_switch_it_was_given_is_the_boxs_first_answer_and_is_passed_once(self):
-        self.assertIs(self.answer["given_on_box"], True)
+    def test_the_finish_button_asks_only_for_a_change(self):
+        self.assertEqual(self.answer["first_asks"], "", "left off where there is none: nothing")
+        self.assertEqual(self.answer["first_ticked_asks"], "make")
+        self.assertEqual(self.answer["there_asks"], "", "left as it was, a repair writes nothing")
+        self.assertEqual(self.answer["there_unticked_asks"], "remove")
+        self.assertEqual(self.answer["absent_asks"], "")
+        self.assertEqual(self.answer["absent_ticked_asks"], "make")
+
+    def test_a_switch_the_command_line_was_given_is_passed_on_once_as_it_was(self):
         self.assertEqual(self.answer["given_on"], "-DesktopShortcut -Silent")
-        self.assertIs(self.answer["given_off_box"], False)
         self.assertEqual(self.answer["given_off"], "-NoDesktopShortcut -Silent")
+
+    def test_only_a_run_that_succeeded_and_is_not_an_uninstall_or_a_pick_has_the_box(self):
+        for case in ("install", "update", "repair"):
+            self.assertIs(self.answer["offers_" + case], True, case)
+        for case in ("failed", "refused", "still_running", "not_started", "pick", "uninstall"):
+            self.assertIs(self.answer["offers_" + case], False, case)
 
     def test_inside_means_inside(self):
         self.assertEqual(self.answer["inside"], [True, True, False, False, False])
@@ -587,18 +811,58 @@ class FlowTests(unittest.TestCase):
     def test_with_no_seam_set_its_folder_is_the_one_windows_names(self):
         self.assertIs(self.answer["folder_is_windows"], True)
 
+    def test_the_change_asks_the_installed_engine_and_is_told_by_its_code(self):
+        self.assertEqual(self.answer["change_nowhere"], 1, "no interpreter in the installation: not changed")
+        self.assertEqual(self.answer["change_made"], 0)
+        self.assertIs(self.answer["change_made_there"], True)
+        self.assertEqual(self.answer["change_removed"], 0)
+        self.assertIs(self.answer["change_removed_there"], False)
+        self.assertEqual(self.answer["change_removed_again"], 0, "nothing there to remove is no failure")
+        self.assertEqual(self.answer["change_taken"], 3, "another shortcut has the name")
+        self.assertIs(self.answer["change_taken_kept"], True)
+        self.assertTrue(self.answer["change_taken_said"], "and what the engine said comes back for the log")
+        self.assertEqual(self.answer["change_foreign_remove"], 0)
+        self.assertIs(self.answer["change_foreign_remove_kept"], True, "someone else's is never removed")
+
+    def test_the_interpreter_is_started_the_way_every_other_one_is(self):
+        lines = self.log.read_text(encoding="utf-8").splitlines()
+        self.assertEqual(len(lines), 6, lines)
+        for line in lines:
+            words, home = line.rsplit("|", 1)
+            self.assertTrue(words.startswith('-X disable-remote-debug "'), words)
+            self.assertTrue(words.endswith('plugin_setup.py" desktop-shortcut make') or
+                            words.endswith('plugin_setup.py" desktop-shortcut remove'), words)
+            self.assertEqual(os.path.normcase(home), os.path.normcase(str(self.homes["ok"])), "the installation it belongs to")
+        body = guiscan.type_body("DesktopShortcut", FLOW)
+        self.assertIn("info.CreateNoWindow = true;", body)
+        self.assertIn("info.UseShellExecute = false;", body)
+        self.assertNotIn("pythonw", body)
+
 
 @unittest.skipUnless(WINDOWS and CSC.is_file() and POWERSHELL.is_file(), "needs the in-box compiler and PowerShell")
 class WindowTests(unittest.TestCase):
-    """The window built and never shown, as its layout audit is."""
+    """The window built and never shown, as its layout audit is; its Finish button pressed against Desktops and
+    installations of the test's own, the worker's answer pumped in."""
 
     @classmethod
     def setUpClass(cls):
         cls.work = Path(tempfile.mkdtemp(prefix="desktop-window-"))
         exe = _build(cls.work)
-        cls.result = _powershell(WINDOW_PROBE, cls.work, 300, CAR_EXE=str(exe), CAR_LABEL=LABEL,
-                                 CAR_CATALOG=str(ROOT / "src" / "codex_auto_resume" / "locales" / "en.json"))
+        homes = _stub_homes(cls.work)
+        for name in ("first-keep", "first-tick", "ours-keep", "ours-untick", "repair", "update-tick", "taken", "bare"):
+            (cls.work / ("d-" + name)).mkdir()
+        for name in ("ours-keep", "ours-untick", "repair"):
+            _make_ours(homes["ok"], cls.work / ("d-" + name))
+        cls.ours_target = homes["ok"]
+        cls.log = cls.work / "stub.log"
+        cls.result = _powershell(WINDOW_PROBE, cls.work, 900, CAR_EXE=str(exe), CAR_LABEL=LABEL,
+                                 CAR_CATALOG=str(ROOT / "src" / "codex_auto_resume" / "locales" / "en.json"),
+                                 CAR_HOME_OK=str(homes["ok"]), CAR_HOME_BARE=str(homes["bare"]),
+                                 CAR_WORK=str(cls.work), CAR_STUB_LOG=str(cls.log), CAR_REAL_PYTHON=sys.executable,
+                                 CAR_FOREIGN=str(cls.work / "theirs.exe"), APPDATA=str(cls.work / "AppData"),
+                                 CODEX_AUTO_RESUME_DESKTOP=str(cls.work / "d-first-keep"))
         cls.answer = json.loads(cls.result.stdout) if cls.result.returncode == 0 and cls.result.stdout.strip() else {}
+        cls.homes = homes
 
     @classmethod
     def tearDownClass(cls):
@@ -608,16 +872,73 @@ class WindowTests(unittest.TestCase):
         if not self.answer:
             self.fail("the probe did not run: " + (self.result.stderr or self.result.stdout)[-3000:])
 
-    def test_the_options_page_has_the_soft_box_off_on_a_first_installation(self):
-        self.assertEqual(self.answer["first"], [[False, True]], "one box, not ticked, a box and not a switch")
+    def test_the_options_and_maintain_pages_have_no_box(self):
+        for case in ("first_welcome", "first_options", "upgrade_options", "maintain", "remove", "confirm", "notes"):
+            self.assertEqual(self.answer[case], "", case)
+        self.assertEqual(self.answer["remove_height"], self.answer["repair_height"],
+                         "the Maintain page holds no room for it, whichever way is chosen")
 
-    def test_over_an_installation_it_shows_what_is_true(self):
-        self.assertEqual(self.answer["upgrade_there"], [[True, True]])
+    def test_the_finish_page_of_a_success_has_the_soft_box_off_where_there_is_no_shortcut(self):
+        self.assertEqual(self.answer["first_keep"]["page"], "finish")
+        self.assertEqual(self.answer["first_keep"]["box"], "off:box", "one box, not ticked, a box and not a switch")
 
-    def test_repair_has_it_and_remove_has_it_gone_with_no_room_kept(self):
-        self.assertEqual(self.answer["repair"], [[True, True]])
-        self.assertEqual(self.answer["remove"], [])
-        self.assertLess(self.answer["remove_height"], self.answer["repair_height"])
+    def test_it_starts_ticked_where_one_of_ours_is_there_on_a_repair_and_an_update(self):
+        self.assertEqual(self.answer["ours_keep"]["box"], "on:box")
+        self.assertEqual(self.answer["repair"]["box"], "on:box")
+        self.assertEqual(self.answer["update_tick"]["box"], "off:box", "the Dashboard's update has it too")
+
+    def test_no_box_after_a_run_that_failed_an_uninstall_or_a_pick(self):
+        for case in ("failed", "refused", "still", "notstarted", "uninstall", "pick"):
+            self.assertEqual(self.answer["finish_" + case], "", case)
+
+    def test_ticked_on_finish_it_makes_ours_and_closes(self):
+        run = self.answer["first_tick"]
+        self.assertIs(run["closed"], True)
+        self.assertEqual((run["calls"], run["there"]), (1, True))
+        self.assertIs(run["changed"], True)
+
+    def test_unticked_on_finish_it_removes_ours_and_closes(self):
+        run = self.answer["ours_untick"]
+        self.assertIs(run["closed"], True)
+        self.assertEqual((run["calls"], run["there"]), (1, False))
+
+    def test_the_dashboards_update_makes_one_when_it_is_ticked(self):
+        run = self.answer["update_tick"]
+        self.assertIs(run["closed"], True)
+        self.assertEqual((run["calls"], run["there"]), (1, True))
+
+    def test_left_as_it_was_nothing_is_asked_and_nothing_changes(self):
+        for case, there in (("first_keep", False), ("ours_keep", True), ("repair", True)):
+            with self.subTest(case):
+                run = self.answer[case]
+                self.assertIs(run["closed"], True)
+                self.assertEqual((run["calls"], run["there"], run["changed"]), (0, there, False))
+
+    def test_a_shortcut_that_is_not_ours_is_said_in_one_line_and_the_window_stays_until_the_next_finish(self):
+        run = self.answer["taken"]
+        self.assertIs(run["closed"], False)
+        self.assertEqual(run["callouts"], ENGLISH["installer.done.desktop_taken"])
+        self.assertIn(guiscan.type_body("DesktopShortcut", FLOW).split('TakenLine = "')[1].split('"')[0], run["log"])
+        self.assertEqual(run["page_after"], "finish")
+        self.assertEqual(run["box_after"], "on:box", "the page still shows what was asked")
+        self.assertEqual((run["calls"], run["calls_next"]), (1, 0), "the next Finish does not ask for the same again")
+        self.assertIs(run["closed_next"], True)
+        self.assertEqual(Path(self.answer["taken_target"]).name, "theirs.exe", "and theirs was left as it is")
+
+    def test_an_installation_that_cannot_be_asked_says_so_and_stays_open_the_same_way(self):
+        run = self.answer["bare"]
+        self.assertIs(run["closed"], False)
+        self.assertEqual(run["callouts"], ENGLISH["installer.done.desktop_failed"])
+        self.assertIn(guiscan.type_body("DesktopShortcut", FLOW).split('FailedLine = "')[1].split('"')[0], run["log"])
+        self.assertEqual((run["calls"], run["calls_next"]), (0, 0))
+        self.assertIs(run["closed_next"], True)
+
+    def test_no_dialog_is_ever_asked_for(self):
+        body = guiscan.member_body("InstallerWindow", "Finish")
+        changed = guiscan.member_body("InstallerWindow", "Changed")
+        for text in (body, changed):
+            self.assertNotIn("MessageBox", text)
+            self.assertNotIn("ShowDialog", text)
 
     def test_the_uninstall_says_it_goes_only_where_one_of_ours_is_there(self):
         said = ENGLISH["installer.uninstall.desktop_shortcut"]
@@ -626,17 +947,46 @@ class WindowTests(unittest.TestCase):
 
     def test_the_uninstall_from_settings_apps_knows_as_the_setup_window_does(self):
         remove = (ROOT / "gui" / "SettingsRemove.cs").read_text(encoding="utf-8")
-        self.assertIn("flow.KnowDesktopShortcut(DesktopShortcut.OursAt(home), null);", remove)
+        self.assertIn("flow.KnowDesktopShortcut(DesktopShortcut.OursAt(home));", remove)
         setup = (ROOT / "build" / "setup" / "SetupWindow.cs").read_text(encoding="utf-8")
-        self.assertIn("flow.KnowDesktopShortcut(DesktopShortcut.OursAt(home), arguments);", setup)
+        self.assertIn("flow.KnowDesktopShortcut(DesktopShortcut.OursAt(home));", setup)
 
-    def test_the_finish_page_says_what_could_not_be_done(self):
-        self.assertEqual(self.answer["failed"], [ENGLISH["installer.done.desktop_failed"]])
-        self.assertEqual(self.answer["taken"], [ENGLISH["installer.done.desktop_taken"]])
-        self.assertEqual(self.answer["quiet"], [])
-        self.assertEqual(self.answer["failed_run"], [], "a run that failed has more to say than this")
-        for case in ("failed_log", "taken_log"):
+    def test_what_the_installer_printed_of_it_is_still_said_on_the_finish_page(self):
+        self.assertEqual(self.answer["said_failed"], ENGLISH["installer.done.desktop_failed"])
+        self.assertEqual(self.answer["said_taken"], ENGLISH["installer.done.desktop_taken"])
+        self.assertEqual(self.answer["said_quiet"], "")
+        self.assertEqual(self.answer["said_failed_run"], "", "a run that failed has more to say than this")
+        for case in ("said_failed_log", "said_taken_log"):
             self.assertIs(self.answer[case], True, "and the log has the line")
+
+
+class SourceTests(unittest.TestCase):
+    """Where the box stands, read from the sources: the same on a machine that cannot compile them."""
+
+    WINDOW = (ROOT / "gui" / "InstallerWindow.cs").read_text(encoding="utf-8")
+
+    def test_the_word_is_a_finish_key_in_every_language_and_not_an_options_key(self):
+        locales = sorted((ROOT / "src" / "codex_auto_resume" / "locales").glob("*.json"))
+        self.assertEqual(len(locales), 18)
+        for path in locales:
+            with self.subTest(path.stem):
+                catalog = json.loads(path.read_text(encoding="utf-8"))
+                self.assertIn("installer.done.desktop_shortcut", catalog)
+                self.assertNotIn("installer.options.desktop_shortcut", catalog)
+        self.assertEqual(LABEL, "Add a shortcut to the desktop")
+
+    def test_the_options_and_maintain_pages_do_not_build_it_and_the_finish_page_does(self):
+        for member in ("BuildOptions", "BuildMaintain", "BuildConfirm"):
+            self.assertNotIn("DesktopChoice", guiscan.member_body("InstallerWindow", member), member)
+        self.assertIn("DesktopChoice", guiscan.member_body("InstallerWindow", "BuildFinish"))
+        self.assertIn("flow.OffersDesktopShortcut(code)", guiscan.member_body("InstallerWindow", "BuildFinish"))
+
+    def test_only_the_finish_button_changes_the_desktop(self):
+        self.assertEqual(self.WINDOW.count("DesktopShortcut.Change("), 1)
+        self.assertIn("DesktopShortcut.Change(", guiscan.member_body("InstallerWindow", "Finish"))
+        self.assertNotIn("DesktopShortcut.Change(", guiscan.member_body("InstallerWindow", "Forward"))
+        self.assertIn("Finish(); return;", guiscan.member_body("InstallerWindow", "Forward"))
+        self.assertNotIn("Desktop", FLOW[FLOW.index("internal List<string> Switches"):FLOW.index("private static bool IsAnswered")])
 
 
 if __name__ == "__main__":

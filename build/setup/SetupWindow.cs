@@ -59,7 +59,7 @@ namespace CodexAutoResumeSetup
             string from = installed == null ? "" : InstallerFlow.VersionOf(
                 Read(Path.Combine(Path.Combine(Path.Combine(home, "app"), ".codex-plugin"), "plugin.json")));
             var flow = FlowFor(arguments, home, carried.Edition, installed, carried.Version, from);
-            flow.KnowDesktopShortcut(DesktopShortcut.OursAt(home), arguments);
+            flow.KnowDesktopShortcut(DesktopShortcut.OursAt(home));
             flow.SavedAccountsThere = InstallerFlow.SavedAccountsAt(home);
             string language = InstallerLanguages.FromSystem(InstallerLanguages.Preferred());
             // An update says from what to what, and what is new in the version this program carries (v0.6.16); a repair
@@ -284,10 +284,6 @@ namespace CodexAutoResume
                 var desktop = new InstallerFlow(InstallerFlow.Uninstall, home, InstallerFlow.Standard, InstallerFlow.Standard, "0.6.16");
                 desktop.DesktopShortcutThere = true;
                 cases.Add(Case("uninstall-desktop", desktop));
-                var repairDesktop = new InstallerFlow(InstallerFlow.Install, home, InstallerFlow.Standard, InstallerFlow.Standard, "0.6.16");
-                repairDesktop.Maintaining = true;
-                repairDesktop.KnowDesktopShortcut(true, null);
-                cases.Add(Case("repair-desktop", repairDesktop));
                 foreach (KeyValuePair<string, InstallerFlow> each in cases)
                 {
                     // An update's pages carry what is new: a changelog section, its lines as long as the real ones.
