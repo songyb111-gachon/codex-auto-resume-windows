@@ -2,9 +2,9 @@
   "format": "codex-auto-resume-measurement/1",
   "step": "mprofile",
   "verdict": "pass",
-  "recorded_at": "2026-11-05T21:38Z",
-  "product_version": "0.6.21",
-  "codex_version": "codex-cli 0.166.0-alpha.6",
+  "recorded_at": "2026-11-07T17:38Z",
+  "product_version": "0.6.22-beta.2",
+  "codex_version": "codex-cli 0.167.0-alpha.3.2",
   "windows_build": "10.0.26300",
   "observed": {
     "profile_given": true,

@@ -109,7 +109,10 @@ class NarrowingAuditTests(unittest.TestCase):
         found = {definition.id: sorted(str(m) for m in definition.measurements if m in failed)
                  for definition in registry.DEFINITIONS}
         found = {key: value for key, value in found.items() if value}
-        self.assertEqual(found, {"goal_continuation": ["m2"], "codex_chat": ["mc2"], "steer_send": ["msteer2"]})
+        self.assertEqual(found, {"goal_continuation": ["m2"], "codex_chat": ["mc2"],
+                                 # 2026-11-08: MSTEER2 passed; MWAKE (first record) failed - a route measurement, so a person
+                                 # who turned wake_for_reset on read it as unmeasured and has not confirmed a failed one
+                                 "wake_for_reset": ["mwake"]})
         self.assertNotIn(Measurement.MAL, ACCOUNT_SWITCH.measurements)
         self.assertNotIn(Measurement.MALR, ACCOUNT_SWITCH.measurements)
         self.assertEqual(ACCOUNT_SWITCH.measurements, (Measurement.MA,))

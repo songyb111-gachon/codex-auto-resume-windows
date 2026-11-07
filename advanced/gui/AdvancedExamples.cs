@@ -375,10 +375,10 @@ namespace CodexAutoResume
                                           "It has not been measured on this Codex that a sign-in made from here, followed by a restart of Codex, brings Codex up with the new account. Switch in Codex instead.")))),
                 Ex("steer_send",
                    Scene(Says(f => f.ExampleField("steer_send", "instead"))),
-                   // With its warning: the line reaches the turn, and the Codex app does not show it.
+                   // With its warning: the line reaches the turn and cannot be taken back; the Codex app shows it as the person's own message.
                    Scene(Says(f => f.Word("page.pending.kind.steer", "Steer") + " · " + f.Word("page.steer.state.accepted", "accepted")),
                          Says(f => f.Word("page.steer.note.accepted", "The Codex app took it into the running turn.")),
-                         Says(f => f.Word("page.editor.steer.warning", "The Codex app does not show the steered line anywhere.")))),
+                         Says(f => f.Word("page.editor.steer.warning", "The Codex app shows the line in that turn as your own message.")))),
                 // v0.6.20 (Discussion #57): the tasks a person picked, and the power action waiting for them.
                 Ex("power_after_tasks",
                    Scene(Says(f => f.ExampleField("power_after_tasks", "instead"))),

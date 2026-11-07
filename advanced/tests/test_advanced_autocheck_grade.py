@@ -190,7 +190,8 @@ class ShippedTests(unittest.TestCase):
         self.assertEqual(graded["queue_for_open"], CheckGrade.UNMEASURED)
         self.assertEqual(graded["marker_free_continuation"], CheckGrade.OFFERED_ONLY)
         self.assertEqual(graded["goal_continuation"], CheckGrade.FAILED_STILL_OFFERED)
-        self.assertEqual(graded["steer_send"], CheckGrade.FAILED)
+        self.assertEqual(graded["steer_send"], CheckGrade.UNMEASURED, "MSTEER2 passed on one Codex only (0.167)")
+        self.assertEqual(graded["wake_for_reset"], CheckGrade.FAILED, "MWAKE failed")
 
 
 class RecordCase(ac.AdvancedCase):

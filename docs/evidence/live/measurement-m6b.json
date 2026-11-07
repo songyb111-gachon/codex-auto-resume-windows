@@ -2,14 +2,14 @@
   "format": "codex-auto-resume-measurement/1",
   "step": "m6b",
   "verdict": "blocked",
-  "recorded_at": "2026-10-17T08:45Z",
-  "product_version": "0.6.16-beta.3",
-  "codex_version": "codex-cli 0.163.0-alpha.10.2",
+  "recorded_at": "2026-11-07T16:34Z",
+  "product_version": "0.6.22-beta.2",
+  "codex_version": "codex-cli 0.167.0-alpha.3.2",
   "windows_build": "10.0.26300",
   "observed": {
     "sandbox": "workspaceWrite",
-    "approval_policy": "on-request",
-    "reviewer": "other",
+    "approval_policy": "granular",
+    "reviewer": "user",
     "permission_profile_set": true,
     "approvals_declined": 0,
     "turn_ended_by_itself": true,
@@ -22,6 +22,6 @@
   "completion": {
     "verdict": "pass",
     "note": "as_expected",
-    "recorded_at": "2026-10-17T08:49Z"
+    "recorded_at": "2026-11-07T16:36Z"
   }
 }

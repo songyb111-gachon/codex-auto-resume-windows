@@ -59,7 +59,7 @@ class HiddenTests(unittest.TestCase):
         from codex_auto_resume_advanced import arming
         from codex_auto_resume_advanced.vocabulary import ArmingWarning
         engine = measured.MEASURED[Measurement.MOPEN][1]
-        self.assertEqual(engine, "codex-cli 0.165.0-alpha.1.2")
+        self.assertEqual(engine, "codex-cli 0.167.0-alpha.3.2")
         for locale in l10n.LOCALES:
             with self.subTest(locale):
                 risks = statement.CATALOGS.own(locale)[statement.key("open_to_send", "risks")]

@@ -1,9 +1,9 @@
 """Steer the running turn (v0.6.20, issue #50 item 2 - steer_send): a line the person writes in the prompt queue's editor,
 added at once to the turn running in a conversation the Codex app holds, through the app's own IPC pipe - with the
-warning that the app never shows the steered line (MSTEER2 failed not_as_expected), and every steer kept with its words
+a note that a steer cannot be taken back (MSTEER2 failed on 0.165 and passed on 0.167: the app shows the line), and every steer kept with its words
 for History.
 
-What is held: the capability is offered with MSTEER2's failure as a warning the person confirms, never a refusal; only
+What is held: the capability is offered, and a failed MSTEER2 would be a warning the person confirms, never a refusal; only
 the watcher's P8 errand writes a steer, exactly once a request, claimed before the write; never written again once it may
 have been (an unanswered write, a pipe failing after the write, a watcher stopped after the claim); refused with its own
 reason where no turn runs, the app does not hold the conversation, the pipe is not there, core's guard holds it, it waited
@@ -72,18 +72,22 @@ class DefinitionTests(unittest.TestCase):
 
     def test_the_warning_is_said_first_in_the_statement_and_in_the_editor(self):
         own = statement.CATALOGS.own("en")
-        self.assertIn("does not show the steered line", own["statement.steer_send.does"])
-        self.assertIn("only History", own["statement.steer_send.does"])
-        self.assertIn("does not show the steered line", own["page.editor.steer.warning"])
+        self.assertIn("shows the steered line inside the running turn as your own message", own["statement.steer_send.does"])
+        self.assertIn("History here records what was sent", own["statement.steer_send.does"])
+        self.assertIn("cannot be taken back", own["page.editor.steer.warning"])
+        self.assertIn("as your own message", own["page.editor.steer.warning"])
         for state in ("accepted", "unconfirmed", "refused", "waiting"):
             self.assertIn("page.steer.state." + state, statement.PAGE_KEYS)
         self.assertNotIn("page.steer.state.seen", statement.PAGE_KEYS, "observed is not available (#50)")
 
-    def test_msteer2s_failure_is_a_warning_the_person_confirms_never_a_refusal(self):
-        """MSTEER2 is recorded failed (not_as_expected): arming shows MEASUREMENT_FAILED, the existing mechanism."""
-        self.assertEqual(MEASURED[Measurement.MSTEER2][0], Verdict.FAIL)
+    def test_msteer2_passed_on_0167_and_a_failure_would_be_a_warning_the_person_confirms_never_a_refusal(self):
+        """MSTEER2 failed on 0.165 and passed on 0.167 (2026-11-08): on that Codex arming shows no failed-measurement
+        warning; a table that said it failed would show MEASUREMENT_FAILED, the existing mechanism, never a refusal."""
+        self.assertEqual(MEASURED[Measurement.MSTEER2][0], Verdict.PASS)
         view = ac.view(capability=STEER_SEND.compat, version=MEASURED[Measurement.MSTEER2][1])
-        self.assertIn(ArmingWarning.MEASUREMENT_FAILED, arming.warnings_for(STEER_SEND, view, MEASURED))
+        self.assertNotIn(ArmingWarning.MEASUREMENT_FAILED, arming.warnings_for(STEER_SEND, view, MEASURED))
+        failed = dict(MEASURED, **{Measurement.MSTEER2: (Verdict.FAIL, MEASURED[Measurement.MSTEER2][1])})
+        self.assertIn(ArmingWarning.MEASUREMENT_FAILED, arming.warnings_for(STEER_SEND, view, failed))
 
 
 class StructureTests(unittest.TestCase):
