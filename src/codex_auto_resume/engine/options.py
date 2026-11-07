@@ -206,6 +206,8 @@ class OptionsMixin:
         store/claims.py `_caps_refusal`), so a claim committed between the two is counted."""
         if relaxed == "capacity":
             return ladder.CAPACITY_PER_DAY, ladder.CAPACITY_SPACING
+        if relaxed == "reset":                          # v0.6.22 (#59): a verified reset's day, the spacing kept
+            return ladder.RESET_PER_DAY, self.options["thread_cooldown_seconds"]
         return self.options["max_submissions_per_thread_per_day"], self.options["thread_cooldown_seconds"]
 
     def recovers(self, category) -> bool:

@@ -25,7 +25,7 @@ from codex_auto_resume.domain.plug import Alternative, Point
 from ..vocabulary import Actor, ArmingWarning, JournalCode, OffReason, RecordState
 
 EVENT_LIMIT = 5000
-WATCH_LIMIT = 110                 # would_have lines kept a capability, its newest (250; 200; 180; 150 until v0.6.19: 34 fit; 140 until v0.6.20: 35; 130 at its 38; 120 at 41; 115 from open_to_send offered, 42 in the registry: 43 fit; 110 from account_auto_switch offered, 44: 45 fit)
+WATCH_LIMIT = 95                  # would_have lines kept a capability, its newest (250; 200; 180; 150 until v0.6.19: 34 fit; 140 until v0.6.20: 35; 130 at its 38; 120 at 41; 115 from open_to_send offered, 42 in the registry: 43 fit; 110 from account_auto_switch offered, 44: 45 fit; 100 from v0.6.22's remote capabilities, 49 in the registry: 49 fit; 95 from fleet_view, 50: 52 fit)
 EVENT_MAX_AGE = 90 * 86400
 _PRUNE_EVERY = 256
 _DAY = 86400
@@ -123,6 +123,20 @@ class JournalMixin:
                  "point": _closed(row["point"], Point),
                  "answer": self._answer(row["answer"])}
                 for row in rows]
+
+    def journal_times(self, capability, word, since) -> list:
+        """When `capability` journalled one of its own codes `word` since `since`, oldest first; none for a word or a
+        capability that is not one, or where there is no file (v0.6.22: the resident courier's starts, engine/remote.py)."""
+        definition = self.registry.get(capability)
+        code = definition.code(word) if definition is not None else None
+        if code is None:
+            return []
+        with self._read() as connection:
+            if connection is None:
+                return []
+            rows = connection.execute("SELECT at FROM journal WHERE capability=? AND code=? AND at>=? ORDER BY at",
+                                      (capability, code, float(since))).fetchall()
+        return [row["at"] for row in rows]
 
     # ------------------------------------------------------------------ sampler
     def sample(self, capability, code, at=None) -> bool:

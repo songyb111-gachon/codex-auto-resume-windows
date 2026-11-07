@@ -1076,8 +1076,9 @@ function Invoke-Setup {
 
 function Set-DesktopShortcut {
     <#
-        The shortcut on the Desktop, where this run was asked about it: the setup window's box, or -DesktopShortcut and
-        -NoDesktopShortcut. Asked about nothing - -Silent alone, as winget runs it, and every update - it is left as it
+        The shortcut on the Desktop, where this run was asked about it: -DesktopShortcut or -NoDesktopShortcut, from the
+        command line (the setup window's box is on its Finish page and asks the installed engine itself, once this run is
+        over). Asked about nothing - -Silent alone, as winget runs it, and every update - it is left as it
         is. Either way it decides nothing: one that cannot be written is said (InstallerFlow reads these two lines for
         the Finish page), and the run goes on and ends as it would have.
     #>

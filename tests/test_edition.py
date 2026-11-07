@@ -110,7 +110,7 @@ class NullPlugTests(unittest.TestCase):
         # (v0.6.15-beta): P12's whole number of workers carried out, P2's purposes and moves. 6 (v0.6.19): P13 asked at
         # the watcher's start and end with SUPERVISE and RESTART, and P20, a notice told. 7 (v0.6.20): P21, how the tasks
         # a person armed the power action for stand.
-        self.assertEqual(plug.PLUG_API, 7)
+        self.assertEqual(plug.PLUG_API, 8)
 
 
 class RecordingPlug(Plug):
@@ -173,7 +173,8 @@ class ClosedAlternativeTests(unittest.TestCase):
         self.assertEqual(plug.ANSWERS, plug.RESTRICTIONS | {Alternative.CLIENT_ID, Alternative.SILENT,
                                                             Alternative.EARLY, Alternative.RESEND, Alternative.SEND_NOW,
                                                             Alternative.QUEUE_FOR_OPEN, Alternative.TO_SESSION,
-                                                            Alternative.SUPERVISE, Alternative.RESTART}
+                                                            Alternative.SUPERVISE, Alternative.RESTART,
+                                                            Alternative.VERIFIED_RESET}
                          | take_up)
         self.assertEqual(plug.ANSWERS, frozenset(Alternative))
         for point, accepted in plug.ALTERNATIVES.items():
@@ -183,7 +184,8 @@ class ClosedAlternativeTests(unittest.TestCase):
                     self.assertLessEqual(accepted, plug.RESTRICTIONS)
         # v0.6.16-beta.4: and SILENT, carried out only through a route that takes words (engine/routes.py).
         self.assertEqual(plug.ALTERNATIVES[Point.DELIVERY], frozenset({Alternative.CLIENT_ID, Alternative.SILENT}))
-        self.assertEqual(plug.ALTERNATIVES[Point.GATES], plug.RESTRICTIONS | take_up)
+        # v0.6.22 (issue #59): and VERIFIED_RESET, at known_failure alone, for a reset core saw pass (relaxed.py).
+        self.assertEqual(plug.ALTERNATIVES[Point.GATES], plug.RESTRICTIONS | take_up | {Alternative.VERIFIED_RESET})
         self.assertEqual(plug.ALTERNATIVES[Point.ADMISSION], take_up)
         # And P7 may look at a usage-limited record early (EARLY), send an uncertain submission once
         # more (RESEND) and send a waiting one now for a person (SEND_NOW), each carried out by core.
@@ -271,6 +273,8 @@ class GuardTests(unittest.TestCase):
                     self.assertEqual(answer, frozenset(), "a person's own conversations alone (A15, plughands.widening_of)")
                 elif point is Point.SESSIONS:
                     self.assertEqual(answer, frozenset(), "the app's conversations alone (A15, plughands.kinds_of)")
+                elif point is Point.RESIDENT:
+                    self.assertIs(answer, DEFER, "no resident kept while paused (P22, v0.6.22)")
                 elif point is Point.POWER:
                     self.assertIsNone(answer, "no word for any tasks: the power action waits (P21, v0.6.20)")
                 else:

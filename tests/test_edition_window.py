@@ -150,7 +150,9 @@ class PointTests(unittest.TestCase):
                                  # and History's one Clear history.
                                  "ClearHistoryPressed": "gui/Dashboard.cs",
                                  # v0.6.20: the header's light while a chat message is on its way.
-                                 "HeroTold": "gui/Dashboard.cs"})
+                                 "HeroTold": "gui/Dashboard.cs",
+                                 # v0.6.22: what the Overview keeps under its rows of cards.
+                                 "OverviewRoomAsked": "gui/Dashboard.cs"})
         # No other shape of partial method: one with a body in a standard source would be
         # compiled into the standard window, which is the whole thing this rules out.
         whole = guiscan.whole()
@@ -173,7 +175,7 @@ class PointTests(unittest.TestCase):
                                  # and Pending as one list.
                                  "ListRowsJoined": 1, "PendingButtonsBuilt": 1, "HistoryButtonsBuilt": 1,
                                  "PendingButtonsUpdated": 1, "HistoryButtonsUpdated": 1, "EditionRowOpened": 1,
-                                 "ClearHistoryPressed": 1, "HeroTold": 1})
+                                 "ClearHistoryPressed": 1, "HeroTold": 1, "OverviewRoomAsked": 1})
 
 
 def copy_window(target: Path) -> Path:
@@ -259,7 +261,7 @@ class WindowTests(unittest.TestCase):
         # point, declared once and called once (Cells). v0.6.16: RenderStateNamed - the page the render mode draws - is
         # the seventh, declared once and called once.
         # v0.6.20: HeroTold - the header's light while a chat message is on its way - the seventeenth, called once.
-        self.assertEqual(self.cut_lines, 17 + 19, "seventeen declarations and nineteen calls")
+        self.assertEqual(self.cut_lines, 18 + 20, "eighteen declarations and twenty calls")
         self.assertEqual(self.standard, (self.work / "without" / WINDOW).read_bytes())
         self.assertEqual((self.work / "standard" / LAUNCHER).read_bytes(),
                          (self.work / "without" / LAUNCHER).read_bytes())

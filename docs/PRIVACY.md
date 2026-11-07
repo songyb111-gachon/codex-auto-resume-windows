@@ -818,7 +818,8 @@ checks the standard edition's code (`tests/test_privacy_claims.py`), and what it
 anything, they ask of the Codex already on this machine - but for the compatibility report, which asks
 gh, the GitHub CLI you installed, to reach GitHub, and only when you start it (*What it sends to
 GitHub*, below); and, from v0.6.20, the courier, the advanced edition's only network code, which runs
-only while push notices or the status feed is on (*What the courier sends*, below).
+only while push notices, the status feed, the status server or Telegram's commands are on (*What the courier sends* and
+*What the status server shows*, below).
 
 - **What the courier sends** (v0.6.20). With *Send notices to your phone or inbox* on, a notice you
   picked - a usage limit detected, a recovery done or failed, a conversation that needs you, the
@@ -832,6 +833,31 @@ only while push notices or the status feed is on (*What the courier sends*, belo
   and keeps two words and a count; that page sees this PC's address and the time. The addresses,
   tokens and passwords you type are kept in Windows Credential Manager, never in a file, a log or
   the diagnostics. While recovery is paused nothing is sent or read.
+
+- **What goes into the folder you sync** (v0.6.22). With *See your other PCs* on, this PC writes one file every 5
+  minutes into the folder you chose, named with the name you gave this PC: that name, the edition, when it was written,
+  the version, whether the watcher runs, whether recovery is on, paused or only observing, the engine's compatibility word,
+  how many recoveries wait and at which closed state, the next check, and Codex's usage as last read - no conversation's
+  id or title, no path, no user name, no account. This program sends it nowhere; whatever your sync tool does with the
+  folder, it does with this file. The name and the folder are kept in this edition's state and in no log or journal. It
+  reads the other `.json` files there, at most 16 of at most 16 KiB; one that is not exactly this shape is ignored and
+  counted, and shows nowhere. It refuses a folder inside this program's folder or Codex's, a link or junction, and a
+  device path. The folder may be a network share: then anyone who can read that share can read what each PC writes
+  there, the status above and the usage last read. Turned off, nothing more is written or read and this PC's file stays in the folder until you delete it.
+
+- **What the status server shows** (v0.6.22). With *Read this PC's status from a browser or a script* on, a program on this
+  PC holding its token can read what the status file holds - whether the watcher runs, whether recovery is on, how many
+  recoveries wait and at which state, the next check, usage as last read - and the waiting recoveries as `task 1`, `task 2`,
+  never a conversation's title or words, a project, a path, an id or an account. The token is kept in Windows Credential
+  Manager; the address the card copies carries it, so that address is as private as the token. Nothing is logged. With
+  *Open the status server to your local network* on too, the same is open to whoever on your network holds the token, over
+  a connection that is not encrypted, so the token and the status can be read by anyone watching that network.
+
+- **What Telegram sees of its commands** (v0.6.22). With *Control recovery from Telegram* on, the process reads your bot's
+  messages through api.telegram.org and answers the chat you paired: how many recoveries wait, their state words, `task N` and
+  the time of the next check - never a conversation's title or words, a project, a path, an id or an account. Telegram sees
+  the bot's token, this PC's address, every command and every answer. Messages from other chats are read only to be ignored:
+  nothing of them is kept but a count.
 
 - **What it reads.** Three values an administrator may set under
   `Software\Policies\CodexAutoResume`, in `HKEY_LOCAL_MACHINE` and `HKEY_CURRENT_USER` -
@@ -966,7 +992,8 @@ instead, as all your Codex conversations do.
 
 **The services you choose for push notices**, in the advanced edition, once you turn *Send notices
 to your phone or inbox* on: the ntfy topic, the webhook, the Telegram bot or the e-mail server you
-set up, each sent only the short closed message described under *What the courier sends*, above.
+set up, each sent only the short closed message described under *What the courier sends*, above. **Telegram**, once you turn
+*Control recovery from Telegram* on as well: the commands your paired chat sends and the closed answers, described above.
 
 **Other marketplace hosts**, through Codex's marketplace refresh at install: a surviving
 registration named `codex-auto-resume-windows` is refreshed from wherever it points, and the

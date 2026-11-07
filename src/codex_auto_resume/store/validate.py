@@ -10,6 +10,7 @@ from typing import Any
 
 from .. import failures, needsyou
 from ..domain import ids, vocabulary
+from ..domain.plug import Point
 from .. import machine
 from ..machine import CLAIMED, IN_FLIGHT, OBSERVING, STATES
 from .columns import _MUTABLE, _NEEDS_RECOVERY_TURN, _NOTICE_COLUMNS, _RECORD_COLUMNS
@@ -176,3 +177,18 @@ def _claim_cost(row, refund: bool = False) -> str:
     cost = (("recovery_attempts", 0 if is_usage(row) else 1), ("chain_continuations", 1))
     template = "%s=max(0, %s-%d)" if refund else "%s=%s+%d"
     return ", ".join(template % (column, column, amount) for column, amount in cost)
+
+
+def reset_refused(row, now, vector, relaxed, ledger, carried):
+    """(gate, reason) when the claim refuses a verified reset's day (relaxed "reset", v0.6.22, issue #59), written into
+    `vector` too, or None: only while its recorded reset is behind `now` (failures.reset_verified), the usage gate
+    passed and the plug's ledger - not NULL's - pays for the gates and for its own channel or route carrying it.
+    Anything else waits one poll, as behind a hold, and is looked at again as core's own. Any other relaxation: None."""
+    if relaxed != "reset":
+        return None
+    usage = vector.get("usage")
+    if (failures.reset_verified(row, now) and not ledger.null and Point.GATES in carried
+            and carried & {Point.SENDER, Point.UNLOADED} and usage is not None and usage[0] == machine.PASS):
+        return None
+    vector["submission_safe"] = machine.gate(machine.WAIT, machine.HELD)
+    return "submission_safe", machine.HELD

@@ -274,7 +274,11 @@ class DefaultTests(OptionsCase):
         checked = 0
         for definition in REGISTRY:
             for option in definition.options:
-                other = next(value for value in option.choices if value != option.default)
+                # v0.6.22: a choice with one preset and a range of its own (local_api's port) is set to its range's end.
+                other = next((value for value in option.choices if value != option.default),
+                             option.custom[0] if option.custom is not None and option.custom[0] != option.default
+                             else None)
+                self.assertIsNotNone(other, "%s.%s offers no value but its default" % (definition.id, option.key))
                 for value in (other, option.default):
                     state.set_option(definition.id, option.key, value, generation=state.meta()["generation"],
                                      actor=Actor.DASHBOARD)

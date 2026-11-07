@@ -361,6 +361,12 @@ namespace CodexAutoResume
                    Scene(OnPending(Due(Rec(ExampleProject, "scheduled", "server_5xx", -20, 0), 15))),
                    Scene(OnPending(Due(Rec(ExampleProject, "scheduled", "server_5xx", -20, 0), 15)),
                          Says(f => f.Word("page.feed.degraded", "OpenAI reports degraded service")))),
+                // v0.6.22: the other PCs' rows on the Overview, flat and read-only.
+                Ex("fleet_view",
+                   Scene(Says(f => f.ExampleField("fleet_view", "instead"))),
+                   Scene(Says(f => f.Word("page.fleet.title", "Other PCs")),
+                         Says(f => ExampleApp + " · " + f.Word("page.fleet.state.running", "running")),
+                         Says(f => ExampleDocs + " · " + f.Word("page.fleet.state.not_seen", "not seen since")))),
                 Ex("account_switch",
                    Scene(Says(f => f.ExampleField("account_switch", "instead"))),
                    // Its button waits for the MALR measurement: the card says so, and the example says what the card says.
@@ -381,6 +387,28 @@ namespace CodexAutoResume
                          Says(f => f.Word("page.powertasks.line", "{conversation} · {end}", "conversation", ExampleService)
                                     .Replace("{end}", f.PowerTaskEnd("running"))),
                          Says(f => f.PowerWaitLine("tasks_running")))),
+                // v0.6.22: the loopback API: a browser or a script reads what the Dashboard shows.
+                Ex("local_api",
+                   Scene(Says(f => f.ExampleField("local_api", "instead"))),
+                   Scene(OnPending(Due(Rec(ExampleProject, "scheduled", "usage_limit", Detected, 0), Ahead)),
+                         Says(f => f.Word("page.api.address", "Address: {url}", "url", "http://127.0.0.1:47615/")),
+                         Says(f => f.Word("page.api.word.running", "running") + " · task 1"))),
+                Ex("local_api_actions",
+                   Scene(OnPending(Due(Rec(ExampleProject, "scheduled", "usage_limit", Detected, 0), Ahead))),
+                   Scene(Says(f => f.Word("page.api.example.cancelled", "POST /cancel/1: task 1 is cancelled.")))),
+                Ex("local_api_lan",
+                   Scene(Says(f => f.ExampleField("local_api_lan", "instead"))),
+                   Scene(Says(f => f.Word("page.api.example.lan", "From another device: {address}", "address", "http://192.168.0.2:47615/")),
+                         Says(f => f.Word("page.api.lan", "Open to your local network, without encryption.")))),
+                // v0.6.22: Telegram: the paired chat asks and is answered, and may cancel from the list.
+                Ex("telegram_remote",
+                   Scene(OnPending(Due(Rec(ExampleProject, "waiting_reset", "usage_limit", Detected, 0), Ahead))),
+                   Scene(Says(f => f.Word("page.remote.command.list", "/list: the waiting recoveries as task 1, task 2")),
+                         Says(f => f.Word("page.remote.answer.cancelled", "task {n} is cancelled.", "n", 1)))),
+                Ex("telegram_continue",
+                   Scene(Says(f => f.ExampleField("telegram_continue", "instead"))),
+                   Scene(Says(f => f.Word("page.remote.answer.continued", "task {n} goes on. Nothing is sent until every check passes.", "n", 1)),
+                         Says(f => f.Word("page.remote.answer.pause_lifted", "Recovery is on again.")))),
                 // Hidden on the page until MHK, M4 and M4B are measured: its example waits with it.
                 Ex("stop_hook_continuation",
                    Scene(OnHistory(Rec(ExampleProject, "recovered", "network_transient", -60, -44)),

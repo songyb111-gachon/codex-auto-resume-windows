@@ -150,8 +150,9 @@ them `thread/goal/set`, `thread/queue/add` with words this product wrote, and `t
   networking module, and a test fails if one gains an import of a networking module, so the
   watcher opens no connection of its own. That is a property of the code, checked by that test,
   not a sandbox. In the advanced edition, from v0.6.20, the courier (the package's `courier/`) is the
-  one exception, and only while push notices or the status feed is on: a short-lived process of its
-  own that sends to the services a person typed in and reads status.openai.com (*The courier*, under
+  one exception, and only while push notices, the status feed, the status server or Telegram's commands are on: a
+  short-lived process of its own that sends to the services a person typed in and reads status.openai.com - or, for the
+  last two, a resident one that listens on 127.0.0.1 or reads the paired Telegram bot (*The courier*, under
   [The advanced edition](#the-advanced-edition)). The advanced edition's compatibility report reaches GitHub only by starting gh, the
   GitHub CLI the person installed, when they ask in the Dashboard (*The compatibility report*, under
   [The advanced edition](#the-advanced-edition)). The traffic we know the product causes comes from elsewhere:
@@ -718,7 +719,7 @@ advanced edition's only network code: `pythonw.exe` running the advanced package
 the watcher at most once a minute while a notice waits or a status reading is due (or by the
 Dashboard's service for a test notice, a Telegram pairing or a reading now), windowless, in the
 starting process's job object made KILL_ON_JOB_CLOSE, one per installation under a named mutex. It
-sends, then exits; it never listens. Every request is HTTPS with the certificate verified (Windows'
+sends, then exits; that run never listens. Every request is HTTPS with the certificate verified (Windows'
 store, TLS 1.2 or later, never downgraded), no redirect followed, no user name or password in an
 address, no IP literal or loopback host; a body of at most 4 KiB, a reply read to 64 KiB. Its hosts
 are the ones a person types (an ntfy topic, a webhook, an SMTP server on 465 or 587), api.telegram.org
@@ -729,6 +730,42 @@ word of a conversation. Addresses, tokens and passwords are kept in Windows Cred
 diagnostics or a bridge answer. At most 30 notices an hour across channels, three tries each,
 dropped after seven days; twenty refusals in a day switch a channel off. Paused, nothing is written,
 sent or read. The status feed's words are shown, never read by any decision.
+
+**The resident courier and the loopback API** (v0.6.22; each off until a person turns it on). The same program with
+`--serve`, kept running by the watcher while the status server is on: at most three restarts an hour, then its card says
+stopped; a mutex of its own, so it never holds a notice back; windowless, in the watcher's job object, so it ends with the
+watcher. It holds the one listening socket of this product (a test fails if a second shipped file can listen,
+`tests/test_privacy_claims.py`), bound to 127.0.0.1 alone, with exclusive use of its port - or to every network only
+while *Open the status server to your local network* is on too, where Windows asks about its firewall and the product
+changes no rule. Each request, in this order: closed for five minutes after ten wrong tokens in a minute (503); exactly
+one Host header, naming 127.0.0.1 or localhost with the port - or, open to the network, an IPv4 address with the port -
+or 421, which is what stops a web page rebinding a name to it; an unknown path 404, another method 405; a Bearer token kept
+in Windows Credential Manager and compared in constant time, or 401; an action while actions are off 403; a body over 1 KiB
+413. No answer carries a CORS header, a cookie or a server's version; a query string is never read, and nothing is logged:
+no request, no address, no failure. At most eight requests at once; each has ten seconds in all, from its connection to its answer, and then its connection is shut, so clients that send a byte at a time cannot hold every slot. What it serves is the status file's
+closed keys and the waiting recoveries as `task N` with their public codes, never an id, a label or a path. What it does is
+core's own pause and cancel, by the list the caller read or 409: it reduces, and has no route that sends, chats, changes a
+setting, turns a feature on, sends now or gives attempts back (a test holds the routes to the design's table). Only the
+watcher sends: neither its code nor anything it calls by name touches a claim or a dispatch (a test reads the imports and
+the names, and drives every route with a spy on each claim method). Its web page names no host and loads nothing, under a
+Content-Security-Policy that lets it connect only to itself; it takes the token from the address's fragment, which a browser
+never sends, and writes what it reads as text. Its token is the second secret of this edition, kept and never shown as
+the courier's are. On a network the connection is not encrypted; the statement says so.
+
+**Commands from Telegram** (v0.6.22; each off until a person turns it on). The same resident process long-polls the bot
+push notices keep, over the courier's one HTTPS request (above), and waits while a pairing reads the bot. It obeys the one
+chat the pairing kept: a message from any other is ignored with no answer, and so is one older than five minutes. A reply
+is bounded by asking for two messages a read, so strangers' long messages cannot stop it. The text is read as one of six
+commands (a test holds them to the design's table) and nothing else, and no word of it reaches a conversation; answers are
+closed words, numbers and `task N`. `/status` and `/list` read; `/cancel task N`, resolved against the list last sent or
+refused with "list again", and `/pause` reduce; `/continue task N` (core's release of a hold, which sends nothing and skips
+no gate) and `/recovery-on` (which an administrator's policy still refuses) need a second capability of their own. The
+offset is kept before a command is carried out, so it runs at most once. Five wrong codes during a pairing turn it off,
+whether or not it is kept on. It answers while recovery is paused, only the paired chat and only what that chat asked - after a watcher restart
+too: while paused, core asks the plug one question alone, P22, and only the residents that declare they send nothing to
+Codex answer it (the owner's word of 2026-11-06); no other capability is asked, so a pause still beats every send.
+Group chats: every member of a paired group is obeyed; the statement says so. The bot's token is only ever in the request's
+path, never in a log, the journal or an answer.
 
 **The measurement harness.** The advanced edition's archive also carries `measure` (the advanced
 package's `measure.py`), with which the owner finds out whether a
