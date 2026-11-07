@@ -1,0 +1,19 @@
+{
+  "format": "codex-auto-resume-measurement/1",
+  "step": "mk",
+  "verdict": "blocked",
+  "recorded_at": "2026-11-07T18:24Z",
+  "product_version": "0.6.22-beta.2",
+  "codex_version": "codex-cli 0.167.0-alpha.3.2",
+  "windows_build": "10.0.26300",
+  "observed": {
+    "plan_read": true,
+    "plan_found": false,
+    "steps_completed": 0,
+    "steps_in_progress": 0,
+    "steps_pending": 0,
+    "steps_unknown": 0,
+    "thread_given": true
+  },
+  "note": "confirm the counts match the plan Codex shows, then set the verdict"
+}

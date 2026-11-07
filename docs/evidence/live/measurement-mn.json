@@ -1,17 +1,15 @@
 {
   "format": "codex-auto-resume-measurement/1",
   "step": "mn",
-  "verdict": "pass",
-  "recorded_at": "2026-10-10T19:20Z",
-  "product_version": "0.6.14",
-  "codex_version": "codex-cli 0.162.0-alpha.17.2",
+  "verdict": "blocked",
+  "recorded_at": "2026-11-07T18:18Z",
+  "product_version": "0.6.22-beta.2",
+  "codex_version": "codex-cli 0.167.0-alpha.3.2",
   "windows_build": "10.0.26300",
   "observed": {
     "count_read": true,
-    "has_credits": false,
-    "first_outcome": "no_credit",
-    "second_outcome": "no_credit",
-    "count_unchanged": true,
+    "has_credits": true,
     "thread_given": false
-  }
+  },
+  "note": "this account has reset credits: measure mr at a limit instead"
 }

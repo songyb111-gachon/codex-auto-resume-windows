@@ -2,27 +2,27 @@
   "format": "codex-auto-resume-measurement/1",
   "step": "mqg",
   "verdict": "blocked",
-  "recorded_at": "2026-10-19T17:55Z",
-  "product_version": "0.6.16",
-  "codex_version": "codex-cli 0.163.0-alpha.10.2",
+  "recorded_at": "2026-11-07T17:09Z",
+  "product_version": "0.6.22-beta.2",
+  "codex_version": "codex-cli 0.167.0-alpha.3.2",
   "windows_build": "10.0.26300",
   "observed": {
-    "loaded_listed": true,
+    "holders_read": true,
     "held_before": false,
     "goal_found": true,
     "goal_set_active": true,
     "add_accepted": true,
     "queued_while_not_held": true,
     "taken": true,
-    "turns_after_open": 9,
+    "turns_after_open": 48,
     "client_id_on_user_item": true,
-    "goal_active_after": false,
+    "goal_active_after": true,
     "thread_given": true
   },
   "note": "open the throwaway conversation in the Desktop within five minutes of starting this and watch it for two more; say whether two turns ran (the goal's and the queued message) or one, then set the verdict",
   "completion": {
     "verdict": "pass",
     "note": "as_expected",
-    "recorded_at": "2026-10-19T17:56Z"
+    "recorded_at": "2026-11-07T17:11Z"
   }
 }
