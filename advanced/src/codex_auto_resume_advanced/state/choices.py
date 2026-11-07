@@ -56,7 +56,9 @@ STAMPS = {"idle_update_check": (str(OptionKey.LAST_CHECK), str(OptionKey.OFFERED
           "account_switch": (str(OptionKey.ACCOUNT_CHANGED_AT),),
           # v0.6.22: when account_auto_switch last switched, and its switches today (engine/autoswitch.py).
           "account_auto_switch": (str(OptionKey.AUTO_SWITCHED_AT), str(OptionKey.AUTO_SWITCH_DAY),
-                                  str(OptionKey.AUTO_SWITCH_COUNT))}
+                                  str(OptionKey.AUTO_SWITCH_COUNT)),
+          # v0.6.22: fleet_view's last try, what it waits on, and when it last wrote this PC's file (engine/fleet.py).
+          "fleet_view": (str(OptionKey.LAST_FLEET_WRITE), str(OptionKey.FLEET_WAITING), str(OptionKey.FLEET_WROTE_AT))}
 RULES_LIMIT = 10
 STATUS_RANGE = (100, 599)
 # How far back the Dashboard counts a rule's hits and shows samples.
@@ -230,6 +232,9 @@ class Scoped:
             # and whether its own stored state is on now, read afresh - not the runtime's view, refreshed at a tick (the
             # wake timer's watch takes the timer back within its quarter of a minute of a turn-off: seatA:B-M5).
             "stored_on": lambda: (state.arming().get(capability) or {}).get("state") == "armed",
+            # v0.6.22 (the resident courier, engine/remote.py): when a capability journalled one of its own words - read,
+            # never written - so a cap on starts outlives the watcher that made them.
+            "journal_times": lambda other, word, since: state.journal_times(other, word, since),
         }
         # v0.6.14, the reset actions: their rules, windows and spends (state/resets.ResetsHandle - writes only while
         # on), whether a measurement passed or failed on the Codex in force (arming.Arming.verdict), and whether

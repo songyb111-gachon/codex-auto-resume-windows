@@ -170,6 +170,15 @@ class NoSlashTextTests(unittest.TestCase):
     # The one string allowed, and why: M7's own probe queues "/compact" once, by hand, on its own probe conversation, to
     # measure that Codex keeps it as plain text (measure.py, _m7) - a measurement, never a recovery's or a person's.
     ALLOWED = {("codex_auto_resume_advanced/measure.py", "_m7", "/compact")}
+    # v0.6.22 (D-remote.md): the loopback API's routes and the commands Telegram's paired chat sends. Each is matched
+    # against what arrives - a request's path, a message's text - and none is ever text of a send: nothing in courier/
+    # reaches a send at all (test_advanced_remote_structure, test_advanced_package).
+    ALLOWED |= {("codex_auto_resume_advanced/courier/api.py", "_handle", route)
+                for route in ("/metrics", "/pending", "/pause", "/resume-off")}
+    ALLOWED |= {("codex_auto_resume_advanced/courier/telegram.py", "answer", command)
+                for command in ("/status", "/list", "/pause", "/recovery-on")}
+    ALLOWED |= {("codex_auto_resume_advanced/courier/telegram.py", "by_task", "/cancel"),
+                ("codex_auto_resume_advanced/courier/telegram.py", None, "/continue")}
 
     @staticmethod
     def sources():

@@ -49,11 +49,22 @@ ADVANCED_NETWORK_MODULES = frozenset({"advanced/src/codex_auto_resume_advanced/c
 # networking module or the courier's own request function (`from . import http`) - the request itself, the channels a
 # notice is pushed on, and the status page's reading.
 COURIER = "advanced/src/codex_auto_resume_advanced/courier/"
-COURIER_REACHING = frozenset({COURIER + "http.py", COURIER + "channels.py", COURIER + "feed.py"})
+COURIER_REACHING = frozenset({COURIER + "http.py", COURIER + "channels.py", COURIER + "feed.py",
+                              # v0.6.22: the loopback API, the one file that listens (test_only_the_api_listens), and
+                              # Telegram's long poll.
+                              COURIER + "api.py", COURIER + "telegram.py"})
 COURIER_IMPORT = re.compile(r"^\s*from \. import (?:[a-z_]+, )*http\b", re.MULTILINE)
 # The hosts the courier names, each only in its package: Telegram's bot API and OpenAI's status page. The hosts a
 # person types for ntfy, a webhook or e-mail are theirs, never named in a shipped file.
-COURIER_HOSTS = re.compile(r"^https://(?:api\.telegram\.org/bot|status\.openai\.com/api/v2/summary\.json$)")
+COURIER_HOSTS = re.compile(r"^https://(?:api\.telegram\.org/bot|status\.openai\.com/api/v2/summary\.json$)"
+                           # v0.6.22: the loopback web view's own address, formed where it is served from.
+                           r"|^http://%s:%d/$")
+# What listens, in any shipped language: a socket's own calls, the standard library's servers, .NET's listeners. Python's
+# `bind` and `listen` are looked for as calls on something, so a word in a sentence is not one.
+LISTENING = re.compile(r"\.listen\(|\.bind\(\(|\bsocket\.socket\(|\b(?:Threading)?HTTPServer\b|\bTCPServer\b|\bUDPServer\b"
+                       r"|\bTcpListener\b|\bHttpListener\b|\bSocket\.Bind\b|\bcreate_server\b|\bstart_server\b")
+# The one file that may: the loopback API (courier/api.py), while local_api stands on.
+LISTENS = frozenset({COURIER + "api.py"})
 
 
 def network_allowed(relative: str) -> bool:
@@ -175,6 +186,22 @@ class CodePropertyTests(unittest.TestCase):
                 reaching.add(relative)
         self.assertEqual(reaching, {"scripts/bootstrap.ps1"} | set(COURIER_REACHING),
                          "the set of files that reach the network has changed")
+
+    def test_only_the_api_listens(self):
+        """B14 for the standard edition - nothing listens - and, in the advanced edition, one file (v0.6.22): the
+        loopback API. SECURITY.md says so, and fails here the day a second file opens a listening socket."""
+        listening = set()
+        for path in (tracked("scripts/*") + tracked("build/install/*") + tracked("src/*") + tracked("gui/*")
+                     + tracked("advanced/src/*") + tracked("advanced/gui/*")):
+            if path.suffix.lower() not in (".py", ".ps1", ".psm1", ".cs", ".cmd", ".bat"):
+                continue
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, OSError):
+                continue
+            if LISTENING.search(text):
+                listening.add(str(path.relative_to(ROOT)).replace("\\", "/"))
+        self.assertEqual(listening, set(LISTENS), "the set of shipped files that can listen has changed")
 
     def test_only_the_report_starts_gh_and_only_for_github_com(self):
         """The advanced edition's compatibility report is the one thing that asks the network for anything
@@ -369,7 +396,7 @@ class WordingTests(unittest.TestCase):
                    "v0.4.0", "v0.4.1", "v0.5.0", "v0.5.1", "v0.5.2", "v0.5.3", "v0.5.4", "v0.5.5",
                    "v0.5.6", "v0.5.7", "v0.6.0", "v0.6.1", "v0.6.2", "v0.6.3", "v0.6.4", "v0.6.5",
                    "v0.6.6", "v0.6.7", "v0.6.8", "v0.6.9", "v0.6.10", "v0.6.11", "v0.6.12",
-                   "v0.6.13", "v0.6.14", "v0.6.15", "v0.6.16", "v0.6.17", "v0.6.18", "v0.6.19-beta", "v0.6.19-beta.2", "v0.6.19-beta.3", "v0.6.19-beta.4", "v0.6.19", "v0.6.20-beta", "v0.6.20-beta.2", "v0.6.20-beta.3", "v0.6.20-beta.4", "v0.6.20", "v0.6.21")
+                   "v0.6.13", "v0.6.14", "v0.6.15", "v0.6.16", "v0.6.17", "v0.6.18", "v0.6.19-beta", "v0.6.19-beta.2", "v0.6.19-beta.3", "v0.6.19-beta.4", "v0.6.19", "v0.6.20-beta", "v0.6.20-beta.2", "v0.6.20-beta.3", "v0.6.20-beta.4", "v0.6.20", "v0.6.21", "v0.6.22-beta")
         text = (ROOT / "docs" / "CHANGELOG.md").read_text(encoding="utf-8")
         missing = [tag for tag in shipped
                    if not re.search(r"^##\s+%s\b" % re.escape(tag), text, re.M)]

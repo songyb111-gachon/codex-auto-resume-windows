@@ -86,6 +86,10 @@ CAPACITY_WAITS = (60, 120, 240, 300)
 CAPACITY_SPACING = 60
 CAPACITY_PER_DAY = 96
 CAPACITY_MAX_SECONDS = 24 * 3600
+# A usage limit whose reset core recorded has passed, continued through the plug's own channel or route
+# (VERIFIED_RESET, v0.6.22, issue #59): claimed under the conversation's own spacing (SPACING) and within this many in
+# 24 hours, not its five - a usage window resets a few times a day, and the plug's own ceilings count beside it.
+RESET_PER_DAY = 24
 # A usage-limited record the plug looks at early (EARLY): one window of looks every five minutes at
 # most, for every record together, each window as long as one usage reading lasts (engine/freshness.py).
 EARLY_SPACING = 300

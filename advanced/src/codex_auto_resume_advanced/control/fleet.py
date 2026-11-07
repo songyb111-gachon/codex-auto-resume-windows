@@ -1,0 +1,77 @@
+# ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
+"""See your other PCs, on the Dashboard (fleet_view, v0.6.22).
+
+`advanced-fleet` reads what the Overview's Other PCs list and the capability's card show: this PC's alias and folder, how
+the folder stands, and each other PC as its file says - read-only, checked and bounded (engine/fleet.py). It never touches
+the synced folder: it answers from what the watcher's last pass read and kept in this edition's state folder, so a drive
+that stopped answering, or a cloud tool fetching online-only files, never holds the Dashboard's call (security review
+T3, 2026-11-06). Off or watched, nothing of the folder is shown. `advanced-fleet-save` keeps the alias and the folder chosen in a
+dialog of the window, each checked here; both the Dashboard's alone (surfaces.py): no MCP tool reaches them, and nothing
+here acts on a peer. A rename takes this PC's file under its old name with it, where it says it is that one's. The save
+looks at the folder on a thread of its own, waited on a few seconds at most (fleet.bounded): a share that stopped answering
+is answered `late`, never a window held.
+"""
+from __future__ import annotations
+
+from ..engine import fleet
+from ..vocabulary import ArmingState, OptionKey, Refusal, WordingKey
+from .resets import _refused, _stale, _standing
+
+
+def view(runtime, *, now=None) -> dict:
+    """advanced-fleet: {"state", "alias", "folder", "stand", "peers": [...], "ignored", "generation"}."""
+    try:
+        state = runtime.states(fresh=True).get(fleet.CAPABILITY, ArmingState.OFF)
+        words = runtime.state.wordings(fleet.CAPABILITY)
+        alias, folder = words.get(WordingKey.FLEET_ALIAS), words.get(WordingKey.FLEET_FOLDER)
+        found = {"done": True, "refusal": None, "state": str(state), "alias": alias, "folder": folder, "stand": fleet.UNSET,
+                 "peers": [], "ignored": 0, "generation": runtime.state.meta()["generation"]}
+    except Exception:
+        return _refused(Refusal.STATE_UNAVAILABLE, runtime)
+    if state != ArmingState.ARMED or not fleet.alias_valid(alias) or not folder:
+        return found
+    now = runtime.state.clock() if now is None else now
+    waiting = fleet.waiting_word(runtime.state.stamped(fleet.CAPABILITY, OptionKey.FLEET_WAITING))
+    seen = fleet.read_seen(runtime.paths) or {"ignored": 0, "held": 0, "peers": []}
+    found.update(stand=waiting or (fleet.HELD if seen["held"] else fleet.OK), ignored=seen["ignored"],
+                 peers=[fleet.shown(each, now) for each in seen["peers"] if each["alias"].casefold() != alias.casefold()])
+    return found
+
+
+def save(runtime, alias, folder, generation) -> dict:
+    """advanced-fleet-save: the alias and the folder kept, each as they must be: WORDING_INVALID with the `problem` word
+    otherwise. The watcher is asked to write afresh at its next tick, and a rename takes the old file with it."""
+    if _stale(runtime, generation):
+        return _refused(Refusal.STALE_GENERATION, runtime)
+    if not _standing(runtime, fleet.CAPABILITY):
+        return _refused(Refusal.NOT_ON, runtime)
+    try:
+        problem = "alias" if not fleet.alias_valid(alias) else fleet.bounded(
+            lambda: fleet.folder_problem(folder, runtime.paths))
+    except TimeoutError:
+        problem = fleet.LATE
+    if problem is not None:
+        found = _refused(Refusal.WORDING_INVALID, runtime)
+        found["problem"] = problem
+        return found
+    from ..state import StateError
+    try:
+        words = runtime.state.wordings(fleet.CAPABILITY)
+        was_alias, was_folder = words.get(WordingKey.FLEET_ALIAS), words.get(WordingKey.FLEET_FOLDER)
+        generation = runtime.state.set_wording(fleet.CAPABILITY, WordingKey.FLEET_ALIAS, alias, generation=generation,
+                                               actor="dashboard")
+        runtime.state.set_wording(fleet.CAPABILITY, WordingKey.FLEET_FOLDER, folder, generation=generation,
+                                  actor="dashboard")
+        runtime.state.unstamp(fleet.CAPABILITY, OptionKey.LAST_FLEET_WRITE)
+        runtime.state.unstamp(fleet.CAPABILITY, OptionKey.FLEET_WAITING)
+        runtime.state.unstamp(fleet.CAPABILITY, OptionKey.FLEET_WROTE_AT)
+        if was_folder != folder:
+            fleet.forget_seen(runtime.paths)        # the other folder's PCs are not this one's
+    except StateError:
+        return _refused(Refusal.STATE_UNAVAILABLE, runtime)
+    if was_alias and was_alias != alias and was_folder == folder and fleet.alias_valid(was_alias):
+        try:
+            fleet.bounded(lambda: fleet.remove_old_name(folder, was_alias))
+        except TimeoutError:
+            pass                                    # left there: the share did not answer in time
+    return view(runtime)

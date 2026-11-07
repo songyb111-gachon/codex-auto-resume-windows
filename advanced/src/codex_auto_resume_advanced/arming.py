@@ -76,7 +76,7 @@ from .state import Refused, StaleGeneration, StateError
 from .state.spend import CHANNELS
 from .state.choices import DAY, RECENT_DAYS, RULES_LIMIT, aggregated, tag_problem
 from .statement import CATALOGS
-from .vocabulary import ContinuationReason, PromptReason, SteerReason  # noqa: E402  (v0.6.15-beta; v0.6.20)
+from .vocabulary import ContinuationReason, PromptReason, SteerReason, WordingKey  # noqa: E402  (v0.6.15-beta; v0.6.20)
 from .vocabulary import (KEPT_NOTICES, TRIPWIRES, Actor, ArmingState, ArmingWarning, AutoResult, CapabilityKind,
                          KeepOn, Measurement, OffReason, OverrideKind, RecordState, Refusal, RuleReason,
                          RuleState, Verdict)
@@ -579,7 +579,7 @@ class Arming:
         written only where it rises above the one the row holds. Whether it was turned off;
         StateError where nothing could be written or read."""
         row = self.state.arming().get(capability) if row is None else row
-        if (row or {}).get("keep_on"):
+        if (row or {}).get("keep_on") and reason != OffReason.BAD_CODES:   # v0.6.22: no Keep on holds this one back
             if _rises(row.get("reason"), reason):
                 self.state.note_kept(capability, reason, at=self.clock())
             return False
@@ -1145,6 +1145,9 @@ class Arming:
             return {"done": False, "refusal": Refusal.NOT_THE_DASHBOARD}
         if self.registry.get(capability) is None:
             return {"done": False, "refusal": Refusal.UNKNOWN_CAPABILITY}
+        # v0.6.22: fleet_view's alias and folder are no message: they are checked and kept by control/fleet.save alone.
+        if key in (WordingKey.FLEET_ALIAS, WordingKey.FLEET_FOLDER):
+            return {"done": False, "refusal": Refusal.WORDING_INVALID, "generation": self._generation()}
         if words is not None:
             try:
                 wrapwords.check_custom(words)

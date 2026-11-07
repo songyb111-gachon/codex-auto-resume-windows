@@ -55,8 +55,10 @@ class DefinitionTests(unittest.TestCase):
                          ((), (), ()))
         self.assertIn(CAP, registry.REGISTRY.ids)
         order = registry.SHOWN_ORDER
-        # 2026-10-31 (the owner's order): switching the Codex account comes right before it, and structured_rules after.
-        self.assertEqual(order[order.index(CAP) - 1:order.index(CAP) + 2], ("account_switch", CAP, "structured_rules"))
+        # 2026-10-31 (the owner's order): switching the Codex account comes right before it, and structured_rules after -
+        # from v0.6.22 with See your other PCs between them (2026-11-05: rare, and it restarts nothing).
+        self.assertEqual(order[order.index(CAP) - 1:order.index(CAP) + 3],
+                         ("account_switch", CAP, "fleet_view", "structured_rules"))
         self.assertEqual(statement.CATALOGS.missing(IDLE_UPDATE_CHECK), [])
 
 

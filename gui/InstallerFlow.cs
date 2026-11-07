@@ -8,13 +8,16 @@
 // It asks only what the installer really has a choice about. install.ps1 decides everything else itself -
 // where it installs, that it adds the plugin to Codex, that an update keeps the settings and the sign-in
 // choice - and the window says those as facts. The answers become the installer's own switches: -SkipStartup,
-// -AllowEditionChange, -DesktopShortcut, -NoDesktopShortcut and, for an uninstall, -Purge. -Silent is always passed, because the window is the one
-// asking and nothing may wait for a key in a console nobody sees.
+// -AllowEditionChange and, for an uninstall, -Purge. -Silent is always passed, because the window is the one asking and
+// nothing may wait for a key in a console nobody sees. The shortcut on the Desktop is not among them: its box stands on the
+// Finish page (v0.6.22), and what it asks is done once the installation is made (DesktopShortcut.Change); the command line's
+// own -DesktopShortcut and -NoDesktopShortcut are passed on as they were given.
 //
 // C# 5 only: the setup programs are compiled by the in-box csc (build/make_setup.py), as the window is.
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Reflection;
@@ -68,10 +71,12 @@ namespace CodexAutoResume
 
         /// Run at Windows sign-in, on a first installation: off is -SkipStartup.
         internal bool StartAtSignIn = true;
-        /// A shortcut on the Desktop: on is -DesktopShortcut, and off is -NoDesktopShortcut where one is there. Starts as
-        /// what is true now (KnowDesktopShortcut), so off on a first installation.
+        /// The Finish page's box for a shortcut on the Desktop (v0.6.22, the owner: it comes last, as in an ordinary
+        /// installer): ticked makes this installation's, unticked removes it. Starts as what is true as the page opens
+        /// (KnowDesktopShortcut), so off where there is no shortcut of ours, and left as it was, nothing changes.
         internal bool MakeDesktopShortcut;
-        /// Whether this installation's shortcut is on the Desktop as the window opens.
+        /// Whether this installation's shortcut is on the Desktop, as it was last looked at: as the window opens, and
+        /// again as a run that succeeded ends.
         internal bool DesktopShortcutThere;
         /// Whether the advanced edition's saved Codex sign-ins are kept here as the window opens (SavedAccountsAt, v0.6.22):
         /// the uninstall page then says the purge takes them too.
@@ -140,11 +145,26 @@ namespace CodexAutoResume
             if (Maintaining) Mode = remove ? Uninstall : Install;
         }
 
-        /// The box's first answer: what the setup program's command line said, else what is true now.
-        internal void KnowDesktopShortcut(bool there, IEnumerable<string> given)
+        /// The box's first answer: what is true now.
+        internal void KnowDesktopShortcut(bool there)
         {
             DesktopShortcutThere = there;
-            MakeDesktopShortcut = !Has(given, "-NoDesktopShortcut") && (Has(given, "-DesktopShortcut") || there);
+            MakeDesktopShortcut = there;
+        }
+
+        /// Whether the Finish page of a run that ended with `code` has the box for a shortcut on the Desktop: after an
+        /// installation, a repair or an update that succeeded. Not after a run that failed, nor an uninstall, which
+        /// removes ours as it always did, nor Install another version..., which may be an older version that has no such
+        /// command to ask.
+        internal bool OffersDesktopShortcut(int code)
+        {
+            return code == 0 && Mode != Uninstall && !Another;
+        }
+
+        /// What the box asks of the Desktop, once the Finish button is pressed: "" where it is left as it was.
+        internal string DesktopShortcutChange()
+        {
+            return MakeDesktopShortcut == DesktopShortcutThere ? "" : MakeDesktopShortcut ? "make" : "remove";
         }
 
         /// Whether this run repairs the installation: the Maintain page's Repair.
@@ -199,8 +219,6 @@ namespace CodexAutoResume
                 if (EditionChange && ChangeEdition) switches.Add("-AllowEditionChange");
                 // Only when ticked, and only on the change it belongs to; an answer nobody gave leaves the saved accounts where they are.
                 if (EditionChange && ChangeEdition && OffersAccountDeletion && DeleteSavedAccounts) switches.Add("-DeleteSavedAccounts");
-                if (MakeDesktopShortcut) switches.Add("-DesktopShortcut");
-                else if (DesktopShortcutThere) switches.Add("-NoDesktopShortcut");
             }
             if (given != null)
             {
@@ -218,7 +236,7 @@ namespace CodexAutoResume
         private static bool IsAnswered(string word)
         {
             foreach (string answered in new[] { "-SkipStartup", "-AllowEditionChange", "-DeleteSavedAccounts", "-Silent", "-Uninstall",
-                                                "-Purge", "-DesktopShortcut", "-NoDesktopShortcut" })
+                                                "-Purge" })
                 if (string.Equals(word, answered, StringComparison.OrdinalIgnoreCase)) return true;
             return false;
         }
@@ -363,6 +381,55 @@ namespace CodexAutoResume
                 return Inside(TargetOf(link), home);
             }
             catch (Exception) { return false; }
+        }
+
+        /// What the installed engine's `desktop-shortcut` command ends with when another shortcut has the name
+        /// (scripts/plugin_setup.py, EXIT_DESKTOP_TAKEN).
+        internal const int ExitTaken = 3;
+        /// What a change that could not even be asked for ends with: no interpreter there, or it did not end in time.
+        internal const int NotChanged = 1;
+        /// What every python.exe this program starts is given first: remote debugging off (PEP 768; the settings window's
+        /// own Bridge.NoRemoteDebug, which the setup programs are not compiled with).
+        internal const string NoRemoteDebug = "-X disable-remote-debug ";
+        /// The longest one change may take: a Python start and a shortcut written through PowerShell.
+        internal const int ChangeMilliseconds = 60000;
+
+        /// Makes (`make`) or removes this installation's shortcut on the Desktop, by asking the installed engine - the same
+        /// command install.ps1 asks for -DesktopShortcut and -NoDesktopShortcut, so one rule holds in both places: the exact
+        /// name, a target inside the installation, and any other shortcut left alone. The Finish page's box is how a person
+        /// asks (InstallerWindow), once the installation exists. Returns the command's exit code (0 done, ExitTaken another
+        /// shortcut has the name, any other a failure), and `said` its lines for the log. Never throws, never shows a window.
+        internal static int Change(string home, bool make, out string said)
+        {
+            said = "";
+            try
+            {
+                string python = Path.Combine(Path.Combine(home, "runtime"), "python.exe");
+                string setup = Path.Combine(Path.Combine(Path.Combine(home, "app"), "scripts"), "plugin_setup.py");
+                if (!File.Exists(python) || !File.Exists(setup)) return NotChanged;
+                var info = new ProcessStartInfo(python, NoRemoteDebug + "\"" + setup + "\" desktop-shortcut " + (make ? "make" : "remove"));
+                info.UseShellExecute = false;
+                info.CreateNoWindow = true;
+                info.RedirectStandardOutput = true;
+                info.RedirectStandardError = true;
+                // The installation this window belongs to: setup resolves its target from this variable.
+                info.EnvironmentVariables["CODEX_AUTO_RESUME_PLUGIN_HOME"] = home;
+                using (Process process = Process.Start(info))
+                {
+                    // Both pipes are read from the start, so a child that fills one cannot stall the wait.
+                    System.Threading.Tasks.Task<string> output = process.StandardOutput.ReadToEndAsync();
+                    System.Threading.Tasks.Task<string> failure = process.StandardError.ReadToEndAsync();
+                    if (!process.WaitForExit(ChangeMilliseconds)) return NotChanged;
+                    output.Wait(5000);
+                    failure.Wait(5000);
+                    said = ((output.IsCompleted ? output.Result : "") + "\n" + (failure.IsCompleted ? failure.Result : "")).Trim();
+                    return process.ExitCode;
+                }
+            }
+            catch (Exception)
+            {
+                return NotChanged;
+            }
         }
 
         // The shell's own reading of a shortcut. WScript.Shell saves nothing until it is asked to.

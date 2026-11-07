@@ -110,9 +110,15 @@ class ShippedTests(unittest.TestCase):
                "push_notices", "status_feed", "account_switch",
                # v0.6.20 (#50): steering the running turn, at P8 before the wake timer.
                "steer_send",
+               # v0.6.22: this PC's status in a folder the person syncs, and the other PCs'.
+               "fleet_view",
                # v0.6.20 (Discussion #57): the power action after tasks a person picked, the one answer at P21.
                "power_after_tasks",
+               # v0.6.22: the resident courier, before the wake timer.
+               "local_api", "telegram_remote",
                "wake_for_reset",
+               # v0.6.22: what widens the loopback API: actions, before the other three.
+               "local_api_actions", "local_api_lan", "telegram_continue",
                "open_codex_button",
                "long_reset_message", "compat_report")
 
@@ -120,18 +126,19 @@ class ShippedTests(unittest.TestCase):
     # after the 41 of DEFINITIONS (registry.offered): 42 in the registry this edition runs. v0.6.20: power_after_tasks
     # joins DEFINITIONS - 42 of them, 43 in the registry. v0.6.22: the automatic account switch passed both its
     # measurements (MPROFILE and MSWAP, codex-cli 0.166.0-alpha.6, 2026-11-06) and is offered after it: 44.
+    # v0.6.22 (beta.2): five remote capabilities and fleet_view join DEFINITIONS - 48 of them, 50 in the registry.
     OFFERED = ("open_to_send", "account_auto_switch")
 
     def test_the_registry_this_edition_ships_is_its_capabilities_in_their_order(self):
         self.assertEqual([d.id for d in registry.DEFINITIONS], list(self.SHIPPED))
-        self.assertEqual(len(registry.DEFINITIONS), 42)
+        self.assertEqual(len(registry.DEFINITIONS), 48)
         self.assertEqual(len(registry.REGISTRY), len(self.SHIPPED) + len(self.OFFERED))
-        self.assertEqual(len(registry.REGISTRY), 44)
+        self.assertEqual(len(registry.REGISTRY), 50)
         self.assertEqual(registry.REGISTRY.ids, self.SHIPPED + self.OFFERED)
         self.assertEqual([definition.id for definition in registry.offered(measured.MEASURED)], list(self.OFFERED))
         # The compatibility report is an action, last: it answers at no point, so it is in no list below.
         self.assertEqual([d.id for d in registry.DEFINITIONS if d.kind == CapabilityKind.ACTION],
-                         ["open_codex_button", "long_reset_message", "compat_report"])
+                         ["local_api_actions", "local_api_lan", "telegram_continue", "open_codex_button", "long_reset_message", "compat_report"])
         # Start-with-Codex answers at P9 alone - it starts the watcher, it does not send; the goal
         # continuation at P16, P3 and P5 - the route, the hold while a goal carries a conversation on,
         # and the channel where M2b passed; the marker-free continuation at P5 and P15, the channel
@@ -149,6 +156,10 @@ class ShippedTests(unittest.TestCase):
                                   "usage_analytics", "window_anchor", "push_notices", "status_feed", "account_switch",
                                   # v0.6.20 (#50): the steer, before the wake timer.
                                   "steer_send",
+                                  # v0.6.22: this PC's status in the folder a person syncs.
+                                  "fleet_view",
+                                  # v0.6.22: the resident courier, before the wake timer.
+                                  "local_api", "telegram_remote",
                                   "wake_for_reset",
                                   # v0.6.20: offered after the rest, so it answers last (registry.offered).
                                   "open_to_send",
@@ -158,6 +169,8 @@ class ShippedTests(unittest.TestCase):
                      Point.NOTICE: ("push_notices",),
                      # v0.6.20: how the tasks a person picked stand, for the power action.
                      Point.POWER: ("power_after_tasks",),
+                     # v0.6.22: while paused, the residents that send nothing to Codex (the owner's word of 2026-11-06).
+                     Point.RESIDENT: ("local_api", "telegram_remote"),
                      Point.RECORDS: ("reset_message", "prompt_queue", "empty_response", "subagent_parent",
                                      "keep_going", "usage_wrap_up", "codex_chat"),
                      # v0.6.15-beta: the lines a parent's continuation is given of its subagents' stops (5a).
@@ -190,14 +203,16 @@ class ShippedTests(unittest.TestCase):
              "other_sessions", "marker_free_continuation", "reset_credit", "early_reset", "account_auto_switch", "window_anchor", "parallel_dispatch",
              # 2) (open_to_send is hidden until MOPEN passes)
              "reset_message", "long_reset_message", "keep_going", "prompt_queue", "usage_meter", "usage_wrap_up", "usage_pause",
-             "push_notices", "send_now", "open_to_send", "open_codex_button", "codex_chat", "steer_send", "usage_analytics",
+             "push_notices", "telegram_remote", "telegram_continue", "send_now", "open_to_send", "open_codex_button", "codex_chat", "steer_send", "usage_analytics",
              "power_after_tasks",
              # 3)
              "empty_response", "once_more_when_unsure", "capacity_retry", "model_fallback", "compact_continue", "codex_gave_up",
              "goal_continuation", "subagent_parent", "sign_in_retry", "unknown_failure_budget",
              # 4) (stop_hook_continuation is hidden until MHK, M4 and M4B pass)
              "silent_continuation", "stop_hook_continuation", "status_feed", "account_switch", "idle_update_check",
-             "structured_rules")
+             "fleet_view", "structured_rules",
+             # 2026-11-05 (v0.6.22): what a person's own scripts and browser may read and do.
+             "local_api", "local_api_actions", "local_api_lan")
 
     def test_the_shown_order_names_every_capability_of_the_registry_exactly_once(self):
         order, ids = registry.SHOWN_ORDER, registry.REGISTRY.ids
@@ -227,7 +242,7 @@ class ShippedTests(unittest.TestCase):
             with self.subTest(definition.id):
                 self.assertEqual(problems(definition), [])
                 self.assertEqual(statement.CATALOGS.missing(definition), [])
-                self.assertTrue(set(definition.departs_from) <= set(standards.DEPARTABLE))
+                self.assertTrue(set(definition.departs_from) <= set(standards.DECLARABLE))
 
     def test_a_capability_whose_session_asks_the_app_server_more_departs_from_b4_and_b3(self):
         """What a capability's own session may call (codex/protocol.CAPABILITY_METHODS) is part of
@@ -306,11 +321,12 @@ class ShippedTests(unittest.TestCase):
     def test_the_goal_continuation_departs_and_rests_on_what_the_owner_asked(self):
         """0.5 (goal-state manipulation), A2 (one channel), A11 (nothing for a conversation the app
         does not hold), B3 (Codex's state changes only through the queue) and B4 (the app server's
-        three methods); it stands on loaded_state_detection, which has local checks and decides its
+        three methods) - and (v0.6.22, issue #59) A20 and H2: a continuation at a reset the watcher
+        verified is not held to core's five a conversation; it stands on loaded_state_detection, which has local checks and decides its
         route - core's own goal_continuation entry has none and stays unsupported (G12) - and its
         route on M2."""
         goal = registry.REGISTRY.get("goal_continuation")
-        self.assertEqual(goal.departs_from, ("0.5", "A2", "A11", "B3", "B4"))
+        self.assertEqual(goal.departs_from, ("0.5", "A2", "A11", "A20", "B3", "B4", "H2"))
         self.assertEqual(goal.compat, "loaded_state_detection")
         from codex_auto_resume.compat.model import CAPABILITIES
         self.assertTrue(CAPABILITIES[goal.compat][0], "a compatibility capability with local checks")
@@ -406,11 +422,12 @@ class ShippedTests(unittest.TestCase):
     def test_a_capability_that_moves_an_engine_constant_departs_from_h2(self):
         """H2: no setting moves an engine constant, and A20's caps are engine constants (the standards
         file says so). A capability that departs from A20 lets a person's choice move them, so it names
-        H2 as well: the capacity retries, Send now, (v0.6.19) the chat and (v0.6.20) the steer, paced on their own."""
+        H2 as well: the capacity retries, Send now, (v0.6.19) the chat and (v0.6.20) the steer, paced on their own,
+        and (v0.6.22, issue #59) the goal continuation at a verified reset, which turning it on lets past the five."""
         self.assertIn("engine constants", standards_text("A20"))
         self.assertIn("move an engine constant", standards_text("H2"))
         moving = [definition.id for definition in registry.DEFINITIONS if "A20" in definition.departs_from]
-        self.assertEqual(moving, ["capacity_retry", "send_now", "codex_chat", "steer_send"])
+        self.assertEqual(moving, ["goal_continuation", "capacity_retry", "send_now", "codex_chat", "steer_send"])
         for definition in registry.DEFINITIONS:
             if "A20" in definition.departs_from:
                 with self.subTest(definition.id):
@@ -449,7 +466,9 @@ class ShippedTests(unittest.TestCase):
     def test_the_goal_continuations_risks_say_it_acts_where_the_app_holds_the_conversation_once_m2b_passed(self):
         """While M2b's recorded verdict is a pass (measured.py), engine/goal.py's P5 acts on a conversation the app
         holds, so no language may still say it acts only on one the app does not have open: every one names M2b in
-        its risks, at revision 2."""
+        its risks, at revision 2. v0.6.22 (issue #59) names A20 and H2 beside them at revision 2 still - the owner's
+        word of 2026-11-07: one who turned it on keeps it on and reads the changed statement on its card, as for the
+        raised ceilings."""
         from codex_auto_resume_advanced import measured
         self.assertEqual(measured.MEASURED[Measurement.M2B][0], Verdict.PASS)
         goal = registry.REGISTRY.get("goal_continuation")
@@ -610,12 +629,24 @@ class DefinitionTests(unittest.TestCase):
         """Family K binds every capability - arming only in the Dashboard, pause and consent
         first, the tripwires - so naming one is a mistake the registry refuses, like an id the
         file does not hold."""
-        for standard in ("K1", "K5", "K7"):
+        for standard in ("K1", "K7"):
             with self.subTest(standard):
                 self.assertIn(standard, standards.STANDARDS)
                 self.assertNotIn(standard, standards.DEPARTABLE)
                 self.assertNotEqual(problems(ac.definition(departs_from=(standard,))), [])
                 self.assertNotEqual(problems(ac.definition(departs_from=("A11", standard))), [])
+
+    def test_k5_is_the_one_rule_the_owner_let_the_paused_residents_go_past(self):
+        """2026-11-06/07: P22 asks a resident that sends nothing while recovery is paused, so K5 may be named by a
+        capability answering there - and by none of the others (DEPARTABLE itself is unchanged)."""
+        self.assertNotIn("K5", standards.DEPARTABLE)
+        self.assertEqual(standards.PAST_BY_THE_OWNER, ("K5",))
+        self.assertEqual(problems(ac.definition(departs_from=("A11", "K5"))), [])
+        for resident in (registry.LOCAL_API, registry.TELEGRAM_REMOTE):
+            self.assertIn("K5", resident.departs_from)
+            self.assertIn(Point.RESIDENT, resident.points)
+        self.assertEqual([d.id for d in registry.DEFINITIONS if "K5" in d.departs_from],
+                         ["local_api", "telegram_remote"])
 
     def test_each_field_is_checked(self):
         cases = {

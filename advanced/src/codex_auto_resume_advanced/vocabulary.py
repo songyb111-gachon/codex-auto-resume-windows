@@ -76,13 +76,16 @@ class OffReason(StrEnum):
     # Codex refused a turn started with no input (v0.6.16-beta.4, silent_continuation): what M3B measured did not
     # hold on this Codex.
     REFUSED_BY_CODEX = "refused_by_codex"
+    # Five wrong codes were sent to the bot during a pairing (v0.6.22, telegram_remote): someone is guessing at the chat it
+    # obeys. It turns it off whether or not it is kept on, as a duplicate turns off what sent it (arming.py).
+    BAD_CODES = "bad_codes"
 
 
 TRIPWIRES = frozenset({OffReason.SUBMISSION_UNKNOWN, OffReason.LOCAL_CHECK_FAILED,
                        OffReason.FAILED_HERE, OffReason.INCOMPATIBLE, OffReason.HOOK_EXCEPTION,
                        OffReason.STATEMENT_CHANGED, OffReason.MEASUREMENT_FAILED, OffReason.AUTO_CHECK_FAILED,
                        OffReason.DUPLICATE_SEEN, OffReason.NOT_DELIVERED_ON_OPEN, OffReason.REQUIREMENT_OFF,
-                       OffReason.NOT_DISPATCHED_BY_SESSION, OffReason.REFUSED_BY_CODEX})
+                       OffReason.NOT_DISPATCHED_BY_SESSION, OffReason.REFUSED_BY_CODEX, OffReason.BAD_CODES})
 # What a capability kept on (KeepOn, K8) notes instead of turning off, most serious first: the order
 # in which one notice gives way to another (state/arming.py, note_kept). A notice only ever rises.
 KEPT_NOTICES = (OffReason.DUPLICATE_SEEN, OffReason.STATEMENT_CHANGED, OffReason.FAILED_HERE,
@@ -318,6 +321,10 @@ class OptionKey(StrEnum):
     LAST_INGEST = "last_ingest"
     LAST_FEED = "last_feed"
     LAST_FLEET_WRITE = "last_fleet_write"
+    # v0.6.22 (fleet_view): what its last pass is waiting on, as a number (engine/fleet.WAITING_WORDS), and when this PC last
+    # wrote its file, so a file newer than that is another PC's under the same name.
+    FLEET_WAITING = "fleet_waiting"
+    FLEET_WROTE_AT = "fleet_wrote_at"
     # v0.6.20 (window_anchor, the owner's request of 2026-10-28): the times of day it starts an idle 5-hour window at
     # (three, each off or a time - TIME_OFF, or the minute of the day plus two), and whether it starts one right after
     # a reset. And its stamps: when it last started one, the reset that start fixed, the running reset it last saw, the

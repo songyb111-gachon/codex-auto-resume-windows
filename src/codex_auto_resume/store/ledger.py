@@ -17,7 +17,7 @@ import sqlite3
 from .. import failures, ladder, machine
 from ..domain.plug import Alternative, Point
 from .columns import _UNREAD_BY_DISPATCH
-from .validate import _finite, is_usage
+from .validate import _finite, is_usage, reset_refused
 
 # What a ledger may do on the claim's connection while it is asked (P11): read anything but the
 # needs-you notices (schema 4), which decide no claim; attach a database of its own; and write,
@@ -197,11 +197,11 @@ class LedgerMixin:
         that answers, and has to pay for it. Nothing else a caller says makes one claimable.
         "capacity", a server error's retries relaxed, is held the same way, and only within twelve
         hours on the clock of its task's first failure, read here from that record
-        (ladder.CAPACITY_MAX_SECONDS)."""
+        (ladder.CAPACITY_MAX_SECONDS). "reset" (v0.6.22): validate.reset_refused."""
         category = row["category"]
         if failures.is_recoverable(category):
             if relaxed != "capacity":
-                return None
+                return reset_refused(row, now, vector, relaxed, ledger, carried)
             origin = connection.execute("SELECT detected_at FROM interruptions WHERE interruption_id=?",
                                         (row["chain_origin_id"],)).fetchone()
             if (category != "server_5xx" or ledger.null or Point.GATES not in carried or origin is None

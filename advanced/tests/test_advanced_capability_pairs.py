@@ -948,6 +948,67 @@ class CourierBesideEveryCapabilityTests(ac.AdvancedCase):
                 self.assertNotIn(Point.NOTICE, definition.points)
 
 
+class RemoteBesideEveryCapabilityTests(ac.AdvancedCase):
+    """COMPOSE, none needed (v0.6.22, D-remote.md): the loopback API only observes, and what widens it only reduces. It
+    answers at no point that decides or sends: P8's errand only starts its process, the other two answer at none. A pause
+    or a cancel through it is core's own, as a person's in the Dashboard is, so with it on beside any other capability,
+    every answer the other gives at every point is the one it gives alone."""
+
+    def test_they_answer_at_no_deciding_point(self):
+        from codex_auto_resume_advanced.registry import LOCAL_API, LOCAL_API_ACTIONS, LOCAL_API_LAN
+        self.assertEqual(LOCAL_API.points, frozenset({Point.TICK, Point.RESIDENT}))
+        self.assertEqual((LOCAL_API_ACTIONS.points, LOCAL_API_LAN.points), (frozenset(), frozenset()))
+
+    def test_beside_every_shipped_capability_only_p8_is_shared_and_the_wake_timer_stays_last(self):
+        from codex_auto_resume_advanced import registry as shipped
+        from codex_auto_resume_advanced.registry import LOCAL_API
+        for definition in shipped.DEFINITIONS:
+            if definition.id != LOCAL_API.id:
+                with self.subTest(definition.id):
+                    self.assertLessEqual(LOCAL_API.points & definition.points, frozenset({Point.TICK, Point.RESIDENT}))
+        ticking = [definition.id for definition in shipped.DEFINITIONS if Point.TICK in definition.points]
+        self.assertEqual(ticking[-1], "wake_for_reset")
+
+    def test_its_errand_keeps_nothing_another_capability_reads(self):
+        """What it writes is its own journal lines: no record, no claim, no spend, no due time another's errand reads."""
+        import inspect
+        from codex_auto_resume_advanced.engine import remote
+        source = inspect.getsource(remote)
+        for word in ("claim", "dispatch", "spend", "records", "continuations", "prompts", "resets"):
+            self.assertNotIn(word, source)
+
+
+class TelegramBesideEveryCapabilityTests(ac.AdvancedCase):
+    """COMPOSE (v0.6.22, D-remote.md): telegram_remote only observes and reduces, as the API does. telegram_continue beside
+    every capability that sets a hold: /continue is core's release_hold, the person's own move - the one thing that takes a
+    hold away, for that record, journalled - and it sends nothing and skips no gate, so what holds a record for its own
+    reason (a postponement, quiet hours, a capability's gate at P3) still holds it after."""
+
+    def test_they_answer_at_no_deciding_point(self):
+        from codex_auto_resume_advanced.registry import TELEGRAM_CONTINUE, TELEGRAM_REMOTE
+        self.assertEqual(TELEGRAM_REMOTE.points, frozenset({Point.TICK, Point.RESIDENT}))
+        self.assertEqual(TELEGRAM_CONTINUE.points, frozenset())
+        self.assertEqual(TELEGRAM_REMOTE.requires, ("push_notices",))
+        self.assertEqual(TELEGRAM_CONTINUE.requires, ("telegram_remote",))
+
+    def test_continue_is_core_s_release_and_only_that(self):
+        """Fails where /continue reaches anything but release_hold: a route of its own round the gates."""
+        import inspect
+        from codex_auto_resume_advanced.control import remote
+        source = inspect.getsource(remote.release)
+        self.assertIn("layer.release_hold(", source)
+        for word in ("set_enabled", "send", "retry", "dispatch", "claim"):
+            self.assertNotIn(word, source.replace("sends", ""))
+
+    def test_a_hold_a_capability_set_is_answered_at_p3_whatever_was_released(self):
+        """The gates that hold are core's asks at P3, each record's every time: a release takes away a person's hold alone."""
+        from codex_auto_resume_advanced import registry as shipped
+        holding = [definition.id for definition in shipped.DEFINITIONS if Point.GATES in definition.points]
+        self.assertTrue(holding)
+        self.assertNotIn("telegram_continue", holding)
+        self.assertNotIn("telegram_remote", holding)
+
+
 # ---------------------------------------------------------------- v0.6.20: account_switch (plans/v0619-design/D-account.md)
 class AccountBesideResetsAndPauseTests(UsageCase):
     """account_switch beside reset_credit, reset_message and usage_pause: COMPOSE, each still doing its own. Another
@@ -1602,6 +1663,65 @@ class PowerTasksBesideRecoveryTests(_PowerTasksPair):
         self.statuses.statuses[self.RECOVERY] = "completed"
         self.assertEqual(self.answer(nonce), {"tasks": "met", "threads": (ac.THREAD,)})
         self.assertEqual(self.rt.registry.at(Point.POWER)[0].id, "power_after_tasks", "the other answers nothing there")
+
+
+# ------------------------------------------------------------------ v0.6.22: fleet_view
+class FleetBesideEveryCapabilityTests(ac.AdvancedCase):
+    """COMPOSE, none needed: fleet_view only writes a file and reads files. It answers at P8 alone, its errand does nothing but
+    start a thread of its own, so beside another capability's errand neither holds or trips the other - even with its pass
+    hanging on a folder that stopped answering, or failing."""
+
+    class Hanging:
+        def is_alive(self):
+            return True
+
+    def setUp(self):
+        super().setUp()
+        from codex_auto_resume_advanced.registry import FLEET_VIEW, STATUS_FEED
+        self.catalogs = statement.CATALOGS
+        self.compat = ac.view(capability="engine_present")
+        self.rt = self.runtime(FLEET_VIEW, STATUS_FEED)
+        self.rt.arming.catalogs = statement.CATALOGS
+        self.launched = []
+        self.rt._code_of(STATUS_FEED)._launch = lambda paths, now: self.launched.append(now)
+        self.fleet_code = self.rt._code_of(FLEET_VIEW)
+        for definition in (FLEET_VIEW, STATUS_FEED):
+            done = self.arm(self.rt, definition.id, warnings=[str(w) for w in self.rt.arming.warnings(definition)])
+            self.assertTrue(done["done"], done)
+        self.rt.states(fresh=True)
+        from codex_auto_resume_advanced.vocabulary import WordingKey
+        for key, words in ((WordingKey.FLEET_ALIAS, "laptop"), (WordingKey.FLEET_FOLDER, str(self.home.parent))):
+            self.rt.state.set_wording("fleet_view", key, words, generation=self.rt.state.meta()["generation"], actor="dashboard")
+
+    def view(self):
+        class View:
+            def records_in(self, states):
+                return [{"state": "waiting_reset", "category": "usage_limit"}]
+        return View()
+
+    def test_it_answers_at_no_point_that_decides_and_requires_nothing(self):
+        from codex_auto_resume_advanced import registry as shipped
+        from codex_auto_resume_advanced.registry import FLEET_VIEW
+        self.assertEqual(FLEET_VIEW.points, frozenset({Point.TICK}))
+        self.assertEqual(FLEET_VIEW.requires, ())
+        self.assertEqual(shipped.REGISTRY.required_by("fleet_view"), ())
+
+    def test_its_pass_hanging_holds_up_no_other_errand(self):
+        self.fleet_code._spawn = lambda run: self.Hanging()
+        answer = self.rt.tick(self.view())
+        answer.run(lambda: None)
+        self.assertEqual(len(self.launched), 1, "the feed's errand ran beside a pass that never ends")
+        self.assertEqual(self.rt.states(fresh=True)["fleet_view"], "armed")
+
+    def test_its_pass_failing_trips_neither(self):
+        def fails(run):
+            run()
+            raise OSError("no thread to be had")
+        self.fleet_code._spawn = fails
+        self.rt.tick(self.view()).run(lambda: None)
+        self.assertEqual(len(self.launched), 1, "the errand after it still ran")
+        states = self.rt.states(fresh=True)
+        self.assertEqual((states["status_feed"], states["fleet_view"]), ("armed", "armed"))
 
 
 if __name__ == "__main__":

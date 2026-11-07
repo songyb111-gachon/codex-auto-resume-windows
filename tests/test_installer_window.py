@@ -278,8 +278,8 @@ $null = CallOn $updating 'Finished' @(0, "  Checking the installation")
 $out.updated = @((Of $updating 'Page'), (Of $updating 'Code'), (Of $updating 'OpenDashboard'))
 $reopened = $WindowType.GetConstructors($any)[0].Invoke([object[]]@((NewFlow 'install' 'standard' 'standard'), $english, $null, $null, $null, $font))
 $null = CallOn $reopened 'Finished' @(0, "  [ok] The Dashboard was opened again on the new version")
-$out.reopened = @((Of $reopened 'OpenDashboard'), @(@(CallOn $reopened 'ShownRows' @()) | Where-Object { $_.GetType().Name -eq 'SoftCheck' }).Count)
-$out.updated_switches = @(@(CallOn $updating 'ShownRows' @()) | Where-Object { $_.GetType().Name -eq 'SoftCheck' }).Count
+$out.reopened = @((Of $reopened 'OpenDashboard'), @(@(CallOn $reopened 'ShownRows' @()) | Where-Object { $_.GetType().Name -eq 'SoftCheck' -and $_.Text -ceq 'Open the Dashboard' }).Count)
+$out.updated_switches = @(@(CallOn $updating 'ShownRows' @()) | Where-Object { $_.GetType().Name -eq 'SoftCheck' -and $_.Text -ceq 'Open the Dashboard' }).Count
 $later = $WindowType.GetConstructors($any)[0].Invoke([object[]]@((NewFlow 'update' 'standard' 'standard'), $english, $null, $null, $null, $font))
 $null = CallOn $later 'Finished' @(-3, "update: later 9.9.8 9.9.9")
 $out.later = @((Of $later 'Code'), (Of $later 'OpenDashboard'), $later.IsDisposed)
@@ -600,7 +600,7 @@ class FlowTests(unittest.TestCase):
         "Updated to" after - and the Dashboard it was started from comes back on the new version by itself. Later
         closes the window with nothing installed and nothing opened."""
         self.assertEqual(self.answer["updated"], ["finish", 0, True])
-        self.assertEqual(self.answer["updated_switches"], 0, "nothing to tick: the Dashboard comes back by itself")
+        self.assertEqual(self.answer["updated_switches"], 0, "no Open the Dashboard to tick: the Dashboard comes back by itself (the Finish page's Desktop shortcut box is another)")
         self.assertEqual(self.answer["reopened"], [False, 0],
                          "the installer opened again the Dashboard that was open: none is offered beside it")
         self.assertEqual(self.answer["later"], [-3, False, True])

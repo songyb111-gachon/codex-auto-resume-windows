@@ -51,6 +51,8 @@ namespace CodexAutoResume
             { "records", "A message of yours it would have sent" },
             // v0.6.20: how the tasks a person picked stand, said to the power action (P21).
             { "power", "Said how the tasks you picked stand" },
+            // v0.6.22 (#59): a failure taken up at a usage-limit reset the watcher saw pass (VERIFIED_RESET, at P3).
+            { "verified_reset", "Took it up after a reset the watcher saw" },
         };
 
         /// The open capability's watch log as last read, for ShowAdvancedDetail to compare; "" where there is none.

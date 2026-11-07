@@ -522,7 +522,16 @@ class CeilingTests(GoalCase):
                                                 "%064x" % index, self.h.now - 60)
 
     def test_past_its_conversation_ceiling_it_waits_as_the_standard_edition_does(self):
-        plug, fake = self.armed()
+        """v0.6.22 (issue #59): for a usage limit no reset was recorded for, so none the watcher verified - a verified
+        one is not held by this ceiling (test_advanced_goal_verified_resets.py)."""
+        self.h.home.fail_usage(T1, reset=None)
+        self.h.tick()
+        self.h.now += 4 * 3600
+        plug = self.advanced()
+        self.code(plug)
+        self.arm(plug)
+        fake = self.server()
+        self.plugged(plug)
         self.fill(plug, lambda index: T1, GOAL_CONTINUATION.ceilings.per_conversation)
         self.h.tick()
         self.assertEqual(fake.received, [])
@@ -616,7 +625,7 @@ class WarningTests(GoalCase):
         shown = plug.runtime.arming.statement(GOAL_CONTINUATION, "en")
         self.assertEqual([item["warning"] for item in shown["warnings"]["items"]],
                          [ArmingWarning.MEASUREMENT_FAILED])
-        self.assertEqual(shown["departs_from"], ["0.5", "A2", "A11", "B3", "B4"])
+        self.assertEqual(shown["departs_from"], ["0.5", "A2", "A11", "A20", "B3", "B4", "H2"])
         self.assertTrue(all(field["text"] for field in shown["fields"]))
         self.assertTrue(self.arm(plug, warnings=[ArmingWarning.MEASUREMENT_FAILED])["done"])
         self.assertEqual(plug.runtime.states(fresh=True)[CAP], ArmingState.ARMED)
