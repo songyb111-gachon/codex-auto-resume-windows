@@ -1,0 +1,22 @@
+{
+  "format": "codex-auto-resume-measurement/1",
+  "step": "mipc",
+  "verdict": "blocked",
+  "recorded_at": "2026-11-07T16:40Z",
+  "product_version": "0.6.22-beta.2",
+  "codex_version": "codex-cli 0.167.0-alpha.3.2",
+  "windows_build": "10.0.26300",
+  "observed": {
+    "pipe_exists": true,
+    "pipe_opened": true,
+    "frame_read": false,
+    "no_answer": true,
+    "thread_given": false
+  },
+  "note": "a read-only look at the Desktop's IPC pipe: it is never written to. Confirm whether a turn of a conversation the app holds can be started, interrupted, or added to through it - stop-now and send-now wait on this answer - then set the verdict",
+  "completion": {
+    "verdict": "pass",
+    "note": "as_expected",
+    "recorded_at": "2026-11-07T16:55Z"
+  }
+}

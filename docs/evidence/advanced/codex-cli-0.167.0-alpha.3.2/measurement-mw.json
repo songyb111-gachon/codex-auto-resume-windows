@@ -1,0 +1,17 @@
+{
+  "format": "codex-auto-resume-measurement/1",
+  "step": "mw",
+  "verdict": "pass",
+  "recorded_at": "2026-11-07T16:02Z",
+  "product_version": "0.6.22-beta.2",
+  "codex_version": "codex-cli 0.167.0-alpha.3.2",
+  "windows_build": "10.0.26300",
+  "observed": {
+    "wmi_started": true,
+    "in_job": true,
+    "job_kills_on_close": false,
+    "kill_on_close": true,
+    "survived_codex_close": true,
+    "thread_given": false
+  }
+}

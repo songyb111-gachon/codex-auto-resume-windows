@@ -1,0 +1,20 @@
+{
+  "format": "codex-auto-resume-measurement/1",
+  "step": "m2",
+  "verdict": "blocked",
+  "recorded_at": "2026-11-07T16:44Z",
+  "product_version": "0.6.22-beta.2",
+  "codex_version": "codex-cli 0.167.0-alpha.3.2",
+  "windows_build": "10.0.26300",
+  "observed": {
+    "goal_read": true,
+    "goal_set": true,
+    "thread_given": true
+  },
+  "note": "confirm the Desktop continued the goal at its next idle, then set the verdict",
+  "completion": {
+    "verdict": "fail",
+    "note": "partial",
+    "recorded_at": "2026-11-07T16:46Z"
+  }
+}

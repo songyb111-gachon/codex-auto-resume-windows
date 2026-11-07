@@ -1,0 +1,28 @@
+{
+  "format": "codex-auto-resume-measurement/1",
+  "step": "mr",
+  "verdict": "blocked",
+  "recorded_at": "2026-10-10T19:17Z",
+  "product_version": "0.6.14",
+  "codex_version": "codex-cli 0.162.0-alpha.17.2",
+  "windows_build": "10.0.26300",
+  "observed": {
+    "may_spend": true,
+    "limit_reached": true,
+    "has_credits": true,
+    "first_outcome": "reset",
+    "count_down_by_one": true,
+    "five_hour_changed": false,
+    "weekly_changed": false,
+    "ordinary_usage_allowed": false,
+    "second_outcome": "already_redeemed",
+    "count_unchanged_on_retry": true,
+    "thread_given": false
+  },
+  "note": "send a message in Codex and confirm it runs - the limit lifted -, then set the verdict",
+  "completion": {
+    "verdict": "pass",
+    "note": "as_expected",
+    "recorded_at": "2026-10-10T19:18Z"
+  }
+}

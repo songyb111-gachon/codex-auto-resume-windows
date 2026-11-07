@@ -1,0 +1,24 @@
+{
+  "format": "codex-auto-resume-measurement/1",
+  "step": "mu",
+  "verdict": "blocked",
+  "recorded_at": "2026-10-12T16:37Z",
+  "product_version": "0.6.14",
+  "codex_version": "codex-cli 0.162.0-alpha.17.2",
+  "windows_build": "10.0.26300",
+  "observed": {
+    "windows_read": true,
+    "count_read": true,
+    "details_with_full_read": true,
+    "details_left_out": true,
+    "running_windows": 1,
+    "max_drift_seconds": 0,
+    "thread_given": false
+  },
+  "note": "use no Codex from ten minutes before the 5-hour reset /usage shows until after it, then send one short message in a throwaway conversation: confirm /usage shows the 5-hour window reset about five hours after that message, then set the verdict",
+  "completion": {
+    "verdict": "pass",
+    "note": "as_expected",
+    "recorded_at": "2026-10-12T16:43Z"
+  }
+}

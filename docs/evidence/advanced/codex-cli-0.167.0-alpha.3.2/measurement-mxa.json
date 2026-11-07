@@ -1,0 +1,22 @@
+{
+  "format": "codex-auto-resume-measurement/1",
+  "step": "mxa",
+  "verdict": "blocked",
+  "recorded_at": "2026-11-07T16:42Z",
+  "product_version": "0.6.22-beta.2",
+  "codex_version": "codex-cli 0.167.0-alpha.3.2",
+  "windows_build": "10.0.26300",
+  "observed": {
+    "history_read": true,
+    "compaction_only": true,
+    "user_item_present": false,
+    "turn_status": "completed",
+    "thread_given": true
+  },
+  "note": "confirm the latest turn is the /compact you ran, then set the verdict",
+  "completion": {
+    "verdict": "pass",
+    "note": "as_expected",
+    "recorded_at": "2026-11-07T16:42Z"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "format": "codex-auto-resume-measurement/1",
+  "step": "mcloud",
+  "verdict": "blocked",
+  "recorded_at": "2026-11-07T16:11Z",
+  "product_version": "0.6.22-beta.2",
+  "codex_version": "codex-cli 0.167.0-alpha.3.2",
+  "windows_build": "10.0.26300",
+  "observed": {
+    "cloud_help_read": true,
+    "cloud_command_present": true,
+    "state_read_present": true,
+    "thread_given": false
+  },
+  "note": "a read-only look for a `codex cloud` command and a supported way to read a cloud task's state. Confirm against Codex, then set the verdict",
+  "completion": {
+    "verdict": "fail",
+    "note": "partial",
+    "recorded_at": "2026-11-07T16:18Z"
+  }
+}

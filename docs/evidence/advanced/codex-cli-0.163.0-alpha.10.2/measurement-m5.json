@@ -1,0 +1,19 @@
+{
+  "format": "codex-auto-resume-measurement/1",
+  "step": "m5",
+  "verdict": "blocked",
+  "recorded_at": "2026-10-16T19:13Z",
+  "product_version": "0.6.16-beta.3",
+  "codex_version": "codex-cli 0.163.0-alpha.10.2",
+  "windows_build": "10.0.26300",
+  "observed": {
+    "queue_listed": true,
+    "thread_given": true
+  },
+  "note": "with a TUI server and an IDE server each holding a thread, confirm each dispatches a codex queue item, then set the verdict",
+  "completion": {
+    "verdict": "pass",
+    "note": "as_expected",
+    "recorded_at": "2026-10-16T19:18Z"
+  }
+}

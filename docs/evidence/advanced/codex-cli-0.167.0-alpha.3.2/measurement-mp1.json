@@ -1,0 +1,23 @@
+{
+  "format": "codex-auto-resume-measurement/1",
+  "step": "mp1",
+  "verdict": "blocked",
+  "recorded_at": "2026-11-07T16:55Z",
+  "product_version": "0.6.22-beta.2",
+  "codex_version": "codex-cli 0.167.0-alpha.3.2",
+  "windows_build": "10.0.26300",
+  "observed": {
+    "servers": 1,
+    "named_lookup": true,
+    "server_listed": true,
+    "template_kept": true,
+    "entrypoint_kept": true,
+    "thread_given": false
+  },
+  "note": "open a throwaway conversation's right side panel, New tab, More tools...: confirm Open Auto Resume settings is under Plugins and MCPs and opens the panel with the state the Dashboard shows, then set the verdict",
+  "completion": {
+    "verdict": "pass",
+    "note": "as_expected",
+    "recorded_at": "2026-11-07T16:56Z"
+  }
+}

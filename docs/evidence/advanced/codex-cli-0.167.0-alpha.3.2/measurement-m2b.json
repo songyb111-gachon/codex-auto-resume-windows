@@ -1,0 +1,24 @@
+{
+  "format": "codex-auto-resume-measurement/1",
+  "step": "m2b",
+  "verdict": "blocked",
+  "recorded_at": "2026-11-07T16:47Z",
+  "product_version": "0.6.22-beta.2",
+  "codex_version": "codex-cli 0.167.0-alpha.3.2",
+  "windows_build": "10.0.26300",
+  "observed": {
+    "goal_found": true,
+    "goal_was_active": false,
+    "goal_set_active": true,
+    "queue_add_accepted": true,
+    "queued_turn_taken": true,
+    "goal_active_after": true,
+    "thread_given": true
+  },
+  "note": "watch the conversation: confirm the queued turn ran and the goal stayed active and carried on after it, then set the verdict",
+  "completion": {
+    "verdict": "pass",
+    "note": "as_expected",
+    "recorded_at": "2026-11-07T16:48Z"
+  }
+}
