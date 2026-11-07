@@ -33,6 +33,7 @@ import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
+LOCALES = ROOT / "src" / "codex_auto_resume" / "locales"
 _BUILD = str(ROOT / "build")
 if _BUILD not in sys.path:
     sys.path.insert(0, _BUILD)
@@ -613,7 +614,10 @@ function Pump($window, $limit) {
 }
 function Calls() { if (Test-Path -LiteralPath $env:CAR_STUB_LOG) { @(Get-Content -LiteralPath $env:CAR_STUB_LOG).Count } else { 0 } }
 function LinkOf($desktop) { Join-Path $desktop 'Codex Auto Resume.lnk' }
-function Digest($path) { if (Test-Path -LiteralPath $path) { (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash } else { '' } }
+# .NET, never Get-FileHash: that cmdlet fails to resolve under the CI runner's PSModulePath.
+function Digest($path) { if (-not (Test-Path -LiteralPath $path)) { return '' }
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try { ([BitConverter]::ToString($sha.ComputeHash([IO.File]::ReadAllBytes($path))) -replace '-', '') } finally { $sha.Dispose() } }
 
 # One run of the window to its Finish page, then the Finish button once the box is set: `tick` is $true, $false or $null
 # (left as it is). The window is built and never shown; its worker's answer is pumped in.
@@ -966,7 +970,7 @@ class SourceTests(unittest.TestCase):
     WINDOW = (ROOT / "gui" / "InstallerWindow.cs").read_text(encoding="utf-8")
 
     def test_the_word_is_a_finish_key_in_every_language_and_not_an_options_key(self):
-        locales = sorted((ROOT / "src" / "codex_auto_resume" / "locales").glob("*.json"))
+        locales = sorted(LOCALES.glob("*.json"))
         self.assertEqual(len(locales), 18)
         for path in locales:
             with self.subTest(path.stem):
