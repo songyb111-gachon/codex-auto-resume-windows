@@ -596,6 +596,23 @@ function Resolve-OutsideRun {
 }
 # <<< the outside gate
 
+function Release-PickLockForRunOutside {
+    <#
+        The install lock a pick holds, let go of just before the installer runs - where that installer will relaunch
+        itself outside another app's private view (v0.6.23 audit, N6). The relaunched copy is another process, and its
+        WaitOne(0) on a mutex this process owns fails: "Another Codex Auto Resume installation is already running", so a
+        pick from inside the Codex app or Claude desktop could never succeed. Where the installer runs here, on this
+        thread, it takes the lock again as its owner, and the lock is kept to the end as before. Returns whether the lock
+        is still held.
+    #>
+    param($Lock, [bool]$Held)
+    if (-not $Held -or $env:CODEX_AUTO_RESUME_OUTSIDE -eq '1') { return $Held }
+    $app = $null
+    try { $app = Find-PackagedAncestor -Table (Get-ProcessTable -Self $PID) -Self $PID } catch { $app = $null }
+    if (-not $app) { return $Held }
+    try { $Lock.ReleaseMutex(); return $false } catch { return $Held }
+}
+
 function Get-Sha256 {
     <#
         The digest of a downloaded archive, computed with .NET rather than `Get-FileHash`.
@@ -615,7 +632,7 @@ function Get-Sha256 {
     param([string]$Path)
     $sha = [Security.Cryptography.SHA256]::Create()
     try {
-        $stream = [IO.File]::OpenRead((Resolve-Path $Path))
+        $stream = [IO.File]::OpenRead((Resolve-Path -LiteralPath $Path))
         try { return [BitConverter]::ToString($sha.ComputeHash($stream)).Replace('-', '').ToLower() }
         finally { $stream.Dispose() }
     } finally { $sha.Dispose() }
@@ -623,8 +640,8 @@ function Get-Sha256 {
 
 function Read-Json {
     param([string]$Path)
-    if (-not (Test-Path $Path)) { throw ('This plugin is incomplete: ' + $Path + ' is missing.') }
-    return Get-Content -Path $Path -Raw -Encoding UTF8 | ConvertFrom-Json
+    if (-not (Test-Path -LiteralPath $Path)) { throw ('This plugin is incomplete: ' + $Path + ' is missing.') }
+    return Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
 }
 
 function Get-PluginVersion {
@@ -1021,8 +1038,12 @@ function Get-PublishedPrereleases {
         deadline of $TimeoutSec. An entry counts only when it is published (`draft` false), a
         pre-release (`prerelease` true) and tagged `v` and a version Get-PrereleaseVersion accepts;
         anything else in the list, or about an entry, is passed over.
+
+        With -Edition, an entry counts only when that edition's archive is among its uploaded assets, and its checksum
+        too where the digest is not pinned - the rule the picker applies (Get-VersionVerdict): a pre-release whose archive
+        is not uploaded yet was offered, said yes to, and downloaded to a 404 (v0.6.23 audit, N8). Without it, as before.
     #>
-    param($Release, [int]$TimeoutSec = 15)
+    param($Release, [int]$TimeoutSec = 15, [string]$Edition = '')
     foreach ($name in @('owner', 'repo', 'releases')) {
         if (-not $Release.PSObject.Properties.Match($name).Count) {
             throw ('scripts/release.json has no "' + $name + '", so there is no list to read.')
@@ -1039,7 +1060,22 @@ function Get-PublishedPrereleases {
         if ($entry.prerelease -isnot [bool] -or -not $entry.prerelease) { continue }
         $tag = $entry.tag_name
         if ($tag -isnot [string] -or -not $tag.StartsWith('v', [StringComparison]::Ordinal)) { continue }
-        try { $found += ,(Get-PrereleaseVersion $tag.Substring(1)) } catch { continue }
+        $number = $null
+        try { $number = Get-PrereleaseVersion $tag.Substring(1) } catch { continue }
+        if ($Edition) {
+            $template = Get-EditionRelease -Release $Release -Edition $Edition
+            if (-not $fields.Match('assets').Count -or $null -eq $entry.assets -or $entry.assets -isnot [array]) { continue }
+            $names = @()
+            foreach ($asset in $entry.assets) {
+                if ($asset -isnot [Management.Automation.PSCustomObject]) { continue }
+                if (-not $asset.PSObject.Properties.Match('name').Count -or $asset.name -isnot [string]) { continue }
+                $names += ,$asset.name
+            }
+            $archive = $template.archive.Replace('{version}', $number)
+            if ($names -cnotcontains $archive) { continue }
+            if (-not (Get-PinnedDigest -Release $template -Version $number) -and $names -cnotcontains ($archive + '.sha256')) { continue }
+        }
+        $found += ,$number
     }
     return ,$found
 }
@@ -1051,9 +1087,9 @@ function Get-NewerPrerelease {
         where the list cannot be read, and the caller takes that as nothing to offer, never as an
         answer about the release.
     #>
-    param($Release, [string]$Installed, [string]$Stable, [int]$TimeoutSec = 15)
+    param($Release, [string]$Installed, [string]$Stable, [int]$TimeoutSec = 15, [string]$Edition = '')
     $best = $null
-    foreach ($candidate in (Get-PublishedPrereleases -Release $Release -TimeoutSec $TimeoutSec)) {
+    foreach ($candidate in (Get-PublishedPrereleases -Release $Release -TimeoutSec $TimeoutSec -Edition $Edition)) {
         if ((Compare-ProductVersion -Left $candidate -Right $Installed) -le 0) { continue }
         if ((Compare-ProductVersion -Left $candidate -Right $Stable) -le 0) { continue }
         if ($null -eq $best -or (Compare-ProductVersion -Left $candidate -Right $best) -gt 0) { $best = $candidate }
@@ -1834,7 +1870,7 @@ function Test-Archive {
                   'install/install.ps1',
                   'Install.cmd')
     Add-Type -AssemblyName System.IO.Compression.FileSystem
-    $archive = [IO.Compression.ZipFile]::OpenRead((Resolve-Path $Zip))
+    $archive = [IO.Compression.ZipFile]::OpenRead((Resolve-Path -LiteralPath $Zip))
     try {
         $names = @($archive.Entries.FullName)
         foreach ($entry in $required) {
@@ -2004,6 +2040,9 @@ function Invoke-InstalledSetup {
         if ($null -ne $outsideCode) { return [pscustomobject]@{ Printed = @(); Code = $outsideCode } }
     }
     $ErrorActionPreference = 'Continue'
+    # Nothing, until the interpreter sets it: one that cannot be started left the last native call's code here, which
+    # read as success (v0.6.23 audit, N5); null is 1 below, and under Set-StrictMode the variable now always exists.
+    $global:LASTEXITCODE = $null
     $printed = @(& $python -X disable-remote-debug $setup @Arguments)
     $code = $LASTEXITCODE
     if ($null -eq $code) { $code = 1 }
@@ -2418,7 +2457,7 @@ if ($Version) {
     }
     Step 'Asking api.github.com for this repository''s list of releases, for the pre-release.'
     $listed = $null
-    try { $listed = Get-PublishedPrereleases -Release $release -TimeoutSec $ReleasesVersionTimeout }
+    try { $listed = Get-PublishedPrereleases -Release $release -TimeoutSec $ReleasesVersionTimeout -Edition $targetEdition }
     catch {
         Fail ('The list of releases could not be read (' + $_.Exception.Message + ').')
         Write-Host 'update: unavailable'
@@ -2483,7 +2522,8 @@ if ($CheckOnly -or $Update) {
         } else {
             Step 'Asking api.github.com for this repository''s list of releases, for a newer pre-release.'
             try {
-                $prerelease = Get-NewerPrerelease -Release $release -Installed $current -Stable $newest -TimeoutSec $listTimeout
+                $prerelease = Get-NewerPrerelease -Release $release -Installed $current -Stable $newest -TimeoutSec $listTimeout `
+                                                  -Edition $targetEdition
             } catch {
                 Step 'The list of releases could not be read, so no pre-release is offered. The answer below does not depend on it.'
                 Write-ReleasesUnread
@@ -2665,7 +2705,7 @@ try {
     } else {
         $sidecar = $zip + '.sha256'
         Get-Remote -Uri ($base + $name + '.sha256') -OutFile $sidecar -What 'The checksum'
-        $recorded = ((Get-Content $sidecar -Raw) -split '\s+')[0].Trim().ToLower()
+        $recorded = ((Get-Content -LiteralPath $sidecar -Raw) -split '\s+')[0].Trim().ToLower()
         if ($recorded -notmatch '^[0-9a-f]{64}$') { throw 'The published checksum file is not a SHA-256.' }
         if ($actual -ne $recorded) { throw 'The download does not match its published checksum.' }
         Ok 'SHA-256 matches the checksum published beside it (no pinned digest for this version)'
@@ -2675,7 +2715,7 @@ try {
     Ok ('Archive contents verified as Codex Auto Resume v' + $target)
 
     $unpacked = Join-Path $work 'unpacked'
-    [IO.Compression.ZipFile]::ExtractToDirectory((Resolve-Path $zip), $unpacked)
+    [IO.Compression.ZipFile]::ExtractToDirectory((Resolve-Path -LiteralPath $zip), $unpacked)
 
     # What is new, from the archive just verified, and the person's word before anything is installed. The folder is
     # this run's own and goes with it; the caller reads the changelog there while this waits.
@@ -2758,10 +2798,21 @@ try {
     # been touched. It reports and rolls back its own work; this script must not claim
     # otherwise on its way out.
     $started = $true
-    if ($progressLines) { $env:CODEX_AUTO_RESUME_PROGRESS_LINES = '1' }
-    & $installer @arguments
-    $code = $LASTEXITCODE
-    if ($null -eq $code) { $code = 0 }
+    if ($Pick) { $pickHeld = Release-PickLockForRunOutside -Lock $pickLock -Held $pickHeld }
+    # A throw out of the installer - an unreadable journal, a codex.exe that cannot start - is a failed installer like a
+    # non-zero code, so a pick below puts back what it changed in either case (v0.6.23 audit, N2); it used to cross
+    # this line into the catch at the end, which only reports, and left the watcher off and the state converted.
+    try {
+        if ($progressLines) { $env:CODEX_AUTO_RESUME_PROGRESS_LINES = '1' }
+        & $installer @arguments
+        $code = $LASTEXITCODE
+        if ($null -eq $code) { $code = 0 }
+    } catch {
+        Write-Host ''
+        Fail $_.Exception.Message
+        Step 'The installer had already started; read its messages above.'
+        $code = 1
+    }
     if ($Pick -and $code -eq 0) { Write-Host ('pick: installed ' + $target + ' ' + $targetEdition) }
     # A failed pick leaves the version that was installed as it was: its state, its entry in Add or remove programs
     # and its watcher (v0.6.18 installer audit, R4). The exit code stays the installer's.
@@ -2781,5 +2832,5 @@ try {
 } finally {
     # The download is deleted whether it was used or not: a rejected archive should not
     # be left on disk where someone could run it by hand.
-    Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue
+    Remove-Item -Recurse -Force -LiteralPath $work -ErrorAction SilentlyContinue
 }

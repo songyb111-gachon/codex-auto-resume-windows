@@ -818,7 +818,8 @@ checks the standard edition's code (`tests/test_privacy_claims.py`), and what it
 anything, they ask of the Codex already on this machine - but for the compatibility report, which asks
 gh, the GitHub CLI you installed, to reach GitHub, and only when you start it (*What it sends to
 GitHub*, below); and, from v0.6.20, the courier, the advanced edition's only network code, which runs
-only while push notices or the status feed is on (*What the courier sends*, below).
+only while push notices, the status feed, the status server or Telegram's commands are on (*What the courier sends* and
+*What the status server shows*, below).
 
 - **What the courier sends** (v0.6.20). With *Send notices to your phone or inbox* on, a notice you
   picked - a usage limit detected, a recovery done or failed, a conversation that needs you, the
@@ -842,6 +843,20 @@ only while push notices or the status feed is on (*What the courier sends*, belo
   reads the other `.json` files there, at most 16 of at most 16 KiB; one that is not exactly this shape is ignored and
   counted, and shows nowhere. It refuses a folder inside this program's folder or Codex's, a link or junction, and a
   network path. Turned off, nothing more is written or read and this PC's file stays in the folder until you delete it.
+
+- **What the status server shows** (v0.6.22). With *Read this PC's status from a browser or a script* on, a program on this
+  PC holding its token can read what the status file holds - whether the watcher runs, whether recovery is on, how many
+  recoveries wait and at which state, the next check, usage as last read - and the waiting recoveries as `task 1`, `task 2`,
+  never a conversation's title or words, a project, a path, an id or an account. The token is kept in Windows Credential
+  Manager; the address the card copies carries it, so that address is as private as the token. Nothing is logged. With
+  *Open the status server to your local network* on too, the same is open to whoever on your network holds the token, over
+  a connection that is not encrypted, so the token and the status can be read by anyone watching that network.
+
+- **What Telegram sees of its commands** (v0.6.22). With *Control recovery from Telegram* on, the process reads your bot's
+  messages through api.telegram.org and answers the chat you paired: how many recoveries wait, their state words, `task N` and
+  the time of the next check - never a conversation's title or words, a project, a path, an id or an account. Telegram sees
+  the bot's token, this PC's address, every command and every answer. Messages from other chats are read only to be ignored:
+  nothing of them is kept but a count.
 
 - **What it reads.** Three values an administrator may set under
   `Software\Policies\CodexAutoResume`, in `HKEY_LOCAL_MACHINE` and `HKEY_CURRENT_USER` -
@@ -884,14 +899,25 @@ only while push notices or the status feed is on (*What the courier sends*, belo
   app server on this PC, started by this program and signed in as you, under the conversation's own
   saved settings. Like every turn it reaches OpenAI through Codex. The program reads only the kinds of
   items the turn left and Codex's error codes, never what anyone wrote.
+- **Saved Codex accounts.** One feature, off until you turn it on, switches between your own Codex
+  accounts at a usage limit, and is the one exception to this page's word that the program never sees
+  your sign-in: for each account you save it keeps a copy of Codex's sign-in file `auth.json`, with the
+  account's address and plan, sealed for your Windows user, in the installation's `accounts` folder,
+  and reads each saved account's usage on a private Codex home there. The Dashboard shows the address
+  masked; nothing of it goes into the settings, a log, diagnostics, a report or anywhere else. Delete
+  them on their card at any time - the feature on, off or hidden - or with an uninstall that deletes
+  the settings. Turning it off stops every switch, with one exception: a switch that did not finish is
+  still undone - the account signed in before it is put back - and nothing else is switched.
+  A change to the standard edition keeps the saved accounts, unused, and the setup window says so; a box
+  there, off unless you tick it, deletes them with the change.
 - **What it stores.** `config/advanced/advanced.sqlite`, made only when something is first turned
   on or changed: each capability's state, since when, from which surface and why, the statement
   revision and the Codex version it was turned on for, and the warnings confirmed; each unit a
   capability spent, with the ids of the conversation and interruption it spent it on; the edition's
   own records and what a capability asked of a standard one, as ids, states and times; the global
   ceiling a person set; a journal and per-day counts of closed codes, bounded as the standard
-  journal is, and what a watched capability would have done at most 115 lines each (180 until
-  v0.6.16-beta.4, then 150, 140 and 130 as capabilities were added); and, for the
+  journal is, and what a watched capability would have done at most 110 lines each (180 until
+  v0.6.16-beta.4, then 150, 140, 130, 120 and 115 as capabilities were added); and, for the
   capabilities that use them, the choices you made, the rules you wrote (an
   error code, status numbers, a kind), which capability took up which interruption, and samples of
   failures it could not classify: Codex's error code, the status number, the form of the error, item
@@ -965,7 +991,8 @@ instead, as all your Codex conversations do.
 
 **The services you choose for push notices**, in the advanced edition, once you turn *Send notices
 to your phone or inbox* on: the ntfy topic, the webhook, the Telegram bot or the e-mail server you
-set up, each sent only the short closed message described under *What the courier sends*, above.
+set up, each sent only the short closed message described under *What the courier sends*, above. **Telegram**, once you turn
+*Control recovery from Telegram* on as well: the commands your paired chat sends and the closed answers, described above.
 
 **Other marketplace hosts**, through Codex's marketplace refresh at install: a surviving
 registration named `codex-auto-resume-windows` is refreshed from wherever it points, and the

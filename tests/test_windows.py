@@ -306,7 +306,8 @@ class BackendTests(unittest.TestCase):
         self.assertIs(popen.call_args.kwargs["shell"], False)
 
     def test_remote_not_used_for_other_home_or_unproven_daemon(self):
-        """Wrong home, stale process, old CLI or unreadable inventory keeps old behavior."""
+        """Wrong home, stale process or old CLI keeps old behavior. v0.6.23 (audit C5): an unreadable inventory no
+        longer does - the send is not started (tests/test_queue_remote_route.py)."""
         self.backend.queue_remote_supported = True
         own = str(self.backend.codex_home / "packages" / "app-server-daemon" /
                   "releases" / "0.164.0" / "bin" / "codex.exe")
@@ -315,8 +316,7 @@ class BackendTests(unittest.TestCase):
                 (False, [{"pid": 10, "path": own}], None),
                 (True, [{"pid": 10, "path": foreign}], None),
                 (True, [{"pid": 0, "path": own}], None),
-                (True, [{"pid": 10, "path": own + ".old"}], None),
-                (True, None, w.AdapterError("process_inventory_unavailable"))):
+                (True, [{"pid": 10, "path": own + ".old"}], None)):
             with self.subTest(version_support=version_support, rows=rows, error=error):
                 self.backend.queue_remote_supported = version_support
                 process = MagicMock(returncode=0)

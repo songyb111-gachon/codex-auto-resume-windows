@@ -16,7 +16,7 @@ from codex_auto_resume.domain.plug import Edition, Plug, Point
 
 # Written out rather than read from core. The check is whether this package was written for the
 # core beside it, and a number taken from that core would agree with any core at all.
-PLUG_API = 7
+PLUG_API = 8
 
 
 class AdvancedPlug(Plug):
@@ -63,6 +63,10 @@ class AdvancedPlug(Plug):
 
     def tick(self, view):
         return self.runtime.tick(view)
+
+    def resident(self, view):
+        """P22 (v0.6.22): while recovery is paused, the residents that declare they send nothing (runtime.py)."""
+        return self.runtime.resident(view)
 
     def start_route(self, request):
         return self.runtime.start_route(request)

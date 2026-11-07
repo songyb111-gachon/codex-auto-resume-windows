@@ -96,7 +96,7 @@ jobs:
 
       # The tested commit's own merge, with no token: it writes the table only on enough of a gain or a stale figure.
       # --parts is each lane's own PARTS: test.yml deals the standard lane into 4 and the advanced into 6,
-      # and release.yml and the main-tree job deal the release lane into 5.
+      # and release.yml and the main-tree job deal the release lane into 6.
       - name: Weigh a new deal
         id: weigh
         if: steps.check.outputs.go == 'yes'

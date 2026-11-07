@@ -3,8 +3,8 @@
 The card is the Settings page's own pieces - a group, help lines, flat check rows and card buttons - so it takes both
 themes, both designs and the Arabic and Hebrew mirror from the page; it draws no colour, icon or tile of its own. Every
 word it says is in statement.PAGE_KEYS and every catalog, and every bridge command it sends is one control/autoswitch.py
-answers, with only the arguments the bridge takes. The capability waits hidden in registry.WAITING, so no window shows
-the card yet; the page audit is handed its fullest data (pagecase.audit_data) for when it is offered.
+answers, with only the arguments the bridge takes. The capability waited hidden in registry.WAITING until MPROFILE and
+MSWAP passed (2026-11-06) and is offered now; the page audit is handed its fullest data (pagecase.audit_data).
 
     CODEX_AR_EDITION=advanced PYTHONPATH="src;advanced/src" python -m unittest discover -s advanced/tests
 """

@@ -36,8 +36,10 @@ class HiddenTests(unittest.TestCase):
         (a pass would not offer it)."""
         self.assertIs(registry.REGISTRY.get("open_to_send"), OPEN_TO_SEND)
         self.assertEqual(measured.MEASURED[Measurement.MOPEN][0], Verdict.PASS)
-        self.assertEqual(offered(measured.MEASURED), (OPEN_TO_SEND,))
-        self.assertEqual(registry.REGISTRY.ids[-1], "open_to_send", "offered after DEFINITIONS")
+        # Among the others the measurements let out (v0.6.22: the automatic account switch after MPROFILE and MSWAP).
+        self.assertIn(OPEN_TO_SEND, offered(measured.MEASURED))
+        self.assertGreaterEqual(registry.REGISTRY.ids.index("open_to_send"), len(registry.DEFINITIONS),
+                                "offered after DEFINITIONS")
         self.assertNotIn(OPEN_TO_SEND, registry.DEFINITIONS)
         self.assertIn((OPEN_TO_SEND, Measurement.MOPEN), registry.WAITING)
         self.assertEqual(offered({}), ())

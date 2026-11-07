@@ -2,9 +2,9 @@
   "format": "codex-auto-resume-measurement/1",
   "step": "mhk",
   "verdict": "pass",
-  "recorded_at": "2026-10-31T11:50Z",
-  "product_version": "0.6.20-beta.4",
-  "codex_version": "codex-cli 0.166.0-alpha.5.1",
+  "recorded_at": "2026-11-05T12:48Z",
+  "product_version": "0.6.21",
+  "codex_version": "codex-cli 0.166.0-alpha.6",
   "windows_build": "10.0.26300",
   "observed": {
     "features_read": true,

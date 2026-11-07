@@ -75,11 +75,11 @@ record that it was claimed and the last look before it stay the standard edition
 
 **Ceilings.** Each capability may send only so many times a day, in all and in any one
 conversation, counted when the send is claimed. Over them stands one ceiling for all capabilities
-together, 12 sends an hour - a send counts once, however many capabilities answered for it - which you can
-lower on the page, as far as one an hour, and never raise past 12. The page shows a capability's own ceilings beside its statement. Every send also counts
+together, 24 sends an hour - a send counts once, however many capabilities answered for it - which you can
+lower on the page, as far as one an hour, and never raise past 24. The page shows a capability's own ceilings beside its statement. Every send also counts
 against the standard edition's own limits for the conversation: five in any 24 hours, at least 15
 minutes apart (A20) - except where a capability says it departs from A20: a send of the short retries
-when Codex is at capacity counts against the program's own capacity limits instead, 48 a day, a minute
+when Codex is at capacity counts against the program's own capacity limits instead, 96 a day, a minute
 apart, and Send now skips the 15 minutes for the one recovery you choose, still within the five a day.
 
 **Two capabilities, one send.** Two capabilities may answer for the same send in ways Codex cannot carry together.
@@ -91,6 +91,20 @@ its own cases; where a capability's section below says two apply together, both 
 your version of Codex, a compatibility grade of Failed here, Incompatible or Unknown, or a Codex
 version not known yet is shown in its statement as a warning. It does not stop you turning the
 capability on; turning it on confirms you read it (K6).
+
+**Checked automatically.** When the Codex in force changes, the watcher asks that Codex once for its version, its own
+list of calls (its generated app-server schema) and its feature list, and for nothing else. It runs on an empty scratch
+Codex home with no sign-in, which it then removes, with no window, and starts no app server, turn or sign-in. A run with
+no answer waits six hours, three tries for one build. This is not a measurement, and it says so. Where a person measured a capability
+on an earlier Codex and its route is this edition's own calls on its own server, a pass reads *Compatible: checked
+automatically on this Codex*, says the check cannot see how Codex behaves, and names the Codex a person last measured that
+on; *Compatible: measured by a person on this Codex* is a different line. Five capabilities can read this way: a turn run here,
+another model at capacity, a reset credit at the limit you pick, your own message at a reset, and the usage meter. Most of
+what a measurement asks only the app, a usage limit, a sign-in, a real conversation or a person's eyes can answer, so those
+stay as they are, with the warning: where the calls are all still there, a line says that this cannot settle it. An
+automatic pass never turns a failed measurement into a pass (a line says so), never widens a route a measurement narrows,
+and never lets a hidden capability out. A call gone from the schema is a warning at once, for every capability that makes
+it, and turns off one whose route rests on it as any such warning does.
 
 **Tripwires.** A capability turns itself off when its statement gets a new revision; when a warning
 you did not confirm says that what it stands on went wrong; when one of its parts fails; when a send
@@ -130,21 +144,23 @@ interruption, the samples of failures it could not classify, the reset rules and
 the usage windows - and, until each is sent, cancelled or ended, the words of a message you wrote for a
 reset - are kept in
 `config/advanced/advanced.sqlite`, in fixed words, ids, numbers and Codex's own error codes - never a
-word of an error or a conversation, and of yours only a message waiting for a reset - and nothing of it is written into the standard edition's state. Its only network code is the courier, which runs only while *Send notices to your phone or inbox* or *Show OpenAI's service status* is on (below). Two capabilities cause GitHub traffic: the compatibility report asks gh - the GitHub CLI you
+word of an error or a conversation, and of yours only a message waiting for a reset - and nothing of it is written into the standard edition's state. Its only network code is the courier, which runs only while *Send notices to your phone or inbox*, *Show OpenAI's service status*, *Read this PC's status from a browser or a script* or *Control recovery from Telegram* is on (below). Two capabilities cause GitHub traffic: the compatibility report asks gh - the GitHub CLI you
 installed - to reach GitHub, and only when you start it in the Dashboard (below), and
 *Check for updates once a week* runs the installed `bootstrap.ps1 -CheckOnly` once a week (below). Its archive also carries
 the harness the project uses to measure whether a capability's route works on a given version of
 Codex; nothing runs it unless a person asks, and [SECURITY.md](SECURITY.md) says what it does.
 
-One capability stores secrets: *Send notices to your phone or inbox* keeps the addresses, tokens and passwords
-you type for it in Windows' Credential Manager, under names of its own, and never in its database, a settings
-file or a log. That is the package's one way to keep a secret, and it never reads Codex's own credentials.
+Two capabilities store secrets: *Send notices to your phone or inbox* keeps the addresses, tokens and passwords
+you type for it, and *Read this PC's status from a browser or a script* the token it makes, in Windows' Credential
+Manager, under names of their own, and never in its database, a settings file or a log. That is the package's one way
+to keep a secret, and it never reads Codex's own credentials.
 
 ## Today's capabilities
 
-Forty-three: twenty-three that change how a recovery is made, which conversations are recovered or what
+Forty-eight: twenty-three that change how a recovery is made, which conversations are recovered or what
 follows a turn, two that tell you elsewhere - notices sent to your phone or inbox, and OpenAI's service status
-on the Overview (v0.6.20) - one that shows where your usage and tokens go (v0.6.20), three that send at a time you
+on the Overview (v0.6.20) - three that let a browser or a script of yours read how this PC stands, pause and cancel,
+and reach it from your network, and two that take commands from the Telegram chat you paired (v0.6.22) - one that shows where your usage and tokens go (v0.6.20), three that send at a time you
 pick - the two at a usage reset, and queued messages - one that adds a line to the turn running now (v0.6.20; the
 Codex app does not show that line, only History does) - three
 before a usage limit is reached - the usage meter, and the wrap-up and the forced stop that need it - one that
@@ -276,7 +292,7 @@ marker is found), [B3](STANDARDS.md#b-what-it-reads-and-how) (Codex's state chan
 queue, the withdrawal of a queued message and the plugin commands) and B4 (the app server is asked
 only for usage and to withdraw a queued message).
 
-**Ceilings.** 24 a day, and 5 in any one conversation - the standard edition's own limit for a
+**Ceilings.** 48 a day, and 5 in any one conversation - the standard edition's own limit for a
 conversation.
 
 **Measurement M7: passed.** The app server accepted a message added with such an id, and delivered
@@ -322,7 +338,7 @@ the watcher's own claim decides a send), A26 (a continuation is a message added 
 the hook's declaration in the plugin copies) and [F6](STANDARDS.md#f-footprint-on-the-machine) (Codex starts the
 hook's program, which is not a listed process).
 
-**Ceilings.** 24 a day, and 5 in any one conversation - each continuation of the hook's counts as a claim toward the
+**Ceilings.** 48 a day, and 5 in any one conversation - each continuation of the hook's counts as a claim toward the
 standard edition's five a day and fifteen minutes apart, as the watcher's count toward the hook's. **Measurements
 MHK, M4 and M4B: not passed** - M4 failed on `codex-cli 0.162.0-alpha.17.2` (2026-10-10), where no plugin Stop hook
 existed to run, and again on `codex-cli 0.166.0-alpha.5.1` (2026-10-31), where Codex ran the hook after a completed
@@ -357,9 +373,16 @@ turns itself off. Turning it off leaves a goal it already set active as it is: p
 Codex to stop it.
 
 **Departs from** [0.5](STANDARDS.md#0-the-edition-boundary) (a goal's state is never changed), A2
-(one channel only), A11 (nothing is done for a conversation the app does not have open), B3 and B4.
+(one channel only), A11 (nothing is done for a conversation the app does not have open), A20 (at most five
+continuations a conversation in 24 hours), B3, B4 and [H2](STANDARDS.md#h-user-control) (nothing can move a limit
+the program fixes: A20's are the engine's).
 
-**Ceilings.** 12 a day, and 3 in any one conversation.
+**Ceilings.** 24 a day, and 5 in any one conversation. A continuation at a usage-limit reset the watcher verified - the
+interruption was a usage limit, its expected reset has passed, and the usage reading taken before the send shows room -
+counts toward neither the 5 in one conversation nor the standard edition's five a day, so a goal paused at every reset
+is set active again at every one. The 15 minutes between two continuations, the 24 a day, the hourly ceiling over every
+advanced feature and every recovery gate still hold, and a continuation that answers no verified reset - one after a
+failed turn, or one with no reset time - counts toward the 5 as before.
 
 **Measurement M2: failed**, for a conversation the app holds; its statement shows that as a warning.
 **Measurement M2b: passed** on `codex-cli 0.163.0-alpha.10.2` - a goal set active beside a queued turn
@@ -374,8 +397,8 @@ goal continuation carries the send.
 **What it does.** When Codex says it is at capacity - its own error code `serverOverloaded`, a server
 error the standard edition recovers already - it tries again sooner and more often: about a minute
 after the failure, then two, four and five minutes, each lengthened by up to a fifth, at least a
-minute apart and at most 48 times a day in one conversation. It keeps this up for as long as you
-choose on the page, one to twelve hours (two by default), counted on the clock from the task's first
+minute apart and at most 96 times a day in one conversation. It keeps this up for as long as you
+choose on the page, one to 24 hours (two by default), counted on the clock from the task's first
 failure; after that the standard edition's waits and limits apply again, and they may end the task.
 Each try is the ordinary continuation through Codex's queue, with its marker. Other server errors,
 rate limits and usage limits keep the standard edition's waits.
@@ -386,8 +409,8 @@ standard edition's retry timing and stopped after four attempts.
 **What it risks.** Retrying a busy service often adds to its load and spends usage on continuations
 that may fail again, and each try is a visible message in the conversation. While the ceiling for
 all capabilities together is reached, a capacity error is handled as the standard edition handles
-it. However long it keeps answering, the program itself never retries one task for more than twelve
-hours on the clock, 48 times a day, or sooner than a minute apart.
+it. However long it keeps answering, the program itself never retries one task for more than 24
+hours on the clock, 96 times a day, or sooner than a minute apart.
 
 **Departs from** [A20](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (five continuations a
 conversation in 24 hours, 15 minutes apart), A21 (the attempt, no-progress and continuation budgets),
@@ -395,7 +418,7 @@ A22 (waits come only from the retry timing you chose), [B9](STANDARDS.md#b-what-
 (only a failure's kind is kept: this also reads Codex's own error code, never its words) and
 [H2](STANDARDS.md#h-user-control) (nothing can move a limit the program fixes: A20's are the engine's).
 
-**Ceilings.** 48 a day, and 48 in any one conversation - the one capability whose conversation
+**Ceilings.** 96 a day, and 96 in any one conversation - the one capability whose conversation
 ceiling is above the standard edition's five, because it departs from A20.
 
 ### Compact a full conversation, then continue
@@ -421,14 +444,14 @@ continuation follows the compaction turn, so the failure is no longer the latest
 turn does not supersede the record) and A26 (the continuation's words for a failure the standard edition does
 not recover).
 
-**Ceilings.** 6 a day, and 2 in any one conversation - the compaction's and its continuation's.
+**Ceilings.** 12 a day, and 4 in any one conversation - the compaction's and its continuation's.
 **Measurement M7: made** (a queued `/compact` reaches Codex as plain text) and **MX: passed** on `codex-cli
 0.163.0-alpha.10.2`; **MXA: passed** on `codex-cli 0.162.0-alpha.17.2`. On any other version, a warning each.
 
 ### Use Codex's default model when one is at capacity
 
 **What it does.** When a turn keeps failing because its model is at capacity, for as many attempts as you
-choose (one to three, two by default), and nothing has the conversation open while Codex is closed, it runs
+choose (one to five, two by default), and nothing has the conversation open while Codex is closed, it runs
 the next turn here on Codex's default model instead, then puts the conversation's own model back. Only where
 the conversation is on another model than the default; never for a usage, rate, sign-in or billing failure.
 
@@ -443,7 +466,7 @@ through `thread/settings/update`, and reading it back, was measured (MF).
 a turn of its own), A2, A11, B3, B4, E8 and F8 (as Run a conversation here while Codex is closed) and
 [B9](STANDARDS.md#b-what-it-reads-and-how) (it reads Codex's error code, not only a kind).
 
-**Ceilings.** 6 a day, and 2 in any one conversation. **Measurement MF: passed** on `codex-cli 0.163.0-alpha.10.2`; on any other version, a warning.
+**Ceilings.** 12 a day, and 4 in any one conversation. **Measurement MF: passed** on `codex-cli 0.163.0-alpha.10.2`; on any other version, a warning.
 
 ### Rules for Codex's error codes
 
@@ -469,12 +492,12 @@ retried), A13 (only the classified kinds are recovered), A14 (anything unclassif
 retried), A26 (continuation text only for a kind that is recovered), B9 and
 [H2](STANDARDS.md#h-user-control) (nothing can retry an unknown failure: a rule is a setting of yours).
 
-**Ceilings.** 24 a day, and 5 in any one conversation.
+**Ceilings.** 48 a day, and 5 in any one conversation.
 
 ### Retry failures it cannot name
 
 **What it does.** When a turn fails with an error code of Codex's that the program cannot classify,
-it continues the conversation anyway, on a budget of its own: one to three tries a task, as you
+it continues the conversation anyway, on a budget of its own: one to five tries a task, as you
 choose on the page (one by default), the first ten minutes after the failure, then 15 and 30. It
 never takes up a failure that came with no code, or a code whose name speaks of a policy, budget,
 quota, permission, approval, sign-in or cancellation; a rule that names the code comes first. Each
@@ -494,7 +517,7 @@ more than the program's own words. Samples are kept 90 days at most.
 (state holds only the program's own fixed words, never a code Codex chose) and
 [H2](STANDARDS.md#h-user-control) (nothing can retry an unknown failure).
 
-**Ceilings.** 12 a day, and 3 in any one conversation.
+**Ceilings.** 24 a day, and 5 in any one conversation.
 
 ### Retry when Codex gave up
 
@@ -511,13 +534,13 @@ fail the same way and use your usage.
 
 **Departs from** A14 (Codex giving up without a 429 is never retried), A26 and B9.
 
-**Ceilings.** 12 a day, and 2 in any one conversation.
+**Ceilings.** 24 a day, and 4 in any one conversation.
 
 ### Retry a sign-in failure after proof
 
 **What it does.** When a turn fails because Codex was not signed in (its error code `unauthorized`, or
 status 401), it waits at least ten minutes and continues the conversation once - and only when the
-usage read every continuation already needs shows Codex is signed in again. Once a task and twice a
+usage read every continuation already needs shows Codex is signed in again. Once a task and four a
 day in all; if the continuation fails at sign-in again, it stops there, and after a day without a
 working usage read it gives up. It never reads or changes Codex's sign-in, its `auth.json` or any
 token, and never asks Codex to sign in or out. A permission refusal (403) is never retried.
@@ -532,7 +555,7 @@ conversation continues under that one.
 **Departs from** 0.5 (a sign-in failure is never retried), A14 (401 and 403 are never retried) and
 A26.
 
-**Ceilings.** 2 a day, and 2 in any one conversation.
+**Ceilings.** 4 a day, and 2 in any one conversation.
 
 ### Notice a usage limit that lifts early
 
@@ -560,7 +583,7 @@ may meet the limit again; the usage check every continuation makes still applies
 **Departs from** [A12](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (never before the real reset
 time) and [C9](STANDARDS.md#c-network) (Codex is asked about usage only when a recovery is due).
 
-**Ceilings.** 12 a day, and 3 in any one conversation.
+**Ceilings.** 24 a day, and 5 in any one conversation.
 
 ### Once more when unsure
 
@@ -584,7 +607,7 @@ itself off. The words are built again from your settings as they are then.
 [A6](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (an uncertain delivery is never sent again), [E2](STANDARDS.md#e-failure-behaviour) (better to miss a resume than resume
 twice) and [H2](STANDARDS.md#h-user-control) (nothing can resend an uncertain submission).
 
-**Ceilings.** 6 a day, and 2 in any one conversation.
+**Ceilings.** 12 a day, and 4 in any one conversation.
 
 ### Send now
 
@@ -609,7 +632,7 @@ something else is queued for it, or without usage.
 [A20](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (at least 15 minutes between two continuations in a conversation), [A21](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (the attempt
 budget stops a recovery) and [H2](STANDARDS.md#h-user-control) (nothing can force a send).
 
-**Ceilings.** 24 a day, and 5 in any one conversation.
+**Ceilings.** 48 a day, and 5 in any one conversation.
 
 None of the eight rests on a measurement: what each sends is the continuation the standard edition sends.
 Each of the four that take up a failure the standard edition leaves for you takes up only failures
@@ -736,6 +759,131 @@ PC's name) and [F3](STANDARDS.md#f-footprint-on-the-machine) (a file outside its
 
 **Ceilings.** None come into play: it sends nothing to Codex. It rests on no measurement.
 
+### Read this PC's status from a browser or a script
+
+**What it does.** While it is on, a small server runs beside the watcher, on this PC alone: 127.0.0.1, port 47615 or
+one you choose. Four things can be asked of it. `GET /status.json` answers what the [status file](GUIDE.md) holds and
+nothing more: whether the watcher runs, whether recovery is on, how many recoveries wait and at which state, the next
+check, usage as last read. `GET /metrics` says the same as Prometheus text. `GET /pending` lists the waiting recoveries as
+`task 1`, `task 2` and so on, each with its state and next check, never by name. `GET /` is a small page showing those.
+Every request but the page needs `Authorization: Bearer <token>`. The token is made on its card with **New token...**,
+kept in Windows Credential Manager, and **Copy address** copies an address that carries it after `#`, the part a browser
+never sends; the page reads it from there and puts it in a header.
+
+**When it helps.** A status bar, a Prometheus scrape or a phone on the same PC's browser that wants to know how recoveries
+stand without opening the Dashboard.
+
+**What it risks.** Any program on this PC holding the token can read how your recoveries stand, and the address carries
+it, so Windows' clipboard history and your browser's history keep it once you copy and open it: keep it out of
+screenshots and shared notes. Copy address is offered only while the server runs. It shows state and counts, no conversation's title, path or words. A
+server is one more process and one more port; a program already on that port keeps it from starting, and the card says so.
+
+**How it is held.** A request naming the server by any other host name is refused (421), so a web page cannot reach it
+by rebinding a name. The token is compared in constant time (401 otherwise); ten wrong in a minute close the server for
+five minutes (503). An unknown path is 404, another method 405, a body over 1 KiB 413. No answer carries a CORS header
+or a cookie, the page has a Content-Security-Policy that loads nothing and connects only to itself, a query string is
+never read, and nothing is logged. Nothing here can send to Codex, chat, change a setting or turn a feature on. The
+watcher restarts the server at most three times an hour; after that the card says it stopped. **New token...** makes the
+old address useless at once.
+
+**Departs from** [C1](STANDARDS.md#c-network) and [C2](STANDARDS.md#c-network) (its server's file imports networking
+modules: one more shipped file reaching the network beside the courier's), [B14](STANDARDS.md#b-what-it-reads-and-how) (a
+listening socket and a localhost server),
+[F8](STANDARDS.md#f-footprint-on-the-machine) (a second process for as long as it is on),
+[F6](STANDARDS.md#f-footprint-on-the-machine) (a process of its own beside the listed ones),
+[D1](STANDARDS.md#d-privacy-and-the-data-it-keeps) (any local program holding the token can read the status) and
+[C12](STANDARDS.md#c-network) (the page asks this server for its numbers).
+
+**Ceilings.** None come into play: it sends nothing to Codex. It rests on no measurement.
+
+### Let whoever holds the token pause and cancel
+
+**What it does.** While it and the status server are on, whoever holds the token can also pause recovery
+(`POST /pause`, or `POST /resume-off`, which is the same pause: there is no way to resume from outside) and cancel one
+waiting recovery by its place on the list (`POST /cancel/1` with the list's `snapshot` in the body). A list that changed
+since it was read gets 409 and nothing is cancelled. Turned off, each answers 403.
+
+**When it helps.** A script of your own that stops recovery when you start something else.
+
+**What it risks.** A program holding the token can pause recovery and cancel recoveries that wait, so a usage limit may
+not be recovered from until you notice. A cancelled recovery does not come back. It can only do less: nothing here sends,
+resumes, gives attempts back or changes a setting.
+
+**Departs from** [H3](STANDARDS.md#h-user-control) (a surface beside the three that changes state) and
+[H8](STANDARDS.md#h-user-control) (an address carries no warning). It needs *Read this PC's status from a browser or a
+script* on.
+
+**Ceilings.** None: it is an action, and sends nothing. It rests on no measurement.
+
+### Open the status server to your local network
+
+**What it does.** While it and the status server are on, the server answers on every network this PC is on, so another
+device can read it at this PC's IP address and the port, with the token. A request must name the server by an IP address
+or as localhost; any other name is refused. Windows asks about its firewall the first time. This product never changes a
+firewall rule, so one you allowed stays after this is off and after an uninstall: remove it in Windows Security, Firewall &
+network protection, Allow an app through firewall (the entry for this product's pythonw.exe).
+
+**When it helps.** A phone or another PC at home that wants to see how this one stands.
+
+**What it risks.** The connection is not encrypted. Anyone who can watch your network can read the status and the token as
+they pass, and with the token ask for the same - and pause and cancel, if that is on too. Use it only on a network you
+trust, never on a public one.
+
+**Departs from** [B14](STANDARDS.md#b-what-it-reads-and-how) (a listening socket other devices can reach),
+[F8](STANDARDS.md#f-footprint-on-the-machine) (the server's process) and
+[D1](STANDARDS.md#d-privacy-and-the-data-it-keeps) (the status can reach whoever on your network holds the token). It needs
+*Read this PC's status from a browser or a script* on.
+
+**Ceilings.** None: it is an action, and sends nothing. It rests on no measurement.
+
+### Control recovery from Telegram
+
+**What it does.** The Telegram bot you paired for notices also takes commands, from that one chat and no other. `/status`
+says whether the watcher runs, whether recovery is on and how many recoveries wait. `/list` lists them as `task 1`,
+`task 2` and so on, with their state and next check. `/cancel task 1` cancels one, against the list it last sent: if the
+list has changed it asks you to list again. `/pause` pauses recovery. Anything else is answered with the list of commands,
+and a message from any other chat gets no answer at all. A process stays running beside the watcher to read the bot,
+restarted at most three times an hour, and after that its card says it stopped.
+
+**When it helps.** When you are away from the PC, a notice told you something, and you want to look or stop it from your
+phone.
+
+**What it risks.** Whoever holds your Telegram account or the paired chat - in a group, every member - can pause recovery
+and cancel recoveries that wait. Telegram's servers see the bot's token and every command and answer. It goes on answering
+while recovery is paused: that is what its `/status` is for.
+
+**How it is held.** No command can send to Codex, chat, change a setting or turn a feature on, and no word of a message
+reaches a conversation; answers carry task numbers and state words alone. A command older than five minutes, sent while
+this PC was off, is ignored, and each is carried out at most once. Five wrong codes during a pairing turn it off, whether or
+not you keep it on: someone is guessing at the chat it obeys.
+
+**Departs from** [C1](STANDARDS.md#c-network) and [C2](STANDARDS.md#c-network) (no network code, and one
+shipped file reaching the network: this reads api.telegram.org too), [C3](STANDARDS.md#c-network) (only the listed
+hosts: api.telegram.org is one more), [C8](STANDARDS.md#c-network) (Telegram sees this PC's address and the courier's
+name), [D1](STANDARDS.md#d-privacy-and-the-data-it-keeps) (how your recoveries stand goes to Telegram),
+[F6](STANDARDS.md#f-footprint-on-the-machine) (a process of its own beside the listed ones) and
+[F8](STANDARDS.md#f-footprint-on-the-machine) (a process that stays running). It needs *Send notices to your phone or inbox*
+on, whose bot and pairing it uses.
+
+**Ceilings.** None come into play: it sends nothing to Codex. It rests on no measurement.
+
+### Let Telegram continue a held recovery and lift a pause
+
+**What it does.** While it and *Control recovery from Telegram* are on, the paired chat may also send `/continue task 1`,
+which lets one recovery held for you go on, and `/recovery-on`, which lifts a pause. Neither sends anything itself: the
+watcher still checks everything before it sends, and an administrator's policy still holds a pause.
+
+**When it helps.** When you paused from your phone, or a conversation asks first, and you want it to go on without going
+back to the PC.
+
+**What it risks.** Whoever holds the paired chat can undo a pause you made on purpose and let go on a recovery you held
+back; recoveries then send their continuations as usual. A pause is no longer yours alone while this is on.
+
+**Departs from** [H4](STANDARDS.md#h-user-control) (a pause is a kill switch at this PC: here it can be lifted from
+outside it). It needs *Control recovery from Telegram* on.
+
+**Ceilings.** None: it is an action, and sends nothing. It rests on no measurement.
+
 ### Use a reset credit at the limit you pick
 
 **What it does.** On the page you pick a usage limit ahead of time - the next time the 5-hour limit
@@ -770,7 +918,7 @@ you have and when the soonest expires), [C4](STANDARDS.md#c-network) (it reads u
 its own, at the time you chose) and [C9](STANDARDS.md#c-network) (it reads usage when no recovery is
 due).
 
-**Ceilings.** 12 a day, and 3 in any one conversation; and never more than one credit for one filling
+**Ceilings.** 24 a day, and 5 in any one conversation; and never more than one credit for one filling
 of a window, two a day or seven a week. Four rules may wait at once.
 
 **Measurements MU, MN and MR: passed** on codex-cli 0.162.0-alpha.17.2 (2026-10-10,
@@ -821,7 +969,7 @@ than returning it to waiting; revision 2, from v0.6.16-beta, first published as 
 message is at most 2,000 characters, as the Custom message is, unless Longer reset messages is on.
 Switching its conversation off cancels it (H5).
 
-**Ceilings.** 10 a day, and 2 in any one conversation.
+**Ceilings.** 20 a day, and 4 in any one conversation.
 
 **Measurement MU: passed** on codex-cli 0.162.0-alpha.17.2 (2026-10-10). It counts resets from the same
 usage readings as the reset credit, so it rests on MU; on any other version of Codex, until MU is made
@@ -847,7 +995,7 @@ is at most 2,000 characters), and from nothing else: on its own it does nothing.
 ### Several conversations at once
 
 **What it does.** The standard edition sends one continuation at a time and waits up to 45 seconds for
-Codex's answer before it looks at the next. With this on, two to four continuations wait for Codex's
+Codex's answer before it looks at the next. With this on, two to eight continuations wait for Codex's
 answer at once, each in a conversation of its own - one conversation still never has two on their way -
 while every check, every claim and the last look before each send still run one at a time. You choose
 how many (2 by default); until MQ passes on your version of Codex, never more than 2.
@@ -865,7 +1013,7 @@ one lock). It keeps A19's one continuation in flight per conversation.
 The sends of the continuation with no marker are pooled with the rest where MQP passed on your Codex; where it
 has not, they go one at a time, and the journal says so.
 
-**Ceilings.** 48 a day, and core's 5 in any one conversation. **Measurement MQ: not made yet;
+**Ceilings.** 96 a day, and core's 5 in any one conversation. **Measurement MQ: not made yet;
 MQP: passed** on `codex-cli 0.163.0-alpha.10.2`.
 MQ failing only holds it to 2 workers; it never turns it off.
 
@@ -875,7 +1023,7 @@ MQ failing only holds it to 2 workers; it never turns it off.
 the ordinary continuation anyway - the program's own words and marker, through every check; with the
 continuation with no marker on, and MQO passed on your Codex, with no marker, under its id - and leaves it
 in Codex's queue, so Codex runs it when you open the conversation. It stays there for the days you choose (3
-by default, 7 at most); the program takes it back at seven days and an hour whatever it is told, and at once
+by default, 30 at most); the program takes it back at 30 days and an hour whatever it is told, and at once
 when this is turned off. An interruption is queued this way once; taken back, it waits for the app as usual.
 It takes up conversations a usage limit stopped, and no others: a full context window waits for its compaction,
 and a network or server failure waits for the app. Beside the goal continuation: where MQG passed on your Codex - a
@@ -893,7 +1041,7 @@ is taken back, sent the ordinary way, and this turns itself off.
 **Departs from** [A11](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (nothing is queued on the off
 chance that a conversation will be opened). It keeps A17, H4 and H6: every withdrawal still happens at once.
 
-**Ceilings.** 12 a day, and 3 in any one conversation. **Measurement M1: made** on `codex-cli
+**Ceilings.** 24 a day, and 5 in any one conversation. **Measurement M1: made** on `codex-cli
 0.163.0-alpha.10.2`; on any other version, a warning. **MQO and MQG: passed** there too (MQO is described
 under Marker-free continuation).
 
@@ -924,7 +1072,7 @@ the link). It keeps B13 - it simulates no input and drives no window - and A11: 
 check finds the conversation loaded.
 
 **Ceilings.** Ten minutes between any two opens, an hour between two of one conversation, three for one message and
-twelve a day - kept on disk, so they hold after a restart. **Measurement MOPEN: passed** on `codex-cli
+24 a day - kept on disk, so they hold after a restart. **Measurement MOPEN: passed** on `codex-cli
 0.165.0-alpha.1.2` - a conversation the app did not hold, opened through its link, brought Codex to the front and
 was held by the app within ten seconds (thirty are allowed); on any other version, a warning.
 
@@ -934,7 +1082,7 @@ was held by the app within ten seconds (thirty are allowed); on any other versio
 and no terminal or VS Code session holds it - it runs that one turn here, on Codex's own app server on this
 PC, with the program's ordinary continuation, marker included, and the settings Codex saved for that
 conversation. Every approval the turn asks for is declined: open the conversation in Codex to approve. The
-turn runs for the hours you choose at most, one to six (one by default), and is stopped at once when the
+turn runs for the hours you choose at most, one to six, eight or twelve (one by default), and is stopped at once when the
 Codex app starts. A running turn can be stopped from the Dashboard (the Advanced features page); no Codex
 tool (MCP) can stop it.
 
@@ -953,7 +1101,7 @@ its own), A2 (a way to Codex beside `codex queue`), [A11](STANDARDS.md#a-what-it
 lives for the turn, which this program ends). It keeps A4: the continuation carries its marker, and the
 marker proves its arrival.
 
-**Ceilings.** 12 a day, and 3 in any one conversation. **Measurement M6: made** on `codex-cli
+**Ceilings.** 24 a day, and 5 in any one conversation. **Measurement M6: made** on `codex-cli
 0.163.0-alpha.10.2`. **M6B: passed** there too; on any other version, a warning.
 
 ### Recover CLI, TUI and VS Code conversations
@@ -979,7 +1127,7 @@ conversations are detected) and A11 (it sends while a Codex session other than t
 conversation). It keeps A2, A3, A4, A17, H4 and H6: one channel, the exact conversation, the marker, newer
 work wins, and Pause and Cancel take a queued continuation back.
 
-**Ceilings.** 24 a day, and 3 in any one conversation. **Measurement M5: made** on `codex-cli
+**Ceilings.** 48 a day, and 5 in any one conversation. **Measurement M5: made** on `codex-cli
 0.163.0-alpha.10.2`. **MO: passed** there too; on any other version, a warning.
 
 ### Continue a turn that ended with no reply
@@ -1000,7 +1148,7 @@ the conversation's latest, and never twice for one turn.
 [A26](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (its continuations are its fixed templates or your
 Custom message).
 
-**Ceilings.** 12 a day, and 2 in any one conversation. **Measurement ME: not made yet.**
+**Ceilings.** 24 a day, and 4 in any one conversation. **Measurement ME: not made yet.**
 
 ### Tell a parent which of its subagents stopped
 
@@ -1019,7 +1167,7 @@ word for why it stopped are told - never anything it said.
 (subagent conversations are never detected or recovered) and
 [A26](STANDARDS.md#a-what-it-may-send-to-codex-and-when).
 
-**Ceilings.** 12 a day, and 3 in any one conversation. **Measurement MS: not made yet** - until it is, a
+**Ceilings.** 24 a day, and 5 in any one conversation. **Measurement MS: not made yet** - until it is, a
 parent that finished normally is told nothing,
 and MS failing does the same; it never turns it off.
 
@@ -1043,7 +1191,7 @@ conversation off. It is paced like every recovery.
 [A26](STANDARDS.md#a-what-it-may-send-to-codex-and-when) and [B9](STANDARDS.md#b-what-it-reads-and-how) (nothing is
 read from the content of a conversation's items).
 
-**Ceilings.** 24 a day, and core's 5 in any one conversation. **Measurement MK: not made yet.**
+**Ceilings.** 48 a day, and core's 5 in any one conversation. **Measurement MK: not made yet.**
 Until it passes, or where it fails, no more than 3 are sent; its failing never turns it off.
 
 ### Queue messages for later
@@ -1105,7 +1253,7 @@ is on), [C4](STANDARDS.md#c-network), [D2](STANDARDS.md#d-privacy-and-the-data-i
 on or cancel) and [H6](STANDARDS.md#h-user-control) (Cancel no longer reaches a message being sent). It keeps
 A20.
 
-**Ceilings.** 30 a day, and core's 5 in any one conversation. **Measurement MT: not made yet** - "after this
+**Ceilings.** 60 a day, and core's 5 in any one conversation. **Measurement MT: not made yet** - "after this
 turn" says it is unproven until it is, and where it fails that choice says so; its failing never turns the capability
 off. Its statement is at revision 2 since the send mode (v0.6.19): if it was on,
 you read the new statement once and turn it on again.
@@ -1154,7 +1302,7 @@ dispatch), [A8](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (its own chec
 [H2](STANDARDS.md#h-user-control) (its own limits, not the engine's) and [H6](STANDARDS.md#h-user-control) (nothing
 takes a written line back). It keeps A3, A6 and B13.
 
-**Ceilings.** 30 in one conversation and 60 a day. **Measurement MSTEER2: failed** on `codex-cli
+**Ceilings.** 60 in one conversation and 120 a day. **Measurement MSTEER2: failed** on `codex-cli
 0.165.0-alpha.1.2` - the line reached the running turn once and the model obeyed it, but the app never showed it -
 which its statement shows as a warning you confirm when you turn it on; MIPC (the pipe the forced stop uses) passed
 on `codex-cli 0.163.0-alpha.10.2`. MSTEER, the same steer from this product's own connection to Codex, was refused.
@@ -1271,7 +1419,7 @@ gets none. Your own words are sent as you wrote them, with only the numbers fill
 **Departs from** [A13](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (only failures are recovered) and
 [A26](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (words of its own).
 
-**Ceilings.** 12 a day, and 2 in any one conversation - the five-hour and the weekly window's. **Measurement
+**Ceilings.** 24 a day, and 4 in any one conversation - the five-hour and the weekly window's. **Measurement
 MT: not made yet.**
 
 ### Stop near a limit
@@ -1438,7 +1586,7 @@ and the page notes it; the next continuation still carries words.
 **Departs from** [A4](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (no marker: the turn is proven by
 its id) and A26 (no words at all).
 
-**Ceilings.** 24 a day, and 5 in any one conversation. **Measurement M3B: passed** on `codex-cli 0.163.0-alpha.10.2`; on any other version, a warning.
+**Ceilings.** 48 a day, and 5 in any one conversation. **Measurement M3B: passed** on `codex-cli 0.163.0-alpha.10.2`; on any other version, a warning.
 
 ### Check for updates once a week
 
@@ -1523,8 +1671,8 @@ it is hidden because its measurement failed - and never turns the switch off.
 
 ### Switch to another saved account at a usage limit
 
-**Hidden until it is measured.** Built, and hidden - no row, no switch - until MPROFILE and MSWAP pass on the Codex in
-force; it needs Switch the Codex account on.
+**Offered, off until you turn it on.** It was hidden until MPROFILE and MSWAP passed; both did on `codex-cli
+0.166.0-alpha.6` (2026-11-06). On any other Codex it shows the unmeasured warning. It needs Switch the Codex account on.
 
 **What it does.** You save your own other Codex accounts on its card: **Add an account...** runs Codex's own
 `codex login` in a private folder under the product's home, and you sign in in your browser on OpenAI's page - the
@@ -1555,8 +1703,10 @@ does; nothing asks Codex for a token), C4 (it acts on its own), C9 (usage of acc
 (encrypted sign-in copies are kept), E8 (it ends the Codex app's process if Windows' request is not enough) and F6
 (`codex login` is not a listed process).
 
-**Ceilings.** Those of the early look at P7 (12 a day, 3 in one conversation), beside its own 10 switches a day.
-**Measurements MPROFILE and MSWAP: not measured** - hidden until both pass.
+**Ceilings.** Those of the early look at P7 (24 a day, 5 in one conversation), beside its own 10 switches a day.
+**Measurements MPROFILE and MSWAP: passed** on `codex-cli 0.166.0-alpha.6` (2026-11-06) - a second saved account read
+on a scratch home left the real sign-in, the app and its account as they were (MPROFILE); the app came up as the other
+saved account and back, each with no sign-in page and no other Codex engine running (MSWAP, completed by the owner).
 
 ### Compatibility report
 
@@ -1695,7 +1845,9 @@ headings as the last four bullets below.
   0.166.0-alpha.5.1` (2026-10-31), by design - its built-in provider cannot be overridden. Their new route copies that
   provider, with the retries set, into a provider of the product's own, given only to the Codex server the product
   starts for its own turns and written nowhere in Codex's configuration; it is offered only once a Codex passes its
-  measurement MB2, not made yet.)
+  measurement MB2, which failed on `codex-cli 0.166.0-alpha.6` (2026-11-06): Codex refuses to resume (`thread/resume`,
+  -32600) a conversation made under its built-in provider under a provider of the product's own
+  (`modelProviderMismatch`), so they stay hidden because their measurement failed.)
 - **Around recovery** - usage analytics (the live usage meter and the wrap-up near a limit are built,
   described [above](#todays-capabilities)); a provider status feed and push notifications through one courier process, the advanced edition's only
   outbound network code; a local API and web view, remote control over Telegram and a read-only view

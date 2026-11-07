@@ -14,36 +14,36 @@
   },
   "images": {
     "docs/images/install-motion-ko.png": {
-      "bytes": 788854,
+      "bytes": 812278,
       "frames": 523,
       "ms": 19836,
       "scenes": {
-        "S1": 34981,
-        "S2": 42388,
-        "S3": 87016,
-        "S4": 459102,
-        "S5": 165264
+        "S1": 35199,
+        "S2": 44664,
+        "S3": 88495,
+        "S4": 476201,
+        "S5": 167616
       },
-      "sha256": "854b02e92cd72e448767cb6e531ff1b9daf13c4881f361ba81d45aa804ad6743",
+      "sha256": "cdc0b9328976f827d29f6eca0502b7d08b43d2be76341ec6261e1d8f81404b56",
       "size": "900x753"
     },
     "docs/images/install-motion.png": {
-      "bytes": 839709,
+      "bytes": 862142,
       "frames": 523,
       "ms": 19836,
       "scenes": {
-        "S1": 35978,
-        "S2": 43819,
-        "S3": 91956,
-        "S4": 504789,
-        "S5": 163064
+        "S1": 36184,
+        "S2": 46389,
+        "S3": 93283,
+        "S4": 521141,
+        "S5": 165042
       },
-      "sha256": "49a72238b7ea1dfe7da7e3a24fe99c110cedbcb99a997aba6545f2deac8c8c95",
+      "sha256": "07399f0154a8ec0d92775fd6aa81b7de1ee217ae4894c2955fffe1e02a79f100",
       "size": "900x778"
     }
   },
   "inputs": {
-    "<install-motion:install-en>": "0972bc87160708615e38c7a94a6e6a4858562971948b0df57398fd987d211be4",
-    "<install-motion:install-ko>": "abde6ca6c4cb0ad02adad34999ea2cf1e5fc72ee47e74ec5003904d87efa3280"
+    "<install-motion:install-en>": "9a113d10e64c2f12832c49232ff3f2fe8c97438b7c77a6930a413d11f86dfc5b",
+    "<install-motion:install-ko>": "203e336baacfde853a32682be5a82333674f06de6da83604f914d874ed02b1d3"
   }
 }

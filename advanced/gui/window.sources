@@ -19,7 +19,7 @@
 # early_reset's line with its Check now - and (v0.6.20) window_anchor's line and its times of day, and See an
 # example, each capability's before and after drawn from sample data - and (v0.6.20, #50) a delivered message followed
 # through from History - and (v0.6.20, Discussion #57) the tasks the power action waits for, and the form they are
-# picked with.
+# picked with - and (v0.6.22) the loopback API's address and token, and Telegram's paired chat and commands.
 
 [advanced]
 advanced/gui/AdvancedPage.cs
@@ -45,5 +45,6 @@ advanced/gui/AdvancedAccount.cs
 advanced/gui/AdvancedPowerTasks.cs
 advanced/gui/AdvancedAccounts.cs
 advanced/gui/AdvancedFleet.cs
+advanced/gui/AdvancedRemote.cs
 advanced/gui/AdvancedPageAudit.cs
 advanced/gui/AdvancedRender.cs

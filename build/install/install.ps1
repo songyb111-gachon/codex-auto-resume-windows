@@ -20,6 +20,7 @@ param(
     [switch]$Uninstall,          # remove the program, keeping settings and pending state
     [switch]$Purge,              # with -Uninstall: also delete settings, state and logs
     [switch]$AllowEditionChange, # replace the installed edition with this archive's other one
+    [switch]$DeleteSavedAccounts, # with -AllowEditionChange to the standard edition: also delete the saved Codex accounts
     [switch]$Silent,             # for Install.cmd and Uninstall.cmd, which ask nothing and wait for no key with it
     [switch]$DesktopShortcut,    # make this installation's shortcut on the Desktop; with neither, it is left as it is
     [switch]$NoDesktopShortcut,  # remove it, if it is this installation's
@@ -308,7 +309,7 @@ if ($DesktopShortcut -and $NoDesktopShortcut) {
 }
 
 $outsideSwitches = @(foreach ($name in 'SkipStartup', 'Uninstall', 'Purge', 'AllowEditionChange', 'Silent',
-                                       'DesktopShortcut', 'NoDesktopShortcut') {
+                                       'DesktopShortcut', 'NoDesktopShortcut', 'DeleteSavedAccounts') {
     if (Get-Variable -Name $name -ValueOnly) { $name }
 })
 $outsideCode = Resolve-OutsideRun -Script $PSCommandPath -Switches $outsideSwitches `
@@ -459,6 +460,24 @@ function Test-PathInside {
     if (-not $c -or -not $p) { return $false }
     if ($c -eq $p) { return $true }
     return $c.StartsWith($p + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)
+}
+
+function Write-RootNotResolved {
+    <#
+        The refusal when the installation root cannot be proved to hold app\ and runtime\: `$Done` is "removed" or
+        "installed". A program folder that is a link or a junction - runtime\ moved to another drive and linked - resolves
+        outside the root and is refused for that, safely, and this says so (v0.6.23 audit, N10) instead of leaving the
+        person to guess. Nothing is followed or changed.
+    #>
+    param([string]$Done)
+    Fail ('The installation root could not be resolved; nothing was ' + $Done + '.')
+    foreach ($dir in @($AppDir, $RunDir)) {
+        $item = Get-Item -LiteralPath $dir -Force -ErrorAction SilentlyContinue
+        if ($item -and $item.LinkType) {
+            Write-Host ('       ' + $dir + ' is a link to another place, and this installer never follows a link.')
+            Write-Host ('       Move that folder back under ' + $InstallHome + ', then run this again.')
+        }
+    }
 }
 
 function Get-Edition {
@@ -867,12 +886,16 @@ function Invoke-Codex {
         $env:OTEL_SDK_DISABLED = 'true'
         $p = Start-Process -FilePath $Exe -ArgumentList $line -NoNewWindow -Wait -PassThru `
              -RedirectStandardOutput $out -RedirectStandardError $err
+        # A native program writes UTF-8 to the file its output is redirected to, and Windows PowerShell 5.1 reads a file
+        # without a byte-order mark in the ANSI code page (949 on a Korean PC): a path with Korean letters in codex's
+        # JSON came back wrong, the parse failed, and an uninstall left the plugin registered saying there was nothing
+        # to remove (v0.6.23 audit, N1). The files are named literally, as a folder with a bracket in its name needs (N7).
         return @{ Code = $p.ExitCode
-                  Out  = (Get-Content -Raw -ErrorAction SilentlyContinue $out)
-                  Err  = (Get-Content -Raw -ErrorAction SilentlyContinue $err) }
+                  Out  = (Get-Content -LiteralPath $out -Raw -Encoding UTF8 -ErrorAction SilentlyContinue)
+                  Err  = (Get-Content -LiteralPath $err -Raw -Encoding UTF8 -ErrorAction SilentlyContinue) }
     } finally {
         $env:OTEL_SDK_DISABLED = $otelBefore
-        Remove-Item -Force -ErrorAction SilentlyContinue $out, $err
+        Remove-Item -Force -ErrorAction SilentlyContinue -LiteralPath $out, $err
     }
 }
 
@@ -880,11 +903,13 @@ function Get-CodexCli {
     # The desktop app keeps its engine in a content-addressed directory and does not put
     # it on PATH, so look there rather than relying on the environment.
     $root = Join-Path $env:LOCALAPPDATA 'OpenAI\Codex\bin'
-    if (-not (Test-Path $root)) { return $null }
-    $found = @(Get-ChildItem -Path $root -Directory -ErrorAction SilentlyContinue |
+    # Every path literally: a profile or temp folder with a [ or ] in its name made the wildcard forms find nothing
+    # (v0.6.23 audit, N7), and the install was refused with "the ChatGPT/Codex desktop app was not found".
+    if (-not (Test-Path -LiteralPath $root)) { return $null }
+    $found = @(Get-ChildItem -LiteralPath $root -Directory -ErrorAction SilentlyContinue |
         ForEach-Object { Join-Path $_.FullName 'codex.exe' } |
-        Where-Object { Test-Path $_ } |
-        Sort-Object { (Get-Item $_).LastWriteTime } -Descending)
+        Where-Object { Test-Path -LiteralPath $_ } |
+        Sort-Object { (Get-Item -LiteralPath $_).LastWriteTime } -Descending)
     if ($found.Count -eq 0) { return $null }
     return $found[0]
 }
@@ -958,6 +983,33 @@ function Remove-OwnedItem {
     return (-not (Test-Path -LiteralPath $Path))
 }
 
+function Remove-SavedAccounts {
+    <#
+        v0.6.22: -DeleteSavedAccounts. The advanced edition keeps sealed copies of Codex's sign-in file in the accounts
+        folder, and a change to the standard edition would leave them with no card to delete them on. The person asked
+        for them to go together with that change, so they go exactly as the uninstall's purge takes them: through
+        Remove-OwnedItem, and never a folder that is a link or a junction. A held file is reported as kept.
+        Asked of an install that is not a change to the standard edition, it deletes nothing and says so.
+        Returns $true when the folder is gone or was never there.
+    #>
+    param([bool]$Asked, [bool]$EditionChange, [string]$Edition)
+    if (-not $Asked) { return $true }
+    if (-not $EditionChange -or $Edition -ne 'standard') {
+        Warn '-DeleteSavedAccounts only goes with a change to the standard edition, so the saved Codex accounts were kept.'
+        return $true
+    }
+    $dir = Join-Path $OwnedHome 'accounts'
+    $item = Get-Item -LiteralPath $dir -Force -ErrorAction SilentlyContinue
+    if (-not $item -or $item.LinkType) { return $true }
+    if (Remove-OwnedItem $dir) {
+        Ok 'Deleted the Codex accounts saved for switching'
+        return $true
+    }
+    Warn ('Some of the saved Codex accounts could not be deleted: ' + $dir)
+    Write-Host '       Close what is using them, then delete that folder yourself.'
+    return $false
+}
+
 # How much of a step is done, for the setup window's bar: `progress: <step> <done>/<total>`, an English line of its own
 # that the window reads and keeps out of the log it shows (gui/InstallerFlow.cs, InstallerProgress). Only when the
 # window asked for it with CODEX_AUTO_RESUME_PROGRESS_LINES=1 ($script:ProgressLines, read once after the outside
@@ -1012,6 +1064,9 @@ function Invoke-Setup {
     # and failed the install (v0.6.18 installer audit, R1). For this call alone; the bootstrap's Invoke-InstalledSetup
     # does the same.
     $ErrorActionPreference = 'Continue'
+    # Failed until the interpreter says otherwise: a python.exe that cannot be started leaves $LASTEXITCODE as the last
+    # native call set it, and this returned that - a setup step that never ran read as success (v0.6.23 audit, N5).
+    $global:LASTEXITCODE = 1
     # -X disable-remote-debug, before anything else, wherever this script runs the bundled interpreter: remote debugging
     # off (PEP 768, Python 3.14; src/codex_auto_resume/startup.py, NO_REMOTE_DEBUG).
     try { & $Python -X disable-remote-debug $setup @Arguments | ForEach-Object { Write-Host ('    ' + $_) } }
@@ -1021,8 +1076,9 @@ function Invoke-Setup {
 
 function Set-DesktopShortcut {
     <#
-        The shortcut on the Desktop, where this run was asked about it: the setup window's box, or -DesktopShortcut and
-        -NoDesktopShortcut. Asked about nothing - -Silent alone, as winget runs it, and every update - it is left as it
+        The shortcut on the Desktop, where this run was asked about it: -DesktopShortcut or -NoDesktopShortcut, from the
+        command line (the setup window's box is on its Finish page and asks the installed engine itself, once this run is
+        over). Asked about nothing - -Silent alone, as winget runs it, and every update - it is left as it
         is. Either way it decides nothing: one that cannot be written is said (InstallerFlow reads these two lines for
         the Finish page), and the run goes on and ends as it would have.
     #>
@@ -1218,14 +1274,18 @@ function Write-CopyJournal {
         ConvertTo-Json, so whoever finds the file can read what happened to their
         installation without needing this script to explain it.
     #>
-    param([string]$Path, [string]$Root, $Entries)
+    param([string]$Path, [string]$Root, $Entries, [switch]$Copied)
     $moved = @()
     foreach ($entry in $Entries) {
         $moved += @{ name = $entry.src; target = $entry.dst; movedAside = $entry.aside }
     }
+    # `copied` says whether the new trees were all in place when this was written: false before the copy starts, true
+    # once it is done. A run that finds the journal with `copied` false knows a target that is there is half a copy,
+    # not a tree to keep (v0.6.23 audit, N9); a journal without the field is an older run's and is read as before.
     $record = @{ version = 1
                  written = (Get-Date -Format 'yyyy-MM-ddTHH:mm:ssK')
                  home    = $Root
+                 copied  = [bool]$Copied
                  moved   = $moved }
     $temp = $Path + '.writing'
     Set-Content -LiteralPath $temp -Value (ConvertTo-Json $record -Depth 4) -Encoding UTF8 -ErrorAction Stop
@@ -1274,6 +1334,7 @@ function Restore-InterruptedCopy {
             }
         }
     }
+    $unfinished = $record.PSObject.Properties.Match('copied').Count -gt 0 -and $record.copied -eq $false
     foreach ($entry in @($record.moved)) {
         $target = $entry.target
         $aside  = $entry.movedAside
@@ -1286,7 +1347,20 @@ function Restore-InterruptedCopy {
         if ($canonical) { $claimed += $canonical }
         # The target being there means the copy got far enough to recreate it, so the
         # aside copy is a leftover this run will replace rather than the only one left.
-        if (Test-Path -LiteralPath $target) { continue }
+        #
+        # Unless the journal says the copy was not finished (`copied` false): then the target is half a copy, and the
+        # aside tree is still the installation. Left as it was, the half-copied `app\src` could lack the advanced
+        # package, read as the standard edition, and an agreed "change" installed the advanced edition from standard
+        # with every feature off (v0.6.23 audit, N9). The half is cleared and the whole tree put back, as a failed
+        # copy's own rollback does, before anything reads which edition is installed.
+        if (Test-Path -LiteralPath $target) {
+            if (-not $unfinished -or -not (Test-Path -LiteralPath $aside)) { continue }
+            Step ('Clearing the half-copied ' + $entry.name + ' folder an interrupted installation left')
+            if (-not (Remove-OwnedItem $target)) {
+                Warn ('Could not clear ' + $target + '; it was left as it is, with the whole copy aside.')
+                continue
+            }
+        }
         if (-not (Test-Path -LiteralPath $aside)) { continue }
         Step ('Putting back the ' + $entry.name + ' folder an interrupted installation left aside')
         try {
@@ -1355,7 +1429,7 @@ if ($Uninstall) {
     }
     $OwnedHome = Resolve-Canonical (@($verify)[-1])
     if (-not $OwnedHome -or -not (Test-PathInside $AppDir $OwnedHome)) {
-        Fail 'The installation root could not be resolved; nothing was removed.'
+        Write-RootNotResolved -Done 'removed'
         exit 1
     }
     # Before the first removal: the Dashboard asked to close, and nothing else of this installation's left holding
@@ -1542,14 +1616,29 @@ if ($Uninstall) {
         # Only on an explicit request: this is the user's recovery history.
         # Asked whether it worked: a held log file used to stay while this said it was removed (v0.6.18 audit, M3).
         $kept = @()
-        foreach ($dir in @((Join-Path $OwnedHome 'config'), (Join-Path $OwnedHome 'logs'))) {
-            if ((Test-Path -LiteralPath $dir) -and -not (Remove-OwnedItem $dir)) { $kept += $dir }
+        $linkedKept = $false
+        # v0.6.22: and the advanced edition's saved Codex sign-ins (accounts\), never through a link or a junction there.
+        foreach ($dir in @((Join-Path $OwnedHome 'config'), (Join-Path $OwnedHome 'logs'), (Join-Path $OwnedHome 'accounts'))) {
+            $item = Get-Item -LiteralPath $dir -Force -ErrorAction SilentlyContinue
+            if (-not $item) { continue }
+            # A folder that is a link or a junction is never followed, and is not removed: said as kept, not skipped in
+            # silence under "Removed, including settings" (v0.6.23 audit, N3 - b13c22d99 had made the skip silent).
+            if ($item.LinkType) { $kept += $dir; $linkedKept = $true; continue }
+            if (-not (Remove-OwnedItem $dir)) { $kept += $dir }
+        }
+        # The folder itself goes when nothing is left in it - not recursively, so a file that is somebody's, or a folder
+        # still held, keeps it (v0.6.23 audit, N12: an empty .codex-auto-resume was left after every purge).
+        $homeItem = Get-Item -LiteralPath $OwnedHome -Force -ErrorAction SilentlyContinue
+        if ($homeItem -and $homeItem.PSIsContainer -and -not $homeItem.LinkType -and
+            @(Get-ChildItem -LiteralPath $OwnedHome -Force -ErrorAction SilentlyContinue).Count -eq 0) {
+            try { [IO.Directory]::Delete($homeItem.FullName) } catch { }
         }
         Write-Host ''
         if ($kept.Count -gt 0) {
             Fail 'Removed, but some settings or recovery history could not be removed:'
             foreach ($dir in $kept) { Write-Host ('       ' + $dir) }
             Write-Host '       The program is gone; close what is using them, then delete them yourself.'
+            if ($linkedKept) { Write-Host '       A folder that is a link is not followed or removed; what it points to is yours to delete.' }
         } else {
             Write-Host 'Removed, including settings and recovery history.'
         }
@@ -1557,6 +1646,12 @@ if ($Uninstall) {
         Write-Host ''
         Write-Host 'Removed. Settings and pending recoveries were kept.'
         Write-Host ('They are in ' + $InstallHome + ' - re-installing picks them up again.')
+        # The advanced edition's saved Codex sign-ins stay too, and the closing text used to list only the settings and the
+        # recoveries (v0.6.23 audit, N12).
+        if (Test-Path -LiteralPath (Join-Path $OwnedHome 'accounts')) {
+            Write-Host 'The Codex accounts you saved for switching were kept too, sealed for this Windows user.'
+            Write-Host 'Uninstall again with the settings deleted (-Purge) to remove them.'
+        }
     }
     Write-Host 'Your Codex conversations were not touched.'
     # `Fail` records rather than exits, so a step that could not finish - a plugin Codex
@@ -1621,7 +1716,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 $OwnedHome = Resolve-Canonical (@($claim)[1])
 if (-not $OwnedHome -or -not (Test-PathInside $AppDir $OwnedHome)) {
-    Fail 'The installation root could not be resolved; nothing was installed.'
+    Write-RootNotResolved -Done 'installed'
     exit 1
 }
 # A root outside the profile is made private to the person before a file of the program goes into it (R2).
@@ -1925,6 +2020,8 @@ try {
             $copied++
             Progress 'files' $copied $copyFiles
         }
+        # Every file is in place: the journal now says so, so a run cut short from here on keeps the trees (N9).
+        if ($plan.Count -gt 0) { Write-CopyJournal -Path $Journal -Root $OwnedHome -Entries $plan -Copied }
     } catch {
         Warn ('Could not replace the installation: ' + $_.Exception.Message)
         $notBack = @()
@@ -1980,7 +2077,13 @@ try {
         $null = Remove-OwnedItem $stale.FullName
     }
     if (-not (Test-Path -LiteralPath $Python)) { Fail 'The bundled Python runtime is missing from the payload.'; exit 1 }
-    $runtimeVersion = & $Python -X disable-remote-debug -c 'import sys;print(str(sys.version_info[0])+chr(46)+str(sys.version_info[1]))'
+    # Under 'Stop' a line the interpreter writes to stderr is, run outside another app (streams merged, `*>&1`), a
+    # terminating NativeCommandError that ended the update after the program trees were replaced (v0.6.23 audit, N4).
+    # For this call alone it is only written, and the version is the text it printed.
+    $runtimeVersion = @(& {
+        $ErrorActionPreference = 'Continue'
+        & $Python -X disable-remote-debug -c 'import sys;print(str(sys.version_info[0])+chr(46)+str(sys.version_info[1]))'
+    }) | Where-Object { $_ -is [string] } | Select-Object -First 1
     Ok ('Bundled Python ' + $runtimeVersion + ' (no system Python needed)')
 
     # The payload is itself a valid local marketplace, so the plugin installs from the bytes
@@ -2116,6 +2219,9 @@ try {
         }
         exit 1
     }
+
+    # After the change succeeded, never before: setup has finished, so the standard edition is what is installed.
+    $null = Remove-SavedAccounts -Asked ([bool]$DeleteSavedAccounts) -EditionChange $editionChange -Edition $edition
 
     Set-DesktopShortcut
 

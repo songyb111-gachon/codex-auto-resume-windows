@@ -13,15 +13,24 @@ is available, the most used window's percentage and the latest reset of a full w
 2. the Codex app is closed as account_switch's Restart closes it (codex/restart.restart: Windows' request, its process
    ended only if still running 30 s later) - or, where it does not run, nothing is closed;
 3. with nothing of the app left to write it, the sign-in file in use is sealed back into its own profile (refresh tokens
-   rotate: a copy that is not saved back goes stale), then the target's copy is put in its place in one rename;
+   rotate: a copy that is not saved back goes stale), then the target's copy is put in its place in one rename - while
+   no other Codex engine runs that may use this home (`other_engines`: a TUI, IDE or exec-server engine left would write
+   its old account's tokens after the swap; where that cannot be told, it waits - ENGINE_ALIVE, nothing written) - but
+   where the file is no longer the one read at the start, the account is read again first, and another account than
+   the one being saved back (a person signed in meanwhile) stops it there: nothing saved, nothing swapped, CHANGED;
 4. the app is started again through its own codex: link, and the account read afresh on a session of its own;
 5. the target's account signed in is SWITCHED; anything else puts the previous file back - with the app closed again
-   and started, once - marks the target as needing a sign-in, and is NOT_SIGNED_IN. Never a second try.
+   and started, once, and only over the target's copy it put in - marks the target as needing a sign-in, and is
+   NOT_SIGNED_IN. Where that put-back did not happen (the app would not close, the rename was refused), the intent
+   stays - NOT_PUT_BACK - and each later look tries again (`recover`) until the file is the previous one.
 
 Each hand is a seam: `session_for` (a Codex home -> a session context manager), `restart` (codex/restart.restart's
 shape, given `between`) and `read_real` (the account read on the real home). A test fills them all.
 """
 from __future__ import annotations
+
+from pathlib import Path
+import time
 
 from . import authfile
 from .account import identity, parse
@@ -33,7 +42,32 @@ USAGE_READ = "account/rateLimits/read"
 ROOM_BELOW = 95
 # What a switch came to (closed words: the journal's and the card's).
 SWITCHED, NOT_SIGNED_IN, NOT_USABLE, NOT_CLOSED, FAILED = "switched", "not_signed_in", "not_usable", "not_closed", "failed"
-OUTCOMES = (SWITCHED, NOT_SIGNED_IN, NOT_USABLE, NOT_CLOSED, FAILED)
+# A switch left unfinished whose sign-in file is not the one it put in: the file is left as it is (recover).
+LEFT = "left"
+# The target was not signed in and the previous file could not be put back yet: the intent stays, the next look tries again.
+NOT_PUT_BACK = "not_put_back"
+# Another account was signed in while the app closed: nothing was saved back or swapped, the file left as it is.
+CHANGED = "changed_under"
+# Another switch, put-back, save or delete held the saved accounts: nothing was done (profiles.Profiles.locked).
+LOCKED = "locked"
+# The restart's hands said no right before the close - something runs or someone uses this PC now: nothing was closed.
+HELD = "held"
+# The target is in and signed in, but the Codex app did not start again: it stays closed until a person opens it.
+NOT_STARTED = "not_started"
+# Another Codex engine that may use this home still ran once the app was gone, or that could not be told: nothing was
+# written - a surviving TUI, IDE or exec-server engine could write its old account's tokens after the swap.
+ENGINE_ALIVE = "engine_alive"
+OUTCOMES = (SWITCHED, NOT_SIGNED_IN, NOT_USABLE, NOT_CLOSED, FAILED, LEFT, NOT_PUT_BACK, CHANGED, LOCKED, NOT_STARTED,
+            ENGINE_ALIVE, HELD)
+# The most restarts later looks make to put the previous file back; after them they wait for Codex to be closed.
+BACK_TRIES = 3
+# Seconds the switch, once the app's main is gone, gives its children to end before it says another engine runs, and
+# how often it looks meanwhile (the review's finding 17: they end a moment after the main).
+ENGINES_SETTLE = 15.0
+ENGINES_LOOK = 0.5
+# The clock and the sleep of that wait: a test's, so no test really waits.
+_clock = time.monotonic
+_sleep = time.sleep
 
 
 def default_backend_for(paths, exe=None):
@@ -84,7 +118,8 @@ def add_by_login(paths, store, *, backend_for=None, session_for=None, runner=Non
     if account.get("present") is not True or not account.get("email"):
         return None
     try:
-        return store.save(data, account["email"], account.get("plan_word"))
+        with store.locked():
+            return store.save(data, account["email"], account.get("plan_word"))
     except OSError:
         return None
 
@@ -98,9 +133,73 @@ def save_current(paths, store, codex_home, *, read_real=None):
     if found.get("present") is not True or not found.get("email"):
         return None
     try:
-        return store.save(authfile.read(codex_home), found["email"], found.get("plan_word"))
+        with store.locked():
+            return store.save(authfile.read(codex_home), found["email"], found.get("plan_word"))
     except OSError:
         return None
+
+
+def _inventory():
+    """The Codex app's and every codex.exe's process rows, as core reads them (codex/pairing.inventory: a pid, a parent
+    and an image path - no command line, no memory); None where they cannot be read. A test replaces it."""
+    try:
+        from codex_auto_resume.codex.pairing import inventory
+        return inventory()
+    except Exception:
+        return None
+
+
+def other_engines(rows, *, app_open) -> bool:
+    """Whether a Codex engine runs that may use this Codex home and is not the app's own (the security review's finding
+    10). The inventory cannot tell a codex.exe's home - it reads no command line and no environment - so every codex.exe
+    counts but the app main's descendants while the app is open - its app server, and an exec-server under that (they
+    end with it), found by walking parents through the rows, a loop or a chain longer than the rows counting as not the
+    app's - and the app servers this process started and holds (codex/pairing.own_server); rows that cannot be read
+    count as one. It ends no process. The inventory carries no creation times, so a parent id Windows reused for a
+    process under the app is not told apart: a chain is walked by ids alone."""
+    if not isinstance(rows, list):
+        return True
+    from codex_auto_resume.codex import pairing
+    with pairing._OWN_LOCK:
+        own = {mark[0] for mark in pairing._OWN}
+    main = None
+    if app_open:
+        try:
+            main = pairing._app_main(rows)["pid"]
+        except Exception:
+            main = None
+    parents = {row.get("pid"): row.get("parent") for row in rows if isinstance(row, dict)}
+
+    def under_main(row) -> bool:
+        seen, at = set(), row.get("parent")
+        while at is not None and at not in seen and len(seen) <= len(rows):
+            if at == main:
+                return True
+            seen.add(at)
+            at = parents.get(at)
+        return False
+    for row in rows:
+        if not isinstance(row, dict) or not isinstance(row.get("path"), str):
+            return True
+        if Path(row["path"]).name.lower() != "codex.exe" or row.get("pid") in own:
+            continue
+        if main is not None and row.get("pid") != main and under_main(row):
+            continue
+        return True
+    return False
+
+
+def engines_gone(seconds=ENGINES_SETTLE) -> bool:
+    """Whether no other engine runs (other_engines, the app closed), looking again every ENGINES_LOOK seconds for at
+    most `seconds`: the app's children end a moment after its main. Rows that cannot be read count as an engine once
+    the time is up. It ends no process."""
+    deadline = _clock() + seconds
+    while True:
+        if not other_engines(_inventory(), app_open=False):
+            return True
+        if _clock() >= deadline:
+            return False
+        _sleep(ENGINES_LOOK)
 
 
 def usage_of(reply) -> dict:
@@ -125,7 +224,7 @@ def has_room(found) -> bool:
 
 def read_profile(paths, store, profile_id, *, session_for=None, now=None) -> dict:
     """One read of a saved account on a scratch home; see the module. {present: None, ...} where it could not be read."""
-    from ..profiles import ProfileError
+    from ..profiles import KEEP_SECONDS, ProfileError
     found = {"present": None, "own": None, "plan": None, "available": None, "most_used": None, "full_until": None}
     try:
         profile = store.get(profile_id)
@@ -139,6 +238,14 @@ def read_profile(paths, store, profile_id, *, session_for=None, now=None) -> dic
                 account = parse(session.call(ACCOUNT_READ, {}))
                 usage = session.call(USAGE_READ, {}) if account.get("present") is True else None
     except Exception:
+        # A read that broke after Codex refreshed the tokens there: the newer copy is kept all the same - the old one
+        # may be spent already (the security review's finding 6).
+        if scratch.after is not None and scratch.after != profile["auth"]:
+            try:
+                with store.locked(KEEP_SECONDS):
+                    store.update(profile_id, auth=scratch.after)
+            except (ProfileError, OSError):
+                pass
         return found
     found["present"] = account.get("present")
     saved = profile.get("email")
@@ -147,23 +254,39 @@ def read_profile(paths, store, profile_id, *, session_for=None, now=None) -> dic
     if usage is not None:
         found.update(usage_of(usage))
     try:
-        if found["present"] is False or found["own"] is False:
-            store.update(profile_id, failed_at=int(now or store._clock()))
-        else:
-            changes = {}
-            if scratch.after is not None and scratch.after != profile["auth"]:
-                changes["auth"] = scratch.after                  # Codex refreshed the tokens there: keep the newer copy
-            if found["full_until"]:
-                changes["exhausted_until"] = int(found["full_until"])
-            if changes:
-                store.update(profile_id, **changes)
+        with store.locked(KEEP_SECONDS):
+            _note_read(store, profile_id, profile, scratch, found, now)
     except (ProfileError, OSError):
         pass
     return found
 
 
+def _note_read(store, profile_id, profile, scratch, found, now) -> None:
+    """What one read found, kept in the profile: needing a sign-in, or the newer copy and the reset it is full until."""
+    if found["present"] is False or found["own"] is False:
+        store.update(profile_id, failed_at=int(now or store._clock()))
+    else:
+        changes = {}
+        if scratch.after is not None and scratch.after != profile["auth"]:
+            changes["auth"] = scratch.after                  # Codex refreshed the tokens there: keep the newer copy
+        if found["full_until"]:
+            changes["exhausted_until"] = int(found["full_until"])
+        if changes:
+            store.update(profile_id, **changes)
+
+
 def switch(paths, store, codex_home, target_id, *, restart=None, read_real=None, now=None) -> str:
-    """Put the saved account `target_id` in as Codex's sign-in at `codex_home`; see the module. One of OUTCOMES."""
+    """Put the saved account `target_id` in as Codex's sign-in at `codex_home`; see the module. One of OUTCOMES - LOCKED,
+    and nothing done, where another switch, put-back, save or delete holds the saved accounts."""
+    from ..profiles import Locked
+    try:
+        with store.locked(0):
+            return _switch(paths, store, codex_home, target_id, restart=restart, read_real=read_real, now=now)
+    except Locked:
+        return LOCKED
+
+
+def _switch(paths, store, codex_home, target_id, *, restart=None, read_real=None, now=None) -> str:
     from ..profiles import ProfileError
     from . import restart as restarts
     if authfile.usable(codex_home) != authfile.USABLE:
@@ -189,40 +312,59 @@ def switch(paths, store, codex_home, target_id, *, restart=None, read_real=None,
     done = {"swapped": False}
 
     def between():
-        # The app is gone: the file in use goes back into its own profile, then the target's copy takes its place.
+        # The app is gone: the file in use goes back into its own profile, then the target's copy takes its place -
+        # unless another engine that may use this home still runs (or that cannot be told): then nothing is written.
+        if not engines_gone():
+            done["engines"] = True
+            return
         latest = authfile.read(codex_home)
+        if latest != current:
+            if identity(read_real()) != identity(before):
+                done["changed"] = True                       # not the account being saved back: nothing is written
+                return
+            # That read ran a session on the real home, which may have refreshed the tokens and written the file: what
+            # is sealed is what is there after it, never the copy read before (the review's finding 14).
+            latest = authfile.read(codex_home)
         store.update(source_id, auth=latest, used_at=stamp)
         authfile.replace(codex_home, target["auth"])
         done["swapped"] = True
 
     store.begin(source_id, target_id)
     try:
-        outcome, _how = restart(between)
+        found = restart(between)
+        if found is None:
+            return HELD                                      # its hands said no at the last look: nothing was closed
+        outcome, _how = found
         if outcome == restarts.NOT_RUNNING:
             between()                                        # Codex is closed: the next start reads the new file
         elif outcome in (restarts.NOT_ENDED, restarts.FAILED) and not done["swapped"]:
             return NOT_CLOSED
+        if done.get("changed"):
+            return CHANGED
+        if done.get("engines"):
+            return ENGINE_ALIVE
         if not done["swapped"]:
             return FAILED
         after = read_real()
         if identity(after) is not None and identity(after) == (target.get("email") or "").lower():
             store.update(target_id, used_at=stamp)
             store.mark_switched(target["email"])
-            return SWITCHED
-        # Not the target: the previous file back, Codex started on it once more, and the target set aside.
-        put_back = store.get(source_id)["auth"]
-
-        def back():
-            authfile.replace(codex_home, put_back)
-        outcome, _how = restart(back)
-        if outcome == restarts.NOT_RUNNING:
-            back()
+            # The app that did not come back is said as such: nothing is released early into a closed app.
+            return NOT_STARTED if outcome == restarts.NOT_STARTED else SWITCHED
+        # Not the target: the previous file back, Codex started on it once more, and the target set aside. The intent
+        # stays until the file in place is the previous one, so a put-back that did not happen is tried again.
         store.update(target_id, failed_at=stamp)
-        return NOT_SIGNED_IN
+        if _put_back(codex_home, target["auth"], store.get(source_id)["auth"], restart):
+            return NOT_SIGNED_IN
+        store.begin(source_id, target_id, step="back", put_in=target["auth"], previous=store.get(source_id)["auth"],
+                    to_email=target.get("email"))
+        done["kept"] = True
+        return NOT_PUT_BACK
     except (ProfileError, OSError):
         return FAILED
     finally:
-        store.end()
+        if not done.get("kept"):
+            store.end()
 
 
 def _read_real(paths) -> dict:
@@ -230,28 +372,112 @@ def _read_real(paths) -> dict:
     return read(paths)
 
 
-def recover(paths, store, codex_home, *, read_real=None) -> str | None:
+def _put_back(codex_home, put_in, previous, restart) -> bool:
+    """The previous sign-in file back in place of `put_in` - the target's copy a switch put there, and only over it -
+    through `restart` (the app closed and started) or directly where Codex does not run. Whether the file in place is
+    the previous one now. `restart` None: only where Codex does not run."""
+    from . import restart as restarts
+
+    def back():
+        if _is_in_place(codex_home, put_in):
+            authfile.replace(codex_home, previous)
+    if restart is not None:
+        outcome = restart(back)
+    else:
+        outcome = None if _app_running() else (restarts.NOT_RUNNING, None)
+    if outcome is not None and outcome[0] == restarts.NOT_RUNNING:
+        try:
+            back()
+        except OSError:
+            pass
+    return _is_in_place(codex_home, previous)
+
+
+def recover(paths, store, codex_home, *, read_real=None, restart=None) -> str | None:
+    """_recover, holding the saved accounts: LOCKED, and nothing settled, where another process's switch is under way -
+    its intent is its own. None where no switch was under way."""
+    from ..profiles import Locked
+    if store.intent() is None:
+        return None
+    try:
+        with store.locked(0):
+            return _recover(paths, store, codex_home, read_real=read_real, restart=restart)
+    except Locked:
+        return LOCKED
+
+
+def _recover(paths, store, codex_home, *, read_real=None, restart=None) -> str | None:
     """A switch the watcher did not see finish (an intent left behind by a crash): settled once and the intent cleared.
-    The account signed in now is read: the target's - SWITCHED; anything else - the previous profile's copy is put back
-    where Codex does not run, NOT_SIGNED_IN. None where no switch was under way."""
+    The account signed in now is read: the target's - SWITCHED. Anything else: only where the sign-in file in place is,
+    byte for byte, the target's copy this switch put in - and Codex does not run - the previous profile's copy goes back,
+    NOT_SIGNED_IN; a file it did not put there (the switch never got that far, Codex refreshed it, or a person signed in
+    since, the capability off meanwhile) is left exactly as it is, LEFT. Nothing writes the sign-in file unless it knows
+    what is there now. Where the previous copy cannot go back yet - Codex runs and may not be restarted now (`restart`
+    None, or answering None), or the rename is refused - the intent stays, NOT_PUT_BACK, and the next look tries again;
+    at most BACK_TRIES restarts, then only once Codex is closed. None where no switch was under way."""
     from ..profiles import ProfileError
     intent = store.intent()
     if intent is None:
         return None
     read_real = read_real or (lambda: _read_real(paths))
+    kept = False
     try:
-        target = store.get(intent.get("to")) if isinstance(intent.get("to"), str) else None
+        try:
+            target = store.get(intent.get("to")) if isinstance(intent.get("to"), str) else None
+        except ProfileError:
+            target = None                                    # deleted since: the intent's own record serves (A-R5)
+        to_email = target.get("email") if target is not None else intent.get("to_email")
+        put_in = target["auth"] if target is not None else intent.get("put_in")
         now = identity(read_real())
-        if target is not None and now is not None and now == (target.get("email") or "").lower():
-            store.mark_switched(target["email"])
+        if isinstance(to_email, str) and now is not None and now == to_email.lower():
+            store.mark_switched(to_email)
             return SWITCHED
-        if isinstance(intent.get("from"), str) and not _app_running():
-            authfile.replace(codex_home, store.get(intent["from"])["auth"])
-        return NOT_SIGNED_IN
+        if put_in is None or not isinstance(intent.get("from"), str) or not _is_in_place(codex_home, put_in):
+            return LEFT
+        previous = _previous(store, intent)
+        tries = intent.get("tries") if isinstance(intent.get("tries"), int) else 0
+        made = []
+
+        def counted(between):
+            found = restart(between)
+            made.extend(() if found is None else [found])
+            return found
+        hand = counted if restart is not None and tries < BACK_TRIES else None
+        if _put_back(codex_home, put_in, previous, hand):
+            return NOT_SIGNED_IN
+        store.begin(intent["from"], intent["to"], step="back", tries=tries + len(made), put_in=put_in, previous=previous,
+                    to_email=to_email)
+        kept = True
+        return NOT_PUT_BACK
     except (ProfileError, OSError):
         return FAILED
     finally:
-        store.end()
+        if not kept:
+            store.end()
+
+
+def _previous(store, intent) -> bytes:
+    """The copy a put-back puts in: the intent's own (A-R5), else the previous profile's. ProfileError where neither is."""
+    import base64
+    from ..profiles import ProfileError
+    kept = intent.get("previous")
+    if isinstance(kept, str):
+        try:
+            return authfile.check(base64.b64decode(kept, validate=True))
+        except (ValueError, OSError):
+            raise ProfileError("the intent's copy cannot be opened") from None
+    return store.get(intent["from"])["auth"]
+
+
+def _is_in_place(codex_home, data) -> bool:
+    """Whether the sign-in file at `codex_home` is, byte for byte, `data` - or, `data` a digest (the intent's record of
+    the copy put in, profiles.digest), a file of that digest: the one way to know what is there now."""
+    from ..profiles import digest
+    try:
+        found = authfile.read(codex_home)
+    except authfile.AuthFileError:
+        return False
+    return digest(found) == data if isinstance(data, str) else found == data
 
 
 def _app_running() -> bool:

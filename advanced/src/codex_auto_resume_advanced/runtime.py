@@ -96,6 +96,7 @@ from codex_auto_resume.domain.plug import (ALTERNATIVES, ANSWERS, DEFER, HOOKS, 
                                            RESTRICTIONS, TAKE_UP, Alternative, Point, RecordMove)
 from codex_auto_resume.domain.plughands import RECORDS_LIMIT, kinds_of, widening_of, workers
 
+from . import autocheck
 from .arming import Arming
 from .codex import headless
 from .engine import chat, foropen, sessions, silent
@@ -103,6 +104,9 @@ from .ledger import ClaimLedger, ceiling_reached
 from .registry import REGISTRY
 from .state import AdvancedState, StateError
 from .state.schema import HEADLESS_CAPABILITIES
+# What is tended while off or watched: the run kinds' clean-up, and (v0.6.23 audit A-M3) the automatic account switch's
+# unfinished switch - its put-back alone, never a new switch (engine/autoswitch.AutoSwitch.tend).
+TENDED = HEADLESS_CAPABILITIES + ("account_auto_switch",)
 from .vocabulary import (TRIPWIRES, ArmingState, ArmingWarning, CapabilityKind, ContinuationReason, JournalCode,
                          KeepReason, OffReason, OverrideKind, PromptReason)
 
@@ -118,6 +122,9 @@ SENDING = {Point.GATES: 1, Point.TEXT: 0, Point.SENDER: 0, Point.SCHEDULE: 0, Po
            Point.DELIVERY: 0, Point.UNLOADED: 0, Point.ADMISSION: 0}
 # The gate a record taken up at P17 is put to the plug again at (core's engine/relaxed.py).
 KNOWN_FAILURE = "known_failure"
+# v0.6.22 (issue #59): the points whose answer carries the send a VERIFIED_RESET at known_failure was answered for - a
+# channel (P5) or a route (P16) of the same capability's.
+VOUCHED_BY = frozenset({Point.SENDER, Point.UNLOADED})
 # The words that take a failure up at P17 and relax its record at known_failure.
 RELAXING = TAKE_UP
 # Those a capability with no unit left holds its record on, rather than letting it end: all but
@@ -553,7 +560,8 @@ class Runtime:
             if chooser is not None and not _preferred(point, chosen, answer, record, self.clock()):
                 continue
             if point in SENDING and not kept:
-                if not isinstance(record, dict) or self._ceiling(definition, record) is not None:
+                if (not isinstance(record, dict)
+                        or self._ceiling(definition, record, self._verified(definition, point, answer, key)) is not None):
                     self._once(JournalCode.CEILING, definition, point, answer, record)
                     if relaxing and answer in HELD_AT_CEILING:
                         return Alternative.HOLD          # it waits for a unit, and does not end
@@ -782,14 +790,22 @@ class Runtime:
             pass                                     # kept the next time core goes on with it
         return True
 
-    def _ceiling(self, definition, record):
+    def _ceiling(self, definition, record, verified=False):
         """The ceiling that leaves `definition` nothing to spend on `record` now, looked at
-        before the claim; the claim looks again, under its lock, before it spends."""
+        before the claim; the claim looks again, under its lock, before it spends. `verified`: for a
+        reset core verified (`_verified`, ledger.ceiling_reached)."""
         try:
             counts = self.state.spent(definition.id, record.get("thread_id"))
-            return ceiling_reached(counts, definition, self.state.meta()["global_hourly"])
+            return ceiling_reached(counts, definition, self.state.meta()["global_hourly"], verified=verified)
         except StateError:
             return True                          # nothing can be paid for, so nothing is taken
+
+    def _verified(self, definition, point, answer, key) -> bool:
+        """v0.6.22 (issue #59): whether `answer` at `point` is `definition`'s VERIFIED_RESET for record `key`, at
+        known_failure, or its channel or route for a record it answered that for this tick (`_acted`)."""
+        if point == Point.GATES:
+            return answer is Alternative.VERIFIED_RESET
+        return point in VOUCHED_BY and (Point.GATES, definition.id, Alternative.VERIFIED_RESET) in self._acted.get(key, ())
 
     def _once(self, code, definition, point, answer, record) -> None:
         key = (code, definition.id, point, _word(answer, point),
@@ -816,13 +832,14 @@ class Runtime:
         self._texted.clear()
         if not len(self.registry):
             return DEFER
+        self._auto_check()
         self.arming.sweep(view)
         states = self.states(fresh=True)
         errands = []
         for definition in self.registry.at(Point.TICK):
             state = states.get(definition.id, ArmingState.OFF)
             tend = (_own(self._code_of(definition), "tend")
-                    if state != ArmingState.ARMED and definition.id in HEADLESS_CAPABILITIES else None)
+                    if state != ArmingState.ARMED and definition.id in TENDED else None)
             if tend is not None:
                 # v0.6.18: what a run kind turned off or watched still owes what it started - a live run's Stop
                 # handed on and its end written, a model put back (engine/headless.follow_up, engine/fallback.py):
@@ -849,6 +866,42 @@ class Runtime:
                 self._once(JournalCode.WOULD_HAVE, definition, Point.TICK, Point.TICK, None)
                 continue
             self._once(JournalCode.ACTED, definition, Point.TICK, Point.TICK, None)
+            errands.append((definition, answer))
+        return _Errands(self, errands) if errands else DEFER
+
+    def _auto_check(self) -> None:
+        """v0.6.22: the automatic compatibility check, where one is due for the engine the watcher told the plug
+        (autocheck.tend, which starts it and returns). Whatever it does, it costs the tick nothing."""
+        try:
+            autocheck.tend(self.paths, clock=self.clock)
+        except Exception:
+            pass
+
+    def resident(self, view):
+        """P22 (v0.6.22, the owner's word of 2026-11-06): asked by core only while recovery is paused - the errands of the
+        capabilities that declare, by answering at P22, that they send nothing to Codex (registry.problems holds them to
+        P8 and P22 alone): each one on with an errand, joined as P8's are; a watched one's journalled, never run. Nothing
+        else is asked, so a pause still beats every capability's send."""
+        if not len(self.registry):
+            return DEFER
+        states = self.states(fresh=True)
+        errands = []
+        for definition in self.registry.at(Point.RESIDENT):
+            state = states.get(definition.id, ArmingState.OFF)
+            if state == ArmingState.OFF:
+                continue
+            try:
+                answer = self._code_of(definition).resident(view)
+                run = None if answer is DEFER else getattr(answer, "run", None)
+            except Exception:
+                self._tripped(definition)
+                continue
+            if not callable(run):
+                continue
+            if state == ArmingState.SHADOW:
+                self._once(JournalCode.WOULD_HAVE, definition, Point.RESIDENT, Point.TICK, None)
+                continue
+            self._once(JournalCode.ACTED, definition, Point.RESIDENT, Point.TICK, None)
             errands.append((definition, answer))
         return _Errands(self, errands) if errands else DEFER
 
@@ -1239,13 +1292,19 @@ class Runtime:
         entries = self._acted.pop(key, ())
         if Point.CONCURRENCY in carried and not any(point == Point.CONCURRENCY for point, _c, _w in entries):
             return Alternative.HOLD                      # pooled, and nothing left to pay for it: one poll
+        # v0.6.22 (issue #59): a VERIFIED_RESET is paid for, and verified, only by the capability whose own channel or
+        # route carries the send; one another channel carries is held as core's five would hold it (ledger.py).
+        vouched = {capability for point, capability, word in entries
+                   if point == Point.GATES and point in carried and word == Alternative.VERIFIED_RESET}
+        carrying = {capability for point, capability, _w in entries if point in VOUCHED_BY and point in carried}
         for point, capability, word in entries:
-            if point in carried:
+            if point in carried and not (word == Alternative.VERIFIED_RESET and capability not in carrying):
                 words = acted.setdefault(capability, set())
                 if word in ANSWERS:
                     words.add(Alternative(word))
         try:
-            answer = self.ledger.claim(connection, record, now, acted)
+            answer = self.ledger.claim(connection, record, now, acted, verified=frozenset(vouched & carrying),
+                                       unvouched=bool(vouched - carrying))
         except Exception:
             if acted:
                 return Alternative.HOLD

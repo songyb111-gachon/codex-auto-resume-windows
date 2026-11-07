@@ -631,7 +631,7 @@ class InstallerDeletionRoutingTests(unittest.TestCase):
         # the exit code of the run outside another app's view.
         self.assertEqual([line for _, line in lines], [
             "Remove-Item -LiteralPath $folder -Recurse -Force -ErrorAction SilentlyContinue",
-            "Remove-Item -Force -ErrorAction SilentlyContinue $out, $err",
+            "Remove-Item -Force -ErrorAction SilentlyContinue -LiteralPath $out, $err",
             "Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue",
         ], "a deletion in install.ps1 does not go through Remove-OwnedItem")
 

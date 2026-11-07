@@ -1,0 +1,3263 @@
+{
+ "definitions": {
+  "ClientRequest": {
+   "oneOf": [
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "initialize"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "server/diagnostics"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "userVerification/status"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "userVerification/enroll"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "userVerification/delete"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "userVerification/verify"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "userVerification/cancel"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/start"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/resume"
+       ]
+      },
+      "params": {
+       "$ref": "#/definitions/v2/ThreadResumeParams"
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/fork"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/sample"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/sample/cancel"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/archive"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/delete"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/unsubscribe"
+       ]
+      },
+      "params": {
+       "$ref": "#/definitions/v2/ThreadUnsubscribeParams"
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/increment_elicitation"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/decrement_elicitation"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/name/set"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/prediction/request"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/goal/set"
+       ]
+      },
+      "params": {
+       "$ref": "#/definitions/v2/ThreadGoalSetParams"
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/goal/get"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/goal/clear"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/queue/add"
+       ]
+      },
+      "params": {
+       "$ref": "#/definitions/v2/ThreadQueueAddParams"
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/queue/list"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/queue/update"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/queue/delete"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/queue/reorder"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/queue/start"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/metadata/update"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/attachment/add"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/attachment/list"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/attachmentOwner/list"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/attachment/remove"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/section/move"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/settings/update"
+       ]
+      },
+      "params": {
+       "$ref": "#/definitions/v2/ThreadSettingsUpdateParams"
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/memoryMode/set"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/memory/read"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "memory/status"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "memory/reset"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "rollout/compress"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/unarchive"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/compact/start"
+       ]
+      },
+      "params": {
+       "$ref": "#/definitions/v2/ThreadCompactStartParams"
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/shellCommand"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/approveGuardianDeniedAction"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/backgroundTerminals/clean"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/backgroundTerminals/list"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/backgroundTerminals/terminate"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/revert"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/list"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "project/list"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "project/read"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "project/create"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "project/import"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "project/update"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "project/move"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "project/delete"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "threadSection/list"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "threadSection/create"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "threadSection/update"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "threadSection/delete"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/search"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/searchOccurrences"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/loaded/list"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/read"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/readState/update"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/turns/list"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/items/list"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/items/read"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/inject_items"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "skills/list"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "skills/extraRoots/set"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "hooks/list"
+       ]
+      },
+      "params": {
+       "$ref": "#/definitions/v2/HooksListParams"
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "marketplace/add"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "marketplace/remove"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "marketplace/upgrade"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "plugin/list"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "plugin/search"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "plugin/installed"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "plugin/reconcile"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "plugin/read"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "plugin/skill/read"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "plugin/share/save"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "plugin/share/updateTargets"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "plugin/share/list"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "plugin/share/checkout"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "plugin/share/delete"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "app/read"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "app/list"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "app/installed"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "fs/readFile"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "fs/writeFile"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "fs/createDirectory"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "fs/getMetadata"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "fs/readDirectory"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "fs/remove"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "fs/copy"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "fs/watch"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "fs/unwatch"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "skills/config/write"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "plugin/install"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "plugin/uninstall"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "turn/start"
+       ]
+      },
+      "params": {
+       "$ref": "#/definitions/v2/TurnStartParams"
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "turn/settings/update"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "turn/steer"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "turn/interrupt"
+       ]
+      },
+      "params": {
+       "$ref": "#/definitions/v2/TurnInterruptParams"
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/realtime/start"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/realtime/appendAudio"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/realtime/appendText"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/realtime/appendSpeech"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/realtime/stop"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/timeline/list"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "thread/realtime/listVoices"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "review/start"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "model/list"
+       ]
+      },
+      "params": {
+       "$ref": "#/definitions/v2/ModelListParams"
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "account/gatewayOAuth/read"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "account/gatewayOAuth/login"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "account/gatewayOAuth/cancel"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "modelProvider/capabilities/read"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "experimentalFeature/list"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "permissionProfile/list"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "experimentalFeature/enablement/set"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "remoteControl/enable"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "remoteControl/disable"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "remoteControl/status/read"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "remoteControl/pairing/start"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "remoteControl/pairing/status"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "remoteControl/client/list"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "remoteControl/client/revoke"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "collaborationMode/list"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "mock/experimentalMethod"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "environment/add"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "environment/info"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "environment/status"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "mcpServer/oauth/login"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "config/mcpServer/reload"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "mcpServerStatus/list"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "mcpServer/resource/read"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "mcpServer/event/stream/start"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "mcpServer/event/stream/stop"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "mcpServer/tool/call"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "windowsSandbox/setupStart"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "windowsSandbox/readiness"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "account/login/start"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "account/bedrock/discover"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "account/bedrock/setup"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "account/gcp/setup"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "account/bedrock/checkGovCloudRequirements"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "account/login/cancel"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "accountSession/list"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "accountSession/switch"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "account/logout"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "account/rateLimits/read"
+       ]
+      },
+      "params": {
+       "anyOf": [
+        {
+         "$ref": "#/definitions/v2/GetAccountRateLimitsParams"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "account/rateLimitResetCredit/consume"
+       ]
+      },
+      "params": {
+       "$ref": "#/definitions/v2/ConsumeAccountRateLimitResetCreditParams"
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "account/usage/read"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "account/workspaceMessages/read"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "account/sendAddCreditsNudgeEmail"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "feedback/upload"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "feedback/save"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "command/exec"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "command/exec/write"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "command/exec/terminate"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "command/exec/resize"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "process/spawn"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "process/writeStdin"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "process/kill"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "process/resizePty"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "config/read"
+       ]
+      },
+      "params": {
+       "$ref": "#/definitions/v2/ConfigReadParams"
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "externalAgentConfig/detect"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "externalAgentConfig/import"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "externalAgentConfig/import/recordHistory"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "externalAgentConfig/import/readHistories"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "config/value/write"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "config/batchWrite"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "configRequirements/read"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "account/read"
+       ]
+      },
+      "params": {
+       "$ref": "#/definitions/v2/GetAccountParams"
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "fuzzyFileSearch"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "fuzzyFileSearch/sessionStart"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "fuzzyFileSearch/sessionUpdate"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "fuzzyFileSearch/sessionStop"
+       ]
+      }
+     }
+    }
+   ]
+  },
+  "CommandExecutionApprovalDecision": {
+   "oneOf": [
+    {
+     "enum": [
+      "accept"
+     ],
+     "type": "string"
+    },
+    {
+     "enum": [
+      "acceptForSession"
+     ],
+     "type": "string"
+    },
+    {
+     "additionalProperties": false,
+     "properties": {
+      "acceptWithExecpolicyAmendment": {
+       "properties": {
+        "execpolicy_amendment": {
+         "items": {
+          "type": "string"
+         },
+         "type": "array"
+        }
+       },
+       "required": [
+        "execpolicy_amendment"
+       ],
+       "type": "object"
+      }
+     },
+     "required": [
+      "acceptWithExecpolicyAmendment"
+     ],
+     "type": "object"
+    },
+    {
+     "additionalProperties": false,
+     "properties": {
+      "applyNetworkPolicyAmendment": {
+       "properties": {
+        "network_policy_amendment": {
+         "$ref": "#/definitions/NetworkPolicyAmendment"
+        }
+       },
+       "required": [
+        "network_policy_amendment"
+       ],
+       "type": "object"
+      }
+     },
+     "required": [
+      "applyNetworkPolicyAmendment"
+     ],
+     "type": "object"
+    },
+    {
+     "enum": [
+      "decline"
+     ],
+     "type": "string"
+    },
+    {
+     "enum": [
+      "cancel"
+     ],
+     "type": "string"
+    }
+   ]
+  },
+  "FileChangeApprovalDecision": {
+   "oneOf": [
+    {
+     "enum": [
+      "accept"
+     ],
+     "type": "string"
+    },
+    {
+     "enum": [
+      "acceptForSession"
+     ],
+     "type": "string"
+    },
+    {
+     "enum": [
+      "decline"
+     ],
+     "type": "string"
+    },
+    {
+     "enum": [
+      "cancel"
+     ],
+     "type": "string"
+    }
+   ]
+  },
+  "McpServerElicitationAction": {
+   "enum": [
+    "accept",
+    "decline",
+    "cancel"
+   ],
+   "type": "string"
+  },
+  "ReviewDecision": {
+   "oneOf": [
+    {
+     "enum": [
+      "approved"
+     ],
+     "type": "string"
+    },
+    {
+     "additionalProperties": false,
+     "properties": {
+      "approved_execpolicy_amendment": {
+       "properties": {
+        "proposed_execpolicy_amendment": {
+         "items": {
+          "type": "string"
+         },
+         "type": "array"
+        }
+       },
+       "required": [
+        "proposed_execpolicy_amendment"
+       ],
+       "type": "object"
+      }
+     },
+     "required": [
+      "approved_execpolicy_amendment"
+     ],
+     "type": "object"
+    },
+    {
+     "enum": [
+      "approved_for_session"
+     ],
+     "type": "string"
+    },
+    {
+     "enum": [
+      "approved_mcp_policy_amendment"
+     ],
+     "type": "string"
+    },
+    {
+     "additionalProperties": false,
+     "properties": {
+      "network_policy_amendment": {
+       "properties": {
+        "network_policy_amendment": {
+         "$ref": "#/definitions/NetworkPolicyAmendment"
+        }
+       },
+       "required": [
+        "network_policy_amendment"
+       ],
+       "type": "object"
+      }
+     },
+     "required": [
+      "network_policy_amendment"
+     ],
+     "type": "object"
+    },
+    {
+     "additionalProperties": false,
+     "properties": {
+      "denied": {
+       "properties": {
+        "rejection": {
+         "type": "string"
+        }
+       },
+       "required": [
+        "rejection"
+       ],
+       "type": "object"
+      }
+     },
+     "required": [
+      "denied"
+     ],
+     "type": "object"
+    },
+    {
+     "enum": [
+      "timed_out"
+     ],
+     "type": "string"
+    },
+    {
+     "enum": [
+      "abort"
+     ],
+     "type": "string"
+    }
+   ]
+  },
+  "ServerRequest": {
+   "oneOf": [
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "item/commandExecution/requestApproval"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "item/fileChange/requestApproval"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "item/tool/requestUserInput"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "mcpServer/elicitation/request"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "item/permissions/requestApproval"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "item/tool/call"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "account/chatgptAuthTokens/refresh"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "attestation/generate"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "currentTime/read"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "applyPatchApproval"
+       ]
+      }
+     }
+    },
+    {
+     "properties": {
+      "method": {
+       "enum": [
+        "execCommandApproval"
+       ]
+      }
+     }
+    }
+   ]
+  },
+  "v2": {
+   "ConfigReadParams": {
+    "properties": {
+     "cwd": {},
+     "includeLayers": {}
+    },
+    "type": "object"
+   },
+   "ConsumeAccountRateLimitResetCreditOutcome": {
+    "oneOf": [
+     {
+      "enum": [
+       "reset"
+      ],
+      "type": "string"
+     },
+     {
+      "enum": [
+       "nothingToReset"
+      ],
+      "type": "string"
+     },
+     {
+      "enum": [
+       "noCredit"
+      ],
+      "type": "string"
+     },
+     {
+      "enum": [
+       "alreadyRedeemed"
+      ],
+      "type": "string"
+     }
+    ]
+   },
+   "ConsumeAccountRateLimitResetCreditParams": {
+    "properties": {
+     "creditId": {},
+     "idempotencyKey": {}
+    },
+    "required": [
+     "idempotencyKey"
+    ],
+    "type": "object"
+   },
+   "GetAccountParams": {
+    "properties": {
+     "refreshToken": {}
+    },
+    "type": "object"
+   },
+   "GetAccountRateLimitsParams": {
+    "properties": {
+     "excludeResetCreditDetails": {},
+     "supportsLunaReserve": {}
+    },
+    "type": "object"
+   },
+   "GetAccountRateLimitsResponse": {
+    "properties": {
+     "accountId": {},
+     "ordinaryUsageAllowed": {},
+     "rateLimitResetCredits": {},
+     "rateLimitUpsell": {},
+     "rateLimits": {},
+     "rateLimitsByLimitId": {}
+    },
+    "required": [
+     "rateLimits"
+    ],
+    "type": "object"
+   },
+   "HookEventName": {
+    "enum": [
+     "preModelRequest",
+     "postModelRequest",
+     "preToolUse",
+     "permissionRequest",
+     "postToolUse",
+     "preCompact",
+     "postCompact",
+     "sessionStart",
+     "sessionEnd",
+     "userPromptSubmit",
+     "subagentStart",
+     "subagentStop",
+     "stop",
+     "interrupt"
+    ],
+    "type": "string"
+   },
+   "HooksListParams": {
+    "properties": {
+     "cwds": {},
+     "threadId": {}
+    },
+    "type": "object"
+   },
+   "Model": {
+    "properties": {
+     "additionalSpeedTiers": {},
+     "availabilityNux": {},
+     "availableAccessPrograms": {},
+     "defaultReasoningEffort": {},
+     "defaultServiceTier": {},
+     "displayName": {},
+     "hidden": {},
+     "id": {},
+     "inputModalities": {},
+     "isDefault": {},
+     "model": {},
+     "modelSpecialty": {},
+     "multiAgentVersion": {},
+     "serviceTiers": {},
+     "supportedReasoningEfforts": {},
+     "supportsPersonality": {},
+     "upgrade": {},
+     "upgradeInfo": {}
+    },
+    "required": [
+     "defaultReasoningEffort",
+     "description",
+     "displayName",
+     "hidden",
+     "id",
+     "isDefault",
+     "model",
+     "supportedReasoningEfforts"
+    ],
+    "type": "object"
+   },
+   "ModelListParams": {
+    "properties": {
+     "cursor": {},
+     "includeHidden": {},
+     "limit": {}
+    },
+    "type": "object"
+   },
+   "ModelListResponse": {
+    "properties": {
+     "data": {},
+     "nextCursor": {}
+    },
+    "required": [
+     "data"
+    ],
+    "type": "object"
+   },
+   "RateLimitResetCreditsSummary": {
+    "properties": {
+     "availableCount": {},
+     "credits": {}
+    },
+    "required": [
+     "availableCount"
+    ],
+    "type": "object"
+   },
+   "RateLimitSnapshot": {
+    "properties": {
+     "credits": {},
+     "individualLimit": {},
+     "limitId": {},
+     "limitName": {},
+     "normalModelSlug": {},
+     "planType": {},
+     "primary": {},
+     "rateLimitReachedType": {},
+     "secondary": {},
+     "spendControlReached": {}
+    },
+    "type": "object"
+   },
+   "RateLimitWindow": {
+    "properties": {
+     "resetsAt": {},
+     "usedPercent": {},
+     "windowDurationMins": {}
+    },
+    "required": [
+     "usedPercent"
+    ],
+    "type": "object"
+   },
+   "SandboxPolicy": {
+    "oneOf": [
+     {
+      "properties": {
+       "type": {
+        "enum": [
+         "dangerFullAccess"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "type"
+      ],
+      "type": "object"
+     },
+     {
+      "properties": {
+       "networkAccess": {
+        "type": "boolean"
+       },
+       "type": {
+        "enum": [
+         "readOnly"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "type"
+      ],
+      "type": "object"
+     },
+     {
+      "properties": {
+       "networkAccess": {
+        "allOf": [
+         {
+          "$ref": "#/definitions/v2/NetworkAccess"
+         }
+        ]
+       },
+       "type": {
+        "enum": [
+         "externalSandbox"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "type"
+      ],
+      "type": "object"
+     },
+     {
+      "properties": {
+       "excludeSlashTmp": {
+        "type": "boolean"
+       },
+       "excludeTmpdirEnvVar": {
+        "type": "boolean"
+       },
+       "networkAccess": {
+        "type": "boolean"
+       },
+       "type": {
+        "enum": [
+         "workspaceWrite"
+        ],
+        "type": "string"
+       },
+       "writableRoots": {
+        "items": {
+         "$ref": "#/definitions/v2/AbsolutePathBuf"
+        },
+        "type": "array"
+       }
+      },
+      "required": [
+       "type"
+      ],
+      "type": "object"
+     }
+    ]
+   },
+   "ThreadCompactStartParams": {
+    "properties": {
+     "threadId": {}
+    },
+    "required": [
+     "threadId"
+    ],
+    "type": "object"
+   },
+   "ThreadGoalSetParams": {
+    "properties": {
+     "objective": {},
+     "origin": {},
+     "status": {},
+     "threadId": {},
+     "tokenBudget": {}
+    },
+    "required": [
+     "threadId"
+    ],
+    "type": "object"
+   },
+   "ThreadItem": {
+    "oneOf": [
+     {
+      "properties": {
+       "clientId": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "content": {
+        "items": {
+         "$ref": "#/definitions/v2/UserInput"
+        },
+        "type": "array"
+       },
+       "id": {
+        "type": "string"
+       },
+       "type": {
+        "enum": [
+         "userMessage"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "content",
+       "id",
+       "type"
+      ],
+      "type": "object"
+     },
+     {
+      "properties": {
+       "fragments": {
+        "items": {
+         "$ref": "#/definitions/v2/HookPromptFragment"
+        },
+        "type": "array"
+       },
+       "id": {
+        "type": "string"
+       },
+       "type": {
+        "enum": [
+         "hookPrompt"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "fragments",
+       "id",
+       "type"
+      ],
+      "type": "object"
+     },
+     {
+      "properties": {
+       "delivery": {
+        "anyOf": [
+         {
+          "$ref": "#/definitions/v2/AgentMessageDelivery"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "id": {
+        "type": "string"
+       },
+       "memoryCitation": {
+        "anyOf": [
+         {
+          "$ref": "#/definitions/v2/MemoryCitation"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "phase": {
+        "anyOf": [
+         {
+          "$ref": "#/definitions/v2/MessagePhase"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "questions": {
+        "items": {
+         "$ref": "#/definitions/v2/AsyncUserInputQuestion"
+        },
+        "type": [
+         "array",
+         "null"
+        ]
+       },
+       "text": {
+        "type": "string"
+       },
+       "type": {
+        "enum": [
+         "agentMessage"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "id",
+       "text",
+       "type"
+      ],
+      "type": "object"
+     },
+     {
+      "properties": {
+       "id": {
+        "type": "string"
+       },
+       "name": {
+        "type": "string"
+       },
+       "namespace": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "output": {
+        "$ref": "#/definitions/v2/FunctionCallOutputBody"
+       },
+       "type": {
+        "enum": [
+         "functionCallOutput"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "id",
+       "name",
+       "output",
+       "type"
+      ],
+      "type": "object"
+     },
+     {
+      "properties": {
+       "id": {
+        "type": "string"
+       },
+       "text": {
+        "type": "string"
+       },
+       "type": {
+        "enum": [
+         "plan"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "id",
+       "text",
+       "type"
+      ],
+      "type": "object"
+     },
+     {
+      "properties": {
+       "content": {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       "id": {
+        "type": "string"
+       },
+       "summary": {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       "type": {
+        "enum": [
+         "reasoning"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "id",
+       "type"
+      ],
+      "type": "object"
+     },
+     {
+      "properties": {
+       "aggregatedOutput": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "command": {
+        "type": "string"
+       },
+       "commandActions": {
+        "items": {
+         "$ref": "#/definitions/v2/CommandAction"
+        },
+        "type": "array"
+       },
+       "cwd": {
+        "allOf": [
+         {
+          "$ref": "#/definitions/v2/LegacyAppPathString"
+         }
+        ]
+       },
+       "durationMs": {
+        "format": "int64",
+        "type": [
+         "integer",
+         "null"
+        ]
+       },
+       "exitCode": {
+        "format": "int32",
+        "type": [
+         "integer",
+         "null"
+        ]
+       },
+       "id": {
+        "type": "string"
+       },
+       "pluginId": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "processId": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "scriptPath": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "source": {
+        "allOf": [
+         {
+          "$ref": "#/definitions/v2/CommandExecutionSource"
+         }
+        ]
+       },
+       "status": {
+        "$ref": "#/definitions/v2/CommandExecutionStatus"
+       },
+       "type": {
+        "enum": [
+         "commandExecution"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "command",
+       "commandActions",
+       "cwd",
+       "id",
+       "status",
+       "type"
+      ],
+      "type": "object"
+     },
+     {
+      "properties": {
+       "changes": {
+        "items": {
+         "$ref": "#/definitions/v2/FileUpdateChange"
+        },
+        "type": "array"
+       },
+       "id": {
+        "type": "string"
+       },
+       "status": {
+        "$ref": "#/definitions/v2/PatchApplyStatus"
+       },
+       "type": {
+        "enum": [
+         "fileChange"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "changes",
+       "id",
+       "status",
+       "type"
+      ],
+      "type": "object"
+     },
+     {
+      "properties": {
+       "appContext": {
+        "anyOf": [
+         {
+          "$ref": "#/definitions/v2/McpToolCallAppContext"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "arguments": true,
+       "durationMs": {
+        "format": "int64",
+        "type": [
+         "integer",
+         "null"
+        ]
+       },
+       "error": {
+        "anyOf": [
+         {
+          "$ref": "#/definitions/v2/McpToolCallError"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "id": {
+        "type": "string"
+       },
+       "mcpAppResourceUri": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "mcpAppUi": {
+        "anyOf": [
+         {
+          "$ref": "#/definitions/v2/McpAppUi"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "pluginId": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "readOnlyHint": {
+        "type": [
+         "boolean",
+         "null"
+        ]
+       },
+       "result": {
+        "anyOf": [
+         {
+          "$ref": "#/definitions/v2/McpToolCallResult"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "server": {
+        "type": "string"
+       },
+       "status": {
+        "$ref": "#/definitions/v2/McpToolCallStatus"
+       },
+       "tool": {
+        "type": "string"
+       },
+       "type": {
+        "enum": [
+         "mcpToolCall"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "arguments",
+       "id",
+       "server",
+       "status",
+       "tool",
+       "type"
+      ],
+      "type": "object"
+     },
+     {
+      "properties": {
+       "arguments": true,
+       "contentItems": {
+        "items": {
+         "$ref": "#/definitions/v2/DynamicToolCallOutputContentItem"
+        },
+        "type": [
+         "array",
+         "null"
+        ]
+       },
+       "durationMs": {
+        "format": "int64",
+        "type": [
+         "integer",
+         "null"
+        ]
+       },
+       "id": {
+        "type": "string"
+       },
+       "namespace": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "status": {
+        "$ref": "#/definitions/v2/DynamicToolCallStatus"
+       },
+       "success": {
+        "type": [
+         "boolean",
+         "null"
+        ]
+       },
+       "tool": {
+        "type": "string"
+       },
+       "type": {
+        "enum": [
+         "dynamicToolCall"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "arguments",
+       "id",
+       "status",
+       "tool",
+       "type"
+      ],
+      "type": "object"
+     },
+     {
+      "properties": {
+       "agentsStates": {
+        "additionalProperties": {
+         "$ref": "#/definitions/v2/CollabAgentState"
+        },
+        "type": "object"
+       },
+       "id": {
+        "type": "string"
+       },
+       "model": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "prompt": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "reasoningEffort": {
+        "anyOf": [
+         {
+          "$ref": "#/definitions/v2/ReasoningEffort"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "receiverThreadIds": {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       "senderThreadId": {
+        "type": "string"
+       },
+       "status": {
+        "allOf": [
+         {
+          "$ref": "#/definitions/v2/CollabAgentToolCallStatus"
+         }
+        ]
+       },
+       "tool": {
+        "allOf": [
+         {
+          "$ref": "#/definitions/v2/CollabAgentTool"
+         }
+        ]
+       },
+       "type": {
+        "enum": [
+         "collabAgentToolCall"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "agentsStates",
+       "id",
+       "receiverThreadIds",
+       "senderThreadId",
+       "status",
+       "tool",
+       "type"
+      ],
+      "type": "object"
+     },
+     {
+      "properties": {
+       "agentPath": {
+        "type": "string"
+       },
+       "agentThreadId": {
+        "type": "string"
+       },
+       "id": {
+        "type": "string"
+       },
+       "kind": {
+        "$ref": "#/definitions/v2/SubAgentActivityKind"
+       },
+       "model": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "reasoningEffort": {
+        "anyOf": [
+         {
+          "$ref": "#/definitions/v2/ReasoningEffort"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "type": {
+        "enum": [
+         "subAgentActivity"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "agentPath",
+       "agentThreadId",
+       "id",
+       "kind",
+       "type"
+      ],
+      "type": "object"
+     },
+     {
+      "properties": {
+       "action": {
+        "anyOf": [
+         {
+          "$ref": "#/definitions/v2/WebSearchAction"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "id": {
+        "type": "string"
+       },
+       "query": {
+        "type": "string"
+       },
+       "results": {
+        "items": true,
+        "type": [
+         "array",
+         "null"
+        ]
+       },
+       "type": {
+        "enum": [
+         "webSearch"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "id",
+       "query",
+       "type"
+      ],
+      "type": "object"
+     },
+     {
+      "properties": {
+       "id": {
+        "type": "string"
+       },
+       "path": {
+        "$ref": "#/definitions/v2/LegacyAppPathString"
+       },
+       "type": {
+        "enum": [
+         "imageView"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "id",
+       "path",
+       "type"
+      ],
+      "type": "object"
+     },
+     {
+      "properties": {
+       "durationMs": {
+        "format": "uint64",
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       "id": {
+        "type": "string"
+       },
+       "type": {
+        "enum": [
+         "sleep"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "durationMs",
+       "id",
+       "type"
+      ],
+      "type": "object"
+     },
+     {
+      "anyOf": [
+       {
+        "properties": {
+         "fileId": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "fileId"
+        ],
+        "type": "object"
+       },
+       {
+        "properties": {
+         "result": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "result"
+        ],
+        "type": "object"
+       }
+      ],
+      "properties": {
+       "failure": {
+        "anyOf": [
+         {
+          "$ref": "#/definitions/v2/ImageGenerationFailure"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "generationId": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "id": {
+        "type": "string"
+       },
+       "inputImages": {
+        "items": {
+         "$ref": "#/definitions/v2/ImageGenerationInputImage"
+        },
+        "type": "array"
+       },
+       "revisedPrompt": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "savedPath": {
+        "anyOf": [
+         {
+          "$ref": "#/definitions/v2/AbsolutePathBuf"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "status": {
+        "type": "string"
+       },
+       "transparentBackground": {
+        "type": [
+         "boolean",
+         "null"
+        ]
+       },
+       "type": {
+        "enum": [
+         "imageGeneration"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "id",
+       "status",
+       "type"
+      ],
+      "type": "object"
+     },
+     {
+      "properties": {
+       "id": {
+        "type": "string"
+       },
+       "review": {
+        "type": "string"
+       },
+       "type": {
+        "enum": [
+         "enteredReviewMode"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "id",
+       "review",
+       "type"
+      ],
+      "type": "object"
+     },
+     {
+      "properties": {
+       "id": {
+        "type": "string"
+       },
+       "review": {
+        "type": "string"
+       },
+       "type": {
+        "enum": [
+         "exitedReviewMode"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "id",
+       "review",
+       "type"
+      ],
+      "type": "object"
+     },
+     {
+      "properties": {
+       "id": {
+        "type": "string"
+       },
+       "type": {
+        "enum": [
+         "contextCompaction"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "id",
+       "type"
+      ],
+      "type": "object"
+     }
+    ],
+    "properties": {
+     "completedAtMs": {},
+     "startedAtMs": {}
+    },
+    "type": "object"
+   },
+   "ThreadQueueAddParams": {
+    "properties": {
+     "clientUserMessageId": {},
+     "input": {},
+     "threadId": {}
+    },
+    "required": [
+     "clientUserMessageId",
+     "input",
+     "threadId"
+    ],
+    "type": "object"
+   },
+   "ThreadResumeParams": {
+    "properties": {
+     "approvalPolicy": {},
+     "approvalsReviewer": {},
+     "baseInstructions": {},
+     "config": {},
+     "cwd": {},
+     "developerInstructions": {},
+     "excludeTurns": {},
+     "history": {},
+     "initialTurnsPage": {},
+     "model": {},
+     "modelProvider": {},
+     "path": {},
+     "permissions": {},
+     "personality": {},
+     "runtimeWorkspaceRoots": {},
+     "sandbox": {},
+     "serviceTier": {},
+     "threadId": {}
+    },
+    "required": [
+     "threadId"
+    ],
+    "type": "object"
+   },
+   "ThreadResumeResponse": {
+    "properties": {
+     "activePermissionProfile": {},
+     "approvalPolicy": {},
+     "approvalsReviewer": {},
+     "collaborationMode": {},
+     "cwd": {},
+     "disabledPluginIds": {},
+     "initialTurnsPage": {},
+     "instructionSources": {},
+     "itemsBackwardsCursor": {},
+     "model": {},
+     "modelProvider": {},
+     "multiAgentMode": {},
+     "reasoningEffort": {},
+     "runtimeWorkspaceRoots": {},
+     "sandbox": {},
+     "serviceTier": {},
+     "thread": {},
+     "turnsBackwardsCursor": {}
+    },
+    "required": [
+     "approvalPolicy",
+     "approvalsReviewer",
+     "cwd",
+     "model",
+     "modelProvider",
+     "sandbox",
+     "thread"
+    ],
+    "type": "object"
+   },
+   "ThreadSettingsUpdateParams": {
+    "properties": {
+     "approvalPolicy": {},
+     "approvalsReviewer": {},
+     "collaborationMode": {},
+     "cwd": {},
+     "disabledPluginIds": {},
+     "effort": {},
+     "model": {},
+     "multiAgentMode": {},
+     "permissions": {},
+     "personality": {},
+     "sandboxPolicy": {},
+     "serviceTier": {},
+     "summary": {},
+     "threadId": {}
+    },
+    "required": [
+     "threadId"
+    ],
+    "type": "object"
+   },
+   "ThreadUnsubscribeParams": {
+    "properties": {
+     "threadId": {}
+    },
+    "required": [
+     "threadId"
+    ],
+    "type": "object"
+   },
+   "TurnInterruptParams": {
+    "properties": {
+     "threadId": {},
+     "turnId": {}
+    },
+    "required": [
+     "threadId",
+     "turnId"
+    ],
+    "type": "object"
+   },
+   "TurnStartParams": {
+    "properties": {
+     "additionalContext": {},
+     "approvalPolicy": {},
+     "approvalsReviewer": {},
+     "clientUserMessageId": {},
+     "collaborationMode": {},
+     "cwd": {},
+     "cyberAccessProgram": {},
+     "disabledPluginIds": {},
+     "effort": {},
+     "environments": {},
+     "input": {},
+     "model": {},
+     "multiAgentMode": {},
+     "outputSchema": {},
+     "parentTurnId": {},
+     "permissions": {},
+     "personality": {},
+     "responsesapiClientMetadata": {},
+     "responsesapiClientMetadataPatch": {},
+     "rootTurnId": {},
+     "runtimeWorkspaceRoots": {},
+     "sandboxPolicy": {},
+     "serviceTier": {},
+     "serviceTierForTurn": {},
+     "summary": {},
+     "threadId": {},
+     "toolOutput": {},
+     "turnTrigger": {}
+    },
+    "required": [
+     "input",
+     "threadId"
+    ],
+    "type": "object"
+   },
+   "TurnStatus": {
+    "enum": [
+     "completed",
+     "interrupted",
+     "failed",
+     "inProgress"
+    ],
+    "type": "string"
+   }
+  }
+ }
+}

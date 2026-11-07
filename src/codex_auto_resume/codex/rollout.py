@@ -280,10 +280,11 @@ def superseded_in(path, turn_id, limit=None) -> str:
 
 def turn_trigger(path, turn_id=None) -> str | None:
     """The turn_attribution.turn_trigger Codex wrote for the turn `turn_id` in its task_started event (issue #54,
-    measured on codex-cli 0.164) - else for the last turn the file starts: the file read once, up to RESCAN_BYTES, a line
-    at a time, each dropped after it is looked at. None is unknown - an older Codex wrote no attribution, the turn is not
-    in this file, the file is too large or cannot be read - and is never a value; an OSError is the caller's, as
-    session_meta's is."""
+    measured on codex-cli 0.164) - else for the last turn the file starts: the file read once, a line at a time, each
+    dropped after it is looked at - from its last RESCAN_BYTES on (v0.6.23, audit C4: a longer file was not read at all,
+    and #54's rule went blind in a person's longest conversations), where the latest turns are. None is unknown - an
+    older Codex wrote no attribution, the turn is not in what was read, the file cannot be read - and is never a value;
+    an OSError is the caller's, as session_meta's is."""
     if turn_id is not None and not ids.is_uuid(turn_id):
         return None
     stat = path.stat()
@@ -291,10 +292,14 @@ def turn_trigger(path, turn_id=None) -> str | None:
     key = (str(path), turn_id) if turn_id is not None else (str(path), None, stat.st_size, stat.st_mtime_ns)
     if key in _TRIGGERS:
         return _TRIGGERS[key]
-    if stat.st_size > RESCAN_BYTES:
-        return None
     wanted, found = None if turn_id is None else turn_id.encode("utf-8"), None
     with path.open("rb") as stream:
+        if stat.st_size > RESCAN_BYTES:
+            # From RESCAN_BYTES before the end, the line cut there dropped unless the cut falls on a line's start.
+            stream.seek(stat.st_size - RESCAN_BYTES - 1)
+            line = stream.read(1)
+            while line and not line.endswith(b"\n"):
+                line = stream.readline(MAX_ITEM_BYTES + 1)
         while True:
             line = stream.readline(MAX_ITEM_BYTES + 1)
             if not line:

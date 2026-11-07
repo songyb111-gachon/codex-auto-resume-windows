@@ -675,8 +675,8 @@ class App(WatchLoop):
         and each time the automatic switch found every saved account at its limit, the same way."""
         for notice in _unshown(self, added, "account"):
             self._watcher_notice("account_changed", {"count": notice.get("count")})
-        for _notice in _unshown(self, added, "autoswitch"):
-            self._watcher_notice("accounts_exhausted", {})
+        for notice in _unshown(self, added, "autoswitch"):
+            self._watcher_notice("accounts_exhausted", {"why": notice.get("why")})
 
     def _near_limit(self, added):
         """The advanced edition's usage meter at a warning (v0.6.16-beta.3, issue #29): each notice shown once in this

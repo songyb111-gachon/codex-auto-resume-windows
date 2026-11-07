@@ -60,6 +60,13 @@ def kept(path) -> dict:
             if name not in schema_module.V019_TABLES + schema_module.V020_TABLES}
 
 
+def moved(rows) -> dict:
+    """A dump of a file made before v0.6.22 as it reads once opened: every row kept, but the global hourly ceiling held at
+    its old highest and default value, 12, moved up to today's, 24 (schema.HOURLY_REMADE)."""
+    return dict(rows, meta=[row[:2] + (schema_module.GLOBAL_HOURLY if row[2] == schema_module.OLD_GLOBAL_HOURLY else row[2],)
+                            for row in rows["meta"]])
+
+
 def header(path) -> tuple:
     """(user_version, application_id, whether `options` still has its CHECK on names)."""
     with contextlib.closing(sqlite3.connect(path)) as connection:
@@ -119,7 +126,7 @@ class FreeingTests(OptionsCase):
         state.close()
         self.assertEqual(header(path), OPENED)
         self.assertEqual(schema_module.READABLE_FROM, 7, "marked readable from 7: v0.6.17 on reads the file as it is")
-        self.assertEqual(kept(path), before, "every row of every table kept, and no table less")
+        self.assertEqual(kept(path), moved(before), "every row of every table kept, and no table less")
         with contextlib.closing(sqlite3.connect(path)) as connection:
             self.assertEqual(AdvancedState._tables(connection), schema_module.TABLES)
             connection.execute("INSERT INTO options VALUES ('test_wake', ?, 1)", (UNKNOWN,))   # no CHECK on names
@@ -165,7 +172,7 @@ class FreeingTests(OptionsCase):
         self.assertEqual(dump(path), before)
         self.opened()
         self.assertEqual(header(path), OPENED)
-        self.assertEqual(kept(path), before)
+        self.assertEqual(kept(path), moved(before))
 
 
 class NameTests(OptionsCase):
@@ -267,7 +274,11 @@ class DefaultTests(OptionsCase):
         checked = 0
         for definition in REGISTRY:
             for option in definition.options:
-                other = next(value for value in option.choices if value != option.default)
+                # v0.6.22: a choice with one preset and a range of its own (local_api's port) is set to its range's end.
+                other = next((value for value in option.choices if value != option.default),
+                             option.custom[0] if option.custom is not None and option.custom[0] != option.default
+                             else None)
+                self.assertIsNotNone(other, "%s.%s offers no value but its default" % (definition.id, option.key))
                 for value in (other, option.default):
                     state.set_option(definition.id, option.key, value, generation=state.meta()["generation"],
                                      actor=Actor.DASHBOARD)

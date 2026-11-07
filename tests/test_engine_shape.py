@@ -116,6 +116,8 @@ METHODS = {
     "_not_served", "_usage_checks_left", "_tick",
     # and P8's errand of the plug, run last in the tick, and what holds back its one write.
     "_errand", "errand_held",
+    # v0.6.22: and P22, the one question a paused tick asks - of a plug that wants it - for a resident's errand.
+    "_paused_residents",
     # and P2 carried out: the records of the plug's own, their words, their gates and moves, their claim
     # and the look before their send, what came of it, and those in flight watched (engine/plugrecords.py).
     "plug_records", "_worded", "_record_told", "_record_waits", "_try_record", "_record_would_send", "_not_ones_own", "_take_back", "_flying", "paused_records",

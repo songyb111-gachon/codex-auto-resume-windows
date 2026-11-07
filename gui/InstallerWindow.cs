@@ -60,10 +60,13 @@ namespace CodexAutoResume
 
         private string page;
         private bool running, logShown, unconfirmed, previousRunning, closingAsked;
-        // What install.ps1 said of the shortcut on the Desktop, for the Finish page.
+        // What the Finish page says of the shortcut on the Desktop: what install.ps1 said of it (-DesktopShortcut given on
+        // the command line), and what became of the Finish page's own box.
         private bool desktopFailed, desktopTaken;
-        // The Maintain page's box: for Repair, and gone with no room kept while Remove is chosen.
+        // The Finish page's box (v0.6.22), where there is one. When a change was refused, which one: the next Finish closes the
+        // window rather than ask again for the same thing.
         private SoftCheck desktopBox;
+        private string desktopRefused = "";
         // The installer opened again the Dashboard that was open before it (install.ps1): there is none to offer.
         private bool reopened;
         // Which buttons the page has. Kept here, not read back from Visible: a control answers false there until its
@@ -296,7 +299,7 @@ namespace CodexAutoResume
 
         private void Forward()
         {
-            if (page == InstallerFlow.Finish) { Close(); return; }
+            if (page == InstallerFlow.Finish) { Finish(); return; }
             if (page == InstallerFlow.Notes) { Answer(true); return; }
             // Repair starts here; Remove goes on to the uninstall's question.
             if (page == InstallerFlow.Maintain && flow.Mode != InstallerFlow.Uninstall) { Start(); return; }
@@ -456,25 +459,33 @@ namespace CodexAutoResume
                                  ? words.Say("installer.options.to_advanced", "Changing it keeps the settings and pending recoveries; every advanced feature starts off.")
                                  : words.Say("installer.options.to_standard", "Changing it keeps the settings and pending recoveries; the advanced features go, and their code with them."));
                 Row(new SoftCallout(change), 16);
+                // v0.6.22: leaving the advanced edition from an installation that keeps saved Codex sign-ins says what
+                // becomes of them and offers to delete them; off, they stay (InstallerFlow.OffersAccountDeletion).
+                if (flow.OffersAccountDeletion)
+                    Row(Words(words.Say("installer.options.saved_accounts", "The Codex accounts you saved for switching stay on this PC, sealed for this Windows user, and the standard edition does not use them."), null, Palette.Ink), 16);
                 Row(Choice(words.Say("installer.options.edition_confirm", "Change the edition"), flow.ChangeEdition, true,
                            delegate(bool on) { flow.ChangeEdition = on; forward.Enabled = flow.CanStart(); }), 10);
+                if (flow.OffersAccountDeletion)
+                    Row(Choice(words.Say("installer.options.delete_saved_accounts", "Also delete the Codex accounts you saved for switching"), flow.DeleteSavedAccounts, true,
+                               delegate(bool on) { flow.DeleteSavedAccounts = on; }), 10);
             }
             else if (flow.Upgrade)
                 Row(Words(words.Say("installer.options.kept", "This updates the installation here. Your settings, everything waiting and your sign-in choice are kept."), null, Palette.Ink), 16);
             if (!flow.Upgrade)
                 Row(Choice(words.Say("field.startup", "Run at Windows sign-in"), flow.StartAtSignIn, false,
                            delegate(bool on) { flow.StartAtSignIn = on; }), 16);
-            Row(DesktopChoice(), flow.Upgrade ? 16 : 10);
             Row(Words(words.Say("installer.options.plugin", "The plugin - its panel and its skill - is added to Codex as part of every installation."), null, Palette.Secondary), 16);
             // An update says what it updates to, as the Dashboard's does (BuildNotes).
             if (flow.Upgrade && !flow.EditionChange && flow.NotesText != null) WhatsNew(16);
             InsideNote(16);
         }
 
-        /// The box for a shortcut on the Desktop: what is true now as it opens, so off on a first installation.
+        /// The Finish page's box for a shortcut on the Desktop (v0.6.22, the owner: it comes last, as in an ordinary
+        /// installer): what is true as the page opens, so off where there is no shortcut of ours. What it asks is done by
+        /// the Finish button (Finish), never before.
         private SoftCheck DesktopChoice()
         {
-            return Choice(words.Say("installer.options.desktop_shortcut", "Add a shortcut to the desktop"), flow.MakeDesktopShortcut, true,
+            return Choice(words.Say("installer.done.desktop_shortcut", "Add a shortcut to the desktop"), flow.MakeDesktopShortcut, true,
                           delegate(bool on) { flow.MakeDesktopShortcut = on; });
         }
 
@@ -500,8 +511,6 @@ namespace CodexAutoResume
                     words.Say("installer.maintain.repair_help", "Installs this version again in place. Your settings, everything waiting and your sign-in choice are kept.")), 16);
             Row(Way(true, words.Say("installer.remove", "Remove"),
                     words.Say("installer.maintain.remove_help", "Removes Codex Auto Resume from this PC. Next, you choose whether the settings and the recovery history go too.")), 8);
-            desktopBox = DesktopChoice();
-            Row(desktopBox, 16);
             InsideNote(16);
         }
 
@@ -529,13 +538,16 @@ namespace CodexAutoResume
         {
             Row(Words(words.Say("installer.uninstall.heading", "Remove Codex Auto Resume"), "title", Palette.Ink), 0);
             Row(Words(words.Say("installer.uninstall.what", "The watcher, its sign-in start, its Start menu entry and the plugin in Codex are removed. Your Codex conversations are not touched."), null, Palette.Ink), 8);
-            // Only where one of ours is there (InstallerFlow.KnowDesktopShortcut, read once as the window opens).
+            // Only where one of ours is there (InstallerFlow.KnowDesktopShortcut, read as the window opens).
             if (flow.DesktopShortcutThere)
                 Row(Words(words.Say("installer.uninstall.desktop_shortcut", "Its shortcut on the desktop is removed too."), null, Palette.Ink), 6);
             Row(Words(words.Say("installer.options.location", "Installed in"), "label", Palette.Secondary), 16);
             Row(Words(flow.Home, null, Palette.Ink), 2);
             Row(Choice(words.Say("installer.uninstall.purge", "Also delete the settings and the recovery history"), flow.Purge, true,
                        delegate(bool on) { flow.Purge = on; }), 16);
+            // v0.6.22: only where the advanced edition's saved Codex sign-ins are kept (InstallerFlow.SavedAccountsAt).
+            if (flow.SavedAccountsThere)
+                Row(Words(words.Say("installer.uninstall.saved_accounts", "Ticked, the Codex accounts you saved for switching are deleted too, with their sign-ins."), null, Palette.Ink), 6);
             InsideNote(16);
         }
 
@@ -636,6 +648,13 @@ namespace CodexAutoResume
             if (code == 0 && flow.Mode == InstallerFlow.Install && !reopened)
                 Row(Choice(words.Say("installer.done.open", "Open the Dashboard"), flow.OpenDashboard, true,
                            delegate(bool on) { flow.OpenDashboard = on; }), 16);
+            // v0.6.22: the shortcut on the Desktop is asked about last, as an ordinary installer does. Where there is no box
+            // (a failed run, an uninstall) there is nothing to say of it but what install.ps1 said above.
+            if (flow.OffersDesktopShortcut(code))
+            {
+                desktopBox = DesktopChoice();
+                Row(desktopBox, code == 0 && flow.Mode == InstallerFlow.Install && !reopened ? 10 : 16);
+            }
             if (code == 0) Row(LogToggle(), 16);
             else logShown = true;
             Row(logArea, 6);
@@ -672,7 +691,6 @@ namespace CodexAutoResume
             {
                 Control control = row.Key;
                 control.Visible = Wanted(control);
-                if (control == desktopBox && !Wanted(control)) continue;
                 y += row.Value;
                 int height = HeightAt(control, width);
                 int wide = control is SoftCombo ? Math.Min(width, Px(260)) : width;
@@ -831,6 +849,9 @@ namespace CodexAutoResume
             }
             running = false;
             code = ended;
+            // The Finish page's box starts as what is true now, looked at now: the run may have made or kept the shortcut
+            // (-DesktopShortcut given on the command line), and a repair or an update leaves one of ours where it was.
+            if (flow.OffersDesktopShortcut(ended)) flow.KnowDesktopShortcut(DesktopShortcut.OursAt(flow.Home));
             // The log ends with the code the installer ended with, where it ended with one of its own.
             if (HasExitCode(ended))
             {
@@ -855,6 +876,45 @@ namespace CodexAutoResume
             if (IsDisposed) return;
             page = InstallerFlow.Finish;
             Fit();
+        }
+
+        /// The Finish button (v0.6.22). The shortcut on the Desktop is done now, with the installation made: ticked makes
+        /// this installation's, unticked removes it, and left as it was nothing changes. A change that is refused says so on
+        /// this page in one line and the window stays; the next Finish closes it, unless the box was changed to something
+        /// else meanwhile. Never a dialog.
+        private void Finish()
+        {
+            string change = flow.OffersDesktopShortcut(code) ? flow.DesktopShortcutChange() : "";
+            if (change.Length == 0 || change == desktopRefused) { Close(); return; }
+            // Like a run: the window stays until the change has ended, and the button waits.
+            running = true;
+            forward.Enabled = false;
+            string home = flow.Home;
+            System.Threading.ThreadPool.QueueUserWorkItem(delegate
+            {
+                string said;
+                int result = DesktopShortcut.Change(home, change == "make", out said);
+                Post(delegate { Changed(change, result, said); });
+            });
+        }
+
+        private void Changed(string change, int result, string said)
+        {
+            running = false;
+            if (!string.IsNullOrEmpty(said))
+                foreach (string line in said.Split('\n')) Heard("    " + line.TrimEnd('\r'));
+            if (result == 0)
+            {
+                flow.DesktopShortcutThere = change == "make";
+                Close();
+                return;
+            }
+            desktopRefused = change;
+            desktopFailed = result != DesktopShortcut.ExitTaken;
+            desktopTaken = result == DesktopShortcut.ExitTaken;
+            Heard(desktopTaken ? DesktopShortcut.TakenLine + ". It was left as it is, and none was made."
+                               : DesktopShortcut.FailedLine + ". Nothing else was changed.");
+            ShowFinish();
         }
 
         /// Whether `ended` is a code the installer ended with, rather than one of the window's own (not started, still
@@ -932,7 +992,6 @@ namespace CodexAutoResume
         {
             if (control == logArea) return logShown;
             if (control == busyNote) return closingAsked;
-            if (control == desktopBox) return flow.Mode != InstallerFlow.Uninstall;
             return true;
         }
 

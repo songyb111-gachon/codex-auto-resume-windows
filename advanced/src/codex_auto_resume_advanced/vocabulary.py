@@ -56,6 +56,8 @@ class OffReason(StrEnum):
     HOOK_EXCEPTION = "hook_exception"
     STATEMENT_CHANGED = "statement_changed"
     MEASUREMENT_FAILED = "measurement_failed"
+    # The automatic check found this Codex no longer offers a call its route makes (v0.6.22, autocheck.py).
+    AUTO_CHECK_FAILED = "auto_check_failed"
     # A continuation it sent once more was found twice in Codex's history (v0.6.14, stage 3b): the
     # harm a resend risks. It turns off what sent it again whether or not it is kept on - the
     # once-more capability, or Keep on's Send again alone (arming.py).
@@ -74,17 +76,20 @@ class OffReason(StrEnum):
     # Codex refused a turn started with no input (v0.6.16-beta.4, silent_continuation): what M3B measured did not
     # hold on this Codex.
     REFUSED_BY_CODEX = "refused_by_codex"
+    # Five wrong codes were sent to the bot during a pairing (v0.6.22, telegram_remote): someone is guessing at the chat it
+    # obeys. It turns it off whether or not it is kept on, as a duplicate turns off what sent it (arming.py).
+    BAD_CODES = "bad_codes"
 
 
 TRIPWIRES = frozenset({OffReason.SUBMISSION_UNKNOWN, OffReason.LOCAL_CHECK_FAILED,
                        OffReason.FAILED_HERE, OffReason.INCOMPATIBLE, OffReason.HOOK_EXCEPTION,
-                       OffReason.STATEMENT_CHANGED, OffReason.MEASUREMENT_FAILED,
+                       OffReason.STATEMENT_CHANGED, OffReason.MEASUREMENT_FAILED, OffReason.AUTO_CHECK_FAILED,
                        OffReason.DUPLICATE_SEEN, OffReason.NOT_DELIVERED_ON_OPEN, OffReason.REQUIREMENT_OFF,
-                       OffReason.NOT_DISPATCHED_BY_SESSION, OffReason.REFUSED_BY_CODEX})
+                       OffReason.NOT_DISPATCHED_BY_SESSION, OffReason.REFUSED_BY_CODEX, OffReason.BAD_CODES})
 # What a capability kept on (KeepOn, K8) notes instead of turning off, most serious first: the order
 # in which one notice gives way to another (state/arming.py, note_kept). A notice only ever rises.
 KEPT_NOTICES = (OffReason.DUPLICATE_SEEN, OffReason.STATEMENT_CHANGED, OffReason.FAILED_HERE,
-                OffReason.LOCAL_CHECK_FAILED, OffReason.INCOMPATIBLE, OffReason.MEASUREMENT_FAILED,
+                OffReason.LOCAL_CHECK_FAILED, OffReason.INCOMPATIBLE, OffReason.MEASUREMENT_FAILED, OffReason.AUTO_CHECK_FAILED,
                 OffReason.NOT_DELIVERED_ON_OPEN, OffReason.NOT_DISPATCHED_BY_SESSION, OffReason.REFUSED_BY_CODEX,
                 OffReason.REQUIREMENT_OFF,
                 OffReason.ENGINE_CHANGED,
@@ -105,6 +110,7 @@ class ArmingWarning(StrEnum):
     LOCAL_CHECK_FAILED = "local_check_failed"  # a local check found it incompatible
     COMPAT_UNKNOWN = "compat_unknown"        # nothing is known of it for this Codex
     ENGINE_UNKNOWN = "engine_unknown"        # no Codex version to acknowledge
+    AUTO_CHECK_FAILED = "auto_check_failed"  # the automatic check found a call it makes gone (autocheck.py)
 
 
 class Refusal(StrEnum):
@@ -655,6 +661,10 @@ class Measurement(StrEnum):
     # swap back, the first account's sign-in still works.
     MPROFILE = "mprofile"
     MSWAP = "mswap"
+    # v0.6.22 (the automatic compatibility check, plans/v0622-autocheck-design.md): no hands. The check's own commands on
+    # the real engine on a scratch home: whether each answered, whether `--experimental` is taken behind core's `-c`
+    # options, and the grade each capability would read. No capability rests on it: it is the check's own proof.
+    MAUTO = "mauto"
 
 
 class ObservedWord(StrEnum):
@@ -812,6 +822,34 @@ class GoalStatus(StrEnum):
     USAGE_LIMITED = "usage_limited"
     BUDGET_LIMITED = "budget_limited"
     COMPLETE = "complete"
+
+
+class AutoResult(StrEnum):
+    """What the automatic check found of one measurement's row, on one engine (autocheck.py). Not a verdict: a person's
+    verdict is never made of it, and it is kept apart from every record of theirs."""
+    PASS = "pass"
+    FAIL = "fail"
+    UNKNOWN = "unknown"                      # a type it asks about is not there: says nothing either way
+
+
+class CheckReach(StrEnum):
+    """How much of what a measurement asks the automatic check can answer (autocheck.CHECKS)."""
+    WHOLE = "whole"                          # all of it: a pass needs no person
+    PART = "part"                            # the calls: a pass carries a person's earlier pass forward, and says so
+    FAILS_ONLY = "fails_only"                # a call gone proves the route broken; its being there proves nothing
+    NONE = "none"                            # nothing: the app, a limit, a sign-in, a conversation, a person's eyes
+
+
+class CheckGrade(StrEnum):
+    """How a capability stands for the Codex in force, as a person is told it (autocheck.grade)."""
+    MEASURED = "measured"                    # measured by a person on this Codex
+    AUTO_CHECKED = "auto_checked"            # checked automatically on this Codex, no more than that
+    OFFERED_ONLY = "offered_only"            # still unmeasured: the calls are there, which cannot settle it
+    UNMEASURED = "unmeasured"
+    FAILED = "failed"
+    FAILED_STILL_OFFERED = "failed_still_offered"  # a person's fail stands, though the calls are still there
+    CHECK_FAILED = "check_failed"            # the automatic check found a call gone
+    NONE = "none"                            # it rests on no measurement
 
 
 class Verdict(StrEnum):

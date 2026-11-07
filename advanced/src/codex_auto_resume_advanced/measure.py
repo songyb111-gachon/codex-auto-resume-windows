@@ -32,10 +32,11 @@ from codex_auto_resume.codex.errors import AdapterError
 from codex_auto_resume.diagnostics import Redactor
 from codex_auto_resume.domain.ids import is_uuid
 
-from . import evidence
+from . import autocheck, evidence
 from .codex import credits, inuse
 from .codex.protocol import Session, SessionRefused, methods_for
-from .vocabulary import Measurement, NoteCode, ObservedWord, PlanWord, SpendOutcome, Verdict
+from .measured import MEASURED
+from .vocabulary import AutoResult, Measurement, NoteCode, ObservedWord, PlanWord, SpendOutcome, Verdict
 
 MEASUREMENTS = tuple(Measurement)
 
@@ -2836,8 +2837,15 @@ PROBES = {
 # sign-in store's closed word (codex/authfile).
 _MPROFILE_FIELDS = ("profile_given", "added_by_login", "account_read", "own_account", "usage_read",
                     "real_file_unchanged", "app_unchanged", "real_still_signed_in")
+# MSWAP's `other_engine_alive`: a switch held because another Codex engine that may use this home still ran once the
+# app was gone and its children had their time to end, or that could not be told (codex/swap.ENGINE_ALIVE, the security
+# review's finding 10); `other_engine_alive_open`: the same question asked before the first switch with the app open -
+# what the watcher's look asks before it closes anything (engine/autoswitch `_why_not`, finding 17).
 _MSWAP_FIELDS = ("profiles_given", "app_was_running", "swapped", "signed_in_as_target", "swapped_back",
-                 "signed_in_as_first", "first_usage_read", "target_usage_read")
+                 "signed_in_as_first", "first_usage_read", "target_usage_read", "other_engine_alive",
+                 "other_engine_alive_open",
+                 # `looked`: the person said they had looked at the other account before the switch back (_wait_for_look).
+                 "looked")
 _STORE_WORDS = ("usable", "not_file", "no_file", "unreadable")
 
 
@@ -2868,6 +2876,9 @@ def _mprofile(ctx):
     if observed["profile_given"] is not True:
         return _blocked("no other account of yours was saved: run mprofile again and sign in in the browser with "
                         "another account of your own when Codex's page opens", **observed)
+    if observed["app_unchanged"] is None and observed["real_file_unchanged"] is not False:
+        return _blocked("the Codex app was not running, or its process could not be read, so nothing shows it was left "
+                        "alone: open Codex, then run mprofile again", **observed)
     if False in (observed["real_file_unchanged"], observed["app_unchanged"], observed["real_still_signed_in"]):
         return (Verdict.FAIL, observed, "a read on a saved account changed the real Codex home, the running app or the "
                 "account signed in")
@@ -2895,19 +2906,74 @@ def _mswap(ctx):
         return _blocked("save a second account of yours first (run mprofile), let no turn run and nothing be queued "
                         "in Codex, then run mswap again", **observed)
     if observed["swapped"] is not True:
-        return _blocked("the switch was not made: a turn ran, something was queued, the app could not be closed or "
-                        "the file could not be put in place; run mswap again once Codex is idle", **observed)
+        return _blocked("the switch was not made: a turn ran, something was queued, another Codex engine ran, the app "
+                        "could not be closed or the file could not be put in place; run mswap again once Codex is idle "
+                        "and nothing else of Codex runs", **observed)
     if observed["signed_in_as_target"] is False or observed["signed_in_as_first"] is False:
         return (Verdict.FAIL, observed, "the app did not come up signed in as the account the switch put in, or the "
                 "first account's sign-in no longer works after coming back")
     if observed["swapped_back"] is True and observed["first_usage_read"] is False:
         return Verdict.FAIL, observed, "after coming back, the first account's usage could not be read"
+    if observed["signed_in_as_target"] is True and observed["swapped_back"] is not True:
+        return _blocked("the switch back did not happen: Codex is still signed in as the other account; switch back "
+                        "on the Saved accounts card or run mswap again", **observed)
+    if observed["looked"] is not True:
+        return _blocked("no one said they had looked at the other account before the switch back; confirm only what "
+                        "you saw, or run mswap again and look at Settings > Account after the first restart", **observed)
     return _blocked("confirm the Codex app showed the other account, then yours again, each without its own sign-in "
                     "page, then set the verdict", **observed)
 
 
 PROBES[Measurement.MPROFILE] = _mprofile
 PROBES[Measurement.MSWAP] = _mswap
+
+
+_MAUTO_FIELDS = ("official", "engine_accepted", "schema_answered", "experimental_taken", "schema_written", "schema_whole",
+                 "features_answered", "options_without_flag", "flag_without_options", "scratch_home_signed_in")
+
+
+def _mauto(ctx):
+    """The automatic compatibility check on the real engine (v0.6.22, autocheck.py), with no hands and on a scratch home the
+    hand makes and removes: core's engine check, `app-server generate-json-schema --experimental --out` behind core's `-c`
+    options, `features list` - the check's own code, not a copy. It records whether each answered; where the schema's
+    command did not, whether it runs without `--experimental` and whether `--experimental` runs without the `-c` options;
+    how many files Codex left on the scratch home and whether a sign-in is there; each measurement's automatic word
+    (`result_<id>`), and the grade each capability reads from them over this build's table (`grade_<id>`). Booleans, counts
+    and closed words, never a path or a word Codex wrote. It writes none of the watcher's own record, and it does not watch
+    the network: that these commands contact nothing is not what it settles.
+
+    PASS: the engine was accepted, the schema's command took `--experimental` behind the `-c` options and wrote the whole
+    schema, and the features answered. FAIL: the engine answered and one of those did not: the check would give no answer on
+    this Codex and the old warnings stay. A row's own fail is recorded and is the check's finding, not this probe's fail.
+    Blocked: the engine could not be run at all."""
+    from .registry import DEFINITIONS, WAITING
+    answered = ctx._hand("auto_check")
+    answered = answered if isinstance(answered, dict) else {}
+    observed = {field: answered.get(field) if type(answered.get(field)) is bool else None for field in _MAUTO_FIELDS}
+    files = answered.get("scratch_home_files")
+    observed["scratch_home_files"] = files if type(files) is int else None
+    words = {str(word) for word in AutoResult}
+    known = {str(measurement): measurement for measurement in Measurement}
+    results = {known[name]: AutoResult(word) for name, word in (answered.get("results") or {}).items()
+               if name in known and word in words}
+    observed.update({"result_%s" % measurement: str(word) for measurement, word in results.items()})
+    version = ctx.versions.get("codex_version")
+    for definition in DEFINITIONS + tuple(waiting for waiting, _measurement in WAITING):
+        word, _earlier = autocheck.grade(tuple(definition.measurements) + tuple(definition.narrowed_by), version, MEASURED,
+                                         results)
+        observed["grade_%s" % definition.id] = str(word)
+    if observed["engine_accepted"] is not True:
+        return _blocked("the engine could not be run on a scratch Codex home: check the Codex in force, then run mauto "
+                        "again", **observed)
+    if observed["experimental_taken"] is not True or observed["schema_whole"] is not True:
+        return (Verdict.FAIL, observed, "the schema's command did not answer with the whole schema behind the options the "
+                "check runs it with, so the check gives no answer on this Codex")
+    if observed["features_answered"] is not True:
+        return Verdict.FAIL, observed, "the feature list did not answer, so MHK's row has no answer on this Codex"
+    return Verdict.PASS, observed, None
+
+
+PROBES[Measurement.MAUTO] = _mauto
 
 # A conversation and a message id of no one's: the shape a call takes, never a real id. A probe
 # that reaches a live Codex is run by the owner against a throwaway conversation whose id they
@@ -3274,7 +3340,13 @@ def live_hands(backend=None, paths=None) -> dict:
         outcome, how = restarts.restart(paths, hands=restarts.Hands(paths, home=home, read=read))
         return {"outcome": outcome, "how": how}
 
-    return {"open_link": open_link, "power": _power_look, "wake_after": _wake_after, "scratch_cli": scratch_cli,
+    def auto_check():
+        # MAUTO (v0.6.22): the automatic check's own commands, on a scratch home of its own, on the Codex this run measures.
+        used = backend if backend is not None else live_backend(paths)
+        return autocheck.probe_engine(used.codex_exe)
+
+    return {"auto_check": auto_check,
+            "open_link": open_link, "power": _power_look, "wake_after": _wake_after, "scratch_cli": scratch_cli,
             "anchor_request": anchor_request, "stop_hook": stop_hook, "steer_ipc": steer_ipc,
             "m4_hook_note": m4_hook_note, "codex_restart": codex_restart,
             "profile_read": lambda home: _profile_read(backend, paths, home),
@@ -3309,13 +3381,13 @@ def _profile_read(backend, paths, home):
             rows = pairing.inventory()
             return pairing._app_main(rows)["pid"] if pairing.app_running(rows) else None
         except Exception:
-            return "unknown"
+            return None                                 # not read: no proof the app is unchanged (A-M4)
 
     def signed_in():
         with session_for(home) as session:
             return identity(parse(session.call("account/read", {})))
     store = Profiles(paths.home)
-    before, app, current = stat(), main(), signed_in()
+    current = signed_in()
     if current is None:
         return found
 
@@ -3327,10 +3399,41 @@ def _profile_read(backend, paths, home):
     listed = others()
     if not listed:
         return dict(found, profile_given=False)
+    # The real home pictured right before the saved account's read and again right after it - not before this probe's
+    # own read on the real home or the minutes a sign-in in the browser takes, when Codex may refresh its own tokens
+    # (the v0.6.23 audit's A-R3: that was a false FAIL waiting to happen).
+    before, app = stat(), main()
     read = swap.read_profile(paths, store, listed[0], session_for=session_for)
+    after, app_after = stat(), main()
     return dict(found, profile_given=True, account_read=read["present"] is True, own_account=read["own"] is True,
-                usage_read=read["available"] is not None, real_file_unchanged=stat() == before,
-                app_unchanged=main() == app, real_still_signed_in=signed_in() == current)
+                usage_read=read["available"] is not None, real_file_unchanged=after == before,
+                app_unchanged=(app_after == app) if app is not None and app_after is not None else None,
+                real_still_signed_in=signed_in() == current)
+
+
+# MSWAP waits between its two switches, so the person can open Settings > Account and see the other account signed in:
+# until this file appears in the measurement's own product home (the measurement session makes it when the person
+# says they looked), at most MSWAP_LOOK_SECONDS.
+MSWAP_LOOK_FILE = "mswap-looked"
+MSWAP_LOOK_SECONDS = 180
+
+
+def _wait_for_look(home, *, seconds=MSWAP_LOOK_SECONDS, clock=time.monotonic, sleep=time.sleep) -> bool:
+    """Whether the person said they looked - the file appeared in `home` - before `seconds` passed. The file is taken
+    away either way, so the next run waits again."""
+    marker = Path(home) / MSWAP_LOOK_FILE
+    deadline = clock() + seconds
+    try:
+        while not marker.exists():
+            if clock() >= deadline:
+                return False
+            sleep(1.0)
+        return True
+    finally:
+        try:
+            marker.unlink()
+        except OSError:
+            pass
 
 
 def _account_swap(backend, paths, home):
@@ -3380,13 +3483,21 @@ def _account_swap(backend, paths, home):
         found["app_was_running"] = None
     if restarts.busy(paths, source=LocalSource(Path(home)), store=_NoRecords()):
         return found
+    found["other_engine_alive_open"] = swap.other_engines(swap._inventory(), app_open=True)
+    try:
+        (Path(paths.home) / MSWAP_LOOK_FILE).unlink()     # one an earlier run left would let this one go on unseen
+    except OSError:
+        pass
     outcome = swap.switch(paths, store, home, others[0], restart=restart, read_real=read_real)
+    found["other_engine_alive"] = outcome == swap.ENGINE_ALIVE
     found["swapped"] = outcome in (swap.SWITCHED, swap.NOT_SIGNED_IN)
     found["signed_in_as_target"] = outcome == swap.SWITCHED if found["swapped"] else None
     if outcome != swap.SWITCHED:
         return found
     found["target_usage_read"] = usage_read()
+    found["looked"] = _wait_for_look(paths.home)       # the person looks at Settings > Account before the switch back
     back = swap.switch(paths, store, home, first_id, restart=restart, read_real=read_real)
+    found["other_engine_alive"] = back == swap.ENGINE_ALIVE
     found["swapped_back"] = back in (swap.SWITCHED, swap.NOT_SIGNED_IN)
     if found["swapped_back"]:
         found["signed_in_as_first"] = back == swap.SWITCHED and (read_real().get("email") or "").lower() == email

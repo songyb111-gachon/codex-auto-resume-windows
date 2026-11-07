@@ -15,7 +15,7 @@ asked to agree to and everything the plug holds it to:
   capability off until they have read that one (a tripwire, arming.py);
 * `departs_from` - the standards it breaks (standards.py). Never empty: a capability that keeps
   every standard belongs in the standard edition, so the rule for which edition a capability is
-  in is this field. Only the standard edition's standards may be named (standards.DEPARTABLE):
+  in is this field. Only the standard edition's standards may be named (standards.DECLARABLE: DEPARTABLE and K5, the owner's word of 2026-11-06 for P22):
   family K is the advanced edition's own rules, which every capability keeps;
 * `compat` - the Compatibility Registry capability it stands on. Its grade here is shown in the
   statement - FAILED_HERE, INCOMPATIBLE or UNKNOWN as a warning the person confirms - and a
@@ -117,17 +117,20 @@ from .engine.wake import DEFAULT_LEAD as WAKE_DEFAULT_LEAD, LEADS as WAKE_LEADS,
 from .engine.push import DEFAULT_EVENTS, EVENT_CHOICES, make as make_push_notices, SWITCH as PUSH_SWITCH
 from .engine.fleet import CODES as FLEET_CODES, make as make_fleet_view
 from .engine.feed import DEFAULT_MINUTES as FEED_DEFAULT_MINUTES, MINUTES as FEED_MINUTES, make as make_status_feed
+# v0.6.22 (the resident courier): the loopback API and web view, and what widens them.
+from .engine.remote import (API_ACTION_CODES, API_CODES, DEFAULT_PORT as API_DEFAULT_PORT, PORT_RANGE as API_PORT_RANGE,
+                            TELEGRAM_CODES, TELEGRAM_CONTINUE_CODES, make_local_api, make_telegram_remote, make_widening)
 from .courier.outbox import codes as push_codes
 from .engine.usage import (DEFAULT_PAUSE, DEFAULT_POLL, DEFAULT_STOP_WORDS, DEFAULT_STYLE, DEFAULT_WARN,
                            DEFAULT_WRAP, ON, PERCENT_RANGE, PERCENTS, POLL_RANGE, SWITCH,
                            POLL_CHOICES, STYLES, make_meter, make_pause, make_wrap_up)
 from .report import make as make_compat_report
-from .standards import DEPARTABLE
+from .standards import DECLARABLE
 from .vocabulary import CapabilityKind, Measurement, OptionKey, RunEnd, Verdict, WordingKey
 
 # The one ceiling over every capability together: advanced sends an hour. It is also the highest
 # value a person may set it to - it can be lowered and never raised.
-GLOBAL_HOURLY = 12
+GLOBAL_HOURLY = 24
 # Core's own caps on one conversation (engine/options.py): claims in 24 hours, and the spacing
 # between them. The claim ledger counts advanced records against the same numbers (ledger.py), so
 # no capability's own ceiling for one conversation can usefully be above the first.
@@ -200,6 +203,10 @@ class CapabilityDef:
     # (arming.standing): it narrows the part and never turns the capability off (2026-11-01: MAL's fail, listed among
     # account_switch's measurements, turned the owner's watched capability off at the v0.6.20 update).
     narrowed_by: tuple = ()
+    # v0.6.22 (v0.6.23 audit seatB:B-R4): whether it sends to Codex where none of its points is a sending one - steer_send
+    # writes each steer into the running turn at P8 and holds them to its own ceilings - or None: its points decide
+    # (arming's listing `sends`, which the Advanced page reads to say whether its limits can bind).
+    sends: bool | None = None
     # No `keepable` (v0.6.16-beta.4 to v0.6.19-beta.2): the owner's word of 2026-10-24 is that a person may keep every
     # capability on (K8) - the choice is offered on each, and none is kept on unless the person chose it there.
 
@@ -259,7 +266,7 @@ def problems(definition) -> list:
     if not isinstance(departs, tuple) or not departs:
         found.append("departs_from is empty: it keeps every standard, so it is standard")
     elif (not all(isinstance(standard, str) for standard in departs)
-          or len(set(departs)) != len(departs) or not set(departs) <= set(DEPARTABLE)):
+          or len(set(departs)) != len(departs) or not set(departs) <= set(DECLARABLE)):
         found.append("departs_from names a standard the standard edition does not keep")
     if not action:
         if not isinstance(definition.compat, str) or not ID_SHAPE.fullmatch(definition.compat):
@@ -301,6 +308,10 @@ def problems(definition) -> list:
     if type(definition.resends) is not bool or (
             definition.resends is True and Point.SCHEDULE not in (points if isinstance(points, frozenset) else ())):
         found.append("resends")
+    # v0.6.22: P22 is asked while recovery is paused, so answering there says the capability sends nothing to Codex: a
+    # resident answers at P8 and P22 alone, never at a point that decides or sends.
+    if isinstance(points, frozenset) and Point.RESIDENT in points and not points <= {Point.TICK, Point.RESIDENT}:
+        found.append("a resident answers at P8 and P22 alone: it sends nothing to Codex")
     requires = definition.requires
     if (not isinstance(requires, tuple)
             or not all(isinstance(other, str) for other in requires)
@@ -460,14 +471,14 @@ CRASH_RESTART = CapabilityDef(
 # proof is read from, with local checks - and on measurement M7, where thread/queue/add with a
 # clientUserMessageId was accepted and delivered as plain text. A send it cannot prove is held as
 # core holds any uncertain one, and the tripwire for a paid send gone submission_unknown turns it
-# off. Its ceilings: core's own five a conversation a day, and two dozen a day in all.
+# off. Its ceilings: core's own five a conversation a day, and 48 a day in all.
 MARKER_FREE = CapabilityDef(
     id="marker_free_continuation",
     points=frozenset({Point.SENDER, Point.DELIVERY}),
     revision=2,
     departs_from=("A2", "A4", "B3", "B4"),
     compat="recovery_turn_tracking",
-    ceilings=Ceilings(per_day=24, per_conversation=CORE_DAILY_CAP),
+    ceilings=Ceilings(per_day=48, per_conversation=CORE_DAILY_CAP),
     journal_prefix="mfc",
     make=make_marker_free,
     measurements=(Measurement.M7,),
@@ -491,17 +502,27 @@ MARKER_FREE = CapabilityDef(
 # Compatibility Registry has no local check and stays 'unsupported' (G12), as the standard
 # edition's. Its route rests on M2, which failed for a conversation the app holds - a warning in its
 # statement the person confirms; M2b only widens where it acts, and is read where it is used.
-# Ceilings: three a conversation a day - a usage limit resets a few times a day at most - and a dozen
-# a day in all. It comes before the marker-free continuation, so where both are on and the goal
+# Ceilings: five a conversation a day - a usage limit resets a few times a day at most - and 24
+# a day in all. From v0.6.22 (issue #59, the owner's choice of 2026-11-07) a continuation that answers
+# a reset the watcher verified - a usage limit, its expected reset passed, core's usage reading before
+# the send showing room - is not held by the five in one conversation, nor by core's five: at P3's
+# known_failure it answers VERIFIED_RESET, which core claims within its own fifteen minutes and a day
+# of its own (ladder.RESET_PER_DAY) for a send its channel or route carries, so it departs from A20
+# too, and from H2 (nothing moves an engine constant: A20's five are the engine's, and turning this on
+# moves them here); its day, the hour and every gate still hold. Its statement names A20 and H2 at
+# revision 2 still: the owner's word of 2026-11-07 - one who turned it on keeps it on after the update
+# and reads the changed statement on its card, as for the raised ceilings.
+# It comes before the marker-free continuation, so where both are on and the goal
 # applies its channel carries the send, under the client id P15 gives it.
 GOAL_CONTINUATION = CapabilityDef(
     id="goal_continuation",
     points=frozenset({Point.UNLOADED, Point.GATES, Point.SENDER}),
     # Revision 2 (v0.6.15-beta): its risks say it acts on a conversation the app holds where M2b passed.
+    # v0.6.22 (issue #59): A20 and H2 at a verified reset, at revision 2 by the owner's word of 2026-11-07.
     revision=2,
-    departs_from=("0.5", "A2", "A11", "B3", "B4"),
+    departs_from=("0.5", "A2", "A11", "A20", "B3", "B4", "H2"),
     compat="loaded_state_detection",
-    ceilings=Ceilings(per_day=12, per_conversation=3),
+    ceilings=Ceilings(per_day=24, per_conversation=5),
     journal_prefix="goal",
     make=make_goal_continuation,
     measurements=(Measurement.M2,),
@@ -512,12 +533,12 @@ GOAL_CONTINUATION = CapabilityDef(
 # core sends its own words with its marker through its own backend, under the one claim - which writes this
 # capability's override, one per interruption (ledger.py) - and leaves the item in Codex's queue for when the
 # conversation is opened. In the watch it keeps the item queued while the override is within the person's Days (3 to
-# 7, 3 by default); core takes it back at seven days and an hour whatever it answers, and at once when it is turned
+# 30, 3 by default); core takes it back at 30 days and an hour whatever it answers, and at once when it is turned
 # off. Opened and not delivered within core's 180 seconds, the item is taken back, given back to waiting and sent the
 # ordinary way, and this turns off (NOT_DELIVERED_ON_OPEN). It departs from A11 (nothing is queued on the off chance)
 # and keeps A17, H4 and H6 - every withdrawal still fires at once - and stands on loaded_state_detection, what decides
 # that a conversation is not held. Its route rests on M1, passed on codex-cli 0.158 and a warning on any other.
-# Ceilings: three a conversation a day, a dozen a day in all. After the goal continuation, whose route comes first
+# Ceilings: five a conversation a day, 24 a day in all. After the goal continuation, whose route comes first
 # where both are on and a goal applies - and (v0.6.17, #47) which, while MQG has no pass on the Codex in force, it leaves
 # a conversation whose goal is active to: one continuation, its codes saying why (engine/foropen.py).
 QUEUE_FOR_OPEN = CapabilityDef(
@@ -526,7 +547,7 @@ QUEUE_FOR_OPEN = CapabilityDef(
     revision=1,
     departs_from=("A11",),
     compat="loaded_state_detection",
-    ceilings=Ceilings(per_day=12, per_conversation=3),
+    ceilings=Ceilings(per_day=24, per_conversation=5),
     journal_prefix="qfo",
     make=make_queue_for_open,
     codes=FOROPEN_CODES,
@@ -540,19 +561,19 @@ QUEUE_FOR_OPEN = CapabilityDef(
 # marker - claims, this paying one unit, and calls it inside its launch guard; the route runs that one turn on our own
 # app server on the settings Codex saved for the conversation, declines every approval, refuses full access, an
 # outside sandbox and another reviewer before anything starts, and lets go (codex/headless.py). One run at a time; the
-# person's Hours (1 to 6, 1 by default) cap it; a Stop on Pending's row, and the Codex app starting (Q3, at once),
+# person's Hours (1 to 12, 1 by default) cap it; a Stop on Pending's row, and the Codex app starting (Q3, at once),
 # interrupt it. At P8 it writes the live run's row, hands a Stop on and journals how each run ended. It departs from
 # 0.5 (it wakes a conversation through thread/resume), A2 (a channel beside codex queue), A11 (nothing is done for a
 # conversation the app does not hold), B3 and B4 (four more app-server methods), E8 and F8 (a Codex helper that lives
 # for the turn, ended by us), and keeps A4. It stands on loaded_state_detection and rests on M6 and M6B. A full
-# context window is compact_continue's, never this one's. Ceilings: three a conversation, a dozen a day.
+# context window is compact_continue's, never this one's. Ceilings: five a conversation, 24 a day.
 HEADLESS_RUN = CapabilityDef(
     id="headless_run",
     points=frozenset({Point.UNLOADED, Point.TICK}),
     revision=1,
     departs_from=("0.5", "A2", "A11", "B3", "B4", "E8", "F8"),
     compat="loaded_state_detection",
-    ceilings=Ceilings(per_day=12, per_conversation=3),
+    ceilings=Ceilings(per_day=24, per_conversation=5),
     journal_prefix="head",
     make=make_headless_run,
     codes=tuple(str(word) for word in RunEnd),
@@ -574,14 +595,14 @@ HEADLESS_RUN = CapabilityDef(
 # version skew guard reads which Codex wrote such a conversation off its file's first line, core's engine/kinds.py,
 # and waits while that is newer than the engine), keeps A2, A3,
 # A4, A17, H4 and H6, stands on thread_eligibility and rests on M5 and MO - the words that tell these conversations
-# apart, a warning until MO passes for the Codex in force. Ceilings: three a conversation, two dozen a day.
+# apart, a warning until MO passes for the Codex in force. Ceilings: five a conversation, 48 a day.
 OTHER_SESSIONS = CapabilityDef(
     id="other_sessions",
     points=frozenset({Point.SESSIONS, Point.UNLOADED}),
     revision=1,
     departs_from=("A11", "A15", "B6"),
     compat="thread_eligibility",
-    ceilings=Ceilings(per_day=24, per_conversation=3),
+    ceilings=Ceilings(per_day=48, per_conversation=5),
     journal_prefix="sess",
     make=make_other_sessions,
     measurements=(Measurement.M5, Measurement.MO),
@@ -597,7 +618,7 @@ OTHER_SESSIONS = CapabilityDef(
 # A11, B3, B4, E8 and F8 (as headless_run), A13 and A14 (a context-length failure is taken up), A16 (the continuation
 # follows the compaction turn), A17 (a compaction turn supersedes nothing of its record) and A26 (the continuation's
 # words for a failure the standard edition does not recover). It stands on transient_classification and rests on M7,
-# MX and MXA. Ceilings: two a conversation - the compaction's claim and its continuation's - and six a day. Before
+# MX and MXA. Ceilings: four a conversation - the compaction's claim and its continuation's, twice over - and twelve a day. Before
 # headless_run in DEFINITIONS, so its own record is its route's at P16.
 COMPACT_CONTINUE = CapabilityDef(
     id="compact_continue",
@@ -605,7 +626,7 @@ COMPACT_CONTINUE = CapabilityDef(
     revision=1,
     departs_from=("0.5", "A2", "A11", "A13", "A14", "A16", "A17", "A26", "B3", "B4", "E8", "F8"),
     compat="transient_classification",
-    ceilings=Ceilings(per_day=6, per_conversation=2),
+    ceilings=Ceilings(per_day=12, per_conversation=4),
     journal_prefix="compact",
     make=make_compact_continue,
     codes=tuple(str(word) for word in RunEnd),
@@ -620,15 +641,15 @@ COMPACT_CONTINUE = CapabilityDef(
 # (model_not_restored) - and, where one is still owed (stored before the turn/start: a watcher stopped mid-turn), puts
 # it back as its errand, with no run live, Codex closed and nothing holding the conversation.
 # It departs from 0.5 (it changes and replays a model setting), A2, A11, B3, B4, E8 and F8 (as headless_run) and B9
-# (it reads Codex's error code), stands on transient_classification and rests on MF. Ceilings: two a conversation,
-# six a day. Before headless_run in DEFINITIONS, so its own case is its route's at P16.
+# (it reads Codex's error code), stands on transient_classification and rests on MF. Ceilings: four a conversation,
+# twelve a day. Before headless_run in DEFINITIONS, so its own case is its route's at P16.
 MODEL_FALLBACK = CapabilityDef(
     id="model_fallback",
     points=frozenset({Point.UNLOADED, Point.TICK}),
     revision=1,
     departs_from=("0.5", "A2", "A11", "B3", "B4", "B9", "E8", "F8"),
     compat="transient_classification",
-    ceilings=Ceilings(per_day=6, per_conversation=2),
+    ceilings=Ceilings(per_day=12, per_conversation=4),
     journal_prefix="model",
     make=make_model_fallback,
     codes=tuple(str(word) for word in RunEnd) + (NOT_RESTORED,),
@@ -644,14 +665,14 @@ MODEL_FALLBACK = CapabilityDef(
 # empty turn again in a loop - and it turns off (REFUSED_BY_CODEX). A person may keep it on (K8; the owner's word of
 # 2026-10-24, v0.6.19-beta.3, before it could not be): kept on, that refusal is a note and it stays on, still answering
 # DEFER for the rest of the process. It departs from A4 (no marker) and A26 (no words), stands
-# on recovery_turn_tracking and rests on M3B. Ceilings: five a conversation, two dozen a day.
+# on recovery_turn_tracking and rests on M3B. Ceilings: five a conversation, 48 a day.
 SILENT_CONTINUATION = CapabilityDef(
     id="silent_continuation",
     points=frozenset({Point.DELIVERY}),
     revision=1,
     departs_from=("A4", "A26"),
     compat="recovery_turn_tracking",
-    ceilings=Ceilings(per_day=24, per_conversation=5),
+    ceilings=Ceilings(per_day=48, per_conversation=5),
     journal_prefix="silent",
     make=make_silent_continuation,
     measurements=(Measurement.M3B,),
@@ -679,18 +700,18 @@ CODEX_CHAT = CapabilityDef(
 )
 
 # Short retries when Codex is at capacity (v0.6.14 stage 3b; the plan's row: serverOverloaded alone,
-# 60 seconds to 5 minutes apart with jitter, a 60-second cooldown, 48 in 24 hours, 1 to 12 hours in
+# 60 seconds to 5 minutes apart with jitter, a 60-second cooldown, 96 in 24 hours, 1 to 24 hours in
 # all). At P17 it takes up Codex's own
 # `serverOverloaded` with CAPACITY, and at P3 known_failure it answers CAPACITY again for a record it
-# took up, while the task is inside the hours the person chose (one to twelve, two by default), on the
+# took up, while the task is inside the hours the person chose (one to 24, two by default), on the
 # clock from its first failure. Core carries CAPACITY out within its own bounds - a minute, two, four
-# and five, lengthened by up to a fifth, a minute apart, 48 a day, twelve hours on the clock
+# and five, lengthened by up to a fifth, a minute apart, 96 a day, 24 hours on the clock
 # (ladder.py) - so it departs from A20 (five a conversation a day, fifteen minutes apart), A21 (the
 # attempt, no-progress and continuation budgets), A22 (waits only from the retry timing) and B9 (it
 # reads Codex's error code, not only a kind), and from H2 (nothing can move an engine constant: A20's
 # caps are the engine's, and a person's choice moves them here). It stands on transient_classification,
 # the history table the failure's kind and code are read from, and rests on no measurement: core sends
-# what it always sends. Its ceilings are core's capacity day, 48 in one conversation and in all, which
+# what it always sends. Its ceilings are core's capacity day, 96 in one conversation and in all, which
 # only A20's departure allows. Revision 2 (v0.6.15-beta) names H2, where revision 1 did not.
 CAPACITY_RETRY = CapabilityDef(
     id="capacity_retry",
@@ -698,7 +719,7 @@ CAPACITY_RETRY = CapabilityDef(
     revision=2,
     departs_from=("A20", "A21", "A22", "B9", "H2"),
     compat="transient_classification",
-    ceilings=Ceilings(per_day=48, per_conversation=48),
+    ceilings=Ceilings(per_day=96, per_conversation=96),
     journal_prefix="cap",
     make=make_capacity_retry,
     options=(Option(OptionKey.CEILING_HOURS, CEILING_HOURS, DEFAULT_HOURS),),
@@ -715,7 +736,7 @@ CAPACITY_RETRY = CapabilityDef(
 # (only classified kinds), A26 (continuation text for a recovered kind), B9 (it reads Codex's code) and
 # H2 (nothing can retry an unknown failure: a rule is a person's setting, and it retries only what
 # nothing classified), and stands on transient_classification. Its hits are counted (`matched`) the
-# first time core goes on with what a rule took up. Ceilings: five a conversation, two dozen a day.
+# first time core goes on with what a rule took up. Ceilings: five a conversation, 48 a day.
 # Revision 2 (v0.6.15-beta) names H2, where revision 1 did not.
 STRUCTURED_RULES = CapabilityDef(
     id="structured_rules",
@@ -723,7 +744,7 @@ STRUCTURED_RULES = CapabilityDef(
     revision=2,
     departs_from=("0.5", "A13", "A14", "A26", "B9", "H2"),
     compat="transient_classification",
-    ceilings=Ceilings(per_day=24, per_conversation=5),
+    ceilings=Ceilings(per_day=48, per_conversation=5),
     journal_prefix="rule",
     make=make_structured_rules,
     codes=("matched",),
@@ -731,22 +752,22 @@ STRUCTURED_RULES = CapabilityDef(
 )
 
 # Retry failures it cannot name (v0.6.14 stage 3b; the plan's row: a failure nothing classified
-# retried on its own budget, one to three times, three a conversation in 24 hours, with a sample of
+# retried on its own budget, one to five times, five a conversation in 24 hours, with a sample of
 # no words - Codex's code, the status number, item counts and times only). At P17 it takes up with
 # ADMIT a failure nothing classified - core offers it only for a code of Codex's that names no
 # decision - while its task has tries left (Option attempts, one by default), after the rules, which
 # come first; at known_failure ADMIT again. Core waits ten minutes, then 15 and 30
 # (ladder.ADMITTED_WAITS), and its own no-progress and chain budgets still bind. The first time core
 # goes on with one it keeps a sample (state/choices.py; `sampled`). It departs from 0.5, A13, A14,
-# A26, B9 and H2 as the rules do, and from D2 too: a sample keeps a code Codex chose. Ceilings: three
-# a conversation, a dozen a day. Revision 2 (v0.6.15-beta) names H2, where revision 1 did not.
+# A26, B9 and H2 as the rules do, and from D2 too: a sample keeps a code Codex chose. Ceilings: five
+# a conversation, 24 a day. Revision 2 (v0.6.15-beta) names H2, where revision 1 did not.
 UNKNOWN_FAILURE_BUDGET = CapabilityDef(
     id="unknown_failure_budget",
     points=frozenset({Point.ADMISSION, Point.GATES}),
     revision=2,
     departs_from=("0.5", "A13", "A14", "A26", "B9", "D2", "H2"),
     compat="transient_classification",
-    ceilings=Ceilings(per_day=12, per_conversation=3),
+    ceilings=Ceilings(per_day=24, per_conversation=5),
     journal_prefix="unk",
     make=make_unknown_failure_budget,
     codes=("sampled",),
@@ -760,14 +781,14 @@ UNKNOWN_FAILURE_BUDGET = CapabilityDef(
 # 429 being a rate limit core recovers already - while the task it continues has had fewer than two
 # continuations, and at known_failure ADMIT again. Core waits ten minutes, then 15 (ladder.py). It
 # departs from A14 (Codex giving up without a 429 is never retried), A26 and B9 (it reads Codex's code
-# and status), and stands on transient_classification. Ceilings: two a conversation, a dozen a day.
+# and status), and stands on transient_classification. Ceilings: four a conversation, 24 a day.
 CODEX_GAVE_UP = CapabilityDef(
     id="codex_gave_up",
     points=frozenset({Point.ADMISSION, Point.GATES}),
     revision=1,
     departs_from=("A14", "A26", "B9"),
     compat="transient_classification",
-    ceilings=Ceilings(per_day=12, per_conversation=2),
+    ceilings=Ceilings(per_day=24, per_conversation=4),
     journal_prefix="gup",
     make=make_codex_gave_up,
 )
@@ -780,14 +801,14 @@ CODEX_GAVE_UP = CapabilityDef(
 # proof is core's own: the usage read every continuation waits for works only while Codex is signed
 # in, and core ends the record unsent a day on the clock after the failure (ladder.py). It departs
 # from 0.5 (sign-in failures are never retried), A14 (401 and 403 are never retried) and A26, and
-# stands on usage_probe - the usage read is its proof. Ceilings: two a conversation and two a day.
+# stands on usage_probe - the usage read is its proof. Ceilings: two a conversation and four a day.
 SIGN_IN_RETRY = CapabilityDef(
     id="sign_in_retry",
     points=frozenset({Point.ADMISSION, Point.GATES}),
     revision=1,
     departs_from=("0.5", "A14", "A26"),
     compat="usage_probe",
-    ceilings=Ceilings(per_day=2, per_conversation=2),
+    ceilings=Ceilings(per_day=4, per_conversation=2),
     journal_prefix="sgn",
     make=make_sign_in_retry,
 )
@@ -803,15 +824,15 @@ SIGN_IN_RETRY = CapabilityDef(
 # B10 (it keeps the count and the soonest expiry), C4 (it reads and spends on its own) and C9 (it reads usage when no
 # recovery is due); it stands on usage_probe and rests on MU and MN; MR only narrows it (`narrowed_by`, v0.6.20: failed or
 # unmeasured, it asks first and stays on). A spend whose result cannot be known turns
-# it off, as a send it paid for gone submission_unknown does (K7). Ceilings: the early looks it causes, three a
-# conversation, a dozen a day. It comes before early_reset, whose hold lets go of a look it made (not_taken).
+# it off, as a send it paid for gone submission_unknown does (K7). Ceilings: the early looks it causes, five a
+# conversation, 24 a day. It comes before early_reset, whose hold lets go of a look it made (not_taken).
 RESET_CREDIT = CapabilityDef(
     id="reset_credit",
     points=frozenset({Point.TICK, Point.SCHEDULE}),
     revision=1,
     departs_from=("A12", "B3", "B4", "B10", "C4", "C9"),
     compat="usage_probe",
-    ceilings=Ceilings(per_day=12, per_conversation=3),
+    ceilings=Ceilings(per_day=24, per_conversation=5),
     journal_prefix="credit",
     make=make_reset_credit,
     codes=("hit", "spent", "nothing", "no_credit", "asked", "lapsed", "unknown", "gap", "gone"),
@@ -831,7 +852,7 @@ RESET_CREDIT = CapabilityDef(
 # person's), C4 (it sends at a time chosen), C9 (it reads usage when no recovery is due), D2 (the words kept until
 # sent), H4 (a Pause does not take back one already queued) and H6 (Cancel no longer reaches one being sent); its
 # reads are core's own method, so not B4. It stands on exact_thread_recovery and rests on MU. One that cannot be
-# proven to have arrived a day after it was sent turns it off (K7). Ceilings: two a conversation, ten a day.
+# proven to have arrived a day after it was sent turns it off (K7). Ceilings: four a conversation, 20 a day.
 RESET_MESSAGE = CapabilityDef(
     id="reset_message",
     points=frozenset({Point.TICK, Point.RECORDS, Point.GATES}),
@@ -840,7 +861,7 @@ RESET_MESSAGE = CapabilityDef(
     revision=2,
     departs_from=("A8", "A17", "A26", "C4", "C9", "D2", "H4", "H6"),
     compat="exact_thread_recovery",
-    ceilings=Ceilings(per_day=10, per_conversation=2),
+    ceilings=Ceilings(per_day=20, per_conversation=4),
     journal_prefix="resetmsg",
     make=make_reset_message,
     codes=("due", "sent", "delivered", "unknown", "expired", "not_started", "gap", "gone"),
@@ -856,14 +877,14 @@ RESET_MESSAGE = CapabilityDef(
 # Core keeps every other gate, a postponement and quiet hours included, and a look that meets a wait
 # leaves the record as it was. It departs from A12 (never before the real reset time) and C9 (usage is
 # read only when a recovery is due), and stands on usage_probe. Its words: `probed` for a first early
-# yes, `lifted` for the second. Ceilings: three a conversation, a dozen a day.
+# yes, `lifted` for the second. Ceilings: five a conversation, 24 a day.
 EARLY_RESET = CapabilityDef(
     id="early_reset",
     points=frozenset({Point.SCHEDULE, Point.GATES}),
     revision=1,
     departs_from=("A12", "C9"),
     compat="usage_probe",
-    ceilings=Ceilings(per_day=12, per_conversation=3),
+    ceilings=Ceilings(per_day=24, per_conversation=5),
     journal_prefix="erl",
     make=make_early_reset,
     codes=("probed", "lifted"),
@@ -880,15 +901,15 @@ EARLY_RESET = CapabilityDef(
 # departs from 0.2 (never again when the first may have been delivered), A6 (an uncertain delivery is
 # never resent), E2 (better to miss a resume than resume twice) and H2 (nothing can resend an uncertain
 # submission), and stands on recovery_turn_tracking - the history, queue and projection tables its
-# proof reads. A resend of its found twice turns it off, kept on or not. Ceilings: two a conversation,
-# six a day.
+# proof reads. A resend of its found twice turns it off, kept on or not. Ceilings: four a conversation,
+# twelve a day.
 ONCE_MORE = CapabilityDef(
     id="once_more_when_unsure",
     points=frozenset({Point.SCHEDULE}),
     revision=1,
     departs_from=("0.2", "A6", "E2", "H2"),
     compat="recovery_turn_tracking",
-    ceilings=Ceilings(per_day=6, per_conversation=2),
+    ceilings=Ceilings(per_day=12, per_conversation=4),
     journal_prefix="oncemore",
     make=make_once_more,
     resends=True,
@@ -904,14 +925,14 @@ ONCE_MORE = CapabilityDef(
 # re-check passes nothing), A20 (fifteen minutes between two continuations), A21 (the attempt budget
 # stops a recovery) and H2 (nothing can force a send), and stands on exact_thread_recovery - the official
 # Codex and its queue flags every send rests on. Its word: `requested`, a person's request. Ceilings: core's
-# five a conversation a day, two dozen a day in all.
+# five a conversation a day, 48 a day in all.
 SEND_NOW = CapabilityDef(
     id="send_now",
     points=frozenset({Point.SCHEDULE}),
     revision=1,
     departs_from=("A8", "A20", "A21", "H2"),
     compat="exact_thread_recovery",
-    ceilings=Ceilings(per_day=24, per_conversation=CORE_DAILY_CAP),
+    ceilings=Ceilings(per_day=48, per_conversation=CORE_DAILY_CAP),
     journal_prefix="sendnow",
     make=make_send_now,
     codes=("requested",),
@@ -924,14 +945,14 @@ SEND_NOW = CapabilityDef(
 # fate cannot be known turns it off (K7). It departs from 0.5 (one recovery dispatched at a time) and A19 (in sequence,
 # under one lock) - and keeps A19's one continuation in flight per conversation - and stands on exact_thread_recovery.
 # MQ only narrows it (`narrowed_by`, v0.6.20): failed or unmeasured, two workers at most, and it stays on.
-# Ceilings: core's five a conversation a day, 48 a day in all.
+# Ceilings: core's five a conversation a day, 96 a day in all.
 PARALLEL_DISPATCH = CapabilityDef(
     id="parallel_dispatch",
     points=frozenset({Point.CONCURRENCY}),
     revision=1,
     departs_from=("0.5", "A19"),
     compat="exact_thread_recovery",
-    ceilings=Ceilings(per_day=48, per_conversation=CORE_DAILY_CAP),
+    ceilings=Ceilings(per_day=96, per_conversation=CORE_DAILY_CAP),
     journal_prefix="par",
     make=make_parallel,
     options=(Option(OptionKey.WORKERS, WORKERS, DEFAULT_WORKERS),),
@@ -945,7 +966,7 @@ PARALLEL_DISPATCH = CapabilityDef(
 # where asked, paced like every recovery (A20 kept, the owner's answer). Cancel and a Pause take back one Codex already
 # holds (the owner's answer of 2026-10-09). It departs from A8, A17, A26, A27, C4, D2, H4 and H6 as its statement says,
 # and stands on exact_thread_recovery. Only its after_turn route rests on MT, which only narrows it (`narrowed_by`, v0.6.20:
-# failed or unmeasured, that choice is marked and the rest stays on). Ceilings: core's five a conversation, thirty a
+# failed or unmeasured, that choice is marked and the rest stays on). Ceilings: core's five a conversation, 60 a
 # day. Before the edition's own continuations, so a person's message is handed first (P2's eight). Revision 2 (v0.6.19,
 # issue #50): a message at a time or on a schedule waits while a turn of its conversation runs, or goes into Codex's
 # queue at once, as the person chooses (engine/promptqueue.py) - the statement describes the default, so a person who
@@ -959,7 +980,7 @@ PROMPT_QUEUE = CapabilityDef(
     revision=3,
     departs_from=("A2", "A4", "A8", "A17", "A26", "A27", "B3", "B4", "C4", "D2", "H4", "H6"),
     compat="exact_thread_recovery",
-    ceilings=Ceilings(per_day=30, per_conversation=CORE_DAILY_CAP),
+    ceilings=Ceilings(per_day=60, per_conversation=CORE_DAILY_CAP),
     journal_prefix="queue",
     make=make_prompt_queue,
     codes=("due", "sent", "delivered", "unknown", "expired", "missed", "held", "superseded"),
@@ -980,20 +1001,21 @@ PROMPT_QUEUE = CapabilityDef(
 # caps, and so H2), A26 (a person's words, no continuation), D2 (the words kept after the send) and H6 (nothing takes it
 # back). It
 # needs the prompt queue, whose editor is where it is written, and stands on loaded_state_detection; its route rests on
-# MIPC and MSTEER2 - the failed MSTEER2 is the warning its statement shows and the person confirms. Ceilings: 30 a
-# conversation and 60 a day, the request's own caps (A20 departed).
+# MIPC and MSTEER2 - the failed MSTEER2 is the warning its statement shows and the person confirms. Ceilings: 60 a
+# conversation and 120 a day, the request's own caps (A20 departed).
 STEER_SEND = CapabilityDef(
     id="steer_send",
     points=frozenset({Point.TICK}),
     revision=1,
     departs_from=("A1", "A2", "A4", "A8", "A17", "A20", "A26", "B3", "D2", "H2", "H6"),
     compat="loaded_state_detection",
-    ceilings=Ceilings(per_day=60, per_conversation=30),
+    ceilings=Ceilings(per_day=120, per_conversation=60),
     journal_prefix="steer",
     make=make_steer_send,
     codes=("accepted", "unconfirmed", "refused"),
     measurements=(Measurement.MIPC, Measurement.MSTEER2),
     requires=("prompt_queue",),
+    sends=True,
 )
 
 # Empty-response recovery (v0.6.15-beta; the plan's item 3). At P8, at most once a minute, it looks at the
@@ -1003,15 +1025,15 @@ STEER_SEND = CapabilityDef(
 # own words, its turn's record a P2 CONTINUATION that core sends only while that turn is the latest. A goal Codex
 # keeps going or stopped (active, blocked) is left alone; goals unreadable, nothing. Twice a chain at most. It departs
 # from 0.5 (a completed turn is no failure), A13 (only classified failures) and A26 (words of its own), and stands on
-# outcome_observation, the history its kinds are read from. Its route rests on ME. Ceilings: two a conversation, a
-# dozen a day.
+# outcome_observation, the history its kinds are read from. Its route rests on ME. Ceilings: four a conversation, 24
+# a day.
 EMPTY_RESPONSE = CapabilityDef(
     id="empty_response",
     points=frozenset({Point.TICK, Point.RECORDS}),
     revision=1,
     departs_from=("0.5", "A13", "A26"),
     compat="outcome_observation",
-    ceilings=Ceilings(per_day=12, per_conversation=2),
+    ceilings=Ceilings(per_day=24, per_conversation=4),
     journal_prefix="empty",
     make=make_empty_response,
     codes=("found", "goal_left", "chain_spent", "sent", "delivered", "unknown", "superseded"),
@@ -1025,14 +1047,14 @@ EMPTY_RESPONSE = CapabilityDef(
 # parent's: nothing is ever sent to a subagent. It departs from 0.5 (only failed turns are recovered), A15 (subagents
 # are never detected or recovered) and A26 (words of its own), and stands on thread_eligibility, which conversations
 # are a person's own. Its 5b rests on MS, which only narrows it (`narrowed_by`, v0.6.20): failed or unmeasured, 5a
-# alone runs and it stays on. Ceilings: three a conversation, a dozen a day.
+# alone runs and it stays on. Ceilings: five a conversation, 24 a day.
 SUBAGENT_PARENT = CapabilityDef(
     id="subagent_parent",
     points=frozenset({Point.TEXT, Point.TICK, Point.RECORDS}),
     revision=1,
     departs_from=("0.5", "A15", "A26"),
     compat="thread_eligibility",
-    ceilings=Ceilings(per_day=12, per_conversation=3),
+    ceilings=Ceilings(per_day=24, per_conversation=5),
     journal_prefix="sub",
     make=make_subagent_parent,
     codes=("told", "followed_up", "sent", "delivered", "unknown", "superseded"),
@@ -1046,14 +1068,14 @@ SUBAGENT_PARENT = CapabilityDef(
 # active goal, a failed or interrupted turn, and the conversation switched off. Until MK passes on the Codex in force,
 # three at most are sent. It departs from A13 (only failures are recovered), A26 (words of its own) and B9 (a plan's
 # step statuses are read from an item's content), and stands on outcome_observation. MK only narrows it (`narrowed_by`,
-# v0.6.20): failed or unmeasured, three at most, and it stays on. Ceilings: core's five a conversation, two dozen a day.
+# v0.6.20): failed or unmeasured, three at most, and it stays on. Ceilings: core's five a conversation, 48 a day.
 KEEP_GOING = CapabilityDef(
     id="keep_going",
     points=frozenset({Point.TICK, Point.RECORDS}),
     revision=1,
     departs_from=("A13", "A26", "B9"),
     compat="outcome_observation",
-    ceilings=Ceilings(per_day=24, per_conversation=CORE_DAILY_CAP),
+    ceilings=Ceilings(per_day=48, per_conversation=CORE_DAILY_CAP),
     journal_prefix="keep",
     make=make_keep_going,
     codes=("found", "stopped", "sent", "delivered", "unknown", "superseded"),
@@ -1114,14 +1136,14 @@ USAGE_METER = CapabilityDef(
 # while that turn is still the latest and still running, so Codex delivers it when the turn ends. It departs from
 # A13 (no failure is recovered) and A26 (words of its own), stands on exact_thread_recovery, the queue every send
 # rests on, and rests on MT (a message queued while a turn runs is delivered after it). It requires the meter.
-# Ceilings: two a conversation (both windows), a dozen a day.
+# Ceilings: four a conversation (both windows), 24 a day.
 USAGE_WRAP_UP = CapabilityDef(
     id="usage_wrap_up",
     points=frozenset({Point.TICK, Point.RECORDS}),
     revision=2,
     departs_from=("A13", "A26"),
     compat="exact_thread_recovery",
-    ceilings=Ceilings(per_day=12, per_conversation=2),
+    ceilings=Ceilings(per_day=24, per_conversation=4),
     journal_prefix="wrap",
     make=make_wrap_up,
     codes=("found", "sent", "delivered", "unknown", "superseded", "continued"),
@@ -1381,6 +1403,111 @@ FLEET_VIEW = CapabilityDef(
     wordings=(WordingKey.FLEET_ALIAS, WordingKey.FLEET_FOLDER),
 )
 
+# Read this PC's status from a browser or a script (v0.6.22, the owner's word of 2026-11-05, "넣되 단계별로";
+# plans/v0619-design/D-remote.md). While it stands on, the watcher keeps one resident courier beside it (courier/resident.py,
+# engine/remote.py: at most three restarts an hour, then its card says stopped), and that process - the one listening
+# socket of this product - serves on 127.0.0.1 alone (47615, or the port the person types): the status file's closed keys
+# as JSON and Prometheus' text, the waiting recoveries as `task N` and their public codes, and a small page (courier/api.py,
+# page.py). Host checked (421), a Bearer token kept in Credential Manager and compared in constant time (401), ten wrong
+# in a minute close it for five minutes, no CORS, no query string read, nothing logged. Nothing it serves sends, chats or
+# changes a setting; only the watcher sends. It departs from C1 and C2 (its server's file imports networking modules: one
+# more shipped file the privacy test counts beside the courier's), B14 (a listening socket and a localhost server), F8 (a
+# resident process), F6 (a process of its own besides the listed ones), D1 (state readable by whatever local program
+# holds the token) and C12 (the window's words reach a page a browser shows). It stands on engine_present as push_notices
+# does; its ceilings are the schema's floor and never bind: it sends nothing to Codex.
+LOCAL_API = CapabilityDef(
+    id="local_api",
+    points=frozenset({Point.TICK, Point.RESIDENT}),
+    revision=1,
+    departs_from=("C1", "C2", "B14", "F8", "F6", "D1", "C12", "K5"),
+    compat="engine_present",
+    ceilings=Ceilings(per_day=1, per_conversation=1),
+    journal_prefix="api",
+    make=make_local_api,
+    codes=API_CODES,
+    options=(Option(OptionKey.API_PORT, (API_DEFAULT_PORT,), API_DEFAULT_PORT, API_PORT_RANGE),),
+)
+
+# Let what holds the token pause and cancel (v0.6.22, D-remote.md): an action - core never asks it. While it stands on
+# beside local_api, the API also answers POST /pause, /resume-off (the same pause: there is no remote resume) and
+# /cancel/<N> against the list it was read on, through core's own control calls, each counted. Reduce-actions alone. It
+# departs from H3 (a surface beside the three that changes state) and H8 (no destructive hint: an HTTP route carries
+# none). It requires local_api.
+LOCAL_API_ACTIONS = CapabilityDef(
+    id="local_api_actions",
+    points=frozenset(),
+    revision=1,
+    departs_from=("H3", "H8"),
+    compat=None,
+    ceilings=None,
+    journal_prefix="apiact",
+    make=make_widening,
+    codes=API_ACTION_CODES,
+    requires=("local_api",),
+    kind=CapabilityKind.ACTION,
+)
+
+# Open the status server to the local network (v0.6.22, D-remote.md): an action - core never asks it. While it stands on
+# beside local_api, the resident binds to every network instead of 127.0.0.1 and takes a Host that is an IPv4 address with
+# its port; every other check stays. Windows asks about its firewall; the product never edits a rule. It departs from B14
+# (a listening socket, reachable from other devices), F8 (the resident process) and D1 (the status can reach whoever on the
+# network holds the token). It requires local_api.
+LOCAL_API_LAN = CapabilityDef(
+    id="local_api_lan",
+    points=frozenset(),
+    revision=1,
+    departs_from=("B14", "F8", "D1"),
+    compat=None,
+    ceilings=None,
+    journal_prefix="apilan",
+    make=make_widening,
+    requires=("local_api",),
+    kind=CapabilityKind.ACTION,
+)
+
+# Both declare they send nothing to Codex by answering at P22 (the owner's word of 2026-11-06), so core keeps their resident
+# running while recovery is paused too, a watcher restart included: a pause made from the phone can be lifted from it.
+# Control recovery from Telegram (v0.6.22, D-remote.md): while it stands on, the resident courier long-polls the bot
+# push_notices keeps, obeying the one chat its pairing kept and ignoring every other in silence (courier/telegram.py):
+# /status, /list, /cancel task N against the list last sent, /pause. Reads and reduce-actions; no command sends to Codex,
+# chats, changes a setting or turns a feature on, and answers are closed words, numbers and `task N`. Five wrong codes
+# during a pairing turn it off (BAD_CODES, whether or not it is kept on). It departs from C1 and C2 (the courier is a second
+# shipped file reaching the network), C3 (api.telegram.org), C8 (Telegram sees this PC's address and the courier's name),
+# D1 (how recoveries stand goes to Telegram), F6 (a process of its own), F8 (a resident process) and K5 (it answers
+# commands while the watcher is paused: the owner's word of 2026-11-06, P22; STANDARDS.md stays). It requires
+# push_notices, whose bot and pairing it uses; a chat not yet paired means it waits. It stands on engine_present; its
+# ceilings are the schema's floor and never bind.
+TELEGRAM_REMOTE = CapabilityDef(
+    id="telegram_remote",
+    points=frozenset({Point.TICK, Point.RESIDENT}),
+    revision=1,
+    departs_from=("C1", "C2", "C3", "C8", "D1", "F6", "F8", "K5"),
+    compat="engine_present",
+    ceilings=Ceilings(per_day=1, per_conversation=1),
+    journal_prefix="tgram",
+    make=make_telegram_remote,
+    codes=TELEGRAM_CODES,
+    requires=("push_notices",),
+)
+
+# Let Telegram continue a held recovery and lift a pause (v0.6.22, D-remote.md): an action. While it stands on beside
+# telegram_remote, the paired chat may also send /continue task N (core's release_hold, the person's own move: it sends
+# nothing and skips no gate) and /recovery-on (core's set_enabled(True), which an administrator's policy still refuses).
+# It departs from H4 (a pause lifted from outside the PC). It requires telegram_remote.
+TELEGRAM_CONTINUE = CapabilityDef(
+    id="telegram_continue",
+    points=frozenset(),
+    revision=1,
+    departs_from=("H4",),
+    compat=None,
+    ceilings=None,
+    journal_prefix="tgcont",
+    make=make_widening,
+    codes=TELEGRAM_CONTINUE_CODES,
+    requires=("telegram_remote",),
+    kind=CapabilityKind.ACTION,
+)
+
 # Start the 5-hour window early (v0.6.20, the owner's request of 2026-10-28; plans/v0620-anchor-design.md). At P8,
 # when Codex's 5-hour window is idle - 0 % in two reads STEADY_GAP apart, its reset ~5 h ahead and moving with the
 # clock, as MANCHOR found an idle window reports - its errand starts one near-free request, the measured
@@ -1492,16 +1619,22 @@ DEFINITIONS = (START_WITH_CODEX, CRASH_RESTART, GOAL_CONTINUATION, QUEUE_FOR_OPE
                FLEET_VIEW,
                # v0.6.20 (Discussion #57): the power action after tasks a person picked, the one answer at P21.
                POWER_AFTER_TASKS,
+               # v0.6.22: the resident courier, before the wake timer.
+               LOCAL_API, TELEGRAM_REMOTE,
                WAKE_FOR_RESET,
+               # v0.6.22: what widens the loopback API: actions, core never asks them.
+               LOCAL_API_ACTIONS, LOCAL_API_LAN, TELEGRAM_CONTINUE,
                OPEN_CODEX_BUTTON, LONG_RESET_MESSAGE,
                COMPAT_REPORT)
-# Codex's own retry settings (stage 4's item 6): Attempts (6, 8, 10 or 12; 8 by default) for both of its built-in
+# Codex's own retry settings (stage 4's item 6): Attempts (6, 8, 10, 12, 16 or 20; 8 by default) for both of its built-in
 # provider's retry keys, written at P8 and put back (engine/retries.py). MB failed on codex-cli 0.162.0-alpha.17.2 -
 # Codex refuses any write under model_providers.openai - so it waits in WAITING: hidden, its statement unwritten. Made
 # again on codex-cli 0.166.0-alpha.5.1 (2026-10-31), MB failed the same way: hidden because its measurement failed.
 # v0.6.22 (plans/v0622-retry-settings-design.md): a new route - a provider of our own copying the built-in one with the
 # Attempts, given as `-c` settings to the servers this product starts for its own turns and written nowhere - rests on
-# MB2; MB stays the record of the plain route. Still hidden: MB2 is not made yet.
+# MB2; MB stays the record of the plain route. Still hidden, because its measurement failed: on codex-cli
+# 0.166.0-alpha.6 (2026-11-06) MB2 found that Codex refuses thread/resume (-32600) of a conversation made under the
+# built-in openai provider under a provider of our own (modelProviderMismatch), though its scratch part held.
 CODEX_RETRY_SETTINGS = CapabilityDef(
     id="codex_retry_settings",
     points=frozenset({Point.TICK}),
@@ -1522,7 +1655,7 @@ CODEX_RETRY_SETTINGS = CapabilityDef(
 # codex_link), once, only while the PC has been idle for the minutes chosen (2, 5 or 15; 5 by default), Windows has a
 # `codex:` handler and the Codex app is running - unless Also start Codex is on (off by default). Nothing is sent here:
 # the next check finds it loaded and sends as always. The caps are kept in `opens` (state/opens.py): ten minutes
-# between opens, an hour a conversation, three a record, twelve a day (engine/opentarget.py). It departs from 0.5 (it
+# between opens, an hour a conversation, three a record, 24 a day (engine/opentarget.py). It departs from 0.5 (it
 # wakes a conversation the app does not hold, through the app's own link), B16 (it asks Windows the last input time and
 # reads the `codex:` handler), C4 (it acts on its own) and F6 (explorer opens the link); it keeps B13 - it simulates no
 # input and drives no UI - and A11, since nothing is sent until core's own loaded check passes. It stands on
@@ -1537,7 +1670,7 @@ OPEN_TO_SEND = CapabilityDef(
     revision=1,
     departs_from=("0.5", "B16", "C4", "F6"),
     compat="loaded_state_detection",
-    ceilings=Ceilings(per_day=12, per_conversation=3),
+    ceilings=Ceilings(per_day=24, per_conversation=5),
     journal_prefix="open",
     make=make_open_to_send,
     codes=("opened", "loaded", "not_loaded"),
@@ -1561,14 +1694,14 @@ OPEN_TO_SEND = CapabilityDef(
 # and MHK (the declaration's format on the engine in force). Hidden in WAITING until all three pass - and hidden because its
 # measurement failed: on codex-cli 0.166.0-alpha.5.1 (2026-10-31) M4 found that Codex runs a plugin's Stop hook after a
 # completed turn but none after a failed one, the turn this capability is for (MHK passed). Ceilings:
-# core's own five a conversation a day, and two dozen a day in all.
+# core's own five a conversation a day, and 48 a day in all.
 STOP_HOOK = CapabilityDef(
     id="stop_hook_continuation",
     points=frozenset({Point.GATES, Point.TICK}),
     revision=1,
     departs_from=("A2", "A5", "A26", "B3", "F6"),
     compat="recovery_turn_tracking",
-    ceilings=Ceilings(per_day=24, per_conversation=CORE_DAILY_CAP),
+    ceilings=Ceilings(per_day=48, per_conversation=CORE_DAILY_CAP),
     journal_prefix="shk",
     make=make_stop_hook,
     measurements=(Measurement.M4, Measurement.M4B, Measurement.MHK),
@@ -1594,18 +1727,23 @@ STOP_HOOK = CapabilityDef(
 # reads usage when no recovery is due on that account), D2 (sealed sign-in copies kept beside the state), E8 (it ends the
 # Codex app's process if Windows' request is not enough) and F6 (Codex's own `codex login` for Add an account). It
 # requires account_switch, whose watch holds no recovery for a switch of this capability's (profiles.switched_to) and
-# still holds for a change a person made. It stands on usage_probe and rests on MPROFILE and MSWAP; until both pass on
-# the Codex in force it waits hidden in WAITING. Ceilings: those of early_reset's EARLY.
+# still holds for a change a person made. It stands on usage_probe and rests on MPROFILE and MSWAP. It waited hidden in
+# WAITING until both passed; both passed on codex-cli 0.166.0-alpha.6 (2026-11-06), so it is offered, off until a person
+# turns it on, with the UNMEASURED warning on any other Codex (arming.warnings_for). Ceilings: those of early_reset's EARLY.
+# Revision 2 (v0.6.23 audit): the statement names the bound on its early looks (A-M7), and its stop text the one thing
+# that still happens once it is off - a switch that did not finish is undone (A-M3, AutoSwitch.tend).
 ACCOUNT_AUTO_SWITCH = CapabilityDef(
     id="account_auto_switch",
     points=frozenset({Point.TICK, Point.SCHEDULE}),
-    revision=1,
+    revision=2,
     departs_from=("A12", "B2", "B3", "B4", "B10", "B11", "C4", "C9", "D2", "E8", "F6"),
     compat="usage_probe",
-    ceilings=Ceilings(per_day=12, per_conversation=3),
+    ceilings=Ceilings(per_day=24, per_conversation=5),
     journal_prefix="autoswch",
     make=make_account_auto_switch,
-    codes=("switched", "not_signed_in", "not_usable", "not_closed", "failed", "all_exhausted", "ceiling"),
+    codes=("switched", "not_signed_in", "not_usable", "not_closed", "failed", "all_exhausted", "ceiling", "left",
+           "not_put_back", "sweep_failed", "changed_under",
+           "locked", "not_started", "engine_alive", "held"),
     measurements=(Measurement.MPROFILE, Measurement.MSWAP),
     requires=("account_switch",),
 )
@@ -1615,10 +1753,11 @@ ACCOUNT_AUTO_SWITCH = CapabilityDef(
 # statement and no switch anywhere - until that measurement passes (measured.MEASURED), and then offered after
 # DEFINITIONS. Its code and its probe stay in the tree. (v0.6.19: open_to_send's statement was written already, so a
 # pass offers it whole - MOPEN's did, 2026-10-29; codex_retry_settings' is not.) v0.6.20: a tuple of measurements is
-# several, every one of which must pass (Continue inside the turn: MHK, M4 and M4B).
+# several, every one of which must pass (Continue inside the turn: MHK, M4 and M4B). Waiting now: codex_retry_settings
+# (MB2 failed) and stop_hook_continuation (M4 failed); open_to_send and account_auto_switch are offered.
 WAITING = ((CODEX_RETRY_SETTINGS, Measurement.MB2), (OPEN_TO_SEND, Measurement.MOPEN),
            (STOP_HOOK, (Measurement.MHK, Measurement.M4, Measurement.M4B)),
-           # v0.6.22: the automatic account switch, until MPROFILE and MSWAP pass on the Codex in force.
+           # v0.6.22: the automatic account switch; MPROFILE and MSWAP passed on 2026-11-06, so it is offered.
            (ACCOUNT_AUTO_SWITCH, (Measurement.MPROFILE, Measurement.MSWAP)))
 
 
@@ -1652,12 +1791,15 @@ SHOWN_ORDER = (
     # going, what starts the recovering, which conversations, and the continuations that need no marker).
     "start_with_codex", "crash_restart", "wake_for_reset", "every_conversation", "queue_for_open", "headless_run",
     "other_sessions", "marker_free_continuation", "reset_credit", "early_reset",
-    # 2026-11-04 (v0.6.22): the automatic account switch is shown here once MPROFILE and MSWAP pass.
+    # 2026-11-04 (v0.6.22): the automatic account switch, shown here since MPROFILE and MSWAP passed (2026-11-06).
     "account_auto_switch", "window_anchor", "parallel_dispatch",
     # 2026-10-31, group 2: what saves the person work (messages, the usage meter and what serves it, what a person
     # is told and does about one conversation). open_to_send is shown once MOPEN passes.
     "reset_message", "long_reset_message", "keep_going", "prompt_queue", "usage_meter", "usage_wrap_up", "usage_pause",
-    "push_notices", "send_now", "open_to_send", "open_codex_button", "codex_chat", "steer_send", "usage_analytics",
+    "push_notices",
+    # 2026-11-05 (v0.6.22): what is told on a phone can be answered from it, beside the notices it uses.
+    "telegram_remote", "telegram_continue",
+    "send_now", "open_to_send", "open_codex_button", "codex_chat", "steer_send", "usage_analytics",
     # 2026-11-01 (Discussion #57): it spares the person waiting at the PC for the tasks they started to finish.
     "power_after_tasks",
     # 2026-10-31, group 3: the other common failures.
@@ -1668,7 +1810,9 @@ SHOWN_ORDER = (
     "silent_continuation", "stop_hook_continuation", "status_feed", "account_switch", "idle_update_check",
     # 2026-11-05 (v0.6.22): for a person with several PCs and a folder they sync: rare, and it restarts nothing.
     "fleet_view",
-    "structured_rules")
+    "structured_rules",
+    # 2026-11-05 (v0.6.22): what a person's own scripts and browser may read and do: rare and expert.
+    "local_api", "local_api_actions", "local_api_lan")
 
 
 def shown(registry) -> tuple:

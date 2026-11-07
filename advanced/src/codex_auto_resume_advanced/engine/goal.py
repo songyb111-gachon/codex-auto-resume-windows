@@ -25,6 +25,12 @@ until the app has the conversation open (A11) and queues its continuation throug
 * P3 - thread_available, once the app holds the conversation. While its goal is active - Codex's
   own goal runtime is carrying the conversation on - the standard continuation is held back, for
   at most HOLD_SECONDS from the first time it was found so, so the two never both run.
+* P3 - known_failure (v0.6.22, issue #59): a usage limit whose reset core recorded has passed, and
+  whose goal it paused, is a verified reset - VERIFIED_RESET - once the usage gate's reading shows
+  room before the claim. Core claims it within its own fifteen minutes and a day of its own rather
+  than its five a conversation, for a send this capability's channel or route carries alone, and
+  this capability's ceiling for one conversation does not hold it (ledger.py): a goal paused at
+  every reset is set active again at every one. Its day, the hour and every gate still hold.
 * P5 - a conversation the app holds, whose goal is paused by the usage limit, and only where
   measurement M2b's recorded verdict is a pass for the Codex in force (a goal set active and a turn
   queued while the app holds the conversation: the turn runs, and the goal stays active and
@@ -163,8 +169,17 @@ class GoalContinuation:
         return self if self._limited(record) is not None else DEFER
 
     def gate(self, name, record, facts):
-        """P3, at thread_available alone: HOLD while the conversation's goal is active - Codex is
-        carrying it on - for at most HOLD_SECONDS from the first time it was found so."""
+        """P3, at thread_available: HOLD while the conversation's goal is active - Codex is carrying it
+        on - for at most HOLD_SECONDS from the first time it was found so. And (v0.6.22, issue #59) at
+        known_failure: VERIFIED_RESET for a usage limit whose reset core recorded has passed, while the
+        conversation's goal is paused by it - core then claims it within its own spacing and a day of
+        its own, not its five, and only for a send this capability's channel or route carries
+        (core's engine/relaxed.py); the usage reading that shows room is core's usage gate, before
+        any claim. That claim is not held by this capability's ceiling for one conversation either
+        (ledger.py); its day and the hour still are."""
+        if name == "known_failure":
+            return (Alternative.VERIFIED_RESET if failures.reset_verified(record, self.clock())
+                    and self._limited(record) is not None else DEFER)
         if name != "thread_available" or not _usage_record(record):
             return DEFER
         key = record.get("interruption_id")

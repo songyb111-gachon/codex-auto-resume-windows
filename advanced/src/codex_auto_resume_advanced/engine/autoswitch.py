@@ -16,7 +16,11 @@ At P8, as an errand, at most every LOOK_EVERY seconds while it stands on:
    until a reset still ahead nor needing a sign-in is read on a scratch home (codex/swap.read_profile); the one with
    the most room (the lowest most-used window, ties to the least recently used) is switched in (codex/swap.switch);
 5. none with room: the journal counts `all_exhausted` once for the episode, one notice says so (core's kind
-   accounts_exhausted, registered by plug.py; surfaces.autoswitch_view), and recovery waits as today.
+   accounts_exhausted, registered by plug.py; surfaces.autoswitch_view), and recovery waits as today;
+6. a switch that did not finish - its target not signed in, the previous file not back yet, the app not started again,
+   another account signed in meanwhile, a failure - or one a crash left that was settled other than as switched, says so
+   once too: the same kind, with the closed word `why` "not_finished" (the security review's finding 9), once for each
+   target in this watcher's life.
 
 After a switch the watcher's P7 answers EARLY for every record that waits for a usage limit, for EARLY_FOR seconds:
 core then reads live usage (A12's check kept) and recovers as usual on the new account. account_switch's watch, which
@@ -44,6 +48,10 @@ EARLY_FOR = 900
 PER_DAY = 10
 DAY = 86400
 USAGE_LIMIT = "usage_limit"
+# What a switch or a settled crash came to that a person is told of once (codex/swap.py's closed words). engine_alive
+# from a switch too (the review's finding 18): the app was closed and started in front of nobody and nothing came of it.
+# The look's own engine_alive (`_why_not`, nothing closed) stays silent.
+NOT_FINISHED = ("not_signed_in", "not_put_back", "not_started", "changed_under", "failed", "left", "engine_alive")
 
 
 class _Errand:
@@ -55,6 +63,20 @@ class _Errand:
     def run(self, guard):
         try:
             return self.code.look(self.view, self.now)
+        except Exception:
+            return None
+
+
+class _Settle:
+    """tend's errand: the unfinished switch settled, nothing else."""
+    __slots__ = ("code",)
+
+    def __init__(self, code):
+        self.code = code
+
+    def run(self, guard):
+        try:
+            return self.code.settle()
         except Exception:
             return None
 
@@ -104,6 +126,18 @@ class AutoSwitch:
         from ..codex import restart as restarts
         return restarts.busy(self.paths, usage_waiting_ok=True)
 
+    def _restart_now(self, between):
+        """codex/restart.restart for a switch, or a put-back a later look finishes - None where it may not restart now:
+        something runs or is queued, or someone uses this PC (the switch's own rule, `_why_not`), looked at again right
+        before the close: reading every saved account can take minutes (the v0.6.23 audit's A-R1)."""
+        idle = self._idle()
+        if self.busy() or not isinstance(idle, (int, float)) or idle < IDLE:
+            return None
+        if self._restart is not None:
+            return self._restart(between)
+        from ..codex import restart as restarts
+        return restarts.restart(self.paths, between=between)
+
     def read_real(self):
         if self._read_real is not None:
             return self._read_real()
@@ -145,24 +179,63 @@ class AutoSwitch:
             return "not_usable"
         if self.busy():
             return "busy"
+        from ..codex import swap
+        if swap.other_engines(swap._inventory(), app_open=True):
+            return "engine_alive"                        # a TUI, IDE or exec-server engine of its own: it waits
         idle = self._idle()
         if not isinstance(idle, (int, float)) or idle < IDLE:
             return "in_use"
         return None
 
     def _today(self, now) -> int:
-        day = int(now // DAY) + 1
-        if self._scoped.stamped(OptionKey.AUTO_SWITCH_DAY) != day:
-            return 0
-        return self._scoped.stamped(OptionKey.AUTO_SWITCH_COUNT) or 0
+        """How many switches were made in the last DAY seconds - a rolling 24 hours, not a UTC calendar day, which let
+        twenty through around midnight UTC (the v0.6.23 audit's A-R2)."""
+        return len(self._recent(now))
+
+    def _recent(self, now) -> list:
+        store = self.store()
+        try:
+            times = store.attempts()
+        except Exception:
+            times = None
+        if times is None:
+            # Before v0.6.23 the count was the UTC day's, in two stamps: kept as switches made now, so an update never
+            # frees that day's ceiling early.
+            day = int(now // DAY) + 1
+            legacy = self._scoped.stamped(OptionKey.AUTO_SWITCH_COUNT) or 0
+            legacy = legacy if self._scoped.stamped(OptionKey.AUTO_SWITCH_DAY) == day else 0
+            times = [int(now)] * min(int(legacy), PER_DAY)
+            if times:
+                self._keep(times)
+        return [value for value in times if 0 <= now - value < DAY]
+
+    def _attempted(self, now) -> None:
+        """One more switch counted toward the 24-hour ceiling."""
+        self._keep((self._recent(now) + [int(now)])[-PER_DAY:])
+
+    def _keep(self, times) -> None:
+        try:
+            self.store().note_attempts(times)
+        except Exception:
+            pass
 
     def look(self, view, now):
         """One look; see the module's docstring. Returns nothing: what it did is in the journal and the stamps."""
         from ..codex import swap
+        from ..codex import authfile
         store, home = self.store(), self.home()
-        settled = swap.recover(self.paths, store, home, read_real=self.read_real)
+        intent = store.intent()
+        # What a kill or a held file left in plain text - a scratch home, a temporary beside the sign-in file - goes first.
+        _removed, failed = authfile.sweep(store.directory, home)
+        if failed:
+            self._count("sweep_failed")
+        settled = swap.recover(self.paths, store, home, read_real=self.read_real, restart=self._restart_now)
         if settled == swap.SWITCHED:
             self._switched(now)
+        elif settled is not None:
+            self._count(settled)
+            if settled in NOT_FINISHED and isinstance(intent, dict):
+                self._not_finished(intent.get("to"))
         rows = self.waiting(view, now)
         if self._why_not(view, rows) is not None:
             return None
@@ -179,13 +252,23 @@ class AutoSwitch:
             # One notice for this set of waiting records (core's kind accounts_exhausted, plug.NOTICE_KINDS).
             self._notice = {"key": "autoswitch:%d" % int(min(row["detected_at"] for row in rows))}
             return None
-        outcome = swap.switch(self.paths, store, home, target, restart=self._restart, read_real=self.read_real, now=now)
+        closed = []
+
+        def hands(between):
+            # Whether this attempt closed the Codex app (how it ended, CLOSED or ENDED): every such attempt counts toward
+            # the ceiling, a switch or not - it is about restarts in front of a person too (the v0.6.23 audit's A-M2).
+            found = self._restart_now(between)
+            if isinstance(found, tuple) and len(found) > 1 and found[1] is not None:
+                closed.append(found[1])
+            return found
+        outcome = swap.switch(self.paths, store, home, target, restart=hands, read_real=self.read_real, now=now)
         self._count(outcome)
+        if outcome in NOT_FINISHED:
+            self._not_finished(target)
         if outcome == swap.SWITCHED:
-            self._switched(now)
-            day = int(now // DAY) + 1
-            self._scoped.stamp(OptionKey.AUTO_SWITCH_COUNT, self._today(now) + 1)
-            self._scoped.stamp(OptionKey.AUTO_SWITCH_DAY, day)
+            self._switched(now)                          # NOT_STARTED: the app is closed, so P7 releases nothing early
+        if outcome in (swap.SWITCHED, swap.NOT_STARTED) or closed:
+            self._attempted(now)
         return None
 
     def choose(self, store, now):
@@ -222,9 +305,42 @@ class AutoSwitch:
         except Exception:
             pass
 
+    def _not_finished(self, target) -> None:
+        """One notice that a switch did not finish, keyed by its target: once for each in this watcher's life."""
+        self._notice = {"key": "autoswitch:not_finished:%s" % (target if isinstance(target, str) else "unknown"),
+                        "why": "not_finished"}
+
     def notice(self):
-        """{"key"} of the last look that found every saved account at its limit, for the watcher to show once - or None."""
+        """{"key"} of the last look that found every saved account at its limit - or {"key", "why": "not_finished"} of a
+        switch that did not finish - for the watcher to show once; or None."""
         return self._notice
+
+    # ------------------------------------------------------------------ off or watched
+    def tend(self, view):
+        """While the capability is off or watched (runtime.TENDED, the v0.6.23 audit's A-M3): a switch it left unfinished -
+        a put-back still waiting - is settled at most every LOOK_EVERY seconds, by codex/swap.recover alone, through the
+        same restart hands; never a new switch, never a read of another account. DEFER where no switch is under way."""
+        scoped = self._scoped
+        if scoped is None:
+            return DEFER
+        try:
+            now = scoped.now()
+            if self._looked is not None and 0 <= now - self._looked < LOOK_EVERY:
+                return DEFER
+            self._looked = now
+            if self.store().intent() is None:
+                return DEFER
+            return _Settle(self)
+        except Exception:
+            return DEFER
+
+    def settle(self):
+        from ..codex import swap
+        settled = swap.recover(self.paths, self.store(), self.home(), read_real=self.read_real,
+                               restart=self._restart_now)
+        if settled is not None:
+            self._count(settled)
+        return None
 
     # ------------------------------------------------------------------ P7
     def schedule(self, record, eligible_at):

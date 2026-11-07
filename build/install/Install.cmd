@@ -1,5 +1,11 @@
 @echo off
 setlocal
+rem The console's code page as it was, put back before this ends: setlocal does not restore it, and a window the person
+rem ran this from would stay in 65001. (chcp prints "Active code page: 437" in the console's language; the number is
+rem after the colon, and some languages end it with a full stop.)
+set "OLDCP="
+for /f "tokens=2 delims=:." %%C in ('"%SystemRoot%\System32\chcp.com"') do set "OLDCP=%%C"
+if defined OLDCP set "OLDCP=%OLDCP: =%"
 "%SystemRoot%\System32\chcp.com" 65001 >nul
 title Codex Auto Resume - install
 rem -Silent (winget, a script): nothing is asked and nothing waits for a key. Every line, and
@@ -17,6 +23,7 @@ if "%EXIT_CODE%"=="14" if not defined SILENT goto ask
 echo.
 if not "%EXIT_CODE%"=="0" echo Installation did not finish. Read the messages above.
 if not defined SILENT pause
+if defined OLDCP "%SystemRoot%\System32\chcp.com" %OLDCP% >nul
 exit /b %EXIT_CODE%
 
 :ask

@@ -28,7 +28,7 @@ from __future__ import annotations
 from contextlib import nullcontext
 
 from ..domain import skips
-from ..domain.plug import DEFER
+from ..domain.plug import DEFER, Point
 from .announce import NOTIFY_ON_STATE, AnnounceMixin  # noqa: F401
 from .delivery import DeliveryMixin
 from .detect import DetectMixin
@@ -95,6 +95,7 @@ class Engine(OptionsMixin, AnnounceMixin, FreshnessMixin, DetectMixin, Reconcile
                 self.log(None, skips.RECOVERY_OFF, None)
             # v0.6.15-beta: what the plug sent that Codex still holds is taken back, the plug asked nothing.
             self.paused_records()
+            self._paused_residents()
             return
         self._off_told = False
         # The plug is asked nothing more while recovery is paused: a Pause beats every
@@ -115,7 +116,7 @@ class Engine(OptionsMixin, AnnounceMixin, FreshnessMixin, DetectMixin, Reconcile
                 return
             due = self._records(UNSENT)
             # P12 (v0.6.15-beta): how many sends may wait for their receipts at once - 1, one after another in
-            # this thread, unless the plug answers 2 to 4. Every claim and look stays here; a worker only waits for
+            # this thread, unless the plug answers 2 to 8. Every claim and look stays here; a worker only waits for
             # a receipt, and every one is joined and settled before the tick goes on (engine/launches.py).
             workers = self._workers(due)
             with LaunchPool(workers, self.open_store, self._settle_launch) if workers > 1 else nullcontext() as pool:
@@ -138,6 +139,15 @@ class Engine(OptionsMixin, AnnounceMixin, FreshnessMixin, DetectMixin, Reconcile
         finally:
             if errand is not DEFER:
                 self._errand(errand)
+
+    def _paused_residents(self):
+        """P22 (v0.6.22): while paused, the one question asked - only of a plug that wants it, so never of the standard
+        edition's - for the errand that keeps a resident running which sends nothing to Codex."""
+        if self.plug.null or not self.plug.wants(Point.RESIDENT):
+            return
+        errand = self.plug.resident(StoreView(self.store, self.clock(), self.last_usage, home_key=self.home_key))
+        if errand is not DEFER:
+            self._errand(errand)
 
     def _errand(self, errand):
         """P8's errand (v0.6.14): run once, last in the tick, handed a way to ask for the store's errand

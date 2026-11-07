@@ -106,6 +106,12 @@ class TurnTests(ReadsCase):
         self.assertEqual(self.home.digest(), before, "read-only")
         self.assertIsNone(Turns(self.root).latest(OTHER))
 
+    def test_the_latest_turn_says_when_it_began(self):
+        """v0.6.23 audit seatB:B-R3: steer_send steers only a turn begun before the steer was asked."""
+        self.home.turn(PARENT, TURN)
+        found = Turns(self.root).latest(PARENT)
+        self.assertEqual(found.started_at, found.completed_at - 30)
+
     def test_an_error_is_only_that_there_was_one(self):
         self.home.turn(PARENT, TURN, "failed", error={"message": SENTINEL})
         found = Turns(self.root).latest(PARENT)

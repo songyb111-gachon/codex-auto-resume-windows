@@ -81,6 +81,10 @@ PAGE_KEYS = tuple(PAGE_PREFIX + name for name in (
     "tripped", "tripped.measurement_failed", "tripped.failed_here", "tripped.incompatible",
     "tripped.local_check_failed", "tripped.submission_unknown", "tripped.hook_exception",
     "tripped.statement_changed", "tripped.engine_changed",
+    # v0.6.22: the automatic check (autocheck.py) - a call gone, and each line a capability's grade is said in.
+    "tripped.auto_check_failed", "kept.auto_check_failed",
+    "check.measured", "check.auto_checked", "check.auto_checked_whole", "check.offered_only",
+    "check.failed_still_offered",
     # v0.6.14: a capability's own choices, the rules for Codex's error codes and the samples of what nothing
     # classified, and what the page says of each.
     "options", "option.attempts", "option.ceiling_hours", "option.workers", "option.days", "option.hours", "done.option", "refused.option",
@@ -378,6 +382,25 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + "fleet." + name for name in (
     "state.paused", "state.observing", "state.not_seen", "state.clock", "stand.none", "stand.unset", "stand.missing",
     "stand.held", "stand.late", "stand.not_ours", "stand.refused", "ignored", "card", "help", "alias", "alias_help",
     "folder", "no_folder", "pick", "save", "saved", "off_note", "refused_alias"))
+# v0.6.22 (local_api, local_api_actions): the loopback API's card (advanced/gui/AdvancedRemote.cs), the words of its web view
+# (courier/page.py) and of the example.
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
+    "option.api_port", "api.card", "api.address", "api.token_kept", "api.no_token", "api.lan", "api.copy", "api.new_token",
+    "api.new_token_yes", "api.state.running", "api.state.starting", "api.state.stopped", "api.state.port_taken",
+    "confirm.api_token", "done.api_copied", "done.api_token", "done.api_token_kept", "refused.api_not_copied",
+    "api.title", "api.watcher", "api.recovery", "api.pending", "api.next_check", "api.ask_token", "api.refused",
+    "api.word.running", "api.word.stopped", "api.word.on", "api.word.paused", "api.word.observe_only",
+    "api.example.cancelled", "api.example.lan"))
+# v0.6.22 (telegram_remote, telegram_continue): the remote card (advanced/gui/AdvancedRemote.cs), the answers the paired chat
+# is sent (courier/telegram.py), and the tripwire of five wrong codes.
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
+    "remote.card", "remote.paired", "remote.not_paired", "remote.commands", "remote.command.status", "remote.command.list",
+    "remote.command.cancel", "remote.command.pause", "remote.command.continue", "remote.command.lift_pause",
+    "remote.state.running", "remote.state.starting", "remote.state.stopped", "remote.answer.help",
+    "remote.answer.not_allowed", "remote.answer.paused", "remote.answer.pause_lifted", "remote.answer.list_again",
+    "remote.answer.refused", "remote.answer.cancelled", "remote.answer.continued", "remote.answer.status",
+    "remote.answer.list_none", "remote.answer.list_item", "remote.word.running", "remote.word.stopped", "remote.word.on",
+    "remote.word.paused", "remote.word.observe_only", "tripped.bad_codes"))
 # The edition's own continuations' words (v0.6.15-beta): what empty_response, subagent_parent and keep_going send -
 # fixed, each passing core's continuation.validate_continuation in every language (nothing is filled in but, for a
 # subagent's line, its id and a closed kind word).

@@ -41,6 +41,9 @@ namespace CodexAutoResume
         private readonly List<string> advancedSent = new List<string>();
         private readonly List<string> advancedAsked = new List<string>();
         private readonly List<string> advancedTold = new List<string>();
+        // v0.6.23: while a test holds the replies ("hold"), the answers of the requests made, in order, until it lets go.
+        private bool advancedHolding;
+        private readonly List<MethodInvoker> advancedHeld = new List<MethodInvoker>();
 
         /// The test's reply to one request of the page's, and the request written down as "<command> <argument>".
         private Dictionary<string, object> AdvancedScripted(string command, string argument)
@@ -758,7 +761,13 @@ namespace CodexAutoResume
         ///   {"do": "answer", "with": [...]}                   what the person answers the next questions
         ///   {"do": "busy", "on": bool}                        another action under way, or over (SetBusy), as a request
         ///                                                     in flight holds the page
+        ///   {"do": "hold", "on": bool}                        the bridge's answers held from now on, as a slow bridge holds
+        ///                                                     them - or let go, each request's answer in turn (v0.6.23)
+        ///   {"do": "chat_type", "text": ..., "caret": n,      the chat's box written in, its caret at n with `selected`
+        ///    "selected": n}                                   characters chosen after it, as a person leaves it (v0.6.23)
         ///   {"do": "courier", "button": "save ntfy"}          a courier card's button pressed, if it can be (v0.6.20)
+        ///   {"do": "remote", "button": "copy api"}            a remote card's button pressed ("copy api", "token api", "pair telegram"),
+        ///                                                     what it copies kept (v0.6.22)
         ///   {"do": "courier_type", "into": "ntfy.url",       one of the courier card's boxes filled
         ///    "text": ...}
         ///   {"do": "look"}                                    what the page shows now, into "looks"
@@ -1137,6 +1146,28 @@ namespace CodexAutoResume
                         record["saved"] = (double)form.editorSaved;
                         dialogs.Add(record);
                     }
+                    else if (what == "hold")
+                    {
+                        form.advancedHolding = Equals(Get(step, "on"), true);
+                        if (!form.advancedHolding)
+                        {
+                            var held = new List<MethodInvoker>(form.advancedHeld);
+                            form.advancedHeld.Clear();
+                            foreach (MethodInvoker answer in held) answer();
+                        }
+                    }
+                    else if (what == "chat_type")
+                    {
+                        if (form.chatWords == null) disabled.Add("chat_type");
+                        else
+                        {
+                            TextBox box = form.chatWords.Box;
+                            // A box with no window of its own keeps no caret: given one first, as showing it would.
+                            IntPtr made = box.Handle;
+                            box.Text = Str(step, "text") ?? "";
+                            box.Select(Whole(Get(step, "caret")), Whole(Get(step, "selected")));
+                        }
+                    }
                     else if (what == "busy")
                     {
                         form.SetBusy(Equals(Get(step, "on"), true));
@@ -1147,6 +1178,15 @@ namespace CodexAutoResume
                         // v0.6.20: one of the courier card's buttons by its tag ("save ntfy", "test ntfy", "pair telegram").
                         Button found = form.courierButtons.Find(delegate(Button each) { return Equals(each.Tag, Str(step, "button")); });
                         if (found == null || !found.Enabled) disabled.Add("courier " + Str(step, "button"));
+                        else Pressed.Invoke(found, new object[] { EventArgs.Empty });
+                    }
+                    else if (what == "remote")
+                    {
+                        // v0.6.22: one of the remote cards' buttons by its tag; what it copies goes to `remote_copied`,
+                        // never the clipboard.
+                        if (form.remoteCopied == null) form.remoteCopied = new List<string>();
+                        Button found = form.remoteButtons.Find(delegate(Button each) { return Equals(each.Tag, Str(step, "button")); });
+                        if (found == null || !found.Enabled) disabled.Add("remote " + Str(step, "button"));
                         else Pressed.Invoke(found, new object[] { EventArgs.Empty });
                     }
                     else if (what == "courier_type")
@@ -1587,6 +1627,11 @@ namespace CodexAutoResume
             look["fleet_alias"] = fleetAlias == null ? null : fleetAlias.Box.Text;
             look["fleet_folder"] = fleetFolderLine == null ? null : fleetFolderLine.Text;
             look["fleet_save"] = fleetSave == null ? (object)null : fleetSave.Enabled;
+            // v0.6.22: the remote cards' buttons, and what they copied.
+            look["remote_buttons"] = Tags(remoteButtons);
+            var copied = new List<object>();
+            if (remoteCopied != null) foreach (string text in remoteCopied) copied.Add(text);
+            look["remote_copied"] = copied;
             // v0.6.20: the account card's button - whether it can be pressed, or null where it is not offered.
             look["account_switch"] = accountSwitch == null ? (object)null : accountSwitch.Enabled;
             // v0.6.20 final: and its Restart Codex and Not now, after a sign-in - the same, each.
@@ -1746,6 +1791,13 @@ namespace CodexAutoResume
             chat["on_advanced"] = chatConversation != null && advancedPage != null && Within(chatConversation, advancedPage);
             chat["link"] = chatOpen != null && Within(chatOpen, advancedPage);
             chat["thread"] = chatThread;
+            // v0.6.23: whether the two-second read goes on, whether a view of the conversation is held, and the box
+            // the message is written in - its words, its caret and what is chosen after it.
+            chat["polling"] = chatTimer != null && chatTimer.Enabled;
+            chat["viewed"] = chatView != null;
+            chat["words"] = chatWords == null ? null : chatWords.Box.Text;
+            chat["caret"] = chatWords == null ? 0.0 : (double)chatWords.Box.SelectionStart;
+            chat["selected"] = chatWords == null ? 0.0 : (double)chatWords.Box.SelectionLength;
             // v0.6.20: the Dashboard header's light and headline - busy ("checking") while a message waits or is on its way.
             chat["light"] = stateDot.State;
             chat["headline"] = headline.Text;

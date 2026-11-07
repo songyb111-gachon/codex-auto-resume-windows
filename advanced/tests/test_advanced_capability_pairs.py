@@ -588,7 +588,7 @@ class WakeBesideTheResetCapabilitiesTests(ac.AdvancedCase):
     def test_the_timer_is_set_for_the_earliest_due_time_of_them_all(self):
         self.on("wake_for_reset")
         self.on("reset_credit")
-        core = {"state": "waiting_reset", "category": "usage_limit", "next_check_at": self.now + 3 * 3600}
+        core = {"state": "waiting_reset", "category": "usage_limit", "reset_at": self.now + 3 * 3600}
         self.errand([core])
         self.assertEqual(self.timer.due, self.now + 3 * 3600 - 120)
         rule = self.rt.state.add_reset_rule("reset_credit", "codex", 300, 1)
@@ -946,6 +946,67 @@ class CourierBesideEveryCapabilityTests(ac.AdvancedCase):
                 shared = (PUSH_NOTICES.points | STATUS_FEED.points) & definition.points
                 self.assertLessEqual(shared, frozenset({Point.TICK, Point.NOTICE}))
                 self.assertNotIn(Point.NOTICE, definition.points)
+
+
+class RemoteBesideEveryCapabilityTests(ac.AdvancedCase):
+    """COMPOSE, none needed (v0.6.22, D-remote.md): the loopback API only observes, and what widens it only reduces. It
+    answers at no point that decides or sends: P8's errand only starts its process, the other two answer at none. A pause
+    or a cancel through it is core's own, as a person's in the Dashboard is, so with it on beside any other capability,
+    every answer the other gives at every point is the one it gives alone."""
+
+    def test_they_answer_at_no_deciding_point(self):
+        from codex_auto_resume_advanced.registry import LOCAL_API, LOCAL_API_ACTIONS, LOCAL_API_LAN
+        self.assertEqual(LOCAL_API.points, frozenset({Point.TICK, Point.RESIDENT}))
+        self.assertEqual((LOCAL_API_ACTIONS.points, LOCAL_API_LAN.points), (frozenset(), frozenset()))
+
+    def test_beside_every_shipped_capability_only_p8_is_shared_and_the_wake_timer_stays_last(self):
+        from codex_auto_resume_advanced import registry as shipped
+        from codex_auto_resume_advanced.registry import LOCAL_API
+        for definition in shipped.DEFINITIONS:
+            if definition.id != LOCAL_API.id:
+                with self.subTest(definition.id):
+                    self.assertLessEqual(LOCAL_API.points & definition.points, frozenset({Point.TICK, Point.RESIDENT}))
+        ticking = [definition.id for definition in shipped.DEFINITIONS if Point.TICK in definition.points]
+        self.assertEqual(ticking[-1], "wake_for_reset")
+
+    def test_its_errand_keeps_nothing_another_capability_reads(self):
+        """What it writes is its own journal lines: no record, no claim, no spend, no due time another's errand reads."""
+        import inspect
+        from codex_auto_resume_advanced.engine import remote
+        source = inspect.getsource(remote)
+        for word in ("claim", "dispatch", "spend", "records", "continuations", "prompts", "resets"):
+            self.assertNotIn(word, source)
+
+
+class TelegramBesideEveryCapabilityTests(ac.AdvancedCase):
+    """COMPOSE (v0.6.22, D-remote.md): telegram_remote only observes and reduces, as the API does. telegram_continue beside
+    every capability that sets a hold: /continue is core's release_hold, the person's own move - the one thing that takes a
+    hold away, for that record, journalled - and it sends nothing and skips no gate, so what holds a record for its own
+    reason (a postponement, quiet hours, a capability's gate at P3) still holds it after."""
+
+    def test_they_answer_at_no_deciding_point(self):
+        from codex_auto_resume_advanced.registry import TELEGRAM_CONTINUE, TELEGRAM_REMOTE
+        self.assertEqual(TELEGRAM_REMOTE.points, frozenset({Point.TICK, Point.RESIDENT}))
+        self.assertEqual(TELEGRAM_CONTINUE.points, frozenset())
+        self.assertEqual(TELEGRAM_REMOTE.requires, ("push_notices",))
+        self.assertEqual(TELEGRAM_CONTINUE.requires, ("telegram_remote",))
+
+    def test_continue_is_core_s_release_and_only_that(self):
+        """Fails where /continue reaches anything but release_hold: a route of its own round the gates."""
+        import inspect
+        from codex_auto_resume_advanced.control import remote
+        source = inspect.getsource(remote.release)
+        self.assertIn("layer.release_hold(", source)
+        for word in ("set_enabled", "send", "retry", "dispatch", "claim"):
+            self.assertNotIn(word, source.replace("sends", ""))
+
+    def test_a_hold_a_capability_set_is_answered_at_p3_whatever_was_released(self):
+        """The gates that hold are core's asks at P3, each record's every time: a release takes away a person's hold alone."""
+        from codex_auto_resume_advanced import registry as shipped
+        holding = [definition.id for definition in shipped.DEFINITIONS if Point.GATES in definition.points]
+        self.assertTrue(holding)
+        self.assertNotIn("telegram_continue", holding)
+        self.assertNotIn("telegram_remote", holding)
 
 
 # ---------------------------------------------------------------- v0.6.20: account_switch (plans/v0619-design/D-account.md)
@@ -1399,7 +1460,7 @@ class WakeBesideAnchorTests(WakeBesideTheResetCapabilitiesTests):
         self.choose("anchor_after_reset", 2)
         self.errand([])
         self.assertEqual(self.timer.due, seven - 120, "with it off, the time picked alone")
-        core = {"state": "waiting_reset", "category": "usage_limit", "next_check_at": self.now + 600}
+        core = {"state": "waiting_reset", "category": "usage_limit", "reset_at": self.now + 600}
         self.errand([core])
         self.assertEqual(self.timer.due, self.now + 600 - 120, "core's earlier due time still first")
 

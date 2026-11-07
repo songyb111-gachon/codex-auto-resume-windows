@@ -204,17 +204,17 @@ class PoolTests(Case):
 
 
 class AnswerTests(unittest.TestCase):
-    def test_only_two_to_four_is_taken(self):
-        self.assertEqual(MAX_WORKERS, 4)
-        self.assertEqual([workers(answer) for answer in (2, 3, 4)], [2, 3, 4])
-        for answer in (DEFER, None, 0, 1, 5, True, "2", 2.0, [2]):
+    def test_only_two_to_eight_is_taken(self):
+        self.assertEqual(MAX_WORKERS, 8)
+        self.assertEqual([workers(answer) for answer in (2, 3, 4, 5, 6, 7, 8)], [2, 3, 4, 5, 6, 7, 8])
+        for answer in (DEFER, None, 0, 1, 9, True, "2", 2.0, [2]):
             with self.subTest(answer=answer):
                 self.assertEqual(workers(answer), 1)
 
 
 class NoPoolTests(Case):
     def test_an_answer_core_does_not_take_starts_no_thread(self):
-        for answer in (1, 5, True, "2", DEFER):
+        for answer in (1, 9, True, "2", DEFER):
             with self.subTest(answer=answer):
                 self.setUp()
                 self.plug.answer = answer

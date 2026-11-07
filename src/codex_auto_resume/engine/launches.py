@@ -1,4 +1,4 @@
-"""Up to four sends waiting for their receipts at once, one in each conversation (v0.6.15-beta, P12).
+"""Up to eight sends waiting for their receipts at once, one in each conversation (v0.6.15-beta, P12).
 
 Everything a send decides stays on the tick thread: the gates, the words, the sender, the one claim, the pre-send
 look (engine/dispatch.py) - and so does what came of it, settled in claim order. What a worker does is the long,

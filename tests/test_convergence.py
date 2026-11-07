@@ -466,7 +466,7 @@ class BootstrapTests(unittest.TestCase):
         self.assertLess(extract, run)
 
     def test_a_failed_check_leaves_nothing_behind(self):
-        self.assertIn("Remove-Item -Recurse -Force $work", self.text)
+        self.assertIn("Remove-Item -Recurse -Force -LiteralPath $work", self.text)
 
     def test_only_github_hosts_are_accepted(self):
         allowed = re.search(r"\$AllowedHosts\s*=\s*@\(([^)]*)\)", self.text)

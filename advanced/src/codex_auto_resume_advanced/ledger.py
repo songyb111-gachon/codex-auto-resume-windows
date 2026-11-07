@@ -20,7 +20,7 @@ Two things are decided:
   granted. No unit left under its own ceilings or the global one, or a capability turned off
   since it answered, and the claim is held: a disarm always wins, and a ceiling is never passed.
   A capability's own day and conversation ceilings count its units; the global hourly one counts
-  claims (v0.6.17), so the two or three capabilities one send carries cost it one of the twelve
+  claims (v0.6.17), so the two or three capabilities one send carries cost it one of the 24
   sends an hour a person is told of, not two or three (state/spend.py, `counts`).
 
 * A person's Send now (v0.6.14), SEND_NOW at P7: only with that capability's request of this very
@@ -40,6 +40,7 @@ HOLD is all this can say. It never grants anything core would refuse.
 """
 from __future__ import annotations
 
+from codex_auto_resume import ladder
 from codex_auto_resume.domain.plug import DEFER, Alternative
 
 from .registry import CORE_COOLDOWN_SECONDS, CORE_DAILY_CAP
@@ -52,23 +53,36 @@ from .vocabulary import ArmingState, Ceiling, KeepOn, OverrideKind, RecordState,
 DAY = 86400
 
 
-def ceiling_reached(counts, definition, global_hourly):
+def ceiling_reached(counts, definition, global_hourly, verified=False):
     """The ceiling that leaves `definition` no unit, or None. The global one first: it is the
-    one a person set."""
+    one a person set. `verified` (v0.6.22, issue #59): the unit is for a reset core verified, which
+    `definition` answered VERIFIED_RESET for and carries itself - for one that departs from A20 its
+    ceiling for one conversation does not hold it; its day and the hour still do."""
     if counts["global_hour"] >= global_hourly:
         return Ceiling.GLOBAL_HOUR
     if counts["capability_day"] >= definition.ceilings.per_day:
         return Ceiling.CAPABILITY_DAY
-    if counts["conversation_day"] >= definition.ceilings.per_conversation:
+    if (counts["conversation_day"] >= definition.ceilings.per_conversation
+            and not (verified and "A20" in definition.departs_from)):
         return Ceiling.CONVERSATION_DAY
     return None
 
 
-def held_by_records(connection, thread_id, now, own=()) -> bool:
+def core_claims(connection, thread_id, now) -> int:
+    """Core's count of the conversation's claims in the last day, as core counts it (store/claims.py,
+    recent_claim_count), on the claim's connection and so under its lock."""
+    return connection.execute(
+        "SELECT coalesce(sum(max(attempt_count, 1)), 0) FROM main.interruptions "
+        "WHERE thread_id=? AND coalesce(submitted_at, last_claim_at) > ?",
+        (thread_id, now - DAY)).fetchone()[0]
+
+
+def held_by_records(connection, thread_id, now, own=(), cap=CORE_DAILY_CAP) -> bool:
     """Whether this edition's records on `thread_id` hold a claim core's own rows allow. One of `own` - a capability
     with a pace of its own (state/records.own_paced, v0.6.19: the chat) - holds it only while in flight. And (v0.6.20)
     the Stop hook's continuations there, each a claim on the conversation as the caps count one
-    (engine/hookclaims.spent_on)."""
+    (engine/hookclaims.spent_on). `cap` is the day the claim is counted against: core's five, or (v0.6.22, #59) the
+    day core gives a verified reset (ladder.RESET_PER_DAY)."""
     hooks, hooked = spent_on(connection, ATTACHED, thread_id, now)
     row = connection.execute(
         "SELECT coalesce(sum(state=?), 0), "
@@ -82,13 +96,7 @@ def held_by_records(connection, thread_id, now, own=()) -> bool:
     recent += hooks
     last = hooked if last is None or (hooked is not None and hooked > last) else last
     if recent:
-        # Core's count, as core counts it (store/claims.py, recent_claim_count), on the same
-        # connection and so under the same lock.
-        core = connection.execute(
-            "SELECT coalesce(sum(max(attempt_count, 1)), 0) FROM main.interruptions "
-            "WHERE thread_id=? AND coalesce(submitted_at, last_claim_at) > ?",
-            (thread_id, now - DAY)).fetchone()[0]
-        if core + recent >= CORE_DAILY_CAP:
+        if core_claims(connection, thread_id, now) + recent >= cap:
             return True
     return last is not None and now - last < CORE_COOLDOWN_SECONDS
 
@@ -98,10 +106,13 @@ class ClaimLedger:
         self.state = state
         self.registry = state.registry
 
-    def claim(self, connection, record, now, acted=()) -> object:
+    def claim(self, connection, record, now, acted=(), verified=frozenset(), unvouched=False) -> object:
         """HOLD or DEFER for one claim of core's. `acted` is the capabilities whose answers the
         dispatch that claims it carries: {capability: the words it answered}, or a set of them, which
-        answered no word."""
+        answered no word. `verified` (v0.6.22, issue #59) is those of them that answered VERIFIED_RESET
+        for it and carry it themselves - their channel or route - which core claims within its own
+        spacing and a day of its own, not its five; and `unvouched`, whether one answered it and another
+        channel carries the send: that send is held as core's five would hold it."""
         acted = acted if isinstance(acted, dict) else {capability: frozenset() for capability in acted}
         if not isinstance(record, dict) or not self.state.attach(connection):
             # No advanced state, so no record and no spend: nothing to count. An answer that was
@@ -112,7 +123,10 @@ class ClaimLedger:
         # state now (engine/hookclaims.py).
         if hook_held(connection, ATTACHED, key, now):
             return Alternative.HOLD
-        if held_by_records(connection, thread_id, now, own_paced(self.registry)):
+        if held_by_records(connection, thread_id, now, own_paced(self.registry),
+                           ladder.RESET_PER_DAY if verified else CORE_DAILY_CAP):
+            return Alternative.HOLD
+        if unvouched and core_claims(connection, thread_id, now) >= CORE_DAILY_CAP:
             return Alternative.HOLD
         if not acted:
             return DEFER
@@ -128,7 +142,7 @@ class ClaimLedger:
             # The hour is the one this claim found, for every capability of it: the units already paid
             # here are this send's own, named by their spend ids, and this send is one send (v0.6.17).
             counts = self.state.counts(connection, ATTACHED, capability, thread_id, now, paid=paid)
-            if ceiling_reached(counts, definition, global_hourly) is not None:
+            if ceiling_reached(counts, definition, global_hourly, verified=capability in verified) is not None:
                 return Alternative.HOLD
             if Alternative.RESEND in acted[capability] and not self._resend(connection, definition, key, now):
                 return Alternative.HOLD

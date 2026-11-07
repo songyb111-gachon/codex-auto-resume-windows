@@ -317,7 +317,7 @@ def _build(event, detail, identity=None, *, sound=False):
         # v0.6.20: the advanced edition's account switch saw another Codex account signed in, and held what waited for a
         # usage limit for a person - or (v0.6.22) its automatic switch found every saved account at its limit. About this
         # PC, not a conversation, so it has no key and replaces no card; its one button opens Pending.
-        return _notice(event, _account_changed_content(detail.get("count"), event), key=None)
+        return _notice(event, _account_changed_content(detail.get("count"), event, detail.get("why")), key=None)
     if event in POWER_EVENTS:
         # v0.6.12: the power action (runtime/afterwork.py). About this PC, not a conversation, so it has
         # no key and replaces no card. Only the countdown's has a stop button, named by its batch (A28).
@@ -683,12 +683,13 @@ def _power_stop(nonce, control, announce, say, stay=()) -> str:
     return "stopped"
 
 
-def _account_changed_content(count, event="account_changed") -> dict:
-    """v0.6.20, the advanced edition's account switch: another Codex account is signed in, how many recoveries waiting
-    for a usage limit now wait for a person, what to do next, and Open Dashboard at Pending. v0.6.22: or every saved
-    account at its limit (accounts_exhausted), and that recovery waits for the earliest reset."""
+def _account_changed_content(count, event="account_changed", why=None) -> dict:
+    """v0.6.20: another Codex account signed in, how many recoveries wait for a person, Open Dashboard at Pending. v0.6.22:
+    or every saved account at its limit (accounts_exhausted) - or, `why` "not_finished", a switch that did not finish."""
     if event == "accounts_exhausted":
-        return notify._content(l10n.message("toast_accounts_exhausted"), l10n.message("toast_accounts_exhausted_body"),
+        title, body = (("toast_switch_not_finished", "toast_switch_not_finished_body") if why == "not_finished"
+                       else ("toast_accounts_exhausted", "toast_accounts_exhausted_body"))
+        return notify._content(l10n.message(title), l10n.message(body),
                                more=[(l10n.message("toast_button_open"), notify.open_uri("pending"))])
     try:
         waiting = max(1, int(count))

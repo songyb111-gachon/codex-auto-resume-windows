@@ -57,6 +57,7 @@ class OptionsMixin:
         # v0.6.16-beta.3: the words for this time (oncewords.py), None for none, and what each send spent - and
         # what the file held as each continuation was built, looked at again after the claim (engine/delivery.py).
         self.once_words, self._once_sent, self._once_seen = once_words, {}, {}
+        self._once_doubted = set()     # given back once for a look at the words that could not be had (delivery.py)
         # v0.6.16-beta.4: the session - (pid, creation time) - each conversation sent to another Codex session was
         # held by when P16 answered TO_SESSION, for the re-check under the dispatch lock (engine/tosession.py).
         self._session_holders = {}
@@ -205,6 +206,8 @@ class OptionsMixin:
         store/claims.py `_caps_refusal`), so a claim committed between the two is counted."""
         if relaxed == "capacity":
             return ladder.CAPACITY_PER_DAY, ladder.CAPACITY_SPACING
+        if relaxed == "reset":                          # v0.6.22 (#59): a verified reset's day, the spacing kept
+            return ladder.RESET_PER_DAY, self.options["thread_cooldown_seconds"]
         return self.options["max_submissions_per_thread_per_day"], self.options["thread_cooldown_seconds"]
 
     def recovers(self, category) -> bool:

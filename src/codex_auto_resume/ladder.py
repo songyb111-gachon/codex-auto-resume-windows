@@ -79,12 +79,17 @@ ADMITTED_WAITS = (600, 900, 1800)
 ADMISSION_MAX_AGE = 3600
 ADMITTED_MAX_SECONDS = 86400
 # A capacity error the plug vouches for (CAPACITY): a minute after the failure, then two, four and five,
-# each lengthened by up to a fifth (jitter always on), at least a minute apart and 48 a day in one
-# conversation, for at most twelve hours on the clock from the task's first failure (docs/ROADMAP.md).
+# each lengthened by up to a fifth (jitter always on), at least a minute apart and 96 a day in one
+# conversation, for at most 24 hours on the clock from the task's first failure (v0.6.22: the advanced edition's ceilings
+# were raised; the plug's own choice, one to 24 hours, never passes these).
 CAPACITY_WAITS = (60, 120, 240, 300)
 CAPACITY_SPACING = 60
-CAPACITY_PER_DAY = 48
-CAPACITY_MAX_SECONDS = 12 * 3600
+CAPACITY_PER_DAY = 96
+CAPACITY_MAX_SECONDS = 24 * 3600
+# A usage limit whose reset core recorded has passed, continued through the plug's own channel or route
+# (VERIFIED_RESET, v0.6.22, issue #59): claimed under the conversation's own spacing (SPACING) and within this many in
+# 24 hours, not its five - a usage window resets a few times a day, and the plug's own ceilings count beside it.
+RESET_PER_DAY = 24
 # A usage-limited record the plug looks at early (EARLY): one window of looks every five minutes at
 # most, for every record together, each window as long as one usage reading lasts (engine/freshness.py).
 EARLY_SPACING = 300

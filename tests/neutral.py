@@ -134,6 +134,9 @@ NOT_SCENARIOS = {
     "test_once_words_race": "drives the engine over codexsim homes with words for this time changed between the read "
                             "and the claim (v0.6.18, audit R1) - a race v0.6.10's watcher lost, so its calls cannot be "
                             "the tag's",
+    "test_once_words_unreadable_look": "drives the engine over codexsim homes whose words file cannot be looked at "
+                                       "again after the claim (v0.6.22, audit C3) - v0.6.10's watcher went on there, "
+                                       "so its calls cannot be the tag's",
     "test_core_audit_minors": "holds the core audit's minor fixes (v0.6.18, M1-M7) over codexsim homes, one with its own "
                               "plug for a resend's claim - behaviour v0.6.10's package does not have",
     "test_progress_then_user_joined": "drives a recovery turn a person joined after it made progress (v0.6.18, the "
@@ -150,7 +153,9 @@ ENGINE_POINTS = frozenset({Point.RECORDS, Point.GATES, Point.TEXT, Point.SENDER,
                            # v0.6.16-beta.3: which conversations are taken up, asked once a tick.
                            Point.ELIGIBILITY,
                            # v0.6.16-beta.4: and which besides the app's are watched (P18), once a tick too.
-                           Point.SESSIONS})
+                           Point.SESSIONS,
+                           # v0.6.22: the residents that send nothing, asked only while paused (P22).
+                           Point.RESIDENT})
 # What a moment read off the wall clock while a pair ran is written as, in rows and calls alike.
 WALL_CLOCK = "<wall clock>"
 # What a scenario is asked of Codex: every call the engine can make of a backend.
@@ -270,6 +275,10 @@ class DeferringPlug(Plug):
     def sessions(self):
         self.asked.add(Point.SESSIONS)
         return super().sessions()
+
+    def resident(self, view):
+        self.asked.add(Point.RESIDENT)
+        return super().resident(view)
 
     def wants(self, point):
         """Every point, as a plug with a capability on there would say: core makes the reads that

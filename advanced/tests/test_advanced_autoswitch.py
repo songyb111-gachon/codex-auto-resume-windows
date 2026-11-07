@@ -27,8 +27,9 @@ ENGINE = "codex-cli 0.166.0-alpha.5.1"
 
 class HiddenTests(unittest.TestCase):
     def test_hidden_until_both_measurements_pass_on_the_codex_in_force(self):
-        """Fails with the WAITING row taken out: a switch no Codex was measured to take would be offered."""
-        self.assertIsNone(registry.REGISTRY.get("account_auto_switch"))
+        """Fails with the WAITING row taken out: a switch no Codex was measured to take would be offered. MPROFILE and
+        MSWAP passed on codex-cli 0.166.0-alpha.6 (2026-11-06), so this build's table lets it out."""
+        self.assertIs(registry.REGISTRY.get("account_auto_switch"), ACCOUNT_AUTO_SWITCH)
         self.assertNotIn(ACCOUNT_AUTO_SWITCH, registry.DEFINITIONS)
         passed, failed = (Verdict.PASS, ENGINE), (Verdict.FAIL, ENGINE)
         self.assertNotIn(ACCOUNT_AUTO_SWITCH, offered({}))
@@ -136,7 +137,7 @@ class WhenTests(EngineCase):
         self.scoped.clock += autoswitch.DAY
         self.look([waiting("b", detected=self.scoped.clock - autoswitch.SETTLE)])
         self.assertEqual(self.scoped.counted, ["ceiling", "switched"])
-        self.assertEqual(self.scoped.stamps[str(OptionKey.AUTO_SWITCH_COUNT)], 1)
+        self.assertEqual(self.store.attempts(), [self.scoped.clock], "the day's stamps read once, then the times kept")
 
     def test_all_exhausted_waits_and_says_so_once(self):
         """Fails without the notice: the person would learn of it only from the journal."""
@@ -227,15 +228,115 @@ class ProbeTests(unittest.TestCase):
         self.assertEqual(self.run_probe(measure._mprofile, dict(good, profile_given=False))[0], Verdict.BLOCKED)
         self.assertEqual(self.run_probe(measure._mprofile, {"store_word": "not_file"})[0], Verdict.BLOCKED)
         self.assertEqual(self.run_probe(measure._mprofile, None)[0], Verdict.BLOCKED)
+        unseen = self.run_probe(measure._mprofile, dict(good, app_unchanged=None))
+        self.assertEqual(unseen[0], Verdict.BLOCKED, "no app seen, no pass (A-M4)")
+        self.assertEqual(self.run_probe(measure._mprofile, dict(good, app_unchanged=None, real_file_unchanged=False))[0],
+                         Verdict.FAIL, "a changed real file still fails")
+
+    def test_mprofile_pictures_the_real_home_right_around_the_saved_read(self):
+        """A-R3: fails with `before` taken ahead of the probe's own read on the real home or the sign-in."""
+        import inspect
+        source = inspect.getsource(measure._profile_read)
+        last = source.rindex("read = swap.read_profile(")
+        self.assertLess(source.index("current = signed_in()"), source.index("before, app = stat(), main()"))
+        self.assertLess(source.index("swap.add_by_login("), source.index("before, app = stat(), main()"))
+        self.assertLess(source.index("before, app = stat(), main()"), last)
+        self.assertLess(last, source.index("after, app_after = stat(), main()"))
 
     def test_mswap(self):
         good = {"store_word": "usable", "profiles_given": True, "swapped": True, "signed_in_as_target": True,
-                "swapped_back": True, "signed_in_as_first": True, "first_usage_read": True, "target_usage_read": True}
+                "swapped_back": True, "signed_in_as_first": True, "first_usage_read": True, "target_usage_read": True,
+                "other_engine_alive": False, "other_engine_alive_open": False, "looked": True}
         self.assertEqual(self.run_probe(measure._mswap, good)[0], Verdict.BLOCKED, "the person confirms what the app showed")
+        unseen = self.run_probe(measure._mswap, dict(good, looked=False))
+        self.assertEqual(unseen[0], Verdict.BLOCKED)
+        self.assertIs(unseen[1].get("looked"), False, "a sitting shows that no one looked before the switch back")
+        self.assertIn("no one said they had looked", unseen[2])
+        recorded = self.run_probe(measure._mswap, dict(good, other_engine_alive_open=True))[1]
+        self.assertIs(recorded.get("other_engine_alive_open"), True, "a sitting shows the look's own view")
+        self.assertIs(recorded.get("other_engine_alive"), False)
         self.assertEqual(self.run_probe(measure._mswap, dict(good, signed_in_as_target=False))[0], Verdict.FAIL)
         self.assertEqual(self.run_probe(measure._mswap, dict(good, signed_in_as_first=False))[0], Verdict.FAIL)
         self.assertEqual(self.run_probe(measure._mswap, dict(good, first_usage_read=False))[0], Verdict.FAIL)
         self.assertEqual(self.run_probe(measure._mswap, dict(good, swapped=False))[0], Verdict.BLOCKED)
+        stuck = self.run_probe(measure._mswap, dict(good, swapped_back=False, signed_in_as_first=None,
+                                                    first_usage_read=None))
+        self.assertEqual(stuck[0], Verdict.BLOCKED)
+        self.assertIn("still signed in as the other account", stuck[2], "A-M5: the person is told where Codex is")
+
+
+class RecordTests(unittest.TestCase):
+    """Both probes' records can be written with every word their hands answer (2026-11-06: MPROFILE passed on the
+    owner's PC and its record was refused, since evidence did not know authfile's "usable")."""
+
+    def setUp(self):
+        import shutil
+        import tempfile
+        self.directory = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.directory, True)
+
+    def record(self, measurement, hand, answered):
+        import json
+        versions = {"product_version": "0.6.22", "codex_version": ENGINE, "windows_build": "10.0.26300"}
+        measure.run(measurement, versions=versions, directory=self.directory, hands={hand: lambda home: answered})
+        written = list(self.directory.glob("measurement-%s.json" % measurement.value))
+        self.assertEqual(len(written), 1, "the record is written")
+        return json.loads(written[0].read_text(encoding="utf-8"))
+
+    def test_every_store_word_can_be_recorded(self):
+        """Fails with authfile's words taken out of evidence.CLOSED_WORDS."""
+        from codex_auto_resume_advanced.codex import authfile
+        good = {"profile_given": True, "added_by_login": True, "account_read": True, "own_account": True,
+                "usage_read": True, "real_file_unchanged": True, "app_unchanged": True, "real_still_signed_in": True}
+        for word in (authfile.USABLE, authfile.NOT_FILE, authfile.NO_FILE, authfile.UNREADABLE):
+            with self.subTest(word=word):
+                written = self.record(Measurement.MPROFILE, "profile_read", dict(good, store_word=word))
+                self.assertEqual(written["observed"]["store_word"], word)
+
+    def test_mswap_s_record_is_written(self):
+        answered = {"store_word": "usable", "profiles_given": True, "app_was_running": True, "swapped": True,
+                    "signed_in_as_target": True, "swapped_back": True, "signed_in_as_first": True,
+                    "first_usage_read": True, "target_usage_read": True, "other_engine_alive": False,
+                    "other_engine_alive_open": False, "looked": True}
+        written = self.record(Measurement.MSWAP, "account_swap", answered)
+        self.assertEqual(written["observed"]["store_word"], "usable")
+        self.assertIs(written["observed"]["looked"], True)
+
+
+class LookTests(unittest.TestCase):
+    """MSWAP waits between its two switches for the person to look (2026-11-06: with no wait, the app was closed again
+    seconds after it came up as the other account, so no one could see Settings > Account)."""
+
+    def setUp(self):
+        import shutil
+        import tempfile
+        self.home = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.home, True)
+        self.now = [0.0]
+
+    def wait(self, appear_at=None):
+        def sleep(seconds):
+            self.now[0] += seconds
+            if appear_at is not None and self.now[0] >= appear_at:
+                (self.home / measure.MSWAP_LOOK_FILE).write_text("", encoding="utf-8")
+        return measure._wait_for_look(self.home, seconds=120, clock=lambda: self.now[0], sleep=sleep)
+
+    def test_it_goes_on_once_the_person_says_they_looked(self):
+        """Fails with the wait taken out of the hand: the switch back would start at once."""
+        self.assertIs(self.wait(appear_at=30), True)
+        self.assertGreaterEqual(self.now[0], 30, "it waited for the file")
+        self.assertLess(self.now[0], 120)
+        self.assertFalse((self.home / measure.MSWAP_LOOK_FILE).exists(), "the file is taken away for the next run")
+
+    def test_it_gives_up_after_its_time_and_says_so(self):
+        self.assertIs(self.wait(), False)
+        self.assertGreaterEqual(self.now[0], 120)
+
+    def test_the_hand_waits_between_the_two_switches(self):
+        import inspect
+        source = inspect.getsource(measure._account_swap)
+        self.assertLess(source.index("target_usage_read"), source.index("_wait_for_look"))
+        self.assertLess(source.index("_wait_for_look"), source.index("first_id, restart="))
 
 
 if __name__ == "__main__":
