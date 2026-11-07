@@ -407,6 +407,7 @@ class WordsTests(unittest.TestCase):
         self.assertIn('flow.DeleteSavedAccounts = InstallerFlow.Has(arguments, "-DeleteSavedAccounts");', SETUP)
         self.assertIn('"-DeleteSavedAccounts"', FLOW[FLOW.index("private static bool IsAnswered"):])
 
+    @unittest.skipIf(languages.generated_ko_branch(), "the generated ko branch's English pages are the Korean ones")
     def test_the_documents_name_the_change_and_no_advanced_identifier(self):
         for name in ("SECURITY", "PRIVACY"):
             english = (ROOT / "docs" / (name + ".md")).read_text(encoding="utf-8")
