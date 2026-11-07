@@ -708,8 +708,9 @@ you choose and keep in sync with a tool of your own - OneDrive, Syncthing, whate
 the Overview gains an **Other PCs** list of the files your other PCs put there: each one's name, whether its
 watcher runs, how many recoveries wait, its next check and when it wrote. There is nothing to press on a
 row: it only reads. This program never contacts another PC, and there is no network code in it: whatever
-moves the file is your tool. The file holds the status the status file for other tools holds (counts by
-closed state, the usage last read, the version, the engine's word) and the name you give this PC, and no
+moves the file is your tool. The folder may also be a network share (`\\server\share\...`, or a drive letter
+mapped to one): Windows reaches it, and this program only opens files there. The file holds the status the
+status file for other tools holds (counts by closed state, the usage last read, the version, the engine's word) and the name you give this PC, and no
 conversation's id or title, no path, no user name and no account.
 
 **When it helps.** When you run Codex on several PCs and want to see from one whether the others are waiting
@@ -720,9 +721,12 @@ its usage and when it wrote. A file another PC or program put there is ignored, 
 unless it is exactly what this program writes: at most 16 files of at most 16 KiB are read, and every word and
 number is checked before the window shows it. While recovery is paused nothing is written, so this PC looks
 older on the others. A file older than a week shows greyed as *not seen since*, and a clock set wrong on another
-PC is said rather than believed. If the folder vanishes or your sync tool holds a file, it waits, says so and
-tries again 5 minutes later. It refuses a folder inside this program's folder or Codex's, a link or junction, and
-a network path, and it overwrites only a file it wrote itself. Turned off, this PC's file stays in the folder,
+PC is said rather than believed. On a network share, anyone who can read that share can read what each PC
+writes there: its status, which names no conversation, and the usage it last read. If the folder vanishes or
+your sync tool holds a file, it waits, says so and tries again 5 minutes later; a share that does not answer
+within 5 seconds is skipped the same way (*the shared folder did not answer in time*), and the watcher never
+waits on it. It refuses a folder inside this program's folder or Codex's, a link or junction, and a device path
+(`\\?\` or `\\.\`), and it overwrites only a file it wrote itself. Turned off, this PC's file stays in the folder,
 so the other PCs show it greyed instead of it vanishing: delete it there if you want it gone.
 
 **Departs from** [C4](STANDARDS.md#c-network) (nothing happens on its own: it writes on a schedule),
