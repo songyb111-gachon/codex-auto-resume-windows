@@ -122,6 +122,9 @@ SENDING = {Point.GATES: 1, Point.TEXT: 0, Point.SENDER: 0, Point.SCHEDULE: 0, Po
            Point.DELIVERY: 0, Point.UNLOADED: 0, Point.ADMISSION: 0}
 # The gate a record taken up at P17 is put to the plug again at (core's engine/relaxed.py).
 KNOWN_FAILURE = "known_failure"
+# v0.6.22 (issue #59): the points whose answer carries the send a VERIFIED_RESET at known_failure was answered for - a
+# channel (P5) or a route (P16) of the same capability's.
+VOUCHED_BY = frozenset({Point.SENDER, Point.UNLOADED})
 # The words that take a failure up at P17 and relax its record at known_failure.
 RELAXING = TAKE_UP
 # Those a capability with no unit left holds its record on, rather than letting it end: all but
@@ -557,7 +560,8 @@ class Runtime:
             if chooser is not None and not _preferred(point, chosen, answer, record, self.clock()):
                 continue
             if point in SENDING and not kept:
-                if not isinstance(record, dict) or self._ceiling(definition, record) is not None:
+                if (not isinstance(record, dict)
+                        or self._ceiling(definition, record, self._verified(definition, point, answer, key)) is not None):
                     self._once(JournalCode.CEILING, definition, point, answer, record)
                     if relaxing and answer in HELD_AT_CEILING:
                         return Alternative.HOLD          # it waits for a unit, and does not end
@@ -786,14 +790,22 @@ class Runtime:
             pass                                     # kept the next time core goes on with it
         return True
 
-    def _ceiling(self, definition, record):
+    def _ceiling(self, definition, record, verified=False):
         """The ceiling that leaves `definition` nothing to spend on `record` now, looked at
-        before the claim; the claim looks again, under its lock, before it spends."""
+        before the claim; the claim looks again, under its lock, before it spends. `verified`: for a
+        reset core verified (`_verified`, ledger.ceiling_reached)."""
         try:
             counts = self.state.spent(definition.id, record.get("thread_id"))
-            return ceiling_reached(counts, definition, self.state.meta()["global_hourly"])
+            return ceiling_reached(counts, definition, self.state.meta()["global_hourly"], verified=verified)
         except StateError:
             return True                          # nothing can be paid for, so nothing is taken
+
+    def _verified(self, definition, point, answer, key) -> bool:
+        """v0.6.22 (issue #59): whether `answer` at `point` is `definition`'s VERIFIED_RESET for record `key`, at
+        known_failure, or its channel or route for a record it answered that for this tick (`_acted`)."""
+        if point == Point.GATES:
+            return answer is Alternative.VERIFIED_RESET
+        return point in VOUCHED_BY and (Point.GATES, definition.id, Alternative.VERIFIED_RESET) in self._acted.get(key, ())
 
     def _once(self, code, definition, point, answer, record) -> None:
         key = (code, definition.id, point, _word(answer, point),
@@ -1280,13 +1292,19 @@ class Runtime:
         entries = self._acted.pop(key, ())
         if Point.CONCURRENCY in carried and not any(point == Point.CONCURRENCY for point, _c, _w in entries):
             return Alternative.HOLD                      # pooled, and nothing left to pay for it: one poll
+        # v0.6.22 (issue #59): a VERIFIED_RESET is paid for, and verified, only by the capability whose own channel or
+        # route carries the send; one another channel carries is held as core's five would hold it (ledger.py).
+        vouched = {capability for point, capability, word in entries
+                   if point == Point.GATES and point in carried and word == Alternative.VERIFIED_RESET}
+        carrying = {capability for point, capability, _w in entries if point in VOUCHED_BY and point in carried}
         for point, capability, word in entries:
-            if point in carried:
+            if point in carried and not (word == Alternative.VERIFIED_RESET and capability not in carrying):
                 words = acted.setdefault(capability, set())
                 if word in ANSWERS:
                     words.add(Alternative(word))
         try:
-            answer = self.ledger.claim(connection, record, now, acted)
+            answer = self.ledger.claim(connection, record, now, acted, verified=frozenset(vouched & carrying),
+                                       unvouched=bool(vouched - carrying))
         except Exception:
             if acted:
                 return Alternative.HOLD

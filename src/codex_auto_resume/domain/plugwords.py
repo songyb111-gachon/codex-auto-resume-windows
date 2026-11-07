@@ -125,6 +125,9 @@ class Alternative(StrEnum):
     AS_SERVER_5XX = "as_server_5xx"
     AS_STREAM_INTERRUPTED = "as_stream_interrupted"
     CAPACITY = "capacity"                    # and a capacity error retried sooner, in core's limits
+    # P3 at known_failure (v0.6.22, issue #59): a usage limit whose reset core recorded has passed, continued through the
+    # plug's own channel or route - claimed under core's own spacing within RESET_PER_DAY, not its five (ladder.py).
+    VERIFIED_RESET = "verified_reset"
     EARLY = "early"                          # P7: a usage-limited record looked at before its time
     RESEND = "resend"                        # P7: an uncertain submission sent once more, if core may
     SEND_NOW = "send_now"                    # P7: a waiting record sent now, as a person asked
