@@ -501,16 +501,17 @@ MARKER_FREE = CapabilityDef(
 # known_failure it answers VERIFIED_RESET, which core claims within its own fifteen minutes and a day
 # of its own (ladder.RESET_PER_DAY) for a send its channel or route carries, so it departs from A20
 # too, and from H2 (nothing moves an engine constant: A20's five are the engine's, and turning this on
-# moves them here); its day, the hour and every gate still hold. Revision 3 names A20 and H2, where
-# revision 2 did not.
+# moves them here); its day, the hour and every gate still hold. Its statement names A20 and H2 at
+# revision 2 still: the owner's word of 2026-11-07 - one who turned it on keeps it on after the update
+# and reads the changed statement on its card, as for the raised ceilings.
 # It comes before the marker-free continuation, so where both are on and the goal
 # applies its channel carries the send, under the client id P15 gives it.
 GOAL_CONTINUATION = CapabilityDef(
     id="goal_continuation",
     points=frozenset({Point.UNLOADED, Point.GATES, Point.SENDER}),
     # Revision 2 (v0.6.15-beta): its risks say it acts on a conversation the app holds where M2b passed.
-    # Revision 3 (v0.6.22, issue #59): it departs from A20 and H2 at a verified reset.
-    revision=3,
+    # v0.6.22 (issue #59): A20 and H2 at a verified reset, at revision 2 by the owner's word of 2026-11-07.
+    revision=2,
     departs_from=("0.5", "A2", "A11", "A20", "B3", "B4", "H2"),
     compat="loaded_state_detection",
     ceilings=Ceilings(per_day=24, per_conversation=5),

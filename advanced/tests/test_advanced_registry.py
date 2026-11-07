@@ -451,11 +451,13 @@ class ShippedTests(unittest.TestCase):
     def test_the_goal_continuations_risks_say_it_acts_where_the_app_holds_the_conversation_once_m2b_passed(self):
         """While M2b's recorded verdict is a pass (measured.py), engine/goal.py's P5 acts on a conversation the app
         holds, so no language may still say it acts only on one the app does not have open: every one names M2b in
-        its risks, from revision 2 (revision 3, v0.6.22, names A20 and H2 beside them: issue #59)."""
+        its risks, at revision 2. v0.6.22 (issue #59) names A20 and H2 beside them at revision 2 still - the owner's
+        word of 2026-11-07: one who turned it on keeps it on and reads the changed statement on its card, as for the
+        raised ceilings."""
         from codex_auto_resume_advanced import measured
         self.assertEqual(measured.MEASURED[Measurement.M2B][0], Verdict.PASS)
         goal = registry.REGISTRY.get("goal_continuation")
-        self.assertEqual(goal.revision, 3)
+        self.assertEqual(goal.revision, 2)
         for locale in l10n.LOCALES:
             with self.subTest(locale):
                 risks = statement.CATALOGS.own(locale)[statement.key(goal.id, Field.RISKS)]
