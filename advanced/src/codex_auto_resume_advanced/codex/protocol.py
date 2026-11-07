@@ -31,7 +31,7 @@ import subprocess as S
 import threading
 import time
 
-from codex_auto_resume.codex.appserver import PROTOCOL_METHODS
+from codex_auto_resume.codex.appserver import PROTOCOL_METHODS, SKIPPED, next_message
 from codex_auto_resume.codex.pairing import own_server, own_server_gone
 from codex_auto_resume.win.kernel import NO_WINDOW
 
@@ -415,14 +415,12 @@ class Session:
     def _read(self):
         try:
             while True:
-                line = self.process.stdout.readline(1024 * 1024 + 1)
-                if not line or len(line) > 1024 * 1024:
+                # v0.6.22: core's bounded read - a line over a megabyte (a message's pictures echoed inline) no
+                # longer ends this reader; an answer too large to keep comes as its id with OVERSIZE (appserver.py).
+                value = next_message(self.process.stdout)
+                if value is None:
                     return
-                try:
-                    value = json.loads(line)
-                except ValueError:
-                    continue
-                if not isinstance(value, dict):
+                if value is SKIPPED:
                     continue
                 if "id" in value and "method" in value:
                     # A request from Codex: answer it with its refusal (or an error), then count

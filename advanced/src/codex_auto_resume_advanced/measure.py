@@ -28,6 +28,7 @@ import time
 import uuid
 
 from codex_auto_resume import config
+from codex_auto_resume.codex.appserver import OVERSIZE
 from codex_auto_resume.codex.errors import AdapterError
 from codex_auto_resume.diagnostics import Redactor
 from codex_auto_resume.domain.ids import is_uuid
@@ -2512,6 +2513,12 @@ def _mimg(ctx):
                                         "yourself if it is there; then run mimg again", **observed)
                     observed[name + "_refusal_code"] = exc.code
                     continue
+                if isinstance(added, dict) and added.get(OVERSIZE) is True:
+                    # v0.6.22: an answer too large to keep (the pictures echoed inline) is an answer all the same - the
+                    # add was accepted; what the submission holds is not known, and the history proves the rest.
+                    observed.update({name + "_accepted": True, "add_answer_oversize": True})
+                    taken_id = client_id
+                    break
                 count, kept = _queued_images(added)
                 held = _queued_image_count(added)
                 observed.update({name + "_accepted": True, "queued_input_items": count, "queued_keeps_image": kept,
