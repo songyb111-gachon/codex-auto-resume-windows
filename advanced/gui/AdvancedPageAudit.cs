@@ -787,7 +787,9 @@ namespace CodexAutoResume
         internal static string AdvancedPageRun(string stringsJson, string scenarioJson)
         {
             var result = new Dictionary<string, object>();
-            WithAdvancedWindow(stringsJson, SystemScale, delegate(SettingsForm form)
+            // v0.6.22: at the scale the scenario names ("scale", 1.0 for 100 %), or the system's.
+            object scaled = Get(Json.Parse(scenarioJson) as Dictionary<string, object>, "scale");
+            WithAdvancedWindow(stringsJson, scaled is double ? (double)scaled : SystemScale, delegate(SettingsForm form)
             {
                 var scenario = Json.Parse(scenarioJson) as Dictionary<string, object> ?? new Dictionary<string, object>();
                 form.advancedScript = new Dictionary<string, List<object>>();
@@ -1398,6 +1400,9 @@ namespace CodexAutoResume
             // Where all of it is taller than the screen lets the editor be (a CI runner's 1024 by 768), it stands at that
             // height and what does not fit is scrolled to.
             record["at_most"] = editorDialog.ClientSize.Height >= EditorMost();
+            // v0.6.22: never taller than the screen lets it be, ten pictures and all; and the pictures kept, in words.
+            record["within_most"] = editorDialog.ClientSize.Height <= EditorMost();
+            record["kept_line"] = editorKept == null ? null : editorKept.Text;
             record["words_after"] = editorWords.Box.Text;
         }
 

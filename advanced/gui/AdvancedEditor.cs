@@ -76,9 +76,37 @@ namespace CodexAutoResume
         // Null in every window a person opens. In a window AdvancedPageRun drives: the files Add a picture... chooses, so
         // no file dialog is ever shown there.
         private Func<string[]> editorChoose;
-        // As the bridge holds them (images.py): four a message, 5 MB each.
-        private const int ImagesMost = 4;
-        private const long ImageBytesMost = 5L * 1024 * 1024;
+        // As the bridge holds them (images.py): from v0.6.22 ten a message, 20 MB each - the numbers its answer's limits
+        // give (advanced-prompts), these only where it gave none.
+        private Label editorKept;
+        private const int ImagesMostKnown = 10;
+        private const long ImageBytesMostKnown = 20L * 1024 * 1024;
+
+        private int ImagesMost
+        {
+            get { int most = Whole(Get(Map(advancedPrompts, "limits"), "images")); return most > 0 ? most : ImagesMostKnown; }
+        }
+
+        private long ImageBytesMost
+        {
+            get
+            {
+                object most = Get(Map(advancedPrompts, "limits"), "image_bytes");
+                return most is double && (double)most > 0 ? (long)(double)most : ImageBytesMostKnown;
+            }
+        }
+
+        /// `bytes` in megabytes as the words say them: whole where whole, else one decimal, in the person's culture.
+        private static string Megabytes(long bytes)
+        {
+            return (bytes / (1024.0 * 1024.0)).ToString("0.#", CultureInfo.CurrentCulture);
+        }
+
+        /// A picture word with its two numbers: {n} and {mb}.
+        private string ImageWord(string key, string fallback)
+        {
+            return Word(key, fallback, "n", ImagesMost).Replace("{mb}", Mirror.Embed(Megabytes(ImageBytesMost)));
+        }
         private const int ThumbSide = 64;
 
         /// The editor for a new message (`row` null) or for `row`, a prompt still waiting: shown, answered, and - where it
@@ -216,8 +244,15 @@ namespace CodexAutoResume
 
             // Its pictures: a caption, what it takes, the thumbnails, and Add a picture... (v0.6.20, #50 item 1).
             card.Controls.Add(Caption(Word("page.editor.images", "Pictures")));
-            card.Controls.Add(HelpText(Word("page.editor.images.help",
-                "Paste with Ctrl+V, drop files here or add them: up to 4 pictures, PNG, JPEG, GIF or WebP, 5 MB each. Each is kept as a copy until the message is delivered.")));
+            card.Controls.Add(HelpText(ImageWord("page.editor.images.help",
+                "Paste with Ctrl+V, drop files here or add them: up to {n} pictures, PNG, JPEG, GIF or WebP, {mb} MB each. Each is kept as a copy until the message is delivered.")));
+            // v0.6.22: how many pictures the product keeps now for every message still to go, and their size.
+            Dictionary<string, object> kept = Map(advancedPrompts, "images_kept");
+            object keptBytes = Get(kept, "bytes");
+            editorKept = HelpText(Word("page.editor.images.kept", "Pictures kept until delivered: {n} ({mb} MB)",
+                                       "n", Whole(Get(kept, "count")))
+                                  .Replace("{mb}", Mirror.Embed(Megabytes(keptBytes is double ? (long)(double)keptBytes : 0))));
+            card.Controls.Add(editorKept);
             editorThumbs = new FlowLayoutPanel();
             editorThumbs.AutoSize = true;
             editorThumbs.AutoSizeMode = AutoSizeMode.GrowAndShrink;
@@ -504,7 +539,7 @@ namespace CodexAutoResume
         }
 
         /// The pictures `paths` added after those there, each checked as the bridge checks it - its bytes a PNG, JPEG, GIF
-        /// or WebP, 5 MB at most, four in all - and the first refusal said above the buttons.
+        /// or WebP, ImageBytesMost at most, ImagesMost in all - and the first refusal said above the buttons.
         private void AddImages(string[] paths)
         {
             if (editorThumbs == null || paths == null) return;
@@ -525,7 +560,7 @@ namespace CodexAutoResume
         }
 
         /// Why the file at `path` is no picture the bridge takes - image_refused or image_too_large - or null.
-        private static string ImageProblem(string path)
+        private string ImageProblem(string path)
         {
             try
             {

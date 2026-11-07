@@ -268,7 +268,7 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + "follow." + name for name in (
 # block - its caption, Add a picture..., the line on what it takes, each thumbnail's name and Remove - the count a row
 # says, and each word the bridge refuses a picture with.
 PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
-    "editor.images", "editor.images.add", "editor.images.help", "editor.images.remove", "editor.images.picture",
+    "editor.images", "editor.images.add", "editor.images.help", "editor.images.kept", "editor.images.remove", "editor.images.picture",
     "queue.images", "refused.image_refused", "refused.image_too_large", "refused.images_full",
     "refused.images_unavailable"))
 # Pending's one list (v0.6.19, #50; the owner's decision of 2026-10-24: advanced/gui/AdvancedSchedule.cs): the Kind of a

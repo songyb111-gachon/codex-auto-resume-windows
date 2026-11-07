@@ -1,5 +1,5 @@
 """Pictures in a scheduled message (v0.6.20, #50 item 1): the product's own copies, made when the person saves, named by
-an opaque id and never by the person's path, checked by their bytes, at most four of 5 MB each, and removed once the
+an opaque id and never by the person's path, checked by their bytes, at most images.MOST_IMAGES of images.MOST_BYTES each (ten of 20 MB from v0.6.22), and removed once the
 message is delivered, cancelled or deleted - with a sweep for any a save or a crash left behind. Nothing in the status,
 diagnostics, the journal or MCP names a copy, a path or a picture.
 
@@ -145,7 +145,7 @@ class CopyTests(ImagesCase):
         plug = self.on()
         large = self.picture(PNG + b"\0" * images.MOST_BYTES, "large.png")
         cases = (([large], Refusal.IMAGE_TOO_LARGE),
-                 ([self.picture()] * 5, Refusal.IMAGES_FULL),
+                 ([self.picture()] * (images.MOST_IMAGES + 1), Refusal.IMAGES_FULL),
                  ([str(self.mine / "gone.png")], Refusal.IMAGE_REFUSED),
                  ([str(self.mine)], Refusal.IMAGE_REFUSED),
                  (["relative.png"], Refusal.IMAGE_REFUSED),
