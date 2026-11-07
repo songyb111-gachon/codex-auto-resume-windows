@@ -2,9 +2,9 @@
   "format": "codex-auto-resume-measurement/1",
   "step": "mopen",
   "verdict": "blocked",
-  "recorded_at": "2026-10-29T12:06Z",
-  "product_version": "0.6.20-beta.2",
-  "codex_version": "codex-cli 0.165.0-alpha.1.2",
+  "recorded_at": "2026-11-07T17:07Z",
+  "product_version": "0.6.22-beta.2",
+  "codex_version": "codex-cli 0.167.0-alpha.3.2",
   "windows_build": "10.0.26300",
   "observed": {
     "holders_read": true,
@@ -13,13 +13,13 @@
     "link_opened": true,
     "loaded_by_app": true,
     "holders": 1,
-    "loaded_seconds": "s2_to_10",
+    "loaded_seconds": "s10_to_20",
     "thread_given": true
   },
   "note": "the app held it within the limit: confirm whether the Codex window came to the front, then set the verdict",
   "completion": {
     "verdict": "pass",
     "note": "as_expected",
-    "recorded_at": "2026-10-29T12:07Z"
+    "recorded_at": "2026-11-07T17:10Z"
   }
 }

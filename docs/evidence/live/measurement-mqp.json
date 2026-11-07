@@ -2,9 +2,9 @@
   "format": "codex-auto-resume-measurement/1",
   "step": "mqp",
   "verdict": "blocked",
-  "recorded_at": "2026-10-19T17:14Z",
-  "product_version": "0.6.16",
-  "codex_version": "codex-cli 0.163.0-alpha.10.2",
+  "recorded_at": "2026-11-07T17:15Z",
+  "product_version": "0.6.22-beta.2",
+  "codex_version": "codex-cli 0.167.0-alpha.3.2",
   "windows_build": "10.0.26300",
   "observed": {
     "conversations": 2,
@@ -13,14 +13,14 @@
     "queued_in_own": 2,
     "queued_elsewhere": 0,
     "taken": 2,
-    "found_in_own": 1,
-    "found_elsewhere": 0,
+    "found_in_own": 2,
+    "found_elsewhere": 1,
     "thread_given": true
   },
   "note": "open each of the throwaway conversations in the Desktop within five minutes of starting this; confirm each message ran once, in its own conversation only, then set the verdict",
   "completion": {
     "verdict": "pass",
     "note": "as_expected",
-    "recorded_at": "2026-10-19T17:16Z"
+    "recorded_at": "2026-11-07T17:16Z"
   }
 }

@@ -2,23 +2,24 @@
   "format": "codex-auto-resume-measurement/1",
   "step": "mc2",
   "verdict": "blocked",
-  "recorded_at": "2026-10-15T21:57Z",
-  "product_version": "0.6.16-beta.3",
-  "codex_version": "codex-cli 0.162.0-alpha.17.2",
+  "recorded_at": "2026-11-07T16:50Z",
+  "product_version": "0.6.22-beta.2",
+  "codex_version": "codex-cli 0.167.0-alpha.3.2",
   "windows_build": "10.0.26300",
   "observed": {
     "history_read": true,
-    "started_first": "db",
-    "finished_first": "db",
+    "started_first": "same",
+    "finished_first": "same",
     "reply_item_ready_at_final": true,
     "approval_wait_seen_db": false,
     "approval_wait_seen_rollout": false,
+    "finished_lag": "under_1s",
     "thread_given": true
   },
   "note": "confirm the two prompts were sent while this ran, then set the verdict",
   "completion": {
     "verdict": "fail",
     "note": "partial",
-    "recorded_at": "2026-10-15T21:57Z"
+    "recorded_at": "2026-11-07T16:51Z"
   }
 }
