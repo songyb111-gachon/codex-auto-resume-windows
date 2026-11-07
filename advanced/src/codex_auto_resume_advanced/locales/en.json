@@ -1009,10 +1009,11 @@
   "page.fleet.save": "Save",
   "page.fleet.saved": "Saved. This PC writes its file at the next check.",
   "page.fleet.stand.held": "A file in the folder is held, perhaps by your sync tool. It waits, and tries again in 5 minutes.",
+  "page.fleet.stand.late": "The shared folder did not answer in time. It tries again in 5 minutes.",
   "page.fleet.stand.missing": "The folder cannot be found. It waits, and tries again in 5 minutes.",
   "page.fleet.stand.none": "No other PC has written here yet.",
   "page.fleet.stand.not_ours": "A file with this PC's name is there that this PC did not write, so it was left alone. Give each PC its own name.",
-  "page.fleet.stand.refused": "This folder cannot be used: it is inside this program's or Codex's folder, it is a link or a network path, or it is not a folder.",
+  "page.fleet.stand.refused": "This folder cannot be used: it is inside this program's or Codex's folder, it is a link, or it is not a folder on a drive or a network share.",
   "page.fleet.stand.unset": "Give this PC a name and choose a folder on the Advanced features page.",
   "page.fleet.state.clock": "its clock differs from this PC's",
   "page.fleet.state.not_seen": "not seen since",
@@ -1027,8 +1028,8 @@
   "statement.codex_retry_settings.risks": "A reply that keeps failing takes longer before the watcher's recovery or another model takes over. It rests on Codex keeping a conversation under its own provider when a turn runs under the copy (MB2); another version of Codex may change that, or what a provider needs.",
   "statement.codex_retry_settings.stop": "Turn it off in the Dashboard, or turn off every advanced feature at once: within three minutes the next server starts with Codex's own settings. Nothing needs putting back.",
   "statement.fleet_view.departs": "C4 (nothing happens on its own: it writes on a schedule), D1 (this PC's status leaves it through your sync tool, never to the developer), D2 (the state keeps the folder's path and this PC's name) and F3 (a file outside its own folder).",
-  "statement.fleet_view.does": "This PC writes its status every 5 minutes, as one small file, into a folder you choose and keep in sync with a tool of your own, and the Overview lists the files your other PCs put there: each one's name, whether its watcher runs, how many recoveries wait, its next check and when it wrote. The file holds that status, the usage it last read and the name you give this PC: no conversation's id or title, no path, no user name and no account. It only reads the others: nothing here acts on another PC, and this program never contacts one.",
+  "statement.fleet_view.does": "This PC writes its status every 5 minutes, as one small file, into a folder you choose and keep in sync with a tool of your own, and the Overview lists the files your other PCs put there: each one's name, whether its watcher runs, how many recoveries wait, its next check and when it wrote. The file holds that status, the usage it last read and the name you give this PC: no conversation's id or title, no path, no user name and no account. It only reads the others: nothing here acts on another PC, and this program never contacts one. The folder may be on this PC or on a network share. A share that does not answer within 5 seconds is skipped, and tried again 5 minutes later.",
   "statement.fleet_view.instead": "The standard edition writes nothing outside its own folder. Its status file, if you turn it on, stays on this PC, and you look at each PC on that PC.",
-  "statement.fleet_view.risks": "Whoever can read the folder, your sync service among them, sees this PC's name, its counts, its usage and when it wrote. A file another PC or program put there is ignored unless it is exactly what this program writes. While recovery is paused nothing is written, so this PC looks older on the others. A clock set wrong on another PC is said, not believed.",
+  "statement.fleet_view.risks": "Whoever can read the folder, your sync service among them, sees this PC's name, its counts, its usage and when it wrote. A file another PC or program put there is ignored unless it is exactly what this program writes. While recovery is paused nothing is written, so this PC looks older on the others. A clock set wrong on another PC is said, not believed. On a network share, anyone who can read that share can read what each PC writes there: its status, which names no conversation, and the usage it last read.",
   "statement.fleet_view.stop": "Turn it off here or turn every advanced feature off; nothing more is written or read. This PC's file stays in the folder, and the other PCs show it greyed once it is a week old: delete it there if you want it gone."
 }

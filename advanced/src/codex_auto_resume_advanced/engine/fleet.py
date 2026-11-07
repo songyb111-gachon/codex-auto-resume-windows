@@ -1,16 +1,25 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
-"""See your other PCs (fleet_view, v0.6.22, plans/v0619-design/D-remote.md): this PC's status in a folder the person syncs
-themselves, and the other PCs' files read from it. The product never talks to another PC; there is no network here.
+r"""See your other PCs (fleet_view, v0.6.22, plans/v0619-design/D-remote.md): this PC's status in a folder the person syncs
+themselves, and the other PCs' files read from it. The product never talks to another PC; there is no network code here.
+The folder may be a network share (`\\server\share\...`, `//server/share/...`, or a mapped drive whose real path is one):
+Windows reaches it, and this module only opens files there.
 
-At P8, at most every EVERY seconds, a thread of its own (a sync tool that holds a file, or a drive that stopped answering,
-must never hold the watcher's tick; only one at a time, none while this is off) writes `<folder>/<alias>.json`: statusfile's
+At P8, at most every EVERY seconds, a thread of its own (a sync tool that holds a file, or a drive or share that stopped
+answering, must never hold the watcher's tick; only one at a time, none while this is off) writes `<folder>/<alias>.json`: statusfile's
 closed document, its `format` this file's provenance key, plus the alias and the edition. Nothing else leaves: no
 conversation id or title, no path, no user name, no account (KEYS, `clean`). It is written whole or not at all (a
 temporary file beside it, then a replace), and replaces only a regular file that says it is this PC's own (`_ours`).
 
 The folder is checked on every pass (`folder_problem`): never a link or a junction, never inside this product's home or the
-Codex home, directly or through a link, never a network path. A file on a cloud drive that is only a placeholder is not a
-link (`_linked`).
+Codex home, directly or through a link, never a device path (`\\?\`, `\\.\`). A file on a cloud drive that is only a
+placeholder is not a link (`_linked`).
+
+Python's file calls on a share have no timeout of their own, and a share that stopped answering can hold one for minutes.
+So nothing waits on the folder past BOUND seconds an access. The pass marks each access as it starts it, and a tick that
+finds one running longer than BOUND gives that pass up (LATE: "the shared folder did not answer in time"): what it comes
+to later is dropped, and the next pass, EVERY seconds on, tries again - never beside one still held, so a hung share holds
+one thread, never one a pass. The Dashboard's save looks at the folder the same way (`bounded`): one access at a time in
+its process, waited on BOUND seconds at most.
 
 The peers are `*.json` in that folder, at most MOST files of at most LIMIT bytes each, this PC's alias skipped (`read_peers`).
 A hostile synced file gets nowhere: one that is a link, too large, malformed or not exactly the closed shape is ignored and
@@ -29,6 +38,7 @@ import os
 import stat
 import tempfile
 import threading
+import time
 
 from codex_auto_resume import config, machine, statusfile
 from codex_auto_resume.domain.plug import DEFER
@@ -57,12 +67,16 @@ PENDING_MOST = 100000
 # files added and removed again and again wrote a line for each, and took the watcher's tick seconds to write them).
 IGNORED_EVERY = 60 * 60
 VERSION_MOST = 32
+# How long, in seconds, anything waits on one access to the folder: a file call on a share that stopped answering has no
+# timeout of its own (the owner, 2026-11-07: a network share may be the folder).
+BOUND = 5
 
-# What a pass came to, the word the Dashboard says. Each but OK and UNSET is stamped, by its place + 1.
-OK, UNSET, MISSING, HELD, NOT_OURS, INSIDE, LINK, NETWORK, INVALID = (
-    "ok", "unset", "missing", "held", "not_ours", "inside", "link", "network", "invalid")
-WAITING_WORDS = (MISSING, HELD, NOT_OURS, INSIDE, LINK, NETWORK, INVALID)
-REFUSALS = (INSIDE, LINK, NETWORK, INVALID)
+# What a pass came to, the word the Dashboard says. Each but OK and UNSET is stamped, by its place + 1. LATE: the shared
+# folder did not answer in time.
+OK, UNSET, MISSING, HELD, NOT_OURS, INSIDE, LINK, INVALID, LATE = (
+    "ok", "unset", "missing", "held", "not_ours", "inside", "link", "invalid", "late")
+WAITING_WORDS = (MISSING, HELD, NOT_OURS, INSIDE, LINK, INVALID, LATE)
+REFUSALS = (INSIDE, LINK, INVALID)
 # The journal's words: a word changed to these, and each file ignored.
 WROTE, WAITING, REFUSED, IGNORED = "wrote", "waiting", "refused", "ignored"
 CODES = (WROTE, WAITING, REFUSED, IGNORED)
@@ -165,16 +179,55 @@ def _guarded(paths) -> list:
     return homes
 
 
+def _share(drive) -> bool:
+    r"""Whether `drive`, as os.path.splitdrive gives it, is a network share's: two separators, then a server and a share,
+    each named - a '.' is no server's name (`\\.\`, a device)."""
+    if len(drive) < 5 or drive[0] not in "\\/" or drive[1] not in "\\/":
+        return False
+    named = drive[2:].replace("/", "\\").split("\\")
+    return len(named) == 2 and all(part.strip(" .") for part in named)
+
+
+def _a_home_holds(path, guarded) -> bool:
+    r"""Whether `path` or a folder above it is one of the homes, by what the file system says each is rather than by its
+    name: a share can name this PC's own drive (an administrative share, `\\localhost\c$\...`)."""
+    homes = []
+    for home in guarded:
+        try:
+            found = os.stat(home)
+        except (OSError, ValueError):
+            continue
+        if found.st_ino:
+            homes.append(found)
+    path = os.path.abspath(path)
+    while homes:
+        try:
+            found = os.stat(path)
+        except (OSError, ValueError):
+            found = None
+        if found is not None and found.st_ino and any(os.path.samestat(found, home) for home in homes):
+            return True
+        above = os.path.dirname(path)
+        if above == path:
+            return False
+        path = above
+    return False
+
+
 def folder_problem(folder, paths) -> str | None:
     """The word for what is wrong with `folder`, or None. Looked at on every pass: a folder fit when it was chosen may be a
-    junction by now."""
+    junction by now. A folder on a drive (`C:\\...`) or on a network share (`\\\\server\\share\\...`, `//server/share/...`,
+    or a mapped drive whose real path is one) may be the folder; a device path (`\\\\?\\`, `\\\\.\\`, `\\\\?\\UNC\\` written by
+    hand) never - '?' is refused with the other characters no folder's name has, and '.' names no server."""
     if (not isinstance(folder, str) or not folder or len(folder) > FOLDER_MOST
             or any(ord(ch) < 32 or ch in '<>"|?*' for ch in folder)):
         return INVALID
-    if folder.startswith(("\\\\", "//")):
-        return NETWORK
     drive, rest = os.path.splitdrive(folder)
-    if not drive or not rest.startswith(("\\", "/")):
+    share = _share(drive)
+    if share:
+        if rest and not rest.startswith(("\\", "/")):
+            return INVALID
+    elif len(drive) != 2 or drive[1] != ":" or not rest.startswith(("\\", "/")):
         return INVALID
     try:
         guarded = _guarded(paths)
@@ -186,12 +239,12 @@ def folder_problem(folder, paths) -> str | None:
         found = os.lstat(folder)
         if not stat.S_ISDIR(found.st_mode):
             return INVALID
-        real = os.path.realpath(folder)
-        if real.startswith(("\\\\", "//")) and not real.startswith("\\\\?\\"):
-            return NETWORK
+        real = os.path.realpath(folder)          # a mapped drive's real path may be a share's: a folder too
         for home in guarded:
             if _within(real, os.path.realpath(home)):
                 return INSIDE
+        if (share or real.startswith(("\\\\", "//"))) and _a_home_holds(real, guarded):
+            return INSIDE
     except OSError:
         return MISSING
     return None
@@ -286,11 +339,14 @@ def _read_one(path, stem):
         return None
 
 
-def read_peers(folder, own) -> tuple:
+def read_peers(folder, own, step=None) -> tuple:
     """([each other PC's file, as `clean` keeps it], how many were ignored, how many are held now), `own` skipped, in the
-    aliases' order. OSError where the folder cannot be listed."""
+    aliases' order. OSError where the folder cannot be listed. `step` is called before each access: the listing, then
+    each file."""
+    step = step or (lambda: None)
     names = []
     ignored = held = 0
+    step()
     with os.scandir(folder) as entries:
         for count, entry in enumerate(entries):
             if count >= SCAN_MOST:
@@ -310,6 +366,7 @@ def read_peers(folder, own) -> tuple:
             ignored += 1
             continue
         looked += 1
+        step()
         try:
             found = _read_one(os.path.join(folder, name), stem)
         except FileNotFoundError:
@@ -413,17 +470,24 @@ class _Errand:
 
 
 class FleetView:
-    """fleet_view's code: its P8 errand. `status` and `spawn` are the seams a test fills: what is written, and how a pass
-    is run. What a pass came to is taken up by the next tick, which alone writes to the state."""
-    __slots__ = ("paths", "_scoped", "_status", "_spawn", "_worker", "_came_to", "_word", "_ignored", "_ignored_told")
+    """fleet_view's code: its P8 errand. `status`, `spawn` and `clock` are the seams a test fills: what is written, how a
+    pass is run, and the clock an access is timed by. What a pass came to is taken up by the next tick, which alone writes
+    to the state. `_touched` is when the running pass began its latest access to the folder, and `_late` that a tick gave
+    it up; `_lock` keeps what the pass came to and the tick giving it up from crossing."""
+    __slots__ = ("paths", "_scoped", "_status", "_spawn", "_clock", "_worker", "_came_to", "_word", "_ignored",
+                 "_ignored_told", "_touched", "_late", "_lock")
 
-    def __init__(self, paths, *, status=None, spawn=None):
+    def __init__(self, paths, *, status=None, spawn=None, clock=None):
         self.paths = paths
         self._scoped = None
         self._status = status or (lambda now: _status_now(paths, now))
         self._spawn = spawn or _thread
+        self._clock = clock or time.monotonic
         self._worker = None
         self._came_to = None
+        self._touched = None
+        self._late = False
+        self._lock = threading.Lock()
         self._word = None
         self._ignored = 0
         self._ignored_told = None
@@ -438,6 +502,7 @@ class FleetView:
         try:
             self._take_up()
             if self._worker is not None and self._worker.is_alive():
+                self._give_up_late()
                 return DEFER                       # held: never a second pass beside it
             now = scoped.now()
             last = scoped.stamped(OptionKey.LAST_FLEET_WRITE)
@@ -454,36 +519,59 @@ class FleetView:
         scoped = self._scoped
         scoped.stamp(OptionKey.LAST_FLEET_WRITE, max(1, int(now)))
         wrote_before = scoped.stamped(OptionKey.FLEET_WROTE_AT)
+        with self._lock:
+            self._late, self._touched = False, self._clock()
         try:
             self._worker = self._spawn(lambda: self._pass(now, alias, folder, wrote_before))
         except Exception:                          # no thread to be had now: the next try is EVERY seconds on
             self._worker = None
 
+    def _step(self):
+        """An access to the folder begins now: the tick times it from here."""
+        self._touched = self._clock()
+
     def _pass(self, now, alias, folder, wrote_before):
-        """One pass, off the watcher's tick: never raises."""
+        """One pass, off the watcher's tick: never raises. Given up (`_late`), it keeps nothing of what it read and says
+        nothing: the tick has said LATE for it."""
         word, ignored, wrote = HELD, 0, None
         try:
+            self._step()
             word = folder_problem(folder, self.paths) or OK
             if word == OK:
                 value = document(self._status(now), alias)
+                self._step()
                 word = write(folder, alias, value, wrote_before)
                 if word == OK:
                     wrote = max(1, int(value["written_at"]))
-                kept, ignored, held = read_peers(folder, alias)
-                write_seen(self.paths, now, kept, ignored, held)
+                kept, ignored, held = read_peers(folder, alias, self._step)
+                if not self._late:
+                    write_seen(self.paths, now, kept, ignored, held)
                 if held and word == OK:
                     word = HELD
         except FileNotFoundError:
             word = MISSING
         except Exception:
             word = HELD
-        self._came_to = (word, ignored, wrote)
+        with self._lock:
+            if not self._late:
+                self._came_to = (word, ignored, wrote)
+
+    def _give_up_late(self):
+        """A pass whose access has run longer than BOUND is given up, once: LATE is stamped and said as any word is, and
+        the pass, still held, is never joined - nor another begun beside it."""
+        with self._lock:
+            if self._late or self._came_to is not None or self._touched is None                     or not self._clock() - self._touched > BOUND:
+                return
+            self._late = True
+            self._came_to = (LATE, self._ignored, None)
+        self._take_up()
 
     def _take_up(self):
         """What the last pass came to, into the stamps and the journal: one line when the word changes, and one line when
         files are ignored where none or fewer were, at most once an hour whatever their count - so a folder that stays gone,
         a bad file that stays, or a thousand that come and go, say so once and cost the tick one write."""
-        came_to, self._came_to = self._came_to, None
+        with self._lock:
+            came_to, self._came_to = self._came_to, None
         if came_to is None:
             return
         word, ignored, wrote = came_to
@@ -520,3 +608,42 @@ def waiting_word(stamp):
 
 def make(paths) -> FleetView:
     return FleetView(paths)
+
+
+# The one bounded access in flight in this process (`bounded`), and the lock its place is taken under.
+_ACCESS_LOCK = threading.Lock()
+_access = None
+
+
+def bounded(call, bound=None):
+    """call()'s answer, or what it raised, from a thread of its own waited on `bound` seconds at most - for the Dashboard's
+    save, whose process answers the window (`bound`: BOUND). TimeoutError where it did not answer in time, or where the access before it
+    is still held past the same bound: at most one is in flight, so a share that stopped answering holds one thread."""
+    global _access
+    deadline = time.monotonic() + (BOUND if bound is None else bound)
+    while True:
+        with _ACCESS_LOCK:
+            before = _access
+            if before is None or not before.is_alive():
+                box = []
+
+                def run():
+                    try:
+                        box.append((True, call()))
+                    except BaseException as error:     # handed to the caller, never lost on the thread
+                        box.append((False, error))
+                worker = threading.Thread(target=run, daemon=True, name="car-fleet-access")
+                worker.start()
+                _access = worker
+                break
+        left = deadline - time.monotonic()
+        if left <= 0:
+            raise TimeoutError("the shared folder did not answer in time")
+        before.join(left)
+    worker.join(max(0.0, deadline - time.monotonic()))
+    if not box:
+        raise TimeoutError("the shared folder did not answer in time")
+    done, value = box[0]
+    if done:
+        return value
+    raise value

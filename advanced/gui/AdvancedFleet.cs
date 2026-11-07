@@ -213,8 +213,10 @@ namespace CodexAutoResume
                 return Word("page.fleet.stand.held", "A file in the folder is held, perhaps by your sync tool. It waits, and tries again in 5 minutes.");
             if (stand == "not_ours")
                 return Word("page.fleet.stand.not_ours", "A file with this PC's name is there that this PC did not write, so it was left alone. Give each PC its own name.");
-            if (stand == "inside" || stand == "link" || stand == "network" || stand == "invalid")
-                return Word("page.fleet.stand.refused", "This folder cannot be used: it is inside this program's or Codex's folder, it is a link or a network path, or it is not a folder.");
+            if (stand == "late")
+                return Word("page.fleet.stand.late", "The shared folder did not answer in time. It tries again in 5 minutes.");
+            if (stand == "inside" || stand == "link" || stand == "invalid")
+                return Word("page.fleet.stand.refused", "This folder cannot be used: it is inside this program's or Codex's folder, it is a link, or it is not a folder on a drive or a network share.");
             return null;
         }
 

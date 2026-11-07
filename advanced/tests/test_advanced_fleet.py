@@ -16,6 +16,7 @@ import stat
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from unittest.mock import patch
 
@@ -336,9 +337,7 @@ class ConfinementTests(FleetCase):
         self.junction(link, self.paths.home)
         self.assertEqual(fleet.folder_problem(str(link / "shared"), self.paths), fleet.INSIDE)
 
-    def test_a_network_path_and_what_is_no_folder_are_refused(self):
-        self.assertEqual(fleet.folder_problem("\\\\server\\share\\x", self.paths), fleet.NETWORK)
-        self.assertEqual(fleet.folder_problem("//server/share/x", self.paths), fleet.NETWORK)
+    def test_what_is_no_folder_is_refused(self):
         for bad in ("", None, 3, "relative\\path", "C:relative", "C:\\a\nb", "C:\\" + "x" * 300):
             with self.subTest(bad):
                 self.assertEqual(fleet.folder_problem(bad, self.paths), fleet.INVALID)
@@ -804,6 +803,256 @@ class ReadOnlyTests(unittest.TestCase):
         self.assertIn('open(path, "rb")', text)
         for write in ("unlink", "replace", "remove", '"w'):
             self.assertNotIn(write, text)
+
+
+# ------------------------------------------------------------------ the owner, 2026-11-07: a network share may be the folder
+SHARES = ("\\\\server\\share\\synced", "//server/share/synced", "\\\\server\\share", "\\\\server\\share\\",
+          "\\\\nas-1\\Shared Docs\\pcs")
+DEVICES = ("\\\\?\\C:\\synced", "\\\\.\\C:\\synced", "\\\\?\\UNC\\server\\share\\synced", "//?/C:/synced", "//./C:/synced",
+           "\\\\.\\pipe\\synced", "\\\\server", "\\\\server\\", "\\\\\\server\\share", "\\\\server\\\\share", "\\\\ \\share\\x",
+           "\\\\..\\share\\x")
+
+
+class ShareTests(FleetCase):
+    """A share (`\\\\server\\share\\...`, `//server/share/...`, a mapped drive whose real path is one) is a folder; a device
+    path is not. No share is reached: every file call a share path would make is answered here by the synced folder."""
+
+    def standing_in(self, real=None, same=None):
+        """Every call on a share path is answered by the synced folder, or by `same` for os.stat, and realpath by `real`."""
+        lstat, stat_, realpath = os.lstat, os.stat, os.path.realpath
+
+        def shared(path):
+            return str(path).startswith(("\\\\", "//"))
+
+        def fake_lstat(path, *rest, **named):
+            return lstat(self.folder) if shared(path) else lstat(path, *rest, **named)
+
+        def fake_stat(path, *rest, **named):
+            if shared(path):
+                return stat_(same) if same is not None else stat_(self.folder)
+            return stat_(path, *rest, **named)
+
+        def fake_realpath(path, *rest, **named):
+            if real is not None and os.path.normcase(str(path)) == os.path.normcase(str(self.folder)):
+                return real
+            return str(path) if shared(path) else realpath(path, *rest, **named)
+        for stand_in in (patch.object(os, "lstat", fake_lstat), patch.object(os, "stat", fake_stat),
+                         patch.object(os.path, "realpath", fake_realpath),
+                         patch.object(fleet, "_linked", lambda path: False if shared(path) else self.linked(path))):
+            stand_in.start()
+            self.addCleanup(stand_in.stop)
+
+    def setUp(self):
+        super().setUp()
+        self.linked = fleet._linked
+
+    def test_a_share_is_a_folder(self):
+        """Fails with a share refused (fleet.NETWORK, as it was until 2026-11-07)."""
+        self.standing_in()
+        for folder in SHARES:
+            with self.subTest(folder):
+                self.assertIsNone(fleet.folder_problem(folder, self.paths))
+
+    def test_a_device_path_is_refused_without_a_file_call(self):
+        """Fails with `\\\\?\\`, `\\\\.\\` or `\\\\?\\UNC\\` written by hand taken for a folder, or looked at to decide."""
+        with patch.object(os, "lstat", side_effect=AssertionError("looked at")), \
+                patch.object(os, "stat", side_effect=AssertionError("looked at")):
+            for folder in DEVICES:
+                with self.subTest(folder):
+                    self.assertEqual(fleet.folder_problem(folder, self.paths), fleet.INVALID)
+
+    def test_a_mapped_drive_whose_real_path_is_a_share_is_a_folder(self):
+        """Fails with a drive refused because its real path is a share's."""
+        self.standing_in(real="\\\\server\\share\\synced")
+        self.assertIsNone(fleet.folder_problem(str(self.folder), self.paths))
+
+    def test_a_share_that_is_the_codex_home_by_another_name_is_inside(self):
+        """An administrative share names this PC's own drive: what the file system says it is decides, not its name."""
+        self.standing_in(same=self.codex)
+        self.assertEqual(fleet.folder_problem("\\\\localhost\\c$\\somewhere\\.codex", self.paths), fleet.INSIDE)
+
+    def test_the_other_checks_still_hold_on_a_share(self):
+        self.standing_in()
+        with patch.object(fleet, "_linked", return_value=True):
+            self.assertEqual(fleet.folder_problem("\\\\server\\share\\x", self.paths), fleet.LINK)
+        file = self.scratch / "a-file"
+        file.write_text("x")
+        with patch.object(os, "lstat", lambda path, *rest, **named: os.stat(file)):
+            self.assertEqual(fleet.folder_problem("\\\\server\\share\\x", self.paths), fleet.INVALID)
+        with patch.object(os, "lstat", side_effect=FileNotFoundError()):
+            self.assertEqual(fleet.folder_problem("\\\\server\\share\\x", self.paths), fleet.MISSING)
+
+    def test_save_keeps_a_share(self):
+        self.on()
+        self.standing_in()
+        found = card.save(self.rt, "laptop", "\\\\server\\share\\synced", self.rt.state.meta()["generation"])
+        self.assertTrue(found["done"], found)
+        self.assertEqual(found["folder"], "\\\\server\\share\\synced")
+
+
+class Blocking:
+    """A share whose listing does not answer until `release` is set: os.scandir on the synced folder blocks, and each call
+    is counted. Everything else is the real call."""
+
+    def __init__(self, test, folder):
+        self.folder = os.path.normcase(str(folder))
+        self.entered = threading.Event()
+        self.release = threading.Event()
+        self.calls = 0
+        self.real = os.scandir
+        test.addCleanup(self.release.set)
+        stand_in = patch.object(os, "scandir", self)
+        stand_in.start()
+        test.addCleanup(stand_in.stop)
+
+    def __call__(self, path=".", *rest, **named):
+        if os.path.normcase(str(path)) == self.folder:
+            self.calls += 1
+            self.entered.set()
+            self.release.wait(60)
+        return self.real(path, *rest, **named)
+
+
+class LateTests(FleetCase):
+    """A share that stopped answering never holds the watcher's tick: past BOUND seconds the pass is given up, says LATE,
+    starts nothing beside itself while held, and the next pass reads the share once it answers."""
+
+    def setUp(self):
+        super().setUp()
+        self.clock = [1000.0]
+        self.code._clock = lambda: self.clock[0]
+        self.code._spawn = fleet._thread
+        self.addCleanup(self.finish)
+
+    def finish(self):
+        worker = self.code._worker
+        if worker is not None and hasattr(worker, "join"):
+            worker.join(10)
+
+    def timed(self, after=0):
+        began = time.monotonic()
+        answer = self.look(after)
+        return answer, time.monotonic() - began
+
+    def test_a_share_that_does_not_answer_holds_no_tick_says_late_and_starts_no_second_access(self):
+        """Fails with the tick waiting on the pass, with no word for a share that did not answer in time, or with a second
+        pass begun beside one still held."""
+        self.on()
+        self.save()
+        self.put("desk.json", peer("desk"))
+        share = Blocking(self, self.folder)
+        threads = sum(1 for each in threading.enumerate() if each.name == "car-fleet")
+        _answer, took = self.timed()
+        self.assertLess(took, 1, "the tick waited on the folder")
+        self.assertTrue(share.entered.wait(10), "the pass never reached the folder")
+        self.assertIsNone(self.stamp(OptionKey.FLEET_WAITING), "given up before its bound")
+        self.clock[0] += fleet.BOUND + 1
+        answer, took = self.timed(after=1)
+        self.assertIs(answer, DEFER)
+        self.assertLess(took, 1)
+        self.assertEqual(self.stamp(OptionKey.FLEET_WAITING), fleet.WAITING_WORDS.index(fleet.LATE) + 1)
+        self.assertEqual(card.view(self.rt)["stand"], fleet.LATE)
+        for _ in range(3):
+            self.clock[0] += fleet.EVERY
+            answer, took = self.timed(after=fleet.EVERY + 1)
+            self.assertIs(answer, DEFER, "a second pass beside the one still held")
+            self.assertLess(took, 1)
+        self.assertEqual(share.calls, 1, "a second access to the folder while the first still hangs")
+        self.assertEqual(sum(1 for each in threading.enumerate() if each.name == "car-fleet"), threads + 1)
+        self.assertEqual([code for code in self.journal() if code.startswith("fleet.")], ["fleet.waiting"])
+
+    def test_once_the_share_answers_the_next_pass_reads_it_and_the_late_one_keeps_nothing(self):
+        """Fails with the given-up pass's late answer taken for the next pass's, or with no pass after it."""
+        self.on()
+        self.save()
+        self.put("desk.json", peer("desk"))
+        share = Blocking(self, self.folder)
+        self.look()
+        self.assertTrue(share.entered.wait(10))
+        self.clock[0] += fleet.BOUND + 1
+        self.look(after=1)
+        share.release.set()
+        self.code._worker.join(10)
+        self.assertFalse(self.code._worker.is_alive())
+        self.look(after=1)                         # what the late pass came to is dropped; it is not five minutes yet
+        self.assertEqual(self.stamp(OptionKey.FLEET_WAITING), fleet.WAITING_WORDS.index(fleet.LATE) + 1)
+        self.assertEqual(card.view(self.rt)["peers"], [], "the given-up pass kept what it read")
+        self.code._spawn = inline
+        self.look(after=fleet.EVERY)
+        self.look()
+        self.assertEqual(share.calls, 2)
+        self.assertIsNone(self.stamp(OptionKey.FLEET_WAITING))
+        found = card.view(self.rt)
+        self.assertEqual((found["stand"], [row["alias"] for row in found["peers"]]), (fleet.OK, ["desk"]))
+
+    def test_a_slow_pass_of_quick_accesses_is_not_late(self):
+        """Each access has its bound, not the pass: files read one after another, each in time, are no LATE however long
+        they take together. A tick is asked between each two, as the watcher's would be."""
+        self.on()
+        self.save()
+        self.code._spawn = inline
+        real = fleet._read_one
+        asked = []
+
+        def slow(*arguments):
+            self.clock[0] += fleet.BOUND - 1
+            self.code._give_up_late()
+            asked.append(1)
+            return real(*arguments)
+        for name in ("a", "b", "c"):
+            self.put(name + ".json", peer(name))
+        with patch.object(fleet, "_read_one", slow):
+            self.look()
+        self.look()
+        self.assertEqual(len(asked), 3)
+        self.assertIsNone(self.stamp(OptionKey.FLEET_WAITING))
+        self.assertEqual(len(card.view(self.rt)["peers"]), 3)
+
+
+class BoundedSaveTests(FleetCase):
+    """The Dashboard's save looks at the folder on a thread of its own, waited on BOUND seconds at most, one at a time."""
+
+    def test_a_share_that_does_not_answer_is_answered_late_and_held_once(self):
+        """Fails with the save waiting on the folder, or starting a second look beside one still held."""
+        self.on()
+        release = threading.Event()
+        self.addCleanup(release.set)
+        looks = []
+
+        def hanging(*arguments):
+            looks.append(1)
+            release.wait(60)
+            return None
+        with patch.object(fleet, "BOUND", 0.3), patch.object(fleet, "folder_problem", hanging):
+            for _ in range(2):
+                began = time.monotonic()
+                found = self.save(folder="\\\\server\\share\\synced")
+                self.assertLess(time.monotonic() - began, 2, "the save waited on the folder")
+                self.assertEqual((found["done"], found.get("problem")), (False, fleet.LATE))
+            self.assertEqual(len(looks), 1, "a second look beside the one still held")
+            release.set()
+            for each in threading.enumerate():
+                if each.name == "car-fleet-access":
+                    each.join(10)
+        self.assertTrue(self.save()["done"])
+
+    def test_what_the_look_raised_reaches_the_save(self):
+        with patch.object(fleet, "folder_problem", side_effect=ValueError("boom")):
+            with self.assertRaises(ValueError):
+                fleet.bounded(lambda: fleet.folder_problem("C:\\x", self.paths))
+        self.assertEqual(fleet.bounded(lambda: 7), 7)
+
+    def test_the_page_and_every_language_name_the_word(self):
+        english = statement.CATALOGS.catalog("en")
+        self.assertIn("did not answer in time", english["page.fleet.stand.late"])
+        self.assertIn("page.fleet.stand.late", statement.PAGE_KEYS)
+        for locale in LOCALES:
+            with self.subTest(locale):
+                catalog = json.loads((PACKAGE / "locales" / (locale + ".json")).read_text(encoding="utf-8"))
+                self.assertTrue(catalog["page.fleet.stand.late"].strip())
+        self.assertIn("network share", english["statement.fleet_view.does"])
+        self.assertIn("anyone who can read that share", english["statement.fleet_view.risks"])
+        self.assertNotIn("network path", english["page.fleet.stand.refused"])
 
 
 if __name__ == "__main__":

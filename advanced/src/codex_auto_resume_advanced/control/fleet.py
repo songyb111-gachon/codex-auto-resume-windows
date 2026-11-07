@@ -7,7 +7,9 @@ the synced folder: it answers from what the watcher's last pass read and kept in
 that stopped answering, or a cloud tool fetching online-only files, never holds the Dashboard's call (security review
 T3, 2026-11-06). Off or watched, nothing of the folder is shown. `advanced-fleet-save` keeps the alias and the folder chosen in a
 dialog of the window, each checked here; both the Dashboard's alone (surfaces.py): no MCP tool reaches them, and nothing
-here acts on a peer. A rename takes this PC's file under its old name with it, where it says it is that one's.
+here acts on a peer. A rename takes this PC's file under its old name with it, where it says it is that one's. The save
+looks at the folder on a thread of its own, waited on a few seconds at most (fleet.bounded): a share that stopped answering
+is answered `late`, never a window held.
 """
 from __future__ import annotations
 
@@ -43,7 +45,11 @@ def save(runtime, alias, folder, generation) -> dict:
         return _refused(Refusal.STALE_GENERATION, runtime)
     if not _standing(runtime, fleet.CAPABILITY):
         return _refused(Refusal.NOT_ON, runtime)
-    problem = "alias" if not fleet.alias_valid(alias) else fleet.folder_problem(folder, runtime.paths)
+    try:
+        problem = "alias" if not fleet.alias_valid(alias) else fleet.bounded(
+            lambda: fleet.folder_problem(folder, runtime.paths))
+    except TimeoutError:
+        problem = fleet.LATE
     if problem is not None:
         found = _refused(Refusal.WORDING_INVALID, runtime)
         found["problem"] = problem
@@ -64,5 +70,8 @@ def save(runtime, alias, folder, generation) -> dict:
     except StateError:
         return _refused(Refusal.STATE_UNAVAILABLE, runtime)
     if was_alias and was_alias != alias and was_folder == folder and fleet.alias_valid(was_alias):
-        fleet.remove_old_name(folder, was_alias)
+        try:
+            fleet.bounded(lambda: fleet.remove_old_name(folder, was_alias))
+        except TimeoutError:
+            pass                                    # left there: the share did not answer in time
     return view(runtime)

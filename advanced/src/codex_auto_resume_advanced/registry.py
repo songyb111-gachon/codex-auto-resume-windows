@@ -1366,6 +1366,8 @@ STATUS_FEED = CapabilityDef(
 # the person's own sync tool - the reading push_notices gave it: to whom a person chose, never to the developer), D2 (the
 # state keeps a folder path), F3 (a file outside the home) and C4 (it writes on a schedule). Its ceilings are the schema's
 # floor and never bind: it sends nothing to Codex. Paused, P8 is not asked, so nothing is written or read by the watcher.
+# The folder may be a network share (the owner, 2026-11-07), each access to it waited on 5 seconds at most; the statement
+# said so before any release carried it, so its revision is still 1: no person has read another.
 FLEET_VIEW = CapabilityDef(
     id="fleet_view",
     points=frozenset({Point.TICK}),
