@@ -92,8 +92,9 @@ conversation again in an earlier version, as every continuation did, and a watch
   conversation. Its ceiling for the day and
   the global hourly ceiling still hold, the guards and the protection against sending twice are unchanged, a send that another channel
   carries is held as before, and every other continuation counts as before. Where the watcher took one up this way the watch log says
-  *Took it up after a reset the watcher saw*, in all 18 languages, and the watch log keeps the newest 95 lines of what a capability
-  would have done, not 110, so the lines of every capability still fit its bound.
+  *Took it up after a reset the watcher saw*, in all 18 languages.
+- **The watch log keeps the newest 95 lines of what each capability would have done, not 110,** so with the new capabilities above
+  every capability's lines still fit the journal's bound.
 
 ## v0.6.22-beta — A recovery that says when the app is open and its server cannot be matched, a Desktop shortcut you can tick, the core and installer audits' fixes, and the advanced edition's automatic account switch, automatic compatibility check and higher ceilings
 
