@@ -18,7 +18,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import advancedcase as ac  # noqa: E402
-from test_advanced_local_api import TOKEN, ServerCase  # noqa: E402
+from test_advanced_local_api import BEARER_INK, ServerCase  # noqa: E402
 from codex_auto_resume_advanced import registry, statement  # noqa: E402
 from codex_auto_resume_advanced.control import remote as card  # noqa: E402
 from codex_auto_resume_advanced.courier import api, resident  # noqa: E402
@@ -134,7 +134,7 @@ class OpenServerTests(ServerCase):
         self.assertEqual(self.status("/status.json", "POST", host=address), 405)
         for _ in range(9):
             self.assertEqual(self.status("/status.json", host=address, token="wrong"), 401)
-        self.assertEqual(self.status("/status.json", host=address, token=TOKEN), 503)
+        self.assertEqual(self.status("/status.json", host=address, token=BEARER_INK), 503)
 
 
 class ShippedTests(unittest.TestCase):
