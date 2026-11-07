@@ -842,7 +842,8 @@ only while push notices, the status feed, the status server or Telegram's comman
   folder, it does with this file. The name and the folder are kept in this edition's state and in no log or journal. It
   reads the other `.json` files there, at most 16 of at most 16 KiB; one that is not exactly this shape is ignored and
   counted, and shows nowhere. It refuses a folder inside this program's folder or Codex's, a link or junction, and a
-  network path. Turned off, nothing more is written or read and this PC's file stays in the folder until you delete it.
+  device path. The folder may be a network share: then anyone who can read that share can read what each PC writes
+  there, the status above and the usage last read. Turned off, nothing more is written or read and this PC's file stays in the folder until you delete it.
 
 - **What the status server shows** (v0.6.22). With *Read this PC's status from a browser or a script* on, a program on this
   PC holding its token can read what the status file holds - whether the watcher runs, whether recovery is on, how many
