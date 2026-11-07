@@ -12,7 +12,9 @@ and its limits; Turn on and Watch first ask in the dialog with the statement and
 exactly what the page showed - which the real bridge then accepts - and ask again, with what holds now,
 when the bridge says something changed, or say why they cannot (it could not be read again, or a policy
 now refuses it); a refusal is told; a capability that turned itself off says so and why; Turn off and
-Turn every advanced feature off send theirs; the hourly limit is a spin box, and the lowered limit is one
+Turn every advanced feature off send theirs; from v0.6.22 Turn on's dialog carries Keep it on as a switch, on unless
+the person turns it off - for what it needs as well - and off and unmovable where its own check failed here, where it is
+turned on plainly; the hourly limit is a spin box, and the lowered limit is one
 the real bridge takes; the list is read again after every action and when the snapshot's badge says it
 changed; Ctrl+Tab reaches the page; a window that reopens itself on the page comes back to it; and an
 installation that cannot answer shows no tab.
@@ -77,6 +79,35 @@ class PageTests(PageCase):
             "wrap": script["advanced-statement usage_wrap_up"][0]["result"],
             "meter": script["advanced-statement usage_meter"][0]["result"],
             "generation": script["advanced-list"][0]["result"]["generation"]}
+
+    @classmethod
+    def scenario_turn_on_unkept(cls, bridge):
+        """v0.6.22: Turn on, with the dialog's Keep it on switch turned off and then yes: plain on, as before."""
+        _locale, scenario, expected = cls.scenario_turn_on(bridge)
+        scenario["switches"] = [False]
+        return "en", scenario, expected
+
+    @classmethod
+    def scenario_requires_unkept(cls, bridge):
+        """v0.6.22: as scenario_requires, with Keep it on turned off: neither is kept on."""
+        _locale, scenario, expected = cls.scenario_requires(bridge)
+        scenario["switches"] = [False]
+        return "en", scenario, expected
+
+    @classmethod
+    def scenario_failed_here_on(cls, bridge):
+        """v0.6.22: Turn on for a capability whose own compatibility check failed here: Keep it on is off and cannot be
+        moved (the test's switch position is not taken), the question says why, and yes turns it on plainly."""
+        capability = IDS[0]
+        compat = registry.REGISTRY.get(capability).compat
+        bridge.view["capabilities"][compat] = {"state": "FAILED_HERE", "reason": "local_check_failed_here"}
+        script = cls.opening(bridge, "en")
+        steps = [{"do": "snapshot", "reply": snapshot()}, {"do": "show"}, {"do": "choose", "id": capability},
+                 {"do": "reply", "key": "advanced-arm", "with": [{"ok": True, "result": {"done": True}}]},
+                 {"do": "press", "button": "on"}]
+        return "en", {"answers": [True], "switches": [True], "script": script, "steps": steps}, {
+            "statement": script["advanced-statement " + capability][0]["result"],
+            "words": script["advanced-words"][0]["result"]["words"]}
 
     @classmethod
     def scenario_required_off(cls, bridge):
@@ -385,11 +416,15 @@ class PageTests(PageCase):
             self.assertIn(field["title"], question)
             self.assertIn(field["text"], question)
         self.assertIn(shown["engine_version"], question)
+        # v0.6.22: Keep it on is on by default for a new turn-on, said before the statement, and sent with the arm.
+        self.assertEqual(result["choices"], ["Keep it on on"])
+        self.assertLess(question.index("Keep it on, below, is on"), question.index(shown["fields"][0]["text"]))
+        self.assertIn("Turn Keep it on off and it turns itself off when something it relies on goes wrong.", question)
         (arm,) = sent(result, "advanced-arm")
         self.assertEqual(arm, {"capability": MARKER_FREE, "state": "armed", "revision": shown["revision"],
                                "generation": expected["generation"], "engine_version": shown["engine_version"],
-                               "warnings": [item["warning"] for item in shown["warnings"]["items"]]})
-        self.assertEqual(result["note"], "%s is on." % "Marker-free continuation")
+                               "warnings": [item["warning"] for item in shown["warnings"]["items"]], "keep_on": True})
+        self.assertEqual(result["note"], "%s is kept on." % "Marker-free continuation")
         # Read again after the action: the list, the statement and (v0.6.14) the watch log.
         self.assertEqual([line.split(" ", 1)[0] for line in result["sent"][-3:]],
                          ["advanced-list", "advanced-statement", "advanced-watch-log"])
@@ -407,8 +442,55 @@ class PageTests(PageCase):
                 self.assertTrue(reply["done"], reply)
                 listed = bridge("advanced-list", {})["result"]
                 item = next(entry for entry in listed["capabilities"] if entry["id"] == MARKER_FREE)
-                self.assertEqual((item["state"], item["by"]), ("armed", "dashboard"))
+                self.assertEqual((item["state"], item["by"], item["keep_on"]), ("armed", "dashboard", True))
                 self.assertEqual(item["confirmed_warnings"], json.loads(arm_line.split(" ", 1)[1])["warnings"])
+            finally:
+                bridge.close()
+
+    def test_turn_on_with_keep_it_on_turned_off_is_plain_on(self):
+        """v0.6.22: the choice not to keep it on stays - the switch turned off sends the arm as before, and the real
+        bridge turns it on without keeping it on."""
+        result, expected = self.of("scenario_turn_on_unkept")
+        shown = expected["statement"]
+        self.assertEqual(result["choices"], ["Keep it on on"], "shown on; the person turned it off")
+        (arm,) = sent(result, "advanced-arm")
+        self.assertEqual(arm, {"capability": MARKER_FREE, "state": "armed", "revision": shown["revision"],
+                               "generation": expected["generation"], "engine_version": shown["engine_version"],
+                               "warnings": [item["warning"] for item in shown["warnings"]["items"]]})
+        self.assertEqual(result["note"], "%s is on." % "Marker-free continuation")
+        with tempfile.TemporaryDirectory() as home:
+            bridge = Bridge(Path(home))
+            try:
+                bridge.measured = {}
+                self.assertTrue(bridge.request(next(line for line in result["sent"]
+                                                    if line.startswith("advanced-arm ")))["result"]["done"])
+                item = next(entry for entry in bridge("advanced-list", {})["result"]["capabilities"]
+                            if entry["id"] == MARKER_FREE)
+                self.assertEqual((item["state"], item["keep_on"]), ("armed", False))
+            finally:
+                bridge.close()
+
+    def test_turn_on_where_its_check_failed_here_is_plain_on_with_keep_it_on_unavailable(self):
+        """v0.6.22: Keep it on is refused where its own grade is Failed here, so the switch is off and cannot be moved,
+        one line says why, and yes turns it on plainly - never a refusal of the on."""
+        result, expected = self.of("scenario_failed_here_on")
+        self.assertIn("failed_here", [item["warning"] for item in expected["statement"]["warnings"]["items"]])
+        self.assertEqual(result["choices"], ["Keep it on off disabled"])
+        (question,) = result["asked"]
+        self.assertIn(expected["words"]["page.confirm.keep_failed_here"], question)
+        self.assertNotIn(expected["words"]["page.confirm.keep_choice"], question)
+        (arm,) = sent(result, "advanced-arm")
+        self.assertNotIn("keep_on", arm)
+        self.assertEqual(result["told"], [])
+        with tempfile.TemporaryDirectory() as home:
+            bridge = Bridge(Path(home))
+            try:
+                compat = registry.REGISTRY.get(IDS[0]).compat
+                bridge.view["capabilities"][compat] = {"state": "FAILED_HERE", "reason": "local_check_failed_here"}
+                line = next(line for line in result["sent"] if line.startswith("advanced-arm "))
+                self.assertTrue(bridge.request(line)["result"]["done"])
+                item = next(entry for entry in bridge("advanced-list", {})["result"]["capabilities"] if entry["id"] == IDS[0])
+                self.assertEqual((item["state"], item["keep_on"]), ("armed", False))
             finally:
                 bridge.close()
 
@@ -427,7 +509,24 @@ class PageTests(PageCase):
         self.assertEqual(arm["also"], [{"capability": "usage_meter", "revision": meter["revision"],
                                         "engine_version": meter["engine_version"],
                                         "warnings": [item["warning"] for item in meter["warnings"]["items"]]}])
+        # v0.6.22: kept on by default, and what it needs with it.
+        self.assertIn("What it needs is kept on with it, or not, as this one is.", question)
+        self.assertIs(arm["keep_on"], True)
+        self.assertEqual(result["note"], "Wrap up near a limit is kept on, and so is what it needs: Usage meter.")
+        self.assertEqual(self.armed_by_the_real_bridge(result),
+                         {"usage_wrap_up": ("armed", True), "usage_meter": ("armed", True)})
+
+    def test_what_it_needs_follows_keep_it_on_turned_off(self):
+        """v0.6.22: Keep it on turned off - neither the capability nor what it needs is kept on."""
+        result, _ = self.of("scenario_requires_unkept")
+        (arm,) = sent(result, "advanced-arm")
+        self.assertNotIn("keep_on", arm)
         self.assertEqual(result["note"], "Wrap up near a limit is on, and so is what it needs: Usage meter.")
+        self.assertEqual(self.armed_by_the_real_bridge(result),
+                         {"usage_wrap_up": ("armed", False), "usage_meter": ("armed", False)})
+
+    def armed_by_the_real_bridge(self, result):
+        """The page's arm put to this edition's real bridge: each of the two capabilities' state and whether it is kept on."""
         with tempfile.TemporaryDirectory() as home:
             bridge = Bridge(Path(home))
             try:
@@ -435,8 +534,9 @@ class PageTests(PageCase):
                 arm_line = next(line for line in result["sent"] if line.startswith("advanced-arm "))
                 reply = bridge.request(arm_line)["result"]
                 self.assertTrue(reply["done"], reply)
-                states = {entry["id"]: entry["state"] for entry in bridge("advanced-list", {})["result"]["capabilities"]}
-                self.assertEqual((states["usage_wrap_up"], states["usage_meter"]), ("armed", "armed"))
+                return {entry["id"]: (entry["state"], entry["keep_on"])
+                        for entry in bridge("advanced-list", {})["result"]["capabilities"]
+                        if entry["id"] in ("usage_wrap_up", "usage_meter")}
             finally:
                 bridge.close()
 
@@ -469,6 +569,9 @@ class PageTests(PageCase):
         self.assertIn(failed["text"], asked_second)
         self.assertNotIn(failed["text"], asked_first)
         self.assertEqual(result["told"], [])
+        # v0.6.22: the first question kept it on; the second, with Failed here now holding, cannot and turns it on plainly.
+        self.assertEqual(result["choices"], ["Keep it on on", "Keep it on off disabled"])
+        self.assertIs(first["keep_on"], True)
         # Between the two: the list and the statement read again.
         lines = [line.split(" ", 1)[0] for line in result["sent"]]
         between = lines[lines.index("advanced-arm") + 1:len(lines) - 1 - lines[::-1].index("advanced-arm")]

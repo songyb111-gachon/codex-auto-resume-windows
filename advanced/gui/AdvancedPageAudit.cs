@@ -41,6 +41,9 @@ namespace CodexAutoResume
         private readonly List<string> advancedSent = new List<string>();
         private readonly List<string> advancedAsked = new List<string>();
         private readonly List<string> advancedTold = new List<string>();
+        // v0.6.22: each switch a question showed (Turn on's Keep it on), and the test's positions for the next ones.
+        private readonly List<string> advancedAskedSwitches = new List<string>();
+        private readonly List<bool> advancedSwitchAnswers = new List<bool>();
         // v0.6.23: while a test holds the replies ("hold"), the answers of the requests made, in order, until it lets go.
         private bool advancedHolding;
         private readonly List<MethodInvoker> advancedHeld = new List<MethodInvoker>();
@@ -791,6 +794,7 @@ namespace CodexAutoResume
                 foreach (KeyValuePair<string, object> pair in Map(scenario, "script") ?? new Dictionary<string, object>())
                     form.advancedScript[pair.Key] = new List<object>(pair.Value as List<object> ?? new List<object>());
                 foreach (object answer in Items(scenario, "answers") ?? new List<object>()) form.advancedAnswers.Add(Equals(answer, true));
+                foreach (object position in Items(scenario, "switches") ?? new List<object>()) form.advancedSwitchAnswers.Add(Equals(position, true));
                 var looks = new List<object>();
                 var disabled = new List<object>();
                 var reopened = new List<object>();
@@ -1268,6 +1272,7 @@ namespace CodexAutoResume
                 result["sent"] = new List<object>(form.advancedSent.ToArray());
                 result["asked"] = new List<object>(form.advancedAsked.ToArray());
                 result["told"] = new List<object>(form.advancedTold.ToArray());
+                result["choices"] = new List<object>(form.advancedAskedSwitches.ToArray());
                 result["disabled"] = disabled;
                 result["reopened"] = reopened;
                 result["dialogs"] = dialogs;

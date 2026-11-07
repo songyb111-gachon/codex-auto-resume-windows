@@ -42,6 +42,13 @@ namespace CodexAutoResume
         /// offer of a pre-release asks this way, so a reflex Enter keeps the version that is installed.
         private bool Dialog(string text, string affirm, string away)
         {
+            return Dialog(text, affirm, away, null);
+        }
+
+        /// With `choice` (v0.6.22): a switch or a check box on its own row between the words and the buttons, read by
+        /// the caller once the dialog has closed - the Advanced features page's Keep it on, under its Turn on.
+        private bool Dialog(string text, string affirm, string away, CheckBox choice)
+        {
             // The tests' answers to the window's questions, in place of the dialog (null for every window a person opens):
             // a test that drives a click through its handler must never show a dialog on anyone's desktop.
             if (DialogAnswers != null) return DialogAnswers(text, affirm);
@@ -105,6 +112,21 @@ namespace CodexAutoResume
                     padding.Controls.Add(words);
                 }
                 dialog.Controls.Add(padding);
+                // Docked under the words, above the buttons (added after it, so docked first), inset as they are.
+                int chosen = 0;
+                if (choice != null)
+                {
+                    var row = new Panel();
+                    row.BackColor = Canvas;
+                    row.Dock = DockStyle.Bottom;
+                    row.Padding = Pad(16, 12, 16, 0);
+                    choice.Dock = DockStyle.Top;
+                    row.Controls.Add(choice);
+                    chosen = row.Padding.Vertical + choice.PreferredSize.Height + choice.Margin.Vertical;
+                    row.Height = chosen;
+                    width = Math.Max(width, choice.PreferredSize.Width);
+                    dialog.Controls.Add(row);
+                }
 
                 bool said = false;
                 FlowLayoutPanel buttons = ButtonRow();
@@ -145,7 +167,7 @@ namespace CodexAutoResume
                 // first control, and where the words are in a well that is the well.
                 dialog.ActiveControl = first;
 
-                dialog.ClientSize = new Size(width + 2 * pad, room + pad + buttons.PreferredSize.Height);
+                dialog.ClientSize = new Size(width + 2 * pad, room + pad + chosen + buttons.PreferredSize.Height);
                 dialog.ShowDialog(this);
                 return said;
             }

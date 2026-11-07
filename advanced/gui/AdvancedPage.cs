@@ -1789,6 +1789,11 @@ namespace CodexAutoResume
 
         /// With `keep` (v0.6.16-beta.4, the owner's "Keep it on turns it on"): turn it on and keep it on, in this one
         /// confirmation - Keep it on's warning before the statement it confirms, and keep_on sent with the arm.
+        ///
+        /// Without it, Turn on (v0.6.22, the owner's 2026-11-08): the dialog carries Keep it on as a switch under its words,
+        /// on unless the person turns it off - on, the arm carries keep_on as the card's Keep it on... sends it; off, it is
+        /// turned on plainly. Where its own compatibility check failed here the switch is off and cannot be moved, with
+        /// why, and it is turned on plainly: Keep it on is refused there, turning it on never is.
         private void ArmAdvanced(string id, string state, int round, bool keep)
         {
             // Asked again, after something changed: what holds now may not be askable at all, and the person who said
@@ -1824,18 +1829,36 @@ namespace CodexAutoResume
             string affirm = keep ? Affirm(Word("page.keep_on.turn_on", "Keep it on..."))
                           : state == StateArmed ? Word("page.turn_on", "Turn on") : Word("page.watch", "Watch first");
             string question = ArmQuestion(name, state, statement, round > 0, needs, needed);
+            CheckBox choice = null;
+            if (!keep && state == StateArmed)
+            {
+                bool keepable = !FailedHere(statement);
+                choice = NewCheck(Word("page.keep_on", "Keep it on"), keepable, false);
+                choice.Enabled = keepable;
+                string line = !keepable
+                    ? Word("page.confirm.keep_failed_here", "A compatibility check of what it relies on failed on this computer, so it cannot be kept on: Keep it on, below, is off, and it is turned on without it.")
+                    : Word("page.confirm.keep_choice", "Keep it on, below, is on: it will not turn itself off. When what it does changes, a warning appears, a part of it fails, a continuation it sent cannot be proven to have arrived, or Codex is updated, it stays on and this page tells you. Turn Keep it on off and it turns itself off when something it relies on goes wrong.");
+                if (keepable && needs.Count > 0)
+                    line += " " + Word("page.confirm.keep_needs", "What it needs is kept on with it, or not, as this one is.");
+                question = KeepChoiceQuestion(question, line);
+            }
             if (keep)
                 question = Word("page.confirm.keep_on", "Keep {name} on? It will not turn itself off. When what it does changes, a warning appears, a part of it fails, a continuation it sent cannot be proven to have arrived, or Codex is updated, it stays on and this page tells you; a part that fails skips only that one recovery. You can always turn it off here, from Codex or with every advanced feature at once. Its limits stay, and your administrator's policy still applies.", "name", name)
                            + Environment.NewLine + Environment.NewLine + question;
             // The safe answer is the default: Enter and Escape leave it as it is, and only the button that names the
             // action says yes (Dialog, as the update check's offer of a pre-release asks).
-            if (!AskAdvanced(question, affirm)) return;
+            if (!AskAdvanced(question, affirm, choice)) return;
+            bool kept = keep || (choice != null && choice.Enabled && choice.Checked);
+            if (kept && !keep) argument = argument.Substring(0, argument.Length - 1) + ",\"keep_on\":true}";
             AdvancedCall("advanced-arm", argument, true, delegate(Dictionary<string, object> reply)
             {
                 Dictionary<string, object> result = AdvancedResult(reply);
                 if (AdvancedDone(result))
                 {
-                    string done = keep ? Word("page.done.keep_on", "{name} is kept on.", "name", name)
+                    string done = kept && needs.Count > 0
+                                  ? Word("page.done.keep_on_with", "{name} is kept on, and so is what it needs: {names}.", "name", name)
+                                    .Replace("{names}", NamesOf(needs))
+                                  : kept ? Word("page.done.keep_on", "{name} is kept on.", "name", name)
                                   : state != StateArmed ? Word("page.done.watch", "{name} is being watched. It does nothing yet.", "name", name)
                                   : needs.Count > 0 ? Word("page.done.on_with", "{name} is on, and so is what it needs: {names}.", "name", name)
                                                       .Replace("{names}", NamesOf(needs))
@@ -1858,6 +1881,24 @@ namespace CodexAutoResume
                 ReadAdvanced(null);
                 TellAdvanced(AdvancedRefusal(result));
             });
+        }
+
+        /// Whether a statement carries the warning that its own compatibility check failed on this computer: Keep it on is
+        /// refused there (arming.arm, FAILED_HERE), so Turn on's switch is off and cannot be moved.
+        private static bool FailedHere(Dictionary<string, object> statement)
+        {
+            foreach (object entry in Items(Map(statement, "warnings"), "items") ?? new List<object>())
+                if (Str(entry as Dictionary<string, object>, "warning") == "failed_here") return true;
+            return false;
+        }
+
+        /// The Turn on question with Keep it on's line after its first paragraph - what is asked - so it is read before the
+        /// statements, wherever the words scroll.
+        private static string KeepChoiceQuestion(string question, string line)
+        {
+            string gap = Environment.NewLine + Environment.NewLine;
+            int first = question.IndexOf(gap, StringComparison.Ordinal);
+            return first < 0 ? question + gap + line : question.Substring(0, first) + gap + line + question.Substring(first);
         }
 
         /// Why `state` of `id` cannot be asked for now, in words, or null where it can: another action under way, or the
@@ -2118,7 +2159,24 @@ namespace CodexAutoResume
         /// The window's own dialog, with the safe answer the default (Dialog); a test's answer in a window a test drives.
         private bool AskAdvanced(string question, string affirm)
         {
-            if (advancedScript == null) return Dialog(question, affirm, S("action.cancel", "Cancel"));
+            return AskAdvanced(question, affirm, null);
+        }
+
+        /// With `choice` (v0.6.22): the switch the dialog shows under its words, left as the person left it. In a window a
+        /// test drives, how it was shown is written down ("<words> on|off[ disabled]") and the test's next switch position,
+        /// if any, moves one that can be moved.
+        private bool AskAdvanced(string question, string affirm, CheckBox choice)
+        {
+            if (advancedScript == null) return Dialog(question, affirm, S("action.cancel", "Cancel"), choice);
+            if (choice != null)
+            {
+                advancedAskedSwitches.Add(choice.Text + (choice.Checked ? " on" : " off") + (choice.Enabled ? "" : " disabled"));
+                if (advancedSwitchAnswers.Count > 0)
+                {
+                    if (choice.Enabled) choice.Checked = advancedSwitchAnswers[0];
+                    advancedSwitchAnswers.RemoveAt(0);
+                }
+            }
             advancedAsked.Add(question);
             bool yes = advancedAnswers.Count > 0 && advancedAnswers[0];
             if (advancedAnswers.Count > 0) advancedAnswers.RemoveAt(0);
