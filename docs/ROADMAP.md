@@ -1183,7 +1183,7 @@ release one on: what v0.6.20 had planned of the advanced edition's network surfa
 to v0.6.22 on 2026-11-02. As in v0.6.20,
 every capability here is the advanced edition's alone, off until a person turns it on, with a statement that names the standards it departs from.
 
-### v0.6.22-beta 🚧 — The #58 follow-up, a Desktop shortcut, the audits' fixes, and the advanced edition's automatic switch, check and ceilings (a pre-release)
+### v0.6.22-beta ✅ — The #58 follow-up, a Desktop shortcut, the audits' fixes, and the advanced edition's automatic switch, check and ceilings (a pre-release)
 
 The first pre-release of v0.6.22, under the plan the owner confirmed on 2026-11-05 (the plan for v0.6.22 to v0.6.25, in stages). In both
 editions: when the app is open and its server cannot be matched, a recovery says so plainly and the compatibility check covers it
@@ -1193,11 +1193,20 @@ fixes and the installer audit's thirteen; the Dashboard's bridge answering while
 the automatic account switch, offered now that its two measurements passed, with a statement that quotes OpenAI's Terms of Use and a
 bound of ten switches in any 24 hours; Codex's own retry settings, which stay hidden because their measurement failed; the automatic
 compatibility check; the ceilings raised as the owner's table set them; the advanced audit's fixes; and the chat that keeps what is
-typed. The loopback API and its web view follow in v0.6.22-beta.2, after a security review of their own; remote control over Telegram and a
-view of other PCs in v0.6.22-beta.3; and the final re-measures everything on the Codex then in force, with the advanced edition's
-compatibility skill and the first data published with it.
+typed. The loopback API and its web view, remote control over Telegram and a view of other PCs came in v0.6.22-beta.2, and the final
+re-measures everything on the Codex then in force, with the advanced edition's compatibility skill and the first data published with it.
 
-### The loopback API, remote control and a view of other PCs
+### v0.6.22-beta.2 🚧 — The Desktop shortcut on the Finish page, and the advanced edition's loopback API, Telegram remote control and view of other PCs (a pre-release)
+
+The second pre-release of v0.6.22 and the last before its final. In both editions: the setup window's Desktop shortcut box moves to the
+Finish page, where a tick makes the shortcut and clearing it removes ours. In the advanced edition, each off until a person turns it on:
+the loopback API and its web view on 127.0.0.1, with the actions to pause and cancel and the choice to answer on the local network; remote
+control over Telegram, with the continue-and-lift-a-pause choice; a read-only view of other PCs through a folder the person syncs, which
+may be a network share; and a goal continuation that answers a usage-limit reset the watcher verified no longer counting toward its
+ceiling for one conversation ([#59](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/59)). Everything planned for
+v0.6.22 is now in a pre-release, and the final follows.
+
+### The loopback API, remote control and a view of other PCs (v0.6.22-beta.2)
 
 - a loopback API and web view on 127.0.0.1,
 - remote control over Telegram,
