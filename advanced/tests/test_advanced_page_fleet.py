@@ -97,7 +97,7 @@ class CardSourceTests(unittest.TestCase):
 
     def test_it_says_each_word_the_engine_can_stand_on(self):
         card = source()
-        for word in (fleet.UNSET, fleet.MISSING, fleet.HELD, fleet.NOT_OURS) + fleet.REFUSALS:
+        for word in (fleet.UNSET,) + fleet.WAITING_WORDS:      # LATE among them: the shared folder did not answer in time
             with self.subTest(word):
                 self.assertIn('stand == "%s"' % word, card)
 
