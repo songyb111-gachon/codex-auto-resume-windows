@@ -1,5 +1,100 @@
 # Changelog
 
+## v0.6.22-beta.2 — The Desktop shortcut box on the Finish page, and the advanced edition's loopback API with a web view, remote control from Telegram, a view of your other PCs and goal continuations that answer a verified reset
+
+[The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.22-beta...v0.6.22-beta.2)
+
+**A pre-release: the second of v0.6.22.** It is a GitHub pre-release, so `releases/latest` stays v0.6.21. An installation is offered it
+by *Check for updates* where pre-releases are offered - the check asks first and says it is tested less - and *Install another
+version...* lists it. Everything planned for v0.6.22 is now in it, and the final follows. Both editions change in the first group;
+the second is the advanced edition's alone, and everything it adds is off until you turn it on.
+
+**Going back.** Nothing that an earlier version reads changes: the watcher's state stays schema 5, the settings file gains no key,
+and the advanced edition's own file stays version 9 with no table added. The six new capabilities below keep their choices in the
+tables it has, and an earlier version does not list them, so it passes over those rows: with one of them on, v0.6.22-beta and the
+versions before it start no server and no Telegram process for it, write no file for your other PCs and show no card for it, and the
+rows wait in the file unread. The file for your other PCs lives in the folder you chose, outside the installation, and stays there
+when you go back: delete it by hand if you want it gone. A goal continuation at a verified reset counts toward its ceiling for one
+conversation again in an earlier version, as every continuation did, and a watch-log line with the new word reads there as
+*Something else*. The statement of *Goal continuation* is worded again without a new revision, so nothing turns off at the update.
+
+### Both editions
+
+- **The setup window's Desktop shortcut box stands on the Finish page.** The Options and Maintain pages no longer have it; it comes
+  last, as in an ordinary installer. After an installation, a repair or an update that succeeded - the setup program's or the
+  Dashboard's - the Finish page shows the box, ticked where a shortcut of ours is already on the Desktop. Pressing Finish makes the
+  shortcut when you ticked an empty box and removes ours when you cleared a ticked one; left as it was, nothing changes. A shortcut
+  that cannot be made is said in one line on that page, and the window stays open until the next Finish. A run that failed,
+  an uninstall (which removes ours, as before) and *Install another version...* show no box, and the command line's own
+  `-DesktopShortcut` and `-NoDesktopShortcut` stay for a silent run.
+- For contributors: the Overview can keep room under its two rows of cards for what an edition shows there, a new plug point lets an
+  edition's resident programs stay up while recovery is paused, and the test parts are dealt again by the seconds the tests took.
+
+### Advanced edition
+
+- **Read this PC's status from a browser or a script** (the loopback API and its web view). A small server runs beside the watcher on
+  this PC alone - 127.0.0.1, port 47615 or one you choose from 1024 to 65535 - and answers four things: `GET /status.json`, the
+  status file's own words (whether the watcher runs, whether recovery is on, how many recoveries wait and at which state, the next
+  check, the usage last read), `GET /metrics`, the same as Prometheus text, `GET /pending`, the waiting recoveries as `task 1`,
+  `task 2` and so on with their state and next check and never by name, and `GET /`, a small page that shows them. Every request but
+  the page needs `Authorization: Bearer <token>`. **New token...** makes one, kept in Windows Credential Manager, and makes the old
+  address useless at once; **Copy address**, offered only while the server runs, copies an address that carries the token after `#`,
+  the part a browser never sends, and keeps the copy out of Windows' clipboard history. A request that names the server by any other
+  host name is refused, ten wrong tokens in a minute close it for five minutes, a body over 1 KiB is refused, no answer carries a
+  cross-site header or a cookie, a query string is never read, each request has ten seconds in all, and nothing is logged. Nothing it serves can send
+  to Codex, chat, change a setting or turn a feature on. The watcher restarts the server at most three times an hour, and then the
+  card says it stopped. It goes on running while recovery is paused. Its statement says that a program on this PC that holds the
+  token can read how your recoveries stand, and that Windows' clipboard history and your browser's history keep the address once
+  you copy and open it.
+- **Let whoever holds the token pause and cancel.** On top of the server, off beside it: `POST /pause` (or `POST /resume-off`, the
+  same pause - there is no way to resume from outside) and `POST /cancel/1`, which cancels one waiting recovery by its place on the
+  list with the list's `snapshot` in the body, so a list that changed since it was read answers 409 and cancels nothing. With it off
+  each answers 403. It can only do less: nothing here sends, resumes, gives attempts back or changes a setting, and a cancelled
+  recovery does not come back.
+- **Open the status server to your local network.** Also off beside the server: it then answers on every network this PC is on, so a
+  phone or another PC can read it at this PC's IP address and the port, with the token. A request must name the server by an IP
+  address or as localhost. Windows asks about its firewall the first time; this product never changes a firewall rule, so one you
+  allowed stays after this is off and after an uninstall, and its statement says where to remove it. The connection is not encrypted:
+  its statement says to use it only on a network you trust.
+- **Control recovery from Telegram.** The bot you paired for notices also takes commands, from that one chat and no other: `/status`,
+  `/list` (the recoveries as `task 1`, `task 2`...), `/cancel task 1` against the list it last sent - if the list has changed, it asks
+  you to list again, and a list whose answer never arrived is not what a later task number is read against - and `/pause`. Anything
+  else is answered with the commands, a message from another chat gets no answer, and a command named for a bot is obeyed only
+  when the name is this bot's own. A command older than five minutes is ignored, each is carried out once, and five wrong codes during
+  a pairing turn it off whether or not you keep it on. No command can send to Codex, chat, change a setting or turn a feature on, and
+  no word of a message reaches a conversation. It needs *Send notices to your phone or inbox* on, whose bot and pairing it uses, and it
+  goes on answering while recovery is paused. What other chats send the bot is written to the journal once an hour at most, so a
+  flood cannot push the other capabilities' history out. Its statement says that whoever holds your Telegram account or the paired
+  chat can pause recovery and cancel recoveries that wait.
+- **Let Telegram continue a held recovery and lift a pause.** Off beside it: the paired chat may also send `/continue task 1`, which
+  lets one recovery held for you go on, and `/recovery-on`, which lifts a pause. Neither sends anything itself - the watcher still
+  checks everything before it sends, and an administrator's policy still holds a pause. Its statement says a pause is no longer yours
+  alone while it is on.
+- **See your other PCs.** This PC writes its status every 5 minutes, as one small file named after it, into a folder you choose and
+  keep in sync with a tool of your own - OneDrive, Syncthing, whatever you use - and the Overview gains an **Other PCs** list of the
+  files your other PCs put there: each one's name, whether its watcher runs, how many recoveries wait, its next check and when it
+  wrote. A row only reads; this program never contacts another PC, and whatever moves the file is your tool. The folder may also be a
+  network share (`\\server\share\...`, or a drive letter mapped to one): Windows reaches it, no access to it ever waits more than
+  five seconds, and a share that does not answer in time is skipped and tried again 5 minutes later, so the watcher never waits on it.
+  The file holds the status the status file holds - counts by closed state, the usage last read, the version and the engine's word -
+  and the name you give this PC (1 to 32 letters, digits, spaces or hyphens), and no conversation's id or title, no path, no user name
+  and no account. At most 16 files of at most 16 KiB are read from the folder, a file that is not exactly what this program writes is
+  ignored and counted in the journal (one line an hour at most), a link or a junction, a folder inside this program's or Codex's, and
+  a device path are refused, and it overwrites only a file it wrote itself. A file older than a week shows greyed as *not seen since*,
+  a clock set wrong on another PC is said rather than believed, and while recovery is paused nothing is written. Turned off, this PC's
+  file stays in the folder, so the other PCs show it greyed instead of it vanishing. Its statement says that whoever can read the
+  folder, your sync service or the share's readers among them, sees this PC's name, its counts and its usage.
+- **A goal continuation at a reset the watcher verified no longer counts toward its ceiling for one conversation** (reported by
+  [@Kdevaulo](https://github.com/Kdevaulo), [#59](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/59)).
+  *Goal continuation* answers a goal paused by a usage limit; where the limit's recorded reset has passed and usage shows room before
+  the send, the watcher has verified the reset, and that continuation is claimed against a day of its own - up to 24 in one
+  conversation in 24 hours - with the watcher's own 15 minutes between sends, instead of counting toward the ceiling for one
+  conversation. Its ceiling for the day and
+  the global hourly ceiling still hold, the guards and the protection against sending twice are unchanged, a send that another channel
+  carries is held as before, and every other continuation counts as before. Where the watcher took one up this way the watch log says
+  *Took it up after a reset the watcher saw*, in all 18 languages, and the watch log keeps the newest 95 lines of what a capability
+  would have done, not 110, so the lines of every capability still fit its bound.
+
 ## v0.6.22-beta — A recovery that says when the app is open and its server cannot be matched, a Desktop shortcut you can tick, the core and installer audits' fixes, and the advanced edition's automatic account switch, automatic compatibility check and higher ceilings
 
 [The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.21...v0.6.22-beta)
