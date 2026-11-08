@@ -1,5 +1,5 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
-"""The Dashboard's saved accounts (account_auto_switch, v0.6.22): the bridge's five commands, the Dashboard's alone.
+"""The Dashboard's saved accounts (account_auto_switch, v0.6.22): the bridge's six commands, the Dashboard's alone.
 
 `advanced-accounts` reads the saved accounts as a person may see them - {id, mask, plan, state} each, the address only
 masked (profiles.Profiles.view) - with whether Codex keeps its sign-in in a file here (codex/authfile.usable's word),
@@ -24,11 +24,26 @@ measured to touch nothing real) - at most once every READ_EVERY seconds (`read_n
 (READING with read_done of read_of, then READ, HELD where a switch began meanwhile, or UNKNOWN where who is signed in
 could not be read, when nothing is read). It sends nothing to Codex's conversations and switches nothing.
 
-Adding and saving are refused NOT_ON unless the capability is on or watched - and so while it waits hidden in
-registry.WAITING, when no runtime has it at all. Reading the card and deleting answer in every state - on, watched, off
-and hidden - so a saved sign-in can always be taken off this PC (the security review's finding 3); `offered` says
-whether the capability is in this runtime at all, so the window shows the card under account_switch's while it is
-hidden and copies are kept. Adding and saving keep a person's own accounts; nothing here switches one.
+`advanced-accounts-switch` (v0.6.22 final, the owner's 2026-11-08) is Switch to this account: {"id": <a saved account's
+row>}, after the window asked first, switches Codex to that account now - the automatic switch's own switch
+(engine/autoswitch.AutoSwitch.put_in: the swap, the close and restart, the sign-in check and the undo of a switch that
+did not finish), on a thread of this process's own; the card follows `switch_state` (SWITCHING, then the outcome word,
+said once as `add_state` is) with `switch_mask`, the account's masked address. It is refused, with nothing changed, for an
+account that is not a saved row (OPTION_INVALID), the account in use (ACCOUNT_IN_USE), one that needs a new sign-in or
+cannot be opened (ACCOUNT_NOT_READY), a sign-in kept outside a file (SIGN_IN_NOT_FILE), while a turn runs, something is
+queued in Codex or a recovery other than a usage-limit wait waits or runs (codex/restart.busy: RESTART_BUSY), while another
+Codex engine runs that may use this home (OTHER_ENGINE), while a switch, a put-back or a usage read holds the saved
+accounts or one of this card's own runs (ACCOUNTS_HELD), and before the automatic switch is offered at all
+(SWITCH_UNMEASURED). The click and the window's question are the person's consent: it needs neither capability on, it is
+never counted toward the automatic switch's ceiling, and it is journalled in its own words (MANUAL_SWITCHED,
+MANUAL_NOT_FINISHED, MANUAL_NOT_DONE). Nothing switches on its own here.
+
+Since the v0.6.22 final the saved accounts are one store under both account capabilities' cards (the owner, 2026-11-08):
+adding, saving and Read usage answer while account_auto_switch or account_switch is on or watched (`_kept_standing`), and
+are refused NOT_ON while neither is - and so while account_auto_switch waits hidden in registry.WAITING and account_switch
+is off. Reading the card and deleting answer in every state - on, watched, off and hidden - so a saved sign-in can always
+be taken off this PC (the security review's finding 3); `offered` says whether account_auto_switch is in this runtime at
+all. Adding and saving keep a person's own accounts.
 """
 from __future__ import annotations
 
@@ -36,16 +51,21 @@ import threading
 import time
 from pathlib import Path
 
-from ..vocabulary import Refusal
+from ..vocabulary import ArmingState, OptionKey, Refusal
 from .resets import _refused, _standing
 
 CAPABILITY = "account_auto_switch"
+# The capabilities whose cards show the saved accounts: either on or watched lets a person add, save and read them.
+STANDING = (CAPABILITY, "account_switch")
 WAITING, ADDED, NOT_ADDED = "waiting", "added", "not_added"
 # Read usage's states, and how often it may begin: once every ten minutes (the owner's mock, 2026-11-08).
 READING, READ, HELD, UNKNOWN = "reading", "read", "held", "unknown"
 READ_EVERY = 600
+# Switch to this account's state while it runs.
+SWITCHING = "switching"
 _ADDING = {}
 _READING = {}
+_SWITCHING = {}
 _LOCK = threading.Lock()
 
 
@@ -57,6 +77,11 @@ def _saved(runtime):
 def _codex_home(runtime):
     from ..codex import inuse
     return inuse.home(runtime.paths)
+
+
+def _kept_standing(runtime) -> bool:
+    """Whether either account capability whose card shows the saved accounts is on or watched."""
+    return any(_standing(runtime, capability) for capability in STANDING)
 
 
 def _sweep(store, codex_home=None) -> None:
@@ -78,7 +103,7 @@ def view(runtime, *, store=None, codex_home=None, usage=None, now=None) -> dict:
     from ..codex import authfile
     from ..vocabulary import OptionKey
     store = store or _saved(runtime)
-    standing = _standing(runtime, CAPABILITY)
+    standing = _kept_standing(runtime)
     word = None
     if standing:
         try:
@@ -95,12 +120,16 @@ def view(runtime, *, store=None, codex_home=None, usage=None, now=None) -> dict:
         if add_state in (ADDED, NOT_ADDED):
             _ADDING.pop(Path(runtime.paths.home), None)  # said once, as the card's other done-lines are
         reading = dict(_READING.get(Path(runtime.paths.home)) or {})
+        switching = dict(_SWITCHING.get(Path(runtime.paths.home)) or {})
+        if switching.get("state") not in (None, SWITCHING):
+            _SWITCHING.pop(Path(runtime.paths.home), None)   # said once, as Add an account's ending is
     try:
         offered = runtime.registry.get(CAPABILITY) is not None
     except Exception:
         offered = False
     answer = {"done": True, "refusal": None, "store": word, "add_state": add_state, "switched_at": switched,
-              "offered": offered, "standing": standing}
+              "offered": offered, "standing": standing, "switch_state": switching.get("state"),
+              "switch_mask": switching.get("mask")}
     answer.update(meters(runtime, store, reading, now if now is not None else time.time(), usage=usage))
     return answer
 
@@ -123,8 +152,7 @@ def meters(runtime, store, reading, now, *, usage=None) -> dict:
     from ..engine.autoswitch import best
     from ..profiles import READY
     rows = store.view()
-    seen = [row for row in rows if type(row.get("seen_at")) is int]
-    in_use = max(seen, key=lambda row: row["seen_at"])["id"] if seen else None
+    in_use = _in_use(rows)
     live = usage if usage is not None else _watcher_usage(runtime)
     failed = set(reading.get("failed") or ())
     shown, candidates, read_at = [], [], []
@@ -158,7 +186,7 @@ def meters(runtime, store, reading, now, *, usage=None) -> dict:
 def read(runtime, *, store=None, start=None, run=None, read_real=None, now=None) -> dict:
     """advanced-accounts-read, Read usage; see the module. `start` (how the thread is started), `run`
     (swap.read_profile's shape) and `read_real` (the account read on the real home) are a test's."""
-    if not _standing(runtime, CAPABILITY):
+    if not _kept_standing(runtime):
         return _refused(Refusal.NOT_ON)
     store = store or _saved(runtime)
     home = Path(runtime.paths.home)
@@ -246,7 +274,7 @@ def read_all(paths, store, home, *, run=None, read_real=None, clock=time.time) -
 def add(runtime, *, start=None, run=None) -> dict:
     """advanced-accounts-add; see the module. `start` (how the thread is started) and `run` (swap.add_by_login's shape,
     given the paths and the store) are a test's."""
-    if not _standing(runtime, CAPABILITY):
+    if not _kept_standing(runtime):
         return _refused(Refusal.NOT_ON)
     home = Path(runtime.paths.home)
     with _LOCK:
@@ -275,7 +303,7 @@ def add(runtime, *, start=None, run=None) -> dict:
 
 def save(runtime, *, store=None, codex_home=None, read_real=None) -> dict:
     """advanced-accounts-save; see the module."""
-    if not _standing(runtime, CAPABILITY):
+    if not _kept_standing(runtime):
         return _refused(Refusal.NOT_ON)
     from ..codex.swap import save_current
     saved = save_current(runtime.paths, store or _saved(runtime),
@@ -304,3 +332,111 @@ def delete(runtime, argument, *, store=None, codex_home=None) -> dict:
             return {"done": True, "refusal": None, "deleted": int(store.delete(profile_id))}
     except Locked:
         return _refused(Refusal.ACCOUNTS_HELD)            # a switch, a read or a save holds them (the audit's M10)
+
+
+def _in_use(rows):
+    """The row the card says is in use (the one this product last found signed in, profiles' `seen_at`), or None."""
+    seen = [row for row in rows if type(row.get("seen_at")) is int]
+    return max(seen, key=lambda row: row["seen_at"])["id"] if seen else None
+
+
+def _manual(runtime, store, codex_home):
+    """The automatic switch's own code, on this installation, for a person's switch."""
+    from ..engine.autoswitch import AutoSwitch
+    return AutoSwitch(runtime.paths, store=store, home=codex_home)
+
+
+def _other_engine() -> bool:
+    """Whether a Codex engine runs that may use this home and is not the app's own (codex/swap.other_engines)."""
+    from ..codex import swap
+    return swap.other_engines(swap._inventory(), app_open=True)
+
+
+def _journal(runtime, word) -> None:
+    """One line of a person's switch, under the automatic switch - or under account_switch, from whose card it may be
+    asked too, where the automatic switch is not in this runtime."""
+    for capability in STANDING:
+        try:
+            if runtime.registry.get(capability) is not None and runtime.state.counted(capability, word):
+                return
+        except Exception:
+            pass
+
+
+def switch(runtime, argument, *, store=None, codex_home=None, start=None, code=None, engines=None, now=None) -> dict:
+    """advanced-accounts-switch, Switch to this account; see the module. `store`, `codex_home`, `start` (how the thread is
+    started), `code` (the automatic switch's AutoSwitch, or a stand-in with its `busy` and `put_in`), `engines` (whether
+    another Codex engine runs) and `now` are a test's."""
+    from ..codex import authfile
+    from ..engine import autoswitch as engine
+    from ..profiles import DAMAGED, Locked, NEEDS_SIGN_IN
+    profile_id = argument.get("id") if isinstance(argument, dict) else None
+    if not isinstance(profile_id, str):
+        return _refused(Refusal.OPTION_INVALID)
+    try:
+        offered = runtime.registry.get(CAPABILITY) is not None
+    except Exception:
+        offered = False
+    if not offered:
+        return _refused(Refusal.SWITCH_UNMEASURED)       # the switch it would run is not offered on this Codex
+    store = store or _saved(runtime)
+    rows = store.view()
+    row = next((each for each in rows if each["id"] == profile_id), None)
+    if row is None:
+        return _refused(Refusal.OPTION_INVALID)
+    if profile_id == _in_use(rows):
+        return _refused(Refusal.ACCOUNT_IN_USE)
+    if row["state"] in (NEEDS_SIGN_IN, DAMAGED):
+        return _refused(Refusal.ACCOUNT_NOT_READY)
+    codex_home = codex_home if codex_home is not None else _codex_home(runtime)
+    try:
+        usable = authfile.usable(codex_home)
+    except Exception:
+        usable = authfile.UNREADABLE
+    if usable != authfile.USABLE:
+        return _refused(Refusal.SIGN_IN_NOT_FILE)        # keyring, auto or ephemeral: nothing can be switched
+    code = code or _manual(runtime, store, codex_home)
+    if code.busy():
+        return _refused(Refusal.RESTART_BUSY)            # a turn runs, something is queued, a recovery is sent
+    if (engines or _other_engine)():
+        return _refused(Refusal.OTHER_ENGINE)
+    home = Path(runtime.paths.home)
+    with _LOCK:
+        if ((_SWITCHING.get(home) or {}).get("state") == SWITCHING
+                or (_READING.get(home) or {}).get("state") == READING or store.intent() is not None):
+            return _refused(Refusal.ACCOUNTS_HELD)
+        try:
+            with store.locked(0):
+                pass
+        except Locked:
+            return _refused(Refusal.ACCOUNTS_HELD)       # another process's switch, put-back, read or save
+        _SWITCHING[home] = {"state": SWITCHING, "mask": row["mask"]}
+
+    def target():
+        at = int(now if now is not None else time.time())
+        try:
+            outcome, _closed = code.put_in(profile_id, at, manual=True)
+        except Exception:
+            outcome = "failed"
+        if outcome == "switched":
+            word = engine.MANUAL_SWITCHED
+            try:
+                # The automatic switch's early look at the recoveries waiting for a usage limit follows it, where it is on.
+                if runtime.states(fresh=True).get(CAPABILITY) == ArmingState.ARMED:
+                    runtime.state.stamp(CAPABILITY, OptionKey.AUTO_SWITCHED_AT, max(1, at))
+            except Exception:
+                pass
+        elif outcome in engine.MANUAL_NOTHING:
+            word = engine.MANUAL_NOT_DONE
+        else:
+            word = engine.MANUAL_NOT_FINISHED
+        _journal(runtime, word)
+        with _LOCK:
+            _SWITCHING[home] = {"state": outcome, "mask": row["mask"]}
+    try:
+        (start or (lambda job: threading.Thread(target=job, name="account-switch-to", daemon=True).start()))(target)
+    except Exception:
+        with _LOCK:
+            _SWITCHING.pop(home, None)
+        return _refused(Refusal.STATE_UNAVAILABLE)
+    return {"done": True, "refusal": None, "switch_state": SWITCHING, "switch_mask": row["mask"]}

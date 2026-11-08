@@ -185,6 +185,13 @@ class Refusal(StrEnum):
     SWITCH_RUNNING = "switch_running"
     # v0.6.22 final (the reachability audit's M10): a Delete of a saved account while a switch, a read or a save holds them.
     ACCOUNTS_HELD = "accounts_held"
+    # v0.6.22 final (Switch to this account, control/autoswitch.switch): the account picked is the one in use; it needs a
+    # new sign-in or cannot be opened; Codex keeps its sign-in outside a file here (keyring, auto, ephemeral); and another
+    # Codex engine runs that may use this home (codex/swap.other_engines). Nothing is changed.
+    ACCOUNT_IN_USE = "account_in_use"
+    ACCOUNT_NOT_READY = "account_not_ready"
+    SIGN_IN_NOT_FILE = "sign_in_not_file"
+    OTHER_ENGINE = "other_engine"
     # v0.6.20 final (account_switch's restart, control/account.restart): Restart asked while a turn runs, a recovery
     # waits or runs or something is queued in Codex (codex/restart.busy); asked while one runs; and asked with no sign-in
     # of this Dashboard's to restart Codex for.
@@ -505,6 +512,10 @@ class BridgeCommand(StrEnum):
     # v0.6.22 final: Read usage - every saved account's usage read now, one at a time in the background, at most once
     # every ten minutes; nothing sent, nothing switched (control/autoswitch.read). The Dashboard's alone, never MCP.
     ADVANCED_ACCOUNTS_READ = "advanced-accounts-read"
+    # v0.6.22 final (the owner, 2026-11-08): Switch to this account - a person's own switch to one saved account, the
+    # automatic switch's own switch, from the saved accounts under either account capability's card
+    # (control/autoswitch.switch). The Dashboard's alone, never MCP.
+    ADVANCED_ACCOUNTS_SWITCH = "advanced-accounts-switch"
     # v0.6.19 (the groundwork): every command the stage's designs name, in one block, each the Dashboard's alone and
     # reached by no MCP tool. Until the capability that answers one is built, the bridge passes it over as it passes a
     # command this edition does not have (surfaces.UNANSWERED). The analytics' aggregates and their CSV

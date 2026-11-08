@@ -199,8 +199,9 @@ class SavedSignInsCanAlwaysGo(SwapCase):
 
     def test_the_card_stands_in_every_state_while_copies_are_kept(self):
         source = (self.ROOT / "advanced" / "gui" / "AdvancedAccounts.cs").read_text(encoding="utf-8")
-        self.assertIn("if (id == AccountsId) return Standing(item) || AccountsKept();", source)
-        self.assertIn('return id == AccountId && !Equals(Get(advancedAccounts, "offered"), true) && AccountsKept();', source)
+        # v0.6.22 final (the owner, 2026-11-08): one store under both account capabilities' cards - either column shows it
+        # while that capability stands, or with copies kept in every state.
+        self.assertIn("return (id == AccountsId || id == AccountId) && (Standing(item) || AccountsKept());", source)
         page = (self.ROOT / "advanced" / "gui" / "AdvancedPage.cs").read_text(encoding="utf-8")
         self.assertIn("if (id == AccountsId || id == AccountId)", page)
 
@@ -472,7 +473,8 @@ class AnAppThatDidNotComeBack(SwapCase):
     def test_the_watcher_releases_nothing_early_for_it(self):
         source = (Path(__file__).resolve().parents[1] / "src" / "codex_auto_resume_advanced" / "engine"
                   / "autoswitch.py").read_text(encoding="utf-8")
-        at = source.index("swap.switch(self.paths, store, home, target")
+        # v0.6.22 final: the look switches through put_in, which a person's Switch to this account calls too.
+        at = source.index("outcome, closed = self.put_in(target, now)")
         after = source[at:at + 600]
         self.assertIn("if outcome == swap.SWITCHED:\n            self._switched(now)", after)
         self.assertNotIn("swap.NOT_STARTED):\n            self._switched", after)

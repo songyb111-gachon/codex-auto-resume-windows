@@ -385,6 +385,11 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     # and the reachability audit's R4, M10 and M11: the true reason under the heading, a Delete held by a switch or a read,
     # and Save's question.
     "accounts.no_file", "accounts.unreadable", "confirm.accounts_save", "refused.accounts_held",
+    # and Switch to this account (the owner, 2026-11-08): the button, its question, how it stands and ended, what refuses
+    # it, and the help line under account_switch's card, where the same saved accounts show (control/autoswitch.switch).
+    "accounts.help_switch", "accounts.switch", "confirm.accounts_switch", "accounts.switching", "accounts.switched",
+    "accounts.switch_not_started", "accounts.switch_undone", "accounts.switch_not_put_back", "accounts.switch_not_done",
+    "refused.account_in_use", "refused.account_not_ready", "refused.accounts_switch_busy", "refused.other_engine",
 ))
 # v0.6.22 (fleet_view): the Overview's Other PCs list, its columns and state words, how the folder stands, and the card
 # this PC's name and folder are chosen on (advanced/gui/AdvancedFleet.cs, control/fleet.py).

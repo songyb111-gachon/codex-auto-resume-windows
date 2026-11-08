@@ -1297,17 +1297,25 @@ POWER_AFTER_TASKS = CapabilityDef(
 # button now rests on MALR - this route, measured - in place of MAL, which stays measured.py's record of the plain one.
 # Revision 2: its statement now says it may restart Codex after asking (E8), so a person who had it on, or watched it,
 # since the betas reads the new one before it is on again.
+# Revision 3 (v0.6.22 final, the owner's 2026-11-08: "두 기능에서 같은 계정 저장을 저장할 수 있게"): its card shows the
+# saved accounts too - the automatic switch's one store (profiles.py, control/autoswitch.py), the same rows under both
+# cards - with Add an account..., Save the account in use, Delete, Delete all, Read usage and Switch to this account
+# (control/autoswitch.switch, the automatic switch's own switch, after the window asks). So it now keeps encrypted copies
+# of Codex's sign-in file and writes it: B2, B3 and D2 for them, and its statement says what it keeps, where, who can
+# open it and how to delete it. A person reads it again before it is on again; a kept-on row gets a notice.
 ACCOUNT_SWITCH = CapabilityDef(
     id="account_switch",
     points=frozenset({Point.TICK}),
-    revision=2,
-    departs_from=("B4", "B10", "B11", "C4", "C9", "D2", "E8", "F6", "H7"),
+    revision=3,
+    departs_from=("B2", "B3", "B4", "B10", "B11", "C4", "C9", "D2", "E8", "F6", "H7"),
     compat="usage_probe",
     ceilings=Ceilings(per_day=1, per_conversation=1),
     journal_prefix="account",
     make=make_account_switch,
     codes=("changed", "held", "switch_asked", "signed_in", "not_signed_in", "switch_failed", "restart_asked",
-           "codex_closed", "codex_ended", "restarted", "restart_not_needed", "restart_failed"),
+           "codex_closed", "codex_ended", "restarted", "restart_not_needed", "restart_failed",
+           # v0.6.22 final: Switch to this account, journalled here where the automatic switch is not in the runtime.
+           "manual_switched", "manual_not_finished", "manual_not_done"),
     measurements=(Measurement.MA,),
     narrowed_by=(Measurement.MALR,),
 )
@@ -1745,7 +1753,9 @@ ACCOUNT_AUTO_SWITCH = CapabilityDef(
     make=make_account_auto_switch,
     codes=("switched", "not_signed_in", "not_usable", "not_closed", "failed", "all_exhausted", "ceiling", "left",
            "not_put_back", "sweep_failed", "changed_under",
-           "locked", "not_started", "engine_alive", "held"),
+           "locked", "not_started", "engine_alive", "held",
+           # v0.6.22 final: a person's own Switch to this account (engine/autoswitch.MANUAL_*, control/autoswitch.switch).
+           "manual_switched", "manual_not_finished", "manual_not_done"),
     measurements=(Measurement.MPROFILE, Measurement.MSWAP),
     requires=("account_switch",),
 )
