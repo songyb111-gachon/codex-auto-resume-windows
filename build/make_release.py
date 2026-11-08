@@ -256,7 +256,9 @@ def check_courier_starts(stage: Path, timeout: float = 120) -> None:
     from an installation failed on its first import while CI, under a system Python, saw none of it (the live
     acceptance's F7). So the staged runtime is asked for the courier's command line as the staged code builds it, and
     that command is run with `--check` - every module a round can need imported, nothing read, written or sent - in a
-    scratch home, from a scratch directory, with no PYTHONPATH. Offline, and seconds."""
+    scratch home, from a scratch directory, with no PYTHONPATH. Offline, and seconds. Both runs take -B: an import
+    writes no bytecode into the stage, so the archive holds only what the build put there (the release run's edition
+    audit (f) found the check's __pycache__ in the advanced archive, v0.6.22's first release run)."""
     payload = stage / "payload"
     runtime = payload / "runtime"
     flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
@@ -268,7 +270,7 @@ def check_courier_starts(stage: Path, timeout: float = 120) -> None:
         home = Path(scratch) / "home"
         home.mkdir()
         try:
-            asked = subprocess.run([str(runtime / "python.exe"), "-X", "disable-remote-debug", "-c", ask,
+            asked = subprocess.run([str(runtime / "python.exe"), "-B", "-X", "disable-remote-debug", "-c", ask,
                                     str(payload / "app" / "src"), str(home)], cwd=scratch, env=environment,
                                    stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=timeout,
                                    creationflags=flags)
@@ -285,13 +287,17 @@ def check_courier_starts(stage: Path, timeout: float = 120) -> None:
         if not staged:
             raise SystemExit("the courier would start under %s, not the staged pythonw.exe" % command[0])
         try:
-            ran = subprocess.run(command, cwd=scratch, env=environment, stdin=subprocess.DEVNULL,
-                                 capture_output=True, text=True, timeout=timeout, creationflags=flags)
+            ran = subprocess.run([command[0], "-B", *command[1:]], cwd=scratch, env=environment,
+                                 stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=timeout,
+                                 creationflags=flags)
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise SystemExit("the courier did not start from the staged payload: %s" % exc)
         if ran.returncode != 0:
             raise SystemExit("the courier does not start from the staged payload (exit %s):\n%s"
                              % (ran.returncode, ran.stderr[-2000:]))
+    left = sorted(str(path.relative_to(stage)) for path in payload.rglob("__pycache__"))
+    if left:
+        raise SystemExit("the courier check left bytecode in the stage: %s" % ", ".join(left[:5]))
 
 
 def collect_runtime(stage: Path, archive: Path) -> int:
