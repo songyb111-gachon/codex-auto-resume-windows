@@ -31,6 +31,13 @@ core then reads live usage (A12's check kept) and recovers as usual on the new a
 holds recoveries when another account is signed in, asks `profiles.switched_to` first and holds none for this switch
 (engine/account.py); its reset rules and window_anchor's stamps still follow the change of account.
 
+Switch to this account (v0.6.22 final, the owner's 2026-11-08): a person's own switch to one saved account, from the
+saved-accounts card under either account capability (control/autoswitch.switch), is this same switch - `put_in`, which
+the look calls with the account it chose - given the account the person picked: the same swap, close and restart,
+sign-in check and undo of a switch that did not finish. Only what makes it the person's differs: nobody need be away
+from the PC (the click is theirs), it is not counted toward PER_DAY, and the bridge journals it in its own words
+(MANUAL_SWITCHED, MANUAL_NOT_FINISHED, MANUAL_NOT_DONE).
+
 Every seam is a test's: `store` (profiles.Profiles), `session_for`, `restart`, `read_real`, `idle` and `busy`.
 """
 from __future__ import annotations
@@ -56,6 +63,12 @@ USAGE_LIMIT = "usage_limit"
 # from a switch too (the review's finding 18): the app was closed and started in front of nobody and nothing came of it.
 # The look's own engine_alive (`_why_not`, nothing closed) stays silent.
 NOT_FINISHED = ("not_signed_in", "not_put_back", "not_started", "changed_under", "failed", "left", "engine_alive")
+# What a person's own Switch to this account came to, in the journal (registry codes): the account switched; a switch
+# that closed the Codex app and did not finish (NOT_FINISHED, undone or still to be put back); and one that changed nothing
+# - the app would not close, its hands said no at the last look, another switch or read held the saved accounts, or the
+# sign-in was not a file (MANUAL_NOTHING).
+MANUAL_SWITCHED, MANUAL_NOT_FINISHED, MANUAL_NOT_DONE = "manual_switched", "manual_not_finished", "manual_not_done"
+MANUAL_NOTHING = ("not_closed", "held", "locked", "not_usable")
 
 
 class _Errand:
@@ -131,12 +144,15 @@ class AutoSwitch:
         from ..codex import restart as restarts
         return restarts.busy(self.paths, usage_waiting_ok=True)
 
-    def _restart_now(self, between):
+    def _restart_now(self, between, *, away=True):
         """codex/restart.restart for a switch, or a put-back a later look finishes - None where it may not restart now:
         something runs or is queued, or someone uses this PC (the switch's own rule, `_why_not`), looked at again right
-        before the close: reading every saved account can take minutes (the v0.6.23 audit's A-R1)."""
-        idle = self._idle()
-        if self.busy() or not isinstance(idle, (int, float)) or idle < IDLE:
+        before the close: reading every saved account can take minutes (the v0.6.23 audit's A-R1). `away` False for a
+        person's own switch: the person at the PC is the one who asked for it."""
+        if self.busy():
+            return None
+        idle = self._idle() if away else IDLE
+        if not isinstance(idle, (int, float)) or idle < IDLE:
             return None
         if self._restart is not None:
             return self._restart(between)
@@ -259,16 +275,7 @@ class AutoSwitch:
             # One notice for this set of waiting records (core's kind accounts_exhausted, plug.NOTICE_KINDS).
             self._notice = {"key": "autoswitch:%d" % int(min(row["detected_at"] for row in rows))}
             return None
-        closed = []
-
-        def hands(between):
-            # Whether this attempt closed the Codex app (how it ended, CLOSED or ENDED): every such attempt counts toward
-            # the ceiling, a switch or not - it is about restarts in front of a person too (the v0.6.23 audit's A-M2).
-            found = self._restart_now(between)
-            if isinstance(found, tuple) and len(found) > 1 and found[1] is not None:
-                closed.append(found[1])
-            return found
-        outcome = swap.switch(self.paths, store, home, target, restart=hands, read_real=self.read_real, now=now)
+        outcome, closed = self.put_in(target, now)
         self._count(outcome)
         if outcome in NOT_FINISHED:
             self._not_finished(target)
@@ -277,6 +284,25 @@ class AutoSwitch:
         if outcome in (swap.SWITCHED, swap.NOT_STARTED) or closed:
             self._attempted(now)
         return None
+
+    def put_in(self, target, now, *, manual=False):
+        """The switch itself (codex/swap.switch) to the saved account `target`, through this capability's restart hands:
+        (its outcome, whether it closed the Codex app). The look's, with the account it chose; and (`manual`) a person's
+        own Switch to this account, with the account they picked - for which nobody need be away from the PC."""
+        from ..codex import swap
+        closed = []
+
+        def hands(between):
+            # Whether this attempt closed the Codex app (how it ended, CLOSED or ENDED): every such attempt of the look's
+            # counts toward the ceiling, a switch or not - it is about restarts in front of a person too (the v0.6.23
+            # audit's A-M2).
+            found = self._restart_now(between, away=not manual)
+            if isinstance(found, tuple) and len(found) > 1 and found[1] is not None:
+                closed.append(found[1])
+            return found
+        outcome = swap.switch(self.paths, self.store(), self.home(), target, restart=hands, read_real=self.read_real,
+                              now=now)
+        return outcome, closed
 
     def choose(self, store, now):
         """The saved account to switch to - the most room, ties to the least recently used (`best`) - or None. How many
@@ -361,7 +387,10 @@ class AutoSwitch:
             return DEFER
         try:
             now = scoped.now()
-            switched = self._switched_at or scoped.stamped(OptionKey.AUTO_SWITCHED_AT)
+            # This watcher's own switch, or one the stamp keeps - a person's Switch to this account stamps it too.
+            kept = [at for at in (self._switched_at, scoped.stamped(OptionKey.AUTO_SWITCHED_AT))
+                    if isinstance(at, (int, float))]
+            switched = max(kept) if kept else None
         except Exception:
             return DEFER
         if (not isinstance(switched, (int, float)) or not 0 <= now - switched < EARLY_FOR
