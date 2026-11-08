@@ -1790,10 +1790,10 @@ namespace CodexAutoResume
         /// With `keep` (v0.6.16-beta.4, the owner's "Keep it on turns it on"): turn it on and keep it on, in this one
         /// confirmation - Keep it on's warning before the statement it confirms, and keep_on sent with the arm.
         ///
-        /// Without it, Turn on (v0.6.22, the owner's 2026-11-08): the dialog carries Keep it on as a switch under its words,
-        /// on unless the person turns it off - on, the arm carries keep_on as the card's Keep it on... sends it; off, it is
-        /// turned on plainly. Where its own compatibility check failed here the switch is off and cannot be moved, with
-        /// why, and it is turned on plainly: Keep it on is refused there, turning it on never is.
+        /// Without it, Turn on (v0.6.22, the owner's 2026-11-08): the dialog carries Keep it on as a check box under its
+        /// words, ticked unless the person unticks it - ticked, the arm carries keep_on as the card's Keep it on... sends it;
+        /// unticked, it is turned on plainly. Where its own compatibility check failed here the box is unticked and cannot be
+        /// moved, with why, and it is turned on plainly: Keep it on is refused there, turning it on never is.
         private void ArmAdvanced(string id, string state, int round, bool keep)
         {
             // Asked again, after something changed: what holds now may not be askable at all, and the person who said
@@ -1833,11 +1833,11 @@ namespace CodexAutoResume
             if (!keep && state == StateArmed)
             {
                 bool keepable = !FailedHere(statement);
-                choice = NewCheck(Word("page.keep_on", "Keep it on"), keepable, false);
+                choice = NewCheck(Word("page.keep_on", "Keep it on"), keepable, true);
                 choice.Enabled = keepable;
                 string line = !keepable
-                    ? Word("page.confirm.keep_failed_here", "A compatibility check of what it relies on failed on this computer, so it cannot be kept on: Keep it on, below, is off, and it is turned on without it.")
-                    : Word("page.confirm.keep_choice", "Keep it on, below, is on: it will not turn itself off. When what it does changes, a warning appears, a part of it fails, a continuation it sent cannot be proven to have arrived, or Codex is updated, it stays on and this page tells you. Turn Keep it on off and it turns itself off when something it relies on goes wrong.");
+                    ? Word("page.confirm.keep_failed_here", "A compatibility check of what it relies on failed on this computer, so it cannot be kept on: Keep it on, below, is unticked, and it is turned on without it.")
+                    : Word("page.confirm.keep_choice", "Keep it on, below, is ticked: it will not turn itself off. When what it does changes, a warning appears, a part of it fails, a continuation it sent cannot be proven to have arrived, or Codex is updated, it stays on and this page tells you. Untick Keep it on and it turns itself off when something it relies on goes wrong.");
                 if (keepable && needs.Count > 0)
                     line += " " + Word("page.confirm.keep_needs", "What it needs is kept on with it, or not, as this one is.");
                 question = KeepChoiceQuestion(question, line);
@@ -1884,7 +1884,7 @@ namespace CodexAutoResume
         }
 
         /// Whether a statement carries the warning that its own compatibility check failed on this computer: Keep it on is
-        /// refused there (arming.arm, FAILED_HERE), so Turn on's switch is off and cannot be moved.
+        /// refused there (arming.arm, FAILED_HERE), so Turn on's check box is unticked and cannot be moved.
         private static bool FailedHere(Dictionary<string, object> statement)
         {
             foreach (object entry in Items(Map(statement, "warnings"), "items") ?? new List<object>())
@@ -2162,15 +2162,17 @@ namespace CodexAutoResume
             return AskAdvanced(question, affirm, null);
         }
 
-        /// With `choice` (v0.6.22): the switch the dialog shows under its words, left as the person left it. In a window a
-        /// test drives, how it was shown is written down ("<words> on|off[ disabled]") and the test's next switch position,
-        /// if any, moves one that can be moved.
+        /// With `choice` (v0.6.22): the check box the dialog shows under its words, left as the person left it. In a window a
+        /// test drives, how it was shown is written down ("<words> [box|switch] ticked|unticked[ disabled]") and the test's
+        /// next position, if any, moves one that can be moved.
         private bool AskAdvanced(string question, string affirm, CheckBox choice)
         {
             if (advancedScript == null) return Dialog(question, affirm, S("action.cancel", "Cancel"), choice);
             if (choice != null)
             {
-                advancedAskedSwitches.Add(choice.Text + (choice.Checked ? " on" : " off") + (choice.Enabled ? "" : " disabled"));
+                var soft = choice as SoftCheck;
+                advancedAskedSwitches.Add(choice.Text + (soft != null && soft.Box ? " [box]" : " [switch]") +
+                                          (choice.Checked ? " ticked" : " unticked") + (choice.Enabled ? "" : " disabled"));
                 if (advancedSwitchAnswers.Count > 0)
                 {
                     if (choice.Enabled) choice.Checked = advancedSwitchAnswers[0];

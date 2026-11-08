@@ -41,7 +41,7 @@ namespace CodexAutoResume
         private readonly List<string> advancedSent = new List<string>();
         private readonly List<string> advancedAsked = new List<string>();
         private readonly List<string> advancedTold = new List<string>();
-        // v0.6.22: each switch a question showed (Turn on's Keep it on), and the test's positions for the next ones.
+        // v0.6.22: each check box a question showed (Turn on's Keep it on), and the test's positions for the next ones.
         private readonly List<string> advancedAskedSwitches = new List<string>();
         private readonly List<bool> advancedSwitchAnswers = new List<bool>();
         // v0.6.23: while a test holds the replies ("hold"), the answers of the requests made, in order, until it lets go.
