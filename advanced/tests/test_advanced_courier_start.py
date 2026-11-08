@@ -60,7 +60,6 @@ class CheckModeTests(unittest.TestCase):
     def test_the_real_command_starts_with_the_environment_ignored(self):
         with patch("codex_auto_resume.startup.python_launcher", console_python):
             command = launch.argv(config.Paths(self.home), "--check")
-        self.assertNotIn("-m", command, "a module run needs its package on the path before any of our code runs")
         command.insert(1, "-I")                   # as the embeddable runtime's ._pth: no PYTHONPATH, no cwd on the path
         environment = {name: value for name, value in os.environ.items() if name.upper() != "PYTHONPATH"}
         done = subprocess.run(command, cwd=str(self.scratch), env=environment, stdin=subprocess.DEVNULL,
@@ -68,6 +67,7 @@ class CheckModeTests(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stderr[-2000:])
         self.assertEqual(done.stdout, "")
         self.assertEqual(list(self.home.iterdir()), [])
+        self.assertNotIn("-m", command, "a module run needs its package on the path before any of our code runs")
 
 
 if __name__ == "__main__":
