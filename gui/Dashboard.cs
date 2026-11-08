@@ -562,10 +562,28 @@ namespace CodexAutoResume
     /// A small bar chart of how recoveries ended, drawn to the same scale for every bar.
     internal sealed class OutcomeChart : Panel
     {
-        internal List<KeyValuePair<string, int>> Bars = new List<KeyValuePair<string, int>>();
-        // Every bar in one colour, the accent (BarColor): the word beside each bar tells the outcomes apart. v0.6.10
-        // tried History's colour for each outcome's bar, and the owner put the one colour back.
-        internal Color BarColor, TextColor;
+        /// One bar: the outcome's words, its count, and its part in the success rate as the statistics answer gives it
+        /// (outcome_groups: "success", "failure" or "other").
+        internal sealed class Bar
+        {
+            public readonly string Key;
+            public readonly int Value;
+            public readonly string Group;
+
+            internal Bar(string key, int value, string group)
+            {
+                Key = key;
+                Value = value;
+                Group = group ?? "";
+            }
+        }
+
+        internal List<Bar> Bars = new List<Bar>();
+        // v0.6.22 (the owner, 2026-11-08): three colours by what an outcome means for the success rate - the accent
+        // (BarColor) for a recovery, the warning colour (FailureColor) for an outcome the rate counts as not succeeded,
+        // and a muted slate (OtherColor) for one it leaves out, and for a group the window does not know. Which outcome
+        // is which is the statistics answer's (the store's one rule), never a list here.
+        internal Color BarColor, FailureColor, OtherColor, TextColor;
         internal string EmptyText = "";
 
         internal OutcomeChart()
@@ -581,9 +599,18 @@ namespace CodexAutoResume
             return (int)Math.Round(atNinetySix * SettingsForm.DpiScale);
         }
 
+        /// A row: a line of text and the room round its bar for the control's lift in the Soft design, the same in
+        /// every design (a design changes paint, never where anything is).
         internal int RowHeight()
         {
-            return Font.Height + Px(8);
+            return Font.Height + Px(12);
+        }
+
+        internal Color ColorOf(string group)
+        {
+            if (group == "success") return BarColor;
+            if (group == "failure") return FailureColor;
+            return OtherColor;
         }
 
         /// The numbers as words, for whoever cannot see the bars.
@@ -595,55 +622,92 @@ namespace CodexAutoResume
             AccessibleDescription = spoken.Count == 0 ? EmptyText : string.Join(", ", spoken.ToArray());
         }
 
+        /// Where each bar's body is, in the chart's own coordinates, one for each of Bars.
+        internal Rectangle[] Faces()
+        {
+            int max = 0;
+            foreach (var bar in Bars) max = Math.Max(max, bar.Value);
+            var faces = new Rectangle[max == 0 ? 0 : Bars.Count];
+            if (max == 0) return faces;
+            bool mirrored = Mirror.Of(this);
+            int row = RowHeight();
+            int labelWidth = LabelWidth();
+            int track = Track(labelWidth);
+            for (int index = 0, y = 0; index < Bars.Count; index++, y += row)
+            {
+                int bodyWidth = Math.Max(Px(2), Length(Bars[index].Value, max, track));
+                int left = mirrored ? Width - labelWidth - Px(12) - bodyWidth : labelWidth + Px(12);
+                faces[index] = new Rectangle(left, y + Px(5), bodyWidth, Font.Height - Px(2));
+            }
+            return faces;
+        }
+
+        private int LabelWidth()
+        {
+            int labelWidth = 0;
+            foreach (var bar in Bars)
+                labelWidth = Math.Max(labelWidth, TextRenderer.MeasureText(bar.Key, Font).Width);
+            return labelWidth;
+        }
+
+        private int Track(int labelWidth)
+        {
+            int numberWidth = TextRenderer.MeasureText("0000", Font).Width;
+            return Math.Max(Px(10), Width - labelWidth - numberWidth - Px(24));
+        }
+
+        private static int Length(int value, int max, int track)
+        {
+            return (int)Math.Round(track * (value / (double)max));
+        }
+
         protected override void OnPaint(PaintEventArgs e)
         {
             base.OnPaint(e);
             e.Graphics.Clear(BackColor);
             int max = 0;
             foreach (var bar in Bars) max = Math.Max(max, bar.Value);
-            using (var text = new SolidBrush(TextColor))
-            using (var fill = new SolidBrush(BarColor))
+            // v0.6.20: mirrored, each word at the right, its bar growing left from beside it and its number past the
+            // bar's end (Mirror).
+            bool mirrored = Mirror.Of(this);
+            if (max == 0)
             {
-                // v0.6.20: mirrored, each word at the right, its bar growing left from beside it and its number past the
-                // bar's end (Mirror).
-                bool mirrored = Mirror.Of(this);
-                if (max == 0)
+                TextRenderer.DrawText(e.Graphics, EmptyText, Font, ClientRectangle, TextColor,
+                                      Mirror.Words(mirrored, TextFormatFlags.Top | TextFormatFlags.WordBreak));
+                return;
+            }
+            int row = RowHeight();
+            int labelWidth = LabelWidth();
+            int track = Track(labelWidth);
+            // v0.6.22 (the owner's mock A, 2026-11-08): in the Soft design each bar is a pill raised off the card with the
+            // control's lift, as a raised button is; in a design without depth, and in High Contrast, it is the flat bar
+            // it always was. Every lift is stamped before any body, so one bar's shadow never lies over its neighbour.
+            Rectangle[] faces = Faces();
+            if (Palette.Depth)
+                foreach (var face in faces)
+                    Elevation.StampOuter(e.Graphics, face, "control", face.Height / 2f, ClientRectangle);
+            for (int index = 0, y = 0; index < Bars.Count; index++, y += row)
+            {
+                Bar bar = Bars[index];
+                Rectangle face = faces[index];
+                Color fill = ColorOf(bar.Group);
+                if (Palette.Depth) Soft.Body(e.Graphics, face, face.Height / 2f, fill, fill, null);
+                else using (var flat = new SolidBrush(fill)) e.Graphics.FillRectangle(flat, face);
+                string number = bar.Value.ToString(CultureInfo.CurrentCulture);
+                int length = Length(bar.Value, max, track);
+                if (mirrored)
                 {
-                    if (mirrored)
-                        TextRenderer.DrawText(e.Graphics, EmptyText, Font, ClientRectangle, TextColor,
-                                              Mirror.Words(true, TextFormatFlags.Top | TextFormatFlags.WordBreak));
-                    else e.Graphics.DrawString(EmptyText, Font, text, 0, 0);
-                    return;
+                    var word = new Rectangle(Width - labelWidth, y + Px(4), labelWidth, row - Px(4));
+                    TextRenderer.DrawText(e.Graphics, bar.Key, Font, word, TextColor,
+                                          Mirror.Words(true, TextFormatFlags.Top | TextFormatFlags.SingleLine));
+                    int numberWide = TextRenderer.MeasureText(number, Font).Width;
+                    TextRenderer.DrawText(e.Graphics, number, Font, new Point(Width - labelWidth - Px(18) - length - numberWide, y + Px(4)),
+                                          TextColor);
                 }
-                int row = RowHeight();
-                int labelWidth = 0;
-                foreach (var bar in Bars)
-                    labelWidth = Math.Max(labelWidth, TextRenderer.MeasureText(bar.Key, Font).Width);
-                int numberWidth = TextRenderer.MeasureText("0000", Font).Width;
-                int track = Math.Max(Px(10), Width - labelWidth - numberWidth - Px(24));
-                int y = 0;
-                foreach (var bar in Bars)
+                else
                 {
-                    int length = (int)Math.Round(track * (bar.Value / (double)max));
-                    string number = bar.Value.ToString(CultureInfo.CurrentCulture);
-                    if (mirrored)
-                    {
-                        var word = new Rectangle(Width - labelWidth, y, labelWidth, row);
-                        TextRenderer.DrawText(e.Graphics, bar.Key, Font, word, TextColor,
-                                              Mirror.Words(true, TextFormatFlags.Top | TextFormatFlags.SingleLine));
-                        int bodyWidth = Math.Max(Px(2), length);
-                        e.Graphics.FillRectangle(fill, Width - labelWidth - Px(12) - bodyWidth, y + Px(3), bodyWidth, row - Px(12));
-                        int numberWide = TextRenderer.MeasureText(number, Font).Width;
-                        TextRenderer.DrawText(e.Graphics, number, Font, new Point(Width - labelWidth - Px(18) - length - numberWide, y),
-                                              TextColor);
-                    }
-                    else
-                    {
-                        TextRenderer.DrawText(e.Graphics, bar.Key, Font, new Point(0, y), TextColor);
-                        e.Graphics.FillRectangle(fill, labelWidth + Px(12), y + Px(3), Math.Max(Px(2), length), row - Px(12));
-                        TextRenderer.DrawText(e.Graphics, number, Font, new Point(labelWidth + Px(18) + length, y), TextColor);
-                    }
-                    y += row;
+                    TextRenderer.DrawText(e.Graphics, bar.Key, Font, new Point(0, y + Px(4)), TextColor);
+                    TextRenderer.DrawText(e.Graphics, number, Font, new Point(labelWidth + Px(18) + length, y + Px(4)), TextColor);
                 }
             }
         }
