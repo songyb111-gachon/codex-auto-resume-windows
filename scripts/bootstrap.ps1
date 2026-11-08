@@ -199,7 +199,7 @@ param(
     # rebuilds it from its integers, and it is installed only if the list still offers it.
     [string]$Pick,
     # With -Pick, a change from the advanced edition to the standard one, and a version whose installer has the switch
-    # ($DeleteAccountsSince): also delete the saved Codex accounts, which the setup window's edition change offers
+    # (DeleteAccountsSince, below): also delete the saved Codex accounts, which the setup window's edition change offers
     # the same way (v0.6.22). Never forwarded anywhere else; asked of any other pick it says so and deletes nothing.
     [switch]$DeleteSavedAccounts,
     # The Dashboard's update (v0.6.16): it shows what is new in the verified download before anything is installed,
