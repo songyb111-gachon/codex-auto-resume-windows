@@ -4,7 +4,7 @@
 telegram_continue beside it).
 
 While local_api or telegram_remote stands on, the watcher keeps one resident courier running beside it - a process of its own,
-`pythonw.exe -m codex_auto_resume_advanced.courier --home <home> --serve` (courier/__main__.py), in the watcher's job
+`pythonw.exe -c <launch.BOOTSTRAP> <import roots> --home <home> --serve` (courier/__main__.py), in the watcher's job
 object, so it ends with the watcher however the watcher ends. At P8 the errand starts one where none answers the
 resident's mutex (courier/resident.py, `running`), at most RESTARTS more times in an hour after the first: past that it
 is not started again until the hour has passed, the journal says `gave_up` and the card says it stopped - never a loop

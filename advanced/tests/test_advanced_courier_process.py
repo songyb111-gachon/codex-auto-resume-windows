@@ -152,13 +152,15 @@ class LaunchTests(Home):
         process, = Process.started
         self.assertIs(found, process)
         self.assertEqual(adopted, [process])
-        self.assertEqual(process.argv, [r"C:\Python\pythonw.exe", "-X", "disable-remote-debug", "-m", "codex_auto_resume_advanced.courier",
-                                        "--home", str(Path(self.paths.home)), "--feed"])
+        self.assertEqual(process.argv, [r"C:\Python\pythonw.exe", "-X", "disable-remote-debug", "-c", launch.BOOTSTRAP,
+                                        launch.roots(), "--home", str(Path(self.paths.home)), "--feed"])
         self.assertEqual(process.options["creationflags"], NO_WINDOW | launch.CREATE_SUSPENDED)
         self.assertFalse(process.options["shell"])
         self.assertEqual(process.options["stdout"], subprocess.DEVNULL)
-        roots = process.options["env"]["PYTHONPATH"].split(os.pathsep)
+        # The import roots travel on the command line: the bundled runtime ignores PYTHONPATH (its ._pth file).
+        roots = process.argv[5].split(os.pathsep)
         self.assertTrue(any(root.endswith(os.path.join("advanced", "src")) for root in roots), roots)
+        self.assertNotIn("PYTHONPATH", {name.upper() for name in process.options["env"]})
 
     def test_one_the_job_will_not_take_is_ended_before_it_runs_and_counts_as_not_started(self):
         def refuse(process):

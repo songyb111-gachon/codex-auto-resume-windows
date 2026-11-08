@@ -1,7 +1,7 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
 """The courier (v0.6.20, plans/v0619-design/D-courier.md): the advanced edition's only network code.
 
-One short-lived process, `pythonw.exe -m codex_auto_resume_advanced.courier --home <home>`, started by the watcher at
+One short-lived process, `pythonw.exe -c <launch.BOOTSTRAP> <import roots> --home <home>`, started by the watcher at
 P8 (launch.py) - windowless, suspended until it is in the starting process's job object made KILL_ON_JOB_CLOSE, so it
 ends with that process however that process ends - and refused a second time for one home by a named mutex. It sends
 what the outbox holds (push_notices: ntfy, a webhook, Telegram, e-mail) and reads OpenAI's status page (status_feed),

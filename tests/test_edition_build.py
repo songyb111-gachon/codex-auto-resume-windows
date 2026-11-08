@@ -89,6 +89,10 @@ def stand_in(builder, work: Path, root: Path = ROOT) -> None:
     builder.BUILT = built
     builder.STAGES = work / "stage"
     builder.PYTHON_SHA256 = hashlib.sha256(runtime.getvalue()).hexdigest()
+    # The stand-in interpreter cannot run the courier's start; the stage each build would check is recorded instead
+    # (the check itself, under an interpreter that ignores the environment: tests/test_courier_start_build.py).
+    builder.checked = []
+    builder.check_courier_starts = lambda stage: builder.checked.append(Path(stage).name)
 
 
 def build(builder, edition_name: str, output: Path) -> Path:
@@ -170,6 +174,12 @@ class EditionBuildTests(unittest.TestCase):
         self.assertEqual(sorted(path.name for path in stages.iterdir()), ["advanced", "standard"])
         self.assertTrue((stages / "standard" / "payload" / self.builder.GUI_EXE).is_file())
         self.assertFalse((stages / "standard" / "payload" / "app" / "src" / editions.PACKAGE).exists())
+
+    def test_only_the_advanced_build_checks_its_courier_starts_and_before_it_writes_the_archive(self):
+        self.assertEqual(self.builder.checked, ["advanced"])
+        main = (ROOT / "build" / "make_release.py").read_text(encoding="utf-8")
+        body = main[main.index("def main("):]
+        self.assertLess(body.index("check_courier_starts(stage)"), body.index("write_archive("))
 
     def test_each_payload_root_holds_the_two_files_every_bootstrap_requires_there(self):
         for entries in (self.ours, self.theirs):
