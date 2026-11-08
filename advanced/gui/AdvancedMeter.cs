@@ -10,8 +10,9 @@
 // Window with a WindowFrame edge, as the scroll bar's is, and the bar the theme's accent or warning colour.
 //
 // The card's own pieces stand here too, so AdvancedAccounts.cs keeps to the page's: the heading with Read usage at its
-// right (AccountsHeading), a saved account's row with "in use" beside it in the accent (AccountsRow), and under it the two
-// meters - "5-hour" and "7-day" - each with its words after it (AccountsMeters). Every colour is the theme's; nothing is
+// right (AccountsHeading), a saved account's row with "in use" beside it in the accent (AccountsRow), under it the two
+// meters - "5-hour" and "7-day" - each with its words after it (AccountsMeters), and under them, on the rows that offer
+// it, Switch to this account (AccountsSwitchLine, v0.6.22 final). Every colour is the theme's; nothing is
 // drawn the page does not draw already but the groove's bar.
 //
 // C# 5 (the in-box compiler), as the rest of the window.
@@ -143,6 +144,16 @@ namespace CodexAutoResume
             row.Controls.Add(check, 0, 0);
             row.Controls.Add(word, 1, 0);
             return row;
+        }
+
+        /// Switch to this account on a line of its own under the row's meters, in from the card's edge as they are: beside the
+        /// row it took the account's line's room, and that line was cut off in German, Italian, Russian, Ukrainian and
+        /// Vietnamese (the layout audit, 2026-11-08).
+        private Control AccountsSwitchLine(Button switchTo)
+        {
+            switchTo.Anchor = AnchorStyles.Left;
+            switchTo.Margin = Pad(26, 0, 0, 8);
+            return switchTo;
         }
 
         /// The two meters under a saved account's row - the five-hour window's and the weekly one's - each with its words.

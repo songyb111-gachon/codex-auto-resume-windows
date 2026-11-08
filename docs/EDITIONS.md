@@ -1641,8 +1641,12 @@ recovery waits or runs and nothing is queued in Codex - until then the card says
 once it is clear - then asks Windows to close the Codex app (the Restart Manager's request, as an installer makes it),
 ends its main process only if it is still running 30 seconds later, starts it again through its own `codex:` link at
 your newest conversation and reads the account afresh. **Not now** leaves the new account signed in, and the card says
-Codex needs a restart to use it. The product never asks Codex to sign anyone in or out by a route of its own, never reads Codex's sign-in file, a
-token or a cookie, and never lists, remembers or picks an account. While it is on, the watcher reads which
+Codex needs a restart to use it. The product never asks Codex to sign anyone in or out by a route of its own, never
+asks Codex for a token or a cookie, and never picks an account on its own. Its card also shows your saved accounts - the
+same ones, in one store, as [Switch to another saved account at a usage limit](#switch-to-another-saved-account-at-a-usage-limit),
+with their meters, **Add an account...**, **Save the account in use**, **Read usage**, **Delete**, **Delete all** and
+**Switch to this account**, described there: an account added, saved or deleted on either card is so on both, and the
+copies are kept, encrypted, until you delete them. While it is on, the watcher reads which
 account is signed in when it starts and every 30 minutes, and keeps only a keyed digest of it (HMAC-SHA256,
 its key in Windows Credential Manager). When another account is signed in, every recovery waiting for a usage
 limit waits for you - Pending says *Another Codex account was signed in after it stopped*, with **Let it
@@ -1664,9 +1668,11 @@ new account - has passed on the Codex in force, the card offers no button: it sa
 Account) and sign in there with the other account, and a change is held for you all the same. Turned off, the digest and its key are deleted the next time the
 watcher runs.
 
-**Departs from** [B4](STANDARDS.md#b-what-it-reads-and-how) (`account/read` beyond core's calls),
-[B10](STANDARDS.md#b-what-it-reads-and-how) (an account's plan and address are read),
-[B11](STANDARDS.md#b-what-it-reads-and-how) (it starts Codex's own sign-in, which handles your credentials),
+**Departs from** [B2](STANDARDS.md#b-what-it-reads-and-how) and [B3](STANDARDS.md#b-what-it-reads-and-how)
+(Switch to this account writes Codex's sign-in file), [B4](STANDARDS.md#b-what-it-reads-and-how) (`account/read`
+beyond core's calls), [B10](STANDARDS.md#b-what-it-reads-and-how) (an account's plan and address are read),
+[B11](STANDARDS.md#b-what-it-reads-and-how) (it starts Codex's own sign-in, which handles your credentials, and keeps
+encrypted copies of Codex's sign-in file for the accounts you save),
 [C4](STANDARDS.md#c-network) (it reads on a schedule), [C9](STANDARDS.md#c-network) (Codex is asked when no
 recovery is due), [D2](STANDARDS.md#d-privacy-and-the-data-it-keeps) (a digest of the account is kept),
 [E8](STANDARDS.md#e-failure-behaviour) (after you agree, it ends the Codex app's process to restart it,
@@ -1704,7 +1710,11 @@ in its place in one rename, starts Codex and reads the account. Only if it is th
 looked at at once - live usage is still read before anything is sent; anything else puts the previous file back once.
 A change of account it made holds no recovery, while a change a person made is held as before. At most 10 switches a
 day, one try for each set of waiting recoveries, never back to an account still at its limit; all at their limit, the
-recoveries wait for the reset as usual.
+recoveries wait for the reset as usual. **Switch to this account**, on each saved account's row but the one in use -
+on this card and on Switch the Codex account's - makes this same switch at once to the account you pick, after one
+question (Cancel the default): it is your own action, so it does not count toward the 10 a day, and it is refused, with
+nothing changed, while a turn runs, something is queued or a recovery is being sent, while another switch or Read usage
+holds the saved accounts, while another Codex engine runs, or where Codex keeps its sign-in outside a file.
 
 **When it helps.** You have more than one Codex account of your own and want work to go on at a limit with no hands.
 
