@@ -3,11 +3,17 @@
 a test notice, a pairing or a feed read now (control/courier.py). No network here.
 
 The courier is this product's own code, so it runs under pythonw.exe beside the interpreter running this one
-(startup.python_launcher, rule 12), `-m codex_auto_resume_advanced.courier --home <home>`, with the two import roots on
-PYTHONPATH and no console: CREATE_NO_WINDOW, and CREATE_SUSPENDED so it is in this process's one job object - made
+(startup.python_launcher, rule 12), `-c <BOOTSTRAP> <import roots> --home <home>`, and no console: CREATE_NO_WINDOW, and
+CREATE_SUSPENDED so it is in this process's one job object - made
 KILL_ON_JOB_CLOSE, its one handle never closed here - before it runs an instruction; then resumed. That is the chain
 codex/wmi_escape.py and report/github.py use, and it means the courier ends with the process that started it, however
 that process ends. One that cannot be put in the job is ended before it runs.
+
+The import roots are on the command line, not in PYTHONPATH: an installed copy runs the embeddable runtime, whose
+python3XX._pth makes it ignore the environment (sys.flags.ignore_environment), so a PYTHONPATH reached nothing there and
+every courier start from an installation failed on its first import (v0.6.22's live acceptance, F7). BOOTSTRAP is the
+two-line dispatcher codex/wmi_escape.py's helper runs: the roots onto sys.path, then the courier's own main. A constant;
+what follows it is paths and this module's own words, never a person's text.
 
 `start` never waits: the watcher's tick goes on at once, whatever the courier does (E11). From the watcher it starts
 at most once in EVERY seconds for one home (`start_due`), and the courier's own mutex refuses a second for the same
@@ -25,6 +31,9 @@ import time
 from codex_auto_resume.win.kernel import JOB_KILL_ON_CLOSE, NO_WINDOW
 
 MODULE = "codex_auto_resume_advanced.courier"
+# The courier's start, whatever the interpreter makes of the environment: sys.argv[1] is roots(), the rest the courier's.
+BOOTSTRAP = ("import os, sys; sys.path[:0] = sys.argv[1].split(os.pathsep); "
+             "from %s.__main__ import main; sys.exit(main(sys.argv[2:]))" % MODULE)
 EVERY = 60                                   # seconds between two starts from the watcher, for one home
 CREATE_SUSPENDED = 0x00000004
 FLAGS = NO_WINDOW | CREATE_SUSPENDED
@@ -45,11 +54,12 @@ def roots() -> str:
 
 
 def argv(paths, *extra) -> list:
-    """The courier's command line: pythonw.exe, the module, the home, and `extra` (`--pair`, `--test <channel>`,
-    `--feed`)."""
+    """The courier's command line: pythonw.exe, the bootstrap and the import roots it puts on sys.path, the home, and
+    `extra` (`--pair`, `--test <channel>`, `--feed`, `--serve`, `--check`)."""
     from codex_auto_resume import startup
     interpreter = startup.python_launcher()
-    return [str(interpreter), *startup.NO_REMOTE_DEBUG, "-m", MODULE, "--home", str(Path(paths.home)), *extra]
+    return [str(interpreter), *startup.NO_REMOTE_DEBUG, "-c", BOOTSTRAP, roots(), "--home", str(Path(paths.home)),
+            *extra]
 
 
 def _kernel():
@@ -105,7 +115,8 @@ def spawn(paths, *extra, popen=None, adopt_it=None):
         command = argv(paths, *extra)
     except Exception:
         return None
-    environment = dict(os.environ, PYTHONPATH=roots())
+    # The roots travel on the command line; a PYTHONPATH of the caller's would only stand before the standard library.
+    environment = {name: value for name, value in os.environ.items() if name.upper() != "PYTHONPATH"}
     try:
         process = popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                         env=environment, creationflags=NO_WINDOW | CREATE_SUSPENDED, close_fds=True, shell=False)
