@@ -38,9 +38,14 @@ class ReportingMixin:
             if bucket is not None:
                 buckets[bucket] += 1
             by_category[row["category"]] = by_category.get(row["category"], 0) + 1
-        denominator = sum(buckets[name] for name in (
-            "recovered", "no_progress", "recovery_failed", "outcome_unverified", "exhausted",
-            "failed_terminal", "submission_unknown"))
+        # What each outcome means for the success rate: recovered is a success, the rest of the rate's denominator a
+        # failure, and every other outcome is left out of it. The window colours each outcome's bar by this (v0.6.22).
+        groups = {name: "other" for name in buckets}
+        groups["recovered"] = "success"
+        for name in ("no_progress", "recovery_failed", "outcome_unverified", "exhausted", "failed_terminal",
+                     "submission_unknown"):
+            groups[name] = "failure"
+        denominator = sum(buckets[name] for name, group in groups.items() if group != "other")
         waits = [row["first_queued_at"] - row["detected_at"] for row in rows
                  if row["first_queued_at"] is not None and row["first_queued_at"] >= row["detected_at"]]
         latencies = [row["outcome_at"] - row["first_queued_at"] for row in rows
@@ -51,6 +56,7 @@ class ReportingMixin:
             "continuations_submitted": sum(1 for row in rows if row["first_queued_at"] is not None),
             "pending": sum(1 for row in rows if row["state"] not in TERMINAL),
             "outcomes": buckets,
+            "outcome_groups": groups,
             "success_rate": (buckets["recovered"] / denominator) if denominator >= 5 else None,
             "success_denominator": denominator,
             "median_wait_seconds": _statistics.median(waits) if waits else None,
