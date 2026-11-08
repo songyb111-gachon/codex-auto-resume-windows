@@ -122,6 +122,7 @@ def save(runtime, argument, *, secrets=None, start=None) -> dict:
         elif channel == "telegram":
             secrets.write(PUSH, "telegram_token", checked_token(argument.get("token"), shape=TELEGRAM_TOKEN))
             secrets.delete(PUSH, "telegram_chat")         # a new bot is paired afresh
+            secrets.delete(PUSH, "telegram_chat_name")
         else:
             blob = checked_smtp({name: argument.get(name) for name in ("host", "port", "user", "password", "from",
                                                                         "to")})

@@ -18,12 +18,16 @@ name called).
 
 The bridge commands, the Dashboard's alone and never an MCP tool's:
 
-* advanced-api - the card read: the port, the address without its token, whether a token is kept, whether the
-  resident answers (running / stopped / starting / port_taken / off) and whether it is open to the network; with
-  {"copy": true}, the address carrying the token in its fragment too, for Copy address - that answer alone, and only while
-  the server runs or is starting, never while another program holds its port;
+* advanced-api - the card read: the port, the address without its token, whether a token is kept, how the server
+  stands (running / starting / port_taken / stopped / no_watcher / off) and whether it is open to the network - and then
+  this PC's addresses on it (`lan_urls`); with {"copy": true}, the address carrying the token in its fragment too, for
+  Copy address - on 127.0.0.1, or with {"host": ...} on one of this PC's own addresses the card listed - and with
+  {"copy_token": true} the token alone, for Copy token. Either only while the server runs: the resident stamped that it
+  bound its port (courier/resident.py) - never while it starts, never while another program holds the port, however
+  long ago that was found (the reachability audit's R1, M1, M2);
 * advanced-api-token-new - a new token kept in Windows Credential Manager (local_api/token), the old one useless at once;
-  the address with the token in its fragment is answered this once, for the same Copy;
+  the address with the token in its fragment is answered this once, for the same Copy - and, as Copy, only while the
+  server runs;
 * advanced-remote-pair-start - Telegram's pairing begun, the same pairing as the notices card's (control/courier.py):
   the one-time code answered for the card to show;
 * advanced-remote-pair-state - whether a chat is paired, a pairing waits, and the bot's token is saved, and how the
@@ -32,6 +36,7 @@ The bridge commands, the Dashboard's alone and never an MCP tool's:
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import re
 import secrets as random
 
@@ -215,22 +220,83 @@ def _running(runtime) -> bool:
         return False
 
 
-def _word(runtime, on, alive) -> str:
-    """How the resident stands, for the card: off, or running (its port taken by another program, if that is the last
-    thing it found), or stopped - given up on for this hour - or starting."""
+def _watcher(runtime) -> bool:
+    """Whether the watcher runs, as core's control layer probes it: the resident is started only by the watcher."""
+    try:
+        return control(runtime.paths).watcher_running() is True
+    except Exception:
+        return False
+
+
+def _began(runtime) -> int:
+    """When the newest resident was started (engine/remote.py's START_WORD, by either capability), in whole seconds; 0
+    where none is journalled."""
     from ..engine import remote
+    try:
+        found = [at for capability in remote.RESIDENT
+                 for at in runtime.state.journal_times(capability, remote.START_WORD, 0)]
+    except Exception:
+        return 0
+    return int(max(found)) if found else 0
+
+
+def _down(runtime, alive, watcher) -> str | None:
+    """Why the resident is not up, for either card - stopped (given up on for this hour), no_watcher (it starts with the
+    watcher, which is not running) or starting - or None while it is up."""
+    from ..engine import remote
+    if alive:
+        return None
+    if remote.stopped(runtime.state.journal_times, runtime.clock()):
+        return "stopped"
+    return "starting" if (watcher or _watcher)(runtime) else "no_watcher"
+
+
+def _word(runtime, on, alive, watcher=None) -> str:
+    """How the server stands, for the card: off; running only where the resident stamped that its server bound the port
+    (courier/resident.py) since the newest resident was started; port_taken where it found another program on the port
+    instead; starting while it has done neither - and, while the resident is not up, stopped, no_watcher or starting."""
+    from ..courier.resident import BOUND, TAKEN
     if not on:
         return "off"
-    state, now = runtime.state, runtime.clock()
-    if alive:
-        taken = state.journal_times(API, "port_taken", now - remote.HOUR)
-        served = state.journal_times(API, "started", now - remote.HOUR)
-        return "port_taken" if taken and (not served or taken[-1] >= served[-1]) else "running"
-    return "stopped" if remote.stopped(state.journal_times, now) else "starting"
+    down = _down(runtime, alive, watcher)
+    if down is not None:
+        return down
+    began = _began(runtime)
+    try:
+        bound, taken = runtime.state.stamped(API, BOUND), runtime.state.stamped(API, TAKEN)
+    except Exception:
+        return "starting"
+    if bound is not None and bound >= began and (taken is None or bound >= taken):
+        return "running"
+    return "port_taken" if taken is not None and taken >= began else "starting"
 
 
-def api_view(runtime, *, copy=False, secrets=None, running=None) -> dict:
-    """advanced-api: what the card shows - and, only with `copy`, the address carrying the token."""
+def lan_addresses() -> list:
+    """This PC's own IPv4 addresses on its networks, as Windows resolves its own name - no request leaves the PC -
+    loopback, link-local, multicast and unspecified ones left out, at most four, in the order Windows gives them."""
+    import socket
+    found = []
+    try:
+        infos = socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET)
+    except (OSError, UnicodeError):
+        return []
+    for info in infos:
+        try:
+            address = ipaddress.IPv4Address(info[4][0])
+        except (ValueError, IndexError, TypeError):
+            continue
+        if address.is_loopback or address.is_link_local or address.is_unspecified or address.is_multicast:
+            continue
+        if str(address) not in found:
+            found.append(str(address))
+    return found[:4]
+
+
+def api_view(runtime, *, copy=False, host=None, copy_token=False, secrets=None, running=None, watcher=None,
+             addresses=None) -> dict:
+    """advanced-api: what the card shows - and, only with `copy`, the address carrying the token (on `host` where it is
+    one of this PC's own addresses), or with `copy_token` the token alone. `running`, `watcher` and `addresses` are the
+    seams a test fills: whether the resident answers its mutex, whether the watcher runs, and this PC's addresses."""
     from ..courier.address import web_view
     from ..credentials import SecretError
     if runtime.registry.get(API) is None:
@@ -242,17 +308,25 @@ def api_view(runtime, *, copy=False, secrets=None, running=None) -> dict:
         token = None
     alive = (running or _running)(runtime) if on else False
     chosen = port(runtime)
+    lan = on and _armed(runtime, API_LAN)
     found = {"done": True, "refusal": None, "port": chosen, "url": web_view(chosen),
-             "token_saved": isinstance(token, str) and bool(token), "state": _word(runtime, on, alive),
-             "lan": on and _armed(runtime, API_LAN), "actions": on and _armed(runtime, API_ACTIONS)}
-    # Never while another program holds the port (or the server is not up): opened, the address would hand the token in
-    # its fragment to that program's page (R7, the security review of 2026-11-06).
-    if copy is True and found["token_saved"] and _standing(runtime, API) is None and found["state"] in ("running", "starting"):
-        found["copy_url"] = web_view(chosen, token)
+             "token_saved": isinstance(token, str) and bool(token), "state": _word(runtime, on, alive, watcher),
+             "lan": lan, "actions": on and _armed(runtime, API_ACTIONS)}
+    own = (addresses or lan_addresses)() if lan else []
+    if lan:
+        found["lan_urls"] = [web_view(chosen, host=address) for address in own]
+    # Only while the server runs - bound by the resident; not while it starts, nor on a port another program was found
+    # on, however long ago: opened, the address would hand the token in its fragment to that program's page (R7, the
+    # security review of 2026-11-06; R1 and M1 of the reachability audit).
+    if found["token_saved"] and found["state"] == "running" and _standing(runtime, API) is None:
+        if copy is True and (host is None or host in own):
+            found["copy_url"] = web_view(chosen, token, host=host)
+        if copy_token is True:
+            found["copy_token"] = token
     return found
 
 
-def api_token_new(runtime, *, secrets=None) -> dict:
+def api_token_new(runtime, *, secrets=None, running=None, watcher=None) -> dict:
     """advanced-api-token-new: a new token kept, the old one gone; the address carrying it answered this once."""
     from ..courier.address import web_view
     from ..credentials import SecretError
@@ -264,13 +338,20 @@ def api_token_new(runtime, *, secrets=None) -> dict:
         _secrets(runtime, secrets).write(API, TOKEN, token)
     except SecretError:
         return {"done": False, "refusal": Refusal.SECRET_UNAVAILABLE}
-    return {"done": True, "refusal": None, "copy_url": web_view(port(runtime), token)}
+    made = {"done": True, "refusal": None}
+    # As Copy address: the address carrying it only while the server runs (R1).
+    on = _armed(runtime, API)
+    if _word(runtime, on, on and (running or _running)(runtime), watcher) == "running":
+        made["copy_url"] = web_view(port(runtime), token)
+    return made
 
 
-def pair_state(runtime, *, secrets=None, running=None) -> dict:
-    """advanced-remote-pair-state: the shared Telegram pairing (push_notices'), as the remote card shows it."""
+def pair_state(runtime, *, secrets=None, running=None, watcher=None) -> dict:
+    """advanced-remote-pair-state: the shared Telegram pairing (push_notices'), as the remote card shows it - and what the
+    resident's long poll does (courier/telegram.py, `once`): with no bot token or no chat paired it reads nothing
+    (no_token, no_chat), during a pairing it leaves the bot to the pairing (pairing), and only otherwise reads it
+    (running) - the reachability audit's M7. `chat` is the paired chat's name as Telegram gave it, where one was kept."""
     from ..courier import keep
-    from ..engine import remote
     if runtime.registry.get(TELEGRAM) is None or runtime.registry.get(keep.CAPABILITY) is None:
         return {"done": False, "refusal": Refusal.UNKNOWN_CAPABILITY}
     secrets = _secrets(runtime, secrets) if secrets is not None else keep.secrets_of(runtime.registry)
@@ -281,12 +362,16 @@ def pair_state(runtime, *, secrets=None, running=None) -> dict:
     now = runtime.clock()
     on = _armed(runtime, TELEGRAM)
     alive = (running or _running)(runtime) if on else False
-    word = "off" if not on else "running" if alive else ("stopped" if remote.stopped(runtime.state.journal_times, now)
-                                                         else "starting")
-    return {"done": True, "refusal": None, "paired": keep.saved(secrets, "telegram"),
-            "token_saved": _saved_token(secrets),
-            "pairing": bool(row.get("code_digest") and (row.get("code_expires_at") or 0) > now),
-            "state": word, "continue": _armed(runtime, TELEGRAM_CONTINUE)}
+    paired, token_saved = keep.saved(secrets, "telegram"), _saved_token(secrets)
+    pairing = bool(row.get("code_digest") and (row.get("code_expires_at") or 0) > now)
+    word = "off" if not on else _down(runtime, alive, watcher)
+    if word is None:
+        word = ("no_token" if not token_saved else "pairing" if pairing else "no_chat" if not paired else "running")
+    found = {"done": True, "refusal": None, "paired": paired, "token_saved": token_saved, "pairing": pairing,
+             "state": word, "continue": _armed(runtime, TELEGRAM_CONTINUE)}
+    if paired:
+        found["chat"] = _chat_name(secrets)
+    return found
 
 
 def _saved_token(secrets) -> bool:
@@ -295,6 +380,15 @@ def _saved_token(secrets) -> bool:
         return read(secrets, "telegram_token") is not None
     except Exception:
         return False
+
+
+def _chat_name(secrets):
+    """The paired chat's title or @username as Telegram gave it (courier/keep.chat_name), or None."""
+    from ..courier.keep import chat_name
+    try:
+        return chat_name(secrets)
+    except Exception:
+        return None
 
 
 def pair_start(runtime, *, secrets=None, start=None) -> dict:

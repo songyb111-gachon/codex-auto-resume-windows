@@ -325,6 +325,10 @@ class OptionKey(StrEnum):
     # wrote its file, so a file newer than that is another PC's under the same name.
     FLEET_WAITING = "fleet_waiting"
     FLEET_WROTE_AT = "fleet_wrote_at"
+    # v0.6.22 (local_api, the reachability audit's R1): when the resident's server last bound its port, and when it last
+    # found the port held by another program - the card's "running", and Copy, stand on these alone.
+    API_BOUND_AT = "api_bound_at"
+    API_TAKEN_AT = "api_taken_at"
     # v0.6.20 (window_anchor, the owner's request of 2026-10-28): the times of day it starts an idle 5-hour window at
     # (three, each off or a time - TIME_OFF, or the minute of the day plus two), and whether it starts one right after
     # a reset. And its stamps: when it last started one, the reset that start fixed, the running reset it last saw, the

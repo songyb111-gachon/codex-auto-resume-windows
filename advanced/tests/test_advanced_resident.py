@@ -133,7 +133,8 @@ class CapTests(ResidentCase):
         self.now += remote.HOUR
         self.tick()
         self.assertEqual(len(self.started), 2 + remote.RESTARTS)
-        self.assertEqual(card.api_view(self.rt, running=lambda runtime: False, secrets=_NoToken())["state"], "starting")
+        self.assertEqual(card.api_view(self.rt, running=lambda runtime: False, watcher=lambda runtime: True,
+                                       secrets=_NoToken())["state"], "starting")
 
     def test_the_count_outlives_the_watcher_that_made_it(self):
         """Fails with the starts kept in a module's memory, as the draft had them: the Dashboard's process and a watcher

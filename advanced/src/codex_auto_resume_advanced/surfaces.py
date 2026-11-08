@@ -110,8 +110,9 @@ ARGUMENTS = {
 # until the writer of its capability builds it: that writer gives it its arguments here, takes it out of this set, and
 # answers it in `bridge`.
 UNANSWERED = frozenset()
-# v0.6.22 (local_api): the card's read - with `copy`, the address carrying the token - and a new token (control/remote.py).
-ARGUMENTS[BridgeCommand.ADVANCED_API] = frozenset({"copy"})
+# v0.6.22 (local_api): the card's read - with `copy`, the address carrying the token (on `host`, one of this PC's own
+# addresses), with `copy_token` the token alone - and a new token (control/remote.py).
+ARGUMENTS[BridgeCommand.ADVANCED_API] = frozenset({"copy", "host", "copy_token"})
 ARGUMENTS[BridgeCommand.ADVANCED_API_TOKEN_NEW] = frozenset()
 # and (telegram_remote) Telegram's pairing begun from its card, and how it stands.
 ARGUMENTS[BridgeCommand.ADVANCED_REMOTE_PAIR_START] = frozenset()
@@ -584,7 +585,8 @@ def bridge(runtime, command, argument):
         # v0.6.22 (local_api): the Dashboard's alone - no MCP tool reaches the token.
         from .control import remote
         if command == BridgeCommand.ADVANCED_API:
-            return remote.api_view(runtime, copy=argument.get("copy", False))
+            return remote.api_view(runtime, copy=argument.get("copy", False), host=argument.get("host"),
+                                   copy_token=argument.get("copy_token", False))
         return remote.api_token_new(runtime)
     if command == BridgeCommand.ADVANCED_POWER_TASKS:
         # v0.6.20 (power_after_tasks): the conversations running now and the tasks the power action waits for.
