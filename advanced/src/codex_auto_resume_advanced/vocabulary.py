@@ -329,6 +329,11 @@ class OptionKey(StrEnum):
     # found the port held by another program - the card's "running", and Copy, stand on these alone.
     API_BOUND_AT = "api_bound_at"
     API_TAKEN_AT = "api_taken_at"
+    # and, bound for the local network, this PC's own IPv4 addresses it answers on, each as its 32-bit number (at most four).
+    API_LAN_1 = "api_lan_1"
+    API_LAN_2 = "api_lan_2"
+    API_LAN_3 = "api_lan_3"
+    API_LAN_4 = "api_lan_4"
     # v0.6.20 (window_anchor, the owner's request of 2026-10-28): the times of day it starts an idle 5-hour window at
     # (three, each off or a time - TIME_OFF, or the minute of the day plus two), and whether it starts one right after
     # a reset. And its stamps: when it last started one, the reset that start fixed, the running reset it last saw, the

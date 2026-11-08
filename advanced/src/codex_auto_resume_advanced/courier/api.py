@@ -347,6 +347,7 @@ class Running:
         self.thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.5}, daemon=True,
                                        name="local-api")
         self.thread.start()
+        self.addresses = []                 # this PC's own addresses it answers on beyond 127.0.0.1 (`lan_addresses`)
 
     @property
     def port(self) -> int:
@@ -356,6 +357,26 @@ class Running:
         self.server.shutdown()
         self.server.server_close()
         self.thread.join(timeout=2)
+
+
+def lan_addresses() -> list:
+    """This PC's own IPv4 addresses on its networks, as Windows resolves its own name - no request leaves the PC -
+    loopback, link-local, multicast and unspecified ones left out, at most four, in the order Windows gives them."""
+    found = []
+    try:
+        infos = socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET)
+    except (OSError, UnicodeError):
+        return []
+    for info in infos:
+        try:
+            address = ipaddress.IPv4Address(info[4][0])
+        except (ValueError, IndexError, TypeError):
+            continue
+        if address.is_loopback or address.is_link_local or address.is_unspecified or address.is_multicast:
+            continue
+        if str(address) not in found:
+            found.append(str(address))
+    return found[:4]
 
 
 def bind_address(lan) -> str:
@@ -370,4 +391,7 @@ def start(runtime, port, lan, *, service=None, clock=None) -> Running:
     server = Server((bind_address(lan), port), service, Gate(clock))
     if not port:
         service.port = server.server_address[1]
-    return Running(server)
+    running = Running(server)
+    if lan:
+        running.addresses = lan_addresses()        # recorded by the resident for the card (control/remote.py)
+    return running

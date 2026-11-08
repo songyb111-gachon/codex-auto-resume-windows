@@ -271,25 +271,20 @@ def _word(runtime, on, alive, watcher=None) -> str:
     return "port_taken" if taken is not None and taken >= began else "starting"
 
 
-def lan_addresses() -> list:
-    """This PC's own IPv4 addresses on its networks, as Windows resolves its own name - no request leaves the PC -
-    loopback, link-local, multicast and unspecified ones left out, at most four, in the order Windows gives them."""
-    import socket
+def recorded_addresses(runtime) -> list:
+    """This PC's own network addresses the server answers on, as the resident recorded them when it bound for the
+    local network (courier/resident.py, from courier/api.py: the courier alone reaches the network) - none while it is
+    not bound there. Read here, never looked up: this module imports no networking code."""
+    from ..courier.resident import LAN_KEYS
     found = []
-    try:
-        infos = socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET)
-    except (OSError, UnicodeError):
-        return []
-    for info in infos:
+    for key in LAN_KEYS:
         try:
-            address = ipaddress.IPv4Address(info[4][0])
-        except (ValueError, IndexError, TypeError):
+            value = runtime.state.stamped(API, key)
+            if value is not None:
+                found.append(str(ipaddress.IPv4Address(value)))
+        except Exception:
             continue
-        if address.is_loopback or address.is_link_local or address.is_unspecified or address.is_multicast:
-            continue
-        if str(address) not in found:
-            found.append(str(address))
-    return found[:4]
+    return found
 
 
 def api_view(runtime, *, copy=False, host=None, copy_token=False, secrets=None, running=None, watcher=None,
@@ -312,7 +307,7 @@ def api_view(runtime, *, copy=False, host=None, copy_token=False, secrets=None, 
     found = {"done": True, "refusal": None, "port": chosen, "url": web_view(chosen),
              "token_saved": isinstance(token, str) and bool(token), "state": _word(runtime, on, alive, watcher),
              "lan": lan, "actions": on and _armed(runtime, API_ACTIONS)}
-    own = (addresses or lan_addresses)() if lan else []
+    own = (addresses or (lambda: recorded_addresses(runtime)))() if lan else []
     if lan:
         found["lan_urls"] = [web_view(chosen, host=address) for address in own]
     # Only while the server runs - bound by the resident; not while it starts, nor on a port another program was found
