@@ -60,7 +60,9 @@ STAMPS = {"idle_update_check": (str(OptionKey.LAST_CHECK), str(OptionKey.OFFERED
           # v0.6.22: fleet_view's last try, what it waits on, and when it last wrote this PC's file (engine/fleet.py).
           "fleet_view": (str(OptionKey.LAST_FLEET_WRITE), str(OptionKey.FLEET_WAITING), str(OptionKey.FLEET_WROTE_AT)),
           # v0.6.22: when local_api's server last bound its port, and when it last found the port taken (courier/resident.py).
-          "local_api": (str(OptionKey.API_BOUND_AT), str(OptionKey.API_TAKEN_AT))}
+          # and, bound for the local network, the addresses it answers on, as numbers.
+          "local_api": (str(OptionKey.API_BOUND_AT), str(OptionKey.API_TAKEN_AT), str(OptionKey.API_LAN_1),
+                        str(OptionKey.API_LAN_2), str(OptionKey.API_LAN_3), str(OptionKey.API_LAN_4))}
 RULES_LIMIT = 10
 STATUS_RANGE = (100, 599)
 # How far back the Dashboard counts a rule's hits and shows samples.

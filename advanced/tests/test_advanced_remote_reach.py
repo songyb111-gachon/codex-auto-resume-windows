@@ -23,7 +23,7 @@ from test_advanced_courier_channels import Secrets as PushSecrets  # noqa: E402
 from test_advanced_local_api import BEARER_INK, Secrets  # noqa: E402
 from codex_auto_resume_advanced import statement  # noqa: E402
 from codex_auto_resume_advanced.control import courier as courier_card, remote  # noqa: E402
-from codex_auto_resume_advanced.courier import keep, resident  # noqa: E402
+from codex_auto_resume_advanced.courier import api, keep, resident  # noqa: E402
 from codex_auto_resume_advanced.engine import fleet, remote as engine_remote  # noqa: E402
 from codex_auto_resume_advanced.registry import LOCAL_API, LOCAL_API_ACTIONS, LOCAL_API_LAN  # noqa: E402
 
@@ -173,9 +173,23 @@ class LanTests(ApiCase):
         infos = [(2, 1, 6, "", (address, 0)) for address in
                  ("127.0.0.1", "169.254.3.4", "192.168.1.20", "192.168.1.20", "10.0.0.5", "0.0.0.0")]
         with patch("socket.getaddrinfo", lambda *unused: infos):
-            self.assertEqual(remote.lan_addresses(), ["192.168.1.20", "10.0.0.5"])
+            self.assertEqual(api.lan_addresses(), ["192.168.1.20", "10.0.0.5"])
         with patch("socket.getaddrinfo", side_effect=OSError("no name")):
-            self.assertEqual(remote.lan_addresses(), [])
+            self.assertEqual(api.lan_addresses(), [])
+
+    def test_the_resident_records_what_its_server_answers_on_and_the_card_reads_it(self):
+        """The addresses come from the courier's server (the one module that reaches the network), through the state."""
+        class Lan(_Server):
+            addresses = ["192.168.1.20", "10.0.0.5", "10.0.0.6", "10.0.0.7", "10.0.0.8"]
+        self.rt.state.unstamp("local_api", resident.BOUND)
+        roles = resident.Roles(self.rt, server=lambda runtime, port, lan: Lan())
+        self.assertTrue(roles.follow())
+        found = self.view(copy=True, host="10.0.0.7")
+        self.assertEqual(found["lan_urls"], ["http://192.168.1.20:47615/", "http://10.0.0.5:47615/",
+                                             "http://10.0.0.6:47615/", "http://10.0.0.7:47615/"], "at most four")
+        self.assertEqual(found["copy_url"], "http://10.0.0.7:47615/#" + BEARER_INK)
+        roles.close()
+        self.assertEqual(remote.recorded_addresses(self.rt), [], "closed, none is answered on")
 
 
 class TelegramWords(tt.TelegramCase):

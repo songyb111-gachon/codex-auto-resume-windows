@@ -19,12 +19,16 @@ reduces (or is the person's own release under telegram_continue).
 """
 from __future__ import annotations
 
+import ipaddress
 import threading
 import time
 
 from ..vocabulary import ArmingState, OptionKey
 
 BOUND, TAKEN = str(OptionKey.API_BOUND_AT), str(OptionKey.API_TAKEN_AT)
+# This PC's addresses the server answers on beyond 127.0.0.1, while it is bound for the local network: each IPv4 address
+# kept as its number, as the stamps hold whole numbers alone (the card reads them: control/remote.recorded_addresses).
+LAN_KEYS = (str(OptionKey.API_LAN_1), str(OptionKey.API_LAN_2), str(OptionKey.API_LAN_3), str(OptionKey.API_LAN_4))
 
 API = "local_api"
 API_LAN = "local_api_lan"
@@ -123,6 +127,15 @@ class Roles:
         taken away - or neither, for None. Never fatal: a stamp that cannot be written leaves the card short of
         "running", which offers nothing."""
         state = self.runtime.state
+        found = list(getattr(self.server, "addresses", None) or ()) if stamp == BOUND else []
+        for place, key in enumerate(LAN_KEYS):
+            try:
+                if place < len(found):
+                    state.stamp(API, key, int(ipaddress.IPv4Address(found[place])))
+                else:
+                    state.unstamp(API, key)
+            except Exception:
+                pass
         for key in (BOUND, TAKEN):
             try:
                 if key == stamp:
