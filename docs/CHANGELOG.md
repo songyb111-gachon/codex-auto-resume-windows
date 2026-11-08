@@ -42,8 +42,9 @@ A capability turned on with *Keep it on* is stored as a kept-on one, which versi
   app open and none, and otherwise says *not checked*. It reads the look the watcher already took and starts nothing. It stays on
   your PC: a community report carries no such check, and no capability stands on it.
 - **The setup window offers a shortcut on the Desktop, on its Finish page, off unless you tick it.** After an installation, a repair or
-  an update that succeeded - the setup program's or the Dashboard's - the Finish page shows the box, ticked where a shortcut of ours
-  is already on the Desktop, so an install that never had a shortcut keeps none. Pressing Finish makes the shortcut when you ticked
+  an update that succeeded in the setup program, or an update the Dashboard started, the Finish page shows the box, ticked where a
+  shortcut of ours is already on the Desktop, so an install that never had a shortcut keeps none. The Dashboard's *Repair* runs the
+  setup program without its window, so it shows no box and leaves the shortcut as it is. Pressing Finish makes the shortcut when you ticked
   an empty box and removes ours when you cleared a ticked one; left as it was, nothing changes. Repair and updates keep your choice,
   and uninstall removes the shortcut - only one that is ours, by its exact name and a target inside this installation. A shortcut
   that cannot be made fails nothing: it is said in one line on that page, and the window stays open until the next Finish. A run
@@ -53,7 +54,9 @@ A capability turned on with *Keep it on* is stored as a kept-on one, which versi
   no page for the sealed copies of Codex's sign-in file that the advanced edition's account switch keeps, so the setup window's
   edition step now says they stay on this PC, sealed for your Windows user and unused, and offers a box, off, to delete them with
   the change - only where the change goes from advanced to standard and the folder is there. A plain uninstall says the saved
-  accounts stay and that a purge removes them; SECURITY and PRIVACY name the one feature that keeps them.
+  accounts stay and that a purge removes them; SECURITY and PRIVACY name the one feature that keeps them. Changing to the standard
+  edition through *Install another version...* now asks the same question, and an accounts folder with nothing in it no longer brings
+  it (new since beta.2).
 - **No edit saves the defaults over a stored list.** Editing one conversation's message, Always/Never for a project, *Not now* for
   a Codex home or the kept notice kinds read the whole list through a load that takes the defaults when the settings file is
   briefly held by another program, and then saved the defaults over your list. Such an edit now refuses with *try again* when the
@@ -93,6 +96,16 @@ A capability turned on with *Keep it on* is stored as a kept-on one, which versi
   64 KB and never the whole line. An answer too large to keep comes back marked oversize for its request instead of ending the
   reader; a request that long is kept as its id and method alone; a notification or anything else that long is dropped with one
   log line that holds no content.
+- **The setup program waits up to 45 seconds for the watcher it started** (new since beta.2). The advanced edition's watcher can take
+  10 to 15 seconds to start, and setup gave up after six, so the Finish page said it could not confirm the watcher beside one that
+  was starting. Setup now waits as long as the watcher's process is alive, up to 45 seconds, and still ends at once when the watcher
+  is seen running.
+- **The Statistics chart draws raised bars and colours them by their part in the success rate** (new since beta.2). In the Soft design
+  each outcome of the outcome chart is a raised, rounded bar, and in Classic a flat one. A bar is blue for an outcome that counts as
+  a success, orange for one that counts as not succeeded and grey for one the rate leaves out. The success rate follows the same rule:
+  a recovery, a conversation that moved on before a send and a delivery from before 0.6 count as successes; *handed over*, *stopped by
+  you* and *cancelled* are left out of the rate, being your own decision; every other outcome counts as not succeeded. The rate still
+  appears once at least five outcomes count. The power action's *Every recovery succeeded* is unchanged and means recovered only.
 - For contributors: CI jobs stop a hung part after 150 minutes, a pushed release tag whose commit is not on main is refused before
   anything is built, release checksum files are written with LF, the test parts are dealt by the seconds the tests took, the
   Overview can keep room under its two rows of cards for what an edition shows there, and a new plug point lets an edition's
@@ -113,7 +126,8 @@ A capability turned on with *Keep it on* is stored as a kept-on one, which versi
   moving between your own accounts counts is OpenAI's decision, not this product's, and that an account could be suspended; read
   it before you turn the switch on. The saved accounts have a card on the Advanced features page - each shown by a masked address,
   plan and state, with *Add an account...*, *Save the account in use*, *Delete* and *Delete all*, each asking first - and the
-  Dashboard's bridge serves it only while the switch is on. Each saved account is one file sealed for your Windows user, replaced
+  Dashboard's bridge serves it only while the switch is on. The switch's description now says that both its measurements passed on
+  codex-cli 0.167.0-alpha.3.2 and that on any other version of Codex a warning says they are unmeasured (new since beta.2). Each saved account is one file sealed for your Windows user, replaced
   whole or not at all, in a folder only you can read; a link at that folder is refused, no plain copy outlives a killed run, and a
   saved sign-in can be deleted in every state of the switch and by an uninstall that deletes the settings.
 - **Codex's own retry settings stay hidden.** The route is built - a provider of its own with your attempts, given only to the
@@ -128,7 +142,8 @@ A capability turned on with *Keep it on* is stored as a kept-on one, which versi
 - **Raised ceilings, as the owner's table set them.** The global hourly ceiling is 24 instead of 12, a stored 12 becomes 24 on update
   and a lower one you chose stays. The sends a day in all and in one conversation are raised for 28 capabilities, and the longer
   choice lists - capacity hours up to 24, tries up to five, headless hours up to 12, queue-for-open days up to 30, parallel workers up
-  to eight, Codex retry attempts 16 and 20 - are offered. Spending reset credits (2 a day, 7 a week), starting the 5-hour window early
+  to eight - are offered. Codex retry attempts 16 and 20 belong to the hidden route above and are not offered while that capability
+  stays hidden. Spending reset credits (2 a day, 7 a week), starting the 5-hour window early
   (5 a day) and the 15-minute spacing are unchanged. Every statement and page that names a raised number says the new one in all 18
   languages, and no statement's revision moved, so nothing turns off at the update.
 - **The advanced audit's fixes.** *Wake this PC for a reset* reads when the watcher next looks at a waiting usage-limit record, takes
@@ -198,6 +213,30 @@ A capability turned on with *Keep it on* is stored as a kept-on one, which versi
   a clock set wrong on another PC is said rather than believed, and while recovery is paused nothing is written. Turned off, this PC's
   file stays in the folder, so the other PCs show it greyed instead of it vanishing. Its statement says that whoever can read the
   folder, your sync service or the share's readers among them, sees this PC's name, its counts and its usage.
+- **Push notices, the status feed, Telegram control and the loopback API now start from an installed copy** (new since beta.2). The
+  process that carries them was given where its code lives only through an environment variable, which the Python bundled with the
+  installation ignores, so from an installation it never started: push notices and the status feed had not run since v0.6.20, and
+  Telegram control and the loopback API not since v0.6.22-beta.2. Its command line now carries that location itself, and the build
+  of the advanced edition stops if that process cannot start under the bundled Python.
+- **The saved-accounts card shows each account's usage** (new since beta.2). Under each account are two
+  meters, its 5-hour and its weekly usage, turning orange from 90 %, with when they were read; under the list, when the readings
+  were made and the account the switch would pick next, or that none has room. **Read usage**, at the card's top right while the
+  switch is on, reads every saved account but the one in use - in a private folder, one at a time, at most once every 10 minutes -
+  and sends nothing and switches nothing; the account in use shows what the watcher already read, and each reading is kept in the
+  account's own sealed file. *Add an account...* now works while Codex is signed out, since it signs in in a private folder of its
+  own. *Save the account in use* asks first what it keeps and that the copy is encrypted for your Windows user. Each refusal says
+  its own reason, and a *Delete* held by a running switch or read says so; with no saved account besides the one in use, a look no
+  longer says every saved account is at its limit.
+- **The remote cards say what is true** (new since beta.2). The status server's card says it is running only once it has bound its
+  port - never while it starts, and never when another program holds the port - and *Copy address* and the new **Copy token**, which
+  copies the token alone, hand it out only then. While the watcher is not running they say the server starts with it. With the
+  local-network choice on, the card lists this PC's network addresses and copies the one you pick. The Telegram card names the
+  paired chat by the title or @username Telegram gave, says truthfully whether the bot is being read or why it is not, and opens the
+  notices card when no bot token is saved. The folder for your other PCs can be typed or pasted, quotes taken away, as well as
+  picked, and a PC that has not been heard from for three passes shows when it was last heard.
+- **The status feed reads once when the Dashboard opens** (new since beta.2), as its description says.
+- Small fixes (new since beta.2): the chat card's *Turn it on first* shows in every language, and the examples the advanced page
+  offers are offered only for the capabilities that page shows.
 - **A goal continuation at a reset the watcher verified no longer counts toward its ceiling for one conversation** (reported by
   [@Kdevaulo](https://github.com/Kdevaulo), [#59](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/59)).
   *Goal continuation* answers a goal paused by a usage limit; where the limit's recorded reset has passed and usage shows room before
