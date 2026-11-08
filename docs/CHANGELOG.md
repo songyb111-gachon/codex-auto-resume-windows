@@ -210,10 +210,10 @@ A capability turned on with *Keep it on* is stored as a kept-on one, which versi
 - **The watch log keeps the newest 95 lines of what each capability would have done, not 110,** so with the new capabilities above
   every capability's lines still fit the journal's bound.
 - **Turn on keeps a capability on unless you say otherwise** (new since beta.2). The one confirmation *Turn on* asks - the statement
-  and every warning in front of you - now carries a *Keep it on* switch under its words, **on by default**. Left on, the capability
+  and every warning in front of you - now carries a *Keep it on* check box under its words, **ticked by default**. Left ticked, the capability
   does not turn itself off when its statement changes, a warning appears, a part of it fails or Codex is updated: it stays on and
   the page tells you. Untick it for a plain On, which turns itself off as before. What the capability needs and turns on with it
-  follows the same choice. Where the capability's own compatibility check failed on this PC the switch is shown off and cannot be
+  follows the same choice. Where the capability's own compatibility check failed on this PC the check box is shown unticked and cannot be
   ticked, one line says why, and it is turned on plainly. A capability already on stays as it was - nothing is kept on at the
   update - until you choose *Keep it on...* on its card.
 - **Start with Codex says when it starts the watcher** (new since beta.2). Its description now says it starts the watcher when Codex
