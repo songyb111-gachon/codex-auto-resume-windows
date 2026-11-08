@@ -18,7 +18,9 @@ At P8, as an errand, at most every LOOK_EVERY seconds while it stands on:
    line asks too) is switched in (codex/swap.switch); each read is kept in its profile for the card's meters, and the
    account found signed in is marked as the one in use (profiles' `seen_at`);
 5. none with room: the journal counts `all_exhausted` once for the episode, one notice says so (core's kind
-   accounts_exhausted, registered by plug.py; surfaces.autoswitch_view), and recovery waits as today;
+   accounts_exhausted, registered by plug.py; surfaces.autoswitch_view), and recovery waits as today - but with no saved
+   account other than the one in use (none saved at all, the reachability audit's M8) nothing is said or counted: there
+   is no account to be at its limit;
 6. a switch that did not finish - its target not signed in, the previous file not back yet, the app not started again,
    another account signed in meanwhile, a failure - or one a crash left that was settled other than as switched, says so
    once too: the same kind, with the closed word `why` "not_finished" (the security review's finding 9), once for each
@@ -91,7 +93,7 @@ def _idle():
 class AutoSwitch:
     """account_auto_switch's code: its P8 errand and its P7 answer. See the module."""
     __slots__ = ("paths", "_scoped", "_saved", "_session_for", "_restart", "_read_real", "_idle", "_busy", "_home",
-                 "_looked", "_episode", "_switched_at", "_notice")
+                 "_looked", "_episode", "_switched_at", "_notice", "_others")
 
     def __init__(self, paths, *, store=None, session_for=None, restart=None, read_real=None, idle=None, busy=None,
                  home=None):
@@ -105,6 +107,7 @@ class AutoSwitch:
         self._episode = None
         self._switched_at = None
         self._notice = None
+        self._others = 0
 
     def bind(self, scoped):
         self._scoped = scoped
@@ -249,6 +252,8 @@ class AutoSwitch:
             self._count("ceiling")
             return None
         target = self.choose(store, now)
+        if target is None and not self._others:
+            return None                                  # nothing saved but the account in use: nothing to be at a limit
         if target is None:
             self._count("all_exhausted")
             # One notice for this set of waiting records (core's kind accounts_exhausted, plug.NOTICE_KINDS).
@@ -274,10 +279,12 @@ class AutoSwitch:
         return None
 
     def choose(self, store, now):
-        """The saved account to switch to - the most room, ties to the least recently used (`best`) - or None."""
+        """The saved account to switch to - the most room, ties to the least recently used (`best`) - or None. How many
+        saved accounts other than the one in use there are, in any state, is kept in `_others`."""
         from ..codex import swap
         from ..codex.account import identity
         from ..profiles import ProfileError, READY
+        self._others = 0
         current = identity(self.read_real())
         if current is None:
             return None                                  # who is signed in cannot be told: nothing is read or switched
@@ -290,6 +297,7 @@ class AutoSwitch:
             if (profile.get("email") or "").lower() == current:
                 seen(store, profile_id, now)
                 continue
+            self._others += 1
             if store.state(profile, now) != READY:
                 continue
             found = swap.read_profile(self.paths, store, profile_id, session_for=self._session_for, now=now)

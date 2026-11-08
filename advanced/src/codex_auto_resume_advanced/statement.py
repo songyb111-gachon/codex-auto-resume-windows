@@ -382,6 +382,9 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "accounts.read", "accounts.read_wait", "accounts.reading", "accounts.read_held", "accounts.read_unknown",
     "accounts.in_use", "accounts.five_hour", "accounts.weekly", "accounts.percent", "accounts.meter", "accounts.not_read",
     "accounts.unread", "accounts.read_at", "accounts.candidate", "accounts.candidate_none",
+    # and the reachability audit's R4, M10 and M11: the true reason under the heading, a Delete held by a switch or a read,
+    # and Save's question.
+    "accounts.no_file", "accounts.unreadable", "confirm.accounts_save", "refused.accounts_held",
 ))
 # v0.6.22 (fleet_view): the Overview's Other PCs list, its columns and state words, how the folder stands, and the card
 # this PC's name and folder are chosen on (advanced/gui/AdvancedFleet.cs, control/fleet.py).

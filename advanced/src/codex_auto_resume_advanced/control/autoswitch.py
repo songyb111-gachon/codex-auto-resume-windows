@@ -8,7 +8,8 @@ saved account's address or sign-in file leaves this module.
 
 `advanced-accounts-add` is Add an account: Codex's own `codex login` on a scratch home (codex/swap.add_by_login), on a
 thread of this process's own, one at a time per installation (SWITCH_RUNNING while one waits); the card then reads
-`add_state` - WAITING, then ADDED or NOT_ADDED. `advanced-accounts-save` is Save the account in use (codex/swap.save_current).
+`add_state` - WAITING, then ADDED or NOT_ADDED, each said once: the read that answers it forgets it (the reachability
+audit's M9 - "The account was saved." stayed until the bridge restarted). `advanced-accounts-save` is Save the account in use (codex/swap.save_current).
 `advanced-accounts-delete` takes {"id": <a profile's id>} or {"all": true} and deletes the files.
 
 The usage meters (v0.6.22 final): each row of `advanced-accounts` carries its account's five-hour and weekly windows -
@@ -91,6 +92,8 @@ def view(runtime, *, store=None, codex_home=None, usage=None, now=None) -> dict:
         switched = None
     with _LOCK:
         add_state = _ADDING.get(Path(runtime.paths.home))
+        if add_state in (ADDED, NOT_ADDED):
+            _ADDING.pop(Path(runtime.paths.home), None)  # said once, as the card's other done-lines are
         reading = dict(_READING.get(Path(runtime.paths.home)) or {})
     try:
         offered = runtime.registry.get(CAPABILITY) is not None
@@ -300,4 +303,4 @@ def delete(runtime, argument, *, store=None, codex_home=None) -> dict:
                 return _refused(Refusal.OPTION_INVALID)
             return {"done": True, "refusal": None, "deleted": int(store.delete(profile_id))}
     except Locked:
-        return _refused(Refusal.SWITCH_RUNNING)
+        return _refused(Refusal.ACCOUNTS_HELD)            # a switch, a read or a save holds them (the audit's M10)

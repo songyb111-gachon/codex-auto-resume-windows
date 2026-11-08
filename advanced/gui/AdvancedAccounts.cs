@@ -10,7 +10,13 @@
 // account card masks it, the plan and a state word - ready, at its limit, needs a new sign-in, cannot be opened; a line
 // when Codex keeps its sign-in outside a file here, so nothing can be switched; Add an account..., which asks first and
 // then runs Codex's own sign-in in the browser - the card is read again every AccountsPollMilliseconds while it waits -;
-// Save the account in use; Delete for the rows ticked and Delete all, each asking first with Cancel the default.
+// Save the account in use; Delete for the rows ticked and Delete all, each asking first with Cancel the default - Save
+// too, since the v0.6.22 final (the reachability audit's M11).
+//
+// Add an account... signs in on a scratch home of its own, so it works while Codex is signed out here (store "no_file");
+// only Save and the switch itself need Codex's own sign-in file. The line under the heading says which is the case: a
+// sign-in kept outside a file (nothing can be switched), Codex signed out here (sign in to Codex, or add an account), or
+// Codex's settings unreadable (the reachability audit's R4: it said "outside a file" for every one of them).
 //
 // The usage meters (v0.6.22 final, the owner's mock of 2026-11-08): under each row two grooves, "5-hour" and "Weekly", each
 // with the share used inside it and "<N>% · in <time>" after it - the bar in the accent, in the warning colour from 90 per
@@ -224,9 +230,8 @@ namespace CodexAutoResume
             card.Controls.Add(HelpText(Word("page.accounts.help",
                 "Your own other Codex accounts. When a recovery waits for a usage limit, the one with the most room is switched in.")));
             // Only while it stands: off or hidden, the bridge reads nothing of Codex's home and "store" is null.
-            if (standing && Str(advancedAccounts, "store") != "usable")
-                card.Controls.Add(HelpText(Word("page.accounts.not_file",
-                    "Codex keeps its sign-in outside a file here, so accounts cannot be switched.")));
+            string why = standing ? AccountsStoreLine(Str(advancedAccounts, "store")) : null;
+            if (why != null) card.Controls.Add(HelpText(why));
             foreach (object entry in Items(advancedAccounts, "profiles") ?? new List<object>())
             {
                 var row = entry as Dictionary<string, object>;
@@ -281,8 +286,10 @@ namespace CodexAutoResume
         {
             bool listed = idle && advancedListing != null && advancedAccounts != null;
             bool usable = listed && Str(advancedAccounts, "store") == "usable";
+            // Adding signs in on a scratch home: Codex signed out here (no_file) stops nothing but Save and a switch.
+            bool addable = usable || (listed && Str(advancedAccounts, "store") == "no_file");
             foreach (CheckBox row in accountsRows) row.Enabled = listed;
-            if (accountsAdd != null) accountsAdd.Enabled = usable && Str(advancedAccounts, "add_state") != "waiting";
+            if (accountsAdd != null) accountsAdd.Enabled = addable && Str(advancedAccounts, "add_state") != "waiting";
             if (accountsSave != null) accountsSave.Enabled = usable;
             if (accountsDelete != null) accountsDelete.Enabled = listed && AccountsPicked().Count > 0;
             if (accountsDeleteAll != null) accountsDeleteAll.Enabled = listed && accountsRows.Count > 0;
@@ -323,9 +330,26 @@ namespace CodexAutoResume
             });
         }
 
+        /// The line under the heading for a sign-in this card cannot use as it is - or null where it can (store "usable").
+        private string AccountsStoreLine(string store)
+        {
+            if (store == "usable") return null;
+            if (store == "no_file")
+                return Word("page.accounts.no_file",
+                    "Codex is signed out here, so the account in use cannot be saved and nothing is switched until you sign in to Codex. Add an account... still works.");
+            if (store == "unreadable")
+                return Word("page.accounts.unreadable",
+                    "Codex's settings here cannot be read, so accounts cannot be saved or switched.");
+            return Word("page.accounts.not_file", "Codex keeps its sign-in outside a file here, so accounts cannot be switched.");
+        }
+
+        /// Save the account in use, after one question: what it keeps, and how (Cancel the default).
         private void SaveAccount()
         {
             if (busy > 0 || advancedAccounts == null) return;
+            if (!AskAdvanced(Word("page.confirm.accounts_save",
+                    "Save the account Codex is signed in to now? A copy of its sign-in file is kept on this PC, encrypted for your Windows user."),
+                Affirm(Word("page.accounts.save", "Save the account in use")))) return;
             AdvancedCall("advanced-accounts-save", "{}", true, delegate(Dictionary<string, object> reply)
             {
                 Dictionary<string, object> result = AdvancedResult(reply);
@@ -386,6 +410,9 @@ namespace CodexAutoResume
         {
             if (refusal == "switch_running")
                 return Word("page.refused.switch_running", "A sign-in is already waiting in your browser.");
+            if (refusal == "accounts_held")
+                return Word("page.refused.accounts_held",
+                    "The saved accounts are in use by a switch or a usage read just now. Try again in a moment.");
             return ResetRefusal(refusal);
         }
     }

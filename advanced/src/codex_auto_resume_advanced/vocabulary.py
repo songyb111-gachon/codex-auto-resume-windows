@@ -183,6 +183,8 @@ class Refusal(StrEnum):
     # card offers no button then - and asked again while one is still waiting for the browser.
     SWITCH_UNMEASURED = "switch_unmeasured"
     SWITCH_RUNNING = "switch_running"
+    # v0.6.22 final (the reachability audit's M10): a Delete of a saved account while a switch, a read or a save holds them.
+    ACCOUNTS_HELD = "accounts_held"
     # v0.6.20 final (account_switch's restart, control/account.restart): Restart asked while a turn runs, a recovery
     # waits or runs or something is queued in Codex (codex/restart.busy); asked while one runs; and asked with no sign-in
     # of this Dashboard's to restart Codex for.

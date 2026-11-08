@@ -742,8 +742,10 @@ class TheCardOffTouchesNothingOfCodex(unittest.TestCase):
             if depth == 0:
                 break
         body = source[at:end]
-        self.assertIn('if (standing && Str(advancedAccounts, "store") != "usable")', body)
-        block_at = body.index("if (standing)" + chr(10))
+        # The line about Codex's sign-in only while it stands (since the v0.6.22 final it names the real reason, R4).
+        self.assertIn('string why = standing ? AccountsStoreLine(Str(advancedAccounts, "store")) : null;', body)
+        # The last standing block holds Add and Save; the first, since the final, holds Read usage at the heading.
+        block_at = body.rindex("if (standing)" + chr(10))
         depth, open_at = 0, body.index("{", block_at)
         for close in range(open_at, len(body)):
             depth += {"{": 1, "}": -1}.get(body[close], 0)
