@@ -120,11 +120,17 @@ namespace CodexAutoResume
 
         /// Whether the edition-change page says what happens to the saved Codex sign-ins and offers to delete them
         /// (v0.6.22): a change that takes the advanced edition away, from an installation that keeps some. Nothing else
-        /// has anything to say about them: the advanced edition has its card, and a standard installation has none.
+        /// has anything to say about them: the advanced edition has its card, and a standard installation has none. The
+        /// setup window's edition change (Install) and the Dashboard's Install another version... (Another) are the two
+        /// ways to such a change, and both ask the same question in the same words.
         internal bool OffersAccountDeletion
         {
-            get { return Mode == Install && EditionChange && Edition == Standard && Installed == Advanced && SavedAccountsThere; }
+            get { return (Mode == Install || Another) && EditionChange && Edition == Standard && Installed == Advanced && SavedAccountsThere; }
         }
+
+        /// The first version whose installer takes -DeleteSavedAccounts (scripts/bootstrap.ps1's $DeleteAccountsSince): a
+        /// pick of an older standard version is told what becomes of the accounts, but has no box.
+        internal const string DeleteAccountsSince = "0.6.22-beta";
 
         /// The pages the window goes through, in order.
         internal string[] Pages()
@@ -277,14 +283,20 @@ namespace CodexAutoResume
             }
         }
 
-        /// Whether `home` keeps the advanced edition's saved Codex sign-ins (v0.6.22): its accounts folder is there and is no
-        /// link or junction - the folder the purge takes (install.ps1, config.Paths.owned_account_files). Reads only.
+        /// Whether `home` keeps the advanced edition's saved Codex sign-ins (v0.6.22): its accounts folder is there, is no
+        /// link or junction - the folder the purge takes (install.ps1, config.Paths.owned_account_files) - and holds a
+        /// saved account, a sealed .dat file (advanced profiles.SUFFIX). A folder with none - made by an Add that added
+        /// nothing, or left by Delete all - has nothing to say or to delete. Reads only.
         internal static bool SavedAccountsAt(string home)
         {
             try
             {
                 var folder = new DirectoryInfo(Path.Combine(home, "accounts"));
-                return folder.Exists && (folder.Attributes & FileAttributes.ReparsePoint) == 0;
+                if (!folder.Exists || (folder.Attributes & FileAttributes.ReparsePoint) != 0) return false;
+                foreach (FileInfo file in folder.GetFiles("*.dat"))
+                    if ((file.Attributes & FileAttributes.ReparsePoint) == 0 && file.Name.EndsWith(".dat", StringComparison.OrdinalIgnoreCase))
+                        return true;
+                return false;
             }
             catch (Exception) { return false; }
         }

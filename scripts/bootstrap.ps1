@@ -170,7 +170,8 @@
          Add -Compatibility to refresh the Codex compatibility data and nothing else.
          Add -Versions to list the versions the Dashboard may install instead, and install nothing.
          Add -Pick <version> -Edition <edition> to install one of them (with -Force when it is older
-         or of the other edition).
+         or of the other edition). Add -DeleteSavedAccounts to a pick from the advanced edition to the
+         standard one to delete the saved Codex accounts with the change.
          Add -Edition Standard or -Edition Advanced to choose the edition; over the other
          edition, add -Force as well, which is what replacing it takes.
 #>
@@ -197,6 +198,10 @@ param(
     # exactly when that row is older or of the other edition. Never spliced as typed: Get-ChosenVersion
     # rebuilds it from its integers, and it is installed only if the list still offers it.
     [string]$Pick,
+    # With -Pick, a change from the advanced edition to the standard one, and a version whose installer has the switch
+    # ($DeleteAccountsSince): also delete the saved Codex accounts, which the setup window's edition change offers
+    # the same way (v0.6.22). Never forwarded anywhere else; asked of any other pick it says so and deletes nothing.
+    [switch]$DeleteSavedAccounts,
     # The Dashboard's update (v0.6.16): it shows what is new in the verified download before anything is installed,
     # and the person says whether to go on. Only a line on the input that is exactly `install` goes on.
     [switch]$AskFirst
@@ -300,6 +305,8 @@ $PickFloor = '0.6.2'
 # points at an uninstaller nothing removes.
 $EntryFrom = '0.6.16'
 $EditionsSince = '0.6.11-alpha'
+# The first version whose installer takes -DeleteSavedAccounts: an older one would stop on a parameter it does not know.
+$DeleteAccountsSince = '0.6.22-beta'
 $PolicySince = '0.6.11-beta'
 $PolicyKeys = @('HKEY_LOCAL_MACHINE', 'HKEY_CURRENT_USER')
 $PolicyPath = 'Software\Policies\CodexAutoResume'
@@ -2011,6 +2018,17 @@ function Resolve-Edition {
     return [pscustomobject]@{ Edition = $chosen; Verdict = $verdict }
 }
 
+function Test-DeleteSavedAccounts {
+    <#
+        Whether -DeleteSavedAccounts goes on to the installer (v0.6.22): only for a pick that changes to the standard
+        edition ('change': the other edition is installed and -Force said to replace it), into a version whose installer
+        has the switch ($DeleteAccountsSince) - an older one would stop on a parameter it does not know.
+    #>
+    param([bool]$Pick, [string]$Verdict, [string]$Edition, [string]$Target)
+    if (-not $Pick -or $Verdict -cne 'change' -or $Edition -cne 'standard') { return $false }
+    return ((Compare-ProductVersion -Left $Target -Right $DeleteAccountsSince) -ge 0)
+}
+
 function Get-EditionStatement {
     # What moving from one edition to the other keeps and what it changes, in one line said
     # before anything is done. The installer says the same line (build/install/install.ps1) as
@@ -2270,7 +2288,7 @@ if ($Versions) {
 $pickConvert = $false
 if ($Pick) {
     if ($CheckOnly -or $Update -or $ArchivePath -or $Compatibility -or $Version) {
-        Fail '-Pick installs the version picked in Install another version..., and goes with -Edition, -Force and -NoStartup alone.'
+        Fail '-Pick installs the version picked in Install another version..., and goes with -Edition, -Force, -NoStartup and -DeleteSavedAccounts alone.'
         Step 'Nothing was downloaded, and nothing was changed.'
         exit 1
     }
@@ -2793,6 +2811,15 @@ try {
     # Only a change this run was asked for, with -Edition and -Force. The installer refuses an
     # edition change nobody told it about.
     if ($plan.Verdict -eq 'change') { $arguments['AllowEditionChange'] = $true }
+    # The saved accounts go only with the change this pick was asked to make, to the standard edition, into an
+    # installer that knows the switch; asked of anything else, they stay and the line says so.
+    if ($DeleteSavedAccounts) {
+        if (Test-DeleteSavedAccounts -Pick ([bool]$Pick) -Verdict $plan.Verdict -Edition $targetEdition -Target $target) {
+            $arguments['DeleteSavedAccounts'] = $true
+        } else {
+            Warn '-DeleteSavedAccounts only goes with a pick that changes to the standard edition in a version that has it, so the saved Codex accounts were kept.'
+        }
+    }
     # From here on "nothing was installed" would be a lie: the installer moves the old
     # payload aside before it copies, so a failure inside it leaves a machine that has
     # been touched. It reports and rolls back its own work; this script must not claim

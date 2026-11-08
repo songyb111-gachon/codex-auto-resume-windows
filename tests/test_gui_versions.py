@@ -411,8 +411,9 @@ class WindowTests(unittest.TestCase):
 
     def test_the_confirmation_is_the_careful_one(self):
         confirm = self.body("ConfirmPick")
-        self.assertIn('S("action.install", "Install"), S("action.not_now", "Not now"));', confirm)
-        self.assertIn("return Dialog(", confirm)
+        # v0.6.22: the box for the saved Codex accounts rides on the same careful dialog (tests/test_pick_saved_accounts.py).
+        self.assertIn('S("action.install", "Install"), S("action.not_now", "Not now"), deleteAccounts);', confirm)
+        self.assertIn("bool yes = Dialog(", confirm)
         self.assertNotIn("Confirm(", confirm)
         opened = self.body("OpenVersions")
         self.assertIn("if (!ConfirmPick(picked, listed)) return;", opened)

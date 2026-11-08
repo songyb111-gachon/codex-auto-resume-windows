@@ -46,6 +46,9 @@ namespace CodexAutoResume
         private string[] versionsListed;
         // The row Install... was pressed on, read once the dialog has closed.
         private string[] versionsPicked;
+        // The confirmation's box (ConfirmPick), read by InstallPick: also delete the saved Codex accounts with a change to
+        // the standard edition. Off until it is ticked.
+        private bool pickDeletesAccounts;
         // Which listing is the latest, so the answer to one whose dialog was closed is dropped.
         private int versionsToken;
 
@@ -395,6 +398,22 @@ namespace CodexAutoResume
                 text.Add(row[1] == "standard"
                     ? S("pick.confirm.to_standard", "The advanced features go, and their code with them.")
                     : S("pick.confirm.to_advanced", "Every advanced feature starts off."));
+            // v0.6.22: leaving the advanced edition from an installation that keeps saved Codex accounts says what becomes
+            // of them and offers to delete them, in the setup window's words and with its switch (InstallerFlow.
+            // OffersAccountDeletion; InstallPick passes -DeleteSavedAccounts). Off, they stay.
+            CheckBox deleteAccounts = null;
+            string home = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
+            var ask = new InstallerFlow(InstallerFlow.Update, home, row[1], listed[1], row[0]);
+            ask.Another = true;
+            ask.SavedAccountsThere = InstallerFlow.SavedAccountsAt(home);
+            if (ask.OffersAccountDeletion)
+            {
+                var asked = new InstallerWords(strings, openedLanguage);
+                text.Add(asked.Say("installer.options.saved_accounts", "The Codex accounts you saved for switching stay on this PC, sealed for this Windows user, and the standard edition does not use them."));
+                // A version older than the switch has no installer that could take it.
+                if (CompareVersions(row[0], InstallerFlow.DeleteAccountsSince) >= 0)
+                    deleteAccounts = NewCheck(asked.Say("installer.options.delete_saved_accounts", "Also delete the Codex accounts you saved for switching"), false, true);
+            }
             if (HasWord(row, "advanced-off"))
                 text.Add(S("pick.confirm.advanced_off", "That version cannot read this version's advanced settings: every advanced feature is off there, and the settings are kept for a later version."));
             text.Add(S("pick.confirm.checked", "The download is checked against its pinned digest or its published checksum before anything runs.") + " " +
@@ -402,8 +421,10 @@ namespace CodexAutoResume
                             : S("pick.confirm.kept", "Your settings, your pause, everything waiting and the sign-in choice are kept.")));
             if (WayBack(row, listed[0]))
                 text.Add(S("pick.confirm.way_back", "To come back, use Check for updates in that version."));
-            return Dialog(string.Join(Environment.NewLine + Environment.NewLine, text.ToArray()),
-                          S("action.install", "Install"), S("action.not_now", "Not now"));
+            bool yes = Dialog(string.Join(Environment.NewLine + Environment.NewLine, text.ToArray()),
+                              S("action.install", "Install"), S("action.not_now", "Not now"), deleteAccounts);
+            pickDeletesAccounts = yes && deleteAccounts != null && deleteAccounts.Checked;
+            return yes;
         }
 
         /// The first version whose Check for updates offers a pre-release (the bootstrap's Get-NewerPrerelease): v0.6.2
@@ -466,6 +487,9 @@ namespace CodexAutoResume
             bool force = words.Contains("older") || words.Contains("edition");
             string flag = "-Pick " + row[0] + " -Edition " + (row[1] == "advanced" ? "Advanced" : "Standard") +
                           (force ? " -Force" : "");
+            // The same switch the setup window passes (InstallerFlow.Switches), only for what the confirmation offered it for.
+            if (pickDeletesAccounts && row[1] == InstallerFlow.Standard && words.Contains("edition")) flag += " -DeleteSavedAccounts";
+            pickDeletesAccounts = false;
             string version = row[0], edition = row[1];
             string before = WatcherIdentity();
             string shown = diagUpdate.Text;
