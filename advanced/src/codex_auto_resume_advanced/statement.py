@@ -405,6 +405,13 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "remote.answer.refused", "remote.answer.cancelled", "remote.answer.continued", "remote.answer.status",
     "remote.answer.list_none", "remote.answer.list_item", "remote.word.running", "remote.word.stopped", "remote.word.on",
     "remote.word.paused", "remote.word.observe_only", "tripped.bad_codes"))
+# v0.6.22 final (the reachability audit's R1, M3-M7, M14): the server waiting on a watcher that is not running, Copy token,
+# this PC's addresses on the local network and which to copy; the long poll's truthful states, the paired chat by its name,
+# the line before a pairing and the way to the notices card; the folder typed or pasted, and a PC last heard from.
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
+    "api.state.no_watcher", "api.copy_token", "done.api_token_copied", "refused.api_token_not_copied", "api.lan_address",
+    "api.copy_which", "remote.state.no_watcher", "remote.state.no_token", "remote.state.no_chat", "remote.paired_chat",
+    "remote.not_paired_token", "remote.open_notices", "fleet.folder_help", "fleet.state.last_heard"))
 # The edition's own continuations' words (v0.6.15-beta): what empty_response, subagent_parent and keep_going send -
 # fixed, each passing core's continuation.validate_continuation in every language (nothing is filled in but, for a
 # subagent's line, its id and a closed kind word).

@@ -5,13 +5,15 @@
 //
 // While the capability is on, the Overview gains a card under its two rows of cards: flat hairline rows, one for each other
 // PC whose file is in the folder - its name, what it said, how many wait, its next check and when it wrote - and a line saying
-// how the folder stands where it waits on something. A file older than a week is greyed, "not seen since", and one written
-// ahead of this PC's clock says so instead of a time. There is nothing to press on a row: no action on a peer exists. Off,
+// how the folder stands where it waits on something. A PC that has not written for a while says "last heard" and when, not
+// what it said then (a watcher that stopped writes nothing more); a file older than a week is greyed, "not seen since", and
+// one written ahead of this PC's clock says so instead of a time. There is nothing to press on a row: no action on a peer exists. Off,
 // there is no card and the Overview is the standard window's. The rows are the bridge's checked words and bounded numbers
 // (control/fleet.py); a synced file's text never reaches this window unchecked.
 //
 // While it is on or watched, its column on the Advanced features page has a card: this PC's name, the folder (chosen in
-// Windows' own folder dialog, never typed) and Save. Off, with a folder saved, the card says only that this PC's file stays
+// Windows' own folder dialog, or typed or pasted - a network share the dialog cannot browse to - and checked by the bridge
+// on Save as a chosen one is) and Save. Off, with a folder saved, the card says only that this PC's file stays
 // there. advanced-fleet is read once a minute at most, from the snapshots, and never by a window that is being audited.
 //
 // Nothing here draws anything the window does not draw already: the card, its heading, the list and its rows (DrawCell, a
@@ -35,6 +37,8 @@ namespace CodexAutoResume
         // How many rows the list shows before it scrolls on its own bar, and each row's and the heading's height.
         private const int FleetRowsShown = 6;
         private const int FleetRowHeight = 34;
+        // The longest folder the bridge keeps (engine/fleet.FOLDER_MOST).
+        private const int FleetFolderMost = 248;
 
         // advanced-fleet's last answer, or null; whether the status says the capability is on; when it was last asked.
         private Dictionary<string, object> advancedFleet;
@@ -47,7 +51,7 @@ namespace CodexAutoResume
         private Control fleetHost;
         private Label fleetSaid;
         // The Advanced page's card as it was built.
-        private SoftTextArea fleetAlias;
+        private SoftTextArea fleetAlias, fleetFolder;
         private Label fleetFolderLine;
         private Button fleetPick, fleetSave;
 
@@ -168,7 +172,10 @@ namespace CodexAutoResume
             double written = Number(peer, "written_at"), due = Number(peer, "next_check_at");
             var row = new ListViewItem(Str(peer, "alias") ?? "");
             bool old = seen == "old";
-            row.SubItems.Add(old ? Word("page.fleet.state.not_seen", "not seen since") : FleetState(peer));
+            // Not heard from for a while (engine/fleet.QUIET): when it last wrote, never what it said then.
+            row.SubItems.Add(old ? Word("page.fleet.state.not_seen", "not seen since")
+                             : seen == "quiet" ? Word("page.fleet.state.last_heard", "last heard {time}", "time", ClockTime(written))
+                             : FleetState(peer));
             row.SubItems.Add(old ? "" : Whole(Get(peer, "pending")).ToString(CultureInfo.CurrentCulture));
             row.SubItems.Add(due > 0 ? ClockTime(due) : "");
             row.SubItems.Add(seen == "clock" ? Word("page.fleet.state.clock", "its clock differs from this PC's")
@@ -230,7 +237,7 @@ namespace CodexAutoResume
 
         private void ForgetFleetCard()
         {
-            fleetAlias = null;
+            fleetAlias = fleetFolder = null;
             fleetFolderLine = null;
             fleetPick = fleetSave = null;
         }
@@ -269,11 +276,21 @@ namespace CodexAutoResume
             };
             card.Controls.Add(fleetAlias);
             card.Controls.Add(HelpText(Word("page.fleet.alias_help", "1 to 32 letters, digits, spaces or hyphens. Give each PC its own.")));
-            card.Controls.Add(Caption(Word("page.fleet.folder", "Folder")));
-            string folder = FleetDraft("fleet.folder", Str(advancedFleet, "folder"));
-            fleetFolderLine = HelpText(folder.Length > 0 ? folder : Word("page.fleet.no_folder", "No folder chosen yet."));
-            fleetFolderLine.ForeColor = Ink;
+            string where = Word("page.fleet.folder", "Folder");
+            card.Controls.Add(Caption(where));
+            // Typed or pasted as well as chosen (a share the folder dialog cannot browse to): the bridge checks either alike on Save.
+            fleetFolder = OneLine(where, 360, FleetFolderMost);
+            fleetFolder.Box.Text = FleetDraft("fleet.folder", Str(advancedFleet, "folder"));
+            fleetFolder.Box.TextChanged += delegate
+            {
+                resetDrafts["fleet.folder"] = FleetTyped(fleetFolder.Box.Text);
+                FleetFolderSaid();
+                UpdateFleetButtons(busy == 0);
+            };
+            card.Controls.Add(fleetFolder);
+            fleetFolderLine = HelpText("");
             card.Controls.Add(fleetFolderLine);
+            FleetFolderSaid();
             fleetPick = CardButton(card, Word("page.fleet.pick", "Choose a folder..."), delegate { PickFleetFolder(); });
             fleetPick.Margin = Pad(0, 6, 0, 4);
             fleetSave = CardButton(card, Word("page.fleet.save", "Save"), delegate { SaveFleet(); });
@@ -290,7 +307,22 @@ namespace CodexAutoResume
                                     FleetDraft("fleet.folder", Str(advancedFleet, "folder")).Length > 0;
         }
 
-        /// Windows' own folder dialog: the folder is chosen, never typed.
+        /// A folder as typed or pasted: spaces at its ends and the quotes Copy as path puts round it taken away.
+        private static string FleetTyped(string text)
+        {
+            return (text ?? "").Trim().Trim('"').Trim();
+        }
+
+        /// The line under the folder: that none is chosen yet, and that one may be typed or pasted as well as chosen.
+        private void FleetFolderSaid()
+        {
+            if (fleetFolderLine == null || fleetFolder == null) return;
+            string help = Word("page.fleet.folder_help", "Choose a folder, or type or paste its path - a network share's too.");
+            fleetFolderLine.Text = FleetTyped(fleetFolder.Box.Text).Length > 0 ? help
+                                 : Word("page.fleet.no_folder", "No folder chosen yet.") + " " + help;
+        }
+
+        /// Windows' own folder dialog: the folder chosen there goes into the box, as if typed.
         private void PickFleetFolder()
         {
             if (busy > 0) return;
@@ -304,8 +336,8 @@ namespace CodexAutoResume
 
         private void ChooseFleetFolder(string path)
         {
-            resetDrafts["fleet.folder"] = path;
-            if (fleetFolderLine != null) fleetFolderLine.Text = path;
+            resetDrafts["fleet.folder"] = FleetTyped(path);
+            if (fleetFolder != null) fleetFolder.Box.Text = path;
             UpdateFleetButtons(busy == 0);
         }
 

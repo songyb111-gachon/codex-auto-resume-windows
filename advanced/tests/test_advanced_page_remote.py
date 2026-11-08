@@ -22,16 +22,17 @@ API = "local_api"
 TELEGRAM = "telegram_remote"
 ADDRESS = "http://127.0.0.1:47615/"
 COPIED = ADDRESS + "#made-up-token-for-the-test"
+LAN_ADDRESS = "http://192.168.1.20:47615/"
 
 
-def card(token=True, state="running", lan=False):
-    return {"ok": True, "result": {"done": True, "refusal": None, "port": 47615, "url": ADDRESS, "token_saved": token,
-                                   "state": state, "lan": lan, "actions": False}}
+def card(token=True, state="running", lan=False, **more):
+    return {"ok": True, "result": dict({"done": True, "refusal": None, "port": 47615, "url": ADDRESS, "token_saved": token,
+                                        "state": state, "lan": lan, "actions": False}, **more)}
 
 
-def telegram(paired=True, token=True, state="running", also=False, pairing=False):
-    return {"ok": True, "result": {"done": True, "refusal": None, "paired": paired, "token_saved": token, "pairing": pairing,
-                                   "state": state, "continue": also}}
+def telegram(paired=True, token=True, state="running", also=False, pairing=False, **more):
+    return {"ok": True, "result": dict({"done": True, "refusal": None, "paired": paired, "token_saved": token,
+                                        "pairing": pairing, "state": state, "continue": also}, **more)}
 
 
 def done(**more):
@@ -79,6 +80,53 @@ class PageTests(PageCase):
         script = cls.opening(bridge, "en")
         script["advanced-api"] = [card(token=False, state="port_taken", lan=True)] * 8
         steps = [{"do": "snapshot", "reply": snapshot()}, {"do": "show"}, {"do": "choose", "id": API}, {"do": "look"}]
+        return "en", {"script": script, "steps": steps}, {"words": script["advanced-words"][0]["result"]["words"]}
+
+    @classmethod
+    def scenario_starting(cls, bridge):
+        """A token kept, the resident up but its server not bound yet - and then the watcher not running."""
+        cls.watched(bridge, API, state="armed")
+        script = cls.opening(bridge, "en")
+        script["advanced-api"] = [card(state="starting")] * 4 + [card(state="no_watcher")] * 4
+        steps = [{"do": "snapshot", "reply": snapshot()}, {"do": "show"}, {"do": "choose", "id": API}, {"do": "look"},
+                 {"do": "reply", "key": "advanced-api", "with": [card(state="no_watcher")] * 4},
+                 {"do": "snapshot", "reply": snapshot()}, {"do": "look"}]
+        return "en", {"script": script, "steps": steps}, {"words": script["advanced-words"][0]["result"]["words"]}
+
+    @classmethod
+    def scenario_lan(cls, bridge):
+        """Running and open to the network: this PC's addresses listed, the first picked, Copy token beside Copy address."""
+        cls.watched(bridge, API, state="armed")
+        script = cls.opening(bridge, "en")
+        script["advanced-api"] = [card(lan=True, lan_urls=[LAN_ADDRESS, "http://10.0.0.5:47615/"])] * 8
+        steps = [{"do": "snapshot", "reply": snapshot()}, {"do": "show"}, {"do": "choose", "id": API}, {"do": "look"},
+                 {"do": "reply", "key": "advanced-api", "with": [done(copy_url=LAN_ADDRESS + "#made-up")]},
+                 {"do": "remote", "button": "copy api"},
+                 {"do": "reply", "key": "advanced-api", "with": [done(copy_token="made-up")]},
+                 {"do": "remote", "button": "copy token"}, {"do": "look"}]
+        return "en", {"script": script, "steps": steps}, {"words": script["advanced-words"][0]["result"]["words"]}
+
+    @classmethod
+    def scenario_telegram_named(cls, bridge):
+        """Paired with a chat Telegram named, and then a token with no chat yet: what the poll does, and Pair."""
+        cls.watched(bridge, "push_notices", state="armed")
+        cls.watched(bridge, TELEGRAM, state="armed")
+        script = cls.opening(bridge, "en")
+        script["advanced-remote-pair-state"] = [telegram(chat="Night shift")] * 4
+        steps = [{"do": "snapshot", "reply": snapshot()}, {"do": "show"}, {"do": "choose", "id": TELEGRAM}, {"do": "look"},
+                 {"do": "reply", "key": "advanced-remote-pair-state", "with": [telegram(paired=False, state="no_chat")] * 4},
+                 {"do": "snapshot", "reply": snapshot()}, {"do": "look"}]
+        return "en", {"script": script, "steps": steps}, {"words": script["advanced-words"][0]["result"]["words"]}
+
+    @classmethod
+    def scenario_telegram_no_token(cls, bridge):
+        """No bot token: the poll reads nothing and says so, and the card leads to the notices card."""
+        cls.watched(bridge, "push_notices", state="armed")
+        cls.watched(bridge, TELEGRAM, state="armed")
+        script = cls.opening(bridge, "en")
+        script["advanced-remote-pair-state"] = [telegram(paired=False, token=False, state="no_token")] * 8
+        steps = [{"do": "snapshot", "reply": snapshot()}, {"do": "show"}, {"do": "choose", "id": TELEGRAM}, {"do": "look"},
+                 {"do": "remote", "button": "open notices"}, {"do": "look"}]
         return "en", {"script": script, "steps": steps}, {"words": script["advanced-words"][0]["result"]["words"]}
 
     @classmethod
@@ -131,7 +179,7 @@ class PageTests(PageCase):
         self.assertTrue(any(ADDRESS in line for line in where))
         self.assertFalse(any("#" in line for line in where), "the token is never drawn")
         self.assertIn(words["page.api.token_kept"], where)
-        self.assertEqual(first["remote_buttons"], ["copy api", "token api"])
+        self.assertEqual(first["remote_buttons"], ["copy api", "copy token", "token api"])
 
     def test_copy_address_asks_with_copy_and_only_then_is_the_token_handed_on(self):
         result, _expected = self.of("scenario_on")
@@ -191,7 +239,53 @@ class PageTests(PageCase):
         self.assertIn(words["page.remote.state.stopped"], where)
         for name in ("continue", "lift_pause"):
             self.assertIn(words["page.remote.command." + name], where)
-        self.assertEqual(look["remote_buttons"], [])
+        self.assertEqual(look["remote_buttons"], ["open notices"])
+
+    def test_while_starting_or_with_no_watcher_nothing_is_copied_and_it_says_why(self):
+        """M1: fails with Copy address offered while the server starts; M3: with "starting" for a watcher not running."""
+        result, expected = self.of("scenario_starting")
+        words = expected["words"]
+        starting, no_watcher = result["looks"]
+        self.assertIn(words["page.api.state.starting"], self.card(starting, words["page.api.card"]))
+        self.assertEqual(starting["remote_buttons"], ["token api"])
+        self.assertIn(words["page.api.state.no_watcher"], self.card(no_watcher, words["page.api.card"]))
+        self.assertEqual(no_watcher["remote_buttons"], ["token api"])
+
+    def test_open_to_the_network_its_addresses_show_and_copy_carries_the_one_picked(self):
+        """M5: fails with only 127.0.0.1 shown and copied; M4: with no Copy token."""
+        result, expected = self.of("scenario_lan")
+        words = expected["words"]
+        first, after = result["looks"]
+        where = self.card(first, words["page.api.card"])
+        self.assertIn(words["page.api.lan_address"].replace("{url}", LAN_ADDRESS), where)
+        self.assertEqual(first["remote_buttons"], ["copy api", "copy token", "token api"])
+        asked = sent(result, "advanced-api")
+        self.assertIn({"copy": True, "host": "192.168.1.20"}, asked)
+        self.assertIn({"copy_token": True}, asked)
+        self.assertEqual(after["remote_copied"], [LAN_ADDRESS + "#made-up", "made-up"])
+        self.assertEqual(result["disabled"], [])
+
+    def test_the_paired_chat_is_named_and_a_chat_to_pair_says_how(self):
+        """M6: fails with only "A chat is paired" said; M7: with "being read" while no chat is paired."""
+        result, expected = self.of("scenario_telegram_named")
+        words = expected["words"]
+        named, unpaired = (self.card(look, words["page.remote.card"]) for look in result["looks"])
+        self.assertIn(words["page.remote.paired_chat"].replace("{chat}", "Night shift"), named)
+        self.assertIn(words["page.remote.state.no_chat"], unpaired)
+        self.assertNotIn(words["page.remote.state.running"], unpaired)
+        self.assertIn(words["page.remote.not_paired_token"], unpaired)
+        self.assertEqual(result["looks"][1]["remote_buttons"], ["pair telegram"])
+
+    def test_with_no_bot_token_it_says_so_and_opens_the_notices_card(self):
+        """M6: fails with nothing offered where the bot's token is missing; M7: with "being read" said."""
+        result, expected = self.of("scenario_telegram_no_token")
+        words = expected["words"]
+        first, opened = result["looks"]
+        where = self.card(first, words["page.remote.card"])
+        self.assertIn(words["page.remote.state.no_token"], where)
+        self.assertIn(words["page.remote.not_paired"], where)
+        self.assertEqual(first["remote_buttons"], ["open notices"])
+        self.assertEqual(opened["open"], "push_notices")
 
     def test_telegram_off_there_is_no_card_and_it_is_not_read(self):
         result, expected = self.of("scenario_telegram_off")
