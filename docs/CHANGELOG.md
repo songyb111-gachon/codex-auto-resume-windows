@@ -217,9 +217,11 @@ A capability turned on with *Keep it on* is stored as a kept-on one, which versi
   process that carries them was given where its code lives only through an environment variable, which the Python bundled with the
   installation ignores, so from an installation it never started: push notices and the status feed had not run since v0.6.20, and
   Telegram control and the loopback API not since v0.6.22-beta.2. Its command line now carries that location itself, and the build
-  of the advanced edition stops if that process cannot start under the bundled Python.
+  of the advanced edition stops if that process cannot start under the bundled Python. The watcher's limit of three restarts an
+  hour counts again from each install, update or Repair, so the starts an earlier version could not make no longer keep the
+  loopback API and Telegram control stopped for up to an hour after the update.
 - **The saved-accounts card shows each account's usage** (new since beta.2). Under each account are two
-  meters, its 5-hour and its weekly usage, turning orange from 90 %, with when they were read; under the list, when the readings
+  meters, its 5-hour and its 7-day usage, turning orange from 90 %, with when they were read; under the list, when the readings
   were made and the account the switch would pick next, or that none has room. **Read usage**, at the card's top right while the
   switch is on, reads every saved account but the one in use - in a private folder, one at a time, at most once every 10 minutes -
   and sends nothing and switches nothing; the account in use shows what the watcher already read, and each reading is kept in the
@@ -227,6 +229,18 @@ A capability turned on with *Keep it on* is stored as a kept-on one, which versi
   own. *Save the account in use* asks first what it keeps and that the copy is encrypted for your Windows user. Each refusal says
   its own reason, and a *Delete* held by a running switch or read says so; with no saved account besides the one in use, a look no
   longer says every saved account is at its limit.
+- **Switch to a saved account yourself, from either account card** (new since beta.2). Each saved account but the one in use has
+  **Switch to this account** under its meters, unless it needs a new sign-in. It asks first - the Codex app closes, anything not
+  yet sent in its window may be lost, the account in use is saved back to its copy first, and Codex starts again as the account
+  you picked - and then runs the automatic switch's own switch: the same close and restart, the same check of the account signed
+  in, and the same undo of a switch that did not finish. Being your own action, it needs no one away from the PC and is not
+  counted toward the automatic switch's ten a day, but it waits while a turn runs or something is queued in Codex, while a
+  recovery is being sent, while another Codex engine runs, and while another switch or a usage read holds the saved accounts; the
+  card then says how it ended. The saved accounts are now one set under both *Switch to another saved account at a usage limit*
+  and *Switch the Codex account*: an account added, saved or deleted on either card is the same on both. Because *Switch the Codex
+  account* now keeps these encrypted copies of Codex's sign-in file, its statement says what it keeps, where, who can open it and
+  how to delete it; it changed, so if you had it on or watched it, it turns off at the update until you read it again, and one you
+  keep on stays on with a notice.
 - **The remote cards say what is true** (new since beta.2). The status server's card says it is running only once it has bound its
   port - never while it starts, and never when another program holds the port - and *Copy address* and the new **Copy token**, which
   copies the token alone, hand it out only then. While the watcher is not running they say the server starts with it. With the
