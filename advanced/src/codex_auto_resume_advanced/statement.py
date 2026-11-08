@@ -378,6 +378,10 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "accounts.not_added", "accounts.add", "accounts.save", "accounts.delete", "accounts.delete_all",
     "confirm.accounts_add", "confirm.accounts_delete", "confirm.accounts_delete_all", "done.accounts_saved",
     "done.accounts_deleted", "refused.accounts_not_saved",
+    # v0.6.22 final: the usage meters under each row, the line under them and Read usage (advanced/gui/AdvancedMeter.cs).
+    "accounts.read", "accounts.read_wait", "accounts.reading", "accounts.read_held", "accounts.read_unknown",
+    "accounts.in_use", "accounts.five_hour", "accounts.weekly", "accounts.percent", "accounts.meter", "accounts.not_read",
+    "accounts.unread", "accounts.read_at", "accounts.candidate", "accounts.candidate_none",
 ))
 # v0.6.22 (fleet_view): the Overview's Other PCs list, its columns and state words, how the folder stands, and the card
 # this PC's name and folder are chosen on (advanced/gui/AdvancedFleet.cs, control/fleet.py).

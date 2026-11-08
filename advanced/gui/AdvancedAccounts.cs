@@ -12,8 +12,17 @@
 // then runs Codex's own sign-in in the browser - the card is read again every AccountsPollMilliseconds while it waits -;
 // Save the account in use; Delete for the rows ticked and Delete all, each asking first with Cancel the default.
 //
+// The usage meters (v0.6.22 final, the owner's mock of 2026-11-08): under each row two grooves, "5-hour" and "Weekly", each
+// with the share used inside it and "<N>% · in <time>" after it - the bar in the accent, in the warning colour from 90 per
+// cent, the groove empty and "not read yet" where no reading was made (AdvancedMeter.cs); the account signed in says "in
+// use" in the accent, and a row whose last read broke says "could not be read" and keeps its last reading. Under the rows
+// one muted line: when the readings were made and the next switch candidate, or that none has room. Read usage, at the
+// card's top right while the capability stands, reads every saved account now - one at a time, in the background, the
+// card read again every AccountsPollMilliseconds while it reads ("Reading usage... 1 of 3") - and says, once used, when it
+// can be used again: at most once every ten minutes. It sends nothing and switches nothing.
+//
 // Each request is the bridge's (control/autoswitch.py): advanced-accounts for the card, advanced-accounts-add,
-// advanced-accounts-save and advanced-accounts-delete; the card is read again after each. The address itself never
+// advanced-accounts-save, advanced-accounts-delete and advanced-accounts-read; the card is read again after each. The address itself never
 // reaches the window: the bridge answers it masked. Its words are this edition's catalog's.
 //
 // Nothing here draws anything the page does not draw already: the card, its help lines, check rows and buttons are the
@@ -37,7 +46,7 @@ namespace CodexAutoResume
         private Dictionary<string, object> advancedAccounts;
         // The card's form as it was built: each saved account's row, and its buttons.
         private readonly List<CheckBox> accountsRows = new List<CheckBox>();
-        private Button accountsAdd, accountsSave, accountsDelete, accountsDeleteAll;
+        private Button accountsAdd, accountsSave, accountsDelete, accountsDeleteAll, accountsRead;
         private Timer accountsTimer;
         private bool accountsPolling;
 
@@ -61,11 +70,11 @@ namespace CodexAutoResume
             });
         }
 
-        /// The timer started while an Add an account waits for the browser, and stopped once it does not - never in a test's
-        /// window, which reads the card itself.
+        /// The timer started while an Add an account waits for the browser, while Read usage reads, and while Read usage
+        /// waits to be used again; stopped once none is so - never in a test's window, which reads the card itself.
         private void WatchAccounts()
         {
-            bool waiting = Str(advancedAccounts, "add_state") == "waiting";
+            bool waiting = AccountsWaiting() || AccountsReadWait() > 0;
             if (!waiting || advancedScript != null || auditing)
             {
                 if (accountsTimer != null) accountsTimer.Stop();
@@ -81,9 +90,22 @@ namespace CodexAutoResume
             accountsTimer.Start();
         }
 
+        /// Whether the card waits on the bridge: an Add an account in the browser, or Read usage reading.
+        private bool AccountsWaiting()
+        {
+            return Str(advancedAccounts, "add_state") == "waiting" || Str(advancedAccounts, "read_state") == "reading";
+        }
+
+        /// Read again while the bridge works; while Read usage only waits to be used again, its button alone is said again.
         private void PollAccounts()
         {
             if (accountsPolling || advancedOpen != AccountsId) return;
+            if (!AccountsWaiting())
+            {
+                UpdateAccountsButtons(busy == 0);
+                if (AccountsReadWait() <= 0) WatchAccounts();
+                return;
+            }
             accountsPolling = true;
             ReadAccounts(delegate { accountsPolling = false; });
         }
@@ -105,7 +127,68 @@ namespace CodexAutoResume
             string plan = PlanName(Str(row, "plan"));
             if (plan != null) parts.Add(plan);
             parts.Add(AccountsState(Str(row, "state")));
+            if (Equals(Get(row, "unread"), true)) parts.Add(Word("page.accounts.unread", "could not be read"));
             return string.Join(" · ", parts.ToArray());
+        }
+
+        /// A meter's words: "<N>% · in <time>" until its reset, "<N>%" without one, "not read yet" without a reading.
+        private string AccountsMeterWords(Dictionary<string, object> window)
+        {
+            if (window == null) return Word("page.accounts.not_read", "not read yet");
+            string percent = Word("page.accounts.percent", "{n}%", "n",
+                                  Math.Round(Number(window, "used")).ToString(CultureInfo.CurrentCulture));
+            double resets = Number(window, "resets_at");
+            if (resets <= Now()) return percent;
+            return Word("page.accounts.meter", "{percent} · in {time}", "percent", percent)
+                .Replace("{time}", Mirror.Embed(AccountsSpan(resets - Now())));
+        }
+
+        /// How long until a moment, in the window's own units: days alone from a day, hours and minutes below, at least a
+        /// minute.
+        private string AccountsSpan(double seconds)
+        {
+            int total = Math.Max(60, (int)Math.Ceiling(seconds));
+            if (total >= 86400) return S("time.days", "{n}d", "n", total / 86400);
+            int minutes = (total % 3600) / 60;
+            if (total < 3600) return S("time.minutes", "{n}m", "n", Math.Max(1, minutes));
+            return S("time.hours", "{n}h", "n", total / 3600) + (minutes == 0 ? "" : " " + S("time.minutes", "{n}m", "n", minutes));
+        }
+
+        /// Seconds until Read usage may be used again, or 0 where it may now.
+        private double AccountsReadWait()
+        {
+            double next = Number(advancedAccounts, "read_next_at");
+            return next > Now() ? next - Now() : 0;
+        }
+
+        /// The muted line under the rows: when the readings were made and the next switch candidate - or null for neither.
+        private string AccountsReadLine()
+        {
+            var parts = new List<string>();
+            double at = Number(advancedAccounts, "read_at");
+            if (at > 0) parts.Add(Word("page.accounts.read_at", "Read {time}", "time", Age(Now() - at)));
+            string candidate = Str(advancedAccounts, "candidate");
+            if (Str(advancedAccounts, "candidate_state") == "found" && !string.IsNullOrEmpty(candidate))
+                parts.Add(Word("page.accounts.candidate", "Next switch candidate: {account}", "account", candidate));
+            else if (Str(advancedAccounts, "candidate_state") == "none_has_room")
+                parts.Add(Word("page.accounts.candidate_none", "Next switch candidate: none has room"));
+            return parts.Count == 0 ? null : string.Join(" · ", parts.ToArray());
+        }
+
+        /// What Read usage's last run says, while it reads or where it stopped short - or null.
+        private string AccountsReadState()
+        {
+            string state = Str(advancedAccounts, "read_state");
+            if (state == "reading")
+                return Word("page.accounts.reading", "Reading usage... {done} of {of}", "done",
+                            Whole(Get(advancedAccounts, "read_done")).ToString(CultureInfo.CurrentCulture))
+                    .Replace("{of}", Mirror.Embed(Whole(Get(advancedAccounts, "read_of")).ToString(CultureInfo.CurrentCulture)));
+            if (state == "held")
+                return Word("page.accounts.read_held", "Reading stopped: a switch began. Read usage again later.");
+            if (state == "unknown")
+                return Word("page.accounts.read_unknown",
+                    "Nothing was read: which account is signed in now could not be told.");
+            return null;
         }
 
         /// Whether any saved account is kept, by advanced-accounts' last answer.
@@ -133,6 +216,11 @@ namespace CodexAutoResume
             if (!AccountsHere(item)) return;
             bool standing = Str(item, "id") == AccountsId && Standing(item);
             TableLayoutPanel card = NewGroup(Word("page.accounts.title", "Saved accounts"), advancedStack);
+            if (standing)
+            {
+                accountsRead = MakeButton(Word("page.accounts.read", "Read usage"), false, delegate { ReadUsage(); });
+                AccountsHeading(card, accountsRead);
+            }
             card.Controls.Add(HelpText(Word("page.accounts.help",
                 "Your own other Codex accounts. When a recovery waits for a usage limit, the one with the most room is switched in.")));
             // Only while it stands: off or hidden, the bridge reads nothing of Codex's home and "store" is null.
@@ -147,11 +235,16 @@ namespace CodexAutoResume
                 CheckBox check = NewCheck(AccountsLine(row), false, true);
                 check.Tag = id;
                 check.CheckedChanged += delegate { UpdateAccountsButtons(busy == 0); };
-                card.Controls.Add(check);
+                card.Controls.Add(AccountsRow(check, Equals(Get(row, "in_use"), true)));
+                card.Controls.Add(AccountsMeters(row));
                 accountsRows.Add(check);
             }
             if (accountsRows.Count == 0)
                 card.Controls.Add(HelpText(Word("page.accounts.none", "No account saved yet.")));
+            string readLine = AccountsReadLine();
+            if (accountsRows.Count > 0 && readLine != null) card.Controls.Add(HelpText(readLine));
+            string readState = AccountsReadState();
+            if (standing && readState != null) card.Controls.Add(HelpText(readState));
             string addState = Str(advancedAccounts, "add_state");
             if (addState == "waiting")
                 card.Controls.Add(HelpText(Word("page.account.waiting", "Waiting for the sign-in in your browser...")));
@@ -173,7 +266,7 @@ namespace CodexAutoResume
         private void ForgetAccountsCard()
         {
             accountsRows.Clear();
-            accountsAdd = accountsSave = accountsDelete = accountsDeleteAll = null;
+            accountsAdd = accountsSave = accountsDelete = accountsDeleteAll = accountsRead = null;
         }
 
         private List<string> AccountsPicked()
@@ -193,6 +286,27 @@ namespace CodexAutoResume
             if (accountsSave != null) accountsSave.Enabled = usable;
             if (accountsDelete != null) accountsDelete.Enabled = listed && AccountsPicked().Count > 0;
             if (accountsDeleteAll != null) accountsDeleteAll.Enabled = listed && accountsRows.Count > 0;
+            if (accountsRead != null)
+            {
+                double wait = AccountsReadWait();
+                accountsRead.Text = wait > 0
+                    ? Word("page.accounts.read_wait", "Read again in {time}", "time", AccountsSpan(wait))
+                    : Word("page.accounts.read", "Read usage");
+                accountsRead.Enabled = listed && wait <= 0 && accountsRows.Count > 0 &&
+                                       Str(advancedAccounts, "read_state") != "reading";
+            }
+        }
+
+        /// Read usage: every saved account's usage read now by the bridge, in the background; the card follows it.
+        private void ReadUsage()
+        {
+            if (busy > 0 || advancedAccounts == null) return;
+            AdvancedCall("advanced-accounts-read", "{}", true, delegate(Dictionary<string, object> reply)
+            {
+                Dictionary<string, object> result = AdvancedResult(reply);
+                if (!AdvancedDone(result)) TellAdvanced(AccountsRefusal(Str(result, "refusal")));
+                ReadAccounts(null);
+            });
         }
 
         private void AddAccount()
