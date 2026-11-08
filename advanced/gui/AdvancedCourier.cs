@@ -30,6 +30,7 @@ namespace CodexAutoResume
     internal sealed partial class SettingsForm
     {
         private const string PushId = "push_notices";
+        private const string FeedId = "status_feed";
         private static readonly string[] CourierChannels = { "ntfy", "webhook", "telegram", "email" };
         // Each channel's fields: its key, the catalog word's key and fallback, and whether it holds a secret (masked).
         private static readonly string[][] CourierFields =
@@ -57,6 +58,8 @@ namespace CodexAutoResume
         private readonly List<SoftCheck> courierEvents = new List<SoftCheck>();
         // The Overview's status line (one fact of Right now), made the first time the page says something is wrong.
         private Label feedName, feedValue;
+        // Whether this window has asked for its one reading yet (FeedListingApplied).
+        private bool feedAsked;
 
         /// Whether `key` is one of push_notices' choices this card shows itself, so the Choices card passes it over.
         private static bool CourierChoice(string key)
@@ -354,6 +357,19 @@ namespace CodexAutoResume
         }
 
         // ---------------------------------------------------------------- the Overview's status line
+        /// Once, when the window opens and the Advanced listing first says the status feed stands on (its state in the list
+        /// the window already reads, so no new status field): one reading asked for now (advanced-feed-refresh), as the
+        /// capability's statement promises. A refresh: the answer is not read here - the next snapshot's feed shows it
+        /// (FeedApplied) - and a failure says nothing. Nothing else in the window sends it.
+        private void FeedListingApplied()
+        {
+            if (feedAsked || advancedListing == null) return;
+            Dictionary<string, object> item = AdvancedItem(FeedId);
+            if (item == null || Str(item, "state") != StateArmed) return;
+            feedAsked = true;
+            AdvancedCall("advanced-feed-refresh", "{}", false, delegate(Dictionary<string, object> reply) { });
+        }
+
         /// From each snapshot: OpenAI's status as the status feed last read it (surfaces.feed_view), one fact of Right now
         /// while it says degraded service or an outage, and hidden otherwise.
         private void FeedApplied(Dictionary<string, object> reply)
