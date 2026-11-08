@@ -54,6 +54,16 @@ from codex_auto_resume.commands.install import make_desktop_shortcut  # noqa: E4
 # Setup's own steps, counted for the setup window's bar while the installer runs it (progress): the launcher, the
 # state, recovery switched on, the sign-in start, the link handler, the entry in Add or remove programs, the watcher.
 SETUP_STEPS = 7
+# How long setup waits for the watcher it started to take its mutex, while the process it started is alive. The
+# Dashboard's Start watcher waits 6 seconds (control.WATCHER_START_TIMEOUT) and then says "not confirmed running
+# yet", which is a fair word there; setup says its verdict on the Finish page, so it waits for the real start. Measured
+# on the advanced edition (v0.6.22 acceptance, launcher.log): from the launcher's start to its supervised child's
+# start 10 to 15 seconds - the launcher imports the engine, asks the plug whether to supervise (P13, with a fresh
+# check of Codex) - and then the child imports the engine again and takes its mutex, 12 to 20 seconds in all.
+# 45 seconds is more than twice the slowest of those, for a cold disk or a scan of fresh files. The wait ends the
+# moment the mutex is held, or the process ends (control.await_watcher): only a watcher that is alive and not yet
+# seen takes the whole of it.
+WATCHER_WAIT = 45.0
 
 
 def say(key: str) -> None:
@@ -218,7 +228,7 @@ def start_watcher(home: Path) -> str:
     process = subprocess.Popen([str(interpreter), *startup.NO_REMOTE_DEBUG, str(home / LAUNCHER_NAME), "run"],
                                cwd=str(home), close_fds=True, creationflags=flags, env=environment,
                                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    return control.await_watcher(app.watcher_running, process)["state"]
+    return control.await_watcher(app.watcher_running, process, timeout=WATCHER_WAIT)["state"]
 
 
 def watcher_seen(home: Path):
@@ -229,13 +239,13 @@ def watcher_seen(home: Path):
 def looked_again(home: Path, started: str) -> str:
     """What `start_watcher` answered, with one more look where it could not confirm a watcher that is still starting.
 
-    `start_watcher` waits WATCHER_START_TIMEOUT and no longer, which is a promise to the person waiting. A watcher
-    whose interpreter is still importing when that wait ends - on a busy PC, right after an update has written
-    every file fresh, it can take longer (the v0.6.17 live acceptance: 6 to 9 seconds from its launcher's start)
-    - was reported as not confirmed, and the installer then said nothing was being watched while its own health
-    check had just seen the mutex held. So the answer is looked at once more, without waiting again, before any
-    word about the watcher is said: only "unconfirmed", the launched process still alive and not yet seen. One
-    that exited stays exited, and a probe that cannot tell stays unconfirmed - never rounded up to running."""
+    `start_watcher` waits WATCHER_WAIT and no longer, which is a promise to the person waiting. A watcher that
+    takes its mutex in the instant after that wait ended - on a busy PC, right after an update has written every
+    file fresh (the v0.6.17 live acceptance: 6 to 9 seconds from its launcher's start, then the v0.6.22 one, 10 to
+    15 seconds before the supervised child) - would be reported as not confirmed, and the installer would then say
+    nothing was being watched. So the answer is looked at once more, without waiting again, before any word about
+    the watcher is said: only "unconfirmed", the launched process still alive and not yet seen. One that exited
+    stays exited, and a probe that cannot tell stays unconfirmed - never rounded up to running."""
     if started == "unconfirmed" and watcher_seen(home) is True:
         return "running"
     return started
@@ -362,7 +372,7 @@ def cmd_setup(args) -> int:
 def cmd_enable(args) -> int:
     home = runtime_home()
     code = _cli_silent(home, ["--quiet", "enable"])
-    # `start_watcher` blocks for up to six seconds to learn the answer; throwing it away
+    # `start_watcher` blocks (up to WATCHER_WAIT, and only while the watcher is alive and unseen) to learn the answer; throwing it away
     # and then printing "Auto resume is on." says the thing is on when nothing is
     # watching. `_cli_silent` also swallows the engine's own warning about this.
     started = looked_again(home, start_watcher(home))

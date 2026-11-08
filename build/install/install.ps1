@@ -2228,10 +2228,11 @@ try {
     Step 'Checking the installation'
     $null = Invoke-Setup @('doctor')
     if ($LASTEXITCODE -ne 0) { Warn 'The health check reported a problem. Recovery is installed but may not be ready.' }
-    # Setup waits for the watcher it started for a few seconds and no longer. On a busy PC, right after every file
-    # was written fresh, a watcher can take longer than that to take its mutex (v0.6.17 live acceptance: 6 to 9
-    # seconds), and this run then ended "could not be confirmed" under a health check that had just seen the mutex
-    # held. So it is looked at once more, now, before the last word: a watcher running now is a watcher running.
+    # Setup waits for the watcher it started while its process is alive, up to 45 seconds (plugin_setup.WATCHER_WAIT;
+    # v0.6.22: the launcher takes 10 to 15 seconds before it starts the supervised child). A watcher can still take its
+    # mutex just after that (v0.6.17 live acceptance: 6 to 9 seconds, on the wait it had then), and this run then ended
+    # "could not be confirmed" under a health check that had just seen the mutex held. So it is looked at once more,
+    # now, before the last word: a watcher running now is a watcher running.
     # The look's one line is said in English, for this English log, whatever Interface language the PC stores.
     if ($watcherUnconfirmed) {
         $env:CODEX_AUTO_RESUME_SETUP_ENGLISH = '1'
