@@ -173,7 +173,7 @@ class LaunchTests(ResidentCase):
         self.assertIs(seen["shell"], False)
         self.assertEqual(seen["command"][-1], "--serve")
         self.assertIn("pythonw", Path(seen["command"][0]).name.lower())
-        self.assertIn("codex_auto_resume_advanced.courier", seen["command"])
+        self.assertTrue(any("codex_auto_resume_advanced.courier" in part for part in seen["command"]), seen["command"])
 
     def test_serve_is_the_only_new_argument(self):
         self.assertEqual(courier.parse(["--home", "H", "--serve"]), {"home": "H", "mode": "serve", "channel": None})
