@@ -271,7 +271,7 @@ namespace CodexAutoResume
             {
                 TableLayoutPanel card = NewGroup(Word("page.chat.title", "Chat"), chatStack);
                 card.Controls.Add(HelpText(advancedListing == null ? Word("page.unavailable", "The advanced features cannot be read right now.")
-                                                                    : Word("refused.not_on", "Turn it on first.")));
+                                                                    : Word("page.refused.not_on", "Turn it on first.")));
                 chatConversation = null;
                 chatClick = null;
                 chatWords = null;
