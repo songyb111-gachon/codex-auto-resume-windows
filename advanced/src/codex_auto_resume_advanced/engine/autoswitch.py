@@ -14,7 +14,9 @@ At P8, as an errand, at most every LOOK_EVERY seconds while it stands on:
 4. the account signed in now is read on the real home (account_switch's own read) and left out - a scratch read of the
    account in use could rotate the running app's tokens - and every other saved account that is neither exhausted
    until a reset still ahead nor needing a sign-in is read on a scratch home (codex/swap.read_profile); the one with
-   the most room (the lowest most-used window, ties to the least recently used) is switched in (codex/swap.switch);
+   the most room (the lowest most-used window, ties to the least recently used: `best`, which the card's next-candidate
+   line asks too) is switched in (codex/swap.switch); each read is kept in its profile for the card's meters, and the
+   account found signed in is marked as the one in use (profiles' `seen_at`);
 5. none with room: the journal counts `all_exhausted` once for the episode, one notice says so (core's kind
    accounts_exhausted, registered by plug.py; surfaces.autoswitch_view), and recovery waits as today;
 6. a switch that did not finish - its target not signed in, the previous file not back yet, the app not started again,
@@ -272,28 +274,27 @@ class AutoSwitch:
         return None
 
     def choose(self, store, now):
-        """The saved account to switch to - the most room, ties to the least recently used - or None."""
+        """The saved account to switch to - the most room, ties to the least recently used (`best`) - or None."""
         from ..codex import swap
         from ..codex.account import identity
         from ..profiles import ProfileError, READY
         current = identity(self.read_real())
         if current is None:
             return None                                  # who is signed in cannot be told: nothing is read or switched
-        best = None
+        candidates = []
         for profile_id in store.ids():
             try:
                 profile = store.get(profile_id)
             except ProfileError:
                 continue
-            if (profile.get("email") or "").lower() == current or store.state(profile, now) != READY:
+            if (profile.get("email") or "").lower() == current:
+                seen(store, profile_id, now)
+                continue
+            if store.state(profile, now) != READY:
                 continue
             found = swap.read_profile(self.paths, store, profile_id, session_for=self._session_for, now=now)
-            if not swap.has_room(found):
-                continue
-            rank = (found["most_used"], profile.get("used_at") or 0)
-            if best is None or rank < best[0]:
-                best = (rank, profile_id)
-        return best[1] if best else None
+            candidates.append((profile_id, found, profile.get("used_at")))
+        return best(candidates)
 
     def _switched(self, now) -> None:
         self._switched_at = now
@@ -360,6 +361,31 @@ class AutoSwitch:
                 or eligible_at <= now):
             return DEFER
         return Alternative.EARLY
+
+
+def best(candidates):
+    """Of (profile id, a read's found, when it was last switched to), the one a switch picks: its own account with room
+    (codex/swap.has_room), the lowest most-used window, ties to the least recently used - or None. The look's choice,
+    and the card's next candidate from the readings kept (control/autoswitch.py)."""
+    from ..codex import swap
+    picked = None
+    for profile_id, found, used_at in candidates:
+        if not swap.has_room(found):
+            continue
+        rank = (found["most_used"], used_at or 0)
+        if picked is None or rank < picked[0]:
+            picked = (rank, profile_id)
+    return picked[1] if picked else None
+
+
+def seen(store, profile_id, now) -> None:
+    """The saved account found signed in now marked so (profiles' `seen_at`): the card's "in use". Never fatal."""
+    from ..profiles import KEEP_SECONDS
+    try:
+        with store.locked(KEEP_SECONDS):
+            store.update(profile_id, seen_at=int(now))
+    except Exception:
+        pass
 
 
 def make(paths) -> AutoSwitch:

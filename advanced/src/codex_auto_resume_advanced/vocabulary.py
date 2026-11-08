@@ -491,6 +491,9 @@ class BridgeCommand(StrEnum):
     ADVANCED_ACCOUNTS_ADD = "advanced-accounts-add"
     ADVANCED_ACCOUNTS_SAVE = "advanced-accounts-save"
     ADVANCED_ACCOUNTS_DELETE = "advanced-accounts-delete"
+    # v0.6.22 final: Read usage - every saved account's usage read now, one at a time in the background, at most once
+    # every ten minutes; nothing sent, nothing switched (control/autoswitch.read). The Dashboard's alone, never MCP.
+    ADVANCED_ACCOUNTS_READ = "advanced-accounts-read"
     # v0.6.19 (the groundwork): every command the stage's designs name, in one block, each the Dashboard's alone and
     # reached by no MCP tool. Until the capability that answers one is built, the bridge passes it over as it passes a
     # command this edition does not have (surfaces.UNANSWERED). The analytics' aggregates and their CSV
