@@ -73,6 +73,18 @@ class CourierStartCheckTests(unittest.TestCase):
     def test_the_payload_as_built_passes(self):
         self.builder.check_courier_starts(self.stage)
 
+    def test_the_check_leaves_no_bytecode_in_the_stage(self):
+        """v0.6.22's first release run: the check's imports wrote __pycache__ into the staged payload, the advanced
+        archive carried it, and the edition audit (f) stopped the release. Both runs take -B, and a left __pycache__
+        stops the build."""
+        self.builder.check_courier_starts(self.stage)
+        self.assertEqual(sorted(str(path) for path in (self.stage / "payload").rglob("__pycache__")), [])
+        planted = self.stage / "payload" / "app" / "src" / "codex_auto_resume" / "__pycache__"
+        planted.mkdir(parents=True, exist_ok=True)
+        with self.assertRaises(SystemExit) as stopped:
+            self.builder.check_courier_starts(self.stage)
+        self.assertIn("left bytecode", str(stopped.exception))
+
     def test_a_start_that_needs_pythonpath_stops_the_build(self):
         launch = self.stage / "payload" / "app" / "src" / "codex_auto_resume_advanced" / "courier" / "launch.py"
         text = launch.read_text(encoding="utf-8")
