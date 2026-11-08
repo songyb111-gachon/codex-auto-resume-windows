@@ -22,8 +22,9 @@
 // sends the bridge's advanced-steer instead; the watcher alone writes it, and History shows what came of it.
 //
 // v0.6.20 (#50 item 1): pictures under the words - pasted (Ctrl+V of a picture, or of picture files copied in Explorer),
-// chosen (Add a picture..., an open-file dialog of pictures only) or dropped on the dialog - up to four, each checked by
-// its bytes and size before it is shown, as a row of thumbnails with a Remove under each. The request names each new
+// chosen (Add a picture..., an open-file dialog of pictures only) or dropped on the dialog - up to ten, each of up to
+// 20 MB (images.MOST_IMAGES, MOST_BYTES), each checked by its bytes and size before it is shown, as a row of
+// thumbnails with a Remove under each. The request names each new
 // one by its file - a paste by a PNG the window writes to %TEMP% and deletes once the dialog has closed - and each one a
 // message already had by its copy's id; the bridge keeps the product's own copies (images.py).
 //

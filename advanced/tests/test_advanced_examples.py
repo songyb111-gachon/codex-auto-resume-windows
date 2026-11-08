@@ -47,9 +47,14 @@ def table() -> str:
     return member("Examples")
 
 
-def examples() -> dict:
+def held() -> str:
+    """The examples of the capabilities registry.WAITING still hides: kept whole, opened from no card."""
+    return member("HeldExamples")
+
+
+def examples(body=None) -> dict:
     """{id: the text of its Ex(...)}, in the table's order (a repeated id kept twice, under id#2)."""
-    body = table()
+    body = table() if body is None else body
     starts = [match for match in re.finditer(r'\bEx\("([a-z_]+)"', body)]
     found = {}
     for index, match in enumerate(starts):
@@ -61,6 +66,11 @@ def examples() -> dict:
     return found
 
 
+def everything() -> dict:
+    """Both tables: what the window opens from a card, and what it keeps for a capability let out later."""
+    return {**examples(), **examples(held())}
+
+
 def capabilities() -> list:
     return [definition.id for definition in registry.DEFINITIONS] + [definition.id for definition, _m in registry.WAITING]
 
@@ -68,14 +78,28 @@ def capabilities() -> list:
 class TableTests(unittest.TestCase):
     def test_every_capability_has_exactly_one_example(self):
         """Fails with an example taken out of the table, or a capability added to the registry without one."""
-        table_ids = list(examples())
+        table_ids = list(examples()) + list(examples(held()))
         self.assertEqual([each for each in table_ids if "#" in each], [], "no capability twice")
+        self.assertEqual(len(table_ids), len(set(table_ids)), "no capability in both tables")
         missing = [each for each in capabilities() if each not in table_ids]
         self.assertEqual(missing, [], "every capability has an example")
         self.assertEqual([each for each in table_ids if each not in capabilities()], [], "no example of nothing")
 
+    def test_only_a_capability_the_page_shows_opens_an_example(self):
+        """M13 (the v0.6.22 reachability audit): codex_retry_settings is hidden (MB2 failed), so its example was a dead
+        entry in the table a card opens from. The table is registry.REGISTRY's; a waiting capability's example is held,
+        whole, for the build that lets it out - and moving the entry is what that build's registry change fails here for."""
+        self.assertEqual(sorted(examples()), sorted(definition.id for definition in registry.REGISTRY))
+        waiting = [definition.id for definition, _m in registry.WAITING if registry.REGISTRY.get(definition.id) is None]
+        self.assertIn("codex_retry_settings", waiting)
+        self.assertEqual(sorted(examples(held())), sorted(waiting))
+        # The card opens from the live table alone; the window's audit builds the held ones too.
+        self.assertIn("foreach (CapabilityExample each in Examples())", member("ExampleFor"))
+        self.assertNotIn("HeldExamples", member("ExampleFor"))
+        self.assertIn("every.AddRange(HeldExamples());", text())
+
     def test_each_example_has_a_before_and_an_after_with_something_in_each(self):
-        for capability, made in examples().items():
+        for capability, made in everything().items():
             with self.subTest(capability):
                 scenes = [match.start() for match in re.finditer(r"\bScene\(", made)]
                 self.assertEqual(len(scenes), 2, "a Before and an After")
@@ -87,7 +111,7 @@ class TableTests(unittest.TestCase):
         source = text()
         for constant, value in FIXTURES.items():
             self.assertIn('%s = "%s"' % (constant, value), source)
-        named = re.findall(r"\b(?:Rec|ResetRule|Queued)\((\w+)", table())
+        named = re.findall(r"\b(?:Rec|ResetRule|Queued)\((\w+)", table() + held())
         self.assertTrue(named)
         self.assertEqual(sorted(set(named) - set(FIXTURES) - {"null"}), [], "a conversation is one of the fixtures")
         literals = re.findall(r'"((?:[^"\\]|\\.)*)"', source)
@@ -100,7 +124,7 @@ class TableTests(unittest.TestCase):
 
     def test_every_row_says_a_state_and_a_kind_core_has_words_for(self):
         core = l10n.catalog("en")
-        rows = re.findall(r'\bRec\(\w+, "(\w+)", "(\w+)"', table())
+        rows = re.findall(r'\bRec\(\w+, "(\w+)", "(\w+)"', table() + held())
         self.assertTrue(rows)
         for code, category in rows:
             self.assertIn("code." + code, core, "the state is said in core's words")

@@ -819,6 +819,8 @@ namespace CodexAutoResume
             ShowAdvancedDetail();
             // v0.6.19 (#50): Pending's tabs follow whether the prompt queue stands (AdvancedSchedule.cs).
             ScheduleListingApplied();
+            // v0.6.22: the status feed's one reading when the window opens (AdvancedCourier.cs).
+            FeedListingApplied();
         }
 
         /// A statement as advanced-statement answers it; one that could not be read is none, and nothing can be turned
