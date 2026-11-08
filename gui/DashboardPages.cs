@@ -620,6 +620,8 @@ namespace CodexAutoResume
             chart.Height = Px(220);
             chart.BackColor = Card;
             chart.BarColor = Accent;
+            chart.FailureColor = Palette.Warning;
+            chart.OtherColor = Palette.Paused;
             chart.TextColor = Ink;
             chart.EmptyText = S("stats.none", "Nothing yet");
             chart.AccessibleName = S("stats.outcomes", "How recoveries ended");

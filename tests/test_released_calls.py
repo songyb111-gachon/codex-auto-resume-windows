@@ -92,6 +92,10 @@ AMENDED = {
         "the person joins before any progress: the superseded child is announced as before",
     "test_engine.OutcomeTests.test_T16_a_person_joining_the_turn_hands_it_over_and_blocks_its_child":
         "the person joins before any progress: handed over and its child blocked as before",
+    # 2026-11-08, the owner ("복구 성공 기준으로"): the success rate counts a recovery, a conversation that moved on before a
+    # send (superseded) and a legacy delivery as successes; the legacy row is now in the rate's denominator.
+    "test_recovery.LegacyCarryTests.test_T38_a_failure_of_a_legacy_recovery_turn_links_to_its_parent":
+        "the legacy delivery counts as a success: success_denominator 1 (was 0)",
 }
 MARKER = re.compile(r"\[codex-auto-resume:([0-9a-f]{64}|[0-9a-f]{16})\]")
 # The scenarios in shares of about equal time, share N run by tests/test_released_calls_<N>.py; an entry is a module or

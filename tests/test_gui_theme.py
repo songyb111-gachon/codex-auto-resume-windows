@@ -571,17 +571,20 @@ foreach ($theme in @('light', 'dark')) {
     $versionText = Get-Field $window 'versionText'
     $entry.version = @{ fore = [int]$versionText.ForeColor.ToArgb()
                         card = [int]$paletteType.GetField('Card', $static).GetValue($null).ToArgb() }
-    # The Statistics page's outcomes: a bar each, most first, every one in the one colour the chart fills its bars
-    # with - [word, count] for each bar, that colour, and the palette's accent.
+    # The Statistics page's outcomes: a bar each, most first, each in the colour of its part in the success rate -
+    # [word, count, group, the colour it is filled with] for each bar.
     $null = Invoke-Window $window 'ApplyStatistics' @($parse.Invoke($null, [object[]]@([IO.File]::ReadAllText((Join-Path $work 'statistics.json'), $utf8))))
     $chart = Get-Field $window 'chart'
     $chartType = $assembly.GetType('CodexAutoResume.OutcomeChart', $true)
+    $barType = $assembly.GetType('CodexAutoResume.OutcomeChart+Bar', $true)
+    $colorOf = $chartType.GetMethod('ColorOf', $instance)
     $entry.outcomes = @()
     foreach ($bar in $chartType.GetField('Bars', $instance).GetValue($chart)) {
-        $entry.outcomes += ,@([string]$bar.Key, [int]$bar.Value)
+        $group = [string]$barType.GetField('Group', $instance).GetValue($bar)
+        $entry.outcomes += ,@([string]$barType.GetField('Key', $instance).GetValue($bar), [int]$barType.GetField('Value', $instance).GetValue($bar),
+                              $group, [int]$colorOf.Invoke($chart, [object[]]@($group)).ToArgb())
     }
-    $entry.bars = @{ fill = [int]$chartType.GetField('BarColor', $instance).GetValue($chart).ToArgb()
-                     accent = [int]$paletteType.GetField('Accent', $static).GetValue($null).ToArgb() }
+    $entry.unknownGroup = [int]$colorOf.Invoke($chart, [object[]]@('something new')).ToArgb()
     $out.window[$theme] = $entry
     $window.Dispose()
 }
@@ -915,6 +918,13 @@ OUTCOMES = ("cancelled", "delivered_legacy", "exhausted", "failed_terminal", "ha
             "outcome_unverified", "recovered", "recovery_failed", "stopped_by_user", "submission_unknown", "superseded")
 
 
+def outcome_groups() -> dict:
+    """Each outcome's part in the success rate, as the store's statistics() gives it."""
+    from codex_auto_resume.store import Store
+    with tempfile.TemporaryDirectory() as temp, Store(Path(temp) / "state") as store:
+        return store.statistics()["outcome_groups"]
+
+
 @unittest.skipUnless(CSC.is_file() and POWERSHELL.is_file(), "needs the in-box compiler and PowerShell")
 class WindowThemeTests(unittest.TestCase):
     @classmethod
@@ -943,6 +953,7 @@ class WindowThemeTests(unittest.TestCase):
         (work / "statistics.json").write_text(json.dumps(
             {"interruptions_detected": 99, "continuations_submitted": 90, "success_rate": 0.5, "success_denominator": 20,
              "outcomes": {code: index + 1 for index, code in enumerate(OUTCOMES)}, "by_category": {"usage_limit": 99},
+             "outcome_groups": outcome_groups(),
              "retry_now_requests": 0}), encoding="utf-8")
         probe = work / "probe.ps1"
         probe.write_text(PROBE, encoding="utf-8")
@@ -1318,25 +1329,41 @@ class WindowThemeTests(unittest.TestCase):
                 self.assertEqual(fore, tokens["muted"].upper())
                 self.assertGreaterEqual(brand.contrast(fore, card), 4.5, "%s on %s" % (fore, card))
 
-    def test_every_outcome_s_bar_is_the_one_accent_colour(self):
-        """The Statistics page draws every outcome's bar in one colour, the accent, and the word beside each bar tells
-        the outcomes apart. v0.6.10 tried the colour History draws each outcome's word in, and the owner put the one
-        colour back, as the chart was before (86292a30); History's chips keep their colours. The accent reads at 3:1
-        or better on the card, as a graphic must, in light and in dark."""
+    def test_each_outcome_s_bar_is_the_colour_of_its_part_in_the_success_rate(self):
+        """The Statistics page draws each outcome's bar in one of three colours, by what it means for the success rate
+        (the owner, 2026-11-08): the accent for a success (recovered, superseded, a legacy delivery), the warning colour for an outcome the rate counts as not
+        succeeded, a muted slate (paused) for one it leaves out - and for a group the window does not know. Which is
+        which is the statistics answer's outcome_groups, the rule the rate's denominator is summed by, never a second
+        list in the window. Each reads at 3:1 or better on the card, as a graphic must, in light and in dark."""
         from codex_auto_resume.store import Store
         with tempfile.TemporaryDirectory() as temp, Store(Path(temp) / "state") as store:
-            self.assertEqual(sorted(store.statistics()["outcomes"]), sorted(OUTCOMES), "every outcome the store counts")
+            stats = store.statistics()
+        self.assertEqual(sorted(stats["outcomes"]), sorted(OUTCOMES), "every outcome the store counts")
+        groups = stats["outcome_groups"]
+        self.assertEqual(sorted(groups), sorted(OUTCOMES), "a group for every outcome")
+        self.assertEqual([code for code in OUTCOMES if groups[code] == "success"],
+                         ["delivered_legacy", "recovered", "superseded"])
+        self.assertEqual(sorted(code for code in OUTCOMES if groups[code] == "failure"),
+                         ["exhausted", "failed_terminal", "no_progress", "outcome_unverified", "recovery_failed",
+                          "submission_unknown"])
+        self.assertEqual(sorted(code for code in OUTCOMES if groups[code] == "other"),
+                         ["cancelled", "handed_over", "stopped_by_user"])
         words = l10n.catalog("en")
         most_first = sorted(OUTCOMES, key=lambda code: -(OUTCOMES.index(code) + 1))
+        colour = {"success": "accent", "failure": "warning", "other": "paused"}
         for theme, tokens in (("light", brand.LIGHT), ("dark", brand.DARK)):
             entry = self.answer["window"][theme]
             with self.subTest(theme):
-                self.assertEqual([word for word, _ in entry["outcomes"]], [words["code." + code] for code in most_first],
+                self.assertEqual([bar[0] for bar in entry["outcomes"]], [words["code." + code] for code in most_first],
                                  "a bar for every outcome, beside its word, most first")
-                self.assertEqual([count for _, count in entry["outcomes"]], [OUTCOMES.index(code) + 1 for code in most_first])
-                self.assertEqual(entry["bars"]["fill"], entry["bars"]["accent"], "every bar in the accent")
-                self.assertEqual(entry["bars"]["fill"], argb(tokens["accent"]))
-                self.assertGreaterEqual(brand.contrast(tokens["accent"], brand.card_ground(theme)), 3.0)
+                self.assertEqual([bar[1] for bar in entry["outcomes"]], [OUTCOMES.index(code) + 1 for code in most_first])
+                self.assertEqual([bar[2] for bar in entry["outcomes"]], [groups[code] for code in most_first],
+                                 "each bar carries its outcome's group from the answer")
+                self.assertEqual([bar[3] for bar in entry["outcomes"]],
+                                 [argb(tokens[colour[groups[code]]]) for code in most_first])
+                self.assertEqual(entry["unknownGroup"], argb(tokens["paused"]), "a group the window does not know is grey")
+                for token in colour.values():
+                    self.assertGreaterEqual(brand.contrast(tokens[token], brand.card_ground(theme)), 3.0, token)
 
     def test_nothing_in_the_dark_window_keeps_a_light_colour(self):
         """Every opaque colour on every control of every page, built and filled, is one of the dark

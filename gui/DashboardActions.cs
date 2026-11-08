@@ -1283,15 +1283,22 @@ namespace CodexAutoResume
                               Whole(pair.Value).ToString(CultureInfo.CurrentCulture));
             // One kind per line: a wrapped list breaks Korean inside a word.
             statsKinds.Text = parts.Count == 0 ? "-" : string.Join(Environment.NewLine, parts.ToArray());
+            // Each outcome's part in the success rate, as the store's one rule gives it: the bar's colour.
+            var groups = new Dictionary<string, string>();
+            var said = Map(stats, "outcome_groups");
+            if (said != null)
+                foreach (var pair in said) groups[pair.Key] = pair.Value as string;
             chart.Bars.Clear();
             if (outcomes != null)
                 foreach (var pair in outcomes)
                 {
                     int count = Whole(pair.Value);
-                    if (count > 0) chart.Bars.Add(new KeyValuePair<string, int>(S("code." + pair.Key, pair.Key), count));
+                    string group;
+                    groups.TryGetValue(pair.Key, out group);
+                    if (count > 0) chart.Bars.Add(new OutcomeChart.Bar(S("code." + pair.Key, pair.Key), count, group));
                 }
             // Most common first, and as tall as its bars rather than a fixed box.
-            chart.Bars.Sort(delegate(KeyValuePair<string, int> a, KeyValuePair<string, int> b)
+            chart.Bars.Sort(delegate(OutcomeChart.Bar a, OutcomeChart.Bar b)
             {
                 int order = b.Value.CompareTo(a.Value);
                 return order != 0 ? order : string.CompareOrdinal(a.Key, b.Key);

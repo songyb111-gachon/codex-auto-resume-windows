@@ -857,6 +857,20 @@
             "submission_unknown": 0,
             "superseded": 0
           },
+          "outcome_groups": {
+            "cancelled": "other",
+            "delivered_legacy": "success",
+            "exhausted": "failure",
+            "failed_terminal": "failure",
+            "handed_over": "other",
+            "no_progress": "failure",
+            "outcome_unverified": "failure",
+            "recovered": "success",
+            "recovery_failed": "failure",
+            "stopped_by_user": "other",
+            "submission_unknown": "failure",
+            "superseded": "success"
+          },
           "success_rate": 0.6666666666666666,
           "success_denominator": 6,
           "median_wait_seconds": 60.0,

@@ -38,9 +38,17 @@ class ReportingMixin:
             if bucket is not None:
                 buckets[bucket] += 1
             by_category[row["category"]] = by_category.get(row["category"], 0) + 1
-        denominator = sum(buckets[name] for name in (
-            "recovered", "no_progress", "recovery_failed", "outcome_unverified", "exhausted",
-            "failed_terminal", "submission_unknown"))
+        # What each outcome means for the success rate, the one rule the rate and the window's colours both follow
+        # (the owner, 2026-11-08: success is judged by the recovery): a recovery, a conversation that moved on before a
+        # send (superseded) and a legacy delivery are successes; a person's own decision (handed over, stopped,
+        # cancelled) is left out of the rate; every other outcome is not succeeded.
+        groups = {name: "failure" for name in buckets}
+        for name in ("recovered", "superseded", "delivered_legacy"):
+            groups[name] = "success"
+        for name in ("handed_over", "stopped_by_user", "cancelled"):
+            groups[name] = "other"
+        succeeded = sum(buckets[name] for name, group in groups.items() if group == "success")
+        denominator = sum(buckets[name] for name, group in groups.items() if group != "other")
         waits = [row["first_queued_at"] - row["detected_at"] for row in rows
                  if row["first_queued_at"] is not None and row["first_queued_at"] >= row["detected_at"]]
         latencies = [row["outcome_at"] - row["first_queued_at"] for row in rows
@@ -51,7 +59,8 @@ class ReportingMixin:
             "continuations_submitted": sum(1 for row in rows if row["first_queued_at"] is not None),
             "pending": sum(1 for row in rows if row["state"] not in TERMINAL),
             "outcomes": buckets,
-            "success_rate": (buckets["recovered"] / denominator) if denominator >= 5 else None,
+            "outcome_groups": groups,
+            "success_rate": (succeeded / denominator) if denominator >= 5 else None,
             "success_denominator": denominator,
             "median_wait_seconds": _statistics.median(waits) if waits else None,
             "median_recovery_seconds": _statistics.median(latencies) if latencies else None,

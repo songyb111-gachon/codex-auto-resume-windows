@@ -481,7 +481,7 @@ class LegacyCarryTests(unittest.TestCase):
         self.assertEqual(machine.public_code(legacy), "delivered_legacy")
         statistics = harness.store.statistics()
         self.assertEqual(statistics["outcomes"]["delivered_legacy"], 1)
-        self.assertEqual(statistics["success_denominator"], 0, "legacy rows are not outcomes")
+        self.assertEqual(statistics["success_denominator"], 1, "a legacy delivery counts as a success")
 
 
 class SupersedeTests(Base):
