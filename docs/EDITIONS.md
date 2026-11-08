@@ -1691,7 +1691,11 @@ it is hidden because its measurement failed - and never turns the switch off.
 `codex login` in a private folder under the product's home, and you sign in in your browser on OpenAI's page - the
 product never sees a password; **Save the account in use** keeps the one signed in now. Each is a copy of Codex's
 sign-in file, encrypted with Windows' data protection for your Windows user (`<home>\accounts\`), never in the
-settings, a log, the journal, diagnostics or a report; the card shows a masked address and the plan. When a recovery
+settings, a log, the journal, diagnostics or a report; the card shows a masked address and the plan. Under each account
+it shows two meters, the 5-hour and the weekly usage as last read - by the switch itself, or by **Read usage** at the
+card's top right, which reads every saved account but the one in use in a private folder, one at a time, at most once
+every 10 minutes, and sends nothing and switches nothing; the account in use shows the usage the watcher already read -
+and under the rows when they were read and the account the switch would pick next. When a recovery
 has waited for a usage limit for 5 minutes, no turn runs, nothing is queued in Codex, no other recovery waits or runs,
 and nobody has used the PC for 2 minutes, the watcher reads each other saved account's usage in a private folder (never
 the account in use, whose tokens a second reader could rotate), closes the Codex app as Switch the Codex account's

@@ -183,6 +183,8 @@ class Refusal(StrEnum):
     # card offers no button then - and asked again while one is still waiting for the browser.
     SWITCH_UNMEASURED = "switch_unmeasured"
     SWITCH_RUNNING = "switch_running"
+    # v0.6.22 final (the reachability audit's M10): a Delete of a saved account while a switch, a read or a save holds them.
+    ACCOUNTS_HELD = "accounts_held"
     # v0.6.20 final (account_switch's restart, control/account.restart): Restart asked while a turn runs, a recovery
     # waits or runs or something is queued in Codex (codex/restart.busy); asked while one runs; and asked with no sign-in
     # of this Dashboard's to restart Codex for.
@@ -491,6 +493,9 @@ class BridgeCommand(StrEnum):
     ADVANCED_ACCOUNTS_ADD = "advanced-accounts-add"
     ADVANCED_ACCOUNTS_SAVE = "advanced-accounts-save"
     ADVANCED_ACCOUNTS_DELETE = "advanced-accounts-delete"
+    # v0.6.22 final: Read usage - every saved account's usage read now, one at a time in the background, at most once
+    # every ten minutes; nothing sent, nothing switched (control/autoswitch.read). The Dashboard's alone, never MCP.
+    ADVANCED_ACCOUNTS_READ = "advanced-accounts-read"
     # v0.6.19 (the groundwork): every command the stage's designs name, in one block, each the Dashboard's alone and
     # reached by no MCP tool. Until the capability that answers one is built, the bridge passes it over as it passes a
     # command this edition does not have (surfaces.UNANSWERED). The analytics' aggregates and their CSV

@@ -14,6 +14,16 @@ purge (config.Paths.owned_account_files, and the installer's) takes it whole.
 Two more sealed files sit beside them: `switch.intent` - a switch under way (from, to, step), so a crash in the middle is
 finished or undone at the next look - and `switch.last` - the account a switch of this capability put in and when, so
 account_switch's watch tells that change from one a person made (`switched_to`).
+
+The card's usage meters (v0.6.22 final): a profile also keeps the last usage reading made of it - `usage`, the read time,
+whether usage was available, the most used window and the five-hour and weekly windows' used percentage and reset time
+(numbers only, never an address or anything of the account's content) - and `unread_at`, when a read of it last broke,
+and `seen_at`, when this product last found it signed in. They sit in the profile's own sealed file, beside what it
+held, so no new secret and no new store is made: an earlier build (v0.6.22-beta.2) opens the file as before, ignores the
+three keys, and carries them through its own updates (`update` rewrites the record whole); its Save of the same account
+drops them, as it drops nothing else it needs. One more sealed file, `usage.read`, says when the card's Read usage last
+began (`read_now_at`), so it reads at most once every ten minutes across the bridge's processes; an earlier build lists
+only `<id>.dat` and never opens it.
 """
 from __future__ import annotations
 
@@ -34,6 +44,8 @@ INTENT = "switch.intent"
 LAST = "switch.last"
 # When the last switches were made (v0.6.23 audit A-R2): the 24-hour ceiling counts these, not a calendar day's.
 TIMES = "switch.times"
+# When the card's Read usage last began (v0.6.22 final): it reads at most once every ten minutes.
+READS = "usage.read"
 _ID = re.compile(r"^[0-9a-f]{16}$")
 # A profile's state word (the card's): ready to be switched to, at its limit until a time, or needing a fresh sign-in.
 READY, EXHAUSTED, NEEDS_SIGN_IN, DAMAGED = "ready", "exhausted", "needs_sign_in", "damaged"
@@ -46,6 +58,34 @@ LOCK_SECONDS = 5.0
 # A switch holds the lock through a whole app restart, and a refreshed copy not kept may leave only a spent one (the
 # review's finding 15).
 KEEP_SECONDS = 60.0
+
+
+WINDOWS = ("five_hour", "weekly")
+
+
+def _whole(value):
+    return value if type(value) is int else None
+
+
+def _window(value):
+    if not isinstance(value, dict):
+        return None
+    used, resets = value.get("used"), value.get("resets_at")
+    if type(used) not in (int, float) or used != used or not 0 <= used <= 10000:
+        return None
+    return {"used": used, "resets_at": _whole(resets)}
+
+
+def reading(value):
+    """A kept usage reading as it is read back - {read_at, available, most_used, five_hour, weekly}, each window
+    {used, resets_at} or None - or None for anything that is not exactly one (a hand-edited or damaged value is none)."""
+    if not isinstance(value, dict) or type(value.get("read_at")) is not int:
+        return None
+    most = value.get("most_used")
+    available = value.get("available")
+    return {"read_at": value["read_at"], "available": available if type(available) is bool else None,
+            "most_used": most if type(most) in (int, float) and most == most else None,
+            **{name: _window(value.get(name)) for name in WINDOWS}}
 
 
 class ProfileError(OSError):
@@ -184,17 +224,20 @@ class Profiles:
             kept = {}
         else:
             kept = self.get(profile_id)
+        # Its last usage reading, and when it was last found signed in, are kept with a copy saved again.
         record = {"auth": base64.b64encode(bytes(data)).decode("ascii"), "email": email, "plan": plan,
                   "saved_at": int(self._clock()), "used_at": kept.get("used_at"),
-                  "exhausted_until": None, "failed_at": None}
+                  "exhausted_until": None, "failed_at": None, "usage": kept.get("usage"),
+                  "unread_at": kept.get("unread_at"), "seen_at": kept.get("seen_at")}
         self._write(profile_id + SUFFIX, record)
         return profile_id
 
     def update(self, profile_id, **fields) -> None:
-        """Change a profile's times (used_at, exhausted_until, failed_at) or its sign-in file (auth, bytes)."""
+        """Change a profile's times (used_at, exhausted_until, failed_at, unread_at, seen_at), its last usage reading
+        (usage, `reading`'s shape) or its sign-in file (auth, bytes)."""
         found = self.get(profile_id)
         for key, value in fields.items():
-            if key not in ("used_at", "exhausted_until", "failed_at", "auth", "plan"):
+            if key not in ("used_at", "exhausted_until", "failed_at", "auth", "plan", "usage", "unread_at", "seen_at"):
                 raise ProfileError("not a profile's field")
             found[key] = value
         found["auth"] = base64.b64encode(authfile.check(found["auth"])).decode("ascii")
@@ -223,18 +266,36 @@ class Profiles:
         return EXHAUSTED if isinstance(until, (int, float)) and until > now else READY
 
     def view(self) -> list:
-        """What a person may see of each profile: {id, mask, plan, state} - the address only masked."""
+        """What a person may see of each profile: {id, mask, plan, state} - the address only masked - with its last usage
+        reading (`usage`, or None), whether a read of it broke after that reading (`unread`), and the times the card
+        tells the account in use and the next candidate by (seen_at, used_at)."""
         from .codex.account import mask
         shown = []
         for profile_id in self.ids():
             try:
                 found = self.get(profile_id)
             except ProfileError:
-                shown.append({"id": profile_id, "mask": None, "plan": None, "state": DAMAGED})
+                shown.append({"id": profile_id, "mask": None, "plan": None, "state": DAMAGED, "usage": None,
+                              "unread": False, "seen_at": None, "used_at": None})
                 continue
+            usage = reading(found.get("usage"))
+            unread = found.get("unread_at")
             shown.append({"id": profile_id, "mask": mask(found.get("email")), "plan": found.get("plan"),
-                          "state": self.state(found)})
+                          "state": self.state(found), "usage": usage,
+                          "unread": type(unread) is int and (usage is None or unread >= usage["read_at"]),
+                          "seen_at": _whole(found.get("seen_at")), "used_at": _whole(found.get("used_at"))})
         return shown
+
+    def read_now_at(self):
+        """When the card's Read usage last began (whole seconds), or None."""
+        try:
+            found = self._read(READS)
+        except ProfileError:
+            return None
+        return _whole(found.get("at")) if isinstance(found, dict) else None
+
+    def note_read_now(self, at) -> None:
+        self._write(READS, {"at": int(at)})
 
     # ------------------------------------------------------------------ a switch under way, and the last one
     def intent(self):
