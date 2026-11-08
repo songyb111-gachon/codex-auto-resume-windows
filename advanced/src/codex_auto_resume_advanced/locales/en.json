@@ -945,7 +945,7 @@
   "page.accounts.read_unknown": "Nothing was read: which account is signed in now could not be told.",
   "page.accounts.in_use": "in use",
   "page.accounts.five_hour": "5-hour",
-  "page.accounts.weekly": "Weekly",
+  "page.accounts.weekly": "7-day",
   "page.accounts.percent": "{n}%",
   "page.accounts.meter": "{percent} · in {time}",
   "page.accounts.not_read": "not read yet",

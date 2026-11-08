@@ -11,7 +11,7 @@
 //
 // The card's own pieces stand here too, so AdvancedAccounts.cs keeps to the page's: the heading with Read usage at its
 // right (AccountsHeading), a saved account's row with "in use" beside it in the accent (AccountsRow), and under it the two
-// meters - "5-hour" and "Weekly" - each with its words after it (AccountsMeters). Every colour is the theme's; nothing is
+// meters - "5-hour" and "7-day" - each with its words after it (AccountsMeters). Every colour is the theme's; nothing is
 // drawn the page does not draw already but the groove's bar.
 //
 // C# 5 (the in-box compiler), as the rest of the window.
@@ -157,7 +157,7 @@ namespace CodexAutoResume
             meters.Margin = Pad(26, 0, 0, 6);
             meters.Padding = new Padding(0);
             AccountsMeterLine(meters, 0, Word("page.accounts.five_hour", "5-hour"), Get(row, "five_hour") as Dictionary<string, object>);
-            AccountsMeterLine(meters, 1, Word("page.accounts.weekly", "Weekly"), Get(row, "weekly") as Dictionary<string, object>);
+            AccountsMeterLine(meters, 1, Word("page.accounts.weekly", "7-day"), Get(row, "weekly") as Dictionary<string, object>);
             return meters;
         }
 

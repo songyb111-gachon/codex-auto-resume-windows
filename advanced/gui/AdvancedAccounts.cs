@@ -18,7 +18,7 @@
 // sign-in kept outside a file (nothing can be switched), Codex signed out here (sign in to Codex, or add an account), or
 // Codex's settings unreadable (the reachability audit's R4: it said "outside a file" for every one of them).
 //
-// The usage meters (v0.6.22 final, the owner's mock of 2026-11-08): under each row two grooves, "5-hour" and "Weekly", each
+// The usage meters (v0.6.22 final, the owner's mock of 2026-11-08): under each row two grooves, "5-hour" and "7-day", each
 // with the share used inside it and "<N>% · in <time>" after it - the bar in the accent, in the warning colour from 90 per
 // cent, the groove empty and "not read yet" where no reading was made (AdvancedMeter.cs); the account signed in says "in
 // use" in the accent, and a row whose last read broke says "could not be read" and keeps its last reading. Under the rows
