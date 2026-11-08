@@ -413,7 +413,10 @@ def audit_data(locale: str, bridge: Bridge) -> dict:  # noqa: C901 - one layout'
                      # a file and an add that did not finish (advanced/gui/AdvancedAccounts.cs); drawn once offered. The
                      # final's meters too: the row in use, one near its limit, one never read, one whose read broke, the
                      # line under them, a Read usage under way and its wait (AdvancedMeter.cs).
+                     # v0.6.22 final: Switch to this account on the rows that offer it, and its longest ending.
                      "advanced-accounts": {"done": True, "refusal": None, "store": "not_file", "add_state": "not_added",
+                                           "offered": True, "standing": True, "switch_state": "not_put_back",
+                                           "switch_mask": "s•••@e•••.com",
                                            "switched_at": None, "read_at": ac.NOW - 720,
                                            "candidate": "s•••@e•••.com", "candidate_state": "found",
                                            "read_state": "reading", "read_done": 2, "read_of": 3,

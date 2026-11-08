@@ -126,7 +126,9 @@ ARGUMENTS[BridgeCommand.ADVANCED_ACCOUNT_RESTART] = frozenset({"now"})
 ARGUMENTS.update({BridgeCommand.ADVANCED_ACCOUNTS: frozenset(), BridgeCommand.ADVANCED_ACCOUNTS_ADD: frozenset(),
                   BridgeCommand.ADVANCED_ACCOUNTS_SAVE: frozenset(),
                   BridgeCommand.ADVANCED_ACCOUNTS_DELETE: frozenset({"id", "all"}),
-                  BridgeCommand.ADVANCED_ACCOUNTS_READ: frozenset()})
+                  BridgeCommand.ADVANCED_ACCOUNTS_READ: frozenset(),
+                  # and Switch to this account: the saved account's row (control/autoswitch.switch).
+                  BridgeCommand.ADVANCED_ACCOUNTS_SWITCH: frozenset({"id"})})
 # v0.6.20 (power_after_tasks, control/powertasks.py): the card's read, and core's power action armed for picked tasks.
 ARGUMENTS[BridgeCommand.ADVANCED_POWER_TASKS] = frozenset()
 ARGUMENTS[BridgeCommand.ADVANCED_POWER_TASKS_ARM] = frozenset({"threads", "action", "grace_minutes", "failed",
@@ -560,7 +562,8 @@ def bridge(runtime, command, argument):
         from .control import account as account_card
         return account_card.restart(runtime, argument)
     if command in (BridgeCommand.ADVANCED_ACCOUNTS, BridgeCommand.ADVANCED_ACCOUNTS_ADD, BridgeCommand.ADVANCED_ACCOUNTS_SAVE,
-                   BridgeCommand.ADVANCED_ACCOUNTS_DELETE, BridgeCommand.ADVANCED_ACCOUNTS_READ):
+                   BridgeCommand.ADVANCED_ACCOUNTS_DELETE, BridgeCommand.ADVANCED_ACCOUNTS_READ,
+                   BridgeCommand.ADVANCED_ACCOUNTS_SWITCH):
         # v0.6.22 (account_auto_switch): the saved accounts - the Dashboard's alone, as the account card is.
         from .control import autoswitch as accounts
         if command == BridgeCommand.ADVANCED_ACCOUNTS:
@@ -571,6 +574,8 @@ def bridge(runtime, command, argument):
             return accounts.save(runtime)
         if command == BridgeCommand.ADVANCED_ACCOUNTS_READ:
             return accounts.read(runtime)
+        if command == BridgeCommand.ADVANCED_ACCOUNTS_SWITCH:
+            return accounts.switch(runtime, argument)
         return accounts.delete(runtime, argument)
     if command in (BridgeCommand.ADVANCED_FLEET, BridgeCommand.ADVANCED_FLEET_SAVE):
         # v0.6.22 (fleet_view): the other PCs, read-only, and this PC's alias and folder - the Dashboard's alone.

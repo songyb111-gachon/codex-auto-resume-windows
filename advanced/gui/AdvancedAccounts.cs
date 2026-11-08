@@ -27,9 +27,23 @@
 // card read again every AccountsPollMilliseconds while it reads ("Reading usage... 1 of 3") - and says, once used, when it
 // can be used again: at most once every ten minutes. It sends nothing and switches nothing.
 //
+// Switch to this account (v0.6.22 final, the owner's 2026-11-08): on each saved account's row but the one in use, and only
+// where its state is usable (ready, or at its limit - never needs a new sign-in or cannot be opened) and Codex keeps its
+// sign-in in a file here, a button under the row's meters. It asks first, Cancel the default as Save does: the Codex app
+// closes, anything not yet sent in its window may be lost, the account in use is saved back first, and Codex starts again
+// as the account picked, masked. The bridge then runs the automatic switch's own switch on a thread of its own; the card is
+// read again every AccountsPollMilliseconds while it runs ("Switching to ...") and says once how it ended - switched, not
+// started again, not finished and undone, not finished and to be put back, or nothing switched - and a refusal says why.
+//
+// The same saved accounts under both account capabilities (the owner, 2026-11-08): this card stands in account_auto_switch's
+// column and in account_switch's, one implementation drawn wherever the open column is one of them - the rows, Read usage,
+// Add an account..., Save the account in use, Delete, Delete all and Switch to this account. Add, Save and Read usage while
+// the open capability is on or watched; Delete, Delete all and Switch to this account wherever the card shows.
+//
 // Each request is the bridge's (control/autoswitch.py): advanced-accounts for the card, advanced-accounts-add,
-// advanced-accounts-save, advanced-accounts-delete and advanced-accounts-read; the card is read again after each. The address itself never
-// reaches the window: the bridge answers it masked. Its words are this edition's catalog's.
+// advanced-accounts-save, advanced-accounts-delete, advanced-accounts-read and advanced-accounts-switch; the card is read
+// again after each. The address itself never reaches the window: the bridge answers it masked. Its words are this edition's
+// catalog's.
 //
 // Nothing here draws anything the page does not draw already: the card, its help lines, check rows and buttons are the
 // Settings page's, in both themes and both designs, mirrored for Arabic and Hebrew by the page.
@@ -53,6 +67,8 @@ namespace CodexAutoResume
         // The card's form as it was built: each saved account's row, and its buttons.
         private readonly List<CheckBox> accountsRows = new List<CheckBox>();
         private Button accountsAdd, accountsSave, accountsDelete, accountsDeleteAll, accountsRead;
+        // Switch to this account, one for each row that offers it.
+        private readonly List<Button> accountsSwitches = new List<Button>();
         private Timer accountsTimer;
         private bool accountsPolling;
 
@@ -96,16 +112,17 @@ namespace CodexAutoResume
             accountsTimer.Start();
         }
 
-        /// Whether the card waits on the bridge: an Add an account in the browser, or Read usage reading.
+        /// Whether the card waits on the bridge: an Add an account in the browser, Read usage reading, or a switch.
         private bool AccountsWaiting()
         {
-            return Str(advancedAccounts, "add_state") == "waiting" || Str(advancedAccounts, "read_state") == "reading";
+            return Str(advancedAccounts, "add_state") == "waiting" || Str(advancedAccounts, "read_state") == "reading" ||
+                   Str(advancedAccounts, "switch_state") == "switching";
         }
 
         /// Read again while the bridge works; while Read usage only waits to be used again, its button alone is said again.
         private void PollAccounts()
         {
-            if (accountsPolling || advancedOpen != AccountsId) return;
+            if (accountsPolling || (advancedOpen != AccountsId && advancedOpen != AccountId)) return;
             if (!AccountsWaiting())
             {
                 UpdateAccountsButtons(busy == 0);
@@ -204,31 +221,43 @@ namespace CodexAutoResume
             return kept != null && kept.Count > 0;
         }
 
-        /// Whether the open column shows the card: account_auto_switch's while it is on or watched, or off with accounts
-        /// kept; account_switch's while account_auto_switch is hidden and accounts are kept.
+        /// Whether the open column shows the card: either account capability's while it is on or watched, or off with
+        /// accounts kept - one store of saved accounts under both (the owner, 2026-11-08).
         private bool AccountsHere(Dictionary<string, object> item)
         {
             if (advancedAccounts == null) return false;
             string id = Str(item, "id");
-            if (id == AccountsId) return Standing(item) || AccountsKept();
-            return id == AccountId && !Equals(Get(advancedAccounts, "offered"), true) && AccountsKept();
+            return (id == AccountsId || id == AccountId) && (Standing(item) || AccountsKept());
         }
 
-        /// The open capability's card: the saved accounts and their buttons - Add and Save only while account_auto_switch
-        /// is on or watched; Delete and Delete all in every state.
+        /// Whether a saved account's row offers Switch to this account: not the account in use, a state that can be
+        /// switched to (ready, or at its limit), and the automatic switch's own switch in this edition at all.
+        private bool AccountsSwitchable(Dictionary<string, object> row)
+        {
+            if (Equals(Get(row, "in_use"), true) || !Equals(Get(advancedAccounts, "offered"), true)) return false;
+            string state = Str(row, "state");
+            return state == "ready" || state == "exhausted";
+        }
+
+        /// The open capability's card: the saved accounts and their buttons - Add, Save and Read usage only while the open
+        /// capability is on or watched; Delete, Delete all and Switch to this account wherever the card shows.
         private void BuildAccounts(Dictionary<string, object> item)
         {
             ForgetAccountsCard();
             if (!AccountsHere(item)) return;
-            bool standing = Str(item, "id") == AccountsId && Standing(item);
+            bool standing = Standing(item);
             TableLayoutPanel card = NewGroup(Word("page.accounts.title", "Saved accounts"), advancedStack);
             if (standing)
             {
                 accountsRead = MakeButton(Word("page.accounts.read", "Read usage"), false, delegate { ReadUsage(); });
                 AccountsHeading(card, accountsRead);
             }
-            card.Controls.Add(HelpText(Word("page.accounts.help",
-                "Your own other Codex accounts. When a recovery waits for a usage limit, the one with the most room is switched in.")));
+            if (Str(item, "id") == AccountsId)
+                card.Controls.Add(HelpText(Word("page.accounts.help",
+                    "Your own other Codex accounts. When a recovery waits for a usage limit, the one with the most room is switched in.")));
+            else
+                card.Controls.Add(HelpText(Word("page.accounts.help_switch",
+                    "Your own Codex accounts - the same ones as on Switch to another saved account at a usage limit. Switch to this account moves Codex to one now.")));
             // Only while it stands: off or hidden, the bridge reads nothing of Codex's home and "store" is null.
             string why = standing ? AccountsStoreLine(Str(advancedAccounts, "store")) : null;
             if (why != null) card.Controls.Add(HelpText(why));
@@ -240,8 +269,18 @@ namespace CodexAutoResume
                 CheckBox check = NewCheck(AccountsLine(row), false, true);
                 check.Tag = id;
                 check.CheckedChanged += delegate { UpdateAccountsButtons(busy == 0); };
+                Button switchTo = null;
+                if (AccountsSwitchable(row))
+                {
+                    string mask = Str(row, "mask");
+                    switchTo = MakeButton(Word("page.accounts.switch", "Switch to this account"), false,
+                                          delegate { SwitchAccount(id, mask); });
+                    switchTo.Tag = id;
+                    accountsSwitches.Add(switchTo);
+                }
                 card.Controls.Add(AccountsRow(check, Equals(Get(row, "in_use"), true)));
                 card.Controls.Add(AccountsMeters(row));
+                if (switchTo != null) card.Controls.Add(AccountsSwitchLine(switchTo));
                 accountsRows.Add(check);
             }
             if (accountsRows.Count == 0)
@@ -250,6 +289,8 @@ namespace CodexAutoResume
             if (accountsRows.Count > 0 && readLine != null) card.Controls.Add(HelpText(readLine));
             string readState = AccountsReadState();
             if (standing && readState != null) card.Controls.Add(HelpText(readState));
+            string switchState = AccountsSwitchState();
+            if (switchState != null) card.Controls.Add(HelpText(switchState));
             string addState = Str(advancedAccounts, "add_state");
             if (addState == "waiting")
                 card.Controls.Add(HelpText(Word("page.account.waiting", "Waiting for the sign-in in your browser...")));
@@ -271,6 +312,7 @@ namespace CodexAutoResume
         private void ForgetAccountsCard()
         {
             accountsRows.Clear();
+            accountsSwitches.Clear();
             accountsAdd = accountsSave = accountsDelete = accountsDeleteAll = accountsRead = null;
         }
 
@@ -293,6 +335,8 @@ namespace CodexAutoResume
             if (accountsSave != null) accountsSave.Enabled = usable;
             if (accountsDelete != null) accountsDelete.Enabled = listed && AccountsPicked().Count > 0;
             if (accountsDeleteAll != null) accountsDeleteAll.Enabled = listed && accountsRows.Count > 0;
+            bool switching = Str(advancedAccounts, "switch_state") == "switching";
+            foreach (Button switchTo in accountsSwitches) switchTo.Enabled = usable && !switching;
             if (accountsRead != null)
             {
                 double wait = AccountsReadWait();
@@ -406,8 +450,64 @@ namespace CodexAutoResume
             ReadAccounts(null);
         }
 
+        /// Switch to this account, after one question: what closes, what may be lost, what is saved first and as whom Codex
+        /// starts again (Cancel the default).
+        private void SwitchAccount(string id, string mask)
+        {
+            if (busy > 0 || advancedAccounts == null || id == null) return;
+            string account = string.IsNullOrEmpty(mask) ? Word("page.account.signed_in_only", "Signed in") : mask;
+            if (!AskAdvanced(Word("page.confirm.accounts_switch",
+                    "Switch Codex to {account}? The Codex app closes, and anything not yet sent in its window may be lost. The account in use is saved back to its copy first, then Codex starts again as {account}.",
+                    "account", account),
+                Affirm(Word("page.accounts.switch", "Switch to this account")))) return;
+            AdvancedCall("advanced-accounts-switch", "{\"id\":" + Json.Escape(id) + "}", true,
+                delegate(Dictionary<string, object> reply)
+                {
+                    Dictionary<string, object> result = AdvancedResult(reply);
+                    if (!AdvancedDone(result)) TellAdvanced(AccountsRefusal(Str(result, "refusal")));
+                    ReadAccounts(null);
+                });
+        }
+
+        /// What the last Switch to this account says, while it runs or once it has ended - or null.
+        private string AccountsSwitchState()
+        {
+            string state = Str(advancedAccounts, "switch_state");
+            if (state == null) return null;
+            string mask = Str(advancedAccounts, "switch_mask");
+            string account = string.IsNullOrEmpty(mask) ? Word("page.account.signed_in_only", "Signed in") : mask;
+            if (state == "switching")
+                return Word("page.accounts.switching", "Switching to {account}... Codex closes and starts again.", "account", account);
+            if (state == "switched")
+                return Word("page.accounts.switched", "Switched: Codex started again as {account}.", "account", account);
+            if (state == "not_started")
+                return Word("page.accounts.switch_not_started",
+                    "Switched to {account}, but Codex did not start again. Open Codex yourself.", "account", account);
+            if (state == "not_put_back")
+                return Word("page.accounts.switch_not_put_back",
+                    "The switch to {account} did not finish. The account signed in before is put back as soon as Codex can be restarted.",
+                    "account", account);
+            if (state == "not_closed" || state == "held" || state == "locked" || state == "not_usable")
+                return Word("page.accounts.switch_not_done",
+                    "Nothing was switched: Codex could not be closed just now, or the saved accounts were in use. Try again in a moment.");
+            return Word("page.accounts.switch_undone",
+                "The switch to {account} did not finish and was undone: Codex keeps the account it had.", "account", account);
+        }
+
         private string AccountsRefusal(string refusal)
         {
+            if (refusal == "account_in_use")
+                return Word("page.refused.account_in_use", "That account is the one in use.");
+            if (refusal == "account_not_ready")
+                return Word("page.refused.account_not_ready", "That account needs a new sign-in. Delete it and add it again.");
+            if (refusal == "sign_in_not_file")
+                return Word("page.accounts.not_file", "Codex keeps its sign-in outside a file here, so accounts cannot be switched.");
+            if (refusal == "restart_busy")
+                return Word("page.refused.accounts_switch_busy",
+                    "Not now: a turn is running in Codex, something is queued there, or a recovery is being sent. Try again once it is done.");
+            if (refusal == "other_engine")
+                return Word("page.refused.other_engine",
+                    "Another Codex is running, in a terminal or an editor, so the account cannot be switched now. Close it first.");
             if (refusal == "switch_running")
                 return Word("page.refused.switch_running", "A sign-in is already waiting in your browser.");
             if (refusal == "accounts_held")

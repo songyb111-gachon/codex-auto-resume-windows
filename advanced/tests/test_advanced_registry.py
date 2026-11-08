@@ -60,7 +60,9 @@ READS = READS | {"account/read"}
 # v0.6.16-beta.4: the capabilities that change Codex's state through the Codex app's IPC pipe (codex/ipc.py) - and,
 # v0.6.20, through a `codex exec` of their own: window_anchor starts the account's 5-hour window, as a reset credit spent
 # changes the account's state (engine/anchor.py); and the steer (thread-follower-steer-turn), which adds to a running turn.
-IPC_CHANGES = frozenset({"usage_pause", "window_anchor", "steer_send"})
+IPC_CHANGES = frozenset({"usage_pause", "window_anchor", "steer_send",
+                         # v0.6.22 final: Switch to this account on its card writes Codex's sign-in file (codex/swap.py).
+                         "account_switch"})
 
 
 def standards_text(rule) -> str:

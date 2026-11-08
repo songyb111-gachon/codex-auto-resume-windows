@@ -99,7 +99,8 @@ class FieldTests(unittest.TestCase):
     def test_every_field_the_window_reads_is_one_the_bridge_writes(self):
         """Fails with a field renamed on either side: the window would read nothing and show no meter."""
         answer = self.answer()
-        top = set(answer) | {"done", "refusal", "store", "add_state", "switched_at", "offered", "standing"}
+        top = set(answer) | {"done", "refusal", "store", "add_state", "switched_at", "offered", "standing", "switch_state",
+                             "switch_mask"}
         both = source(CARD) + source(METER)
         read_top = set(re.findall(r'(?:Str|Number|Get|Items)\(advancedAccounts, "([a-z_]+)"\)', both))
         read_row = set(re.findall(r'(?:Str|Number|Get)\(row, "([a-z_]+)"\)', both))
