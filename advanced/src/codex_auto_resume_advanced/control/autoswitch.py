@@ -16,7 +16,7 @@ used percentage and reset time - with when they were read (`read_at`) and whethe
 account's come from the last read of it, the switch's own at a limit or Read usage's (profiles' `usage`); the account
 in use (`in_use`: the one this product last found signed in, profiles' `seen_at`) takes the watcher's own last reading
 instead (core's watcher_status), never a read of its own. `candidate` is the masked address the switch would pick now by
-its own rule (engine/autoswitch.best) from the readings kept, `candidate_state` "found", "none_has_room" or None where no
+its own rule (engine/autoswitch.best) from the readings kept (`candidate_id` its row), `candidate_state` "found", "none_has_room" or None where no
 other account has a reading. `advanced-accounts-read` is Read usage: every saved account but the one in use read on a
 scratch home, one at a time, on a thread of this process's own (swap.read_profile, the switch's own read, which MPROFILE
 measured to touch nothing real) - at most once every READ_EVERY seconds (`read_next_at`), the card following `read_state`
@@ -146,7 +146,7 @@ def meters(runtime, store, reading, now, *, usage=None) -> dict:
     last = store.read_now_at()
     following = last + READ_EVERY if last is not None and 0 <= now - last < READ_EVERY else None
     return {"profiles": shown, "read_at": max(read_at) if read_at else None,
-            "candidate": masks.get(picked) if picked else None,
+            "candidate": masks.get(picked) if picked else None, "candidate_id": picked,
             "candidate_state": "found" if picked else "none_has_room" if read_at else None,
             "read_state": reading.get("state"), "read_done": reading.get("done"), "read_of": reading.get("of"),
             "read_next_at": following}

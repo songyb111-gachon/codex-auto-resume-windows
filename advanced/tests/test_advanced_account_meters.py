@@ -55,6 +55,20 @@ class KeptFromTheLookTests(EngineCase):
         self.assertEqual(rows(self.store)[one]["seen_at"], NOW)
         self.assertIsNone(rows(self.store)[one]["usage"], "the account in use is never read on a scratch home")
 
+    def test_the_switch_s_own_reads_hold_the_saved_accounts(self):
+        """Fails with read_profile's lock taken out: the watcher's look could read an account Read usage reads."""
+        held = []
+        inner = self.fake.session_for
+
+        def session_for(home):
+            probe = threading.Thread(target=lambda: held.append(ReadNowCase.try_lock(self.store)))
+            probe.start()
+            probe.join()
+            return inner(home)
+        self.code._session_for = session_for
+        self.code.choose(self.store, NOW)
+        self.assertEqual(held, [True, True])
+
     def test_a_read_that_broke_keeps_the_last_reading_and_says_so(self):
         """Fails with the broken read's `unread_at` taken out: the card would show an old reading as if it were fresh."""
         self.code.choose(self.store, NOW)
@@ -81,11 +95,11 @@ class CandidateTests(EngineCase):
         picked = self.code.choose(self.store, NOW)
         self.assertEqual(picked, self.three)
         shown = self.meters()
-        self.assertEqual((shown["candidate"], shown["candidate_state"]),
-                         (account.mask("three@example.com"), "found"))
+        self.assertEqual((shown["candidate_id"], shown["candidate"], shown["candidate_state"]),
+                         (self.three, account.mask("three@example.com"), "found"))
         self.store.update(self.three, used_at=NOW)
         self.assertEqual(self.code.choose(self.store, NOW), self.two)
-        self.assertEqual(self.meters()["candidate"], account.mask("two@example.com"))
+        self.assertEqual(self.meters()["candidate_id"], self.two)
 
     def test_none_has_room(self):
         self.fake.usages.update({"two@example.com": usage(96.0), "three@example.com": usage(99.0)})
@@ -276,7 +290,7 @@ class ReadNowBridgeTests(ControlCase):
         self.on()
         self.store.save(TWO, "two@example.com", "plus")
         shown = accounts.view(self.rt, store=self.store, codex_home=self.codex, usage={}, now=NOW)
-        for key in ("candidate", "candidate_state", "read_at", "read_state", "read_done", "read_of", "read_next_at"):
+        for key in ("candidate", "candidate_id", "candidate_state", "read_at", "read_state", "read_done", "read_of", "read_next_at"):
             self.assertIn(key, shown)
         self.assertEqual(set(shown["profiles"][0]), {"id", "mask", "plan", "state", "in_use", "five_hour", "weekly",
                                                      "read_at", "unread"})
