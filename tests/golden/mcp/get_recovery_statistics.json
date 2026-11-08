@@ -36,7 +36,7 @@
             },
             "outcome_groups": {
               "cancelled": "other",
-              "delivered_legacy": "other",
+              "delivered_legacy": "success",
               "exhausted": "failure",
               "failed_terminal": "failure",
               "handed_over": "other",
@@ -46,7 +46,7 @@
               "recovery_failed": "failure",
               "stopped_by_user": "other",
               "submission_unknown": "failure",
-              "superseded": "other"
+              "superseded": "success"
             },
             "success_rate": 0.6666666666666666,
             "success_denominator": 6,
@@ -96,7 +96,7 @@
             },
             "outcome_groups": {
               "cancelled": "other",
-              "delivered_legacy": "other",
+              "delivered_legacy": "success",
               "exhausted": "failure",
               "failed_terminal": "failure",
               "handed_over": "other",
@@ -106,7 +106,7 @@
               "recovery_failed": "failure",
               "stopped_by_user": "other",
               "submission_unknown": "failure",
-              "superseded": "other"
+              "superseded": "success"
             },
             "success_rate": 0.6666666666666666,
             "success_denominator": 6,

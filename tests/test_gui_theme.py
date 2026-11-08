@@ -1331,7 +1331,7 @@ class WindowThemeTests(unittest.TestCase):
 
     def test_each_outcome_s_bar_is_the_colour_of_its_part_in_the_success_rate(self):
         """The Statistics page draws each outcome's bar in one of three colours, by what it means for the success rate
-        (the owner, 2026-11-08): the accent for a recovery, the warning colour for an outcome the rate counts as not
+        (the owner, 2026-11-08): the accent for a success (recovered, superseded, a legacy delivery), the warning colour for an outcome the rate counts as not
         succeeded, a muted slate (paused) for one it leaves out - and for a group the window does not know. Which is
         which is the statistics answer's outcome_groups, the rule the rate's denominator is summed by, never a second
         list in the window. Each reads at 3:1 or better on the card, as a graphic must, in light and in dark."""
@@ -1341,12 +1341,13 @@ class WindowThemeTests(unittest.TestCase):
         self.assertEqual(sorted(stats["outcomes"]), sorted(OUTCOMES), "every outcome the store counts")
         groups = stats["outcome_groups"]
         self.assertEqual(sorted(groups), sorted(OUTCOMES), "a group for every outcome")
-        self.assertEqual([code for code in OUTCOMES if groups[code] == "success"], ["recovered"])
+        self.assertEqual([code for code in OUTCOMES if groups[code] == "success"],
+                         ["delivered_legacy", "recovered", "superseded"])
         self.assertEqual(sorted(code for code in OUTCOMES if groups[code] == "failure"),
                          ["exhausted", "failed_terminal", "no_progress", "outcome_unverified", "recovery_failed",
                           "submission_unknown"])
         self.assertEqual(sorted(code for code in OUTCOMES if groups[code] == "other"),
-                         ["cancelled", "delivered_legacy", "handed_over", "stopped_by_user", "superseded"])
+                         ["cancelled", "handed_over", "stopped_by_user"])
         words = l10n.catalog("en")
         most_first = sorted(OUTCOMES, key=lambda code: -(OUTCOMES.index(code) + 1))
         colour = {"success": "accent", "failure": "warning", "other": "paused"}
