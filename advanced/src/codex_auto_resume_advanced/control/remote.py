@@ -246,7 +246,7 @@ def _down(runtime, alive, watcher) -> str | None:
     from ..engine import remote
     if alive:
         return None
-    if remote.stopped(runtime.state.journal_times, runtime.clock()):
+    if remote.stopped(runtime.state.journal_times, runtime.clock(), remote.setup_time(runtime.paths)):
         return "stopped"
     return "starting" if (watcher or _watcher)(runtime) else "no_watcher"
 

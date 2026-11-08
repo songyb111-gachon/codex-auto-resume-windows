@@ -28,6 +28,8 @@ No network here: the errand only starts a process (courier/launch.py).
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 from codex_auto_resume.domain.plug import DEFER
 
 API = "local_api"
@@ -55,16 +57,30 @@ TELEGRAM_CODES = (START_WORD, GAVE_UP_WORD, "started", "stopped", "status", "lis
 TELEGRAM_CONTINUE_CODES = ("continued", "pause_lifted")
 
 
-def starts(journal_times, now) -> list:
-    """When a resident was started in the last hour, oldest first, by any capability's errand: `journal_times` is the
-    state's (capability, word, since)."""
-    return sorted(at for capability in RESIDENT for at in journal_times(capability, START_WORD, now - HOUR)
-                  if 0 <= now - at < HOUR)
+def setup_time(paths):
+    """When setup last ran for this installation - an install, an update or a Repair writes its runtime.json - as a
+    whole second, or None (a source checkout, or a file that cannot be read). The hour's count of starts begins there
+    too (v0.6.22 final, the live acceptance's re-check): an earlier version's courier that could not start - every one
+    before v0.6.22's fix, from an installed copy - used the hour's starts, and the new one stayed stopped for up to an
+    hour after the update. A setup run is a new installation's start; a crash loop still gets at most RESTARTS more."""
+    try:
+        return int((Path(paths.home) / "runtime.json").stat().st_mtime)
+    except (OSError, AttributeError, TypeError, ValueError):
+        return None
 
 
-def stopped(journal_times, now) -> bool:
-    """Whether the resident has been started as often as an hour allows: the card's `stopped`."""
-    return len(starts(journal_times, now)) > RESTARTS
+def starts(journal_times, now, since=None) -> list:
+    """When a resident was started in the last hour, and since `since` (setup_time) where it is given, oldest first, by
+    any capability's errand: `journal_times` is the state's (capability, word, since)."""
+    floor = now - HOUR if since is None else max(now - HOUR, since)
+    return sorted(at for capability in RESIDENT for at in journal_times(capability, START_WORD, floor)
+                  if 0 <= now - at < HOUR and at >= floor)
+
+
+def stopped(journal_times, now, since=None) -> bool:
+    """Whether the resident has been started as often as an hour allows (since the last setup run): the card's
+    `stopped`."""
+    return len(starts(journal_times, now, since)) > RESTARTS
 
 
 class _Errand:
@@ -110,7 +126,7 @@ class Resident:
                 self._told = False
                 return DEFER
             now = scoped.now()
-            started = starts(scoped.journal_times, now)
+            started = starts(scoped.journal_times, now, setup_time(self.paths))
             if started and now - started[-1] < STARTING:
                 return DEFER                  # one was just started: it is given time to take its mutex
             if len(started) > RESTARTS:
