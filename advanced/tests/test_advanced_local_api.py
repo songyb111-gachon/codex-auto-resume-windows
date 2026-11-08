@@ -650,9 +650,14 @@ class CardTests(ac.AdvancedCase):
         view = remote.api_view(self.rt, secrets=self.secrets, running=lambda runtime: self.fail("off: not asked"))
         self.assertEqual((view["state"], view["token_saved"]), ("off", False))
 
+    def bound(self):
+        """The resident's word that its server bound the port (courier/resident.py)."""
+        self.assertTrue(self.rt.state.stamp("local_api", "api_bound_at", int(self.now)))
+
     def test_the_card_s_read_never_carries_the_token_and_copy_does_only_when_asked(self):
         self.assertTrue(self.arm(self.rt, "local_api")["done"])
-        made = remote.api_token_new(self.rt, secrets=self.secrets)
+        self.bound()
+        made = remote.api_token_new(self.rt, secrets=self.secrets, running=lambda runtime: True)
         self.assertEqual(made["copy_url"], "http://127.0.0.1:47615/#" + self.secrets.token)
         self.assertGreaterEqual(len(self.secrets.token), 43, "32 bytes, url-safe")
         view = remote.api_view(self.rt, secrets=self.secrets, running=lambda runtime: True)
@@ -668,12 +673,13 @@ class CardTests(ac.AdvancedCase):
         fragment to whatever page the program holding the port serves."""
         self.assertTrue(self.arm(self.rt, "local_api")["done"])
         self.secrets.token = BEARER_INK
-        self.rt.state.counted("local_api", "port_taken")
+        self.assertTrue(self.rt.state.stamp("local_api", "api_taken_at", int(self.now)))
         self.assertNotIn("copy_url", remote.api_view(self.rt, copy=True, secrets=self.secrets, running=lambda r: True))
         self.now += 1
-        self.rt.state.counted("local_api", "started")
+        self.rt.state.unstamp("local_api", "api_taken_at")
+        self.bound()
         self.assertIn("copy_url", remote.api_view(self.rt, copy=True, secrets=self.secrets, running=lambda r: True))
-        with patch.object(remote, "_word", lambda runtime, on, alive: "stopped"):
+        with patch.object(remote, "_word", lambda runtime, on, alive, watcher=None: "stopped"):
             self.assertNotIn("copy_url", remote.api_view(self.rt, copy=True, secrets=self.secrets, running=lambda r: False))
 
     def test_copy_while_off_carries_nothing(self):

@@ -636,8 +636,8 @@ class TimeTests(unittest.TestCase):
         row = fleet.shown(peer(next_check_at=ac.NOW + 600), ac.NOW + 300)
         self.assertEqual((row["seen"], row["written_at"], row["next_check_at"]), ("fresh", ac.NOW, ac.NOW + 600))
 
-    def test_a_week_is_fresh_and_a_second_more_is_old_with_no_next_check(self):
-        self.assertEqual(fleet.shown(peer(), ac.NOW + fleet.STALE)["seen"], "fresh")
+    def test_a_week_is_quiet_and_a_second_more_is_old_with_no_next_check(self):
+        self.assertEqual(fleet.shown(peer(), ac.NOW + fleet.STALE)["seen"], "quiet", "M14: last heard, not what it said")
         row = fleet.shown(peer(next_check_at=ac.NOW + fleet.STALE + 100), ac.NOW + fleet.STALE + 1)
         self.assertEqual((row["seen"], row["written_at"], row["next_check_at"]), ("old", ac.NOW, None))
 

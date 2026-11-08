@@ -769,7 +769,7 @@ namespace CodexAutoResume
         ///   {"do": "chat_type", "text": ..., "caret": n,      the chat's box written in, its caret at n with `selected`
         ///    "selected": n}                                   characters chosen after it, as a person leaves it (v0.6.23)
         ///   {"do": "courier", "button": "save ntfy"}          a courier card's button pressed, if it can be (v0.6.20)
-        ///   {"do": "remote", "button": "copy api"}            a remote card's button pressed ("copy api", "token api", "pair telegram"),
+        ///   {"do": "remote", "button": "copy api"}            a remote card's button pressed ("copy api", "copy token", "token api", "pair telegram", "open notices"),
         ///                                                     what it copies kept (v0.6.22)
         ///   {"do": "courier_type", "into": "ntfy.url",       one of the courier card's boxes filled
         ///    "text": ...}
@@ -1209,6 +1209,12 @@ namespace CodexAutoResume
                         else form.fleetAlias.Box.Text = Str(step, "text") ?? "";
                     }
                     else if (what == "fleet_folder") form.ChooseFleetFolder(Str(step, "path") ?? "");
+                    else if (what == "fleet_folder_typed")
+                    {
+                        // and a folder typed or pasted into its box (the reachability audit's M14).
+                        if (form.fleetFolder == null) disabled.Add("fleet_folder_typed");
+                        else form.fleetFolder.Box.Text = Str(step, "text") ?? "";
+                    }
                     else if (what == "fleet_save")
                     {
                         if (form.fleetSave == null || !form.fleetSave.Enabled) disabled.Add("fleet_save");
@@ -1635,7 +1641,8 @@ namespace CodexAutoResume
             look["fleet_rows"] = fleetShows ? ListCells(fleetList) : new List<object>();
             look["fleet_said"] = fleetShows ? fleetSaid.Text : null;
             look["fleet_alias"] = fleetAlias == null ? null : fleetAlias.Box.Text;
-            look["fleet_folder"] = fleetFolderLine == null ? null : fleetFolderLine.Text;
+            look["fleet_folder"] = fleetFolder == null ? null : fleetFolder.Box.Text;
+            look["fleet_folder_line"] = fleetFolderLine == null ? null : fleetFolderLine.Text;
             look["fleet_save"] = fleetSave == null ? (object)null : fleetSave.Enabled;
             // v0.6.22: the remote cards' buttons, and what they copied.
             look["remote_buttons"] = Tags(remoteButtons);

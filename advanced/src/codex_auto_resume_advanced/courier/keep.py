@@ -7,7 +7,9 @@ Secrets (credentials.py: CodexAutoResume/advanced/push_notices/<name>, SECRETS):
 webhook's address and its optional bearer token, the Telegram bot's token and the paired chat, and the e-mail
 channel's settings as one JSON blob of at most 2,560 bytes. None of them is kept anywhere else - not advanced.sqlite,
 settings, a log, the journal, diagnostics or a golden - and none is ever answered to the Dashboard: it is told only
-which are saved.
+which are saved. One beside them is no secret and is answered (v0.6.22, the reachability audit's M6): the paired chat's
+name - its title, or its @username - as Telegram gave it with the code, or later with a message from that chat
+(`keep_chat_name`), so the cards can say which chat is paired. Never a word a message said.
 
 The pairing: the Dashboard shows a code of six digits and keeps only its SHA-256 digest and when it expires
 (PAIR_SECONDS) - `begin_pairing`; a courier run with `--pair` keeps the chat whose message is that code
@@ -19,10 +21,12 @@ import hashlib
 import re
 
 CAPABILITY = "push_notices"
-SECRETS = ("ntfy_url", "webhook_url", "webhook_token", "telegram_token", "telegram_chat", "smtp")
+CHAT_NAME = "telegram_chat_name"
+MAX_CHAT_NAME = 64                  # characters of a chat's name the card shows
+SECRETS = ("ntfy_url", "webhook_url", "webhook_token", "telegram_token", "telegram_chat", CHAT_NAME, "smtp")
 # What each channel keeps, and what it must have kept to send (the webhook's token is optional).
 CHANNEL_SECRETS = {"ntfy": ("ntfy_url",), "webhook": ("webhook_url", "webhook_token"),
-                   "telegram": ("telegram_token", "telegram_chat"), "email": ("smtp",)}
+                   "telegram": ("telegram_token", "telegram_chat", CHAT_NAME), "email": ("smtp",)}
 NEEDED = {"ntfy": ("ntfy_url",), "webhook": ("webhook_url",), "telegram": ("telegram_token", "telegram_chat"),
           "email": ("smtp",)}
 PAIR_SECONDS = 120
@@ -49,6 +53,37 @@ def saved(secrets, channel) -> bool:
     """Whether everything `channel` needs to send is kept. False where Credential Manager cannot be read."""
     try:
         return all(read(secrets, name) is not None for name in NEEDED[channel])
+    except Exception:
+        return False
+
+
+def chat_label(chat):
+    """A Telegram chat object's name for the card: its title (a group's, a channel's) or its @username, as Telegram
+    gave it - control characters taken out, at most MAX_CHAT_NAME characters - or None where it has neither."""
+    if not isinstance(chat, dict):
+        return None
+    title, user = chat.get("title"), chat.get("username")
+    found = title if isinstance(title, str) and title.strip() else "@" + user if isinstance(user, str) and user else None
+    if found is None:
+        return None
+    found = "".join(c for c in found if c.isprintable()).strip()[:MAX_CHAT_NAME]
+    return found or None
+
+
+def chat_name(secrets):
+    """The paired chat's name as kept (CHAT_NAME), or None."""
+    return read(secrets, CHAT_NAME)
+
+
+def keep_chat_name(secrets, chat) -> bool:
+    """`chat`'s name kept, where it has one and it is not the one kept already - written only when it changed. Whether
+    it was written; never fatal."""
+    label = chat_label(chat)
+    try:
+        if label is None or chat_name(secrets) == label:
+            return False
+        secrets.write(CAPABILITY, CHAT_NAME, label)
+        return True
     except Exception:
         return False
 

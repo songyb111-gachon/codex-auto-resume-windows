@@ -58,6 +58,10 @@ SCAN_MOST = 1024
 ALIAS_MOST = 32
 FOLDER_MOST = 248
 STALE = 7 * 24 * 60 * 60
+# How long a peer may go unheard before its row says when it was last heard instead of what it said then: three passes. A
+# watcher writes its file every EVERY seconds while it runs and nothing once it stopped, so a file this old is a watcher
+# stopped, a PC asleep or off, or a sync tool behind (the reachability audit's M14).
+QUIET = 3 * EVERY
 # How far ahead of this PC's clock a peer's file may be written before its clock is said to differ.
 CLOCK_SLACK = 10 * 60
 # How far on a peer's next check is shown: a usage window is at most a week, and a later time says nothing.
@@ -80,7 +84,7 @@ REFUSALS = (INSIDE, LINK, INVALID)
 # The journal's words: a word changed to these, and each file ignored.
 WROTE, WAITING, REFUSED, IGNORED = "wrote", "waiting", "refused", "ignored"
 CODES = (WROTE, WAITING, REFUSED, IGNORED)
-FRESH, OLD, CLOCK = "fresh", "old", "clock"
+FRESH, OLD, CLOCK, QUIET_WORD = "fresh", "old", "clock", "quiet"
 _RESERVED = frozenset({"CON", "PRN", "AUX", "NUL"} | {"COM%d" % n for n in range(1, 10)}
                       | {"LPT%d" % n for n in range(1, 10)})
 _CLOUD_MASK, _CLOUD = 0xFFFF0FFF, 0x9000001A
@@ -133,10 +137,11 @@ def document(status, alias) -> dict:
 
 
 def shown(found, now) -> dict:
-    """One peer as the window shows it, from a file `clean` kept. `seen` is FRESH, OLD (older than a week: greyed, "not
-    seen since"), or CLOCK (written ahead of this PC's clock: no time of it means anything here, so none is given)."""
+    """One peer as the window shows it, from a file `clean` kept. `seen` is FRESH, QUIET (not written for QUIET seconds:
+    "last heard" and when), OLD (older than a week: greyed, "not seen since"), or CLOCK (written ahead of this PC's clock:
+    no time of it means anything here, so none is given)."""
     age = now - found["written_at"]
-    seen = CLOCK if age < -CLOCK_SLACK else OLD if age > STALE else FRESH
+    seen = CLOCK if age < -CLOCK_SLACK else OLD if age > STALE else QUIET_WORD if age > QUIET else FRESH
     due = found["next_check_at"]
     return {"alias": found["alias"], "watcher": found["watcher"], "recovery": found["recovery"],
             "pending": found["pending"], "seen": seen, "written_at": None if seen == CLOCK else found["written_at"],

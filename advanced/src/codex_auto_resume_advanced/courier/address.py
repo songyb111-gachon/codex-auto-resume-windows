@@ -28,10 +28,11 @@ _MAILBOX = re.compile(r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}@[A-Za-z0-9.-]{3,25
 SMTP_PORTS = (465, 587)
 
 
-def web_view(port, token=None) -> str:
-    """The loopback web view's address on this PC (api.py - a listening address, no push's); with `token`, carried in
-    the fragment, which a browser never sends."""
-    made = "http://%s:%d/" % ("127.0.0.1", port)
+def web_view(port, token=None, host=None) -> str:
+    """The loopback web view's address on this PC (api.py - a listening address, no push's) - or, with `host`, on one of
+    this PC's own network addresses while local_api_lan opens it there; with `token`, carried in the fragment, which a
+    browser never sends."""
+    made = "http://%s:%d/" % (host or "127.0.0.1", port)
     return made + "#" + token if token else made
 
 
