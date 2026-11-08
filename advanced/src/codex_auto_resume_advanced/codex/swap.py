@@ -6,7 +6,11 @@ session of this capability's own asks account/read and account/rateLimits/read t
 file and running app it leaves alone (MPROFILE measures exactly that). A copy Codex refreshed there is sealed back into
 the profile; one Codex answers as signed out is marked as needing a sign-in and never read again until the person signs
 it in again. What comes back is closed: present, whether it is the profile's own account, the plan word, whether usage
-is available, the most used window's percentage and the latest reset of a full window - never an address.
+is available, the most used window's percentage and the latest reset of a full window - never an address. Since the
+v0.6.22 final every read is also kept in the profile for the card's meters (profiles' `usage`: the five-hour and weekly
+windows' used percentage and reset time, `meters`), a read that broke says so (`unread_at`) and keeps the last one, and
+the whole read holds the saved accounts' lock, so the card's Read usage and the watcher's own look never read one saved
+account at once (two reads would each refresh its tokens, and one of them would be left with a spent copy).
 
 `switch` puts a profile's account in, in this order (plans/v0622-account-autoswitch-design.md section 6):
 1. the switch is written down (profiles' intent), so a crash in the middle is finished or undone at the next look;
@@ -134,7 +138,9 @@ def save_current(paths, store, codex_home, *, read_real=None):
         return None
     try:
         with store.locked():
-            return store.save(authfile.read(codex_home), found["email"], found.get("plan_word"))
+            saved = store.save(authfile.read(codex_home), found["email"], found.get("plan_word"))
+            store.update(saved, seen_at=int(store._clock()))     # the card's "in use"
+            return saved
     except OSError:
         return None
 
@@ -202,8 +208,34 @@ def engines_gone(seconds=ENGINES_SETTLE) -> bool:
         _sleep(ENGINES_LOOK)
 
 
+# A window shorter than a day is the five-hour one, any longer the weekly one; where Codex gave no length, the primary
+# window is the five-hour one and the secondary the weekly one, as Codex lists them.
+DAY_MINUTES = 1440
+
+
+def meters(windows) -> dict:
+    """{five_hour, weekly} of a reading's windows (core's kept form, domain/usage.py) for the card: each {used,
+    resets_at}, or None where the reading has no such window. Codex's own bucket first; another only where it has none."""
+    rows = [window for window in windows or () if isinstance(window, dict)
+            and type(window.get("used_percent")) in (int, float)]
+    rows = [window for window in rows if window.get("bucket") == "codex"] or rows
+    found = {"five_hour": None, "weekly": None}
+    for window in rows:
+        minutes = window.get("window_minutes")
+        if type(minutes) is int:
+            name = "five_hour" if minutes < DAY_MINUTES else "weekly"
+        else:
+            name = {"primary": "five_hour", "secondary": "weekly"}.get(window.get("window"))
+        reset = window.get("reset_at")
+        if name is not None and found[name] is None:
+            found[name] = {"used": round(float(window["used_percent"]), 1),
+                           "resets_at": reset if type(reset) is int else None}
+    return found
+
+
 def usage_of(reply) -> dict:
-    """{available, most_used, full_until} of one account/rateLimits/read answer (core's allowlist, codex/usage.py)."""
+    """{available, most_used, full_until, five_hour, weekly} of one account/rateLimits/read answer (core's allowlist,
+    codex/usage.py); the last two are `meters`'."""
     from codex_auto_resume.codex.usage import parse_usage
     from codex_auto_resume.domain import usage as readings
     parsed = parse_usage(reply)
@@ -213,7 +245,7 @@ def usage_of(reply) -> dict:
             if window["used_percent"] >= 100 and window.get("reset_at") is not None]
     resets = full or ([parsed["reset_at"]] if parsed.get("available") is False and parsed.get("reset_at") else [])
     return {"available": parsed.get("available") if type(parsed.get("available")) is bool else None,
-            "most_used": max(used) if used else None, "full_until": max(resets) if resets else None}
+            "most_used": max(used) if used else None, "full_until": max(resets) if resets else None, **meters(windows)}
 
 
 def has_room(found) -> bool:
@@ -223,9 +255,20 @@ def has_room(found) -> bool:
 
 
 def read_profile(paths, store, profile_id, *, session_for=None, now=None) -> dict:
-    """One read of a saved account on a scratch home; see the module. {present: None, ...} where it could not be read."""
+    """One read of a saved account on a scratch home; see the module. {present: None, ...} where it could not be read -
+    or where another read, a switch or a save held the saved accounts for KEEP_SECONDS."""
+    from ..profiles import KEEP_SECONDS, Locked
+    found = {"present": None, "own": None, "plan": None, "available": None, "most_used": None, "full_until": None,
+             "five_hour": None, "weekly": None}
+    try:
+        with store.locked(KEEP_SECONDS):
+            return _read_profile(paths, store, profile_id, found, session_for=session_for, now=now)
+    except Locked:
+        return found
+
+
+def _read_profile(paths, store, profile_id, found, *, session_for=None, now=None) -> dict:
     from ..profiles import KEEP_SECONDS, ProfileError
-    found = {"present": None, "own": None, "plan": None, "available": None, "most_used": None, "full_until": None}
     try:
         profile = store.get(profile_id)
     except ProfileError:
@@ -239,13 +282,15 @@ def read_profile(paths, store, profile_id, *, session_for=None, now=None) -> dic
                 usage = session.call(USAGE_READ, {}) if account.get("present") is True else None
     except Exception:
         # A read that broke after Codex refreshed the tokens there: the newer copy is kept all the same - the old one
-        # may be spent already (the security review's finding 6).
+        # may be spent already (the security review's finding 6). The last reading stays; the card says this one broke.
+        changes = {"unread_at": int(now or store._clock())}
         if scratch.after is not None and scratch.after != profile["auth"]:
-            try:
-                with store.locked(KEEP_SECONDS):
-                    store.update(profile_id, auth=scratch.after)
-            except (ProfileError, OSError):
-                pass
+            changes["auth"] = scratch.after
+        try:
+            with store.locked(KEEP_SECONDS):
+                store.update(profile_id, **changes)
+        except (ProfileError, OSError):
+            pass
         return found
     found["present"] = account.get("present")
     saved = profile.get("email")
@@ -262,7 +307,8 @@ def read_profile(paths, store, profile_id, *, session_for=None, now=None) -> dic
 
 
 def _note_read(store, profile_id, profile, scratch, found, now) -> None:
-    """What one read found, kept in the profile: needing a sign-in, or the newer copy and the reset it is full until."""
+    """What one read found, kept in the profile: needing a sign-in, or the newer copy, the reset it is full until and
+    the reading itself for the card's meters (profiles' `usage`)."""
     if found["present"] is False or found["own"] is False:
         store.update(profile_id, failed_at=int(now or store._clock()))
     else:
@@ -271,6 +317,11 @@ def _note_read(store, profile_id, profile, scratch, found, now) -> None:
             changes["auth"] = scratch.after                  # Codex refreshed the tokens there: keep the newer copy
         if found["full_until"]:
             changes["exhausted_until"] = int(found["full_until"])
+        if found["present"] is True and found["available"] is not None:
+            changes["usage"] = {"read_at": int(now or store._clock()), "available": found["available"],
+                                "most_used": found["most_used"], "five_hour": found["five_hour"],
+                                "weekly": found["weekly"]}
+            changes["unread_at"] = None
         if changes:
             store.update(profile_id, **changes)
 
@@ -347,7 +398,7 @@ def _switch(paths, store, codex_home, target_id, *, restart=None, read_real=None
             return FAILED
         after = read_real()
         if identity(after) is not None and identity(after) == (target.get("email") or "").lower():
-            store.update(target_id, used_at=stamp)
+            store.update(target_id, used_at=stamp, seen_at=stamp)
             store.mark_switched(target["email"])
             # The app that did not come back is said as such: nothing is released early into a closed app.
             return NOT_STARTED if outcome == restarts.NOT_STARTED else SWITCHED

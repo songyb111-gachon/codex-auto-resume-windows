@@ -1371,8 +1371,8 @@ class StatisticsTests(_StoreCase):
                                              "recovered": 2, "no_progress": 1, "recovery_failed": 1,
                                              "handed_over": 1, "stopped_by_user": 1, "cancelled": 1,
                                              "superseded": 1, "delivered_legacy": 1})
-        # Four decided by the engine: not enough data for a rate.
-        self.assertIsNone(stats["success_rate"])
+        # Six counted by the rate (2026-11-08: recovered, superseded and a legacy delivery succeed): four of six.
+        self.assertAlmostEqual(stats["success_rate"], 4 / 6)
         self.assertEqual(stats["median_wait_seconds"], 40.0)     # 10 20 30 40 50 55 60
         self.assertEqual(stats["median_recovery_seconds"], 95.0)
         self.assertEqual(stats["by_category"], {"usage_limit": 9, "server_5xx": 1})
@@ -1400,18 +1400,23 @@ class StatisticsTests(_StoreCase):
         self.assertAlmostEqual(stats["success_rate"], 3 / 5)
         self.assertEqual(stats["median_recovery_seconds"], 90.0)
 
-    def test_statistics_exclude_user_decisions_and_legacy_rows_from_the_rate(self):
+    def test_statistics_exclude_user_decisions_from_the_rate_and_count_moved_on_and_legacy_as_success(self):
+        """The owner, 2026-11-08: a conversation that moved on before a send (superseded, by Codex or the person) and a
+        legacy delivery succeed; a person's own decision is left out."""
         for _ in range(5):
             self.outcome("recovered", 10, 10)
-        for state in ("handed_over", "stopped_by_user", "cancelled", "superseded", "superseded_by_user",
-                      "resumed"):
+        for state in ("handed_over", "stopped_by_user", "cancelled"):
+            self.outcome(state, 10, 10)
+        self.assertEqual(self.store.statistics()["success_denominator"], 5)
+        for state in ("superseded", "superseded_by_user", "resumed"):
             self.outcome(state, 10, 10)
         self.assertEqual(self.store.statistics()["success_rate"], 1.0)
+        self.assertEqual(self.store.statistics()["success_denominator"], 8)
         for state in ("completed_no_progress", "recovery_turn_failed", "outcome_unverified",
                       "retry_budget_exhausted", "no_progress_exhausted", "failed", "terminal_failure",
                       "submission_unknown"):
             self.outcome(state, 10, 10)
-        self.assertAlmostEqual(self.store.statistics()["success_rate"], 5 / 13)
+        self.assertAlmostEqual(self.store.statistics()["success_rate"], 8 / 16)
 
     def test_statistics_include_hidden_rows(self):
         for _ in range(5):

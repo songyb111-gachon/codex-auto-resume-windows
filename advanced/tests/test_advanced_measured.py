@@ -114,6 +114,14 @@ class TableTests(unittest.TestCase):
                 self.assertIn(verdict, (Verdict.PASS, Verdict.FAIL))
                 self.assertTrue(isinstance(version, str) and version)
 
+    def test_the_re_measure_of_2026_11_08_offers_exactly_what_was_offered_before(self):
+        """MSTEER2 and MTOK passed and MWAKE failed, but only the waiting capabilities are held back by a measurement: the
+        two that were offered still are, and codex_retry_settings (MB2 failed) and stop_hook_continuation (M4 failed) stay
+        hidden."""
+        from codex_auto_resume_advanced import registry
+        self.assertEqual({definition.id for definition in registry.offered(measured.MEASURED)},
+                         {"open_to_send", "account_auto_switch"})
+
     def test_the_readings_the_owner_recorded(self):
         """2026-10-10, everything made again on codex-cli 0.162.0-alpha.17.2 by the main session at the
         owner's word, the owner signing in where MA and MH needed it: MW, M1, M2b, M5 (TUI with --no-daemon,
@@ -170,7 +178,25 @@ class TableTests(unittest.TestCase):
         failed: Codex refused thread/resume (-32600) of a conversation made under the built-in openai provider under a
         provider of our own (modelProviderMismatch). MPROFILE passed - a second saved account read on a scratch home, the
         real sign-in left as it was - and MSWAP passed by the owner's word: the app came up as the other saved account and
-        back, each with no sign-in page and no other Codex engine running."""
+        back, each with no sign-in page and no other Codex engine running.
+        2026-11-08, on codex-cli 0.167.0-alpha.3.2 (the app's own engine), the measurement session made the advanced
+        re-measure in eight sittings, the owner having said to go on without asking and to skip passwords, credits and
+        typing into an IDE. Passed again: MW, M1, M2b, M3B, M6, M6B, M7, MF, MHK, MX, MXA, MC1, MIMG (ten pictures, the
+        add's answer over a megabyte read), MIPC, MOPEN, MP1-MP3, MQO, MQP, MQG, MAUTO, MPROFILE and MSWAP (the app came up
+        as the other saved account and back; the other account's first start shows its welcome and onboarding questions).
+        Failed again: M2 (partial - a goal set active from another server reads active in storage, but the app keeps
+        showing it paused and runs no turn), M3, M4 (Codex ran a plugin's Stop hook after a completed turn, not after the
+        failed one the probe made), MB, MB2, MC2 (partial - the app's automatic review answered the approval, so no wait
+        showed), MSTEER, MAWS and MCLOUD (partial - the engine's help reads a cloud task's state and continues none).
+        Newly passed: MSTEER2 (a steer over the Desktop's pipe appeared once inside the running turn as the person's own
+        message, with no new turn), which had failed on 0.165; MTOK, its first record (token counts read from a rollout
+        and Codex's own columns, read-only). Newly failed: MWAKE, its first record - the 180-second wake timer fired
+        while the PC slept in Modern Standby, but the PC left standby only at a mouse move six minutes later.
+        Not settled: M5 and MO came back blocked (their VS Code half needs typing in an IDE) and MN blocked (this account
+        has reset credits), so their older records stay; MK stayed blocked (Codex offered no plan to read), and so did
+        MGAVE (every rollout of a capacity-failed turn is gone). Not made again, each for what it needs: MA, MAL and MALR
+        (a sign-out and a browser sign-in), MH (a browser sign-in on a second home), MR (a credit), MU, MANCHOR, ME and MS
+        (a condition that was not there), MQ and MT (the product's own sender), M4B (M4 did not pass)."""
         passed = {m for m, (verdict, _v) in measured.MEASURED.items() if verdict == Verdict.PASS}
         failed = {m for m, (verdict, _v) in measured.MEASURED.items() if verdict == Verdict.FAIL}
         self.assertEqual(passed, {Measurement.MW, Measurement.M1, Measurement.M2B, Measurement.M5,
@@ -181,39 +207,37 @@ class TableTests(unittest.TestCase):
                                   Measurement.M3B, Measurement.M6B, Measurement.MQO, Measurement.MQP,
                                   Measurement.MQG, Measurement.MANCHOR, Measurement.MIMG, Measurement.MOPEN,
                                   Measurement.MHK, Measurement.MALR, Measurement.MAUTO, Measurement.MPROFILE,
-                                  Measurement.MSWAP})
+                                  Measurement.MSWAP, Measurement.MSTEER2, Measurement.MTOK})
         self.assertEqual(failed, {Measurement.M2, Measurement.M3, Measurement.M4, Measurement.MAWS,
                                   Measurement.MCLOUD, Measurement.MB, Measurement.MC2, Measurement.MSTEER,
-                                  Measurement.MSTEER2, Measurement.MAL, Measurement.MB2})
-        new = "codex-cli 0.163.0-alpha.10.2"
-        again = {Measurement.M1, Measurement.M5, Measurement.M6,
-                 Measurement.M7, Measurement.MP1, Measurement.MP2, Measurement.MP3, Measurement.MIPC,
-                 Measurement.MO, Measurement.M6B, Measurement.MX}
-        v0617 = {Measurement.MQO, Measurement.MQP, Measurement.MQG}
-        self.assertEqual({m for m, (_v, version) in measured.MEASURED.items() if version == new}, again | v0617)
-        self.assertTrue(all(measured.MEASURED[m][0] == Verdict.PASS for m in again | v0617))
-        v0164 = {Measurement.M2B}
-        self.assertEqual({m for m, (_v, version) in measured.MEASURED.items()
-                          if version == "codex-cli 0.164.0-alpha.11.1"}, v0164)
-        self.assertTrue(all(measured.MEASURED[m][0] == Verdict.PASS for m in v0164))
-        # v0.6.20: MANCHOR, and issue #50's MIMG, MSTEER, MOPEN and MSTEER2, on the Codex app's bundled engine of 2026-10-29.
-        self.assertEqual({m for m, (_v, version) in measured.MEASURED.items()
-                          if version == "codex-cli 0.165.0-alpha.1.2"},
-                         {Measurement.MANCHOR, Measurement.MIMG, Measurement.MSTEER, Measurement.MOPEN, Measurement.MSTEER2})
-        # v0.6.20, before its final: MB and M4 made again and MHK made, on the Codex of 2026-10-31.
-        self.assertEqual({m for m, (_v, version) in measured.MEASURED.items()
-                          if version == "codex-cli 0.166.0-alpha.5.1"},
-                         {Measurement.M4, Measurement.MAL, Measurement.MALR})
-        # v0.6.22: the no-hands sitting of 2026-11-05 toward the re-measure.
-        self.assertEqual({m for m, (_v, version) in measured.MEASURED.items()
-                          if version == "codex-cli 0.166.0-alpha.6"},
-                         {Measurement.MW, Measurement.MHK, Measurement.M3B, Measurement.MF, Measurement.M3, Measurement.MB,
-                          Measurement.MAUTO, Measurement.MB2, Measurement.MPROFILE, Measurement.MSWAP})
+                                  Measurement.MAL, Measurement.MB2, Measurement.MWAKE})
+        by_engine = {}
+        for m, (_v, version) in measured.MEASURED.items():
+            by_engine.setdefault(version, set()).add(m)
+        # v0.6.22: the advanced re-measure of 2026-11-08 on the app's own engine - everything it could make again, and
+        # MTOK and MWAKE for the first time.
+        self.assertEqual(by_engine.pop("codex-cli 0.167.0-alpha.3.2"),
+                         {Measurement.M1, Measurement.M2, Measurement.M2B, Measurement.M3, Measurement.M3B,
+                          Measurement.M4, Measurement.M6, Measurement.M6B, Measurement.M7, Measurement.MW,
+                          Measurement.MP1, Measurement.MP2, Measurement.MP3, Measurement.MIPC, Measurement.MAWS,
+                          Measurement.MCLOUD, Measurement.MC1, Measurement.MXA, Measurement.MX, Measurement.MF,
+                          Measurement.MB, Measurement.MC2, Measurement.MQO, Measurement.MQP, Measurement.MQG,
+                          Measurement.MIMG, Measurement.MSTEER, Measurement.MSTEER2, Measurement.MOPEN,
+                          Measurement.MHK, Measurement.MAUTO, Measurement.MB2, Measurement.MPROFILE,
+                          Measurement.MSWAP, Measurement.MTOK, Measurement.MWAKE})
+        # What was not made again stays on the engine it was made on: M5 and MO (their re-runs came back blocked) on 0.163,
+        # the five that need a sign-in, a credit or a reset on 0.162, MANCHOR on 0.165, MAL and MALR on 0.166.
+        self.assertEqual(by_engine, {
+            "codex-cli 0.163.0-alpha.10.2": {Measurement.M5, Measurement.MO},
+            "codex-cli 0.162.0-alpha.17.2": {Measurement.MA, Measurement.MH, Measurement.MR, Measurement.MN,
+                                             Measurement.MU},
+            "codex-cli 0.165.0-alpha.1.2": {Measurement.MANCHOR},
+            "codex-cli 0.166.0-alpha.5.1": {Measurement.MAL, Measurement.MALR}})
         self.assertEqual(set(Measurement) - passed - failed,
                          # v0.6.15-beta's own, for several conversations at once: not made yet.
                          {Measurement.MQ, Measurement.ME, Measurement.MS, Measurement.MK, Measurement.MT,
-                          # v0.6.19's groundwork probes, made while its stage is built: not made yet.
-                          Measurement.MTOK, Measurement.MWAKE, Measurement.M4B,
+                          # v0.6.19's groundwork probe: its condition (M4 passing) is not there.
+                          Measurement.M4B,
                           # v0.6.20: which code a turn kept at capacity through Codex's retries records.
                           Measurement.MGAVE})
 

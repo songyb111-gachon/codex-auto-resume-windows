@@ -496,12 +496,15 @@ class BootstrapTests(unittest.TestCase):
         (v0.6.12) carries the version a person picked, and Get-ChosenVersion rebuilds it from its
         integers (and one of two words), and it is installed only where the list still offers it
         (tests/test_version_picker.py). -AskFirst (v0.6.16) is a switch: it only stops between the download's checks
-        and the installer to ask (tests/test_installer_window.py).
+        and the installer to ask (tests/test_installer_window.py). -DeleteSavedAccounts (v0.6.22) is a switch: with -Pick
+        from the advanced edition to the standard one it also deletes the saved Codex accounts, as the setup window's
+        edition change offers; it carries no version.
         """
         parameters = re.search(r"param\((.*?)\n\)", self.text, re.S).group(1)
         self.assertEqual(set(re.findall(r"\$(\w+)", parameters)),
                          {"Force", "NoStartup", "ArchivePath", "CheckOnly", "Update",
-                          "Compatibility", "Edition", "Version", "Versions", "Pick", "AskFirst"})
+                          "Compatibility", "Edition", "Version", "Versions", "Pick", "AskFirst",
+                          "DeleteSavedAccounts"})
         values = [name for name in re.findall(r"\[(\w+)\]\$(\w+)", parameters)]
         self.assertEqual([name for kind, name in values if kind != "switch"],
                          ["ArchivePath", "Edition", "Version", "Pick"])

@@ -1,6 +1,6 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
-"""The courier process: `pythonw.exe -m codex_auto_resume_advanced.courier --home <home> [--feed | --test <channel> |
---pair | --serve]`.
+"""The courier process: `pythonw.exe -c <launch.BOOTSTRAP> <import roots> --home <home> [--feed | --test <channel> |
+--pair | --serve | --check]` (courier/launch.py).
 
 It takes this home's courier mutex first - a second courier for the same home exits at once with EXIT_BUSY, and one
 whose mutex a lower-integrity process made first is refused (core's win/sync.Mutex, E12) - then does one round and
@@ -15,7 +15,10 @@ exits:
   showed, keeping the chat that sent it (channels.pair);
 * `--serve` (v0.6.22, D-remote.md), the resident roles - the loopback API and Telegram's long poll - for as long as
   local_api or telegram_remote stands on (resident.py), under the resident's own mutex, not this one: a resident never
-  holds a notice or a pairing back.
+  holds a notice or a pairing back;
+* `--check` (v0.6.22), every module a round can need imported, then 0 - no mutex taken, nothing of the home read or
+  written, nothing sent: the build's proof that the start command reaches this code under the bundled runtime
+  (build/make_release.py, check_courier_starts).
 
 Exit codes: 0 done, 3 busy, 4 refused (arguments, a home or a state that cannot be used, a capability not standing on
 or a channel not saved); a test's, per EXIT_TEST; 9 a pairing that found no code. Nothing is printed: pythonw has
@@ -36,14 +39,14 @@ FEED = "status_feed"
 
 def parse(argv):
     """{"home", "mode", "channel"} from `argv`, or None for anything else: exactly `--home <path>` and at most one of
-    `--feed`, `--test <channel>`, `--pair`, `--serve`."""
+    `--feed`, `--test <channel>`, `--pair`, `--serve`, `--check`."""
     from ..vocabulary import CourierChannel
     argv, found = list(argv), {"home": None, "mode": "drain", "channel": None}
     while argv:
         word = argv.pop(0)
         if word == "--home" and argv and found["home"] is None:
             found["home"] = argv.pop(0)
-        elif word in ("--feed", "--pair", "--serve") and found["mode"] == "drain":
+        elif word in ("--feed", "--pair", "--serve", "--check") and found["mode"] == "drain":
             found["mode"] = word[2:]
         elif word == "--test" and argv and found["mode"] == "drain" and argv[0] in tuple(CourierChannel):
             found["mode"], found["channel"] = "test", argv.pop(0)
@@ -70,6 +73,8 @@ def main(argv=None, **seams) -> int:
         paths = config.Paths(found["home"])
     except Exception:
         return EXIT_REFUSED
+    if found["mode"] == "check":
+        return check()
     if found["mode"] == "serve":
         from .resident import mutex as resident_mutex
         lock = (seams.get("mutex") or resident_mutex)(paths)
@@ -134,6 +139,20 @@ def work(paths, found, **seams) -> int:
             and states.get(FEED) == ArmingState.ARMED and paused is False):
         from . import feed
         feed.refresh(runtime, opener=seams.get("opener"), now=clock())
+    return EXIT_DONE
+
+
+def check() -> int:
+    """`--check`: every module a round, a test notice, a pairing or the resident roles import, imported now; EXIT_DONE,
+    or EXIT_REFUSED where one cannot be."""
+    try:
+        from . import api, channels, feed, keep, outbox, page, resident, telegram  # noqa: F401  (and .http, through them)
+        from ..runtime import Runtime  # noqa: F401
+        from ..report.records import paused  # noqa: F401
+        from codex_auto_resume import l10n, settings  # noqa: F401
+        from codex_auto_resume.win.sync import Mutex  # noqa: F401
+    except Exception:
+        return EXIT_REFUSED
     return EXIT_DONE
 
 

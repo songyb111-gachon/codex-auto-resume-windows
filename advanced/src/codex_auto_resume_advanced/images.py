@@ -31,8 +31,10 @@ import time
 from codex_auto_resume import config
 
 # How many pictures a message holds, and how large one may be.
-MOST_IMAGES = 4
-MOST_BYTES = 5 * 1024 * 1024
+# v0.6.22 (the owner's 2026-11-08): ten and 20 MB, from four and 5 MB - design-time bounds no measurement stood behind;
+# MIMG's probe sends exactly these, so the measurement proves what the product allows.
+MOST_IMAGES = 10
+MOST_BYTES = 20 * 1024 * 1024
 # A save's copy left this long is one a save cut short left behind.
 STAGED_FOR = 3600
 PREFIX = "image-"
@@ -136,6 +138,22 @@ def of(paths, prompt_id) -> list:
 
 def count(paths, prompt_id) -> int:
     return len(of(paths, prompt_id))
+
+
+def kept(paths, pending) -> tuple:
+    """(how many copies, their bytes) of the prompts `pending` (the ids still to go) - the pictures the product keeps until
+    they are delivered. A save's copy in progress, or one of a prompt no longer to go, is not counted."""
+    pending = {str(prompt) for prompt in pending}
+    found, size = 0, 0
+    for path, match in _entries(paths):
+        if match["prompt"] not in pending or match["place"] is None:
+            continue
+        try:
+            size += path.stat().st_size
+        except OSError:
+            continue
+        found += 1
+    return found, size
 
 
 def place(paths, prompt_id, images) -> None:

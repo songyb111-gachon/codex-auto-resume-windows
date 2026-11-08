@@ -26,6 +26,7 @@ CAP = "fleet_view"
 CARD = ac.ROOT / "advanced" / "gui" / "AdvancedFleet.cs"
 PAGE = ac.ROOT / "advanced" / "gui" / "AdvancedPage.cs"
 FOLDER = "C:\\Sync\\codex-pcs"
+SHARE = "\\\\nas\\shared\\codex-pcs"
 
 
 def source(path=CARD) -> str:
@@ -120,7 +121,7 @@ class PageTests(PageCase):
         script = cls.opening(bridge, "en")
         script["advanced-fleet"] = [answer([row("desk"), row("attic", seen="old"), row("den", seen="clock"),
                                             row("hall", watcher="stopped"), row("lab", recovery="paused"),
-                                            row("loft", recovery="observe_only")], ignored=3)]
+                                            row("loft", recovery="observe_only"), row("shed", seen="quiet")], ignored=3)]
         steps = [{"do": "snapshot", "reply": on_snapshot()}, {"do": "page", "name": "overview"},
                  {"do": "snapshot", "reply": on_snapshot()}, {"do": "look"},
                  {"do": "snapshot", "reply": snapshot()}, {"do": "look"}]
@@ -154,6 +155,18 @@ class PageTests(PageCase):
         return "en", {"script": script, "steps": steps}, {"words": script["advanced-words"][0]["result"]["words"]}
 
     @classmethod
+    def scenario_typed(cls, bridge):
+        """M14: a network share pasted, quoted as Copy as path quotes it: Save sends the path the bridge checks."""
+        cls.watched(bridge, CAP, state="armed")
+        script = cls.opening(bridge, "en")
+        script["advanced-fleet"] = [answer(stand="unset", alias=None, folder=None)] * 3 + [answer(folder=SHARE)] * 3
+        script["advanced-fleet-save"] = [answer(folder=SHARE)]
+        steps = [{"do": "snapshot", "reply": snapshot()}, {"do": "show"}, {"do": "choose", "id": CAP},
+                 {"do": "fleet_alias", "text": "laptop"}, {"do": "fleet_folder_typed", "text": '"' + SHARE + '" '},
+                 {"do": "look"}, {"do": "fleet_save"}]
+        return "en", {"script": script, "steps": steps}, {"words": script["advanced-words"][0]["result"]["words"]}
+
+    @classmethod
     def scenario_card_off(cls, bridge):
         """Off with a folder saved: only that this PC's file stays there."""
         script = cls.opening(bridge, "en")
@@ -179,6 +192,10 @@ class PageTests(PageCase):
         self.assertEqual(rows["hall"][1], words["page.fleet.state.stopped"])
         self.assertEqual(rows["lab"][1], words["page.fleet.state.paused"])
         self.assertEqual(rows["loft"][1], words["page.fleet.state.observing"])
+        # M14 (the reachability audit): a PC not heard from says when it was last heard, never "running".
+        self.assertNotEqual(rows["shed"][1], words["page.fleet.state.running"])
+        self.assertTrue(rows["shed"][1].startswith(words["page.fleet.state.last_heard"].split("{time}")[0]), rows["shed"])
+        self.assertRegex(rows["shed"][1], r"\d\d:\d\d")
         self.assertIn(words["page.fleet.ignored"].replace("{n}", "3"), on["fleet_said"])
         self.assertFalse(off["fleet_shown"], "off, the Overview is the standard window's")
 
@@ -203,7 +220,9 @@ class PageTests(PageCase):
         words = expected["words"]
         first, typed, chosen, saved = result["looks"]
         self.assertIsNotNone(self.card(first, words["page.fleet.card"]), first["cards"])
-        self.assertEqual(first["fleet_folder"], words["page.fleet.no_folder"])
+        self.assertEqual(first["fleet_folder"], "")
+        self.assertIn(words["page.fleet.no_folder"], first["fleet_folder_line"])
+        self.assertIn(words["page.fleet.folder_help"], first["fleet_folder_line"])
         self.assertIs(first["fleet_save"], False)
         self.assertIs(typed["fleet_save"], False, "no folder yet")
         self.assertEqual(chosen["fleet_folder"], FOLDER)
@@ -211,6 +230,16 @@ class PageTests(PageCase):
         (asked,) = sent(result, "advanced-fleet-save")
         self.assertEqual((asked["alias"], asked["folder"]), ("laptop", FOLDER))
         self.assertEqual(saved["fleet_alias"], "laptop")
+
+    def test_a_folder_can_be_typed_or_pasted_and_save_sends_it(self):
+        """M14: fails with the folder only chosen in Windows' dialog - a share it cannot browse to could not be entered."""
+        result, expected = self.of("scenario_typed")
+        look = result["looks"][0]
+        self.assertIs(look["fleet_save"], True)
+        self.assertNotIn(expected["words"]["page.fleet.no_folder"], look["fleet_folder_line"])
+        (asked,) = sent(result, "advanced-fleet-save")
+        self.assertEqual((asked["alias"], asked["folder"]), ("laptop", SHARE), "the quotes and spaces taken away")
+        self.assertEqual(result["disabled"], [])
 
     def test_off_the_card_says_its_file_stays(self):
         result, expected = self.of("scenario_card_off")

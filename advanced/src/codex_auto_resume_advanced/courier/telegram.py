@@ -38,6 +38,7 @@ import time
 from . import http
 from .address import TELEGRAM_CHAT, TELEGRAM_TOKEN
 from .channels import TELEGRAM_API
+from .keep import keep_chat_name
 from ..vocabulary import ArmingState
 
 TELEGRAM = "telegram_remote"
@@ -177,6 +178,7 @@ class Poller:
                     or not 0 <= now - sent_at <= FRESH):
                 ignored = True
                 continue
+            keep_chat_name(self.secrets, message.get("chat"))   # the card names the chat (M6): only when it changed
             if self.elsewhere(token, message.get("text")):
                 continue                 # a command for another bot, in a group: not this one's to answer
             self.offered = None

@@ -2,9 +2,9 @@
   "format": "codex-auto-resume-measurement/1",
   "step": "maws",
   "verdict": "blocked",
-  "recorded_at": "2026-10-15T16:41Z",
-  "product_version": "0.6.16-beta.3",
-  "codex_version": "codex-cli 0.162.0-alpha.17.2",
+  "recorded_at": "2026-11-07T16:11Z",
+  "product_version": "0.6.22-beta.2",
+  "codex_version": "codex-cli 0.167.0-alpha.3.2",
   "windows_build": "10.0.26300",
   "observed": {
     "help_read": true,
@@ -16,6 +16,6 @@
   "completion": {
     "verdict": "fail",
     "note": "not_as_expected",
-    "recorded_at": "2026-10-15T16:44Z"
+    "recorded_at": "2026-11-07T16:18Z"
   }
 }

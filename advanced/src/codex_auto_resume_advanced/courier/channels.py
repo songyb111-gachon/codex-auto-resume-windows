@@ -38,8 +38,8 @@ from email.message import EmailMessage
 from . import http, outbox
 from .address import (AddressRefused, TELEGRAM_CHAT, TELEGRAM_TOKEN, checked_smtp, checked_token,
                       checked_url)
-from .keep import (BAD_CODES, CAPABILITY, CODE, PAIR_SECONDS, NotSaved, digest, pairing, read as _read,  # noqa: F401
-                   saved, secrets_of)
+from .keep import (BAD_CODES, CAPABILITY, CODE, PAIR_SECONDS, NotSaved, digest, keep_chat_name, pairing,  # noqa: F401
+                   read as _read, saved, secrets_of)
 
 TELEGRAM_API = "https://api.telegram.org/bot"
 PRODUCT = "Codex Auto Resume"
@@ -292,6 +292,7 @@ def pair(runtime, secrets, *, opener=None, clock=None, sleep=None) -> int:
                 continue
             if digest(text) == row["code_digest"]:
                 secrets.write(CAPABILITY, "telegram_chat", str(chat))
+                keep_chat_name(secrets, message.get("chat"))
                 _end_pairing(state, offset=offset, paired_at=float(clock()), bad=0)
                 return EXIT_DONE
             bad += 1

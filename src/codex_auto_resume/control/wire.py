@@ -419,6 +419,8 @@ class Statistics(TypedDict):
     median_recovery_seconds: float | None
     by_category: dict[str, int]
     outcomes: Outcomes
+    # Each outcome's part in the success rate: "success", "failure" or "other" (left out of it).
+    outcome_groups: dict[str, str]
 
 
 class CompatEngine(TypedDict):

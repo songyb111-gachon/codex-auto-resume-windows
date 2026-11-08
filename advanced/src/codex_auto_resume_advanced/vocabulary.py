@@ -183,6 +183,8 @@ class Refusal(StrEnum):
     # card offers no button then - and asked again while one is still waiting for the browser.
     SWITCH_UNMEASURED = "switch_unmeasured"
     SWITCH_RUNNING = "switch_running"
+    # v0.6.22 final (the reachability audit's M10): a Delete of a saved account while a switch, a read or a save holds them.
+    ACCOUNTS_HELD = "accounts_held"
     # v0.6.20 final (account_switch's restart, control/account.restart): Restart asked while a turn runs, a recovery
     # waits or runs or something is queued in Codex (codex/restart.busy); asked while one runs; and asked with no sign-in
     # of this Dashboard's to restart Codex for.
@@ -325,6 +327,15 @@ class OptionKey(StrEnum):
     # wrote its file, so a file newer than that is another PC's under the same name.
     FLEET_WAITING = "fleet_waiting"
     FLEET_WROTE_AT = "fleet_wrote_at"
+    # v0.6.22 (local_api, the reachability audit's R1): when the resident's server last bound its port, and when it last
+    # found the port held by another program - the card's "running", and Copy, stand on these alone.
+    API_BOUND_AT = "api_bound_at"
+    API_TAKEN_AT = "api_taken_at"
+    # and, bound for the local network, this PC's own IPv4 addresses it answers on, each as its 32-bit number (at most four).
+    API_LAN_1 = "api_lan_1"
+    API_LAN_2 = "api_lan_2"
+    API_LAN_3 = "api_lan_3"
+    API_LAN_4 = "api_lan_4"
     # v0.6.20 (window_anchor, the owner's request of 2026-10-28): the times of day it starts an idle 5-hour window at
     # (three, each off or a time - TIME_OFF, or the minute of the day plus two), and whether it starts one right after
     # a reset. And its stamps: when it last started one, the reset that start fixed, the running reset it last saw, the
@@ -491,6 +502,9 @@ class BridgeCommand(StrEnum):
     ADVANCED_ACCOUNTS_ADD = "advanced-accounts-add"
     ADVANCED_ACCOUNTS_SAVE = "advanced-accounts-save"
     ADVANCED_ACCOUNTS_DELETE = "advanced-accounts-delete"
+    # v0.6.22 final: Read usage - every saved account's usage read now, one at a time in the background, at most once
+    # every ten minutes; nothing sent, nothing switched (control/autoswitch.read). The Dashboard's alone, never MCP.
+    ADVANCED_ACCOUNTS_READ = "advanced-accounts-read"
     # v0.6.19 (the groundwork): every command the stage's designs name, in one block, each the Dashboard's alone and
     # reached by no MCP tool. Until the capability that answers one is built, the bridge passes it over as it passes a
     # command this edition does not have (surfaces.UNANSWERED). The analytics' aggregates and their CSV

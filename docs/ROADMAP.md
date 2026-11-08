@@ -1173,7 +1173,7 @@ and the final Python audit v0.6.23, the Rust core v0.6.24 and its audit v0.6.25.
 
 ---
 
-## v0.6.22 — The loopback API and remote control
+## v0.6.22 — The loopback API and remote control 🚧
 
 On 2026-11-04 the owner chose a hotfix final for [#58](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/58) as v0.6.21, and this version, which had been planned as v0.6.21,
 became v0.6.22, every later release one on again. The next paragraph keeps the numbers of 2026-10-31 and 2026-11-02, as they were then.
@@ -1196,7 +1196,7 @@ compatibility check; the ceilings raised as the owner's table set them; the adva
 typed. The loopback API and its web view, remote control over Telegram and a view of other PCs came in v0.6.22-beta.2, and the final
 re-measures everything on the Codex then in force, with the advanced edition's compatibility skill and the first data published with it.
 
-### v0.6.22-beta.2 🚧 — The Desktop shortcut on the Finish page, and the advanced edition's loopback API, Telegram remote control and view of other PCs (a pre-release)
+### v0.6.22-beta.2 ✅ — The Desktop shortcut on the Finish page, and the advanced edition's loopback API, Telegram remote control and view of other PCs (a pre-release)
 
 The second pre-release of v0.6.22 and the last before its final. In both editions: the setup window's Desktop shortcut box moves to the
 Finish page, where a tick makes the shortcut and clearing it removes ours. In the advanced edition, each off until a person turns it on:
@@ -1205,6 +1205,17 @@ control over Telegram, with the continue-and-lift-a-pause choice; a read-only vi
 may be a network share; and a goal continuation that answers a usage-limit reset the watcher verified no longer counting toward its
 ceiling for one conversation ([#59](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/59)). Everything planned for
 v0.6.22 is now in a pre-release, and the final follows.
+
+### v0.6.22 🚧 — The final: what came after the second pre-release
+
+The final's changelog entry tells the whole line, every item of the two pre-releases in the form it has now; what reached it after
+v0.6.22-beta.2 is this. In both editions: core's reader of Codex's App Server answers no longer stops at a line over a megabyte, and an
+answer too large to keep is marked oversize for its request. In the advanced edition: Turn on keeps a capability on unless its *Keep it
+on* switch, on by default, is turned off; Start with Codex says it starts the watcher when a conversation is opened; a scheduled message
+holds ten pictures of 20 MB each and the editor says how many copies the product keeps; every advanced measurement was made again on
+codex-cli 0.167.0-alpha.3.2 - steering the running turn and the token analytics pass, waking this PC for a reset fails on the PC it was
+measured on - with the advanced compatibility data that covers it; and the automatic account switch's words add what a first start as an
+account never used on this PC shows.
 
 ### The loopback API, remote control and a view of other PCs (v0.6.22-beta.2)
 
@@ -1563,8 +1574,8 @@ A hotfix final: recoveries when the Codex app runs its engine from its own packa
 
         ↓
 
-v0.6.22
-The loopback API, remote control and a view of other PCs (advanced edition)
+v0.6.22  🚧 In development
+The loopback API, remote control and a view of other PCs (advanced edition), and the final of the line
 
         ↓
 

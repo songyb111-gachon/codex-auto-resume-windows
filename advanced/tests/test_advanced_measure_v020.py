@@ -24,7 +24,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import advancedcase  # noqa: E402,F401  (puts src, advanced/src and tests on the path)
 from codex_auto_resume.codex.errors import AdapterError  # noqa: E402
-from codex_auto_resume_advanced import measure, measured  # noqa: E402
+from codex_auto_resume_advanced import images, measure, measured  # noqa: E402
 from codex_auto_resume_advanced.codex import protocol, turns  # noqa: E402
 from codex_auto_resume_advanced.vocabulary import Measurement, Verdict  # noqa: E402
 from test_advanced_measure_stage4 import THREAD, TURN, VERSIONS, Backend, FakeSession, refused  # noqa: E402
@@ -93,9 +93,10 @@ class AllowListTests(Case):
     def test_both_were_measured_on_0165(self):
         """2026-10-29, by the measurement session on codex-cli 0.165.0-alpha.1.2: MIMG passed (a local image file beside
         the words, shown as the person's own and run); MSTEER failed (turn/steer refused, -32600, from the product's own
-        app-server session for the turn the Desktop was running)."""
-        self.assertEqual(measured.MEASURED[MIMG], (Verdict.PASS, "codex-cli 0.165.0-alpha.1.2"))
-        self.assertEqual(measured.MEASURED[MSTEER], (Verdict.FAIL, "codex-cli 0.165.0-alpha.1.2"))
+        app-server session for the turn the Desktop was running). Made again on codex-cli 0.167.0-alpha.3.2 on 2026-11-08, with
+        the same verdicts."""
+        self.assertEqual(measured.MEASURED[MIMG], (Verdict.PASS, "codex-cli 0.167.0-alpha.3.2"))
+        self.assertEqual(measured.MEASURED[MSTEER], (Verdict.FAIL, "codex-cli 0.167.0-alpha.3.2"))
 
     def test_the_ids_are_the_words_the_bridge_and_the_runbook_use(self):
         self.assertEqual((str(MIMG), str(MSTEER)), ("mimg", "msteer"))
@@ -129,12 +130,15 @@ class ImageTests(Case):
         observed = record["observed"]
         self.assertEqual((observed["add_calls"], observed["local_image_accepted"], observed["queued_input_items"],
                           observed["queued_keeps_image"], observed["taken"], observed["turn_started"],
-                          observed["client_id_on_user_item"]), (1, True, 2, True, True, True, True))
+                          observed["client_id_on_user_item"]), (1, True, 1 + images.MOST_IMAGES, True, True, True, True))
+        # v0.6.22: as many pictures as a message may hold, and the queued submission holding every one.
+        self.assertEqual((observed["pictures_sent"], observed["queued_images"], observed["queued_keeps_all"]),
+                         (images.MOST_IMAGES, images.MOST_IMAGES, True))
         self.assertNotIn("data_address_accepted", observed, "a second shape is tried only after a refusal")
         self.assertEqual(self.methods(), ["thread/queue/add", "thread/queue/list"])
         added = self.seen["adds"][0]
         self.assertEqual(added["threadId"], THREAD)
-        self.assertEqual([part["type"] for part in added["input"]], ["text", "localImage"])
+        self.assertEqual([part["type"] for part in added["input"]], ["text"] + ["localImage"] * images.MOST_IMAGES)
         self.assertEqual(self.looked_for, [added["clientUserMessageId"]])
         self.assertIn("picture", record["note"])
 
@@ -276,7 +280,8 @@ class Steer2Tests(Case):
         self.assertIs(measure.PROBES[MSTEER2], measure._msteer2)
         self.assertEqual(protocol.MEASUREMENT_METHODS[MSTEER2], ())
         self.assertEqual(str(MSTEER2), "msteer2")
-        self.assertEqual(measured.MEASURED[MSTEER2], (Verdict.FAIL, "codex-cli 0.165.0-alpha.1.2"))
+        # failed on 0.165.0-alpha.1.2 (the app never showed the line), passed on 0.167.0-alpha.3.2 (2026-11-08)
+        self.assertEqual(measured.MEASURED[MSTEER2], (Verdict.PASS, "codex-cli 0.167.0-alpha.3.2"))
         self.run_ipc()
         self.assertEqual(self.sessions, [])
 

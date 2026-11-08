@@ -1,0 +1,22 @@
+{
+  "format": "codex-auto-resume-measurement/1",
+  "step": "mwake",
+  "verdict": "fail",
+  "recorded_at": "2026-11-07T18:54Z",
+  "product_version": "0.6.22-beta.2",
+  "codex_version": "codex-cli 0.167.0-alpha.3.2",
+  "windows_build": "10.0.26300",
+  "observed": {
+    "wake_timers_ac": 1,
+    "wake_timers_dc": 0,
+    "power_source": "ac",
+    "modern_standby": true,
+    "lid_present": true,
+    "timer_set": true,
+    "timer_fired": true,
+    "slept": true,
+    "woke_on_time": false,
+    "thread_given": false
+  },
+  "note": "the PC slept and did not wake within two minutes of its wake timer"
+}

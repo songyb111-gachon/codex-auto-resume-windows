@@ -96,6 +96,8 @@ PAGE_KEYS = tuple(PAGE_PREFIX + name for name in (
     # v0.6.14: Keep it on, what a kept-on capability noted instead of turning itself off, and Send now.
     "keep_on", "keep_on.off", "keep_on.on", "keep_on.again", "keep_on.turn_on", "keep_on.send_again",
     "keep_on.turn_off", "confirm.keep_on", "confirm.send_again", "done.keep_on", "done.keep_on_off",
+    # v0.6.22: Turn on's Keep it on check box, ticked unless unticked.
+    "confirm.keep_choice", "confirm.keep_failed_here", "confirm.keep_needs", "done.keep_on_with",
     "refused.not_on", "kept.statement_changed", "kept.measurement_failed", "kept.failed_here", "kept.incompatible",
     "kept.local_check_failed", "kept.hook_exception", "kept.submission_unknown", "kept.engine_changed",
     "kept.duplicate_seen", "tripped.duplicate_seen", "kept.not_delivered_on_open", "tripped.not_delivered_on_open", "send_now.title", "send_now.none", "send_now.button",
@@ -266,7 +268,7 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + "follow." + name for name in (
 # block - its caption, Add a picture..., the line on what it takes, each thumbnail's name and Remove - the count a row
 # says, and each word the bridge refuses a picture with.
 PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
-    "editor.images", "editor.images.add", "editor.images.help", "editor.images.remove", "editor.images.picture",
+    "editor.images", "editor.images.add", "editor.images.help", "editor.images.kept", "editor.images.remove", "editor.images.picture",
     "queue.images", "refused.image_refused", "refused.image_too_large", "refused.images_full",
     "refused.images_unavailable"))
 # Pending's one list (v0.6.19, #50; the owner's decision of 2026-10-24: advanced/gui/AdvancedSchedule.cs): the Kind of a
@@ -376,6 +378,13 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "accounts.not_added", "accounts.add", "accounts.save", "accounts.delete", "accounts.delete_all",
     "confirm.accounts_add", "confirm.accounts_delete", "confirm.accounts_delete_all", "done.accounts_saved",
     "done.accounts_deleted", "refused.accounts_not_saved",
+    # v0.6.22 final: the usage meters under each row, the line under them and Read usage (advanced/gui/AdvancedMeter.cs).
+    "accounts.read", "accounts.read_wait", "accounts.reading", "accounts.read_held", "accounts.read_unknown",
+    "accounts.in_use", "accounts.five_hour", "accounts.weekly", "accounts.percent", "accounts.meter", "accounts.not_read",
+    "accounts.unread", "accounts.read_at", "accounts.candidate", "accounts.candidate_none",
+    # and the reachability audit's R4, M10 and M11: the true reason under the heading, a Delete held by a switch or a read,
+    # and Save's question.
+    "accounts.no_file", "accounts.unreadable", "confirm.accounts_save", "refused.accounts_held",
 ))
 # v0.6.22 (fleet_view): the Overview's Other PCs list, its columns and state words, how the folder stands, and the card
 # this PC's name and folder are chosen on (advanced/gui/AdvancedFleet.cs, control/fleet.py).
@@ -403,6 +412,13 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "remote.answer.refused", "remote.answer.cancelled", "remote.answer.continued", "remote.answer.status",
     "remote.answer.list_none", "remote.answer.list_item", "remote.word.running", "remote.word.stopped", "remote.word.on",
     "remote.word.paused", "remote.word.observe_only", "tripped.bad_codes"))
+# v0.6.22 final (the reachability audit's R1, M3-M7, M14): the server waiting on a watcher that is not running, Copy token,
+# this PC's addresses on the local network and which to copy; the long poll's truthful states, the paired chat by its name,
+# the line before a pairing and the way to the notices card; the folder typed or pasted, and a PC last heard from.
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
+    "api.state.no_watcher", "api.copy_token", "done.api_token_copied", "refused.api_token_not_copied", "api.lan_address",
+    "api.copy_which", "remote.state.no_watcher", "remote.state.no_token", "remote.state.no_chat", "remote.paired_chat",
+    "remote.not_paired_token", "remote.open_notices", "fleet.folder_help", "fleet.state.last_heard"))
 # The edition's own continuations' words (v0.6.15-beta): what empty_response, subagent_parent and keep_going send -
 # fixed, each passing core's continuation.validate_continuation in every language (nothing is filled in but, for a
 # subagent's line, its id and a closed kind word).

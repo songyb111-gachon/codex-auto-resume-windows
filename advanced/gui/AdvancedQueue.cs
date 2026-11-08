@@ -162,9 +162,9 @@ namespace CodexAutoResume
             if (refusal == "image_refused")
                 return Word("page.refused.image_refused", "That file is not a picture this can send - a PNG, JPEG, GIF or WebP - or it could not be read.");
             if (refusal == "image_too_large")
-                return Word("page.refused.image_too_large", "That picture is larger than 5 MB.");
+                return ImageWord("page.refused.image_too_large", "That picture is larger than {mb} MB.");
             if (refusal == "images_full")
-                return Word("page.refused.images_full", "A message holds at most 4 pictures.");
+                return ImageWord("page.refused.images_full", "A message holds at most {n} pictures.");
             if (refusal == "images_unavailable")
                 return Word("page.refused.images_unavailable", "Pictures cannot be sent on this Codex: a measurement found that its queue does not take them.");
             return ResetRefusal(refusal);

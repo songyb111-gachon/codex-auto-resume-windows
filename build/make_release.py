@@ -41,9 +41,12 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import shutil
+import subprocess
 import sys
+import tempfile
 import urllib.request
 import zipfile
 
@@ -245,6 +248,52 @@ def check_app_files(stage: Path, edition: str = "standard") -> None:
         raise SystemExit("the bundled compatibility data does not validate: %s" % exc.code)
 
 
+def check_courier_starts(stage: Path, timeout: float = 120) -> None:
+    """The advanced courier starts from this payload under its own runtime, or the build stops.
+
+    An installed copy runs the embeddable runtime, whose python3XX._pth makes it ignore the environment: a PYTHONPATH
+    reaches nothing there. v0.6.22-beta.2 started the courier with its import roots only in PYTHONPATH, and every start
+    from an installation failed on its first import while CI, under a system Python, saw none of it (the live
+    acceptance's F7). So the staged runtime is asked for the courier's command line as the staged code builds it, and
+    that command is run with `--check` - every module a round can need imported, nothing read, written or sent - in a
+    scratch home, from a scratch directory, with no PYTHONPATH. Offline, and seconds."""
+    payload = stage / "payload"
+    runtime = payload / "runtime"
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    environment = {name: value for name, value in os.environ.items() if name.upper() != "PYTHONPATH"}
+    ask = ("import json, sys; sys.path[:0] = [sys.argv[1]]; from codex_auto_resume import config; "
+           "from codex_auto_resume_advanced.courier import launch; "
+           "print(json.dumps(launch.argv(config.Paths(sys.argv[2]), '--check')))")
+    with tempfile.TemporaryDirectory(prefix="car-courier-check-") as scratch:
+        home = Path(scratch) / "home"
+        home.mkdir()
+        try:
+            asked = subprocess.run([str(runtime / "python.exe"), "-X", "disable-remote-debug", "-c", ask,
+                                    str(payload / "app" / "src"), str(home)], cwd=scratch, env=environment,
+                                   stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=timeout,
+                                   creationflags=flags)
+            command = json.loads(asked.stdout) if asked.returncode == 0 else None
+        except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
+            raise SystemExit("the staged runtime could not build the courier's command line: %s" % exc)
+        if command is None:
+            raise SystemExit("the staged runtime could not build the courier's command line:\n%s"
+                             % asked.stderr[-2000:])
+        try:
+            staged = os.path.samefile(command[0], runtime / "pythonw.exe")
+        except OSError:
+            staged = False
+        if not staged:
+            raise SystemExit("the courier would start under %s, not the staged pythonw.exe" % command[0])
+        try:
+            ran = subprocess.run(command, cwd=scratch, env=environment, stdin=subprocess.DEVNULL,
+                                 capture_output=True, text=True, timeout=timeout, creationflags=flags)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise SystemExit("the courier did not start from the staged payload: %s" % exc)
+        if ran.returncode != 0:
+            raise SystemExit("the courier does not start from the staged payload (exit %s):\n%s"
+                             % (ran.returncode, ran.stderr[-2000:]))
+
+
 def collect_runtime(stage: Path, archive: Path) -> int:
     runtime = stage / "payload" / "runtime"
     runtime.mkdir(parents=True, exist_ok=True)
@@ -398,6 +447,8 @@ def main(argv=None) -> int:
     if edition == "advanced":
         app_files += collect_advanced(stage)
     check_app_files(stage, edition)
+    if edition == "advanced":
+        check_courier_starts(stage)
     gui_files = collect_gui(stage, edition)
     launcher_files = collect_launchers(stage)
     declare_mcp_server(stage, edition)

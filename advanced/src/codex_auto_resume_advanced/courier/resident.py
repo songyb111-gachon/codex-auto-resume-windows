@@ -10,15 +10,25 @@ notice is never held behind a server, and a second resident for the same home ex
 `serve` reads the capabilities' states every CHECK seconds: the API's server is started while local_api stands on - on
 127.0.0.1 alone, or on every network while local_api_lan stands on too - and started again when its port or its reach
 changes; the long poll runs while telegram_remote stands on; each is closed within CHECK seconds of being turned off, and
-with neither on the process ends. Recovery paused changes nothing here: what it serves only reads, and what it does only
+with neither on the process ends. Where the server stands is stamped beside local_api's choices (state/choices.STAMPS):
+when it bound its port, or when it found the port held by another program - one or the other, never both, and neither
+before this resident has tried. The card says the server runs, and offers the address with its token, on the first
+alone (control/remote.py; the reachability audit's R1: a journal line read only for an hour went stale while the port
+stayed taken). Recovery paused changes nothing here: what it serves only reads, and what it does only
 reduces (or is the person's own release under telegram_continue).
 """
 from __future__ import annotations
 
+import ipaddress
 import threading
 import time
 
 from ..vocabulary import ArmingState, OptionKey
+
+BOUND, TAKEN = str(OptionKey.API_BOUND_AT), str(OptionKey.API_TAKEN_AT)
+# This PC's addresses the server answers on beyond 127.0.0.1, while it is bound for the local network: each IPv4 address
+# kept as its number, as the stamps hold whole numbers alone (the card reads them: control/remote.recorded_addresses).
+LAN_KEYS = (str(OptionKey.API_LAN_1), str(OptionKey.API_LAN_2), str(OptionKey.API_LAN_3), str(OptionKey.API_LAN_4))
 
 API = "local_api"
 API_LAN = "local_api_lan"
@@ -60,6 +70,7 @@ class Roles:
         self.thread, self.stop = None, None
         self.server, self.serving = None, None          # the server, and the (port, lan) it serves on
         self._taken = None                              # the (port, lan) last found taken, journalled once
+        self._mark(None)                                # a resident before this one said nothing about this one
 
     def wanted(self) -> tuple:
         """(port or None, lan, telegram): what the states ask for now."""
@@ -84,11 +95,13 @@ class Roles:
             try:
                 self.server = self._server_factory(self.runtime, port, lan)
                 self.serving, self._taken = (port, lan), None
+                self._mark(BOUND)
                 self.runtime.state.counted(API, "started")
             except Exception:
                 self.server, self.serving = None, None        # the port is taken: tried again at the next check
                 if self._taken != (port, lan):
                     self._taken = (port, lan)
+                    self._mark(TAKEN)
                     self.runtime.state.counted(API, "port_taken")
         if self.thread is not None and (not telegram or not self.thread.is_alive()):
             self._stop_poll()
@@ -106,7 +119,31 @@ class Roles:
         except Exception:
             pass
         self.server, self.serving = None, None
+        self._mark(None)
         self.runtime.state.counted(API, "stopped")
+
+    def _mark(self, stamp) -> None:
+        """Where the server stands, as the card reads it: `stamp` (BOUND or TAKEN) kept with the time now and the other
+        taken away - or neither, for None. Never fatal: a stamp that cannot be written leaves the card short of
+        "running", which offers nothing."""
+        state = self.runtime.state
+        found = list(getattr(self.server, "addresses", None) or ()) if stamp == BOUND else []
+        for place, key in enumerate(LAN_KEYS):
+            try:
+                if place < len(found):
+                    state.stamp(API, key, int(ipaddress.IPv4Address(found[place])))
+                else:
+                    state.unstamp(API, key)
+            except Exception:
+                pass
+        for key in (BOUND, TAKEN):
+            try:
+                if key == stamp:
+                    state.stamp(API, key, max(1, int(self.runtime.clock())))
+                else:
+                    state.unstamp(API, key)
+            except Exception:
+                pass
 
     def _stop_poll(self) -> None:
         self.stop.set()

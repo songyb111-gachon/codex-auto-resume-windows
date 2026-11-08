@@ -196,8 +196,9 @@ namespace CodexAutoResume
         // Minutes from the moment the example opens: the limit detected, the reset it waited for, the next check.
         private const int Detected = -410, Reset = -170, Ahead = 210;
 
-        /// Every capability's example, in no order: registry.DEFINITIONS and the ones registry.WAITING holds back each have
-        /// one (advanced/tests/test_advanced_examples.py).
+        /// The example of every capability the page shows, in no order: registry.REGISTRY - registry.DEFINITIONS and the
+        /// waiting ones let out - each have one (advanced/tests/test_advanced_examples.py). A hidden capability's is in
+        /// HeldExamples, and only this table opens from a card.
         private static CapabilityExample[] Examples()
         {
             return new[]
@@ -340,9 +341,6 @@ namespace CodexAutoResume
                 Ex("structured_rules",
                    Scene(OnHistory(Rec(ExampleProject, "handed_over", "unknown", -60, -60))),
                    Scene(OnHistory(Rec(ExampleProject, "recovered", "server_5xx", -60, -44)))),
-                Ex("codex_retry_settings",
-                   Scene(OnPending(Tries(Rec(ExampleProject, "exhausted", "server_5xx", -130, 0), 4, 4))),
-                   Scene(OnPending(Tries(Due(Rec(ExampleProject, "scheduled", "server_5xx", -130, 0), 25), 4, 8)))),
                 // v0.6.20: the capabilities the v0.6.20 seats brought.
                 Ex("usage_analytics",
                    Scene(Says(f => f.ExampleUsage(260, 72, 0, -1))),
@@ -375,10 +373,10 @@ namespace CodexAutoResume
                                           "It has not been measured on this Codex that a sign-in made from here, followed by a restart of Codex, brings Codex up with the new account. Switch in Codex instead.")))),
                 Ex("steer_send",
                    Scene(Says(f => f.ExampleField("steer_send", "instead"))),
-                   // With its warning: the line reaches the turn, and the Codex app does not show it.
+                   // With its warning: the line reaches the turn and cannot be taken back; the Codex app shows it as the person's own message.
                    Scene(Says(f => f.Word("page.pending.kind.steer", "Steer") + " · " + f.Word("page.steer.state.accepted", "accepted")),
                          Says(f => f.Word("page.steer.note.accepted", "The Codex app took it into the running turn.")),
-                         Says(f => f.Word("page.editor.steer.warning", "The Codex app does not show the steered line anywhere.")))),
+                         Says(f => f.Word("page.editor.steer.warning", "The Codex app shows the line in that turn as your own message.")))),
                 // v0.6.20 (Discussion #57): the tasks a person picked, and the power action waiting for them.
                 Ex("power_after_tasks",
                    Scene(Says(f => f.ExampleField("power_after_tasks", "instead"))),
@@ -409,7 +407,20 @@ namespace CodexAutoResume
                    Scene(Says(f => f.ExampleField("telegram_continue", "instead"))),
                    Scene(Says(f => f.Word("page.remote.answer.continued", "task {n} goes on. Nothing is sent until every check passes.", "n", 1)),
                          Says(f => f.Word("page.remote.answer.pause_lifted", "Recovery is on again.")))),
-                // Hidden on the page until MHK, M4 and M4B are measured: its example waits with it.
+            };
+        }
+
+        /// The examples of the capabilities registry.WAITING still holds back (hidden: no card, so nothing to open one from).
+        /// Their code is kept whole, as the capabilities' own is: the build that lets one out moves its entry to Examples()
+        /// (advanced/tests/test_advanced_examples.py holds the two tables to registry.REGISTRY and WAITING). The window's
+        /// audit builds these too, so one let out is audited already.
+        private static CapabilityExample[] HeldExamples()
+        {
+            return new[]
+            {
+                Ex("codex_retry_settings",
+                   Scene(OnPending(Tries(Rec(ExampleProject, "exhausted", "server_5xx", -130, 0), 4, 4))),
+                   Scene(OnPending(Tries(Due(Rec(ExampleProject, "scheduled", "server_5xx", -130, 0), 25), 4, 8)))),
                 Ex("stop_hook_continuation",
                    Scene(OnHistory(Rec(ExampleProject, "recovered", "network_transient", -60, -44)),
                          Sent(f => f.ExampleContinuation(true))),
@@ -418,7 +429,7 @@ namespace CodexAutoResume
             };
         }
 
-        /// The example of `id`, or null where it has none.
+        /// The example of `id`, or null where it has none or where the capability is hidden (HeldExamples).
         private static CapabilityExample ExampleFor(string id)
         {
             foreach (CapabilityExample each in Examples())
@@ -1017,7 +1028,9 @@ namespace CodexAutoResume
                 foreach (KeyValuePair<string, object> pair in statements)
                     form.advancedStatements[pair.Key] = pair.Value as Dictionary<string, object>;
                 form.exampleArea = new Rectangle(0, 0, width, height);
-                foreach (CapabilityExample example in Examples())
+                var every = new List<CapabilityExample>(Examples());
+                every.AddRange(HeldExamples());
+                foreach (CapabilityExample example in every)
                 {
                     string where = "example/" + example.Id;
                     using (Form dialog = form.BuildExample(example))

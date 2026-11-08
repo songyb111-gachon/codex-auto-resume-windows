@@ -23,7 +23,7 @@
 // completed messages - its conversation, where it stands (waiting to go, accepted, may have been delivered, refused: three
 // outcomes never folded into one, and never "seen", which cannot be observed), Steer, when it was asked and when it
 // settled. Chosen, the note under History says the words that were sent and what its outcome means - the one place the
-// person can see them, since the Codex app does not show a steered line. Clear history leaves the steers as they are.
+// person can see them, since this product does not check what the Codex app shows of a steered line. Clear history leaves the steers as they are.
 //
 // C# 5 (the in-box compiler), as the rest of the window.
 
@@ -383,7 +383,7 @@ namespace CodexAutoResume
             string state = Str(row, "state"), reason = Str(row, "reason");
             string meaning;
             if (state == "accepted")
-                meaning = Word("page.steer.note.accepted", "The Codex app took it into the running turn. Codex does not show the line, so whether it was seen in the conversation cannot be observed here.");
+                meaning = Word("page.steer.note.accepted", "The Codex app took it into the running turn, where it shows as your own message. Whether it was seen there is not checked here.");
             else if (state == "unconfirmed")
                 meaning = Word("page.steer.note.unconfirmed", "It was written and no answer came, so it may have been delivered. It was not sent again.");
             else if (state == "refused")

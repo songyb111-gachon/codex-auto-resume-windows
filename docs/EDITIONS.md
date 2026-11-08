@@ -42,7 +42,8 @@ one more page in this edition, **Advanced features**, the last tab after Setting
 capability there and read its statement: what it does, what the standard edition does instead,
 which standards it departs from, what can go wrong and how to stop it, and any warnings it carries
 now. **Turn on** asks once more, with the statement and every warning in front of you; saying yes
-confirms them, for the version of Codex shown. **Watch first** instead has it asked wherever it
+confirms them, for the version of Codex shown. Its dialog also carries a *Keep it on* check box, ticked unless
+you untick it (below). **Watch first** instead has it asked wherever it
 would act, and note what it would have done, while it does nothing. What it would have done is
 counted on its page, under its other cards, for the last 30 days: each answer in words, once for
 each recovery it would have acted on, how many times and when last; a diagnostics export you ask
@@ -113,8 +114,12 @@ page says so under the capability's state, and why. You can turn it on again, wi
 it then reads (K7). A continuation sent once more and then found twice turns off what sent it again:
 Once more when unsure itself, or the *Also send again when unsure* of a capability kept on.
 
-**Keep it on.** On the page, any capability can be kept on: *Keep it on...* turns it on as well, in the one
-confirmation turning it on asks - its warning, then its statement and what it needs - and is refused as
+**Keep it on.** Turning a capability on keeps it on unless you choose otherwise: the dialog **Turn on** opens
+has a *Keep it on* check box under its words, ticked unless you untick it, and what it turns on with the capability
+follows the same choice. Unticked, the capability is turned on alone and turns itself off as above. Where its
+own compatibility check failed on this PC, the check box is unticked and cannot be moved, and the capability is turned
+on without it. On the capability's card, *Keep it on...* keeps on one that is on but not kept, or turns one on
+and keeps it on, in the one confirmation turning it on asks - its warning, then its statement and what it needs - and is refused as
 turning it on is, and also where its own compatibility check failed on this PC. Kept on is on: the list
 and the page say *Keep it on* for it, and setting it to watch takes Keep it on away. Kept on, it does not
 turn itself off for any of the tripwires above, nor for a new version of Codex:
@@ -127,8 +132,9 @@ when unsure*, after a warning of its own: such a send is then sent once more und
 more when unsure below, so the capability departs from what that one departs from too, and only where
 your administrator's policy allows Once more when unsure as well; a continuation sent again and found
 twice turns that choice off, and the capability stays on. The compatibility report sends nothing to
-Codex, so it has no such choice. Every capability offers Keep it on, and none is kept on until you choose it on
-that capability's card. The policy reads a kept-on capability down
+Codex, so it has no such choice. Every capability offers Keep it on, and only a person chooses it: with the
+check box when turning one on, or on that capability's card. One already on without it stays so through an update
+until you choose it. The policy reads a kept-on capability down
 as any other, by the capability's own id: no policy value reaches Keep it on alone (K8).
 
 **Your administrator's policy.** Three values under `Software\Policies\CodexAutoResume`, in
@@ -162,7 +168,7 @@ follows a turn, two that tell you elsewhere - notices sent to your phone or inbo
 on the Overview (v0.6.20) - three that let a browser or a script of yours read how this PC stands, pause and cancel,
 and reach it from your network, and two that take commands from the Telegram chat you paired (v0.6.22) - one that shows where your usage and tokens go (v0.6.20), three that send at a time you
 pick - the two at a usage reset, and queued messages - one that adds a line to the turn running now (v0.6.20; the
-Codex app does not show that line, only History does) - three
+Codex app shows that line in the running turn as your own message, and History records it too) - three
 before a usage limit is reached - the usage meter, and the wrap-up and the forced stop that need it - one that
 starts the 5-hour window early when it is idle (v0.6.20), one that switches the Codex account (v0.6.20), one that
 checks for updates once a week, one that puts this PC to sleep or shuts it down after tasks you pick (v0.6.20), two that look after the watcher and the PC - restart the watcher if it stops unexpectedly,
@@ -172,16 +178,16 @@ compatibility report, which only you start. Five rest on a measurement each that
 is opened, and open a waiting conversation in Codex (MOPEN, on `codex-cli 0.165.0-alpha.1.2`). All five added in v0.6.16-beta.4 rest on measurements that were made - running a conversation
 here, the other sessions, compacting a full conversation, another model at capacity and a continuation with
 no words - and four more (the reset credit, the reset message, the usage meter and the forced stop) rest on
-measurements made on `codex-cli 0.162.0-alpha.17.2` and, for the forced stop, again on the newer one. Eight rest on
-measurements not made yet - wake this PC for a reset, on MWAKE, and the usage and token analytics, on MTOK, are the new ones -
+measurements made on `codex-cli 0.162.0-alpha.17.2` and, for the forced stop, again on the newer one. Six rest on
+measurements made later - wake this PC for a reset, on MWAKE, and the usage and token analytics, on MTOK, were new ones and were made on `codex-cli 0.167.0-alpha.3.2` on 2026-11-08: MWAKE failed and MTOK passed -
 switching the Codex account rests on MA, which passed, and its button on MALR - the sign-in, then the product's restart
 of Codex - which passed on `codex-cli 0.166.0-alpha.5.1` on 2026-11-02 (MAL, the sign-in alone, failed there on 2026-11-01) - the chat rests on M7, MC1 and MC2, which were made, as its own
 section below says, starting the 5-hour window early on MANCHOR, made on `codex-cli 0.165.0-alpha.1.2` on 2026-10-29, steering the running turn on MSTEER2,
-made the same day, and the other seventeen on none. Each measurement made was made by hand, on the
+which failed on `codex-cli 0.165.0-alpha.1.2` the same day and passed on `codex-cli 0.167.0-alpha.3.2` on 2026-11-08, and the other seventeen on none. Each measurement made was made by hand, on the
 owner's machine, first on `codex-cli 0.158.0-alpha.2.1`, again on `codex-cli 0.162.0-alpha.17.2` and, for those this release's
 capabilities rest on, once more on `codex-cli 0.163.0-alpha.10.2` (2026-10-17) - and MQO, MQP and MQG, which decide how
 the continuation with no marker, several conversations at once and the goal continuation sit beside the queue for
-when a conversation is opened, on the same version on 2026-10-20;
+when a conversation is opened, on the same version on 2026-10-20 - and, on 2026-11-08, the advanced re-measure made again on `codex-cli 0.167.0-alpha.3.2` every reading that could be made without a sign-in, a credit or typing into an IDE (the sections below name the version each was first measured on; the records name the newest);
 its record is in [`docs/evidence/live/`](evidence/live/). On any other version of Codex, and for a
 measurement not made yet, a capability's statement carries the warning that it was not measured there.
 
@@ -191,9 +197,13 @@ measurement not made yet, a capability's statement carries the warning that it w
 running and no installation is in progress, it starts the watcher, through Windows' WMI, outside
 the job Codex closes when it quits, so the watcher keeps running after Codex closes. It starts this
 installation's own launcher and nothing else, never a second watcher, and it sends nothing itself.
+Codex starts the plugin's server when a conversation is opened in it: after Windows starts, the Codex
+app waiting in the notification area starts no plugin, so nothing starts the watcher until you open a
+conversation. To have the watcher run right after sign-in, turn on the setting *Run at Windows sign-in*
+as well; with both on, a second watcher never starts.
 
 **When it helps.** When you do not have the watcher start at sign-in and want it running whenever
-Codex is. The standard edition starts nothing here: a watcher started from inside Codex ends when
+you work in Codex. The standard edition starts nothing here: a watcher started from inside Codex ends when
 Codex closes, so it says so and waits for you to start the watcher yourself (F14).
 
 **What it risks.** Its whole purpose is to step outside a limit Codex places on its plugins on
@@ -252,16 +262,17 @@ on at the reset than when you next wake it.
 
 **What it risks.** A laptop may wake in a bag or with its lid closed - on battery too, where Windows allows
 wake timers on battery - and stays awake until it sleeps again by its own settings. Some PCs that sleep the
-modern way (Modern Standby) are not woken by such a timer at all; there, the standard edition's **Keep this PC
+modern way (Modern Standby) are not woken by such a timer at all - on the PC it was measured on (MWAKE), the timer
+fired and the PC stayed asleep until the mouse was moved, about six minutes later; there, the standard edition's **Keep this PC
 awake while a task waits** is the way.
 
 **Departs from** [C4](STANDARDS.md#c-network) (nothing happens on its own, on a schedule: it wakes the PC at
 a time of its own) and [B16](STANDARDS.md#b-what-it-reads-and-how) (Windows is asked only the listed questions; the
 power plan's Allow wake timers value is asked too). It changes nothing machine-wide (F1 kept).
 
-**Ceilings.** None come into play: it sends nothing to Codex. **Measurement MWAKE: not made yet** - whether
-such a timer wakes this PC (Modern Standby, the lid, the battery); until it is, the statement carries the
-warning that it was not measured.
+**Ceilings.** None come into play: it sends nothing to Codex. **Measurement MWAKE: failed** on `codex-cli 0.167.0-alpha.3.2` (2026-11-08), on a laptop that
+sleeps in Modern Standby: the 180-second timer fired, but the PC left standby only when the mouse was moved, about six
+minutes later. Its statement shows that as a warning you confirm when you turn it on.
 
 ### Marker-free continuation
 
@@ -352,7 +363,7 @@ goal active again through Codex's own app server (`thread/goal/set`), so that Co
 on when the app next opens the conversation. It never creates a goal and never reads or changes what
 the goal says. While the app has the conversation open, the continuation goes through Codex's queue
 as in the standard edition, except where measurement M2b passed for your version of Codex - so far
-`codex-cli 0.163.0-alpha.10.2`: there it sets the paused goal active first and then adds the
+`codex-cli 0.167.0-alpha.3.2`: there it sets the paused goal active first and then adds the
 continuation to the conversation's queue, as M2b did. While a goal it set active carries the
 conversation on, the standard continuation waits, for up to ten minutes, so the two do not both run. A conversation
 another Codex session holds is not its to wake: that continuation goes to that session, as without it.
@@ -384,8 +395,8 @@ is set active again at every one. The 15 minutes between two continuations, the 
 advanced feature and every recovery gate still hold, and a continuation that answers no verified reset - one after a
 failed turn, or one with no reset time - counts toward the 5 as before.
 
-**Measurement M2: failed**, for a conversation the app holds; its statement shows that as a warning.
-**Measurement M2b: passed** on `codex-cli 0.163.0-alpha.10.2` - a goal set active beside a queued turn
+**Measurement M2: failed**, for a conversation the app holds (again on `codex-cli 0.167.0-alpha.3.2`: the goal read active in Codex's storage while the app kept showing it paused and ran no turn); its statement shows that as a warning.
+**Measurement M2b: passed** on `codex-cli 0.167.0-alpha.3.2` - a goal set active beside a queued turn
 carries on while the app holds the conversation - so on that version it acts there too; on any other,
 a conversation the app holds gets the standard continuation alone.
 
@@ -1260,14 +1271,14 @@ you read the new statement once and turn it on again.
 
 ### Steer the running turn
 
-> **Warning: the Codex app does not show a steered line.** Not while the turn runs, and not after you open the
-> conversation again (measured on `codex-cli 0.165.0-alpha.1.2`). Only this product's **History** shows what was
-> sent - the words, when, to which conversation, and what came of it.
+> **A steered line cannot be taken back.** On `codex-cli 0.167.0-alpha.3.2` the Codex app shows it inside the running turn as your own
+> message (measured on 2026-11-08; on `codex-cli 0.165.0-alpha.1.2` it showed it nowhere). This product's **History**
+> also shows what was sent - the words, when, to which conversation, and what came of it.
 
 **What it does.** Adds a line you write to the turn that is running now in a conversation the Codex app has open -
 at once, not after the turn ends - through the Codex app's own connection, the pipe its windows use. You write it in
 the prompt queue's editor (**Schedule...**), choosing **Now, into the turn that is running (steer)** as **When**; the
-hour, the count and the wait for the one before are not asked, the warning above stands in the editor in red, and
+hour, the count and the wait for the one before are not asked, the note above stands in the editor in red, and
 the button reads **Steer now**. Only the watcher sends it, once: only while Codex's history says that conversation's
 latest turn is running and the app has the conversation open (who holds its lock file, then the same loaded check
 every recovery passes), inside the same guard a send passes - a Pause, Observe only, an administrator's
@@ -1281,17 +1292,17 @@ were sent and what the outcome means: accepted - the Codex app took it into the 
 delivered - it was written and no answer came, and it was not sent again; refused - why (no turn running, the app
 did not have the conversation open, the app's connection was not there, the app refused it, recovery paused or
 quiet hours, not sent within two minutes, the conversation or this feature switched off) and that nothing was sent.
-Whether it was seen in the conversation is never said: the app does not show it, so that cannot be observed. The
+Whether it was seen in the conversation is never said: this product does not check what the app shows. The
 words are kept in the advanced edition's state for History for 30 days; Clear history leaves them.
 
 **When it helps.** When a long turn is going the wrong way and you want to correct it without stopping it.
 
-**What it risks.** You cannot check in Codex what was sent; whether the model used the line cannot be observed
-here. The pipe is not documented by Codex: an update of the app may refuse it or change what it does. A turn that
+**What it risks.** Whether the app showed the line, or the model used it, is not checked here; where a Codex does
+not show the line, History is the only record of it. The pipe is not documented by Codex: an update of the app may refuse it or change what it does. A turn that
 ends between the check and the write may not take the line. Once written, nothing takes it back.
 
-**Departs from** [A4](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (the line is not shown as your message and
-carries no marker, so nothing in the conversation shows or proves it arrived),
+**Departs from** [A4](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (the line carries no marker of this product's: the app
+shows it in the running turn as your own message, but nothing here checks that it did),
 [A2](STANDARDS.md#a-what-it-may-send-to-codex-and-when) and [B3](STANDARDS.md#b-what-it-reads-and-how) (an
 undocumented route: the Codex app's own IPC pipe, not `codex queue`),
 [A1](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (the watcher's own step hands it on, not the one
@@ -1302,10 +1313,11 @@ dispatch), [A8](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (its own chec
 [H2](STANDARDS.md#h-user-control) (its own limits, not the engine's) and [H6](STANDARDS.md#h-user-control) (nothing
 takes a written line back). It keeps A3, A6 and B13.
 
-**Ceilings.** 60 in one conversation and 120 a day. **Measurement MSTEER2: failed** on `codex-cli
-0.165.0-alpha.1.2` - the line reached the running turn once and the model obeyed it, but the app never showed it -
-which its statement shows as a warning you confirm when you turn it on; MIPC (the pipe the forced stop uses) passed
-on `codex-cli 0.163.0-alpha.10.2`. MSTEER, the same steer from this product's own connection to Codex, was refused.
+**Ceilings.** 60 in one conversation and 120 a day. **Measurement MSTEER2: passed** on `codex-cli 0.167.0-alpha.3.2`
+(2026-11-08) - the line reached the running turn once, appeared in it as your own message with no new turn, and the
+model obeyed it; on `codex-cli 0.165.0-alpha.1.2` it failed, the app never showing the line. MIPC (the pipe the
+forced stop uses) passed on `codex-cli 0.167.0-alpha.3.2` too. MSTEER, the same steer from this product's own connection to
+Codex, was refused again. On any other version, a warning.
 
 ### Chat with a conversation in the Dashboard
 
@@ -1494,9 +1506,10 @@ after a usage limit, the reset time), [C4](STANDARDS.md#c-network) (nothing happ
 (the state holds no token counts) and [F3](STANDARDS.md#f-footprint-on-the-machine) (files are written only in the
 product's own folders: the CSV goes where you choose).
 
-**Ceilings.** None come into play: it sends nothing to Codex. **Measurement MTOK: not made yet** - what Codex's
-rollout files carry of token counts; until it passes, the statement carries the warning that it was not measured,
-and where it fails, the narrower route above - its failing never turns it off. **MU: passed** (codex-cli 0.162.0-alpha.17.2, 2026-10-10) for the
+**Ceilings.** None come into play: it sends nothing to Codex. **Measurement MTOK: passed** on `codex-cli 0.167.0-alpha.3.2`
+(2026-11-08; its first record, read-only: a conversation's rollout and Codex's own columns agree on its token counts);
+on any other Codex the statement carries the warning that it was not measured there, and where it fails, the
+narrower route above - its failing never turns it off. **MU: passed** (codex-cli 0.162.0-alpha.17.2, 2026-10-10) for the
 meter's readings.
 
 ### Sleep or shut down after tasks you pick
@@ -1678,7 +1691,11 @@ it is hidden because its measurement failed - and never turns the switch off.
 `codex login` in a private folder under the product's home, and you sign in in your browser on OpenAI's page - the
 product never sees a password; **Save the account in use** keeps the one signed in now. Each is a copy of Codex's
 sign-in file, encrypted with Windows' data protection for your Windows user (`<home>\accounts\`), never in the
-settings, a log, the journal, diagnostics or a report; the card shows a masked address and the plan. When a recovery
+settings, a log, the journal, diagnostics or a report; the card shows a masked address and the plan. Under each account
+it shows two meters, the 5-hour and the weekly usage as last read - by the switch itself, or by **Read usage** at the
+card's top right, which reads every saved account but the one in use in a private folder, one at a time, at most once
+every 10 minutes, and sends nothing and switches nothing; the account in use shows the usage the watcher already read -
+and under the rows when they were read and the account the switch would pick next. When a recovery
 has waited for a usage limit for 5 minutes, no turn runs, nothing is queued in Codex, no other recovery waits or runs,
 and nobody has used the PC for 2 minutes, the watcher reads each other saved account's usage in a private folder (never
 the account in use, whose tokens a second reader could rotate), closes the Codex app as Switch the Codex account's

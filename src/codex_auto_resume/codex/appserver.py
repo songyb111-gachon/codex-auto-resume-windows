@@ -7,9 +7,11 @@ be asked, and `tests/test_privacy_claims.py` holds it to that list.
 from __future__ import annotations
 
 import json
+import logging
 import os
 from pathlib import Path
 import queue
+import re
 import subprocess as S
 import threading
 import time
@@ -22,6 +24,114 @@ from .usage import parse_usage
 # The only App Server methods the finite helper may call.
 PROTOCOL_METHODS = ("initialize", "account/rateLimits/read", "thread/queue/delete")
 # The Compatibility Registry's local-check words, which the adapter's own probes answer with.
+
+# v0.6.22: a line up to LINE_LIMIT is parsed whole. A longer one - Codex echoes a message's pictures inline, and one
+# phone photo is over a megabyte - is read to its newline LINE_LIMIT at a time keeping only its first and last KEPT
+# characters, never the whole line and never json.loads of it; until then such a line ended the reader for good.
+LINE_LIMIT = 1024 * 1024
+KEPT = 64 * 1024
+# The one word an answer too large to keep carries: {"id": n, "result": {OVERSIZE: True}}, or "error" in place of
+# "result" (with Codex's numeric code where its head shows one). A caller reads no other field from it.
+OVERSIZE = "_oversize"
+# What next_message returns for a line that is no message this client reads.
+SKIPPED = object()
+_DECODER = json.JSONDecoder()
+_SPACE = re.compile(r"\s*")
+# The top-level id at the very end of a line: Codex writes an error as {"error": {...}, "id": n}, its id last.
+_LAST_ID = re.compile(r'"id"\s*:\s*(-?\d+|"(?:[^"\\]|\\.)*")\s*\}\s*$')
+_ERROR_CODE = re.compile(r'\{\s*"error"\s*:\s*\{\s*"code"\s*:\s*(-?\d+)\s*[,}]')
+
+
+def next_message(stream):
+    """The next message on a Codex server's stdout: a dict, None at the stream's end, or SKIPPED for a line that is
+    no JSON object or an oversize line that is no answer or request. Bounded: one LINE_LIMIT read at a time, linear
+    in the line's length, KEPT characters of each end held."""
+    line = stream.readline(LINE_LIMIT + 1)
+    if not line:
+        return None
+    if line.endswith("\n") or len(line) <= LINE_LIMIT:
+        try:
+            value = json.loads(line)
+        except ValueError:
+            return SKIPPED
+        return value if isinstance(value, dict) else SKIPPED
+    head, tail, size = line[:KEPT], line[-KEPT:], len(line)
+    while True:
+        piece = stream.readline(LINE_LIMIT)
+        if not piece:
+            break
+        size += len(piece)
+        tail = piece[-KEPT:] if len(piece) >= KEPT else (tail + piece)[-KEPT:]
+        if piece.endswith("\n"):
+            break
+    return _oversize(head, tail, size)
+
+
+def _members(head):
+    """The top-level members of the JSON object `head` begins, as far as it reaches: ({key: value}, the key whose
+    value runs past the head or None). A value that ends exactly at the head's end counts as cut."""
+    seen = {}
+    position = _SPACE.match(head).end()
+    if not head.startswith("{", position):
+        return seen, None
+    position = _SPACE.match(head, position + 1).end()
+    while position < len(head):
+        try:
+            key, position = _DECODER.raw_decode(head, position)
+        except (ValueError, RecursionError):
+            return seen, None
+        position = _SPACE.match(head, position).end()
+        if not isinstance(key, str) or not head.startswith(":", position):
+            return seen, None
+        position = _SPACE.match(head, position + 1).end()
+        try:
+            value, position = _DECODER.raw_decode(head, position)
+        except (ValueError, RecursionError):
+            return seen, key
+        position = _SPACE.match(head, position).end()
+        if position >= len(head):
+            return seen, key
+        seen[key] = value
+        if not head.startswith(",", position):
+            return seen, None
+        position = _SPACE.match(head, position + 1).end()
+    return seen, None
+
+
+def _oversize(head, tail, size):
+    """What an oversize line is, from its head and its tail alone: Codex writes an answer {"id": n, "result": ...}
+    with its id first, an error {"error": {...}, "id": n} with its id last, and a request or a notification with its
+    method before its params (codex-cli 0.167.0-alpha.3.2's app server, read 2026-11-08). An answer comes back
+    carrying OVERSIZE, a request as its id and method alone; a notification, or a line read as none of these, is
+    dropped with one line in the log - its method or "unknown", and its size in megabytes."""
+    seen, cut = _members(head)
+    method = seen.get("method")
+    ident = seen.get("id")
+    if isinstance(method, str):
+        if "id" in seen and type(ident) in (int, str):
+            return {"id": ident, "method": method}
+        logging.getLogger(__name__).info("a notification of %d MB was not read: %s", -(-size // LINE_LIMIT),
+                                         method[:80])
+        return SKIPPED
+    kind = cut if cut in ("result", "error") else None
+    if kind is None:
+        kind = next((key for key in ("result", "error") if key in seen), None)
+    if kind is not None and "id" not in seen:
+        found = _LAST_ID.search(tail)
+        if found is not None:
+            try:
+                ident = json.loads(found.group(1))
+            except ValueError:
+                ident = None
+    if kind is not None and type(ident) in (int, str):
+        payload = {OVERSIZE: True}
+        if kind == "error":
+            code = _ERROR_CODE.match(head)
+            if code is not None:
+                payload["code"] = int(code.group(1))
+        return {"id": ident, kind: payload}
+    logging.getLogger(__name__).info("a line of %d MB was not read: unknown", -(-size // LINE_LIMIT))
+    return SKIPPED
 
 
 class Protocol:
@@ -72,14 +182,10 @@ class Protocol:
     def _read(self):
         try:
             while True:
-                line = self.process.stdout.readline(1024 * 1024 + 1)
-                if not line or len(line) > 1024 * 1024:
+                value = next_message(self.process.stdout)
+                if value is None:
                     return
-                try:
-                    value = json.loads(line)
-                except ValueError:
-                    continue
-                if not isinstance(value, dict):
+                if value is SKIPPED:
                     continue
                 if "id" in value and "method" in value:
                     self._write({"id": value["id"], "error": {"code": -32601, "message": "Client requests unsupported"}})

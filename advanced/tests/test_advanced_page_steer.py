@@ -1,7 +1,7 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's tree, never the standard one's.
 """Steer the running turn in the window itself (v0.6.20, issue #50 item 2 - steer_send): the prompt queue's editor offers
 "Now, into the turn that is running (steer)" as When only while steer_send stands on and only for a new message; chosen,
-the time fields are not asked, the while-running cards give way to the warning that the Codex app does not show the
+the time fields are not asked, the while-running cards give way to the note that a steer cannot be taken back and that the Codex app shows the
 steered line, in the danger colour, and the accent button reads Steer now and sends advanced-steer - the conversation,
 the words and the generation, nothing else. History lists each steer as its own row - its conversation, accepted, may
 have been delivered or refused, Steer - and, chosen, says the words that were sent and what the outcome means. Driven
@@ -107,7 +107,7 @@ class PageTests(PageCase):
         self.assertTrue(editor["steer_shown"])
         self.assertTrue(editor["steer_colour"], "the warning in the danger colour")
         self.assertEqual(editor["steer_warning"], words["page.editor.steer.warning"])
-        self.assertIn("does not show the steered line", editor["steer_warning"])
+        self.assertIn("shows the line in that turn as your own message", editor["steer_warning"])
         self.assertFalse(editor["mode_shown"])
         self.assertFalse(editor["after_turn_shown"])
         self.assertFalse(editor["hour_enabled"])

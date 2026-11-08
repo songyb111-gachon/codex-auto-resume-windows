@@ -42,6 +42,13 @@ namespace CodexAutoResume
         /// offer of a pre-release asks this way, so a reflex Enter keeps the version that is installed.
         private bool Dialog(string text, string affirm, string away)
         {
+            return Dialog(text, affirm, away, null);
+        }
+
+        /// With `choice` (v0.6.22): a switch or a check box on its own row between the words and the buttons, read by
+        /// the caller once the dialog has closed - the Advanced features page's Keep it on, under its Turn on.
+        private bool Dialog(string text, string affirm, string away, CheckBox choice)
+        {
             // The tests' answers to the window's questions, in place of the dialog (null for every window a person opens):
             // a test that drives a click through its handler must never show a dialog on anyone's desktop.
             if (DialogAnswers != null) return DialogAnswers(text, affirm);
@@ -105,6 +112,21 @@ namespace CodexAutoResume
                     padding.Controls.Add(words);
                 }
                 dialog.Controls.Add(padding);
+                // Docked under the words, above the buttons (added after it, so docked first), inset as they are.
+                int chosen = 0;
+                if (choice != null)
+                {
+                    var row = new Panel();
+                    row.BackColor = Canvas;
+                    row.Dock = DockStyle.Bottom;
+                    row.Padding = Pad(16, 12, 16, 0);
+                    choice.Dock = DockStyle.Top;
+                    row.Controls.Add(choice);
+                    chosen = row.Padding.Vertical + choice.PreferredSize.Height + choice.Margin.Vertical;
+                    row.Height = chosen;
+                    width = Math.Max(width, choice.PreferredSize.Width);
+                    dialog.Controls.Add(row);
+                }
 
                 bool said = false;
                 FlowLayoutPanel buttons = ButtonRow();
@@ -145,7 +167,7 @@ namespace CodexAutoResume
                 // first control, and where the words are in a well that is the well.
                 dialog.ActiveControl = first;
 
-                dialog.ClientSize = new Size(width + 2 * pad, room + pad + buttons.PreferredSize.Height);
+                dialog.ClientSize = new Size(width + 2 * pad, room + pad + chosen + buttons.PreferredSize.Height);
                 dialog.ShowDialog(this);
                 return said;
             }
@@ -1261,15 +1283,22 @@ namespace CodexAutoResume
                               Whole(pair.Value).ToString(CultureInfo.CurrentCulture));
             // One kind per line: a wrapped list breaks Korean inside a word.
             statsKinds.Text = parts.Count == 0 ? "-" : string.Join(Environment.NewLine, parts.ToArray());
+            // Each outcome's part in the success rate, as the store's one rule gives it: the bar's colour.
+            var groups = new Dictionary<string, string>();
+            var said = Map(stats, "outcome_groups");
+            if (said != null)
+                foreach (var pair in said) groups[pair.Key] = pair.Value as string;
             chart.Bars.Clear();
             if (outcomes != null)
                 foreach (var pair in outcomes)
                 {
                     int count = Whole(pair.Value);
-                    if (count > 0) chart.Bars.Add(new KeyValuePair<string, int>(S("code." + pair.Key, pair.Key), count));
+                    string group;
+                    groups.TryGetValue(pair.Key, out group);
+                    if (count > 0) chart.Bars.Add(new OutcomeChart.Bar(S("code." + pair.Key, pair.Key), count, group));
                 }
             // Most common first, and as tall as its bars rather than a fixed box.
-            chart.Bars.Sort(delegate(KeyValuePair<string, int> a, KeyValuePair<string, int> b)
+            chart.Bars.Sort(delegate(OutcomeChart.Bar a, OutcomeChart.Bar b)
             {
                 int order = b.Value.CompareTo(a.Value);
                 return order != 0 ? order : string.CompareOrdinal(a.Key, b.Key);

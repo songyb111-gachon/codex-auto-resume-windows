@@ -41,6 +41,9 @@ namespace CodexAutoResume
         private readonly List<string> advancedSent = new List<string>();
         private readonly List<string> advancedAsked = new List<string>();
         private readonly List<string> advancedTold = new List<string>();
+        // v0.6.22: each check box a question showed (Turn on's Keep it on), and the test's positions for the next ones.
+        private readonly List<string> advancedAskedSwitches = new List<string>();
+        private readonly List<bool> advancedSwitchAnswers = new List<bool>();
         // v0.6.23: while a test holds the replies ("hold"), the answers of the requests made, in order, until it lets go.
         private bool advancedHolding;
         private readonly List<MethodInvoker> advancedHeld = new List<MethodInvoker>();
@@ -766,7 +769,7 @@ namespace CodexAutoResume
         ///   {"do": "chat_type", "text": ..., "caret": n,      the chat's box written in, its caret at n with `selected`
         ///    "selected": n}                                   characters chosen after it, as a person leaves it (v0.6.23)
         ///   {"do": "courier", "button": "save ntfy"}          a courier card's button pressed, if it can be (v0.6.20)
-        ///   {"do": "remote", "button": "copy api"}            a remote card's button pressed ("copy api", "token api", "pair telegram"),
+        ///   {"do": "remote", "button": "copy api"}            a remote card's button pressed ("copy api", "copy token", "token api", "pair telegram", "open notices"),
         ///                                                     what it copies kept (v0.6.22)
         ///   {"do": "courier_type", "into": "ntfy.url",       one of the courier card's boxes filled
         ///    "text": ...}
@@ -784,13 +787,16 @@ namespace CodexAutoResume
         internal static string AdvancedPageRun(string stringsJson, string scenarioJson)
         {
             var result = new Dictionary<string, object>();
-            WithAdvancedWindow(stringsJson, SystemScale, delegate(SettingsForm form)
+            // v0.6.22: at the scale the scenario names ("scale", 1.0 for 100 %), or the system's.
+            object scaled = Get(Json.Parse(scenarioJson) as Dictionary<string, object>, "scale");
+            WithAdvancedWindow(stringsJson, scaled is double ? (double)scaled : SystemScale, delegate(SettingsForm form)
             {
                 var scenario = Json.Parse(scenarioJson) as Dictionary<string, object> ?? new Dictionary<string, object>();
                 form.advancedScript = new Dictionary<string, List<object>>();
                 foreach (KeyValuePair<string, object> pair in Map(scenario, "script") ?? new Dictionary<string, object>())
                     form.advancedScript[pair.Key] = new List<object>(pair.Value as List<object> ?? new List<object>());
                 foreach (object answer in Items(scenario, "answers") ?? new List<object>()) form.advancedAnswers.Add(Equals(answer, true));
+                foreach (object position in Items(scenario, "switches") ?? new List<object>()) form.advancedSwitchAnswers.Add(Equals(position, true));
                 var looks = new List<object>();
                 var disabled = new List<object>();
                 var reopened = new List<object>();
@@ -1203,6 +1209,12 @@ namespace CodexAutoResume
                         else form.fleetAlias.Box.Text = Str(step, "text") ?? "";
                     }
                     else if (what == "fleet_folder") form.ChooseFleetFolder(Str(step, "path") ?? "");
+                    else if (what == "fleet_folder_typed")
+                    {
+                        // and a folder typed or pasted into its box (the reachability audit's M14).
+                        if (form.fleetFolder == null) disabled.Add("fleet_folder_typed");
+                        else form.fleetFolder.Box.Text = Str(step, "text") ?? "";
+                    }
                     else if (what == "fleet_save")
                     {
                         if (form.fleetSave == null || !form.fleetSave.Enabled) disabled.Add("fleet_save");
@@ -1268,6 +1280,7 @@ namespace CodexAutoResume
                 result["sent"] = new List<object>(form.advancedSent.ToArray());
                 result["asked"] = new List<object>(form.advancedAsked.ToArray());
                 result["told"] = new List<object>(form.advancedTold.ToArray());
+                result["choices"] = new List<object>(form.advancedAskedSwitches.ToArray());
                 result["disabled"] = disabled;
                 result["reopened"] = reopened;
                 result["dialogs"] = dialogs;
@@ -1393,6 +1406,9 @@ namespace CodexAutoResume
             // Where all of it is taller than the screen lets the editor be (a CI runner's 1024 by 768), it stands at that
             // height and what does not fit is scrolled to.
             record["at_most"] = editorDialog.ClientSize.Height >= EditorMost();
+            // v0.6.22: never taller than the screen lets it be, ten pictures and all; and the pictures kept, in words.
+            record["within_most"] = editorDialog.ClientSize.Height <= EditorMost();
+            record["kept_line"] = editorKept == null ? null : editorKept.Text;
             record["words_after"] = editorWords.Box.Text;
         }
 
@@ -1625,7 +1641,8 @@ namespace CodexAutoResume
             look["fleet_rows"] = fleetShows ? ListCells(fleetList) : new List<object>();
             look["fleet_said"] = fleetShows ? fleetSaid.Text : null;
             look["fleet_alias"] = fleetAlias == null ? null : fleetAlias.Box.Text;
-            look["fleet_folder"] = fleetFolderLine == null ? null : fleetFolderLine.Text;
+            look["fleet_folder"] = fleetFolder == null ? null : fleetFolder.Box.Text;
+            look["fleet_folder_line"] = fleetFolderLine == null ? null : fleetFolderLine.Text;
             look["fleet_save"] = fleetSave == null ? (object)null : fleetSave.Enabled;
             // v0.6.22: the remote cards' buttons, and what they copied.
             look["remote_buttons"] = Tags(remoteButtons);

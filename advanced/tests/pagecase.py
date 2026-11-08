@@ -410,11 +410,22 @@ def audit_data(locale: str, bridge: Bridge) -> dict:  # noqa: C901 - one layout'
                                                        ("running", "on", "clock"), ("running", "on", "old"),
                                                        ("running", "on", "fresh"), ("running", "on", "fresh")))]},
                      # v0.6.22: the saved accounts at their fullest - every state word, the line for a sign-in outside
-                     # a file and an add that did not finish (advanced/gui/AdvancedAccounts.cs); drawn once offered.
+                     # a file and an add that did not finish (advanced/gui/AdvancedAccounts.cs); drawn once offered. The
+                     # final's meters too: the row in use, one near its limit, one never read, one whose read broke, the
+                     # line under them, a Read usage under way and its wait (AdvancedMeter.cs).
                      "advanced-accounts": {"done": True, "refusal": None, "store": "not_file", "add_state": "not_added",
-                                           "switched_at": None,
+                                           "switched_at": None, "read_at": ac.NOW - 720,
+                                           "candidate": "s•••@e•••.com", "candidate_state": "found",
+                                           "read_state": "reading", "read_done": 2, "read_of": 3,
+                                           "read_next_at": ac.NOW + 599,
                                            "profiles": [{"id": "%016x" % index, "mask": "s•••@e•••.com", "plan": plan,
-                                                         "state": state} for index, (plan, state) in enumerate(
+                                                         "state": state, "in_use": index == 2, "unread": index == 1,
+                                                         "read_at": None if index == 3 else ac.NOW - 720,
+                                                         "five_hour": None if index == 3 else
+                                                         {"used": 92.0 if index == 2 else 100.0, "resets_at": ac.NOW + 4200},
+                                                         "weekly": None if index == 3 else
+                                                         {"used": 48.0, "resets_at": ac.NOW + 3 * 86400}}
+                                                        for index, (plan, state) in enumerate(
                                                              (("enterprise", "needs_sign_in"), ("plus", "exhausted"),
                                                               ("pro", "ready"), ("other", "damaged")))]}},
             "reports": report_states()}

@@ -71,7 +71,7 @@ class CardSourceTests(unittest.TestCase):
         sent = re.findall(r'AdvancedCall\("([a-z-]+)", "(.*?)"', card)
         self.assertEqual(sorted({command for command, _argument in sent}),
                          ["advanced-accounts", "advanced-accounts-add", "advanced-accounts-delete",
-                          "advanced-accounts-save"])
+                          "advanced-accounts-read", "advanced-accounts-save"])
         for command, argument in sent:
             with self.subTest(command):
                 names = set(re.findall(r'\\"([a-z_]+)\\"', argument))
