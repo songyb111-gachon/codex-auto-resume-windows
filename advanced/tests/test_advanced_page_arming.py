@@ -12,8 +12,8 @@ and its limits; Turn on and Watch first ask in the dialog with the statement and
 exactly what the page showed - which the real bridge then accepts - and ask again, with what holds now,
 when the bridge says something changed, or say why they cannot (it could not be read again, or a policy
 now refuses it); a refusal is told; a capability that turned itself off says so and why; Turn off and
-Turn every advanced feature off send theirs; from v0.6.22 Turn on's dialog carries Keep it on as a switch, on unless
-the person turns it off - for what it needs as well - and off and unmovable where its own check failed here, where it is
+Turn every advanced feature off send theirs; from v0.6.22 Turn on's dialog carries Keep it on as a check box, ticked unless
+the person unticks it - for what it needs as well - and unticked and unmovable where its own check failed here, where it is
 turned on plainly; the hourly limit is a spin box, and the lowered limit is one
 the real bridge takes; the list is read again after every action and when the snapshot's badge says it
 changed; Ctrl+Tab reaches the page; a window that reopens itself on the page comes back to it; and an
@@ -28,6 +28,7 @@ from __future__ import annotations
 import copy
 import json
 from pathlib import Path
+import re
 import sys
 import tempfile
 import unittest
@@ -82,22 +83,22 @@ class PageTests(PageCase):
 
     @classmethod
     def scenario_turn_on_unkept(cls, bridge):
-        """v0.6.22: Turn on, with the dialog's Keep it on switch turned off and then yes: plain on, as before."""
+        """v0.6.22: Turn on, with the dialog's Keep it on box unticked and then yes: plain on, as before."""
         _locale, scenario, expected = cls.scenario_turn_on(bridge)
         scenario["switches"] = [False]
         return "en", scenario, expected
 
     @classmethod
     def scenario_requires_unkept(cls, bridge):
-        """v0.6.22: as scenario_requires, with Keep it on turned off: neither is kept on."""
+        """v0.6.22: as scenario_requires, with Keep it on unticked: neither is kept on."""
         _locale, scenario, expected = cls.scenario_requires(bridge)
         scenario["switches"] = [False]
         return "en", scenario, expected
 
     @classmethod
     def scenario_failed_here_on(cls, bridge):
-        """v0.6.22: Turn on for a capability whose own compatibility check failed here: Keep it on is off and cannot be
-        moved (the test's switch position is not taken), the question says why, and yes turns it on plainly."""
+        """v0.6.22: Turn on for a capability whose own compatibility check failed here: Keep it on is unticked and cannot be
+        moved (the test's position is not taken), the question says why, and yes turns it on plainly."""
         capability = IDS[0]
         compat = registry.REGISTRY.get(capability).compat
         bridge.view["capabilities"][compat] = {"state": "FAILED_HERE", "reason": "local_check_failed_here"}
@@ -416,10 +417,11 @@ class PageTests(PageCase):
             self.assertIn(field["title"], question)
             self.assertIn(field["text"], question)
         self.assertIn(shown["engine_version"], question)
-        # v0.6.22: Keep it on is on by default for a new turn-on, said before the statement, and sent with the arm.
-        self.assertEqual(result["choices"], ["Keep it on on"])
-        self.assertLess(question.index("Keep it on, below, is on"), question.index(shown["fields"][0]["text"]))
-        self.assertIn("Turn Keep it on off and it turns itself off when something it relies on goes wrong.", question)
+        # v0.6.22: Keep it on is ticked by default for a new turn-on, said before the statement, and sent with the arm.
+        self.assertEqual(result["choices"], ["Keep it on [box] ticked"])
+        self.assertLess(question.index("Keep it on, below, is ticked"), question.index(shown["fields"][0]["text"]))
+        self.assertIn("Untick Keep it on and it turns itself off when something it relies on goes wrong.", question)
+        self.assertNotIn("switch", question.lower())
         (arm,) = sent(result, "advanced-arm")
         self.assertEqual(arm, {"capability": MARKER_FREE, "state": "armed", "revision": shown["revision"],
                                "generation": expected["generation"], "engine_version": shown["engine_version"],
@@ -448,11 +450,11 @@ class PageTests(PageCase):
                 bridge.close()
 
     def test_turn_on_with_keep_it_on_turned_off_is_plain_on(self):
-        """v0.6.22: the choice not to keep it on stays - the switch turned off sends the arm as before, and the real
+        """v0.6.22: the choice not to keep it on stays - the box unticked sends the arm as before, and the real
         bridge turns it on without keeping it on."""
         result, expected = self.of("scenario_turn_on_unkept")
         shown = expected["statement"]
-        self.assertEqual(result["choices"], ["Keep it on on"], "shown on; the person turned it off")
+        self.assertEqual(result["choices"], ["Keep it on [box] ticked"], "shown ticked; the person unticked it")
         (arm,) = sent(result, "advanced-arm")
         self.assertEqual(arm, {"capability": MARKER_FREE, "state": "armed", "revision": shown["revision"],
                                "generation": expected["generation"], "engine_version": shown["engine_version"],
@@ -470,12 +472,27 @@ class PageTests(PageCase):
             finally:
                 bridge.close()
 
+    def test_keep_it_on_is_a_check_box_never_a_switch(self):
+        """v0.6.22, the owner's 2026-11-08: Turn on's Keep it on is a check box, as the power-tasks rows and the Settings
+        day boxes are - the call that makes it asks for a box (NewCheck's last argument), and the dialog it is shown in
+        says so for every question: shown, not moved, and where it cannot be moved."""
+        source = (Path(__file__).resolve().parents[2] / "advanced" / "gui" / "AdvancedPage.cs").read_text(encoding="utf-8")
+        calls = re.findall(r'NewCheck\(Word\("page\.keep_on", "Keep it on"\), (\w+), (\w+)\)', source)
+        self.assertEqual(calls, [("keepable", "true")], "one Keep it on, drawn as a check box (box = true)")
+        for scenario in ("scenario_turn_on", "scenario_failed_here_on"):
+            result, _expected = self.of(scenario)
+            self.assertTrue(result["choices"])
+            for shown in result["choices"]:
+                self.assertIn(" [box] ", shown, scenario)
+                self.assertNotIn("[switch]", shown, scenario)
+
     def test_turn_on_where_its_check_failed_here_is_plain_on_with_keep_it_on_unavailable(self):
-        """v0.6.22: Keep it on is refused where its own grade is Failed here, so the switch is off and cannot be moved,
+        """v0.6.22: Keep it on is refused where its own grade is Failed here, so the box is unticked and cannot be moved,
         one line says why, and yes turns it on plainly - never a refusal of the on."""
         result, expected = self.of("scenario_failed_here_on")
         self.assertIn("failed_here", [item["warning"] for item in expected["statement"]["warnings"]["items"]])
-        self.assertEqual(result["choices"], ["Keep it on off disabled"])
+        self.assertEqual(result["choices"], ["Keep it on [box] unticked disabled"])
+        self.assertIn("is unticked", expected["words"]["page.confirm.keep_failed_here"])
         (question,) = result["asked"]
         self.assertIn(expected["words"]["page.confirm.keep_failed_here"], question)
         self.assertNotIn(expected["words"]["page.confirm.keep_choice"], question)
@@ -570,7 +587,7 @@ class PageTests(PageCase):
         self.assertNotIn(failed["text"], asked_first)
         self.assertEqual(result["told"], [])
         # v0.6.22: the first question kept it on; the second, with Failed here now holding, cannot and turns it on plainly.
-        self.assertEqual(result["choices"], ["Keep it on on", "Keep it on off disabled"])
+        self.assertEqual(result["choices"], ["Keep it on [box] ticked", "Keep it on [box] unticked disabled"])
         self.assertIs(first["keep_on"], True)
         # Between the two: the list and the statement read again.
         lines = [line.split(" ", 1)[0] for line in result["sent"]]

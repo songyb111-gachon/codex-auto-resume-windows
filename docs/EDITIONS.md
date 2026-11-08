@@ -42,8 +42,8 @@ one more page in this edition, **Advanced features**, the last tab after Setting
 capability there and read its statement: what it does, what the standard edition does instead,
 which standards it departs from, what can go wrong and how to stop it, and any warnings it carries
 now. **Turn on** asks once more, with the statement and every warning in front of you; saying yes
-confirms them, for the version of Codex shown. Its dialog also carries a *Keep it on* switch, on unless
-you turn it off (below). **Watch first** instead has it asked wherever it
+confirms them, for the version of Codex shown. Its dialog also carries a *Keep it on* check box, ticked unless
+you untick it (below). **Watch first** instead has it asked wherever it
 would act, and note what it would have done, while it does nothing. What it would have done is
 counted on its page, under its other cards, for the last 30 days: each answer in words, once for
 each recovery it would have acted on, how many times and when last; a diagnostics export you ask
@@ -115,9 +115,9 @@ it then reads (K7). A continuation sent once more and then found twice turns off
 Once more when unsure itself, or the *Also send again when unsure* of a capability kept on.
 
 **Keep it on.** Turning a capability on keeps it on unless you choose otherwise: the dialog **Turn on** opens
-has a *Keep it on* switch under its words, on unless you turn it off, and what it turns on with the capability
-follows the same choice. Turned off, the capability is turned on alone and turns itself off as above. Where its
-own compatibility check failed on this PC, the switch is off and cannot be moved, and the capability is turned
+has a *Keep it on* check box under its words, ticked unless you untick it, and what it turns on with the capability
+follows the same choice. Unticked, the capability is turned on alone and turns itself off as above. Where its
+own compatibility check failed on this PC, the check box is unticked and cannot be moved, and the capability is turned
 on without it. On the capability's card, *Keep it on...* keeps on one that is on but not kept, or turns one on
 and keeps it on, in the one confirmation turning it on asks - its warning, then its statement and what it needs - and is refused as
 turning it on is, and also where its own compatibility check failed on this PC. Kept on is on: the list
@@ -133,7 +133,7 @@ more when unsure below, so the capability departs from what that one departs fro
 your administrator's policy allows Once more when unsure as well; a continuation sent again and found
 twice turns that choice off, and the capability stays on. The compatibility report sends nothing to
 Codex, so it has no such choice. Every capability offers Keep it on, and only a person chooses it: with the
-switch when turning one on, or on that capability's card. One already on without it stays so through an update
+check box when turning one on, or on that capability's card. One already on without it stays so through an update
 until you choose it. The policy reads a kept-on capability down
 as any other, by the capability's own id: no policy value reaches Keep it on alone (K8).
 
