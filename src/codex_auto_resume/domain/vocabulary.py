@@ -550,6 +550,7 @@ class Locale(StrEnum):
     ID = "id"
     AR = "ar"
     HE = "he"
+    FA = "fa"
 
 
 # ------------------------------------------------------------------------ Codex's answers

@@ -4,7 +4,7 @@ Everything about Codex Auto Resume in one place. The [README](../README.md) is t
 
 **Automatically resume the exact same Codex task on Windows after a usage limit resets.**
 
-<sub>🇰🇷 <a href="https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/ko/docs/GUIDE.md">한국어 안내서</a> · The app speaks eighteen languages: English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) · Русский · Italiano · Türkçe · Polski · Українська · Tiếng Việt · Bahasa Indonesia · العربية · עברית</sub>
+<sub>🇰🇷 <a href="https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/ko/docs/GUIDE.md">한국어 안내서</a> · The app speaks nineteen languages: English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) · Русский · Italiano · Türkçe · Polski · Українська · Tiếng Việt · Bahasa Indonesia · العربية · עברית · فارسی</sub>
 
 Codex stops mid-task and tells you to try again at 6:34 AM. You are asleep at 6:34 AM, and in
 the morning the task is exactly where it stopped.
@@ -34,7 +34,7 @@ v0.6.0).
 | **Never touches** | user cancellation · permission · approval · content policy · invalid requests · context length · permanent authentication failures · anything unclassified |
 | **Identity** | the exact conversation UUID only — never `--last`, never "the most recent one", never a title or a folder name |
 | **Configure it** | a Windows window from the Start Menu — from v0.6.0, a Dashboard whose settings are one of its six pages — a settings panel inside Codex, or the command line |
-| **Languages** | English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) · Русский · Italiano · Türkçe · Polski · Українська · Tiếng Việt · Bahasa Indonesia · العربية · עברית — in the Dashboard, the notification-area popup, Windows notifications, the panel inside Codex and the continuation message sent to Codex. It follows Windows unless you choose one; see [Languages](#languages) |
+| **Languages** | English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) · Русский · Italiano · Türkçe · Polski · Українська · Tiếng Việt · Bahasa Indonesia · العربية · עברית · فارسی — in the Dashboard, the notification-area popup, Windows notifications, the panel inside Codex and the continuation message sent to Codex. It follows Windows unless you choose one; see [Languages](#languages) |
 | **Tells you** | Notifications when a task is interrupted, when recovery starts, how it went, and when it gives up - from v0.6.5 as a card of the product's own beside the notification area, with Windows' own notification wherever a card must not show. While the watcher runs it also shows a notification-area icon, whose tooltip says whether recovery is paused, how many recoveries are waiting, how many are running in Codex, and how long until the next check |
 | **Privacy** | no telemetry, no analytics, no automatic update check, never reads your credentials. *Check for updates* in the window asks GitHub which release is newest - and, from v0.6.11, reads its list of releases on api.github.com for a newer pre-release, which it installs only if you say yes - and only when you press it; *Install another version...* reads that whole list there, page by page, when you open it and again when you confirm a version, and downloads only the version you confirmed; *Check for updates* and *Refresh compatibility data* also fetch the Codex compatibility data from raw.githubusercontent.com, sending nothing about your machine. The watcher has no network code; the usage check, the resumed turn and what the plugin's tools and commands return in a conversation go to OpenAI through Codex, as Codex's traffic always does; setup downloads the release from GitHub; and the v0.5.7 installer has Codex refresh every Git marketplace you have configured (naming only this one is new in v0.6.0) |
 
@@ -573,13 +573,13 @@ A right click on the icon opens its menu, drawn in the popup's own design: a lin
 the watcher is doing, **Open Dashboard**, **Show what is waiting** while anything waits,
 **Pause recovery** or **Resume recovery**, **Don't sleep after recoveries** (or hibernate, shut down)
 while that power action is armed, and **Stop the watcher**. It opens at the pointer, light or dark
-as the popup is, in the system's colours in High Contrast, and right to left in Arabic and Hebrew.
+as the popup is, in the system's colours in High Contrast, and right to left in Arabic, Hebrew and Persian.
 The arrow keys, Home and End move through it, Enter or an item's first letter chooses, and Esc, Alt,
 a click anywhere else or switching to another window closes it; a screen reader reads it as a menu.
 Where it cannot be drawn, Windows' own menu opens with the same items. A task's own menu in the popup is drawn
 the same way, and its **Postpone** and **How this conversation resumes** open their choices beside them: the right
 arrow, Enter, a click or resting the pointer opens them, and the left arrow or Esc closes them - the other way round in
-Arabic and Hebrew. The popup and the menu take up a new
+Arabic, Hebrew and Persian. The popup and the menu take up a new
 language or theme the next time they open, without restarting the watcher. The countdown only means the watcher looks again — nothing is sent because it
 reaches zero. The icon is on by default and can be switched off on the Settings page.
 
@@ -1579,10 +1579,10 @@ Pending, History, the Codex panel and the cards show the alias beside a record o
 
 The interface speaks English, 한국어, 日本語, 简体中文, 繁體中文, Español, Deutsch, Français,
 Português (Brasil), Русский, Italiano, Türkçe, Polski, Українська, Tiếng Việt, Bahasa Indonesia,
-العربية and עברית. **Interface language** defaults to *System*, which follows the first language
+العربية, עברית and فارسی. **Interface language** defaults to *System*, which follows the first language
 Windows lists - in any region, Portuguese from Portugal included, and Chinese by its script - and
-falls back to English for a language this product does not ship. Arabic and Hebrew are written right
-to left, and in either every surface is mirrored - the Dashboard and its dialogs, the setup window,
+falls back to English for a language this product does not ship. Arabic, Hebrew and Persian are written right
+to left, and in each every surface is mirrored - the Dashboard and its dialogs, the setup window,
 the popup, the notification card and the panel in Codex - while a version, an id, a time or a path
 keeps its own order. Each language is named in itself in the two language
 lists, after *System* (or *Same as the interface*); about ten show and the rest scroll, and typing

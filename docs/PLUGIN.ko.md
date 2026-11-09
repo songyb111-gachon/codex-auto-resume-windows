@@ -435,8 +435,8 @@ v0.5.2부터는 두 번째 거부가 더 앞에서 일어납니다. 첫 번째 �
 ## 언어
 
 제품 자체의 인터페이스 — 대시보드, 알림 영역 팝업과 그 메뉴, Windows 알림, Codex 안의 설정 패널, 플러그인 계층의 메시지 — 는
-열여덟 개 언어로 제공됩니다. English, 한국어, 日本語, 简体中文, 繁體中文, Español, Deutsch, Français, Português (Brasil),
-Русский, Italiano, Türkçe, Polski, Українська, Tiếng Việt, Bahasa Indonesia, العربية, עברית입니다. v0.6.2까지는 영어 아니면
+열아홉 개 언어로 제공됩니다. English, 한국어, 日本語, 简体中文, 繁體中文, Español, Deutsch, Français, Português (Brasil),
+Русский, Italiano, Türkçe, Polski, Українська, Tiếng Việt, Bahasa Indonesia, العربية, עברית, فارسی입니다. v0.6.2까지는 영어 아니면
 한국어였고, v0.6.11 전까지는 앞의 아홉 개, 이번 릴리스 전까지는 앞의 열여섯 개였습니다. 오른쪽에서 왼쪽으로 쓰는 아랍어와
 히브리어는 모든 화면이 좌우를 뒤집어 그릴 수 있을 때까지 기다렸습니다.
 
