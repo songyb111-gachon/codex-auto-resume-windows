@@ -1306,6 +1306,7 @@ namespace CodexAutoResume
             chart.EmptyText = S("stats.none", "Nothing yet");
             chart.Font = Font;
             chart.Height = Math.Max(1, chart.Bars.Count) * chart.RowHeight() + Px(4);
+            chart.Changed();
             chart.Describe();
             chart.Invalidate();
         }

@@ -1406,6 +1406,13 @@ namespace CodexAutoResume
             return form == null || (form.Visible && form.WindowState != FormWindowState.Minimized);
         }
 
+        /// The same for a popup that is just being shown or has just been hidden (a menu), whose window is not yet, or no
+        /// longer, on the screen to be asked about, and which only ever opens over a window that is there.
+        internal static bool AllowedPopup(Control popup)
+        {
+            return popup != null && !Soft.ReduceMotion && popup.IsHandleCreated;
+        }
+
         private static readonly System.Diagnostics.Stopwatch ambientClock = new System.Diagnostics.Stopwatch();
         private static bool ambient;
 

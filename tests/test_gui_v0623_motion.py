@@ -37,6 +37,7 @@ public class QuietForm : Form {
 }
 public static class Quiet {
     [System.Runtime.InteropServices.DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr window, int message, IntPtr wParam, IntPtr lParam);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr window, int command);
 }
 public static class Said {
     public static bool Yes() { return true; }
@@ -441,6 +442,165 @@ Pump 300
 """
 
 
+PROBE_HELPERS = PROBE_CONTROLS[:PROBE_CONTROLS.index("# ------------------------------------------------------------------ the button")]
+
+PROBE_SURFACES = r"""
+# ------------------------------------------------------------------ list rows
+$list = Make 'SoftList'; $list.View = 'Details'; $list.OwnerDraw = $true
+$null = $list.Columns.Add('One', 200)
+foreach ($i in 1..8) { $null = $list.Items.Add("Row $i") }
+Place $list 20 20 240 200; Pump 30
+$glow = F $list 'Glow'
+$part = F $glow 'time'
+$null = Call $glow 'Over' @([int]2)
+$out.row = @{ running = [bool](P $glow 'Running'); length = [int](F $part 'length'); on = [int](P $glow 'Row') }
+Pump 300
+$out.row.settled = [double](Call $glow 'Amount' @([int]2))
+$out.row.other = [double](Call $glow 'Amount' @([int]5))
+$null = Call $glow 'Over' @([int]3)
+$out.row.bothMoving = [bool](P $glow 'Running')
+Pump 300
+$out.row.left = [double](Call $glow 'Amount' @([int]2))
+$out.row.arrived = [double](Call $glow 'Amount' @([int]3))
+$null = Call $glow 'Over' @([int]-1)
+Pump 300
+$out.row.gone = @([double](Call $glow 'Amount' @([int]3)), [int](P $glow 'Row'))
+Reduce $true
+$null = Call $glow 'Over' @([int]4)
+$out.row.reduced = @([bool](P $glow 'Running'), [double](Call $glow 'Amount' @([int]4)))
+$null = Call $glow 'Over' @([int]-1)
+Reduce $false
+
+# ------------------------------------------------------------------ the page and its bar
+$page = Make 'SoftPage'
+$page.Padding = New-Object Windows.Forms.Padding 10
+$content = New-Object Windows.Forms.Panel; $content.Dock = 'Top'; $content.Height = 1600; $page.Controls.Add($content)
+$page.GetType().GetProperty('Scrolls', $instance).SetValue($page, $true, $null)
+Place $page 300 20 300 300; $page.PerformLayout(); Pump 40
+$out.pageOverflow = [bool](P $page 'Overflowing')
+$bar = P $page 'Bar'
+$null = P (F $bar 'edge') 'Now'
+$null = Call $bar 'Hover' @($true)
+$out.bar = @{ state = [int](P $bar 'State'); moving = [bool](P $bar 'EdgeMoving') }
+Pump 300
+$out.bar.after = [bool](P $bar 'EdgeMoving')
+$null = Call $bar 'Hover' @($false)
+Pump 300
+$out.bar.left = @([int](P $bar 'State'), [bool](P $bar 'EdgeMoving'))
+$null = Call $page 'Wheel' @([int]-120)
+$target = [int](F $page 'glideTarget')
+$out.wheel = @{ gliding = [bool](P $page 'Gliding'); target = $target; first = [int](F $page 'offset') }
+# A PC so slow only one frame gets through: the time has gone, so the glide is over.
+Start-Sleep -Milliseconds 400
+[Windows.Forms.Application]::DoEvents()
+Pump 40
+$out.wheel.afterOneFrame = @([int](F $page 'offset'), [bool](P $page 'Gliding'))
+$null = Call $page 'ScrollTo' @([int]0, $false)
+$null = (T 'ISoftScroller').GetMethod('Page').Invoke($page, [object[]]@([int]1))
+$out.paged = @{ first = [bool](P $page 'Gliding') }
+$null = (T 'ISoftScroller').GetMethod('Page').Invoke($page, [object[]]@([int]1))
+$out.paged.held = [bool](P $page 'Gliding')
+Pump 400
+$null = Call $page 'ScrollTo' @([int]0, $false)
+Pump 400
+$child = New-Object Windows.Forms.Panel; $child.Height = 20; $child.Dock = 'Top'; $content.Controls.Add($child)
+$child.Top = 1200; $child.Dock = 'None'; $child.Top = 1200
+$null = Call $page 'Reveal' @($child)
+$out.reveal = [bool](P $page 'Gliding')
+Pump 400
+Reduce $true
+$null = Call $page 'Wheel' @([int]-120)
+$out.wheelReduced = [bool](P $page 'Gliding')
+Reduce $false
+
+# ------------------------------------------------------------------ the status light
+$dot = Make 'HaloDot'; Place $dot 20 240 40 40; Pump 30
+$dot.GetType().GetProperty('State', $instance).SetValue($dot, 'failed', $null)
+$out.dot = @{ moving = [bool](P $dot 'ColourMoving') }
+Pump 300
+$out.dot.after = [bool](P $dot 'ColourMoving')
+Reduce $true
+$dot.GetType().GetProperty('State', $instance).SetValue($dot, 'idle', $null)
+$out.dot.reduced = [bool](P $dot 'ColourMoving')
+Reduce $false
+$dot.GetType().GetProperty('State', $instance).SetValue($dot, 'attention', $null)
+Pump 300
+$out.dot.loop = [int](F (F $dot 'timer') 'interval')
+$old = SF 'TaskbarMark' 'BatterySaverOn'
+SetSF 'TaskbarMark' 'BatterySaverOn' ([Said]::Answer($true))
+$null = S 'Motion' 'AskAmbientAgain' @()
+Pump 200
+$out.dot.saver = @([bool](P $dot 'Stilled'), [bool](SProp 'Motion' 'Ambient'))
+SetSF 'TaskbarMark' 'BatterySaverOn' ([Said]::Answer($false))
+$oldLock = SF 'TaskbarMark' 'SessionLockedOn'
+SetSF 'TaskbarMark' 'SessionLockedOn' ([Said]::Answer($true))
+$null = S 'Motion' 'AskAmbientAgain' @()
+$out.dot.locked = [bool](SProp 'Motion' 'Ambient')
+SetSF 'TaskbarMark' 'SessionLockedOn' ([Said]::Answer($false))
+$null = S 'Motion' 'AskAmbientAgain' @()
+Pump 1300
+$out.dot.back = @([bool](P $dot 'Stilled'), [bool](F (F $dot 'timer') 'enabled'))
+SetSF 'TaskbarMark' 'BatterySaverOn' $old
+SetSF 'TaskbarMark' 'SessionLockedOn' $oldLock
+$null = S 'Motion' 'AskAmbientAgain' @()
+
+# ------------------------------------------------------------------ the chart
+$chart = Make 'OutcomeChart'; Place $chart 20 300 300 80; Pump 30
+SetF $chart 'BarColor' ([Drawing.Color]::Blue); SetF $chart 'FailureColor' ([Drawing.Color]::Red); SetF $chart 'OtherColor' ([Drawing.Color]::Gray); SetF $chart 'TextColor' ([Drawing.Color]::Black)
+function Bars([int]$one, [int]$two) {
+    $bars = $chart.GetType().GetField('Bars', $instance).GetValue($chart)
+    $bars.Clear()
+    $bars.Add((MakeWith 'OutcomeChart+Bar' @('alpha', [int]$one, 'success')))
+    $bars.Add((MakeWith 'OutcomeChart+Bar' @('beta', [int]$two, 'failure')))
+    $null = Call $chart 'Changed' @()
+}
+Bars 2 4
+$out.chart = @{ firstMoves = [bool](P $chart 'Growing') }
+function Wide { return [int](Call $chart 'Faces' @())[0].Width }
+$before = Wide
+Bars 4 4
+$out.chart.moves = [bool](P $chart 'Growing')
+$out.chart.startWide = @($before, (Wide))
+Pump 400
+$out.chart.after = @([bool](P $chart 'Growing'), (Wide))
+Bars 4 4
+$out.chart.same = [bool](P $chart 'Growing')
+"""
+
+PROBE_MENU = r"""
+# ------------------------------------------------------------------ the right-click menu
+$menu = Make 'SoftMenu'
+$null = $menu.Items.Add([Windows.Forms.ToolStripMenuItem]::new('Postpone'))
+$null = $menu.Items.Add([Windows.Forms.ToolStripMenuItem]::new('Let it continue'))
+$menu.Size = $menu.GetPreferredSize([Drawing.Size]::Empty)
+$menu.PerformLayout()
+$menu.Location = $origin
+$h = $menu.Handle
+$layer = P $menu 'Layer'
+$null = [Quiet]::ShowWindow($h, 4)
+$out.menu = @{ visible = [bool]$menu.Visible }
+$out.menu.appearing = [bool](P $layer 'Appearing')
+$out.menu.alpha = [int](P $layer 'Alpha')
+$out.menu.rise = [int](P $layer 'Rise')
+Pump 500
+$out.menu.after = @([bool](P $layer 'Appearing'), [int](P $layer 'Alpha'), [int](P $layer 'Rise'))
+$live = [int](SF 'SoftLayerFade' 'Live')
+$null = Call $layer 'Closed' @()
+$out.menu.ghost = ([int](SF 'SoftLayerFade' 'Live') - $live)
+$out.menu.imageGone = ((P $layer 'Image') -eq $null)
+Pump 400
+$out.menu.ghostGone = ([int](SF 'SoftLayerFade' 'Live') - $live)
+Reduce $true
+$null = Call $layer 'Open' @()
+$out.menu.reduced = @([bool](P $layer 'Appearing'), [int](P $layer 'Alpha'), [int](P $layer 'Rise'))
+$live = [int](SF 'SoftLayerFade' 'Live')
+$null = Call $layer 'Closed' @()
+$out.menu.reducedGhost = ([int](SF 'SoftLayerFade' 'Live') - $live)
+Reduce $false
+$null = [Quiet]::ShowWindow($h, 0)
+"""
+
+
 class Probed(unittest.TestCase):
     """The compiled window, one probe, one answer."""
 
@@ -711,6 +871,111 @@ class ControlTests(Probed):
 
     def test_with_motion_reduced_a_list_is_simply_gone(self):
         self.assertEqual(self.answer["comboReduced"], [False, False, 0.0])
+
+
+class SurfaceMotionTests(Probed):
+    sections = (PROBE_HELPERS, PROBE_SURFACES, PROBE_MENU)
+
+    # ------------------------------------------------------------------ list rows
+    def test_the_row_under_the_pointer_tints_alone(self):
+        row = self.answer["row"]
+        self.assertTrue(row["running"])
+        self.assertEqual(row["length"], brand.MOTION["press_ms"])
+        self.assertEqual(row["on"], 2)
+        self.assertEqual(row["settled"], 1.0)
+        self.assertEqual(row["other"], 0.0)
+        self.assertTrue(row["bothMoving"])
+        self.assertEqual(row["left"], 0.0, "the row left goes back")
+        self.assertEqual(row["arrived"], 1.0)
+        self.assertEqual(row["gone"], [0.0, -1])
+        self.assertEqual(row["reduced"], [False, 1.0], "reduced, a tint with no glide")
+
+    def test_a_row_stays_a_flat_hairline_row(self):
+        cell = guiscan.member_body("SettingsForm", "DrawCell")
+        self.assertIn("soft.Glow.Amount(e.ItemIndex)", cell)
+        for never in ("StampOuter", "Soft.Body(", "Rounded("):
+            self.assertNotIn(never, cell)
+        self.assertNotIn("new Bitmap", guiscan.type_body("RowGlow"))
+
+    # ------------------------------------------------------------------ the page and its bar
+    def test_the_bars_edge_glides_and_the_thumb_never_does(self):
+        self.assertTrue(self.answer["pageOverflow"])
+        bar = self.answer["bar"]
+        self.assertEqual(bar["state"], 1)
+        self.assertTrue(bar["moving"])
+        self.assertFalse(bar["after"])
+        self.assertEqual(bar["left"], [0, False])
+        self.assertIn("void ISoftScroller.ScrollTo(int target) { ScrollTo(target, false); }", guiscan.type_body("SoftPage"),
+                      "a dragged thumb is where the pointer has it")
+
+    def test_the_wheel_takes_a_time_and_not_a_number_of_frames(self):
+        wheel = self.answer["wheel"]
+        self.assertTrue(wheel["gliding"])
+        self.assertGreater(wheel["target"], 0)
+        self.assertEqual(wheel["afterOneFrame"], [wheel["target"], False],
+                         "the frames a slow PC could not draw are dropped; the time is not stretched")
+
+    def test_a_press_on_the_track_glides_and_a_held_one_follows_at_once(self):
+        self.assertTrue(self.answer["paged"]["first"])
+        self.assertFalse(self.answer["paged"]["held"])
+
+    def test_a_field_reached_from_the_keyboard_is_glided_to(self):
+        self.assertTrue(self.answer["reveal"])
+
+    def test_with_motion_reduced_the_wheel_jumps(self):
+        self.assertFalse(self.answer["wheelReduced"])
+
+    # ------------------------------------------------------------------ the status light
+    def test_the_lights_colour_glides_between_states(self):
+        dot = self.answer["dot"]
+        self.assertTrue(dot["moving"])
+        self.assertFalse(dot["after"])
+        self.assertFalse(dot["reduced"])
+
+    def test_battery_saver_and_a_locked_session_hold_the_lights_loop_still(self):
+        dot = self.answer["dot"]
+        self.assertEqual(dot["loop"], 33, "breathing")
+        self.assertEqual(dot["saver"], [True, True], "a beat a second, and nothing painted")
+        self.assertTrue(dot["locked"])
+        self.assertEqual(dot["back"], [False, True], "and it breathes again by itself")
+
+    # ------------------------------------------------------------------ the chart
+    def test_the_statistics_bars_glide_to_new_numbers(self):
+        chart = self.answer["chart"]
+        self.assertFalse(chart["firstMoves"], "a new chart is simply drawn")
+        self.assertTrue(chart["moves"])
+        before, start = chart["startWide"]
+        grown, wide = chart["after"]
+        self.assertLess(start, wide, "part-way, not simply there")
+        self.assertGreaterEqual(start, before)
+        self.assertFalse(grown)
+        self.assertGreater(wide, before)
+        self.assertFalse(chart["same"], "the same numbers again move nothing")
+
+    # ------------------------------------------------------------------ the menu
+    def test_a_menu_fades_in_and_rises(self):
+        menu = self.answer["menu"]
+        self.assertTrue(menu["appearing"], menu)
+        self.assertLess(menu["alpha"], 255)
+        self.assertGreater(menu["rise"], 0)
+        self.assertEqual(menu["after"], [False, 255, 0])
+
+    def test_a_menu_closed_fades_on_a_window_of_its_own(self):
+        menu = self.answer["menu"]
+        self.assertEqual(menu["ghost"], 1)
+        self.assertTrue(menu["imageGone"])
+        self.assertEqual(menu["ghostGone"], 0, "and nothing is left")
+
+    def test_with_motion_reduced_a_menu_is_simply_there_and_gone(self):
+        menu = self.answer["menu"]
+        self.assertEqual(menu["reduced"], [False, 255, 0])
+        self.assertEqual(menu["reducedGhost"], 0)
+
+    def test_a_frame_of_the_menu_lays_the_picture_down_and_makes_none(self):
+        for member in ("Tick", "Blit"):
+            body = guiscan.member_body("SoftMenuLayer", member)
+            self.assertNotIn("new Bitmap", body)
+            self.assertNotIn("Upload", body)
 
 
 if __name__ == "__main__":

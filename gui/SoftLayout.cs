@@ -258,8 +258,15 @@ namespace CodexAutoResume
         void ISoftScroller.ScrollTo(int target) { ScrollTo(target, false); }
         void ISoftScroller.Page(int direction)
         {
-            ScrollTo(offset + direction * SoftBar.PageStep(ClientSize.Height, Soft.Px(SoftBar.Line)), false);
+            // A press on the track glides as the wheel does; held, the pages after it follow at once, or a thumb still on
+            // its way would never be seen to have reached the pointer.
+            bool held = paged.IsRunning && paged.ElapsedMilliseconds < 2 * Motion.Duration;
+            paged.Restart();
+            int from = Gliding ? glideTarget : offset;
+            ScrollTo(from + direction * SoftBar.PageStep(ClientSize.Height, Soft.Px(SoftBar.Line)), !held);
         }
+
+        private readonly System.Diagnostics.Stopwatch paged = new System.Diagnostics.Stopwatch();
 
         public override Rectangle DisplayRectangle
         {
@@ -374,14 +381,21 @@ namespace CodexAutoResume
             int range = overflow ? Math.Max(0, extent - ClientSize.Height) : 0;
             target = Math.Max(0, Math.Min(range, target));
             glideTarget = target;
-            if (animate && !Soft.ReduceMotion && IsHandleCreated && Soft.Shown(this))
+            if (animate && Motion.Allowed(this))
             {
+                // v0.6.23: from where it is now, over brand's transition, whatever a frame costs: a slow PC drops frames, not time.
+                glideFrom = offset;
+                glideClock.Reset();
+                glideClock.Start();
                 if (!glide.Enabled) glide.Start();
                 return;
             }
             glide.Stop();
             MoveTo(target);
         }
+
+        private int glideFrom;
+        private readonly System.Diagnostics.Stopwatch glideClock = new System.Diagnostics.Stopwatch();
 
         /// Whether it is gliding toward an offset rather than standing at one.
         internal bool Gliding { get { return glide != null && glide.Enabled; } }
@@ -401,9 +415,14 @@ namespace CodexAutoResume
 
         private void Glide()
         {
-            int next = SoftBar.GlideStep(offset, glideTarget);
-            MoveTo(next);
-            if (next == glideTarget || !Soft.Shown(this)) glide.Stop();
+            double t = glideClock.Elapsed.TotalMilliseconds / Math.Max(1, Motion.Duration);
+            if (t >= 1.0 || !Motion.Allowed(this))
+            {
+                glide.Stop();
+                MoveTo(glideTarget);
+                return;
+            }
+            MoveTo(SoftBar.GlideAt(glideFrom, glideTarget, Motion.Ease(t)));
         }
 
         /// Scrolls by one turn of the wheel, `delta` as Windows reports it. False when there is
@@ -440,7 +459,7 @@ namespace CodexAutoResume
             if (c == null) return;
             top += offset;
             ScrollTo(SoftBar.IntoView(offset, top, top + control.Height, ClientSize.Height,
-                                      Soft.Px(SoftBar.RevealRoom), extent), false);
+                                      Soft.Px(SoftBar.RevealRoom), extent), true);
         }
 
         // Focus arriving anywhere in the page. From the keyboard only: a click on a control half out of
@@ -570,13 +589,10 @@ namespace CodexAutoResume
             return Math.Max(0, Math.Min(Math.Max(0, extent - viewport), target));
         }
 
-        /// One frame of a glide from `from` toward `to`: a third of the way, and the rest at the end.
-        internal static int GlideStep(int from, int to)
+        /// Where a glide from `from` to `to` stands, `eased` of the way there (Motion.Ease of how much of the time has gone).
+        internal static int GlideAt(int from, int to, double eased)
         {
-            int left = to - from;
-            if (Math.Abs(left) <= 2) return to;
-            int step = (int)Math.Round(left * 0.35);
-            return from + (step == 0 ? Math.Sign(left) : step);
+            return from + (int)Math.Round((to - from) * eased);
         }
 
         // States: 0 resting, 1 under the pointer, 2 dragged. The brand half is the theme's (Tokens).
@@ -622,6 +638,12 @@ namespace CodexAutoResume
         /// list's bar across its bottom was added).
         internal static void Draw(Graphics g, Rectangle track, Rectangle thumb, int state, Color ground)
         {
+            Draw(g, track, thumb, state, ground, ThumbEdge(state, Palette.Contrast));
+        }
+
+        /// The same, its pill's edge `edge`: where it has got to between two states (SoftScrollBar).
+        internal static void Draw(Graphics g, Rectangle track, Rectangle thumb, int state, Color ground, Color edge)
+        {
             if (track.Width <= 0 || track.Height <= 0) return;
             bool contrast = Palette.Contrast;
             float radius = Math.Min(track.Width, track.Height) / 2f;
@@ -642,7 +664,7 @@ namespace CodexAutoResume
                 Elevation.StampOuter(g, thumb, "control", knob, groove, false);
                 g.Restore(saved);
             }
-            Soft.Body(g, thumb, knob, ThumbFill(state, contrast), ThumbEdge(state, contrast), false);
+            Soft.Body(g, thumb, knob, ThumbFill(state, contrast), edge, false);
         }
     }
 
@@ -660,6 +682,7 @@ namespace CodexAutoResume
         private readonly ISoftScroller scroller;
         private readonly bool across;
         private readonly Timer repeat = new Timer();
+        private readonly SoftSurfaceGlide edge;
         private Rectangle track;
         private bool hover, dragging;
         private int grab, pointer, direction;
@@ -677,8 +700,19 @@ namespace CodexAutoResume
             host.MouseLeave += delegate { if (!dragging) Hover(false); };
             host.MouseCaptureChanged += delegate { if (!host.Capture) Release(); };
             repeat.Tick += delegate { repeat.Interval = 50; Page(); };
-            host.Disposed += delegate { repeat.Dispose(); };
+            // v0.6.23: the edge's colour alone glides, in its own strip; the thumb never does - it is where the pointer has it.
+            edge = new SoftSurfaceGlide(host, EdgeWanted);
+            edge.Where = delegate { return HitArea; };
+            host.Disposed += delegate { repeat.Dispose(); edge.Dispose(); };
         }
+
+        private SurfaceLook EdgeWanted()
+        {
+            return new SurfaceLook(Color.Empty, SoftBar.ThumbEdge(State, Palette.Contrast), Color.Empty);
+        }
+
+        /// Whether its edge is on its way between two states (for the tests).
+        internal bool EdgeMoving { get { return edge.Running; } }
 
         /// The track, in the host's coordinates; empty while there is nothing to scroll.
         internal Rectangle Track
@@ -733,7 +767,7 @@ namespace CodexAutoResume
 
         internal void Paint(Graphics g)
         {
-            if (!track.IsEmpty) SoftBar.Draw(g, track, Thumb, State, Ground.Colour(host));
+            if (!track.IsEmpty) SoftBar.Draw(g, track, Thumb, State, Ground.Colour(host), edge.Now.Edge);
         }
 
         internal void Invalidate()
@@ -751,6 +785,7 @@ namespace CodexAutoResume
             {
                 dragging = true;
                 grab = at - Start(thumb);
+                edge.Changed(Motion.Press);
                 Invalidate();
                 return;
             }
@@ -802,6 +837,7 @@ namespace CodexAutoResume
             repeat.Stop();
             if (!dragging) return;
             dragging = false;
+            edge.Changed(Motion.Press);
             Invalidate();
         }
 
@@ -809,7 +845,7 @@ namespace CodexAutoResume
         {
             if (hover == over) return;
             hover = over;
-            Invalidate();
+            edge.Changed();
         }
     }
 

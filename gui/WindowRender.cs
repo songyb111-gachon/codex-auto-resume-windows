@@ -470,7 +470,7 @@ namespace CodexAutoResume
         }
 
         /// The page scrolled `notches` turns of the wheel down, the last of them `glide_ms` into its glide - as
-        /// SoftPage glides, a step of SoftBar.GlideStep every SoftBar.GlideInterval - or at rest.
+        /// SoftPage glides, SoftBar.GlideAt along brand's curve over brand's transition - or at rest.
         private void RenderScroll(string page, Dictionary<string, object> scroll)
         {
             Control built;
@@ -494,7 +494,7 @@ namespace CodexAutoResume
                 int step = SoftBar.WheelStep(-120, RenderWheelLines, Soft.Px(SoftBar.Line), viewport);
                 int target = Math.Max(0, Math.Min(range, offset + step));
                 if (notch < notches - 1 || glide < 0) { offset = target; continue; }
-                for (int tick = 0; tick < glide / SoftBar.GlideInterval; tick++) offset = SoftBar.GlideStep(offset, target);
+                offset = SoftBar.GlideAt(offset, target, Motion.Ease(glide / (double)Math.Max(1, Motion.Duration)));
             }
             return offset;
         }

@@ -499,10 +499,9 @@ foreach ($case in (ConvertFrom-Json $env:CAR_PAGES)) { $out.pageStep += [int]$pa
 $intoView = $barType.GetMethod('IntoView', $static)
 $out.intoView = @()
 foreach ($case in (ConvertFrom-Json $env:CAR_VIEWS)) { $out.intoView += [int]$intoView.Invoke($null, [object[]]@([int]$case[0], [int]$case[1], [int]$case[2], [int]$case[3], [int]$case[4], [int]$case[5])) }
-$glideStep = $barType.GetMethod('GlideStep', $static)
+$glideAt = $barType.GetMethod('GlideAt', $static)
 $out.glide = @()
-$at = 0
-for ($frame = 0; $frame -lt 40 -and $at -ne 150; $frame++) { $at = [int]$glideStep.Invoke($null, [object[]]@([int]$at, 150)); $out.glide += $at }
+foreach ($part in 0.0, 0.25, 0.5, 0.75, 1.0) { $out.glide += [int]$glideAt.Invoke($null, [object[]]@([int]0, [int]150, [double]$part)) }
 
 # The colours, as High Contrast and as the brand has them.
 $trackFill = $barType.GetMethod('TrackFill', $static)
@@ -948,7 +947,7 @@ class SourceRuleTests(unittest.TestCase):
                 self.assertNotIn("Color.Transparent", body)
 
     def test_the_soft_bar_has_no_shadow_in_high_contrast_and_no_native_bar_behind_it(self):
-        draw = self.body("internal static void Draw(Graphics g, Rectangle track, Rectangle thumb, int state, Color ground)")
+        draw = self.body("internal static void Draw(Graphics g, Rectangle track, Rectangle thumb, int state, Color ground, Color edge)")
         self.assertIn("bool contrast = Palette.Contrast;", draw)
         # v0.6.10: the well's shadow and the thumb's lift are depth, off in High Contrast and in a flat design alike.
         self.assertIn("Soft.Body(g, track, radius, TrackFill(contrast, ground), TrackEdge(contrast), Palette.Depth);", draw,
@@ -959,7 +958,7 @@ class SourceRuleTests(unittest.TestCase):
         self.assertNotIn("AutoScroll", page, "the page scrolls itself; Windows' bar is never asked for")
         self.assertIn("public override Rectangle DisplayRectangle", page)
         # Reduce motion's alone: v0.6.10 asked the design too, for Still, which is Reduce motion since v0.6.11.
-        self.assertIn("if (animate && !Soft.ReduceMotion && IsHandleCreated && Soft.Shown(this))",
+        self.assertIn("if (animate && Motion.Allowed(this))",
                       self.body("internal void ScrollTo(int target, bool animate)"), "no glide with motion reduced")
 
 

@@ -630,6 +630,54 @@ namespace CodexAutoResume
         {
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
                      ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
+            grow = new Transition(this, 1.0);
+        }
+
+        private readonly Transition grow;
+        private string[] seenKeys = new string[0];
+        private double[] seenShares = new double[0], fromShares = new double[0];
+
+        /// Whether its bars are on their way to new lengths; its timer runs only then.
+        internal bool Growing { get { return grow.Running; } }
+
+        /// The numbers have been read again (v0.6.23): the bars glide to their new lengths, when they are the same bars. A row
+        /// that comes or goes, or the same rows in another order, is a new chart and is simply drawn. Paint only.
+        internal void Changed()
+        {
+            int max = 0;
+            foreach (var bar in Bars) max = Math.Max(max, bar.Value);
+            var keys = new string[Bars.Count];
+            var shares = new double[Bars.Count];
+            bool sameRows = seenKeys.Length == keys.Length, sameLengths = sameRows;
+            for (int index = 0; index < keys.Length; index++)
+            {
+                keys[index] = Bars[index].Key;
+                shares[index] = max == 0 ? 0.0 : Bars[index].Value / (double)max;
+                if (sameRows && keys[index] != seenKeys[index]) sameRows = sameLengths = false;
+                else if (sameRows && shares[index] != seenShares[index]) sameLengths = false;
+            }
+            if (sameRows && sameLengths) return;
+            var from = new double[keys.Length];
+            if (sameRows) for (int index = 0; index < from.Length; index++) from[index] = Share(index);
+            fromShares = from;
+            seenKeys = keys;
+            seenShares = shares;
+            grow.Jump(0.0);
+            grow.To(1.0, sameRows && Motion.Allowed(this));
+        }
+
+        // How much of the track bar `index` stands on now: its share of the longest, or between shares while it glides.
+        private double Share(int index)
+        {
+            if (index >= seenShares.Length) return 0.0;
+            if (!grow.Running || index >= fromShares.Length) return seenShares[index];
+            return fromShares[index] + (seenShares[index] - fromShares[index]) * grow.Value;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) grow.Dispose();
+            base.Dispose(disposing);
         }
 
         // Spacing is written at 96 DPI and scaled like the rest of the window. The text is
@@ -675,7 +723,7 @@ namespace CodexAutoResume
             int track = Track(labelWidth);
             for (int index = 0, y = 0; index < Bars.Count; index++, y += row)
             {
-                int bodyWidth = Math.Max(Px(2), Length(Bars[index].Value, max, track));
+                int bodyWidth = Math.Max(Px(2), Length(index, max, track));
                 int left = mirrored ? Width - labelWidth - Px(12) - bodyWidth : labelWidth + Px(12);
                 faces[index] = new Rectangle(left, y + Px(5), bodyWidth, Font.Height - Px(2));
             }
@@ -696,9 +744,12 @@ namespace CodexAutoResume
             return Math.Max(Px(10), Width - labelWidth - numberWidth - Px(24));
         }
 
-        private static int Length(int value, int max, int track)
+        // Bar `index`'s length on a track `track` long: as far as its glide has come while it has one (Changed), and what its
+        // number says, of the longest, otherwise.
+        private int Length(int index, int max, int track)
         {
-            return (int)Math.Round(track * (value / (double)max));
+            if (grow.Running && index < seenShares.Length) return (int)Math.Round(track * Share(index));
+            return (int)Math.Round(track * (Bars[index].Value / (double)max));
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -734,7 +785,7 @@ namespace CodexAutoResume
                 if (Palette.Depth) Soft.Body(e.Graphics, face, face.Height / 2f, fill, fill, null);
                 else using (var flat = new SolidBrush(fill)) e.Graphics.FillRectangle(flat, face);
                 string number = bar.Value.ToString(CultureInfo.CurrentCulture);
-                int length = Length(bar.Value, max, track);
+                int length = Length(index, max, track);
                 if (mirrored)
                 {
                     var word = new Rectangle(Width - labelWidth, y + Px(4), labelWidth, row - Px(4));
@@ -1710,7 +1761,10 @@ namespace CodexAutoResume
             // Rows on the card's surface with a full hairline between them, as the panel's setting
             // rows have; the chosen row is pressed into the inset colour. High Contrast keeps
             // Highlight for it.
-            Color back = !selected ? Card : Palette.Contrast ? Palette.AccentSoft : Palette.Inset;
+            // v0.6.23: the row under the pointer has a flat tint, half way to the chosen row's colour: no lift, still flat.
+            var soft = list as SoftList;
+            double hot = soft == null || selected || Palette.Contrast ? 0.0 : soft.Glow.Amount(e.ItemIndex);
+            Color back = selected ? (Palette.Contrast ? Palette.AccentSoft : Palette.Inset) : hot > 0.0 ? Soft.Mix(Card, Palette.Inset, hot * 0.5) : Card;
             // Brushes from Soft.Fill, which keeps one per colour: a list of twenty rows across six columns
             // allocated two hundred and forty brushes every time it repainted, and it repaints on every
             // scroll, selection and refresh.
