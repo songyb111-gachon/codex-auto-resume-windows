@@ -532,8 +532,6 @@ def _is_in_place(codex_home, data) -> bool:
 
 
 def _app_running() -> bool:
-    try:
-        from codex_auto_resume.codex.pairing import app_running, inventory
-        return bool(app_running(inventory()))
-    except Exception:
-        return True                                          # unknown is running: nothing is written under it
+    """Whether a sign-in file may be under the app's feet: unknown is running, so nothing is written under it."""
+    from codex_auto_resume.codex.pairing import app_running_now
+    return app_running_now() is not False

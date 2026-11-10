@@ -227,6 +227,15 @@ def app_running(rows) -> bool:
                for row in rows)
 
 
+def app_running_now():
+    """Whether any process of the Codex app's package runs now: True, False, or None where the process list could not be
+    read. Each caller says what unknown means for it (advanced codex/swap: running; engine/opentarget: not known to be)."""
+    try:
+        return app_running(inventory())
+    except Exception:
+        return None
+
+
 # The app servers this process started and still holds (v0.6.16-beta.4): each one's pid and creation time, read from
 # our own spawn while its handle is ours - so the pid cannot be reused under it - and never matched by name or path.
 _OWN = set()
