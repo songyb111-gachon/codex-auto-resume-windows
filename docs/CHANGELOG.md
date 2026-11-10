@@ -1,5 +1,135 @@
 # Changelog
 
+## v0.6.23-beta — Archives more than a quarter smaller, controls that glide between their states, room for longer messages and waits, the code made ready for Python 3.15, and the advanced edition's choice of another Python
+
+[The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.22...v0.6.23-beta)
+
+**A pre-release: the first of v0.6.23.** It is a GitHub pre-release, so `releases/latest` stays v0.6.22. An installation is offered it
+by *Check for updates* where pre-releases are offered - the check asks first and says it is tested less - and *Install another
+version...* lists it, in the edition you pick. It is a beta because it carries things you can notice: the smaller download, the way the
+window moves, the higher limits and, in the advanced edition, the choice of another Python. Both editions change in the first group;
+the second is the advanced edition's alone, and what it adds is off until you turn it on, except the higher limits, which only widen what a
+capability you turned on may hold.
+
+**The bundled Python stays 3.14.10.** The code is ready for Python 3.15 - it was tried against 3.15.2 - but the switch itself is not in
+this release: it waits for CPython 3.15.3 and a later version of this program. Nobody runs 3.15 here unless they pick it, and only the
+advanced edition can pick it (a preview, below).
+
+**Going back.** Nothing that an earlier version reads changes: the watcher's state stays schema 5 and the settings file gains no key. The
+advanced edition's own file stays version 9 with no table added; three of its tables - the scheduled messages, the reset messages and the
+steered lines - are made again at the first opening with room for a message of 30,000 characters, every row kept, and an earlier version
+reads the file as it is. An earlier version sends no message longer than 8,192 characters (it refuses one with its usual word for a
+message that is too long) and holds fewer messages waiting - twenty scheduled, five to a conversation, ten for a reset - so it keeps
+every message and takes in no new one while it holds more than its own limits. A series you write now has no end date and runs as many
+times as you picked; an earlier version ends it 30 days after it was written, as it always did, and a series written by it keeps its 30
+days here. A failure the advanced edition took up within the last six hours is taken up within the last hour there. The other Python you
+chose is one small record and one folder in the installation, which an earlier version does not look at: it runs the bundled Python, and
+the folder stays until you delete it by hand (about 30 MB). A Dashboard started by the installer after an update carries one argument
+more, which every earlier window ignores. A file in the logs folder says that a watcher started without its crash restart, and an
+earlier version leaves it be.
+
+### Both editions
+
+- **The archives are more than a quarter smaller.** The standard edition's archive went from 17,569,476 to 12,440,014 bytes, the advanced
+  edition's from 19,395,460 to 14,265,998 - 5,129,462 bytes less in each. The release no longer carries the pictures only the README
+  shows or the development tools, and its copy of Python is trimmed to the 351 of its 563 library members that the product can reach,
+  by a list kept in the repository. The release build checks what it staged: it stops when any module of the product no longer imports
+  under the trimmed runtime, or when one of its imports was never read. What is left is python.org's own interpreter and DLLs,
+  unchanged. A size budget, in a file the maintainer edits, is held by a test, and the changelog inside the archive is the entry of its
+  own version with a line saying where the whole one is.
+- **The controls glide between their states.** Buttons, switches, check boxes, drop-downs, tabs, choices and fields now move from
+  rest to hover, to press and to disabled instead of jumping, a press has a shorter time of its own, and a button waits 150 ms before it
+  looks disabled while a call is in flight, so a quick call does not make it flicker. List rows take a flat tint under the pointer, the
+  scroll bar's edge glides, the wheel and a keyboard reveal scroll by time rather than by frame, right-click menus fade in and rise, the
+  status light's colour glides, and the Statistics bars glide to new numbers. Where motion is off - the Reduce motion setting - each
+  changes at once, as before. The status light's loop holds still under battery saver or a locked session.
+- **More of the window stands in the one design.** The tooltip is a card of the same material that fades in, the dialogs' fields and
+  wells sit on a card, the setup program's two links have a hover underline, a press and a focus ring, and the card of a dialog is
+  measured at the width it will have, which fixes the custom-value dialog being cut off. The Dashboard's state light is read by a screen
+  reader as its headline. Opening the notices card from a status line lands on the card instead of at the top of the column.
+- **A window that fails says so quietly.** An exception in one of the window's callbacks now goes to `errors.log` and the window stays
+  open, instead of .NET's own error dialog. A window Windows refuses the foreground - a setup window another program started - stands
+  above the others without taking the keyboard from what you were typing. A Dashboard the installer opens again after an update hands over
+  to one you opened meanwhile, so two do not run side by side. The setup and uninstall windows wait half an hour for their script, then
+  say it is still running and leave it alone, and an uninstall that is taking long has its own sentence.
+- **The Dashboard's Start watcher waits 45 seconds** instead of 6, the wait setup's Finish page already used. It said *not confirmed
+  running yet* beside a watcher that was only slow to be seen - the advanced edition's start takes 12 to 20 seconds. The wait ends the
+  moment the watcher is seen, so an ordinary start returns as fast as before.
+- **The watcher waits 300 seconds to see a continuation delivered** instead of 180. The longest delivery measured on 2026-11-10 was
+  144 seconds, 80 % of the old limit; the median was under 9 seconds.
+- **Retry now and the watcher stop for the same four reasons.** Recovery paused (by you or by an administrator), the conversation's
+  recovery off, Observe only and quiet hours each stop a usage reading, now from one rule both read, so Retry now never promises a
+  reading the watcher will refuse, and its click asks the administrator's pause too. It still sends nothing.
+- **A profile reached through a link or a short 8.3 name is still the official folder.** The check that an engine lives in Codex's own
+  folder compares both paths resolved, as the search for engines does, so such a profile is no longer refused, and a folder that is a
+  junction to somewhere else is still not the official one.
+- **The list of releases may be 8 MiB, up from 2 MiB.** It was read from GitHub in pages of thirty and was already at 60 % of its bound;
+  past it, the pre-release offer and *Install another version...* would show nothing. A test fails at 80 %.
+- **A community report names a wait for a server that could not be matched by its own word**, `app_server_unmatched`, as v0.6.22's wait
+  for #58 does, instead of writing it as *other*. The comment on a refused report now says why the filing limits stand: one account or
+  one script must not outweigh everyone else's reports. The limits themselves - an account at least 30 days old, 3 reports an account and
+  5 a Codex version in any 7 days - keep their numbers.
+- **The compatibility data is sequence 13**, with seven more Codex builds up to codex-cli 0.167.0-alpha.3.2 (22 in all), published
+  2026-11-09 and valid until 2027-02-07
+  ([#61](https://github.com/songyb111-gachon/codex-auto-resume-windows/pull/61)). Four of the builds are verified in ten capabilities;
+  codex-cli 0.163.0-alpha.11.1 and 0.166.0-alpha.6 are checked in two, and 0.167.0-alpha.3.2 in twelve, none verified.
+- **The code is ready for Python 3.15, and nothing you see changes on 3.14.** Every text call names its encoding, so it means the same on
+  3.13, 3.14 and 3.15 - 3.15 reads UTF-8 where this kind of PC read cp949 - and a test finds a new call that does not; no Python file
+  uses what 3.15 removes or deprecates, and a test reads every one for it; lazy imports wait behind one switch, off in this version,
+  and the build's check reads 3.15's bytecode and imports for real; a maintainer's script samples a source-run bridge or watcher with
+  3.15's profiler in a scratch folder, and is not shipped; and one section of the development guide says what changes on the day the
+  bundled Python moves, with a tool that derives the runtime's list for any version. A source run still needs Python 3.13 or newer.
+- **The documents were read again against the code.** *docs/STANDARDS.md* was reworded throughout: ids, order, headings and what holds
+  each rule are unchanged and each rule keeps its meaning, and ten rules whose old sentence did not match the code (A19, B13, B16, C2,
+  C4, C6, C10, D2, E8, F6) now say what it does, with the date. The rules A2, A25, B6, C1, C9 and K5 carry the owner's amendment of
+  2026-11-10. PRIVACY, SECURITY, the guide, the editions page, the feature matrix, the comparison, the verification and plugin pages
+  and SUPPORT now say what is read, kept and limited today, and what the release takes from the repository and from Python's runtime.
+- **For maintainers.** Two tests and nine groups of assertions that held a rule another test already holds were removed, each after
+  breaking the rule to see the other test fail; the editor's audit, the types and the stack tests follow the code to where it
+  now lives; four flaky tests no longer fail under load or at cleanup; a preview tool, four names in the advanced code and some window code nothing used are gone; and the
+  CI's parts are dealt by the seconds of the last run.
+
+### Advanced edition
+
+- **Run on another Python version** (new). From the Advanced page you can have the program run on the newest release of Python 3.13,
+  3.14 or 3.15 (3.15 as a preview) instead of the one it came with. *Check python.org* reads python.org's list of releases and
+  SHA-256 digests, so a new patch needs no update of this program; *Use this version* asks first, then downloads that version's Windows
+  embeddable package from `www.python.org` alone. Before it runs, the whole file must match the published SHA-256, it must unpack into a
+  folder of its own inside the installation, `python.exe`, `pythonw.exe` and the Python library must each carry a valid Authenticode
+  signature of the Python Software Foundation, and every part of the program must import under it. The watcher then uses it after a
+  restart the card asks for, and the Dashboard and the Codex tools the next time they start. If the watcher cannot start under it within
+  45 seconds, it goes back to the bundled Python by itself and says so once; a step that fails deletes what it unpacked and leaves the
+  Python in use alone. *Back to the bundled version* works even when the chosen one is broken, and so does turning it off. It takes about
+  30 MB, is not updated for you, and an update or a repair keeps the choice while its line is still allowed. Only an installed copy offers
+  it. It sends nothing to Codex, and its statement names the standards it departs from.
+- **A pause is one rule for every capability.** The standards' rule that a pause stops every send and every start of Codex now holds for
+  all of them and none departs from it: while recovery is paused, the loopback API and the Telegram control keep answering, so a pause
+  can be seen or lifted, and send nothing to Codex; answering a person is not a send, so that is not a departure. What they do while paused does not change; their
+  statements no longer name it as one (reworded with no new revision, so nothing turns off).
+- **Higher limits for what you write.** Fifty scheduled messages may wait, twenty to a conversation (it was twenty and five), and fifty
+  messages for a reset (it was ten). A series runs as many times as you picked, up to 30, however long that takes - a weekly series
+  of 30 was cut after about four. A message may be 30,000 characters (it was 8,192), and the send measures the command line Windows will
+  see. A failure only the advanced edition takes up is taken up within six hours, the standard edition's look-back, where a PC that slept
+  longer than an hour left it to you. The continuation of *Longer messages* may carry 29,962 characters.
+- **Start the 5-hour window early tries again.** A usage read that failed once - a PC just woken, Codex restarting, the state busy -
+  used up the occasion and left the idle window unstarted for 29 hours on one PC. A failure that passes now leaves the occasion
+  open and looks again every five minutes, for the time's grace if you picked a time and for five hours after a reset it saw, and ends
+  in one journal line only when that is over. A reset under a full weekly window, at the ceiling, or whose request could not be started stays
+  open until the weekly window's own reset, or for a day. The capability's card says so in two lines.
+- **Restart the watcher if it stops unexpectedly says when it has not started.** A watcher that started without its launcher's
+  supervisor ran for 23 hours with no crash restart and no word. The launcher now asks again five seconds later; if the answer is still
+  missing it says so in its log, in `errors.log` and on the Advanced page, and if that watcher ends unexpectedly it starts one under
+  supervision. A supervising launcher no longer imports the engine its child runs, which shortens its start.
+- **Start with Codex counts "already running" by the day and writes no journal line for it.** Codex starts four servers in a second, and
+  on one PC those lines were 2,840 of the journal's 4,029 rows, which would have cut the history near 50 days instead of the
+  promised 90. `codex-start.log` keeps every line that four servers write at once, where it lost some.
+- **The loopback API's answer to a refused request reaches the client** even when the request's body arrives after the answer, instead of
+  a reset connection.
+- **A few cards and the editor.** *Also send again when unsure* is offered, and accepted, only for a capability that can send a
+  continuation, not for one that sends nothing; the power tasks and saved accounts cards keep the rows you ticked when a re-read
+  changes the list; a picture a killed window left in the temporary folder is swept when the editor opens; the editor's thumbnails are
+  drawn in the design; and the saved accounts' Korean help line speaks to you as its sibling does.
+
 ## v0.6.22 — Recoveries that say when the app is open and its server cannot be matched, a Desktop shortcut on the setup window's Finish page, the core and installer audits' fixes, and the advanced edition's automatic account switch, loopback API with a web view, Telegram control, a view of your other PCs, a Turn on that keeps a capability on, and ten pictures to a scheduled message
 
 [The commits in this release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.21...v0.6.22)
