@@ -240,12 +240,17 @@ namespace CodexAutoResume
             using (Process run = Process.Start(start))
             {
                 run.StandardInput.Close();
-                run.OutputDataReceived += delegate(object sender, DataReceivedEventArgs e) { if (e.Data != null) heard(e.Data); };
-                run.ErrorDataReceived += delegate(object sender, DataReceivedEventArgs e) { if (e.Data != null) heard(e.Data); };
+                // Each pipe's end, for its last lines: never disposed, for a script still running goes on telling them.
+                var outputEnded = new System.Threading.ManualResetEvent(false);
+                var errorsEnded = new System.Threading.ManualResetEvent(false);
+                run.OutputDataReceived += delegate(object sender, DataReceivedEventArgs e) { if (e.Data != null) heard(e.Data); else outputEnded.Set(); };
+                run.ErrorDataReceived += delegate(object sender, DataReceivedEventArgs e) { if (e.Data != null) heard(e.Data); else errorsEnded.Set(); };
                 run.BeginOutputReadLine();
                 run.BeginErrorReadLine();
-                run.WaitForExit();
-                run.WaitForExit(5000);
+                // Never ended by force: it may be part way through removing the installation.
+                if (!run.WaitForExit(InstallerFlow.ScriptMilliseconds)) return InstallerFlow.StillRunning;
+                outputEnded.WaitOne(5000);
+                errorsEnded.WaitOne(5000);
                 return run.ExitCode;
             }
         }

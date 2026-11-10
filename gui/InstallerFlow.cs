@@ -51,6 +51,9 @@ namespace CodexAutoResume
         /// The window's own code for a run that has not finished in the time it was given (the Dashboard's update):
         /// never ended by force, for it may be part way through replacing an installation.
         internal const int StillRunning = -2;
+        /// How long the setup program's window and the uninstall's wait for the script they ran (30 minutes, generous beside
+        /// the Dashboard's update and its download): past it the window says StillRunning and leaves the script alone.
+        internal const int ScriptMilliseconds = 1800000;
         /// The window's own code for an installer that could not be started at all.
         internal const int NotStarted = -1;
         /// The window's own code for an update the person put off on the Notes page: nothing was installed.
