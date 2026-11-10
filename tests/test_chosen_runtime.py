@@ -248,8 +248,11 @@ class LauncherTests(unittest.TestCase):
         return process
 
     def test_it_waits_as_long_as_setup_does(self):
+        """Fails when either moves alone: setup waits for control's start timeout, and the launcher keeps its own copy of the number."""
+        from codex_auto_resume import control
         spec = (ROOT / "scripts" / "plugin_setup.py").read_text(encoding="utf-8")
-        self.assertIn("WATCHER_WAIT = %s" % self.launcher.WATCHER_WAIT, spec)
+        self.assertIn("WATCHER_WAIT = control.WATCHER_START_TIMEOUT", spec)
+        self.assertEqual(self.launcher.WATCHER_WAIT, control.WATCHER_START_TIMEOUT)
 
     def test_the_answer_passes_the_guard_every_plug_is_asked_through(self):
         """Fails with another word: the guard turns anything outside the point's closed set into DEFER, and no choice is taken up."""
