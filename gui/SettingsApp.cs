@@ -1413,9 +1413,7 @@ namespace CodexAutoResume
                 if (what.Length > MostWritten) what = what.Substring(0, MostWritten);
                 File.AppendAllText(Path.Combine(logs, "errors.log"),
                                    "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) +
-                                   "] the window
-" + what + "
-", new UTF8Encoding(false));
+                                   "] the window\n" + what + "\n", new UTF8Encoding(false));
             }
             catch (Exception) { /* not written: the window goes on */ }
         }
