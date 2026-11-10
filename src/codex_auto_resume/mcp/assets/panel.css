@@ -95,7 +95,7 @@ button, select, input { font: inherit; }
    so it is the first thing on it and the largest type on it - a word, never a colour
    alone, with the halo saying the same thing for a reader who glances. */
 .hero { display: grid; gap: var(--size-hero-gap); padding: var(--size-hero-pad); position: relative; }
-.day-scene { position: absolute; top: 1px; inset-inline-end: 1px; pointer-events: none; overflow: hidden;
+.day-scene { position: absolute; top: 1px; inset-inline-end: 1px; pointer-events: none; overflow: clip;
              border-start-end-radius: var(--radius-card); }
 .day-veil { position: absolute; inset: 0; }
 .day-fall { transform-box: fill-box; transform-origin: center; animation: day-fall var(--d) linear var(--w) infinite; }
