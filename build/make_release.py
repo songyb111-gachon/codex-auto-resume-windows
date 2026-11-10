@@ -116,6 +116,8 @@ APP_SOURCES = {".mcp.json": "build/plugin-mcp.json"}
 # build/release_notes.py reads that one.
 CHANGELOG = "docs/CHANGELOG.md"
 CHANGELOG_PAGE = "https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/CHANGELOG.md"
+# What stays of the bundled runtime: see trim_runtime.
+RUNTIME_KEEP = "build/runtime_keep.json"
 LAUNCHER_FILES = ("Install.cmd", "Uninstall.cmd", "README.txt", "install.ps1")
 
 # The editions (src/codex_auto_resume/domain/plug.py, Edition). The advanced one is the standard
@@ -220,6 +222,67 @@ def newest_changelog(text: str, release: str) -> str:
         entry.pop()
     page = "This file holds this release's entry only. The whole changelog is at %s" % CHANGELOG_PAGE
     return newline.join(title + ["", page, ""] + entry + [""])
+
+
+def collect_runtime(stage: Path, archive: Path) -> int:
+    runtime = stage / "payload" / "runtime"
+    runtime.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(archive) as bundle:
+        bundle.extractall(runtime)
+    # The embeddable build ships isolated by design. Leave python3XX._pth (python314._pth) exactly as
+    # published: our entry points do their own sys.path.insert, so no edit is needed,
+    # and editing it is how people accidentally enable site-packages.
+    return sum(1 for _ in runtime.rglob("*") if _.is_file())
+
+
+def runtime_keep() -> dict:
+    """build/runtime_keep.json: what stays of the runtime, and the imports of what went that someone has read."""
+    return json.loads((ROOT / RUNTIME_KEEP).read_text(encoding="utf-8"))
+
+
+def trim_runtime(stage: Path) -> list:
+    """Take out of the staged runtime whatever build/runtime_keep.json does not name, and return what went, as modules.
+
+    After the download's digest is checked (fetch_runtime), so what is cut from is the file python.org published. The
+    list is pinned to that digest: another runtime has other modules, and a list made for this one proves nothing of it.
+    Nothing is decided here that a checked-in file does not say, and the library's members keep their order, names and
+    dates at a fixed compression, so the same commit gives the same bytes (build/edition_audit.py (e))."""
+    keep = runtime_keep()
+    if keep["python"] != PYTHON_VERSION or keep["sha256"] != PYTHON_SHA256:
+        raise SystemExit("%s was made for Python %s (%s), and this build bundles %s (%s): set python and sha256 there; "
+                         "the build's own check then names whatever the new runtime needs read again"
+                         % (RUNTIME_KEEP, keep["python"], keep["sha256"], PYTHON_VERSION, PYTHON_SHA256))
+    runtime = stage / "payload" / "runtime"
+    files, members = set(keep["files"]), set(keep["library"])
+    absent = sorted(files - {path.name for path in runtime.iterdir()})
+    if absent:
+        raise SystemExit("%s names files the runtime does not have: %s" % (RUNTIME_KEEP, ", ".join(absent)))
+    removed = []
+    for path in sorted(runtime.iterdir()):
+        if path.name not in files:
+            path.unlink()
+            if path.suffix.lower() == ".pyd":
+                removed.append(path.stem)
+    library = runtime / keep["library_zip"]
+    with zipfile.ZipFile(library) as whole:
+        infos = whole.infolist()
+        absent = sorted(members - {info.filename for info in infos})
+        if absent:
+            raise SystemExit("%s names members the runtime's library does not have: %s"
+                             % (RUNTIME_KEEP, ", ".join(absent)))
+        kept = [(info, whole.read(info)) for info in infos if info.filename in members]
+    for info in infos:
+        if info.filename not in members and info.filename.endswith(".pyc"):
+            module = info.filename[:-len(".pyc")].replace("/", ".")
+            removed.append(module[:-len(".__init__")] if module.endswith(".__init__") else module)
+    with zipfile.ZipFile(library, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as trimmed:
+        for info, data in kept:
+            entry = zipfile.ZipInfo(info.filename, info.date_time)
+            entry.compress_type = zipfile.ZIP_DEFLATED
+            entry.external_attr = info.external_attr
+            entry.create_system = 0
+            trimmed.writestr(entry, data)
+    return sorted(removed)
 
 
 def collect_app(stage: Path) -> int:
@@ -345,17 +408,6 @@ def check_courier_starts(stage: Path, timeout: float = 120) -> None:
     left = sorted(str(path.relative_to(stage)) for path in payload.rglob("__pycache__"))
     if left:
         raise SystemExit("the courier check left bytecode in the stage: %s" % ", ".join(left[:5]))
-
-
-def collect_runtime(stage: Path, archive: Path) -> int:
-    runtime = stage / "payload" / "runtime"
-    runtime.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(archive) as bundle:
-        bundle.extractall(runtime)
-    # The embeddable build ships isolated by design. Leave python3XX._pth (python314._pth) exactly as
-    # published: our entry points do their own sys.path.insert, so no edit is needed,
-    # and editing it is how people accidentally enable site-packages.
-    return sum(1 for _ in runtime.rglob("*") if _.is_file())
 
 
 def collect_gui(stage: Path, edition: str = "standard") -> int:
@@ -496,6 +548,8 @@ def main(argv=None) -> int:
 
     archive = fetch_runtime()
     runtime_files = collect_runtime(stage, archive)
+    trim_runtime(stage)
+    runtime_files = sum(1 for path in (stage / "payload" / "runtime").rglob("*") if path.is_file())
     app_files = collect_app(stage)
     if edition == "advanced":
         app_files += collect_advanced(stage)
