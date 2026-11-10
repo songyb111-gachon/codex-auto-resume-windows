@@ -639,8 +639,7 @@ def near_limit_content(minutes, percent, reset_at, kind=None) -> dict:
 
 # v0.6.18: the version a weekly update check of the advanced edition may name - a release's three numbers, or a
 # pre-release's with -alpha or -beta and a stage's number, as the Dashboard holds the check's `prerelease:` line to.
-UPDATE_VERSION = re.compile(r"(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})"
-                            r"(-(alpha|beta)(\.([2-9]|[1-9][0-9]{1,2}))?)?\Z")
+UPDATE_VERSION = re.compile(ids.PRODUCT_RELEASE + "(" + ids.PRODUCT_STAGE + r")?\Z")
 
 
 def update_offered_content(version, prerelease=False):
