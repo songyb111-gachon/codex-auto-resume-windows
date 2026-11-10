@@ -15,7 +15,7 @@ asked to agree to and everything the plug holds it to:
   capability off until they have read that one (a tripwire, arming.py);
 * `departs_from` - the standards it breaks (standards.py). Never empty: a capability that keeps
   every standard belongs in the standard edition, so the rule for which edition a capability is
-  in is this field. Only the standard edition's standards may be named (standards.DECLARABLE: DEPARTABLE and K5, the owner's word of 2026-11-06 for P22):
+  in is this field. Only the standard edition's standards may be named (standards.DECLARABLE):
   family K is the advanced edition's own rules, which every capability keeps;
 * `compat` - the Compatibility Registry capability it stands on. Its grade here is shown in the
   statement - FAILED_HERE, INCOMPATIBLE or UNKNOWN as a warning the person confirms - and a
@@ -1429,7 +1429,7 @@ LOCAL_API = CapabilityDef(
     id="local_api",
     points=frozenset({Point.TICK, Point.RESIDENT}),
     revision=1,
-    departs_from=("C1", "C2", "B14", "F8", "F6", "D1", "C12", "K5"),
+    departs_from=("C1", "C2", "B14", "F8", "F6", "D1", "C12"),
     compat="engine_present",
     ceilings=Ceilings(per_day=1, per_conversation=1),
     journal_prefix="api",
@@ -1483,15 +1483,14 @@ LOCAL_API_LAN = CapabilityDef(
 # chats, changes a setting or turns a feature on, and answers are closed words, numbers and `task N`. Five wrong codes
 # during a pairing turn it off (BAD_CODES, whether or not it is kept on). It departs from C1 and C2 (the courier is a second
 # shipped file reaching the network), C3 (api.telegram.org), C8 (Telegram sees this PC's address and the courier's name),
-# D1 (how recoveries stand goes to Telegram), F6 (a process of its own), F8 (a resident process) and K5 (it answers
-# commands while the watcher is paused: the owner's word of 2026-11-06, P22; STANDARDS.md stays). It requires
+# D1 (how recoveries stand goes to Telegram), F6 (a process of its own) and F8 (a resident process). It requires
 # push_notices, whose bot and pairing it uses; a chat not yet paired means it waits. It stands on engine_present; its
 # ceilings are the schema's floor and never bind.
 TELEGRAM_REMOTE = CapabilityDef(
     id="telegram_remote",
     points=frozenset({Point.TICK, Point.RESIDENT}),
     revision=1,
-    departs_from=("C1", "C2", "C3", "C8", "D1", "F6", "F8", "K5"),
+    departs_from=("C1", "C2", "C3", "C8", "D1", "F6", "F8"),
     compat="engine_present",
     ceilings=Ceilings(per_day=1, per_conversation=1),
     journal_prefix="tgram",
