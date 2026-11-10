@@ -193,7 +193,7 @@ them `thread/goal/set`, `thread/queue/add` with words this product wrote, and `t
   redirect followed and nothing about the machine in it. It is the one body the update check
   parses, and it is read for one thing: the newest published pre-release - not a draft, tagged
   `vMAJOR.MINOR.PATCH-alpha` or `-beta` with a stage's number - that is newer than both the version
-  installed and the newest release. A list that cannot be read, is over 2 MiB, is not a list or
+  installed and the newest release. A list that cannot be read, is over 8 MiB, is not a list or
   has not arrived within the time the check has left - a deadline for the whole request, not only
   for its first byte - offers nothing and changes nothing else in the answer. What it finds is only
   offered, and only where there is no release to offer first, in a question whose default button is
