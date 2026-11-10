@@ -11,6 +11,8 @@ import unittest
 from unittest import mock
 import zipfile
 
+import languages
+
 ROOT = Path(__file__).resolve().parents[1]
 BUILD = ROOT / "build"
 
@@ -73,6 +75,7 @@ class DerivingTheListTests(unittest.TestCase):
         self.assertEqual(scripts, {name for name in make.SHIPPED_SCRIPTS if name.endswith(".py")})
 
 
+@unittest.skipIf(languages.generated_ko_branch(), "the generated ko branch's DEVELOPMENT.md is the Korean one")
 class TheDaysDocumentTests(unittest.TestCase):
     def section(self, name="docs/DEVELOPMENT.md", heading="## The day the bundled Python moves"):
         text = (ROOT / name).read_text(encoding="utf-8")
