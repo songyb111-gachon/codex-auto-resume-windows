@@ -370,7 +370,7 @@ draws it, in the light and the dark theme, rendered off-screen from sample data;
 <img src="images/notification-card.png" alt="The notification card in the light theme: Codex Auto Resume with a cyan status light and a Usage limit chip, the task example-project, the line Codex usage limit reached. This task will resume at 08:42., the conversation's exact identifier, and the buttons Don't resume and Open Dashboard" width="388">
 
 Inside Codex, ask to *open auto resume settings* and the panel shows what is waiting and lets
-you change most of it, in sections for General, Recovery, Notifications, Continuation message
+you change most of it, in sections for General, Automatic recovery, Notifications, Continuation message
 and Appearance, with a Preview of the exact message the watcher would send and a switch for each
 waiting conversation. It follows Codex's light or dark theme unless you choose one under
 Appearance, and Codex's reduced-motion preference - and, from v0.6.10, the Reduce motion and the Design
