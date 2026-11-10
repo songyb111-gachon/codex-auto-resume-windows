@@ -156,6 +156,20 @@ class PopupTests(unittest.TestCase):
         self.assertEqual(len(items), 1)
         self.assertEqual(items[0]["motif"], "sparkle")
 
+    def test_the_mark_is_drawn(self):
+        renderer = tray_popup.Renderer()
+        try:
+            for motif, colour in (("moon", "#F6EBC9"), ("sparkle", brand.SPARKLE_COLOUR)):
+                vm = tray_popup.view_model([], {"enabled": True}, {}, 1800000000.0)
+                vm["motif"] = motif
+                plan = renderer.layout(vm, 1.0, "en")
+                pixels = renderer.draw(vm, plan, frame=tray_popup.halo("monitoring", 0.0)).pixels()
+                left, top, right, bottom = [item for item in plan["items"] if item["kind"] == "motif"][0]["rect"]
+                at = (((top + bottom) // 2) * plan["size"][0] + (left + right) // 2) * 4
+                self.assertEqual((pixels[at + 2], pixels[at + 1], pixels[at]), brand.rgb(colour), motif)
+        finally:
+            renderer.close()
+
     def test_an_ordinary_header_has_none(self):
         self.assertEqual([item for item in self.plan(None)["items"] if item["kind"] == "motif"], [])
 

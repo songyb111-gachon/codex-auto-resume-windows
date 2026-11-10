@@ -269,7 +269,7 @@ class Renderer:
                 parts.append((kind, item["rect"], item["primary"], self._lifted(item, pressed)))
             elif kind not in ("text", "focusable", "halo"):
                 parts.append((kind, item["rect"], item.get("radius"), item.get("tone"), item.get("checked"),
-                              item.get("busy"), kind == "switch" and item["target"] in glides))
+                              item.get("busy"), kind == "switch" and item["target"] in glides, item.get("motif")))
         key = (plan["size"], scale, self._theme(), self._design(), self._system_key(), bool(plan.get("rtl")),
                tuple(parts))
         if self._ground_key == key and self._ground_pixels is not None:
