@@ -95,7 +95,7 @@ from .design import (ACCENT_BAR,
                      design_glow,
                      design_radii)  # noqa: F401
 from .motion import MOTION, _bezier, ease  # noqa: F401
-from .days import (DAY_LOOKS, FIXED_DAYS, LUNAR_DAYS, MOTIF_LEAST, SCENE_HEIGHT, SCENE_WIDTH, day_look,  # noqa: F401
+from .days import (DAY_LOOKS, FIXED_DAYS, LUNAR_DAYS, MOTIF_LEAST, SCENE_FOCUS, SCENE_FROM_TOP, SCENE_HEIGHT, SCENE_WIDTH, day_look,  # noqa: F401
                    day_look_at, mark_colour, scene_frame)
 from .elevation import (CARD_LIFT,
                         SHADOWS,

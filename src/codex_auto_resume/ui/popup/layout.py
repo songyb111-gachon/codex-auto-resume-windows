@@ -60,6 +60,23 @@ def share_columns(available, needs) -> list:
     return needs
 
 
+def _scene_item(look, px, margin, card_width, words_end, below):
+    """The day's scene in what the header's words leave at the card's top right, at most two thirds of it: beginning at exactly
+    the card's colour past the last word, and its main piece whole. None where the words leave too little room for that."""
+    edge = max(1, px(1))
+    left = max(words_end + px(8), margin + card_width * 34 // 100)
+    right, top, bottom = margin + card_width - edge, margin + edge, min(margin + px(66), below - px(2))
+    whole = (bottom - top) / brand.SCENE_HEIGHT
+    focal = brand.SCENE_WIDTH - brand.SCENE_FOCUS[look]
+    least_fade = px(28)
+    unit = min(whole, (right - left - least_fade) / focal)
+    if unit < whole * 0.75:
+        return None
+    solid = left + px(2)
+    return {"kind": "scene", "scene": look, "rect": (left, top, right, bottom), "unit": unit,
+            "fade": (solid, solid + min(px(72), int(right - left - px(2) - focal * unit)))}
+
+
 def layout(vm, scale, measure, width=WIDTH) -> dict:
     """Every rectangle the window draws, in device pixels, and the height it needs.
 
@@ -94,8 +111,8 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
     mark = px(MARK)
     text_left = left + mark + px(space["s"] + 2)
     text_width = right - text_left
-    _, title_h = measure("title", vm["title"], text_width, False)
-    _, state_h = measure("state", vm["state_text"], text_width, True)
+    title_w, title_h = measure("title", vm["title"], text_width, False)
+    state_w, state_h = measure("state", vm["state_text"], text_width, True)
     stack = title_h + state_h
     header_h = max(mark, stack)
     top = y + (header_h - stack) // 2
@@ -106,12 +123,9 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
          STATE_INK.get(vm["state"], "ink"), wrap=True)
     y += header_h + px(space["m"])
     if vm.get("scene"):
-        # Two thirds of the card, from the top right, its left side faded into the card; above the summary, nothing moves.
-        edge = max(1, int(round(scale)))
-        items.append({"kind": "scene", "scene": vm["scene"],
-                      "rect": (margin + card_width * 34 // 100, margin + edge, margin + card_width - edge,
-                               min(margin + px(66), y - px(2))),
-                      "fade": (margin + card_width * 66 * 42 // 10000, margin + card_width * 66 // 100)})
+        scene = _scene_item(vm["scene"], px, margin, card_width, text_left + max(title_w, state_w), y)
+        if scene is not None:
+            items.append(scene)
 
     # Summary: waiting, recovering, next check - three values read off a field, so since v0.6.5
     # they sit in one sunken well, as the panel's fields do, with a hairline between them. The

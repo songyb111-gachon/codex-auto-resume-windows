@@ -38,6 +38,10 @@ LUNAR_DAYS = (
 # The icon's mark shows from this size up; below it the body alone.
 MOTIF_LEAST = 24
 SCENE_WIDTH, SCENE_HEIGHT = 190.0, 66.0
+# Where each scene's main piece begins, in its 190: all from there rightward is shown whole, or the scene is not shown at all.
+SCENE_FOCUS = {"birthday": 142.0, "new_year": 122.0, "christmas": 117.0, "seollal": 127.0, "chuseok": 126.0}
+# A scene narrowed to fit stands on its ground; the one that hangs from the top hangs from it.
+SCENE_FROM_TOP = ("seollal",)
 
 
 def day_look(year, month, day):
@@ -217,6 +221,11 @@ def _twinkling(stars, seconds):
     return shapes
 
 
+def _light(cx, cy, radius, whole_to, colour, opacity):
+    """A soft round light: as bright as `opacity` out to `whole_to` of its radius, then falling away to nothing."""
+    return ("glow", cx, cy, radius, whole_to, colour, opacity)
+
+
 def _stars(seeded, count, xs, ys, sizes, colour):
     return [(seeded(*xs), seeded(*ys), seeded(*sizes), colour, seeded(2.0, 4.0), seeded(0.0, 2.0)) for _ in range(count)]
 
@@ -256,7 +265,7 @@ def _new_year():
     still = [("circle", 150, 72, 28, "#FAC65A", 1.0), _poly("M60 66q24-14 48-5t44-5 44 4v8z", "#141B45")]
 
     def frame(seconds):
-        return [("circle", 150, 72, 42, "#F6B73C", 0.18 + 0.24 * _pulse(seconds, 4.0))] + still + _twinkling(stars, seconds)
+        return [_light(150, 72, 62, 0.45, "#FFC766", 0.34 + 0.3 * _pulse(seconds, 4.0))] + still + _twinkling(stars, seconds)
     return frame
 
 
@@ -321,7 +330,7 @@ def _chuseok():
         return [("round", x + dx, y, 46, 7, 3.5, "#3A3F86", 1.0), ("round", x + 10 + dx, y - 5, 24, 8, 4, "#3A3F86", 1.0)]
 
     def frame(seconds):
-        return ([("circle", 146, 30, 29, "#F6E7B4", 0.18 + 0.24 * _pulse(seconds, 4.5))] + moon
+        return ([_light(146, 30, 43, 0.47, "#FFEBB8", 0.3 + 0.3 * _pulse(seconds, 4.5))] + moon
                 + cloud(100, 50, 8.0, seconds) + cloud(146, 56, 6.0, seconds) + _twinkling(stars, seconds))
     return frame
 
