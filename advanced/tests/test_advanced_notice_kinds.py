@@ -64,7 +64,7 @@ class NoticeKindTests(unittest.TestCase):
         self.assertEqual(set(covered), set(notifier.STATUS) - {"demo"})
         mine = notice_kinds.ids()[len(notice_kinds.CORE):]
         self.assertEqual(mine, ("near_limit",) + tuple("near_limit_" + said for said in notify.NEAR_LIMIT_KINDS)
-                         + ("update_offered", "restart_gave_up", "account_changed", "accounts_exhausted"))
+                         + ("update_offered", "restart_gave_up", "account_changed", "accounts_exhausted", "python_returned"))
         with patch.object(l10n, "current", lambda: "ko"):
             entry = [entry for entry in settings.describe() if entry["name"] == notice_kinds.FIELD][0]
         for kind_id in mine:

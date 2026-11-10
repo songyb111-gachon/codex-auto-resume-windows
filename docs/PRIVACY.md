@@ -819,7 +819,9 @@ anything, they ask of the Codex already on this machine - but for the compatibil
 gh, the GitHub CLI you installed, to reach GitHub, and only when you start it (*What it sends to
 GitHub*, below); and, from v0.6.20, the courier, the advanced edition's only network code, which runs
 only while push notices, the status feed, the status server or Telegram's commands are on (*What the courier sends* and
-*What the status server shows*, below).
+*What the status server shows*, below). *Run on another Python version* uses the same package, in the Dashboard's own
+process and only when you press its button: it reads python.org's public list of releases and downloads one package from
+`www.python.org`, a download that sends nothing of yours.
 
 - **What the courier sends** (v0.6.20). With *Send notices to your phone or inbox* on, a notice you
   picked - a usage limit detected, a recovery done or failed, a conversation that needs you, the

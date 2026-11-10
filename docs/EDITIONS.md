@@ -163,6 +163,8 @@ to keep a secret, and it never reads Codex's own credentials.
 
 ## Today's capabilities
 
+An installed copy also offers one more, *Run on another Python version*, which a run from source has no use for.
+
 Forty-eight: twenty-three that change how a recovery is made, which conversations are recovered or what
 follows a turn, two that tell you elsewhere - notices sent to your phone or inbox, and OpenAI's service status
 on the Overview (v0.6.20) - three that let a browser or a script of yours read how this PC stands, pause and cancel,
@@ -1734,6 +1736,45 @@ does; nothing asks Codex for a token), C4 (it acts on its own), C9 (usage of acc
 **Measurements MPROFILE and MSWAP: passed** on `codex-cli 0.166.0-alpha.6` (2026-11-06) - a second saved account read
 on a scratch home left the real sign-in, the app and its account as they were (MPROFILE); the app came up as the other
 saved account and back, each with no sign-in page and no other Codex engine running (MSWAP, completed by the owner).
+
+### Run on another Python version
+
+**What it does.** Lets this program run on another official Python from python.org instead of the one it came
+with: the newest release of 3.13, 3.14 or 3.15 (3.15 is a preview: the bundled version moves to it only in a later
+version). Its card says which Python the watcher runs on. Nothing is read from the network until you press a
+button. **Check python.org** reads python.org's public list of releases, and only the lines this version of the
+program allows are offered, so a new patch needs no update of this program. **Use this version** asks first, then
+downloads that version's Windows embeddable package from `www.python.org`, and no other address, showing the
+bytes truly written. Before any of it runs: the whole file must match the SHA-256 python.org published, computed on
+the bytes on disk; it must unpack safely into a new folder of its own, `runtimes\<version>` inside this program's
+folder (flat, plain files, bounded in size); `python.exe`, `pythonw.exe` and the Python library must each carry a
+valid signature of the Python Software Foundation, as Windows judges it; and every part of this program must load
+under it, with no bytecode left behind. It then replaces the bundled Python: for the watcher at a restart the card
+asks for, and for the Dashboard and the Codex tools the next time they start. Only an installed copy offers it.
+
+**When it helps.** When you want a Python fix or a newer version sooner than this program's next release.
+
+**What it risks.** This program is tested most on the Python it comes with, so another version can behave
+differently, and 3.15 is a preview here. A step that fails deletes what it unpacked, says which step it was and
+leaves the Python in use alone. If the watcher does not start on the chosen version within 45 seconds, it goes back
+to the bundled Python by itself and tells you once. A chosen version takes about 40 MB and is not updated for you.
+Its folder can be opened by you, administrators and Windows, like the rest of this program's folder. Nothing
+about you is sent to python.org beyond what any download shows, and nothing here touches Codex or sends anything to it.
+
+**How to go back.** **Back to the bundled version** on the card works even when the chosen version is broken: the
+Dashboard leaves a Python that does not answer for the bundled one by itself. Turning this off does the same. Only
+the chosen version is kept; a previous one, and a folder something still runs from, are deleted once nothing runs
+from them. An update or a repair keeps your choice while its line is still allowed, and otherwise goes back to the
+bundled Python and says so. Uninstalling removes the folder with the rest of the program, and so does changing to
+the standard edition, which only ever runs the Python it was installed with.
+
+**Departs from** [B14](STANDARDS.md#b-what-it-reads-and-how) (a second Python runtime), [C1](STANDARDS.md#c-network) and
+[C2](STANDARDS.md#c-network) (network code, in the courier's package, for python.org),
+[F3](STANDARDS.md#f-footprint-on-the-machine) (program files it fetched itself),
+[F6](STANDARDS.md#f-footprint-on-the-machine) (it starts the chosen `python.exe`) and
+[I10](STANDARDS.md#i-release-and-supply-chain) (a Python no release of this program pinned).
+
+**Ceilings.** None come into play: it sends nothing to Codex. It rests on no measurement.
 
 ### Compatibility report
 

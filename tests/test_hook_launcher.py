@@ -26,6 +26,7 @@ sys.path.insert(0, str(ROOT / "build"))
 import normalize_pe  # noqa: E402
 
 SOURCE = ROOT / "gui" / "HookLauncher.cs"
+READER = ROOT / "gui" / "RuntimeChoice.cs"
 CSC = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Microsoft.NET" / "Framework64" / "v4.0.30319" / "csc.exe"
 NO_WINDOW = 0x08000000
 
@@ -53,7 +54,7 @@ static class Program {
 
 def _compile(source: Path, out: Path) -> Path:
     subprocess.run([str(CSC), "/nologo", "/target:exe", "/platform:x64", "/optimize+", "/out:" + str(out),
-                    "/reference:System.dll", str(source)],
+                    "/reference:System.dll", str(source)] + ([str(READER)] if source == SOURCE else []),
                    check=True, capture_output=True, timeout=180, creationflags=NO_WINDOW)
     return out
 
