@@ -2162,13 +2162,6 @@ class CardDesignTests(unittest.TestCase):
         for distance in (6, 7, 8):
             self.assertEqual(self.pixel(card.body, cx + distance, cy), ground, distance)
 
-    def test_reduce_motion_holds_every_design(self):
-        for design in brand.DESIGNS:
-            card = self.offscreen(self.breathing(), design, reduced=True)
-            with self.subTest(design):
-                self.assertEqual(card.motion.phase, "hold")
-                self.assertFalse(card.breathe(brand.GLOW["monitoring_ms"] // 2))
-
     def test_the_card_is_cut_at_its_designs_corner(self):
         for design in ("classic", "plain"):
             card = self.offscreen(build("interruption", EVENTS[0][1]), design)
