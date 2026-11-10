@@ -631,7 +631,7 @@ def bridge(runtime, command, argument):
 def _nothing_stays_chosen(runtime, answer, *, restart=True):
     """After a capability was turned off: python_choice off leaves nothing on a chosen Python (control/pythons.py)."""
     from .control import pythons
-    pythons.turned_off(runtime, restart=restart)
+    pythons.back_when_off(runtime, restart=restart)
     return answer
 
 

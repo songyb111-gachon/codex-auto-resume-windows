@@ -341,7 +341,7 @@ ALTERNATIVES = {
     Point.CLAIM_LEDGER: RESTRICTIONS,
     # P13 (v0.6.19): the two words the launcher is to carry out (scripts/watcher_launcher.py), asked from this version
     # and carried out by none yet - the supervisor's commit teaches the launcher to.
-    Point.SUPERVISION: frozenset({Alternative.SUPERVISE, Alternative.RESTART, Alternative.CHOSEN_RUNTIME}),
+    Point.SUPERVISION: frozenset({Alternative.SUPERVISE, Alternative.RESTART}),
     Point.DELIVERY: frozenset({Alternative.CLIENT_ID, Alternative.SILENT}),
     Point.ADMISSION: TAKE_UP,
 }

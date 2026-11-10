@@ -135,8 +135,6 @@ class Alternative(StrEnum):
     # start it once more. Core asks both and carries neither out yet: that is the commit that builds the supervisor's.
     SUPERVISE = "supervise"
     RESTART = "restart"
-    # v0.6.23 (P13, phase "runtime"): the watcher runs under the Python the installation's record names (chosen_runtime.py).
-    CHOSEN_RUNTIME = "chosen"
 
 
 class FailureForm(StrEnum):

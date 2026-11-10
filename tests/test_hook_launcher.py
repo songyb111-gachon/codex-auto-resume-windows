@@ -77,7 +77,9 @@ class SourceTests(unittest.TestCase):
         self.assertNotIn("return process.ExitCode", self.text)
 
     def test_it_starts_the_advanced_package_s_handler_with_the_installation_s_interpreter(self):
-        self.assertIn('Path.Combine(home, "runtime", "python.exe")', self.text)
+        # v0.6.23: through the one reader of which Python this installation runs under; its bundled runtime unless one is chosen.
+        self.assertIn("RuntimeChoice.Python(home)", self.text)
+        self.assertIn('Path.Combine(Path.Combine(home, Bundled), name)', READER.read_text(encoding="utf-8"))
         self.assertIn("from codex_auto_resume_advanced.hook import main;", self.text)
         self.assertIn('"-I -X disable-remote-debug -c "', self.text)
 

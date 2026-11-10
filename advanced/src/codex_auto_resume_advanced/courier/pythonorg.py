@@ -21,7 +21,7 @@ from . import http
 RELEASES = "https://www.python.org/api/v2/downloads/release/?version=3&is_published=true"
 FILES = "https://www.python.org/api/v2/downloads/release_file/?release=%d"
 PACKAGE = "https://www.python.org/ftp/python/%s/python-%s-embed-amd64.zip"
-RELEASE_ADDRESS = re.compile(r"https://www\.python\.org/api/v2/downloads/release/([0-9]{1,9})/", re.ASCII)
+RELEASE_ADDRESS = re.compile(re.escape(RELEASES.partition("?")[0]) + r"([0-9]{1,9})/", re.ASCII)
 FILE_NAME = "Windows embeddable package (64-bit)"
 NAME = re.compile(r"Python (3\.[1-9][0-9]\.(?:0|[1-9][0-9]{0,2}))", re.ASCII)
 DIGEST = re.compile(r"[0-9a-f]{64}", re.ASCII)

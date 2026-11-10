@@ -71,7 +71,7 @@ class NoticeKindTests(unittest.TestCase):
             with self.subTest(kind=kind_id):
                 self.assertIn(kind_id, entry["kinds"])
                 self.assertEqual(entry["labels"][kind_id], l10n.text("msg.toast_" + kind_id, "ko"))
-        self.assertEqual(len(set(entry["labels"][kind_id] for kind_id in mine)), 8, "eight names, none twice")
+        self.assertEqual(len(set(entry["labels"][kind_id] for kind_id in mine)), 9, "nine names, none twice")
 
     def test_each_forced_stop_notice_stays_by_its_own_choice_and_a_click_on_it_opens_a_page(self):
         advanced.create(self.paths)

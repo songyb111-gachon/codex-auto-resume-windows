@@ -24,10 +24,11 @@ an argument that makes it a child, which never supervises one of its own - and w
 the child ended it asks again, and starts it once more only where the answer is RESTART
 (`_supervised`). What a plug answers is a closed word: nothing of it reaches the child's arguments.
 
-The same question decides which Python the watcher runs under (v0.6.23, `_on_chosen`). Every registered route still
-starts this file under the bundled runtime. Where the advanced edition's plug answers CHOSEN, the watcher then runs as a
-child under the Python its record names (chosen_runtime.py), and this process stays on the bundled runtime to see that it
-came up within WATCHER_WAIT. One that did not is ended, the plug is told - it takes the record away and says so, once -
+The same question decides which Python the watcher runs under (v0.6.23, `_on_chosen`), and is asked only where the
+installation has a record of a choice (chosen_runtime.py): with none, nothing here changes. Every registered route still
+starts this file under the bundled runtime. Where the advanced edition's plug answers SUPERVISE to it, the watcher runs as a
+child under the Python the record names, and this process stays on the bundled runtime to see that it came up within
+WATCHER_WAIT. One that did not is ended, the plug is told - it takes the record away and says so, once -
 and the watcher runs here, on the bundled runtime. The standard edition answers nothing and has no record.
 """
 from __future__ import annotations
@@ -56,9 +57,9 @@ PHASE_START, PHASE_ENDED = "start", "ended"
 # And the two answers this launcher carries out: SUPERVISE, asked at the start - run the watcher as a child and stay -
 # and RESTART, asked once that child ended - start it once more. Compared as they are; a plug's answer is never passed on.
 SUPERVISE, RESTART = "supervise", "restart"
-# v0.6.23: which Python the watcher runs under: the question, the answer it is carried out on, and the telling that a
-# watcher started under the chosen Python did not come up.
-PHASE_RUNTIME, PHASE_RUNTIME_FAILED, CHOSEN = "runtime", "runtime_failed", "chosen"
+# v0.6.23: which Python the watcher runs under: the question (SUPERVISE: as a child, under the chosen one), and the telling
+# that a watcher started under the chosen Python did not come up. Asked only where a record of a choice exists.
+PHASE_RUNTIME, PHASE_RUNTIME_FAILED = "runtime", "runtime_failed"
 # How long a watcher started under the chosen Python has to take its mutex: plugin_setup's WATCHER_WAIT, kept here as
 # NO_REMOTE_DEBUG is, since this file runs before any engine is found.
 WATCHER_WAIT = 45.0
@@ -255,7 +256,8 @@ def _on_chosen(here: Path, home: Path):
             return _again_under_bundled(here, home)
     except OSError:
         return None
-    if _supervise(home, {"phase": PHASE_RUNTIME}) != CHOSEN:
+    # No record, no question: the launcher of an installation that chose nothing is the launcher it always was.
+    if not (home / "runtimes" / "chosen.json").is_file() or _supervise(home, {"phase": PHASE_RUNTIME}) != SUPERVISE:
         return None
     try:
         from codex_auto_resume import chosen_runtime, config

@@ -20,7 +20,7 @@ Only the chosen runtime is kept: a previous one is deleted after a new one has s
 the card, since a folder a running Dashboard or MCP server has open cannot go until they have ended).
 
 Back to the bundled version (`back`) takes the record away first, and needs nothing of the chosen runtime. Turning the
-capability off does the same (`turned_off`). Nothing here touches Codex or sends anything to it.
+capability off does the same (`back_when_off`). Nothing here touches Codex or sends anything to it.
 """
 from __future__ import annotations
 
@@ -28,7 +28,6 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import platform
 import re
 import shutil
 import stat
@@ -40,6 +39,7 @@ import zipfile
 
 from codex_auto_resume import chosen_runtime
 from codex_auto_resume.domain.plug import DEFER
+from codex_auto_resume.domain.plugwords import Alternative
 from codex_auto_resume.win import authenticode
 from codex_auto_resume.domain.errors import AdapterError
 
@@ -61,7 +61,7 @@ CHOSEN_DONE, NEXT_START, BACK_DONE, FAILED = "chosen", "next_start", "back", "fa
 # What restarting the watcher came to (Hands.restart), beyond control.await_watcher's own words.
 NOT_RUNNING, STILL_RUNNING, RUNNING = "not_running", "still_running", "running"
 # The launcher's two questions (scripts/watcher_launcher.py) and the answer it carries out; why a choice was taken back.
-PHASE_RUNTIME, PHASE_RUNTIME_FAILED, USE_CHOSEN = "runtime", "runtime_failed", "chosen"
+PHASE_RUNTIME, PHASE_RUNTIME_FAILED, USE_CHOSEN = "runtime", "runtime_failed", Alternative.SUPERVISE
 PHASES = frozenset({PHASE_RUNTIME, PHASE_RUNTIME_FAILED})
 WHY_START, WHY_LINE, WHY_OFF = "start", "line", "off"
 RETURNED = "returned.json"
@@ -167,7 +167,7 @@ def bundled_version(paths) -> str | None:
     python = Path(paths.home) / chosen_runtime.BUNDLED / "python.exe"
     try:
         if Path(sys.executable).resolve() == python.resolve():
-            return platform.python_version()
+            return "%d.%d.%d" % sys.version_info[:3]
         stamp = python.stat().st_mtime_ns
         kept = _BUNDLED.get(python)
         if kept is not None and kept[0] == stamp:
@@ -334,7 +334,7 @@ def back(runtime, *, start=None, hands=Hands) -> dict:
     return {"done": True, "refusal": None}
 
 
-def turned_off(runtime, *, restart=True, start=None, hands=Hands) -> None:
+def back_when_off(runtime, *, restart=True, start=None, hands=Hands) -> None:
     """The capability was turned off, and so nothing may stay on a chosen Python: as Back, but only where one is chosen.
     `restart` False (the Codex tool's path, a process that has no business restarting the watcher) leaves that to the
     watcher's next start."""
@@ -393,6 +393,15 @@ def _taken_back(runtime, version, why, *, tell=True, notify=None) -> None:
             pass
 
 
+def notice_content(version, why) -> dict:
+    """The notice's words: which Python the watcher came back from, and why. Only a version's shape reaches them."""
+    from codex_auto_resume import l10n, notify
+    named = version if chosen_runtime.shaped(version) else "3"
+    body = "toast_python_returned_line" if why == WHY_LINE else "toast_python_returned_start"
+    return notify._content(l10n.message("toast_python_returned"), l10n.message(body).replace("{version}", named),
+                           more=[(l10n.message("toast_button_open"), notify.open_uri("overview"))])
+
+
 def returned_notice(paths, version, why) -> bool:
     """That the watcher is back on the bundled Python: core's notifier, as Windows' toast, under the notifications switch,
     as crash restart's notice is raised (engine/supervise.py). Whether it was shown."""
@@ -401,7 +410,7 @@ def returned_notice(paths, version, why) -> bool:
     if not settings.notification_enabled(values, NOTICE):
         return False
     l10n.set_preference(values.get("interface_language"))
-    notice = notifier.build(NOTICE, {"version": version, "why": why}, destination=notifier.click_destination(values),
+    notice = notifier.build(NOTICE, {"content": notice_content(version, why)}, destination=notifier.click_destination(values),
                             stay=notice_kinds.chosen(values))
     if notice is None:
         return False
@@ -589,8 +598,8 @@ def restart_watcher(paths) -> str:
         return STILL_RUNNING
     home = Path(paths.home)
     flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-    process = subprocess.Popen([str(home / chosen_runtime.BUNDLED / "pythonw.exe"), *startup.NO_REMOTE_DEBUG,
-                                str(home / "watcher-launcher.py"), "run"],
+    interpreter = home / chosen_runtime.BUNDLED / "pythonw.exe"
+    process = subprocess.Popen([str(interpreter), *startup.NO_REMOTE_DEBUG, str(home / "watcher-launcher.py"), "run"],
                                cwd=str(home), close_fds=True, creationflags=flags, stdin=subprocess.DEVNULL,
                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return await_watcher(layer.watcher_running, process, timeout=RESTART_SECONDS)["state"]

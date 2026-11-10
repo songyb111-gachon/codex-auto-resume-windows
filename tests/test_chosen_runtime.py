@@ -25,7 +25,6 @@ if str(ROOT / "src") not in sys.path:
 
 from codex_auto_resume import chosen_runtime as chosen  # noqa: E402
 from codex_auto_resume.domain.plug import DEFER, NULL, Plug, guard  # noqa: E402
-from codex_auto_resume.domain.plugwords import Alternative  # noqa: E402
 
 CSC = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Microsoft.NET" / "Framework64" / "v4.0.30319" / "csc.exe"
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
@@ -214,7 +213,7 @@ class WhoAsksTests(unittest.TestCase):
         """The watcher under a chosen Python is stopped for an update, uninstall removes the folder, the standard edition drops it."""
         text = self.read("build/install/install.ps1")
         self.assertIn("(Test-PathInside $exe $ChosenRuntimes)", text)
-        self.assertIn("@($ChosenRuntimes, $AppDir, $RunDir)", text)
+        self.assertIn("@((Join-Path (Split-Path -Parent $RunDir) 'runtimes'), $AppDir, $RunDir)", text)
         self.assertIn("$editionChange -and $edition -eq 'standard' -and (Test-Path -LiteralPath $ChosenRuntimes)", text)
 
 
@@ -225,7 +224,7 @@ class LauncherTests(unittest.TestCase):
         self.home = make_home(Path(made.name) / "home")
         self.launcher = launcher_module()
         self.asked = []
-        self.answers = {self.launcher.PHASE_RUNTIME: self.launcher.CHOSEN}
+        self.answers = {self.launcher.PHASE_RUNTIME: self.launcher.SUPERVISE}
         patcher = patch.object(self.launcher, "_supervise", self.supervise)
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -253,14 +252,19 @@ class LauncherTests(unittest.TestCase):
         self.assertIn("WATCHER_WAIT = %s" % self.launcher.WATCHER_WAIT, spec)
 
     def test_the_answer_passes_the_guard_every_plug_is_asked_through(self):
-        """Fails with the word out of the point's closed set: the guard turns it into DEFER, and no choice is ever taken up."""
+        """Fails with another word: the guard turns anything outside the point's closed set into DEFER, and no choice is taken up."""
         class Answers(Plug):
             __slots__ = ()
 
             def supervise(self, facts):
-                return "chosen"
-        self.assertEqual(guard(Answers()).supervise({"phase": self.launcher.PHASE_RUNTIME}), self.launcher.CHOSEN)
-        self.assertEqual(Alternative.CHOSEN_RUNTIME, self.launcher.CHOSEN)
+                return "supervise"
+        self.assertEqual(guard(Answers()).supervise({"phase": self.launcher.PHASE_RUNTIME}), self.launcher.SUPERVISE)
+
+    def test_with_no_record_the_plug_is_not_even_asked(self):
+        """Fails with the record's look reverted: every launch of every installation would ask one more question."""
+        (self.home / "runtimes" / "chosen.json").unlink()
+        self.assertIsNone(self.launcher._on_chosen(self.home, self.home))
+        self.assertEqual(self.asked, [])
 
     def test_the_standard_edition_answers_nothing_and_nothing_is_started(self):
         """NULL defers: fails if the launcher took a record on its own."""

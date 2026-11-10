@@ -1806,10 +1806,14 @@ def offered(measured) -> tuple:
                  if all(passed(each) for each in (measurement if isinstance(measurement, tuple) else (measurement,))))
 
 
+# Not in SHOWN_ORDER: `shown` puts it after every capability the order names, the last of the rare cases and expert settings.
+INSTALLED_ONLY = (PYTHON_CHOICE,)
+
+
 def on_an_installation(root=None) -> tuple:
     """The capabilities only an installation can have: those for which a bundled runtime stands beside `app\\src`."""
     home = Path(__file__).resolve().parents[3] if root is None else Path(root)
-    return (PYTHON_CHOICE,) if (home / "runtime" / "python.exe").is_file() else ()
+    return INSTALLED_ONLY if (home / "runtime" / "python.exe").is_file() else ()
 
 
 def _registry():
@@ -1851,8 +1855,6 @@ SHOWN_ORDER = (
     # 2026-10-31, group 4: rare cases and expert settings. stop_hook_continuation is hidden (WAITING) until MHK, M4
     # and M4B pass and then takes this place.
     "silent_continuation", "stop_hook_continuation", "status_feed", "account_switch", "idle_update_check",
-    # 2026-11-10 (v0.6.23): which Python this runs on; shown only on an installation.
-    "python_choice",
     # 2026-11-05 (v0.6.22): for a person with several PCs and a folder they sync: rare, and it restarts nothing.
     "fleet_view",
     "structured_rules",

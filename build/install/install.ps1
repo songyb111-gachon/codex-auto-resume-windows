@@ -1553,7 +1553,7 @@ if ($Uninstall) {
     # installer audit, R3).
     $retryNeeds = @('scripts', 'src')
     # v0.6.23: first the Python a person chose in the advanced edition; neither the retry nor anything else needs it.
-    $programDirs = @(@($ChosenRuntimes, $AppDir, $RunDir) | Where-Object { Test-Path -LiteralPath $_ })
+    $programDirs = @(@((Join-Path (Split-Path -Parent $RunDir) 'runtimes'), $AppDir, $RunDir) | Where-Object { Test-Path -LiteralPath $_ })
     $programEntries = @{}
     $removeTotal = $programDirs.Count
     foreach ($dir in $programDirs) {

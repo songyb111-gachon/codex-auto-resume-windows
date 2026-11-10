@@ -522,6 +522,12 @@ class BridgeCommand(StrEnum):
     # automatic switch's own switch, from the saved accounts under either account capability's card
     # (control/autoswitch.switch). The Dashboard's alone, never MCP.
     ADVANCED_ACCOUNTS_SWITCH = "advanced-accounts-switch"
+    # v0.6.23 (python_choice, control/pythons.py): the card's read, python.org's newest of each line, one of them put in
+    # use, and back to the bundled runtime.
+    ADVANCED_PYTHON = "advanced-python"
+    ADVANCED_PYTHON_CHECK = "advanced-python-check"
+    ADVANCED_PYTHON_USE = "advanced-python-use"
+    ADVANCED_PYTHON_BACK = "advanced-python-back"
     # v0.6.19 (the groundwork): every command the stage's designs name, in one block, each the Dashboard's alone and
     # reached by no MCP tool. Until the capability that answers one is built, the bridge passes it over as it passes a
     # command this edition does not have (surfaces.UNANSWERED). The analytics' aggregates and their CSV
@@ -542,12 +548,6 @@ class BridgeCommand(StrEnum):
     ADVANCED_REMOTE_PAIR_STATE = "advanced-remote-pair-state"
     ADVANCED_FLEET = "advanced-fleet"
     ADVANCED_FLEET_SAVE = "advanced-fleet-save"
-    # v0.6.23 (python_choice, control/pythons.py): the card's read, python.org's newest of each line, one of them put in
-    # use, and back to the bundled runtime.
-    ADVANCED_PYTHON = "advanced-python"
-    ADVANCED_PYTHON_CHECK = "advanced-python-check"
-    ADVANCED_PYTHON_USE = "advanced-python-use"
-    ADVANCED_PYTHON_BACK = "advanced-python-back"
     ADVANCED_PROMPT_EDIT = "advanced-prompt-edit"
     ADVANCED_PROMPTS_CLEAR_DONE = "advanced-prompts-clear-done"
     ADVANCED_ACCOUNT = "advanced-account"

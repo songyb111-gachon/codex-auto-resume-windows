@@ -304,25 +304,20 @@ def _build(event, detail, identity=None, *, sound=False):
                        notify.near_limit_content(detail.get("minutes"), detail.get("percent"),
                                                  detail.get("reset_at"), said), key=None)
     if event == "update_offered":
-        # v0.6.18: the advanced edition's weekly update check found a newer version, as a pressed check would offer it.
-        # About this installation, not a conversation, so it has no key and replaces no card; its one button opens
-        # Diagnostics, where an update is installed. A version not of a release's or a pre-release's shape says nothing.
+        # v0.6.18: the advanced edition's weekly update check found a newer version. About this installation: no key, no card
+        # replaced; its button opens Diagnostics, where an update is installed. A version not of a release's shape says nothing.
         content = notify.update_offered_content(detail.get("version"), detail.get("prerelease") is True)
         return None if content is None else _notice("update_offered", content, key=None)
     if event == "restart_gave_up":
-        # v0.6.19: the advanced edition's crash restart started the watcher three times in an hour and left it stopped.
-        # About this installation, not a conversation, so it has no key and replaces no card; its one button opens the
-        # Dashboard's Overview, where the watcher is started again.
+        # v0.6.19: the advanced edition's crash restart started the watcher three times in an hour and left it stopped. About
+        # this installation: no key, no card replaced; its button opens the Overview, where the watcher is started again.
         return _notice("restart_gave_up", notify.restart_gave_up_content(), key=None)
     if event in ("account_changed", "accounts_exhausted"):
-        # v0.6.20: the advanced edition's account switch saw another Codex account signed in, and held what waited for a
-        # usage limit for a person - or (v0.6.22) its automatic switch found every saved account at its limit. About this
-        # PC, not a conversation, so it has no key and replaces no card; its one button opens Pending.
+        # v0.6.20: the advanced edition's account switch saw another Codex account signed in, and held what waited for a usage
+        # limit - or (v0.6.22) its automatic switch found every saved account at its limit. About this PC: no key, one button, Pending.
         return _notice(event, _account_changed_content(detail.get("count"), event, detail.get("why")), key=None)
-    if event == "python_returned":
-        # v0.6.23: the advanced edition's Python choice was taken back by itself. About this PC, so it has no key and
-        # replaces no card; its one button opens the Dashboard's Overview.
-        return _notice(event, _python_returned_content(detail.get("version"), detail.get("why")), key=None)
+    if event == "python_returned":  # v0.6.23: a Python choice taken back by itself; worded by control/pythons.py, about this PC.
+        return _notice(event, detail["content"], key=None)
     if event in POWER_EVENTS:
         # v0.6.12: the power action (runtime/afterwork.py). About this PC, not a conversation, so it has
         # no key and replaces no card. Only the countdown's has a stop button, named by its batch (A28).
@@ -686,14 +681,6 @@ def _power_stop(nonce, control, announce, say, stay=()) -> str:
         except Exception:
             pass
     return "stopped"
-
-
-def _python_returned_content(version, why) -> dict:
-    """v0.6.23: which Python the watcher was back from, and why: it did not come up, or its line is no longer offered."""
-    named = version if isinstance(version, str) and re.fullmatch(r"3\.[0-9]{1,3}\.[0-9]{1,3}", version) else "3"
-    body = "toast_python_returned_line" if why == "line" else "toast_python_returned_start"
-    return notify._content(l10n.message("toast_python_returned"), l10n.message(body).replace("{version}", named),
-                           more=[(l10n.message("toast_button_open"), notify.open_uri("overview"))])
 
 
 def _account_changed_content(count, event="account_changed", why=None) -> dict:

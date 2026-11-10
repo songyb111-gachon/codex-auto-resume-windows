@@ -87,7 +87,8 @@ namespace CodexAutoResume
         {
             if (!Real(root) || !Real(where)) return false;
             string stem = "python3" + minor;
-            foreach (string name in new[] { "python.exe", "pythonw.exe", stem + ".dll", stem + "._pth", stem + ".zip" })
+            string[] needed = { "python.exe", "pythonw.exe", stem + ".dll", stem + "._pth", stem + ".zip" };
+            foreach (string name in needed)
                 if (!File.Exists(Path.Combine(where, name))) return false;
             return true;
         }

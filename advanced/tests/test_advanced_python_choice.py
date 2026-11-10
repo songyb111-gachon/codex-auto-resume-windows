@@ -442,8 +442,9 @@ class ReturnTests(Case):
 
     def test_the_launcher_s_words_are_its_own(self):
         text = (ROOT / "scripts" / "watcher_launcher.py").read_text(encoding="utf-8")
-        self.assertIn('PHASE_RUNTIME, PHASE_RUNTIME_FAILED, CHOSEN = "%s", "%s", "%s"'
-                      % (pythons.PHASE_RUNTIME, pythons.PHASE_RUNTIME_FAILED, pythons.USE_CHOSEN), text)
+        self.assertIn('PHASE_RUNTIME, PHASE_RUNTIME_FAILED = "%s", "%s"'
+                      % (pythons.PHASE_RUNTIME, pythons.PHASE_RUNTIME_FAILED), text)
+        self.assertEqual(pythons.USE_CHOSEN, "supervise")
 
     def test_with_no_record_nothing_is_read(self):
         self.assertIs(self.supervised(), DEFER)
@@ -538,7 +539,7 @@ class ReturnTests(Case):
         self.give_record()
         self.runtime.stand = ArmingState.OFF
         hands = Hands()
-        pythons.turned_off(self.runtime, start=inline, hands=hands)
+        pythons.back_when_off(self.runtime, start=inline, hands=hands)
         self.assertIsNone(self.record())
         self.assertEqual(hands.log, ["restart"])
 
@@ -546,24 +547,24 @@ class ReturnTests(Case):
         self.give_record()
         self.runtime.stand = ArmingState.OFF
         hands = Hands()
-        pythons.turned_off(self.runtime, restart=False, start=inline, hands=hands)
+        pythons.back_when_off(self.runtime, restart=False, start=inline, hands=hands)
         self.assertIsNone(self.record())
         self.assertEqual(hands.log, [])
 
     def test_turning_something_else_off_changes_nothing(self):
         self.give_record()
         hands = Hands()
-        pythons.turned_off(self.runtime, start=inline, hands=hands)
+        pythons.back_when_off(self.runtime, start=inline, hands=hands)
         self.assertEqual(self.record(), VERSION)
         self.assertEqual(hands.log, [])
 
     def test_the_notice_names_the_version_and_why(self):
-        made = notifier._python_returned_content("3.15.2", "line")
+        made = pythons.notice_content("3.15.2", pythons.WHY_LINE)
         self.assertIn(l10n.message("toast_python_returned_line").replace("{version}", "3.15.2"), json.dumps(made, ensure_ascii=False))
-        made = notifier._python_returned_content("<b>", "start")
+        made = pythons.notice_content("<b>", pythons.WHY_START)
         self.assertNotIn("<b>", json.dumps(made), "only a version's shape reaches a notice")
         self.assertEqual(notifier.STATUS["python_returned"], "paused")
-        self.assertIsNotNone(notifier.build("python_returned", {"version": "3.15.2", "why": "start"}))
+        self.assertIsNotNone(notifier.build("python_returned", {"content": pythons.notice_content("3.15.2", pythons.WHY_START)}))
 
 
 class CardTests(Case):
@@ -659,10 +660,10 @@ class CardTests(Case):
                 self.assertLessEqual(used, set(words))
                 self.assertIn("name.python_choice", words)
                 for field in statement.FIELDS:
-                    self.assertTrue(words[statement.key("python_choice", field)])
+                    self.assertTrue(statement.CATALOGS.catalog(locale)[statement.key("python_choice", field)])
 
     def test_the_statement_says_what_it_must(self):
-        words = statement.CATALOGS.words("en")
+        words = statement.CATALOGS.catalog("en")
         does = words[statement.key("python_choice", "does")]
         for said in ("www.python.org", "runtimes\\<version>", "SHA-256", "Python Software Foundation", "only you", "replaces the bundled"):
             self.assertIn(said, does)
@@ -682,7 +683,8 @@ class RegistryTests(unittest.TestCase):
     def test_it_keeps_the_registry_s_rules(self):
         self.assertEqual(registry.problems(registry.PYTHON_CHOICE), [])
         self.assertEqual(registry.PYTHON_CHOICE.points, frozenset())
-        self.assertIn("python_choice", registry.SHOWN_ORDER)
+        made = registry.Registry(registry.DEFINITIONS + registry.INSTALLED_ONLY)
+        self.assertIs(registry.shown(made)[-1], registry.PYTHON_CHOICE, "the last of the rare cases and expert settings")
 
     def test_only_an_installation_offers_it(self):
         """Fails with the gate reverted: a source run has no bundled runtime to come back to."""
