@@ -137,7 +137,7 @@ v0.6.10은 그 모습을 매듭짓고, 그것을 여러 가지로 그립니다. 
 창은 이 값을 `gui/Brand.cs`의 상수 — `RadiusCard`, `SpaceM`, `TypeBody`, `ButtonHeight`,
 `FieldHeight`, 그림자 레시피, 빛의 숫자 — 로 받아 자기 배율을 곱합니다. 팝업은 같은 테이블을
 `brand`에서 읽습니다. 패널은 `brand.css_scale()`이 만든 CSS 사용자 정의 속성 `--radius-*`,
-`--space-*`, `--type-*`, `--lh-*`, `--size-*`, `--glow-*`, `--transition`, `--transition-ease`를
+`--space-*`, `--type-*`, `--lh-*`, `--size-*`, `--glow-*`, `--transition`, `--transition-press`, `--transition-ease`를
 받습니다. 곡선은 브라우저가 cubic-bezier를 푸는 방식 그대로 풉니다. 팝업에서는 `brand.ease()`, 창에서는
 `Brand.Ease`이므로, 세 표면이 스위치를 같은 길로 움직입니다.
 

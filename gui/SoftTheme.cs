@@ -1331,7 +1331,8 @@ namespace CodexAutoResume
     /// How a change moves (v0.6.5): brand's one transition, MOTION["transition_ms"] - the 160 ms the
     /// panel's stylesheet emits as --transition - on brand's one curve, MOTION["ease"] (Brand.Ease, the
     /// panel's --transition-ease, the popup's brand.ease()), the same on every surface. It is an ease-out:
-    /// a switch leaves at once and settles softly.
+    /// a switch leaves at once and settles softly. A press and its release (v0.6.23) take brand's one shorter time,
+    /// MOTION["press_ms"] (Press; --transition-press), on the same curve.
     ///
     /// Nothing moves when motion is reduced (Soft.ReduceMotion: this product's setting, Windows'
     /// animation effects, High Contrast), in any design, nor where it cannot be seen; the change is then
@@ -1344,6 +1345,12 @@ namespace CodexAutoResume
         internal static int Duration
         {
             get { return Brand.TransitionMs; }
+        }
+
+        /// A press and its release (v0.6.23): brand's press_ms.
+        internal static int Press
+        {
+            get { return Brand.TransitionPressMs; }
         }
 
         /// The eased progress for `t` of the way through the time, both from 0 to 1: brand's curve.
@@ -1361,6 +1368,154 @@ namespace CodexAutoResume
             Form form = control.FindForm();
             return form == null || (form.Visible && form.WindowState != FormWindowState.Minimized);
         }
+
+        private static readonly System.Diagnostics.Stopwatch ambientClock = new System.Diagnostics.Stopwatch();
+        private static bool ambient;
+
+        /// Whether what moves by itself - the one looping motion the window has, the status light's breath - stands still
+        /// for now (v0.6.23, standard H13 as the taskbar mark has always read it): battery saver is on, or this session is
+        /// locked or disconnected. Asked of Windows at most once a second, so it costs a loop nothing. A one-shot response
+        /// to a click does not ask: it ends by itself in 160 ms.
+        internal static bool Ambient
+        {
+            get
+            {
+                if (ambientClock.IsRunning && ambientClock.ElapsedMilliseconds < 1000) return ambient;
+                ambientClock.Restart();
+                ambient = AskAmbient(TaskbarMark.BatterySaverOn) || AskAmbient(TaskbarMark.SessionLockedOn);
+                return ambient;
+            }
+        }
+
+        /// The next question goes to Windows, for a probe that has just stood its own answer in.
+        internal static void AskAmbientAgain()
+        {
+            ambientClock.Reset();
+        }
+
+        private static bool AskAmbient(Func<bool> question)
+        {
+            try { return question != null && question(); }
+            catch (Exception) { return false; }
+        }
+    }
+
+    /// What a control shows in one state (v0.6.23): its body's fill and hairline, its words, and - where it has one -
+    /// the small part that says which state it is in (a choice's radio mark, Classic's tab underline). A colour may be
+    /// see-through: a tab that is resting has no body at all, and fades one in from nothing.
+    internal struct SurfaceLook
+    {
+        internal readonly Color Fill, Edge, Ink, Mark;
+
+        internal SurfaceLook(Color fill, Color edge, Color ink) : this(fill, edge, ink, Color.Empty) { }
+
+        internal SurfaceLook(Color fill, Color edge, Color ink, Color mark)
+        {
+            Fill = fill;
+            Edge = edge;
+            Ink = ink;
+            Mark = mark;
+        }
+
+        /// `colour`, see through altogether: where a part fades in from, or out to, nothing.
+        internal static Color None(Color colour)
+        {
+            return Color.FromArgb(0, colour);
+        }
+
+        internal bool Same(SurfaceLook other)
+        {
+            return Fill.ToArgb() == other.Fill.ToArgb() && Edge.ToArgb() == other.Edge.ToArgb() &&
+                   Ink.ToArgb() == other.Ink.ToArgb() && Mark.ToArgb() == other.Mark.ToArgb();
+        }
+
+        internal static SurfaceLook Between(SurfaceLook from, SurfaceLook to, double amount)
+        {
+            return new SurfaceLook(Channels(from.Fill, to.Fill, amount), Channels(from.Edge, to.Edge, amount),
+                            Channels(from.Ink, to.Ink, amount), Channels(from.Mark, to.Mark, amount));
+        }
+
+        // Soft.Mix, with the alpha mixed too. A part with nothing behind it keeps the colour it is going to.
+        private static Color Channels(Color from, Color to, double amount)
+        {
+            if (amount <= 0.0) return from;
+            if (amount >= 1.0) return to;
+            int a = (int)Math.Round(from.A + (to.A - from.A) * amount);
+            Color rgb = from.A == 0 ? to : to.A == 0 ? from : Soft.Mix(from, to, amount);
+            return Color.FromArgb(a, rgb.R, rgb.G, rgb.B);
+        }
+    }
+
+    /// One control's change of state, gliding (v0.6.23, the design audit's shared piece): the control says what each state
+    /// looks like (the Func it hands in), says when its state has changed (Changed), and paints Now. One Transition per
+    /// control, repainting its own body and nothing else - no layout, no shadow, no bitmap, a timer only while it moves -
+    /// mixing what was showing into what its state now says, so a change that reverses half way leaves from where it is.
+    /// At rest Now is exactly what the state says, asked afresh each paint: nothing is held that could be read as stuck.
+    /// Every design and theme takes it alike; with motion reduced, Windows' animation off, in High Contrast, or out of
+    /// sight (Motion.Allowed) the change is immediate. A shadow cannot fade (its templates have no alpha path,
+    /// Elevation), so a control swaps its shadow at the moment of the change and this carries the colours.
+    internal sealed class SoftSurfaceGlide : IDisposable
+    {
+        private readonly Control owner;
+        private readonly Func<SurfaceLook> state;
+        private readonly Transition time;
+        private SurfaceLook from, target;
+        private bool known;
+
+        internal SoftSurfaceGlide(Control owner, Func<SurfaceLook> state)
+        {
+            this.owner = owner;
+            this.state = state;
+            time = new Transition(owner, 1.0);
+        }
+
+        /// What it repaints each frame when that is not the whole control: asked each frame, so a control resized while it
+        /// glides repaints where it is now.
+        internal Func<Rectangle> Where { set { time.Where = value; } }
+
+        /// Whether it is on its way; its timer runs only then.
+        internal bool Running { get { return time.Running; } }
+
+        /// How far through the change it is, 0 to 1, eased: 1 at rest.
+        internal double Progress { get { return time.Running ? time.Value : 1.0; } }
+
+        /// What to paint now.
+        internal SurfaceLook Now
+        {
+            get
+            {
+                SurfaceLook next = state();
+                if (time.Running) return SurfaceLook.Between(from, next, time.Value);
+                target = next;
+                known = true;
+                return next;
+            }
+        }
+
+        /// The control's state has changed: glide from what is showing to what it now says, in `milliseconds`.
+        internal void Changed(int milliseconds)
+        {
+            SurfaceLook next = state();
+            if (known && next.Same(target)) return;
+            SurfaceLook showing = !known ? next : time.Running ? SurfaceLook.Between(from, target, time.Value) : target;
+            bool animate = known && Motion.Allowed(owner);
+            from = showing;
+            target = next;
+            known = true;
+            time.Jump(0.0);
+            time.To(1.0, animate, milliseconds);
+        }
+
+        /// The same, in brand's transition.
+        internal void Changed()
+        {
+            Changed(Motion.Duration);
+        }
+
+        public void Dispose()
+        {
+            time.Dispose();
+        }
     }
 
     /// One value gliding to a new target over brand's transition, repainting part of its owner each
@@ -1371,6 +1526,7 @@ namespace CodexAutoResume
         private readonly Timer timer = new Timer();
         private readonly System.Diagnostics.Stopwatch clock = new System.Diagnostics.Stopwatch();
         private double from, to;
+        private int length = Motion.Duration;
 
         internal Transition(Control owner, double value)
         {
@@ -1412,7 +1568,7 @@ namespace CodexAutoResume
             get
             {
                 if (!timer.Enabled) return to;
-                double t = clock.Elapsed.TotalMilliseconds / Math.Max(1, Motion.Duration);
+                double t = clock.Elapsed.TotalMilliseconds / Math.Max(1, length);
                 return t >= 1.0 ? to : from + (to - from) * Motion.Ease(t);
             }
         }
@@ -1426,8 +1582,15 @@ namespace CodexAutoResume
         /// Sends it to `target`: gliding there from wherever it is when `animate`, there at once otherwise.
         internal void To(double target, bool animate)
         {
+            To(target, animate, Motion.Duration);
+        }
+
+        /// The same, in `milliseconds` rather than brand's transition.
+        internal void To(double target, bool animate, int milliseconds)
+        {
             double now = Value;
             to = target;
+            length = milliseconds;
             if (!animate || now == target)
             {
                 Halt();
@@ -1442,9 +1605,16 @@ namespace CodexAutoResume
             Repaint();
         }
 
+        /// Stands it at `value` without a repaint: where a glide that is about to start starts from.
+        internal void Jump(double value)
+        {
+            Halt();
+            from = to = value;
+        }
+
         private void Tick()
         {
-            if (clock.Elapsed.TotalMilliseconds >= Motion.Duration || owner.IsDisposed || !Soft.Shown(owner) || !owner.Visible)
+            if (clock.Elapsed.TotalMilliseconds >= length || owner.IsDisposed || !Soft.Shown(owner) || !owner.Visible)
             {
                 Halt();
                 from = to;

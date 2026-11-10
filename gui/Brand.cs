@@ -71,6 +71,7 @@ namespace CodexAutoResume
         internal const int TypeBody = 12;
         internal const int TypeSmall = 11;
         internal const int TransitionMs = 160;
+        internal const int TransitionPressMs = 80;
         internal const double TransitionEaseX1 = 0.33;
         internal const double TransitionEaseY1 = 1;
         internal const double TransitionEaseX2 = 0.68;

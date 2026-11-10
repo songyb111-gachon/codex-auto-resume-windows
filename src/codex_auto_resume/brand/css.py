@@ -59,6 +59,7 @@ def css_scale() -> str:
         parts.append("--size-%s: %s;" % (name.replace("_", "-"),
                                           " ".join(_css_length(part) for part in values)))
     parts.append("--transition: %dms;" % MOTION["transition_ms"])
+    parts.append("--transition-press: %dms;" % MOTION["press_ms"])
     parts.append("--transition-ease: %s;" % css_ease())
     dot, light = STATUS_DOT["panel"], GLOW
     parts.append(css_glow_geometry(dot))

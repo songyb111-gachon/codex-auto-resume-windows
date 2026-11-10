@@ -140,7 +140,7 @@ The window gets these as constants in `gui/Brand.cs` - `RadiusCard`, `SpaceM`, `
 `ButtonHeight`, `FieldHeight`, the shadow recipes and the glow's numbers - and multiplies them
 by its own scale factor. The popup reads the same tables from `brand`. The panel gets CSS
 custom properties from `brand.css_scale()`: `--radius-*`, `--space-*`, `--type-*`, `--lh-*`,
-`--size-*`, `--glow-*`, `--transition` and `--transition-ease`. The curve is solved the way
+`--size-*`, `--glow-*`, `--transition`, `--transition-press` and `--transition-ease`. The curve is solved the way
 browsers solve a cubic-bezier - `brand.ease()` in the popup, `Brand.Ease` in the window - so all
 three surfaces move a switch along the same path.
 

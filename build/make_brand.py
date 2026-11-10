@@ -149,6 +149,7 @@ def sections():
         for name, value in table.items():
             scale.append((prefix + _camel(name), "int", int(value)))
     scale.append(("TransitionMs", "int", int(brand.MOTION["transition_ms"])))
+    scale.append(("TransitionPressMs", "int", int(brand.MOTION["press_ms"])))
     for part, value in zip(("X1", "Y1", "X2", "Y2"), brand.MOTION["ease"]):
         scale.append(("TransitionEase" + part, "double", value))
     # v0.6.10: Classic's accent bar inside a card's left hairline, and its current tab's underline.

@@ -190,13 +190,14 @@ button { min-height: var(--size-button-height); padding: var(--size-button-pad);
                      box-shadow var(--transition), color var(--transition);
          transition-timing-function: var(--transition-ease); }
 button:hover:not([disabled]) { background: var(--surface); }
-button:active:not([disabled]) { background: var(--inset); box-shadow: var(--elev-inset); }
+button:active:not([disabled]) { background: var(--inset); box-shadow: var(--elev-inset);
+                                transition-duration: var(--transition-press); }
 button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 button.primary:hover:not([disabled]) { background: var(--accent-hover); border-color: var(--accent-hover); }
 /* After hover, which it would otherwise lose to: a pressed primary stays primary. Without it a
    key press, which is active without hover, fell through to `inset` under white text. */
 button.primary:active:not([disabled]) { background: var(--accent-pressed); border-color: var(--accent-pressed);
-                                        box-shadow: var(--elev-inset); }
+                                        box-shadow: var(--elev-inset); transition-duration: var(--transition-press); }
 button.danger { color: var(--danger); }
 /* Disabled is said by the text and the lost lift, not by fading the whole control: at half
    opacity the label fell to about 3.3:1. `muted` on the card's ground stays above 4.5. */
