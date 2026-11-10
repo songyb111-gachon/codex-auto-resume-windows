@@ -286,8 +286,9 @@ class WiringTests(unittest.TestCase):
 
     def test_the_sentence_is_in_every_catalog(self):
         import json
-        for path in (ROOT / "src/codex_auto_resume/locales").glob("*.json"):
-            self.assertIn("status.aside", json.loads(path.read_text(encoding="utf-8")), path.name)
+        for locale in ("en", "ko", "ar", "de", "es", "fr", "he", "id", "it", "ja", "pl", "pt-BR", "ru", "tr", "uk", "vi", "zh-CN", "zh-TW"):
+            catalog = (ROOT / "src/codex_auto_resume/locales" / (locale + ".json")).read_text(encoding="utf-8")
+            self.assertIn("status.aside", json.loads(catalog), locale)
 
     def test_no_document_names_it(self):
         for name in ("README.md", "README.ko.md", "docs/CHANGELOG.md", "docs/CHANGELOG.ko.md", "docs/GUIDE.md", "docs/GUIDE.ko.md"):

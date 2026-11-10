@@ -1227,21 +1227,26 @@ namespace CodexAutoResume
             timer.Start();
         }
 
+        private void FadeFrame()
+        {
+            double part = clock.Elapsed.TotalMilliseconds / Math.Max(1, Motion.Press);
+            if (part >= 1.0 || Handle == IntPtr.Zero)
+            {
+                Action then = gone;
+                gone = null;
+                Dispose();
+                if (then != null) then();
+                return;
+            }
+            alpha = (int)Math.Round(closingFrom * (1.0 - Motion.Ease(part)));
+            Push();
+        }
+
         private void Tick()
         {
             if (closing)
             {
-                double part = clock.Elapsed.TotalMilliseconds / Math.Max(1, Motion.Press);
-                if (part >= 1.0 || Handle == IntPtr.Zero)
-                {
-                    Action then = gone;
-                    gone = null;
-                    Dispose();
-                    if (then != null) then();
-                    return;
-                }
-                alpha = (int)Math.Round(closingFrom * (1.0 - Motion.Ease(part)));
-                Push();
+                FadeFrame();
                 return;
             }
             double t = clock.Elapsed.TotalMilliseconds / Math.Max(1, Motion.Duration);
