@@ -35,6 +35,7 @@
 
 [settings]
 gui/SettingsApp.cs
+gui/RuntimeChoice.cs
 gui/WindowJson.cs
 gui/SettingsPage.cs
 gui/SettingsPower.cs

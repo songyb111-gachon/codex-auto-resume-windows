@@ -1283,5 +1283,8 @@
   "why.user_input_queued": "Algo tuyo está en la cola de esta conversación y va primero.",
   "why.version_newer_than_engine": "Una versión de Codex más nueva que la de aquí ejecutó esta conversación por última vez; continúa en cuanto Codex se actualice.",
   "why.waiting_reset": "El límite de uso aún no se ha restablecido.",
-  "why.workspace_changed": "La rama de su carpeta, su modelo o su modo de aprobación cambiaron desde que se detuvo: no se envía nada hasta que la dejes continuar."
+  "why.workspace_changed": "La rama de su carpeta, su modelo o su modo de aprobación cambiaron desde que se detuvo: no se envía nada hasta que la dejes continuar.",
+  "msg.toast_python_returned": "De nuevo en el Python incluido",
+  "msg.toast_python_returned_start": "El monitor no se inició con Python {version}, así que volvió al Python que venía con este programa.",
+  "msg.toast_python_returned_line": "Esta versión del programa ya no ofrece Python {version}, así que el monitor volvió al Python que venía con él."
 }

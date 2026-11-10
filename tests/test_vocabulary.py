@@ -209,12 +209,12 @@ LISTS = {
     # v0.6.18: the weekly update check's offer; v0.6.19: the crash restart's notice that it left the watcher stopped.
     # v0.6.20: another Codex account signed in (the advanced edition's account switch); v0.6.22: every saved account at its
     # limit (its automatic switch).
-    "notifier.NOTICE_STATUS": ("dict", 20, "fc8088f2c18dd143"),
+    "notifier.NOTICE_STATUS": ("dict", 21, "4dade6f2efa81763"),
     # v0.6.12: the power action's five notices follow them, in a table of their own (PowerNotice), and the
     # whole table is both.
     "notifier.POWER_STATUS": ("dict", 5, "d403490eeafa7732"),
     "notifier.POWER_EVENTS": ("tuple", 5, "e5a05bae37eb8e45"),
-    "notifier.STATUS": ("dict", 25, "8605ce8103891f4e"),
+    "notifier.STATUS": ("dict", 26, "89a196a92565e149"),
     "mcpserver.Server.START_WORDING": ("dict", 4, "f15e04a780f57870"),
     # v0.6.11: the two editions, and the plug that is the whole difference between them.
     "edition.EDITIONS": ("tuple", 2, "49cc206af3867704"),

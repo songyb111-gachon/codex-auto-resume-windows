@@ -49,6 +49,9 @@ class ManifestTests(unittest.TestCase):
         script = (guiscan.ROOT / "build" / "make_gui.ps1").read_text(encoding="utf-8")
         self.assertIn("window.sources", script)
         for name in guiscan.manifest():
+            # v0.6.23: built into the launcher as well, which has no list to read: the one reader of which Python runs.
+            if name == "gui/RuntimeChoice.cs":
+                continue
             with self.subTest(name):
                 self.assertNotIn(name.replace("gui/", "gui\\"), script)
         # The launcher is the exception, and is named because it is its own executable.
@@ -109,7 +112,8 @@ class SliceTests(unittest.TestCase):
         # v0.6.16: SettingsRemove.cs, the uninstall's own start of the installer window, is no part of the form either.
         # v0.6.18: nor ChildTree.cs, the one-shot bridge's child ended with what it started.
         self.assertEqual(sorted(set(guiscan.window_sources()) - set(holders)),
-                         ["gui/ChildTree.cs", "gui/SettingsRemove.cs", "gui/WindowJson.cs"],
+                         # v0.6.23: nor RuntimeChoice.cs, the reader the launchers share.
+                         ["gui/ChildTree.cs", "gui/RuntimeChoice.cs", "gui/SettingsRemove.cs", "gui/WindowJson.cs"],
                          "the window sources that are not the form")
         for part in parts:
             with self.subTest(part.splitlines()[0].strip()[:40]):
@@ -160,7 +164,8 @@ class SliceTests(unittest.TestCase):
         # Mirror, the window mirrored for a language written right to left (gui/SoftMirror.cs). 78 with DesktopShortcut,
         # whether this installation's shortcut is on the Desktop, for the setup window's box. 92 since v0.6.23: UiFaults, an exception
         # in a UI callback, and OwnProcess, this process's id asked of Windows once; and the twelve types of the motion and surface work.
-        self.assertEqual(len(set(declared)), 96, "the window's types")
+        # 97 with RuntimeChoice (v0.6.23), which Python this installation runs under.
+        self.assertEqual(len(set(declared)), 97, "the window's types")
         # v0.6.11: DashboardTools.cs, the Dashboard's own tools, an eleventh part in a twelfth source; and
         # SettingsOwn.cs, Custom... beside a drop-down's choices, a twelfth part in a thirteenth. v0.6.12:
         # DashboardVersions.cs, Install another version..., a thirteenth part in a fourteenth; and SettingsPower.cs,

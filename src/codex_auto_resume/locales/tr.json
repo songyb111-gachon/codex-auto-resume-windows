@@ -1283,5 +1283,8 @@
   "why.user_input_queued": "Bu sohbette sizin kuyruğa alınmış bir şeyiniz var ve o önce gider.",
   "why.version_newer_than_engine": "Bu sohbeti en son buradakinden daha yeni bir Codex çalıştırdı; Codex güncellendiğinde devam eder.",
   "why.waiting_reset": "Kullanım sınırı henüz sıfırlanmadı.",
-  "why.workspace_changed": "Durduğundan beri klasörünün dalı, modeli veya onay modu değişti: siz devam etmesine izin verene kadar hiçbir şey gönderilmez."
+  "why.workspace_changed": "Durduğundan beri klasörünün dalı, modeli veya onay modu değişti: siz devam etmesine izin verene kadar hiçbir şey gönderilmez.",
+  "msg.toast_python_returned": "Birlikte gelen Python'a dönüldü",
+  "msg.toast_python_returned_start": "İzleyici Python {version} üzerinde başlamadı, bu yüzden bu programla birlikte gelen Python'a döndü.",
+  "msg.toast_python_returned_line": "Programın bu sürümü artık Python {version} sunmuyor, bu yüzden izleyici onunla birlikte gelen Python'a döndü."
 }

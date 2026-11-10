@@ -1283,5 +1283,8 @@
   "why.user_input_queued": "이 대화에 직접 넣은 입력이 대기열에 있어 그것이 먼저 갑니다.",
   "why.version_newer_than_engine": "이 대화를 마지막으로 실행한 Codex가 여기 있는 것보다 새 버전입니다. Codex를 업데이트하면 이어집니다.",
   "why.waiting_reset": "사용량 한도가 아직 재설정되지 않았습니다.",
-  "why.workspace_changed": "멈춘 뒤 폴더의 브랜치, 모델 또는 승인 모드가 바뀌어, 이어 가도록 허용하기 전까지 아무것도 보내지 않습니다."
+  "why.workspace_changed": "멈춘 뒤 폴더의 브랜치, 모델 또는 승인 모드가 바뀌어, 이어 가도록 허용하기 전까지 아무것도 보내지 않습니다.",
+  "msg.toast_python_returned": "함께 제공된 Python으로 돌아왔습니다",
+  "msg.toast_python_returned_start": "워처가 Python {version}에서 시작되지 않아, 이 프로그램과 함께 제공된 Python으로 돌아갔습니다.",
+  "msg.toast_python_returned_line": "이 프로그램 버전은 더 이상 Python {version} 선택을 제공하지 않아, 워처가 함께 제공된 Python으로 돌아갔습니다."
 }

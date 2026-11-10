@@ -10,6 +10,9 @@ the body or what the service answered: a service's error text can echo a token, 
 
 `opener` is the seam a test fills: anything with `open(request, timeout=)` returning a reply with `status` and
 `read(n)`, or raising as urllib raises. No test reaches the network.
+
+`stream` (v0.6.23, python_choice) hands a large reply over in pieces, to a caller that bounds it (pythonorg.py); `most`
+lets one that knows a longer answer is due, and bounds that, read more than MAX_REPLY.
 """
 from __future__ import annotations
 
@@ -23,6 +26,7 @@ from .address import checked_url
 TIMEOUT = 10                       # seconds, every request
 MAX_BODY = 4096                    # bytes a push may carry
 MAX_REPLY = 65536                  # bytes of a reply read, at most; the rest is never read
+STREAM_PIECE = 65536               # bytes `stream` asks for at a time
 # What came of a request, as the journal keeps it: answered well, refused (a 3xx or 4xx), the service's own failure, no
 # answer in time (or no way there at all), or the secure connection refused - a certificate that does not verify, which
 # is never downgraded.
@@ -61,9 +65,8 @@ def _class(status) -> str:
     return "2xx" if 200 <= status < 300 else "5xx" if status >= 500 else "4xx"
 
 
-def request(url, body=None, headers=None, *, method="POST", timeout=TIMEOUT, opener=None) -> bytes:
-    """One request to `url`; what the service answered, at most MAX_REPLY bytes, for a 2xx. Failed otherwise, and
-    address.AddressRefused for an address no push may go to - before anything is sent."""
+def _opened(url, body, headers, method, timeout, opener):
+    """The reply to one request, checked and sent as `request` says; raises as it does."""
     checked_url(url)
     if body is not None and (not isinstance(body, bytes) or len(body) > MAX_BODY):
         raise ValueError("body")
@@ -84,12 +87,23 @@ def request(url, body=None, headers=None, *, method="POST", timeout=TIMEOUT, ope
         raise Failed("tls") from None
     except (socket.timeout, TimeoutError, OSError):
         raise Failed("timeout") from None
+    return reply
+
+
+def _well(reply) -> None:
+    status = getattr(reply, "status", None)
+    status = status if isinstance(status, int) else 200
+    if _class(status) != "2xx":
+        raise Failed(_class(status), status)
+
+
+def request(url, body=None, headers=None, *, method="POST", timeout=TIMEOUT, opener=None, most=MAX_REPLY) -> bytes:
+    """One request to `url`; what the service answered, at most `most` bytes, for a 2xx. Failed otherwise, and
+    address.AddressRefused for an address no push may go to - before anything is sent."""
+    reply = _opened(url, body, headers, method, timeout, opener)
     try:
-        status = getattr(reply, "status", None)
-        status = status if isinstance(status, int) else 200
-        if _class(status) != "2xx":
-            raise Failed(_class(status), status)
-        return reply.read(MAX_REPLY)
+        _well(reply)
+        return reply.read(most)
     except (socket.timeout, TimeoutError):
         raise Failed("timeout") from None
     except OSError:
@@ -109,6 +123,29 @@ def post(url, body, headers, *, timeout=TIMEOUT, opener=None) -> str:
     return "2xx"
 
 
-def get(url, *, timeout=TIMEOUT, opener=None, headers=None) -> bytes:
-    """GET `url`: what it answered, at most MAX_REPLY bytes; Failed otherwise."""
-    return request(url, None, headers, method="GET", timeout=timeout, opener=opener)
+def get(url, *, timeout=TIMEOUT, opener=None, headers=None, most=MAX_REPLY) -> bytes:
+    """GET `url`: what it answered, at most `most` bytes; Failed otherwise."""
+    return request(url, None, headers, method="GET", timeout=timeout, opener=opener, most=most)
+
+
+def stream(url, take, *, timeout=TIMEOUT, opener=None, piece=STREAM_PIECE) -> None:
+    """GET `url`, handing `take` each piece of a 2xx answer as it arrives; `take` bounds it, by raising. Failed otherwise."""
+    reply = _opened(url, None, None, "GET", timeout, opener)
+    try:
+        _well(reply)
+        while True:
+            read = reply.read(piece)
+            if not read:
+                return
+            take(read)
+    except (socket.timeout, TimeoutError):
+        raise Failed("timeout") from None
+    except ssl.SSLError:
+        raise Failed("tls") from None
+    finally:
+        close = getattr(reply, "close", None)
+        if callable(close):
+            try:
+                close()
+            except Exception:
+                pass

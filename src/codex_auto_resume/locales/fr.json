@@ -1283,5 +1283,8 @@
   "why.user_input_queued": "Quelque chose de votre part est en file d'attente dans cette conversation et passe d'abord.",
   "why.version_newer_than_engine": "Un Codex plus récent que celui d’ici a exécuté cette conversation en dernier ; elle reprend dès que Codex est mis à jour.",
   "why.waiting_reset": "La limite d'utilisation n'est pas encore réinitialisée.",
-  "why.workspace_changed": "La branche de son dossier, son modèle ou son mode d'approbation a changé depuis l'arrêt : rien n'est envoyé tant que vous ne la laissez pas continuer."
+  "why.workspace_changed": "La branche de son dossier, son modèle ou son mode d'approbation a changé depuis l'arrêt : rien n'est envoyé tant que vous ne la laissez pas continuer.",
+  "msg.toast_python_returned": "De retour sur le Python fourni",
+  "msg.toast_python_returned_start": "Le surveillant n'a pas démarré avec Python {version}, il est donc revenu au Python fourni avec ce programme.",
+  "msg.toast_python_returned_line": "Cette version du programme ne propose plus Python {version}, le surveillant est donc revenu au Python fourni avec lui."
 }

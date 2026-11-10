@@ -52,7 +52,7 @@ namespace CodexAutoResume
         internal static int Main(string[] argv)
         {
             string home = InstallHome();
-            string python = Path.Combine(home, "runtime", "python.exe");
+            string python = RuntimeChoice.Python(home);
             string source = Path.Combine(home, "app", "src");
 
             if (!File.Exists(python) || !Directory.Exists(source))

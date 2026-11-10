@@ -86,6 +86,10 @@ class AdvancedPlug(Plug):
         return self.runtime.partition(records)
 
     def supervise(self, facts):
+        # v0.6.23 (python_choice): which Python the watcher runs under; reads nothing where no choice was made.
+        if isinstance(facts, dict) and facts.get("phase") in ("runtime", "runtime_failed"):
+            from .control import pythons
+            return pythons.supervised(self.runtime, facts)
         return self.runtime.supervise(facts)
 
     def supervise_held(self):
@@ -164,7 +168,9 @@ NOTICE_KINDS = (("near_limit", ("near_limit",), "msg.toast_near_limit"),
                 # v0.6.20: another Codex account signed in, and what waited for a usage limit waits for you (account_switch).
                 ("account_changed", ("account_changed",), "msg.toast_account_changed"),
                 # v0.6.22: every saved account at its limit, and recoveries waiting for the reset (account_auto_switch).
-                ("accounts_exhausted", ("accounts_exhausted",), "msg.toast_accounts_exhausted"))
+                ("accounts_exhausted", ("accounts_exhausted",), "msg.toast_accounts_exhausted"),
+                # v0.6.23: the watcher went back to the bundled Python by itself (python_choice).
+                ("python_returned", ("python_returned",), "msg.toast_python_returned"))
 
 
 def register_notice_kinds():

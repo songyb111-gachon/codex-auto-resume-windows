@@ -1283,5 +1283,8 @@
   "why.user_input_queued": "Ada sesuatu dari Anda dalam antrean percakapan ini dan akan didahulukan.",
   "why.version_newer_than_engine": "Codex yang lebih baru daripada yang ada di sini terakhir menjalankan percakapan ini; dilanjutkan setelah Codex diperbarui.",
   "why.waiting_reset": "Batas penggunaan belum direset.",
-  "why.workspace_changed": "Branch foldernya, modelnya, atau mode persetujuannya berubah sejak berhenti: tidak ada yang dikirim sampai Anda mengizinkannya berlanjut."
+  "why.workspace_changed": "Branch foldernya, modelnya, atau mode persetujuannya berubah sejak berhenti: tidak ada yang dikirim sampai Anda mengizinkannya berlanjut.",
+  "msg.toast_python_returned": "Kembali ke Python bawaan",
+  "msg.toast_python_returned_start": "Pemantau tidak mulai di Python {version}, jadi kembali ke Python yang disertakan program ini.",
+  "msg.toast_python_returned_line": "Versi program ini tidak lagi menawarkan Python {version}, jadi pemantau kembali ke Python yang disertakan bersamanya."
 }

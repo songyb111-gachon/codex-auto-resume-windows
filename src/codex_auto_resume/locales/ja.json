@@ -1283,5 +1283,8 @@
   "why.user_input_queued": "この会話にはあなたの入力がキューにあり、そちらが先に処理されます。",
   "why.version_newer_than_engine": "この会話を最後に実行したのは、ここにあるものより新しい Codex です。Codex を更新すると続行します。",
   "why.waiting_reset": "使用量の上限がまだリセットされていません。",
-  "why.workspace_changed": "停止してからフォルダーのブランチ、モデル、または承認モードが変わりました。続行を許可するまで何も送信されません。"
+  "why.workspace_changed": "停止してからフォルダーのブランチ、モデル、または承認モードが変わりました。続行を許可するまで何も送信されません。",
+  "msg.toast_python_returned": "付属の Python に戻りました",
+  "msg.toast_python_returned_start": "監視プロセスが Python {version} で起動しなかったため、このプログラムに付属の Python に戻りました。",
+  "msg.toast_python_returned_line": "このバージョンのプログラムでは Python {version} を提供しなくなったため、監視プロセスは付属の Python に戻りました。"
 }

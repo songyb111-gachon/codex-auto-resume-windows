@@ -232,7 +232,9 @@ ITEM = {_q(name): item for item, names in {
                  "win.handover",
                  # v0.6.21 (#58): who signed a file, as Windows judges its signature.
                  "win.authenticode",
-                 "pwsh", "shortcut", "startup", "addremove"),
+                 "pwsh", "shortcut", "startup", "addremove",
+                 # v0.6.23: which Python an installation runs under: the record's reader.
+                 "chosen_runtime"),
     "config": ("", "config", "logbook"),
 }.items() for name in names}
 

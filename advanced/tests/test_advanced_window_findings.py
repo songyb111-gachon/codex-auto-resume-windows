@@ -41,7 +41,7 @@ NO_CONTINUATION = {
     "reset_message", "start_with_codex", "status_feed", "steer_send", "stop_hook_continuation", "telegram_remote",
     "usage_analytics", "usage_meter", "usage_pause", "usage_wrap_up", "wake_for_reset", "window_anchor",
     # An action, and the one that is itself a resend.
-    "compat_report", "local_api_actions", "local_api_lan", "long_reset_message", "open_codex_button", "telegram_continue",
+    "python_choice", "compat_report", "local_api_actions", "local_api_lan", "long_reset_message", "open_codex_button", "telegram_continue",
     "once_more_when_unsure"}
 
 

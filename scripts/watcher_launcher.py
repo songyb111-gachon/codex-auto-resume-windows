@@ -23,6 +23,13 @@ launcher then runs the watcher as a child - this same file, under pythonw.exe, w
 an argument that makes it a child, which never supervises one of its own - and waits for it; once
 the child ended it asks again, and starts it once more only where the answer is RESTART
 (`_supervised`). What a plug answers is a closed word: nothing of it reaches the child's arguments.
+
+The same question decides which Python the watcher runs under (v0.6.23, `_on_chosen`), and is asked only where the
+installation has a record of a choice (chosen_runtime.py): with none, nothing here changes. Every registered route still
+starts this file under the bundled runtime. Where the advanced edition's plug answers SUPERVISE to it, the watcher runs as a
+child under the Python the record names, and this process stays on the bundled runtime to see that it came up within
+WATCHER_WAIT. One that did not is ended, the plug is told - it takes the record away and says so, once -
+and the watcher runs here, on the bundled runtime. The standard edition answers nothing and has no record.
 """
 from __future__ import annotations
 
@@ -50,6 +57,12 @@ PHASE_START, PHASE_ENDED = "start", "ended"
 # And the two answers this launcher carries out: SUPERVISE, asked at the start - run the watcher as a child and stay -
 # and RESTART, asked once that child ended - start it once more. Compared as they are; a plug's answer is never passed on.
 SUPERVISE, RESTART = "supervise", "restart"
+# v0.6.23: which Python the watcher runs under: the question (SUPERVISE: as a child, under the chosen one), and the telling
+# that a watcher started under the chosen Python did not come up. Asked only where a record of a choice exists.
+PHASE_RUNTIME, PHASE_RUNTIME_FAILED = "runtime", "runtime_failed"
+# How long a watcher started under the chosen Python has to take its mutex: plugin_setup's WATCHER_WAIT, kept here as
+# NO_REMOTE_DEBUG is, since this file runs before any engine is found.
+WATCHER_WAIT = 45.0
 # The argument, after `run`, that starts the watcher as a supervised child: the launcher's own, in this process, and
 # never a supervisor of its own - no grandchildren.
 CHILD_ARGUMENT = "--supervised-child"
@@ -218,6 +231,10 @@ def main(argv=None) -> int:
     asks = command == ["run"] and not child
     held = None
     if asks:
+        code = _on_chosen(here, home)
+        if code is not None:
+            return code
+    if asks:
         answer, held = _start_answer(here, home)
         if answer == SUPERVISE:
             code = _supervised(here, home)
@@ -286,17 +303,93 @@ def _why_held(home: Path):
     return word if isinstance(word, str) and word.replace("_", "").isalpha() else None
 
 
-def _supervised(here: Path, home: Path):
+def _on_chosen(here: Path, home: Path):
+    """The watcher under the Python the person chose, with this process on the bundled one to see it come up (v0.6.23).
+    What to return, or None to go on as ever in this process: nothing chosen, or a choice that did not come up.
+
+    A launcher started by a program that itself runs under a chosen Python - the Dashboard's Start - starts again under
+    the bundled runtime first, so whichever way the watcher is started, the process that can take a bad choice back is
+    never the one that needs it."""
+    try:
+        if home.resolve() / "runtimes" in Path(sys.executable).resolve().parents:
+            return _again_under_bundled(here, home)
+    except OSError:
+        return None
+    # No record, no question: the launcher of an installation that chose nothing is the launcher it always was.
+    if not (home / "runtimes" / "chosen.json").is_file() or _supervise(home, {"phase": PHASE_RUNTIME}) != SUPERVISE:
+        return None
+    try:
+        from codex_auto_resume import chosen_runtime, config
+        from codex_auto_resume.runtime.app import App
+        interpreter = chosen_runtime.interpreter(home, windowless=True)
+        if interpreter is None or App(config.Paths(home), console=False, enable_logging=False).watcher_running() is True:
+            return None
+    except Exception:                               # noqa: BLE001 - the bundled runtime is always there to go on with
+        return None
+    return _supervised(here, home, interpreter)
+
+
+def _again_under_bundled(here: Path, home: Path):
+    """Start this launcher again under the bundled runtime: 0 once the watcher is up or the wait is over, so whoever started
+    this one and watches it (control.await_watcher) sees a launcher that lived to bring the watcher up; None where it could
+    not be started, and the watcher runs here. Detached, as `_relaunch_once` starts it."""
+    import subprocess
+    interpreter = home / "runtime" / "pythonw.exe"
+    if not interpreter.is_file():
+        return None
+    flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+    try:
+        process = subprocess.Popen([str(interpreter), *NO_REMOTE_DEBUG, str(Path(__file__).resolve()), "run"], close_fds=True,
+                                   creationflags=flags, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                   stderr=subprocess.DEVNULL)
+    except OSError as exc:
+        _complain(here, "could not start again under the bundled runtime: %s" % exc)
+        return None
+    _note(here, "started again under the bundled runtime")
+    _came_up(home, process)
+    return 0
+
+
+def _came_up(home: Path, child) -> bool:
+    """Whether the watcher started as `child` under the chosen Python took its mutex within WATCHER_WAIT - with the one
+    more look setup gives one that took it just as the wait ended (plugin_setup.looked_again)."""
+    try:
+        from codex_auto_resume import config
+        from codex_auto_resume.control.watcher import await_watcher
+        from codex_auto_resume.runtime.app import App
+        probe = App(config.Paths(home), console=False, enable_logging=False).watcher_running
+        state = await_watcher(probe, child, timeout=WATCHER_WAIT)["state"]
+        return state == "running" or (state == "unconfirmed" and probe() is True)
+    except Exception:                               # noqa: BLE001 - not known to be up is not up
+        return False
+
+
+def _not_up(here: Path, home: Path, child) -> None:
+    """The chosen Python did not bring the watcher up: its child ended, and the plug told, which takes the record away."""
+    if child is not None:
+        try:
+            child.kill()
+            child.wait(timeout=10)
+        except Exception:                           # noqa: BLE001 - it had ended already
+            pass
+    _note(here, "the watcher did not come up under the chosen Python; going on under the bundled runtime")
+    _supervise(home, {"phase": PHASE_RUNTIME_FAILED})
+
+
+def _supervised(here: Path, home: Path, chosen=None):
     """SUPERVISE (v0.6.19): run the watcher as a child and wait for it; once it ended, ask P13 again, and start it once
     more only where the answer is RESTART. What to return: the child's last exit code - or None where no child could be
     started at all, and the watcher is then run in this process, as with no supervisor.
+
+    With `chosen` (v0.6.23), the pythonw.exe the person chose runs that child, and each start of it is held to coming up
+    (`_came_up`); one that does not leaves None, and the watcher is run in this process, on the bundled runtime.
 
     The child is this file again, under the pythonw.exe beside the interpreter that runs it (as `_relaunch_once` finds
     it), with CREATE_NO_WINDOW and nothing to read or write; its arguments are constants. A child that ended because the
     state is newer than its code has started the installed copy once itself (`_relaunch_once`, unchanged), so its code
     is returned as it is, unasked. While it waits, this process holds no lock and no state - only the child."""
     import subprocess
-    interpreter = Path(sys.executable).resolve().with_name("pythonw.exe")
+    interpreter = chosen or Path(sys.executable).resolve().with_name("pythonw.exe")
     if not interpreter.is_file():
         _note(here, "no pythonw.exe to run a supervised watcher under; running it here")
         return None
@@ -309,9 +402,15 @@ def _supervised(here: Path, home: Path):
                                      stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except OSError as exc:
             _complain(here, "could not start a supervised watcher: %s" % exc)
+            if chosen is not None:
+                _not_up(here, home, None)
+                return None
             return EXIT_ERROR if started else None
         started = True
         _note(here, "watcher started as a supervised child (pid %d)" % child.pid)
+        if chosen is not None and not _came_up(home, child):
+            _not_up(here, home, child)
+            return None
         code = child.wait()
         if code == EXIT_SCHEMA_NEWER:
             return code

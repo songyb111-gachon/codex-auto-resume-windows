@@ -1283,5 +1283,8 @@
   "why.user_input_queued": "Etwas von Ihnen steht in dieser Unterhaltung in der Warteschlange und kommt zuerst.",
   "why.version_newer_than_engine": "Ein neueres Codex als das hier hat diese Unterhaltung zuletzt ausgeführt; es geht weiter, sobald Codex aktualisiert ist.",
   "why.waiting_reset": "Das Nutzungslimit ist noch nicht zurückgesetzt.",
-  "why.workspace_changed": "Der Branch ihres Ordners, ihr Modell oder ihr Genehmigungsmodus hat sich seit dem Anhalten geändert: Es wird nichts gesendet, bis Sie sie fortfahren lassen."
+  "why.workspace_changed": "Der Branch ihres Ordners, ihr Modell oder ihr Genehmigungsmodus hat sich seit dem Anhalten geändert: Es wird nichts gesendet, bis Sie sie fortfahren lassen.",
+  "msg.toast_python_returned": "Wieder beim mitgelieferten Python",
+  "msg.toast_python_returned_start": "Der Watcher ist mit Python {version} nicht gestartet und ist deshalb zu dem Python zurückgekehrt, das mit diesem Programm kam.",
+  "msg.toast_python_returned_line": "Diese Version des Programms bietet Python {version} nicht mehr an, deshalb ist der Watcher zu dem Python zurückgekehrt, das mit ihm kam."
 }

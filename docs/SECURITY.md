@@ -714,6 +714,11 @@ refresh, an attestation or a tool call among them, with an error. Its package im
 networking module but in the courier's own folder (`tests/test_privacy_claims.py`,
 ADVANCED_NETWORK_MODULES), below. The compatibility report reaches GitHub only through gh, above.
 
+**Run on another Python version** (off until a person turns it on) reaches `www.python.org` alone, from a file in the
+courier's package, in the Dashboard's process and only when a button on its card is pressed. Before a byte of the package
+runs, its SHA-256 matches what python.org published, it unpacks flat into a new folder, its interpreters and library carry
+a valid signature of the Python Software Foundation, and every shipped module imports under it.
+
 **The courier** (v0.6.20; push notices and the status feed, each off until a person turns it on). The
 advanced edition's only network code: `pythonw.exe` running the advanced package's `courier`, started by
 the watcher at most once a minute while a notice waits or a status reading is due (or by the

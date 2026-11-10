@@ -1283,5 +1283,8 @@
   "why.user_input_queued": "Có nội dung của bạn đang xếp hàng trong cuộc trò chuyện này và sẽ được chạy trước.",
   "why.version_newer_than_engine": "Một phiên bản Codex mới hơn bản ở đây đã chạy cuộc trò chuyện này lần cuối; sẽ tiếp tục khi Codex được cập nhật.",
   "why.waiting_reset": "Giới hạn sử dụng chưa được đặt lại.",
-  "why.workspace_changed": "Nhánh của thư mục, mô hình hoặc chế độ phê duyệt của nó đã thay đổi kể từ khi dừng: không gửi gì cho đến khi bạn cho phép tiếp tục."
+  "why.workspace_changed": "Nhánh của thư mục, mô hình hoặc chế độ phê duyệt của nó đã thay đổi kể từ khi dừng: không gửi gì cho đến khi bạn cho phép tiếp tục.",
+  "msg.toast_python_returned": "Đã quay lại Python đi kèm",
+  "msg.toast_python_returned_start": "Bộ theo dõi không khởi động được trên Python {version}, nên đã quay lại Python đi kèm chương trình này.",
+  "msg.toast_python_returned_line": "Phiên bản này của chương trình không còn cung cấp Python {version}, nên bộ theo dõi đã quay lại Python đi kèm với nó."
 }
