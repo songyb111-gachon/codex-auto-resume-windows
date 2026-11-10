@@ -57,5 +57,20 @@ class TheClickSeesTheRecordTheWatcherSeesItsGates(unittest.TestCase):
         self.assertIsNone(self.Watcher()._not_served(self.ROW, 100.0, None, {"consent": (machine.PASS, None)}, 99.0))
 
 
+class ToastCancelAndCardCancelOpenTheStateDifferently(unittest.TestCase):
+    """Windows starts the toast's process whatever is running, even with an older state and no watcher; a card's Cancel
+    runs in a current watcher, through Control, which refuses such a state."""
+
+    def test_the_toast_takes_an_older_state_and_the_control_layer_does_not(self):
+        app = types.SimpleNamespace(paths=types.SimpleNamespace(state_dir="state"))
+        with patch.object(base, "open_state") as toast:
+            base._open_state(app)
+        with patch.object(control_state, "open_state") as card:
+            control_state.StateMixin._open(types.SimpleNamespace(paths=app.paths))
+        self.assertEqual(toast.call_args.kwargs["legacy"], "always")
+        self.assertEqual(card.call_args.kwargs["legacy"], "if_reducing")
+        self.assertFalse(card.call_args.kwargs["reducing"])
+
+
 if __name__ == "__main__":
     unittest.main()
