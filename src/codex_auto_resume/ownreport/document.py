@@ -41,6 +41,8 @@ NOTE = ("Written on this PC from its own records and sent nowhere: counts, state
         "text, identifiers, paths or names. progress_items are null: the Dashboard does not read Codex's history.")
 MAX_BYTES = 1_000_000                            # the receiving side's limit (build/community_report.py)
 ISO = re.compile(r"\A\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ\Z")
+# Four digits, as the receiving side takes (build/community_report.PRODUCT); the update check's rule is another's
+# (domain/ids.PRODUCT_RELEASE; tests/test_rule_copies.py pins the difference).
 PRODUCT_VERSION = re.compile(r"\A\d{1,4}\.\d{1,4}\.\d{1,4}(?:-(?:alpha|beta)(?:\.\d{1,3})?)?\Z")
 WINDOWS = re.compile(r"\A10\.0\.\d{5}\Z")
 

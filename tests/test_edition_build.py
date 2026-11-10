@@ -93,6 +93,10 @@ def stand_in(builder, work: Path, root: Path = ROOT) -> None:
     # (the check itself, under an interpreter that ignores the environment: tests/test_courier_start_build.py).
     builder.checked = []
     builder.check_courier_starts = lambda stage: builder.checked.append(Path(stage).name)
+    # Nor can it be trimmed or asked to import anything: both are held under the real runtime and a stand-in of their
+    # own (tests/test_release_size.py).
+    builder.trim_runtime = lambda stage: []
+    builder.check_trimmed_runtime = lambda stage, removed: None
 
 
 def build(builder, edition_name: str, output: Path) -> Path:

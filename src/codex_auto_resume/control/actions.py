@@ -8,6 +8,7 @@ from __future__ import annotations
 import time
 
 from .. import homes, machine, oncewords, power, projects, quiet, settings
+from ..domain import gates
 from ..machine import CLAIMED, OBSERVING, WAITING
 from ..store import TERMINAL, StoreError
 from ..store.actions import CHANGED, RECHECKED, RETIRED, UNRESOLVED
@@ -38,7 +39,8 @@ def _reads_usage(record, now) -> bool:
     """Whether a person's click reads Codex's usage for `record` (v0.6.19, issue #50; A12 amended by the owner on
     2026-10-24): a usage limit's reset still ahead, waiting unsent and uncancelled, nothing held, no postponement of the
     person's own ahead. The one rule of Retry now ("check one") and Rescan ("check all"), and the window's CanRetryNow
-    offers Retry now on exactly these where nothing else in view stops it (tests/test_usage_clicks_window.py)."""
+    offers Retry now on exactly these where nothing else in view stops it (tests/test_usage_clicks_window.py). What the
+    record alone says: the watcher, which also has its gates, may still answer "held" (engine/freshness._not_served)."""
     return (record["category"] == "usage_limit" and record["state"] in WAITING and not record["cancel_requested"]
             and record["submitted_at"] is None and (record["reset_at"] or 0) > now
             and (record["not_before"] or 0) <= now and not record.get("hold"))
@@ -222,18 +224,16 @@ class ActionsMixin:
         a Pause, the conversation's recovery off, Observe only, quiet hours, or no internet while the watcher waits for
         one - each as the watcher reads it, so the click never promises a reading the watcher will not make."""
         stored = store.settings()
-        if not stored["enabled"]:
-            return "paused"
-        if not store.thread_enabled(record["thread_id"]):
-            return "conversation_off"
         try:
             values = self.get_settings()
         except Exception:
             values = {}
-        if stored.get("observe_only") or values.get("observe_only"):
-            return "observe_only"
-        if quiet.quiet_until(now, values) is not None:
-            return "quiet_hours"
+        stopped = gates.usage_read_stopped(enabled=stored["enabled"] and not self.managed().disable_auto_resume,
+                                           conversation_on=store.thread_enabled(record["thread_id"]),
+                                           observing=stored.get("observe_only") or values.get("observe_only"),
+                                           quiet=quiet.quiet_until(now, values) is not None)
+        if stopped is not None:
+            return stopped
         if power.waits_for_network(values):
             try:
                 if network.internet() is False:

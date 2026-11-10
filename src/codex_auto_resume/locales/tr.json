@@ -669,6 +669,7 @@
   "installer.done.removed": "Codex Auto Resume kaldırıldı.",
   "installer.done.repaired": "Codex Auto Resume onarıldı.",
   "installer.done.setup_stopped": "Kurulum programı, yükleyici çalışmadan önce durdu. Nedeni günlükte yazıyor.",
+  "installer.done.still_removing": "Normalden uzun sürüyor ve arka planda çalışmaya devam ediyor. Kendiliğinden bitecek; başka bir şey yapmanız gerekmiyor.",
   "installer.done.still_running": "Normalden uzun sürüyor ve arka planda çalışmaya devam ediyor. Birkaç dakika sonra Gösterge Paneli'ne yeniden bakın.",
   "installer.done.unconfirmed": "İzleyicinin çalıştığı doğrulanamadı, bu yüzden henüz hiçbir şey izlenmiyor. Gösterge Paneli'nden başlatın.",
   "installer.done.updated": "Codex Auto Resume güncellendi.",
@@ -856,6 +857,7 @@
   "msg.toast_accounts_exhausted_body": "Kurtarma, geçiş olmadan olduğu gibi en erken sıfırlamayı bekler. O zamana kadar hiçbir şey gönderilmez.",
   "msg.toast_switch_not_finished": "Otomatik hesap geçişi tamamlanmadı",
   "msg.toast_switch_not_finished_body": "Codex'i açın ve hangi hesabın oturum açtığını kontrol edin. Kurtarma, geçiş olmadan olduğu gibi en erken sıfırlamayı bekler. O zamana kadar hiçbir şey gönderilmez.",
+  "status.aside": "Durursa sorun değil. Ben devam ederim.",
   "why.account_changed": "Durduktan sonra başka bir Codex hesabıyla oturum açıldı: siz devam etmesine izin verene kadar hiçbir şey gönderilmez.",
   "msg.toast_usage_at": "Codex kullanım sınırına ulaşıldı. Bu görev saat {time} olunca sürdürülecek.",
   "msg.toast_usage_soon": "Codex kullanım sınırına ulaşıldı. Bu görev sıfırlamadan sonra sürdürülecek.",
@@ -1281,5 +1283,8 @@
   "why.user_input_queued": "Bu sohbette sizin kuyruğa alınmış bir şeyiniz var ve o önce gider.",
   "why.version_newer_than_engine": "Bu sohbeti en son buradakinden daha yeni bir Codex çalıştırdı; Codex güncellendiğinde devam eder.",
   "why.waiting_reset": "Kullanım sınırı henüz sıfırlanmadı.",
-  "why.workspace_changed": "Durduğundan beri klasörünün dalı, modeli veya onay modu değişti: siz devam etmesine izin verene kadar hiçbir şey gönderilmez."
+  "why.workspace_changed": "Durduğundan beri klasörünün dalı, modeli veya onay modu değişti: siz devam etmesine izin verene kadar hiçbir şey gönderilmez.",
+  "msg.toast_python_returned": "Birlikte gelen Python'a dönüldü",
+  "msg.toast_python_returned_start": "İzleyici Python {version} üzerinde başlamadı, bu yüzden bu programla birlikte gelen Python'a döndü.",
+  "msg.toast_python_returned_line": "Programın bu sürümü artık Python {version} sunmuyor, bu yüzden izleyici onunla birlikte gelen Python'a döndü."
 }

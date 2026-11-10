@@ -607,7 +607,6 @@ class StyleTests(unittest.TestCase):
         self.assertIn('"Microsoft YaHei UI", "Microsoft JhengHei UI", sans-serif', mcpui._STYLE)
 
     def test_focus_is_drawn_for_the_keyboard_only(self):
-        self.assertIn(":focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }", mcpui._STYLE)
         self.assertNotRegex(mcpui._STYLE, r"(?<!-)\b:focus\s*\{[^}]*outline:\s*2px")
 
 

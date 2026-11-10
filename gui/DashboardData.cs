@@ -940,6 +940,7 @@ namespace CodexAutoResume
 
         private void UpdateCountdowns()
         {
+            dayScene.Sync();
             if (snapshot == null) return;
             double now = Now();
             var status = Map(snapshot, "status");
@@ -1258,7 +1259,12 @@ namespace CodexAutoResume
             // While an action is in flight every other action waits its turn, visibly. A second
             // click on a button whose first click has not been answered yet is how a person
             // ends up acting twice, or on the row that happened to be selected by then.
-            UseWaitCursor = busy > 0;
+            //
+            // v0.6.23: most calls are answered in 17 to 87 ms, and every button in the window flashed flat and back for each
+            // one, the wait cursor with them. The buttons are refused at once, as ever; they and the cursor look it only when
+            // the call is still running at BusyHold's end. Reduce motion: at once, as everything is there.
+            if (busy == 0) UseWaitCursor = false;
+            else if (!BusyHold.Begin(delegate { UseWaitCursor = busy > 0; })) UseWaitCursor = true;
             UpdatePendingButtons();
             UpdateHistoryButtons();
             UpdateToggle();
@@ -1276,6 +1282,7 @@ namespace CodexAutoResume
             // start the current watcher, which migrates the state back, before the installer has run.
             if (startButton != null) startButton.Enabled = busy == 0 && !starting;
             if (powerSwitch != null) powerSwitch.Enabled = busy == 0 && powerCanSwitch;
+            if (busy == 0) BusyHold.End();
             // v0.6.20: the header's light follows at once, both ways (Hero, BusyLight), not at the next second's tick.
             UpdateCountdowns();
         }

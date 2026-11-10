@@ -228,6 +228,28 @@ def icon_motion_allowed(*, reduced=False, contrast=False, battery_saver=False, l
     return bool(frames) and not (reduced or contrast or battery_saver or locked or hidden)
 
 
+def _mark_cover(size, look, steps=4):
+    """{(x, y): (hits, red, green, blue)} for the pixels `look`'s mark falls on, at an icon this size."""
+    cover = {}
+    unit = 32.0 / size
+    for py in range(size):
+        for px in range(size):
+            hits = [brand.mark_colour(look, (px + (sx + 0.5) / steps) * unit, (py + (sy + 0.5) / steps) * unit)
+                    for sy in range(steps) for sx in range(steps)]
+            hits = [hit for hit in hits if hit is not None]
+            if hits:
+                cover[(px, py)] = (len(hits), sum(hit[0] for hit in hits), sum(hit[1] for hit in hits), sum(hit[2] for hit in hits))
+    return cover
+
+
+def _marked(pixel, cover, steps=4):
+    """(red, green, blue) under `cover`'s share of the mark."""
+    hits, red, green, blue = cover
+    total = steps * steps
+    return ((pixel[0] * (total - hits) + red) // total, (pixel[1] * (total - hits) + green) // total,
+            (pixel[2] * (total - hits) + blue) // total)
+
+
 class IconFrames:
     """The icon's frames for one size, as pixels: pure, built on any thread, drawn on the icon's.
 
@@ -241,16 +263,21 @@ class IconFrames:
     plain table's.
     """
 
-    def __init__(self, size, fine=1):
+    def __init__(self, size, fine=1, look=None):
         self.size = size = int(size)
         if size <= 0 or int(fine) < 1:
             raise ValueError("an icon has a size, and a position at least one step")
         self.fine = int(fine)
         positions = ICON_MOTION["positions"] * self.fine
+        self.look = look
+        body = brand.DAY_LOOKS[look][:2] if look else None
+        self._mark = _mark_cover(size, look) if look and size >= brand.MOTIF_LEAST else {}
         base = bytearray(size * size * 4)
-        for y, row in enumerate(brand.icon_samples(size, head=False)):
+        for y, row in enumerate(brand.icon_samples(size, head=False, body=body)):
             for x, sample in enumerate(row):
                 red, green, blue, alpha = brand.icon_pixel(sample, (0, 0, 0))
+                if (x, y) in self._mark and alpha:
+                    red, green, blue = _marked((red, green, blue), self._mark[(x, y)])
                 index = (y * size + x) * 4
                 base[index:index + 4] = bytes((blue, green, red, alpha))
         self.ground = bytes(base)
@@ -258,7 +285,7 @@ class IconFrames:
         for position in range(positions):
             angle = brand.ICON_SHAPE["arc_end"] - 360.0 * position / positions   # clockwise
             box = brand.icon_head_box(size, angle)
-            self.heads.append((box, brand.icon_samples(size, head_angle=angle, box=box)))
+            self.heads.append((box, brand.icon_samples(size, head_angle=angle, box=box, body=body)))
         self._cache = {}
 
     def compose(self, position, head) -> bytes:
@@ -273,6 +300,8 @@ class IconFrames:
         for y, row in enumerate(rows):
             for x, sample in enumerate(row):
                 red, green, blue, alpha = brand.icon_pixel(sample, key[1])
+                if (left + x, top + y) in self._mark and alpha and not sample[1]:      # the head stands on the mark
+                    red, green, blue = _marked((red, green, blue), self._mark[(left + x, top + y)])
                 index = ((top + y) * size + left + x) * 4
                 pixels[index:index + 4] = bytes((blue, green, red, alpha))
         frame = bytes(pixels)
@@ -282,10 +311,10 @@ class IconFrames:
         return frame
 
 
-def build_icon_frames(size, clock=time.perf_counter, fine=1):
+def build_icon_frames(size, clock=time.perf_counter, fine=1, look=None):
     """IconFrames for `size` (and `fine`), or None when it cannot be built inside ICON_MOTION's budget."""
     started = clock()
-    frames = IconFrames(size, fine)
+    frames = IconFrames(size, fine, look)
     if (clock() - started) * 1000.0 > ICON_MOTION["build_budget_ms"]:
         return None
     return frames

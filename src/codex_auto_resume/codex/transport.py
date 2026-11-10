@@ -14,7 +14,7 @@ import re
 import subprocess as S
 import time
 
-from .. import machine
+from .. import continuation, machine
 from ..domain import ids, vocabulary
 from ..win.inventory import resource_users
 from ..win.kernel import NO_WINDOW
@@ -23,6 +23,16 @@ from .pairing import (app_running, desktop_pair, engines_instead, inventory, off
 from .appserver import PROTOCOL_METHODS, Protocol
 from .errors import AdapterError
 from .usage import parse_usage
+
+# The longest command line Windows starts a process with, in UTF-16 code units, less its end (the measurement of
+# 2026-11-10, plans/measure-20261110-limits-result.md).
+COMMAND_LINE_UNITS = 32766
+
+
+def command_line_units(argv) -> int:
+    """How long `argv` is as Windows will see it: the line subprocess makes of it - a quote and the backslashes before
+    it cost more than themselves - in UTF-16 code units, so a character past the BMP (an emoji) counts as two."""
+    return len(S.list2cmdline(argv).encode("utf-16-le", "surrogatepass")) // 2
 
 
 # A Codex update bumps the version string, which alone must not disable auto-resume.
@@ -330,10 +340,14 @@ class Backend:
         """Only spawn failure permits retry. Every post-spawn uncertainty is terminal."""
         try:
             canonical_uuid(thread_id)
-            if not isinstance(prompt, str) or not prompt or len(prompt) > 8192 or "\0" in prompt:
+            if not isinstance(prompt, str) or not prompt or len(prompt) > continuation.PROMPT_SEND_LIMIT or "\0" in prompt:
                 raise ValueError("invalid_prompt")
             self._compatible()
             remote = self._queue_daemon_remote()
+            # The same refusal for a message that fits the count and not the command line.
+            if command_line_units(self._argv() + ["queue", "--thread", thread_id, "--message=" + prompt]
+                                  + (["--remote", "unix://"] if remote else [])) > COMMAND_LINE_UNITS:
+                raise ValueError("invalid_prompt")
         except (AdapterError, ValueError):
             return {"outcome": "not_started", "error_code": "queue_preflight_failed"}
         process = None

@@ -185,6 +185,17 @@ needs `python` on `PATH` for that step. The second downloads the pinned embeddab
 `build/dist/`; with it comes each edition's setup program, `CodexAutoResume-Setup-v<version>.exe` and
 `CodexAutoResume-Advanced-Setup-v<version>.exe`, with their `.sha256` files.
 
+What an archive takes from `assets/` and `scripts/` is named file by file in `build/make_release.py`
+(`SHIPPED_ASSETS`, `SHIPPED_SCRIPTS`), so a new picture or script stays out of the release until it
+is named there and `tests/test_release_size.py` is told what reads it. The archive's
+`docs/CHANGELOG.md` is the entry of its own version and a line that says where the whole changelog
+is. The bundled runtime is trimmed to `build/runtime_keep.json`; the build then runs
+`build/runtime_check.py` under what is left, which imports every staged module and reads every import
+statement of the staged code and of the kept standard library. After moving to a new Python the build
+stops until `python` and `sha256` in that list are changed, and then that check names each import the
+list cuts that nobody has read. The app's packed size is held to `tests/data/release_budget.json`:
+raise a number there when a feature earns it.
+
 The third drives the archive's own bytes: it extracts the ZIP and runs the engine inside
 it with the interpreter inside it, against a state directory that exists only for that run,
 and reads the version resource off both executables. Nothing outside that directory is
@@ -260,7 +271,7 @@ relies on:
 - **The archive.** `build/make_release.py` fixes the file order, the entry timestamps and
   the compression level, and writes no build-host path. The `zipfile` and `zlib` modules
   that write it still come from the Python that runs it, so for a comparison use the
-  Python line the release workflow uses, 3.13, or at least the same zlib build: on
+  Python line the tag's release workflow used (3.14 from v0.6.19-beta.3 on, 3.13 before it), or at least the same zlib build: on
   Windows, Python 3.14 and later use zlib-ng, which can compress the same files to
   different bytes.
 - **Line endings.** The archive packs source files, so their line endings are part of its
@@ -487,8 +498,8 @@ documents. To change something there:
   next promotion and `ko` at the sync after it.
 - **Korean prose** — change the `.ko.md` file on `dev`, beside its English page.
   `scripts/ko_branch.json` maps each one to the English page it replaces. What stays English is listed there too, with the
-  reason: the licence, because a translated licence is a second licence, and the Codex
-  skill, because it instructs Codex rather than a person.
+  reason: the licence, because a translated licence is a second licence, the Codex
+  skill, because it instructs Codex rather than a person, the maintainer's winget note, and the file the generator writes for ko.
 
 `python scripts/ko_sync.py --check` on dev shows what a sync would do without writing anything.
 Adding a Korean page means adding the file and its mapping entry in the same commit;
@@ -539,7 +550,7 @@ They are documentation only and never copied into `assets/`.
 
 **Only what moved is drawn, side by side.** Both steps first hold the manifest against the working
 tree and draw only the pictures whose inputs moved, whose files are not the bytes the manifest
-records, or - for the window - that were captured at another display scaling; the rest are kept as
+records, or - for the window - that were drawn at another scale; the rest are kept as
 they are. A change to the generator itself draws everything, and so does `--all`
 (`python build/make_screenshots.py --all`, `python build/make_screenshots.py --breathe --all`). What
 is drawn is drawn side by side, each job - one language's window pages, one panel, one popup - in a
@@ -547,6 +558,7 @@ process of its own: the windows' jobs all at once, and the others half the proce
 never more than eight (`--jobs N` says how many). Stopping a run - Ctrl+C, or a job the run cannot
 read - ends every job it started and starts no other, and a job ended so closes its windows with it;
 a run killed outright takes its jobs with it too, since they run in a Windows job of the run's.
+Since v0.6.20 the window's stills are drawn offscreen at a pinned 150 %, with nothing on the screen (BRAND.md, *Redrawing anything*). What follows holds for `--capture`, which photographs real windows and needs a monitor at 150 % as the primary.
 The window is photographed as soon as it says that the page it opened on is drawn from the bridge's
 answers and holds still, rather than a fixed fifteen seconds after it started:
 `build/capture_window.ps1` hands it the name of an event to set, through a variable only the capture
@@ -696,9 +708,8 @@ in a commit like any other.
 - **Adding a rule.** It takes the next number in its family. Ids are never renumbered or reused,
   because capability statements, the registry and the other documents cite them. Its line under
   the rule says how it is held - tested, code, docs, model or planned - and names the tests that
-  hold it. In the same commit, the table of families in the advanced package's `standards.py`
-  (under `advanced/src/`) gets the family's new count: `advanced/tests/test_advanced_registry.py`
-  fails while the file and that table disagree, family by family, and while a test the file names
+  hold it. In the same commit, the table of families in the advanced edition's own package gets the family's new
+  count: that edition's registry test fails while the file and that table disagree, family by family, and while a test the file names
   is not in the repository.
 - **Changing a rule.** It keeps its id and its place, and its sentence ends with who changed it and
   when: *(amended by the owner on 2026-09-28)*. If a capability's statement describes the rule, the
@@ -789,7 +800,7 @@ same report is not filed again; the account's reports on other Codex versions ar
 other. No report enters the compatibility data, and none changes a tier.
 
 A report may also carry the records an advanced-edition feature carried by a route of its own, kept
-apart in `advanced_records` (codex-compat-reporter 1.5.4 on). They are held to the same rules as any
+apart under a key of their own (codex-compat-reporter 1.5.4 on). They are held to the same rules as any
 record, counted by the same rule into the advanced edition's own Reported counts beside the version
 in the index and the folder's README, and never into the verdict, a level or the counts a release
 ships.

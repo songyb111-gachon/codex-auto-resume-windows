@@ -669,6 +669,7 @@
   "installer.done.removed": "O Codex Auto Resume foi removido.",
   "installer.done.repaired": "O Codex Auto Resume foi reparado.",
   "installer.done.setup_stopped": "O programa de instalação parou antes de o instalador rodar. O log diz o motivo.",
+  "installer.done.still_removing": "Está demorando mais que o normal e continua trabalhando em segundo plano. Vai terminar sozinho; não é preciso fazer mais nada.",
   "installer.done.still_running": "Está demorando mais que o normal e continua trabalhando em segundo plano. Veja o Dashboard de novo em alguns minutos.",
   "installer.done.unconfirmed": "Não foi possível confirmar que o monitor está em execução, então nada está sendo monitorado ainda. Inicie-o pelo Dashboard.",
   "installer.done.updated": "O Codex Auto Resume foi atualizado.",
@@ -856,6 +857,7 @@
   "msg.toast_accounts_exhausted_body": "A recuperação aguarda a redefinição mais próxima, como sem troca. Nada é enviado até lá.",
   "msg.toast_switch_not_finished": "A troca automática de conta não terminou",
   "msg.toast_switch_not_finished_body": "Abra o Codex e verifique qual conta está conectada. A recuperação aguarda a redefinição mais próxima, como sem troca. Nada é enviado até lá.",
+  "status.aside": "Tudo bem se parar. Eu continuo de onde parou.",
   "why.account_changed": "Outra conta do Codex foi conectada depois que ela parou: nada é enviado até você deixá-la continuar.",
   "msg.toast_usage_at": "Limite de uso do Codex atingido. Esta tarefa será retomada às {time}.",
   "msg.toast_usage_soon": "Limite de uso do Codex atingido. Esta tarefa será retomada após a redefinição.",
@@ -1281,5 +1283,8 @@
   "why.user_input_queued": "Algo seu está na fila desta conversa e vai primeiro.",
   "why.version_newer_than_engine": "Um Codex mais novo do que o daqui executou esta conversa por último; ela continua assim que o Codex for atualizado.",
   "why.waiting_reset": "O limite de uso ainda não foi redefinido.",
-  "why.workspace_changed": "O branch da pasta, o modelo ou o modo de aprovação dela mudou desde que parou: nada é enviado até você deixá-la continuar."
+  "why.workspace_changed": "O branch da pasta, o modelo ou o modo de aprovação dela mudou desde que parou: nada é enviado até você deixá-la continuar.",
+  "msg.toast_python_returned": "De volta ao Python incluído",
+  "msg.toast_python_returned_start": "O monitor não iniciou com o Python {version}, então voltou ao Python que veio com este programa.",
+  "msg.toast_python_returned_line": "Esta versão do programa não oferece mais o Python {version}, então o monitor voltou ao Python que veio com ela."
 }

@@ -110,7 +110,7 @@ LAYER = {_q(name): layer for layer, names in {
                  "compat.model", "compat.standing", "compat.report", "compat.permits", "compat.files", "compat.cache", "compat.probes", "compat.views", "compat.evaluator",
                  # v0.6.10: what others report, read beside the registry and never by it.
                  "compat.reported",
-                 "pwsh", "notify", "notice_presence", "tray_place",
+                 "pwsh", "notify", "notice_uris", "notice_presence", "tray_place",
                  # v0.6.18: the Codex app's link to one conversation, handed to explorer.exe - out of notify.
                  "codex_link",
                  # v0.6.10-alpha: store.py became store/. Every part of it is the same layer
@@ -151,6 +151,8 @@ LAYER = {_q(name): layer for layer, names in {
                  "win.handover",
                  # v0.6.21 (#58): who signed a file, as Windows judges its signature, with no network.
                  "win.authenticode",
+                 # v0.6.23: which Python an installation runs under: reads one small record and asks nothing else.
+                 "chosen_runtime",
                  # v0.6.10-alpha: source.py became source/, and every part of it reads Codex;
                  # windows.py's other half - the CLI, the App Server, the pairing - joined it.
                  "codex.appserver", "codex.errors", "codex.history", "codex.labels",
@@ -199,7 +201,7 @@ LAYER = {_q(name): layer for layer, names in {
                 "control.poweraction"),
     "front": ("auto_resume", "cli", "controlcli", "mcpserver", "mcp.panel", "app", "ui.tray",
               # v0.6.10-alpha: app.py became runtime/ - the wiring, the loop and the toasts.
-              "runtime", "runtime.app", "runtime.loop", "runtime.toasts",
+              "runtime", "runtime.app", "runtime.loop", "runtime.toasts", "runtime.plugnotices",
               # v0.6.11: the watcher's side of sleep and of keeping this PC awake.
               "runtime.waking",
               # and of its own memory, how it ended and the status file.
@@ -223,11 +225,11 @@ LAYER = {_q(name): layer for layer, names in {
               # v0.6.10-alpha: mcpserver.py's body became mcp/, beside the panel's own files.
               "mcp", "mcp.server", "mcp.tools",
               "ui.popup", "brand",
-              "notice_card", "notice_window", "notifier",
+              "notice_card", "notice_window", "notifier", "notice_inbox",
               # v0.6.10-alpha: notice_window.py became ui/card/, the last module over budget.
               "ui.card", "ui.card.win32", "ui.card.surfaces", "ui.card.card", "ui.card.stack",
               # v0.6.10-alpha: brand.py became brand/ - one palette in nine files.
-              "brand.checkbox", "brand.colour", "brand.css", "brand.elevation", "brand.light",
+              "brand.checkbox", "brand.colour", "brand.css", "brand.days", "brand.elevation", "brand.light",
               "brand.mark", "brand.motion", "brand.scale", "brand.tokens",
               # v0.6.10: the four designs, a tenth file.
               "brand.design",
@@ -249,7 +251,7 @@ LAYER = {_q(name): layer for layer, names in {
               # v0.6.11: what a screen reader is told of the popup, and asks of it.
               "ui.popup.access",
               # v0.6.20: the icon's right-click menu, drawn by the popup's renderer.
-              "ui.popup.menuplan", "ui.popup.menuwindow"),
+              "ui.popup.menuplan", "ui.popup.menuwindow", "ui.popup.hidden"),
 }.items() for name in names}
 
 # The roles the target rules speak of: today's modules, and the packages the split moves them

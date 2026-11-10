@@ -669,6 +669,7 @@
   "installer.done.removed": "Codex Auto Resume đã được gỡ bỏ.",
   "installer.done.repaired": "Codex Auto Resume đã được sửa chữa.",
   "installer.done.setup_stopped": "Chương trình thiết lập đã dừng trước khi trình cài đặt chạy. Nhật ký cho biết lý do.",
+  "installer.done.still_removing": "Việc này lâu hơn bình thường và vẫn đang chạy nền. Việc này sẽ tự hoàn tất, bạn không cần làm gì thêm.",
   "installer.done.still_running": "Việc này lâu hơn bình thường và vẫn đang chạy nền. Hãy xem lại Bảng điều khiển sau vài phút.",
   "installer.done.unconfirmed": "Không thể xác nhận bộ theo dõi đang chạy, nên hiện chưa có gì được theo dõi. Hãy khởi động nó từ Bảng điều khiển.",
   "installer.done.updated": "Codex Auto Resume đã được cập nhật.",
@@ -856,6 +857,7 @@
   "msg.toast_accounts_exhausted_body": "Việc khôi phục chờ lần đặt lại sớm nhất, như khi không chuyển. Không có gì được gửi cho đến lúc đó.",
   "msg.toast_switch_not_finished": "Việc tự động chuyển tài khoản chưa hoàn tất",
   "msg.toast_switch_not_finished_body": "Mở Codex và kiểm tra tài khoản nào đang đăng nhập. Việc khôi phục chờ lần đặt lại sớm nhất, như khi không chuyển. Không có gì được gửi cho đến lúc đó.",
+  "status.aside": "Dừng lại cũng không sao. Tôi sẽ tiếp tục.",
   "why.account_changed": "Một tài khoản Codex khác đã đăng nhập sau khi nó dừng: không gửi gì cho đến khi bạn cho phép tiếp tục.",
   "msg.toast_usage_at": "Đã đạt giới hạn sử dụng Codex. Tác vụ này sẽ tiếp tục lúc {time}.",
   "msg.toast_usage_soon": "Đã đạt giới hạn sử dụng Codex. Tác vụ này sẽ tiếp tục sau khi giới hạn được đặt lại.",
@@ -1281,5 +1283,8 @@
   "why.user_input_queued": "Có nội dung của bạn đang xếp hàng trong cuộc trò chuyện này và sẽ được chạy trước.",
   "why.version_newer_than_engine": "Một phiên bản Codex mới hơn bản ở đây đã chạy cuộc trò chuyện này lần cuối; sẽ tiếp tục khi Codex được cập nhật.",
   "why.waiting_reset": "Giới hạn sử dụng chưa được đặt lại.",
-  "why.workspace_changed": "Nhánh của thư mục, mô hình hoặc chế độ phê duyệt của nó đã thay đổi kể từ khi dừng: không gửi gì cho đến khi bạn cho phép tiếp tục."
+  "why.workspace_changed": "Nhánh của thư mục, mô hình hoặc chế độ phê duyệt của nó đã thay đổi kể từ khi dừng: không gửi gì cho đến khi bạn cho phép tiếp tục.",
+  "msg.toast_python_returned": "Đã quay lại Python đi kèm",
+  "msg.toast_python_returned_start": "Bộ theo dõi không khởi động được trên Python {version}, nên đã quay lại Python đi kèm chương trình này.",
+  "msg.toast_python_returned_line": "Phiên bản này của chương trình không còn cung cấp Python {version}, nên bộ theo dõi đã quay lại Python đi kèm với nó."
 }

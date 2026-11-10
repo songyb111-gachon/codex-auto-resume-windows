@@ -16,6 +16,7 @@ from pathlib import Path
 import re
 import socket
 import sys
+import time
 import unittest
 from unittest.mock import patch
 
@@ -327,6 +328,18 @@ class MethodTests(ServerCase):
         self.assertEqual(self.status("/cancel/1", "POST", body=b"x" * (api.MAX_BODY + 1)), 413)
         self.assertEqual(self.layer.calls, [])
         self.assertEqual(self.status("/pause", "POST", body=b"x" * api.MAX_BODY), 200, "at the limit it is taken")
+
+    def test_a_refusal_of_a_request_with_a_body_still_reaches_a_client_that_reads_late(self):
+        """Fails with the socket closed at once (_linger): the body, sent after the headers as http.client sends it, meets
+        a closed socket and the reset takes the answer with it (/attempts, /cancel/0 on a loaded machine)."""
+        for path, want in (("/attempts", b"404"), ("/cancel/0", b"404"), ("/status.json", b"405")):
+            with self.subTest(path), socket.create_connection(("127.0.0.1", self.port), timeout=10) as raw:
+                raw.sendall(("POST %s HTTP/1.0\r\nHost: 127.0.0.1:%d\r\nContent-Length: 2\r\n\r\n" % (path, self.port)).encode())
+                time.sleep(0.2)                       # the server has answered on the headers alone
+                raw.sendall(b"{}")
+                time.sleep(0.2)
+                self.assertIn(want, raw.recv(4096).split(b"\r\n")[0])
+        self.assertEqual(self.layer.calls, [])
 
     def test_a_length_that_is_no_number_is_refused(self):
         self.assertEqual(self.status("/pause", "POST", headers={"Content-Length": "many"}), 400)

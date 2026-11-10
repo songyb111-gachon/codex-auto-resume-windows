@@ -341,7 +341,6 @@ class StoreTests(Temp):
         loader = importlib.machinery.SourceFileLoader(name, str(BETA2))
         spec = importlib.util.spec_from_loader(name, loader)
         module = importlib.util.module_from_spec(spec)
-        module.__package__ = "codex_auto_resume_advanced"
         loader.exec_module(module)
         return module
 

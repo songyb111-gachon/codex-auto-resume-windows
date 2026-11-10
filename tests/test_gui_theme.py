@@ -1807,15 +1807,19 @@ class ThemeSourceRuleTests(unittest.TestCase):
         self.assertIn("internal bool Box", check)
         self.assertIn("AccessibleRole = AccessibleRole.CheckButton;", check)
         self.assertIn("if (Focused && ShowFocusCues)", check)
-        draw = guiscan.member_body("SoftCheck", "DrawBox")
+        # v0.6.23: BoxColours says the colours and the well, BoxMark strokes the mark; DrawBox is the two of them.
+        draw = guiscan.member_body("SoftCheck", "BoxColours")
+        mark = guiscan.member_body("SoftCheck", "BoxMark")
+        self.assertIn("BoxBody(g, face, on, enabled);", guiscan.member_body("SoftCheck", "DrawBox"))
+        self.assertIn("BoxMark(g, face, on, enabled, 1.0);", guiscan.member_body("SoftCheck", "DrawBox"))
         # v0.6.10: the colours are the design's (Tokens.CheckFill, which asks the Brand.Look of the design and theme in
         # effect), and the well is drawn only where the design has depth.
         self.assertLess(draw.index("if (Palette.Contrast)"), draw.index("Tokens.CheckFill("))
         self.assertIn("return Look.CheckFill(on, enabled);", guiscan.member_body("Tokens", "CheckFill"))
         self.assertIn("well = Palette.Depth && Brand.CheckWell(on, enabled);", draw)
-        self.assertIn("well = false;", draw[:draw.index("else")], "no shadow in High Contrast")
-        self.assertIn("pen.LineJoin = LineJoin.Miter;", draw)
-        self.assertIn("LineCap.Flat", draw)
+        self.assertIn("well = false;", draw[:draw.index("Tokens.CheckFill(")], "no shadow in High Contrast")
+        self.assertIn("pen.LineJoin = LineJoin.Miter;", mark)
+        self.assertIn("LineCap.Flat", mark)
         window = guiscan.settings()
         self.assertIn("NewCheck(Humanise(name), Equals(Get(current, name), true), IsListItem(name));", window)
         self.assertIn('NewCheck(S("field.startup", "Run at Windows sign-in"), false, false);', window)

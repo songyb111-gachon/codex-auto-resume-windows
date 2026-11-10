@@ -1074,7 +1074,7 @@ analytics, push notices and the status feed, the 5-hour window started early, sw
 opening a conversation to send now and the follow-through view, an example for every capability, the advanced edition's own
 compatibility data, the Advanced features page in the owner's order, the pair audit's fixes, the power action after tasks you pick
 (Discussion #57) and the account switch's button ending with a Codex restart you agree to. The loopback API and remote control are
-v0.6.22; the switch to Python 3.15 is v0.6.23.**
+v0.6.22; the code's preparation for Python 3.15 is v0.6.23, and the switch itself comes later.**
 
 On 2026-10-26 the owner released v0.6.19 as a final with what was built and moved what had been begun and what remained
 to a version of its own, v0.6.20, so that every later release moved back by one; and
@@ -1173,7 +1173,7 @@ and the final Python audit v0.6.23, the Rust core v0.6.24 and its audit v0.6.25.
 
 ---
 
-## v0.6.22 — The loopback API and remote control 🚧
+## v0.6.22 — The loopback API and remote control ✅
 
 On 2026-11-04 the owner chose a hotfix final for [#58](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/58) as v0.6.21, and this version, which had been planned as v0.6.21,
 became v0.6.22, every later release one on again. The next paragraph keeps the numbers of 2026-10-31 and 2026-11-02, as they were then.
@@ -1206,7 +1206,7 @@ may be a network share; and a goal continuation that answers a usage-limit reset
 ceiling for one conversation ([#59](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/59)). Everything planned for
 v0.6.22 is now in a pre-release, and the final follows.
 
-### v0.6.22 🚧 — The final: what came after the second pre-release
+### v0.6.22 ✅ — The final: what came after the second pre-release
 
 The final's changelog entry tells the whole line, every item of the two pre-releases in the form it has now; what reached it after
 v0.6.22-beta.2 is this. In both editions: core's reader of Codex's App Server answers no longer stops at a line over a megabyte, and an
@@ -1225,7 +1225,7 @@ account never used on this PC shows.
 
 ---
 
-## v0.6.23 — The switch to Python 3.15 and the final Python audit, both editions
+## v0.6.23 — The final Python audit, both editions, with the code ready for Python 3.15
 
 v0.6.23 is the last Python release: the whole repository, both editions, through its bug hunt, and
 the Python reference implementation the Rust migration reproduces. It comes after v0.6.16, v0.6.18, v0.6.19, v0.6.20, v0.6.21 and v0.6.22 so that
@@ -1233,6 +1233,9 @@ the last features written in Python - the rest of the advanced edition - are aud
 and the reference the Rust core reproduces holds them.
 
 v0.6.23 is planned as the final comprehensive audit of the Python implementation, in both editions.
+
+The switch of the bundled Python to 3.15 is no longer in it. The owner moved it out on 2026-11-10, to a later version once CPython
+3.15.3 is out; the code's preparation for 3.15 stays here (below), and the bundled Python stays 3.14.10 in v0.6.23.
 
 Right after the final v0.6.23 is published and verified, the last Python version is kept as a repository of its own - its
 history and tags up to v0.6.23 - before the Rust core replaces it (the owner, 2026-10-24; the number it carries has moved on with each renumber since, to v0.6.23 on 2026-11-04).
@@ -1271,22 +1274,33 @@ The resulting behavior becomes the:
 
 for the Rust migration.
 
-### The switch to Python 3.15
+### Ready for Python 3.15, and the switch itself later
 
-Moved here by the owner on 2026-11-02 from what was then planned as v0.6.21; the version that carries it has been v0.6.23 since 2026-11-04. Python 3.15 is already a blocking lane of the CI, and runs the newest 3.15 release
-there is (the owner, 2026-10-31). This version bundles it
-and takes what it brings, as the plan of 2026-10-30 lays it out:
+The switch to Python 3.15 was moved here by the owner on 2026-11-02 from what was then planned as v0.6.21; the version that carried it was v0.6.23 from 2026-11-04.
+On 2026-11-10 the owner moved the switch itself out of v0.6.23: the bundled Python stays 3.14.10 here, and the move to the newest 3.15.x waits
+for CPython 3.15.3 and a later version of this program. Python 3.15 is already a blocking lane of the CI, and runs the newest 3.15 release
+there is (the owner, 2026-10-31). What stays in v0.6.23 is the preparation, as the plan of 2026-10-30 laid it out, tried against 3.15.2:
 
-- the newest 3.15.x bundled (3.15.2 or newer), its version and SHA-256 pinned, remote debugging off as now,
-- lazy imports (PEP 810) by option, `-X lazy_imports=all`, on the bundled runtime's launches only, measured first - the cold start of the
-  bridge, the MCP server and the watcher's first tick, with and without it - and kept only if the gain is real; a module whose import registers
-  something is found and imported where its registration is needed,
-- the UTF-8 default (PEP 686) audited: every file and subprocess text call without an explicit encoding, and what a locale's encoding (cp949 here)
-  read before,
-- the removed and deprecated APIs checked against all of the source, tests and scripts, also the paths no test reaches,
-- the free speed of the official Windows binaries measured with the lazy imports, and a script to profile a source-run watcher or bridge with
-  the new sampling profiler, for the window's lag and the CPU work,
+- the UTF-8 default (PEP 686) audited: every file and subprocess text call names its encoding, so it means the same on 3.13, 3.14 and 3.15 (what a
+  locale's encoding, cp949 here, read before), and a test finds a new one that does not,
+- the removed and deprecated APIs checked against all of the source, tests and scripts, also the paths no test reaches, and a test that keeps them out,
+- lazy imports (PEP 810) behind one switch, `-X lazy_imports=all` on the bundled runtime's launches only, off in v0.6.23: the cold starts were measured on 3.15.2
+  with and without it, and the day's checklist says to turn it on in a beta, not a final,
+- a script that samples a source-run watcher or bridge with the new sampling profiler, for the window's lag and the CPU work, not shipped,
+- one section of the development guide that lists what changes on the day the bundled Python moves, and a tool that derives the trimmed runtime's list for any version,
+- the advanced edition's *Run on another Python version*: 3.13, 3.14 or 3.15 (a preview), the newest of each, for a person who wants it sooner,
 - the minimum for a run from source stays 3.13, so no 3.15-only syntax is shipped; not now: `lazy import` statements, `frozendict`, `sentinel`.
+
+The switch itself - the newest 3.15.x bundled (3.15.3 or newer), its version and SHA-256 pinned, remote debugging off as now - is the day that checklist describes.
+
+### v0.6.23-beta 🚧 — Smaller archives, controls that glide, higher limits, the code ready for Python 3.15 and the advanced edition's Python choice (a pre-release)
+
+The first pre-release of v0.6.23. In both editions: the archives are more than a quarter smaller (17.6 to 12.4 MB for the standard edition, 19.4 to 14.3 MB for the
+advanced) because the release leaves out the README-only pictures and the development tools and trims the bundled Python to what the product can reach; buttons, switches, check boxes,
+drop-downs, tabs, list rows, menus and the status light glide between their states; the Dashboard's Start watcher waits 45 seconds and the watcher waits 300 seconds to see a
+continuation delivered; Retry now and the watcher stop for the same four reasons; the list of releases may be 8 MiB; the code is ready for 3.15; and the standards page was reworded
+at the owner's word. In the advanced edition: *Run on another Python version*; fifty scheduled messages and fifty reset messages, a series that runs as many times as picked, a message of 30,000 characters
+and admitted failures taken up within six hours; and a start of the 5-hour window that tries again after a failed read. The final follows the second round of audits.
 
 ---
 
@@ -1574,14 +1588,18 @@ A hotfix final: recoveries when the Codex app runs its engine from its own packa
 
         ↓
 
-v0.6.22  🚧 In development
+v0.6.22  ✅ Released
 The loopback API, remote control and a view of other PCs (advanced edition), and the final of the line
 
         ↓
 
+v0.6.23-beta  🚧 In development
+The first pre-release: smaller archives, controls that glide, higher limits, the code ready for Python 3.15 and the advanced edition's Python choice
+
+        ↓
+
 v0.6.23
-The switch to Python 3.15 and what it brings
-+ the final Python audit, both editions
+The final Python audit, both editions, with the code ready for Python 3.15 (the switch to it comes later)
 → freeze Python reference behavior
 
         ↓
@@ -1604,7 +1622,7 @@ Maintenance
 This document records the current direction; the four pre-releases of v0.6.19, v0.6.19-beta to v0.6.19-beta.4, are out and
 the final v0.6.19, which carries all of them and what reached dev after them, is out; what it did not build is
 v0.6.20, and the four pre-releases of v0.6.20, v0.6.20-beta to v0.6.20-beta.4, are out and the final v0.6.20, which carries all of them and what
-reached dev after them, is out. v0.6.18 is out: a recovery that worked is recovered however its turn ended,
+reached dev after them, is out. The hotfix final v0.6.21 and the final v0.6.22, after v0.6.22-beta and -beta.2, are out. v0.6.18 is out: a recovery that worked is recovered however its turn ended,
 the standard edition suggests the Codex homes this PC uses, Install another version runs in the setup window, the setup
 window's bar fills by real counts, the update's download is streamed, all seventeen translations were reviewed, a full
 audit's fixes landed in every layer, and the advanced edition gains Open Codex on a notice and a weekly update check while

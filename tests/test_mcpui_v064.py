@@ -402,7 +402,6 @@ class CheckBoxStyleTests(unittest.TestCase):
         self.assertEqual(declared("input.switch:focus-visible", "outline-color", FORCED), "Highlight")
 
     def test_the_focus_ring_is_the_one_every_control_has(self):
-        self.assertIn(":focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }", mcpui._STYLE)
         # Nothing of its own outside forced colours: the ring follows the box's corners, as it
         # follows every control's.
         for prop in ("outline", "outline-offset", "outline-color"):

@@ -66,12 +66,7 @@ class ReadmeCadenceTests(unittest.TestCase):
                 self.assertFalse(plan.get("first_hold"), "the light breathes from frame 1 on")
 
     def test_a_turn_of_the_wheel_is_every_tick_of_the_glide_to_its_arrival(self):
-        from codex_auto_resume import brand  # noqa: F401
-        ticks, offset, target = 0, 0, 3 * round(33 * 1.5)       # one notch at the pictures' 150 %
-        while offset != target:
-            left = target - offset
-            offset = target if abs(left) <= 2 else offset + (round(left * 0.35) or (1 if left > 0 else -1))
-            ticks += 1
+        ticks = transition_ms() // glide_ms() + 1              # v0.6.23: a glide is a time, not a number of frames
         for plan in self.plans():
             for step in steps(plan, "wheel"):
                 with self.subTest(plan["name"]):

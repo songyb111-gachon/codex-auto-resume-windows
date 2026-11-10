@@ -321,7 +321,7 @@ class NothingWhileOffTests(ResidentCase):
                 "                   'codex_auto_resume_advanced.courier.page') if m in sys.modules]\n"
                 "sys.exit(repr(bad) if bad else 0)\n")
         root = Path(__file__).resolve().parents[2]
-        found = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=120,
+        found = subprocess.run([sys.executable, "-c", code], capture_output=True, encoding="utf-8", errors="replace", timeout=120,
                                env=dict(_environment(), PYTHONPATH="%s;%s" % (root / "src", root / "advanced" / "src")),
                                creationflags=NO_WINDOW)
         self.assertEqual((found.returncode, found.stderr), (0, ""))
@@ -418,7 +418,7 @@ class ArmingTests(ResidentCase):
 
 class ShippedTests(unittest.TestCase):
     def test_each_says_the_standards_it_departs_from(self):
-        self.assertEqual(registry.LOCAL_API.departs_from, ("C1", "C2", "B14", "F8", "F6", "D1", "C12", "K5"))
+        self.assertEqual(registry.LOCAL_API.departs_from, ("C1", "C2", "B14", "F8", "F6", "D1", "C12"))
         self.assertEqual(registry.LOCAL_API_ACTIONS.departs_from, ("H3", "H8"))
 
     def test_the_mcp_tools_reach_neither_the_token_nor_a_command(self):

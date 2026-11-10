@@ -165,12 +165,15 @@ TIME = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ")
 FORBIDDEN = re.compile(r"[@<>\"\\\r\t\x00-\x08\x0b-\x1f\x7f]|\]\(|://")
 
 # ---------------------------------------------------------------------------------------- texts
+# Why the filing gates stand (the owner, 2026-11-10), said wherever one of them stops a report. No period: each text ends
+# the sentence its own way.
+WHY_GATED = "This limit keeps one account or one script from outweighing everyone else's reports"
 # Why a report waits, and when it is looked at again.
 WAITING = {
     "paused": "filing is paused for now",
     "red": "the project's own tests on main are not passing, and nothing is filed onto that",
-    "reporter": "this account has had %d reports filed in the last %d days" % (PER_REPORTER, WINDOW_DAYS),
-    "version": "this Codex version has had %d reports filed in the last %d days" % (PER_VERSION, WINDOW_DAYS),
+    "reporter": "this account has had %d reports filed in the last %d days. %s" % (PER_REPORTER, WINDOW_DAYS, WHY_GATED),
+    "version": "this Codex version has had %d reports filed in the last %d days. %s" % (PER_VERSION, WINDOW_DAYS, WHY_GATED),
     "unlisted": "this Codex version is older than the ones the project's own data names, so the maintainer files it",
     "unlisted-many": "%d Codex versions the project's own data does not name already have reports" % MAX_UNLISTED,
     "full": "the counts file a release carries has no room for another version until the maintainer makes some",
@@ -217,10 +220,11 @@ TEXTS = {
     "again": ("A new commit here is judged again; unchanged, this closes in %d days. One report pull request "
               "per account is open at a time, so `submit` sends another once this one is closed." % STALE_DAYS),
     "young": ("Closed, and nothing is wrong with your file: reports are filed from accounts at least %d days "
-              "old, and this one is on %%s. Send it again then with `submit --yes`; nothing was filed."
-              % MIN_AGE_DAYS),
+              "old, and this one is on %%s. Send it again then with `submit --yes`; nothing was filed. %s."
+              % (MIN_AGE_DAYS, WHY_GATED)),
     "one": ("Closed, and nothing is wrong with your file: one report at a time from one account, and #%s is "
-            "still open. Send this one again with `submit --yes` once that one is closed; nothing was filed."),
+            "still open. Send this one again with `submit --yes` once that one is closed; nothing was filed. "
+            + WHY_GATED + "."),
     "stale": ("Closed: refused %d days ago and unchanged since. Nothing was filed; send a new report any time."
               % STALE_DAYS),
 }

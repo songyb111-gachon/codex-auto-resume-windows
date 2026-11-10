@@ -1397,6 +1397,19 @@ function lightClass(light, mini) {
 // the word (retell).
 function showFacts(facts, status, state, rows) {
   facts.textContent = '';
+  var aside = typeof window === 'undefined' ? null : window.__CODEX_AUTO_RESUME_ASIDE__;
+  var saying = !!aside && Date.now() >= aside[0] && Date.now() < aside[1];
+  if (facts.classList && !!facts.saying !== saying && (saying || facts.saying)) {
+    // The line changes by a fade and a small rise, both ways (the stylesheet's; none with motion reduced).
+    facts.classList.remove('aside-in');
+    void facts.offsetWidth;
+    facts.classList.add('aside-in');
+  }
+  facts.saying = saying;
+  if (saying) {
+    facts.appendChild(element('span', null, t('status.aside', "It's okay if it stops. I'll pick it up.")));
+    return;
+  }
   var shown = heroFacts(status, state, rows);
   var soonest = soonestFact(status, state, rows);
   if (soonest !== null) shown.push(soonest);
@@ -1441,6 +1454,234 @@ function usageLine(reading, now) {
   return fill('usage.line', 'Codex usage, read {age}: {windows}', {age: age(now - reading.read_at), windows: parts.join(' · ')});
 }
 
+// The special days and the seventh press: only the page's own canvas; nothing here reaches the control layer.
+var DAY = window.__CODEX_AUTO_RESUME_DAY__ || null;
+var DAY_TABLE = window.__CODEX_AUTO_RESUME_SWEEP__ || null;
+var PRESS_COUNT = 0;
+var PRESS_LAST = null;
+
+function pageHoldsStill() {
+  return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+    || document.documentElement.getAttribute('data-motion') === 'reduced' || pageHighContrast();
+}
+
+function pageHighContrast() {
+  return !!(window.matchMedia && window.matchMedia('(forced-colors: active)').matches);
+}
+
+// day-art begin: brand.days.element_at, read here; every scene is in brand/days.py.
+function dayWave(seconds, duration, delay) {
+  var phase = (seconds - delay) / duration;
+  phase -= Math.floor(phase);
+  return (1 - Math.cos(2 * Math.PI * phase)) / 2;
+}
+
+function dayCentre(kind, n) {
+  if (kind !== 'poly') return [n[0], n[1]];
+  var xs = n.filter(function (_, i) { return i % 2 === 0; }), ys = n.filter(function (_, i) { return i % 2 === 1; });
+  return [(Math.min.apply(null, xs) + Math.max.apply(null, xs)) / 2, (Math.min.apply(null, ys) + Math.max.apply(null, ys)) / 2];
+}
+
+function dayPlaced(kind, n, move) {
+  var out = n.slice();
+  if (kind === 'poly' || kind === 'stroke') {
+    for (var at = kind === 'stroke' ? 1 : 0; at + 1 < n.length; at += 2) {
+      var moved = move(n[at], n[at + 1]);
+      out[at] = moved[0];
+      out[at + 1] = moved[1];
+    }
+    return out;
+  }
+  var first = move(n[0], n[1]);
+  out[0] = first[0];
+  out[1] = first[1];
+  return out;
+}
+
+function dayElementAt(e, seconds) {
+  var kind = e[0], n = e[1].slice(), opacity = e[3], motion = e[4], v = e[5], c, s, radians, cx, cy, centre, level, part;
+  if (motion === 'fall') {
+    part = (seconds - v[1]) / v[0];
+    part -= Math.floor(part);
+    centre = dayCentre(kind, n);
+    cx = centre[0];
+    cy = centre[1];
+    radians = v[2] * part * Math.PI / 180;
+    c = Math.cos(radians);
+    s = Math.sin(radians);
+    n = dayPlaced(kind, n, function (x, y) {
+      return [cx + (x - cx) * c - (y - cy) * s, cy - 14 + 96 * part + (x - cx) * s + (y - cy) * c];
+    });
+  } else if (motion === 'twinkle') {
+    level = dayWave(seconds, v[0], v[1]);
+    centre = dayCentre(kind, n);
+    cx = centre[0];
+    cy = centre[1];
+    n = dayPlaced(kind, n, function (x, y) {
+      return [cx + (x - cx) * (0.7 + 0.4 * level), cy + (y - cy) * (0.7 + 0.4 * level)];
+    });
+    opacity = 0.25 + 0.75 * level;
+  } else if (motion === 'breathe') {
+    opacity = v[1] + v[2] * dayWave(seconds, v[0], 0);
+  } else if (motion === 'drift') {
+    var turn = seconds / v[0];
+    part = turn - Math.floor(turn);
+    if (Math.floor(turn) % 2) part = 1 - part;
+    var dx = -10 + 24 * (1 - Math.cos(Math.PI * part)) / 2;
+    n = dayPlaced(kind, n, function (x, y) { return [x + dx, y]; });
+  } else if (motion === 'sway') {
+    radians = (-5 + 10 * dayWave(seconds, v[0], 0)) * Math.PI / 180;
+    c = Math.cos(radians);
+    s = Math.sin(radians);
+    n = dayPlaced(kind, n, function (x, y) {
+      return [v[1] + (x - v[1]) * c - (y - v[2]) * s, v[2] + (x - v[1]) * s + (y - v[2]) * c];
+    });
+  } else if (motion === 'flame') {
+    var tall = n[3] * (1 + 0.35 * dayWave(seconds, v[0], 0));
+    n[1] = v[1] - tall;
+    n[3] = tall;
+  }
+  return [kind, n, e[2], opacity];
+}
+// day-art end
+
+var SVG_SPACE = null;
+
+function svg(name, attributes) {
+  if (SVG_SPACE === null) {                                     // the parser's own name for it: the page names no address
+    var probe = document.createElement('div');
+    probe.innerHTML = '<svg></svg>';
+    SVG_SPACE = probe.firstChild.namespaceURI;
+  }
+  var node = document.createElementNS(SVG_SPACE, name);
+  Object.keys(attributes).forEach(function (key) { node.setAttribute(key, String(attributes[key])); });
+  return node;
+}
+
+function dayPoints(n, from) {
+  var out = [];
+  for (var i = from; i + 1 < n.length; i += 2) out.push(n[i] + ',' + n[i + 1]);
+  return out.join(' ');
+}
+
+// One shape as an element; what moves it is the stylesheet's (.day-*), with its own timings.
+function dayNode(element, defs, index) {
+  var still = pageHoldsStill(), e = still ? [element[0], dayElementAt(element, 0)[1], element[2], dayElementAt(element, 0)[3], '', []] : element;
+  var kind = e[0], n = e[1], colour = e[2], opacity = e[3], motion = e[4], v = e[5], node;
+  if (kind === 'poly') node = svg('polygon', {points: dayPoints(n, 0), fill: colour});
+  else if (kind === 'stroke') node = svg('polyline', {points: dayPoints(n, 1), fill: 'none', stroke: colour, 'stroke-width': n[0], 'stroke-linecap': 'round'});
+  else if (kind === 'circle') node = svg('circle', {cx: n[0], cy: n[1], r: n[2], fill: colour});
+  else if (kind === 'ellipse') node = svg('ellipse', {cx: n[0], cy: n[1], rx: n[2], ry: n[3], fill: colour});
+  else if (kind === 'round') node = svg('rect', {x: n[0], y: n[1], width: n[2], height: n[3], rx: n[4], fill: colour});
+  else if (kind === 'ring') node = svg('circle', {cx: n[0], cy: n[1], r: n[2], fill: 'none', stroke: colour, 'stroke-width': n[3]});
+  else {
+    var id = 'day-glow-' + index, whole = n[3], light = svg('radialGradient', {id: id});
+    [[0, 1], [whole, 1], [whole + (1 - whole) * 0.3, 0.55], [whole + (1 - whole) * 0.65, 0.16], [1, 0]].forEach(function (stop) {
+      light.appendChild(svg('stop', {offset: stop[0], 'stop-color': colour, 'stop-opacity': stop[1]}));
+    });
+    defs.appendChild(light);
+    node = svg('circle', {cx: n[0], cy: n[1], r: n[2], fill: 'url(#' + id + ')'});
+  }
+  node.setAttribute('opacity', String(opacity));
+  if (motion) {
+    node.setAttribute('class', 'day-' + motion);
+    node.style.setProperty('--d', v[0] + 's');
+    if (motion === 'fall' || motion === 'twinkle') node.style.setProperty('--w', v[1] + 's');
+    if (motion === 'fall') node.style.setProperty('--spin', v[2] + 'deg');
+    if (motion === 'breathe') {
+      node.removeAttribute('opacity');
+      node.style.setProperty('--low', String(v[1]));
+      node.style.setProperty('--high', String(v[1] + v[2]));
+    }
+    if (motion === 'sway') node.style.transformOrigin = v[1] + 'px ' + v[2] + 'px';
+    if (motion === 'flame') node.style.transformOrigin = n[0] + 'px ' + v[1] + 'px';
+  }
+  return node;
+}
+
+function placeDayScene() {
+  if (!DAY || !HERO) return;
+  var hero = HERO.node, old = hero.querySelector('.day-scene');
+  if (old) old.parentNode.removeChild(old);
+  if (pageHighContrast() || document.documentElement.getAttribute('data-design') === 'classic') return;
+  var box = hero.getBoundingClientRect(), tall = Math.min(66, box.height);
+  var rtl = document.documentElement.getAttribute('dir') === 'rtl', end = 0;
+  Array.prototype.forEach.call(hero.children, function (child) {
+    var range = document.createRange();
+    range.selectNodeContents(child);
+    var rect = range.getBoundingClientRect();
+    if (rect.width > 0 && rect.top - box.top < tall) end = Math.max(end, rtl ? box.right - rect.left : rect.right - box.left);
+  });
+  var left = Math.max(end + 8, box.width * 0.34), right = box.width - 1, whole = tall / DAY.height;
+  var focal = DAY.width - DAY.focus, unit = Math.min(whole, (right - left - 28) / focal);
+  if (unit < whole * 0.75) return;                              // the words leave too little room: no scene rather than a squeezed one
+  var wide = right - left, fade = Math.min(72, wide - 2 - focal * unit);
+  var holder = element('div', 'day-scene');
+  holder.setAttribute('aria-hidden', 'true');
+  holder.style.width = wide + 'px';
+  holder.style.height = tall + 'px';
+  holder.style.background = DAY.ground;
+  var picture = svg('svg', {viewBox: '0 0 ' + DAY.width + ' ' + DAY.height, width: DAY.width * unit, height: DAY.height * unit});
+  picture.style.position = 'absolute';
+  picture.style[rtl ? 'left' : 'right'] = '0';
+  picture.style[DAY.fromTop ? 'top' : 'bottom'] = '0';
+  var defs = svg('defs', {}), group = svg('g', rtl ? {transform: 'translate(' + DAY.width + ' 0) scale(-1 1)'} : {});
+  picture.appendChild(defs);
+  DAY.elements.forEach(function (one, index) { group.appendChild(dayNode(one, defs, index)); });
+  picture.appendChild(group);
+  holder.appendChild(picture);
+  var veil = element('div', 'day-veil');
+  veil.style.background = 'linear-gradient(to ' + (rtl ? 'left' : 'right') + ', var(--card-ground) 2px, transparent ' + (2 + fade) + 'px)';
+  holder.appendChild(veil);
+  hero.appendChild(holder);
+}
+
+// Seven presses of the version line, each within the gap of the last: the ring round the light, and one sentence for a moment.
+function versionPressed() {
+  if (!DAY_TABLE) return;
+  var now = Date.now();
+  PRESS_COUNT = PRESS_LAST !== null && now - PRESS_LAST <= DAY_TABLE.presses.gap_ms ? PRESS_COUNT + 1 : 1;
+  PRESS_LAST = now;
+  if (PRESS_COUNT < DAY_TABLE.presses.wanted) return;
+  PRESS_COUNT = 0;
+  var still = pageHoldsStill(), from = now + (still ? 0 : DAY_TABLE.sweep.aside_after_ms);
+  if (!still) playSweep();
+  // The page's one clock says when the line changes and changes back (watchClock).
+  window.__CODEX_AUTO_RESUME_ASIDE__ = [from, from + DAY_TABLE.sweep.aside_ms];
+  retell();
+}
+
+function playSweep() {
+  var light = HERO && HERO.node.querySelector('.hero-state .halo');
+  if (!light) return;
+  var n = DAY_TABLE.sweep, line = light.parentNode, half = light.offsetWidth / 2, reach = Math.min(n.reach, half + 16);
+  var size = 2 * reach, picture = svg('svg', {viewBox: '-27 -27 54 54', width: size, height: size, 'class': 'day-sweep', 'aria-hidden': 'true'});
+  picture.style.left = (light.offsetLeft + half - reach) + 'px';
+  picture.style.top = (light.offsetTop + half - reach) + 'px';
+  var colour = 'var(--halo-color)';
+  picture.style.setProperty('--halo-color', window.getComputedStyle(light).getPropertyValue('--halo-color'));
+  var run = n.arc_ms + n.arc_fade_ms, last = null;
+  [[n.first_ring_ms, 1.6], [n.second_ring_ms, 1.2]].forEach(function (ring) {
+    last = svg('circle', {r: n.reach - 1, fill: 'none', style: 'stroke: ' + colour, 'stroke-width': ring[1], 'class': 'day-ring'});
+    last.style.animationDuration = n.ring_ms + 'ms';
+    last.style.animationDelay = ring[0] + 'ms';
+    picture.appendChild(last);
+  });
+  var arc = svg('circle', {r: n.arc_radius, fill: 'none', style: 'stroke: ' + colour, 'stroke-width': 2.4, 'stroke-linecap': 'round', pathLength: 100,
+                           'stroke-dasharray': 100, 'stroke-dashoffset': 100, transform: 'rotate(-90)', 'class': 'day-arc'});
+  arc.style.animationDuration = run + 'ms';
+  picture.appendChild(arc);
+  var head = svg('g', {'class': 'day-head'});
+  head.style.animationDuration = run + 'ms';
+  head.appendChild(svg('circle', {cy: -n.arc_radius, r: n.head_radius, fill: DAY_TABLE.head}));
+  picture.appendChild(head);
+  last.addEventListener('animationend', function () { if (picture.parentNode) picture.parentNode.removeChild(picture); });
+  line.appendChild(picture);
+}
+
+if (window.addEventListener) window.addEventListener('resize', placeDayScene);
+if (document.addEventListener) document.addEventListener('visibilitychange', placeDayScene);
+
 // `now` is the clock the word is read by (activity); render() reads it once for the whole page.
 function renderHero(status, now) {
   var state = activity(status, DATA.pending, now, READ_AT);
@@ -1456,6 +1697,7 @@ function renderHero(status, now) {
   var eyebrow = hero.appendChild(element('div', 'eyebrow', 'Codex Auto Resume · v' + (status.version || '?')
     + (named ? ' ' : '')));
   if (named) eyebrow.appendChild(element('span', 'edition', t('edition.' + status.edition, status.edition)));
+  eyebrow.onclick = function () { versionPressed(); };
   var line = element('div', 'hero-state');
   var light = lightFor(status, state, DATA.pending);
   line.appendChild(lightNode(light, false));
@@ -2354,6 +2596,9 @@ function watchClock() {
   if (CLOCK !== null) clearTimeout(CLOCK);
   CLOCK = null;
   var wait = DATA ? untilChange(DATA.pending, Date.now() / 1000, READ_AT) : null;
+  var aside = typeof window === 'undefined' ? null : window.__CODEX_AUTO_RESUME_ASIDE__;
+  var now = Date.now(), turn = !aside ? null : now < aside[0] ? aside[0] : now < aside[1] ? aside[1] : null;
+  if (turn !== null) wait = wait === null ? turn - now : Math.min(wait, turn - now);
   if (wait !== null) CLOCK = setTimeout(retell, wait);
 }
 
@@ -2444,6 +2689,7 @@ function render() {
   var hero = renderHero(status, now);
   HERO = hero;
   page.appendChild(hero.node);
+  if (DAY) placeDayScene();
   [renderPending(DATA.pending), renderCompatibility(status, DATA.pending), renderGeneral(byName), renderRecovery(status, schema, now),
    renderNotifications(schema), renderContinuation(byName), renderPreviewCard(), renderStarters(),
    renderAppearance(byName)

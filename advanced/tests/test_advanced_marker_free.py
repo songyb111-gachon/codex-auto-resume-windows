@@ -595,7 +595,7 @@ class ChannelTests(unittest.TestCase):
 
     def test_what_core_would_not_send_is_not_started_and_nothing_is_opened(self):
         session = self.Session(enter=AssertionError("must not open"))
-        for thread, prompt, client in (("t", "go", self.CID), (T1, "", self.CID), (T1, "x" * 8193, self.CID),
+        for thread, prompt, client in (("t", "go", self.CID), (T1, "", self.CID), (T1, "x" * 30001, self.CID),
                                        (T1, "a\0b", self.CID), (T1, "go", "not an id")):
             with self.subTest(thread=thread, prompt=prompt[:8], client=client):
                 self.assertEqual(self.channel(session).send(thread, prompt, client_id=client)["outcome"],

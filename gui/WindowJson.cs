@@ -401,7 +401,7 @@ namespace CodexAutoResume
                 // a GUID in the name took an installation in a deep folder past that - every write
                 // failed there, silently, and the cache was never used.
                 temporary = Path.Combine(folder,
-                                         "strings-cache." + Process.GetCurrentProcess().Id.ToString(CultureInfo.InvariantCulture) + ".tmp");
+                                         "strings-cache." + OwnProcess.Id.ToString(CultureInfo.InvariantCulture) + ".tmp");
                 File.WriteAllText(temporary, Json.Write(entry), new UTF8Encoding(false));
                 if (Key(root) != key) return;
                 if (File.Exists(path)) File.Replace(temporary, path, null);

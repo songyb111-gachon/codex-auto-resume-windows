@@ -69,7 +69,7 @@ a card - can turn a capability on. Codex's tools (MCP) can list the capabilities
 all of them, off, and no MCP tool turns one on, whatever a client sends (K3). **Turn every advanced
 feature off** on the page turns them all off at once.
 
-**Pause stops everything.** While recovery is paused, no capability is asked anything; a
+**Pause stops everything.** While recovery is paused, no capability sends to Codex or starts Codex, and none is asked anything except the status server and the Telegram control, which send nothing to Codex and keep answering so a pause can be seen or lifted; a
 conversation you switched off and a recovery you cancelled are never handed to one; and a pause
 that arrives just before a send still stops it at the last moment. Every check a send passes, the
 record that it was claimed and the last look before it stay the standard edition's (K5).
@@ -150,7 +150,7 @@ interruption, the samples of failures it could not classify, the reset rules and
 the usage windows - and, until each is sent, cancelled or ended, the words of a message you wrote for a
 reset - are kept in
 `config/advanced/advanced.sqlite`, in fixed words, ids, numbers and Codex's own error codes - never a
-word of an error or a conversation, and of yours only a message waiting for a reset - and nothing of it is written into the standard edition's state. Its only network code is the courier, which runs only while *Send notices to your phone or inbox*, *Show OpenAI's service status*, *Read this PC's status from a browser or a script* or *Control recovery from Telegram* is on (below). Two capabilities cause GitHub traffic: the compatibility report asks gh - the GitHub CLI you
+word of an error or a conversation, and of yours only the words of a message waiting to be sent (for a reset, queued, or typed in the chat), steered lines for History for 30 days, and the copies of pictures sent with a queued message - and nothing of it is written into the standard edition's state. Its only network code is the courier, which runs only while *Send notices to your phone or inbox*, *Show OpenAI's service status*, *Read this PC's status from a browser or a script* or *Control recovery from Telegram* is on (below). Two capabilities cause GitHub traffic: the compatibility report asks gh - the GitHub CLI you
 installed - to reach GitHub, and only when you start it in the Dashboard (below), and
 *Check for updates once a week* runs the installed `bootstrap.ps1 -CheckOnly` once a week (below). Its archive also carries
 the harness the project uses to measure whether a capability's route works on a given version of
@@ -158,19 +158,20 @@ Codex; nothing runs it unless a person asks, and [SECURITY.md](SECURITY.md) says
 
 Two capabilities store secrets: *Send notices to your phone or inbox* keeps the addresses, tokens and passwords
 you type for it, and *Read this PC's status from a browser or a script* the token it makes, in Windows' Credential
-Manager, under names of their own, and never in its database, a settings file or a log. That is the package's one way
-to keep a secret, and it never reads Codex's own credentials.
+Manager, under names of their own, and never in its database, a settings file or a log. The saved accounts of the account switch are the one other secret: copies of Codex's sign-in file sealed with Windows' data protection in the product's own folder (B11).
 
 ## Today's capabilities
 
-Forty-eight: twenty-three that change how a recovery is made, which conversations are recovered or what
+An installed copy also offers one more, *Run on another Python version*, which a run from source has no use for.
+
+Fifty: twenty-three that change how a recovery is made, which conversations are recovered or what
 follows a turn, two that tell you elsewhere - notices sent to your phone or inbox, and OpenAI's service status
 on the Overview (v0.6.20) - three that let a browser or a script of yours read how this PC stands, pause and cancel,
 and reach it from your network, and two that take commands from the Telegram chat you paired (v0.6.22) - one that shows where your usage and tokens go (v0.6.20), three that send at a time you
 pick - the two at a usage reset, and queued messages - one that adds a line to the turn running now (v0.6.20; the
 Codex app shows that line in the running turn as your own message, and History records it too) - three
 before a usage limit is reached - the usage meter, and the wrap-up and the forced stop that need it - one that
-starts the 5-hour window early when it is idle (v0.6.20), one that switches the Codex account (v0.6.20), one that
+starts the 5-hour window early when it is idle (v0.6.20), one that switches the Codex account (v0.6.20), one that switches to another saved account at a usage limit, one that opens a waiting conversation in Codex so that it can be sent to, one that
 checks for updates once a week, one that puts this PC to sleep or shuts it down after tasks you pick (v0.6.20), two that look after the watcher and the PC - restart the watcher if it stops unexpectedly,
 and wake this PC for a reset (v0.6.19) - and four actions: Longer messages, which only lets a message be longer, Open Codex on a notice, which only makes a click on a notice
 show a conversation, chat with a conversation in the Dashboard (v0.6.19), which sends a message of yours, and the
@@ -351,9 +352,9 @@ hook's program, which is not a listed process).
 
 **Ceilings.** 48 a day, and 5 in any one conversation - each continuation of the hook's counts as a claim toward the
 standard edition's five a day and fifteen minutes apart, as the watcher's count toward the hook's. **Measurements
-MHK, M4 and M4B: not passed** - M4 failed on `codex-cli 0.162.0-alpha.17.2` (2026-10-10), where no plugin Stop hook
+MHK passed, M4 failed and M4B has not been made** - M4 failed on `codex-cli 0.162.0-alpha.17.2` (2026-10-10), where no plugin Stop hook
 existed to run, and again on `codex-cli 0.166.0-alpha.5.1` (2026-10-31), where Codex ran the hook after a completed
-turn and not after a failed one; hidden because the measurement failed, until all three pass.
+turn and not after a failed one, and on `codex-cli 0.167.0-alpha.3.2` (2026-11-07); hidden because the measurement failed, until all three pass.
 
 ### Goal continuation
 
@@ -647,7 +648,7 @@ budget stops a recovery) and [H2](STANDARDS.md#h-user-control) (nothing can forc
 
 None of the eight rests on a measurement: what each sends is the continuation the standard edition sends.
 Each of the four that take up a failure the standard edition leaves for you takes up only failures
-from the last hour, and none from before it was turned on or set to watch; turning it off or setting
+from the last six hours, and none from before it was turned on or set to watch; turning it off or setting
 it to watch only ends what it took up and has not sent, and the program ends such a recovery unsent a
 day on the clock after the failure in any case.
 
@@ -954,7 +955,7 @@ that conversation for the same reset sends your message in its place, at the ver
 resets too; it waits for your message up to 30 minutes after the reset, and then goes on. It counts from the first reading after you added it, so the window open
 then is the first to reset; a window not used yet counts once it is. While a message waits it reads
 usage every 15 minutes, at most once in five minutes. One message may wait for a conversation, and
-ten in all; the page lists each with its words, and Pending lists each as a row of its own, with
+fifty in all; the page lists each with its words, and Pending lists each as a row of its own, with
 Cancel - its words are never shown there.
 
 **When it helps.** When you know what a conversation should do once the limit is gone - "carry on with
@@ -990,7 +991,7 @@ there, the statement carries it as a warning.
 
 **What it does.** An action: it sends nothing and answers at no point of a recovery. While it is on, a
 message you schedule for a reset, and from v0.6.16-beta (revision 2) a message you queue, may be up to
-8,154 characters - the most one continuation can carry - instead of 2,000. Turned off, every waiting
+29,962 characters - the most one continuation can carry - instead of 2,000. Turned off, every waiting
 message longer than 2,000 characters is cancelled.
 
 **When it helps.** When what you want a conversation to do after a reset takes more than 2,000
@@ -1046,7 +1047,7 @@ journal says why.
 it.
 
 **What it risks.** A message may wait in Codex for days, and while it waits its recovery counts as open, so
-an action set for after every recovery has finished waits too. Opened and not run within three minutes, it
+an action set for after every recovery has finished waits too. Opened and not run within five minutes, it
 is taken back, sent the ordinary way, and this turns itself off.
 
 **Departs from** [A11](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (nothing is queued on the off
@@ -1130,12 +1131,12 @@ conversation held by another session waits with a reason of its own.
 **What it risks.** The words Codex uses to tell these conversations apart (MO) were measured on
 `codex-cli 0.163.0-alpha.10.2` and may differ in another version of Codex: a wrong word finds nothing, never the wrong conversation. A session that ends with
 the continuation still queued leaves it to be taken back, and one that cannot be taken back is never sent
-twice. A session that did not take a queued message within three minutes turns this off; kept on, it stays on and
+twice. A session that did not take a queued message within five minutes turns this off; kept on, it stays on and
 the page notes it, and the message is still taken back and waits again.
 
 **Departs from** [A15](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (only the desktop app's
-conversations are detected) and A11 (it sends while a Codex session other than the app holds the
-conversation). It keeps A2, A3, A4, A17, H4 and H6: one channel, the exact conversation, the marker, newer
+conversations are detected), A11 (it sends while a Codex session other than the app holds the
+conversation) and B6 (it reads from such a conversation's first line which Codex version wrote it, and waits while that is newer than the Codex here). It keeps A2, A3, A4, A17, H4 and H6: one channel, the exact conversation, the marker, newer
 work wins, and Pause and Cancel take a queued continuation back.
 
 **Ceilings.** 48 a day, and 5 in any one conversation. **Measurement M5: made** on `codex-cli
@@ -1209,7 +1210,7 @@ Until it passes, or where it fails, no more than 3 are sent; its failing never t
 
 **What it does.** You queue messages of your own for one conversation - one the Dashboard knows from Pending
 and History that is switched on: to go after the turn now running, at a
-time you pick, or every day or week from a time - 30 times and 30 days at most. They go in the order you queued
+time you pick, or every day or week from a time - as many times as you pick, up to 30 (a series written by an earlier version keeps its 30 days). They go in the order you queued
 them, each once, exactly as you wrote them, and one can wait for the one before it to arrive. For a message at a
 time or on a schedule you choose what it does while a turn is running in that conversation: **Wait until it ends**
 (recommended, and what a new message does unless you choose otherwise) or **Add it to Codex's queue now**, for
@@ -1256,7 +1257,9 @@ turn keeps waiting while whether a turn is running cannot be read. Both still pa
 Your words are kept in the advanced edition's state until each has arrived, been cancelled or ended -
 while Codex holds one, so that Go on after a Pause can send it again - and then deleted.
 
-**Departs from** [A8](STANDARDS.md#a-what-it-may-send-to-codex-and-when),
+A message may carry up to 10 pictures of 20 MB each, kept as the product's own copies until delivered.
+
+**Departs from** [A2](STANDARDS.md#a-what-it-may-send-to-codex-and-when), [B3](STANDARDS.md#b-what-it-reads-and-how) and [B4](STANDARDS.md#b-what-it-reads-and-how) (a message with pictures is added through `thread/queue/add`), [A4](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (that message carries no marker: it is proven by its id), [A8](STANDARDS.md#a-what-it-may-send-to-codex-and-when),
 [A17](STANDARDS.md#a-what-it-may-send-to-codex-and-when), [A26](STANDARDS.md#a-what-it-may-send-to-codex-and-when),
 [A27](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (longer than 2,000 characters while Longer messages
 is on), [C4](STANDARDS.md#c-network), [D2](STANDARDS.md#d-privacy-and-the-data-it-keeps),
@@ -1734,6 +1737,45 @@ does; nothing asks Codex for a token), C4 (it acts on its own), C9 (usage of acc
 **Measurements MPROFILE and MSWAP: passed** on `codex-cli 0.166.0-alpha.6` (2026-11-06) - a second saved account read
 on a scratch home left the real sign-in, the app and its account as they were (MPROFILE); the app came up as the other
 saved account and back, each with no sign-in page and no other Codex engine running (MSWAP, completed by the owner).
+
+### Run on another Python version
+
+**What it does.** Lets this program run on another official Python from python.org instead of the one it came
+with: the newest release of 3.13, 3.14 or 3.15 (3.15 is a preview: the bundled version moves to it only in a later
+version). Its card says which Python the watcher runs on. Nothing is read from the network until you press a
+button. **Check python.org** reads python.org's public list of releases, and only the lines this version of the
+program allows are offered, so a new patch needs no update of this program. **Use this version** asks first, then
+downloads that version's Windows embeddable package from `www.python.org`, and no other address, showing the
+bytes truly written. Before any of it runs: the whole file must match the SHA-256 python.org published, computed on
+the bytes on disk; it must unpack safely into a new folder of its own, `runtimes\<version>` inside this program's
+folder (flat, plain files, bounded in size); `python.exe`, `pythonw.exe` and the Python library must each carry a
+valid signature of the Python Software Foundation, as Windows judges it; and every part of this program must load
+under it, with no bytecode left behind. It then replaces the bundled Python: for the watcher at a restart the card
+asks for, and for the Dashboard and the Codex tools the next time they start. Only an installed copy offers it.
+
+**When it helps.** When you want a Python fix or a newer version sooner than this program's next release.
+
+**What it risks.** This program is tested most on the Python it comes with, so another version can behave
+differently, and 3.15 is a preview here. A step that fails deletes what it unpacked, says which step it was and
+leaves the Python in use alone. If the watcher does not start on the chosen version within 45 seconds, it goes back
+to the bundled Python by itself and tells you once. A chosen version takes about 30 MB and is not updated for you.
+Its folder can be opened by you, administrators and Windows, like the rest of this program's folder. Nothing
+about you is sent to python.org beyond what any download shows, and nothing here touches Codex or sends anything to it.
+
+**How to go back.** **Back to the bundled version** on the card works even when the chosen version is broken: the
+Dashboard leaves a Python that does not answer for the bundled one by itself. Turning this off does the same. Only
+the chosen version is kept; a previous one, and a folder something still runs from, are deleted once nothing runs
+from them. An update or a repair keeps your choice while its line is still allowed, and otherwise goes back to the
+bundled Python and says so. Uninstalling removes the folder with the rest of the program, and so does changing to
+the standard edition, which only ever runs the Python it was installed with.
+
+**Departs from** [B14](STANDARDS.md#b-what-it-reads-and-how) (a second Python runtime), [C1](STANDARDS.md#c-network) and
+[C2](STANDARDS.md#c-network) (network code, in the courier's package, for python.org),
+[F3](STANDARDS.md#f-footprint-on-the-machine) (program files it fetched itself),
+[F6](STANDARDS.md#f-footprint-on-the-machine) (it starts the chosen `python.exe`) and
+[I10](STANDARDS.md#i-release-and-supply-chain) (a Python no release of this program pinned).
+
+**Ceilings.** None come into play: it sends nothing to Codex. It rests on no measurement.
 
 ### Compatibility report
 

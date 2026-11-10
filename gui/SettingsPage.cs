@@ -1461,16 +1461,20 @@ namespace CodexAutoResume
         {
             // Off the UI thread, because the wait is now real.
             //
-            // `bridge.Call` starts python.exe and blocks reading its output until it
-            // exits, and the engine behind it waits up to six seconds for the watcher to
-            // become visible. Run on the click handler, that is six seconds in which this
-            // window pumps no messages: Windows paints a grey ghost copy and retitles it
+            // The bridge call blocks until the engine answers, and the engine waits up to
+            // 45 seconds for the watcher to become visible (control.WATCHER_START_TIMEOUT;
+            // the advanced edition's takes 12 to 20). Run on the click handler, that is
+            // 45 seconds in which this window pumps no messages: Windows paints a grey ghost copy and retitles it
             // "Not Responding" after five. The "Starting the watcher..." headline set
             // just above would never even appear, because the WM_PAINT it queues is not
             // dispatched until the call returns.
             //
             // So the call goes to a worker and the answer comes back through BeginInvoke,
-            // which is the only way to touch these controls from off the UI thread.
+            // which is the only way to touch these controls from off the UI thread. And it
+            // is CallOnce (v0.6.23): on the long-lived pipe a wait this long would hold every
+            // read the window paints from, and past the pipe's 30 s reply limit the call
+            // would be made a second time through the one-shot bridge, starting a second
+            // watcher beside the first, which would exit and be reported as a failed start.
             starting = true;
             startButton.Enabled = false;
             UpdateWatcherButton();
@@ -1484,7 +1488,7 @@ namespace CodexAutoResume
             {
                 Dictionary<string, object> response = null;
                 Exception failure = null;
-                try { response = bridge.Call("start-watcher", null); }
+                try { response = bridge.CallOnce("start-watcher", null); }
                 catch (Exception error) { failure = error; }
 
                 MethodInvoker finish = delegate { StartWatcherFinished(response, failure); };

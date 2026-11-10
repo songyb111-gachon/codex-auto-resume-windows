@@ -20,7 +20,7 @@
 # example, each capability's before and after drawn from sample data - and (v0.6.20, #50) a delivered message followed
 # through from History - and (v0.6.20, Discussion #57) the tasks the power action waits for, and the form they are
 # picked with - and (v0.6.22) the loopback API's address and token, and Telegram's paired chat and commands - and
-# (v0.6.22 final) the saved accounts' usage meters.
+# (v0.6.22 final) the saved accounts' usage meters - and (v0.6.23) which Python this runs on.
 
 [advanced]
 advanced/gui/AdvancedPage.cs
@@ -47,6 +47,7 @@ advanced/gui/AdvancedPowerTasks.cs
 advanced/gui/AdvancedMeter.cs
 advanced/gui/AdvancedAccounts.cs
 advanced/gui/AdvancedFleet.cs
+advanced/gui/AdvancedPythons.cs
 advanced/gui/AdvancedRemote.cs
 advanced/gui/AdvancedPageAudit.cs
 advanced/gui/AdvancedRender.cs

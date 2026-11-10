@@ -669,6 +669,7 @@
   "installer.done.removed": "Codex Auto Resume se ha eliminado.",
   "installer.done.repaired": "Codex Auto Resume está reparado.",
   "installer.done.setup_stopped": "El programa de instalación se detuvo antes de que se ejecutara el instalador. El registro explica por qué.",
+  "installer.done.still_removing": "Tarda más de lo habitual y sigue trabajando en segundo plano. Terminará por sí solo; no hace falta hacer nada más.",
   "installer.done.still_running": "Tarda más de lo habitual y sigue trabajando en segundo plano. Vuelve a mirar el Panel en unos minutos.",
   "installer.done.unconfirmed": "No se pudo confirmar que el monitor esté en marcha, así que todavía no se vigila nada. Inícialo desde el Panel.",
   "installer.done.updated": "Codex Auto Resume se ha actualizado.",
@@ -856,6 +857,7 @@
   "msg.toast_accounts_exhausted_body": "La recuperación espera al reinicio más próximo, como sin cambio de cuenta. No se envía nada hasta entonces.",
   "msg.toast_switch_not_finished": "El cambio automático de cuenta no terminó",
   "msg.toast_switch_not_finished_body": "Abre Codex y comprueba qué cuenta tiene la sesión iniciada. La recuperación espera al reinicio más próximo, como sin cambio de cuenta. No se envía nada hasta entonces.",
+  "status.aside": "No pasa nada si se detiene. Yo lo retomo.",
   "why.account_changed": "Después de que se detuvo, se inició sesión con otra cuenta de Codex: no se envía nada hasta que la dejes continuar.",
   "msg.toast_usage_at": "Se alcanzó el límite de uso de Codex. Esta tarea se reanudará a esta hora: {time}.",
   "msg.toast_usage_soon": "Se alcanzó el límite de uso de Codex. Esta tarea se reanudará tras el restablecimiento.",
@@ -1281,5 +1283,8 @@
   "why.user_input_queued": "Algo tuyo está en la cola de esta conversación y va primero.",
   "why.version_newer_than_engine": "Una versión de Codex más nueva que la de aquí ejecutó esta conversación por última vez; continúa en cuanto Codex se actualice.",
   "why.waiting_reset": "El límite de uso aún no se ha restablecido.",
-  "why.workspace_changed": "La rama de su carpeta, su modelo o su modo de aprobación cambiaron desde que se detuvo: no se envía nada hasta que la dejes continuar."
+  "why.workspace_changed": "La rama de su carpeta, su modelo o su modo de aprobación cambiaron desde que se detuvo: no se envía nada hasta que la dejes continuar.",
+  "msg.toast_python_returned": "De nuevo en el Python incluido",
+  "msg.toast_python_returned_start": "El monitor no se inició con Python {version}, así que volvió al Python que venía con este programa.",
+  "msg.toast_python_returned_line": "Esta versión del programa ya no ofrece Python {version}, así que el monitor volvió al Python que venía con él."
 }

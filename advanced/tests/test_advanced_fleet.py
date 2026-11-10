@@ -342,7 +342,7 @@ class ConfinementTests(FleetCase):
             with self.subTest(bad):
                 self.assertEqual(fleet.folder_problem(bad, self.paths), fleet.INVALID)
         file = self.scratch / "a-file"
-        file.write_text("x")
+        file.write_text("x", encoding="utf-8")
         self.assertEqual(fleet.folder_problem(str(file), self.paths), fleet.INVALID)
 
     def test_a_fit_folder_has_no_problem(self):
@@ -381,18 +381,18 @@ class ConfinementTests(FleetCase):
 
     def test_it_never_writes_through_a_link(self):
         real = self.scratch / "precious.txt"
-        real.write_text("precious")
+        real.write_text("precious", encoding="utf-8")
         target = self.folder / "laptop.json"
         try:
             os.symlink(real, target)
         except OSError:
             # No right to make a link here: the check is the one a link answers to.
-            target.write_text(json.dumps(peer("laptop")))
+            target.write_text(json.dumps(peer("laptop")), encoding="utf-8")
             with patch.object(fleet, "_linked", return_value=True):
                 self.assertEqual(fleet.write(str(self.folder), "laptop", peer("laptop")), fleet.NOT_OURS)
             return
         self.assertEqual(fleet.write(str(self.folder), "laptop", peer("laptop")), fleet.NOT_OURS)
-        self.assertEqual(real.read_text(), "precious")
+        self.assertEqual(real.read_text(encoding="utf-8"), "precious")
 
     def test_a_cloud_drive_s_placeholder_is_a_file_and_a_junction_s_tag_is_not(self):
         class Stat:
@@ -493,7 +493,7 @@ class PeerTests(FleetCase):
 
     def test_a_link_is_ignored(self):
         real = self.scratch / "real.json"
-        real.write_text(json.dumps(peer()))
+        real.write_text(json.dumps(peer()), encoding="utf-8")
         try:
             os.symlink(real, self.folder / "desk.json")
         except OSError:
@@ -876,7 +876,7 @@ class ShareTests(FleetCase):
         with patch.object(fleet, "_linked", return_value=True):
             self.assertEqual(fleet.folder_problem("\\\\server\\share\\x", self.paths), fleet.LINK)
         file = self.scratch / "a-file"
-        file.write_text("x")
+        file.write_text("x", encoding="utf-8")
         with patch.object(os, "lstat", lambda path, *rest, **named: os.stat(file)):
             self.assertEqual(fleet.folder_problem("\\\\server\\share\\x", self.paths), fleet.INVALID)
         with patch.object(os, "lstat", side_effect=FileNotFoundError()):

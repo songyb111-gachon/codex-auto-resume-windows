@@ -634,3 +634,6 @@ class NoticeKind(StrEnum):
     # v0.6.22: the advanced edition's automatic account switch found every saved account at its limit, so recoveries wait
     # for the earliest reset as they would without it - shown only from its plug's surface, once a set of waiting records.
     ACCOUNTS_EXHAUSTED = "accounts_exhausted"
+    # v0.6.23: the advanced edition's chosen Python did not bring the watcher up, or is on a line this version no longer
+    # allows, and the watcher is back on the bundled runtime - raised by its plug in the launcher, as Windows' toast.
+    PYTHON_RETURNED = "python_returned"

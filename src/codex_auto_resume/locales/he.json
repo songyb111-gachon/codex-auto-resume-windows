@@ -669,6 +669,7 @@
   "installer.done.removed": "Codex Auto Resume הוסר.",
   "installer.done.repaired": "Codex Auto Resume תוקן.",
   "installer.done.setup_stopped": "תוכנית ההגדרה נעצרה לפני שתוכנית ההתקנה רצה. היומן מסביר מדוע.",
+  "installer.done.still_removing": "זה לוקח יותר זמן מהרגיל וממשיך לעבוד ברקע. זה יסתיים מעצמו, ואין צורך לעשות שום דבר נוסף.",
   "installer.done.still_running": "זה לוקח יותר זמן מהרגיל וממשיך לעבוד ברקע. הציצו שוב בלוח המחוונים בעוד כמה דקות.",
   "installer.done.unconfirmed": "לא ניתן היה לאשר שתהליך הניטור פועל, ולכן עדיין שום דבר לא מנוטר. הפעילו אותו מלוח המחוונים.",
   "installer.done.updated": "Codex Auto Resume עודכן.",
@@ -856,6 +857,7 @@
   "msg.toast_accounts_exhausted_body": "ההמשך ממתין לאיפוס הקרוב ביותר, כמו בלי החלפה. שום דבר לא נשלח עד אז.",
   "msg.toast_switch_not_finished": "החלפת החשבון האוטומטית לא הושלמה",
   "msg.toast_switch_not_finished_body": "פתחו את Codex ובדקו איזה חשבון מחובר. ההמשך ממתין לאיפוס הקרוב ביותר, כמו בלי החלפה. שום דבר לא נשלח עד אז.",
+  "status.aside": "זה בסדר אם זה נעצר. אני אמשיך.",
   "why.account_changed": "אחרי שנעצרה התחבר חשבון Codex אחר: שום דבר לא נשלח עד לאישורך להמשיך.",
   "msg.toast_usage_at": "הגעת למגבלת השימוש של Codex. המשימה הזו תחודש ב-{time}.",
   "msg.toast_usage_soon": "הגעת למגבלת השימוש של Codex. המשימה הזו תחודש אחרי האיפוס.",
@@ -1281,5 +1283,8 @@
   "why.user_input_queued": "משהו שלך נמצא בתור בשיחה הזו ויעבור ראשון.",
   "why.version_newer_than_engine": "גרסת Codex חדשה יותר מזו שכאן הריצה את השיחה הזו לאחרונה; היא תמשיך ברגע ש-Codex יעודכן.",
   "why.waiting_reset": "מגבלת השימוש עוד לא אופסה.",
-  "why.workspace_changed": "הענף של התיקייה שלה, המודל שלה או מצב האישור שלה השתנו מאז שנעצרה: דבר לא יישלח עד לאישורך להמשיך."
+  "why.workspace_changed": "הענף של התיקייה שלה, המודל שלה או מצב האישור שלה השתנו מאז שנעצרה: דבר לא יישלח עד לאישורך להמשיך.",
+  "msg.toast_python_returned": "חזרנו ל-Python המצורף",
+  "msg.toast_python_returned_start": "תהליך הניטור לא עלה על Python {version}, ולכן חזר ל-Python שהגיע עם התוכנה הזו.",
+  "msg.toast_python_returned_line": "הגרסה הזו של התוכנה כבר לא מציעה את Python {version}, ולכן תהליך הניטור חזר ל-Python שהגיע איתה."
 }

@@ -2819,7 +2819,7 @@ def owner_only(folder: Path) -> None:
     PC with Codex's sandbox, its sandbox accounts - so the picture showed a warning no installed
     product shows, and a different one on another machine. Named by security identifier, so no
     account name is written anywhere; nothing but this scratch folder is touched."""
-    who = subprocess.run(["whoami", "/user", "/fo", "csv", "/nh"], capture_output=True, text=True,
+    who = subprocess.run(["whoami", "/user", "/fo", "csv", "/nh"], capture_output=True, encoding="locale", errors="replace",
                          check=True, creationflags=NO_WINDOW).stdout
     sid = who.strip().rsplit(",", 1)[-1].strip().strip('"')
     if not sid.startswith("S-1-"):
@@ -2978,7 +2978,7 @@ def render_window(targets: dict, theme: str | None = None, design: str | None = 
         holder = subprocess.Popen(
             [str(home / "runtime" / "python.exe"), "-c", HOLD_MUTEX,
              str(home / "app" / "src"), str(home), word],
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, encoding="utf-8", errors="replace",
             creationflags=NO_WINDOW)
         try:
             if (holder.stdout.readline() or "").strip() != "held":

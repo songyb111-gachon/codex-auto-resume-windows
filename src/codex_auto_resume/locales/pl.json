@@ -669,6 +669,7 @@
   "installer.done.removed": "Codex Auto Resume został usunięty.",
   "installer.done.repaired": "Codex Auto Resume został naprawiony.",
   "installer.done.setup_stopped": "Program instalacyjny zatrzymał się, zanim uruchomił się instalator. Powód podaje dziennik.",
+  "installer.done.still_removing": "Trwa to dłużej niż zwykle i nadal działa w tle. Zakończy się samo; nie musisz nic więcej robić.",
   "installer.done.still_running": "Trwa to dłużej niż zwykle i nadal działa w tle. Zajrzyj do okna Dashboard za kilka minut.",
   "installer.done.unconfirmed": "Nie udało się potwierdzić, że monitor działa, więc na razie nic nie jest monitorowane. Uruchom go z okna Dashboard.",
   "installer.done.updated": "Codex Auto Resume został zaktualizowany.",
@@ -856,6 +857,7 @@
   "msg.toast_accounts_exhausted_body": "Wznowienie czeka na najbliższy reset, jak bez przełączenia. Do tego czasu nic nie zostanie wysłane.",
   "msg.toast_switch_not_finished": "Automatyczne przełączenie konta nie zostało dokończone",
   "msg.toast_switch_not_finished_body": "Otwórz Codex i sprawdź, które konto jest zalogowane. Wznowienie czeka na najbliższy reset, jak bez przełączenia. Do tego czasu nic nie zostanie wysłane.",
+  "status.aside": "Nic się nie stanie, jeśli się zatrzyma. Ja to podejmę.",
   "why.account_changed": "Po jego zatrzymaniu zalogowano inne konto Codex: nic nie zostanie wysłane, dopóki nie pozwolisz kontynuować.",
   "msg.toast_usage_at": "Osiągnięto limit użycia Codex. To zadanie zostanie wznowione o {time}.",
   "msg.toast_usage_soon": "Osiągnięto limit użycia Codex. To zadanie zostanie wznowione po odnowieniu limitu.",
@@ -1281,5 +1283,8 @@
   "why.user_input_queued": "W tej rozmowie czeka w kolejce coś Twojego i ma pierwszeństwo.",
   "why.version_newer_than_engine": "Tę rozmowę ostatnio uruchomił nowszy Codex niż ten tutaj; będzie kontynuowana po aktualizacji Codex.",
   "why.waiting_reset": "Limit użycia jeszcze się nie odnowił.",
-  "why.workspace_changed": "Gałąź folderu, model lub tryb zatwierdzania zmieniły się od zatrzymania: nic nie zostanie wysłane, dopóki nie pozwolisz kontynuować."
+  "why.workspace_changed": "Gałąź folderu, model lub tryb zatwierdzania zmieniły się od zatrzymania: nic nie zostanie wysłane, dopóki nie pozwolisz kontynuować.",
+  "msg.toast_python_returned": "Z powrotem na dołączonym Pythonie",
+  "msg.toast_python_returned_start": "Monitor nie uruchomił się w wersji Python {version}, więc wrócił do Pythona dołączonego do tego programu.",
+  "msg.toast_python_returned_line": "Ta wersja programu nie oferuje już wersji Python {version}, więc monitor wrócił do dołączonego do niej Pythona."
 }

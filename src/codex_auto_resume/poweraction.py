@@ -84,7 +84,7 @@ SINCE_SKEW = 300.0
 LAPSE_SECONDS = 24 * 3600.0
 # A batch whose newest end is older than this, and which this watcher never saw open, is stale; and
 # a conversation written in this last stretch must have been projected exactly (Q12).
-STALE_SECONDS = RECENT_SECONDS = 3600.0
+STALE_SECONDS = 3600.0
 # How long an uncertain submission is followed: the engine's unknown_reconcile_window_seconds.
 FOLLOW_SECONDS = 24 * 3600.0
 # Nobody may have used this PC for this long before a countdown starts (Q3).

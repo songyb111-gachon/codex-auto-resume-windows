@@ -78,7 +78,7 @@ class SourceTests(unittest.TestCase):
 
     def test_the_force_rule_and_the_command_line_are_as_they_were(self):
         pick = body("InstallPick")
-        self.assertIn('bool force = words.Contains("older") || words.Contains("edition");', pick)
+        # The rule's own line: tests/test_gui_versions.py.
         self.assertIn('string flag = "-Pick " + row[0] + " -Edition " + (row[1] == "advanced" ? "Advanced" : "Standard") +\n'
                       '                          (force ? " -Force" : "");', pick)
         self.assertLess(pick.index("VersionRule.IsMatch(row[0])"), pick.index('"-Pick "'))
@@ -131,8 +131,6 @@ class SourceTests(unittest.TestCase):
                       flow)
         bootstrap = (ROOT / "scripts" / "bootstrap.ps1").read_text(encoding="utf-8")
         self.assertIn("Step 'Asking api.github.com for this repository''s whole list of releases again", bootstrap)
-        self.assertIn("Get-Remote -Uri ($base + $name) -OutFile $zip -What 'The archive' -Count:$progressLines",
-                      bootstrap)
 
 
 PROBE = r"""

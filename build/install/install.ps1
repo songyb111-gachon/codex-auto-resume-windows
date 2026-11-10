@@ -353,6 +353,7 @@ if ([string]::IsNullOrWhiteSpace($InstallHome)) {
 }
 $AppDir      = Join-Path $InstallHome 'app'
 $RunDir      = Join-Path $InstallHome 'runtime'
+$ChosenRuntimes = Join-Path $InstallHome 'runtimes'
 # Where Codex keeps its copy of this plugin. The MCP launcher runs from there rather than
 # from the installation, so recognising our own process needs both roots.
 $codexHomeDir = $env:CODEX_HOME
@@ -632,7 +633,8 @@ function Get-OwnedWatcherProcess {
         $exe = $process.ExecutablePath
         $line = $process.CommandLine
         if ([string]::IsNullOrWhiteSpace($exe) -or [string]::IsNullOrWhiteSpace($line)) { continue }
-        if (-not (Test-PathInside $exe $RunDir)) { continue }
+        # v0.6.23: or a Python the person chose in the advanced edition (src/codex_auto_resume/chosen_runtime.py).
+        if (-not (Test-PathInside $exe $RunDir) -and -not (Test-PathInside $exe $ChosenRuntimes)) { continue }
         if ($line -notmatch 'watcher-launcher\.py') { continue }
         $found += $process
     }
@@ -1550,7 +1552,8 @@ if ($Uninstall) {
     # leave runtime\ deleted anyway, and the retry then stopped at "No installed runtime found" for good (v0.6.18
     # installer audit, R3).
     $retryNeeds = @('scripts', 'src')
-    $programDirs = @(@($AppDir, $RunDir) | Where-Object { Test-Path -LiteralPath $_ })
+    # v0.6.23: first the Python a person chose in the advanced edition; neither the retry nor anything else needs it.
+    $programDirs = @(@((Join-Path (Split-Path -Parent $RunDir) 'runtimes'), $AppDir, $RunDir) | Where-Object { Test-Path -LiteralPath $_ })
     $programEntries = @{}
     $removeTotal = $programDirs.Count
     foreach ($dir in $programDirs) {
@@ -1776,7 +1779,8 @@ function Open-ClosedDashboard {
             # so whoever reads them - the Dashboard that started an update, `$o = & Setup.exe -Silent` - waited for
             # this Dashboard to close before it saw the end. The Dashboard is a Windows program, built
             # /target:winexe, so the shell opens no console for it.
-            Start-Process -FilePath $dashboard -ArgumentList $line -WorkingDirectory $InstallHome
+            # --after-update (gui/WindowReopen.cs): a Dashboard a person opened during the update takes this over.
+            Start-Process -FilePath $dashboard -ArgumentList ($line + ' --after-update') -WorkingDirectory $InstallHome
             if ($Updated) { Ok 'The Dashboard was opened again on the new version' }
             else { Ok 'The Dashboard was opened again' }
         } catch {
@@ -2158,6 +2162,11 @@ try {
     if ([string]::IsNullOrWhiteSpace($env:CODEX_AUTO_RESUME_PLUGIN_HOME) -or
         (Test-DefaultHome -Root $OwnedHome -Profile $env:USERPROFILE)) {
         $null = Install-KeptUninstaller -Source $PSCommandPath
+    }
+
+    # v0.6.23: a Python chosen in the advanced edition has no reader in the standard one, and no card to delete it on.
+    if ($editionChange -and $edition -eq 'standard' -and (Test-Path -LiteralPath $ChosenRuntimes)) {
+        $null = Remove-OwnedItem $ChosenRuntimes
     }
 
     Step 'Setting up the watcher'

@@ -59,7 +59,8 @@ namespace CodexAutoResume
         internal static int RetryMilliseconds = 300000;
         private readonly Stopwatch givenUp = new Stopwatch();
         private readonly Bridge once;
-        private readonly string python;
+        private string python;
+        private readonly string bundled;
         private readonly string appSrc;
         private readonly object gate = new object();
         private Process process;
@@ -70,7 +71,8 @@ namespace CodexAutoResume
         internal PersistentBridge(string root, Bridge once)
         {
             this.once = once;
-            python = Path.Combine(root, "runtime", "python.exe");
+            python = RuntimeChoice.Python(root);
+            bundled = RuntimeChoice.BundledPython(root);
             appSrc = Path.Combine(root, "app", "src");
         }
 
@@ -139,8 +141,7 @@ namespace CodexAutoResume
                     }
                     catch (Exception)
                     {
-                        failures++;
-                        if (failures >= MaxFailures) givenUp.Restart();
+                        FailedLocked();
                         StopLocked();
                         // Ended by Stop while the window closes: the request may already have
                         // been carried out, and there is nobody left to show a second answer to.
@@ -188,8 +189,7 @@ namespace CodexAutoResume
                     }
                     catch (Exception)
                     {
-                        failures++;
-                        if (failures >= MaxFailures) givenUp.Restart();
+                        FailedLocked();
                         StopLocked();
                         if (closed) throw;
                         return Reconnecting();
@@ -223,6 +223,23 @@ namespace CodexAutoResume
 
         /// Whether the long-lived process is given up for now (for the tests).
         internal bool GivenUp { get { return failures >= MaxFailures; } }
+
+        /// One more failure of the long-lived process. v0.6.23: a chosen Python that has failed it MaxFailures times is
+        /// left for the bundled one, for the life of this window, and the count starts again: this is what keeps the
+        /// Advanced features page, and its Back to the bundled version, reachable while the chosen runtime is broken.
+        private void FailedLocked()
+        {
+            failures++;
+            if (failures < MaxFailures) return;
+            if (string.Equals(python, bundled, StringComparison.OrdinalIgnoreCase))
+            {
+                givenUp.Restart();
+                return;
+            }
+            python = bundled;
+            once.UseBundled();
+            failures = 0;
+        }
 
         private Dictionary<string, object> Ask(string command, string argument)
         {
@@ -309,13 +326,139 @@ namespace CodexAutoResume
         }
     }
 
+    /// Presses one after another: seven, each within 1.8 s of the last, and it says so once and starts again.
+    internal sealed class PressRun
+    {
+        internal const int Wanted = 7;
+        internal const double Gap = 1800.0;
+
+        private double last = double.NegativeInfinity;
+        private int count;
+
+        internal bool Press(double milliseconds)
+        {
+            count = milliseconds - last <= Gap ? count + 1 : 1;
+            last = milliseconds;
+            if (count < Wanted) return false;
+            count = 0;
+            return true;
+        }
+    }
+
+    /// A line that can say something else for a moment, coming in and leaving by a fade and a small rise (paint only, in its own
+    /// rectangle; immediate with motion reduced). What it is told meanwhile is what it says afterwards.
+    internal sealed class AsideLabel : Label
+    {
+        internal const int InMs = 450, OutMs = 400, Rise = 5;
+
+        private readonly Timer timer = new Timer();
+        private readonly Transition fade;
+        private string behind, words;
+        private bool waiting, aside;
+        private int holdMs;
+
+        internal AsideLabel()
+        {
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
+            fade = new Transition(this, 1.0);
+            timer.Tick += delegate
+            {
+                timer.Stop();
+                if (waiting) Speak();
+                else Return();
+            };
+        }
+
+        internal bool Saying { get { return aside; } }
+
+        /// Whether it is fading in or out (for the tests).
+        internal bool Fading { get { return fade.Running; } }
+
+        public override string Text
+        {
+            get { return base.Text; }
+            set
+            {
+                if (aside || waiting) behind = value;
+                else base.Text = value;
+            }
+        }
+
+        /// In `delayMs` it says `said`, for `heldMs`.
+        internal void Aside(string said, int delayMs, int heldMs)
+        {
+            if (!aside && !waiting) behind = base.Text;
+            words = said;
+            holdMs = heldMs;
+            timer.Stop();
+            aside = false;
+            waiting = true;
+            if (delayMs <= 0)
+            {
+                Speak();
+                return;
+            }
+            timer.Interval = delayMs;
+            timer.Start();
+        }
+
+        private void Speak()
+        {
+            waiting = false;
+            aside = true;
+            base.Text = words;
+            Glide(InMs);
+            timer.Interval = holdMs;
+            timer.Start();
+        }
+
+        private void Return()
+        {
+            aside = false;
+            base.Text = behind;
+            Glide(OutMs);
+        }
+
+        private void Glide(int milliseconds)
+        {
+            fade.Jump(0.0);
+            fade.To(1.0, Motion.Allowed(this), milliseconds);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            if (!aside && !fade.Running)
+            {
+                base.OnPaint(e);
+                return;
+            }
+            double shown = fade.Value;
+            Color ink = Soft.Mix(Ground.Colour(this), aside ? Palette.Ink : ForeColor, shown);
+            var line = new Rectangle(0, (int)Math.Round(Soft.Px(Rise) * (1.0 - shown)), Width, Height);
+            TextRenderer.DrawText(e.Graphics, Text, Font, line, ink,
+                                  Mirror.Words(Mirror.Of(this), TextFormatFlags.Top | TextFormatFlags.Left | TextFormatFlags.SingleLine |
+                                                                TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix));
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                timer.Dispose();
+                fade.Dispose();
+            }
+            base.Dispose(disposing);
+        }
+    }
+
     /// A page tab that tells assistive technology it is one, and which one is selected.
     ///
     /// A plain button with AccessibleRole.PageTab announced its role but never its state,
     /// so a screen reader said "Overview, page tab" for every tab alike.
     internal sealed class NavButton : Button
     {
-        private bool current, hover;
+        private bool current, hover, pressed;
+        private readonly SoftSurfaceGlide glide;
 
         /// A section in a vertical list rather than a tab in a strip: text starts at the left.
         internal bool Vertical;
@@ -328,6 +471,32 @@ namespace CodexAutoResume
             FlatAppearance.BorderSize = 0;
             UseVisualStyleBackColor = false;
             Cursor = Cursors.Hand;
+            glide = new SoftSurfaceGlide(this, Wanted);
+            glide.Where = delegate { return Face; };
+        }
+
+        /// What its state looks like (v0.6.23): a tab at rest has no body, so one fades in from nothing under the pointer and
+        /// on the chosen page. Only the tab moves; the page below it changes in one finished frame, as it always has.
+        private SurfaceLook Wanted()
+        {
+            Color words = !current ? Palette.Secondary : Palette.Contrast ? SystemColors.HighlightText : Palette.Accent;
+            if (current)
+            {
+                if (Palette.Contrast) return new SurfaceLook(Palette.AccentSoft, Palette.AccentSoft, words);
+                if (Palette.AccentBar) return new SurfaceLook(SurfaceLook.None(Palette.Raised), SurfaceLook.None(Palette.Line), words, Palette.Accent);
+                if (!Palette.Depth) return new SurfaceLook(Palette.AccentSoft, Palette.AccentSoft, words);
+                return new SurfaceLook(Palette.Inset, Palette.Inset, words);
+            }
+            if (pressed) return new SurfaceLook(Palette.Inset, Palette.Line, words);
+            if (hover) return new SurfaceLook(Palette.Raised, Palette.Line, words);
+            return new SurfaceLook(SurfaceLook.None(Palette.Raised), SurfaceLook.None(Palette.Line), words);
+        }
+
+        private void Press(bool down)
+        {
+            if (pressed == down) return;
+            pressed = down;
+            glide.Changed(Motion.Press);
         }
 
         internal bool Current
@@ -337,6 +506,7 @@ namespace CodexAutoResume
             {
                 if (current == value) return;
                 current = value;
+                glide.Changed();
                 Invalidate();
                 if (IsHandleCreated)
                 {
@@ -346,10 +516,20 @@ namespace CodexAutoResume
             }
         }
 
-        protected override void OnMouseEnter(EventArgs e) { hover = true; Invalidate(); base.OnMouseEnter(e); }
-        protected override void OnMouseLeave(EventArgs e) { hover = false; Invalidate(); base.OnMouseLeave(e); }
+        protected override void OnMouseEnter(EventArgs e) { hover = true; glide.Changed(); base.OnMouseEnter(e); }
+        protected override void OnMouseLeave(EventArgs e) { hover = false; Press(false); glide.Changed(); base.OnMouseLeave(e); }
+        protected override void OnMouseDown(MouseEventArgs e) { if (e.Button == MouseButtons.Left) Press(true); base.OnMouseDown(e); }
+        protected override void OnMouseUp(MouseEventArgs e) { Press(false); base.OnMouseUp(e); }
+        protected override void OnKeyDown(KeyEventArgs e) { if (e.KeyCode == Keys.Space) Press(true); base.OnKeyDown(e); }
+        protected override void OnKeyUp(KeyEventArgs e) { if (e.KeyCode == Keys.Space) Press(false); base.OnKeyUp(e); }
         protected override void OnGotFocus(EventArgs e) { Invalidate(); base.OnGotFocus(e); }
-        protected override void OnLostFocus(EventArgs e) { Invalidate(); base.OnLostFocus(e); }
+        protected override void OnLostFocus(EventArgs e) { Press(false); Invalidate(); base.OnLostFocus(e); }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) glide.Dispose();
+            base.Dispose(disposing);
+        }
 
         /// v0.6.20: the arrow keys along a mirrored strip of tabs go the way it reads - Left to the next tab, which stands
         /// left of this one, and Right back to the one before - as they go the way it reads left to right (Mirror).
@@ -400,16 +580,13 @@ namespace CodexAutoResume
             Ground.PaintArea(this, g, ClientRectangle);
             Rectangle face = Face;
             float radius = Soft.PxF(Palette.RadiusControl);
-            if (current)
-            {
-                // High Contrast keeps what it had: Highlight, with HighlightText on it.
-                if (Palette.Contrast) Soft.Body(g, face, radius, Palette.AccentSoft, Palette.AccentSoft, false);
-                else if (Palette.AccentBar) Underline(g, face);
-                else if (!Palette.Depth) Soft.Body(g, face, radius, Palette.AccentSoft, Palette.AccentSoft, false);
-                else Soft.Body(g, face, radius, Palette.Inset, Palette.Inset, true);
-            }
-            else if (hover) Soft.Body(g, face, radius, Palette.Raised, Palette.Line, false);
-            Color text = !current ? Palette.Secondary : Palette.Contrast ? SystemColors.HighlightText : Palette.Accent;
+            // High Contrast keeps what it had: Highlight, with HighlightText on it (Wanted). The well's inset shadow has no
+            // way to fade, so it comes in past half way.
+            SurfaceLook look = glide.Now;
+            bool well = current && !Palette.Contrast && !Palette.AccentBar && Palette.Depth && glide.Progress >= 0.5;
+            if (look.Fill.A > 0 || look.Edge.A > 0) Soft.Body(g, face, radius, look.Fill, look.Edge, well);
+            if (look.Mark.A > 0) Underline(g, face, look.Mark);
+            Color text = look.Ink;
             TextRenderer.DrawText(g, Text, Font, TextBounds, text,
                                   Mirror.Words(Mirror.Of(this),
                                                TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis |
@@ -422,12 +599,17 @@ namespace CodexAutoResume
         /// the left. Paint only, inside the body the tab always had.
         internal void Underline(Graphics g, Rectangle face)
         {
+            Underline(g, face, Palette.Accent);
+        }
+
+        private void Underline(Graphics g, Rectangle face, Color colour)
+        {
             int bar = Soft.Px(Brand.AccentBar), inset = Soft.Px(Brand.SpaceXs);
             // v0.6.20: a section's bar at the right in a mirrored window (Mirror).
             Rectangle line = Vertical
                 ? new Rectangle(Mirror.Of(this) ? face.Right - bar : face.X, face.Y + inset, bar, face.Height - 2 * inset)
                 : new Rectangle(face.X + inset, face.Bottom - bar, face.Width - 2 * inset, bar);
-            if (line.Width > 0 && line.Height > 0) g.FillRectangle(Soft.Fill(Palette.Accent), line);
+            if (line.Width > 0 && line.Height > 0) g.FillRectangle(Soft.Fill(colour), line);
         }
 
         protected override AccessibleObject CreateAccessibilityInstance()
@@ -530,7 +712,8 @@ namespace CodexAutoResume
 
     /// v0.6.11: the whole of a line that ends in an ellipsis where it does not fit (LineLabel), while the pointer rests
     /// on it - in the window's own colours and font rather than Windows' own tooltip, which knows neither the theme nor
-    /// the design: its words in ink on the raised ground, a hairline round it, wrapped at a readable width.
+    /// the design: its words in ink, wrapped at a readable width. v0.6.23: on a card of the cards' own material, as every other
+    /// overlay is (SoftTipWindow). Windows' tooltip still says when; in High Contrast it is still what is drawn.
     internal sealed class SoftTip : ToolTip
     {
         // How far the words stand in from the tip's edge, and the widest a line of them runs, at 96 DPI.
@@ -538,14 +721,29 @@ namespace CodexAutoResume
         private const TextFormatFlags Flags = TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix | TextFormatFlags.Left |
                                               TextFormatFlags.Top;
 
+        private SoftTipWindow card;
+        private Control over;
+        private readonly Timer popDown = new Timer();
+        private readonly EventHandler left;
+        private readonly MouseEventHandler pressed;
+
+        /// The card showing now, or null (for the tests).
+        internal SoftTipWindow Card { get { return card; } }
+
         internal SoftTip()
         {
             OwnerDraw = true;
+            left = delegate { Close(); };
+            pressed = delegate { Close(); };
+            popDown.Tick += delegate { Close(); };
             Popup += delegate(object sender, PopupEventArgs e)
             {
                 string text = GetToolTip(e.AssociatedControl) ?? "";
                 Size words = TextRenderer.MeasureText(text, Soft.BaseFont, new Size(Soft.Px(Widest), int.MaxValue), Flags);
                 e.ToolTipSize = new Size(words.Width + 2 * Soft.Px(Inset), words.Height + 2 * Soft.Px(Inset));
+                if (Palette.Contrast || e.AssociatedControl == null) return;
+                e.Cancel = true;
+                Open(e.AssociatedControl, text, words);
             };
             Draw += delegate(object sender, DrawToolTipEventArgs e)
             {
@@ -556,6 +754,46 @@ namespace CodexAutoResume
                                       Rectangle.Inflate(e.Bounds, -Soft.Px(Inset), -Soft.Px(Inset)), Palette.Ink,
                                       Mirror.Words(Mirror.Of(e.AssociatedControl), Flags));
             };
+        }
+
+        /// The card for `control`, under the pointer, until the pointer leaves it or presses, or Windows' own time is up.
+        internal void Open(Control control, string text, Size words)
+        {
+            Close();
+            over = control;
+            over.MouseLeave += left;
+            over.MouseDown += pressed;
+            over.Disposed += left;
+            bool mirrored = Mirror.Of(control);
+            Point at = Cursor.Position;
+            card = new SoftTipWindow(text, words, Soft.Px(Inset), Mirror.Words(mirrored, Flags));
+            card.Show(mirrored ? at.X - card.CardWidth : at.X, at.Y + Soft.Px(20), Screen.FromPoint(at).WorkingArea, Motion.Allowed(control));
+            popDown.Interval = Math.Max(1000, AutoPopDelay);
+            popDown.Start();
+        }
+
+        private void Close()
+        {
+            popDown.Stop();
+            if (over != null)
+            {
+                over.MouseLeave -= left;
+                over.MouseDown -= pressed;
+                over.Disposed -= left;
+                over = null;
+            }
+            if (card != null) card.Dispose();
+            card = null;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                Close();
+                popDown.Dispose();
+            }
+            base.Dispose(disposing);
         }
     }
 
@@ -590,13 +828,61 @@ namespace CodexAutoResume
         {
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
                      ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
+            grow = new Transition(this, 1.0);
+        }
+
+        private readonly Transition grow;
+        private string[] seenKeys = new string[0];
+        private double[] seenShares = new double[0], fromShares = new double[0];
+
+        /// Whether its bars are on their way to new lengths; its timer runs only then.
+        internal bool Growing { get { return grow.Running; } }
+
+        /// The numbers have been read again (v0.6.23): the bars glide to their new lengths, when they are the same bars. A row
+        /// that comes or goes, or the same rows in another order, is a new chart and is simply drawn. Paint only.
+        internal void Changed()
+        {
+            int max = 0;
+            foreach (var bar in Bars) max = Math.Max(max, bar.Value);
+            var keys = new string[Bars.Count];
+            var shares = new double[Bars.Count];
+            bool sameRows = seenKeys.Length == keys.Length, sameLengths = sameRows;
+            for (int index = 0; index < keys.Length; index++)
+            {
+                keys[index] = Bars[index].Key;
+                shares[index] = max == 0 ? 0.0 : Bars[index].Value / (double)max;
+                if (sameRows && keys[index] != seenKeys[index]) sameRows = sameLengths = false;
+                else if (sameRows && shares[index] != seenShares[index]) sameLengths = false;
+            }
+            if (sameRows && sameLengths) return;
+            var from = new double[keys.Length];
+            if (sameRows) for (int index = 0; index < from.Length; index++) from[index] = Share(index);
+            fromShares = from;
+            seenKeys = keys;
+            seenShares = shares;
+            grow.Jump(0.0);
+            grow.To(1.0, sameRows && Motion.Allowed(this));
+        }
+
+        // How much of the track bar `index` stands on now: its share of the longest, or between shares while it glides.
+        private double Share(int index)
+        {
+            if (index >= seenShares.Length) return 0.0;
+            if (!grow.Running || index >= fromShares.Length) return seenShares[index];
+            return fromShares[index] + (seenShares[index] - fromShares[index]) * grow.Value;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) grow.Dispose();
+            base.Dispose(disposing);
         }
 
         // Spacing is written at 96 DPI and scaled like the rest of the window. The text is
         // already scaled by its font, so unscaled gaps beside it look cramped at 200%.
         private static int Px(int atNinetySix)
         {
-            return (int)Math.Round(atNinetySix * SettingsForm.DpiScale);
+            return Soft.Px(atNinetySix);
         }
 
         /// A row: a line of text and the room round its bar for the control's lift in the Soft design, the same in
@@ -635,7 +921,7 @@ namespace CodexAutoResume
             int track = Track(labelWidth);
             for (int index = 0, y = 0; index < Bars.Count; index++, y += row)
             {
-                int bodyWidth = Math.Max(Px(2), Length(Bars[index].Value, max, track));
+                int bodyWidth = Math.Max(Px(2), Length(index, max, track));
                 int left = mirrored ? Width - labelWidth - Px(12) - bodyWidth : labelWidth + Px(12);
                 faces[index] = new Rectangle(left, y + Px(5), bodyWidth, Font.Height - Px(2));
             }
@@ -656,9 +942,12 @@ namespace CodexAutoResume
             return Math.Max(Px(10), Width - labelWidth - numberWidth - Px(24));
         }
 
-        private static int Length(int value, int max, int track)
+        // Bar `index`'s length on a track `track` long: as far as its glide has come while it has one (Changed), and what its
+        // number says, of the longest, otherwise.
+        private int Length(int index, int max, int track)
         {
-            return (int)Math.Round(track * (value / (double)max));
+            if (grow.Running && index < seenShares.Length) return (int)Math.Round(track * Share(index));
+            return (int)Math.Round(track * (Bars[index].Value / (double)max));
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -694,7 +983,7 @@ namespace CodexAutoResume
                 if (Palette.Depth) Soft.Body(e.Graphics, face, face.Height / 2f, fill, fill, null);
                 else using (var flat = new SolidBrush(fill)) e.Graphics.FillRectangle(flat, face);
                 string number = bar.Value.ToString(CultureInfo.CurrentCulture);
-                int length = Length(bar.Value, max, track);
+                int length = Length(index, max, track);
                 if (mirrored)
                 {
                     var word = new Rectangle(Width - labelWidth, y + Px(4), labelWidth, row - Px(4));
@@ -1630,6 +1919,50 @@ namespace CodexAutoResume
             return ground;
         }
 
+        /// A dialog's fields on a card, as the same fields stand on the Settings page (v0.6.23, the design audit's D2): `body` -
+        /// a text well, or the column a dialog stacks its words and fields in - laid on a SoftCard, on a ground with the room
+        /// the card's lift reaches into. The one place a dialog's body goes on a card: every dialog holding a field or a well
+        /// calls this (or DialogListCard for a list); tests/test_gui_v0623_motion.py finds one that does not. The dialog grows
+        /// by DialogCardGrowth, so what is inside keeps the width and the height it was laid out for.
+        private Control DialogBodyCard(Control body)
+        {
+            var card = new SoftCard();
+            card.Dock = DockStyle.Fill;
+            card.ColumnCount = 1;
+            card.RowCount = 1;
+            card.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            card.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+            card.Padding = Pad(12, 12, 12, 12);
+            card.Margin = new Padding(0);
+            body.Dock = DockStyle.Fill;
+            body.Margin = new Padding(0);
+            if (!(body is SoftTextArea)) body.BackColor = Palette.Card;
+            if (!(body is SoftTextArea)) body.Padding = new Padding(0);
+            card.Controls.Add(body, 0, 0);
+            var ground = new SoftStack();
+            ground.Name = "dialog_body_ground";
+            ground.Dock = DockStyle.Fill;
+            ground.ColumnCount = 1;
+            ground.RowCount = 1;
+            ground.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            ground.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+            // The lift's room, and even left and right: the card ends where the dialog's buttons do.
+            ground.Padding = Pad(16, 16, 16, 17);
+            ground.Margin = new Padding(0);
+            ground.Controls.Add(card, 0, 0);
+            // Two tables deep a table measures what it holds at no width at all: what wraps was asked for one line.
+            ground.Measured = body;
+            ground.Around = new Size(ground.Padding.Horizontal + card.Padding.Horizontal, ground.Padding.Vertical + card.Padding.Vertical);
+            return ground;
+        }
+
+        /// What a dialog's client area grows by for DialogBodyCard: the card's padding and the rest of its lift, less the 12 px its
+        /// button row no longer keeps above itself (the lift's room is that gap now).
+        private Size DialogCardGrowth()
+        {
+            return new Size(Px(24), Px(29));
+        }
+
         private void DrawHeader(object sender, DrawListViewColumnHeaderEventArgs e)
         {
             e.Graphics.FillRectangle(Soft.Fill(Card), e.Bounds);
@@ -1670,7 +2003,10 @@ namespace CodexAutoResume
             // Rows on the card's surface with a full hairline between them, as the panel's setting
             // rows have; the chosen row is pressed into the inset colour. High Contrast keeps
             // Highlight for it.
-            Color back = !selected ? Card : Palette.Contrast ? Palette.AccentSoft : Palette.Inset;
+            // v0.6.23: the row under the pointer has a flat tint, half way to the chosen row's colour: no lift, still flat.
+            var soft = list as SoftList;
+            double hot = soft == null || selected || Palette.Contrast ? 0.0 : soft.Glow.Amount(e.ItemIndex);
+            Color back = selected ? (Palette.Contrast ? Palette.AccentSoft : Palette.Inset) : hot > 0.0 ? Soft.Mix(Card, Palette.Inset, hot * 0.5) : Card;
             // Brushes from Soft.Fill, which keeps one per colour: a list of twenty rows across six columns
             // allocated two hundred and forty brushes every time it repainted, and it repaints on every
             // scroll, selection and refresh.

@@ -662,17 +662,22 @@ class Guarded:
             self.failures += 1
             return False
 
-    def start_held(self):
-        """Not a point: why P9 just named no route, from a plug that says (control/codexstart.py, v0.6.16-beta.3)."""
+    def _held(self, why):
+        """Not a point: why P9 just named no route (control/codexstart.py) or P13 no supervisor (the launcher), from a plug that says."""
         try:
-            return None if self.plug is NULL else getattr(self.plug, "start_held", lambda: None)()
+            return None if self.plug is NULL else getattr(self.plug, why, lambda: None)()
         except Exception:
             self.failures += 1
 
+    def start_held(self):
+        return self._held("start_held")
+
+    def supervise_held(self):
+        return self._held("supervise_held")
+
     def codex(self, codex_exe, codex_home):
-        """Tell the plug which Codex this process drives (Plug.codex). Not a point, so not asked
-        through `consult`: NULL is told nothing, and a plug that raises is counted in `failures`
-        and has changed nothing of core's."""
+        """Tell the plug which Codex this process drives (Plug.codex). Not a point, so not asked through `consult`: NULL is
+        told nothing, and a plug that raises is counted in `failures` and has changed nothing of core's."""
         if self.plug is NULL:
             return
         try:

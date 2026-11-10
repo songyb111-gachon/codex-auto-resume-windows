@@ -35,6 +35,8 @@ namespace CodexAutoResume
         private readonly Timer timer = new Timer();
         private readonly System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
         private double enteredAt;
+        private readonly Transition colourGlide;
+        private Color colourFrom;
 
         internal HaloDot()
         {
@@ -43,8 +45,98 @@ namespace CodexAutoResume
             TabStop = false;
             AccessibleRole = AccessibleRole.Graphic;
             timer.Interval = 33;
-            timer.Tick += delegate { Invalidate(); if (!ShouldRun()) timer.Stop(); };
+            timer.Tick += delegate { Beat(); };
+            colourGlide = new Transition(this, 1.0);
         }
+
+        // The mock's run, in its own numbers: the sweep and the rings around a light in a box 56 across.
+        private const int ArcMs = 735, ArcFadeMs = 315, RingMs = 900, FirstRingAt = 750, SecondRingAt = 1000;
+        private const double MockReach = 27.0, ArcRadius = 17.0, RingFrom = 15.0, HeadRadius = 3.4;
+        private Transition sweep;
+
+        /// One arc of the ring around the light, then two rings from it, once. Nothing with motion reduced or out of sight.
+        internal void Sweep()
+        {
+            if (!Motion.Allowed(this)) return;
+            if (sweep == null) sweep = new Transition(this, 0.0);
+            sweep.Jump(0.0);
+            sweep.To(1.0, true, SecondRingAt + RingMs);
+        }
+
+        /// Whether it is on its way (for the tests, and the second line's moment).
+        internal bool Sweeping { get { return sweep != null && sweep.Running; } }
+
+        /// The arc at `ms`: how much of the circle it covers (clockwise from the top) and how opaque arc and head are.
+        internal static void ArcAt(double ms, out double covered, out double opacity)
+        {
+            covered = Motion.Ease(ms / ArcMs);
+            opacity = ms <= ArcMs ? 1.0 : 1.0 - Motion.Ease((ms - ArcMs) / ArcFadeMs);
+        }
+
+        /// A ring `since` ms after it started: how far out, 0 to 1, and how opaque; opacity 0 before and after.
+        internal static void RingAt(double since, out double spread, out double opacity)
+        {
+            double eased = Motion.Ease(since / RingMs);
+            spread = eased;
+            opacity = since < 0.0 || since >= RingMs ? 0.0 : 0.65 * (1.0 - eased);
+        }
+
+        /// How much bigger than the mock it is drawn: what the control holds, so nothing is ever clipped.
+        internal float SweepScale { get { return (Math.Min(Width, Height) / 2f - Soft.PxF(1)) / (float)MockReach; } }
+
+        private void DrawSweep(Graphics g, float cx, float cy, Color colour)
+        {
+            double ms = sweep.ElapsedMs, covered, opacity, spread;
+            float unit = SweepScale;
+            RingAt(ms - FirstRingAt, out spread, out opacity);
+            DrawRing(g, cx, cy, unit * (float)(RingFrom + (MockReach - RingFrom) * spread), Math.Max(1f, unit * 1.6f), colour, opacity);
+            RingAt(ms - SecondRingAt, out spread, out opacity);
+            DrawRing(g, cx, cy, unit * (float)(RingFrom + (MockReach - RingFrom) * spread), Math.Max(1f, unit * 1.2f), colour, opacity);
+            ArcAt(ms, out covered, out opacity);
+            if (opacity <= 0.0) return;
+            float radius = unit * (float)ArcRadius;
+            using (var pen = new Pen(Soft.WithAlpha(colour, opacity), Math.Max(1f, unit * 2.4f)))
+            {
+                pen.StartCap = LineCap.Round;
+                pen.EndCap = LineCap.Round;
+                if (covered > 0.001) g.DrawArc(pen, cx - radius, cy - radius, radius * 2, radius * 2, -90f, (float)(360.0 * covered));
+            }
+            double angle = (360.0 * covered - 90.0) * Math.PI / 180.0;
+            float head = Math.Max(1.5f, unit * (float)HeadRadius);
+            using (var brush = new SolidBrush(Soft.WithAlpha(Brand.IconHead(), opacity)))
+                g.FillEllipse(brush, cx + radius * (float)Math.Cos(angle) - head, cy + radius * (float)Math.Sin(angle) - head, head * 2, head * 2);
+        }
+
+        private static void DrawRing(Graphics g, float cx, float cy, float radius, float width, Color colour, double opacity)
+        {
+            if (opacity <= 0.0) return;
+            using (var pen = new Pen(Soft.WithAlpha(colour, opacity), width))
+                g.DrawEllipse(pen, cx - radius, cy - radius, radius * 2, radius * 2);
+        }
+
+        // How often, while battery saver or a locked session holds the light still, it asks whether that is over.
+        private const int StillBeat = 1000;
+        private int beat = 33;
+
+        // One frame of the breath; or, while Motion.Ambient holds it still (v0.6.23, standard H13), one question a second and
+        // no paint but the frame that stills it.
+        private void Beat()
+        {
+            bool still = Motion.Ambient;
+            if (still != (timer.Interval == StillBeat))
+            {
+                timer.Interval = still ? StillBeat : beat;
+                Invalidate();
+            }
+            else if (!still) Invalidate();
+            if (!ShouldRun()) timer.Stop();
+        }
+
+        /// Whether its loop is holding still for battery saver or a locked session: a beat a second, and nothing painted (for the tests).
+        internal bool Stilled { get { return timer.Enabled && timer.Interval == StillBeat; } }
+
+        /// Whether its colour is on its way from the state before (for the tests).
+        internal bool ColourMoving { get { return colourGlide.Running; } }
 
         internal string State
         {
@@ -53,8 +145,12 @@ namespace CodexAutoResume
             {
                 string next = string.IsNullOrEmpty(value) ? "idle" : value;
                 if (next == state) return;
+                // v0.6.23: from the colour it is showing to the new state's, once.
+                colourFrom = Shown();
                 state = next;
                 enteredAt = clock.Elapsed.TotalMilliseconds;
+                colourGlide.Jump(0.0);
+                colourGlide.To(1.0, Motion.Allowed(this));
                 Invalidate();
                 Sync();
             }
@@ -141,8 +237,15 @@ namespace CodexAutoResume
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing) { timer.Stop(); timer.Dispose(); }
+            if (disposing) { timer.Stop(); timer.Dispose(); colourGlide.Dispose(); if (sweep != null) sweep.Dispose(); }
             base.Dispose(disposing);
+        }
+
+        // The dot's colour now: the state's, or part-way to it from the one before.
+        private Color Shown()
+        {
+            Color colour = DotColour(state);
+            return colourGlide.Running ? Soft.Mix(colourFrom, colour, colourGlide.Value) : colour;
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -152,8 +255,8 @@ namespace CodexAutoResume
             double since = Soft.StillLightMs >= 0 ? Soft.StillLightMs
                                                   : clock.Elapsed.TotalMilliseconds - enteredAt;
             double dim, opacity, spread, arc;
-            bool lit = Brand.Glow(state, since, since, Soft.ReduceMotion, out dim, out opacity, out spread, out arc);
-            Color colour = DotColour(state);
+            bool lit = Brand.Glow(state, since, since, Soft.ReduceMotion || (Soft.StillLightMs < 0 && Motion.Ambient), out dim, out opacity, out spread, out arc);
+            Color colour = Shown();
             float cx = Width / 2f, cy = Height / 2f, dot = Soft.PxF(Brand.StatusDotRadius);
             GraphicsState saved = g.Save();
             g.SmoothingMode = SmoothingMode.AntiAlias;
@@ -165,6 +268,7 @@ namespace CodexAutoResume
             // Dimmed, the dot is its colour over the card it was cleared to: that far toward the ground.
             Color fill = lit && dim > 0 && !Palette.Contrast ? Soft.WithAlpha(colour, 1 - dim) : colour;
             using (var brush = new SolidBrush(fill)) g.FillEllipse(brush, cx - dot, cy - dot, dot * 2, dot * 2);
+            if (Sweeping) DrawSweep(g, cx, cy, colour);
             if (lit && arc >= 0)
             {
                 float radius = Soft.PxF(Brand.StatusDotRadius + Brand.GlowArcGap);
@@ -340,6 +444,45 @@ namespace CodexAutoResume
             }
             if (at != data.Length) throw new FormatException("bytes nothing reads");
             return new MarkFrames(size, ground, heads);
+        }
+
+        /// These frames on `look`'s body, its mark on them from 24 px up (the head's own pixels as they are).
+        internal MarkFrames Themed(string look)
+        {
+            string name, first, last;
+            Brand.DayGround(look, out name, out first, out last);
+            Color top = ColorTranslator.FromHtml(first), bottom = ColorTranslator.FromHtml(last);
+            byte[] mark = DayIcon.Mark(look, Size);
+            var day = (byte[])ground.Clone();
+            for (int at = 0; at < day.Length; at += 4)
+            {
+                if (day[at + 3] == 0) continue;
+                int r = day[at + 2], g = day[at + 1], b = day[at];
+                if (DayIcon.Turn(Size, at / 4 / Size, top, bottom, ref r, ref g, ref b))
+                {
+                    day[at + 2] = (byte)r;
+                    day[at + 1] = (byte)g;
+                    day[at] = (byte)b;
+                }
+                DayIcon.Lay(day, at, mark);
+            }
+            var turned = new int[heads.Length][];
+            for (int position = 0; position < heads.Length; position++)
+            {
+                var entries = (int[])heads[position].Clone();
+                for (int i = 0; i < entries.Length; i += 6)
+                {
+                    int others = entries[i + 1] - entries[i + 2];
+                    if (others <= 0) continue;
+                    int r = entries[i + 3] / others, g = entries[i + 4] / others, b = entries[i + 5] / others;
+                    DayIcon.Turn(Size, entries[i] / 4 / Size, top, bottom, ref r, ref g, ref b);
+                    entries[i + 3] = r * others;
+                    entries[i + 4] = g * others;
+                    entries[i + 5] = b * others;
+                }
+                turned[position] = entries;
+            }
+            return new MarkFrames(Size, day, turned);
         }
 
         /// One frame: the head at `position` in `head`, top-down BGRA with straight alpha - tray.IconFrames.compose
@@ -527,6 +670,7 @@ namespace CodexAutoResume
         internal void Sync()
         {
             if (closing || state == null) return;
+            FollowTheDay();
             double now = Clock();
             allowed = Brand.Mark.FrameMs(state, now, now - enteredAt, false) >= 0 && MayMove();
             Draw(now);
@@ -633,6 +777,8 @@ namespace CodexAutoResume
                 framesRead = true;
                 Icon own = owner.Icon;
                 frames = own == null ? null : MarkFrames.For(own.Width);
+                string look = DayArt.Today();
+                if (frames != null && look != null) frames = frames.Themed(look);
             }
             return frames;
         }
@@ -677,11 +823,64 @@ namespace CodexAutoResume
         private bool Own()
         {
             if (ownBig != IntPtr.Zero && ownSmall != IntPtr.Zero) return true;
+            ApplyDay();
             IntPtr big = Send(WM_GETICON, ICON_BIG, IntPtr.Zero), small = Send(WM_GETICON, ICON_SMALL, IntPtr.Zero);
             if (big == IntPtr.Zero || small == IntPtr.Zero) return false;
             ownBig = big;
             ownSmall = small;
+            if (dayBig == IntPtr.Zero) plainBig = big;
+            if (daySmall == IntPtr.Zero) plainSmall = small;
             return true;
+        }
+
+        private bool dayApplied;
+        private IntPtr dayBig, daySmall;
+        private IntPtr plainBig, plainSmall;    // the window's icons of an ordinary day, as WinForms gave them: never ours
+        private string dayLook;                 // the look the icons on show were made for
+        private DateTime dayOf;                 // the date last looked at
+
+        // A window left open past midnight: its taskbar and title-bar icons follow the date, as the tray's _follow_the_day
+        // does. Asked every second (Sync), so the date is compared first, and the look only when the date has changed.
+        private void FollowTheDay()
+        {
+            DateTime today = DayArt.Clock().Date;
+            if (today == dayOf) return;
+            dayOf = today;
+            Icon icon = owner.Icon;
+            if (!dayApplied || ownBig == IntPtr.Zero || icon == null) return;   // nothing shown yet: ApplyDay reads the date
+            string look = DayArt.Today();
+            if (look == dayLook) return;
+            dayLook = look;
+            IntPtr oldBig = dayBig, oldSmall = daySmall;
+            dayBig = look == null ? IntPtr.Zero : DayIcon.From(icon, icon.Width, look);
+            daySmall = look == null ? IntPtr.Zero : DayIcon.From(icon, SystemInformation.SmallIconSize.Width, look);
+            ownBig = dayBig != IntPtr.Zero ? dayBig : plainBig;
+            ownSmall = daySmall != IntPtr.Zero ? daySmall : plainSmall;
+            Send(WM_SETICON, ICON_BIG, ownBig);
+            Send(WM_SETICON, ICON_SMALL, ownSmall);
+            Release();                              // what was made for the look before, once Windows holds the new ones
+            frames = null;
+            framesRead = false;
+            if (oldBig != IntPtr.Zero) DestroyIcon(oldBig);
+            if (oldSmall != IntPtr.Zero) DestroyIcon(oldSmall);
+        }
+
+        // On a special day the window's own icons, big and small, are the day's: the first thing the mark takes as "its own".
+        private void ApplyDay()
+        {
+            if (dayApplied) return;
+            string look = DayArt.Today();
+            Icon icon = owner.Icon;
+            if (icon == null || !owner.IsHandleCreated) return;
+            dayApplied = true;
+            dayLook = look;
+            plainBig = Send(WM_GETICON, ICON_BIG, IntPtr.Zero);
+            plainSmall = Send(WM_GETICON, ICON_SMALL, IntPtr.Zero);
+            if (look == null) return;
+            dayBig = DayIcon.From(icon, icon.Width, look);
+            daySmall = DayIcon.From(icon, SystemInformation.SmallIconSize.Width, look);
+            if (dayBig != IntPtr.Zero) Send(WM_SETICON, ICON_BIG, dayBig);
+            if (daySmall != IntPtr.Zero) Send(WM_SETICON, ICON_SMALL, daySmall);
         }
 
         /// Make the taskbar look at the big icon again: the small icon set again, with the other of two handles to its
@@ -740,6 +939,9 @@ namespace CodexAutoResume
             if (disposed) return;
             disposed = true;
             Stop();
+            if (dayBig != IntPtr.Zero) DestroyIcon(dayBig);
+            if (daySmall != IntPtr.Zero) DestroyIcon(daySmall);
+            dayBig = daySmall = IntPtr.Zero;
             if (owner.IsHandleCreated)
             {
                 if (shown != IntPtr.Zero && Send(WM_GETICON, ICON_BIG, IntPtr.Zero) == shown) Send(WM_SETICON, ICON_BIG, ownBig);

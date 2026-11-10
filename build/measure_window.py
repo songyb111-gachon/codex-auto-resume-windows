@@ -112,7 +112,7 @@ def measure(tree: Path) -> dict:
         json.dumps(test_gui_layout.fullest_snapshot(1_700_000_000.0), ensure_ascii=False), encoding="utf-8")
 
     done = subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
-                           "-Command", PROBE], capture_output=True, text=True, timeout=1800,
+                           "-Command", PROBE], capture_output=True, encoding="locale", errors="replace", timeout=1800,
                           env=dict(os.environ, CAR_EXE=str(exe), CAR_WORK=str(work),
                                    CAR_LOCALES=json.dumps(list(LOCALES)),
                                    CAR_SCALES=json.dumps(list(SCALES)), CAR_ROUNDS=str(ROUNDS)))

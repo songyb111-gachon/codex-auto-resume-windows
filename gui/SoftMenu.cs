@@ -105,8 +105,8 @@ namespace CodexAutoResume
             base.OnVisibleChanged(e);
             if (layer == null) return;
             // Drawn as it opens; its picture let go as it closes (a row menu is filled anew each time it opens).
-            if (Visible) layer.Render();
-            else layer.Dispose();
+            if (Visible) layer.Open();
+            else layer.Closed();
         }
 
         protected override void Dispose(bool disposing)
@@ -192,8 +192,8 @@ namespace CodexAutoResume
             base.OnVisibleChanged(e);
             if (layer == null) return;
             // Drawn as it opens; its picture let go as it closes (a row menu is filled anew each time it opens).
-            if (Visible) layer.Render();
-            else layer.Dispose();
+            if (Visible) layer.Open();
+            else layer.Closed();
         }
 
         protected override void Dispose(bool disposing)
@@ -347,25 +347,12 @@ namespace CodexAutoResume
     internal sealed class SoftMenuLayer : IDisposable
     {
         [StructLayout(LayoutKind.Sequential)]
-        private struct NativePoint { public int X, Y; }
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct NativeSize { public int Width, Height; }
-
-        [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        private struct Blend { public byte Op, Flags, Alpha, Format; }
-
-        [StructLayout(LayoutKind.Sequential)]
         private struct BitmapHeader
         {
             public int Size, Width, Height;
             public short Planes, BitCount;
             public int Compression, SizeImage, XPerMeter, YPerMeter, Used, Important;
         }
-
-        [DllImport("user32.dll")]
-        private static extern bool UpdateLayeredWindow(IntPtr window, IntPtr target, ref NativePoint at, ref NativeSize size,
-                                                       IntPtr source, ref NativePoint from, int key, ref Blend blend, int flags);
 
         [DllImport("user32.dll")]
         private static extern IntPtr GetDC(IntPtr window);
@@ -397,7 +384,6 @@ namespace CodexAutoResume
 
         private const int WS_EX_LAYERED = 0x00080000;
         private const int CS_DROPSHADOW = 0x00020000;
-        private const int ULW_ALPHA = 2;
         private const int WM_PAINT = 0x000F;
         private const int WM_ERASEBKGND = 0x0014;
         private const int WM_NCHITTEST = 0x0084;
@@ -408,12 +394,75 @@ namespace CodexAutoResume
         private readonly bool on;
         private bool asked, placing;
         private Bitmap image;
+        // Windows' copy of the picture, kept for as long as it is the picture (Upload), so a frame of the fade costs one
+        // UpdateLayeredWindow and no copy.
+        private IntPtr dib, memory, previous;
+        private int alpha = 255, rise;
+        private Point home;
+        private bool opening;
+        private readonly Timer timer = new Timer();
+        private readonly System.Diagnostics.Stopwatch clock = new System.Diagnostics.Stopwatch();
 
         internal SoftMenuLayer(ToolStripDropDown menu, Action<Graphics, Rectangle> paint)
         {
             this.menu = menu;
             this.paint = paint;
             on = !Palette.Contrast;
+            timer.Interval = Motion.Interval;
+            timer.Tick += delegate { Tick(); };
+        }
+
+        /// How opaque the whole card is, 0 to 255, and how far below its place it stands: the fade and rise it opens with (for the tests).
+        internal int Alpha { get { return alpha; } }
+        internal int Rise { get { return rise; } }
+
+        /// Whether it is on its way in; its timer runs only then.
+        internal bool Appearing { get { return timer.Enabled; } }
+
+        /// The menu is on the screen (v0.6.23): drawn, fading in and rising into place, as the drop-down's list of the same
+        /// material does (SoftDropList.Show, Tick). Immediate with motion reduced.
+        internal void Open()
+        {
+            if (!on) return;
+            timer.Stop();
+            home = menu.Location;
+            opening = Motion.AllowedPopup(menu);
+            alpha = opening ? 0 : 255;
+            rise = opening ? Soft.Px(Brand.SpaceXs) : 0;
+            Render();
+            if (!opening) return;
+            clock.Reset();
+            clock.Start();
+            timer.Start();
+        }
+
+        private void Tick()
+        {
+            double t = clock.Elapsed.TotalMilliseconds / Math.Max(1, Motion.Duration);
+            double eased = Motion.Ease(t);
+            alpha = t >= 1.0 ? 255 : (int)Math.Round(255 * eased);
+            rise = t >= 1.0 ? 0 : (int)Math.Round(Soft.Px(Brand.SpaceXs) * (1.0 - eased));
+            if (t >= 1.0)
+            {
+                timer.Stop();
+                opening = false;
+            }
+            if (!menu.IsDisposed && menu.IsHandleCreated) Blit();
+        }
+
+        /// The menu has left the screen: its picture stays a moment longer, fading out, on a window of its own that nothing
+        /// can touch. A list that faded in leaves the same way (SoftDropList.FadeOut). Then the picture is let go.
+        internal void Closed()
+        {
+            timer.Stop();
+            opening = false;
+            if (on && image != null && memory != IntPtr.Zero && Motion.AllowedPopup(menu))
+            {
+                var ghost = new SoftLayerFade(memory, dib, previous, new Rectangle(home.X, home.Y + rise, image.Width, image.Height), alpha);
+                memory = dib = previous = IntPtr.Zero;
+                ghost.Start();
+            }
+            Dispose();
         }
 
         /// Whether the menu is a card (not in High Contrast).
@@ -588,7 +637,12 @@ namespace CodexAutoResume
             }
             if (image != null) image.Dispose();
             image = next;
-            if (menu.IsHandleCreated) Push();
+            if (menu.IsHandleCreated)
+            {
+                if (!opening) home = menu.Location;
+                Upload();
+                Blit();
+            }
         }
 
         // What the menu draws of itself, the size of its window, as opaque RGB: drawn into a device-independent bitmap of
@@ -696,9 +750,87 @@ namespace CodexAutoResume
             }
         }
 
-        // The picture on the screen, where the menu's window is: premultiplied, top down, an alpha for every pixel.
-        private void Push()
+        private void ReleasePicture()
         {
+            LayerBits.Release(memory, dib, previous);
+            memory = dib = previous = IntPtr.Zero;
+        }
+
+        // The picture as Windows can lay it on the screen, once for each picture; a frame of the fade only lays it down again.
+        private void Upload()
+        {
+            ReleasePicture();
+            LayerBits.Upload(image, out dib, out memory, out previous);
+        }
+
+        // The picture laid on the screen, where the menu's window is, at the fade's alpha and rise.
+        private void Blit()
+        {
+            if (memory == IntPtr.Zero || image == null) return;
+            LayerBits.Lay(menu.Handle, memory, home.X, home.Y + rise, image.Width, image.Height, alpha);
+        }
+
+        public void Dispose()
+        {
+            timer.Stop();
+            ReleasePicture();
+            if (image != null) image.Dispose();
+            image = null;
+        }
+    }
+
+    /// A picture Windows can lay on a layered window (v0.6.23): premultiplied, top down, an alpha for every pixel, and the one
+    /// call that lays it down at a place and an opacity. The menu's card, its last frame fading out, and the tooltip.
+    internal static class LayerBits
+    {
+        [StructLayout(LayoutKind.Sequential)]
+        private struct NativePoint { public int X, Y; }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct NativeSize { public int Width, Height; }
+
+        [StructLayout(LayoutKind.Sequential, Pack = 1)]
+        private struct Blend { public byte Op, Flags, Alpha, Format; }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct BitmapHeader
+        {
+            public int Size, Width, Height;
+            public short Planes, BitCount;
+            public int Compression, SizeImage, XPerMeter, YPerMeter, Used, Important;
+        }
+
+        [DllImport("user32.dll")]
+        private static extern bool UpdateLayeredWindow(IntPtr window, IntPtr target, ref NativePoint at, ref NativeSize size,
+                                                       IntPtr source, ref NativePoint from, int key, ref Blend blend, int flags);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetDC(IntPtr window);
+
+        [DllImport("user32.dll")]
+        private static extern int ReleaseDC(IntPtr window, IntPtr dc);
+
+        [DllImport("gdi32.dll")]
+        private static extern IntPtr CreateCompatibleDC(IntPtr dc);
+
+        [DllImport("gdi32.dll")]
+        private static extern bool DeleteDC(IntPtr dc);
+
+        [DllImport("gdi32.dll")]
+        private static extern IntPtr SelectObject(IntPtr dc, IntPtr item);
+
+        [DllImport("gdi32.dll")]
+        private static extern bool DeleteObject(IntPtr item);
+
+        [DllImport("gdi32.dll")]
+        private static extern IntPtr CreateDIBSection(IntPtr dc, ref BitmapHeader header, int usage, out IntPtr bits,
+                                                      IntPtr section, int offset);
+
+        private const int ULW_ALPHA = 2;
+
+        internal static void Upload(Bitmap image, out IntPtr dib, out IntPtr memory, out IntPtr previous)
+        {
+            dib = memory = previous = IntPtr.Zero;
             int width = image.Width, height = image.Height;
             var header = new BitmapHeader();
             header.Size = Marshal.SizeOf(typeof(BitmapHeader));
@@ -707,11 +839,12 @@ namespace CodexAutoResume
             header.Planes = 1;
             header.BitCount = 32;
             IntPtr screen = GetDC(IntPtr.Zero);
-            IntPtr bits, dib = IntPtr.Zero, memory = IntPtr.Zero, previous = IntPtr.Zero;
             try
             {
-                dib = CreateDIBSection(screen, ref header, 0, out bits, IntPtr.Zero, 0);
-                if (dib == IntPtr.Zero || bits == IntPtr.Zero) return;
+                IntPtr bits;
+                IntPtr made = CreateDIBSection(screen, ref header, 0, out bits, IntPtr.Zero, 0);
+                if (made == IntPtr.Zero || bits == IntPtr.Zero) return;
+                dib = made;
                 BitmapData data = image.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.ReadOnly, PixelFormat.Format32bppPArgb);
                 try
                 {
@@ -725,35 +858,262 @@ namespace CodexAutoResume
                 finally { image.UnlockBits(data); }
                 memory = CreateCompatibleDC(screen);
                 previous = SelectObject(memory, dib);
-                Rectangle bounds = menu.Bounds;
-                var at = new NativePoint();
-                at.X = bounds.X;
-                at.Y = bounds.Y;
-                var size = new NativeSize();
-                size.Width = width;
-                size.Height = height;
-                var from = new NativePoint();
-                var blend = new Blend();
-                blend.Alpha = 255;
-                blend.Format = 1;   // AC_SRC_ALPHA: every pixel's own alpha, premultiplied
-                UpdateLayeredWindow(menu.Handle, IntPtr.Zero, ref at, ref size, memory, ref from, 0, ref blend, ULW_ALPHA);
+            }
+            finally { ReleaseDC(IntPtr.Zero, screen); }
+        }
+
+        internal static void Lay(IntPtr window, IntPtr memory, int x, int y, int width, int height, int alpha)
+        {
+            var at = new NativePoint();
+            at.X = x;
+            at.Y = y;
+            var size = new NativeSize();
+            size.Width = width;
+            size.Height = height;
+            var from = new NativePoint();
+            var blend = new Blend();
+            blend.Alpha = (byte)Math.Max(0, Math.Min(255, alpha));
+            blend.Format = 1;   // AC_SRC_ALPHA: every pixel's own alpha, premultiplied
+            UpdateLayeredWindow(window, IntPtr.Zero, ref at, ref size, memory, ref from, 0, ref blend, ULW_ALPHA);
+        }
+
+        [DllImport("gdi32.dll")]
+        private static extern bool GdiFlush();
+
+        /// What `paint` draws on `ground`, `size` big, as opaque pixels: drawn into a bitmap of Windows' own, where words come out
+        /// as the window draws them (on a GDI+ bitmap they came out heavier, without ClearType).
+        internal static int[] Words(Size size, Color ground, Action<Graphics> paint)
+        {
+            var pixels = new int[size.Width * size.Height];
+            var header = new BitmapHeader();
+            header.Size = Marshal.SizeOf(typeof(BitmapHeader));
+            header.Width = size.Width;
+            header.Height = -size.Height;
+            header.Planes = 1;
+            header.BitCount = 24;
+            IntPtr screen = GetDC(IntPtr.Zero);
+            IntPtr bits, bitmap = IntPtr.Zero, dc = IntPtr.Zero, old = IntPtr.Zero;
+            try
+            {
+                bitmap = CreateDIBSection(screen, ref header, 0, out bits, IntPtr.Zero, 0);
+                if (bitmap == IntPtr.Zero || bits == IntPtr.Zero) return pixels;
+                dc = CreateCompatibleDC(screen);
+                old = SelectObject(dc, bitmap);
+                using (Graphics f = Graphics.FromHdc(dc))
+                {
+                    using (var brush = new SolidBrush(ground)) f.FillRectangle(brush, 0, 0, size.Width, size.Height);
+                    paint(f);
+                }
+                GdiFlush();
+                int stride = (size.Width * 3 + 3) & ~3;
+                var row = new byte[stride];
+                for (int y = 0; y < size.Height; y++)
+                {
+                    Marshal.Copy(new IntPtr(bits.ToInt64() + (long)y * stride), row, 0, stride);
+                    for (int x = 0; x < size.Width; x++)
+                        pixels[y * size.Width + x] = unchecked((int)0xFF000000) | (row[x * 3 + 2] << 16) | (row[x * 3 + 1] << 8) | row[x * 3];
+                }
             }
             finally
             {
-                if (memory != IntPtr.Zero)
+                if (dc != IntPtr.Zero)
                 {
-                    SelectObject(memory, previous);
-                    DeleteDC(memory);
+                    SelectObject(dc, old);
+                    DeleteDC(dc);
                 }
-                if (dib != IntPtr.Zero) DeleteObject(dib);
+                if (bitmap != IntPtr.Zero) DeleteObject(bitmap);
                 ReleaseDC(IntPtr.Zero, screen);
             }
+            return pixels;
+        }
+
+        internal static void Release(IntPtr memory, IntPtr dib, IntPtr previous)
+        {
+            if (memory != IntPtr.Zero)
+            {
+                SelectObject(memory, previous);
+                DeleteDC(memory);
+            }
+            if (dib != IntPtr.Zero) DeleteObject(dib);
+        }
+    }
+
+    /// A tooltip's card (v0.6.23, the design audit's D1): a card of the cards' own material on a layered window - their ground,
+    /// radius, hairline, top light and shadow, as the drop-down's list and the menus are - its words as the window draws them,
+    /// fading in over brand's transition. It takes no input. Windows' tooltip says when (SoftTip).
+    internal sealed class SoftTipWindow : NativeWindow, IDisposable
+    {
+        [DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr window, int command);
+
+        private const int WS_POPUP = unchecked((int)0x80000000);
+        private const int WS_EX_LAYERED = 0x00080000, WS_EX_TRANSPARENT = 0x00000020, WS_EX_TOOLWINDOW = 0x00000080, WS_EX_NOACTIVATE = 0x08000000,
+                          WS_EX_TOPMOST = 0x00000008;
+        private const int SW_SHOWNOACTIVATE = 4;
+
+        private readonly Padding margin = Elevation.Reach("card");
+        private readonly Rectangle body;
+        private readonly Timer timer = new Timer();
+        private readonly System.Diagnostics.Stopwatch clock = new System.Diagnostics.Stopwatch();
+        private Bitmap image;
+        private IntPtr dib, memory, previous;
+        private Point at;
+        private int alpha = 255;
+
+        /// The picture, the card in it, and how opaque the whole is now (for the tests).
+        internal Bitmap Image { get { return image; } }
+        internal Rectangle Body { get { return body; } }
+        internal int Alpha { get { return alpha; } }
+        internal bool Appearing { get { return timer.Enabled; } }
+
+        internal int CardWidth { get { return body.Width; } }
+
+        internal SoftTipWindow(string text, Size words, int inset, TextFormatFlags flags)
+        {
+            body = new Rectangle(margin.Left, margin.Top, words.Width + 2 * inset, words.Height + 2 * inset);
+            image = new Bitmap(body.Width + margin.Horizontal, body.Height + margin.Vertical, PixelFormat.Format32bppPArgb);
+            float radius = Soft.PxF(Palette.RadiusCard);
+            using (Graphics g = Graphics.FromImage(image))
+            {
+                g.Clear(Color.Transparent);
+                Elevation.StampOuter(g, body, "card", radius, new Rectangle(Point.Empty, image.Size));
+                Soft.Body(g, body, radius, Palette.Card, Palette.Line, "card");
+            }
+            // The words go in as Windows draws them, in the part of the card that is whole, as the list's do (SoftDropList.Face).
+            var column = new Rectangle(body.X + inset, body.Y + inset, words.Width, words.Height);
+            int[] pixels = LayerBits.Words(column.Size, Palette.Card, delegate(Graphics f)
+            {
+                TextRenderer.DrawText(f, text, Soft.BaseFont, new Rectangle(Point.Empty, column.Size), Palette.Ink, flags);
+            });
+            BitmapData data = image.LockBits(column, ImageLockMode.WriteOnly, PixelFormat.Format32bppPArgb);
+            try
+            {
+                for (int y = 0; y < column.Height; y++)
+                    Marshal.Copy(pixels, y * column.Width, new IntPtr(data.Scan0.ToInt64() + (long)y * data.Stride), column.Width);
+            }
+            finally { image.UnlockBits(data); }
+            timer.Interval = Motion.Interval;
+            timer.Tick += delegate { Tick(); };
+        }
+
+        /// Puts it on the screen, its card's corner at (`x`, `y`) and kept within `area`.
+        internal void Show(int x, int y, Rectangle area, bool animate)
+        {
+            x = Math.Max(area.Left, Math.Min(area.Right - body.Width, x));
+            y = Math.Max(area.Top, Math.Min(area.Bottom - body.Height, y));
+            at = new Point(x - margin.Left, y - margin.Top);
+            alpha = animate ? 0 : 255;
+            var cp = new CreateParams();
+            cp.Caption = "";
+            cp.X = at.X;
+            cp.Y = at.Y;
+            cp.Width = image.Width;
+            cp.Height = image.Height;
+            cp.Style = WS_POPUP;
+            cp.ExStyle = WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST;
+            CreateHandle(cp);
+            LayerBits.Upload(image, out dib, out memory, out previous);
+            Lay();
+            ShowWindow(Handle, SW_SHOWNOACTIVATE);
+            if (!animate) return;
+            clock.Start();
+            timer.Start();
+        }
+
+        private void Tick()
+        {
+            double t = clock.Elapsed.TotalMilliseconds / Math.Max(1, Motion.Duration);
+            alpha = t >= 1.0 ? 255 : (int)Math.Round(255 * Motion.Ease(t));
+            if (t >= 1.0) timer.Stop();
+            Lay();
+        }
+
+        private void Lay()
+        {
+            if (Handle != IntPtr.Zero) LayerBits.Lay(Handle, memory, at.X, at.Y, image.Width, image.Height, alpha);
         }
 
         public void Dispose()
         {
+            timer.Stop();
+            timer.Dispose();
+            if (Handle != IntPtr.Zero) DestroyHandle();
+            LayerBits.Release(memory, dib, previous);
+            memory = dib = previous = IntPtr.Zero;
             if (image != null) image.Dispose();
             image = null;
+        }
+    }
+
+    /// The last picture of a closed menu, fading out on a window of its own for brand's press time (v0.6.23): the menu's own
+    /// window is already hidden by the time a menu knows it has closed. It takes no input - clicks and the pointer go through to
+    /// what is under it - and disposes itself.
+    internal sealed class SoftLayerFade : NativeWindow
+    {
+        [DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr window, int command);
+
+        private const int WS_POPUP = unchecked((int)0x80000000);
+        private const int WS_EX_LAYERED = 0x00080000, WS_EX_TRANSPARENT = 0x00000020, WS_EX_TOOLWINDOW = 0x00000080, WS_EX_NOACTIVATE = 0x08000000,
+                          WS_EX_TOPMOST = 0x00000008;
+        private const int SW_SHOWNOACTIVATE = 4;
+
+        private readonly IntPtr memory, dib, previous;
+        private readonly Rectangle bounds;
+        private readonly int from;
+        private readonly Timer timer = new Timer();
+        private readonly System.Diagnostics.Stopwatch clock = new System.Diagnostics.Stopwatch();
+
+        /// How many are on the screen (for the tests).
+        internal static int Live;
+
+        internal SoftLayerFade(IntPtr memory, IntPtr dib, IntPtr previous, Rectangle bounds, int alpha)
+        {
+            this.memory = memory;
+            this.dib = dib;
+            this.previous = previous;
+            this.bounds = bounds;
+            from = alpha;
+            timer.Interval = Motion.Interval;
+            timer.Tick += delegate { Tick(); };
+        }
+
+        internal void Start()
+        {
+            var cp = new CreateParams();
+            cp.Caption = "";
+            cp.X = bounds.X;
+            cp.Y = bounds.Y;
+            cp.Width = bounds.Width;
+            cp.Height = bounds.Height;
+            cp.Style = WS_POPUP;
+            cp.ExStyle = WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST;
+            CreateHandle(cp);
+            Live++;
+            Lay(from);
+            ShowWindow(Handle, SW_SHOWNOACTIVATE);
+            clock.Start();
+            timer.Start();
+        }
+
+        private void Tick()
+        {
+            double t = clock.Elapsed.TotalMilliseconds / Math.Max(1, Motion.Press);
+            if (t >= 1.0)
+            {
+                timer.Stop();
+                timer.Dispose();
+                if (Handle != IntPtr.Zero) DestroyHandle();
+                LayerBits.Release(memory, dib, previous);
+                Live--;
+                return;
+            }
+            Lay((int)Math.Round(from * (1.0 - Motion.Ease(t))));
+        }
+
+        private void Lay(int alpha)
+        {
+            LayerBits.Lay(Handle, memory, bounds.X, bounds.Y, bounds.Width, bounds.Height, alpha);
         }
     }
 }

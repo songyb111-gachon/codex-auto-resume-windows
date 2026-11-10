@@ -63,7 +63,7 @@ class CheckModeTests(unittest.TestCase):
         command.insert(1, "-I")                   # as the embeddable runtime's ._pth: no PYTHONPATH, no cwd on the path
         environment = {name: value for name, value in os.environ.items() if name.upper() != "PYTHONPATH"}
         done = subprocess.run(command, cwd=str(self.scratch), env=environment, stdin=subprocess.DEVNULL,
-                              capture_output=True, text=True, timeout=120, creationflags=NO_WINDOW)
+                              capture_output=True, encoding="utf-8", errors="replace", timeout=120, creationflags=NO_WINDOW)
         self.assertEqual(done.returncode, 0, done.stderr[-2000:])
         self.assertEqual(done.stdout, "")
         self.assertEqual(list(self.home.iterdir()), [])

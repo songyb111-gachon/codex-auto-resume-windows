@@ -294,7 +294,7 @@ class CheckedTests(unittest.TestCase):
 
     def test_a_malformed_record_is_dropped_and_the_rest_are_taken(self):
         bad = [record(marker=ids.marker(KEY)), record(key="A" * 64), record(key="ab"), record(thread="T1"),
-               record(state="done"), record(words=None), record(words=""), record(words="x" * 8193),
+               record(state="done"), record(words=None), record(words=""), record(words="x" * 30001),
                record(state="in_flight"), record(state="waiting", sent_at=5.0), dict(record(), extra=1),
                {k: v for k, v in record().items() if k != "sent_at"}, record(state="in_flight", words=None,
                                                                              sent_at="soon"), "record", None]
@@ -319,7 +319,7 @@ class CheckedTests(unittest.TestCase):
     def test_a_persons_words_are_sent_as_written_and_the_products_own_never_are(self):
         self.assertEqual(continuation.validate_prompt(WORDS), WORDS)
         self.assertEqual(continuation.validate_prompt("  {reason} as typed\n\tsecond line"), "  {reason} as typed\n\tsecond line")
-        self.assertEqual(continuation.PROMPT_LIMIT, 8192 - len("\n\n" + ids.short_marker(KEY)))
+        self.assertEqual(continuation.PROMPT_LIMIT, 30000 - len("\n\n" + ids.short_marker(KEY)))
         self.assertEqual(continuation.validate_prompt("x" * continuation.PROMPT_LIMIT), "x" * continuation.PROMPT_LIMIT)
         refused = {"x" * (continuation.PROMPT_LIMIT + 1): "too_long", "   \n\t": "empty", "": "empty",
                    "a\x00b": "control", "a\x1bb": "control", "a\x7fb": "control", 5: "not_text",

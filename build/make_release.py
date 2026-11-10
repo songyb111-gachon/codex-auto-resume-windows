@@ -70,6 +70,16 @@ PYTHON_SHA256 = "90905e64a840557d8c1bc4f5b74db3d7ee85e3ffb217611cac1c7813acea415
 # Everything the installed product needs, and nothing else. Listed explicitly rather
 # than filtered, so a stray file in the working tree cannot reach a release.
 APP_TREES = ("src", "scripts", "skills", ".codex-plugin", ".agents", "assets")
+# Of those trees, the two that hold things for the repository as well as for the product: what ships from them is
+# named here, file by file, and a new picture or a new script stays out until someone names the program that reads it
+# (tests/test_release_size.py holds both). The assets are the icon (the tray, the installer and the payload's root) and
+# what Codex's plugin loader reads by .codex-plugin/plugin.json; every other picture is for the README on GitHub, and
+# the generators' JSON and sources are the build's. The scripts are what the installation runs or reads; the rest of
+# scripts/ is CI's and the maintainers'.
+SHIPPED_ASSETS = ("codex-auto-resume.ico", "icon.png", "logo.png", "logo-dark.png", "screenshot-panel.png",
+                  "screenshot-settings.png")
+SHIPPED_SCRIPTS = ("bootstrap.ps1", "plugin_setup.py", "release.json", "watcher_launcher.py")
+LISTED_TREES = {"assets": SHIPPED_ASSETS, "scripts": SHIPPED_SCRIPTS}
 # Data files inside those trees that the product reads at run time. The trees are copied by
 # walking them, so nothing would notice one going missing until a user's machine did: the
 # bundled Compatibility Registry baseline would silently become "missing", and every
@@ -100,6 +110,14 @@ APP_FILES = ("LICENSE", "README.md", "docs/PRIVACY.md", "docs/SECURITY.md", "doc
 # and out of sight of tools that read a `.mcp.json` at a project's root and try to start a
 # server this checkout does not have.
 APP_SOURCES = {".mcp.json": "build/plugin-mcp.json"}
+# The changelog is the one document an archive carries for a program to read: the setup program and the update's notes
+# page show the entry of the version the archive holds (InstallerNotes.Section), and nothing reads another entry. So the
+# copy in the archive is that entry, and CHANGELOG_PAGE says where the rest is. The file in the repository stays whole;
+# build/release_notes.py reads that one.
+CHANGELOG = "docs/CHANGELOG.md"
+CHANGELOG_PAGE = "https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/CHANGELOG.md"
+# What stays of the bundled runtime: see trim_runtime.
+RUNTIME_KEEP = "build/runtime_keep.json"
 LAUNCHER_FILES = ("Install.cmd", "Uninstall.cmd", "README.txt", "install.ps1")
 
 # The editions (src/codex_auto_resume/domain/plug.py, Edition). The advanced one is the standard
@@ -183,6 +201,123 @@ def _wanted(path: Path) -> bool:
     return not (path.parts and path.parts[0] in EXCLUDE_DIRS)
 
 
+def newest_changelog(text: str, release: str) -> str:
+    """What the archive carries of the changelog: its title, one line that says where the whole of it is, and the entry
+    of `release`, in the file's own line endings. A version with no entry stops the build: the notes page would be empty
+    on a person's PC, and release_notes.py refuses the same tag.
+
+    An entry begins as InstallerNotes.Section reads it, `## v<version>` and then the end of the line or a space, so a
+    pre-release's heading is not its final's; it ends at the next entry's heading."""
+    newline = "\r\n" if "\r\n" in text else "\n"
+    lines = text.split(newline)
+    heading = "## v" + release
+    begun = next((index for index, line in enumerate(lines) if line == heading or line.startswith(heading + " ")), None)
+    if begun is None:
+        raise SystemExit("%s has no entry for v%s" % (CHANGELOG, release))
+    ended = next((index for index in range(begun + 1, len(lines)) if lines[index].startswith("## v")), len(lines))
+    first = next(index for index, line in enumerate(lines) if line.startswith("## "))
+    title = [line for line in lines[:first] if line.strip()]
+    entry = lines[begun:ended]
+    while entry and not entry[-1].strip():
+        entry.pop()
+    page = "This file holds this release's entry only. The whole changelog is at %s" % CHANGELOG_PAGE
+    return newline.join(title + ["", page, ""] + entry + [""])
+
+
+def collect_runtime(stage: Path, archive: Path) -> int:
+    runtime = stage / "payload" / "runtime"
+    runtime.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(archive) as bundle:
+        bundle.extractall(runtime)
+    # The embeddable build ships isolated by design. Leave python3XX._pth (python314._pth) exactly as
+    # published: our entry points do their own sys.path.insert, so no edit is needed,
+    # and editing it is how people accidentally enable site-packages.
+    return sum(1 for _ in runtime.rglob("*") if _.is_file())
+
+
+def runtime_keep() -> dict:
+    """build/runtime_keep.json: what stays of the runtime, and the imports of what went that someone has read."""
+    return json.loads((ROOT / RUNTIME_KEEP).read_text(encoding="utf-8"))
+
+
+def trim_runtime(stage: Path) -> list:
+    """Take out of the staged runtime whatever build/runtime_keep.json does not name, and return what went, as modules.
+
+    After the download's digest is checked (fetch_runtime), so what is cut from is the file python.org published. The
+    list is pinned to that digest: another runtime has other modules, and a list made for this one proves nothing of it.
+    Nothing is decided here that a checked-in file does not say, and the library's members keep their order, names and
+    dates at a fixed compression, so the same commit gives the same bytes (build/edition_audit.py (e))."""
+    keep = runtime_keep()
+    if keep["python"] != PYTHON_VERSION or keep["sha256"] != PYTHON_SHA256:
+        raise SystemExit("%s was made for Python %s (%s), and this build bundles %s (%s): set python and sha256 there; "
+                         "the build's own check then names whatever the new runtime needs read again"
+                         % (RUNTIME_KEEP, keep["python"], keep["sha256"], PYTHON_VERSION, PYTHON_SHA256))
+    runtime = stage / "payload" / "runtime"
+    files, members = set(keep["files"]), set(keep["library"])
+    absent = sorted(files - {path.name for path in runtime.iterdir()})
+    if absent:
+        raise SystemExit("%s names files the runtime does not have: %s" % (RUNTIME_KEEP, ", ".join(absent)))
+    removed = []
+    for path in sorted(runtime.iterdir()):
+        if path.name not in files:
+            path.unlink()
+            if path.suffix.lower() == ".pyd":
+                removed.append(path.stem)
+    library = runtime / keep["library_zip"]
+    with zipfile.ZipFile(library) as whole:
+        infos = whole.infolist()
+        absent = sorted(members - {info.filename for info in infos})
+        if absent:
+            raise SystemExit("%s names members the runtime's library does not have: %s"
+                             % (RUNTIME_KEEP, ", ".join(absent)))
+        kept = [(info, whole.read(info)) for info in infos if info.filename in members]
+    for info in infos:
+        if info.filename not in members and info.filename.endswith(".pyc"):
+            module = info.filename[:-len(".pyc")].replace("/", ".")
+            removed.append(module[:-len(".__init__")] if module.endswith(".__init__") else module)
+    with zipfile.ZipFile(library, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as trimmed:
+        for info, data in kept:
+            entry = zipfile.ZipInfo(info.filename, info.date_time)
+            entry.compress_type = zipfile.ZIP_DEFLATED
+            entry.external_attr = info.external_attr
+            entry.create_system = 0
+            trimmed.writestr(entry, data)
+    return sorted(removed)
+
+
+def check_trimmed_runtime(stage: Path, removed: list, timeout: float = 300) -> None:
+    """The staged code still runs under the runtime as trimmed, or the build stops (build/runtime_check.py says how).
+
+    Under the staged interpreter, in a scratch home, from a scratch directory, with no PYTHONPATH: what a person's PC
+    has. -B as in check_courier_starts, so the archive holds only what the build put there."""
+    payload = stage / "payload"
+    runtime = payload / "runtime"
+    keep = runtime_keep()
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    with tempfile.TemporaryDirectory(prefix="car-runtime-check-") as scratch:
+        home = Path(scratch) / "home"
+        home.mkdir()
+        asked = Path(scratch) / "asked.json"
+        asked.write_text(json.dumps({"app": str(payload / "app"), "library": str(runtime / keep["library_zip"]),
+                                     "removed": removed, "reviewed": keep["reviewed"],
+                                     "also": [str(ROOT / "build" / "smoke_archive.py")]}), encoding="utf-8")
+        environment = {name: value for name, value in os.environ.items() if name.upper() != "PYTHONPATH"}
+        environment.update({name: str(home) for name in ("USERPROFILE", "HOME", "LOCALAPPDATA", "APPDATA", "CODEX_HOME")})
+        try:
+            done = subprocess.run([str(runtime / "python.exe"), "-B", "-X", "disable-remote-debug",
+                                   str(ROOT / "build" / "runtime_check.py"), str(asked)], cwd=scratch, env=environment,
+                                  stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8",
+                                  errors="replace", timeout=timeout, creationflags=flags)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise SystemExit("the trimmed runtime could not be checked: %s" % exc)
+    if done.returncode != 0:
+        raise SystemExit("the staged code does not hold under the trimmed runtime (exit %s):\n%s\n%s"
+                         % (done.returncode, done.stdout[-6000:], done.stderr[-2000:]))
+    left = sorted(str(path.relative_to(stage)) for path in payload.rglob("__pycache__"))
+    if left:
+        raise SystemExit("the runtime check left bytecode in the stage: %s" % ", ".join(left[:5]))
+
+
 def collect_app(stage: Path) -> int:
     """Copy the application payload, which is also a valid local Codex marketplace."""
     app = stage / "payload" / "app"
@@ -191,7 +326,11 @@ def collect_app(stage: Path) -> int:
         source = ROOT / tree
         if not source.is_dir():
             continue
-        for entry in sorted(source.rglob("*")):
+        listed = LISTED_TREES.get(tree)
+        for name in listed or ():
+            if not (source / name).is_file():
+                raise SystemExit("missing %s/%s - it is on the list of what the release ships" % (tree, name))
+        for entry in ([source / name for name in listed] if listed else sorted(source.rglob("*"))):
             if not entry.is_file() or not _wanted(entry.relative_to(ROOT)):
                 continue
             destination = app / entry.relative_to(ROOT)
@@ -203,7 +342,11 @@ def collect_app(stage: Path) -> int:
         if source.is_file():
             # Some ship from docs/ since v0.6.10-alpha, and copyfile makes no folders.
             (app / name).parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(source, app / name)
+            if name == CHANGELOG:
+                # Bytes both ways, so the file's own line endings survive what Windows would make of them.
+                (app / name).write_bytes(newest_changelog(source.read_bytes().decode("utf-8"), version()).encode("utf-8"))
+            else:
+                shutil.copyfile(source, app / name)
             copied += 1
     return copied
 
@@ -272,7 +415,7 @@ def check_courier_starts(stage: Path, timeout: float = 120) -> None:
         try:
             asked = subprocess.run([str(runtime / "python.exe"), "-B", "-X", "disable-remote-debug", "-c", ask,
                                     str(payload / "app" / "src"), str(home)], cwd=scratch, env=environment,
-                                   stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=timeout,
+                                   stdin=subprocess.DEVNULL, capture_output=True, encoding="utf-8", errors="replace", timeout=timeout,
                                    creationflags=flags)
             command = json.loads(asked.stdout) if asked.returncode == 0 else None
         except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
@@ -288,7 +431,7 @@ def check_courier_starts(stage: Path, timeout: float = 120) -> None:
             raise SystemExit("the courier would start under %s, not the staged pythonw.exe" % command[0])
         try:
             ran = subprocess.run([command[0], "-B", *command[1:]], cwd=scratch, env=environment,
-                                 stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=timeout,
+                                 stdin=subprocess.DEVNULL, capture_output=True, encoding="utf-8", errors="replace", timeout=timeout,
                                  creationflags=flags)
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise SystemExit("the courier did not start from the staged payload: %s" % exc)
@@ -298,17 +441,6 @@ def check_courier_starts(stage: Path, timeout: float = 120) -> None:
     left = sorted(str(path.relative_to(stage)) for path in payload.rglob("__pycache__"))
     if left:
         raise SystemExit("the courier check left bytecode in the stage: %s" % ", ".join(left[:5]))
-
-
-def collect_runtime(stage: Path, archive: Path) -> int:
-    runtime = stage / "payload" / "runtime"
-    runtime.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(archive) as bundle:
-        bundle.extractall(runtime)
-    # The embeddable build ships isolated by design. Leave python3XX._pth (python314._pth) exactly as
-    # published: our entry points do their own sys.path.insert, so no edit is needed,
-    # and editing it is how people accidentally enable site-packages.
-    return sum(1 for _ in runtime.rglob("*") if _.is_file())
 
 
 def collect_gui(stage: Path, edition: str = "standard") -> int:
@@ -449,10 +581,13 @@ def main(argv=None) -> int:
 
     archive = fetch_runtime()
     runtime_files = collect_runtime(stage, archive)
+    removed = trim_runtime(stage)
+    runtime_files = sum(1 for path in (stage / "payload" / "runtime").rglob("*") if path.is_file())
     app_files = collect_app(stage)
     if edition == "advanced":
         app_files += collect_advanced(stage)
     check_app_files(stage, edition)
+    check_trimmed_runtime(stage, removed)
     if edition == "advanced":
         check_courier_starts(stage)
     gui_files = collect_gui(stage, edition)

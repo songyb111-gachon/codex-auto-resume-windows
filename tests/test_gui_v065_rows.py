@@ -700,7 +700,9 @@ class RowSourceTests(unittest.TestCase):
         hairline = ("e.Graphics.FillRectangle(Soft.Fill(Line), e.Bounds.Left, e.Bounds.Bottom - Soft.Hairline, "
                     "e.Bounds.Width, Soft.Hairline);")
         cell = self.method(self.dashboard, "private void DrawCell(")
-        self.assertIn("Color back = !selected ? Card : Palette.Contrast ? Palette.AccentSoft : Palette.Inset;", cell)
+        # v0.6.23: the row under the pointer has a flat tint between the two (RowGlow); at rest it is Card.
+        self.assertIn("Color back = selected ? (Palette.Contrast ? Palette.AccentSoft : Palette.Inset) : "
+                      "hot > 0.0 ? Soft.Mix(Card, Palette.Inset, hot * 0.5) : Card;", cell)
         # v0.6.20 final: each cell draws its line across its own bounds, which the mirrored first column's are not
         # Windows' (tests/test_gui_mirrored_rows.py); left to right they are the same.
         own = hairline.replace("e.Bounds.Left, e.Bounds.Bottom", "bounds.Left, bounds.Bottom").replace("e.Bounds.Width", "bounds.Width")

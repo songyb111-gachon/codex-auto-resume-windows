@@ -6,7 +6,7 @@
 // it relies on goes wrong, and what it noted instead where it is kept on - and three buttons, each shown where it can
 // act: Keep it on... (from v0.6.16-beta.4 it turns the capability on as well, in the arm's one confirmation, so kept on
 // is always on and the page says Keep it on alone for it), Also send again when unsure... (with Keep on, never for a
-// capability that resends itself, nor for an action, which sends no continuation) and Let it turn itself off. Each
+// capability that sends no continuation of its own to send again: arming.offers_send_again) and Let it turn itself off. Each
 // turn-on asks first in the window's own dialog, with its warning, the safe answer the default (AskAdvanced), and sends
 // exactly what that warning was, confirmed in its words (advanced-keep-on); letting go asks nothing, as turning off never
 // does. What a kept-on capability noted is a line in the accent under its state on its first card (KeptText), beside what
@@ -127,7 +127,7 @@ namespace CodexAutoResume
             card.Controls.Add(state);
             // Offered for every capability (the owner's word of 2026-10-24, v0.6.19-beta.3; before, never for two).
             if (!kept) keepOnButton = CardButton(card, Word("page.keep_on.turn_on", "Keep it on..."), delegate { ArmAdvanced(id, StateArmed, 0, true); });
-            if (kept && !again && !Equals(Get(item, "resends"), true) && !IsAction(item))
+            if (kept && !again && Equals(Get(item, "send_again_offered"), true))
                 sendAgainButton = CardButton(card, Word("page.keep_on.send_again", "Also send again when unsure..."),
                                              delegate { KeepOnAdvanced(id, true); });
             if (kept) letGoButton = CardButton(card, Word("page.keep_on.turn_off", "Let it turn itself off"), delegate { LetGoAdvanced(id); });

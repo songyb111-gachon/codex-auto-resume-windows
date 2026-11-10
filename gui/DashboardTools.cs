@@ -123,11 +123,12 @@ namespace CodexAutoResume
             var source = Value("");
             source.ForeColor = Secondary;
             body.Controls.Add(source);
-            dialog.Controls.Add(body);
+            dialog.Controls.Add(DialogBodyCard(body));
+            dialog.ClientSize += DialogCardGrowth();
 
             FlowLayoutPanel buttons = ButtonRow();
             buttons.FlowDirection = FlowDirection.RightToLeft;
-            buttons.Padding = Pad(0, 12, 16, 16);
+            buttons.Padding = Pad(0, 0, 16, 16);
             string thread = Str(row, "thread_id");
             Button save = MakeButton(S("action.save", "Save"), true, delegate
             {
@@ -309,11 +310,12 @@ namespace CodexAutoResume
             preview.Margin = Pad(0, 2, 0, 2);
             preview.AccessibleName = S("preview.title", "Preview");
             body.Controls.Add(preview);
-            dialog.Controls.Add(body);
+            dialog.Controls.Add(DialogBodyCard(body));
+            dialog.ClientSize += DialogCardGrowth();
 
             FlowLayoutPanel buttons = ButtonRow();
             buttons.FlowDirection = FlowDirection.RightToLeft;
-            buttons.Padding = Pad(0, 12, 16, 16);
+            buttons.Padding = Pad(0, 0, 16, 16);
             Button save = MakeButton(S("action.save", "Save"), true, delegate
             {
                 string text = (area.Box.Text ?? "").Replace("\r\n", "\n");
@@ -649,11 +651,8 @@ namespace CodexAutoResume
             well.Box.WordWrap = true;
             well.Box.Text = S("check.running", "Checking...");
             well.Box.AccessibleName = S("check.title", "Why a failure was not taken up");
-            var padding = new Panel();
-            padding.BackColor = Canvas;
-            padding.Dock = DockStyle.Fill;
-            padding.Padding = Pad(12, 12, 12, 0);
-            padding.Controls.Add(well);
+            Control wellCard = DialogBodyCard(well);
+            dialog.ClientSize += DialogCardGrowth();
 
             var footer = new SoftStack();
             footer.Dock = DockStyle.Bottom;
@@ -661,7 +660,7 @@ namespace CodexAutoResume
             footer.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             footer.ColumnCount = 1;
             footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-            footer.Padding = Pad(12, 8, 12, 0);
+            footer.Padding = Pad(12, 0, 12, 0);
             footer.BackColor = Canvas;
             var note = Value(S("check.note", "Read only. No conversation's words are read, and conversations are shown as aliases that are valid only in this result. Copy it into an issue if you are asked for it."));
             note.ForeColor = Secondary;
@@ -686,7 +685,7 @@ namespace CodexAutoResume
             buttons.Controls.Add(close);
             buttons.Controls.Add(copy);
 
-            dialog.Controls.Add(padding);
+            dialog.Controls.Add(wellCard);
             dialog.Controls.Add(footer);
             dialog.Controls.Add(buttons);
             dialog.CancelButton = close;

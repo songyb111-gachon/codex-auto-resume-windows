@@ -69,6 +69,9 @@ namespace CodexAutoResume
         private Button accountsAdd, accountsSave, accountsDelete, accountsDeleteAll, accountsRead;
         // Switch to this account, one for each row that offers it.
         private readonly List<Button> accountsSwitches = new List<Button>();
+        // The saved accounts ticked when the card was last taken down: a re-read that changes the list rebuilds it, and
+        // the rows it still lists stay ticked.
+        private List<string> accountsTicked = new List<string>();
         private Timer accountsTimer;
         private bool accountsPolling;
 
@@ -266,7 +269,7 @@ namespace CodexAutoResume
                 var row = entry as Dictionary<string, object>;
                 string id = Str(row, "id");
                 if (id == null) continue;
-                CheckBox check = NewCheck(AccountsLine(row), false, true);
+                CheckBox check = NewCheck(AccountsLine(row), accountsTicked.Contains(id), true);
                 check.Tag = id;
                 check.CheckedChanged += delegate { UpdateAccountsButtons(busy == 0); };
                 Button switchTo = null;
@@ -311,6 +314,8 @@ namespace CodexAutoResume
 
         private void ForgetAccountsCard()
         {
+            // Called twice for a rebuild, the second time with no rows left to read.
+            if (accountsRows.Count > 0) accountsTicked = AccountsPicked();
             accountsRows.Clear();
             accountsSwitches.Clear();
             accountsAdd = accountsSave = accountsDelete = accountsDeleteAll = accountsRead = null;

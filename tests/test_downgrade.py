@@ -413,7 +413,7 @@ class DowngradeCommandTests(unittest.TestCase):
                     "from codex_auto_resume.windows import Mutex\n"
                     "with Mutex(%r, timeout=0):\n    print('held', flush=True)\n    time.sleep(60)\n"
                     % (SRC, str(paths.state_dir)))
-            holder = subprocess.Popen([sys.executable, "-c", code], stdout=subprocess.PIPE, text=True,
+            holder = subprocess.Popen([sys.executable, "-c", code], stdout=subprocess.PIPE, encoding="utf-8", errors="replace",
                                       creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
             try:
                 self.assertEqual(holder.stdout.readline().strip(), "held")
@@ -496,7 +496,7 @@ class DowngradeStopWatcherTests(unittest.TestCase):
 
     def holder(self, listens: bool):
         holder = subprocess.Popen([sys.executable, "-c", _HOLDER, SRC, str(self.state),
-                                   "listens" if listens else "deaf"], stdout=subprocess.PIPE, text=True,
+                                   "listens" if listens else "deaf"], stdout=subprocess.PIPE, encoding="utf-8", errors="replace",
                                   creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         self.addCleanup(self.end, holder)
         self.assertEqual(holder.stdout.readline().strip(), "held")
@@ -634,7 +634,7 @@ class PickerFloorTests(unittest.TestCase):
         cls.schemas = [(version, int(schema)) for version, schema in re.findall(r"@\('([^']+)', ([0-9]+)\)", rows)]
         cls.order = staticmethod(legacy.order)
         listed = subprocess.run(["git", "-C", str(released.ROOT), "tag", "--list", "v*"], capture_output=True,
-                                text=True, creationflags=released.NO_WINDOW).stdout.split()
+                                encoding="utf-8", errors="replace", creationflags=released.NO_WINDOW).stdout.split()
         tags = []
         for tag in listed:
             try:

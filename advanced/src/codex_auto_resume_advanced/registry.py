@@ -15,7 +15,7 @@ asked to agree to and everything the plug holds it to:
   capability off until they have read that one (a tripwire, arming.py);
 * `departs_from` - the standards it breaks (standards.py). Never empty: a capability that keeps
   every standard belongs in the standard edition, so the rule for which edition a capability is
-  in is this field. Only the standard edition's standards may be named (standards.DECLARABLE: DEPARTABLE and K5, the owner's word of 2026-11-06 for P22):
+  in is this field. Only the standard edition's standards may be named (standards.DECLARABLE):
   family K is the advanced edition's own rules, which every capability keeps;
 * `compat` - the Compatibility Registry capability it stands on. Its grade here is shown in the
   statement - FAILED_HERE, INCOMPATIBLE or UNKNOWN as a warning the person confirms - and a
@@ -67,6 +67,7 @@ one of their own to hold every rule here.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 import re
 from typing import Callable
 
@@ -74,6 +75,7 @@ from codex_auto_resume.domain.plug import Point
 
 from .control.codexstart import make as make_start_with_codex
 from .control.opencodex import make as make_open_codex_button
+from .control.pythons import CODES as PYTHON_CODES, make as make_python_choice
 from .control.sendnow import make as make_send_now
 from .engine.analytics import DAYS as ANALYTICS_DAYS, DEFAULT_DAYS as ANALYTICS_DEFAULT_DAYS, make as make_usage_analytics
 from .engine.anchor import (CODES as ANCHOR_CODES, TIME_CHOICES as ANCHOR_TIMES, TIME_OFF as ANCHOR_OFF,
@@ -534,7 +536,7 @@ GOAL_CONTINUATION = CapabilityDef(
 # capability's override, one per interruption (ledger.py) - and leaves the item in Codex's queue for when the
 # conversation is opened. In the watch it keeps the item queued while the override is within the person's Days (3 to
 # 30, 3 by default); core takes it back at 30 days and an hour whatever it answers, and at once when it is turned
-# off. Opened and not delivered within core's 180 seconds, the item is taken back, given back to waiting and sent the
+# off. Opened and not delivered within core's 300 seconds, the item is taken back, given back to waiting and sent the
 # ordinary way, and this turns off (NOT_DELIVERED_ON_OPEN). It departs from A11 (nothing is queued on the off chance)
 # and keeps A17, H4 and H6 - every withdrawal still fires at once - and stands on loaded_state_detection, what decides
 # that a conversation is not held. Its route rests on M1, passed on codex-cli 0.158 and a warning on any other.
@@ -961,7 +963,7 @@ PARALLEL_DISPATCH = CapabilityDef(
 
 # The prompt queue (v0.6.15-beta; the plan's item 7, on reset_message's way). A person queues messages of their own
 # for one conversation in the Dashboard - after the turn now running, at a time, or every day or week from a time, 30
-# times and 30 days at most - and at P2 each conversation's first one still to go is made due and handed core with its
+# times at most, as many as picked - and at P2 each conversation's first one still to go is made due and handed core with its
 # words, a P2 MESSAGE core sends exactly as typed: in order, each once, one waiting for the one before it to arrive
 # where asked, paced like every recovery (A20 kept, the owner's answer). Cancel and a Pause take back one Codex already
 # holds (the owner's answer of 2026-10-09). It departs from A8, A17, A26, A27, C4, D2, H4 and H6 as its statement says,
@@ -1429,7 +1431,7 @@ LOCAL_API = CapabilityDef(
     id="local_api",
     points=frozenset({Point.TICK, Point.RESIDENT}),
     revision=1,
-    departs_from=("C1", "C2", "B14", "F8", "F6", "D1", "C12", "K5"),
+    departs_from=("C1", "C2", "B14", "F8", "F6", "D1", "C12"),
     compat="engine_present",
     ceilings=Ceilings(per_day=1, per_conversation=1),
     journal_prefix="api",
@@ -1483,15 +1485,14 @@ LOCAL_API_LAN = CapabilityDef(
 # chats, changes a setting or turns a feature on, and answers are closed words, numbers and `task N`. Five wrong codes
 # during a pairing turn it off (BAD_CODES, whether or not it is kept on). It departs from C1 and C2 (the courier is a second
 # shipped file reaching the network), C3 (api.telegram.org), C8 (Telegram sees this PC's address and the courier's name),
-# D1 (how recoveries stand goes to Telegram), F6 (a process of its own), F8 (a resident process) and K5 (it answers
-# commands while the watcher is paused: the owner's word of 2026-11-06, P22; STANDARDS.md stays). It requires
+# D1 (how recoveries stand goes to Telegram), F6 (a process of its own) and F8 (a resident process). It requires
 # push_notices, whose bot and pairing it uses; a chat not yet paired means it waits. It stands on engine_present; its
 # ceilings are the schema's floor and never bind.
 TELEGRAM_REMOTE = CapabilityDef(
     id="telegram_remote",
     points=frozenset({Point.TICK, Point.RESIDENT}),
     revision=1,
-    departs_from=("C1", "C2", "C3", "C8", "D1", "F6", "F8", "K5"),
+    departs_from=("C1", "C2", "C3", "C8", "D1", "F6", "F8"),
     compat="engine_present",
     ceilings=Ceilings(per_day=1, per_conversation=1),
     journal_prefix="tgram",
@@ -1550,7 +1551,7 @@ WINDOW_ANCHOR = CapabilityDef(
 )
 
 # Longer reset messages (v0.6.14, the owner's answer of 2026-10-08): a message sent at a reset may be up to what one
-# continuation carries (continuation.PROMPT_LIMIT, 8,154 characters) instead of A27's 2,000 - a separate opt-in, off
+# continuation carries (continuation.PROMPT_LIMIT, 29,962 characters) instead of A27's 2,000 - a separate opt-in, off
 # until a person turns it on after its statement, which names A27. An action: it answers at no point and sends
 # nothing; reset_message reads whether it stands on, and when it does not, a waiting message over 2,000 is cancelled.
 # It requires nothing (v0.6.16-beta.3's audit of the registry for `requires`): it lengthens what reset_message and
@@ -1760,6 +1761,29 @@ ACCOUNT_AUTO_SWITCH = CapabilityDef(
     requires=("account_switch",),
 )
 
+# Run on another Python version (v0.6.23, the owner's 2026-11-10). A person presses Check python.org, which reads the
+# newest final release of each line in control/pythons.LINES live from python.org, and one button puts a version in use: its
+# embeddable package from the one exact address, verified before a byte of it runs (its SHA-256, a safe unpacking into
+# <home>\runtimes\<version>, the Python Software Foundation's signature, then every shipped module imported under it), named in
+# one record that every launcher reads (chosen_runtime.py, gui/RuntimeChoice.cs), and taken up by the watcher at a restart it
+# asks for. If the watcher does not come up, it is back on the bundled runtime by itself, and says so once. An action: core
+# asks it nothing at any point but the launcher's question (control/pythons.supervised), and nothing here reaches Codex. It
+# departs from B14 (a second runtime), C1 and C2 (network code, in the courier's package, for python.org), F3 (program files
+# it fetched itself), F6 (the chosen interpreter is a process of its own) and I10 (a Python not pinned by a release).
+# Offered only on an installation (`on_an_installation`): a source run has no bundled runtime to come back to.
+PYTHON_CHOICE = CapabilityDef(
+    id="python_choice",
+    kind=CapabilityKind.ACTION,
+    points=frozenset(),
+    revision=1,
+    departs_from=("B14", "C1", "C2", "F3", "F6", "I10"),
+    compat=None,
+    ceilings=None,
+    journal_prefix="pychoice",
+    make=make_python_choice,
+    codes=PYTHON_CODES,
+)
+
 # The one gate for a capability that cannot work on any Codex measured so far (the owner's rule of 2026-10-16): each
 # here, with the measurement that must pass first, is hidden - not in the registry this edition runs, so no row, no
 # statement and no switch anywhere - until that measurement passes (measured.MEASURED), and then offered after
@@ -1781,9 +1805,19 @@ def offered(measured) -> tuple:
                  if all(passed(each) for each in (measurement if isinstance(measurement, tuple) else (measurement,))))
 
 
+# Not in SHOWN_ORDER: `shown` puts it after every capability the order names, the last of the rare cases and expert settings.
+INSTALLED_ONLY = (PYTHON_CHOICE,)
+
+
+def on_an_installation(root=None) -> tuple:
+    """The capabilities only an installation can have: those for which a bundled runtime stands beside `app\\src`."""
+    home = Path(__file__).resolve().parents[3] if root is None else Path(root)
+    return INSTALLED_ONLY if (home / "runtime" / "python.exe").is_file() else ()
+
+
 def _registry():
     from .measured import MEASURED
-    return Registry(DEFINITIONS + offered(MEASURED))
+    return Registry(DEFINITIONS + offered(MEASURED) + on_an_installation())
 
 
 REGISTRY = _registry()

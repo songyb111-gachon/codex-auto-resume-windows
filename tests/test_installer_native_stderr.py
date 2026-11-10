@@ -59,7 +59,7 @@ class NativeStderrTests(unittest.TestCase):
         path.write_text(source, encoding="utf-8-sig")
         return subprocess.run([POWERSHELL, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
                                "-File", str(path)],
-                              capture_output=True, text=True, timeout=120, creationflags=NO_WINDOW)
+                              capture_output=True, encoding="locale", errors="replace", timeout=120, creationflags=NO_WINDOW)
 
     def test_claim_home_failing_with_stderr_gives_the_installers_refusal(self):
         done = self.run_lifted(block("$claimer = Join-Path $Payload", "$OwnedHome = Resolve-Canonical (@($claim)[1])"))

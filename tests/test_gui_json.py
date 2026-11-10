@@ -69,7 +69,7 @@ class ParserRobustnessTests(unittest.TestCase):
                        check=True, capture_output=True, timeout=180)
         env = dict(os.environ, CAR_EXE=str(exe))
         result = subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-Command", PROBE],
-                                capture_output=True, text=True, timeout=180, env=env)
+                                capture_output=True, encoding="locale", errors="replace", timeout=180, env=env)
         cls.returncode = result.returncode
         cls.outcome = dict(line.split("=", 1) for line in result.stdout.split() if "=" in line)
         cls.stderr = result.stderr

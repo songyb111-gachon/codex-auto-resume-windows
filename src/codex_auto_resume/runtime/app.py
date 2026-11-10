@@ -32,6 +32,7 @@ from ..store import SCHEMA_VERSION, Store, StoreError
 from ..win import network
 from ..windows import AdapterError, Backend, HomeLock, Mutex, StopEvent, WakeEvent
 from .loop import EXIT_BUSY, EXIT_ERROR, EXIT_MEMORY_GUARD, EXIT_OK, EXIT_SCHEMA_NEWER, WatchLoop  # noqa: F401
+from .plugnotices import PlugNotices
 from .toasts import Toasts
 
 
@@ -68,7 +69,7 @@ def _file_stamp(path):
     return (stat.st_size, stat.st_mtime_ns)
 
 
-class App(WatchLoop):
+class App(WatchLoop, PlugNotices):
     def __init__(self, paths: config.Paths, *, codex_exe=None, codex_home=None, console=False, enable_logging=True):
         self.paths = paths
         if enable_logging:
@@ -300,7 +301,7 @@ class App(WatchLoop):
         kwargs["open_store"] = self.worker_store
         # v0.6.16-beta.3: the words for this time a person added in the Dashboard, beside the state (oncewords.py).
         kwargs["once_words"] = oncewords.OnceWords.of(self.paths)
-        engine = Engine(store, source, self.backend(), plug=self.plug, **kwargs)
+        engine = Engine(store, source, self.backend(), plug=self.plug, options=Engine.WATCHER_OPTIONS, **kwargs)
         engine.apply_policy(self._stored, self.managed)
         self._observe_only(engine)
         self._managed_pause(engine)
@@ -553,7 +554,7 @@ class App(WatchLoop):
         backend and lock, and the policy every engine has."""
         engine = Engine(store, source, backend, plug=None, dispatch_lock=self.dispatch_lock, home_key=key,
                         log=EngineLog(self.logger), notify=Toasts(self._notifier(source), self.logger),
-                        language=l10n.current(), engine_state=self.engine_state, home_lock=held,
+                        language=l10n.current(), engine_state=self.engine_state, home_lock=held, options=Engine.WATCHER_OPTIONS,
                         connectivity=network.internet, once_words=oncewords.OnceWords.of(self.paths))
         engine.apply_policy(self._stored, self.managed)
         return engine
@@ -609,7 +610,7 @@ class App(WatchLoop):
         # icon attaches the inbox once it hosts the card, a button on a card comes back to
         # `_notice_action` on a worker thread, and every notice the card took is ended once by
         # notifier.complete - its silent history copy, or today's toast if it was never seen.
-        icon_tray = tray.Tray(icon_path=icon, strings=interface.catalog(),
+        icon_tray = tray.Tray(icon_path=icon, strings=interface.catalog(), days=True,
                               on_open=lambda: tray.open_dashboard(home), on_toggle=toggle,
                               on_pending=lambda: tray.open_dashboard(home, "pending"),
                               on_stop=lambda: StopEvent(str(self.paths.state_dir)).signal(),
@@ -650,51 +651,3 @@ class App(WatchLoop):
             self._edition_notices(self.plug.surface(Surface.TRAY, dict(tray.snapshot_from(store, time.time()))))
         except Exception:
             pass
-
-    def _edition_notices(self, added):
-        """What the edition's plug added to the icon's snapshot, for the watcher: the meter's warnings, from v0.6.18 the
-        update check's offers and whether a notice offers Open Codex, from v0.6.19 whether the in-app chat is on
-        (notifier.click_destination), from v0.6.20 a change of account - each only while the plug says so."""
-        notice = (added if isinstance(added, dict) else {}).get("notice")
-        self._open_codex = isinstance(notice, dict) and notice.get("open_codex") is True
-        self._chat = isinstance(notice, dict) and notice.get("chat") is True
-        if added is not DEFER:
-            for shown in (self._near_limit, self._update_offered, self._account_changed):
-                shown(added)
-
-    def _update_offered(self, added):
-        """The advanced edition's weekly update check offers a newer version (v0.6.18): each offer shown once in this
-        watcher's life (_unshown), under the notifications switch, off the tick path. The standard edition adds none."""
-        for notice in _unshown(self, added, "update"):
-            self._watcher_notice("update_offered", {"version": notice.get("version"),
-                                                    "prerelease": notice.get("prerelease") is True})
-
-    def _account_changed(self, added):
-        """v0.6.20: the advanced edition's account switch saw another Codex account signed in - each change, with how
-        many recoveries it held, shown once in this watcher's life (_unshown), as the update check's offers are; v0.6.22:
-        and each time the automatic switch found every saved account at its limit, the same way."""
-        for notice in _unshown(self, added, "account"):
-            self._watcher_notice("account_changed", {"count": notice.get("count")})
-        for notice in _unshown(self, added, "autoswitch"):
-            self._watcher_notice("accounts_exhausted", {"why": notice.get("why")})
-
-    def _near_limit(self, added):
-        """The advanced edition's usage meter at a warning (v0.6.16-beta.3, issue #29): each notice shown once in this
-        watcher's life by its key - a window and its reset (_unshown). The standard edition adds none."""
-        for notice in _unshown(self, added, "meter", "_near_limit_shown"):
-            # v0.6.16-beta.4: `kind` is what the forced stop says, a closed word, else a warning.
-            self._watcher_notice("near_limit", {"minutes": notice.get("window_minutes"), "percent": notice.get(
-                "used_percent"), "reset_at": notice.get("reset_at"), "kind": notice.get("kind")})
-
-
-def _unshown(owner, added, part, shown_name=None):
-    """The notices under `part` of what the edition's plug added to the icon's snapshot that the watcher `owner` has
-    not shown in its life, by their keys (at most 64), each marked shown as it is given."""
-    found = added.get(part) if isinstance(added, dict) else None
-    notices = found.get("notices") if isinstance(found, dict) else None
-    shown = owner.__dict__.setdefault(shown_name or "_%s_shown" % part, set())
-    for notice in notices if isinstance(notices, list) else ():
-        key = notice.get("key") if isinstance(notice, dict) else None
-        if isinstance(key, str) and key not in shown and len(shown) <= 64:
-            shown.add(key)
-            yield notice

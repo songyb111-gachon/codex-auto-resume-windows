@@ -230,11 +230,18 @@ class PythonStartTests(unittest.TestCase):
         # remote debugging on (PEP 768) - a sign-in or notification-button value an older version wrote.
         ("scripts/watcher_launcher.py", "_again_without_remote_debug"):
             "the launcher again, once, with remote debugging off",
+        # v0.6.23: a launcher that a program on a chosen Python started goes back under the bundled pythonw.exe; and the
+        # Python choice's own restart of the watcher, on that same pythonw.exe, through its launcher.
+        ("scripts/watcher_launcher.py", "_again_under_bundled"): "the launcher again, once, under the bundled runtime",
+        ("advanced/src/codex_auto_resume_advanced/control/pythons.py", "restart_watcher"):
+            "the watcher started again, on the bundled pythonw.exe, after a Python was chosen or taken back",
         ("src/codex_auto_resume/startup.py", "again_without_remote_debug"):
             "src/auto_resume.py or setup again, once, with remote debugging off",
     }
     INTERPRETERS = {"startup.python_launcher()", "python_for_watcher(home)",
-                    "Path(sys.executable).resolve().with_name('pythonw.exe')"}
+                    "Path(sys.executable).resolve().with_name('pythonw.exe')",
+                    # v0.6.23: the bundled runtime's own pythonw.exe, named because the process asking may be on a chosen one.
+                    "home / 'runtime' / 'pythonw.exe'", "home / chosen_runtime.BUNDLED / 'pythonw.exe'"}
     OWN_CODE = ("entry", "LAUNCHER_NAME", "__file__", "script")
 
     @classmethod

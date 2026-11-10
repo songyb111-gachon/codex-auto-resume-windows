@@ -88,20 +88,22 @@ def icon_head_box(size, angle=None):
             min(size, int(math.ceil((1.0 - (y - reach)) / 2.0 * size))))
 
 
-def icon_samples(size, rim=0.0, *, head_angle=None, head=True, box=None):
+def icon_samples(size, rim=0.0, *, head_angle=None, head=True, box=None, body=None):
     """The mark's samples, pixel by pixel: rows of (covered, heads, red, green, blue).
 
     `covered` is how many of a pixel's samples fall on the badge, `heads` how many of those are
     the head, and red, green and blue the summed colour of the others - the ring, the badge's
     gradient, or the rim. Kept apart so the head can be given any colour afterwards
     (icon_pixel) with exactly the arithmetic a whole render uses. `head=False` leaves the head
-    out altogether; `box` limits the work to (left, top, right, bottom).
+    out altogether; `box` limits the work to (left, top, right, bottom); `body` is (top, bottom) in place of the badge's own two colours.
     """
     shape = ICON_SHAPE
     steps = ICON_SUPERSAMPLE
     scale = size * steps
     radius = shape["corner_large"] if size >= shape["corner_threshold"] else shape["corner_small"]
     top_colour, bottom_colour, mark = rgb(ICON_TOP), rgb(ICON_BOTTOM), rgb(ICON_MARK)
+    if body is not None:
+        top_colour, bottom_colour = rgb(body[0]), rgb(body[1])
     inner, outer = shape["ring_inner"], shape["ring_outer"]
     start, end = math.radians(shape["arc_start"]), math.radians(shape["arc_end"])
     head_x, head_y = icon_head_centre(head_angle)

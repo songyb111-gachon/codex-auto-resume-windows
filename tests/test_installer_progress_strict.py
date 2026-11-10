@@ -31,7 +31,7 @@ class StrictModeTests(unittest.TestCase):
         script = ("Set-StrictMode -Version 2.0\n$ErrorActionPreference = 'Stop'\n" + preamble + "\n" +
                   function_text("Progress") + "\nProgress 'files' 1 2\nProgress 'files' 2 2\n")
         return subprocess.run([POWERSHELL, "-NoProfile", "-NonInteractive", "-Command", script],
-                              capture_output=True, text=True, timeout=120, creationflags=NO_WINDOW)
+                              capture_output=True, encoding="locale", errors="replace", timeout=120, creationflags=NO_WINDOW)
 
     def test_a_count_prints_under_strict_mode_with_nothing_set_before(self):
         done = self.run_strict("$script:ProgressLines = $true")

@@ -366,14 +366,13 @@ is not stopped, and anything still queued is taken back.
 
 ### 10. Retry now is a re-check — `retry-now`
 
-**Proves.** That Retry now brings the schedule forward and wakes the watcher, and does
+**Proves.** That Retry now brings the schedule forward, wakes the watcher and, on a recovery waiting for a usage reset, reads usage once, and does
 nothing else: it does not send, does not skip the loaded-conversation requirement, does
 not open a usage window and does not skip revalidation.
 
 **Do.** On a waiting record, press **Retry now** and read the note the page shows
-afterwards. The button is offered only where it can do something — not on a recovery whose
-usage reset is still ahead, not while recovery is paused, and not on a conversation that
-is switched off; confirm it is disabled in one of those situations too.
+afterwards. The button is offered only where it can do something — not on a recovery of another kind whose reset is still ahead, not while recovery is paused, not on a conversation that
+is switched off, and not on a held or postponed one; on a usage limit's reset still ahead it asks the watcher to read usage once; confirm it is disabled in one of those situations too.
 
 **A pass.** The check happens at once and the record either moves on or goes back to
 waiting for the same reason. Nothing is sent because the button was pressed.
@@ -687,8 +686,8 @@ Between step 13 and step 14, change the installation step 13 left to the advance
 checks below, and change it back before step 14, so that steps 14 and 15 run on the standard
 edition as written.
 
-**Turning a capability on.** In the Dashboard, open **Advanced features**, the last tab after
-Settings, and choose the capability (the page lists every one, the compatibility report first; this checklist covers
+**Turning a capability on.** In the Dashboard, open **Advanced features**, the tab after
+Settings, and choose the capability (the page lists every one it offers, the compatibility report first; this checklist covers
 Start with Codex, Marker-free continuation and Goal continuation, and the others are accepted through their own
 sections of [EDITIONS.md](EDITIONS.md)).
 Read its statement and every warning it shows, since turning it on says you did, then choose **Turn
@@ -703,8 +702,8 @@ capability that turned itself off says so under its state, with the reason.
 | Start with Codex surviving Codex closing | In the advanced edition | This table | not run |
 | The marker-free continuation, on a throwaway conversation | In the advanced edition | This table | not run |
 | The goal continuation, on a throwaway conversation | In the advanced edition, when a usage limit really happens | This table | not run |
-| M2b: a goal set active beside a queued turn, while the app holds the conversation | From a source checkout of the release | `docs/evidence/live/measurement-m2b.json` | passed on `codex-cli 0.163.0-alpha.10.2`; not run for this release |
-| MP1 to MP3: the settings panel beside a conversation, in the Codex app's right side panel | From a source checkout of the release, with the watcher running | `docs/evidence/live/measurement-mp1.json`, `-mp2`, `-mp3` | passed on `codex-cli 0.162` and `0.163.0-alpha.10.2`; not run for this release |
+| M2b: a goal set active beside a queued turn, while the app holds the conversation | From a source checkout of the release | `docs/evidence/live/measurement-m2b.json` | passed on `codex-cli 0.167.0-alpha.3.2`; not run for this release |
+| MP1 to MP3: the settings panel beside a conversation, in the Codex app's right side panel | From a source checkout of the release, with the watcher running | `docs/evidence/live/measurement-mp1.json`, `-mp2`, `-mp3` | passed on `codex-cli 0.167.0-alpha.3.2`; not run for this release |
 
 **The edition change - after step 13, noted in `upgrade-keeps-decisions`.** Run the advanced
 archive's `Install.cmd`, or the advanced setup program, over the standard installation. It says the

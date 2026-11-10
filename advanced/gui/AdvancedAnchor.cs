@@ -22,22 +22,28 @@ namespace CodexAutoResume
     internal sealed partial class SettingsForm
     {
         private const string AnchorId = "window_anchor";
-        // A time choice off, and how far a time of day is shifted to be held as a whole number from 1 (engine/anchor.py).
-        private const int AnchorOff = 1, AnchorShift = 2;
+        // How far a time of day is shifted to be held as a whole number from 1 (1 itself is off; engine/anchor.py).
+        private const int AnchorShift = 2;
 
         // The last status's window_anchor times (advanced.window_anchor), or null while it is off.
         private Dictionary<string, object> anchorShown;
+
+        // That the watcher running now started without crash restart's supervisor (advanced.crash_restart, v0.6.23).
+        private const string CrashId = "crash_restart";
+        private Dictionary<string, object> crashShown;
 
         /// From each snapshot: the reset window_anchor's last start fixed, as the status carries it, or none.
         private void AnchorApplied(Dictionary<string, object> reply)
         {
             anchorShown = Map(Map(Map(reply, "status"), "advanced"), AnchorId);
+            crashShown = Map(Map(Map(reply, "status"), "advanced"), CrashId);
         }
 
         /// What the card shows of it, for ShowAdvancedDetail's "built again only when it changed".
         private string AnchorShownText(Dictionary<string, object> item)
         {
-            return Str(item, "id") == AnchorId ? AnchorText() ?? "" : "";
+            if (Str(item, "id") == CrashId) return Get(crashShown, "unsupervised") as string ?? "";
+            return Str(item, "id") == AnchorId ? (AnchorText() ?? "") + "\n" + (AnchorRetryText() ?? "") : "";
         }
 
         /// "Next reset fixed at HH:MM." while a fixed reset is ahead, or null.
@@ -48,11 +54,32 @@ namespace CodexAutoResume
             return Word("page.anchor.fixed", "Next reset fixed at {time}.", "time", ClockTime((double)fixedAt));
         }
 
+        /// An occasion a passing failure holds open (v0.6.23): "trying again until HH:MM" while it lasts; or, once the last
+        /// one ended with nothing started, that it stopped and when it starts again; or null.
+        private string AnchorRetryText()
+        {
+            object until = Get(anchorShown, "retry_until");
+            if (until is double && (double)until > Now())
+                return Word("page.anchor.retrying", "It could not start the window just now, and tries again every 5 minutes until {time}.",
+                            "time", ClockTime((double)until));
+            if (!(Get(anchorShown, "stopped_at") is double)) return null;
+            return Word("page.anchor.stopped",
+                        "It stopped trying with nothing started. It starts again the next time the 5-hour window runs, or at a time you picked.");
+        }
+
         /// Its lines on the head card, under where it stands: only for window_anchor. The reset its last start fixed, in the
         /// ink, while one is ahead; and, in the accent as every line that asks something of the person is, that it starts
         /// nothing while it is on with no time picked and Start right after a reset off (AnchorNeedsOccasion).
         private void BuildAnchorLine(Dictionary<string, object> item, TableLayoutPanel head)
         {
+            if (Str(item, "id") == CrashId && Get(crashShown, "unsupervised") is string)
+            {
+                Label unsupervised = HelpText(Word("page.crash.unsupervised",
+                    "This watcher started without crash restart, because what it stands at could not be read at that moment. The next start of the watcher takes it up again."));
+                unsupervised.ForeColor = Accent;
+                unsupervised.Margin = Pad(0, Brand.SpaceS, 0, 0);
+                head.Controls.Add(unsupervised);
+            }
             if (Str(item, "id") != AnchorId) return;
             string text = AnchorText();
             if (text != null)
@@ -61,6 +88,14 @@ namespace CodexAutoResume
                 line.ForeColor = Ink;
                 line.Margin = Pad(0, Brand.SpaceS, 0, 0);
                 head.Controls.Add(line);
+            }
+            string retry = AnchorRetryText();
+            if (retry != null)
+            {
+                Label said = HelpText(retry);
+                said.ForeColor = Ink;
+                said.Margin = Pad(0, Brand.SpaceS, 0, 0);
+                head.Controls.Add(said);
             }
             if (!AnchorNeedsOccasion(item)) return;
             Label needs = HelpText(Word("page.anchor.needs_occasion",

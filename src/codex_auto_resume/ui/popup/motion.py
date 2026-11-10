@@ -5,6 +5,8 @@ the popup, the window and the panel move alike.
 """
 from __future__ import annotations
 
+import time
+
 from ... import brand
 
 
@@ -15,6 +17,11 @@ def halo(state, elapsed_ms, since_entered_ms=None, *, reduced=False, design="sof
     `spread` is how far out the glow is and `arc` the checking arc's start angle in degrees, or None. In the design
     (v0.6.10): Plain dims it with no glow."""
     return brand.glow(state, elapsed_ms, since_entered_ms, reduced=reduced, design=design)
+
+
+def scene_ms(reduced, since) -> float:
+    """How far on the day's scene is: at its first instant, and still, with motion reduced."""
+    return 0.0 if reduced else (time.monotonic() - since) * 1000.0
 
 
 def animates(state, since_entered_ms=0, *, reduced=False) -> bool:

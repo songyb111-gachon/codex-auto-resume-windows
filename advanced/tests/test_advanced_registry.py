@@ -80,7 +80,7 @@ def standards_text(rule) -> str:
 # v0.6.22: Codex's own retry settings on MB2, still waiting (MB2 failed, 2026-11-06), and the automatic account switch on
 # MPROFILE and MSWAP, offered since both passed (2026-11-06).
 STATED_WAITING = (registry.OPEN_TO_SEND, registry.STOP_HOOK, registry.CODEX_RETRY_SETTINGS,
-                  registry.ACCOUNT_AUTO_SWITCH)
+                  registry.ACCOUNT_AUTO_SWITCH) + registry.INSTALLED_ONLY    # v0.6.23: offered only on an installation
 
 class ShippedTests(unittest.TestCase):
     SHIPPED = ("start_with_codex",
@@ -631,24 +631,22 @@ class DefinitionTests(unittest.TestCase):
         """Family K binds every capability - arming only in the Dashboard, pause and consent
         first, the tripwires - so naming one is a mistake the registry refuses, like an id the
         file does not hold."""
-        for standard in ("K1", "K7"):
+        for standard in ("K1", "K5", "K7"):
             with self.subTest(standard):
                 self.assertIn(standard, standards.STANDARDS)
                 self.assertNotIn(standard, standards.DEPARTABLE)
                 self.assertNotEqual(problems(ac.definition(departs_from=(standard,))), [])
                 self.assertNotEqual(problems(ac.definition(departs_from=("A11", standard))), [])
 
-    def test_k5_is_the_one_rule_the_owner_let_the_paused_residents_go_past(self):
-        """2026-11-06/07: P22 asks a resident that sends nothing while recovery is paused, so K5 may be named by a
-        capability answering there - and by none of the others (DEPARTABLE itself is unchanged)."""
-        self.assertNotIn("K5", standards.DEPARTABLE)
-        self.assertEqual(standards.PAST_BY_THE_OWNER, ("K5",))
-        self.assertEqual(problems(ac.definition(departs_from=("A11", "K5"))), [])
+    def test_answering_while_paused_departs_from_nothing_since_the_owner_amended_k5(self):
+        """2026-11-10: K5 says a pause stops every send, and answering what a person asks is not one. So the residents P22
+        keeps running while recovery is paused name no rule of family K, in the registry or in any language's statement."""
+        self.assertEqual(standards.DECLARABLE, standards.DEPARTABLE)
         for resident in (registry.LOCAL_API, registry.TELEGRAM_REMOTE):
-            self.assertIn("K5", resident.departs_from)
             self.assertIn(Point.RESIDENT, resident.points)
-        self.assertEqual([d.id for d in registry.DEFINITIONS if "K5" in d.departs_from],
-                         ["local_api", "telegram_remote"])
+            self.assertNotIn("K5", resident.departs_from)
+            for locale in l10n.LOCALES:
+                self.assertNotIn("K5", statement.CATALOGS.own(locale)[statement.key(resident.id, Field.DEPARTS)], locale)
 
     def test_each_field_is_checked(self):
         cases = {

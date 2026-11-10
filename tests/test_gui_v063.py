@@ -245,8 +245,11 @@ class ReviewedRulesTests(unittest.TestCase):
         1.5:1 in Aquatic and Desert, and a radio dot in Highlight on it was not there at all."""
         paint = self.method(self.card, "protected override void OnPaint(")
         self.assertIn("bool onHighlight = Checked && Palette.Contrast;", paint)
-        self.assertEqual(paint.count("onHighlight ? SystemColors.HighlightText"), 3,
-                         "the radio mark, the title and the help")
+        # v0.6.23: the title and the radio mark glide, so their colours are in the card's look.
+        look = self.method(self.card, "private SurfaceLook Wanted(")
+        self.assertIn("bool onHighlight = Checked && Palette.Contrast;", look)
+        self.assertEqual(look.count("onHighlight ? SystemColors.HighlightText"), 2, "the title and the radio mark")
+        self.assertEqual(paint.count("onHighlight ? SystemColors.HighlightText"), 1, "the help")
         combo = self.method(self.controls, "protected override void OnDrawItem(")
         self.assertIn("highlighted && Palette.Contrast ? SystemColors.HighlightText", combo)
         cell = self.method(self.dashboard, "private void DrawCell(")

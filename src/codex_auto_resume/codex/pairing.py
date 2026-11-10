@@ -11,6 +11,7 @@ import threading
 import time
 
 from ..domain.errors import AdapterError
+from ..domain.ids import CODEX_APP_PUBLISHER
 from ..win import authenticode
 from ..win.inventory import resource_users
 from ..win.kernel import NO_WINDOW, process_identity
@@ -55,9 +56,17 @@ _OFFICIAL_LOCK = threading.Lock()
 
 
 def at_official_location(path) -> bool:
-    """Whether `path` is `%LOCALAPPDATA%\\OpenAI\\Codex\\bin\\<hex>\\codex.exe`, the official, content-addressed folder."""
-    local = Path(os.environ.get("LOCALAPPDATA", "")) / "OpenAI/Codex/bin"
-    return bool(re.fullmatch(re.escape(str(local)) + r"\\[0-9a-f]+\\codex\.exe", str(path), re.I))
+    """Whether `path` is `%LOCALAPPDATA%\\OpenAI\\Codex\\bin\\<hex>\\codex.exe`, the official, content-addressed folder.
+    Both are resolved first, as config.candidate_codex_exes resolves what it finds: a profile reached through a junction
+    or a short 8.3 name is still the folder, and a <hex> that is a junction to somewhere else is not."""
+    profile = os.environ.get("LOCALAPPDATA")
+    if not profile:
+        return False
+    try:
+        local, found = (Path(profile) / "OpenAI/Codex/bin").resolve(), Path(str(path)).resolve()
+    except (OSError, ValueError, RuntimeError):
+        return False
+    return bool(re.fullmatch(re.escape(str(local)) + r"\\[0-9a-f]+\\codex\.exe", str(found), re.I))
 
 
 def official_engine(path) -> tuple:
@@ -135,14 +144,18 @@ def _state_holder(servers, codex_home):
     return held[0]
 
 
+def _windows_apps() -> Path:
+    """The folder Store apps are installed in. Under WOW64 (32-bit Python on 64-bit Windows) ProgramFiles is the (x86)
+    directory; ProgramW6432 always holds the native one, where WindowsApps actually lives."""
+    program_files = os.environ.get("ProgramW6432") or os.environ.get("ProgramFiles", r"C:\Program Files")
+    return Path(program_files) / "WindowsApps"
+
+
 def _app_main(rows):
     """The one Windows Store app main among the inventory's rows: the package's ChatGPT.exe whose
     parent is none of the package's own processes. None, or several, fails closed."""
-    # Under WOW64 (32-bit Python on 64-bit Windows) ProgramFiles is the (x86) directory;
-    # ProgramW6432 always holds the native one, where WindowsApps actually lives.
-    program_files = os.environ.get("ProgramW6432") or os.environ.get("ProgramFiles", r"C:\Program Files")
-    app_pattern = re.compile(re.escape(str(Path(program_files) / "WindowsApps")) +
-                             r"\\OpenAI\.Codex_[0-9.]+_(x64|arm64)__2p2nqsd0c76g0\\app\\ChatGPT\.exe", re.I)
+    app_pattern = re.compile(re.escape(str(_windows_apps())) + r"\\OpenAI\.Codex_[0-9.]+_(x64|arm64)__" +
+                             CODEX_APP_PUBLISHER + r"\\app\\ChatGPT\.exe", re.I)
     apps = [row for row in rows if isinstance(row, dict) and isinstance(row.get("path"), str)
             and app_pattern.fullmatch(row["path"])]
     app_ids = {row["pid"] for row in apps}
@@ -209,10 +222,18 @@ def app_running(rows) -> bool:
     except AdapterError as error:
         if str(error) != "desktop_main_missing_or_ambiguous":
             return True
-    program_files = os.environ.get("ProgramW6432") or os.environ.get("ProgramFiles", r"C:\Program Files")
-    root = str(Path(program_files) / "WindowsApps").lower() + "\\openai.codex_"
+    root = str(_windows_apps()).lower() + "\\openai.codex_"
     return any(isinstance(row, dict) and isinstance(row.get("path"), str) and row["path"].lower().startswith(root)
                for row in rows)
+
+
+def app_running_now():
+    """Whether any process of the Codex app's package runs now: True, False, or None where the process list could not be
+    read. Each caller says what unknown means for it (advanced codex/swap: running; engine/opentarget: not known to be)."""
+    try:
+        return app_running(inventory())
+    except Exception:
+        return None
 
 
 # The app servers this process started and still holds (v0.6.16-beta.4): each one's pid and creation time, read from

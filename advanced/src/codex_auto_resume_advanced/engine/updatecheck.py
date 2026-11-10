@@ -38,6 +38,7 @@ import re
 import subprocess
 import threading
 
+from codex_auto_resume.domain.ids import PRODUCT_RELEASE, PRODUCT_STAGE
 from codex_auto_resume.domain.plug import DEFER
 
 from ..vocabulary import OptionKey
@@ -52,9 +53,8 @@ LOOK_EVERY = 60
 ANSWERS = {"current": 0, "available": 10, "newer-local": 11, "unavailable": 12}
 # A release's version, as the bootstrap rebuilds it from three integers; and a pre-release's, as the window holds the
 # `prerelease:` line to before it offers it (DashboardMaintenance.PrereleaseRule).
-RELEASE = re.compile(r"(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})\Z")
-PRERELEASE = re.compile(r"(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})-(alpha|beta)"
-                        r"(\.([2-9]|[1-9][0-9]{1,2}))?\Z")
+RELEASE = re.compile(PRODUCT_RELEASE + r"\Z")
+PRERELEASE = re.compile(PRODUCT_RELEASE + PRODUCT_STAGE + r"\Z")
 # The variables the window sets, or takes away, for the check: this installation, and nothing of an install.
 HOME_VARIABLE = "CODEX_AUTO_RESUME_PLUGIN_HOME"
 INSTALL_VARIABLES = ("CODEX_AUTO_RESUME_UPDATING_DASHBOARD", "CODEX_AUTO_RESUME_PROGRESS_LINES")

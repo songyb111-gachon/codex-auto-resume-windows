@@ -138,7 +138,7 @@ class InstallerSwitchTests(unittest.TestCase):
             done = subprocess.run(
                 [installer.POWERSHELL, "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
                  "-File", str(PS1), "-Uninstall", "-Silent"],
-                capture_output=True, text=True, timeout=120, creationflags=NO_WINDOW,
+                capture_output=True, encoding="locale", errors="replace", timeout=120, creationflags=NO_WINDOW,
                 # Run here, never again outside: a test run inside the Codex app or Claude would otherwise be
                 # relaunched through WMI, out of this test's reach (install.ps1, Resolve-OutsideRun; v0.6.17).
                 env=dict(os.environ, CODEX_AUTO_RESUME_PLUGIN_HOME=home, CODEX_AUTO_RESUME_OUTSIDE="1"))

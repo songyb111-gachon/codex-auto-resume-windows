@@ -28,7 +28,7 @@ def run(folder: Path, source: str) -> subprocess.CompletedProcess:
     path = folder / "probe.ps1"
     path.write_text("Set-StrictMode -Version 2.0\n$ErrorActionPreference = 'Stop'\n" + source, encoding="utf-8-sig")
     return subprocess.run([POWERSHELL, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", str(path)],
-                          capture_output=True, text=True, timeout=180, creationflags=NO_WINDOW)
+                          capture_output=True, encoding="locale", errors="replace", timeout=180, creationflags=NO_WINDOW)
 
 
 @unittest.skipUnless(sys.platform == "win32", "the installer is Windows PowerShell")

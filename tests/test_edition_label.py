@@ -258,8 +258,8 @@ class WindowTests(unittest.TestCase):
         self.assertIn("private readonly VersionLabel versionText = new VersionLabel();", window)
         self.assertIn("private VersionLabel diagVersion;", window)
         self.assertIn('diagVersion = Fact(facts, S("diag.version", "Version"), new VersionLabel());', window)
-        # The save bar's version stays secondary text, and Diagnostics' value the page's ink.
-        self.assertIn("versionText.ForeColor = Secondary;", window)
+        # The save bar's version stays secondary text (tests/test_gui_theme.py holds that line), and Diagnostics' value
+        # the page's ink.
         label = guiscan.type_body("VersionLabel")
         self.assertIn("internal static Color EditionColor { get { return Palette.Secondary; } }", label)
         self.assertNotRegex(label, r"\bAccent\b")

@@ -18,7 +18,7 @@ from .layout import WIDTH
 from .menuplan import menu_numbered
 from .messages import PopupMessages, REFRESH_TICKS  # noqa: F401
 from .model import PopupModel, perform, select_action
-from .motion import animates, glide_amount, halo, next_glides
+from .motion import animates, glide_amount, halo, next_glides, scene_ms
 from .placement import focus_order, place
 from .renderer import Renderer
 from ...win import textsize
@@ -77,6 +77,7 @@ class Popup(PopupMessages):
     # The design in effect, Soft until the window first reads one. On the class, as v0.6.10's motion gates had
     # it, so a frame drawn before anything was read - or by a Popup made without __init__ - is Soft's.
     _design = brand.DEFAULT_DESIGN
+    days = False
     # Windows' text size last read, and the size fitted to the screen from it (v0.6.11): the usual size, and
     # not yet fitted, until the window reads one - on the class for the same reason.
     _text = 1.0
@@ -85,8 +86,8 @@ class Popup(PopupMessages):
     make_menu = _row_menu = None
 
     def __init__(self, *, control=None, source=None, strings=None, on_dashboard=None, log=None,
-                 anchor=None, theme_menu=None, make_menu=None):
-        self.model = PopupModel(strings)
+                 anchor=None, theme_menu=None, make_menu=None, days=False):
+        self.days, self.model = days, PopupModel(strings)
         self.locale = locale_of(strings)
         self.control = control
         self.source = source
@@ -415,6 +416,7 @@ class Popup(PopupMessages):
             self.locale = locale_of(strings)
         self._follow_theme()
         vm = self.model.view(now)
+        self.day_view(vm, now)
         # The light's cycle starts with the light, not the word: "attention" is a grey dot that does not
         # move for a watcher not known to be running and an amber one that breathes for one that is.
         if vm["light"] != self._state:
@@ -494,7 +496,8 @@ class Popup(PopupMessages):
         user32 = _dll("user32")
         wanted = (self.visible and self._vm is not None
                   and (bool(self._glides)
-                       or animates(self._vm["light"], self._since_state_ms(), reduced=self._reduced)))
+                       or animates(self._vm["light"], self._since_state_ms(), reduced=self._reduced)
+                       or (bool(self._vm.get("scene")) and not self._reduced) or self.sweeping()))
         if wanted and not self._frame_running:
             user32.SetTimer(self.hwnd, TIMER_FRAME, FRAME_MS, None)
             self._frame_running = True
@@ -522,12 +525,14 @@ class Popup(PopupMessages):
             # A switch on the move is drawn over the ground every frame, and the frame after its
             # glide ends draws it back into the ground where it has come to rest.
             self._static_dirty = True
+        self.step_hidden()
         if self._static_dirty or self._renderer.halo_plan is not self._plan:
             self._static_dirty = False
             return self._renderer.draw(self._vm, self._plan, frame=self.frame(), hover=self.hover,
                                        pressed=self.pressed, focus=self.focus if self.keyboard else None,
-                                       glides=self._glide_amounts())
-        return self._renderer.draw_halo(self._plan, self.frame())
+                                       glides=self._glide_amounts(), scene_ms=scene_ms(self._reduced, self._scene_since))
+        canvas = self._renderer.draw_halo(self._plan, self.frame())
+        return self._renderer.draw_scene(self._plan, scene_ms(False, self._scene_since)) if self._vm.get("scene") and not self._reduced else canvas
 
     def _invalidate(self):
         """Something other than the halo changed: the next frame is drawn whole."""

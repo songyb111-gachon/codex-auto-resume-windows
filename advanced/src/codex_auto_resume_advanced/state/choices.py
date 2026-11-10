@@ -51,7 +51,8 @@ STAMPS = {"idle_update_check": (str(OptionKey.LAST_CHECK), str(OptionKey.OFFERED
           "window_anchor": (str(OptionKey.ANCHOR_STARTED_AT), str(OptionKey.ANCHOR_FIXED_AT),
                             str(OptionKey.ANCHOR_SEEN_RESET), str(OptionKey.ANCHOR_SLOT_DONE),
                             str(OptionKey.ANCHOR_RESET_DONE), str(OptionKey.ANCHOR_INPUT_TOKENS),
-                            str(OptionKey.ANCHOR_OUTPUT_TOKENS), str(OptionKey.ANCHOR_ACCOUNT_AT)),
+                            str(OptionKey.ANCHOR_OUTPUT_TOKENS), str(OptionKey.ANCHOR_ACCOUNT_AT),
+                            str(OptionKey.ANCHOR_RETRY_UNTIL), str(OptionKey.ANCHOR_STOPPED_AT)),
           # v0.6.20 (the pair audit, V20-2): when account_switch last saw another account signed in (engine/account.py).
           "account_switch": (str(OptionKey.ACCOUNT_CHANGED_AT),),
           # v0.6.22: when account_auto_switch last switched, and its switches today (engine/autoswitch.py).
@@ -219,6 +220,9 @@ class Scoped:
             "rules": lambda: state.rules() if rules_editor else [],
             "admission": admission,
             "count": count,
+            # v0.6.23: one of its own codes counted today and nothing written to the journal, for what happens often
+            # and changes nothing (the journal's 5,000 rows are for what a person may need to look back at).
+            "sample": lambda code: on is not None and on() is True and state.sample(capability, code),
             "resent": lambda interruption_id: state.resent(interruption_id),
             "channel_paid": lambda interruption_id, claimed_at: state.channel_paid(interruption_id, claimed_at),
             "request": lambda interruption_id: state.override(interruption_id, capability),

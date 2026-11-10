@@ -73,13 +73,13 @@ class SetupStderrOutsideTests(unittest.TestCase):
                  "Get-OutsideSource -Script %s -Switches @() -Values @{} -Arguments @() -Log %s -CodeFile %s"
                  % (ps_literal(inner), ps_literal(log), ps_literal(code_file)))
         made = subprocess.run([POWERSHELL, "-NoProfile", "-NonInteractive", "-Command", maker],
-                              capture_output=True, text=True, timeout=120, creationflags=NO_WINDOW)
+                              capture_output=True, encoding="locale", errors="replace", timeout=120, creationflags=NO_WINDOW)
         self.assertEqual(made.returncode, 0, made.stderr)
         outer = self.folder / "outer.ps1"
         outer.write_text(made.stdout, encoding="utf-8-sig")
         done = subprocess.run([POWERSHELL, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
                                "-File", str(outer)],
-                              capture_output=True, text=True, timeout=180, creationflags=NO_WINDOW)
+                              capture_output=True, encoding="locale", errors="replace", timeout=180, creationflags=NO_WINDOW)
         said = log.read_text(encoding="utf-8", errors="replace") if log.exists() else ""
         code = code_file.read_text(encoding="utf-8").strip() if code_file.exists() else ""
         return said, code, done
