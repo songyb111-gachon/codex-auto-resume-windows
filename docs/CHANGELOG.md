@@ -71,7 +71,7 @@ earlier version leaves it be.
   5 a Codex version in any 7 days - keep their numbers.
 - **The compatibility data is sequence 13**, with seven more Codex builds up to codex-cli 0.167.0-alpha.3.2 (22 in all), published
   2026-11-09 and valid until 2027-02-07
-  ([#61](https://github.com/songyb111-gachon/codex-auto-resume-windows/pull/61)). Five of the builds are verified in ten capabilities;
+  ([#61](https://github.com/songyb111-gachon/codex-auto-resume-windows/pull/61)). Four of the builds are verified in ten capabilities;
   codex-cli 0.163.0-alpha.11.1 and 0.166.0-alpha.6 are checked in two, and 0.167.0-alpha.3.2 in twelve, none verified.
 - **The code is ready for Python 3.15, and nothing you see changes on 3.14.** Every text call names its encoding, so it means the same on
   3.13, 3.14 and 3.15 - 3.15 reads UTF-8 where this kind of PC read cp949 - and a test finds a new call that does not; no Python file
