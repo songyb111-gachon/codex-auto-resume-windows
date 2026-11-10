@@ -314,7 +314,7 @@ watched yet (the guide's *Several Codex homes*), an installed copy's Dashboard r
 it shows *Settings > Advanced*, unless the switch *Suggest Codex homes found on this PC* is off: the
 `CODEX_HOME` value of your account's environment (`HKEY_CURRENT_USER\Environment`), read and never
 written; and the Codex app's own list of where it has run,
-`%LOCALAPPDATA%\OpenAI\Codex\chrome-native-hosts-v2.json` (at most 1 MiB, opened for reading), of which
+`%LOCALAPPDATA%\OpenAI\Codex\chrome-native-hosts-v2.json` or the same file in the Codex app's package folder (at most 1 MiB, opened for reading), of which
 only each entry's `codexHome` folder is kept - nothing else in that file is looked at. The folders found
 are checked as a home you add is checked, shown only on that card, and never sent anywhere or told to
 Codex; one you set aside with **Not now** is kept in the settings file, and the diagnostics file says only
@@ -384,11 +384,12 @@ Four reads pass over your conversation itself, and it is better to say so plainl
   whether a later turn has finished. Those rows are your conversation — the assistant's replies
   in that turn, and anyone else's messages in it — but only counts and yes/no answers come back,
   never text. What is kept is that turn's status and whether anything was produced in it.
-- **Only when you press Rescan and reconcile** (from v0.6.16), and only for a waiting recovery whose
+- **Only when you press Rescan** (from v0.6.16), and only for a waiting recovery whose
   conversation Codex's history has not caught up with, it reads that conversation's current rollout
   file, up to 32 MiB, a line at a time, for the failed turn's own end and, after it, a message of
   yours that carries no marker of this tool's. Each line is parsed and dropped; only the answer -
   whether such a message is there - is kept.
+- For a conversation an agent created, it reads the rollout, a line at a time from its last 32 MiB, for the one word that says whether the person started the turn; only that answer is kept.
 
 No conversation content from any of them is stored, logged or sent. What is kept is the reset
 time (which is also logged) and the limit's bucket name, and the id of the tool's own queued
@@ -464,8 +465,8 @@ coming from this tool (client name `codex_auto_resume` and a version number), so
 that you use it and when it checks. Every App Server session it opens, including one that only
 withdraws its own queued message, introduces itself to Codex that way. In v0.5.7 and earlier
 releases the version it gives is a fixed `0.1`; giving the product's real version is new in
-v0.6.0. It asks for usage only when a recovery is due and the conversation is open in the app,
-and reuses the answer for 30 seconds. What a Codex process does on its own account when it
+v0.6.0. It asks for usage when a recovery is due and the conversation is open in the app, and once when you press Retry now or Rescan on a recovery waiting for a usage reset;
+it reuses an answer for 30 seconds. What a Codex process does on its own account when it
 starts — keeping its sign-in current, for instance — is Codex's behaviour, not something this
 tool requests, and it has not been measured.
 
@@ -521,7 +522,7 @@ conversation to OpenAI like any tool output. That is:
   interruption, under your settings or under a language and style given for the preview —
   this product's message or, when the Custom style is selected, your Custom message. It saves
   nothing and sends nothing;
-- in the advanced edition, from `list_advanced_capabilities`: each capability's id, whether it
+- in the advanced edition, from the tool that lists its capabilities: each capability's id, whether it
   is on, watched or off, since when, from which surface and why, whether it is kept on and whether
   with Send again, the code of what a capability kept on would otherwise have turned itself off for,
   the values of the choices set for it, and the ids of the standards it departs from
@@ -567,8 +568,8 @@ default (or wherever `CODEX_AUTO_RESUME_PLUGIN_HOME`, or failing that
   content;
 - `config/status.json` — from v0.6.11, only while **Write a status file for other tools** is on (off
   by default): whether the watcher runs, whether recovery is on, the compatibility word, how many
-  recoveries are pending at each state and when the next is looked at, and the last usage reading's
-  numbers. No id, name, title or path. Nothing in this product reads it, and it goes when the setting
+  recoveries are pending at each state and when the next is looked at, the last usage reading's
+  numbers, the product's version and when it was written. No id, name, title or path. Nothing in this product reads it, and it goes when the setting
   is turned off;
 - `config/state.vN-backup-<timestamp>.sqlite` — a copy of the state file, taken before the first
   watcher of a new version upgrades the schema and before `downgrade-state` rewrites it. It holds
@@ -646,6 +647,7 @@ default (or wherever `CODEX_AUTO_RESUME_PLUGIN_HOME`, or failing that
   or `-Silent`) asks an open Dashboard to close: the page the Dashboard was on, its place and size on screen,
   its theme and design and which control had the focus - no conversation, path or text. The installer reads it
   once to open the new version where it was, and deletes it;
+- `config/update-unsaved-<process id>.txt`, from v0.6.16, only for the moment an update asks a Dashboard with unsaved Settings changes to close: the one word `unsaved`; the installer reads it and deletes it;
 - `config/edition-left.txt`, from v0.6.16, only when an uninstall keeps your state (as `Uninstall.cmd` does
   unless you pass `-Purge`, and `uninstall --keep-state` does): one word, the edition that uninstall took
   away. The installer reads it when it installs the advanced edition over state left behind, to tell the same
@@ -861,8 +863,8 @@ only while push notices, the status feed, the status server or Telegram's comman
 
 - **What it reads.** Three values an administrator may set under
   `Software\Policies\CodexAutoResume`, in `HKEY_LOCAL_MACHINE` and `HKEY_CURRENT_USER` -
-  `ForbidAdvanced`, `ForceShadow` and `AllowedCapabilities` - read and never written: when the
-  capabilities are listed, over that bridge or by `list_advanced_capabilities`, when one is being
+  nothing may be on or watched, only those listed may be, or watched and never on - read and never written: when the
+  capabilities are listed, over that bridge or by the tool that lists them, when one is being
   turned on, and at each look while one is on or watched. While the goal continuation is on or
   watched, from Codex's goals database, opened read-only: which goal a conversation has, its status
   and when it changed. The goal's words are never selected. From v0.6.16-beta (first published as v0.6.15-beta), while the capabilities
@@ -917,8 +919,8 @@ only while push notices, the status feed, the status server or Telegram's comman
   capability spent, with the ids of the conversation and interruption it spent it on; the edition's
   own records and what a capability asked of a standard one, as ids, states and times; the global
   ceiling a person set; a journal and per-day counts of closed codes, bounded as the standard
-  journal is, and what a watched capability would have done at most 110 lines each (180 until
-  v0.6.16-beta.4, then 150, 140, 130, 120 and 115 as capabilities were added); and, for the
+  journal is, and what a watched capability would have done at most 95 lines each (it was 180 until
+  v0.6.16-beta.4 and fell as capabilities were added); and, for the
   capabilities that use them, the choices you made, the rules you wrote (an
   error code, status numbers, a kind), which capability took up which interruption, and samples of
   failures it could not classify: Codex's error code, the status number, the form of the error, item

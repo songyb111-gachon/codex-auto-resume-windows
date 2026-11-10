@@ -39,12 +39,13 @@ belongs to that vendor's own reporting process, not here.
   parsed in memory to find the reset time. That part of the file is conversation content.
   Only the reset time and the name of the limit it belongs to, taken from the rate-limit snapshot,
   are kept. Everything else is discarded, and nothing else from it is stored, logged or sent.
-- Only when you press *Rescan and reconcile*, and only for a waiting recovery whose conversation
+- Only when you press *Rescan*, and only for a waiting recovery whose conversation
   Codex's history has not caught up with, that conversation's whole rollout file, up to 32 MiB (a
   larger one is not read), a line at a time, parsed in memory and dropped, to see whether a message
   of yours that carries no marker of this tool's follows the failed turn's end. That is conversation
   content too; only the yes-or-no answer is kept. It also lists the file names under the
   `sessions` folder, opening none, to follow a conversation Codex split across files.
+- For a conversation an agent created, it also reads the rollout, a line at a time from its last 32 MiB, in memory, for the one word that says whether the person started the turn; only that answer is kept.
 - To prove its own message arrived, it has SQLite search that conversation's user messages and
   queued messages for this tool's marker. Only rows containing the marker come back.
 - The recorded error of a failed turn. Its structured error type decides the category; only when a
@@ -218,7 +219,7 @@ them `thread/goal/set`, `thread/queue/add` with words this product wrote, and `t
   widens a pick. The archive is downloaded, checked against its pin or its published `.sha256`,
   tested and unpacked as every install's is, and only then is the install lock
   (`Local\CodexAutoResume.Install`) taken; a lock held elsewhere installs nothing. For a version that
-  reads an older state, the installed version's own `downgrade-state --to 3 --stop-watcher` then asks
+  reads an older state, the installed version's own `downgrade-state --to <that version's schema> --stop-watcher` then asks
   the watcher to stop and waits a minute at most - it is never killed, and a watcher that has not
   stopped gets nothing installed and the state left as it was, though the request stands and it may
   stop later, with nothing to start it again - converts the state in one transaction after a copy, and
@@ -250,7 +251,7 @@ them `thread/goal/set`, `thread/queue/add` with words this product wrote, and `t
   download that ends on any other host is refused, and one over 256 KiB is refused before the
   validator is started. The body goes to a temporary file the bootstrap deletes afterwards, and is
   never parsed or run by PowerShell: it is handed to this installation's own Python validator,
-  which is described under *Compatibility data can only restrict* below.
+  which is described under *Compatibility data can only restrict* below. An advanced installation asks one more constant URL on the same host the same way, for the advanced edition's measurement data.
 - **No shell, and no values in script text.** No Python code uses `shell=True`, `os.system`, `eval`
   or `exec`, and every Python subprocess gets an argument list. Windows PowerShell runs the
   installer, the uninstaller and the plugin's setup script; the Python runtime uses it to list
@@ -396,8 +397,7 @@ them `thread/goal/set`, `thread/queue/add` with words this product wrote, and `t
   marked; `set_auto_recovery`, `reset_recovery_budget`, `start_watcher` and `update_settings`,
   which there also offers the engine path, have no destructive annotation requesting approval,
   and a pause-withdrawn recovery there is cancelled outright. The advanced edition adds three
-  tools - `list_advanced_capabilities`, `disarm_advanced_capability` and `disarm_all_advanced` -
-  that list its capabilities or turn them off. They carry no destructive annotation, because they
+  tools that list its capabilities or turn them off. They carry no destructive annotation, because they
   only ever do less, and no tool turns a capability on (`advanced/tests/test_advanced_surfaces.py`).
 - **The Custom message is written in the Dashboard, and nowhere else.** New in v0.6.3. It is
   the one piece of text a person writes that this product then sends by itself, into that
@@ -619,8 +619,8 @@ edition - and the setup window says so first; it offers a box, off unless ticked
   or a Codex version not yet known is shown in its statement as a warning, and turning it on
   confirms each warning shown. What still refuses is an administrator's policy: three values under
   `Software\Policies\CodexAutoResume`, in `HKEY_LOCAL_MACHINE` or `HKEY_CURRENT_USER`, read and
-  never written - `ForbidAdvanced` (nothing may be on or watched), `AllowedCapabilities` (only the
-  ids listed may be) and `ForceShadow` (watched, never on). Both places count, together they are
+  never written - one says nothing may be on or watched, one that only the
+  ids listed may be, and one that a capability may be watched and never on. Both places count, together they are
   the stricter, and a value or a key that cannot be understood reads as the strictest. Like the
   standard edition's policy keys, they are what a cooperating installation obeys, not a lock.
 - **What turns one off by itself.** A new revision of its statement; a warning the person did not
@@ -636,7 +636,7 @@ edition - and the setup window says so first; it offers a box, off unless ticked
   send passes, the durable claim and the last look before the send stay core's.
 - **Ceilings.** Each capability has its own sends a day and in one conversation, spent when the
   claim is made, before anything is asked of Codex. Over them stands one ceiling for every
-  capability together, 12 an hour, which a person may lower over the same bridge and never raise, and
+  capability together, 24 an hour, which a person may lower over the same bridge and never raise, and
   every claim still counts against core's own caps for the conversation.
 
 **What each does, once it is on.**
@@ -659,7 +659,7 @@ edition - and the setup window says so first; it offers a box, off unless ticked
   app-server --stdio`'s `thread/queue/add` under a client id derived from the interruption, and
   delivery is proven by that id alone. A send it cannot prove - the app server refuses, does not
   answer, or the item never shows - is held as `submission_unknown`, never sent again, and turns the
-  capability off. At most 24 a day, and 5 in one conversation.
+  capability off. At most 48 a day, and 5 in one conversation.
 - **The compatibility report.** It departs from B11 (gh reads the person's GitHub sign-in on the
   product's behalf), C1 and C2 (network work, by delegation, from a second shipped file), C3 (GitHub
   addresses beyond the two lists of releases), C8 (the person's GitHub identity and gh's User-Agent),
@@ -691,7 +691,7 @@ edition - and the setup window says so first; it offers a box, off unless ticked
   measurement M2b passed for the Codex in force, setting the goal active and then adding the
   continuation with `thread/queue/add`; anywhere else the standard route stands. Which goal a
   conversation has, its status and when it changed are read from Codex's goals database, opened
-  read-only - while the capability is watched as well as while it is on. At most 12 a day, and 3 in
+  read-only - while the capability is watched as well as while it is on. At most 24 a day, and 5 in
   one conversation.
 
 Those four are the first. The others each have a statement in [EDITIONS.md](EDITIONS.md), which the Dashboard shows
@@ -719,9 +719,9 @@ advanced edition's only network code: `pythonw.exe` running the advanced package
 the watcher at most once a minute while a notice waits or a status reading is due (or by the
 Dashboard's service for a test notice, a Telegram pairing or a reading now), windowless, in the
 starting process's job object made KILL_ON_JOB_CLOSE, one per installation under a named mutex. It
-sends, then exits; that run never listens. Every request is HTTPS with the certificate verified (Windows'
+sends, then exits; that run never listens. Every HTTP request is HTTPS with the certificate verified (Windows'
 store, TLS 1.2 or later, never downgraded), no redirect followed, no user name or password in an
-address, no IP literal or loopback host; a body of at most 4 KiB, a reply read to 64 KiB. Its hosts
+address, no IP literal or loopback host; a body of at most 4 KiB, a reply read to 64 KiB; e-mail goes over SMTP on 465 (TLS) or 587 (STARTTLS), the server verified. Its hosts
 are the ones a person types (an ntfy topic, a webhook, an SMTP server on 465 or 587), api.telegram.org
 for a Telegram bot, and status.openai.com for the status feed. A push carries a closed event, a
 failure category word, `task N` and the time - never a title, a path, an id, an error's text or a
@@ -796,6 +796,7 @@ those methods change Codex's state or start work in the conversation named:
   `logs/codex-start.log`, and, where Start with Codex is on and no watcher runs, the watcher
   started. Run it with the watcher running. MP2 and MP3 open no session: they are what a person
   sees in the Codex app.
+- Others among its measurements also act - one spends a real reset credit, some send to throwaway conversations, steer a running turn, open a Codex link, set a wake timer or change the Codex sign-in; each is run only by hand, on a throwaway conversation.
 
 Without a conversation id, the calls carry a placeholder id that is no one's. A record is written
 only into a source checkout's `docs/evidence/live/`, and holds booleans, counts and closed words
