@@ -73,6 +73,8 @@ ITEM = {_q(name): item for item, names in {
                 "runtime.homes",
                 # v0.6.18: what an update set aside and could not delete, swept as it starts.
                 "runtime.setaside",
+                # v0.6.23: the notices an edition's plug adds, out of runtime/app.py.
+                "runtime.plugnotices",
                 # v0.6.16-beta.3: its own decisions asked on request, for Diagnostics' check (issue #27).
                 "checkup",
                 # v0.6.16: and its own rules asked again of every waiting recovery, for Rescan and reconcile (issue #39).
@@ -201,6 +203,8 @@ ITEM = {_q(name): item for item, names in {
               # v0.6.20: the icon's right-click menu, drawn by the popup's renderer.
               "ui.popup.menuplan", "ui.popup.menuwindow"),
     "notifications": ("notice_card", "notice_presence", "notice_window", "notifier", "notify",
+                      # v0.6.23: the buttons' URIs and the handover to the card host, out of notify and notifier.
+                      "notice_uris", "notice_inbox",
                       # v0.6.18: the Codex app's link to one conversation, and opening it, out of notify.
                       "codex_link",
                       "ui.card", "ui.card.win32", "ui.card.surfaces", "ui.card.card", "ui.card.stack"),
