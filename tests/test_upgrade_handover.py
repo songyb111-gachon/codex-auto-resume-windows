@@ -240,7 +240,7 @@ class DashboardAfterUpdateTests(unittest.TestCase):
                                                ("reopen-after-update-202.txt", "--page=settings --reopened=1", None),
                                                ("reopen-after-update.txt", "--page=pending --reopened=1", None),
                                                ("reopen-after-update-x.txt", "--page=pending --reopened=1", None)])
-        self.assertEqual(sorted(started), sorted(["--page=history", "--page=settings", "--reopened=1", "--reopened=1"]),
+        self.assertEqual(sorted(started), sorted(["--page=history", "--page=settings", "--reopened=1", "--reopened=1", "--after-update", "--after-update"]),
                          "each window's own record, and nothing else")
         self.assertEqual(said.count("[ok] The Dashboard was opened again on the new version"), 2)
         self.assertEqual(left, [], "every record is removed, opened or not")
@@ -322,7 +322,7 @@ class DashboardAfterUpdateTests(unittest.TestCase):
         left for a later update to open."""
         said, started, left = self.run_reopen([("reopen-after-update-4242.txt", "--page=history --reopened=1", None)],
                                               calls=("-Updated", "", "-Updated"))
-        self.assertEqual(started, ["--page=history", "--reopened=1"], "opened once, however often it is called")
+        self.assertEqual(started, ["--page=history", "--reopened=1", "--after-update"], "opened once, however often it is called")
         self.assertIn("[ok] The Dashboard was opened again on the new version", said)
         self.assertEqual(left, [])
         said, started, left = self.run_reopen([("reopen-after-update-4242.txt", "--page=history --reopened=1", 3600)])
@@ -334,7 +334,7 @@ class DashboardAfterUpdateTests(unittest.TestCase):
     def test_an_update_that_stops_opens_the_dashboard_again_as_it_was(self):
         said, started, _ = self.run_reopen([("reopen-after-update-4242.txt", "--page=settings --reopened=2", None)],
                                            calls=("",))
-        self.assertEqual(started, ["--page=settings", "--reopened=2"])
+        self.assertEqual(started, ["--page=settings", "--reopened=2", "--after-update"])
         self.assertIn("[ok] The Dashboard was opened again", said)
         self.assertNotIn("on the new version", said)
 
@@ -541,7 +541,7 @@ class DashboardAfterUpdateTests(unittest.TestCase):
     def test_a_window_closed_by_the_fallback_opens_again_on_its_page_or_the_overview(self):
         said, started, left = self.run_reopen([("reopen-after-update-301.txt", "--page=settings --reopened=1", None)],
                                               fallback=["pending", "", "nowhere"])
-        self.assertEqual(sorted(started), sorted(["--page=settings", "--reopened=1", "--page=pending", "(none)", "(none)"]),
+        self.assertEqual(sorted(started), sorted(["--page=settings", "--reopened=1", "--after-update", "--page=pending", "(none)", "(none)"]),
                          "its own record's words, the page its command line named, else nothing - the Overview")
         self.assertEqual(said.count("[ok] The Dashboard was opened again on the new version"), 4)
         self.assertEqual(left, [])
