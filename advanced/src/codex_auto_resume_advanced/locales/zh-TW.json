@@ -1188,7 +1188,7 @@
   "statement.python_choice.does": "讓本程式改用 python.org 上的另一個官方 Python 執行，而不是隨它附帶的那個：可選 3.13、3.14 或 3.15 的最新發行版（3.15 是預覽版：內建版本要到以後的某個版本才會換成它）。在你按下按鈕之前，不會從網路讀取任何內容。「檢查 python.org」讀取 python.org 公開的發行清單。「使用此版本」只從 www.python.org 下載該版本的 Windows 嵌入式套件，不使用任何其他位址，放進本程式資料夾內的新資料夾 runtimes\\<version>，和該資料夾的其餘部分一樣，只有你、系統管理員和 Windows 能開啟它。在其中任何內容執行之前，整個檔案必須與 python.org 公布的 SHA-256 一致，必須能安全解壓縮，python.exe、pythonw.exe 和 Python 程式庫都必須帶有 Python Software Foundation 的有效簽章，本程式的每個部分都必須能在它之下載入。之後它會取代內建的 Python：監看程式在本卡片要求的重新啟動時改用，儀表板和 Codex 工具則在下次啟動時改用。不會傳送任何關於你的資訊，這裡的任何操作也不會碰觸 Codex 或向它傳送任何東西。",
   "statement.python_choice.instead": "標準版只執行安裝時附帶的 Python，由它的發行版固定，它唯一的下載是來自 GitHub 的自身安裝程式。",
   "statement.python_choice.departs": "B14（第二個 Python 執行階段）、C1 和 C2（本程式的程式碼連線到 python.org）、F3（程式自己取得的程式檔案）、F6（啟動所選的 python.exe）和 I10（本程式沒有任何發行版固定過的 Python）。",
-  "statement.python_choice.risks": "本程式在內建的 Python 上測試得最多，因此換一個版本可能表現不同；在這裡 3.15 是預覽版。如果無法連線到 python.org，或某項檢查失敗，它會停在那一步，刪除已解壓縮的內容，說明是哪一步，並且不動正在使用的 Python。如果監看程式在所選版本上 45 秒內沒有啟動，它會自行回到內建的 Python，並告訴你一次。所選版本約佔 40 MB，不會替你更新：要找更新的發行版，請按「檢查 python.org」。",
+  "statement.python_choice.risks": "本程式在內建的 Python 上測試得最多，因此換一個版本可能表現不同；在這裡 3.15 是預覽版。如果無法連線到 python.org，或某項檢查失敗，它會停在那一步，刪除已解壓縮的內容，說明是哪一步，並且不動正在使用的 Python。如果監看程式在所選版本上 45 秒內沒有啟動，它會自行回到內建的 Python，並告訴你一次。所選版本約佔 30 MB，不會替你更新：要找更新的發行版，請按「檢查 python.org」。",
   "statement.python_choice.stop": "在本卡片上按「返回內建版本」，即使所選版本已損壞也能用；或者在這裡關閉它，或一次關閉所有進階功能：監看程式會在內建的 Python 上重新啟動。只保留所選版本，它的資料夾在沒有任何程式從中執行後刪除。更新時，只要它所屬的系列仍在提供，就會保留你的選擇，否則會回到內建的 Python 並告知你。解除安裝時，該資料夾會隨程式的其餘部分一起刪除。",
   "page.python.title": "Python 版本",
   "page.python.help": "在你按下按鈕之前，不會從網路讀取任何內容。「檢查 python.org」列出每個版本的最新發行版；「使用此版本」從 www.python.org 下載它，並在執行之前檢查它。",

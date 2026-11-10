@@ -707,6 +707,26 @@ class RegistryTests(unittest.TestCase):
                          {"www.python.org"})
 
 
+class PlugTests(unittest.TestCase):
+    def test_the_launcher_s_two_questions_reach_it_and_nothing_else_does(self):
+        """Fails with the plug's branch reverted: the launcher's question would go to the capabilities at P13."""
+        from codex_auto_resume_advanced.plug import AdvancedPlug
+
+        class Stub:
+            runtime = type("Runtime", (), {"supervise": staticmethod(lambda facts: "theirs")})()
+        with patch.object(pythons, "supervised", return_value="mine") as asked:
+            for phase in (pythons.PHASE_RUNTIME, pythons.PHASE_RUNTIME_FAILED):
+                self.assertEqual(AdvancedPlug.supervise(Stub, {"phase": phase}), "mine")
+            self.assertEqual(asked.call_count, 2)
+            self.assertEqual(AdvancedPlug.supervise(Stub, {"phase": "start"}), "theirs")
+            self.assertEqual(asked.call_count, 2)
+
+    def test_a_registry_with_it_is_a_good_registry(self):
+        made = registry.Registry(registry.DEFINITIONS + (registry.PYTHON_CHOICE,))
+        self.assertIs(made.get("python_choice"), registry.PYTHON_CHOICE)
+        self.assertEqual(registry.shown(made).count(registry.PYTHON_CHOICE), 1)
+
+
 class ImportCheckTests(unittest.TestCase):
     """pythoncheck.py, run for real by this interpreter on folders of its own: it is what a new Python is first asked."""
 

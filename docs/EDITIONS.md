@@ -1757,7 +1757,7 @@ asks for, and for the Dashboard and the Codex tools the next time they start. On
 **What it risks.** This program is tested most on the Python it comes with, so another version can behave
 differently, and 3.15 is a preview here. A step that fails deletes what it unpacked, says which step it was and
 leaves the Python in use alone. If the watcher does not start on the chosen version within 45 seconds, it goes back
-to the bundled Python by itself and tells you once. A chosen version takes about 40 MB and is not updated for you.
+to the bundled Python by itself and tells you once. A chosen version takes about 30 MB and is not updated for you.
 Its folder can be opened by you, administrators and Windows, like the rest of this program's folder. Nothing
 about you is sent to python.org beyond what any download shows, and nothing here touches Codex or sends anything to it.
 
