@@ -14,6 +14,7 @@ import unittest
 from unittest import mock
 
 import guiscan
+import languages
 from codex_auto_resume import brand
 from codex_auto_resume.brand import days as brand_days
 from codex_auto_resume.ui import popup as tray_popup
@@ -530,7 +531,10 @@ class WiringTests(unittest.TestCase):
             self.assertIn("status.aside", json.loads(catalog), locale)
 
     def test_no_document_names_it(self):
-        for name in ("README.md", "README.ko.md", "docs/CHANGELOG.md", "docs/CHANGELOG.ko.md", "docs/GUIDE.md", "docs/GUIDE.ko.md"):
+        names = ["README.md", "docs/CHANGELOG.md", "docs/GUIDE.md"]
+        if languages.both_languages():
+            names += ["README.ko.md", "docs/CHANGELOG.ko.md", "docs/GUIDE.ko.md"]
+        for name in names:
             text = (ROOT / name).read_text(encoding="utf-8")
             for word in ("#EE8468", "#D2453E", "status.aside", "pick it up", "이어 둘게요"):
                 self.assertNotIn(word, text, name)

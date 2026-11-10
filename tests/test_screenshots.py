@@ -1520,7 +1520,7 @@ class PopupDrawingTests(unittest.TestCase):
         # right-click menu there - and the palette is ten - eleven since v0.6.10, with brand/design.py,
         # which decides how every design draws the popup and the card, so it is in their key too.
         self.assertEqual(len([name for name in found if name.startswith("ui/popup/")]), 17)
-        self.assertEqual(len([name for name in found if name.startswith("brand/")]), 11)
+        self.assertEqual(len([name for name in found if name.startswith("brand/")]), 12, "twelve since brand/days.py")
         self.assertIn("brand/design.py", found)
         self.assertIn("ui/popup/renderer.py", found)
         self.assertIn("brand/tokens.py", found)

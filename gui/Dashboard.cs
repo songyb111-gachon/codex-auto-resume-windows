@@ -1928,7 +1928,8 @@ namespace CodexAutoResume
             ground.RowCount = 1;
             ground.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
             ground.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
-            ground.Padding = CardRoom();
+            // The lift's room, and even left and right: the card ends where the dialog's buttons do.
+            ground.Padding = Pad(16, 16, 16, 17);
             ground.Margin = new Padding(0);
             ground.Controls.Add(card, 0, 0);
             // Two tables deep a table measures what it holds at no width at all: what wraps was asked for one line.
@@ -1941,7 +1942,7 @@ namespace CodexAutoResume
         /// button row no longer keeps above itself (the lift's room is that gap now).
         private Size DialogCardGrowth()
         {
-            return new Size(Px(25), Px(29));
+            return new Size(Px(24), Px(29));
         }
 
         private void DrawHeader(object sender, DrawListViewColumnHeaderEventArgs e)

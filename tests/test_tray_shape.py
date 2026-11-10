@@ -49,9 +49,9 @@ MIXINS = (menu.MenuMixin, stored.StoredMixin, cards.CardsMixin, clicks.ClicksMix
 # split; one added or taken away is a decision, and this is where it is made. v0.6.10 renamed one:
 # `_adopt_reduce_motion` became `_adopt_motion_settings`, because it took up the Design with Reduce
 # motion - Still held the icon as Reduce motion does (D8) - and v0.6.11 named it back: Still is Reduce
-# motion since, and no design holds the icon.
+# motion since, and no design holds the icon. v0.6.23: `_day_look` and `_follow_the_day`, the frame table's look.
 METHODS = {
-    "__init__", "_act", "_adopt_reduce_motion", "_adopt_settings", "_animate",
+    "__init__", "_act", "_adopt_reduce_motion", "_adopt_settings", "_animate", "_day_look", "_follow_the_day",
     "_build_frames_later", "_card_look", "_create", "_data", "_double_click", "_drop_cards",
     "_failure_seen", "_failure_unseen", "_frame_for", "_frames_built", "_hide_popup",
     "_host_cards", "_load_icon", "_menu", "_notify", "_notify_icon", "_observe", "_overflowed",
