@@ -69,7 +69,7 @@ a card - can turn a capability on. Codex's tools (MCP) can list the capabilities
 all of them, off, and no MCP tool turns one on, whatever a client sends (K3). **Turn every advanced
 feature off** on the page turns them all off at once.
 
-**Pause stops everything.** While recovery is paused, no capability is asked anything; a
+**Pause stops everything.** While recovery is paused, no capability sends to Codex or starts Codex, and none is asked anything except the status server and the Telegram control, which send nothing to Codex and keep answering so a pause can be seen or lifted; a
 conversation you switched off and a recovery you cancelled are never handed to one; and a pause
 that arrives just before a send still stops it at the last moment. Every check a send passes, the
 record that it was claimed and the last look before it stay the standard edition's (K5).
@@ -150,7 +150,7 @@ interruption, the samples of failures it could not classify, the reset rules and
 the usage windows - and, until each is sent, cancelled or ended, the words of a message you wrote for a
 reset - are kept in
 `config/advanced/advanced.sqlite`, in fixed words, ids, numbers and Codex's own error codes - never a
-word of an error or a conversation, and of yours only a message waiting for a reset - and nothing of it is written into the standard edition's state. Its only network code is the courier, which runs only while *Send notices to your phone or inbox*, *Show OpenAI's service status*, *Read this PC's status from a browser or a script* or *Control recovery from Telegram* is on (below). Two capabilities cause GitHub traffic: the compatibility report asks gh - the GitHub CLI you
+word of an error or a conversation, and of yours only the words of a message waiting to be sent (for a reset, queued, or typed in the chat), steered lines for History for 30 days, and the copies of pictures sent with a queued message - and nothing of it is written into the standard edition's state. Its only network code is the courier, which runs only while *Send notices to your phone or inbox*, *Show OpenAI's service status*, *Read this PC's status from a browser or a script* or *Control recovery from Telegram* is on (below). Two capabilities cause GitHub traffic: the compatibility report asks gh - the GitHub CLI you
 installed - to reach GitHub, and only when you start it in the Dashboard (below), and
 *Check for updates once a week* runs the installed `bootstrap.ps1 -CheckOnly` once a week (below). Its archive also carries
 the harness the project uses to measure whether a capability's route works on a given version of
@@ -158,19 +158,18 @@ Codex; nothing runs it unless a person asks, and [SECURITY.md](SECURITY.md) says
 
 Two capabilities store secrets: *Send notices to your phone or inbox* keeps the addresses, tokens and passwords
 you type for it, and *Read this PC's status from a browser or a script* the token it makes, in Windows' Credential
-Manager, under names of their own, and never in its database, a settings file or a log. That is the package's one way
-to keep a secret, and it never reads Codex's own credentials.
+Manager, under names of their own, and never in its database, a settings file or a log. The saved accounts of the account switch are the one other secret: copies of Codex's sign-in file sealed with Windows' data protection in the product's own folder (B11).
 
 ## Today's capabilities
 
-Forty-eight: twenty-three that change how a recovery is made, which conversations are recovered or what
+Fifty: twenty-three that change how a recovery is made, which conversations are recovered or what
 follows a turn, two that tell you elsewhere - notices sent to your phone or inbox, and OpenAI's service status
 on the Overview (v0.6.20) - three that let a browser or a script of yours read how this PC stands, pause and cancel,
 and reach it from your network, and two that take commands from the Telegram chat you paired (v0.6.22) - one that shows where your usage and tokens go (v0.6.20), three that send at a time you
 pick - the two at a usage reset, and queued messages - one that adds a line to the turn running now (v0.6.20; the
 Codex app shows that line in the running turn as your own message, and History records it too) - three
 before a usage limit is reached - the usage meter, and the wrap-up and the forced stop that need it - one that
-starts the 5-hour window early when it is idle (v0.6.20), one that switches the Codex account (v0.6.20), one that
+starts the 5-hour window early when it is idle (v0.6.20), one that switches the Codex account (v0.6.20), one that switches to another saved account at a usage limit, one that opens a waiting conversation in Codex so that it can be sent to, one that
 checks for updates once a week, one that puts this PC to sleep or shuts it down after tasks you pick (v0.6.20), two that look after the watcher and the PC - restart the watcher if it stops unexpectedly,
 and wake this PC for a reset (v0.6.19) - and four actions: Longer messages, which only lets a message be longer, Open Codex on a notice, which only makes a click on a notice
 show a conversation, chat with a conversation in the Dashboard (v0.6.19), which sends a message of yours, and the
@@ -351,9 +350,9 @@ hook's program, which is not a listed process).
 
 **Ceilings.** 48 a day, and 5 in any one conversation - each continuation of the hook's counts as a claim toward the
 standard edition's five a day and fifteen minutes apart, as the watcher's count toward the hook's. **Measurements
-MHK, M4 and M4B: not passed** - M4 failed on `codex-cli 0.162.0-alpha.17.2` (2026-10-10), where no plugin Stop hook
+MHK passed, M4 failed and M4B has not been made** - M4 failed on `codex-cli 0.162.0-alpha.17.2` (2026-10-10), where no plugin Stop hook
 existed to run, and again on `codex-cli 0.166.0-alpha.5.1` (2026-10-31), where Codex ran the hook after a completed
-turn and not after a failed one; hidden because the measurement failed, until all three pass.
+turn and not after a failed one, and on `codex-cli 0.167.0-alpha.3.2` (2026-11-07); hidden because the measurement failed, until all three pass.
 
 ### Goal continuation
 
@@ -1134,8 +1133,8 @@ twice. A session that did not take a queued message within five minutes turns th
 the page notes it, and the message is still taken back and waits again.
 
 **Departs from** [A15](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (only the desktop app's
-conversations are detected) and A11 (it sends while a Codex session other than the app holds the
-conversation). It keeps A2, A3, A4, A17, H4 and H6: one channel, the exact conversation, the marker, newer
+conversations are detected), A11 (it sends while a Codex session other than the app holds the
+conversation) and B6 (it reads from such a conversation's first line which Codex version wrote it, and waits while that is newer than the Codex here). It keeps A2, A3, A4, A17, H4 and H6: one channel, the exact conversation, the marker, newer
 work wins, and Pause and Cancel take a queued continuation back.
 
 **Ceilings.** 48 a day, and 5 in any one conversation. **Measurement M5: made** on `codex-cli
@@ -1256,7 +1255,9 @@ turn keeps waiting while whether a turn is running cannot be read. Both still pa
 Your words are kept in the advanced edition's state until each has arrived, been cancelled or ended -
 while Codex holds one, so that Go on after a Pause can send it again - and then deleted.
 
-**Departs from** [A8](STANDARDS.md#a-what-it-may-send-to-codex-and-when),
+A message may carry up to 10 pictures of 20 MB each, kept as the product's own copies until delivered.
+
+**Departs from** [A2](STANDARDS.md#a-what-it-may-send-to-codex-and-when), [B3](STANDARDS.md#b-what-it-reads-and-how) and [B4](STANDARDS.md#b-what-it-reads-and-how) (a message with pictures is added through `thread/queue/add`), [A4](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (that message carries no marker: it is proven by its id), [A8](STANDARDS.md#a-what-it-may-send-to-codex-and-when),
 [A17](STANDARDS.md#a-what-it-may-send-to-codex-and-when), [A26](STANDARDS.md#a-what-it-may-send-to-codex-and-when),
 [A27](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (longer than 2,000 characters while Longer messages
 is on), [C4](STANDARDS.md#c-network), [D2](STANDARDS.md#d-privacy-and-the-data-it-keeps),
