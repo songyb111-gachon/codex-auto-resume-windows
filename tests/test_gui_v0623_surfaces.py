@@ -235,6 +235,7 @@ class DashboardSceneTests(unittest.TestCase):
 
     def test_no_window_looks_at_the_date_unless_a_person_opened_it(self):
         self.assertTrue(self.answer["todayOff"])
+        self.assertIn("if (!On || Palette.Contrast) return null;", guiscan.member_body("DayArt", "Today"))
         self.assertIn("DayArt.On = Soft.StillClock < 0;", guiscan.settings())
 
     def test_the_words_leave_room_or_there_is_no_scene(self):
