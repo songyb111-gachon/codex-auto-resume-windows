@@ -651,6 +651,7 @@
   "installer.done.removed": "741504f06f6e1c6b",
   "installer.done.repaired": "6c58b09c22435075",
   "installer.done.setup_stopped": "825574371fc1341f",
+  "installer.done.still_removing": "bbd4ceb07520bd7e",
   "installer.done.still_running": "4540d350f7ee72b2",
   "installer.done.unconfirmed": "adb842c98adcd995",
   "installer.done.updated": "0a068885c07e82db",

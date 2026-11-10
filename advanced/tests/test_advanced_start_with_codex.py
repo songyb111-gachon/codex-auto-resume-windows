@@ -75,6 +75,7 @@ class ArmingTests(StartWithCodexCase):
         route = runtime.ask(Point.START_ROUTE, dict(JOB_ENDS))
         self.assertIsInstance(route, StartWithCodex)
         self.assertTrue(callable(getattr(route, "start", None)))
+        route.told("started")
         codes = [line["code"] for line in runtime.state.journal(capability=CAP)]
         self.assertIn(JournalCode.ACTED, codes)
 
@@ -446,11 +447,24 @@ class CoreOutcomeTests(CoreCase):
         self.assertTrue(line.endswith("started through WMI pid 5150"), line)
         self.assertIn("swc.started", codes)
 
-    def test_already_running_is_journalled_as_that_not_as_a_start(self):
-        line, codes, _log = self.run_start(running=True)
+    def test_already_running_is_counted_by_the_day_and_takes_no_journal_line(self):
+        """Fails with `running` counted as the others are: four servers a second, 2,840 of the owner's 4,029 rows."""
+        layer, plug = self.armed_layer()
+        with patch.object(control.Control, "watcher_running", return_value=True), \
+                patch("codex_auto_resume.windows.process_context", return_value=dict(JOB_ENDS)), \
+                patch("codex_auto_resume.windows.install_in_progress", return_value=False):
+            for _server in range(4):
+                line = layer.start_for_codex()
         self.assertTrue(line.endswith("already running"), line)
-        self.assertIn("swc.running", codes)
-        self.assertNotIn("swc.started", codes)
+        lines = [row["code"] for row in plug.runtime.state.journal(capability=CAP)]
+        self.assertNotIn("swc.running", lines)
+        self.assertNotIn(JournalCode.ACTED, lines[1:], "nor an acted line for a route that started nothing")
+        self.assertEqual(plug.runtime.state.samples(CAP).get("running"), 4)
+
+    def test_a_start_keeps_its_acted_line_and_its_word(self):
+        line, codes, _log = self.run_start()
+        self.assertIn("started through WMI", line)
+        self.assertIn("swc.started", codes)
 
     def test_a_wmi_refusal_is_in_both_places(self):
         line, codes, log = self.run_start(wmi_code=121)

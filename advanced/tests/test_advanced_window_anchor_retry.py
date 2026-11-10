@@ -225,11 +225,119 @@ class DefiniteAnswersTests(RetryCase):
         self.assertIsNone(self.shown()["retry_until"])
         self.assertIsNone(self.shown()["stopped_at"])
 
-    def test_a_full_weekly_window_ends_it_at_once(self):
+    def test_a_full_weekly_window_ends_a_time_picked_at_once(self):
+        """Ending it is right: a time picked comes back by itself tomorrow."""
+        self.slot()
+        self.world.week = 100.0
+        self.run_through()
+        self.assertEqual(self.codes(), ["anchor.skip_weekly"])
+
+
+class HeldToTheWeeklyResetTests(RetryCase):
+    def full(self):
+        """The weekly window full, its reset two days off, as the world reads it from now on."""
+        self.world.week = 100.0
+        self.weekly_reset = int(self.now) + 2 * anchor.DAY
+        reply = self.world.reply
+
+        def answered():
+            found = reply()
+            found["rateLimitsByLimitId"]["codex"]["secondary"]["resetsAt"] = self.weekly_reset
+            return found
+        self.world.reply = answered
+
+    def test_a_reset_under_a_full_weekly_window_is_held_past_five_hours_and_starts_once_it_is_free(self):
+        """Fails with `weekly` ending the occasion at once: the chain's end the owner's first report asked about."""
+        self.reset()
+        self.full()
+        self.look()
+        self.assertEqual((self.done(), self.codes()), ((None, None), []))
+        self.look(FIVE + EVERY)
+        self.assertEqual((self.done(), self.codes(), self.world.started), ((None, None), [], []), "past a reset's five hours")
+        self.now = float(self.weekly_reset - anchor.LOOK_EVERY)
+        self.world.week = 3.0
+        self.look(anchor.LOOK_EVERY + EVERY)
+        self.run_through()
+        self.assertEqual(len(self.world.started), 1)
+
+    def test_it_ends_with_the_weekly_word_only_past_that_reset(self):
+        self.reset()
+        self.full()
+        self.look()
+        self.now = float(self.weekly_reset - EVERY)
+        self.look(1)
+        self.assertEqual(self.codes(), [])
+        self.now = float(self.weekly_reset + 3 * EVERY)
+        self.look(1)
+        self.look(EVERY + 1)
+        self.assertEqual(self.codes(), ["anchor.skip_weekly"])
+        self.assertEqual(self.done(), (None, self.seen))
+
+    def test_with_no_weekly_reset_read_it_ends_at_once(self):
         self.reset()
         self.world.week = 100.0
+        reply = self.world.reply
+
+        def answered():
+            found = reply()
+            del found["rateLimitsByLimitId"]["codex"]["secondary"]["resetsAt"]
+            return found
+        self.world.reply = answered
         self.look()
         self.assertEqual(self.codes(), ["anchor.skip_weekly"])
+
+
+class StartThatCouldNotBeMadeTests(RetryCase):
+    def test_a_request_that_could_not_be_started_is_held_and_tried_again(self):
+        """Fails with `failed` ending the occasion: `start_request` raised once and the reset was used up."""
+        self.reset()
+        with patch.object(anchor, "start_request", side_effect=OSError("no")):
+            self.run_through()
+        self.assertEqual((self.done(), self.codes()), ((None, None), []))
+        self.assertIsNone(self.stamped(OptionKey.ANCHOR_STARTED_AT))
+        self.look(EVERY + 1)
+        self.run_through()
+        self.assertEqual(len(self.world.started), 1)
+
+    def test_it_ends_in_one_failed_line_past_its_span(self):
+        self.reset()
+        with patch.object(anchor, "start_request", side_effect=OSError("no")):
+            self.run_through()
+            while self.now < self.seen + FIVE + 2 * EVERY:
+                self.look(EVERY / 2)
+                self.run_through(2)
+        self.assertEqual(self.codes(), ["anchor.failed"])
+
+
+class HeldForTheCeilingTests(RetryCase):
+    def test_a_reset_at_its_ceiling_is_held_for_a_day_and_starts_once_it_clears(self):
+        """Fails with `ceiling` ending a reset's occasion: five starts in a day ended the chain."""
+        self.reset()
+        for _start in range(WINDOW_ANCHOR.ceilings.per_day):
+            self.assertTrue(self.rt.state.counted(CAP, "started", at=self.now - 3600))
+        self.look()
+        self.look(FIVE + EVERY)
+        self.assertEqual((self.done(), self.codes().count("anchor.skip_ceiling"), self.world.calls), ((None, None), 0, []))
+        self.now = float(self.seen + anchor.DAY - EVERY)
+        self.run_through()
+        self.assertEqual(len(self.world.started), 1)
+
+    def test_a_ceiling_that_never_clears_ends_in_one_line_a_day_after(self):
+        self.reset()
+        real = self.rt.state.counted_since
+        with patch.object(self.rt.state, "counted_since", lambda capability, code, since: 99):
+            self.look()
+            self.now = float(self.seen + anchor.DAY + EVERY)
+            self.look(1)
+        self.assertIsNotNone(real)
+        self.assertEqual(self.codes(), ["anchor.skip_ceiling"])
+
+    def test_a_time_picked_at_its_ceiling_ends_at_once(self):
+        self.slot()
+        for _start in range(WINDOW_ANCHOR.ceilings.per_day):
+            self.assertTrue(self.rt.state.counted(CAP, "started"))
+        self.look(45)
+        self.assertEqual(self.codes().count("anchor.skip_ceiling"), 1)
 
 
 class NoFloodTests(RetryCase):
@@ -268,9 +376,10 @@ class CeilingsStillCountTests(RetryCase):
         self.world.broken = False
         for _start in range(WINDOW_ANCHOR.ceilings.per_day):
             self.assertTrue(self.rt.state.counted(CAP, "started"))
+        self.run_through()
         self.look(EVERY + 1)
+        self.run_through()
         self.assertEqual(self.world.started, [])
-        self.assertEqual(self.codes().count("anchor.skip_ceiling"), 1)
 
 
 if __name__ == "__main__":

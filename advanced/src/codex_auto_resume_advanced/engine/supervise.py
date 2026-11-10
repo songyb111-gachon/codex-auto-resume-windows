@@ -29,6 +29,8 @@ arguments.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 from codex_auto_resume.domain.plug import DEFER, Alternative
 
 CAPABILITY = "crash_restart"
@@ -44,6 +46,24 @@ NEVER_RESTARTED = frozenset({EXIT_OK, EXIT_BUSY, EXIT_SCHEMA_NEWER, EXIT_MEMORY_
 PHASE_START, PHASE_ENDED = "start", "ended"
 # The notice of its own kind, and core's notifier event that raises it.
 GAVE_UP = "restart_gave_up"
+# Written by the launcher (scripts/watcher_launcher.py, its own copy of this name) where a watcher runs in its own process
+# for want of an answer: its process id and the word.
+UNSUPERVISED_FILE = "unsupervised.txt"
+
+
+def view(runtime) -> dict:
+    """{"crash_restart": {"unsupervised": word}} while crash_restart stands on and the watcher running now started without
+    its supervisor because the question could not be answered (v0.6.23: 23 hours on 2026-11-06, and nothing said so) - the
+    file's process still running - else {}. For its line on the Advanced page."""
+    try:
+        from codex_auto_resume.control.codexstart import _process_there
+        from ..vocabulary import ArmingState
+        if runtime.states().get(CAPABILITY) != ArmingState.ARMED:
+            return {}
+        pid, word = (Path(runtime.paths.logs_dir) / UNSUPERVISED_FILE).read_text(encoding="utf-8").split()
+        return {CAPABILITY: {"unsupervised": word}} if _process_there(int(pid)) else {}
+    except (OSError, ValueError, AttributeError):
+        return {}
 
 
 def gave_up_notice(paths) -> bool:

@@ -113,6 +113,54 @@ class OffTests(SuperviseCase):
         self.assertEqual(self.rows(), [])
 
 
+class WhyNotSupervisedTests(SuperviseCase):
+    """v0.6.23 (B1 of the owner's logs of 2026-11-10): the launcher learns why no supervisor was named, and the page sees it."""
+
+    def stored_on_but_unreadable(self):
+        self.on()
+        real = self.rt.state.arming
+        with patch.object(self.rt.state, "arming", side_effect=StateError("busy")):
+            answer = self.rt.supervise(dict(START))
+        self.assertIsNotNone(real)
+        return answer
+
+    def test_a_state_that_cannot_be_read_says_so(self):
+        """Fails with the answer's reason not kept: DEFER looks the same as crash restart stored off."""
+        self.assertIs(self.stored_on_but_unreadable(), DEFER)
+        self.assertEqual(self.rt.supervise_held(), "unreadable")
+
+    def test_stored_off_nothing_is_held(self):
+        self.assertIs(self.rt.supervise(dict(START)), DEFER)
+        self.assertIsNone(self.rt.supervise_held())
+
+    def test_on_and_answered_nothing_is_held(self):
+        self.on()
+        self.assertIs(self.rt.supervise(dict(START)), Alternative.SUPERVISE)
+        self.assertIsNone(self.rt.supervise_held())
+
+    def marked(self, pid):
+        logs = Path(self.rt.paths.logs_dir)
+        logs.mkdir(parents=True, exist_ok=True)
+        (logs / supervise.UNSUPERVISED_FILE).write_text("%d unreadable" % pid, encoding="utf-8")
+
+    def test_the_page_is_told_while_that_watcher_runs(self):
+        self.on()
+        self.marked(4242)
+        with patch("codex_auto_resume.control.codexstart._process_there", return_value=True):
+            self.assertEqual(supervise.view(self.rt), {CAP: {"unsupervised": "unreadable"}})
+        with patch("codex_auto_resume.control.codexstart._process_there", return_value=False):
+            self.assertEqual(supervise.view(self.rt), {})
+
+    def test_the_page_is_told_nothing_while_it_is_off_or_there_is_no_file(self):
+        self.assertEqual(supervise.view(self.rt), {})
+        self.on()
+        self.assertEqual(supervise.view(self.rt), {})
+
+    def test_the_launcher_keeps_the_same_file_name(self):
+        launcher = (Path(__file__).resolve().parents[2] / "scripts" / "watcher_launcher.py").read_text(encoding="utf-8")
+        self.assertIn('UNSUPERVISED_FILE = "%s"' % supervise.UNSUPERVISED_FILE, launcher)
+
+
 class OnTests(SuperviseCase):
     def test_on_it_supervises_and_holds_the_stop_event_from_the_start(self):
         """Fails with the capability's start answer reverted: the launcher runs the watcher alone."""

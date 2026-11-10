@@ -669,6 +669,7 @@
   "installer.done.removed": "Codex Auto Resume è stato rimosso.",
   "installer.done.repaired": "Codex Auto Resume è stato riparato.",
   "installer.done.setup_stopped": "Il programma di installazione si è fermato prima dell'esecuzione dell'installer. Il log ne spiega il motivo.",
+  "installer.done.still_removing": "Ci sta mettendo più del solito e continua a lavorare in background. Terminerà da solo; non devi fare altro.",
   "installer.done.still_running": "Ci sta mettendo più del solito e continua a lavorare in background. Ricontrolla la Dashboard fra qualche minuto.",
   "installer.done.unconfirmed": "Non è stato possibile confermare che il monitor sia in esecuzione, quindi per ora non viene controllato nulla. Avvialo dalla Dashboard.",
   "installer.done.updated": "Codex Auto Resume è stato aggiornato.",

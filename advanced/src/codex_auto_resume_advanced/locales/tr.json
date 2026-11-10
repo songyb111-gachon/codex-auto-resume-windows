@@ -174,6 +174,7 @@
   "page.anchor.needs_occasion": "Bir başlatma saati seçene veya \"Bir sıfırlamanın hemen ardından başlat\" seçeneğini açana kadar hiçbir şey başlatmaz.",
   "page.anchor.retrying": "Pencere şu anda başlatılamadı; {time} saatine kadar 5 dakikada bir yeniden denenecek.",
   "page.anchor.stopped": "Denemeler hiçbir şey başlatılmadan durdu. 5 saatlik pencere bir sonraki çalıştığında veya seçtiğiniz bir saatte yeniden başlar.",
+  "page.crash.unsupervised": "Bu izleyici, durumu o anda okunamadığı için kilitlenmede yeniden başlatma olmadan başladı. Bir sonraki başlatmada yeniden geçerli olur.",
   "page.chat.cancel": "İptal",
   "page.chat.click": "Bir bildirime tıklamak şunu açar",
   "page.chat.click.chat": "O konuşmanın sohbeti burada",

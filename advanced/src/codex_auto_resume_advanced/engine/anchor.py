@@ -36,8 +36,10 @@ A passing failure does not use the occasion up (v0.6.23; on the owner's PC a usa
 idle window unstarted for 29 hours: an idle window teaches no new reset, so the one seen was the only occasion there
 was). PASSING words - usage or the sign-in not read, signed out, recovery paused, no Codex told, its state or folder -
 leave the occasion open, looked at again every RETRY_EVERY: a time picked within SLOT_GRACE, a reset seen for five hours
-after it. Only when that span is over does it end, with its skip word, in one journal line. A definite answer - a window
-that runs, the weekly window full, one start a window, the ceiling - ends it at once, as ever.
+after it. Only when that span is over does it end, with its skip word, in one journal line. A request that could not be
+started is one of them. For a reset seen, a full weekly window or the ceiling would end the chain the same way, so it is
+held too: to the weekly window's own reset, and for a day after that reset. A time picked comes back by itself, so for it
+those two end at once. A window that runs (a new reset will be learned) and one start a window end it at once, as ever.
 
 Beside account_switch (v0.6.20, the pair audit's V20-2): the window is the signed-in account's. Where account_switch
 saw another account signed in (its stamp ACCOUNT_CHANGED_AT), the start, the fixed reset and the reset seen kept here
@@ -108,7 +110,7 @@ SKIPS = {"running": "skip_running", "weekly": "skip_weekly", "paused": "skip_pau
 CODES = ("started", "fixed", "unfixed", "failed", "timed_out") + tuple(SKIPS.values())
 # The reasons that say nothing lasting of the window: the occasion stays open (`_held`). `paused` too: a skip stamped the
 # occasion done just as a failed read did, so a reset that fell in a pause ended the chain the same way.
-PASSING = frozenset({"unreadable", "signed_out", "paused", "home", "folder", "state"})
+PASSING = frozenset({"unreadable", "signed_out", "paused", "home", "folder", "state", "failed"})
 # What an occasion is: a time picked, or a reset seen.
 SLOT, RESET, VERIFY = "slot", "reset", "verify"
 # account_switch, and the stamps of a window that are the account's that was signed in (V20-2).
@@ -473,7 +475,7 @@ class WindowAnchor:
         if five is None:
             return self._skip(why, occurrence, "unreadable")
         if weekly is not None and weekly["used_percent"] >= 100:
-            return self._skip(why, occurrence, "weekly")
+            return self._skip(why, occurrence, "weekly", until=self._past_weekly(why, reading, now))
         if five["used_percent"] > 0:
             return self._skip(why, occurrence, "running")
         self._pending = {"why": why, "occurrence": occurrence, "first": reading}
@@ -491,8 +493,10 @@ class WindowAnchor:
             # between the two reads - says nothing of the window now: the occasion is skipped, never started hours
             # late at a time nobody picked (v0.6.23 audit seatA:B-M1).
             return self._skip(why, occurrence, "unreadable")
+        if found == WEEKLY_FULL:
+            return self._skip(why, occurrence, "weekly", until=self._past_weekly(why, reading or pending["first"], now))
         if found != IDLE:
-            return self._skip(why, occurrence, {RUNNING: "running", WEEKLY_FULL: "weekly"}.get(found, "unreadable"))
+            return self._skip(why, occurrence, {RUNNING: "running"}.get(found, "unreadable"))
         reason = self._before(view, now)
         if reason is not None:
             return self._skip(why, occurrence, reason)
@@ -555,10 +559,9 @@ class WindowAnchor:
                 refused = "state"
         if refused is not None:
             return self._skip(why, occurrence, refused)
-        self._done(why, occurrence)
         if process is None:
-            self._count("failed")
-            return None
+            return self._skip(why, occurrence, "failed")
+        self._done(why, occurrence)
         self._unstamp(OptionKey.ANCHOR_STOPPED_AT)
         self._count("started")
         occasion = {"why": why, "occurrence": occurrence, "at": int(now)}
@@ -646,14 +649,24 @@ class WindowAnchor:
         except Exception:
             pass
 
-    def _skip(self, why, occurrence, reason) -> None:
-        """An occasion ends with its word - or, for a passing reason, stays open (`_held`)."""
-        if reason in PASSING and why in (SLOT, RESET):
-            return self._held(why, occurrence, reason)
-        self._done(why, occurrence)
-        self._count(SKIPS[reason])
+    def _past_weekly(self, why, reading, now):
+        """When a reset seen, its window idle under a full weekly window, stops being held: a little past that weekly
+        window's own reset, so a look is made after it. None - ended at once - for a time picked, or where no reset is
+        read."""
+        _five, weekly = windows_of((reading or {}).get("windows"))
+        reset = (weekly or {}).get("reset_at")
+        return reset + 2 * RETRY_EVERY if why == RESET and type(reset) is int and reset > now else None
 
-    def _held(self, why, occurrence, reason) -> None:
+    def _skip(self, why, occurrence, reason, until=None) -> None:
+        """An occasion ends with its word - or, for a passing reason or a reset's weekly or ceiling, stays open (`_held`)."""
+        if reason == "ceiling" and why == RESET:
+            until = occurrence + DAY        # the starts it counts are older than a day by then
+        if why in (SLOT, RESET) and (reason in PASSING or until is not None):
+            return self._held(why, occurrence, reason, until)
+        self._done(why, occurrence)
+        self._count(_word(reason))
+
+    def _held(self, why, occurrence, reason, longer=None) -> None:
         """A passing failure: nothing stamped done, tried again in RETRY_EVERY, while its span lasts. One line in the
         watcher's log at an occasion's first failure; the journal hears of it once, when the span is over."""
         now = self._scoped.now()
@@ -662,11 +675,13 @@ class WindowAnchor:
         first = occasion not in self._held_open
         held = self._held_open.setdefault(occasion, {"until": until})
         held.update(next=now + RETRY_EVERY, reason=reason)
+        if longer is not None:
+            held["until"] = longer
         if now >= held["until"]:
             return self._span_ended(occasion, now)
         if first:
             self._say("could not start the window now (%s); trying again every %d minutes until %s"
-                      % (reason, RETRY_EVERY // 60, _hhmm(until, self._local)))
+                      % (reason, RETRY_EVERY // 60, time.strftime("%Y-%m-%d %H:%M", self._local(int(held["until"])))))
             self._unstamp(OptionKey.ANCHOR_STOPPED_AT)
             self._show_retry()
 
@@ -676,7 +691,7 @@ class WindowAnchor:
         why, occurrence = occasion
         reason = self._held_open[occasion]["reason"]
         kept = self._done(why, occurrence)
-        self._count(SKIPS[reason])
+        self._count(_word(reason))
         self._stamp(OptionKey.ANCHOR_STOPPED_AT, max(1, int(now)))
         if kept is not True:
             self._held_open[occasion] = {"next": float("inf"), "until": float("inf"), "reason": reason}
@@ -752,6 +767,11 @@ class WindowAnchor:
             self._log(LOG_PREFIX + line)
         except Exception:
             pass
+
+
+def _word(reason) -> str:
+    """The journal's word an occasion ends with: its skip word, or `failed`, a request that could not be started."""
+    return SKIPS.get(reason, reason)
 
 
 def tokens_said(tokens) -> str:

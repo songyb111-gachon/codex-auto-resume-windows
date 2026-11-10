@@ -1776,7 +1776,8 @@ function Open-ClosedDashboard {
             # so whoever reads them - the Dashboard that started an update, `$o = & Setup.exe -Silent` - waited for
             # this Dashboard to close before it saw the end. The Dashboard is a Windows program, built
             # /target:winexe, so the shell opens no console for it.
-            Start-Process -FilePath $dashboard -ArgumentList $line -WorkingDirectory $InstallHome
+            # --after-update (gui/WindowReopen.cs): a Dashboard a person opened during the update takes this over.
+            Start-Process -FilePath $dashboard -ArgumentList ($line + ' --after-update') -WorkingDirectory $InstallHome
             if ($Updated) { Ok 'The Dashboard was opened again on the new version' }
             else { Ok 'The Dashboard was opened again' }
         } catch {

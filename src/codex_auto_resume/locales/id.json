@@ -669,6 +669,7 @@
   "installer.done.removed": "Codex Auto Resume sudah dihapus.",
   "installer.done.repaired": "Codex Auto Resume telah diperbaiki.",
   "installer.done.setup_stopped": "Program penyiapan berhenti sebelum penginstal berjalan. Log menjelaskan alasannya.",
+  "installer.done.still_removing": "Ini memakan waktu lebih lama dari biasanya dan masih bekerja di latar belakang. Ini akan selesai dengan sendirinya; Anda tidak perlu melakukan apa pun lagi.",
   "installer.done.still_running": "Ini memakan waktu lebih lama dari biasanya dan masih bekerja di latar belakang. Lihat Dasbor lagi dalam beberapa menit.",
   "installer.done.unconfirmed": "Pemantau tidak dapat dipastikan berjalan, jadi belum ada yang dipantau. Mulai dari Dasbor.",
   "installer.done.updated": "Codex Auto Resume sudah diperbarui.",

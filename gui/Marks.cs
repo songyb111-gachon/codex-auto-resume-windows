@@ -670,6 +670,7 @@ namespace CodexAutoResume
         internal void Sync()
         {
             if (closing || state == null) return;
+            FollowTheDay();
             double now = Clock();
             allowed = Brand.Mark.FrameMs(state, now, now - enteredAt, false) >= 0 && MayMove();
             Draw(now);
@@ -827,11 +828,42 @@ namespace CodexAutoResume
             if (big == IntPtr.Zero || small == IntPtr.Zero) return false;
             ownBig = big;
             ownSmall = small;
+            if (dayBig == IntPtr.Zero) plainBig = big;
+            if (daySmall == IntPtr.Zero) plainSmall = small;
             return true;
         }
 
         private bool dayApplied;
         private IntPtr dayBig, daySmall;
+        private IntPtr plainBig, plainSmall;    // the window's icons of an ordinary day, as WinForms gave them: never ours
+        private string dayLook;                 // the look the icons on show were made for
+        private DateTime dayOf;                 // the date last looked at
+
+        // A window left open past midnight: its taskbar and title-bar icons follow the date, as the tray's _follow_the_day
+        // does. Asked every second (Sync), so the date is compared first, and the look only when the date has changed.
+        private void FollowTheDay()
+        {
+            DateTime today = DayArt.Clock().Date;
+            if (today == dayOf) return;
+            dayOf = today;
+            Icon icon = owner.Icon;
+            if (!dayApplied || ownBig == IntPtr.Zero || icon == null) return;   // nothing shown yet: ApplyDay reads the date
+            string look = DayArt.Today();
+            if (look == dayLook) return;
+            dayLook = look;
+            IntPtr oldBig = dayBig, oldSmall = daySmall;
+            dayBig = look == null ? IntPtr.Zero : DayIcon.From(icon, icon.Width, look);
+            daySmall = look == null ? IntPtr.Zero : DayIcon.From(icon, SystemInformation.SmallIconSize.Width, look);
+            ownBig = dayBig != IntPtr.Zero ? dayBig : plainBig;
+            ownSmall = daySmall != IntPtr.Zero ? daySmall : plainSmall;
+            Send(WM_SETICON, ICON_BIG, ownBig);
+            Send(WM_SETICON, ICON_SMALL, ownSmall);
+            Release();                              // what was made for the look before, once Windows holds the new ones
+            frames = null;
+            framesRead = false;
+            if (oldBig != IntPtr.Zero) DestroyIcon(oldBig);
+            if (oldSmall != IntPtr.Zero) DestroyIcon(oldSmall);
+        }
 
         // On a special day the window's own icons, big and small, are the day's: the first thing the mark takes as "its own".
         private void ApplyDay()
@@ -841,6 +873,9 @@ namespace CodexAutoResume
             Icon icon = owner.Icon;
             if (icon == null || !owner.IsHandleCreated) return;
             dayApplied = true;
+            dayLook = look;
+            plainBig = Send(WM_GETICON, ICON_BIG, IntPtr.Zero);
+            plainSmall = Send(WM_GETICON, ICON_SMALL, IntPtr.Zero);
             if (look == null) return;
             dayBig = DayIcon.From(icon, icon.Width, look);
             daySmall = DayIcon.From(icon, SystemInformation.SmallIconSize.Width, look);

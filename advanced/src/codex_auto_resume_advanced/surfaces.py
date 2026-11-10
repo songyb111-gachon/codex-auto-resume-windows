@@ -277,6 +277,9 @@ def status(runtime) -> dict:
     # v0.6.20: the reset window_anchor's start fixed, for its line on the Advanced page, only while it stands on.
     from .engine import anchor
     shown.update(anchor.view(runtime))
+    # v0.6.23: that the watcher running now started without crash restart's supervisor, only while that stands on.
+    from .engine import supervise
+    shown.update(supervise.view(runtime))
     return shown
 
 

@@ -669,6 +669,7 @@
   "installer.done.removed": "Codex Auto Resume удалён.",
   "installer.done.repaired": "Codex Auto Resume исправлен.",
   "installer.done.setup_stopped": "Программа установки остановилась до запуска установщика. Причина указана в журнале.",
+  "installer.done.still_removing": "Это занимает больше времени, чем обычно, и продолжается в фоне. Всё завершится само, больше ничего делать не нужно.",
   "installer.done.still_running": "Это занимает больше времени, чем обычно, и продолжается в фоне. Загляните в Дашборд через несколько минут.",
   "installer.done.unconfirmed": "Не удалось подтвердить, что монитор работает, поэтому пока ничто не отслеживается. Запустите его из Дашборда.",
   "installer.done.updated": "Codex Auto Resume обновлён.",

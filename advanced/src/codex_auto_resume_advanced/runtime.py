@@ -363,6 +363,8 @@ class Runtime:
         # Why the last start route asked (P9) named none, where a capability there was stored on or
         # watched (`start_held`); None where nothing was.
         self._start_held = None
+        # And why the last start question at P13 named no supervisor, the same way (`supervise_held`, v0.6.23).
+        self._supervise_held = None
         # The measurement harness's seams (measure.py). A person runs a measurement; production
         # opens a real one-turn session against the installed Codex and records to the source
         # tree, and a test gives a fake session and a temporary directory, so no test opens a
@@ -476,10 +478,18 @@ class Runtime:
         where the watcher's report cannot be used - at sign-in no watcher has run for a while, and the watcher not
         running is the one case the start question is asked in (Arming.read's `live`)."""
         definitions = self.registry.at(Point.SUPERVISION)
+        self._supervise_held = None
         if not definitions:
             return NULL.supervise(facts)
         self.states(fresh=True, live=frozenset(definition.id for definition in definitions))
-        return self.ask(Point.SUPERVISION, facts)
+        answer = self.ask(Point.SUPERVISION, facts)
+        if answer is DEFER and isinstance(facts, dict) and facts.get("phase") == "start":
+            self._supervise_held = self._held_start(definitions)
+        return answer
+
+    def supervise_held(self):
+        """Why the last start question at P13 named no supervisor where a capability is stored on or watched, or None."""
+        return self._supervise_held
 
     def _held_start(self, definitions):
         """Why no capability at P9 named a route, as one word, for the first stored on or watched at
@@ -582,6 +592,10 @@ class Runtime:
                 (point, chooser.id, _word(chosen, point)))
         if point == Point.SENDER:
             self._alone(chooser, chosen, record)
+        later = _own(self._code_of(chooser), "acted_when_told") if point == Point.START_ROUTE else None
+        if later is not None:
+            later(lambda: self._once(JournalCode.ACTED, chooser, point, chosen, record))
+            return chosen
         self._once(JournalCode.ACTED, chooser, point, chosen, record)
         return chosen
 

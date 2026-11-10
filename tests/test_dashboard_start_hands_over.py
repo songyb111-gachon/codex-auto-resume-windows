@@ -67,6 +67,9 @@ CASES = [
     (["--outside"], False, True, ""),
     ([], True, False, ""),
     (["--page=pending", "--bounds=10,20,800,600", "--reopened=1"], False, False, "pending"),
+    # Opened again by the installer after an update: the window it replaces is gone, so it asks (fails with it asking nothing).
+    (["--page=pending", "--bounds=10,20,800,600", "--reopened=1", "--after-update"], False, True, "pending"),
+    (["--reopened=1", "--after-update"], True, False, ""),
     (["--page=advanced", "--capability=codex_chat", "--chat=11111111-0000-7000-8000-000000000000"], False, False, ""),
     (["--page=nowhere"], False, False, ""),
     (["--section=general"], False, False, ""),

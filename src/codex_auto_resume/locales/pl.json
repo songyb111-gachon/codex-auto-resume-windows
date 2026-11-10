@@ -669,6 +669,7 @@
   "installer.done.removed": "Codex Auto Resume został usunięty.",
   "installer.done.repaired": "Codex Auto Resume został naprawiony.",
   "installer.done.setup_stopped": "Program instalacyjny zatrzymał się, zanim uruchomił się instalator. Powód podaje dziennik.",
+  "installer.done.still_removing": "Trwa to dłużej niż zwykle i nadal działa w tle. Zakończy się samo; nie musisz nic więcej robić.",
   "installer.done.still_running": "Trwa to dłużej niż zwykle i nadal działa w tle. Zajrzyj do okna Dashboard za kilka minut.",
   "installer.done.unconfirmed": "Nie udało się potwierdzić, że monitor działa, więc na razie nic nie jest monitorowane. Uruchom go z okna Dashboard.",
   "installer.done.updated": "Codex Auto Resume został zaktualizowany.",

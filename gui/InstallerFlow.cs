@@ -1003,6 +1003,8 @@ namespace CodexAutoResume
                 if (mode == InstallerFlow.Update) return Say("installer.done.updated", "Codex Auto Resume is updated.");
                 return Say("installer.done.installed", "Codex Auto Resume is installed.");
             }
+            if (code == InstallerFlow.StillRunning && mode == InstallerFlow.Uninstall)
+                return Say("installer.done.still_removing", "It is taking longer than usual and is still working in the background. It finishes by itself, and there is nothing more to do.");
             if (code == InstallerFlow.StillRunning)
                 return Say("installer.done.still_running", "It is taking longer than usual and is still working in the background. Look at the Dashboard again in a few minutes.");
             if (code == InstallerFlow.NotStarted)

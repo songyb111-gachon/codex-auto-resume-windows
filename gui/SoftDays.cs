@@ -26,12 +26,15 @@ namespace CodexAutoResume
         /// Whether this window may look at the date at all: only a window a person opened (Main), never a picture or a probe.
         internal static bool On;
 
+        /// The date it looks at: now. A probe's own, to see a window across midnight.
+        internal static Func<DateTime> Clock = delegate { return DateTime.Now; };
+
         /// The look of today, or null: an ordinary day, High Contrast, or a window that is no person's.
         internal static string Today()
         {
             string look, top, bottom;
             if (!On || Palette.Contrast) return null;
-            DateTime now = DateTime.Now;
+            DateTime now = Clock();
             return Brand.DayLook(now.Year, now.Month, now.Day, out look, out top, out bottom) ? look : null;
         }
 

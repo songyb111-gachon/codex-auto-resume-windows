@@ -244,7 +244,7 @@ PAGE_KEYS = PAGE_KEYS + (PAGE_PREFIX + "option.wake_lead_minutes",)
 # card that says the reset its last start fixed, and that it starts nothing with no time picked and no After a reset.
 PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "option.anchor_at_1", "option.anchor_at_2", "option.anchor_at_3", "option.anchor_after_reset", "option.off",
-    "anchor.fixed", "anchor.needs_occasion", "anchor.retrying", "anchor.stopped"))
+    "anchor.fixed", "anchor.needs_occasion", "anchor.retrying", "anchor.stopped", "crash.unsupervised"))
 # open_to_send's two choices (v0.6.19, #50): how long the PC has been idle first, and Also start Codex (a switch).
 PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in ("option.open_idle_minutes", "option.open_start_codex"))
 # The prompt queue's editor (v0.6.19, #50: advanced/gui/AdvancedEditor.cs): Schedule a message..., Edit..., the dialog's
