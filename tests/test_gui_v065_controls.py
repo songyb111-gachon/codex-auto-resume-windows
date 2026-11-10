@@ -542,8 +542,10 @@ $check.Checked = $true
 $out.check.windows = @([double](P $check 'Progress'), [bool](P $check 'Moving'))
 $check.Checked = $false
 $animates.SetValue($null, [Said]::Answer($true))
+$clock = [Diagnostics.Stopwatch]::StartNew()
 $check.Checked = $true
 $out.check.started = @([double](P $check 'Progress'), [bool](P $check 'Moving'))
+$out.check.startedAtMost = [double](S 'Motion' 'Ease' @([double]($clock.Elapsed.TotalMilliseconds / $out.duration)))
 Pump 60
 $out.check.middle = @([double](P $check 'Progress'), [bool](P $check 'Moving'))
 $check.Checked = $false
@@ -1129,7 +1131,10 @@ class ControlsTests(unittest.TestCase):
         self.assertTrue(self.answer["motionAllowed"], "motion was reduced with Windows' switch answered 'on'")
         progress, moving = check["started"]
         self.assertTrue(moving)
-        self.assertLess(progress, 0.5)
+        # Where it is comes from the clock at the moment it is read (Transition.Value), and the curve is steep: half way
+        # after a fifth of the glide, 33 ms. A fixed bound measured the runner's load (0.565 on a loaded one); it can only
+        # be at or before where the curve stands for all the time the change and the read took.
+        self.assertLessEqual(progress, check["startedAtMost"] + 1e-6)
         middle, moving = check["middle"]
         self.assertTrue(0.0 < middle < 1.0 and moving, "between off and on, on its way")
         reversed_, moving = check["reversed"]

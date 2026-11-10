@@ -924,6 +924,8 @@ class FrontTests(unittest.TestCase):
         self.assertLess(run.index("HostApp.BringToFront(window);"), run.index("Application.Run(window);"))
         front = guiscan.member_body("HostApp", "BringToFront")
         self.assertIn("SetForegroundWindow(window.Handle);", front)
+        # Refused the foreground, it stands above the others all the same (tests/test_gui_raise_without_focus.py).
+        self.assertLess(front.index("SetForegroundWindow(window.Handle);"), front.index("if (!inFront) RaiseWithoutFocus(window.Handle);"))
         self.assertIn("ShowWindow(window.Handle, SwRestore);", front)
         self.assertIn("HostApp.Present(window);", guiscan.member_body("SettingsRemove", "Present"))
 

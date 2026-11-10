@@ -867,9 +867,14 @@ class LogbookTests(unittest.TestCase):
 
 class DiscoveryTests(unittest.TestCase):
     def test_discovery_requires_single_compatible_binary(self):
-        with tempfile.TemporaryDirectory() as temp:
+        # The folder's empty codex.exe files are fresh programs: something that looks at those as they appear (an
+        # antivirus scan, busiest while an install runs on the PC) can still hold one as the folder goes, and a cleanup
+        # that raises is an ERROR here, of a test whose checks all passed. The variable that names a build would be this
+        # machine's, read before LOCALAPPDATA is.
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp:
             bin_dir = Path(temp) / "OpenAI" / "Codex" / "bin"
             with patch.dict(os.environ, {"LOCALAPPDATA": temp}, clear=False):
+                os.environ.pop(config.ENV_CODEX_EXE, None)
                 with self.assertRaises(config.ConfigError):
                     config.discover_codex_exe(None, lambda p: None)
                 for name in ("aaaa", "bbbb"):

@@ -202,7 +202,6 @@ def main(argv=None) -> int:
         _complain(home, "no installed codex-auto-resume engine found; not starting")
         return EXIT_ERROR
     sys.path.insert(0, str(root / "src"))
-    from codex_auto_resume.cli import main as cli_main
     # Arguments select the command, defaulting to the watcher. The notification button
     # registers `activate` through this same stable path, so a plugin update cannot leave
     # the button pointing at a version directory that no longer exists.
@@ -217,6 +216,9 @@ def main(argv=None) -> int:
         if code is not None:
             return code
         asks = False                                # no child could be started: run it here, ask nothing more
+    # Only here: a supervisor runs no watcher of its own, and the engine imported once more for nothing cost it a second
+    # or more at every sign-in, before its child had even started (v0.6.23).
+    from codex_auto_resume.cli import main as cli_main
     code = cli_main(["--home", str(home), "--quiet"] + command)
     if code == EXIT_SCHEMA_NEWER and command == ["run"]:
         _relaunch_once(here, command)

@@ -48,6 +48,8 @@ MAX_BODY = 1024
 THREADS = 8
 TIMEOUT = 10                       # seconds one read may wait
 DEADLINE = 10                      # seconds one request may take in all, its connection to its answer
+LINGER_SECONDS = 1.0               # after its answer, how long a connection waits for what the client still sends
+LINGER_BYTES = 64 * 1024           # and how much of that it reads and drops
 LOCK_AFTER, LOCK_WINDOW, LOCK_SECONDS = 10, 60, 300
 # Every route, with the methods it takes and whether it changes anything (an action, local_api_actions'). A test holds
 # this table to the design's: reads and reduce-actions, nothing else.
@@ -194,6 +196,24 @@ class Handler(BaseHTTPRequestHandler):
         self._deadline.cancel()
         try:
             super().finish()
+        except OSError:
+            pass
+        self._linger()
+
+    def _linger(self):
+        """The answer ends here, and what the client sent that was not read is read and dropped before the socket is
+        closed. A refusal (401, 404, 405, 413) answers on the headers alone, and a body that is unread or still on its way
+        to a socket already closed resets the connection: a client that has not read the answer yet loses it. Bounded
+        both ways, so a client that neither sends nor closes holds its slot for a moment only."""
+        try:
+            self.connection.shutdown(socket.SHUT_WR)
+            self.connection.settimeout(LINGER_SECONDS)
+            left = LINGER_BYTES
+            while left > 0:
+                got = self.connection.recv(min(left, 4096))
+                if not got:
+                    break
+                left -= len(got)
         except OSError:
             pass
 
