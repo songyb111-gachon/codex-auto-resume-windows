@@ -118,6 +118,18 @@ class SuperviseTests(SupervisorCase):
         self.assertEqual(plug.asked, [("supervise", ({"phase": "start"},)),
                                       ("supervise", ({"phase": "ended", "exit_code": 0, "clean": False},))])
 
+    def test_a_supervisor_never_imports_the_engine_its_child_runs(self):
+        """Fails with the import back above the question: the launcher that only waits loads the whole command line."""
+        with patch.dict(sys.modules, {"codex_auto_resume.cli": None}):     # an import of it now raises ImportError
+            with patch.object(self.launcher, "resolve_plugin_root", return_value=ROOT), \
+                    patch.object(self.launcher, "_ended_cleanly", return_value=False), \
+                    patch.object(subprocess, "Popen", Child), \
+                    patch.object(sys, "executable", str(self.bin / "python.exe")), \
+                    patch.object(edition, "plug", return_value=self.answering()):
+                Child.codes = [0]
+                self.assertEqual(self.launcher.main([]), 0)
+        self.assertEqual(len(Child.started), 1)
+
     def test_restart_starts_it_once_more_and_defer_returns_the_last_code(self):
         plug = self.answering(Alternative.RESTART, Alternative.RESTART, DEFER)
         returned, runs, _ = self.launch([], plug, codes=[1, 7, 1])
