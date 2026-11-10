@@ -70,6 +70,16 @@ PYTHON_SHA256 = "90905e64a840557d8c1bc4f5b74db3d7ee85e3ffb217611cac1c7813acea415
 # Everything the installed product needs, and nothing else. Listed explicitly rather
 # than filtered, so a stray file in the working tree cannot reach a release.
 APP_TREES = ("src", "scripts", "skills", ".codex-plugin", ".agents", "assets")
+# Of those trees, the two that hold things for the repository as well as for the product: what ships from them is
+# named here, file by file, and a new picture or a new script stays out until someone names the program that reads it
+# (tests/test_release_size.py holds both). The assets are the icon (the tray, the installer and the payload's root) and
+# what Codex's plugin loader reads by .codex-plugin/plugin.json; every other picture is for the README on GitHub, and
+# the generators' JSON and sources are the build's. The scripts are what the installation runs or reads; the rest of
+# scripts/ is CI's and the maintainers'.
+SHIPPED_ASSETS = ("codex-auto-resume.ico", "icon.png", "logo.png", "logo-dark.png", "screenshot-panel.png",
+                  "screenshot-settings.png")
+SHIPPED_SCRIPTS = ("bootstrap.ps1", "plugin_setup.py", "release.json", "watcher_launcher.py")
+LISTED_TREES = {"assets": SHIPPED_ASSETS, "scripts": SHIPPED_SCRIPTS}
 # Data files inside those trees that the product reads at run time. The trees are copied by
 # walking them, so nothing would notice one going missing until a user's machine did: the
 # bundled Compatibility Registry baseline would silently become "missing", and every
@@ -191,7 +201,11 @@ def collect_app(stage: Path) -> int:
         source = ROOT / tree
         if not source.is_dir():
             continue
-        for entry in sorted(source.rglob("*")):
+        listed = LISTED_TREES.get(tree)
+        for name in listed or ():
+            if not (source / name).is_file():
+                raise SystemExit("missing %s/%s - it is on the list of what the release ships" % (tree, name))
+        for entry in ([source / name for name in listed] if listed else sorted(source.rglob("*"))):
             if not entry.is_file() or not _wanted(entry.relative_to(ROOT)):
                 continue
             destination = app / entry.relative_to(ROOT)
