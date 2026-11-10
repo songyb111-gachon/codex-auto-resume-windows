@@ -1357,6 +1357,7 @@ class FixedModulesTests(unittest.TestCase):
         "test_community_credit": "builds its own scratch worlds (test_community_file's)",
         "test_community_advanced_records": "reads its own copies of the fixture report",
         "test_workflow_privilege": "reads the workflows, not the data",
+        "test_rule_copies": "reads the receiver's source for its version rule, not the data",
     }
     # The files, the reader that writes them, and the one module that reads the counts in the product.
     NAMES = ("reported.json", "evidence/community", "reader.COMMUNITY", "community_report",

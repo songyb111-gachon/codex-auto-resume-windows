@@ -133,7 +133,7 @@ class CSharpReaderTests(unittest.TestCase):
         self.folder = Path(made.name) / "home"
 
     def answer(self, home) -> str:
-        return subprocess.run([str(self.exe), str(home)], capture_output=True, text=True, timeout=30,
+        return subprocess.run([str(self.exe), str(home)], capture_output=True, text=True, encoding="locale", errors="replace", timeout=30,
                               creationflags=NO_WINDOW, check=True).stdout
 
     def bundled(self, home) -> str:

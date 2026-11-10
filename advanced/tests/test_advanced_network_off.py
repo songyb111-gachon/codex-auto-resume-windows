@@ -44,7 +44,7 @@ class NothingOfTheNetworkWhileOffTests(ac.AdvancedCase):
                 + "print('\\n'.join(sorted(m for m in sys.modules if '.courier.' in m or m.endswith('.courier')"
                   " or m in %r)))\n" % (NETWORKING,))
         root = Path(__file__).resolve().parents[2]
-        found = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=120,
+        found = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120,
                                env=dict(os.environ, CODEX_AR_EDITION="advanced",
                                         PYTHONPATH="%s;%s" % (root / "src", root / "advanced" / "src")),
                                creationflags=NO_WINDOW)

@@ -359,6 +359,7 @@ namespace CodexAutoResume
 
         internal AsideLabel()
         {
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
             fade = new Transition(this, 1.0);
             timer.Tick += delegate
             {

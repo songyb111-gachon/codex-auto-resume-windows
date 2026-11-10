@@ -864,6 +864,7 @@ _FREED = {id(_STATEMENTS_V3[0]): _OPTIONS_FREE, id(_STATEMENTS_V6[0]): _WORDINGS
           id(_STATEMENTS_V2[0]): _META_NOW, id(_STATEMENTS_V2[1]): "INSERT INTO meta VALUES (1, 0, %d)" % GLOBAL_HOURLY}
 STATEMENTS = (tuple(_FREED.get(id(statement), statement) for statement in _STATEMENTS_V7) + _STATEMENTS_V019
               + _STATEMENTS_V020 + (MARKED, "PRAGMA user_version=%d" % SCHEMA_VERSION))
+del _FREED                  # its keys are addresses, which mean nothing once STATEMENTS is made
 # The file exactly as v0.6.16 made it - its `options` CHECK on names, no mark, and the reasons and keys version 7 knew:
 # what a test builds the file before from.
 STATEMENTS_V7 = (tuple(_PROMPTS_V7 if statement is _PROMPTS_V4 else _WORDINGS_V7 if statement is _STATEMENTS_V6[0]

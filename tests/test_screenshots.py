@@ -2133,7 +2133,7 @@ class IconMotionPictureTests(unittest.TestCase):
         real = self.real()
         before = self.drawing(real)
         names = ("ICON_BREATHS", "ICON_SWEEPS", "ICON_TRAVEL_BREATHS", "ICON_MOTION", "ICON_SWEEP",
-                 "_breath_level", "icon_turn", "icon_frame", "icon_frame_ms", "IconFrames")
+                 "_breath_level", "icon_turn", "icon_frame", "icon_frame_ms", "IconFrames", "_mark_cover", "_marked")
         rest, moved = PopupDrawingTests.cut(real["ui/tray/motion.py"], *names)
         moved_files = dict(real, **{
             "ui/tray/motion.py": rest + "\nfrom .frames import %s\n" % ", ".join(names),
