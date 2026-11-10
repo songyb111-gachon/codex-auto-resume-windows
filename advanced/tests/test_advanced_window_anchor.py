@@ -267,6 +267,10 @@ class AnchorCase(ac.AdvancedCase):
         for _look in range(looks):
             self.look(anchor.STEADY_GAP)
 
+    def span_over(self):
+        """A time picked's grace gone by: an occasion a passing failure held open ends now, in its one journal line."""
+        self.look(anchor.SLOT_GRACE + anchor.RETRY_EVERY)
+
     def codes(self):
         with self.rt.state._read() as connection:
             return [row[0] for row in connection.execute("SELECT code FROM journal")
@@ -364,7 +368,8 @@ class AtTimesTests(AnchorCase):
         self.assertEqual(self.codes()[-2:], ["anchor.started", "anchor.fixed"])
         self.assertEqual((self.stamped(OptionKey.ANCHOR_INPUT_TOKENS), self.stamped(OptionKey.ANCHOR_OUTPUT_TOKENS)),
                          (24138, 5))
-        self.assertEqual(surfaces.status(self.rt)[CAP], {"started_at": started, "fixed_at": fixed})
+        self.assertEqual(surfaces.status(self.rt)[CAP], {"started_at": started, "fixed_at": fixed, "retry_until": None,
+                                                         "stopped_at": None})
         self.assertEqual(len(self.lines), 1)
         self.assertIn("next reset is fixed at", self.lines[0])
         # The rest of the day, and that time again within its grace: nothing more.
@@ -455,6 +460,7 @@ class CapTests(AnchorCase):
                 self.world.calls = []
                 self.run_through()
                 self.assertEqual((self.world.calls, self.world.started), ([], []))
+                self.span_over()
                 self.assertEqual(self.codes()[-1], "anchor.skip_paused")
 
     def test_a_pause_that_core_s_guard_holds_at_the_start_starts_nothing(self):
@@ -462,6 +468,7 @@ class CapTests(AnchorCase):
         self.permitted = False
         self.run_through()
         self.assertEqual(self.world.started, [])
+        self.span_over()
         self.assertEqual(self.codes(), ["anchor.skip_paused"])
         self.assertIsNone(self.stamped(OptionKey.ANCHOR_STARTED_AT))
 
@@ -469,9 +476,11 @@ class CapTests(AnchorCase):
         self.on(anchor_at_1=anchor.encode_time(7, 0), anchor_at_2=anchor.encode_time(8, 0), anchor_after_reset=2)
         self.world.signed = False
         self.run_through()
+        self.span_over()
         self.now = float(anchor.midnight(self.now) + 8 * 3600 - 30)
         self.world.signed, self.world.broken = True, True
         self.run_through()
+        self.span_over()
         self.assertEqual(self.world.started, [])
         self.assertEqual(self.codes(), ["anchor.skip_signed_out", "anchor.skip_unreadable"])
 
@@ -491,6 +500,7 @@ class CapTests(AnchorCase):
         self.told = None
         self.run_through()
         self.assertEqual((self.world.calls, self.world.started), ([], []))
+        self.span_over()
         self.told = (Path("C:/fake/codex.exe"), self.home / "codex")
         folder = anchor.folder_of(self.paths)
         folder.mkdir(parents=True, exist_ok=True)
@@ -498,6 +508,7 @@ class CapTests(AnchorCase):
         self.now = float(anchor.midnight(self.now) + 8 * 3600 - 30)
         self.run_through()
         self.assertEqual(self.world.started, [])
+        self.span_over()
         self.assertEqual(self.codes(), ["anchor.skip_home", "anchor.skip_folder"])
 
 

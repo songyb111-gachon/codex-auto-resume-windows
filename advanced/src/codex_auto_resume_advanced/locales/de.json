@@ -172,6 +172,8 @@
   "page.analytics.used": "{window}: {percent} % verbraucht",
   "page.anchor.fixed": "Nächstes Zurücksetzen festgelegt auf {time}.",
   "page.anchor.needs_occasion": "Nichts wird gestartet, bis Sie eine Startzeit wählen oder „Direkt nach einem Zurücksetzen starten“ einschalten.",
+  "page.anchor.retrying": "Das Fenster konnte gerade nicht gestartet werden. Bis {time} wird es alle 5 Minuten erneut versucht.",
+  "page.anchor.stopped": "Die Versuche wurden beendet, ohne dass etwas gestartet wurde. Es geht wieder los, wenn das 5-Stunden-Fenster das nächste Mal läuft, oder zu einer von Ihnen gewählten Zeit.",
   "page.chat.cancel": "Abbrechen",
   "page.chat.click": "Ein Klick auf eine Meldung öffnet",
   "page.chat.click.chat": "Den Chat dieser Unterhaltung hier",

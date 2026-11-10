@@ -51,7 +51,8 @@ STAMPS = {"idle_update_check": (str(OptionKey.LAST_CHECK), str(OptionKey.OFFERED
           "window_anchor": (str(OptionKey.ANCHOR_STARTED_AT), str(OptionKey.ANCHOR_FIXED_AT),
                             str(OptionKey.ANCHOR_SEEN_RESET), str(OptionKey.ANCHOR_SLOT_DONE),
                             str(OptionKey.ANCHOR_RESET_DONE), str(OptionKey.ANCHOR_INPUT_TOKENS),
-                            str(OptionKey.ANCHOR_OUTPUT_TOKENS), str(OptionKey.ANCHOR_ACCOUNT_AT)),
+                            str(OptionKey.ANCHOR_OUTPUT_TOKENS), str(OptionKey.ANCHOR_ACCOUNT_AT),
+                            str(OptionKey.ANCHOR_RETRY_UNTIL), str(OptionKey.ANCHOR_STOPPED_AT)),
           # v0.6.20 (the pair audit, V20-2): when account_switch last saw another account signed in (engine/account.py).
           "account_switch": (str(OptionKey.ACCOUNT_CHANGED_AT),),
           # v0.6.22: when account_auto_switch last switched, and its switches today (engine/autoswitch.py).
