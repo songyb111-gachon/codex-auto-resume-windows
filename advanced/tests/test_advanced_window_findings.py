@@ -80,5 +80,52 @@ class PageTests(PageCase):
         result, _ = self.of("scenario_account_ticks")
         self.assertEqual([look["ticked"] for look in result["looks"]], [["two"], ["two"]])
 
+EDITORS = {"keep": (ROOT / "advanced" / "gui" / "AdvancedKeepOn.cs").read_text(encoding="utf-8"),
+           "editor": (ROOT / "advanced" / "gui" / "AdvancedEditor.cs").read_text(encoding="utf-8")}
+HARNESS = """
+using System;
+internal static class Sweep
+{
+    private const string PastedPrefix = "%s";
+    %s
+    private static int Main() { SweepPasted(); return 0; }
+}
+"""
+
+
+class PastedSweepTests(unittest.TestCase):
+    """E1: SweepPasted itself, compiled alone and run with a temporary folder of the test's own."""
+
+    @unittest.skipUnless(CSC.is_file(), "needs the in-box C# compiler")
+    def test_only_a_day_old_paste_is_removed(self):
+        source = EDITORS["editor"]
+        prefix = re.search(r'const string PastedPrefix = "([^"]+)";', source).group(1)
+        body = guiscan._block(source, source.index("private static void SweepPasted("))
+        with tempfile.TemporaryDirectory() as folder:
+            work = Path(folder)
+            temp = work / "temp"
+            temp.mkdir()
+            (work / "sweep.cs").write_text(HARNESS % (prefix, body), encoding="utf-8")
+            built = subprocess.run([str(CSC), "/nologo", "/out:" + str(work / "sweep.exe"), str(work / "sweep.cs")],
+                                   capture_output=True, text=True, timeout=120,
+                                   creationflags=subprocess.CREATE_NO_WINDOW)
+            self.assertEqual(built.returncode, 0, built.stdout)
+            old = time.time() - 2 * 86400
+            for name, when in ((prefix + "a.png", old), (prefix + "b.png", None), ("other-paste-c.png", old)):
+                (temp / name).write_bytes(b"x")
+                if when:
+                    os.utime(temp / name, (when, when))
+            environment = dict(os.environ, TEMP=str(temp), TMP=str(temp))
+            ran = subprocess.run([str(work / "sweep.exe")], env=environment, timeout=60,
+                                 creationflags=subprocess.CREATE_NO_WINDOW)
+            self.assertEqual(ran.returncode, 0)
+            self.assertEqual(sorted(path.name for path in temp.iterdir()), sorted([prefix + "b.png", "other-paste-c.png"]))
+
+    def test_it_runs_when_the_editor_opens(self):
+        source = EDITORS["editor"]
+        opening = guiscan._block(source, source.index("private void OpenEditor("))
+        self.assertLess(opening.index("SweepPasted();"), opening.index("BuildEditor(row)"))
+
+
 if __name__ == "__main__":
     unittest.main()
