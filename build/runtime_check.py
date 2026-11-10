@@ -86,7 +86,7 @@ def imports_in(code, module: str, package: bool) -> set:
     """Every module one compiled module's IMPORT_NAME instructions name, at any depth, as absolute names."""
     found = set()
     for each in _code_objects(code):
-        instructions = list(dis.get_instructions(each))
+        instructions = [item for item in dis.get_instructions(each) if item.opname != "EXTENDED_ARG"]
         for place, instruction in enumerate(instructions):
             if instruction.opname != "IMPORT_NAME":
                 continue
@@ -161,6 +161,10 @@ def main(argv) -> None:
     python = sorted(src.rglob("*.py")) + sorted(scripts.rglob("*.py")) + [Path(extra) for extra in asked["also"]]
     found = shipped_findings(python, removed)
     found += library_findings(library_edges(asked["library"], removed), asked["reviewed"])
+    # Every import done now: a lazy one would prove nothing of a module that is not there (PEP 810, Python 3.15).
+    eager = getattr(sys, "set_lazy_imports_filter", None)
+    if eager is not None:
+        eager(lambda _importing, _imported, _names: False)
     sys.addaudithook(_no_effects)
     sys.path[:0] = [str(src), str(scripts)]
     names = module_names(src) + module_names(scripts)
