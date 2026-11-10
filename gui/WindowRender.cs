@@ -387,6 +387,14 @@ namespace CodexAutoResume
             if (on == renderBusy) return;
             renderBusy = on;
             SetBusy(on);
+            if (on) BusyHold.Lapse();       // a picture of a call in flight is of one that has lasted, not of its first 150 ms
+            // Every button's look has just begun to glide; a picture is of where it ends.
+            var waited = Stopwatch.StartNew();
+            while (Transition.Moving > 0 && waited.ElapsedMilliseconds < RenderSettleLimit)
+            {
+                Application.DoEvents();
+                System.Threading.Thread.Sleep(5);
+            }
         }
 
         /// Why it is waiting scrolled `notches` turns of the wheel down, the last of them `glide_ms` into its glide: its

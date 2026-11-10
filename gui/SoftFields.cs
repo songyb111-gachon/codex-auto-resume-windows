@@ -710,7 +710,8 @@ namespace CodexAutoResume
             Finish();
         }
 
-        private static void Lapse()
+        /// The moment is over now, as if its timer had run out: a call still running looks it (also a still of one: RenderBusy).
+        internal static void Lapse()
         {
             Action then = lapsed;
             lapsed = null;
