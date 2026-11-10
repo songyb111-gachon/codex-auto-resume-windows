@@ -72,5 +72,32 @@ class ToastCancelAndCardCancelOpenTheStateDifferently(unittest.TestCase):
         self.assertFalse(card.call_args.kwargs["reducing"])
 
 
+class FolderSpellings(unittest.TestCase):
+    """As written tells apart what a person wrote and looks at no file; `key` and `spelled` ask which folder it really is."""
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp(prefix="spellings-")).resolve()
+        self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
+        self.real = self.root / "real"
+        self.real.mkdir()
+        self.link = self.root / "link"
+        subprocess.run(["cmd.exe", "/c", "mklink", "/J", str(self.link), str(self.real)], check=True, capture_output=True,
+                       creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+
+    def test_a_junction_is_another_spelling_and_the_same_folder(self):
+        self.assertNotEqual(homes.as_written(self.link), homes.as_written(self.real))
+        self.assertEqual(homes.key(self.link), homes.key(self.real))
+        self.assertEqual(handover.spelled(self.link / "a.exe"), handover.spelled(self.real / "a.exe"))
+
+    def test_as_written_is_one_case_and_needs_no_folder(self):
+        gone = str(self.root / "Gone" / ".." / "Elsewhere")
+        with patch.object(os.path, "realpath", side_effect=AssertionError("looked at the disk")):
+            self.assertEqual(homes.as_written(gone), homes.as_written(gone.upper()))
+
+    def test_the_suggestions_and_the_watcher_share_it(self):
+        self.assertFalse(hasattr(homefind, "_spelling"))
+        self.assertFalse(hasattr(runtime_homes, "_spelling"))
+
+
 if __name__ == "__main__":
     unittest.main()
