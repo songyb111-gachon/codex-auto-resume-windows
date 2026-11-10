@@ -213,6 +213,7 @@ Dashboard and the popup share ([BRAND.md](BRAND.md)). Top to bottom:
   conversation has waiting; turning it back on adds automation, so Codex may ask. The switch
   in the Dashboard and the popup also checks the exact interruption before acting; no MCP tool
   takes both ids, so the panel's switch names the conversation alone.
+* **Codex compatibility**, folded away: whether this Codex can be relied on, with the compatibility data in force.
 * **General**: the Interface language. Once a new one is saved, the panel speaks it at once.
 * **Automatic recovery**: pause or resume, which acts at once, a check box for each recovery
   category, and the limits, folded away.
@@ -227,13 +228,13 @@ Dashboard and the popup share ([BRAND.md](BRAND.md)). Top to bottom:
 * **Ask Codex**, folded away (from v0.6.11): a few things to ask Codex about this product, in the
   panel's language - its status, what it is waiting for, pausing it, its settings. Codex's own list
   of suggested prompts for a plugin, `interface.defaultPrompt` in `plugin.json`, holds three and has
-  no other language, so it stays in English, and its three are the English ones here.
+  no other language, so it stays in English; the panel shows four of its own, in the panel's language.
 * **Appearance**: the Theme - Use system setting, Light or Dark - and Theme in Codex, the panel's
   own - Same as Theme, Codex's theme, Light or Dark. Once either is saved the panel redraws at
   once in its own choice, or in the Theme's while its own is Same as Theme.
 * **Save**, for the settings above that wait for it. It sends the Interface language and the
   two themes only when they were changed in the panel, so a save cannot put back one changed
-  elsewhere.
+  elsewhere. Beside it, where the host allows, **Open beside the chat**.
 
 Where the host gives the page no way to call tools, it is a read-only summary and says so.
 

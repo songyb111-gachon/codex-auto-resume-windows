@@ -418,7 +418,7 @@ class ArmingTests(ResidentCase):
 
 class ShippedTests(unittest.TestCase):
     def test_each_says_the_standards_it_departs_from(self):
-        self.assertEqual(registry.LOCAL_API.departs_from, ("C1", "C2", "B14", "F8", "F6", "D1", "C12", "K5"))
+        self.assertEqual(registry.LOCAL_API.departs_from, ("C1", "C2", "B14", "F8", "F6", "D1", "C12"))
         self.assertEqual(registry.LOCAL_API_ACTIONS.departs_from, ("H3", "H8"))
 
     def test_the_mcp_tools_reach_neither_the_token_nor_a_command(self):

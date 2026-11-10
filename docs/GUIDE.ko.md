@@ -4,7 +4,7 @@ Codex Auto Resume의 모든 내용을 한곳에 모은 안내서입니다. 짧�
 
 **Windows에서 사용량 한도가 풀리면 똑같은 그 Codex 작업을 자동으로 이어 갑니다.**
 
-<sub>🇺🇸 <a href="https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/GUIDE.md">English guide</a> · 프로그램은 열여섯 개 언어로 표시됩니다: English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) · Русский · Italiano · Türkçe · Polski · Українська · Tiếng Việt · Bahasa Indonesia · العربية · עברית</sub>
+<sub>🇺🇸 <a href="https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/GUIDE.md">English guide</a> · 프로그램은 열여덟 개 언어로 표시됩니다: English · 한국어 · 日本語 · 简体中文 · 繁體中文 · Español · Deutsch · Français · Português (Brasil) · Русский · Italiano · Türkçe · Polski · Українська · Tiếng Việt · Bahasa Indonesia · العربية · עברית</sub>
 
 Codex가 작업 도중에 멈추고 오전 6시 34분에 다시 해 보라고 말합니다. 오전 6시 34분에 사용자는
 자고 있고, 아침에 보면 작업은 멈춘 그 자리 그대로입니다.
@@ -329,7 +329,7 @@ Codex의 도구도 제공하지 않습니다.
 <img src="images/notification-card-ko.png" alt="밝은 테마의 알림 카드. 청록색 상태 불빛과 사용량 한도 칩이 달린 Codex Auto Resume, 작업 이름 example-project, 'Codex 사용량 한도에 도달했습니다. 08:42에 이 작업을 자동으로 재개합니다.'라는 줄, 대화의 정확한 식별자, 재개하지 않음과 대시보드 열기 버튼" width="388">
 
 Codex 안에서 *자동 재개 설정 열어 줘*라고 하면, 무엇이 대기 중인지 보여 주고 대부분을 그 자리에서
-바꿀 수 있는 패널이 열립니다. 일반, 복구, 알림, 이어서 하기 메시지, 모양 부분이 있고, 워처가 실제로
+바꿀 수 있는 패널이 열립니다. 일반, 자동 복구, 알림, 이어서 하기 메시지, 모양 부분이 있고, 워처가 실제로
 보낼 메시지의 미리보기와 대기 중인 대화마다의 스위치가 있습니다. 패널은 모양에서 테마를 따로 고르지
 않는 한 Codex의 밝은 테마·어두운 테마를 따르고, Codex의 움직임 줄이기 설정도 따릅니다. v0.6.10부터는
 대시보드에서 고른 움직임 줄이기와 디자인도 따르는데, 패널은 그것으로 그리기만 하고

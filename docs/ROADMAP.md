@@ -1173,7 +1173,7 @@ and the final Python audit v0.6.23, the Rust core v0.6.24 and its audit v0.6.25.
 
 ---
 
-## v0.6.22 — The loopback API and remote control 🚧
+## v0.6.22 — The loopback API and remote control ✅
 
 On 2026-11-04 the owner chose a hotfix final for [#58](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/58) as v0.6.21, and this version, which had been planned as v0.6.21,
 became v0.6.22, every later release one on again. The next paragraph keeps the numbers of 2026-10-31 and 2026-11-02, as they were then.
@@ -1206,7 +1206,7 @@ may be a network share; and a goal continuation that answers a usage-limit reset
 ceiling for one conversation ([#59](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/59)). Everything planned for
 v0.6.22 is now in a pre-release, and the final follows.
 
-### v0.6.22 🚧 — The final: what came after the second pre-release
+### v0.6.22 ✅ — The final: what came after the second pre-release
 
 The final's changelog entry tells the whole line, every item of the two pre-releases in the form it has now; what reached it after
 v0.6.22-beta.2 is this. In both editions: core's reader of Codex's App Server answers no longer stops at a line over a megabyte, and an
@@ -1574,7 +1574,7 @@ A hotfix final: recoveries when the Codex app runs its engine from its own packa
 
         ↓
 
-v0.6.22  🚧 In development
+v0.6.22  ✅ Released
 The loopback API, remote control and a view of other PCs (advanced edition), and the final of the line
 
         ↓
@@ -1604,7 +1604,7 @@ Maintenance
 This document records the current direction; the four pre-releases of v0.6.19, v0.6.19-beta to v0.6.19-beta.4, are out and
 the final v0.6.19, which carries all of them and what reached dev after them, is out; what it did not build is
 v0.6.20, and the four pre-releases of v0.6.20, v0.6.20-beta to v0.6.20-beta.4, are out and the final v0.6.20, which carries all of them and what
-reached dev after them, is out. v0.6.18 is out: a recovery that worked is recovered however its turn ended,
+reached dev after them, is out. The hotfix final v0.6.21 and the final v0.6.22, after v0.6.22-beta and -beta.2, are out. v0.6.18 is out: a recovery that worked is recovered however its turn ended,
 the standard edition suggests the Codex homes this PC uses, Install another version runs in the setup window, the setup
 window's bar fills by real counts, the update's download is streamed, all seventeen translations were reviewed, a full
 audit's fixes landed in every layer, and the advanced edition gains Open Codex on a notice and a weekly update check while

@@ -20,7 +20,7 @@ anything, and none prints conversation content. The terminal commands do print l
 contain your Windows user name; redact it if you would rather not publish it.
 
 **Start Menu → Codex Auto Resume** opens the window: Overview, Pending, History, Statistics,
-Diagnostics and Settings. Overview shows the watcher state, what is pending and the version.
+Diagnostics and Settings. Overview shows the watcher state and what is pending; Diagnostics shows the version.
 **Diagnostics → Export diagnostics...** writes one JSON file to a location you choose: the versions,
 your settings, every record's state, reason and the checks it is waiting on, the content-free
 journal, and the last 300 lines of each log. Conversation and interruption ids become aliases that
@@ -72,7 +72,7 @@ conversation is `notLoaded`, and there is no verified way for this tool to wake 
 candidate App Server routes, such as `thread/resume`, are ones this tool deliberately does not
 use. The watcher waits at `waiting_for_loaded_thread` until you open that conversation
 yourself, then continues on its own. This is documented in the
-[README](../README.md#please-read-this-limitation-first) with the measurement behind it.
+[README](../README.md#please-read-this-limitation-first), and the full guide has the measurement behind it.
 
 **An unclassified failure is never retried.** If Codex failed in a way this tool cannot name, it
 deliberately does nothing. That is the core design choice, not an oversight — but if you think a
@@ -91,7 +91,7 @@ of attempts, with the reason `chain_cap`. The attempt count, the no-progress cou
 continuations-per-task cap are settings; the send cap, the 15 minutes and the five launches are not.
 An interruption stopped by any of those three counts can be given its attempts back with **Give
 attempts back** on the window's History page, or by asking Codex to run the plugin's
-`reset_recovery_budget` tool with that interruption's id from `list_pending`. It can be done three
+`reset_recovery_budget` tool with that interruption's id from `list_pending` with `include_finished`. It can be done three
 times for one task; after that the button goes quiet and the task has to be continued in Codex by
 hand. The settings panel in Codex has no control for it.
 

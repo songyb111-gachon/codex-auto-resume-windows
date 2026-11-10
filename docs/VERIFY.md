@@ -240,7 +240,7 @@ itself, before anything from the archive runs:
   that copy falls back to the `.sha256`, or compares against nothing, and says so.
 - It checks that the archive holds the files every release must contain (the interpreter,
   the MCP server, its launcher and `.mcp.json`, the settings window, the plugin manifest,
-  the setup script and the installer), that the payload root holds the settings window and
+  the setup script, the installer and `Install.cmd`), that the payload root holds the settings window and
   its icon and nothing else — the installer copies that root into the installation home —
   that the manifest inside names this product at this version, and that no entry escapes
   the folder it is extracted into.
@@ -586,7 +586,7 @@ If either one blocks you, please open an issue naming the file and the message.
   attestation, and the plugin route falls back to the `.sha256` and says so.
 - **All four proposed action upgrades are in, and two of them nothing can test.**
   Dependabot opened pull requests raising `actions/checkout` to v7.0.1,
-  `actions/setup-python` to v7.0.0, `actions/attest-build-provenance` to v4.2.2, and the
+  `actions/setup-python` to v7.0.0 (since moved on to v7.1.0), `actions/attest-build-provenance` to v4.2.2, and the
   artifact pair, which has since moved on to `upload-artifact` v7.0.2 with `download-artifact` v8.0.2. All four keep
   the full-commit pinning and its version comment, and none is a published security fix.
 

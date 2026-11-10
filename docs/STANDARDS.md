@@ -50,7 +50,7 @@ changed).
 **A1** Only the watcher sends, and inside it only Engine.dispatch hands a message on: to core's backend, or, in the advanced edition, to the channel a capability that is on puts in its place, asked for once through the plug. The control layer, bridge, MCP server, popup and card have no send path.  
 *tested*: `test_structural_invariants.py`, `test_control.py`, `test_mcp.py`, `test_tray_popup.py`, `test_notice_card.py`
 
-**A2** One channel only: the official `codex queue --thread <uuid> --message <text>`, started from one function (Backend.send in codex/transport.py) as an argument list with shell=False. The only other `queue` process is the --help probe, and the only other queue-touching call is the App Server delete.  
+**A2** One channel only: the official `codex queue --thread <uuid> --message <text>` (with `--remote unix://` where Codex's managed daemon runs), started from one function (Backend.send in codex/transport.py) as an argument list with shell=False. The only other `queue` process is the --help probe, and the only other queue-touching call is the App Server delete (amended by the owner on 2026-11-10).  
 *tested*: `test_structural_invariants.py`, `test_windows.py`
 
 **A3** Exact identity: a canonical UUID only; never --last, a title, project, folder or recency.  
@@ -120,7 +120,7 @@ changed).
 **A24** Give attempts back: only for exhausted records, at most 3 per task, never for cancelled or possibly-sent ones. It sends nothing and never switches a conversation on.  
 *tested*: `test_store.py`
 
-**A25** Retry now only moves the schedule. It sends nothing, skips no gate and opens no usage window.  
+**A25** Retry now moves the schedule and, for a recovery waiting for a usage reset, asks for one usage reading (A12). It sends nothing, skips no gate and opens no usage window (amended by the owner on 2026-11-10).  
 *tested*: `test_mcp.py`, `test_store.py`
 
 **A26** The continuation text comes only from shipped templates or the Custom message - and the words a person added for one waiting interruption, once, after it - only for a recoverable category, and is decided before the claim; it cannot change what is recovered (amended by the owner on 2026-10-10).  
@@ -158,7 +158,7 @@ changed).
 **B5** Only the newest database generation is read, and only if every column it reads exists; paths must stay inside the Codex home.  
 *tested*: `test_source.py`
 
-**B6** Rollout files only under <home>\sessions. It reads the first line (at most 256 KiB: id and origin), and for a usage limit only, up to 8 MiB before the failure, in memory, keeping only the reset time and the limit id. Only when a person presses *Rescan and reconcile*, and only for a waiting recovery whose history has not caught up, it reads that conversation's rollout file from start to end, a line at a time, up to 32 MiB (a larger file is not read): each line is parsed in memory and dropped, and only whether a message of the person's that carries no marker of its own follows the failed turn's end is kept. It also lists the file names under <home>\sessions, opening none, to follow a conversation Codex split across files (corrected to match the code on 2026-10-22).  
+**B6** Rollout files only under <home>\sessions. It reads the first line (at most 256 KiB: id and origin), and for a usage limit only, up to 8 MiB before the failure, in memory, keeping only the reset time and the limit id. Only when a person presses *Rescan and reconcile*, and only for a waiting recovery whose history has not caught up, it reads that conversation's rollout file from start to end, a line at a time, up to 32 MiB (a larger file is not read): each line is parsed in memory and dropped, and only whether a message of the person's that carries no marker of its own follows the failed turn's end is kept. It also lists the file names under <home>\sessions, opening none, to follow a conversation Codex split across files (corrected to match the code on 2026-10-22). For a conversation an agent made, it reads the file's last 32 MiB at most, a line at a time, keeping only how the failed turn was started (added for A15's amendment of 2026-10-28; amended by the owner on 2026-11-10).  
 *tested for the path; code for the byte caps*: `test_source.py`
 
 **B7** Queries that return message content are bounded by instr(col, marker)>0; other people's rows come back only as counts or booleans.  
@@ -196,8 +196,8 @@ changed).
 
 ## C. Network
 
-**C1** The runtime has no network code: no file under src/ or advanced/src/, and no scripts/*.py, imports a networking module.  
-*tested*: `test_privacy_claims.py`
+**C1** The standard edition has no network code at all: no file under src/ and no scripts/*.py imports a networking module. The advanced edition's network code does not run unless a person turns on the capability it belongs to (amended by the owner on 2026-11-10).  
+*tested*: `test_privacy_claims.py`, `test_advanced_network_off.py`
 
 **C2** Exactly one shipped file reaches the network: scripts/bootstrap.ps1. build/ downloads the pinned Python while a release is built; what ships from it - the install scripts and the setup program - reaches nothing.  
 *tested*: `test_privacy_claims.py`, `test_setup.py`
@@ -220,7 +220,7 @@ changed).
 **C8** Requests carry no product-invented identifier. GitHub sees the IP, the time and PowerShell's User-Agent, which is disclosed.  
 *tested for the constant URLs; no custom header exists in bootstrap.ps1*: `test_update_check.py`
 
-**C9** OpenAI is reached only through official Codex: a usage read when a recovery is due, reused for 30 s, identified as codex_auto_resume with the real version.  
+**C9** OpenAI is reached only through official Codex: a usage read when a recovery is due or when a person asks (Retry now, Rescan), reused for 30 s, identified as codex_auto_resume with the real version (amended by the owner on 2026-11-10).  
 *code*
 
 **C10** Every codex process it starts runs with OTEL_SDK_DISABLED, analytics off, OTel exporters none, log_user_prompt=false and chatgpt_base_url pinned.  
@@ -565,8 +565,8 @@ changed).
 **K4** Off by default, and advanced only by departing. Every capability starts off, entering the edition turns every one off, and a watched one never promotes itself; departs_from is never empty and names only standards the standard edition keeps (0.1-0.7, A-J), so a capability that keeps every standard belongs in the standard edition.  
 *tested*: `test_advanced_arming.py`, `test_advanced_registry.py`
 
-**K5** Pause and consent precede every capability. Core asks the plug only after the consent gate: a paused watcher asks it nothing, a conversation switched off or a cancelled record is never put to it, a pause that commits after the pre-send look stops a route or channel at the launch guard, and a pause stops start-with-Codex before any WMI create and a compatibility report before it asks GitHub anything. Every gate, the durable claim and the pre-send look stay core's.  
-*tested*: `test_plug_points.py`, `test_advanced_start_with_codex.py`, `test_advanced_marker_free.py`, `test_advanced_goal.py`, `test_advanced_report.py`
+**K5** Pause and consent precede every send. While paused no capability sends to Codex or starts Codex; answering what a person asks or directly tells it is not a send. Core puts a send to the plug only after the consent gate: a conversation switched off or a cancelled record is never put to it, a pause that commits after the pre-send look stops a route or channel at the launch guard, and a pause stops start-with-Codex before any WMI create and a compatibility report before it asks GitHub anything. Every gate, the durable claim and the pre-send look stay core's (amended by the owner on 2026-11-10).  
+*tested*: `test_plug_points.py`, `test_paused_residents.py`, `test_advanced_start_with_codex.py`, `test_advanced_marker_free.py`, `test_advanced_goal.py`, `test_advanced_report.py`
 
 **K6** A failed measurement is a warning the person confirms, and only policy keys refuse. A measurement a route rests on that failed or has no pass for the Codex in force, a grade of FAILED_HERE, INCOMPATIBLE or UNKNOWN, or no Codex version known is shown in the statement and confirmed by arming, never a refusal (the owner, 2026-09-26, replacing decision C7). What refuses is ForbidAdvanced, AllowedCapabilities and ForceShadow (for on) under Software\Policies\CodexAutoResume, HKLM and HKCU, read and never written, together the stricter, the strictest where unreadable.  
 *tested*: `test_advanced_arming.py`, `test_advanced_goal.py`, `test_advanced_marker_free.py`
