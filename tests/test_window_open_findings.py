@@ -66,5 +66,16 @@ class UiFaultTests(unittest.TestCase):
         self.assertNotIn("MessageBox", guiscan.type_body("UiFaults"))
 
 
+class StateLightNameTests(unittest.TestCase):
+    """H1: a screen reader reaching the Dashboard's light hears the state, the headline beside it."""
+
+    def test_the_light_is_named_by_every_write_of_the_headline(self):
+        window = guiscan.settings()
+        said = "headline.TextChanged += delegate { stateDot.AccessibleName = headline.Text; };"
+        self.assertEqual(window.count(said), 1)
+        self.assertLess(window.index(said), window.index('headline.Text = S("status.loading", "Loading...");'),
+                        "the first words must reach it too")
+
+
 if __name__ == "__main__":
     unittest.main()

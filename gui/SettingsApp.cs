@@ -1199,6 +1199,8 @@ namespace CodexAutoResume
             headline.ForeColor = Ink;
             headline.Font = Soft.RoleFont("display");
             headline.AutoEllipsis = true;
+            // The light's name for a screen reader is the headline, whichever of the header's writers set it last.
+            headline.TextChanged += delegate { stateDot.AccessibleName = headline.Text; };
             // In the window's language until the first status arrives: after a reopen it showed a moment, in English in
             // every language (the v0.6.20 final's live acceptance, A5).
             headline.Text = S("status.loading", "Loading...");
