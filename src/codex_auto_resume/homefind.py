@@ -50,10 +50,6 @@ APP_ENTRIES_MAX = 256
 FOUND_MAX = 16
 
 
-def _spelling(path) -> str:
-    return os.path.normcase(os.path.normpath(str(path)))
-
-
 def _well_formed(path) -> bool:
     """A local absolute folder path a home may have (homes.well_formed's own check)."""
     return isinstance(path, str) and homes.well_formed([{"path": path, "alias": "home"}])
@@ -66,7 +62,7 @@ def coerce_dismissed(value, default):
         return list(default)
     if not all(_well_formed(path) for path in value):
         return list(default)
-    if len({_spelling(path) for path in value}) != len(value):
+    if len({homes.as_written(path) for path in value}) != len(value):
         return list(default)
     return list(value)
 
@@ -74,7 +70,7 @@ def coerce_dismissed(value, default):
 def dismissed_with(stored, path) -> list:
     """The folders set aside once `path` is: added last, any other spelling of it dropped, the oldest let go
     past DISMISSED_MAX."""
-    kept = [entry for entry in coerce_dismissed(stored, []) if _spelling(entry) != _spelling(path)]
+    kept = [entry for entry in coerce_dismissed(stored, []) if homes.as_written(entry) != homes.as_written(path)]
     return (kept + [os.path.normpath(path)])[-DISMISSED_MAX:]
 
 
@@ -127,7 +123,7 @@ def found(environment=None, app=None, installed=None) -> list:
     for path in [environment()] + list(app()):
         if not isinstance(path, str) or not path.strip():
             continue
-        spelled = _spelling(path.strip())
+        spelled = homes.as_written(path.strip())
         if spelled in seen:
             continue
         seen.add(spelled)
@@ -157,10 +153,10 @@ def candidates(values, default_home, named, identity=None) -> list:
             except Exception:
                 continue
         ids.discard(None)
-    aside = {_spelling(path) for path in coerce_dismissed((values or {}).get(DISMISSED), [])}
+    aside = {homes.as_written(path) for path in coerce_dismissed((values or {}).get(DISMISSED), [])}
     offered = []
     for path in named:
-        if not _well_formed(path) or _spelling(path) in aside or homes.problem(path) is not None:
+        if not _well_formed(path) or homes.as_written(path) in aside or homes.problem(path) is not None:
             continue
         name = _key(path)
         if name is None or name in keys:

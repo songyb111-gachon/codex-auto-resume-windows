@@ -39,8 +39,6 @@ from .codex.protocol import Session, SessionRefused, methods_for
 from .measured import MEASURED
 from .vocabulary import AutoResult, Measurement, NoteCode, ObservedWord, PlanWord, SpendOutcome, Verdict
 
-MEASUREMENTS = tuple(Measurement)
-
 
 def _iso(now) -> str:
     """The moment as the record keeps it: an ISO-8601 minute in UTC, no finer, so nothing about

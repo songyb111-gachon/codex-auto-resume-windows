@@ -35,6 +35,14 @@ PROBLEMS = {UNC: "a network path (\\\\server\\share) is not watched",
             NO_STATE: "the folder holds no Codex state (state_<N>.sqlite)"}
 
 
+def as_written(path) -> str:
+    """A home's path as it is written, absolute and in one case: how Settings' entries and the suggested folders are told
+    apart. It looks at no file, so it is the same whether or not the folder can be reached now, and a junction or a short
+    8.3 name stays a spelling of its own. Which folder a path really is, is `key`'s question; which program a window
+    runs is win/handover.spelled's."""
+    return os.path.normcase(os.path.abspath(str(path)))
+
+
 def key(path) -> str:
     """The key a Codex home is known by: SHA-256 of its resolved, case-folded path, as lowercase hex - the
     name its lock file has (win/homelock.py), and a record's `home_key` for any home but the default."""

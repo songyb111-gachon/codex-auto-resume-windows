@@ -84,6 +84,9 @@ def cmd_activate(args) -> int:
     # The button names one interruption, so it stops that task and whatever continues
     # it - not every later interruption in the conversation. Only while an older watcher
     # still owns the state does it fall back to that watcher's thread-wide cancel.
+    # Not Control.cancel_interruption, which a card's Cancel uses: Windows starts this process for the button whatever
+    # runs, even during a pick, when no watcher is there and the state is an older one (_open_state's legacy="always");
+    # a card lives in a current watcher, and Control refuses such a state (tests/test_deliberate_differences.py).
     # v0.6.18: tried again while the watcher holds the state, for as long as a card's Cancel is (control/actions.py
     # CANCEL_RETRY_SECONDS) - a busy store used to end this windowless process in an error nobody saw.
     from ..control.actions import CANCEL_RETRY_SECONDS

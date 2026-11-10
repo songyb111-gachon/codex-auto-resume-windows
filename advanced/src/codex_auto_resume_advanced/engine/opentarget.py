@@ -111,12 +111,8 @@ def handler_registered() -> bool:
 def app_running():
     """Whether the Codex app runs now - True, False, or None where the process list cannot be read (core's
     codex/pairing.py, the one PowerShell look core makes, with no window)."""
-    from codex_auto_resume.codex.errors import AdapterError
-    from codex_auto_resume.codex.pairing import app_running as running, inventory
-    try:
-        return running(inventory())
-    except (AdapterError, OSError):
-        return None
+    from codex_auto_resume.codex.pairing import app_running_now
+    return app_running_now()
 
 
 def open_link(thread_id) -> bool:

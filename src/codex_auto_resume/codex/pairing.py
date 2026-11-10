@@ -56,9 +56,17 @@ _OFFICIAL_LOCK = threading.Lock()
 
 
 def at_official_location(path) -> bool:
-    """Whether `path` is `%LOCALAPPDATA%\\OpenAI\\Codex\\bin\\<hex>\\codex.exe`, the official, content-addressed folder."""
-    local = Path(os.environ.get("LOCALAPPDATA", "")) / "OpenAI/Codex/bin"
-    return bool(re.fullmatch(re.escape(str(local)) + r"\\[0-9a-f]+\\codex\.exe", str(path), re.I))
+    """Whether `path` is `%LOCALAPPDATA%\\OpenAI\\Codex\\bin\\<hex>\\codex.exe`, the official, content-addressed folder.
+    Both are resolved first, as config.candidate_codex_exes resolves what it finds: a profile reached through a junction
+    or a short 8.3 name is still the folder, and a <hex> that is a junction to somewhere else is not."""
+    profile = os.environ.get("LOCALAPPDATA")
+    if not profile:
+        return False
+    try:
+        local, found = (Path(profile) / "OpenAI/Codex/bin").resolve(), Path(str(path)).resolve()
+    except (OSError, ValueError, RuntimeError):
+        return False
+    return bool(re.fullmatch(re.escape(str(local)) + r"\\[0-9a-f]+\\codex\.exe", str(found), re.I))
 
 
 def official_engine(path) -> tuple:
@@ -217,6 +225,15 @@ def app_running(rows) -> bool:
     root = str(_windows_apps()).lower() + "\\openai.codex_"
     return any(isinstance(row, dict) and isinstance(row.get("path"), str) and row["path"].lower().startswith(root)
                for row in rows)
+
+
+def app_running_now():
+    """Whether any process of the Codex app's package runs now: True, False, or None where the process list could not be
+    read. Each caller says what unknown means for it (advanced codex/swap: running; engine/opentarget: not known to be)."""
+    try:
+        return app_running(inventory())
+    except Exception:
+        return None
 
 
 # The app servers this process started and still holds (v0.6.16-beta.4): each one's pid and creation time, read from
