@@ -158,9 +158,9 @@ class SliceTests(unittest.TestCase):
         # v0.6.18: ChildTree, a one-shot bridge child ended with what it started, the watcher spared; 76 with SoftMenuDrop
         # and SoftMenuLayer, a submenu and the card every right-click menu is drawn as (gui/SoftMenu.cs). 77 since v0.6.20:
         # Mirror, the window mirrored for a language written right to left (gui/SoftMirror.cs). 78 with DesktopShortcut,
-        # whether this installation's shortcut is on the Desktop, for the setup window's box. 90 since v0.6.23: UiFaults, an exception
-        # in a UI callback, and OwnProcess, this process's id asked of Windows once; and the ten types of the motion and surface work.
-        self.assertEqual(len(set(declared)), 90, "the window's types")
+        # whether this installation's shortcut is on the Desktop, for the setup window's box. 92 since v0.6.23: UiFaults, an exception
+        # in a UI callback, and OwnProcess, this process's id asked of Windows once; and the twelve types of the motion and surface work.
+        self.assertEqual(len(set(declared)), 92, "the window's types")
         # v0.6.11: DashboardTools.cs, the Dashboard's own tools, an eleventh part in a twelfth source; and
         # SettingsOwn.cs, Custom... beside a drop-down's choices, a twelfth part in a thirteenth. v0.6.12:
         # DashboardVersions.cs, Install another version..., a thirteenth part in a fourteenth; and SettingsPower.cs,
