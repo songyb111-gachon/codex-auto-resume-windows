@@ -103,8 +103,8 @@ earlier version leaves it be.
   30 MB, is not updated for you, and an update or a repair keeps the choice while its line is still allowed. Only an installed copy offers
   it. It sends nothing to Codex, and its statement names the standards it departs from.
 - **A pause is one rule for every capability.** The standards' rule that a pause stops every send and every start of Codex now holds for
-  all of them and none departs from it: the loopback API and the Telegram control, which send nothing to Codex and keep answering so a
-  pause can be seen or lifted, answer a person and send nothing, and that is not a departure. What they do while paused does not change; their
+  all of them and none departs from it: while recovery is paused, the loopback API and the Telegram control keep answering, so a pause
+  can be seen or lifted, and send nothing to Codex; answering a person is not a send, so that is not a departure. What they do while paused does not change; their
   statements no longer name it as one (reworded with no new revision, so nothing turns off).
 - **Higher limits for what you write.** Fifty scheduled messages may wait, twenty to a conversation (it was twenty and five), and fifty
   messages for a reset (it was ten). A series runs as many times as you picked, up to 30, however long that takes - a weekly series
