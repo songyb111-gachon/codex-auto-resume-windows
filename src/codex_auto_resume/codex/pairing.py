@@ -56,9 +56,17 @@ _OFFICIAL_LOCK = threading.Lock()
 
 
 def at_official_location(path) -> bool:
-    """Whether `path` is `%LOCALAPPDATA%\\OpenAI\\Codex\\bin\\<hex>\\codex.exe`, the official, content-addressed folder."""
-    local = Path(os.environ.get("LOCALAPPDATA", "")) / "OpenAI/Codex/bin"
-    return bool(re.fullmatch(re.escape(str(local)) + r"\\[0-9a-f]+\\codex\.exe", str(path), re.I))
+    """Whether `path` is `%LOCALAPPDATA%\\OpenAI\\Codex\\bin\\<hex>\\codex.exe`, the official, content-addressed folder.
+    Both are resolved first, as config.candidate_codex_exes resolves what it finds: a profile reached through a junction
+    or a short 8.3 name is still the folder, and a <hex> that is a junction to somewhere else is not."""
+    profile = os.environ.get("LOCALAPPDATA")
+    if not profile:
+        return False
+    try:
+        local, found = (Path(profile) / "OpenAI/Codex/bin").resolve(), Path(str(path)).resolve()
+    except (OSError, ValueError, RuntimeError):
+        return False
+    return bool(re.fullmatch(re.escape(str(local)) + r"\\[0-9a-f]+\\codex\.exe", str(found), re.I))
 
 
 def official_engine(path) -> tuple:
