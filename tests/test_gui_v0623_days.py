@@ -15,6 +15,7 @@ from unittest import mock
 
 import guiscan
 from codex_auto_resume import brand
+from codex_auto_resume.brand import days as brand_days
 from codex_auto_resume.ui import popup as tray_popup
 from codex_auto_resume.ui.popup import window as popup_window
 from codex_auto_resume.ui.tray import animation
@@ -83,6 +84,9 @@ class SceneTests(unittest.TestCase):
 
     def test_the_seeds_are_fixed_numbers(self):
         self.assertNotIn("random", (ROOT / "src/codex_auto_resume/brand/days.py").read_text(encoding="utf-8"))
+        for build in (brand_days._birthday, brand_days._new_year, brand_days._christmas, brand_days._chuseok):
+            self.assertEqual(build()(0.0), build()(0.0), "made twice, it is one scene")
+        self.assertAlmostEqual(brand_days._Seeded(906)(0.0, 1.0), ((906 * 1103515245 + 12345) & 0x7FFFFFFF) / 0x7FFFFFFF)
 
     def test_each_scene_holds_the_mocks_parts(self):
         def colours(look):
@@ -315,6 +319,7 @@ class PopupSceneTests(unittest.TestCase):
 
     def test_the_words_on_it_are_drawn_again_with_each_frame(self):
         vm = self.vm("birthday")
+        vm["title"] = "A title long enough to run well into the scene behind it"
         plan = self.renderer.layout(vm, 1.0, "en")
         whole = self.renderer.draw(vm, plan, frame=tray_popup.halo("monitoring", 0.0), scene_ms=2000.0).pixels()
         self.renderer.draw(vm, plan, frame=tray_popup.halo("monitoring", 0.0), scene_ms=0.0)
