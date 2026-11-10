@@ -24,7 +24,8 @@ if str(ROOT / "src") not in sys.path:
     sys.path.insert(0, str(ROOT / "src"))
 
 from codex_auto_resume import chosen_runtime as chosen  # noqa: E402
-from codex_auto_resume.domain.plug import DEFER, NULL  # noqa: E402
+from codex_auto_resume.domain.plug import DEFER, NULL, Plug, guard  # noqa: E402
+from codex_auto_resume.domain.plugwords import Alternative  # noqa: E402
 
 CSC = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Microsoft.NET" / "Framework64" / "v4.0.30319" / "csc.exe"
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
@@ -250,6 +251,16 @@ class LauncherTests(unittest.TestCase):
     def test_it_waits_as_long_as_setup_does(self):
         spec = (ROOT / "scripts" / "plugin_setup.py").read_text(encoding="utf-8")
         self.assertIn("WATCHER_WAIT = %s" % self.launcher.WATCHER_WAIT, spec)
+
+    def test_the_answer_passes_the_guard_every_plug_is_asked_through(self):
+        """Fails with the word out of the point's closed set: the guard turns it into DEFER, and no choice is ever taken up."""
+        class Answers(Plug):
+            __slots__ = ()
+
+            def supervise(self, facts):
+                return "chosen"
+        self.assertEqual(guard(Answers()).supervise({"phase": self.launcher.PHASE_RUNTIME}), self.launcher.CHOSEN)
+        self.assertEqual(Alternative.CHOSEN_RUNTIME, self.launcher.CHOSEN)
 
     def test_the_standard_edition_answers_nothing_and_nothing_is_started(self):
         """NULL defers: fails if the launcher took a record on its own."""

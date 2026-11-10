@@ -269,20 +269,23 @@ def _on_chosen(here: Path, home: Path):
 
 
 def _again_under_bundled(here: Path, home: Path):
-    """Start this launcher again under the bundled runtime: 0, this process has nothing more to do; None where it could
-    not be, and the watcher runs here. Detached, as `_relaunch_once` starts it."""
+    """Start this launcher again under the bundled runtime: 0 once the watcher is up or the wait is over, so whoever started
+    this one and watches it (control.await_watcher) sees a launcher that lived to bring the watcher up; None where it could
+    not be started, and the watcher runs here. Detached, as `_relaunch_once` starts it."""
     import subprocess
     interpreter = home / "runtime" / "pythonw.exe"
     if not interpreter.is_file():
         return None
     flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
     try:
-        subprocess.Popen([str(interpreter), *NO_REMOTE_DEBUG, str(Path(__file__).resolve()), "run"], close_fds=True,
-                         creationflags=flags, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        process = subprocess.Popen([str(interpreter), *NO_REMOTE_DEBUG, str(Path(__file__).resolve()), "run"], close_fds=True,
+                                   creationflags=flags, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                   stderr=subprocess.DEVNULL)
     except OSError as exc:
         _complain(here, "could not start again under the bundled runtime: %s" % exc)
         return None
     _note(here, "started again under the bundled runtime")
+    _came_up(home, process)
     return 0
 
 

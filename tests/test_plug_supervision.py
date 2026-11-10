@@ -110,7 +110,7 @@ class AskedTests(LauncherCase):
         """Taken by the guard as the point's own (not DEFER). At the start only SUPERVISE leads anywhere - to the
         supervisor (v0.6.19), which here starts no child, so the watcher runs here once, its code returned, and nothing
         more is asked; anything else, RESTART at the start included, runs it here as before."""
-        self.assertEqual(plug.ALTERNATIVES[Point.SUPERVISION], frozenset({Alternative.SUPERVISE, Alternative.RESTART}))
+        self.assertEqual(plug.ALTERNATIVES[Point.SUPERVISION], frozenset({Alternative.SUPERVISE, Alternative.RESTART, Alternative.CHOSEN_RUNTIME}))
         for answer in (Alternative.SUPERVISE, Alternative.RESTART, "restart", Alternative.HOLD, RuntimeError("no")):
             with self.subTest(answer=answer):
                 asked = Asked(supervise=answer)
