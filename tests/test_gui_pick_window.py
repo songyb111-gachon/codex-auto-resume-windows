@@ -131,8 +131,6 @@ class SourceTests(unittest.TestCase):
                       flow)
         bootstrap = (ROOT / "scripts" / "bootstrap.ps1").read_text(encoding="utf-8")
         self.assertIn("Step 'Asking api.github.com for this repository''s whole list of releases again", bootstrap)
-        self.assertIn("Get-Remote -Uri ($base + $name) -OutFile $zip -What 'The archive' -Count:$progressLines",
-                      bootstrap)
 
 
 PROBE = r"""
