@@ -25,7 +25,8 @@ namespace CodexAutoResume
     /// and comes at the moment of the press: a shadow has no way to fade (Elevation).
     internal sealed class SoftButton : Button, ISoftLifted, IBusyFace
     {
-        private bool primary, danger, hover, pressed, held;
+        private bool primary, danger, hover, pressed;
+        private bool held;
         private readonly LiftTracker tracker;
         private readonly SoftSurfaceGlide glide;
 
@@ -550,6 +551,108 @@ namespace CodexAutoResume
                 kept[key] = found;
                 return found;
             }
+        }
+    }
+
+    /// A link in the window's own terms (v0.6.23, the design audit's D4): accent words on the card, underlined under the pointer and
+    /// from the keyboard, darker held down, gliding between those as a button does, and the soft focus ring. Enter and Space press it;
+    /// a screen reader is told it is a link and can press it.
+    internal sealed class SoftLink : Control
+    {
+        private bool hover, pressed;
+        private readonly SoftSurfaceGlide glide;
+
+        internal SoftLink()
+        {
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
+                     ControlStyles.ResizeRedraw | ControlStyles.Selectable, true);
+            TabStop = true;
+            Cursor = Cursors.Hand;
+            AccessibleRole = AccessibleRole.Link;
+            glide = new SoftSurfaceGlide(this, Wanted);
+        }
+
+        private const TextFormatFlags Line = TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.SingleLine |
+                                             TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding;
+
+        private SurfaceLook Wanted()
+        {
+            Color words = pressed ? Palette.AccentPressed : Palette.Accent;
+            bool marked = hover || pressed || (Focused && ShowFocusCues);
+            return new SurfaceLook(Color.Empty, Color.Empty, words, marked ? words : SurfaceLook.None(words));
+        }
+
+        private void Press(bool down)
+        {
+            if (pressed == down) return;
+            pressed = down;
+            glide.Changed(Motion.Press);
+        }
+
+        protected override void OnMouseEnter(EventArgs e) { hover = true; glide.Changed(); base.OnMouseEnter(e); }
+        protected override void OnMouseLeave(EventArgs e) { hover = false; Press(false); glide.Changed(); base.OnMouseLeave(e); }
+        protected override void OnMouseDown(MouseEventArgs e) { if (e.Button == MouseButtons.Left) { Focus(); Press(true); } base.OnMouseDown(e); }
+        protected override void OnMouseUp(MouseEventArgs e) { Press(false); base.OnMouseUp(e); }
+        protected override void OnGotFocus(EventArgs e) { glide.Changed(); Invalidate(); base.OnGotFocus(e); }
+        protected override void OnLostFocus(EventArgs e) { Press(false); glide.Changed(); Invalidate(); base.OnLostFocus(e); }
+        protected override void OnTextChanged(EventArgs e) { Invalidate(); base.OnTextChanged(e); }
+        protected override bool IsInputKey(Keys keyData) { return keyData == Keys.Enter || keyData == Keys.Space || base.IsInputKey(keyData); }
+
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Space) Press(true);
+            base.OnKeyDown(e);
+        }
+
+        protected override void OnKeyUp(KeyEventArgs e)
+        {
+            bool key = (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Space) && pressed;
+            Press(false);
+            base.OnKeyUp(e);
+            if (key) OnClick(EventArgs.Empty);
+        }
+
+        public override Size GetPreferredSize(Size proposedSize)
+        {
+            return Soft.Measure(Text ?? "", Font, int.MaxValue, Line) + new Size(Soft.Px(6), Soft.Px(6));
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            Graphics g = e.Graphics;
+            Ground.PaintArea(this, g, ClientRectangle);
+            bool mirrored = Mirror.Of(this);
+            SurfaceLook look = glide.Now;
+            int inset = Soft.Px(3);
+            var line = new Rectangle(inset, 0, Math.Max(0, Width - 2 * inset), Height);
+            TextRenderer.DrawText(g, Text, Font, line, look.Ink, Mirror.Words(mirrored, Line));
+            Size words = Soft.Measure(Text ?? "", Font, int.MaxValue, Line);
+            int wide = Math.Min(words.Width, line.Width);
+            var box = new Rectangle(mirrored ? line.Right - wide : line.X, (Height - words.Height) / 2, wide, words.Height);
+            if (look.Mark.A > 0) g.FillRectangle(Soft.Fill(look.Mark), box.X, box.Bottom - Soft.Hairline, box.Width, Soft.Hairline);
+            if (Focused && ShowFocusCues) Soft.FocusRing(g, Rectangle.Inflate(box, 1, 1), Soft.PxF(Palette.RadiusSmall) / 2f);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) glide.Dispose();
+            base.Dispose(disposing);
+        }
+
+        protected override AccessibleObject CreateAccessibilityInstance()
+        {
+            return new LinkAccessible(this);
+        }
+
+        private sealed class LinkAccessible : Control.ControlAccessibleObject
+        {
+            private readonly SoftLink link;
+
+            internal LinkAccessible(SoftLink owner) : base(owner) { link = owner; }
+
+            public override string DefaultAction { get { return "Press"; } }
+
+            public override void DoDefaultAction() { link.OnClick(EventArgs.Empty); }
         }
     }
 

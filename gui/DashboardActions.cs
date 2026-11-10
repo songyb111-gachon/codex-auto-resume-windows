@@ -84,6 +84,7 @@ namespace CodexAutoResume
                 padding.BackColor = Canvas;
                 padding.Dock = DockStyle.Fill;
                 padding.Padding = Pad(16, 16, 16, 0);
+                Control scrolled = null;
                 if (scrolls)
                 {
                     var well = new SoftTextArea();
@@ -98,7 +99,7 @@ namespace CodexAutoResume
                     // ring while the button that closes it has none.
                     dialog.Shown += delegate { well.Box.Select(0, 0); };
                     well.Box.AccessibleName = "Codex Auto Resume";
-                    padding.Controls.Add(well);
+                    scrolled = DialogBodyCard(well);
                 }
                 else
                 {
@@ -111,7 +112,7 @@ namespace CodexAutoResume
                     words.Dock = DockStyle.Fill;
                     padding.Controls.Add(words);
                 }
-                dialog.Controls.Add(padding);
+                dialog.Controls.Add(scrolled ?? padding);
                 // Docked under the words, above the buttons (added after it, so docked first), inset as they are.
                 int chosen = 0;
                 if (choice != null)
@@ -135,7 +136,7 @@ namespace CodexAutoResume
                 // of its padding, so what stands between the rightmost button and the edge is the two
                 // added together. All of it is put on the right, where it is the gap, and the row is
                 // then inset by the same 16 as the sentence above it.
-                buttons.Padding = Pad(0, 12, 16, 16);
+                buttons.Padding = Pad(0, scrolls ? 0 : 12, 16, 16);
                 Button accept, dismiss;
                 bool careful = affirm != null && away != null;
                 if (affirm == null)
@@ -168,6 +169,8 @@ namespace CodexAutoResume
                 dialog.ActiveControl = first;
 
                 dialog.ClientSize = new Size(width + 2 * pad, room + pad + chosen + buttons.PreferredSize.Height);
+                // The button row's 12 px have gone from its own height already, so they are not taken off again.
+                if (scrolls) dialog.ClientSize += DialogCardGrowth() + new Size(0, Px(12));
                 dialog.ShowDialog(this);
                 return said;
             }

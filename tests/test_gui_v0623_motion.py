@@ -601,6 +601,50 @@ $null = [Quiet]::ShowWindow($h, 0)
 """
 
 
+PROBE_DESIGN = r"""
+# ------------------------------------------------------------------ the tooltip
+$label = New-Object Windows.Forms.Label; $label.Text = 'Words'; Place $label 20 20 200 24; Pump 20
+$tip = Make 'SoftTip'
+$null = Call $tip 'Open' @($label, 'A line too long for its place', (New-Object Drawing.Size 180, 20))
+$card = P $tip 'Card'
+$body = P $card 'Body'
+$image = P $card 'Image'
+$out.tip = @{ appearing = [bool](P $card 'Appearing'); alpha = [int](P $card 'Alpha'); outer = [int]$image.GetPixel(0, 0).A
+              corner = [int]$image.GetPixel($body.X, $body.Y).A; ground = (Argb $image.GetPixel($body.X + 20, $body.Bottom - 6))
+              edge = (Argb $image.GetPixel($body.X + 30, $body.Y)); shadow = [int]$image.GetPixel($body.X + 30, $body.Bottom + 4).A }
+Pump 400
+$out.tip.after = @([bool](P $card 'Appearing'), [int](P $card 'Alpha'))
+$null = Call $label 'OnMouseLeave' @($None)
+$out.tip.gone = ((P $tip 'Card') -eq $null)
+Reduce $true
+$null = Call $tip 'Open' @($label, 'Words', (New-Object Drawing.Size 80, 20))
+$out.tip.reduced = @([bool](P (P $tip 'Card') 'Appearing'), [int](P (P $tip 'Card') 'Alpha'))
+Reduce $false
+$tip.Dispose()
+
+# ------------------------------------------------------------------ the link
+$link = Make 'SoftLink'; $link.Text = 'Read the guide'; Place $link 20 60 200 24; Pump 30
+$lg = F $link 'glide'
+$null = P $lg 'Now'
+$script:clicked = 0
+$link.add_Click({ try { $script:clicked++ } catch { exit 3 } })
+function Mark { return ((Argb (F (P $lg 'Now') 'Mark')) -shr 24) -band 255 }
+$out.link = @{ rest = (Mark); role = [string]$link.AccessibleRole; stop = [bool]$link.TabStop }
+Enter $link
+$out.link.running = [bool](P $lg 'Running')
+Pump 400
+$out.link.hover = (Mark)
+Leave $link
+Pump 400
+$out.link.left = (Mark)
+$null = Call $link 'OnKeyDown' @((Key ([Windows.Forms.Keys]::Enter)))
+$null = Call $link 'OnKeyUp' @((Key ([Windows.Forms.Keys]::Enter)))
+$out.link.enter = [int]$script:clicked
+$link.AccessibilityObject.DoDefaultAction()
+$out.link.reader = [int]$script:clicked
+"""
+
+
 class Probed(unittest.TestCase):
     """The compiled window, one probe, one answer."""
 
@@ -871,6 +915,86 @@ class ControlTests(Probed):
 
     def test_with_motion_reduced_a_list_is_simply_gone(self):
         self.assertEqual(self.answer["comboReduced"], [False, False, 0.0])
+
+
+def plain_dialog_hosts(source: str) -> list[str]:
+    """The methods in `source` that build a dialog with a field or a text well and put it on no card."""
+    found = []
+    for match in re.finditer(r"\n        (?:private|internal|public)[^\n;={]*\([^\n;]*\)\n        \{\n(.*?)\n        \}\n", source, re.S):
+        body = match.group(1)
+        if "new Form()" not in body:
+            continue
+        if not re.search(r"new (?:SoftTextArea|SoftNumber|SoftQuote|SoftCombo)\(|EditorCombo\(", body):
+            continue
+        if not re.search(r"DialogBodyCard\(|DialogListCard\(|MakeCard\(", body):
+            found.append(match.group(0).strip().splitlines()[0])
+    return found
+
+
+class DesignSourceTests(unittest.TestCase):
+    def test_every_dialog_with_a_field_or_a_well_puts_it_on_a_card(self):
+        names = list(guiscan.window_sources()) + [
+            line.strip() for line in (ROOT / "advanced/gui/window.sources").read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.startswith(("#", "["))]
+        hosts = []
+        for name in names:
+            hosts += [name + ": " + host for host in plain_dialog_hosts((ROOT / name).read_text(encoding="utf-8").replace("\r\n", "\n"))]
+        self.assertEqual(hosts, [], "a dialog's fields go through DialogBodyCard")
+
+    def test_the_finder_finds_a_new_plain_host(self):
+        plain = ("\n        private Form BuildNew()\n        {\n            var dialog = new Form();\n"
+                 "            var area = new SoftTextArea();\n            dialog.Controls.Add(area);\n        }\n")
+        self.assertEqual(len(plain_dialog_hosts(plain)), 1)
+        self.assertEqual(plain_dialog_hosts(plain.replace("dialog.Controls.Add(area)", "dialog.Controls.Add(DialogBodyCard(area))")), [])
+
+    def test_there_is_one_body_card_and_it_is_the_cards_own(self):
+        helper = guiscan.member_body("SettingsForm", "DialogBodyCard")
+        self.assertIn("new SoftCard()", helper)
+        self.assertIn("ground.Padding = CardRoom();", helper)
+        for name, body in (("BuildConversationMessage", "DialogBodyCard(body)"), ("BuildOnceWords", "DialogBodyCard(body)")):
+            self.assertIn(body, guiscan.member_body("SettingsForm", name))
+
+    def test_nothing_in_the_installer_is_windows_own_link(self):
+        self.assertNotIn("LinkLabel", guiscan.read("gui/InstallerWindow.cs"))
+        self.assertEqual(guiscan.read("gui/InstallerWindow.cs").count("new SoftLink()"), 2)
+
+    def test_a_thumbnail_is_a_well(self):
+        editor = (ROOT / "advanced/gui/AdvancedEditor.cs").read_text(encoding="utf-8")
+        self.assertNotIn("new PictureBox", editor)
+        self.assertIn("Soft.InsetWell(g, ClientRectangle, radius, false);", editor)
+        self.assertIn("g.SetClip(path, CombineMode.Intersect);", editor)
+
+
+class DesignTests(Probed):
+    sections = (PROBE_HELPERS, PROBE_DESIGN)
+
+    def test_a_tooltip_is_a_card_of_the_cards_material(self):
+        tip, c = self.answer["tip"], self.answer["colours"]
+        self.assertTrue(tip["appearing"])
+        self.assertLess(tip["alpha"], 255)
+        self.assertEqual(tip["after"], [False, 255])
+        self.assertEqual(tip["outer"], 0, "nothing past its shadow")
+        self.assertLess(tip["corner"], 128, "its corners are round")
+        self.assertEqual(tip["ground"], c["card"])
+        self.assertEqual(tip["edge"], c["line"])
+        self.assertGreater(tip["shadow"], 0, "and it has the lift of a card")
+
+    def test_a_tooltip_closes_with_the_pointer_and_does_not_fade_when_motion_is_reduced(self):
+        self.assertTrue(self.answer["tip"]["gone"])
+        self.assertEqual(self.answer["tip"]["reduced"], [False, 255])
+
+    def test_a_link_is_a_link_and_underlines_as_the_pointer_comes(self):
+        link = self.answer["link"]
+        self.assertEqual(link["role"], "Link")
+        self.assertTrue(link["stop"])
+        self.assertEqual(link["rest"], 0)
+        self.assertTrue(link["running"])
+        self.assertEqual(link["hover"], 255)
+        self.assertEqual(link["left"], 0)
+
+    def test_enter_and_a_screen_reader_press_a_link(self):
+        self.assertEqual(self.answer["link"]["enter"], 1)
+        self.assertEqual(self.answer["link"]["reader"], 2)
 
 
 class SurfaceMotionTests(Probed):

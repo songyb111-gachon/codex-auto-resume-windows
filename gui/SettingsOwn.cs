@@ -418,11 +418,13 @@ namespace CodexAutoResume
             body.Controls.Add(editor);
             ownEditor = editor;
             ownHint = hint;
-            dialog.Controls.Add(body);
+            Control bodyCard = DialogBodyCard(body);
+            dialog.Controls.Add(bodyCard);
+            int across = width + DialogCardGrowth().Width;
 
             FlowLayoutPanel buttons = ButtonRow();
             buttons.FlowDirection = FlowDirection.RightToLeft;
-            buttons.Padding = Pad(0, 12, 16, 16);
+            buttons.Padding = Pad(0, 0, 16, 16);
             Button use = null;
             use = MakeButton(S("own.use", "Use this value"), true, delegate
             {
@@ -459,8 +461,8 @@ namespace CodexAutoResume
             // start, and the line it held was empty above the buttons (the owner, 2026-10-25).
             ownFit = delegate
             {
-                int tall = body.GetPreferredSize(new Size(width, 0)).Height;
-                dialog.ClientSize = new Size(width, tall + buttons.GetPreferredSize(new Size(width, 0)).Height);
+                int tall = bodyCard.GetPreferredSize(new Size(across, 0)).Height;
+                dialog.ClientSize = new Size(across, tall + buttons.GetPreferredSize(new Size(across, 0)).Height);
             };
             ownFit();
             return dialog;

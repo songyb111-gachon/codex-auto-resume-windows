@@ -570,7 +570,8 @@ namespace CodexAutoResume
 
     /// v0.6.11: the whole of a line that ends in an ellipsis where it does not fit (LineLabel), while the pointer rests
     /// on it - in the window's own colours and font rather than Windows' own tooltip, which knows neither the theme nor
-    /// the design: its words in ink on the raised ground, a hairline round it, wrapped at a readable width.
+    /// the design: its words in ink, wrapped at a readable width. v0.6.23: on a card of the cards' own material, as every other
+    /// overlay is (SoftTipWindow). Windows' tooltip still says when; in High Contrast it is still what is drawn.
     internal sealed class SoftTip : ToolTip
     {
         // How far the words stand in from the tip's edge, and the widest a line of them runs, at 96 DPI.
@@ -578,14 +579,29 @@ namespace CodexAutoResume
         private const TextFormatFlags Flags = TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix | TextFormatFlags.Left |
                                               TextFormatFlags.Top;
 
+        private SoftTipWindow card;
+        private Control over;
+        private readonly Timer popDown = new Timer();
+        private readonly EventHandler left;
+        private readonly MouseEventHandler pressed;
+
+        /// The card showing now, or null (for the tests).
+        internal SoftTipWindow Card { get { return card; } }
+
         internal SoftTip()
         {
             OwnerDraw = true;
+            left = delegate { Close(); };
+            pressed = delegate { Close(); };
+            popDown.Tick += delegate { Close(); };
             Popup += delegate(object sender, PopupEventArgs e)
             {
                 string text = GetToolTip(e.AssociatedControl) ?? "";
                 Size words = TextRenderer.MeasureText(text, Soft.BaseFont, new Size(Soft.Px(Widest), int.MaxValue), Flags);
                 e.ToolTipSize = new Size(words.Width + 2 * Soft.Px(Inset), words.Height + 2 * Soft.Px(Inset));
+                if (Palette.Contrast || e.AssociatedControl == null) return;
+                e.Cancel = true;
+                Open(e.AssociatedControl, text, words);
             };
             Draw += delegate(object sender, DrawToolTipEventArgs e)
             {
@@ -596,6 +612,46 @@ namespace CodexAutoResume
                                       Rectangle.Inflate(e.Bounds, -Soft.Px(Inset), -Soft.Px(Inset)), Palette.Ink,
                                       Mirror.Words(Mirror.Of(e.AssociatedControl), Flags));
             };
+        }
+
+        /// The card for `control`, under the pointer, until the pointer leaves it or presses, or Windows' own time is up.
+        internal void Open(Control control, string text, Size words)
+        {
+            Close();
+            over = control;
+            over.MouseLeave += left;
+            over.MouseDown += pressed;
+            over.Disposed += left;
+            bool mirrored = Mirror.Of(control);
+            Point at = Cursor.Position;
+            card = new SoftTipWindow(text, words, Soft.Px(Inset), Mirror.Words(mirrored, Flags));
+            card.Show(mirrored ? at.X - card.CardWidth : at.X, at.Y + Soft.Px(20), Screen.FromPoint(at).WorkingArea, Motion.Allowed(control));
+            popDown.Interval = Math.Max(1000, AutoPopDelay);
+            popDown.Start();
+        }
+
+        private void Close()
+        {
+            popDown.Stop();
+            if (over != null)
+            {
+                over.MouseLeave -= left;
+                over.MouseDown -= pressed;
+                over.Disposed -= left;
+                over = null;
+            }
+            if (card != null) card.Dispose();
+            card = null;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                Close();
+                popDown.Dispose();
+            }
+            base.Dispose(disposing);
         }
     }
 
@@ -1719,6 +1775,46 @@ namespace CodexAutoResume
             ground.Margin = new Padding(0);
             ground.Controls.Add(ListCard(list), 0, 0);
             return ground;
+        }
+
+        /// A dialog's fields on a card, as the same fields stand on the Settings page (v0.6.23, the design audit's D2): `body` -
+        /// a text well, or the column a dialog stacks its words and fields in - laid on a SoftCard, on a ground with the room
+        /// the card's lift reaches into. The one place a dialog's body goes on a card: every dialog holding a field or a well
+        /// calls this (or DialogListCard for a list); tests/test_gui_v0623_motion.py finds one that does not. The dialog grows
+        /// by DialogCardGrowth, so what is inside keeps the width and the height it was laid out for.
+        private Control DialogBodyCard(Control body)
+        {
+            var card = new SoftCard();
+            card.Dock = DockStyle.Fill;
+            card.ColumnCount = 1;
+            card.RowCount = 1;
+            card.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            card.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+            card.Padding = Pad(12, 12, 12, 12);
+            card.Margin = new Padding(0);
+            body.Dock = DockStyle.Fill;
+            body.Margin = new Padding(0);
+            if (!(body is SoftTextArea)) body.BackColor = Palette.Card;
+            if (!(body is SoftTextArea)) body.Padding = new Padding(0);
+            card.Controls.Add(body, 0, 0);
+            var ground = new SoftStack();
+            ground.Name = "dialog_body_ground";
+            ground.Dock = DockStyle.Fill;
+            ground.ColumnCount = 1;
+            ground.RowCount = 1;
+            ground.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            ground.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+            ground.Padding = CardRoom();
+            ground.Margin = new Padding(0);
+            ground.Controls.Add(card, 0, 0);
+            return ground;
+        }
+
+        /// What a dialog's client area grows by for DialogBodyCard: the card's padding and the rest of its lift, less the 12 px its
+        /// button row no longer keeps above itself (the lift's room is that gap now).
+        private Size DialogCardGrowth()
+        {
+            return new Size(Px(25), Px(29));
         }
 
         private void DrawHeader(object sender, DrawListViewColumnHeaderEventArgs e)

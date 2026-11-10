@@ -1212,7 +1212,7 @@ class SourceRuleTests(unittest.TestCase):
         changed = self.block("protected override void OnCheckedChanged(EventArgs e)")
         self.assertIn("turn.To(Checked ? 1.0 : 0.0, Motion.Allowed(this));", changed)
         self.assertNotIn("PerformLayout", changed)
-        self.assertIn("turn.Area = Glyph;", changed, "only the glyph is repainted while it moves")
+        self.assertIn("part.Where = delegate { return Glyph; };", guiscan.member_body("SoftCheck", "Part"), "only the glyph is repainted while it moves")
 
     def test_the_list_never_activates_and_has_no_shadow_in_high_contrast(self):
         show = self.block("internal void Show()")

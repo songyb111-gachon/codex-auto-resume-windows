@@ -877,6 +877,56 @@ namespace CodexAutoResume
             UpdateLayeredWindow(window, IntPtr.Zero, ref at, ref size, memory, ref from, 0, ref blend, ULW_ALPHA);
         }
 
+        [DllImport("gdi32.dll")]
+        private static extern bool GdiFlush();
+
+        /// What `paint` draws on `ground`, `size` big, as opaque pixels: drawn into a bitmap of Windows' own, where words come out
+        /// as the window draws them (on a GDI+ bitmap they came out heavier, without ClearType).
+        internal static int[] Words(Size size, Color ground, Action<Graphics> paint)
+        {
+            var pixels = new int[size.Width * size.Height];
+            var header = new BitmapHeader();
+            header.Size = Marshal.SizeOf(typeof(BitmapHeader));
+            header.Width = size.Width;
+            header.Height = -size.Height;
+            header.Planes = 1;
+            header.BitCount = 24;
+            IntPtr screen = GetDC(IntPtr.Zero);
+            IntPtr bits, bitmap = IntPtr.Zero, dc = IntPtr.Zero, old = IntPtr.Zero;
+            try
+            {
+                bitmap = CreateDIBSection(screen, ref header, 0, out bits, IntPtr.Zero, 0);
+                if (bitmap == IntPtr.Zero || bits == IntPtr.Zero) return pixels;
+                dc = CreateCompatibleDC(screen);
+                old = SelectObject(dc, bitmap);
+                using (Graphics f = Graphics.FromHdc(dc))
+                {
+                    using (var brush = new SolidBrush(ground)) f.FillRectangle(brush, 0, 0, size.Width, size.Height);
+                    paint(f);
+                }
+                GdiFlush();
+                int stride = (size.Width * 3 + 3) & ~3;
+                var row = new byte[stride];
+                for (int y = 0; y < size.Height; y++)
+                {
+                    Marshal.Copy(new IntPtr(bits.ToInt64() + (long)y * stride), row, 0, stride);
+                    for (int x = 0; x < size.Width; x++)
+                        pixels[y * size.Width + x] = unchecked((int)0xFF000000) | (row[x * 3 + 2] << 16) | (row[x * 3 + 1] << 8) | row[x * 3];
+                }
+            }
+            finally
+            {
+                if (dc != IntPtr.Zero)
+                {
+                    SelectObject(dc, old);
+                    DeleteDC(dc);
+                }
+                if (bitmap != IntPtr.Zero) DeleteObject(bitmap);
+                ReleaseDC(IntPtr.Zero, screen);
+            }
+            return pixels;
+        }
+
         internal static void Release(IntPtr memory, IntPtr dib, IntPtr previous)
         {
             if (memory != IntPtr.Zero)
@@ -885,6 +935,113 @@ namespace CodexAutoResume
                 DeleteDC(memory);
             }
             if (dib != IntPtr.Zero) DeleteObject(dib);
+        }
+    }
+
+    /// A tooltip's card (v0.6.23, the design audit's D1): a card of the cards' own material on a layered window - their ground,
+    /// radius, hairline, top light and shadow, as the drop-down's list and the menus are - its words as the window draws them,
+    /// fading in over brand's transition. It takes no input. Windows' tooltip says when (SoftTip).
+    internal sealed class SoftTipWindow : NativeWindow, IDisposable
+    {
+        [DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr window, int command);
+
+        private const int WS_POPUP = unchecked((int)0x80000000);
+        private const int WS_EX_LAYERED = 0x00080000, WS_EX_TRANSPARENT = 0x00000020, WS_EX_TOOLWINDOW = 0x00000080, WS_EX_NOACTIVATE = 0x08000000,
+                          WS_EX_TOPMOST = 0x00000008;
+        private const int SW_SHOWNOACTIVATE = 4;
+
+        private readonly Padding margin = Elevation.Reach("card");
+        private readonly Rectangle body;
+        private readonly Timer timer = new Timer();
+        private readonly System.Diagnostics.Stopwatch clock = new System.Diagnostics.Stopwatch();
+        private Bitmap image;
+        private IntPtr dib, memory, previous;
+        private Point at;
+        private int alpha = 255;
+
+        /// The picture, the card in it, and how opaque the whole is now (for the tests).
+        internal Bitmap Image { get { return image; } }
+        internal Rectangle Body { get { return body; } }
+        internal int Alpha { get { return alpha; } }
+        internal bool Appearing { get { return timer.Enabled; } }
+
+        internal int CardWidth { get { return body.Width; } }
+
+        internal SoftTipWindow(string text, Size words, int inset, TextFormatFlags flags)
+        {
+            body = new Rectangle(margin.Left, margin.Top, words.Width + 2 * inset, words.Height + 2 * inset);
+            image = new Bitmap(body.Width + margin.Horizontal, body.Height + margin.Vertical, PixelFormat.Format32bppPArgb);
+            float radius = Soft.PxF(Palette.RadiusCard);
+            using (Graphics g = Graphics.FromImage(image))
+            {
+                g.Clear(Color.Transparent);
+                Elevation.StampOuter(g, body, "card", radius, new Rectangle(Point.Empty, image.Size));
+                Soft.Body(g, body, radius, Palette.Card, Palette.Line, "card");
+            }
+            // The words go in as Windows draws them, in the part of the card that is whole, as the list's do (SoftDropList.Face).
+            var column = new Rectangle(body.X + inset, body.Y + inset, words.Width, words.Height);
+            int[] pixels = LayerBits.Words(column.Size, Palette.Card, delegate(Graphics f)
+            {
+                TextRenderer.DrawText(f, text, Soft.BaseFont, new Rectangle(Point.Empty, column.Size), Palette.Ink, flags);
+            });
+            BitmapData data = image.LockBits(column, ImageLockMode.WriteOnly, PixelFormat.Format32bppPArgb);
+            try
+            {
+                for (int y = 0; y < column.Height; y++)
+                    Marshal.Copy(pixels, y * column.Width, new IntPtr(data.Scan0.ToInt64() + (long)y * data.Stride), column.Width);
+            }
+            finally { image.UnlockBits(data); }
+            timer.Interval = Motion.Interval;
+            timer.Tick += delegate { Tick(); };
+        }
+
+        /// Puts it on the screen, its card's corner at (`x`, `y`) and kept within `area`.
+        internal void Show(int x, int y, Rectangle area, bool animate)
+        {
+            x = Math.Max(area.Left, Math.Min(area.Right - body.Width, x));
+            y = Math.Max(area.Top, Math.Min(area.Bottom - body.Height, y));
+            at = new Point(x - margin.Left, y - margin.Top);
+            alpha = animate ? 0 : 255;
+            var cp = new CreateParams();
+            cp.Caption = "";
+            cp.X = at.X;
+            cp.Y = at.Y;
+            cp.Width = image.Width;
+            cp.Height = image.Height;
+            cp.Style = WS_POPUP;
+            cp.ExStyle = WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST;
+            CreateHandle(cp);
+            LayerBits.Upload(image, out dib, out memory, out previous);
+            Lay();
+            ShowWindow(Handle, SW_SHOWNOACTIVATE);
+            if (!animate) return;
+            clock.Start();
+            timer.Start();
+        }
+
+        private void Tick()
+        {
+            double t = clock.Elapsed.TotalMilliseconds / Math.Max(1, Motion.Duration);
+            alpha = t >= 1.0 ? 255 : (int)Math.Round(255 * Motion.Ease(t));
+            if (t >= 1.0) timer.Stop();
+            Lay();
+        }
+
+        private void Lay()
+        {
+            if (Handle != IntPtr.Zero) LayerBits.Lay(Handle, memory, at.X, at.Y, image.Width, image.Height, alpha);
+        }
+
+        public void Dispose()
+        {
+            timer.Stop();
+            timer.Dispose();
+            if (Handle != IntPtr.Zero) DestroyHandle();
+            LayerBits.Release(memory, dib, previous);
+            memory = dib = previous = IntPtr.Zero;
+            if (image != null) image.Dispose();
+            image = null;
         }
     }
 

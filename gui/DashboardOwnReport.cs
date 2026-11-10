@@ -63,11 +63,8 @@ namespace CodexAutoResume
             well.Box.WordWrap = true;
             well.Box.Text = S("ownreport.running", "Writing the report...");
             well.Box.AccessibleName = S("ownreport.title", "Compatibility report from this PC");
-            var padding = new Panel();
-            padding.BackColor = Canvas;
-            padding.Dock = DockStyle.Fill;
-            padding.Padding = Pad(12, 12, 12, 0);
-            padding.Controls.Add(well);
+            Control wellCard = DialogBodyCard(well);
+            dialog.ClientSize += DialogCardGrowth();
 
             var footer = new SoftStack();
             footer.Dock = DockStyle.Bottom;
@@ -75,7 +72,7 @@ namespace CodexAutoResume
             footer.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             footer.ColumnCount = 1;
             footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-            footer.Padding = Pad(12, 8, 12, 0);
+            footer.Padding = Pad(12, 0, 12, 0);
             footer.BackColor = Canvas;
             var note = Value(S("ownreport.note", "Read only, and sent nowhere. Written from this PC's own records: counts, states and times, with no conversation text, ids, paths or names. Export diagnostics puts a copy written for the file in the file."));
             note.ForeColor = Secondary;
@@ -104,7 +101,7 @@ namespace CodexAutoResume
             buttons.Controls.Add(copy);
             buttons.Controls.Add(again);
 
-            dialog.Controls.Add(padding);
+            dialog.Controls.Add(wellCard);
             dialog.Controls.Add(footer);
             dialog.Controls.Add(buttons);
             dialog.CancelButton = close;
