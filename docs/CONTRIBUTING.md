@@ -185,6 +185,17 @@ needs `python` on `PATH` for that step. The second downloads the pinned embeddab
 `build/dist/`; with it comes each edition's setup program, `CodexAutoResume-Setup-v<version>.exe` and
 `CodexAutoResume-Advanced-Setup-v<version>.exe`, with their `.sha256` files.
 
+What an archive takes from `assets/` and `scripts/` is named file by file in `build/make_release.py`
+(`SHIPPED_ASSETS`, `SHIPPED_SCRIPTS`), so a new picture or script stays out of the release until it
+is named there and `tests/test_release_size.py` is told what reads it. The archive's
+`docs/CHANGELOG.md` is the entry of its own version and a line that says where the whole changelog
+is. The bundled runtime is trimmed to `build/runtime_keep.json`; the build then runs
+`build/runtime_check.py` under what is left, which imports every staged module and reads every import
+statement of the staged code and of the kept standard library. After moving to a new Python the build
+stops until `python` and `sha256` in that list are changed, and then that check names each import the
+list cuts that nobody has read. The app's packed size is held to `tests/data/release_budget.json`:
+raise a number there when a feature earns it.
+
 The third drives the archive's own bytes: it extracts the ZIP and runs the engine inside
 it with the interpreter inside it, against a state directory that exists only for that run,
 and reads the version resource off both executables. Nothing outside that directory is

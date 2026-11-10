@@ -342,7 +342,10 @@ For a release whose tag has `build/normalize_pe.py`, you need:
 
 No administrator rights are needed. The build downloads the embeddable Python it bundles
 from python.org and refuses it unless its SHA-256 matches the one written in
-`build/make_release.py`.
+`build/make_release.py`. It then takes out of its copy what the product never uses, by the list in
+`build/runtime_keep.json`, and stops if any module of the staged code no longer imports under what
+is left. So the `python.exe`, `pythonw.exe` and DLLs an archive carries are python.org's files
+unchanged, while its standard-library ZIP holds fewer modules than python.org's and is packed again.
 
 Start from a fresh clone. The archive packs source files, so their line endings are part
 of its bytes, and an existing working tree may have been checked out under different
