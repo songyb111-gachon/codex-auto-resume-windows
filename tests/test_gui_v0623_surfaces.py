@@ -331,3 +331,83 @@ class TaskbarTests(unittest.TestCase):
         self.assertIn("frames = frames.Themed(look);", marks)
         self.assertIn("Send(WM_SETICON, ICON_SMALL, daySmall);", marks)
         self.assertIn("Brand.Mark.HeadColour(state)", marks, "the head keeps the state's colour")
+
+
+class PanelTests(unittest.TestCase):
+    SCRIPT = (ROOT / "src/codex_auto_resume/mcp/assets/panel.js").read_text(encoding="utf-8")
+
+    def test_an_ordinary_page_carries_no_day(self):
+        from codex_auto_resume.mcp import panel
+        page = panel.settings_page(theme="light", text=1.0, face="Segoe UI")
+        self.assertNotIn("__CODEX_AUTO_RESUME_DAY__=", page)
+        self.assertIn('__CODEX_AUTO_RESUME_SWEEP__={"presses"', page)
+
+    def test_a_days_page_carries_brands_own_list(self):
+        from codex_auto_resume.mcp import panel
+        page = panel.settings_page(theme="light", text=1.0, face="Segoe UI", day="chuseok")
+        marker = "window.__CODEX_AUTO_RESUME_DAY__="
+        data = json.JSONDecoder().raw_decode(page[page.index(marker) + len(marker):].replace("\\u003c", "<"))[0]
+        self.assertEqual(data["elements"], json.loads(json.dumps(brand.scene_elements("chuseok"))))
+        self.assertEqual(data["ground"], brand.DAY_LOOKS["chuseok"][2])
+
+    def test_only_the_served_page_reads_the_date_and_no_picture_does(self):
+        server = (ROOT / "src/codex_auto_resume/mcp/server.py").read_text(encoding="utf-8")
+        self.assertIn("settings_page(day=brand.day_look_at(time.time()))", server)
+        shots = (ROOT / "build/make_screenshots.py").read_text(encoding="utf-8")
+        self.assertNotIn("day=", shots[shots.index("mcpui.settings_page("):shots.index("mcpui.settings_page(") + 120])
+
+    def test_the_script_reads_the_same_shapes_at_the_same_moments(self):
+        art = self.SCRIPT[self.SCRIPT.index("// day-art begin"):self.SCRIPT.index("// day-art end")]
+        cases = {look: brand.scene_elements(look) for look in LOOKS}
+        program = art + ("var cases = %s; var out = {}; Object.keys(cases).forEach(function (look) {"
+                         " out[look] = []; [0, 1.3, 9.7].forEach(function (t) { cases[look].forEach(function (e) {"
+                         " out[look].push(dayElementAt(e, t)); }); }); });"
+                         " process.stdout.write(JSON.stringify(out));" % json.dumps(cases))
+        done = subprocess.run(["node", "-e", program], capture_output=True, text=True, encoding="utf-8", timeout=60)
+        self.assertEqual(done.returncode, 0, done.stderr[-400:])
+        got = json.loads(done.stdout)
+        for look in LOOKS:
+            expected = [brand.element_at(element, seconds) for seconds in (0.0, 1.3, 9.7) for element in brand.scene_elements(look)]
+            for (_, numbers, _, opacity), (_, python, _, alpha) in zip(got[look], expected):
+                self.assertAlmostEqual(opacity, alpha, places=6, msg=look)
+                for one, other in zip(numbers, python):
+                    self.assertAlmostEqual(one, other, places=6, msg=look)
+
+    def body(self, name):
+        start = self.SCRIPT.index("function %s(" % name)
+        return self.SCRIPT[start:self.SCRIPT.index("\n}\n", start)]
+
+    def test_the_seventh_press_reaches_nothing_but_the_page(self):
+        for name in ("versionPressed", "playSweep"):
+            body = self.body(name)
+            for never in ("callTool", "call(", "fetch(", "sendMessage", "control", "localStorage"):
+                self.assertNotIn(never, body, name)
+        self.assertIn("eyebrow.onclick = function () { versionPressed(); };", self.SCRIPT)
+        self.assertEqual(self.SCRIPT.count("setTimeout("), 1, "the page's one clock")
+
+    def test_held_still_there_is_no_sweep_and_the_sentence_still_shows(self):
+        body = self.body("versionPressed")
+        self.assertIn("if (!still) playSweep();", body)
+        self.assertIn("window.__CODEX_AUTO_RESUME_ASIDE__ = [from, from + DAY_TABLE.sweep.aside_ms];", body)
+        self.assertIn("still ? 0 : DAY_TABLE.sweep.aside_after_ms", body)
+        held = self.body("pageHoldsStill")
+        self.assertIn("prefers-reduced-motion: reduce", held)
+        self.assertIn("data-motion", held)
+
+    def test_the_scene_stands_past_the_words_and_is_absent_where_it_must_be(self):
+        body = self.body("placeDayScene")
+        self.assertIn("range.selectNodeContents(child);", body)
+        self.assertIn("if (unit < whole * 0.75) return;", body)
+        self.assertIn("pageHighContrast() || document.documentElement.getAttribute('data-design') === 'classic'", body)
+        self.assertIn("var(--card-ground) 2px, transparent", body, "the first pixels are the card's own")
+        self.assertIn("still ? [element[0], dayElementAt(element, 0)[1]", self.body("dayNode"), "held still, the scene's first instant")
+        style = (ROOT / "src/codex_auto_resume/mcp/assets/panel.css").read_text(encoding="utf-8")
+        for name in ("day-fall", "day-twinkle", "day-breathe", "day-drift", "day-sway", "day-flame", "day-arc", "day-ring", "day-head"):
+            self.assertIn("@keyframes %s " % name, style)
+        self.assertEqual(round(100 * brand.SWEEP["arc_ms"] / (brand.SWEEP["arc_ms"] + brand.SWEEP["arc_fade_ms"])), 70)
+
+    def test_the_sentence_is_said_in_the_facts_line_and_the_words_are_the_catalogs(self):
+        self.assertIn("if (saying) {", self.body("showFacts"))
+        self.assertIn("now < aside[0] ? aside[0] : now < aside[1] ? aside[1] : null", self.body("watchClock"), "on the page's one clock")
+        from codex_auto_resume.mcp import panel
+        self.assertIn("status.aside", panel.panel_keys()[0])
