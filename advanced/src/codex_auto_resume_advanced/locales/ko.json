@@ -157,6 +157,8 @@
   "page.analytics.used": "{window}: {percent}% 사용",
   "page.anchor.fixed": "다음 재설정 시각이 {time}로 정해졌습니다.",
   "page.anchor.needs_occasion": "시작 시각을 고르거나 '재설정 직후에 시작'을 켜기 전에는 아무것도 시작하지 않습니다.",
+  "page.anchor.retrying": "지금은 창을 시작하지 못했습니다. {time}까지 5분마다 다시 시도합니다.",
+  "page.anchor.stopped": "아무것도 시작하지 못한 채 시도를 멈췄습니다. 5시간 창이 다음에 실행될 때나 고른 시각에 다시 시작합니다.",
   "page.chat.cancel": "취소",
   "page.chat.click": "알림을 클릭하면 열리는 곳",
   "page.chat.click.chat": "여기서 그 대화의 채팅",

@@ -360,6 +360,10 @@ class OptionKey(StrEnum):
     ANCHOR_RESET_DONE = "anchor_reset_done"
     ANCHOR_INPUT_TOKENS = "anchor_input_tokens"
     ANCHOR_OUTPUT_TOKENS = "anchor_output_tokens"
+    # v0.6.23: what its card says of an occasion a passing failure holds open: until when it is tried again, and when the
+    # last such occasion ended with nothing started. Written by the watcher, read by the Dashboard's process.
+    ANCHOR_RETRY_UNTIL = "anchor_retry_until"
+    ANCHOR_STOPPED_AT = "anchor_stopped_at"
     # v0.6.20 (the pair audit, V20-2): when account_switch last saw another account signed in, and the change of account
     # window_anchor last took in - its window stamps are the account's that was signed in, and go with it.
     ACCOUNT_CHANGED_AT = "account_changed_at"

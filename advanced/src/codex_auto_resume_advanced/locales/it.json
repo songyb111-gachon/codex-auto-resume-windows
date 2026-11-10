@@ -172,6 +172,8 @@
   "page.analytics.used": "{window}: {percent}% usato",
   "page.anchor.fixed": "Prossimo azzeramento fissato alle {time}.",
   "page.anchor.needs_occasion": "Non avvia nulla finché non scegli un orario di avvio o attivi «Avvia subito dopo un azzeramento».",
+  "page.anchor.retrying": "Non è stato possibile avviare la finestra ora; nuovo tentativo ogni 5 minuti fino alle {time}.",
+  "page.anchor.stopped": "I tentativi si sono fermati senza avviare nulla. Riprenderà la prossima volta che la finestra di 5 ore sarà in corso, o a un'ora che hai scelto.",
   "page.chat.cancel": "Annulla",
   "page.chat.click": "Un clic su una notifica apre",
   "page.chat.click.chat": "La chat di quella conversazione qui",

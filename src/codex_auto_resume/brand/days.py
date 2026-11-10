@@ -38,6 +38,10 @@ LUNAR_DAYS = (
 # The icon's mark shows from this size up; below it the body alone.
 MOTIF_LEAST = 24
 SCENE_WIDTH, SCENE_HEIGHT = 190.0, 66.0
+# Where each scene's main piece begins, in its 190: all from there rightward is shown whole, or the scene is not shown at all.
+SCENE_FOCUS = {"birthday": 142.0, "new_year": 122.0, "christmas": 117.0, "seollal": 127.0, "chuseok": 126.0}
+# A scene narrowed to fit stands on its ground; the one that hangs from the top hangs from it.
+SCENE_FROM_TOP = ("seollal",)
 
 
 def day_look(year, month, day):
@@ -174,6 +178,10 @@ def mark_colour(look, x, y):
 
 
 # ------------------------------------------------------------------ the scene, in its 190 by 66
+# One list of elements for each look, plain numbers, read by every surface (the popup here, the window from Brand.DayScene, the
+# panel from a JSON copy): [kind, numbers, colour, opacity, motion, motion's numbers]. `motion` is one of
+#   fall (seconds, delay, turns in degrees), twinkle (seconds, delay), breathe (seconds, lowest, how much more),
+#   drift (seconds), sway (seconds, pivot x, pivot y), flame (seconds, bottom), or "".
 class _Seeded:
     """The same numbers every time: a scene is the same scene every time it is drawn."""
 
@@ -185,15 +193,130 @@ class _Seeded:
         return low + (high - low) * self.value / 0x7FFFFFFF
 
 
-def _star_points(x, y, size):
+def _flat(points):
+    return [round(value, 3) for point in points for value in point]
+
+
+def _star(x, y, size, colour, duration, delay):
     w = size * 0.24
-    return [(x, y - size), (x + w, y - w), (x + size, y), (x + w, y + w), (x, y + size), (x - w, y + w), (x - size, y), (x - w, y - w)]
+    points = [(x, y - size), (x + w, y - w), (x + size, y), (x + w, y + w), (x, y + size), (x - w, y + w), (x - size, y), (x - w, y - w)]
+    return ["poly", _flat(points), colour, 1.0, "twinkle", [round(duration, 3), round(delay, 3)]]
 
 
-def _pulse(seconds, duration, delay=0.0):
-    """0 to 1 and back to 0 over `duration`, eased in and out (the mock's 0%, 50%, 100% keyframes)."""
-    phase = ((seconds - delay) / duration) % 1.0
-    return (1.0 - math.cos(2.0 * math.pi * phase)) / 2.0
+def _stars(seeded, count, xs, ys, sizes, colour):
+    made = []
+    for _ in range(count):
+        x, y, size = seeded(*xs), seeded(*ys), seeded(*sizes)
+        made.append(_star(x, y, size, colour, seeded(2.0, 4.0), seeded(0.0, 2.0)))
+    return made
+
+
+def _still(path, colour):
+    return ["poly", _flat(path_points(path)[0]), colour, 1.0, "", []]
+
+
+def _circle(cx, cy, radius, colour):
+    return ["circle", [cx, cy, radius], colour, 1.0, "", []]
+
+
+def _round(x, y, w, h, radius, colour):
+    return ["round", [x, y, w, h, radius], colour, 1.0, "", []]
+
+
+def _tree(x, height, colour):
+    return ["poly", _flat([(x, 66.0 - height), (x + height * 0.42, 66.0), (x - height * 0.42, 66.0)]), colour, 1.0, "", []]
+
+
+_CONFETTI_COLOURS = ("#F2A33A", "#E8735A", "#5BB8C4", "#F6C945", "#B98AD9")
+
+
+def _birthday():
+    seeded = _Seeded(906)
+    parts = []
+    for index in range(16):
+        x, width, height = seeded(50, 186), seeded(3, 5), seeded(5, 8)
+        duration, delay = seeded(3.2, 6.0), seeded(-6.0, 0.0)
+        parts.append(["poly", _flat(_box(x, -4.0, width, height)), _CONFETTI_COLOURS[index % 5], 1.0, "fall",
+                      [round(duration, 3), round(delay, 3), 320.0]])
+    parts += [_round(142, 42, 38, 20, 4, "#FFFFFF"), _still("M142 48q4.7 7 9.5 0t9.5 0 9.5 0 9.5 0v-3q0-3-3-3h-32q-3 0-3 3z", "#F4A7B5"),
+              _round(159.5, 30, 3, 12, 1, "#5BB8C4"), ["ellipse", [161.0, 26.0, 2.6, 4.4], "#F6B73C", 1.0, "flame", [1.1, 30.4]]]
+    return parts
+
+
+def _new_year():
+    return ([["glow", [150, 72, 62, 0.45], "#FFC766", 1.0, "breathe", [4.0, 0.34, 0.3]], _circle(150, 72, 28, "#FAC65A"),
+             _still("M60 66q24-14 48-5t44-5 44 4v8z", "#141B45")]
+            + _stars(_Seeded(101), 9, (58, 186), (7, 36), (2.5, 5.2), "#FFE9A8"))
+
+
+def _christmas():
+    seeded = _Seeded(1225)
+    parts = [_tree(132, 34, "#1F6B4A"), _tree(172, 28, "#1F6B4A"), _tree(152, 48, "#2B8660"), _star(152.0, 16.0, 4.6, "#FFD76A", 3.0, 0.5)]
+    for _ in range(22):
+        x, radius = seeded(50, 190), seeded(0.9, 2.0)
+        duration, delay = seeded(4.0, 8.0), seeded(-8.0, 0.0)
+        parts.append(["circle", [round(x, 3), -4.0, round(radius, 3)], "#FFFFFF", 1.0, "fall", [round(duration, 3), round(delay, 3), 0.0]])
+    return parts
+
+
+def _seollal():
+    sway = [3.4, 149.0, 21.0]
+    parts = [_round(0, index * 3.4, 190, 3.4, 0, colour)
+             for index, colour in enumerate(("#D9463E", "#F2C230", "#3FA86B", "#3B6FC9", "#E88BB0"))]
+    parts.append(["stroke", [1.4] + _flat(path_points("M60 42q4-6 11-3 5-6 12-1 6-2 8 4z")[0]), "#E2C9A0", 1.0, "drift", [7.0]])
+    parts.append(["poly", _flat(path_points("M138 26q-13 12-11 24 2 12 22 12t22-12q2-12-11-24z")[0]), "#C93B3B", 1.0, "sway", sway])
+    parts.append(["poly", _flat(path_points("M139 26q10 5 20 0l2-5q-12-4-24 0z")[0]), "#E25B4F", 1.0, "sway", sway])
+    parts.append(["poly", _flat(_box(138, 24.5, 22, 3.6)), "#F2C230", 1.0, "sway", sway])
+    parts.append(["circle", [149.0, 26.0, 3.2], "#F6D76B", 1.0, "sway", sway])
+    parts.append(["ring", [149.0, 45.0, 8.5, 1.5], "#F2C230", 1.0, "sway", sway])
+    parts.append(["stroke", [1.3] + _flat(path_points("M149 39v12")[0]), "#F2C230", 1.0, "sway", sway])
+    parts.append(["stroke", [1.3] + _flat(path_points("M143 45h12")[0]), "#F2C230", 1.0, "sway", sway])
+    return parts
+
+
+def _chuseok():
+    def cloud(x, y, duration):
+        return [["round", [x, y, 46, 7, 3.5], "#3A3F86", 1.0, "drift", [duration]],
+                ["round", [x + 10, y - 5, 24, 8, 4], "#3A3F86", 1.0, "drift", [duration]]]
+
+    return ([["glow", [146, 30, 43, 0.47], "#FFEBB8", 1.0, "breathe", [4.5, 0.3, 0.3]], _circle(146, 30, 20, "#F6E7B4"),
+             _circle(139, 25, 3.6, "#E6D39B"), _circle(152, 35, 4.6, "#E6D39B"), _circle(151, 22, 2, "#E6D39B")]
+            + cloud(100, 50, 8.0) + cloud(146, 56, 6.0) + _stars(_Seeded(815), 7, (60, 120), (8, 38), (1.8, 3.2), "#FFF4D0"))
+
+
+_MAKERS = {"birthday": _birthday, "new_year": _new_year, "christmas": _christmas, "seollal": _seollal, "chuseok": _chuseok}
+_kept = {}
+
+
+def scene_elements(look):
+    """`look`'s scene as the list every surface draws from."""
+    if look not in _kept:
+        _kept[look] = _MAKERS[look]()
+    return _kept[look]
+
+
+def mark_text(look):
+    """The icon's mark as scene_text's lines, for the window (Brand.DayMark)."""
+    lines = []
+    for shape in MARKS[look]:
+        if shape[0] == "poly":
+            lines.append("poly;%s;%s;1;;" % (" ".join("%g" % value for value in _flat(shape[1])), shape[-1]))
+        elif shape[0] == "circle":
+            lines.append("circle;%g %g %g;%s;1;;" % (shape[1], shape[2], shape[3], shape[-1]))
+        else:
+            lines.append("stroke;%g %g %g %g %g;%s;1;;" % (shape[5], shape[1], shape[2], shape[3], shape[4], shape[-1]))
+    return "\n".join(lines)
+
+
+def scene_text(look):
+    """The same list as one line per element, for the window (Brand.DayScene): kind;numbers;colour;opacity;motion;numbers."""
+    return "\n".join(";".join((element[0], " ".join("%g" % value for value in element[1]), element[2], "%g" % element[3], element[4],
+                               " ".join("%g" % value for value in element[5]))) for element in scene_elements(look))
+
+
+def _wave(seconds, duration, delay=0.0):
+    """0 to 1 and back to 0 over `duration`, eased in and out."""
+    return (1.0 - math.cos(2.0 * math.pi * (((seconds - delay) / duration) % 1.0))) / 2.0
 
 
 def _drift(seconds, duration):
@@ -205,133 +328,91 @@ def _drift(seconds, duration):
     return -10.0 + 24.0 * (1.0 - math.cos(math.pi * part)) / 2.0
 
 
-def _fall(seconds, duration, delay):
-    return ((seconds - delay) / duration) % 1.0
+def _centre(kind, numbers):
+    if kind == "poly":
+        xs, ys = numbers[0::2], numbers[1::2]
+        return (min(xs) + max(xs)) / 2.0, (min(ys) + max(ys)) / 2.0
+    return numbers[0], numbers[1]
 
 
-def _twinkling(stars, seconds):
-    shapes = []
-    for x, y, size, colour, duration, delay in stars:
-        level = _pulse(seconds, duration, delay)
-        shapes.append(("poly", _star_points(x, y, size * (0.7 + 0.4 * level)), colour, 0.25 + 0.75 * level))
-    return shapes
+def _placed(kind, numbers, move):
+    """`numbers` with `move` (a function of a point) applied to every point."""
+    if kind in ("poly", "stroke"):
+        start = 1 if kind == "stroke" else 0
+        points = [move(numbers[at], numbers[at + 1]) for at in range(start, len(numbers), 2)]
+        return numbers[:start] + [value for point in points for value in point]
+    return list(move(numbers[0], numbers[1])) + list(numbers[2:])
 
 
-def _stars(seeded, count, xs, ys, sizes, colour):
-    return [(seeded(*xs), seeded(*ys), seeded(*sizes), colour, seeded(2.0, 4.0), seeded(0.0, 2.0)) for _ in range(count)]
-
-
-def _poly(path, colour):
-    return ("poly", path_points(path)[0], colour, 1.0)
-
-
-_CONFETTI_COLOURS = ("#F2A33A", "#E8735A", "#5BB8C4", "#F6C945", "#B98AD9")
-_SEEDS = {"birthday": 906, "new_year": 101, "christmas": 1225, "seollal": 11, "chuseok": 815}
-_kept = {}
-
-
-def _birthday():
-    seeded = _Seeded(_SEEDS["birthday"])
-    confetti = [(seeded(50, 186), seeded(3, 5), seeded(5, 8), _CONFETTI_COLOURS[index % 5], seeded(3.2, 6.0), seeded(-6.0, 0.0))
-                for index in range(16)]
-    cake = [("round", 142, 42, 38, 20, 4, "#FFFFFF", 1.0), _poly("M142 48q4.7 7 9.5 0t9.5 0 9.5 0 9.5 0v-3q0-3-3-3h-32q-3 0-3 3z", "#F4A7B5"),
-            ("round", 159.5, 30, 3, 12, 1, "#5BB8C4", 1.0)]
-
-    def frame(seconds):
-        shapes = []
-        for x, width, height, colour, duration, delay in confetti:
-            part = _fall(seconds, duration, delay)
-            top = -4.0 - 14.0 + 96.0 * part
-            shapes.append(("poly", _rotated(_box(x, top, width, height), 320.0 * part, x + width / 2.0, top + height / 2.0), colour, 1.0))
-        shapes += cake
-        stretched = 4.4 * (1.0 + 0.35 * _pulse(seconds, 1.1))
-        shapes.append(("ellipse", 161.0, 30.4 - stretched, 2.6, stretched, "#F6B73C", 1.0))
-        return shapes
-    return frame
-
-
-def _new_year():
-    seeded = _Seeded(_SEEDS["new_year"])
-    stars = _stars(seeded, 9, (58, 186), (7, 36), (2.5, 5.2), "#FFE9A8")
-    still = [("circle", 150, 72, 28, "#FAC65A", 1.0), _poly("M60 66q24-14 48-5t44-5 44 4v8z", "#141B45")]
-
-    def frame(seconds):
-        return [("circle", 150, 72, 42, "#F6B73C", 0.18 + 0.24 * _pulse(seconds, 4.0))] + still + _twinkling(stars, seconds)
-    return frame
-
-
-def _tree(x, height, colour):
-    return ("poly", [(x, 66.0 - height), (x + height * 0.42, 66.0), (x - height * 0.42, 66.0)], colour, 1.0)
-
-
-def _christmas():
-    seeded = _Seeded(_SEEDS["christmas"])
-    trees = [_tree(132, 34, "#1F6B4A"), _tree(172, 28, "#1F6B4A"), _tree(152, 48, "#2B8660")]
-    gold = [(152.0, 16.0, 4.6, "#FFD76A", 3.0, 0.5)]
-    snow = [(seeded(50, 190), seeded(0.9, 2.0), seeded(4.0, 8.0), seeded(-8.0, 0.0)) for _ in range(22)]
-
-    def frame(seconds):
-        shapes = trees + _twinkling(gold, seconds)
-        for x, radius, duration, delay in snow:
-            shapes.append(("circle", x, -4.0 - 14.0 + 96.0 * _fall(seconds, duration, delay), radius, "#FFFFFF", 1.0))
-        return shapes
-    return frame
-
-
-def _seollal():
-    bands = [("round", 0, index * 3.4, 190, 3.4, 0, colour, 1.0)
-             for index, colour in enumerate(("#D9463E", "#F2C230", "#3FA86B", "#3B6FC9", "#E88BB0"))]
-    cloud = path_points("M60 42q4-6 11-3 5-6 12-1 6-2 8 4z")[0]
-    bag = path_points("M138 26q-13 12-11 24 2 12 22 12t22-12q2-12-11-24z")[0]
-    neck = path_points("M139 26q10 5 20 0l2-5q-12-4-24 0z")[0]
-    tie = _box(138, 24.5, 22, 3.6)
-    across = [path_points("M149 39v12")[0], path_points("M143 45h12")[0]]
-    pivot = (149.0, 21.0)
-
-    def frame(seconds):
-        dx = _drift(seconds, 7.0)
-        shapes = list(bands)
-        shapes.append(("stroke", [(x + dx, y) for x, y in cloud], 1.4, "#E2C9A0", 1.0))
-        angle = -5.0 + 10.0 * _pulse(seconds, 3.4)
-
-        def turn(points):
-            return _rotated(points, angle, pivot[0], pivot[1])
-
-        shapes.append(("poly", turn(bag), "#C93B3B", 1.0))
-        shapes.append(("poly", turn(neck), "#E25B4F", 1.0))
-        shapes.append(("poly", turn(tie), "#F2C230", 1.0))
-        knot = turn([(149.0, 26.0)])[0]
-        shapes.append(("circle", knot[0], knot[1], 3.2, "#F6D76B", 1.0))
-        ring = turn([(149.0, 45.0)])[0]
-        shapes.append(("ring", ring[0], ring[1], 8.5, 1.5, "#F2C230", 1.0))
-        for line in across:
-            shapes.append(("stroke", turn(line), 1.3, "#F2C230", 1.0))
-        return shapes
-    return frame
-
-
-def _chuseok():
-    seeded = _Seeded(_SEEDS["chuseok"])
-    stars = _stars(seeded, 7, (60, 120), (8, 38), (1.8, 3.2), "#FFF4D0")
-    moon = [("circle", 146, 30, 20, "#F6E7B4", 1.0), ("circle", 139, 25, 3.6, "#E6D39B", 1.0), ("circle", 152, 35, 4.6, "#E6D39B", 1.0),
-            ("circle", 151, 22, 2, "#E6D39B", 1.0)]
-
-    def cloud(x, y, duration, seconds):
-        dx = _drift(seconds, duration)
-        return [("round", x + dx, y, 46, 7, 3.5, "#3A3F86", 1.0), ("round", x + 10 + dx, y - 5, 24, 8, 4, "#3A3F86", 1.0)]
-
-    def frame(seconds):
-        return ([("circle", 146, 30, 29, "#F6E7B4", 0.18 + 0.24 * _pulse(seconds, 4.5))] + moon
-                + cloud(100, 50, 8.0, seconds) + cloud(146, 56, 6.0, seconds) + _twinkling(stars, seconds))
-    return frame
-
-
-_SCENES = {"birthday": _birthday, "new_year": _new_year, "christmas": _christmas, "seollal": _seollal, "chuseok": _chuseok}
+def element_at(element, seconds):
+    """One element `seconds` in: (kind, numbers, colour, opacity)."""
+    kind, numbers, colour, opacity, motion, values = element
+    numbers = list(numbers)
+    if motion == "fall":
+        part = ((seconds - values[1]) / values[0]) % 1.0
+        centre_x, centre_y = _centre(kind, numbers)
+        dy = -14.0 + 96.0 * part
+        radians = math.radians(values[2] * part)
+        c, s = math.cos(radians), math.sin(radians)
+        numbers = _placed(kind, numbers, lambda x, y: (centre_x + (x - centre_x) * c - (y - centre_y) * s,
+                                                       centre_y + dy + (x - centre_x) * s + (y - centre_y) * c))
+    elif motion == "twinkle":
+        level = _wave(seconds, values[0], values[1])
+        centre_x, centre_y = _centre(kind, numbers)
+        size = 0.7 + 0.4 * level
+        numbers = _placed(kind, numbers, lambda x, y: (centre_x + (x - centre_x) * size, centre_y + (y - centre_y) * size))
+        opacity = 0.25 + 0.75 * level
+    elif motion == "breathe":
+        opacity = values[1] + values[2] * _wave(seconds, values[0])
+    elif motion == "drift":
+        dx = _drift(seconds, values[0])
+        numbers = _placed(kind, numbers, lambda x, y: (x + dx, y))
+    elif motion == "sway":
+        radians = math.radians(-5.0 + 10.0 * _wave(seconds, values[0]))
+        c, s = math.cos(radians), math.sin(radians)
+        px, py = values[1], values[2]
+        numbers = _placed(kind, numbers, lambda x, y: (px + (x - px) * c - (y - py) * s, py + (x - px) * s + (y - py) * c))
+    elif motion == "flame":
+        tall = numbers[3] * (1.0 + 0.35 * _wave(seconds, values[0]))
+        numbers[1], numbers[3] = values[1] - tall, tall
+    return kind, numbers, colour, opacity
 
 
 def scene_frame(look, milliseconds):
     """`look`'s scene `milliseconds` in, as the shapes to draw in order, in its 190 by 66: pure, and the same every time."""
-    frame = _kept.get(look)
-    if frame is None:
-        frame = _kept[look] = _SCENES[look]()
-    return frame(milliseconds / 1000.0)
+    return [element_at(element, milliseconds / 1000.0) for element in scene_elements(look)]
+
+
+# ------------------------------------------------------------------ the seventh press
+PRESSES = {"wanted": 7, "gap_ms": 1800}
+# The sweep and its two rings, in the mock's numbers for a light in a box 54 across.
+SWEEP = {"arc_ms": 735, "arc_fade_ms": 315, "ring_ms": 900, "first_ring_ms": 750, "second_ring_ms": 1000, "reach": 27.0,
+         "arc_radius": 17.0, "ring_from": 15.0, "head_radius": 3.4, "ring_opacity": 0.65, "aside_after_ms": 850, "aside_ms": 4150}
+
+
+class PressRun:
+    """Presses one after another: `wanted`, each within `gap_ms` of the last, say so once and start again."""
+
+    def __init__(self):
+        self.count, self.last = 0, None
+
+    def press(self, milliseconds):
+        self.count = self.count + 1 if self.last is not None and milliseconds - self.last <= PRESSES["gap_ms"] else 1
+        self.last = milliseconds
+        if self.count < PRESSES["wanted"]:
+            return False
+        self.count = 0
+        return True
+
+
+def sweep_at(milliseconds, ease):
+    """(arc covered 0 to 1, arc opacity, [(ring spread, ring opacity), (second ring)]) at `milliseconds`; `ease` is brand's curve."""
+    numbers = SWEEP
+    covered = ease(milliseconds / numbers["arc_ms"])
+    opacity = 1.0 if milliseconds <= numbers["arc_ms"] else 1.0 - ease((milliseconds - numbers["arc_ms"]) / numbers["arc_fade_ms"])
+    rings = []
+    for start in (numbers["first_ring_ms"], numbers["second_ring_ms"]):
+        since = milliseconds - start
+        spread = ease(since / numbers["ring_ms"])
+        rings.append((spread, 0.0 if since < 0 or since >= numbers["ring_ms"] else numbers["ring_opacity"] * (1.0 - spread)))
+    return covered, opacity, rings

@@ -39,8 +39,9 @@ from __future__ import annotations
 import json
 import math
 import sys
+import time
 
-from .. import config, controlcli, l10n, reasons as _reasons
+from .. import brand, config, controlcli, l10n, reasons as _reasons
 from ..control import Control, ControlError
 from ..control.codexstart import CONFIRM_SECONDS
 from ..domain.plug import DEFER, Surface
@@ -224,7 +225,7 @@ class Server:
         l10n.set_preference(self.control.get_settings().get("interface_language"))
         # v0.6.14: where Codex may show it - in the conversation first, or beside it (tools.PANEL_DISPLAY_MODES).
         return {"contents": [{"uri": SETTINGS_UI, "mimeType": "text/html+skybridge",
-                              "text": settings_page(),
+                              "text": settings_page(day=brand.day_look_at(time.time())),
                               "_meta": {"openai/ui": {"availableDisplayModes": list(PANEL_DISPLAY_MODES),
                                                       "preferredDisplayMode": PANEL_PREFERRED_MODE}}}]}
 

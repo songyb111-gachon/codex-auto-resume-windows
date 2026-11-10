@@ -172,6 +172,8 @@
   "page.analytics.used": "{window}: {percent} % usado",
   "page.anchor.fixed": "Próximo reinicio fijado a las {time}.",
   "page.anchor.needs_occasion": "No iniciará nada hasta que elijas una hora de inicio o actives «Iniciar justo después de un reinicio».",
+  "page.anchor.retrying": "No se pudo iniciar la ventana ahora; se volverá a intentar cada 5 minutos hasta las {time}.",
+  "page.anchor.stopped": "Dejó de intentarlo sin iniciar nada. Volverá a empezar la próxima vez que la ventana de 5 horas esté en marcha, o a una hora que hayas elegido.",
   "page.chat.cancel": "Cancelar",
   "page.chat.click": "Un clic en un aviso abre",
   "page.chat.click.chat": "El chat de esa conversación aquí",

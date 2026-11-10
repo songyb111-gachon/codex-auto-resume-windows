@@ -259,7 +259,13 @@ def _script_json(value) -> str:
     return json.dumps(value, ensure_ascii=False, allow_nan=False).replace("<", "\\u003c")
 
 
-def settings_page(data=None, theme=None, design=None, text=None, face=None) -> str:
+def day_data(look) -> dict:
+    """What the page draws a special day from: brand's one list of shapes."""
+    return {"look": look, "ground": brand.DAY_LOOKS[look][2], "focus": brand.SCENE_FOCUS[look], "width": brand.SCENE_WIDTH,
+            "height": brand.SCENE_HEIGHT, "fromTop": look in brand.SCENE_FROM_TOP, "elements": brand.scene_elements(look)}
+
+
+def settings_page(data=None, theme=None, design=None, text=None, face=None, day=None) -> str:
     """The panel as one HTML document.
 
     ``data`` is only ever used for a preview: in Codex the values arrive from the tool
@@ -285,8 +291,12 @@ def settings_page(data=None, theme=None, design=None, text=None, face=None) -> s
     # And which of them are written right to left (v0.6.11), so the page mirrors in one of them.
     catalogs = ("<script>window.__CODEX_AUTO_RESUME_LOCALE__=%s;"
                 "window.__CODEX_AUTO_RESUME_CATALOGS__=%s;"
-                "window.__CODEX_AUTO_RESUME_RTL__=%s;</script>"
-                % (_script_json(locale), _script_json(panel_catalogs()), _script_json(sorted(l10n.RIGHT_TO_LEFT))))
+                "window.__CODEX_AUTO_RESUME_RTL__=%s;"
+                "window.__CODEX_AUTO_RESUME_SWEEP__=%s;</script>"
+                % (_script_json(locale), _script_json(panel_catalogs()), _script_json(sorted(l10n.RIGHT_TO_LEFT)),
+                   _script_json({"presses": brand.PRESSES, "sweep": brand.SWEEP, "head": brand.ICON_ACCENT})))
+    if day is not None:
+        catalogs += "<script>window.__CODEX_AUTO_RESUME_DAY__=%s;</script>" % _script_json(day_data(day))
     seed = ""
     if data is not None:
         seed = "<script>window.__CODEX_AUTO_RESUME__=%s;</script>" % _script_json(data)

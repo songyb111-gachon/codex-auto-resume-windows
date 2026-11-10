@@ -172,6 +172,8 @@
   "page.analytics.used": "{window}: đã dùng {percent}%",
   "page.anchor.fixed": "Lần đặt lại tiếp theo được cố định lúc {time}.",
   "page.anchor.needs_occasion": "Nó sẽ không bắt đầu gì cho đến khi bạn chọn giờ bắt đầu hoặc bật \"Bắt đầu ngay sau khi đặt lại\".",
+  "page.anchor.retrying": "Hiện chưa thể bắt đầu cửa sổ; sẽ thử lại mỗi 5 phút cho đến {time}.",
+  "page.anchor.stopped": "Đã ngừng thử mà chưa bắt đầu gì. Sẽ bắt đầu lại vào lần tới cửa sổ 5 giờ chạy, hoặc vào giờ bạn đã chọn.",
   "page.chat.cancel": "Hủy",
   "page.chat.click": "Nhấp vào thông báo sẽ mở",
   "page.chat.click.chat": "Trò chuyện của cuộc hội thoại đó tại đây",

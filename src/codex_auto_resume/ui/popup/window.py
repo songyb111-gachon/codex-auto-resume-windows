@@ -139,7 +139,6 @@ class Popup(PopupMessages):
         self._static_dirty = True        # anything but the halo changed since the last frame
         self._origin = None
         self._switches = None            # {target: checked} as last laid out while on screen
-        self._scene_since = time.monotonic()
         self._glides = {}                # {target: (started_ms, from, to)}: switches on the move
         # v0.6.11: what a screen reader is handed (access.py), made the first time one asks and kept for as long
         # as this popup lives; and what it was last told is on screen, for the events a change raises.
@@ -417,7 +416,7 @@ class Popup(PopupMessages):
             self.locale = locale_of(strings)
         self._follow_theme()
         vm = self.model.view(now)
-        vm["scene"] = brand.day_look_at(now) if self.days and not self._contrast and self._design != "classic" else None
+        self.day_view(vm, now)
         # The light's cycle starts with the light, not the word: "attention" is a grey dot that does not
         # move for a watcher not known to be running and an amber one that breathes for one that is.
         if vm["light"] != self._state:
@@ -498,7 +497,7 @@ class Popup(PopupMessages):
         wanted = (self.visible and self._vm is not None
                   and (bool(self._glides)
                        or animates(self._vm["light"], self._since_state_ms(), reduced=self._reduced)
-                       or (bool(self._vm.get("scene")) and not self._reduced)))
+                       or (bool(self._vm.get("scene")) and not self._reduced) or self.sweeping()))
         if wanted and not self._frame_running:
             user32.SetTimer(self.hwnd, TIMER_FRAME, FRAME_MS, None)
             self._frame_running = True
@@ -526,6 +525,7 @@ class Popup(PopupMessages):
             # A switch on the move is drawn over the ground every frame, and the frame after its
             # glide ends draws it back into the ground where it has come to rest.
             self._static_dirty = True
+        self.step_hidden()
         if self._static_dirty or self._renderer.halo_plan is not self._plan:
             self._static_dirty = False
             return self._renderer.draw(self._vm, self._plan, frame=self.frame(), hover=self.hover,

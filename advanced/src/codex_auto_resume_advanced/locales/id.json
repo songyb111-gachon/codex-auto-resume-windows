@@ -172,6 +172,8 @@
   "page.analytics.used": "{window}: {percent}% terpakai",
   "page.anchor.fixed": "Reset berikutnya ditetapkan pukul {time}.",
   "page.anchor.needs_occasion": "Tidak ada yang dimulai sampai Anda memilih waktu mulai atau mengaktifkan \"Mulai tepat setelah reset\".",
+  "page.anchor.retrying": "Jendela belum dapat dimulai sekarang; dicoba lagi setiap 5 menit sampai {time}.",
+  "page.anchor.stopped": "Percobaan dihentikan tanpa ada yang dimulai. Akan mulai lagi saat jendela 5 jam berikutnya berjalan, atau pada waktu yang Anda pilih.",
   "page.chat.cancel": "Batal",
   "page.chat.click": "Klik pada pemberitahuan membuka",
   "page.chat.click.chat": "Obrolan percakapan itu di sini",

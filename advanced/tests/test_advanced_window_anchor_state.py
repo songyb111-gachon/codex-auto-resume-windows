@@ -77,6 +77,7 @@ class BusyStateTests(AnchorCase):
         self.on(anchor_at_1=anchor.encode_time(7, 0), anchor_after_reset=2)
         self.fail(reads=(OptionKey.ANCHOR_STARTED_AT,))
         self.run_through()
+        self.span_over()
         self.assertEqual((self.world.calls, self.world.started), ([], []))
         self.assertEqual(self.codes()[0], "anchor.skip_state")
         self.stays_on()
@@ -98,6 +99,7 @@ class BusyStateTests(AnchorCase):
         self.on(anchor_at_1=anchor.encode_time(7, 0), anchor_after_reset=2)
         self.fail(writes=(OptionKey.ANCHOR_STARTED_AT,))
         self.run_through()
+        self.span_over()
         self.assertEqual(self.world.started, [])
         self.assertEqual(self.codes(), ["anchor.skip_state"])
         self.stays_on()
@@ -128,6 +130,7 @@ class GuardTests(AnchorCase):
             answer = self.rt.tick(self.view)
             if answer is not DEFER:
                 answer.run(busy)
+        self.span_over()
         self.assertEqual(self.world.started, [])
         self.assertEqual(self.codes(), ["anchor.skip_state"])
         self.assertIsNone(self.stamped(OptionKey.ANCHOR_STARTED_AT))

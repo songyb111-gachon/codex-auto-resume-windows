@@ -423,6 +423,8 @@ namespace CodexAutoResume
         private readonly AsideLabel detail = new AsideLabel();
         private readonly VersionLabel versionText = new VersionLabel();
         private readonly HaloDot stateDot = new HaloDot();
+        private readonly SoftDayScene dayScene = new SoftDayScene();
+        private string dayLook;
         private readonly System.Diagnostics.Stopwatch versionClock = System.Diagnostics.Stopwatch.StartNew();
         private readonly PressRun versionPresses = new PressRun();
 
@@ -1265,6 +1267,38 @@ namespace CodexAutoResume
             };
             fit(this, EventArgs.Empty);
             FontChanged += fit;
+            dayLook = Palette.AccentBar ? null : DayArt.Today();
+            if (dayLook != null)
+            {
+                header.Controls.Add(dayScene);
+                dayScene.BringToFront();
+                EventHandler place = delegate { PlaceDayScene(); };
+                hero.SizeChanged += place;
+                headline.TextChanged += place;
+                detail.TextChanged += place;
+                startButton.VisibleChanged += place;
+                Resize += place;
+                Shown += place;
+            }
+        }
+
+        private int WordsEnd(Label label, bool mirrored, int width)
+        {
+            Size words = Soft.Measure(label.Text ?? "", label.Font, int.MaxValue, TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix);
+            return (mirrored ? width - label.Right : label.Left) + Math.Min(words.Width, label.Width);
+        }
+
+        /// The day's scene in what the header's words leave at the card's outer side: no word on it, or no scene.
+        private void PlaceDayScene()
+        {
+            if (dayLook == null) return;
+            bool mirrored = Mirror.Of(hero);
+            int width = hero.Width, hair = Soft.Hairline, outer = width - hair;
+            if (Soft.OwnVisible(startButton)) outer = (mirrored ? width - startButton.Left : startButton.Left) - Px(8);
+            int end = Math.Max(WordsEnd(headline, mirrored, width), WordsEnd(detail, mirrored, width)), left, fade;
+            double unit;
+            bool fits = DayArt.Fit(dayLook, end, 0, width, outer, hair, hero.Height - hair, out left, out unit, out fade);
+            dayScene.Place(fits, dayLook, hero.Left + (mirrored ? width - outer : left), hero.Top + hair, outer - left, hero.Height - 2 * hair, unit, fade);
         }
 
         private void BuildFooter()
@@ -1537,6 +1571,7 @@ namespace CodexAutoResume
             SettingsForm.AdoptTextSize(text, TextScale.Fitting(text, opening.WorkingArea.Size, SettingsForm.DpiScale));
             var persistent = new PersistentBridge(root, bridge);
             UiFaults.Follow(root, persistent);
+            DayArt.On = Soft.StillClock < 0;
             var window = new SettingsForm(persistent);
             // A window a person opened comes to the front - after Finish, and opened again outside (v0.6.17); a window
             // that reopens itself, and a capture's, keep their place.
