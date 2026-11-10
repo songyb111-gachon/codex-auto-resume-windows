@@ -219,7 +219,8 @@ namespace CodexAutoResumeSetup
 
         // What Started does with the archive, for the window: a fresh folder, the archive unpacked into it - its
         // share of the bar entry by entry - Install.cmd run there with `switches`, each line it prints `heard`, and
-        // the folder removed. The window is not closed while Install.cmd runs (InstallerWindow.OnFormClosing).
+        // the folder removed - unless Install.cmd is still running from it past the window's limit (Install), and then it is
+        // left to it. The window is not closed while Install.cmd runs (InstallerWindow.OnFormClosing).
         static int InstallFrom(byte[] archive, IList<string> switches, Action<string> heard, Action<double> unpacked)
         {
             string reason;
@@ -230,6 +231,7 @@ namespace CodexAutoResumeSetup
                 heard(reason);
                 return Codes.NoFolder;
             }
+            bool stillRunning = false;
             try
             {
                 heard("Codex Auto Resume setup: unpacking " + Embedded.Archive + " into " + folder.Path);
@@ -242,12 +244,14 @@ namespace CodexAutoResumeSetup
                     heard("This setup program stops here: " + failed);
                     return Codes.NotUnpacked;
                 }
-                return Install(folder.Path, switches, heard);
+                int code = Install(folder.Path, switches, heard);
+                stillRunning = code == CodexAutoResume.InstallerFlow.StillRunning;
+                return code;
             }
             finally
             {
                 // What Install.cmd started may hold a file a moment longer than Install.cmd itself.
-                bool removed = folder.Remove();
+                bool removed = stillRunning || folder.Remove();
                 for (int tries = 0; !removed && tries < 10; tries++)
                 {
                     Thread.Sleep(300);
@@ -301,12 +305,19 @@ namespace CodexAutoResumeSetup
                     run.StandardInput.Close();
                     Thread output = Pass(run.StandardOutput.BaseStream, false, heard);
                     Thread errors = Pass(run.StandardError.BaseStream, true, heard);
+                    Stopwatch waited = Stopwatch.StartNew();
                     while (!run.WaitForExit(200))
                     {
                         if (Closing.Now)
                         {
                             run.WaitForExit(Math.Max(0, Math.Min(1500, Closing.Left() - 2000)));
                             break;
+                        }
+                        // The window, which cannot be closed while this waits, says it is still working and leaves
+                        // Install.cmd alone; a console has its own close button, and waits as it always did.
+                        if (heard != null && waited.ElapsedMilliseconds >= CodexAutoResume.InstallerFlow.ScriptMilliseconds)
+                        {
+                            return CodexAutoResume.InstallerFlow.StillRunning;
                         }
                     }
                     if (run.HasExited)

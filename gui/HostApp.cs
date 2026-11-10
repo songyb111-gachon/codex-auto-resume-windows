@@ -26,6 +26,21 @@ using System.Windows.Forms;
 
 namespace CodexAutoResume
 {
+    /// This process's id, asked of Windows once: what it hands out holds a handle, one more each time it is asked.
+    internal static class OwnProcess
+    {
+        private static int id;
+
+        internal static int Id
+        {
+            get
+            {
+                if (id == 0) using (Process self = Process.GetCurrentProcess()) id = self.Id;
+                return id;
+            }
+        }
+    }
+
     internal static class HostApp
     {
         /// The argument a relaunched program is given: it never relaunches again. Every argument parser of the
@@ -85,7 +100,7 @@ namespace CodexAutoResume
         {
             try
             {
-                return Decide(Process.GetCurrentProcess().Id, LiveTable());
+                return Decide(OwnProcess.Id, LiveTable());
             }
             catch (Exception)
             {
@@ -223,7 +238,7 @@ namespace CodexAutoResume
         {
             Dictionary<int, int> parents = Parents();
             var table = new Dictionary<int, Row>();
-            int self = Process.GetCurrentProcess().Id;
+            int self = OwnProcess.Id;
             int id = self;
             for (int step = 0; step <= MaxSteps + 1 && !table.ContainsKey(id); step++)
             {

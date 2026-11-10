@@ -282,13 +282,15 @@ namespace CodexAutoResume
             }
         }
 
-        /// The push notices card, where the bot's token is kept: its row picked in the list, as a click picks it.
+        /// The push notices card, where the bot's token is kept: its row picked in the list, as a click picks it, and the
+        /// column landed on the card once it is read (LandOnCourier).
         private void OpenNoticesCard()
         {
             if (advancedList == null) return;
             foreach (ListViewItem item in advancedList.Items)
                 if (Str(item.Tag as Dictionary<string, object>, "id") == "push_notices")
                 {
+                    courierLanding = true;
                     item.Selected = true;
                     item.Focused = true;
                     item.EnsureVisible();

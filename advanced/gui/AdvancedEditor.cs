@@ -109,6 +109,7 @@ namespace CodexAutoResume
             return Word(key, fallback, "n", ImagesMost).Replace("{mb}", Mirror.Embed(Megabytes(ImageBytesMost)));
         }
         private const int ThumbSide = 64;
+        private const string PastedPrefix = "codex-auto-resume-paste-";
 
         /// The editor for a new message (`row` null) or for `row`, a prompt still waiting: shown, answered, and - where it
         /// saved - the page and the list read again, the saved row to be chosen there.
@@ -116,6 +117,7 @@ namespace CodexAutoResume
         {
             if (busy > 0 || advancedListing == null || advancedPrompts == null) return;
             if (row != null && Str(row, "state") != "waiting") return;
+            SweepPasted();
             using (Form dialog = BuildEditor(row))
             {
                 if (editorAnswer != null) editorAnswer(dialog);
@@ -491,6 +493,22 @@ namespace CodexAutoResume
             if (chosen != null) AddImages(chosen);
         }
 
+        /// What a window killed with the editor open left behind: its pasted pictures, only those, a day old or more -
+        /// younger ones may be another window's, still in its editor. What cannot be removed is tried at the next opening.
+        private static void SweepPasted()
+        {
+            try
+            {
+                DateTime before = DateTime.UtcNow.AddDays(-1);
+                foreach (string file in System.IO.Directory.GetFiles(System.IO.Path.GetTempPath(), PastedPrefix + "*"))
+                {
+                    try { if (System.IO.File.GetLastWriteTimeUtc(file) < before) System.IO.File.Delete(file); }
+                    catch (Exception) { /* in use, or not ours to remove: left */ }
+                }
+            }
+            catch (Exception) { /* no temporary folder to look in: nothing to sweep */ }
+        }
+
         /// Ctrl+V: a picture on the clipboard, written as a PNG of the window's own in %TEMP%, or picture files copied in
         /// Explorer. False where the clipboard holds neither, so the words box pastes its text as it always did.
         private bool PasteImages()
@@ -510,7 +528,7 @@ namespace CodexAutoResume
                 {
                     if (pasted == null) return false;
                     string path = System.IO.Path.Combine(System.IO.Path.GetTempPath(),
-                                                         "codex-auto-resume-paste-" + Guid.NewGuid().ToString("N") + ".png");
+                                                         PastedPrefix + Guid.NewGuid().ToString("N") + ".png");
                     pasted.Save(path, System.Drawing.Imaging.ImageFormat.Png);
                     editorTemps.Add(path);
                     AddImages(new[] { path });

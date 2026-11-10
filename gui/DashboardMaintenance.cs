@@ -484,7 +484,7 @@ namespace CodexAutoResume
                 // This window, which waits for the bootstrap: the installer leaves it open (install.ps1,
                 // Get-OwnedDashboardProcess), and it opens the new version itself.
                 info.EnvironmentVariables["CODEX_AUTO_RESUME_UPDATING_DASHBOARD"] =
-                    Process.GetCurrentProcess().Id.ToString(CultureInfo.InvariantCulture);
+                    OwnProcess.Id.ToString(CultureInfo.InvariantCulture);
                 info.CreateNoWindow = true;
                 info.RedirectStandardOutput = true;
                 info.RedirectStandardError = true;

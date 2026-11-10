@@ -699,7 +699,7 @@ namespace CodexAutoResume
             {
                 string target = SameFile(exe);
                 if (target == null) return false;
-                int own = Process.GetCurrentProcess().Id;
+                int own = OwnProcess.Id;
                 var asked = new List<KeyValuePair<IntPtr, int>>();
                 var programs = new Dictionary<int, bool>();
                 EachWindow each = delegate(IntPtr window, IntPtr data)
@@ -1076,7 +1076,7 @@ namespace CodexAutoResume
             {
                 string config = Path.Combine(installRoot, "config");
                 if (Directory.Exists(config))
-                    File.WriteAllText(Path.Combine(config, UpdateUnsavedFile(Process.GetCurrentProcess().Id)), "unsaved",
+                    File.WriteAllText(Path.Combine(config, UpdateUnsavedFile(OwnProcess.Id)), "unsaved",
                                       new UTF8Encoding(false));
             }
             catch (Exception) { /* unanswered: the installer treats it as a window that cannot be asked */ }
@@ -1236,7 +1236,7 @@ namespace CodexAutoResume
             {
                 string config = Path.Combine(installRoot, "config");
                 if (Directory.Exists(config))
-                    File.WriteAllText(Path.Combine(config, UpdateReopenFile(Process.GetCurrentProcess().Id)), arguments,
+                    File.WriteAllText(Path.Combine(config, UpdateReopenFile(OwnProcess.Id)), arguments,
                                       new UTF8Encoding(false));
             }
             catch (Exception) { /* it closes all the same; the installer opens nothing it was not told of */ }
