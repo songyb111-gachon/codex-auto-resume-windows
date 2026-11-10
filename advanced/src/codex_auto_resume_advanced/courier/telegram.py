@@ -58,7 +58,6 @@ COMMANDS = {"/status": TELEGRAM, "/list": TELEGRAM, "/cancel": TELEGRAM, "/pause
             "/continue": TELEGRAM_CONTINUE, "/recovery-on": TELEGRAM_CONTINUE}
 TAKES_TASK = ("/cancel", "/continue")
 CODES = ("status", "listed", "cancelled", "paused", "list_again", "ignored")
-CONTINUE_CODES = ("continued", "pause_lifted")
 
 
 def parse(text):

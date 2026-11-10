@@ -265,7 +265,3 @@ class UsageStop(UsagePause):
         (not_stopped, press_resume, not_continued), the window and its reset. Codes and numbers only."""
         return [{key: notice[key] for key in ("key", "kind", "window_minutes", "reset_at")}
                 for notice in self._notices if 0 <= now - notice["at"] < NOTICE_FOR]
-
-
-def make_stop(paths) -> UsageStop:
-    return UsageStop(paths)

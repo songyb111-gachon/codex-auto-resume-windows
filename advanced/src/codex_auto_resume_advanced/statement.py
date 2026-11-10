@@ -25,7 +25,7 @@ from pathlib import Path
 
 from codex_auto_resume import l10n
 
-from .vocabulary import ArmingState, ArmingWarning, Field, ReportRefusal, ReportWrite, SteerReason, WebReason
+from .vocabulary import ArmingWarning, Field, ReportRefusal, ReportWrite, SteerReason, WebReason
 
 DIRECTORY = Path(__file__).resolve().parent / "locales"
 FIELDS = tuple(Field)
@@ -51,10 +51,6 @@ def key(capability, field) -> str:
 
 def title_key(field) -> str:
     return "field.%s" % Field(field)
-
-
-def state_key(state) -> str:
-    return "state.%s" % ArmingState(state)
 
 
 def warning_key(warning) -> str:
