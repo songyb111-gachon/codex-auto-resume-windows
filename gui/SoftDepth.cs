@@ -101,20 +101,6 @@ namespace CodexAutoResume
             return new Padding(left, top, right, bottom);
         }
 
-        /// The reach above and to the left, where the highlight is.
-        internal static int ReachNear(string recipe)
-        {
-            Padding reach = Reach(recipe);
-            return Math.Max(reach.Left, reach.Top);
-        }
-
-        /// The reach below and to the right, where the shadow is.
-        internal static int ReachFar(string recipe)
-        {
-            Padding reach = Reach(recipe);
-            return Math.Max(reach.Right, reach.Bottom);
-        }
-
         private static int Far(double offset, double blur, double scale)
         {
             return Math.Max(0, (int)Math.Ceiling((offset + 1.5 * blur) * scale - 1e-9));
@@ -151,13 +137,6 @@ namespace CodexAutoResume
             bool inset;
             Color tone;
             return Shadow(recipe, index, out dx, out dy, out blur, out alpha, out inset, out tone) && !inset && (dx < 0 || dy < 0);
-        }
-
-        /// A well's inset shadow inside `box` - the well inside its hairline - whose corners have
-        /// `radius`. It is already clipped to that shape.
-        internal static void StampInset(Graphics g, Rectangle box, float radius, Rectangle clip)
-        {
-            StampInner(g, box, "inset", radius, clip);
         }
 
         /// The inset shadows of `recipe` inside `box`, the body inside its hairline.
@@ -730,13 +709,6 @@ namespace CodexAutoResume
             int left = Math.Max(reach.Left, ring), top = Math.Max(reach.Top, ring);
             int right = Math.Max(reach.Right, ring), bottom = Math.Max(reach.Bottom, ring);
             return new Rectangle(face.X - left, face.Y - top, face.Width + left + right, face.Height + top + bottom);
-        }
-
-        /// Repaints the band around `child` wherever its lift is drawn - after a press, a change
-        /// of enabled state, a move - so no shadow is left behind where it no longer is.
-        internal static void InvalidateLift(Control child)
-        {
-            if (child.Parent != null) Invalidate(child.Parent, Band(child, child is SoftCard ? "card" : "control"));
         }
 
         /// Repaints `band` (in `container`'s coordinates) on the container and on every

@@ -1155,11 +1155,5 @@ namespace CodexAutoResume
 
         [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
         private static extern bool GetUserPreferredUILanguages(int flags, out int count, char[] buffer, ref int size);
-
-        /// Whether a language is written right to left.
-        internal static bool RightToLeft(string locale)
-        {
-            return locale == "ar" || locale == "he";
-        }
     }
 }
