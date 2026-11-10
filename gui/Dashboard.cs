@@ -1807,6 +1807,9 @@ namespace CodexAutoResume
             ground.Padding = CardRoom();
             ground.Margin = new Padding(0);
             ground.Controls.Add(card, 0, 0);
+            // Two tables deep a table measures what it holds at no width at all: what wraps was asked for one line.
+            ground.Measured = body;
+            ground.Around = new Size(ground.Padding.Horizontal + card.Padding.Horizontal, ground.Padding.Vertical + card.Padding.Vertical);
             return ground;
         }
 

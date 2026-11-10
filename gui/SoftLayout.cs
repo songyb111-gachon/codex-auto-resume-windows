@@ -18,6 +18,17 @@ namespace CodexAutoResume
     /// A table that is a ground (see Ground): double-buffered and opaque.
     internal sealed class SoftStack : TableLayoutPanel, ISoftGround
     {
+        /// When set, its preferred size is this control's at the width left inside, and Around (a dialog's card, DialogBodyCard).
+        internal Control Measured;
+        internal Size Around;
+
+        public override Size GetPreferredSize(Size proposedSize)
+        {
+            if (Measured == null) return base.GetPreferredSize(proposedSize);
+            int width = proposedSize.Width > 1 && proposedSize.Width < 0x100000 ? proposedSize.Width : Width;
+            return new Size(width, Measured.GetPreferredSize(new Size(Math.Max(1, width - Around.Width), 0)).Height + Around.Height);
+        }
+
         internal SoftStack()
         {
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |

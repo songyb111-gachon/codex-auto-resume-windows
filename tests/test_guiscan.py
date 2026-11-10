@@ -159,7 +159,7 @@ class SliceTests(unittest.TestCase):
         # and SoftMenuLayer, a submenu and the card every right-click menu is drawn as (gui/SoftMenu.cs). 77 since v0.6.20:
         # Mirror, the window mirrored for a language written right to left (gui/SoftMirror.cs). 78 with DesktopShortcut,
         # whether this installation's shortcut is on the Desktop, for the setup window's box.
-        self.assertEqual(len(set(declared)), 78, "the window's types")
+        self.assertEqual(len(set(declared)), 88, "the window's types")
         # v0.6.11: DashboardTools.cs, the Dashboard's own tools, an eleventh part in a twelfth source; and
         # SettingsOwn.cs, Custom... beside a drop-down's choices, a twelfth part in a thirteenth. v0.6.12:
         # DashboardVersions.cs, Install another version..., a thirteenth part in a fourteenth; and SettingsPower.cs,
