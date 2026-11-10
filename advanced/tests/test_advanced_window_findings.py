@@ -188,5 +188,13 @@ class PastedSweepTests(unittest.TestCase):
         self.assertLess(opening.index("SweepPasted();"), opening.index("BuildEditor(row)"))
 
 
+class KoreanRegisterTests(unittest.TestCase):
+    def test_the_two_accounts_help_lines_speak_to_the_person_alike(self):
+        words = json.loads((ROOT / "advanced" / "src" / "codex_auto_resume_advanced" / "locales" / "ko.json")
+                           .read_text(encoding="utf-8"))
+        self.assertTrue(words["page.accounts.help"].startswith("\ub2f9\uc2e0\uc758 "))
+        self.assertTrue(words["page.accounts.help_switch"].startswith("\ub2f9\uc2e0\uc758 "))
+
+
 if __name__ == "__main__":
     unittest.main()
