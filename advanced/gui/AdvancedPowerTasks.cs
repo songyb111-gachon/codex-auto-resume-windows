@@ -38,6 +38,9 @@ namespace CodexAutoResume
         private CheckBox powerTaskFailed, powerTaskInterrupted;
         private SoftCombo powerTaskAction, powerTaskGrace;
         private Button powerTaskArm, powerTaskOff;
+        // The conversations ticked when the form was last taken down: a re-read that changes the list rebuilds it, and the
+        // rows it still lists stay ticked.
+        private List<string> powerTasksTicked = new List<string>();
 
         /// What the card is built from, for ShowAdvancedDetail to build it again only when it changed.
         private string PowerTasksShown(Dictionary<string, object> item)
@@ -89,6 +92,7 @@ namespace CodexAutoResume
             var armed = Map(advancedPowerTasks, "armed");
             if (armed != null)
             {
+                powerTasksTicked.Clear();
                 foreach (object entry in Items(armed, "tasks") ?? new List<object>())
                 {
                     var task = entry as Dictionary<string, object>;
@@ -119,7 +123,7 @@ namespace CodexAutoResume
                 var row = entry as Dictionary<string, object>;
                 string thread = Str(row, "thread_id");
                 if (thread == null) continue;
-                CheckBox check = NewCheck(PowerTaskName(thread), false, true);
+                CheckBox check = NewCheck(PowerTaskName(thread), powerTasksTicked.Contains(thread), true);
                 check.Tag = thread;
                 check.CheckedChanged += delegate { UpdatePowerTasksButtons(busy == 0); };
                 card.Controls.Add(check);
@@ -166,6 +170,8 @@ namespace CodexAutoResume
 
         private void ForgetPowerTasksCard()
         {
+            // Called twice for a rebuild, the second time with no rows left to read.
+            if (powerTaskRows.Count > 0) powerTasksTicked = PowerTasksPicked();
             powerTaskRows.Clear();
             powerTaskFailed = powerTaskInterrupted = null;
             powerTaskAction = powerTaskGrace = null;
