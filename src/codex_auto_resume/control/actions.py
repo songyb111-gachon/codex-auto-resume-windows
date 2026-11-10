@@ -8,6 +8,7 @@ from __future__ import annotations
 import time
 
 from .. import homes, machine, oncewords, power, projects, quiet, settings
+from ..domain import gates
 from ..machine import CLAIMED, OBSERVING, WAITING
 from ..store import TERMINAL, StoreError
 from ..store.actions import CHANGED, RECHECKED, RETIRED, UNRESOLVED
@@ -222,18 +223,16 @@ class ActionsMixin:
         a Pause, the conversation's recovery off, Observe only, quiet hours, or no internet while the watcher waits for
         one - each as the watcher reads it, so the click never promises a reading the watcher will not make."""
         stored = store.settings()
-        if not stored["enabled"]:
-            return "paused"
-        if not store.thread_enabled(record["thread_id"]):
-            return "conversation_off"
         try:
             values = self.get_settings()
         except Exception:
             values = {}
-        if stored.get("observe_only") or values.get("observe_only"):
-            return "observe_only"
-        if quiet.quiet_until(now, values) is not None:
-            return "quiet_hours"
+        stopped = gates.usage_read_stopped(enabled=stored["enabled"] and not self.managed().disable_auto_resume,
+                                           conversation_on=store.thread_enabled(record["thread_id"]),
+                                           observing=stored.get("observe_only") or values.get("observe_only"),
+                                           quiet=quiet.quiet_until(now, values) is not None)
+        if stopped is not None:
+            return stopped
         if power.waits_for_network(values):
             try:
                 if network.internet() is False:
