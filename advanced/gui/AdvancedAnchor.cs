@@ -22,8 +22,8 @@ namespace CodexAutoResume
     internal sealed partial class SettingsForm
     {
         private const string AnchorId = "window_anchor";
-        // A time choice off, and how far a time of day is shifted to be held as a whole number from 1 (engine/anchor.py).
-        private const int AnchorOff = 1, AnchorShift = 2;
+        // How far a time of day is shifted to be held as a whole number from 1 (1 itself is off; engine/anchor.py).
+        private const int AnchorShift = 2;
 
         // The last status's window_anchor times (advanced.window_anchor), or null while it is off.
         private Dictionary<string, object> anchorShown;

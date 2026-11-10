@@ -7,8 +7,8 @@ leaves the installation running as the standard edition, with a badge that says 
 
 Every hook hands its question to the runtime (runtime.py), which asks the registry's
 capabilities in the state each one is in; the claim ledger (P11) and the surfaces (P10) are the
-plug's own. Nothing is opened, read or written until a hook needs it, and with no capability -
-as this version ships - every decision point answers as NULL does.
+plug's own. Nothing is opened, read or written until a hook needs it, and with no capability on
+every decision point answers as NULL does.
 """
 from __future__ import annotations
 
@@ -22,8 +22,8 @@ PLUG_API = 8
 class AdvancedPlug(Plug):
     """The advanced edition's plug.
 
-    Every capability is off until a person turns it on, and there is none yet, so every decision
-    still answers as NULL does: an advanced installation with nothing on is the standard one
+    Every capability is off until a person turns it on, and while none is on every decision
+    answers as NULL does: an advanced installation with nothing on is the standard one
     (advanced/tests/test_advanced_package.py holds that at every point). What it adds is on its
     surfaces: the Dashboard's bridge commands and a model's MCP tools, which list the
     capabilities and turn them off."""

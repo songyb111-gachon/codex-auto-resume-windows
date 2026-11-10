@@ -932,8 +932,6 @@ namespace CodexAutoResume
         Rectangle ISoftLifted.Face { get { return ClientRectangle; } }
         bool ISoftLifted.Ring { get { return false; } }
 
-        internal LiftTracker Tracker { get { return tracker; } }
-
         /// The width the card is being measured at, while a table measures it; 0 otherwise. A table
         /// measures a card by asking what it holds how wide it would be and how tall it is that wide,
         /// never at the width it is measuring the card at - and a block that fills its card and wraps

@@ -11,6 +11,7 @@ import threading
 import time
 
 from ..domain.errors import AdapterError
+from ..domain.ids import CODEX_APP_PUBLISHER
 from ..win import authenticode
 from ..win.inventory import resource_users
 from ..win.kernel import NO_WINDOW, process_identity
@@ -135,14 +136,18 @@ def _state_holder(servers, codex_home):
     return held[0]
 
 
+def _windows_apps() -> Path:
+    """The folder Store apps are installed in. Under WOW64 (32-bit Python on 64-bit Windows) ProgramFiles is the (x86)
+    directory; ProgramW6432 always holds the native one, where WindowsApps actually lives."""
+    program_files = os.environ.get("ProgramW6432") or os.environ.get("ProgramFiles", r"C:\Program Files")
+    return Path(program_files) / "WindowsApps"
+
+
 def _app_main(rows):
     """The one Windows Store app main among the inventory's rows: the package's ChatGPT.exe whose
     parent is none of the package's own processes. None, or several, fails closed."""
-    # Under WOW64 (32-bit Python on 64-bit Windows) ProgramFiles is the (x86) directory;
-    # ProgramW6432 always holds the native one, where WindowsApps actually lives.
-    program_files = os.environ.get("ProgramW6432") or os.environ.get("ProgramFiles", r"C:\Program Files")
-    app_pattern = re.compile(re.escape(str(Path(program_files) / "WindowsApps")) +
-                             r"\\OpenAI\.Codex_[0-9.]+_(x64|arm64)__2p2nqsd0c76g0\\app\\ChatGPT\.exe", re.I)
+    app_pattern = re.compile(re.escape(str(_windows_apps())) + r"\\OpenAI\.Codex_[0-9.]+_(x64|arm64)__" +
+                             CODEX_APP_PUBLISHER + r"\\app\\ChatGPT\.exe", re.I)
     apps = [row for row in rows if isinstance(row, dict) and isinstance(row.get("path"), str)
             and app_pattern.fullmatch(row["path"])]
     app_ids = {row["pid"] for row in apps}
@@ -209,8 +214,7 @@ def app_running(rows) -> bool:
     except AdapterError as error:
         if str(error) != "desktop_main_missing_or_ambiguous":
             return True
-    program_files = os.environ.get("ProgramW6432") or os.environ.get("ProgramFiles", r"C:\Program Files")
-    root = str(Path(program_files) / "WindowsApps").lower() + "\\openai.codex_"
+    root = str(_windows_apps()).lower() + "\\openai.codex_"
     return any(isinstance(row, dict) and isinstance(row.get("path"), str) and row["path"].lower().startswith(root)
                for row in rows)
 

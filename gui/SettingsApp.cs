@@ -730,7 +730,7 @@ namespace CodexAutoResume
 
         private int Px(int atNinetySix)
         {
-            return (int)Math.Round(atNinetySix * DpiScale);
+            return Soft.Px(atNinetySix);
         }
 
         private Padding Pad(int left, int top, int right, int bottom)
