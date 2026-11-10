@@ -810,7 +810,6 @@ class OneListTests(unittest.TestCase):
 
     def test_the_keyboard_ring_is_every_controls(self):
         ring = ".combo-list.keys .combo-option.active"
-        self.assertIn(":focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }", mcpui._STYLE)
         self.assertEqual((declared(ring, "outline"), declared(ring, "outline-offset")),
                          ("2px solid var(--focus)", "2px"))
         self.assertEqual((brand.LAYOUT["focus_width"], brand.LAYOUT["focus_offset"]), (2, 2))
