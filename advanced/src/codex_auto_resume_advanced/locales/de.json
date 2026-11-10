@@ -174,6 +174,7 @@
   "page.anchor.needs_occasion": "Nichts wird gestartet, bis Sie eine Startzeit wählen oder „Direkt nach einem Zurücksetzen starten“ einschalten.",
   "page.anchor.retrying": "Das Fenster konnte gerade nicht gestartet werden. Bis {time} wird es alle 5 Minuten erneut versucht.",
   "page.anchor.stopped": "Die Versuche wurden beendet, ohne dass etwas gestartet wurde. Es geht wieder los, wenn das 5-Stunden-Fenster das nächste Mal läuft, oder zu einer von Ihnen gewählten Zeit.",
+  "page.crash.unsupervised": "Dieser Watcher wurde ohne Neustart nach Absturz gestartet, weil sein Zustand in dem Moment nicht gelesen werden konnte. Beim nächsten Start des Watchers gilt er wieder.",
   "page.chat.cancel": "Abbrechen",
   "page.chat.click": "Ein Klick auf eine Meldung öffnet",
   "page.chat.click.chat": "Den Chat dieser Unterhaltung hier",

@@ -88,6 +88,10 @@ class AdvancedPlug(Plug):
     def supervise(self, facts):
         return self.runtime.supervise(facts)
 
+    def supervise_held(self):
+        """Why the start question just named no supervisor (core's Plug.supervise_held, runtime.Runtime.supervise_held)."""
+        return self.runtime.supervise_held()
+
     def moved(self, record, state):
         return self.runtime.moved(record, state)
 

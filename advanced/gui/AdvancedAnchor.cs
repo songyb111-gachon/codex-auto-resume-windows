@@ -28,15 +28,21 @@ namespace CodexAutoResume
         // The last status's window_anchor times (advanced.window_anchor), or null while it is off.
         private Dictionary<string, object> anchorShown;
 
+        // That the watcher running now started without crash restart's supervisor (advanced.crash_restart, v0.6.23).
+        private const string CrashId = "crash_restart";
+        private Dictionary<string, object> crashShown;
+
         /// From each snapshot: the reset window_anchor's last start fixed, as the status carries it, or none.
         private void AnchorApplied(Dictionary<string, object> reply)
         {
             anchorShown = Map(Map(Map(reply, "status"), "advanced"), AnchorId);
+            crashShown = Map(Map(Map(reply, "status"), "advanced"), CrashId);
         }
 
         /// What the card shows of it, for ShowAdvancedDetail's "built again only when it changed".
         private string AnchorShownText(Dictionary<string, object> item)
         {
+            if (Str(item, "id") == CrashId) return Get(crashShown, "unsupervised") as string ?? "";
             return Str(item, "id") == AnchorId ? (AnchorText() ?? "") + "\n" + (AnchorRetryText() ?? "") : "";
         }
 
@@ -66,6 +72,14 @@ namespace CodexAutoResume
         /// nothing while it is on with no time picked and Start right after a reset off (AnchorNeedsOccasion).
         private void BuildAnchorLine(Dictionary<string, object> item, TableLayoutPanel head)
         {
+            if (Str(item, "id") == CrashId && Get(crashShown, "unsupervised") is string)
+            {
+                Label unsupervised = HelpText(Word("page.crash.unsupervised",
+                    "This watcher started without crash restart, because what it stands at could not be read at that moment. The next start of the watcher takes it up again."));
+                unsupervised.ForeColor = Accent;
+                unsupervised.Margin = Pad(0, Brand.SpaceS, 0, 0);
+                head.Controls.Add(unsupervised);
+            }
             if (Str(item, "id") != AnchorId) return;
             string text = AnchorText();
             if (text != null)

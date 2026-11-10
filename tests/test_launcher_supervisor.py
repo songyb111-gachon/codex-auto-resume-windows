@@ -130,6 +130,58 @@ class SuperviseTests(SupervisorCase):
                 self.assertEqual(self.launcher.main([]), 0)
         self.assertEqual(len(Child.started), 1)
 
+    def held_plug(self, held, *later):
+        """A plug whose start answers are DEFER, held back for `held`, until `later`'s words (one a question)."""
+        answers = list(later)
+        class Held(Asked):
+            def supervise_held(self):
+                return held
+        return Held(supervise=lambda facts: answers.pop(0) if answers else DEFER)
+
+    def launch_held(self, plug, code=0):
+        with patch.object(self.launcher.time, "sleep") as slept:
+            returned, runs, _ = self.launch([], plug, codes=[0], watcher_code=code)
+        return returned, runs, slept.call_args_list
+
+    def written(self, name):
+        path = self.home / "logs" / name
+        return path.read_text(encoding="utf-8") if path.is_file() else ""
+
+    def test_a_start_question_that_cannot_be_answered_is_asked_again_and_a_supervisor_had(self):
+        """Fails with the one question it was: a state busy for a moment left the watcher unsupervised for its whole life."""
+        plug = self.held_plug("unreadable", DEFER, Alternative.SUPERVISE)
+        returned, runs, slept = self.launch_held(plug)
+        self.assertEqual((returned, runs), (0, []), "the watcher ran as a child")
+        self.assertEqual(len(Child.started), 1)
+        self.assertEqual([call.args for call in slept], [(self.launcher.ASK_AGAIN_SECONDS,)])
+        self.assertEqual(self.written(self.launcher.UNSUPERVISED_FILE), "")
+
+    def test_still_no_answer_it_runs_here_and_says_so_where_a_person_can_see_it(self):
+        """Fails with the launcher saying nothing (B1 of the owner's logs of 2026-11-10)."""
+        returned, runs, _slept = self.launch_held(self.held_plug("unreadable"))
+        self.assertEqual((returned, len(runs), Child.started), (0, 1, []))
+        self.assertIn("without crash restart (unreadable)", self.written("launcher.log"))
+        self.assertIn("without crash restart", self.written("errors.log"))
+        self.assertEqual(self.written(self.launcher.UNSUPERVISED_FILE), "%d unreadable\n" % os.getpid())
+
+    def test_a_capability_stored_off_is_asked_once_and_nothing_is_said(self):
+        """Fails with a pause at every start of an installation that never turned crash restart on."""
+        returned, runs, slept = self.launch_held(self.held_plug(None))
+        self.assertEqual((returned, len(runs), slept), (0, 1, []))
+        self.assertEqual(self.written(self.launcher.UNSUPERVISED_FILE), "")
+
+    def test_the_watcher_that_ran_here_is_restarted_supervised_when_it_ends_unexpectedly(self):
+        """Fails with nothing asked at its end: the later moment, under the rules a supervised end is judged by."""
+        plug = self.held_plug("unreadable", DEFER, DEFER, Alternative.SUPERVISE, Alternative.RESTART)
+        returned, runs, _slept = self.launch_held(plug, code=1)
+        self.assertEqual((len(runs), len(Child.started), returned), (1, 1, 0))
+
+    def test_the_file_is_taken_away_when_a_supervisor_is_had(self):
+        (self.home / "logs").mkdir(exist_ok=True)
+        (self.home / "logs" / self.launcher.UNSUPERVISED_FILE).write_text("1 unreadable\n", encoding="utf-8")
+        self.launch([], self.answering(), codes=[0])
+        self.assertEqual(self.written(self.launcher.UNSUPERVISED_FILE), "")
+
     def test_restart_starts_it_once_more_and_defer_returns_the_last_code(self):
         plug = self.answering(Alternative.RESTART, Alternative.RESTART, DEFER)
         returned, runs, _ = self.launch([], plug, codes=[1, 7, 1])

@@ -53,6 +53,11 @@ SUPERVISE, RESTART = "supervise", "restart"
 # The argument, after `run`, that starts the watcher as a supervised child: the launcher's own, in this process, and
 # never a supervisor of its own - no grandchildren.
 CHILD_ARGUMENT = "--supervised-child"
+# Where the start question named no supervisor though one was asked for (the state busy, Codex's check answering badly):
+# how long before it is asked once more, and what the Dashboard reads while the watcher runs here without one
+# (advanced engine/supervise.UNSUPERVISED_FILE, the file's name kept here as this file finds no engine first).
+ASK_AGAIN_SECONDS = 5
+UNSUPERVISED_FILE = "unsupervised.txt"
 # PEP 768 (Python 3.14): remote debugging off, in this process and in every one it starts - the copy of
 # startup.NO_REMOTE_DEBUG this file keeps, since it runs before any engine is found. Hyphens: `-X disable_remote_debug`
 # is an unknown option, kept without a word, and leaves remote debugging on.
@@ -211,20 +216,74 @@ def main(argv=None) -> int:
     if child:
         command = ["run"]
     asks = command == ["run"] and not child
-    if asks and _supervise(home, {"phase": PHASE_START}) == SUPERVISE:
-        code = _supervised(here, home)
-        if code is not None:
-            return code
-        asks = False                                # no child could be started: run it here, ask nothing more
+    held = None
+    if asks:
+        answer, held = _start_answer(here, home)
+        if answer == SUPERVISE:
+            code = _supervised(here, home)
+            if code is not None:
+                return code
+            asks = False                            # no child could be started: run it here, ask nothing more
     # Only here: a supervisor runs no watcher of its own, and the engine imported once more for nothing cost it a second
     # or more at every sign-in, before its child had even started (v0.6.23).
     from codex_auto_resume.cli import main as cli_main
     code = cli_main(["--home", str(home), "--quiet"] + command)
     if code == EXIT_SCHEMA_NEWER and command == ["run"]:
         _relaunch_once(here, command)
+    elif held is not None:
+        # It ran here for want of an answer. Now it has ended is the one later moment a supervisor can be had: from the
+        # start, under the rules a supervised end is judged by (no end on purpose, the stop event, three an hour).
+        if (_supervise(home, {"phase": PHASE_START}) == SUPERVISE
+                and _supervise(home, {"phase": PHASE_ENDED, "exit_code": code}) == RESTART):
+            _note(here, "the watcher that ran without crash restart stopped unexpectedly (exit %s); starting it supervised" % code)
+            restarted = _supervised(here, home)
+            return code if restarted is None else restarted
     elif asks:
         _supervise(home, {"phase": PHASE_ENDED, "exit_code": code})
     return code
+
+
+def _unsupervised(home: Path, word) -> None:
+    """The file the Dashboard reads: this process and why it has no supervisor, or none. Best effort."""
+    try:
+        path = home / "logs" / UNSUPERVISED_FILE
+        if word is None:
+            path.unlink(missing_ok=True)
+        else:
+            path.write_text("%d %s\n" % (os.getpid(), word), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def _start_answer(here: Path, home: Path):
+    """P13's start question: (the answer, why no supervisor was named where one was asked for, or None). Where it was, it is
+    asked once more a few seconds later; where it is still not named, that is said - in the launcher's log, in errors.log
+    and to the Dashboard - and the watcher runs here (v0.6.23: it did for 23 hours on 2026-11-06, and nothing said so).
+    Nothing more can be done from here once it runs: a supervisor over a running watcher would mean ending that watcher
+    or leaving a second process resident, which neither this launcher nor crash restart ever does."""
+    answer = _supervise(home, {"phase": PHASE_START})
+    held = None if answer == SUPERVISE else _why_held(home)
+    if held is not None:
+        _note(here, "no crash restart yet (%s); asking again in %d s" % (held, ASK_AGAIN_SECONDS))
+        time.sleep(ASK_AGAIN_SECONDS)
+        answer = _supervise(home, {"phase": PHASE_START})
+        held = None if answer == SUPERVISE else _why_held(home)
+    _unsupervised(home, held)
+    if held is not None:
+        _note(here, "running the watcher here, without crash restart (%s)" % held)
+        _complain(home, "the watcher runs without crash restart for now (%s); its next start takes it up again" % held)
+    return answer, held
+
+
+def _why_held(home: Path):
+    """Why the start question named no supervisor, from the installed edition's plug: a closed word, or None - nothing was
+    asked for, or there is no plug to say."""
+    try:
+        from codex_auto_resume import config, edition
+        word = getattr(edition.plug(config.Paths(home)), "supervise_held", lambda: None)()
+    except Exception:                               # noqa: BLE001 - a launch is never failed over what it says
+        return None
+    return word if isinstance(word, str) and word.replace("_", "").isalpha() else None
 
 
 def _supervised(here: Path, home: Path):

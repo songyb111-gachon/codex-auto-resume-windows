@@ -174,6 +174,7 @@
   "page.anchor.needs_occasion": "Rien ne démarre tant que vous n'avez pas choisi une heure de départ ou activé « Démarrer juste après une réinitialisation ».",
   "page.anchor.retrying": "La fenêtre n'a pas pu démarrer pour l'instant ; nouvel essai toutes les 5 minutes jusqu'à {time}.",
   "page.anchor.stopped": "Les essais sont arrêtés et rien n'a démarré. Cela reprendra la prochaine fois que la fenêtre de 5 heures sera en cours, ou à une heure que vous avez choisie.",
+  "page.crash.unsupervised": "Ce surveillant a démarré sans redémarrage après incident, car son état n'a pas pu être lu à ce moment-là. Cela s'appliquera de nouveau à son prochain démarrage.",
   "page.chat.cancel": "Annuler",
   "page.chat.click": "Un clic sur une notification ouvre",
   "page.chat.click.chat": "Le chat de cette conversation ici",
