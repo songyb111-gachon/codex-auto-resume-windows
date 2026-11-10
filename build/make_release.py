@@ -110,6 +110,12 @@ APP_FILES = ("LICENSE", "README.md", "docs/PRIVACY.md", "docs/SECURITY.md", "doc
 # and out of sight of tools that read a `.mcp.json` at a project's root and try to start a
 # server this checkout does not have.
 APP_SOURCES = {".mcp.json": "build/plugin-mcp.json"}
+# The changelog is the one document an archive carries for a program to read: the setup program and the update's notes
+# page show the entry of the version the archive holds (InstallerNotes.Section), and nothing reads another entry. So the
+# copy in the archive is that entry, and CHANGELOG_PAGE says where the rest is. The file in the repository stays whole;
+# build/release_notes.py reads that one.
+CHANGELOG = "docs/CHANGELOG.md"
+CHANGELOG_PAGE = "https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/CHANGELOG.md"
 LAUNCHER_FILES = ("Install.cmd", "Uninstall.cmd", "README.txt", "install.ps1")
 
 # The editions (src/codex_auto_resume/domain/plug.py, Edition). The advanced one is the standard
@@ -193,6 +199,29 @@ def _wanted(path: Path) -> bool:
     return not (path.parts and path.parts[0] in EXCLUDE_DIRS)
 
 
+def newest_changelog(text: str, release: str) -> str:
+    """What the archive carries of the changelog: its title, one line that says where the whole of it is, and the entry
+    of `release`, in the file's own line endings. A version with no entry stops the build: the notes page would be empty
+    on a person's PC, and release_notes.py refuses the same tag.
+
+    An entry begins as InstallerNotes.Section reads it, `## v<version>` and then the end of the line or a space, so a
+    pre-release's heading is not its final's; it ends at the next entry's heading."""
+    newline = "\r\n" if "\r\n" in text else "\n"
+    lines = text.split(newline)
+    heading = "## v" + release
+    begun = next((index for index, line in enumerate(lines) if line == heading or line.startswith(heading + " ")), None)
+    if begun is None:
+        raise SystemExit("%s has no entry for v%s" % (CHANGELOG, release))
+    ended = next((index for index in range(begun + 1, len(lines)) if lines[index].startswith("## v")), len(lines))
+    first = next(index for index, line in enumerate(lines) if line.startswith("## "))
+    title = [line for line in lines[:first] if line.strip()]
+    entry = lines[begun:ended]
+    while entry and not entry[-1].strip():
+        entry.pop()
+    page = "This file holds this release's entry only. The whole changelog is at %s" % CHANGELOG_PAGE
+    return newline.join(title + ["", page, ""] + entry + [""])
+
+
 def collect_app(stage: Path) -> int:
     """Copy the application payload, which is also a valid local Codex marketplace."""
     app = stage / "payload" / "app"
@@ -217,7 +246,11 @@ def collect_app(stage: Path) -> int:
         if source.is_file():
             # Some ship from docs/ since v0.6.10-alpha, and copyfile makes no folders.
             (app / name).parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(source, app / name)
+            if name == CHANGELOG:
+                # Bytes both ways, so the file's own line endings survive what Windows would make of them.
+                (app / name).write_bytes(newest_changelog(source.read_bytes().decode("utf-8"), version()).encode("utf-8"))
+            else:
+                shutil.copyfile(source, app / name)
             copied += 1
     return copied
 
