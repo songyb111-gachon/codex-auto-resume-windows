@@ -669,6 +669,7 @@
   "installer.done.removed": "تمت إزالة Codex Auto Resume.",
   "installer.done.repaired": "تم إصلاح Codex Auto Resume.",
   "installer.done.setup_stopped": "توقف برنامج الإعداد قبل تشغيل برنامج التثبيت. يوضح السجل السبب.",
+  "installer.done.still_removing": "يستغرق الأمر وقتًا أطول من المعتاد وما زال يعمل في الخلفية. سينتهي من تلقاء نفسه، ولا حاجة إلى فعل أي شيء آخر.",
   "installer.done.still_running": "يستغرق الأمر وقتًا أطول من المعتاد وما زال يعمل في الخلفية. تحقّق من لوحة المعلومات مرة أخرى بعد بضع دقائق.",
   "installer.done.unconfirmed": "تعذّر التأكد من أن المراقِب يعمل، لذا لا شيء قيد المراقبة بعد. شغّله من لوحة المعلومات.",
   "installer.done.updated": "تم تحديث Codex Auto Resume.",

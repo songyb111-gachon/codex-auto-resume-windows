@@ -669,6 +669,7 @@
   "installer.done.removed": "Codex Auto Resume ist entfernt.",
   "installer.done.repaired": "Codex Auto Resume ist repariert.",
   "installer.done.setup_stopped": "Das Setup-Programm wurde beendet, bevor das Installationsprogramm lief. Das Protokoll nennt den Grund.",
+  "installer.done.still_removing": "Es dauert länger als gewöhnlich und arbeitet noch im Hintergrund. Es wird von selbst fertig; Sie müssen nichts weiter tun.",
   "installer.done.still_running": "Es dauert länger als gewöhnlich und arbeitet noch im Hintergrund. Sehen Sie in einigen Minuten erneut im Dashboard nach.",
   "installer.done.unconfirmed": "Es konnte nicht bestätigt werden, dass der Watcher läuft, daher wird noch nichts überwacht. Starten Sie ihn im Dashboard.",
   "installer.done.updated": "Codex Auto Resume ist aktualisiert.",

@@ -669,6 +669,7 @@
   "installer.done.removed": "Codex Auto Resume est désinstallé.",
   "installer.done.repaired": "Codex Auto Resume est réparé.",
   "installer.done.setup_stopped": "Le programme d'installation s'est arrêté avant l'exécution de l'installateur. Le journal en donne la raison.",
+  "installer.done.still_removing": "Cela prend plus de temps que d'habitude et se poursuit en arrière-plan. Cela se terminera tout seul ; vous n'avez rien d'autre à faire.",
   "installer.done.still_running": "Cela prend plus de temps que d'habitude et se poursuit en arrière-plan. Regardez à nouveau le Tableau de bord dans quelques minutes.",
   "installer.done.unconfirmed": "Impossible de confirmer que le surveillant tourne ; rien n'est donc surveillé pour l'instant. Lancez-le depuis le Tableau de bord.",
   "installer.done.updated": "Codex Auto Resume est à jour.",

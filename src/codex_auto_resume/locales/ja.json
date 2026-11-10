@@ -669,6 +669,7 @@
   "installer.done.removed": "Codex Auto Resume を削除しました。",
   "installer.done.repaired": "Codex Auto Resume を修復しました。",
   "installer.done.setup_stopped": "インストーラーが実行される前にセットアップが停止しました。理由はログに記録されています。",
+  "installer.done.still_removing": "通常より時間がかかっており、バックグラウンドで処理を続けています。自動的に完了するので、操作は必要ありません。",
   "installer.done.still_running": "通常より時間がかかっており、バックグラウンドで処理を続けています。数分後にもう一度ダッシュボードを確認してください。",
   "installer.done.unconfirmed": "監視プロセスの実行を確認できなかったため、まだ何も監視していません。ダッシュボードから開始してください。",
   "installer.done.updated": "Codex Auto Resume を更新しました。",

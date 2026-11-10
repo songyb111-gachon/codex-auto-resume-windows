@@ -669,6 +669,7 @@
   "installer.done.removed": "Codex Auto Resume 已移除。",
   "installer.done.repaired": "Codex Auto Resume 已修復。",
   "installer.done.setup_stopped": "安裝精靈在安裝程式執行之前就停止了。原因請見記錄檔。",
+  "installer.done.still_removing": "耗時比平常長，仍在背景執行。它會自行完成，無需再做任何操作。",
   "installer.done.still_running": "耗時比平常長，仍在背景執行。請幾分鐘後再查看儀表板。",
   "installer.done.unconfirmed": "無法確認監看程式正在執行，因此目前沒有任何內容受到監看。請在儀表板中啟動它。",
   "installer.done.updated": "Codex Auto Resume 已更新。",

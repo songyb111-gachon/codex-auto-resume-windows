@@ -669,6 +669,7 @@
   "installer.done.removed": "Codex Auto Resume kaldırıldı.",
   "installer.done.repaired": "Codex Auto Resume onarıldı.",
   "installer.done.setup_stopped": "Kurulum programı, yükleyici çalışmadan önce durdu. Nedeni günlükte yazıyor.",
+  "installer.done.still_removing": "Normalden uzun sürüyor ve arka planda çalışmaya devam ediyor. Kendiliğinden bitecek; başka bir şey yapmanız gerekmiyor.",
   "installer.done.still_running": "Normalden uzun sürüyor ve arka planda çalışmaya devam ediyor. Birkaç dakika sonra Gösterge Paneli'ne yeniden bakın.",
   "installer.done.unconfirmed": "İzleyicinin çalıştığı doğrulanamadı, bu yüzden henüz hiçbir şey izlenmiyor. Gösterge Paneli'nden başlatın.",
   "installer.done.updated": "Codex Auto Resume güncellendi.",

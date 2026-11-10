@@ -669,6 +669,7 @@
   "installer.done.removed": "Codex Auto Resume đã được gỡ bỏ.",
   "installer.done.repaired": "Codex Auto Resume đã được sửa chữa.",
   "installer.done.setup_stopped": "Chương trình thiết lập đã dừng trước khi trình cài đặt chạy. Nhật ký cho biết lý do.",
+  "installer.done.still_removing": "Việc này lâu hơn bình thường và vẫn đang chạy nền. Việc này sẽ tự hoàn tất, bạn không cần làm gì thêm.",
   "installer.done.still_running": "Việc này lâu hơn bình thường và vẫn đang chạy nền. Hãy xem lại Bảng điều khiển sau vài phút.",
   "installer.done.unconfirmed": "Không thể xác nhận bộ theo dõi đang chạy, nên hiện chưa có gì được theo dõi. Hãy khởi động nó từ Bảng điều khiển.",
   "installer.done.updated": "Codex Auto Resume đã được cập nhật.",
