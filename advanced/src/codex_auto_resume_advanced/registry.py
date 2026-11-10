@@ -534,7 +534,7 @@ GOAL_CONTINUATION = CapabilityDef(
 # capability's override, one per interruption (ledger.py) - and leaves the item in Codex's queue for when the
 # conversation is opened. In the watch it keeps the item queued while the override is within the person's Days (3 to
 # 30, 3 by default); core takes it back at 30 days and an hour whatever it answers, and at once when it is turned
-# off. Opened and not delivered within core's 180 seconds, the item is taken back, given back to waiting and sent the
+# off. Opened and not delivered within core's 300 seconds, the item is taken back, given back to waiting and sent the
 # ordinary way, and this turns off (NOT_DELIVERED_ON_OPEN). It departs from A11 (nothing is queued on the off chance)
 # and keeps A17, H4 and H6 - every withdrawal still fires at once - and stands on loaded_state_detection, what decides
 # that a conversation is not held. Its route rests on M1, passed on codex-cli 0.158 and a warning on any other.
@@ -961,7 +961,7 @@ PARALLEL_DISPATCH = CapabilityDef(
 
 # The prompt queue (v0.6.15-beta; the plan's item 7, on reset_message's way). A person queues messages of their own
 # for one conversation in the Dashboard - after the turn now running, at a time, or every day or week from a time, 30
-# times and 30 days at most - and at P2 each conversation's first one still to go is made due and handed core with its
+# times at most, as many as picked - and at P2 each conversation's first one still to go is made due and handed core with its
 # words, a P2 MESSAGE core sends exactly as typed: in order, each once, one waiting for the one before it to arrive
 # where asked, paced like every recovery (A20 kept, the owner's answer). Cancel and a Pause take back one Codex already
 # holds (the owner's answer of 2026-10-09). It departs from A8, A17, A26, A27, C4, D2, H4 and H6 as its statement says,
@@ -1550,7 +1550,7 @@ WINDOW_ANCHOR = CapabilityDef(
 )
 
 # Longer reset messages (v0.6.14, the owner's answer of 2026-10-08): a message sent at a reset may be up to what one
-# continuation carries (continuation.PROMPT_LIMIT, 8,154 characters) instead of A27's 2,000 - a separate opt-in, off
+# continuation carries (continuation.PROMPT_LIMIT, 29,962 characters) instead of A27's 2,000 - a separate opt-in, off
 # until a person turns it on after its statement, which names A27. An action: it answers at no point and sends
 # nothing; reset_message reads whether it stands on, and when it does not, a waiting message over 2,000 is cancelled.
 # It requires nothing (v0.6.16-beta.3's audit of the registry for `requires`): it lengthens what reset_message and

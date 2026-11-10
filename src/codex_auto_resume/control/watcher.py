@@ -24,9 +24,15 @@ from .errors import ControlError
 #
 # The watcher takes the single-instance mutex early in `App.run` - but early is still
 # after a Python interpreter has started and imported the engine. Measured over five
-# launches on a warm machine: 0.156 s to 0.297 s. The window is generous against a cold
-# disk; the interval is short so the ordinary case returns almost at once.
-WATCHER_START_TIMEOUT = 6.0
+# launches on a warm machine, the standard edition: 0.156 s to 0.297 s. The advanced edition's
+# launcher imports the engine and asks the plug whether to supervise before its child imports it
+# again: 12 to 20 seconds in all (v0.6.22 acceptance, launcher.log). The owner set 45 seconds on
+# 2026-11-10, more than twice the slowest of those, for a cold disk or a scan of fresh files; setup
+# waits this same constant (scripts/plugin_setup.py). The wait ends the moment the mutex is held or
+# the process ends, so only a watcher alive and not yet seen takes the whole of it, and the interval
+# is short so the ordinary case returns almost at once. This is longer than the window's long-lived
+# pipe answers in (Dashboard.cs, 30 s): the window asks through its one-shot bridge (SettingsPage.cs).
+WATCHER_START_TIMEOUT = 45.0
 WATCHER_START_INTERVAL = 0.1
 # How long to wait for a signalled watcher to let the single-instance mutex go, and how
 # often to look. A stop is a request and never a kill: the watcher finishes the tick it is

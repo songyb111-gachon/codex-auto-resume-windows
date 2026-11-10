@@ -6,7 +6,7 @@ completed).
 Each is the long-lived bridge's, the Dashboard's alone (surfaces.py), against the generation the page read. No MCP
 tool reaches any of them. A prompt is added only while prompt_queue stands on and its conversation is switched on,
 checked as core checks a message of a person's (continuation.validate_prompt: no empty text, no marker, no shipped
-template), at most 2,000 characters unless Longer messages stands on; twenty waiting in all and five to a
+template), at most 2,000 characters unless Longer messages stands on; fifty waiting in all and twenty to a
 conversation (state/prompts.py). Cancel takes the words at once - or, for one Codex already holds in its queue, asks
 core to take it back out (the owner's answer of 2026-10-09), which says on its row when Codex will not; one being
 sent, Cancel no longer reaches. Delete completed takes off the list only the finished prompts it is named that are still

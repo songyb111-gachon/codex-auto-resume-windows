@@ -54,16 +54,15 @@ from codex_auto_resume.commands.install import make_desktop_shortcut  # noqa: E4
 # Setup's own steps, counted for the setup window's bar while the installer runs it (progress): the launcher, the
 # state, recovery switched on, the sign-in start, the link handler, the entry in Add or remove programs, the watcher.
 SETUP_STEPS = 7
-# How long setup waits for the watcher it started to take its mutex, while the process it started is alive. The
-# Dashboard's Start watcher waits 6 seconds (control.WATCHER_START_TIMEOUT) and then says "not confirmed running
-# yet", which is a fair word there; setup says its verdict on the Finish page, so it waits for the real start. Measured
+# How long setup waits for the watcher it started to take its mutex, while the process it started is alive: the same
+# wait as the Dashboard's Start watcher (the owner, 2026-11-10; until then that one waited 6 seconds). Measured
 # on the advanced edition (v0.6.22 acceptance, launcher.log): from the launcher's start to its supervised child's
 # start 10 to 15 seconds - the launcher imports the engine, asks the plug whether to supervise (P13, with a fresh
 # check of Codex) - and then the child imports the engine again and takes its mutex, 12 to 20 seconds in all.
 # 45 seconds is more than twice the slowest of those, for a cold disk or a scan of fresh files. The wait ends the
 # moment the mutex is held, or the process ends (control.await_watcher): only a watcher that is alive and not yet
 # seen takes the whole of it.
-WATCHER_WAIT = 45.0
+WATCHER_WAIT = control.WATCHER_START_TIMEOUT
 
 
 def say(key: str) -> None:

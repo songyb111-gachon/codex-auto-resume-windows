@@ -647,7 +647,7 @@ budget stops a recovery) and [H2](STANDARDS.md#h-user-control) (nothing can forc
 
 None of the eight rests on a measurement: what each sends is the continuation the standard edition sends.
 Each of the four that take up a failure the standard edition leaves for you takes up only failures
-from the last hour, and none from before it was turned on or set to watch; turning it off or setting
+from the last six hours, and none from before it was turned on or set to watch; turning it off or setting
 it to watch only ends what it took up and has not sent, and the program ends such a recovery unsent a
 day on the clock after the failure in any case.
 
@@ -954,7 +954,7 @@ that conversation for the same reset sends your message in its place, at the ver
 resets too; it waits for your message up to 30 minutes after the reset, and then goes on. It counts from the first reading after you added it, so the window open
 then is the first to reset; a window not used yet counts once it is. While a message waits it reads
 usage every 15 minutes, at most once in five minutes. One message may wait for a conversation, and
-ten in all; the page lists each with its words, and Pending lists each as a row of its own, with
+fifty in all; the page lists each with its words, and Pending lists each as a row of its own, with
 Cancel - its words are never shown there.
 
 **When it helps.** When you know what a conversation should do once the limit is gone - "carry on with
@@ -990,7 +990,7 @@ there, the statement carries it as a warning.
 
 **What it does.** An action: it sends nothing and answers at no point of a recovery. While it is on, a
 message you schedule for a reset, and from v0.6.16-beta (revision 2) a message you queue, may be up to
-8,154 characters - the most one continuation can carry - instead of 2,000. Turned off, every waiting
+29,962 characters - the most one continuation can carry - instead of 2,000. Turned off, every waiting
 message longer than 2,000 characters is cancelled.
 
 **When it helps.** When what you want a conversation to do after a reset takes more than 2,000
@@ -1046,7 +1046,7 @@ journal says why.
 it.
 
 **What it risks.** A message may wait in Codex for days, and while it waits its recovery counts as open, so
-an action set for after every recovery has finished waits too. Opened and not run within three minutes, it
+an action set for after every recovery has finished waits too. Opened and not run within five minutes, it
 is taken back, sent the ordinary way, and this turns itself off.
 
 **Departs from** [A11](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (nothing is queued on the off
@@ -1130,7 +1130,7 @@ conversation held by another session waits with a reason of its own.
 **What it risks.** The words Codex uses to tell these conversations apart (MO) were measured on
 `codex-cli 0.163.0-alpha.10.2` and may differ in another version of Codex: a wrong word finds nothing, never the wrong conversation. A session that ends with
 the continuation still queued leaves it to be taken back, and one that cannot be taken back is never sent
-twice. A session that did not take a queued message within three minutes turns this off; kept on, it stays on and
+twice. A session that did not take a queued message within five minutes turns this off; kept on, it stays on and
 the page notes it, and the message is still taken back and waits again.
 
 **Departs from** [A15](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (only the desktop app's
@@ -1209,7 +1209,7 @@ Until it passes, or where it fails, no more than 3 are sent; its failing never t
 
 **What it does.** You queue messages of your own for one conversation - one the Dashboard knows from Pending
 and History that is switched on: to go after the turn now running, at a
-time you pick, or every day or week from a time - 30 times and 30 days at most. They go in the order you queued
+time you pick, or every day or week from a time - as many times as you pick, up to 30 (a series written by an earlier version keeps its 30 days). They go in the order you queued
 them, each once, exactly as you wrote them, and one can wait for the one before it to arrive. For a message at a
 time or on a schedule you choose what it does while a turn is running in that conversation: **Wait until it ends**
 (recommended, and what a new message does unless you choose otherwise) or **Add it to Codex's queue now**, for

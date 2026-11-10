@@ -5,13 +5,15 @@ Codex - before it starts the watcher as a child, which imports the engine again:
 start to the child's, measured. Setup waited the Dashboard's 6 seconds and ended on a Finish page saying the watcher
 "could not be confirmed running" although it was running moments later.
 
-What is held here is the three ways the wait ends - the mutex held, the process gone, the bound - with setup's
-own bound (plugin_setup.WATCHER_WAIT) apart from the Dashboard's (control.WATCHER_START_TIMEOUT). Nothing sleeps for
-the real bound: both are shortened, so "longer than the Dashboard waits" is a fraction of a second.
+What is held here is the three ways the wait ends - the mutex held, the process gone, the bound - and, from the owner's
+decision of 2026-11-10 (v0.6.23), that the Dashboard's Start watcher waits as long as setup: one constant, and the
+window asks past its long-lived pipe, which answers within 30 seconds. Nothing sleeps for the real bound: both names are
+shortened, so "longer than the other name's wait" is a fraction of a second.
 """
 from __future__ import annotations
 
 from pathlib import Path
+import re
 import sys
 import tempfile
 import time
@@ -21,13 +23,15 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "tests"))
 
+import guiscan                               # noqa: E402
 import plugin_setup                          # noqa: E402
 from codex_auto_resume import control        # noqa: E402
 from codex_auto_resume.control import watcher  # noqa: E402
 
-DASHBOARD_WAIT = 0.2      # what stands for the Dashboard's 6 seconds
-SETUP_WAIT = 3.0          # what stands for setup's 45
+DASHBOARD_WAIT = 0.2      # shorter than setup's, so a wait of setup's own name is told from the other
+SETUP_WAIT = 3.0          # what stands for the 45 seconds
 SLOW_START = 0.6          # longer than the first, well inside the second
 
 
@@ -98,13 +102,39 @@ class WatcherWaitTests(unittest.TestCase):
         self.assertGreaterEqual(took, SETUP_WAIT - 0.05)
         self.assertLess(took, SETUP_WAIT + 2.0)
 
-    def test_the_bounds_stand_where_they_were_decided(self):
-        """Setup waits for the real start of the measured 10 to 15 seconds with room (twice the slowest at least) and
-        is the only caller that does: the Dashboard's Start watcher and the bridge keep their 6 seconds, and say
-        "not confirmed running yet", which is no verdict."""
-        self.assertGreaterEqual(plugin_setup.WATCHER_WAIT, 30.0)
-        self.assertEqual(control.WATCHER_START_TIMEOUT, 6.0)
-        self.assertGreater(plugin_setup.WATCHER_WAIT, control.WATCHER_START_TIMEOUT)
+    def test_the_bound_stands_where_it_was_decided(self):
+        """The measured 12 to 20 seconds with room (twice the slowest at least), in setup and the Dashboard alike."""
+        self.assertEqual(control.WATCHER_START_TIMEOUT, 45.0)
+        self.assertEqual(plugin_setup.WATCHER_WAIT, control.WATCHER_START_TIMEOUT)
+
+
+class WindowWaitTests(unittest.TestCase):
+    """How the 45 seconds reach the window: a worker's call, and never one on the long-lived pipe."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.page = (ROOT / "gui" / "SettingsPage.cs").read_text(encoding="utf-8")
+        cls.dashboard = (ROOT / "gui" / "Dashboard.cs").read_text(encoding="utf-8")
+        cls.settings = (ROOT / "gui" / "SettingsApp.cs").read_text(encoding="utf-8")
+        cls.start = guiscan.member_body("SettingsForm", "StartWatcher")
+
+    def milliseconds(self, source, name):
+        return int(re.search(r"\b%s = (\d+);" % name, source).group(1))
+
+    def test_the_window_asks_past_the_long_lived_pipe(self):
+        """Fails with bridge.Call: at the pipe's 30 s the call is made again by the one-shot bridge, a second start."""
+        self.assertIn('bridge.CallOnce("start-watcher", null)', self.start)
+        self.assertNotIn('bridge.Call("start-watcher"', self.start)
+
+    def test_the_pipe_would_be_too_short_and_the_one_shot_call_is_long_enough(self):
+        wait = control.WATCHER_START_TIMEOUT * 1000
+        self.assertLess(self.milliseconds(self.dashboard, "ReplyMilliseconds"), wait)
+        self.assertGreater(self.milliseconds(self.settings, "LongCallMilliseconds"), wait + 30000,
+                           "the wait, with an interpreter's start on top of it")
+
+    def test_a_person_sees_it_working_while_it_waits(self):
+        for said in ('stateDot.State = "checking"', 'S("start.working"', 'S("start.waiting"', "startButton.Enabled = false"):
+            self.assertLess(self.start.index(said), self.start.index("QueueUserWorkItem"), said)
 
 
 if __name__ == "__main__":

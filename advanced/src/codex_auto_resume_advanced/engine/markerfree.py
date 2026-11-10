@@ -48,6 +48,7 @@ from __future__ import annotations
 from contextlib import nullcontext
 import uuid
 
+from codex_auto_resume import continuation
 from codex_auto_resume.domain import ids
 from codex_auto_resume.domain.plug import Alternative
 
@@ -58,7 +59,7 @@ from ..vocabulary import ArmingWarning, Measurement
 CAPABILITY = "marker_free_continuation"
 METHOD = "thread/queue/add"
 # What core's own send takes as one message (codex/transport.py), and so all this one takes.
-MAX_PROMPT = 8192
+MAX_PROMPT = continuation.PROMPT_SEND_LIMIT
 
 
 def _queue_id(result):
