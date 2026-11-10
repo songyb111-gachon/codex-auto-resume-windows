@@ -1362,6 +1362,63 @@ namespace CodexAutoResume
 
     }
 
+    /// What becomes of an exception thrown in a click, a timer or a reply handed back to the window (v0.6.23): never .NET's
+    /// own dialog, which is in English and whose Quit ends the program with its bridge still up. It goes to errors.log,
+    /// where the watcher's own go, and the window stays: one such exception leaves what is on the screen as it was. Where
+    /// they keep coming - a timer or a paint that fails each time - going on is not safe, so the bridge is stopped and
+    /// the program ends.
+    internal static class UiFaults
+    {
+        internal const int MostInAMinute = 5;
+        private const long Minute = 60000;
+        private const int MostWritten = 8000;
+        private static readonly Stopwatch clock = Stopwatch.StartNew();
+        private static long firstAt = -Minute - 1;
+        private static int seen;
+        private static string home;
+        private static PersistentBridge bridge;
+
+        /// The installation errors.log is in, and the bridge to stop; before this nothing is written and nothing stopped.
+        internal static void Follow(string root, PersistentBridge running)
+        {
+            home = root;
+            bridge = running;
+        }
+
+        internal static void Caught(object sender, System.Threading.ThreadExceptionEventArgs e)
+        {
+            Write(e.Exception);
+            long now = clock.ElapsedMilliseconds;
+            if (now - firstAt > Minute)
+            {
+                firstAt = now;
+                seen = 0;
+            }
+            if (++seen < MostInAMinute) return;
+            try { if (bridge != null) bridge.Stop(); }
+            catch (Exception) { /* it ends with this process's pipes all the same */ }
+            Environment.Exit(1);
+        }
+
+        private static void Write(Exception error)
+        {
+            try
+            {
+                if (home == null) return;
+                string logs = Path.Combine(home, "logs");
+                if (!Directory.Exists(logs)) return;
+                string what = error == null ? "" : error.ToString();
+                if (what.Length > MostWritten) what = what.Substring(0, MostWritten);
+                File.AppendAllText(Path.Combine(logs, "errors.log"),
+                                   "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) +
+                                   "] the window
+" + what + "
+", new UTF8Encoding(false));
+            }
+            catch (Exception) { /* not written: the window goes on */ }
+        }
+    }
+
     internal static class Program
     {
         [DllImport("shell32.dll", PreserveSig = false)]
@@ -1400,6 +1457,7 @@ namespace CodexAutoResume
             TakeOwnTaskbarIdentity();
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
+            Application.ThreadException += UiFaults.Caught;
             // Only a window build/capture_window.ps1 started: the mouse changes nothing it draws.
             SettingsForm.ShutOutPointer();
             // v0.6.16: the entry in Add or remove programs, in the installer window (SettingsRemove), and nothing else.
@@ -1458,7 +1516,9 @@ namespace CodexAutoResume
             // v0.6.11: Windows' text size, as far as the screen the window opens on holds it at its narrowest.
             double text = TextScale.Read();
             SettingsForm.AdoptTextSize(text, TextScale.Fitting(text, opening.WorkingArea.Size, SettingsForm.DpiScale));
-            var window = new SettingsForm(new PersistentBridge(root, bridge));
+            var persistent = new PersistentBridge(root, bridge);
+            UiFaults.Follow(root, persistent);
+            var window = new SettingsForm(persistent);
             // A window a person opened comes to the front - after Finish, and opened again outside (v0.6.17); a window
             // that reopens itself, and a capture's, keep their place.
             if (request.Generation == 0 && Soft.StillReady == null) HostApp.BringToFront(window);

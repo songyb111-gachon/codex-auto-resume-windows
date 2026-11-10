@@ -48,5 +48,23 @@ class ScriptWaitTests(unittest.TestCase):
         self.assertIn("bool removed = stillRunning || folder.Remove();", body)
 
 
+class UiFaultTests(unittest.TestCase):
+    """X1: an exception in a UI callback is logged, never .NET's English dialog, and at worst the bridge is stopped."""
+
+    def test_the_handler_is_on_before_anything_runs(self):
+        main = block(gui("SettingsApp.cs"), "internal static int Main(string[] argv)")
+        self.assertIn("Application.ThreadException += UiFaults.Caught;", main)
+        self.assertLess(main.index("UiFaults.Caught"), main.index("SettingsRemove.IsAsked(argv)"))
+        self.assertLess(main.index("UiFaults.Follow(root, persistent);"), main.index("new SettingsForm(persistent)"))
+
+    def test_it_writes_and_keeps_the_window_until_they_keep_coming(self):
+        caught = guiscan.member_body("UiFaults", "Caught")
+        self.assertLess(caught.index("Write(e.Exception);"), caught.index("if (++seen < MostInAMinute) return;"))
+        self.assertLess(caught.index("if (++seen < MostInAMinute) return;"), caught.index("bridge.Stop()"))
+        self.assertLess(caught.index("bridge.Stop()"), caught.index("Environment.Exit(1);"))
+        self.assertIn('"errors.log"', guiscan.member_body("UiFaults", "Write"))
+        self.assertNotIn("MessageBox", guiscan.type_body("UiFaults"))
+
+
 if __name__ == "__main__":
     unittest.main()
