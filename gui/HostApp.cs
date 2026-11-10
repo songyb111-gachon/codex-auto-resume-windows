@@ -197,10 +197,22 @@ namespace CodexAutoResume
                         if (window.WindowState == FormWindowState.Minimized) window.WindowState = FormWindowState.Normal;
                     }
                     window.Activate();
-                    SetForegroundWindow(window.Handle);
+                    bool inFront = SetForegroundWindow(window.Handle);
+                    if (!inFront) RaiseWithoutFocus(window.Handle);
                 }
                 catch (Exception) { /* it is open, wherever Windows put it */ }
             };
+        }
+
+        /// Windows gives the foreground only to a program a person's action started, and flashes the taskbar button of
+        /// any other (v0.6.22 live acceptance F3, F9, F10: a setup window a tool started through explorer stayed behind).
+        /// As it should, for someone typing elsewhere; but the window may still stand above the others, as long as it
+        /// takes nothing: topmost for a moment and back, never activated, the keyboard where it was.
+        internal static void RaiseWithoutFocus(IntPtr window)
+        {
+            const uint keep = SwpNoSize | SwpNoMove | SwpNoActivate;
+            SetWindowPos(window, HwndTopMost, 0, 0, 0, 0, keep);
+            SetWindowPos(window, HwndNoTopMost, 0, 0, 0, 0, keep);
         }
 
         // ------------------------------------------------------------------ the walk, live
@@ -422,6 +434,13 @@ namespace CodexAutoResume
         [DllImport("user32.dll", ExactSpelling = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         private static extern bool SetForegroundWindow(IntPtr window);
+
+        private static readonly IntPtr HwndTopMost = new IntPtr(-1), HwndNoTopMost = new IntPtr(-2);
+        private const uint SwpNoSize = 0x0001, SwpNoMove = 0x0002, SwpNoActivate = 0x0010;
+
+        [DllImport("user32.dll", ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool SetWindowPos(IntPtr window, IntPtr after, int x, int y, int width, int height, uint flags);
 
         [ComImport, Guid("85CB6900-4D95-11CF-960C-0080C7F4EE85"), InterfaceType(ComInterfaceType.InterfaceIsIDispatch)]
         private interface IShellWindows
