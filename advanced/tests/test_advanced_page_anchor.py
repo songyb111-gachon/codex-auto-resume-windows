@@ -52,6 +52,10 @@ class PageTests(PageCase):
                  {"do": "set_option", "key": "anchor_after_reset", "value": 2},
                  {"do": "custom_option", "key": "anchor_at_2", "value": 7, "minute": 45},
                  {"do": "snapshot", "reply": with_anchor(reply, started_at=ac.NOW - 60, fixed_at=None)},
+                 {"do": "look"},
+                 {"do": "snapshot", "reply": with_anchor(reply, retry_until=ac.NOW + 3600)},
+                 {"do": "look"},
+                 {"do": "snapshot", "reply": with_anchor(reply, stopped_at=ac.NOW - 60)},
                  {"do": "look"}]
         return "en", {"script": script, "steps": steps}, {
             "words": script["advanced-words"][0]["result"]["words"], "generation": generation}
@@ -99,13 +103,23 @@ class PageTests(PageCase):
         result, expected = self.of("scenario_on")
         words = expected["words"]
         head_words, _, tail = words["page.anchor.fixed"].partition("{time}")
-        first, last = result["looks"][0], result["looks"][-1]
+        first, last = result["looks"][0], result["looks"][-3]
         head = first["cards"][0]
         at = head.index(words["page.col_state"])
         self.assertEqual(head[at + 1], words["state.armed"])
         self.assertTrue(head[at + 2].startswith(head_words) and head[at + 2].endswith(tail), head)
         self.assertFalse([text for text in last["cards"][0] if text.startswith(head_words)],
                          "no reset ahead: no line")
+
+    def test_its_card_says_it_is_trying_again_and_then_that_it_stopped(self):
+        """Fails with the line's call removed from BuildAnchorLine: the card says nothing of an occasion held open."""
+        result, expected = self.of("scenario_on")
+        words = expected["words"]
+        head_words, _, tail = words["page.anchor.retrying"].partition("{time}")
+        trying, stopped = result["looks"][-2]["cards"][0], result["looks"][-1]["cards"][0]
+        self.assertTrue([text for text in trying if text.startswith(head_words) and text.endswith(tail)], trying)
+        self.assertIn(words["page.anchor.stopped"], stopped)
+        self.assertNotIn(words["page.anchor.stopped"], trying)
 
 
 if __name__ == "__main__":
