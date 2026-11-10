@@ -928,6 +928,13 @@ namespace CodexAutoResume
             if (focused) Edge(g, face, radius, Palette.Focus, PxF(Brand.FocusWidth));
         }
 
+        /// The well with its focus line `focus` of the way in (v0.6.23): 0 none, 1 exactly InsetWell's.
+        internal static void InsetWellAt(Graphics g, Rectangle face, float radius, double focus)
+        {
+            Body(g, face, radius, Palette.Inset, Palette.Line, Palette.Depth);
+            if (focus > 0.0) Edge(g, face, radius, focus >= 1.0 ? Palette.Focus : WithAlpha(Palette.Focus, focus), PxF(Brand.FocusWidth));
+        }
+
         /// The well at a position that need not be whole pixels, for a page that draws one
         /// inside a cell rather than as a control.
         internal static void Well(Graphics g, RectangleF body, float radius, bool focused)
@@ -959,23 +966,43 @@ namespace CodexAutoResume
         /// the tests reach SwitchAt by its name alone.
         internal static void SwitchSide(Graphics g, Rectangle track, double on, bool enabled, Color ground, bool mirrored)
         {
+            SwitchLive(g, track, on, enabled ? 1.0 : 0.0, 0.0, 0.0, ground, mirrored);
+        }
+
+        /// How much wider than round the knob is while the switch is held down: the switch's own tell that it is being pressed.
+        internal const double KnobPressed = 0.25;
+
+        /// The switch with the three things that move besides its travel (v0.6.23), each from 0 to 1 and exact at its ends:
+        /// `live`, how enabled it is (0 fades it halfway into `ground`, as a disabled switch is); `hover`, the pointer on it
+        /// (the well comes up to the surface, the accent brightens a step, the panel's :hover); `press`, held down (the knob
+        /// widens toward where it would travel). At live 1, hover 0 and press 0 it is the switch SwitchSide always drew.
+        internal static void SwitchLive(Graphics g, Rectangle track, double on, double live, double hover, double press, Color ground, bool mirrored)
+        {
             on = Math.Max(0.0, Math.Min(1.0, on));
+            live = Math.Max(0.0, Math.Min(1.0, live));
             float radius = track.Height / 2f;
             Color offFill = Palette.Inset, offEdge = Palette.Line, onFill = Palette.Accent, onEdge = Palette.Accent;
             Color offKnob = Palette.Contrast ? SystemColors.WindowText : Palette.Muted, onKnob = Palette.OnAccent;
-            if (!enabled && !Palette.Contrast)
+            if (hover > 0.0 && !Palette.Contrast)
             {
-                offFill = Mix(offFill, ground, 0.5);
-                offEdge = Mix(offEdge, ground, 0.5);
-                offKnob = Mix(offKnob, ground, 0.5);
-                onFill = Mix(onFill, ground, 0.5);
-                onEdge = Mix(onEdge, ground, 0.5);
-                onKnob = Mix(onKnob, ground, 0.5);
+                offFill = Mix(offFill, Palette.Surface, hover);
+                onFill = Mix(onFill, Palette.AccentHover, hover);
+                onEdge = Mix(onEdge, Palette.AccentHover, hover);
+            }
+            if (live < 1.0 && !Palette.Contrast)
+            {
+                double fade = 0.5 * (1.0 - live);
+                offFill = Mix(offFill, ground, fade);
+                offEdge = Mix(offEdge, ground, fade);
+                offKnob = Mix(offKnob, ground, fade);
+                onFill = Mix(onFill, ground, fade);
+                onEdge = Mix(onEdge, ground, fade);
+                onKnob = Mix(onKnob, ground, fade);
             }
             if (on >= 1.0) Body(g, track, radius, onFill, onEdge, false);
             else
             {
-                Body(g, track, radius, offFill, offEdge, enabled && Palette.Depth);
+                Body(g, track, radius, offFill, offEdge, live >= 1.0 && Palette.Depth);
                 if (on > 0.0)
                 {
                     GraphicsState faded = g.Save();
@@ -989,14 +1016,24 @@ namespace CodexAutoResume
                 }
             }
             float size = PxF(Brand.Knob), inset = PxF(Brand.KnobInset);
-            float x = track.X + inset + (float)(PxF(Brand.KnobTravel) * on);
-            if (mirrored) x = track.X + track.Right - x - size;
+            press = Math.Max(0.0, Math.Min(1.0, press));
+            // Held, the knob grows toward the way it would go: from the off end rightward, from the on end leftward.
+            float wider = (float)(size * KnobPressed * press);
+            float width = size + wider;
+            float x = track.X + inset + (float)(PxF(Brand.KnobTravel) * on) - (float)(wider * on);
+            if (mirrored) x = track.X + track.Right - x - width;
             Color knob = on <= 0.0 ? offKnob : on >= 1.0 ? onKnob : Mix(offKnob, onKnob, on);
             GraphicsState state = g.Save();
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.PixelOffsetMode = PixelOffsetMode.Half;
             using (var brush = new SolidBrush(knob))
-                g.FillEllipse(brush, x, track.Y + (track.Height - size) / 2f, size, size);
+            {
+                float top = track.Y + (track.Height - size) / 2f;
+                if (press <= 0.0) g.FillEllipse(brush, x, top, size, size);
+                else
+                    using (GraphicsPath pill = Rounded(new RectangleF(x, top, width, size), size / 2f))
+                        g.FillPath(brush, pill);
+            }
             g.Restore(state);
         }
 

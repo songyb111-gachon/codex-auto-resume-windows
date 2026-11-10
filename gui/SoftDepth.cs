@@ -785,6 +785,49 @@ namespace CodexAutoResume
         }
     }
 
+    /// One picture of the ground behind part of a control, for a glide (v0.6.23): taken at its first frame and laid down on
+    /// each of the rest, because a ground does not change in 160 ms and working it out - the control's parent, every lift
+    /// on it - was the heaviest thing a switch's frame did. One bitmap for a glide, none for a frame; let go when it ends.
+    internal sealed class GroundShot : IDisposable
+    {
+        private Bitmap picture;
+        private Rectangle area;
+
+        /// How many pictures have been made since the window started: what a test counts across the frames of a glide.
+        internal static int Made;
+
+        /// Lays the ground behind `area` of `owner` down on `g`.
+        internal void Paint(Control owner, Graphics g, Rectangle area)
+        {
+            if (area.Width <= 0 || area.Height <= 0) return;
+            if (picture == null || area != this.area)
+            {
+                Forget();
+                picture = new Bitmap(area.Width, area.Height, PixelFormat.Format32bppPArgb);
+                Made++;
+                this.area = area;
+                using (Graphics drawn = Graphics.FromImage(picture))
+                {
+                    drawn.TranslateTransform(-area.X, -area.Y);
+                    Ground.PaintArea(owner, drawn, area);
+                }
+            }
+            g.DrawImageUnscaled(picture, area.X, area.Y);
+        }
+
+        /// The glide is over, or something else changed under it: the next one takes its own.
+        internal void Forget()
+        {
+            if (picture != null) picture.Dispose();
+            picture = null;
+        }
+
+        public void Dispose()
+        {
+            Forget();
+        }
+    }
+
     /// Keeps the ground behind a lifted control in step with it: where its shadow was, and
     /// where it is now, are repainted when it moves, resizes, shows, hides or changes state.
     internal sealed class LiftTracker

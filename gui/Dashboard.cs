@@ -315,7 +315,8 @@ namespace CodexAutoResume
     /// so a screen reader said "Overview, page tab" for every tab alike.
     internal sealed class NavButton : Button
     {
-        private bool current, hover;
+        private bool current, hover, pressed;
+        private readonly SoftSurfaceGlide glide;
 
         /// A section in a vertical list rather than a tab in a strip: text starts at the left.
         internal bool Vertical;
@@ -328,6 +329,32 @@ namespace CodexAutoResume
             FlatAppearance.BorderSize = 0;
             UseVisualStyleBackColor = false;
             Cursor = Cursors.Hand;
+            glide = new SoftSurfaceGlide(this, Wanted);
+            glide.Where = delegate { return Face; };
+        }
+
+        /// What its state looks like (v0.6.23): a tab at rest has no body, so one fades in from nothing under the pointer and
+        /// on the chosen page. Only the tab moves; the page below it changes in one finished frame, as it always has.
+        private SurfaceLook Wanted()
+        {
+            Color words = !current ? Palette.Secondary : Palette.Contrast ? SystemColors.HighlightText : Palette.Accent;
+            if (current)
+            {
+                if (Palette.Contrast) return new SurfaceLook(Palette.AccentSoft, Palette.AccentSoft, words);
+                if (Palette.AccentBar) return new SurfaceLook(SurfaceLook.None(Palette.Raised), SurfaceLook.None(Palette.Line), words, Palette.Accent);
+                if (!Palette.Depth) return new SurfaceLook(Palette.AccentSoft, Palette.AccentSoft, words);
+                return new SurfaceLook(Palette.Inset, Palette.Inset, words);
+            }
+            if (pressed) return new SurfaceLook(Palette.Inset, Palette.Line, words);
+            if (hover) return new SurfaceLook(Palette.Raised, Palette.Line, words);
+            return new SurfaceLook(SurfaceLook.None(Palette.Raised), SurfaceLook.None(Palette.Line), words);
+        }
+
+        private void Press(bool down)
+        {
+            if (pressed == down) return;
+            pressed = down;
+            glide.Changed(Motion.Press);
         }
 
         internal bool Current
@@ -337,6 +364,7 @@ namespace CodexAutoResume
             {
                 if (current == value) return;
                 current = value;
+                glide.Changed();
                 Invalidate();
                 if (IsHandleCreated)
                 {
@@ -346,10 +374,20 @@ namespace CodexAutoResume
             }
         }
 
-        protected override void OnMouseEnter(EventArgs e) { hover = true; Invalidate(); base.OnMouseEnter(e); }
-        protected override void OnMouseLeave(EventArgs e) { hover = false; Invalidate(); base.OnMouseLeave(e); }
+        protected override void OnMouseEnter(EventArgs e) { hover = true; glide.Changed(); base.OnMouseEnter(e); }
+        protected override void OnMouseLeave(EventArgs e) { hover = false; Press(false); glide.Changed(); base.OnMouseLeave(e); }
+        protected override void OnMouseDown(MouseEventArgs e) { if (e.Button == MouseButtons.Left) Press(true); base.OnMouseDown(e); }
+        protected override void OnMouseUp(MouseEventArgs e) { Press(false); base.OnMouseUp(e); }
+        protected override void OnKeyDown(KeyEventArgs e) { if (e.KeyCode == Keys.Space) Press(true); base.OnKeyDown(e); }
+        protected override void OnKeyUp(KeyEventArgs e) { if (e.KeyCode == Keys.Space) Press(false); base.OnKeyUp(e); }
         protected override void OnGotFocus(EventArgs e) { Invalidate(); base.OnGotFocus(e); }
-        protected override void OnLostFocus(EventArgs e) { Invalidate(); base.OnLostFocus(e); }
+        protected override void OnLostFocus(EventArgs e) { Press(false); Invalidate(); base.OnLostFocus(e); }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) glide.Dispose();
+            base.Dispose(disposing);
+        }
 
         /// v0.6.20: the arrow keys along a mirrored strip of tabs go the way it reads - Left to the next tab, which stands
         /// left of this one, and Right back to the one before - as they go the way it reads left to right (Mirror).
@@ -400,16 +438,13 @@ namespace CodexAutoResume
             Ground.PaintArea(this, g, ClientRectangle);
             Rectangle face = Face;
             float radius = Soft.PxF(Palette.RadiusControl);
-            if (current)
-            {
-                // High Contrast keeps what it had: Highlight, with HighlightText on it.
-                if (Palette.Contrast) Soft.Body(g, face, radius, Palette.AccentSoft, Palette.AccentSoft, false);
-                else if (Palette.AccentBar) Underline(g, face);
-                else if (!Palette.Depth) Soft.Body(g, face, radius, Palette.AccentSoft, Palette.AccentSoft, false);
-                else Soft.Body(g, face, radius, Palette.Inset, Palette.Inset, true);
-            }
-            else if (hover) Soft.Body(g, face, radius, Palette.Raised, Palette.Line, false);
-            Color text = !current ? Palette.Secondary : Palette.Contrast ? SystemColors.HighlightText : Palette.Accent;
+            // High Contrast keeps what it had: Highlight, with HighlightText on it (Wanted). The well's inset shadow has no
+            // way to fade, so it comes in past half way.
+            SurfaceLook look = glide.Now;
+            bool well = current && !Palette.Contrast && !Palette.AccentBar && Palette.Depth && glide.Progress >= 0.5;
+            if (look.Fill.A > 0 || look.Edge.A > 0) Soft.Body(g, face, radius, look.Fill, look.Edge, well);
+            if (look.Mark.A > 0) Underline(g, face, look.Mark);
+            Color text = look.Ink;
             TextRenderer.DrawText(g, Text, Font, TextBounds, text,
                                   Mirror.Words(Mirror.Of(this),
                                                TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis |
@@ -422,12 +457,17 @@ namespace CodexAutoResume
         /// the left. Paint only, inside the body the tab always had.
         internal void Underline(Graphics g, Rectangle face)
         {
+            Underline(g, face, Palette.Accent);
+        }
+
+        private void Underline(Graphics g, Rectangle face, Color colour)
+        {
             int bar = Soft.Px(Brand.AccentBar), inset = Soft.Px(Brand.SpaceXs);
             // v0.6.20: a section's bar at the right in a mirrored window (Mirror).
             Rectangle line = Vertical
                 ? new Rectangle(Mirror.Of(this) ? face.Right - bar : face.X, face.Y + inset, bar, face.Height - 2 * inset)
                 : new Rectangle(face.X + inset, face.Bottom - bar, face.Width - 2 * inset, bar);
-            if (line.Width > 0 && line.Height > 0) g.FillRectangle(Soft.Fill(Palette.Accent), line);
+            if (line.Width > 0 && line.Height > 0) g.FillRectangle(Soft.Fill(colour), line);
         }
 
         protected override AccessibleObject CreateAccessibilityInstance()
