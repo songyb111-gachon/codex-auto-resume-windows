@@ -928,7 +928,7 @@ class WindowCompositionTests(unittest.TestCase):
         write is only a miss - and the window never once opened from its cache (measured)."""
         write = self.method(self.window, "internal static void Write(string root, string key,")
         self.assertNotIn("Guid", write)
-        self.assertIn("Process.GetCurrentProcess().Id", write)
+        self.assertIn("OwnProcess.Id", write)
 
 
 PROBE = r"""

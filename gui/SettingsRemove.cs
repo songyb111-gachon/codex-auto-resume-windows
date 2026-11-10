@@ -131,7 +131,7 @@ namespace CodexAutoResume
                 File.Copy(self, copy, false);
                 var start = new ProcessStartInfo(copy);
                 start.Arguments = Copied + " " + Bridge.Quote(home) + " " +
-                                  Process.GetCurrentProcess().Id.ToString(CultureInfo.InvariantCulture);
+                                  OwnProcess.Id.ToString(CultureInfo.InvariantCulture);
                 start.UseShellExecute = false;
                 start.WorkingDirectory = folder;
                 using (Process copied = Process.Start(start))
@@ -275,7 +275,7 @@ namespace CodexAutoResume
                 start.UseShellExecute = false;
                 start.CreateNoWindow = true;
                 start.WorkingDirectory = Path.GetTempPath();
-                start.EnvironmentVariables["CODEX_AR_UNINSTALL_PID"] = Process.GetCurrentProcess().Id.ToString(CultureInfo.InvariantCulture);
+                start.EnvironmentVariables["CODEX_AR_UNINSTALL_PID"] = OwnProcess.Id.ToString(CultureInfo.InvariantCulture);
                 start.EnvironmentVariables["CODEX_AR_UNINSTALL_FOLDER"] = folder.TrimEnd('\\');
                 Process.Start(start).Dispose();
             }

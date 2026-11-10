@@ -223,7 +223,7 @@ class DashboardAfterUpdateTests(unittest.TestCase):
         name = guiscan.member_body("SettingsForm", "UpdateReopenFile")
         self.assertIn('"reopen-after-update-" + process.ToString(CultureInfo.InvariantCulture) + ".txt"', name)
         close = guiscan.member_body("SettingsForm", "CloseForUpdate")
-        self.assertIn("UpdateReopenFile(Process.GetCurrentProcess().Id)", close)
+        self.assertIn("UpdateReopenFile(OwnProcess.Id)", close)
         self.assertIn("if (updatingHere ||", close)
         for member in ("InstallUpdate", "InstallPick"):
             body = guiscan.member_body("SettingsForm", member)
@@ -578,7 +578,7 @@ class DashboardAfterUpdateTests(unittest.TestCase):
         self.assertIn("if (!updatingHere && !reopening && !auditing) AnswerUnsaved();", early)
         self.assertIn('"update-unsaved-" + process.ToString(CultureInfo.InvariantCulture) + ".txt"',
                       guiscan.member_body("SettingsForm", "UpdateUnsavedFile"))
-        self.assertIn("UpdateUnsavedFile(Process.GetCurrentProcess().Id)", guiscan.member_body("SettingsForm", "AnswerUnsaved"))
+        self.assertIn("UpdateUnsavedFile(OwnProcess.Id)", guiscan.member_body("SettingsForm", "AnswerUnsaved"))
         self.assertIn("'update-unsaved-'", self.block("function Test-DashboardUnsaved {", "function Close-DashboardWindow {"))
 
     def test_the_window_closes_through_its_own_close_and_keeps_unsaved_changes(self):

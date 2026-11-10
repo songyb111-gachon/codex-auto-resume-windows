@@ -77,5 +77,17 @@ class StateLightNameTests(unittest.TestCase):
                         "the first words must reach it too")
 
 
+class OwnProcessTests(unittest.TestCase):
+    """D1: the window asks Windows for its own process once, and lets go of what it was handed."""
+
+    def test_nothing_holds_a_process_object_of_its_own_undisposed(self):
+        for path in guiscan.sources():
+            text = path.read_text(encoding="utf-8")
+            for line in text.splitlines():
+                if "Process.GetCurrentProcess()" in line:
+                    self.assertIn("using (Process self = Process.GetCurrentProcess())", line, "%s: %s" % (path.name, line))
+        self.assertEqual(guiscan.whole().count("Process.GetCurrentProcess()"), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
