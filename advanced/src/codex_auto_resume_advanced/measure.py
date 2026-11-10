@@ -1602,6 +1602,12 @@ def _recorded_in(ctx, thread, client_id) -> bool:
         return False
 
 
+def _fresh_client_ids(count) -> list:
+    """Client ids no earlier run used: MQP counts each conversation's queue and history by id, so an id it had used
+    before would count what that run left there (a leftover of 2026-10-19 was counted). Never recorded."""
+    return [str(uuid.uuid4()) for _ in range(count)]
+
+
 def _mqp(ctx):
     """Several sends at once (v0.6.17): the owner names two to four throwaway conversations the Desktop does not hold,
     comma-separated. The harness stops if the app holds any of them; otherwise it adds one short message with no marker
@@ -1615,7 +1621,7 @@ def _mqp(ctx):
     if len(threads) < 2:
         return _blocked("name two to four throwaway conversations the Desktop does not hold, comma-separated, then run "
                         "mqp again", conversations=len(threads))
-    ids = _SAMPLE_MQP_CLIENT_IDS[:len(threads)]
+    ids = _fresh_client_ids(len(threads))
     held, read = _held(ctx, threads)
     if not read:
         return _blocked("who holds the conversations could not be read", holders_read=False)
@@ -1836,8 +1842,6 @@ _MC1_QUEUE_SECONDS = 60.0        # how long MC1 follows the queue for the app to
 _MC1_START_SECONDS = 10.0        # and then the history for the turn it starts
 _MC2_SECONDS = 300.0
 _SAMPLE_MQO_CLIENT_ID = "00000000-0000-7000-8000-000000000005"
-_SAMPLE_MQP_CLIENT_IDS = ("00000000-0000-7000-8000-000000000006", "00000000-0000-7000-8000-000000000007",
-                          "00000000-0000-7000-8000-000000000008", "00000000-0000-7000-8000-000000000009")
 _SAMPLE_MQG_CLIENT_ID = "00000000-0000-7000-8000-00000000000a"
 _MQP_MOST = 4                    # the most conversations MQP sends to at once
 _MQP_ADD_SECONDS = 60.0          # how long MQP waits for each add it started
