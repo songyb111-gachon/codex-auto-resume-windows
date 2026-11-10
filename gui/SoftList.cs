@@ -48,6 +48,19 @@ namespace CodexAutoResume
 
         public override Size GetPreferredSize(Size proposedSize)
         {
+            if (Font != null && Font.FontFamily.Name == Typeface.Persian)
+            {
+                int persianWidth = proposedSize.Width > 1 ? proposedSize.Width : int.MaxValue;
+                if (MaximumSize.Width > 0) persianWidth = Math.Min(persianWidth, MaximumSize.Width);
+                int persianInner = persianWidth == int.MaxValue ? int.MaxValue : Math.Max(1, persianWidth - Padding.Horizontal);
+                // Reading order is intrinsic to Persian text; mirroring the containing layout must not
+                // change its line breaks. GDI otherwise wraps mixed Persian/Latin runs differently.
+                TextFormatFlags reading = (Format & ~(TextFormatFlags.Right | TextFormatFlags.HorizontalCenter)) |
+                                          TextFormatFlags.RightToLeft;
+                Size words = Soft.Measure(Text, Font, persianInner, reading);
+                return new Size(Math.Max(MinimumSize.Width, Math.Min(persianWidth, words.Width + Padding.Horizontal)),
+                                Math.Max(MinimumSize.Height, words.Height + Padding.Vertical));
+            }
             if (!Soft.SplitsWords(Text)) return Mirror.Of(this) ? Agreed(proposedSize) : Remembered(proposedSize);
             // As Label answers - a width of 0 or 1 is none - measured in the lines it is drawn in.
             int width = proposedSize.Width > 1 ? proposedSize.Width : int.MaxValue;

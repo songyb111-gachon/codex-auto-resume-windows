@@ -707,7 +707,7 @@
   "installer.uninstall.saved_accounts": "با انتخاب این گزینه، حساب‌های Codex ذخیره‌شده برای جابه‌جایی و اطلاعات ورودشان نیز حذف می‌شوند.",
   "installer.uninstall.what": "ناظر، شروع هنگام ورود، مدخل منوی Start و افزونهٔ Codex حذف می‌شوند. گفتگوهای Codex شما دست‌نخورده می‌مانند.",
   "installer.update": "به‌روزرسانی",
-  "installer.update.heading": "v{from} ← v{to}",
+  "installer.update.heading": "از v{from} به v{to}",
   "installer.update.no_notes": "خواندن تغییرات این نسخه از فایل دانلودشده ممکن نشد.",
   "installer.update.whats_new": "تازه‌ها",
   "installer.welcome.guide": "خواندن راهنما",

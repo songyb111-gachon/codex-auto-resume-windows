@@ -70,6 +70,15 @@ namespace CodexAutoResume
         protected override void OnGotFocus(EventArgs e) { Invalidate(); base.OnGotFocus(e); }
         protected override void OnLostFocus(EventArgs e) { Invalidate(); base.OnLostFocus(e); }
 
+        public override Size GetPreferredSize(Size proposedSize)
+        {
+            if (Font == null || Font.FontFamily.Name != Typeface.Persian) return base.GetPreferredSize(proposedSize);
+            // Native Button measures mixed-script text differently when its parent is mirrored.
+            Size words = Soft.Measure(Text, Font, int.MaxValue, TextFormatFlags.SingleLine);
+            return new Size(Math.Max(MinimumSize.Width, words.Width + Padding.Horizontal + Soft.Px(12)),
+                            Math.Max(MinimumSize.Height, words.Height + Padding.Vertical + Soft.Px(10)));
+        }
+
         protected override void OnPaint(PaintEventArgs e)
         {
             Graphics g = e.Graphics;
