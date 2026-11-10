@@ -37,7 +37,7 @@ namespace CodexAutoResume
         /// What the card shows of it, for ShowAdvancedDetail's "built again only when it changed".
         private string AnchorShownText(Dictionary<string, object> item)
         {
-            return Str(item, "id") == AnchorId ? AnchorText() ?? "" : "";
+            return Str(item, "id") == AnchorId ? (AnchorText() ?? "") + "\n" + (AnchorRetryText() ?? "") : "";
         }
 
         /// "Next reset fixed at HH:MM." while a fixed reset is ahead, or null.
@@ -46,6 +46,19 @@ namespace CodexAutoResume
             object fixedAt = Get(anchorShown, "fixed_at");
             if (!(fixedAt is double) || (double)fixedAt <= Now()) return null;
             return Word("page.anchor.fixed", "Next reset fixed at {time}.", "time", ClockTime((double)fixedAt));
+        }
+
+        /// An occasion a passing failure holds open (v0.6.23): "trying again until HH:MM" while it lasts; or, once the last
+        /// one ended with nothing started, that it stopped and when it starts again; or null.
+        private string AnchorRetryText()
+        {
+            object until = Get(anchorShown, "retry_until");
+            if (until is double && (double)until > Now())
+                return Word("page.anchor.retrying", "It could not start the window just now, and tries again every 5 minutes until {time}.",
+                            "time", ClockTime((double)until));
+            if (!(Get(anchorShown, "stopped_at") is double)) return null;
+            return Word("page.anchor.stopped",
+                        "It stopped trying with nothing started. It starts again the next time the 5-hour window runs, or at a time you picked.");
         }
 
         /// Its lines on the head card, under where it stands: only for window_anchor. The reset its last start fixed, in the
@@ -61,6 +74,14 @@ namespace CodexAutoResume
                 line.ForeColor = Ink;
                 line.Margin = Pad(0, Brand.SpaceS, 0, 0);
                 head.Controls.Add(line);
+            }
+            string retry = AnchorRetryText();
+            if (retry != null)
+            {
+                Label said = HelpText(retry);
+                said.ForeColor = Ink;
+                said.Margin = Pad(0, Brand.SpaceS, 0, 0);
+                head.Controls.Add(said);
             }
             if (!AnchorNeedsOccasion(item)) return;
             Label needs = HelpText(Word("page.anchor.needs_occasion",

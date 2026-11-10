@@ -172,6 +172,8 @@
   "page.analytics.used": "{window}: zużyto {percent}%",
   "page.anchor.fixed": "Następny reset ustalony na {time}.",
   "page.anchor.needs_occasion": "Nic nie zostanie uruchomione, dopóki nie wybierzesz godziny startu albo nie włączysz opcji „Start zaraz po resecie”.",
+  "page.anchor.retrying": "Nie udało się teraz uruchomić okna; kolejna próba co 5 minut do {time}.",
+  "page.anchor.stopped": "Próby zakończyły się bez uruchomienia czegokolwiek. Zacznie ponownie, gdy okno 5-godzinne następnym razem będzie działać, lub o wybranej godzinie.",
   "page.chat.cancel": "Anuluj",
   "page.chat.click": "Kliknięcie powiadomienia otwiera",
   "page.chat.click.chat": "Czat tej rozmowy tutaj",

@@ -172,6 +172,8 @@
   "page.analytics.used": "{window}: נוצלו {percent}%",
   "page.anchor.fixed": "האיפוס הבא נקבע ל-{time}.",
   "page.anchor.needs_occasion": "שום דבר לא יתחיל עד שתבחר שעת התחלה או תפעיל את ״התחלה מיד אחרי איפוס״.",
+  "page.anchor.retrying": "לא ניתן היה להפעיל את החלון כעת. ניסיון חוזר כל 5 דקות עד {time}.",
+  "page.anchor.stopped": "הניסיונות נפסקו ושום דבר לא הופעל. זה יתחיל שוב בפעם הבאה שחלון 5 השעות יפעל, או בשעה שבחרת.",
   "page.chat.cancel": "ביטול",
   "page.chat.click": "לחיצה על התראה פותחת",
   "page.chat.click.chat": "הצ'אט של אותה שיחה כאן",

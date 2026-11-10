@@ -172,6 +172,8 @@
   "page.analytics.used": "{window}: {percent}% usado",
   "page.anchor.fixed": "Próxima redefinição marcada para {time}.",
   "page.anchor.needs_occasion": "Nada será iniciado até que você escolha um horário de início ou ative \"Iniciar logo após uma redefinição\".",
+  "page.anchor.retrying": "Não foi possível iniciar a janela agora; nova tentativa a cada 5 minutos até {time}.",
+  "page.anchor.stopped": "As tentativas pararam sem iniciar nada. Recomeça na próxima vez que a janela de 5 horas estiver em execução, ou em um horário que você escolheu.",
   "page.chat.cancel": "Cancelar",
   "page.chat.click": "Um clique em um aviso abre",
   "page.chat.click.chat": "O chat dessa conversa aqui",
