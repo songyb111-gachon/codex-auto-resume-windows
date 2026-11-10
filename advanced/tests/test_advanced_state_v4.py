@@ -231,14 +231,14 @@ class PromptTests(StateCase):
                 self.assertEqual(refused.exception.refusal, refusal)
         self.assertEqual(state.prompts(), [])
 
-    def test_five_to_a_conversation_and_twenty_in_all(self):
+    def test_as_many_as_may_wait_to_a_conversation_and_in_all(self):
         state = self.state()
         for n in range(PER_CONVERSATION):
             state.add_prompt(ac.THREAD, "mine %d" % n, "after_turn")
         with self.assertRaises(Refused) as refused:
             state.add_prompt(ac.THREAD, "one more", "after_turn")
         self.assertEqual(refused.exception.refusal, Refusal.QUEUE_FULL)
-        threads = ["0a1b2c3d-0003-7000-8000-%012d" % n for n in range(10)]
+        threads = ["0a1b2c3d-0003-7000-8000-%012d" % n for n in range(PROMPTS_LIMIT)]
         added = PER_CONVERSATION
         for thread in threads:
             while added < PROMPTS_LIMIT and len(state.prompts(thread_id=thread)) < 2:

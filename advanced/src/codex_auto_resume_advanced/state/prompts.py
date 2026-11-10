@@ -11,7 +11,7 @@ now running, at a time, or on a schedule - in order, each once.
               conversation runs (`while_running`): goes into Codex's queue, as every prompt did before, or waits
 
 The file refuses words on a prompt that is done or cancelled, a series past 30 occurrences or 30 days, and a
-recurring prompt without its every; this module refuses the rest: twenty waiting in all, five to a conversation.
+recurring prompt without its every; this module refuses the rest: fifty waiting in all, twenty to a conversation.
 """
 from __future__ import annotations
 
@@ -25,8 +25,8 @@ from .session import StateError, _key, _thread, _timestamp, _word
 
 # A prompt still to go: waiting for its time, due and being tried, or held for a person.
 PENDING = (PromptState.WAITING, PromptState.READY, PromptState.HELD)
-PROMPTS_LIMIT = 20
-PER_CONVERSATION = 5
+PROMPTS_LIMIT = 50
+PER_CONVERSATION = 20
 OCCURRENCES = range(1, 31)
 # A prompt's words at most, as a reset message's: what core's one send carries less the marker.
 WORDS_LIMIT = 8192
@@ -89,7 +89,7 @@ class PromptsMixin:
                    depends=False, while_running=WhileRunning.QUEUE, now=None) -> int:
         """A person's prompt, waiting, last in its conversation's queue; its id. Refused (Refused) for words that
         are empty or too long (prompt_refused), a time or schedule that is not one on offer (occasion_invalid),
-        twenty waiting in all or five in that conversation (queue_full), and a prompt that waits for the one
+        fifty waiting in all or twenty in that conversation (queue_full), and a prompt that waits for the one
         before it where there is none (dependency_unknown). `while_running` (v0.6.19, #50): what it does while a turn
         of its conversation runs - after_turn goes into Codex's queue by its nature, so it waits for nothing."""
         _thread(thread_id)

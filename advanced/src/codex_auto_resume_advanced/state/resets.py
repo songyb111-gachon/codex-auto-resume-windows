@@ -32,8 +32,9 @@ CREDIT, MESSAGE = RESET_CAPABILITIES
 # A rule still to act: counting, due, or held for a person.
 PENDING = (RuleState.COUNTING, RuleState.READY, RuleState.HELD)
 FINISHED = (RuleState.DONE, RuleState.CANCELLED)
-# How many rules may wait at once: ten messages, one to a conversation, and four credit rules.
-MESSAGES_LIMIT = 10
+# How many rules may wait at once: fifty messages, one to a conversation, and four credit rules (the owner, 2026-11-10;
+# what is sent stays bound by the ceilings). `ordinal` below is which reset a rule waits for, not its place in this count.
+MESSAGES_LIMIT = 50
 CREDIT_RULES_LIMIT = 4
 # A message's words, at most: what core's one send carries less the blank line and the marker
 # (continuation.PROMPT_LIMIT), which the file holds them under too.
@@ -162,7 +163,7 @@ class ResetsMixin:
                        thread_id=None, words=None, record_id=None, at=None) -> int:
         """A new rule, counting from its adoption (engine/resetwatch.py): the rule's id. A message makes its
         record in the same transaction - waiting, of reset_message, in the conversation it is for - and
-        is refused (Refused) where that conversation has one waiting already, or ten wait in all; four
+        is refused (Refused) where that conversation has one waiting already, or fifty wait in all; four
         credit rules at most may wait."""
         if capability not in RESET_CAPABILITIES:
             raise StateError("unknown reset capability")
