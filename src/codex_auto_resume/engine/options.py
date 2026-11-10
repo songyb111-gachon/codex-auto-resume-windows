@@ -21,6 +21,12 @@ BACKOFF_LADDER = (30, 60, 120, 300)
 # policies stay separate on purpose: a usage limit has a real reset timestamp to
 # wait for, a dropped connection has nothing but elapsed time.
 TRANSIENT_BACKOFF = (5, 15, 30, 60, 120)
+# How long the watcher waits to see a queued continuation delivered: 300 seconds (the owner, 2026-11-10; the longest
+# delivery measured was 144.3 s, then 125.1 s, 80 % of the 180 it was: plans/measure-20261110-limits-result.md). What
+# the watcher's engines are built with (runtime/app.py); a bare Engine keeps 180, because the frozen scenarios
+# (tests/neutral.py MODULES) are held byte for byte to what v0.6.10 did at it and step past exactly that.
+DELIVERY_TIMEOUT = 300
+WATCHER_OPTIONS = {"delivery_timeout_seconds": DELIVERY_TIMEOUT}
 
 
 def backoff_delay(retry: int) -> int:
@@ -36,6 +42,7 @@ def transient_delay(attempt: int) -> int:
 
 
 class OptionsMixin:
+    WATCHER_OPTIONS = WATCHER_OPTIONS
     def __init__(self, store, source, backend, *, dispatch_lock=nullcontext,
                  clock=time.time, log=None, options=None, notify=None, language=None,
                  home_lock=None, engine_state=None, plug=None, connectivity=None, home_key="",

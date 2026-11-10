@@ -1046,7 +1046,7 @@ journal says why.
 it.
 
 **What it risks.** A message may wait in Codex for days, and while it waits its recovery counts as open, so
-an action set for after every recovery has finished waits too. Opened and not run within three minutes, it
+an action set for after every recovery has finished waits too. Opened and not run within five minutes, it
 is taken back, sent the ordinary way, and this turns itself off.
 
 **Departs from** [A11](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (nothing is queued on the off
@@ -1130,7 +1130,7 @@ conversation held by another session waits with a reason of its own.
 **What it risks.** The words Codex uses to tell these conversations apart (MO) were measured on
 `codex-cli 0.163.0-alpha.10.2` and may differ in another version of Codex: a wrong word finds nothing, never the wrong conversation. A session that ends with
 the continuation still queued leaves it to be taken back, and one that cannot be taken back is never sent
-twice. A session that did not take a queued message within three minutes turns this off; kept on, it stays on and
+twice. A session that did not take a queued message within five minutes turns this off; kept on, it stays on and
 the page notes it, and the message is still taken back and waits again.
 
 **Departs from** [A15](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (only the desktop app's

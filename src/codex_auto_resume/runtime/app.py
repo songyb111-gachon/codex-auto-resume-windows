@@ -300,7 +300,7 @@ class App(WatchLoop):
         kwargs["open_store"] = self.worker_store
         # v0.6.16-beta.3: the words for this time a person added in the Dashboard, beside the state (oncewords.py).
         kwargs["once_words"] = oncewords.OnceWords.of(self.paths)
-        engine = Engine(store, source, self.backend(), plug=self.plug, **kwargs)
+        engine = Engine(store, source, self.backend(), plug=self.plug, options=Engine.WATCHER_OPTIONS, **kwargs)
         engine.apply_policy(self._stored, self.managed)
         self._observe_only(engine)
         self._managed_pause(engine)
@@ -553,7 +553,7 @@ class App(WatchLoop):
         backend and lock, and the policy every engine has."""
         engine = Engine(store, source, backend, plug=None, dispatch_lock=self.dispatch_lock, home_key=key,
                         log=EngineLog(self.logger), notify=Toasts(self._notifier(source), self.logger),
-                        language=l10n.current(), engine_state=self.engine_state, home_lock=held,
+                        language=l10n.current(), engine_state=self.engine_state, home_lock=held, options=Engine.WATCHER_OPTIONS,
                         connectivity=network.internet, once_words=oncewords.OnceWords.of(self.paths))
         engine.apply_policy(self._stored, self.managed)
         return engine

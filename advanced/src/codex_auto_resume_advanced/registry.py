@@ -534,7 +534,7 @@ GOAL_CONTINUATION = CapabilityDef(
 # capability's override, one per interruption (ledger.py) - and leaves the item in Codex's queue for when the
 # conversation is opened. In the watch it keeps the item queued while the override is within the person's Days (3 to
 # 30, 3 by default); core takes it back at 30 days and an hour whatever it answers, and at once when it is turned
-# off. Opened and not delivered within core's 180 seconds, the item is taken back, given back to waiting and sent the
+# off. Opened and not delivered within core's 300 seconds, the item is taken back, given back to waiting and sent the
 # ordinary way, and this turns off (NOT_DELIVERED_ON_OPEN). It departs from A11 (nothing is queued on the off chance)
 # and keeps A17, H4 and H6 - every withdrawal still fires at once - and stands on loaded_state_detection, what decides
 # that a conversation is not held. Its route rests on M1, passed on codex-cli 0.158 and a warning on any other.
