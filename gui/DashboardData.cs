@@ -940,6 +940,7 @@ namespace CodexAutoResume
 
         private void UpdateCountdowns()
         {
+            dayScene.Sync();
             if (snapshot == null) return;
             double now = Now();
             var status = Map(snapshot, "status");

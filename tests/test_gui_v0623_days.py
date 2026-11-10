@@ -15,7 +15,7 @@ from unittest import mock
 
 import guiscan
 import languages
-from codex_auto_resume import brand
+from codex_auto_resume import brand, l10n
 from codex_auto_resume.brand import days as brand_days
 from codex_auto_resume.ui import popup as tray_popup
 from codex_auto_resume.ui.popup import window as popup_window
@@ -86,14 +86,14 @@ class SceneTests(unittest.TestCase):
     def test_the_seeds_are_fixed_numbers(self):
         self.assertNotIn("random", (ROOT / "src/codex_auto_resume/brand/days.py").read_text(encoding="utf-8"))
         for build in (brand_days._birthday, brand_days._new_year, brand_days._christmas, brand_days._chuseok):
-            self.assertEqual(build()(0.0), build()(0.0), "made twice, it is one scene")
+            self.assertEqual(build(), build(), "made twice, it is one scene")
         self.assertAlmostEqual(brand_days._Seeded(906)(0.0, 1.0), ((906 * 1103515245 + 12345) & 0x7FFFFFFF) / 0x7FFFFFFF)
 
     def test_each_scene_holds_the_mocks_parts(self):
         def colours(look):
             return {shape[-2] for shape in brand.scene_frame(look, 0.0)}
         self.assertLessEqual({"#FFFFFF", "#F4A7B5", "#5BB8C4", "#F6B73C", "#F2A33A"}, colours("birthday"))
-        self.assertLessEqual({"#F6B73C", "#FAC65A", "#141B45", "#FFE9A8"}, colours("new_year"))
+        self.assertLessEqual({"#FFC766", "#FAC65A", "#141B45", "#FFE9A8"}, colours("new_year"))
         self.assertLessEqual({"#1F6B4A", "#2B8660", "#FFD76A", "#FFFFFF"}, colours("christmas"))
         self.assertLessEqual({"#D9463E", "#F2C230", "#3FA86B", "#3B6FC9", "#E88BB0", "#E2C9A0", "#C93B3B"}, colours("seollal"))
         self.assertLessEqual({"#F6E7B4", "#E6D39B", "#3A3F86", "#FFF4D0"}, colours("chuseok"))
@@ -246,7 +246,7 @@ class PopupClockTests(unittest.TestCase):
         self.assertEqual(self.synced(self.popup(scene=None)).set, 0)
 
     def test_the_popup_asks_only_when_it_was_told_to(self):
-        rebuild = (ROOT / "src/codex_auto_resume/ui/popup/window.py").read_text(encoding="utf-8")
+        rebuild = (ROOT / "src/codex_auto_resume/ui/popup/hidden.py").read_text(encoding="utf-8")
         self.assertIn('if self.days and not self._contrast and self._design != "classic" else None', rebuild)
         self.assertEqual(tray_popup.Popup.days, False)
 
@@ -281,11 +281,11 @@ class PopupSceneTests(unittest.TestCase):
         plan = self.renderer.layout(self.vm(None), 1.0, "en")
         self.assertEqual([item for item in plan["items"] if item["kind"] == "scene"], [])
 
-    def test_the_scene_is_two_thirds_of_the_card_at_its_top_right_and_touches_nothing_below(self):
+    def test_the_scene_is_at_most_two_thirds_of_the_card_at_its_top_right_and_touches_nothing_below(self):
         plan, _ = self.draw("seollal")
         left, top, right, bottom = self.scene_item(plan)["rect"]
         card = plan["card"]
-        self.assertAlmostEqual((right - left) / (card[2] - card[0]), 0.66, delta=0.02)
+        self.assertLessEqual((right - left) / (card[2] - card[0]), 0.67)
         self.assertEqual(top, card[1] + 1)
         self.assertEqual(right, card[2] - 1)
         self.assertLessEqual(bottom - top, 66)
@@ -298,15 +298,85 @@ class PopupSceneTests(unittest.TestCase):
         left, top, right, _ = self.scene_item(plan)["rect"]
         self.assertIn(self.at(plan, pixels, right - 30, top + 1), [brand.rgb(colour) for colour in ("#D9463E", "#F2C230", "#3FA86B", "#3B6FC9", "#E88BB0")])
 
-    def test_its_inner_side_is_the_cards_own_colour(self):
+    def test_there_is_no_seam_the_fade_begins_at_exactly_the_cards_colour(self):
         for theme in ("light", "dark"):
-            plan, pixels = self.draw("chuseok", theme=theme)
-            item = self.scene_item(plan)
             ground = brand.rgb(brand.card_ground(theme, "soft"))
-            edge = self.at(plan, pixels, item["rect"][0], item["rect"][1] + 2)
-            bg = brand.rgb(brand.DAY_LOOKS["chuseok"][2])
-            for channel in range(3):
-                self.assertLess(abs(edge[channel] - ground[channel]), abs(bg[channel] - ground[channel]) * 0.25 + 2, theme)
+            for look in LOOKS:
+                plan, pixels = self.draw(look, 700.0, theme=theme)
+                left, top, _, bottom = self.scene_item(plan)["rect"]
+                for y in range(top, bottom):
+                    self.assertEqual(self.at(plan, pixels, left, y), ground, (theme, look, y))
+
+    def test_from_there_it_changes_a_little_at_a_time(self):
+        for theme in ("light", "dark"):
+            plan, pixels = self.draw("new_year", theme=theme)
+            item = self.scene_item(plan)
+            y = item["rect"][1] + 2
+            solid, clear = item["fade"]
+            runs = [self.at(plan, pixels, x, y) for x in range(solid - 1, clear)]
+            bg = brand.rgb(brand.DAY_LOOKS["new_year"][2])
+            ground = brand.rgb(brand.card_ground(theme, "soft"))
+            allowed = max(abs(a - b) for a, b in zip(bg, ground)) * 2.5 / max(1, clear - solid) + 2
+            for one, other in zip(runs, runs[1:]):
+                self.assertLessEqual(max(abs(a - b) for a, b in zip(one, other)), allowed, theme)
+
+    def test_the_main_piece_is_whole_in_its_room(self):
+        for look in LOOKS:
+            plan, _ = self.draw(look)
+            item = self.scene_item(plan)
+            piece_starts = item["rect"][2] - (brand.SCENE_WIDTH - brand.SCENE_FOCUS[look]) * item["unit"]
+            self.assertGreaterEqual(piece_starts, item["fade"][1] - 0.5, look)
+
+    def test_no_word_stands_on_the_scene_in_any_language(self):
+        for locale in l10n.ENDONYMS:
+            strings = l10n.catalog(locale)
+            for key in sorted(strings):
+                if not key.startswith("activity."):
+                    continue
+                vm = tray_popup.view_model([], {"enabled": True}, strings, 1800000000.0)
+                vm["state_text"] = strings[key]
+                vm["scene"] = "birthday"
+                plan = self.renderer.layout(vm, 1.0, locale)
+                found = [item for item in plan["items"] if item["kind"] == "scene"]
+                if not found:
+                    continue                                 # too little room: that language shows none
+                self.renderer.use(locale, 1.0)
+                card = plan["card"]
+                bare = dict(vm, scene=None)
+                bare_plan = self.renderer.layout(bare, 1.0, locale)
+                pixels = self.renderer.draw(bare, bare_plan, frame=tray_popup.halo("monitoring", 0.0)).pixels()
+                ground = brand.rgb(brand.card_ground("light", "soft"))
+                left, top, right, bottom = found[0]["rect"]
+                for y in range(top, bottom):
+                    for x in range(left + 24, right - 24):       # the card's round corner is not ink
+                        self.assertLessEqual(max(abs(p - g) for p, g in zip(self.at(plan, pixels, x, y), ground)), 24, (locale, key, x, y))   # no ink
+                self.assertLess(card[0], left)
+
+    def test_a_language_whose_words_leave_too_little_room_shows_no_scene(self):
+        vm = self.vm("birthday")
+        vm["state_text"] = "A state line long enough in this language to leave the header no room at all for anything beside it"
+        plan = self.renderer.layout(vm, 1.0, "en")
+        self.assertEqual([item for item in plan["items"] if item["kind"] == "scene"], [])
+
+    def test_the_lights_fall_off_softly(self):
+        plan, pixels = self.draw("chuseok", 0.0, theme="dark")
+        item = self.scene_item(plan)
+        unit = item["unit"]
+        x0 = item["rect"][2] - (brand.SCENE_WIDTH - 146) * unit
+        y = int(item["rect"][3] - (brand.SCENE_HEIGHT - 30) * unit)
+        samples = [self.at(plan, pixels, int(x0 + (22.0 + step * 0.5) * unit), y) for step in range(0, 38)]
+        ground = brand.rgb(brand.DAY_LOOKS["chuseok"][2])
+        lit = [sum(abs(a - b) for a, b in zip(sample, ground)) for sample in samples]
+        self.assertGreater(lit[0], 40, "a light against the sky")
+        self.assertLess(lit[-1], 12, "that has gone by its edge")
+        for one, other in zip(lit, lit[1:]):
+            self.assertLessEqual(abs(one - other), 24, "no rim anywhere")
+
+    def test_no_light_is_a_flat_disc(self):
+        for look in ("new_year", "chuseok"):
+            shapes = brand.scene_frame(look, 0.0)
+            self.assertEqual(sum(1 for shape in shapes if shape[0] == "glow"), 1, look)
+            self.assertEqual([shape for shape in shapes if shape[0] == "circle" and shape[-1] < 1.0], [], look)
 
     def test_what_stands_left_of_it_is_what_stands_there_on_any_day(self):
         for theme in ("light", "dark"):
@@ -318,9 +388,8 @@ class PopupSceneTests(unittest.TestCase):
                 for x in range(0, limit):
                     self.assertEqual(self.at(plan, plain, x, y), self.at(scene_plan, day, x, y), (theme, x, y))
 
-    def test_the_words_on_it_are_drawn_again_with_each_frame(self):
+    def test_a_frame_draws_what_the_whole_draws(self):
         vm = self.vm("birthday")
-        vm["title"] = "A title long enough to run well into the scene behind it"
         plan = self.renderer.layout(vm, 1.0, "en")
         whole = self.renderer.draw(vm, plan, frame=tray_popup.halo("monitoring", 0.0), scene_ms=2000.0).pixels()
         self.renderer.draw(vm, plan, frame=tray_popup.halo("monitoring", 0.0), scene_ms=0.0)

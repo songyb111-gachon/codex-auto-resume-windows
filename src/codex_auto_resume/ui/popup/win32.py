@@ -284,8 +284,6 @@ def _declare():
         _signature(gdiplus.GdipResetClip, I, H)
         _signature(gdiplus.GdipFillRectangle, I, H, H, F, F, F, F)
         _signature(gdiplus.GdipCreateLineBrush, I, C.c_void_p, C.c_void_p, D, D, I, C.POINTER(C.c_void_p))
-        _signature(gdi32.IntersectClipRect, I, H, I, I, I, I)
-        _signature(gdi32.SelectClipRgn, I, H, H)
         _signature(gdiplus.GdipDrawArc, I, H, H, F, F, F, F, F, F)
         _signature(gdiplus.GdipDrawLines, I, H, H, C.POINTER(PointF), I)
         _signature(gdiplus.GdipAddPathEllipse, I, H, F, F, F, F)

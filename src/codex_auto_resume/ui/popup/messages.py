@@ -10,6 +10,7 @@ import ctypes as C
 import time
 from .placement import focus_order, hit_test, next_focus
 from . import access
+from .hidden import PopupHidden
 from .win32 import (KEY_WAS_DOWN,
                     PAINTSTRUCT,
                     TIMER_FIRST,
@@ -47,7 +48,7 @@ from .win32 import (KEY_WAS_DOWN,
 REFRESH_TICKS = 3            # re-read the list every third one-second tick while visible
 
 
-class PopupMessages:
+class PopupMessages(PopupHidden):
     """The popup's window procedure and its handlers, for `Popup` (window.py) to be made of."""
 
     # --------------------------------------------------------------------- messages
@@ -114,6 +115,7 @@ class PopupMessages:
         if message == WM_LBUTTONDOWN:
             self.keyboard = False
             self.pressed = self._hit(lparam)
+            self.title_pressed(lparam, time.monotonic() * 1000.0)
             self._invalidate()
             return 0
         if message == WM_LBUTTONUP:
