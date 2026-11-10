@@ -10,6 +10,8 @@ from pathlib import Path
 import re
 import unittest
 
+import languages
+
 ROOT = Path(__file__).resolve().parents[1]
 BOOTSTRAP = ROOT / "scripts" / "bootstrap.ps1"
 MIB = 1024 * 1024
@@ -39,6 +41,7 @@ class BoundTests(unittest.TestCase):
             self.assertNotIn("ReleasesMaxChars", words, path.name)
             self.assertIsNone(re.search(r"api\.github\.com/repos", words), path.name)
 
+    @unittest.skipIf(languages.generated_ko_branch(), "the generated ko branch's SECURITY.md is the Korean one")
     def test_a_person_reads_the_same_number(self):
         security = (ROOT / "docs" / "SECURITY.md").read_text(encoding="utf-8")
         self.assertIn("is over 8 MiB, is not a list", security)
