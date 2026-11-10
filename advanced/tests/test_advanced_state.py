@@ -738,7 +738,7 @@ class ResetStateTests(StateCase):
         self.assertEqual((state.windows(), state.reset_rules(), state.credit_spends()), ({}, [], []))
         self.assertEqual(set(state.reading()), set(TABLES["readings"]) - {"singleton"})
 
-    def test_a_message_makes_its_record_one_to_a_conversation_and_ten_in_all(self):
+    def test_a_message_makes_its_record_one_to_a_conversation_and_fifty_in_all(self):
         state = self.state()
         rule = self.message(state)
         found = state.reset_rule(rule)
@@ -747,7 +747,7 @@ class ResetStateTests(StateCase):
         with self.assertRaises(Refused) as refused:
             self.message(state)
         self.assertEqual(refused.exception.refusal, Refusal.ALREADY_SCHEDULED)
-        for n in range(9):
+        for n in range(49):
             self.message(state, thread="0a1b2c3d-0001-7000-8000-%012d" % (100 + n))
         with self.assertRaises(Refused) as refused:
             self.message(state, thread=ac.OTHER_THREAD)
