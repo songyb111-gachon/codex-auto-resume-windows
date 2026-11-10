@@ -10,8 +10,11 @@ from pathlib import Path
 import re
 import unittest
 
+from codex_auto_resume import config
+from codex_auto_resume.compat.files import RELEASE_VERSION
 from codex_auto_resume.domain.ids import PRODUCT_RELEASE, PRODUCT_STAGE
 from codex_auto_resume.notify import UPDATE_VERSION
+from codex_auto_resume.ownreport.document import PRODUCT_VERSION
 
 ROOT = Path(__file__).resolve().parents[1]
 GUI = ROOT / "gui"
@@ -36,6 +39,28 @@ class VersionRuleCopies(unittest.TestCase):
 
     def test_the_notice_is_built_from_the_one_source(self):
         self.assertEqual(UPDATE_VERSION.pattern, PRODUCT_RELEASE + "(" + PRODUCT_STAGE + r")?\Z")
+
+
+class VersionBoundsDifferOnPurpose(unittest.TestCase):
+    """An offered version (no leading zero, six digits), this installation's own (cut out of plugin.json, wider) and a
+    community report's (the receiver's four digits) are three questions; every version we publish answers all of them."""
+
+    def test_each_refuses_what_it_should_and_the_others_do_not(self):
+        self.assertIsNotNone(RELEASE_VERSION.fullmatch("00.6.1"))
+        self.assertIsNone(UPDATE_VERSION.match("00.6.1"))
+        self.assertIsNotNone(UPDATE_VERSION.match("12345.0.0"))
+        self.assertIsNone(PRODUCT_VERSION.match("12345.0.0"))
+
+    def test_the_report_takes_the_receivers_four_digits(self):
+        receiver = (ROOT / "build" / "community_report.py").read_text(encoding="utf-8")
+        self.assertIn(r'PRODUCT = re.compile(r"(\d{1,4})\.(\d{1,4})\.(\d{1,4})', receiver)
+
+    def test_a_version_we_publish_is_every_one_of_them(self):
+        for version in ("0.6.22", "0.6.23-alpha", "0.6.23-beta.2", config.version()):
+            with self.subTest(version):
+                self.assertIsNotNone(UPDATE_VERSION.match(version))
+                self.assertIsNotNone(RELEASE_VERSION.fullmatch(version))
+                self.assertIsNotNone(PRODUCT_VERSION.match(version))
 
 
 if __name__ == "__main__":
