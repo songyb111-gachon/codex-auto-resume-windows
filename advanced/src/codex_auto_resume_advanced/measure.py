@@ -2277,16 +2277,15 @@ def _feature(text, name):
     """(whether `codex features list` lists `name`, whether it is on - None where its line says neither)."""
     if not isinstance(text, str):
         return False, None
-    for line in text.splitlines():
-        words = line.replace("|", " ").split()
-        if words and words[0] == name:
-            states = {word.lower() for word in words[1:]}
-            if states & {"true", "enabled", "on", "yes"}:
-                return True, True
-            if states & {"false", "disabled", "off", "no"}:
-                return True, False
-            return True, None
-    return False, None
+    words = autocheck.feature_words(text, name)
+    if words is None:
+        return False, None
+    states = {word.lower() for word in words}
+    if states & {"true", "enabled", "on", "yes"}:
+        return True, True
+    if states & {"false", "disabled", "off", "no"}:
+        return True, False
+    return True, None
 
 
 def _hook_words(documents) -> dict:
