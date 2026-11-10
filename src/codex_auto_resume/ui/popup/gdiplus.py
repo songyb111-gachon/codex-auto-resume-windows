@@ -190,6 +190,14 @@ class _Painter:
         finally:
             self._delete_brush(brush)
 
+    def fill_polygon(self, points, colour):
+        brush = self._brush(colour)
+        try:
+            flat = (C.c_float * (len(points) * 2))(*[float(value) for point in points for value in point])
+            self.gp.GdipFillPolygon2(self.graphics, brush, flat, len(points))
+        finally:
+            self._delete_brush(brush)
+
     def arc(self, cx, cy, radius, start, sweep, colour, width):
         pen = self._pen(colour, width)
         try:

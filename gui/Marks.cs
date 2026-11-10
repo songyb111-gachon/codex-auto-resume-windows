@@ -49,6 +49,21 @@ namespace CodexAutoResume
             colourGlide = new Transition(this, 1.0);
         }
 
+        private const int RippleMs = 1000;
+        private Transition ripple;
+
+        /// One ring out from the light, once. Nothing with motion reduced or out of sight.
+        internal void Ripple()
+        {
+            if (!Motion.Allowed(this)) return;
+            if (ripple == null) ripple = new Transition(this, 0.0);
+            ripple.Jump(0.0);
+            ripple.To(1.0, true, RippleMs);
+        }
+
+        /// Whether a ring is on its way (for the tests).
+        internal bool Rippling { get { return ripple != null && ripple.Running; } }
+
         // How often, while battery saver or a locked session holds the light still, it asks whether that is over.
         private const int StillBeat = 1000;
         private int beat = 33;
@@ -172,7 +187,7 @@ namespace CodexAutoResume
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing) { timer.Stop(); timer.Dispose(); colourGlide.Dispose(); }
+            if (disposing) { timer.Stop(); timer.Dispose(); colourGlide.Dispose(); if (ripple != null) ripple.Dispose(); }
             base.Dispose(disposing);
         }
 
@@ -203,6 +218,13 @@ namespace CodexAutoResume
             // Dimmed, the dot is its colour over the card it was cleared to: that far toward the ground.
             Color fill = lit && dim > 0 && !Palette.Contrast ? Soft.WithAlpha(colour, 1 - dim) : colour;
             using (var brush = new SolidBrush(fill)) g.FillEllipse(brush, cx - dot, cy - dot, dot * 2, dot * 2);
+            if (Rippling)
+            {
+                double along = ripple.Value;
+                float ring = dot + (Math.Min(Width, Height) / 2f - Soft.PxF(1) - dot) * (float)along;
+                using (var pen = new Pen(Soft.WithAlpha(colour, 1.0 - along), Soft.PxF(1.5)))
+                    g.DrawEllipse(pen, cx - ring, cy - ring, ring * 2, ring * 2);
+            }
             if (lit && arc >= 0)
             {
                 float radius = Soft.PxF(Brand.StatusDotRadius + Brand.GlowArcGap);

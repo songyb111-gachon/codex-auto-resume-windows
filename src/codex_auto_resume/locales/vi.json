@@ -856,6 +856,7 @@
   "msg.toast_accounts_exhausted_body": "Việc khôi phục chờ lần đặt lại sớm nhất, như khi không chuyển. Không có gì được gửi cho đến lúc đó.",
   "msg.toast_switch_not_finished": "Việc tự động chuyển tài khoản chưa hoàn tất",
   "msg.toast_switch_not_finished_body": "Mở Codex và kiểm tra tài khoản nào đang đăng nhập. Việc khôi phục chờ lần đặt lại sớm nhất, như khi không chuyển. Không có gì được gửi cho đến lúc đó.",
+  "status.aside": "Dừng lại cũng không sao. Tôi sẽ tiếp tục.",
   "why.account_changed": "Một tài khoản Codex khác đã đăng nhập sau khi nó dừng: không gửi gì cho đến khi bạn cho phép tiếp tục.",
   "msg.toast_usage_at": "Đã đạt giới hạn sử dụng Codex. Tác vụ này sẽ tiếp tục lúc {time}.",
   "msg.toast_usage_soon": "Đã đạt giới hạn sử dụng Codex. Tác vụ này sẽ tiếp tục sau khi giới hạn được đặt lại.",

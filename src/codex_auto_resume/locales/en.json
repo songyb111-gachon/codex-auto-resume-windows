@@ -598,6 +598,7 @@
   "stats.outcomes": "How recoveries ended",
   "stats.period": "Period",
   "stats.retry_now": "Retry now requests",
+  "status.aside": "It's okay if it stops. I'll pick it up.",
   "status.next_check": "next check {time}",
   "status.not_responding": "Watcher not responding",
   "status.not_running": "Watcher not running",

@@ -69,7 +69,7 @@ class Tray(MenuMixin, StoredMixin, CardsMixin, ClicksMixin, AnimationMixin):
 
     def __init__(self, *, icon_path=None, strings=None, on_open=None, on_toggle=None, on_stop=None,
                  on_pending=None, log=None, control=None, pending_source=None, on_dashboard=None,
-                 inbox=None, on_notice_action=None, on_notice_complete=None, demo_name=None, on_demo=None,
+                 inbox=None, on_notice_action=None, on_notice_complete=None, demo_name=None, on_demo=None, days=False,
                  edition=None):
         self.icon_path = Path(icon_path) if icon_path else None
         self.strings = strings or {}
@@ -111,8 +111,10 @@ class Tray(MenuMixin, StoredMixin, CardsMixin, ClicksMixin, AnimationMixin):
         # v0.6.5: the icon's motion. Until its frame table is built (off this thread) the icon is
         # the .ico, and if the table cannot be built it stays that way. Once it is, every icon shown is one composed frame, made into
         # an HICON as it is shown and destroyed once the shell holds the next: two at most.
+        self.days = days              # only the watcher's own icon: nothing else may depend on the date
         self._frames = None           # IconFrames once built; False when it could not be
         self._frames_result = None    # what the building thread left: (frames, reason)
+        self._frames_pending = False
         self._frame_icon = None       # the composed frame on show, if any
         self._frame_key = None
         self._icon_state = None
@@ -313,6 +315,7 @@ class Tray(MenuMixin, StoredMixin, CardsMixin, ClicksMixin, AnimationMixin):
         text = tooltip(snapshot, self.strings, time.time(), self.edition)
         changed, replaced = False, []
         if self._frames:
+            self._follow_the_day(self._frames.size)
             self._observe(snapshot)
             changed, replaced = self._frame_for(time.monotonic())
         if text != self._last_tip or changed:

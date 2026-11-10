@@ -104,6 +104,9 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
     text((text_left, top, right, top + title_h), "title", vm["title"], "ink")
     text((text_left, top + title_h, right, top + stack), "state", vm["state_text"],
          STATE_INK.get(vm["state"], "ink"), wrap=True)
+    if vm.get("motif"):
+        size = px(14)
+        items.append({"kind": "motif", "rect": (right - size, y, right, y + size), "motif": vm["motif"]})
     y += header_h + px(space["m"])
 
     # Summary: waiting, recovering, next check - three values read off a field, so since v0.6.5

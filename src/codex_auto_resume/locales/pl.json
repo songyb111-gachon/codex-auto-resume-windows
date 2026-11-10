@@ -856,6 +856,7 @@
   "msg.toast_accounts_exhausted_body": "Wznowienie czeka na najbliższy reset, jak bez przełączenia. Do tego czasu nic nie zostanie wysłane.",
   "msg.toast_switch_not_finished": "Automatyczne przełączenie konta nie zostało dokończone",
   "msg.toast_switch_not_finished_body": "Otwórz Codex i sprawdź, które konto jest zalogowane. Wznowienie czeka na najbliższy reset, jak bez przełączenia. Do tego czasu nic nie zostanie wysłane.",
+  "status.aside": "Nic się nie stanie, jeśli się zatrzyma. Ja to podejmę.",
   "why.account_changed": "Po jego zatrzymaniu zalogowano inne konto Codex: nic nie zostanie wysłane, dopóki nie pozwolisz kontynuować.",
   "msg.toast_usage_at": "Osiągnięto limit użycia Codex. To zadanie zostanie wznowione o {time}.",
   "msg.toast_usage_soon": "Osiągnięto limit użycia Codex. To zadanie zostanie wznowione po odnowieniu limitu.",

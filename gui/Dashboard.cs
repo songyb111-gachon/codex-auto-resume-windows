@@ -309,6 +309,71 @@ namespace CodexAutoResume
         }
     }
 
+    /// Presses one after another: seven, each within 1.8 s of the last, and it says so once and starts again.
+    internal sealed class PressRun
+    {
+        internal const int Wanted = 7;
+        internal const double Gap = 1800.0;
+
+        private double last = double.NegativeInfinity;
+        private int count;
+
+        internal bool Press(double milliseconds)
+        {
+            count = milliseconds - last <= Gap ? count + 1 : 1;
+            last = milliseconds;
+            if (count < Wanted) return false;
+            count = 0;
+            return true;
+        }
+    }
+
+    /// A line that can say something else for a moment. What it is told meanwhile is what it says afterwards.
+    internal sealed class AsideLabel : Label
+    {
+        private readonly Timer timer = new Timer();
+        private string behind;
+        private bool aside;
+
+        internal AsideLabel()
+        {
+            timer.Tick += delegate
+            {
+                timer.Stop();
+                aside = false;
+                base.Text = behind;
+            };
+        }
+
+        internal bool Saying { get { return aside; } }
+
+        public override string Text
+        {
+            get { return base.Text; }
+            set
+            {
+                if (aside) behind = value;
+                else base.Text = value;
+            }
+        }
+
+        internal void Aside(string words, int milliseconds)
+        {
+            if (!aside) behind = base.Text;
+            aside = true;
+            base.Text = words;
+            timer.Stop();
+            timer.Interval = milliseconds;
+            timer.Start();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) timer.Dispose();
+            base.Dispose(disposing);
+        }
+    }
+
     /// A page tab that tells assistive technology it is one, and which one is selected.
     ///
     /// A plain button with AccessibleRole.PageTab announced its role but never its state,

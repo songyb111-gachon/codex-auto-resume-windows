@@ -609,7 +609,7 @@ class App(WatchLoop):
         # icon attaches the inbox once it hosts the card, a button on a card comes back to
         # `_notice_action` on a worker thread, and every notice the card took is ended once by
         # notifier.complete - its silent history copy, or today's toast if it was never seen.
-        icon_tray = tray.Tray(icon_path=icon, strings=interface.catalog(),
+        icon_tray = tray.Tray(icon_path=icon, strings=interface.catalog(), days=True,
                               on_open=lambda: tray.open_dashboard(home), on_toggle=toggle,
                               on_pending=lambda: tray.open_dashboard(home, "pending"),
                               on_stop=lambda: StopEvent(str(self.paths.state_dir)).signal(),

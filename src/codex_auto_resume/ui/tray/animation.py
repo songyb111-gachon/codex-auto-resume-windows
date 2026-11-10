@@ -12,6 +12,7 @@ import threading
 import time
 
 from ...tray_place import IconPlacement, battery_saver, overflow_open
+from ... import brand
 from .motion import (ICON_MOTION,
                      build_icon_frames,
                      icon_frame,
@@ -36,11 +37,29 @@ class AnimationMixin:
     """The frame table, and what may move."""
 
     # --------------------------------------------------------------- the icon's motion
+    def _day_look(self):
+        """Today's look, or None: an ordinary day, a Tray not asked for one, High Contrast."""
+        if not self.days:
+            return None
+        from .. import popup as tray_popup
+        if tray_popup.high_contrast():
+            return None
+        return brand.day_look_at(time.time())
+
+    def _follow_the_day(self, size):
+        """Midnight has passed: the frames are made again, off this thread."""
+        look = self._day_look()
+        if self._frames and look != self._frames.look and self._frames_result is None and not self._frames_pending:
+            self._build_frames_later(size)
+
     def _build_frames_later(self, size):
         """Build the frame table on a thread of its own; the icon's thread hears when it is done."""
+        look = self._day_look()
+        self._frames_pending = True
+
         def build():
             try:
-                frames = build_icon_frames(size, fine=TRAY_FINE)
+                frames = build_icon_frames(size, fine=TRAY_FINE, **({"look": look} if look else {}))
                 result = (frames, None if frames else "over its time budget")
             except Exception as exc:
                 result = (None, type(exc).__name__)
@@ -55,6 +74,7 @@ class AnimationMixin:
     def _frames_built(self):
         with self._lock:
             result, self._frames_result = self._frames_result, None
+        self._frames_pending = False
         if result is None or not self._icon:
             return
         frames, reason = result

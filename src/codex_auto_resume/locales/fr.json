@@ -856,6 +856,7 @@
   "msg.toast_accounts_exhausted_body": "La reprise attend la réinitialisation la plus proche, comme sans changement. Rien n'est envoyé d'ici là.",
   "msg.toast_switch_not_finished": "Le changement automatique de compte n'a pas abouti",
   "msg.toast_switch_not_finished_body": "Ouvrez Codex et vérifiez quel compte est connecté. La reprise attend la réinitialisation la plus proche, comme sans changement. Rien n'est envoyé d'ici là.",
+  "status.aside": "Ce n'est pas grave si ça s'arrête. Je prends le relais.",
   "why.account_changed": "Un autre compte Codex s'est connecté après son arrêt : rien n'est envoyé tant que vous ne la laissez pas continuer.",
   "msg.toast_usage_at": "Limite d'utilisation de Codex atteinte. Cette tâche reprendra à {time}.",
   "msg.toast_usage_soon": "Limite d'utilisation de Codex atteinte. Cette tâche reprendra après la réinitialisation.",
