@@ -56,18 +56,46 @@ def ends_with_job(context, *, leaving: bool = False):
     return None if kill is None else bool(kill)
 
 
+# Where its writers take turns (one byte locked past any end the file can have), and how long one waits for its turn.
+_NOTE_TURN_AT = 1 << 40
+_NOTE_TURN_SECONDS = 2.0
+
+
+def _note_turn(stream) -> bool:
+    """This writer's turn at a log: whether it was had within _NOTE_TURN_SECONDS. A lock on a byte no one reads, so
+    someone reading the file waits for nothing."""
+    import msvcrt
+    deadline = time.monotonic() + _NOTE_TURN_SECONDS
+    while True:
+        stream.seek(_NOTE_TURN_AT)
+        try:
+            msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
+            return True
+        except OSError:
+            if time.monotonic() >= deadline:
+                return False
+            time.sleep(0.01)
+
+
 def _note_line(path: Path, text: str) -> None:
-    """Append one timestamped line to a trimmed log, keeping the last CODEX_START_LOG_LINES.
+    """Append one timestamped line to a trimmed log, keeping the last CODEX_START_LOG_LINES. Codex starts four servers in
+    a second, each a process of its own, and a whole file read and written back again lost what the others wrote
+    (v0.6.23: 8 lines left of a bound of 50): the line is appended in one write, and the file is cut only in the writer's
+    turn. Without a turn the line is still appended, and the next writer cuts the file.
     Best effort: a log that cannot be written costs nothing but the line."""
     try:
         if path.parent.is_symlink() or not path.parent.is_dir() or path.is_symlink():
             return
-        lines = []
-        if path.is_file():
-            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()[-(CODEX_START_LOG_LINES - 1):]
-        lines.append(time.strftime("[%Y-%m-%d %H:%M:%S] ") + text)
-        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    except (OSError, ValueError):
+        with open(path, "a+b", buffering=0) as stream:
+            turn = _note_turn(stream)
+            stream.write((time.strftime("[%Y-%m-%d %H:%M:%S] ") + text + "\n").encode("utf-8", "replace"))
+            if turn:
+                stream.seek(0)
+                lines = stream.read().splitlines(keepends=True)
+                if len(lines) > CODEX_START_LOG_LINES:
+                    stream.truncate(0)
+                    stream.write(b"".join(lines[-CODEX_START_LOG_LINES:]))
+    except (OSError, ValueError, ImportError):
         pass
 
 
