@@ -1209,7 +1209,7 @@ Until it passes, or where it fails, no more than 3 are sent; its failing never t
 
 **What it does.** You queue messages of your own for one conversation - one the Dashboard knows from Pending
 and History that is switched on: to go after the turn now running, at a
-time you pick, or every day or week from a time - 30 times and 30 days at most. They go in the order you queued
+time you pick, or every day or week from a time - as many times as you pick, up to 30 (a series written by an earlier version keeps its 30 days). They go in the order you queued
 them, each once, exactly as you wrote them, and one can wait for the one before it to arrive. For a message at a
 time or on a schedule you choose what it does while a turn is running in that conversation: **Wait until it ends**
 (recommended, and what a new message does unless you choose otherwise) or **Add it to Codex's queue now**, for

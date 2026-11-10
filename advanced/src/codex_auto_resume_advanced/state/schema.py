@@ -556,7 +556,9 @@ _STATEMENTS_V3 = _STATEMENTS_V3 + _STATEMENTS_RESETS
 # already in Codex's queue, for core to take back (the owner's answer of 2026-10-09).
 _KEY = "CHECK (%s IS NULL OR (length(%s) = 64 AND %s NOT GLOB '*[^0-9a-f]*'))"
 _UUID = "CHECK (length(thread_id) = 36 AND thread_id NOT GLOB '*[^0-9a-f-]*')"
-# The longest a recurring prompt's series runs, from when it was written.
+# The latest a prompt's `until` may be, from when it was written: the CHECK below, kept so that no stored row changes
+# meaning. Since v0.6.23 (the owner, 2026-11-10) a new series writes no `until` and runs the occurrences picked (30 weekly
+# is 210 days); a row written before it keeps its 30 days.
 PROMPT_SPAN = 30 * 86400
 _STATEMENTS_V4 = (
     "ALTER TABLE records ADD COLUMN queue_id TEXT CHECK (queue_id IS NULL OR (length(queue_id) = 36 AND "
@@ -598,7 +600,7 @@ _STATEMENTS_V4 = (
     )""" % (_UUID, _int("count", low=1, high=10, null=False), _int("used", null=False), _one_of("state", KeepState),
             ", ".join("'%s'" % word for word in KeepReason)),
     # A person's queued prompts: after the turn now running, at a time, or on a schedule - their words only while one
-    # is still to go, a series 30 occurrences and 30 days at most. Its reasons are the vocabulary's (PromptReason) -
+    # is still to go, a series 30 occurrences at most (and an `until`, where it has one, 30 days at most). Its reasons are the vocabulary's (PromptReason) -
     # made again with them in version 8 (UPGRADE_TO_V019); a test builds a version-7 file with V7_PROMPT_REASONS.
     """CREATE TABLE prompts (
         prompt_id INTEGER PRIMARY KEY AUTOINCREMENT,

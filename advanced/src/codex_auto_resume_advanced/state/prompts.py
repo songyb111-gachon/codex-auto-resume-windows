@@ -3,15 +3,17 @@
 now running, at a time, or on a schedule - in order, each once.
 
     prompts   one row a prompt: its conversation, its words while one is still to go, when it goes (after_turn,
-              at_time at `at`, recurring every day or week from `at`, at most 30 occurrences and never past
-              `until`, 30 days from when it was written at most), whether it waits for the one before it to be
+              at_time at `at`, recurring every day or week from `at`, as many occurrences as its person picked,
+              30 at most - and a series written before v0.6.23 never past its `until`, 30 days from when it was
+              written), whether it waits for the one before it to be
               delivered (`depends`), its place in its conversation's queue, where it stands, and the record of its
               current occurrence - a row of `records` (state/records.py) with an id of its own, which the one
               claim counts with core's rows (ledger.py) - and (v0.6.19, #50) what it does while a turn of its
               conversation runs (`while_running`): goes into Codex's queue, as every prompt did before, or waits
 
-The file refuses words on a prompt that is done or cancelled, a series past 30 occurrences or 30 days, and a
-recurring prompt without its every; this module refuses the rest: fifty waiting in all, twenty to a conversation.
+The file refuses words on a prompt that is done or cancelled, a series past 30 occurrences or an `until` past 30 days
+(the file's own CHECK, which rows written before v0.6.23 fill; a new series writes none and ends with its occurrences:
+the owner, 2026-11-10), and a recurring prompt without its every; this module refuses the rest: fifty waiting in all, twenty to a conversation.
 """
 from __future__ import annotations
 
@@ -52,7 +54,7 @@ def _prompt(row) -> dict:
 def _occasion(words, trigger, at, every, occurrences, until, while_running, current):
     """A prompt's words and when it goes, checked as one a person writes - (trigger, every, while_running, due, until) -
     or Refused: prompt_refused for words that are empty or too long, occasion_invalid for a time or schedule that is not
-    one on offer (add_prompt, and v0.6.19's edit_prompt). A recurring one with no `until` ends 30 days from `current`."""
+    one on offer (add_prompt, and v0.6.19's edit_prompt). A recurring one with no `until` runs its occurrences."""
     if not isinstance(words, str) or not words.strip() or len(words) > WORDS_LIMIT:
         raise Refused(Refusal.PROMPT_REFUSED)
     try:
@@ -71,8 +73,6 @@ def _occasion(words, trigger, at, every, occurrences, until, while_running, curr
                   and type(occurrences) is int and occurrences in OCCURRENCES
                   and (occurrences == 1 or trigger == PromptTrigger.RECURRING))
         due = at
-    if trigger == PromptTrigger.RECURRING and until is None:
-        until = current + PROMPT_SPAN
     try:
         due = _timestamp(due, "time")
         until = None if until is None else _timestamp(until, "until")
@@ -118,7 +118,7 @@ class PromptsMixin:
         add_prompt refuses the same fields; where anything moved since the list was read at `generation`
         (stale_generation); and for a prompt that is not waiting with no occurrence made - due, being sent, held,
         finished or gone (invalid_request) - checked in the writing transaction, so an edit never reaches a message
-        core may be sending. A series keeps the occurrences it used and the 30 days from when it was written."""
+        core may be sending. A series keeps the occurrences it used, and one written before v0.6.23 its `until`."""
         if type(prompt_id) is not int:
             raise Refused(Refusal.INVALID_REQUEST)
         if type(generation) is not int:
@@ -129,12 +129,12 @@ class PromptsMixin:
                 raise Refused(Refusal.INVALID_REQUEST)
             if connection.execute("SELECT generation FROM meta").fetchone()[0] != generation:
                 raise Refused(Refusal.STALE_GENERATION)
-            row = connection.execute("SELECT thread_id, position, created_at, sent_count FROM prompts WHERE prompt_id=? "
+            row = connection.execute("SELECT thread_id, position, until, sent_count FROM prompts WHERE prompt_id=? "
                                      "AND state=? AND record_id IS NULL AND launching_at IS NULL AND sent_at IS NULL",
                                      (prompt_id, PromptState.WAITING)).fetchone()
             if row is None:
                 raise Refused(Refusal.INVALID_REQUEST)
-            until = row["created_at"] + PROMPT_SPAN if str(trigger) == PromptTrigger.RECURRING else None
+            until = row["until"] if str(trigger) == PromptTrigger.RECURRING else None
             trigger, every, while_running, due, until = _occasion(words, trigger, at, every, occurrences, until,
                                                                   while_running, current)
             if occurrences < row["sent_count"] or (row["sent_count"] and trigger != PromptTrigger.RECURRING):

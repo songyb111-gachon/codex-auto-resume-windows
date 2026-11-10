@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import contextlib
 import json
 from pathlib import Path
 import sys
@@ -16,8 +17,11 @@ from test_advanced_state import StateCase  # noqa: E402
 from codex_auto_resume import ladder, settings  # noqa: E402
 from codex_auto_resume_advanced.state import Refused  # noqa: E402
 from codex_auto_resume_advanced.state import prompts as prompts_module, resets as resets_module  # noqa: E402
+from codex_auto_resume_advanced.state import schema as schema_module  # noqa: E402
 from codex_auto_resume_advanced.vocabulary import Refusal  # noqa: E402
 
+DAY = 86400
+WEEK = 7 * DAY
 CATALOG = Path(prompts_module.__file__).resolve().parent.parent / "locales" / "en.json"
 
 
@@ -80,6 +84,62 @@ class AdmittedAge(unittest.TestCase):
         for capability in ("codex_gave_up", "sign_in_retry", "unknown_failure_budget", "structured_rules"):
             words = english["statement.%s.does" % capability]
             self.assertIn("failures from the last six hours", words, capability)
+
+
+class SeriesSpan(StateCase):
+    """L1.8b: a series runs as many occurrences as the person picked; a row already written keeps working."""
+
+    def weekly(self, state, **options):
+        return state.add_prompt(ac.THREAD, "mine", "recurring", at=self.now + 60, every="week", occurrences=30, **options)
+
+    def test_thirty_weekly_run_their_thirty(self):
+        """Fails with a default `until`: the fifth week falls past 30 days and the series ends there."""
+        state = self.state()
+        row = state.prompt(self.weekly(state))
+        self.assertIsNone(row["until"])
+        due = row["due_at"]
+        for used in range(1, 30):
+            following = prompts_module.next_slot(dict(row, sent_count=used, due_at=due))
+            self.assertEqual(following, due + WEEK, "occurrence %d" % used)
+            due = following
+        self.assertEqual(due - row["due_at"], 29 * WEEK)
+        self.assertIsNone(prompts_module.next_slot(dict(row, sent_count=30, due_at=due)), "the thirtieth is the last")
+
+    def test_a_row_written_before_keeps_its_thirty_days_and_an_edit_leaves_them(self):
+        state = self.state()
+        until = self.now + schema_module.PROMPT_SPAN
+        prompt = self.weekly(state, until=until)
+        row = state.prompt(prompt)
+        self.assertEqual(row["until"], until)
+        self.assertIsNone(prompts_module.next_slot(dict(row, sent_count=4, due_at=row["due_at"] + 4 * WEEK)))
+        generation = self.generation(state)
+        state.edit_prompt(prompt, generation, "mine, edited", "recurring", at=self.now + 120, every="day", occurrences=30)
+        self.assertEqual(state.prompt(prompt)["until"], until)
+
+    def test_a_new_series_edited_still_ends_with_its_occurrences(self):
+        state = self.state()
+        prompt = self.weekly(state)
+        state.edit_prompt(prompt, self.generation(state), "mine, edited", "recurring", at=self.now + 120, every="week",
+                          occurrences=12)
+        row = state.prompt(prompt)
+        self.assertEqual((row["until"], row["occurrences"]), (None, 12))
+
+    def test_the_stored_format_did_not_change(self):
+        """The row's CHECK on `until` stands as v0.6.15-beta wrote it, and an `until` past it is still refused."""
+        self.assertEqual(schema_module.PROMPT_SPAN, 30 * DAY)
+        state = self.state()
+        with self.assertRaises(Refused) as refused:
+            self.weekly(state, until=self.now + 31 * DAY)
+        self.assertEqual(refused.exception.refusal, Refusal.OCCASION_INVALID)
+
+    def test_a_person_reads_the_picker_and_no_span(self):
+        words = json.loads(CATALOG.read_text(encoding="utf-8"))["statement.prompt_queue.does"]
+        self.assertIn("as many times as you pick, up to 30", words)
+        self.assertNotIn("30 days at most", words)
+
+    def generation(self, state):
+        with contextlib.closing(self.raw(state)) as connection:
+            return connection.execute("SELECT generation FROM meta").fetchone()[0]
 
 
 if __name__ == "__main__":

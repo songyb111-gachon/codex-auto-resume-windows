@@ -961,7 +961,7 @@ PARALLEL_DISPATCH = CapabilityDef(
 
 # The prompt queue (v0.6.15-beta; the plan's item 7, on reset_message's way). A person queues messages of their own
 # for one conversation in the Dashboard - after the turn now running, at a time, or every day or week from a time, 30
-# times and 30 days at most - and at P2 each conversation's first one still to go is made due and handed core with its
+# times at most, as many as picked - and at P2 each conversation's first one still to go is made due and handed core with its
 # words, a P2 MESSAGE core sends exactly as typed: in order, each once, one waiting for the one before it to arrive
 # where asked, paced like every recovery (A20 kept, the owner's answer). Cancel and a Pause take back one Codex already
 # holds (the owner's answer of 2026-10-09). It departs from A8, A17, A26, A27, C4, D2, H4 and H6 as its statement says,

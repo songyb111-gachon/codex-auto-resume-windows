@@ -206,7 +206,7 @@ class PromptTests(StateCase):
         self.assertEqual([row["position"] for row in rows], [0, 1, 2])
         self.assertEqual(rows[0]["due_at"], self.now)
         self.assertEqual((rows[1]["due_at"], rows[1]["depends"]), (self.now + 3600, True))
-        self.assertEqual(rows[2]["until"], self.now + schema_module.PROMPT_SPAN, "30 days at most, by default")
+        self.assertIsNone(rows[2]["until"], "it ends with its occurrences")
 
     def test_what_is_not_on_offer_is_refused(self):
         state = self.state()
