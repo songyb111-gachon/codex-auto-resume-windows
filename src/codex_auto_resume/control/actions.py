@@ -39,7 +39,8 @@ def _reads_usage(record, now) -> bool:
     """Whether a person's click reads Codex's usage for `record` (v0.6.19, issue #50; A12 amended by the owner on
     2026-10-24): a usage limit's reset still ahead, waiting unsent and uncancelled, nothing held, no postponement of the
     person's own ahead. The one rule of Retry now ("check one") and Rescan ("check all"), and the window's CanRetryNow
-    offers Retry now on exactly these where nothing else in view stops it (tests/test_usage_clicks_window.py)."""
+    offers Retry now on exactly these where nothing else in view stops it (tests/test_usage_clicks_window.py). What the
+    record alone says: the watcher, which also has its gates, may still answer "held" (engine/freshness._not_served)."""
     return (record["category"] == "usage_limit" and record["state"] in WAITING and not record["cancel_requested"]
             and record["submitted_at"] is None and (record["reset_at"] or 0) > now
             and (record["not_before"] or 0) <= now and not record.get("hold"))
