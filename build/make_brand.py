@@ -141,16 +141,23 @@ def _literal(kind: str, value) -> str:
 def day_look_method():
     """brand.day_look() in C#. Comparisons rather than a table: the in-box compiler holds an array's initial values in a
     class it names with a fresh random GUID, and that one name made two builds of the same source differ."""
-    lines = ["        /// brand.day_look: the icon's body and its mark for a date, false for an ordinary day.\n",
-             "        internal static bool DayLook(int year, int month, int day, out string body, out string motif)\n",
+    red, green, blue = brand.rgb(brand.ICON_ACCENT)
+    lines = ["        internal static Color IconHead() { return Color.FromArgb(0x%02X, 0x%02X, 0x%02X); }\n\n" % (red, green, blue),
+             "        /// brand.day_look: the look of a date, its body top and bottom; false for an ordinary day.\n",
+             "        internal static bool DayLook(int year, int month, int day, out string look, out string top, out string bottom)\n",
              "        {\n",
              "            int yearly = month * 100 + day, whole = year * 10000 + yearly;\n"]
-    for month, day, body, motif in brand.FIXED_DAYS:
-        lines += ['            if (yearly == %d) { body = "%s"; motif = "%s"; return true; }\n' % (month * 100 + day, body, motif)]
-    for body, motif, dates in brand.LUNAR_DAYS:
+
+    def answer(key):
+        first, last, _ = brand.DAY_LOOKS[key]
+        return '{ look = "%s"; top = "%s"; bottom = "%s"; return true; }' % (key, first, last)
+
+    for month, day, key in brand.FIXED_DAYS:
+        lines += ["            if (yearly == %d) %s\n" % (month * 100 + day, answer(key))]
+    for key, dates in brand.LUNAR_DAYS:
         tests = " || ".join("whole == %d" % (y * 10000 + m * 100 + d) for y, m, d in dates)
-        lines += ['            if (%s) { body = "%s"; motif = "%s"; return true; }\n' % (tests, body, motif)]
-    lines += ['            body = motif = null;\n', "            return false;\n", "        }\n"]
+        lines += ["            if (%s) %s\n" % (tests, answer(key))]
+    lines += ["            look = top = bottom = null;\n", "            return false;\n", "        }\n"]
     return lines
 
 

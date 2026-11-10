@@ -198,6 +198,47 @@ class _Painter:
         finally:
             self._delete_brush(brush)
 
+    def fill_ellipse(self, cx, cy, rx, ry, colour):
+        brush = self._brush(colour)
+        try:
+            self.gp.GdipFillEllipse(self.graphics, brush, float(cx - rx), float(cy - ry), float(rx * 2), float(ry * 2))
+        finally:
+            self._delete_brush(brush)
+
+    def stroke_lines(self, points, colour, width):
+        pen = self._pen(colour, width)
+        try:
+            flat = (PointF * len(points))(*[PointF(float(x), float(y)) for x, y in points])
+            self.gp.GdipDrawLines(self.graphics, pen, flat, len(points))
+        finally:
+            self._delete_pen(pen)
+
+    def clip_round(self, rect, radius):
+        path = self._path(rect, radius)
+        try:
+            self.gp.GdipSetClipPath(self.graphics, path, 0)                 # replace
+        finally:
+            self._delete_path(path)
+
+    def clip_rect(self, rect):
+        left, top, right, bottom = (float(value) for value in rect)
+        self.gp.GdipSetClipRect(self.graphics, left, top, right - left, bottom - top, 1)     # intersect
+
+    def clip_none(self):
+        self.gp.GdipResetClip(self.graphics)
+
+    def fade(self, rect, solid_x, clear_x, rgb):
+        """`rect` filled with `rgb`, whole at x = solid_x and see-through at x = clear_x."""
+        left, top, right, bottom = (float(value) for value in rect)
+        ends = (C.c_float * 4)(float(solid_x), top, float(clear_x), top)
+        brush = C.c_void_p()
+        self._made(self.gp.GdipCreateLineBrush(ends, C.byref(ends, 8), _pack(rgb, 1.0), _pack(rgb, 0.0), 3, C.byref(brush)),
+                   "GdipCreateLineBrush")
+        try:
+            self.gp.GdipFillRectangle(self.graphics, brush, left, top, right - left, bottom - top)
+        finally:
+            self._delete_brush(brush)
+
     def arc(self, cx, cy, radius, start, sweep, colour, width):
         pen = self._pen(colour, width)
         try:

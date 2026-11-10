@@ -1617,6 +1617,9 @@ namespace CodexAutoResume
             }
         }
 
+        /// How long it has been on its way, in milliseconds.
+        internal double ElapsedMs { get { return clock.Elapsed.TotalMilliseconds; } }
+
         /// Where it is going.
         internal double Target { get { return to; } }
 

@@ -49,20 +49,70 @@ namespace CodexAutoResume
             colourGlide = new Transition(this, 1.0);
         }
 
-        private const int RippleMs = 1000;
-        private Transition ripple;
+        // The mock's run, in its own numbers: the sweep and the rings around a light in a box 56 across.
+        private const int ArcMs = 735, ArcFadeMs = 315, RingMs = 900, FirstRingAt = 750, SecondRingAt = 1000;
+        private const double MockReach = 27.0, ArcRadius = 17.0, RingFrom = 15.0, HeadRadius = 3.4;
+        private Transition sweep;
 
-        /// One ring out from the light, once. Nothing with motion reduced or out of sight.
-        internal void Ripple()
+        /// One arc of the ring around the light, then two rings from it, once. Nothing with motion reduced or out of sight.
+        internal void Sweep()
         {
             if (!Motion.Allowed(this)) return;
-            if (ripple == null) ripple = new Transition(this, 0.0);
-            ripple.Jump(0.0);
-            ripple.To(1.0, true, RippleMs);
+            if (sweep == null) sweep = new Transition(this, 0.0);
+            sweep.Jump(0.0);
+            sweep.To(1.0, true, SecondRingAt + RingMs);
         }
 
-        /// Whether a ring is on its way (for the tests).
-        internal bool Rippling { get { return ripple != null && ripple.Running; } }
+        /// Whether it is on its way (for the tests, and the second line's moment).
+        internal bool Sweeping { get { return sweep != null && sweep.Running; } }
+
+        /// The arc at `ms`: how much of the circle it covers (clockwise from the top) and how opaque arc and head are.
+        internal static void ArcAt(double ms, out double covered, out double opacity)
+        {
+            covered = Motion.Ease(ms / ArcMs);
+            opacity = ms <= ArcMs ? 1.0 : 1.0 - Motion.Ease((ms - ArcMs) / ArcFadeMs);
+        }
+
+        /// A ring `since` ms after it started: how far out, 0 to 1, and how opaque; opacity 0 before and after.
+        internal static void RingAt(double since, out double spread, out double opacity)
+        {
+            double eased = Motion.Ease(since / RingMs);
+            spread = eased;
+            opacity = since < 0.0 || since >= RingMs ? 0.0 : 0.65 * (1.0 - eased);
+        }
+
+        /// How much bigger than the mock it is drawn: what the control holds, so nothing is ever clipped.
+        internal float SweepScale { get { return (Math.Min(Width, Height) / 2f - Soft.PxF(1)) / (float)MockReach; } }
+
+        private void DrawSweep(Graphics g, float cx, float cy, Color colour)
+        {
+            double ms = sweep.ElapsedMs, covered, opacity, spread;
+            float unit = SweepScale;
+            RingAt(ms - FirstRingAt, out spread, out opacity);
+            DrawRing(g, cx, cy, unit * (float)(RingFrom + (MockReach - RingFrom) * spread), Math.Max(1f, unit * 1.6f), colour, opacity);
+            RingAt(ms - SecondRingAt, out spread, out opacity);
+            DrawRing(g, cx, cy, unit * (float)(RingFrom + (MockReach - RingFrom) * spread), Math.Max(1f, unit * 1.2f), colour, opacity);
+            ArcAt(ms, out covered, out opacity);
+            if (opacity <= 0.0) return;
+            float radius = unit * (float)ArcRadius;
+            using (var pen = new Pen(Soft.WithAlpha(colour, opacity), Math.Max(1f, unit * 2.4f)))
+            {
+                pen.StartCap = LineCap.Round;
+                pen.EndCap = LineCap.Round;
+                if (covered > 0.001) g.DrawArc(pen, cx - radius, cy - radius, radius * 2, radius * 2, -90f, (float)(360.0 * covered));
+            }
+            double angle = (360.0 * covered - 90.0) * Math.PI / 180.0;
+            float head = Math.Max(1.5f, unit * (float)HeadRadius);
+            using (var brush = new SolidBrush(Soft.WithAlpha(Brand.IconHead(), opacity)))
+                g.FillEllipse(brush, cx + radius * (float)Math.Cos(angle) - head, cy + radius * (float)Math.Sin(angle) - head, head * 2, head * 2);
+        }
+
+        private static void DrawRing(Graphics g, float cx, float cy, float radius, float width, Color colour, double opacity)
+        {
+            if (opacity <= 0.0) return;
+            using (var pen = new Pen(Soft.WithAlpha(colour, opacity), width))
+                g.DrawEllipse(pen, cx - radius, cy - radius, radius * 2, radius * 2);
+        }
 
         // How often, while battery saver or a locked session holds the light still, it asks whether that is over.
         private const int StillBeat = 1000;
@@ -187,7 +237,7 @@ namespace CodexAutoResume
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing) { timer.Stop(); timer.Dispose(); colourGlide.Dispose(); if (ripple != null) ripple.Dispose(); }
+            if (disposing) { timer.Stop(); timer.Dispose(); colourGlide.Dispose(); if (sweep != null) sweep.Dispose(); }
             base.Dispose(disposing);
         }
 
@@ -218,13 +268,7 @@ namespace CodexAutoResume
             // Dimmed, the dot is its colour over the card it was cleared to: that far toward the ground.
             Color fill = lit && dim > 0 && !Palette.Contrast ? Soft.WithAlpha(colour, 1 - dim) : colour;
             using (var brush = new SolidBrush(fill)) g.FillEllipse(brush, cx - dot, cy - dot, dot * 2, dot * 2);
-            if (Rippling)
-            {
-                double along = ripple.Value;
-                float ring = dot + (Math.Min(Width, Height) / 2f - Soft.PxF(1) - dot) * (float)along;
-                using (var pen = new Pen(Soft.WithAlpha(colour, 1.0 - along), Soft.PxF(1.5)))
-                    g.DrawEllipse(pen, cx - ring, cy - ring, ring * 2, ring * 2);
-            }
+            if (Sweeping) DrawSweep(g, cx, cy, colour);
             if (lit && arc >= 0)
             {
                 float radius = Soft.PxF(Brand.StatusDotRadius + Brand.GlowArcGap);
