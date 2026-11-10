@@ -130,7 +130,7 @@ class Renderer:
         laid = plan(vm, scale, self.measure)
         return mirror(laid) if l10n.right_to_left(locale) else laid
 
-    def draw(self, vm, plan, *, frame=None, hover=None, pressed=None, focus=None, glides=None):
+    def draw(self, vm, plan, *, frame=None, hover=None, pressed=None, focus=None, glides=None, scene_ms=0.0):
         """One whole frame into the canvas. Returns the canvas.
 
         `glides` is {switch target: how far on, 0 to 1} for the switches part way through a
@@ -149,6 +149,7 @@ class Renderer:
                     self._button(paint, item, scale, hover, pressed)
                 elif item["kind"] == "switch" and item["target"] in glides:
                     self._switch(paint, item, scale, on=glides[item["target"]])
+            self._scene(paint, plan, scene_ms)
         self._text(canvas.dc, plan, busy)
         if focus is not None:
             with _Painter(canvas) as paint:
@@ -161,6 +162,16 @@ class Renderer:
                                            self._corner(item, scale) + grow, self._argb("focus"), ring)
         self._keep_halo_band(plan)
         return self.draw_halo(plan, frame, restore=False)
+
+    def draw_scene(self, plan, milliseconds):
+        """Only the day's scene, for an animation frame, and the words that stand on it."""
+        item = next((entry for entry in plan["items"] if entry["kind"] == "scene"), None)
+        if item is None:
+            return self.canvas
+        with _Painter(self.canvas) as paint:
+            self._scene(paint, plan, milliseconds)
+        self._text(self.canvas.dc, plan, set(), clip=item["rect"])
+        return self.canvas
 
     def draw_halo(self, plan, frame, *, restore=True):
         """Only the halo, for an animation frame; everything else in the canvas is kept.
@@ -267,9 +278,9 @@ class Renderer:
             kind = item["kind"]
             if kind == "button":
                 parts.append((kind, item["rect"], item["primary"], self._lifted(item, pressed)))
-            elif kind not in ("text", "focusable", "halo"):
+            elif kind not in ("text", "focusable", "halo", "scene"):
                 parts.append((kind, item["rect"], item.get("radius"), item.get("tone"), item.get("checked"),
-                              item.get("busy"), kind == "switch" and item["target"] in glides, item.get("motif")))
+                              item.get("busy"), kind == "switch" and item["target"] in glides))
         key = (plan["size"], scale, self._theme(), self._design(), self._system_key(), bool(plan.get("rtl")),
                tuple(parts))
         if self._ground_key == key and self._ground_pixels is not None:
@@ -293,24 +304,66 @@ class Renderer:
         self._ground_pixels = canvas.pixels()
         self._ground_key = key
 
-    @staticmethod
-    def _motif(paint, item):
-        left, top, right, bottom = item["rect"]
-        half = (right - left) / 2.0
-        cx, cy = left + half, top + half
-        if item["motif"] == "sparkle":
-            points = [(cx + x * half, cy - y * half) for x, y in brand.SPARKLE_POINTS]
-            paint.fill_polygon(points, _pack(brand.rgb(brand.SPARKLE_COLOUR)))
+    def _scene(self, paint, plan, milliseconds):
+        """The day's scene, covering its rectangle of the card (preserveAspectRatio slice), its inner side faded into the card."""
+        item = next((entry for entry in plan["items"] if entry["kind"] == "scene"), None)
+        if item is None:
             return
-        for x, y, radius, colour in brand.MOTIF_DOTS[item["motif"]]:
-            paint.fill_circle(cx + x * half, cy - y * half, radius * half, _pack(brand.rgb(colour)))
+        left, top, right, bottom = item["rect"]
+        mirrored = item.get("mirrored", False)
+        scale = max((right - left) / brand.SCENE_WIDTH, (bottom - top) / brand.SCENE_HEIGHT)
+        origin_x = left if mirrored else right - brand.SCENE_WIDTH * scale
+        origin_y = top + ((bottom - top) - brand.SCENE_HEIGHT * scale) / 2.0
+
+        def at(point):
+            return (origin_x + point[0] * scale, origin_y + point[1] * scale)
+
+        hairline = max(1.0, round(plan["scale"]))
+        card = plan["card"]
+        paint.clip_round((card[0] + hairline, card[1] + hairline, card[2] - hairline, card[3] - hairline),
+                         self._corner({"corner": "card", "radius": 0}, plan["scale"]) - hairline)
+        paint.clip_rect(item["rect"])
+        try:
+            paint.fill_round(item["rect"], 0, _pack(brand.rgb(brand.DAY_LOOKS[item["scene"]][2])))
+            for shape in brand.scene_frame(item["scene"], milliseconds):
+                self._scene_shape(paint, shape, at, scale)
+            ground = brand.rgb(brand.card_ground(self._theme(), self._design()))
+            solid, clear = item["fade"]
+            if mirrored:
+                width = plan["size"][0]
+                solid, clear = width - solid, width - clear
+            paint.fade((min(solid, clear), top, max(solid, clear), bottom), solid, clear, ground)
+        finally:
+            paint.clip_none()
+
+    @staticmethod
+    def _scene_shape(paint, shape, at, scale):
+        kind, colour, alpha = shape[0], shape[-2], shape[-1]
+        argb = _pack(brand.rgb(colour), alpha)
+        if kind == "poly":
+            paint.fill_polygon([at(point) for point in shape[1]], argb)
+        elif kind == "circle":
+            cx, cy = at((shape[1], shape[2]))
+            paint.fill_circle(cx, cy, shape[3] * scale, argb)
+        elif kind == "ellipse":
+            cx, cy = at((shape[1], shape[2]))
+            paint.fill_ellipse(cx, cy, shape[3] * scale, shape[4] * scale, argb)
+        elif kind == "round":
+            x, y = at((shape[1], shape[2]))
+            paint.fill_round((x, y, x + shape[3] * scale, y + shape[4] * scale), shape[5] * scale, argb)
+        elif kind == "ring":
+            cx, cy = at((shape[1], shape[2]))
+            radius = shape[3] * scale
+            paint.stroke_round((cx - radius, cy - radius, cx + radius, cy + radius), radius, argb, shape[4] * scale)
+        else:
+            paint.stroke_lines([at(point) for point in shape[1]], argb, shape[2] * scale)
 
     def _ground_item(self, paint, item, scale, pressed):
         kind = item["kind"]
         hairline = max(1.0, round(scale))
-        if kind == "motif":
-            self._motif(paint, item)
-        elif kind == "card":
+        if kind == "scene":
+            return
+        if kind == "card":
             # The panel's card: its lift, its ground (dark lifts it a step toward `raised`), dark's
             # one-pixel top light inside the border, and the hairline. In Classic, v0.6.2's accent bar.
             rect, radius = item["rect"], self._corner(item, scale)
@@ -538,13 +591,18 @@ class Renderer:
         `unicode-bidi: plaintext` reads it) - right-aligned with every other line all the same."""
         return item["role"] == "name" and l10n.first_strong(item["text"]) == "L"
 
-    def _text(self, dc, plan, busy):
+    def _text(self, dc, plan, busy, clip=None):
         gdi32, user32 = _dll("gdi32"), _dll("user32")
         gdi32.SetBkMode(dc, 1)                                             # transparent
         original = None
+        if clip is not None:
+            gdi32.IntersectClipRect(dc, int(clip[0]), int(clip[1]), int(clip[2]), int(clip[3]))
         try:
             for item in plan["items"]:
                 if item["kind"] != "text":
+                    continue
+                if clip is not None and (item["rect"][2] <= clip[0] or item["rect"][0] >= clip[2]
+                                         or item["rect"][3] <= clip[1] or item["rect"][1] >= clip[3]):
                     continue
                 previous = gdi32.SelectObject(dc, self.fonts.handles[item["role"]])
                 if original is None:
@@ -570,4 +628,6 @@ class Renderer:
         finally:
             if original is not None:
                 gdi32.SelectObject(dc, original)
+            if clip is not None:
+                gdi32.SelectClipRgn(dc, None)
             gdi32.GdiFlush()

@@ -1431,7 +1431,7 @@ namespace CodexAutoResume
             var names = new List<object>();
             foreach (Control tile in editorThumbs.Controls)
             {
-                var picture = tile.Controls[0] as PictureBox;
+                var picture = tile.Controls[0] as SoftThumb;
                 names.Add(picture.AccessibleName + (picture.Image != null ? ":drawn" : ":blank"));
             }
             return names;

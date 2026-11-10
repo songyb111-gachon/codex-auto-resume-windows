@@ -950,7 +950,7 @@ class DesignSourceTests(unittest.TestCase):
     def test_there_is_one_body_card_and_it_is_the_cards_own(self):
         helper = guiscan.member_body("SettingsForm", "DialogBodyCard")
         self.assertIn("new SoftCard()", helper)
-        self.assertIn("ground.Padding = CardRoom();", helper)
+        self.assertIn("ground.Padding = Pad(16, 16, 16, 17);", helper, "the lift's room, and even left and right")
         for name, body in (("BuildConversationMessage", "DialogBodyCard(body)"), ("BuildOnceWords", "DialogBodyCard(body)")):
             self.assertIn(body, guiscan.member_body("SettingsForm", name))
 

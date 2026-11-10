@@ -421,13 +421,14 @@ namespace CodexAutoResume
         private readonly System.Diagnostics.Stopwatch versionClock = System.Diagnostics.Stopwatch.StartNew();
         private readonly PressRun versionPresses = new PressRun();
 
-        internal const int AsideMs = 4000;
+        // The sentence comes in as the sweep ends, and goes 4 s after it has come in.
+        internal const int AsideAfterMs = 850, AsideMs = 4150;
 
         private void VersionPressed()
         {
             if (!versionPresses.Press(versionClock.Elapsed.TotalMilliseconds)) return;
-            stateDot.Ripple();
-            detail.Aside(S("status.aside", "It's okay if it stops. I'll pick it up."), AsideMs);
+            stateDot.Sweep();
+            detail.Aside(S("status.aside", "It's okay if it stops. I'll pick it up."), stateDot.Sweeping ? AsideAfterMs : 0, AsideMs);
         }
         // v0.6.5: the notification-area icon's motion on the taskbar button (TaskbarMark), told the icon's state for what
         // the window read wherever stateDot is told its own (TellTaskbar); null in a window LayoutAudit builds, and

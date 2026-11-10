@@ -328,48 +328,107 @@ namespace CodexAutoResume
         }
     }
 
-    /// A line that can say something else for a moment. What it is told meanwhile is what it says afterwards.
+    /// A line that can say something else for a moment, coming in and leaving by a fade and a small rise (paint only, in its own
+    /// rectangle; immediate with motion reduced). What it is told meanwhile is what it says afterwards.
     internal sealed class AsideLabel : Label
     {
+        internal const int InMs = 450, OutMs = 400, Rise = 5;
+
         private readonly Timer timer = new Timer();
-        private string behind;
-        private bool aside;
+        private readonly Transition fade;
+        private string behind, words;
+        private bool waiting, aside;
+        private int holdMs;
 
         internal AsideLabel()
         {
+            fade = new Transition(this, 1.0);
             timer.Tick += delegate
             {
                 timer.Stop();
-                aside = false;
-                base.Text = behind;
+                if (waiting) Speak();
+                else Return();
             };
         }
 
         internal bool Saying { get { return aside; } }
+
+        /// Whether it is fading in or out (for the tests).
+        internal bool Fading { get { return fade.Running; } }
 
         public override string Text
         {
             get { return base.Text; }
             set
             {
-                if (aside) behind = value;
+                if (aside || waiting) behind = value;
                 else base.Text = value;
             }
         }
 
-        internal void Aside(string words, int milliseconds)
+        /// In `delayMs` it says `said`, for `heldMs`.
+        internal void Aside(string said, int delayMs, int heldMs)
         {
-            if (!aside) behind = base.Text;
+            if (!aside && !waiting) behind = base.Text;
+            words = said;
+            holdMs = heldMs;
+            timer.Stop();
+            aside = false;
+            waiting = true;
+            if (delayMs <= 0)
+            {
+                Speak();
+                return;
+            }
+            timer.Interval = delayMs;
+            timer.Start();
+        }
+
+        private void Speak()
+        {
+            waiting = false;
             aside = true;
             base.Text = words;
-            timer.Stop();
-            timer.Interval = milliseconds;
+            Glide(InMs);
+            timer.Interval = holdMs;
             timer.Start();
+        }
+
+        private void Return()
+        {
+            aside = false;
+            base.Text = behind;
+            Glide(OutMs);
+        }
+
+        private void Glide(int milliseconds)
+        {
+            fade.Jump(0.0);
+            fade.To(1.0, Motion.Allowed(this), milliseconds);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            if (!aside && !fade.Running)
+            {
+                base.OnPaint(e);
+                return;
+            }
+            double shown = fade.Value;
+            Color ink = Soft.Mix(Ground.Colour(this), aside ? Palette.Ink : ForeColor, shown);
+            var line = new Rectangle(0, (int)Math.Round(Soft.Px(Rise) * (1.0 - shown)), Width, Height);
+            TextRenderer.DrawText(e.Graphics, Text, Font, line, ink,
+                                  Mirror.Words(Mirror.Of(this), TextFormatFlags.Top | TextFormatFlags.Left | TextFormatFlags.SingleLine |
+                                                                TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix));
         }
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing) timer.Dispose();
+            if (disposing)
+            {
+                timer.Dispose();
+                fade.Dispose();
+            }
             base.Dispose(disposing);
         }
     }
@@ -1869,7 +1928,8 @@ namespace CodexAutoResume
             ground.RowCount = 1;
             ground.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
             ground.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
-            ground.Padding = CardRoom();
+            // The lift's room, and even left and right: the card ends where the dialog's buttons do.
+            ground.Padding = Pad(16, 16, 16, 17);
             ground.Margin = new Padding(0);
             ground.Controls.Add(card, 0, 0);
             // Two tables deep a table measures what it holds at no width at all: what wraps was asked for one line.
@@ -1882,7 +1942,7 @@ namespace CodexAutoResume
         /// button row no longer keeps above itself (the lift's room is that gap now).
         private Size DialogCardGrowth()
         {
-            return new Size(Px(25), Px(29));
+            return new Size(Px(24), Px(29));
         }
 
         private void DrawHeader(object sender, DrawListViewColumnHeaderEventArgs e)

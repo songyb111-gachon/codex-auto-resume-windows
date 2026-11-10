@@ -104,10 +104,14 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
     text((text_left, top, right, top + title_h), "title", vm["title"], "ink")
     text((text_left, top + title_h, right, top + stack), "state", vm["state_text"],
          STATE_INK.get(vm["state"], "ink"), wrap=True)
-    if vm.get("motif"):
-        size = px(14)
-        items.append({"kind": "motif", "rect": (right - size, y, right, y + size), "motif": vm["motif"]})
     y += header_h + px(space["m"])
+    if vm.get("scene"):
+        # Two thirds of the card, from the top right, its left side faded into the card; above the summary, nothing moves.
+        edge = max(1, int(round(scale)))
+        items.append({"kind": "scene", "scene": vm["scene"],
+                      "rect": (margin + card_width * 34 // 100, margin + edge, margin + card_width - edge,
+                               min(margin + px(66), y - px(2))),
+                      "fade": (margin + card_width * 66 * 42 // 10000, margin + card_width * 66 // 100)})
 
     # Summary: waiting, recovering, next check - three values read off a field, so since v0.6.5
     # they sit in one sunken well, as the panel's fields do, with a hairline between them. The
