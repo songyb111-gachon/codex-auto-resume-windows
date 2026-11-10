@@ -478,8 +478,7 @@ class VocabularyTests(unittest.TestCase):
         self.assertEqual(evidence.OUTCOMES, project.OUTCOMES)
         self.assertEqual(evidence.PROGRESS, project.PROGRESS)
         for mine, theirs in ((evidence.CATEGORIES, project.CATEGORIES), (evidence.STATES, project.STATES),
-                             # The one word a report writes as OTHER: the public reporter's list does not name it yet.
-                             (evidence.REASONS | {"app_server_unmatched"}, project.REASONS),
+                             (evidence.REASONS, project.REASONS),
                              (evidence.TURN_STATUSES, project.TURN_STATUSES)):
             self.assertEqual(mine | {evidence.OTHER}, theirs)
         for spelling in ("codex-cli 0.158.0", "0.158.0", "codex-cli 0.159.0-alpha.2", "codex-cli 0.1.0-alpha.3.4",

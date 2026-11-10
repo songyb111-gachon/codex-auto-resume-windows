@@ -56,9 +56,11 @@ ENGINE_LOG_BEFORE_0_6_5 = "accepted because `codex queue` still offers"
 # reads them, build/community_report.py).
 CATEGORIES = frozenset(str(word) for word in words.FailureCategory)
 STATES = frozenset(str(word) for word in words.RecordState)
-# #58's follow-up: all but app_server_unmatched, which stays on this PC: the reporter's own list does not name it and its
-# check refuses a word it does not know, so a report writes it as OTHER, as the reporter does.
-REASONS = frozenset(str(word) for word in words.ReasonCode) - {str(words.ReasonCode.APP_SERVER_UNMATCHED)}
+# Every reason the product writes, app_server_unmatched (#58's follow-up) among them: codex-compat-reporter 1.5.5 names it, so
+# a report carries it by its own name, the word that shows a future #58 in the data before anyone files an issue. A reporter
+# before 1.5.5 never meets this file's word: this product's reports go to the project by this product's own hand (the
+# advanced edition's, to the project's reader, which takes every ReasonCode), and the reporter writes the word as OTHER itself.
+REASONS = frozenset(str(word) for word in words.ReasonCode)
 TURN_STATUSES = frozenset(str(word) for word in words.TurnStatus)
 # The four kinds a progress count names (codex/values.py PROGRESS_ITEM_TYPES, a fixed list: B9), written out here
 # rather than imported, so that nothing which writes a report reaches Codex's adapter package (B17: the Dashboard's
