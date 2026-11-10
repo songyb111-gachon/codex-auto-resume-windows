@@ -285,6 +285,39 @@ def trim_runtime(stage: Path) -> list:
     return sorted(removed)
 
 
+def check_trimmed_runtime(stage: Path, removed: list, timeout: float = 300) -> None:
+    """The staged code still runs under the runtime as trimmed, or the build stops (build/runtime_check.py says how).
+
+    Under the staged interpreter, in a scratch home, from a scratch directory, with no PYTHONPATH: what a person's PC
+    has. -B as in check_courier_starts, so the archive holds only what the build put there."""
+    payload = stage / "payload"
+    runtime = payload / "runtime"
+    keep = runtime_keep()
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    with tempfile.TemporaryDirectory(prefix="car-runtime-check-") as scratch:
+        home = Path(scratch) / "home"
+        home.mkdir()
+        asked = Path(scratch) / "asked.json"
+        asked.write_text(json.dumps({"app": str(payload / "app"), "library": str(runtime / keep["library_zip"]),
+                                     "removed": removed, "reviewed": keep["reviewed"],
+                                     "also": [str(ROOT / "build" / "smoke_archive.py")]}), encoding="utf-8")
+        environment = {name: value for name, value in os.environ.items() if name.upper() != "PYTHONPATH"}
+        environment.update({name: str(home) for name in ("USERPROFILE", "HOME", "LOCALAPPDATA", "APPDATA", "CODEX_HOME")})
+        try:
+            done = subprocess.run([str(runtime / "python.exe"), "-B", "-X", "disable-remote-debug",
+                                   str(ROOT / "build" / "runtime_check.py"), str(asked)], cwd=scratch, env=environment,
+                                  stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8",
+                                  errors="replace", timeout=timeout, creationflags=flags)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise SystemExit("the trimmed runtime could not be checked: %s" % exc)
+    if done.returncode != 0:
+        raise SystemExit("the staged code does not hold under the trimmed runtime (exit %s):\n%s\n%s"
+                         % (done.returncode, done.stdout[-6000:], done.stderr[-2000:]))
+    left = sorted(str(path.relative_to(stage)) for path in payload.rglob("__pycache__"))
+    if left:
+        raise SystemExit("the runtime check left bytecode in the stage: %s" % ", ".join(left[:5]))
+
+
 def collect_app(stage: Path) -> int:
     """Copy the application payload, which is also a valid local Codex marketplace."""
     app = stage / "payload" / "app"
@@ -548,12 +581,13 @@ def main(argv=None) -> int:
 
     archive = fetch_runtime()
     runtime_files = collect_runtime(stage, archive)
-    trim_runtime(stage)
+    removed = trim_runtime(stage)
     runtime_files = sum(1 for path in (stage / "payload" / "runtime").rglob("*") if path.is_file())
     app_files = collect_app(stage)
     if edition == "advanced":
         app_files += collect_advanced(stage)
     check_app_files(stage, edition)
+    check_trimmed_runtime(stage, removed)
     if edition == "advanced":
         check_courier_starts(stage)
     gui_files = collect_gui(stage, edition)
