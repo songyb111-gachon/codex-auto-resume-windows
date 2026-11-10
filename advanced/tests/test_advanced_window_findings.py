@@ -34,6 +34,17 @@ POWER = "power_after_tasks"
 ACCOUNTS = "account_switch"
 PUSH = "push_notices"
 TELEGRAM = "telegram_remote"
+# Those at no point that pays for a send of a record: each states so here, so a new capability is decided on purpose.
+NO_CONTINUATION = {
+    "account_switch", "codex_retry_settings", "crash_restart", "empty_response", "every_conversation", "fleet_view",
+    "idle_update_check", "keep_going", "local_api", "open_to_send", "parallel_dispatch", "power_after_tasks", "push_notices",
+    "reset_message", "start_with_codex", "status_feed", "steer_send", "stop_hook_continuation", "telegram_remote",
+    "usage_analytics", "usage_meter", "usage_pause", "usage_wrap_up", "wake_for_reset", "window_anchor",
+    # An action, and the one that is itself a resend.
+    "compat_report", "local_api_actions", "local_api_lan", "long_reset_message", "open_codex_button", "telegram_continue",
+    "once_more_when_unsure"}
+
+
 def tasks(*threads):
     return {"ok": True, "result": {"done": True, "refusal": None, "armed": None,
                                    "running": [{"thread_id": thread, "name": thread} for thread in threads]}}
@@ -79,6 +90,56 @@ class PageTests(PageCase):
     def test_the_saved_accounts_ticked_survive_a_changed_list(self):
         result, _ = self.of("scenario_account_ticks")
         self.assertEqual([look["ticked"] for look in result["looks"]], [["two"], ["two"]])
+
+class SendAgainOfferedTests(ac.AdvancedCase):
+    """Also send again when unsure... is a button that can do something, or it is not there."""
+
+    def test_every_capability_states_it_correctly(self):
+        # Every one the module defines, those a measurement has not offered yet (registry.offered) too.
+        every = [value for value in vars(registry).values() if isinstance(value, registry.CapabilityDef)]
+        self.assertEqual({definition.id for definition in every if not arming.offers_send_again(definition)},
+                         NO_CONTINUATION)
+
+    def keep(self, runtime, capability, send_again):
+        return runtime.arming.set_keep_on(capability, True, send_again=send_again, generation=runtime.state.meta()["generation"],
+                                          confirmed=["keep_on", "send_again"] if send_again else ["keep_on"],
+                                          actor=Actor.DASHBOARD)
+
+    def quiet_runtime(self):
+        quiet = ac.definition(id="test_look", points=frozenset({Point.TICK}), journal_prefix="tl")
+        where = tempfile.TemporaryDirectory()
+        self.addCleanup(where.cleanup)
+        self.catalogs = ac.catalogs(where.name, ac.definition(), quiet)
+        return self.runtime(ac.definition(), quiet)
+
+    def test_set_keep_on_refuses_it_for_one_that_sends_no_continuation(self):
+        runtime = self.quiet_runtime()
+        self.assertTrue(self.arm(runtime, capability="test_look", state="armed")["done"])
+        self.assertTrue(self.keep(runtime, "test_look", False)["done"])
+        self.assertEqual(self.keep(runtime, "test_look", True)["refusal"], Refusal.INVALID_REQUEST)
+        self.assertFalse(runtime.state.arming()["test_look"]["send_again"])
+
+    def test_the_listing_says_which(self):
+        runtime = self.quiet_runtime()
+        said = {item["id"]: item["send_again_offered"] for item in runtime.arming.listing()["capabilities"]}
+        self.assertEqual(said, {"test_wake": True, "test_look": False})
+
+    def test_a_row_already_holding_it_keeps_working(self):
+        runtime = self.quiet_runtime()
+        self.assertTrue(self.arm(runtime, capability="test_look", state="armed")["done"])
+        self.assertTrue(self.keep(runtime, "test_look", False)["done"])
+        runtime.state.set_keep_on("test_look", True, send_again=True, actor=Actor.DASHBOARD,
+                                  generation=runtime.state.meta()["generation"], at=ac.NOW)
+        self.assertTrue(self.keep(runtime, "test_look", True)["done"], "the row as it is, confirmed again")
+        self.assertTrue(runtime.state.arming()["test_look"]["send_again"])
+        let_go = runtime.arming.set_keep_on("test_look", False, send_again=False, generation=None, actor=Actor.DASHBOARD)
+        self.assertTrue(let_go["done"])
+        self.assertFalse(runtime.state.arming()["test_look"]["send_again"])
+
+    def test_the_window_asks_the_listing(self):
+        body = guiscan._block(EDITORS["keep"], EDITORS["keep"].index("private void BuildKeepOn("))
+        self.assertIn('kept && !again && Equals(Get(item, "send_again_offered"), true)', body)
+
 
 EDITORS = {"keep": (ROOT / "advanced" / "gui" / "AdvancedKeepOn.cs").read_text(encoding="utf-8"),
            "editor": (ROOT / "advanced" / "gui" / "AdvancedEditor.cs").read_text(encoding="utf-8")}
