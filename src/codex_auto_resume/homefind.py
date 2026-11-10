@@ -35,6 +35,7 @@ import os
 from pathlib import Path
 
 from . import homes
+from .domain.ids import CODEX_APP_FAMILY
 
 SWITCH = "home_suggestions"
 DISMISSED = "home_suggestions_dismissed"
@@ -42,7 +43,7 @@ DISMISSED = "home_suggestions_dismissed"
 DISMISSED_MAX = 16
 APP_FILE = ("OpenAI", "Codex", "chrome-native-hosts-v2.json")
 # The Codex app's package, where Windows keeps what an MSIX app writes under LOCALAPPDATA.
-APP_PACKAGE = ("Packages", "OpenAI.Codex_2p2nqsd0c76g0", "LocalCache", "Local")
+APP_PACKAGE = ("Packages", CODEX_APP_FAMILY, "LocalCache", "Local")
 APP_FILE_MAX = 1024 * 1024
 # The most entries of that file looked at, and the most folders offered from all the places together.
 APP_ENTRIES_MAX = 256
