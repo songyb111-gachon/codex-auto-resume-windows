@@ -163,6 +163,29 @@ class Renderer:
         self._keep_halo_band(plan)
         return self.draw_halo(plan, frame, restore=False)
 
+    # How far on the seventh press's sweep is, or None: the window says, and it is drawn with the light.
+    sweep_ms = None
+
+    def _sweep(self, paint, item, milliseconds):
+        """The arc round the light with its head leading, then two rings, in the room the plan keeps for it (`sweep_reach`)."""
+        numbers = brand.SWEEP
+        cx, cy = item["cx"], item["cy"]
+        unit = item["sweep_reach"] / numbers["reach"]
+        colour = brand.rgb(brand.status_colour(item["state"], self._theme()))
+        covered, opacity, rings = brand.sweep_at(milliseconds, brand.ease)
+        for (spread, ring), width in zip(rings, (1.6, 1.2)):
+            if ring > 0:
+                radius = unit * (numbers["ring_from"] + (numbers["reach"] - numbers["ring_from"]) * spread)
+                paint.stroke_round((cx - radius, cy - radius, cx + radius, cy + radius), radius, _pack(colour, ring), max(1.0, unit * width))
+        if opacity <= 0:
+            return
+        radius = unit * numbers["arc_radius"]
+        if covered > 0.001:
+            paint.arc(cx, cy, radius, -90.0, 360.0 * covered, _pack(colour, opacity), max(1.0, unit * 2.4))
+        angle = math.radians(360.0 * covered - 90.0)
+        paint.fill_circle(cx + radius * math.cos(angle), cy + radius * math.sin(angle), max(1.5, unit * numbers["head_radius"]),
+                          _pack(brand.rgb(brand.ICON_ACCENT), opacity))
+
     def draw_scene(self, plan, milliseconds):
         """Only the day's scene, for an animation frame. No word stands on it (the plan keeps it past the last one)."""
         item = next((entry for entry in plan["items"] if entry["kind"] == "scene"), None)
@@ -188,6 +211,8 @@ class Renderer:
             C.memmove(self.canvas.bits.value + offset, band, len(band))
         with _Painter(self.canvas) as paint:
             self._halo(paint, item, plan["scale"], frame)
+            if self.sweep_ms is not None:
+                self._sweep(paint, item, self.sweep_ms)
         return self.canvas
 
     @property
@@ -277,7 +302,7 @@ class Renderer:
             kind = item["kind"]
             if kind == "button":
                 parts.append((kind, item["rect"], item["primary"], self._lifted(item, pressed)))
-            elif kind not in ("text", "focusable", "halo", "scene"):
+            elif kind not in ("text", "focusable", "halo", "scene", "title_press"):
                 parts.append((kind, item["rect"], item.get("radius"), item.get("tone"), item.get("checked"),
                               item.get("busy"), kind == "switch" and item["target"] in glides))
         key = (plan["size"], scale, self._theme(), self._design(), self._system_key(), bool(plan.get("rtl")),
@@ -340,7 +365,9 @@ class Renderer:
 
     @staticmethod
     def _scene_shape(paint, shape, at, scale):
-        kind, colour, alpha = shape[0], shape[-2], shape[-1]
+        kind, numbers, colour, alpha = shape
+        points = [(numbers[at_], numbers[at_ + 1]) for at_ in range(1 if kind == "stroke" else 0, len(numbers) - 1, 2)] if kind in ("poly", "stroke") else ()
+        shape = (kind,) + tuple(numbers)
         if kind == "glow":
             cx, cy = at((shape[1], shape[2]))
             whole = shape[4]
@@ -349,7 +376,7 @@ class Renderer:
             return
         argb = _pack(brand.rgb(colour), alpha)
         if kind == "poly":
-            paint.fill_polygon([at(point) for point in shape[1]], argb)
+            paint.fill_polygon([at(point) for point in points], argb)
         elif kind == "circle":
             cx, cy = at((shape[1], shape[2]))
             paint.fill_circle(cx, cy, shape[3] * scale, argb)
@@ -365,12 +392,12 @@ class Renderer:
             radius = shape[3] * scale
             paint.stroke_round((cx - radius, cy - radius, cx + radius, cy + radius), radius, argb, shape[4] * scale)
         else:
-            paint.stroke_lines([at(point) for point in shape[1]], argb, shape[2] * scale)
+            paint.stroke_lines([at(point) for point in points], argb, numbers[0] * scale)
 
     def _ground_item(self, paint, item, scale, pressed):
         kind = item["kind"]
         hairline = max(1.0, round(scale))
-        if kind == "scene":
+        if kind in ("scene", "title_press"):
             return
         if kind == "card":
             # The panel's card: its lift, its ground (dark lifts it a step toward `raised`), dark's
@@ -561,7 +588,7 @@ class Renderer:
             return
         _dll("gdi32").GdiFlush()
         # The item's radius is the largest glow any frame draws; leave room for its soft edge.
-        reach = item["radius"] + 2 * plan["scale"] + 2
+        reach = max(item["radius"], item.get("sweep_reach", 0.0)) + 2 * plan["scale"] + 2
         top = max(0, int(item["cy"] - reach))
         bottom = min(canvas.height, int(math.ceil(item["cy"] + reach)))
         offset = top * canvas.width * 4

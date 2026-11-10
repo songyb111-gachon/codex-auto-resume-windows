@@ -117,7 +117,10 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
     header_h = max(mark, stack)
     top = y + (header_h - stack) // 2
     items.append({"kind": "halo", "cx": left + mark / 2.0, "cy": y + header_h / 2.0, "state": vm["light"],
-                  "radius": brand.glow_extent(brand.STATUS_DOT["popup"]) * scale})
+                  "radius": brand.glow_extent(brand.STATUS_DOT["popup"]) * scale,
+                  # What the seventh press's rings may reach: to the words, and within the header.
+                  "sweep_reach": min(mark / 2.0 + px(space["s"]), header_h / 2.0)})
+    items.append({"kind": "title_press", "rect": (text_left, top, text_left + title_w, top + title_h)})
     text((text_left, top, right, top + title_h), "title", vm["title"], "ink")
     text((text_left, top + title_h, right, top + stack), "state", vm["state_text"],
          STATE_INK.get(vm["state"], "ink"), wrap=True)

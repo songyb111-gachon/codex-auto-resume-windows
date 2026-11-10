@@ -86,7 +86,7 @@ class SceneTests(unittest.TestCase):
     def test_the_seeds_are_fixed_numbers(self):
         self.assertNotIn("random", (ROOT / "src/codex_auto_resume/brand/days.py").read_text(encoding="utf-8"))
         for build in (brand_days._birthday, brand_days._new_year, brand_days._christmas, brand_days._chuseok):
-            self.assertEqual(build()(0.0), build()(0.0), "made twice, it is one scene")
+            self.assertEqual(build(), build(), "made twice, it is one scene")
         self.assertAlmostEqual(brand_days._Seeded(906)(0.0, 1.0), ((906 * 1103515245 + 12345) & 0x7FFFFFFF) / 0x7FFFFFFF)
 
     def test_each_scene_holds_the_mocks_parts(self):
@@ -246,7 +246,7 @@ class PopupClockTests(unittest.TestCase):
         self.assertEqual(self.synced(self.popup(scene=None)).set, 0)
 
     def test_the_popup_asks_only_when_it_was_told_to(self):
-        rebuild = (ROOT / "src/codex_auto_resume/ui/popup/window.py").read_text(encoding="utf-8")
+        rebuild = (ROOT / "src/codex_auto_resume/ui/popup/hidden.py").read_text(encoding="utf-8")
         self.assertIn('if self.days and not self._contrast and self._design != "classic" else None', rebuild)
         self.assertEqual(tray_popup.Popup.days, False)
 
