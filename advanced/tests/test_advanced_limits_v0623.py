@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import sys
 import unittest
@@ -12,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import advancedcase as ac  # noqa: E402
 from test_advanced_state import StateCase  # noqa: E402
+from codex_auto_resume import ladder, settings  # noqa: E402
 from codex_auto_resume_advanced.state import Refused  # noqa: E402
 from codex_auto_resume_advanced.state import prompts as prompts_module, resets as resets_module  # noqa: E402
 from codex_auto_resume_advanced.vocabulary import Refusal  # noqa: E402
@@ -63,6 +65,21 @@ class WaitingCounts(StateCase):
         english = CATALOG.read_text(encoding="utf-8")
         self.assertIn("twenty for a conversation, fifty in all", english)
         self.assertIn("one message to a conversation and fifty in all", english)
+
+
+class AdmittedAge(unittest.TestCase):
+    """L3.10: a failure the standard edition leaves for the person is taken up within its default look-back."""
+
+    def test_six_hours_as_the_standard_look_back_and_the_waits_stay(self):
+        self.assertEqual(ladder.ADMISSION_MAX_AGE, 6 * 3600)
+        self.assertEqual(ladder.ADMISSION_MAX_AGE, settings.DEFAULTS["detection_lookback_hours"] * 3600)
+        self.assertEqual(ladder.ADMITTED_WAITS, (600, 900, 1800))
+
+    def test_a_person_reads_the_same_age(self):
+        english = json.loads(CATALOG.read_text(encoding="utf-8"))
+        for capability in ("codex_gave_up", "sign_in_retry", "unknown_failure_budget", "structured_rules"):
+            words = english["statement.%s.does" % capability]
+            self.assertIn("failures from the last six hours", words, capability)
 
 
 if __name__ == "__main__":

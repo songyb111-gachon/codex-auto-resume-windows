@@ -647,7 +647,7 @@ budget stops a recovery) and [H2](STANDARDS.md#h-user-control) (nothing can forc
 
 None of the eight rests on a measurement: what each sends is the continuation the standard edition sends.
 Each of the four that take up a failure the standard edition leaves for you takes up only failures
-from the last hour, and none from before it was turned on or set to watch; turning it off or setting
+from the last six hours, and none from before it was turned on or set to watch; turning it off or setting
 it to watch only ends what it took up and has not sent, and the program ends such a recovery unsent a
 day on the clock after the failure in any case.
 
