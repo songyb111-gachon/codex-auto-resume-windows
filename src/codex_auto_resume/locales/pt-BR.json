@@ -1282,5 +1282,8 @@
   "why.user_input_queued": "Algo seu está na fila desta conversa e vai primeiro.",
   "why.version_newer_than_engine": "Um Codex mais novo do que o daqui executou esta conversa por último; ela continua assim que o Codex for atualizado.",
   "why.waiting_reset": "O limite de uso ainda não foi redefinido.",
-  "why.workspace_changed": "O branch da pasta, o modelo ou o modo de aprovação dela mudou desde que parou: nada é enviado até você deixá-la continuar."
+  "why.workspace_changed": "O branch da pasta, o modelo ou o modo de aprovação dela mudou desde que parou: nada é enviado até você deixá-la continuar.",
+  "msg.toast_python_returned": "De volta ao Python incluído",
+  "msg.toast_python_returned_start": "O monitor não iniciou com o Python {version}, então voltou ao Python que veio com este programa.",
+  "msg.toast_python_returned_line": "Esta versão do programa não oferece mais o Python {version}, então o monitor voltou ao Python que veio com ela."
 }

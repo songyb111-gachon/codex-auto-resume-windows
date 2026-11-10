@@ -1282,5 +1282,8 @@
   "why.user_input_queued": "你在此对话中排队的内容会先处理。",
   "why.version_newer_than_engine": "上次运行此对话的 Codex 比这里的版本更新；更新 Codex 后即继续。",
   "why.waiting_reset": "用量上限尚未重置。",
-  "why.workspace_changed": "停止后，其文件夹的分支、模型或批准模式已发生变化：在你允许它继续之前，不会发送任何内容。"
+  "why.workspace_changed": "停止后，其文件夹的分支、模型或批准模式已发生变化：在你允许它继续之前，不会发送任何内容。",
+  "msg.toast_python_returned": "已回到自带的 Python",
+  "msg.toast_python_returned_start": "监视程序未能在 Python {version} 上启动，因此已回到随本程序附带的 Python。",
+  "msg.toast_python_returned_line": "本程序的这个版本不再提供 Python {version}，因此监视程序已回到随它附带的 Python。"
 }

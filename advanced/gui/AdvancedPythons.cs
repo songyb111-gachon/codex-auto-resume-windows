@@ -93,7 +93,7 @@ namespace CodexAutoResume
             string version = Str(advancedPython, "in_use");
             return version == null
                 ? Word("page.python.in_use_none", "The watcher is not running now.")
-                : Word("page.python.in_use", "The watcher runs on Python {version}.", "version", Mirror.Embed(version));
+                : Word("page.python.in_use", "The watcher runs on Python {version}.", "version", version);
         }
 
         /// While something runs: how far it has come, in the bytes truly written.
@@ -103,12 +103,11 @@ namespace CodexAutoResume
             string stage = Str(job, "stage");
             if (stage == "checking") return Word("page.python.checking", "Asking python.org...");
             if (stage == "downloading")
-                return Word("page.python.downloading", "Downloading Python {version}: {got} of {total} MB",
-                            "version", Mirror.Embed(version),
-                            "got", Mirror.Embed(PythonMegabytes(Number(job, "got"))),
-                            "total", Mirror.Embed(PythonMegabytes(Number(job, "total"))));
+                return Word("page.python.downloading", "Downloading Python {version}: {got} of {total} MB", "version", version)
+                    .Replace("{got}", Mirror.Embed(PythonMegabytes(Number(job, "got"))))
+                    .Replace("{total}", Mirror.Embed(PythonMegabytes(Number(job, "total"))));
             if (stage == "verifying")
-                return Word("page.python.verifying", "Checking Python {version} before it runs...", "version", Mirror.Embed(version));
+                return Word("page.python.verifying", "Checking Python {version} before it runs...", "version", version);
             return Word("page.python.restarting", "Restarting the watcher...");
         }
 
@@ -121,7 +120,7 @@ namespace CodexAutoResume
         private string PythonOutcome(Dictionary<string, object> outcome)
         {
             if (outcome == null) return null;
-            string version = Mirror.Embed(Str(outcome, "version") ?? "");
+            string version = Str(outcome, "version") ?? "";
             string word = Str(outcome, "word");
             if (word == "chosen") return Word("page.python.done", "The watcher now runs on Python {version}.", "version", version);
             if (word == "next_start")
@@ -142,7 +141,7 @@ namespace CodexAutoResume
         private string PythonReturned(Dictionary<string, object> returned)
         {
             if (returned == null) return null;
-            string version = Mirror.Embed(Str(returned, "version") ?? "");
+            string version = Str(returned, "version") ?? "";
             string why = Str(returned, "why");
             if (why == "line")
                 return Word("page.python.returned.line", "This version of the program no longer offers Python {version}, so it went back to the bundled version.", "version", version);
@@ -163,9 +162,9 @@ namespace CodexAutoResume
             card.Controls.Add(used);
             string bundled = Str(advancedPython, "bundled"), chosen = Str(advancedPython, "chosen");
             if (bundled != null)
-                card.Controls.Add(HelpText(Word("page.python.bundled", "Came with this program: Python {version}, always kept.", "version", Mirror.Embed(bundled))));
+                card.Controls.Add(HelpText(Word("page.python.bundled", "Came with this program: Python {version}, always kept.", "version", bundled)));
             if (chosen != null)
-                card.Controls.Add(HelpText(Word("page.python.chosen", "Chosen: Python {version}, from python.org.", "version", Mirror.Embed(chosen))));
+                card.Controls.Add(HelpText(Word("page.python.chosen", "Chosen: Python {version}, from python.org.", "version", chosen)));
             Dictionary<string, object> job = Map(advancedPython, "job");
             if (job != null) card.Controls.Add(HelpText(PythonStage(job)));
             string ended = PythonOutcome(Map(advancedPython, "outcome"));
@@ -195,8 +194,8 @@ namespace CodexAutoResume
                 if (offer == null) continue;
                 string version = Str(offer, "version");
                 string shown = Equals(Get(offer, "preview"), true)
-                    ? Word("page.python.preview", "Python {version} (preview: the bundled version moves to it only in a later version)", "version", Mirror.Embed(version))
-                    : Word("page.python.version", "Python {version}", "version", Mirror.Embed(version));
+                    ? Word("page.python.preview", "Python {version} (preview: the bundled version moves to it only in a later version)", "version", version)
+                    : Word("page.python.version", "Python {version}", "version", version);
                 card.Controls.Add(Caption(shown));
                 if (version == chosen)
                 {
@@ -229,7 +228,7 @@ namespace CodexAutoResume
             if (busy > 0) return;
             string question = Word("page.confirm.python_use",
                 "Download Python {version} from www.python.org, check it, and restart the watcher on it? If the watcher does not start on it, it goes back by itself.",
-                "version", Mirror.Embed(version));
+                "version", version);
             if (!AskAdvanced(question, Affirm(Word("page.python.use", "Use this version")))) return;
             PythonPress("advanced-python-use", "{\"version\":" + Json.Escape(version) + "}");
         }

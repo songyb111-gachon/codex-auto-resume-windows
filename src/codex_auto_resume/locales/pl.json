@@ -1282,5 +1282,8 @@
   "why.user_input_queued": "W tej rozmowie czeka w kolejce coś Twojego i ma pierwszeństwo.",
   "why.version_newer_than_engine": "Tę rozmowę ostatnio uruchomił nowszy Codex niż ten tutaj; będzie kontynuowana po aktualizacji Codex.",
   "why.waiting_reset": "Limit użycia jeszcze się nie odnowił.",
-  "why.workspace_changed": "Gałąź folderu, model lub tryb zatwierdzania zmieniły się od zatrzymania: nic nie zostanie wysłane, dopóki nie pozwolisz kontynuować."
+  "why.workspace_changed": "Gałąź folderu, model lub tryb zatwierdzania zmieniły się od zatrzymania: nic nie zostanie wysłane, dopóki nie pozwolisz kontynuować.",
+  "msg.toast_python_returned": "Z powrotem na dołączonym Pythonie",
+  "msg.toast_python_returned_start": "Monitor nie uruchomił się w wersji Python {version}, więc wrócił do Pythona dołączonego do tego programu.",
+  "msg.toast_python_returned_line": "Ta wersja programu nie oferuje już wersji Python {version}, więc monitor wrócił do dołączonego do niej Pythona."
 }

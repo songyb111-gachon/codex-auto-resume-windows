@@ -1282,5 +1282,8 @@
   "why.user_input_queued": "您在此對話中排入佇列的內容會先處理。",
   "why.version_newer_than_engine": "上次執行此對話的 Codex 比這裡的版本更新；更新 Codex 後即繼續。",
   "why.waiting_reset": "使用量限制尚未重設。",
-  "why.workspace_changed": "停止後，其資料夾的分支、模型或核准模式已變更：在您允許它接續之前，不會傳送任何內容。"
+  "why.workspace_changed": "停止後，其資料夾的分支、模型或核准模式已變更：在您允許它接續之前，不會傳送任何內容。",
+  "msg.toast_python_returned": "已回到內建的 Python",
+  "msg.toast_python_returned_start": "監看程式未能在 Python {version} 上啟動，因此已回到隨本程式附帶的 Python。",
+  "msg.toast_python_returned_line": "本程式的這個版本不再提供 Python {version}，因此監看程式已回到隨它附帶的 Python。"
 }
