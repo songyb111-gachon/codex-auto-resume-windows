@@ -24,6 +24,7 @@ for entry in (str(Path(_HERE).parent / "src"), _HERE):
 from codexsim import CodexHome, SimBackend  # noqa: E402
 from codex_auto_resume import l10n, logbook, machine  # noqa: E402
 from codex_auto_resume.codex import pairing, transport  # noqa: E402
+from codex_auto_resume.domain import vocabulary as words  # noqa: E402
 from codex_auto_resume.domain.errors import AdapterError  # noqa: E402
 from codex_auto_resume.engine.freshness import FreshnessMixin  # noqa: E402
 from codex_auto_resume.ownreport import evidence  # noqa: E402
@@ -231,12 +232,13 @@ class WordsTests(unittest.TestCase):
 
 
 class ReportTests(unittest.TestCase):
-    """What a report sends is the project's and the reporter's, and the reporter's list does not name the word."""
+    """What a report sends is the project's and the reporter's, and both name the word (reporter 1.5.5)."""
 
-    def test_a_report_never_carries_the_word(self):
-        self.assertNotIn(UNMATCHED, evidence.REASONS)
-        self.assertEqual(evidence.known(UNMATCHED, evidence.REASONS), evidence.OTHER)
+    def test_a_report_carries_the_word_by_its_name(self):
+        self.assertIn(UNMATCHED, evidence.REASONS)
+        self.assertEqual(evidence.known(UNMATCHED, evidence.REASONS), UNMATCHED)
         self.assertIn(CLOSED, evidence.REASONS)
+        self.assertEqual(evidence.REASONS, frozenset(str(word) for word in words.ReasonCode), "no reason is left out")
 
 
 if __name__ == "__main__":
