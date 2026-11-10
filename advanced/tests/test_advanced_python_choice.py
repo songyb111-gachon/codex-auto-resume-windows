@@ -737,7 +737,7 @@ class ImportCheckTests(unittest.TestCase):
             for name, text in files.items():
                 (Path(folder) / name).write_text(text, encoding="utf-8")
             done = subprocess.run([sys.executable, "-I", "-B", "-X", "disable-remote-debug", str(PACKAGE_DIR / "pythoncheck.py"), folder],
-                                  capture_output=True, text=True, timeout=60, creationflags=pythons.NO_WINDOW)
+                                  capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60, creationflags=pythons.NO_WINDOW)
             return done.returncode, done.stdout, sorted(path.name for path in Path(folder).iterdir())
 
     def test_all_imported(self):

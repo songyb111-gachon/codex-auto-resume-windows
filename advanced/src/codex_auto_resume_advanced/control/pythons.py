@@ -172,7 +172,7 @@ def bundled_version(paths) -> str | None:
         kept = _BUNDLED.get(python)
         if kept is not None and kept[0] == stamp:
             return kept[1]
-        said = subprocess.run([str(python), "-I", "-V"], capture_output=True, text=True, timeout=VERSION_SECONDS,
+        said = subprocess.run([str(python), "-I", "-V"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=VERSION_SECONDS,
                               creationflags=NO_WINDOW, stdin=subprocess.DEVNULL).stdout
     except (OSError, ValueError, subprocess.SubprocessError):
         return None

@@ -483,7 +483,7 @@ class ArmingTests(TelegramCase):
         self.assertEqual(self.rt.states(fresh=True)["telegram_remote"], ArmingState.ARMED)
 
     def test_each_says_the_standards_it_departs_from(self):
-        self.assertEqual(TELEGRAM_REMOTE.departs_from, ("C1", "C2", "C3", "C8", "D1", "F6", "F8", "K5"))
+        self.assertEqual(TELEGRAM_REMOTE.departs_from, ("C1", "C2", "C3", "C8", "D1", "F6", "F8"))
         self.assertEqual(TELEGRAM_CONTINUE.departs_from, ("H4",))
 
 

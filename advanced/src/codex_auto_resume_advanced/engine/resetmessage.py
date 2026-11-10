@@ -171,7 +171,7 @@ class ResetMessage:
             handed_ = handed(rule)
             if handed_ is not None:
                 waiting.append(handed_)
-        # Core tries RECORDS_LIMIT a tick, and ten may be due: those due are handed in turn, from a place
+        # Core tries RECORDS_LIMIT a tick, and up to fifty (MESSAGES_LIMIT) may be due: those due are handed in turn, from a place
         # that moves on each tick, so none waits behind the others for good.
         if waiting:
             start = (self._turn * RECORDS_LIMIT) % len(waiting)

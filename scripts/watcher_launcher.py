@@ -297,7 +297,8 @@ def _why_held(home: Path):
     asked for, or there is no plug to say."""
     try:
         from codex_auto_resume import config, edition
-        word = getattr(edition.plug(config.Paths(home)), "supervise_held", lambda: None)()
+        from codex_auto_resume.domain.plug import guard
+        word = guard(edition.plug(config.Paths(home))).supervise_held()
     except Exception:                               # noqa: BLE001 - a launch is never failed over what it says
         return None
     return word if isinstance(word, str) and word.replace("_", "").isalpha() else None

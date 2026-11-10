@@ -325,8 +325,8 @@ class ResetBridgeTests(ac.AdvancedCase):
         self.on("reset_message")
         self.assertEqual(self.message(words="x" * 2001)["refusal"], Refusal.MESSAGE_REFUSED)
         self.on("long_reset_message")
-        self.assertEqual(self.bridge("advanced-resets")["limits"]["words"], 8154)
-        self.assertTrue(self.message(words="x" * 8154)["done"])
+        self.assertEqual(self.bridge("advanced-resets")["limits"]["words"], 29962)
+        self.assertTrue(self.message(words="x" * 29962)["done"])
 
     def test_the_count_past_the_next_one_is_unproven_until_mu_passes_on_the_codex_in_force(self):
         from codex_auto_resume_advanced.vocabulary import Measurement, Verdict
