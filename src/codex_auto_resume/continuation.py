@@ -135,7 +135,9 @@ def validate_custom(text) -> str:
 
 # A person's own message the edition's plug hands core to send at a time they chose (P2, v0.6.14): what
 # core's one send may carry at most (codex/transport.py), and the blank line and short marker it ends with.
-PROMPT_SEND_LIMIT = 8192
+# 30,000 (the owner, 2026-11-10; it was 8,192): Codex took 32,000 whole, and what stops a longer one is Windows' command
+# line (plans/measure-20261110-limits-result.md), which codex/transport.py measures as well before each send.
+PROMPT_SEND_LIMIT = 30000
 PROMPT_LIMIT = PROMPT_SEND_LIMIT - len("\n\n" + ids.short_marker("0" * ids.INTERRUPTION_ID_LENGTH))
 # The control characters a message may hold: a tab and the two ends of a line.
 _PROMPT_CONTROLS = frozenset("\t\r\n")

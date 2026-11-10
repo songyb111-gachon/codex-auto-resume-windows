@@ -669,6 +669,7 @@
   "installer.done.removed": "Codex Auto Resume è stato rimosso.",
   "installer.done.repaired": "Codex Auto Resume è stato riparato.",
   "installer.done.setup_stopped": "Il programma di installazione si è fermato prima dell'esecuzione dell'installer. Il log ne spiega il motivo.",
+  "installer.done.still_removing": "Ci sta mettendo più del solito e continua a lavorare in background. Terminerà da solo; non devi fare altro.",
   "installer.done.still_running": "Ci sta mettendo più del solito e continua a lavorare in background. Ricontrolla la Dashboard fra qualche minuto.",
   "installer.done.unconfirmed": "Non è stato possibile confermare che il monitor sia in esecuzione, quindi per ora non viene controllato nulla. Avvialo dalla Dashboard.",
   "installer.done.updated": "Codex Auto Resume è stato aggiornato.",
@@ -856,6 +857,7 @@
   "msg.toast_accounts_exhausted_body": "Il ripristino attende il reset più vicino, come senza cambio. Nulla viene inviato fino ad allora.",
   "msg.toast_switch_not_finished": "Il cambio automatico di account non è stato completato",
   "msg.toast_switch_not_finished_body": "Apri Codex e controlla quale account ha effettuato l'accesso. Il ripristino attende il reset più vicino, come senza cambio. Nulla viene inviato fino ad allora.",
+  "status.aside": "Va bene se si ferma. Riprendo io.",
   "why.account_changed": "Dopo che si è fermata ha effettuato l'accesso un altro account Codex: non viene inviato nulla finché non la lasci continuare.",
   "msg.toast_usage_at": "Limite di utilizzo di Codex raggiunto. Questa attività riprenderà alle {time}.",
   "msg.toast_usage_soon": "Limite di utilizzo di Codex raggiunto. Questa attività riprenderà dopo il ripristino.",
@@ -1281,5 +1283,8 @@
   "why.user_input_queued": "Qualcosa di tuo è in coda in questa conversazione e ha la precedenza.",
   "why.version_newer_than_engine": "Un Codex più recente di quello presente qui ha eseguito per ultimo questa conversazione; riprende appena Codex viene aggiornato.",
   "why.waiting_reset": "Il limite di utilizzo non si è ancora ripristinato.",
-  "why.workspace_changed": "Il branch della sua cartella, il suo modello o la sua modalità di approvazione sono cambiati da quando si è fermata: non viene inviato nulla finché non la lasci continuare."
+  "why.workspace_changed": "Il branch della sua cartella, il suo modello o la sua modalità di approvazione sono cambiati da quando si è fermata: non viene inviato nulla finché non la lasci continuare.",
+  "msg.toast_python_returned": "Di nuovo sul Python incluso",
+  "msg.toast_python_returned_start": "Il monitor non si è avviato con Python {version}, quindi è tornato al Python fornito con questo programma.",
+  "msg.toast_python_returned_line": "Questa versione del programma non offre più Python {version}, quindi il monitor è tornato al Python fornito con esso."
 }

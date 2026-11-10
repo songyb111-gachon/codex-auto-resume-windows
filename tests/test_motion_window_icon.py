@@ -113,7 +113,7 @@ class BuildTests(unittest.TestCase):
                 done = subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
                                        "-File", str(probe)], stdout=out, stderr=err, timeout=120,
                                       creationflags=NO_WINDOW)
-            self.assertEqual(done.returncode, 0, (work / "probe.err").read_text(errors="replace"))
+            self.assertEqual(done.returncode, 0, (work / "probe.err").read_text(encoding="locale", errors="replace"))
 
             width, height, drawn = png_pixels(made.read_bytes())
             want_width, want_height, wanted = png_pixels(ico_png(24))

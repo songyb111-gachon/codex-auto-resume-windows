@@ -51,7 +51,7 @@ namespace CodexAutoResume
         internal static int Main(string[] argv)
         {
             string home = InstallHome();
-            string python = Path.Combine(home, "runtime", "python.exe");
+            string python = RuntimeChoice.Python(home);
             string source = Path.Combine(home, "app", "src");
             // Nothing installed is nothing to say: the turn ends as it would have.
             if (!File.Exists(python) || !Directory.Exists(source)) return 0;

@@ -138,6 +138,49 @@ def _literal(kind: str, value) -> str:
     return text + "f" if kind == "float" else text
 
 
+def day_look_method():
+    """brand.day_look() in C#. Comparisons rather than a table: the in-box compiler holds an array's initial values in a
+    class it names with a fresh random GUID, and that one name made two builds of the same source differ."""
+    red, green, blue = brand.rgb(brand.ICON_ACCENT)
+    lines = ["        internal static Color IconHead() { return Color.FromArgb(0x%02X, 0x%02X, 0x%02X); }\n\n" % (red, green, blue),
+             "        /// brand.day_look: the look of a date, its body top and bottom; false for an ordinary day.\n",
+             "        internal static bool DayLook(int year, int month, int day, out string look, out string top, out string bottom)\n",
+             "        {\n",
+             "            int yearly = month * 100 + day, whole = year * 10000 + yearly;\n"]
+
+    def answer(key):
+        first, last, _ = brand.DAY_LOOKS[key]
+        return '{ look = "%s"; top = "%s"; bottom = "%s"; return true; }' % (key, first, last)
+
+    for month, day, key in brand.FIXED_DAYS:
+        lines += ["            if (yearly == %d) %s\n" % (month * 100 + day, answer(key))]
+    for key, dates in brand.LUNAR_DAYS:
+        tests = " || ".join("whole == %d" % (y * 10000 + m * 100 + d) for y, m, d in dates)
+        lines += ["            if (%s) %s\n" % (tests, answer(key))]
+    lines += ["            look = top = bottom = null;\n", "            return false;\n", "        }\n\n"]
+    for name, tone in (("IconTopColour", brand.ICON_TOP), ("IconBottomColour", brand.ICON_BOTTOM), ("IconMarkColour", brand.ICON_MARK)):
+        lines += ["        internal static Color %s() { return Color.FromArgb(0x%02X, 0x%02X, 0x%02X); }\n" % ((name,) + tuple(brand.rgb(tone)))]
+    lines += ["\n", "        internal static double DayFocus(string look)\n", "        {\n"]
+    for key, focus in brand.SCENE_FOCUS.items():
+        lines += ['            if (look == "%s") return %g;\n' % (key, focus)]
+    lines += ["            return 0;\n", "        }\n\n",
+              "        internal static bool DayFromTop(string look)\n", "        {\n",
+              "            return %s;\n" % " || ".join('look == "%s"' % key for key in brand.SCENE_FROM_TOP), "        }\n\n",
+              "        /// The scene's ground, and the body top and bottom.\n",
+              "        internal static void DayGround(string look, out string ground, out string top, out string bottom)\n", "        {\n"]
+    for key, (first, last, ground) in brand.DAY_LOOKS.items():
+        lines += ['            if (look == "%s") { ground = "%s"; top = "%s"; bottom = "%s"; return; }\n' % (key, ground, first, last)]
+    lines += ["            ground = top = bottom = null;\n", "        }\n\n",
+              "        internal static string DayScene(string look)\n", "        {\n"]
+    for key in brand.DAY_LOOKS:
+        lines += ['            if (look == "%s") return "%s";\n' % (key, brand.scene_text(key).replace("\n", "\\n"))]
+    lines += ['            return "";\n', "        }\n\n", "        internal static string DayMark(string look)\n", "        {\n"]
+    for key in brand.DAY_LOOKS:
+        lines += ['            if (look == "%s") return "%s";\n' % (key, brand.mark_text(key).replace("\n", "\\n"))]
+    lines += ['            return "";\n', "        }\n"]
+    return lines
+
+
 def sections():
     """Every constant Brand.cs declares after its colours, as (comment, [(name, type, value)]).
 
@@ -149,6 +192,10 @@ def sections():
         for name, value in table.items():
             scale.append((prefix + _camel(name), "int", int(value)))
     scale.append(("TransitionMs", "int", int(brand.MOTION["transition_ms"])))
+    scale.append(("TransitionPressMs", "int", int(brand.MOTION["press_ms"])))
+    scale.append(("DaySceneWidth", "double", float(brand.SCENE_WIDTH)))
+    scale.append(("DaySceneHeight", "double", float(brand.SCENE_HEIGHT)))
+    scale.append(("DayMarkLeast", "int", int(brand.MOTIF_LEAST)))
     for part, value in zip(("X1", "Y1", "X2", "Y2"), brand.MOTION["ease"]):
         scale.append(("TransitionEase" + part, "double", value))
     # v0.6.10: Classic's accent bar inside a card's left hairline, and its current tab's underline.
@@ -339,6 +386,7 @@ def methods() -> str:
         "        }\n",
     ]
     lines += ["\n"] + ease_method()
+    lines += ["\n"] + day_look_method()
     return "".join(lines)
 
 

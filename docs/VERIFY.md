@@ -263,7 +263,7 @@ not use the file at all and re-runs setup instead, unless you also pass `-Force`
 The v0.6.3 archive is checked like any other, before it is extracted: the steps above, with
 v0.6.3's own file and values. v0.6.2's pin on `main` vouches for v0.6.2's file and nothing
 else. v0.6.3 is published and its own pin is committed, so step 3 has a digest to compare
-with, and so are v0.6.4, v0.6.5, v0.6.6, v0.6.7, v0.6.8, v0.6.9, v0.6.10, v0.6.11, v0.6.12, v0.6.13, v0.6.14, v0.6.15, v0.6.16, v0.6.17, v0.6.18, v0.6.19, v0.6.20, v0.6.21 and their pins. A release that has just been published has no
+with, and so are v0.6.4, v0.6.5, v0.6.6, v0.6.7, v0.6.8, v0.6.9, v0.6.10, v0.6.11, v0.6.12, v0.6.13, v0.6.14, v0.6.15, v0.6.16, v0.6.17, v0.6.18, v0.6.19, v0.6.20, v0.6.21, v0.6.22 and their pins. A release that has just been published has no
 pin for a little while - until the pin is committed, step 3 has nothing to compare its archive
 with, which is the case [a new release has no pin for a while](#what-is-not-verified)
 describes.
@@ -342,7 +342,10 @@ For a release whose tag has `build/normalize_pe.py`, you need:
 
 No administrator rights are needed. The build downloads the embeddable Python it bundles
 from python.org and refuses it unless its SHA-256 matches the one written in
-`build/make_release.py`.
+`build/make_release.py`. It then takes out of its copy what the product never uses, by the list in
+`build/runtime_keep.json`, and stops if any module of the staged code no longer imports under what
+is left. So the `python.exe`, `pythonw.exe` and DLLs an archive carries are python.org's files
+unchanged, while its standard-library ZIP holds fewer modules than python.org's and is packed again.
 
 Start from a fresh clone. The archive packs source files, so their line endings are part
 of its bytes, and an existing working tree may have been checked out under different

@@ -54,7 +54,7 @@ class RootFileCopyTests(unittest.TestCase):
         path.write_text(source, encoding="utf-8-sig")
         done = subprocess.run([POWERSHELL, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
                                "-File", str(path)],
-                              capture_output=True, text=True, timeout=120, creationflags=NO_WINDOW)
+                              capture_output=True, encoding="locale", errors="replace", timeout=120, creationflags=NO_WINDOW)
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
         self.assertIn("went on, failed True", done.stdout)
         self.assertIn("CodexAutoResumeSettings.exe", done.stdout)

@@ -129,6 +129,9 @@ ARGUMENTS.update({BridgeCommand.ADVANCED_ACCOUNTS: frozenset(), BridgeCommand.AD
                   BridgeCommand.ADVANCED_ACCOUNTS_READ: frozenset(),
                   # and Switch to this account: the saved account's row (control/autoswitch.switch).
                   BridgeCommand.ADVANCED_ACCOUNTS_SWITCH: frozenset({"id"})})
+# v0.6.23 (python_choice, control/pythons.py): the card's read, python.org asked, one version put in use, and back.
+ARGUMENTS.update({BridgeCommand.ADVANCED_PYTHON: frozenset(), BridgeCommand.ADVANCED_PYTHON_CHECK: frozenset(),
+                  BridgeCommand.ADVANCED_PYTHON_USE: frozenset({"version"}), BridgeCommand.ADVANCED_PYTHON_BACK: frozenset()})
 # v0.6.20 (power_after_tasks, control/powertasks.py): the card's read, and core's power action armed for picked tasks.
 ARGUMENTS[BridgeCommand.ADVANCED_POWER_TASKS] = frozenset()
 ARGUMENTS[BridgeCommand.ADVANCED_POWER_TASKS_ARM] = frozenset({"threads", "action", "grace_minutes", "failed",
@@ -277,6 +280,9 @@ def status(runtime) -> dict:
     # v0.6.20: the reset window_anchor's start fixed, for its line on the Advanced page, only while it stands on.
     from .engine import anchor
     shown.update(anchor.view(runtime))
+    # v0.6.23: that the watcher running now started without crash restart's supervisor, only while that stands on.
+    from .engine import supervise
+    shown.update(supervise.view(runtime))
     return shown
 
 
@@ -464,14 +470,14 @@ def bridge(runtime, command, argument):
                           warnings=argument.get("warnings"), also=argument.get("also"),
                           keep_on=argument.get("keep_on", False), actor=Actor.DASHBOARD)
     if command == BridgeCommand.ADVANCED_DISARM:
-        return arming.disarm(argument.get("capability"), actor=Actor.DASHBOARD)
+        return _nothing_stays_chosen(runtime, arming.disarm(argument.get("capability"), actor=Actor.DASHBOARD))
     if command == BridgeCommand.ADVANCED_WORDINGS:
         return arming.wordings_view(argument.get("capability"))
     if command == BridgeCommand.ADVANCED_WORDING:
         return arming.set_wording(argument.get("capability"), argument.get("key"), argument.get("words"),
                                   generation=argument.get("generation"), actor=Actor.DASHBOARD)
     if command == BridgeCommand.ADVANCED_DISARM_ALL:
-        return arming.all_off(actor=Actor.DASHBOARD)
+        return _nothing_stays_chosen(runtime, arming.all_off(actor=Actor.DASHBOARD))
     if command == BridgeCommand.MEASURE:
         return measure(runtime, argument.get("measurement"), argument.get("thread"),
                        argument.get("may_spend", False))
@@ -577,6 +583,17 @@ def bridge(runtime, command, argument):
         if command == BridgeCommand.ADVANCED_ACCOUNTS_SWITCH:
             return accounts.switch(runtime, argument)
         return accounts.delete(runtime, argument)
+    if command in (BridgeCommand.ADVANCED_PYTHON, BridgeCommand.ADVANCED_PYTHON_CHECK, BridgeCommand.ADVANCED_PYTHON_USE,
+                   BridgeCommand.ADVANCED_PYTHON_BACK):
+        # v0.6.23 (python_choice): the Dashboard's alone - no MCP tool, the icon or anything remote reaches these.
+        from .control import pythons
+        if command == BridgeCommand.ADVANCED_PYTHON:
+            return pythons.view(runtime)
+        if command == BridgeCommand.ADVANCED_PYTHON_CHECK:
+            return pythons.check(runtime)
+        if command == BridgeCommand.ADVANCED_PYTHON_USE:
+            return pythons.use(runtime, argument)
+        return pythons.back(runtime)
     if command in (BridgeCommand.ADVANCED_FLEET, BridgeCommand.ADVANCED_FLEET_SAVE):
         # v0.6.22 (fleet_view): the other PCs, read-only, and this PC's alias and folder - the Dashboard's alone.
         from .control import fleet as fleet_card
@@ -612,6 +629,13 @@ def bridge(runtime, command, argument):
                                   actor=Actor.DASHBOARD)
     return arming.set_global_hourly(argument.get("global_hourly"), generation=argument.get("generation"),
                                     actor=Actor.DASHBOARD)
+
+
+def _nothing_stays_chosen(runtime, answer, *, restart=True):
+    """After a capability was turned off: python_choice off leaves nothing on a chosen Python (control/pythons.py)."""
+    from .control import pythons
+    pythons.back_when_off(runtime, restart=restart)
+    return answer
 
 
 def courier(runtime, command, argument):
@@ -948,14 +972,14 @@ def mcp(runtime, facts):
                 "data": {"capabilities": shown, "on": listing["on"]}}
     if tool == McpTool.DISARM_ADVANCED_CAPABILITY:
         capability = arguments.get("capability")
-        result = arming.disarm(capability, actor=Actor.MCP)
+        result = _nothing_stays_chosen(runtime, arming.disarm(capability, actor=Actor.MCP), restart=False)
         if not result["done"]:
             return {"refused": "no advanced capability has that id"
                     if result["refusal"] == Refusal.UNKNOWN_CAPABILITY
                     else "the advanced state could not be changed"}
         return {"summary": "%s is %s." % (capability, "now off" if result["changed"] else "off"),
                 "data": {"capability": capability, "state": ArmingState.OFF, "changed": result["changed"]}}
-    result = arming.all_off(actor=Actor.MCP)
+    result = _nothing_stays_chosen(runtime, arming.all_off(actor=Actor.MCP), restart=False)
     if not result["done"]:
         return {"refused": "the advanced state could not be changed"}
     return {"summary": "All advanced features are off (%d turned off)." % result["count"],

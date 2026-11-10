@@ -669,6 +669,7 @@
   "installer.done.removed": "Codex Auto Resume を削除しました。",
   "installer.done.repaired": "Codex Auto Resume を修復しました。",
   "installer.done.setup_stopped": "インストーラーが実行される前にセットアップが停止しました。理由はログに記録されています。",
+  "installer.done.still_removing": "通常より時間がかかっており、バックグラウンドで処理を続けています。自動的に完了するので、操作は必要ありません。",
   "installer.done.still_running": "通常より時間がかかっており、バックグラウンドで処理を続けています。数分後にもう一度ダッシュボードを確認してください。",
   "installer.done.unconfirmed": "監視プロセスの実行を確認できなかったため、まだ何も監視していません。ダッシュボードから開始してください。",
   "installer.done.updated": "Codex Auto Resume を更新しました。",
@@ -856,6 +857,7 @@
   "msg.toast_accounts_exhausted_body": "切り替えないときと同じく、復旧は最も早いリセットを待ちます。それまで何も送信されません。",
   "msg.toast_switch_not_finished": "アカウントの自動切り替えが完了しませんでした",
   "msg.toast_switch_not_finished_body": "Codex を開き、どのアカウントでサインインしているか確認してください。切り替えないときと同じく、復旧は最も早いリセットを待ちます。それまで何も送信されません。",
+  "status.aside": "止まっても大丈夫。続きはわたしが。",
   "why.account_changed": "止まった後に別の Codex アカウントでサインインされました。続行を許可するまで何も送信されません。",
   "msg.toast_usage_at": "Codex の使用量の上限に達しました。このタスクは {time} に再開します。",
   "msg.toast_usage_soon": "Codex の使用量の上限に達しました。このタスクはリセット後に再開します。",
@@ -1281,5 +1283,8 @@
   "why.user_input_queued": "この会話にはあなたの入力がキューにあり、そちらが先に処理されます。",
   "why.version_newer_than_engine": "この会話を最後に実行したのは、ここにあるものより新しい Codex です。Codex を更新すると続行します。",
   "why.waiting_reset": "使用量の上限がまだリセットされていません。",
-  "why.workspace_changed": "停止してからフォルダーのブランチ、モデル、または承認モードが変わりました。続行を許可するまで何も送信されません。"
+  "why.workspace_changed": "停止してからフォルダーのブランチ、モデル、または承認モードが変わりました。続行を許可するまで何も送信されません。",
+  "msg.toast_python_returned": "付属の Python に戻りました",
+  "msg.toast_python_returned_start": "監視プロセスが Python {version} で起動しなかったため、このプログラムに付属の Python に戻りました。",
+  "msg.toast_python_returned_line": "このバージョンのプログラムでは Python {version} を提供しなくなったため、監視プロセスは付属の Python に戻りました。"
 }

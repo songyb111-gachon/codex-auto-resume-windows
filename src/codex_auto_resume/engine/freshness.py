@@ -19,6 +19,7 @@ answered by one reading, the 30 seconds' cache.
 from __future__ import annotations
 
 from .. import failures, machine, power
+from ..domain import gates
 from ..domain import usage as readings
 from ..machine import WAITING, WATCHED
 
@@ -88,14 +89,13 @@ class FreshnessMixin:
         or None where it can: recovery paused or the conversation's off, observe only, quiet hours, no internet while
         the watcher waits for one, a request older than USAGE_CHECK_LONGEST, or anything else that holds the record."""
         settings = self.store.settings()
-        if not settings["enabled"] or self.managed.disable_auto_resume:
-            return "paused"
-        if not self.store.thread_enabled(row["thread_id"]):
-            return "conversation_off"
-        if self.observing(settings):
-            return "observe_only"
-        if quiet_until is not None:
-            return "quiet_hours"
+        stopped = gates.usage_read_stopped(enabled=settings["enabled"] and not self.managed.disable_auto_resume,
+                                           conversation_on=self.store.thread_enabled(row["thread_id"]),
+                                           observing=self.observing(settings), quiet=quiet_until is not None)
+        if stopped is not None:
+            return stopped
+        # Not the click's _reads_usage (control/actions.py) written again: only the watcher has the record's gates, so
+        # only it can say a record the click rightly asked about is held (tests/test_deliberate_differences.py).
         if (vector is None or vector["consent"][0] != machine.PASS or row["category"] != failures.USAGE_LIMIT
                 or machine.gate_schedule(row, now, early=True)[0] != machine.PASS):
             return "held"

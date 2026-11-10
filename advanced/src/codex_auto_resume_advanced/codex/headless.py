@@ -40,6 +40,7 @@ from collections import deque
 import threading
 import time
 
+from codex_auto_resume import continuation
 from codex_auto_resume.domain import ids
 
 from ..vocabulary import RunEnd
@@ -335,7 +336,7 @@ class HeadlessRun:
         """Run the one turn core asked for - see the module's steps. Never raises."""
         if not ids.is_uuid(thread_id) or self.follower.live() is not None:
             return dict(PREFLIGHT)
-        if self.mode != COMPACT and (not isinstance(words, str) or len(words) > 8192
+        if self.mode != COMPACT and (not isinstance(words, str) or len(words) > continuation.PROMPT_SEND_LIMIT
                                      or not (client_id is None or ids.is_client_id(client_id))):
             return dict(PREFLIGHT)
         try:

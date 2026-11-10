@@ -50,7 +50,7 @@ PACKAGE = "codex_auto_resume.ui.popup"
 # v0.6.20 drew the icon's right-click menu here, in two files: `menuplan`, where its items go and what a key
 # reaches - asking Windows nothing, so the seventh of that half - and `menuwindow`, its window, after the popup's.
 MODULES = ("words", "model", "placement", "motion", "elevation", "layout", "menuplan",
-           "win32", "fonts", "theme", "gdiplus", "renderer", "access", "messages", "window", "menuwindow")
+           "win32", "fonts", "theme", "gdiplus", "renderer", "access", "hidden", "messages", "window", "menuwindow")
 ASKS_WINDOWS_NOTHING = MODULES[:7]
 
 # What `tray_popup.<name>` gave before the split, name for name. `countdown` is the one public
@@ -62,6 +62,7 @@ ASKS_WINDOWS_NOTHING = MODULES[:7]
 # theme's, and for a while the two gates the design split motion into, `light_still` and `controls_still`,
 # which went in v0.6.11 when no design held motion any more.
 SURFACE = {
+    "PopupHidden",
     "APP_MODE_VALUE", "ATTENTION_OVERLAYS", "BITMAP", "BITMAPINFO", "BITMAPINFOHEADER",
     "CHIP_ALPHA", "CLICK_AWAY_SECONDS", "CONTRAST_COLOURS", "CONTROL_CALLS", "CS_DROPSHADOW",
     "DEPTH", "DOT_FILL", "DOUBLE_CLICK_SECONDS", "DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2",

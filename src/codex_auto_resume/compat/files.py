@@ -20,7 +20,8 @@ REFRESH_EXIT = {"refreshed": 0, "unavailable": 12, "refused": 13}
 REFRESH_ANSWERS = ("refreshed", "refused", "unavailable", "incomplete", "failed")
 # This product's own version, and the release it belongs to: MAJOR.MINOR.PATCH in ASCII digits,
 # then -alpha, -beta or nothing, then .2 to .999 after a word if it is a stage's later pre-release
-# (product_version).
+# (product_version). It only cuts the release out of this installation's own plugin.json, so it is wider than the rule
+# for a version offered from outside (domain/ids.PRODUCT_RELEASE; tests/test_rule_copies.py).
 RELEASE_VERSION = re.compile(r"([0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6})(?:-(?:alpha|beta)(?:\.(?:[2-9]|[1-9][0-9]{1,2}))?)?")
 
 

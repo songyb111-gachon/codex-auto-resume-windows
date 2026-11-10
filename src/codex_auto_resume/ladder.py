@@ -72,11 +72,12 @@ JITTER_SHARE = 0.2
 # v0.6.14 (stage 3b): the bounds of a failure the edition's plug took up that the standard edition
 # never recovers alone (domain/plug.py, P17) - constants of the engine, which no plug can widen
 # (engine/detect.py, engine/dispatch.py). Its waits by the attempt at its task: ten, fifteen and thirty
-# minutes. Only a failure from the last hour is taken up - a PC that slept longer leaves it for the
-# person, as the standard edition leaves every one - and one taken up ends unsent a day after it was
-# detected, on the clock, whatever it waited for meanwhile.
+# minutes. Only a failure from the last six hours is taken up, the standard edition's default look-back
+# (settings.py, detection_lookback_hours; the owner, 2026-11-10; it was the last hour) - a PC that slept longer
+# leaves it for the person - and one taken up ends unsent a day after it was detected, on the clock, whatever
+# it waited for meanwhile.
 ADMITTED_WAITS = (600, 900, 1800)
-ADMISSION_MAX_AGE = 3600
+ADMISSION_MAX_AGE = 6 * 3600
 ADMITTED_MAX_SECONDS = 86400
 # A capacity error the plug vouches for (CAPACITY): a minute after the failure, then two, four and five,
 # each lengthened by up to a fifth (jitter always on), at least a minute apart and 96 a day in one

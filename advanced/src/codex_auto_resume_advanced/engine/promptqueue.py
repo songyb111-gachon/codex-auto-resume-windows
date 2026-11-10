@@ -5,7 +5,7 @@ current turn, at a time or on a schedule, in order, each once, and their words g
 The standard edition sends one thing of its own, a continuation for a recovery that is due (A26, C4). With this on, a
 person writes messages in the Dashboard for one conversation each (control/prompts.py): after the turn now running
 (`after_turn`: due at once, it goes through Codex's own queue, which runs it when that turn ends - MT measures it), at a
-time (`at_time`), or every day or week from a time (`recurring`, 30 occurrences and 30 days at most). Core sends each as
+time (`at_time`), or every day or week from a time (`recurring`, as many occurrences as picked, 30 at most). Core sends each as
 it sends a message at a reset (P2's MESSAGE: exactly as typed, its marker after a blank line), through its gates, the
 one claim and the ledger's caps - one in flight in a conversation across both stores, fifteen minutes apart and five a
 day in one conversation (A20 kept, the owner's answer of 2026-10-09).

@@ -101,20 +101,6 @@ namespace CodexAutoResume
             return new Padding(left, top, right, bottom);
         }
 
-        /// The reach above and to the left, where the highlight is.
-        internal static int ReachNear(string recipe)
-        {
-            Padding reach = Reach(recipe);
-            return Math.Max(reach.Left, reach.Top);
-        }
-
-        /// The reach below and to the right, where the shadow is.
-        internal static int ReachFar(string recipe)
-        {
-            Padding reach = Reach(recipe);
-            return Math.Max(reach.Right, reach.Bottom);
-        }
-
         private static int Far(double offset, double blur, double scale)
         {
             return Math.Max(0, (int)Math.Ceiling((offset + 1.5 * blur) * scale - 1e-9));
@@ -151,13 +137,6 @@ namespace CodexAutoResume
             bool inset;
             Color tone;
             return Shadow(recipe, index, out dx, out dy, out blur, out alpha, out inset, out tone) && !inset && (dx < 0 || dy < 0);
-        }
-
-        /// A well's inset shadow inside `box` - the well inside its hairline - whose corners have
-        /// `radius`. It is already clipped to that shape.
-        internal static void StampInset(Graphics g, Rectangle box, float radius, Rectangle clip)
-        {
-            StampInner(g, box, "inset", radius, clip);
         }
 
         /// The inset shadows of `recipe` inside `box`, the body inside its hairline.
@@ -732,13 +711,6 @@ namespace CodexAutoResume
             return new Rectangle(face.X - left, face.Y - top, face.Width + left + right, face.Height + top + bottom);
         }
 
-        /// Repaints the band around `child` wherever its lift is drawn - after a press, a change
-        /// of enabled state, a move - so no shadow is left behind where it no longer is.
-        internal static void InvalidateLift(Control child)
-        {
-            if (child.Parent != null) Invalidate(child.Parent, Band(child, child is SoftCard ? "card" : "control"));
-        }
-
         /// Repaints `band` (in `container`'s coordinates) on the container and on every
         /// container it is seen through - and, in a block whose control lies over its content
         /// (SoftPin), on the content's windows under the band, which draw that part of the lift
@@ -782,6 +754,49 @@ namespace CodexAutoResume
         private static void PaintOver(object sender, PaintEventArgs e)
         {
             Stamps((Control)sender, e.Graphics, e.ClipRectangle);
+        }
+    }
+
+    /// One picture of the ground behind part of a control, for a glide (v0.6.23): taken at its first frame and laid down on
+    /// each of the rest, because a ground does not change in 160 ms and working it out - the control's parent, every lift
+    /// on it - was the heaviest thing a switch's frame did. One bitmap for a glide, none for a frame; let go when it ends.
+    internal sealed class GroundShot : IDisposable
+    {
+        private Bitmap picture;
+        private Rectangle area;
+
+        /// How many pictures have been made since the window started: what a test counts across the frames of a glide.
+        internal static int Made;
+
+        /// Lays the ground behind `area` of `owner` down on `g`.
+        internal void Paint(Control owner, Graphics g, Rectangle area)
+        {
+            if (area.Width <= 0 || area.Height <= 0) return;
+            if (picture == null || area != this.area)
+            {
+                Forget();
+                picture = new Bitmap(area.Width, area.Height, PixelFormat.Format32bppPArgb);
+                Made++;
+                this.area = area;
+                using (Graphics drawn = Graphics.FromImage(picture))
+                {
+                    drawn.TranslateTransform(-area.X, -area.Y);
+                    Ground.PaintArea(owner, drawn, area);
+                }
+            }
+            g.DrawImageUnscaled(picture, area.X, area.Y);
+        }
+
+        /// The glide is over, or something else changed under it: the next one takes its own.
+        internal void Forget()
+        {
+            if (picture != null) picture.Dispose();
+            picture = null;
+        }
+
+        public void Dispose()
+        {
+            Forget();
         }
     }
 

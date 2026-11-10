@@ -223,7 +223,7 @@ class DashboardAfterUpdateTests(unittest.TestCase):
         name = guiscan.member_body("SettingsForm", "UpdateReopenFile")
         self.assertIn('"reopen-after-update-" + process.ToString(CultureInfo.InvariantCulture) + ".txt"', name)
         close = guiscan.member_body("SettingsForm", "CloseForUpdate")
-        self.assertIn("UpdateReopenFile(Process.GetCurrentProcess().Id)", close)
+        self.assertIn("UpdateReopenFile(OwnProcess.Id)", close)
         self.assertIn("if (updatingHere ||", close)
         for member in ("InstallUpdate", "InstallPick"):
             body = guiscan.member_body("SettingsForm", member)
@@ -240,7 +240,7 @@ class DashboardAfterUpdateTests(unittest.TestCase):
                                                ("reopen-after-update-202.txt", "--page=settings --reopened=1", None),
                                                ("reopen-after-update.txt", "--page=pending --reopened=1", None),
                                                ("reopen-after-update-x.txt", "--page=pending --reopened=1", None)])
-        self.assertEqual(sorted(started), sorted(["--page=history", "--page=settings", "--reopened=1", "--reopened=1"]),
+        self.assertEqual(sorted(started), sorted(["--page=history", "--page=settings", "--reopened=1", "--reopened=1", "--after-update", "--after-update"]),
                          "each window's own record, and nothing else")
         self.assertEqual(said.count("[ok] The Dashboard was opened again on the new version"), 2)
         self.assertEqual(left, [], "every record is removed, opened or not")
@@ -322,7 +322,7 @@ class DashboardAfterUpdateTests(unittest.TestCase):
         left for a later update to open."""
         said, started, left = self.run_reopen([("reopen-after-update-4242.txt", "--page=history --reopened=1", None)],
                                               calls=("-Updated", "", "-Updated"))
-        self.assertEqual(started, ["--page=history", "--reopened=1"], "opened once, however often it is called")
+        self.assertEqual(started, ["--page=history", "--reopened=1", "--after-update"], "opened once, however often it is called")
         self.assertIn("[ok] The Dashboard was opened again on the new version", said)
         self.assertEqual(left, [])
         said, started, left = self.run_reopen([("reopen-after-update-4242.txt", "--page=history --reopened=1", 3600)])
@@ -334,7 +334,7 @@ class DashboardAfterUpdateTests(unittest.TestCase):
     def test_an_update_that_stops_opens_the_dashboard_again_as_it_was(self):
         said, started, _ = self.run_reopen([("reopen-after-update-4242.txt", "--page=settings --reopened=2", None)],
                                            calls=("",))
-        self.assertEqual(started, ["--page=settings", "--reopened=2"])
+        self.assertEqual(started, ["--page=settings", "--reopened=2", "--after-update"])
         self.assertIn("[ok] The Dashboard was opened again", said)
         self.assertNotIn("on the new version", said)
 
@@ -389,7 +389,7 @@ class DashboardAfterUpdateTests(unittest.TestCase):
             probe = Path(folder) / "ast.ps1"
             probe.write_text(probe_text, encoding="utf-8-sig")
             done = subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
-                                   "-File", str(probe), str(INSTALL)], capture_output=True, text=True, timeout=120,
+                                   "-File", str(probe), str(INSTALL)], capture_output=True, encoding="locale", errors="replace", timeout=120,
                                   creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         found = {}
         for line in done.stdout.splitlines():
@@ -541,7 +541,7 @@ class DashboardAfterUpdateTests(unittest.TestCase):
     def test_a_window_closed_by_the_fallback_opens_again_on_its_page_or_the_overview(self):
         said, started, left = self.run_reopen([("reopen-after-update-301.txt", "--page=settings --reopened=1", None)],
                                               fallback=["pending", "", "nowhere"])
-        self.assertEqual(sorted(started), sorted(["--page=settings", "--reopened=1", "--page=pending", "(none)", "(none)"]),
+        self.assertEqual(sorted(started), sorted(["--page=settings", "--reopened=1", "--after-update", "--page=pending", "(none)", "(none)"]),
                          "its own record's words, the page its command line named, else nothing - the Overview")
         self.assertEqual(said.count("[ok] The Dashboard was opened again on the new version"), 4)
         self.assertEqual(left, [])
@@ -564,7 +564,7 @@ class DashboardAfterUpdateTests(unittest.TestCase):
             probe = Path(folder) / "page.ps1"
             probe.write_text(script, encoding="utf-8-sig")
             done = subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
-                                   "-File", str(probe)], capture_output=True, text=True, timeout=120,
+                                   "-File", str(probe)], capture_output=True, encoding="locale", errors="replace", timeout=120,
                                   creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         self.assertEqual(done.stdout.split(), ["[pending]", "[settings]", "[]", "[]", "[]", "[]", "[history]", "[]"],
                          done.stderr)
@@ -578,7 +578,7 @@ class DashboardAfterUpdateTests(unittest.TestCase):
         self.assertIn("if (!updatingHere && !reopening && !auditing) AnswerUnsaved();", early)
         self.assertIn('"update-unsaved-" + process.ToString(CultureInfo.InvariantCulture) + ".txt"',
                       guiscan.member_body("SettingsForm", "UpdateUnsavedFile"))
-        self.assertIn("UpdateUnsavedFile(Process.GetCurrentProcess().Id)", guiscan.member_body("SettingsForm", "AnswerUnsaved"))
+        self.assertIn("UpdateUnsavedFile(OwnProcess.Id)", guiscan.member_body("SettingsForm", "AnswerUnsaved"))
         self.assertIn("'update-unsaved-'", self.block("function Test-DashboardUnsaved {", "function Close-DashboardWindow {"))
 
     def test_the_window_closes_through_its_own_close_and_keeps_unsaved_changes(self):
@@ -631,7 +631,7 @@ class DashboardAfterUpdateTests(unittest.TestCase):
             probe = Path(folder) / "name.ps1"
             probe.write_text(script, encoding="utf-8-sig")
             done = subprocess.run([str(powershell), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
-                                   "-File", str(probe), *homes], capture_output=True, text=True, timeout=120,
+                                   "-File", str(probe), *homes], capture_output=True, encoding="locale", errors="replace", timeout=120,
                                   creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         self.assertEqual(done.stdout.split(), expected, done.stderr)
         name = self.window[self.window.index("internal static string UpdateEventName(string root)"):]

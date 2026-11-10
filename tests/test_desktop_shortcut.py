@@ -346,7 +346,7 @@ class ScriptTests(unittest.TestCase):
             script = Path(folder) / "probe.ps1"
             script.write_text(source, encoding="utf-8-sig")
             done = subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", str(script)],
-                                  capture_output=True, text=True, timeout=120, creationflags=NO_WINDOW,
+                                  capture_output=True, encoding="locale", errors="replace", timeout=120, creationflags=NO_WINDOW,
                                   env=dict(os.environ, CAR_CALLS=str(calls), CAR_CODE=str(code)))
             said = calls.read_text(encoding="utf-8").split("\n")[0].strip() if calls.is_file() else None
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
@@ -458,7 +458,7 @@ def _stub_homes(work: Path) -> dict:
     source.write_text(STUB, encoding="utf-8")
     stub = work / "stub-python.exe"
     done = subprocess.run([str(CSC), "/nologo", "/target:exe", "/out:" + str(stub), str(source)], capture_output=True,
-                          text=True, creationflags=NO_WINDOW, timeout=300)
+                          encoding="locale", errors="replace", creationflags=NO_WINDOW, timeout=300)
     if done.returncode != 0 or not stub.is_file():
         raise AssertionError("the stand-in interpreter did not compile: " + (done.stdout + done.stderr)[-1500:])
     homes = {}

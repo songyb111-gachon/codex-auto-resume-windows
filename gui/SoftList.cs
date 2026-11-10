@@ -506,6 +506,70 @@ namespace CodexAutoResume
 
     /// A list whose rows are drawn by the page that owns it, double-buffered so a five-second
     /// refresh does not flicker.
+    /// The row under the pointer in a list (v0.6.23): which one, and how far its flat tint has come. A list's rows stay flat
+    /// hairline rows: this is a colour, no lift and no radius, on the one row, repainted alone by one Transition - the row
+    /// arriving and the row it left, which goes back as the other comes. The selected row is the page's, and is instant.
+    internal sealed class RowGlow : IDisposable
+    {
+        private readonly ListView list;
+        private readonly Transition time;
+        private int row = -1, left = -1;
+
+        internal RowGlow(ListView list)
+        {
+            this.list = list;
+            time = new Transition(list, 1.0);
+            time.Where = delegate { return Rectangle.Union(Bounds(row), Bounds(left)); };
+            list.MouseMove += delegate(object sender, MouseEventArgs e) { Over(RowAt(e.Location)); };
+            list.MouseLeave += delegate { Over(-1); };
+        }
+
+        /// The row it is on, or -1.
+        internal int Row { get { return row; } }
+
+        /// Whether it is on its way; its timer runs only then.
+        internal bool Running { get { return time.Running; } }
+
+        /// How far the tint of row `index` has come, 0 to 1.
+        internal double Amount(int index)
+        {
+            if (index == row) return time.Value;
+            return index == left ? 1.0 - time.Value : 0.0;
+        }
+
+        private int RowAt(Point point)
+        {
+            ListViewItem item = list.GetItemAt(point.X, point.Y);
+            return item == null ? -1 : item.Index;
+        }
+
+        private Rectangle Bounds(int index)
+        {
+            if (index < 0 || index >= list.Items.Count || !list.IsHandleCreated) return Rectangle.Empty;
+            Rectangle bounds = list.GetItemRect(index, ItemBoundsPortion.Entire);
+            bounds.X = 0;
+            bounds.Width = list.ClientSize.Width;
+            return bounds;
+        }
+
+        internal void Over(int index)
+        {
+            if (index == row) return;
+            // A row still on its way back when another is left is simply back.
+            Rectangle gone = time.Running ? Bounds(left) : Rectangle.Empty;
+            left = row;
+            row = index;
+            time.Jump(0.0);
+            time.To(1.0, Motion.Allowed(list), Motion.Press);
+            if (!gone.IsEmpty) list.Invalidate(gone);
+        }
+
+        public void Dispose()
+        {
+            time.Dispose();
+        }
+    }
+
     internal sealed class SoftList : ListView
     {
         private const int WM_SIZE = 0x0005;
@@ -520,7 +584,12 @@ namespace CodexAutoResume
         internal SoftList()
         {
             SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
+            Glow = new RowGlow(this);
+            Disposed += delegate { Glow.Dispose(); };
         }
+
+        /// The row under the pointer (DrawCell).
+        internal readonly RowGlow Glow;
 
         protected override void OnHandleCreated(EventArgs e)
         {

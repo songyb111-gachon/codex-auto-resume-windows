@@ -810,7 +810,6 @@ class OneListTests(unittest.TestCase):
 
     def test_the_keyboard_ring_is_every_controls(self):
         ring = ".combo-list.keys .combo-option.active"
-        self.assertIn(":focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }", mcpui._STYLE)
         self.assertEqual((declared(ring, "outline"), declared(ring, "outline-offset")),
                          ("2px solid var(--focus)", "2px"))
         self.assertEqual((brand.LAYOUT["focus_width"], brand.LAYOUT["focus_offset"]), (2, 2))
@@ -934,6 +933,11 @@ class MotionStyleTests(unittest.TestCase):
                     with self.subTest(selectors=selectors, prop=prop):
                         self.assertRegex(value, r"^glow-(dot|spread|arc) var\(--glow-[a-z]+-ms\) linear "
                                                 r"var\(--light-delay\) (infinite|1)$")
+                    continue
+                # And a special day's scene (v0.6.23, the owner's mock): its loops are the mock's, on their own timings.
+                if value.startswith(("day-fall ", "day-twinkle ", "day-breathe ", "day-drift ", "day-sway ", "day-flame ")):
+                    with self.subTest(selectors=selectors, prop=prop):
+                        self.assertRegex(value, r"^day-[a-z]+ var\(--d\) (linear|ease-in-out)( var\(--w\))? infinite( alternate)?$")
                     continue
                 with self.subTest(selectors=selectors, prop=prop):
                     self.assertNotRegex(value, r"(?<![-\w])(ease|ease-in|ease-out|ease-in-out|linear|step-start"

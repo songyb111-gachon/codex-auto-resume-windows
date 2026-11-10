@@ -27,6 +27,9 @@ from test_advanced_measure_stage4 import THREAD, VERSIONS, Backend, FakeSession 
 
 MQO = Measurement.MQO
 ITEM = {"id": "q", "clientUserMessageId": measure._SAMPLE_MQO_CLIENT_ID}
+# What the tests make MQP's ids be, so a fake can answer with them.
+MQP_IDS = ("00000000-0000-7000-8000-000000000006", "00000000-0000-7000-8000-000000000007",
+           "00000000-0000-7000-8000-000000000008", "00000000-0000-7000-8000-000000000009")
 
 
 class MqoCase(unittest.TestCase):
@@ -148,8 +151,8 @@ class MqpTests(MqoCase):
             looks = seen[thread] = seen.get(thread, 0) + 1
             if looks > 1:
                 return {"data": []}                      # taken: the person opened it
-            mine = measure._SAMPLE_MQP_CLIENT_IDS[index]
-            other = measure._SAMPLE_MQP_CLIENT_IDS[(index + 1) % len(threads)]
+            mine = MQP_IDS[index]
+            other = MQP_IDS[(index + 1) % len(threads)]
             return {"data": [{"clientUserMessageId": mine}] + ([{"clientUserMessageId": other}] if crossed else [])}
         self.held_now = tuple(held)
         replies = {"thread/queue/add": {"queuedSubmissionId": "q"}, "thread/queue/list": queue_list}
@@ -161,13 +164,35 @@ class MqpTests(MqoCase):
         reads = {}
 
         def history(ctx, thread, client_id):
-            own = client_id == measure._SAMPLE_MQP_CLIENT_IDS[list(threads).index(thread)]
+            own = client_id == MQP_IDS[list(threads).index(thread)]
             reads[thread] = reads.get(thread, 0) + 1
             return own and not (thread in late and reads[thread] == 1)     # `late`: written only by the second read
-        with patch.object(measure, "_recorded_in", history):
+        with patch.object(measure, "_recorded_in", history), \
+                patch.object(measure, "_fresh_client_ids", lambda count: list(MQP_IDS[:count])):
             summary = measure.run(Measurement.MQP, session_factory=factory, backend=Backend(), versions=VERSIONS,
                                   thread=",".join(threads), clock=lambda: 1_800_000_000.0, directory=self.dir)
         return json.loads(Path(summary["recorded"]).read_text(encoding="utf-8"))
+
+    def test_what_an_earlier_run_left_is_not_counted(self):
+        """Fails with fixed client ids: the same id as the run before finds that run's item and history."""
+        leftover = MQP_IDS[0]
+
+        def queue_list(_params):
+            return {"data": [{"clientUserMessageId": leftover}]}
+        replies = {"thread/queue/add": {"queuedSubmissionId": "q"}, "thread/queue/list": queue_list}
+
+        def factory(measurement):
+            self.sessions.append(FakeSession(measurement, replies))
+            return self.sessions[-1]
+        with patch.object(measure, "_recorded_in", lambda ctx, thread, client_id: client_id == leftover):
+            summary = measure.run(Measurement.MQP, session_factory=factory, backend=Backend(), versions=VERSIONS,
+                                  thread=",".join(THREADS), clock=lambda: 1_800_000_000.0, directory=self.dir)
+        observed = json.loads(Path(summary["recorded"]).read_text(encoding="utf-8"))["observed"]
+        self.assertEqual((observed["queued_in_own"], observed["queued_elsewhere"], observed["found_in_own"]), (0, 0, 0))
+
+    def test_no_two_runs_or_conversations_share_a_client_id(self):
+        first, second = measure._fresh_client_ids(4), measure._fresh_client_ids(4)
+        self.assertEqual(len(set(first + second)), 8)
 
     def test_it_declares_its_methods_and_has_a_probe(self):
         self.assertEqual(protocol.MEASUREMENT_METHODS[Measurement.MQP],
@@ -187,12 +212,12 @@ class MqpTests(MqoCase):
         adds = [params for session in self.sessions for method, params in session.calls
                 if method == "thread/queue/add"]
         self.assertEqual(sorted((add["threadId"], add["clientUserMessageId"]) for add in adds),
-                         sorted(zip(THREADS, measure._SAMPLE_MQP_CLIENT_IDS)))
+                         sorted(zip(THREADS, MQP_IDS)))
         adders = [session for session in self.sessions
                   if [method for method, _params in session.calls] == ["thread/queue/add"]]
         self.assertEqual(len(adders), 3, "each add in a session of its own")
         text = json.dumps(record)
-        for secret in THREADS + measure._SAMPLE_MQP_CLIENT_IDS:
+        for secret in THREADS + MQP_IDS:
             self.assertNotIn(secret, text)
 
     def test_a_message_the_history_has_only_at_the_second_read_is_found(self):

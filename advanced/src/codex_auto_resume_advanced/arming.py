@@ -223,6 +223,16 @@ def departs(definition, row) -> list:
     return found
 
 
+def offers_send_again(definition) -> bool:
+    """Whether Keep on's Send again can ever do anything for `definition`: it sends once more a continuation the
+    capability paid for at its claim (Arming._send_again), so one that answers at a point leading to such a send - not one
+    that resends by itself, an action, or one answering only at P3, where an answer can hold a record and pays for no
+    send."""
+    from .runtime import SENDING, Point          # lazily: runtime imports this module
+    return (not definition.resends and definition.kind != CapabilityKind.ACTION
+            and bool(definition.points & (frozenset(SENDING) - {Point.GATES})))
+
+
 def kept_words(keep_on, send_again) -> list:
     """The words a person confirms to keep a capability on: ["keep_on"], with "send_again" after it."""
     return [str(word) for word in KeepOn
@@ -1011,9 +1021,9 @@ class Arming:
         once-more capability's too, since Send again does what it does; then it must be on or watched
         (NOT_ON); then `confirmed` must be the words of the warnings the Dashboard showed, ["keep_on"] or
         ["keep_on", "send_again"] (STALE_CONFIRMATION); then the generation. Send again is only with Keep
-        on, and never for a capability that resends itself, nor for an action, which sends no continuation
-        to send again (INVALID_REQUEST). Letting either go needs only the capability. {"done", "refusal",
-        "generation"}."""
+        on, and never for a capability that resends itself, nor for one that sends no continuation to send
+        again (offers_send_again; INVALID_REQUEST) - a row that already holds it keeps it. Letting either go
+        needs only the capability. {"done", "refusal", "generation"}."""
         def refused(why):
             return {"done": False, "refusal": why, "generation": self._generation()}
 
@@ -1031,6 +1041,8 @@ class Arming:
             row = self.state.arming().get(definition.id) or {}
         except StateError:
             return refused(Refusal.STATE_UNAVAILABLE)
+        if send_again and not row.get("send_again") and not offers_send_again(definition):
+            return refused(Refusal.INVALID_REQUEST)
         wanted = kept_words(keep_on, send_again)
         if not set(wanted) <= set(kept_words(row.get("keep_on"), row.get("send_again"))):
             policy = self.policy()
@@ -1260,6 +1272,7 @@ class Arming:
                 # so is never given Send again.
                 "keep_on": bool(row.get("keep_on")), "send_again": bool(row.get("send_again")),
                 "notice": None if off else row.get("reason"), "resends": definition.resends,
+                "send_again_offered": offers_send_again(definition),
                 "revision": definition.revision, "read_revision": row.get("statement_revision"),
                 "acknowledged_version": row.get("engine_version"),
                 "warnings": [str(word) for word in warnings_for(definition, view, table, checked=checked)],

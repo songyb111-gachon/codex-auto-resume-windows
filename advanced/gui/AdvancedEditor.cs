@@ -33,6 +33,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Globalization;
 using System.IO;
 using System.Windows.Forms;
@@ -109,6 +110,7 @@ namespace CodexAutoResume
             return Word(key, fallback, "n", ImagesMost).Replace("{mb}", Mirror.Embed(Megabytes(ImageBytesMost)));
         }
         private const int ThumbSide = 64;
+        private const string PastedPrefix = "codex-auto-resume-paste-";
 
         /// The editor for a new message (`row` null) or for `row`, a prompt still waiting: shown, answered, and - where it
         /// saved - the page and the list read again, the saved row to be chosen there.
@@ -116,6 +118,7 @@ namespace CodexAutoResume
         {
             if (busy > 0 || advancedListing == null || advancedPrompts == null) return;
             if (row != null && Str(row, "state") != "waiting") return;
+            SweepPasted();
             using (Form dialog = BuildEditor(row))
             {
                 if (editorAnswer != null) editorAnswer(dialog);
@@ -491,6 +494,22 @@ namespace CodexAutoResume
             if (chosen != null) AddImages(chosen);
         }
 
+        /// What a window killed with the editor open left behind: its pasted pictures, only those, a day old or more -
+        /// younger ones may be another window's, still in its editor. What cannot be removed is tried at the next opening.
+        private static void SweepPasted()
+        {
+            try
+            {
+                DateTime before = DateTime.UtcNow.AddDays(-1);
+                foreach (string file in System.IO.Directory.GetFiles(System.IO.Path.GetTempPath(), PastedPrefix + "*"))
+                {
+                    try { if (System.IO.File.GetLastWriteTimeUtc(file) < before) System.IO.File.Delete(file); }
+                    catch (Exception) { /* in use, or not ours to remove: left */ }
+                }
+            }
+            catch (Exception) { /* no temporary folder to look in: nothing to sweep */ }
+        }
+
         /// Ctrl+V: a picture on the clipboard, written as a PNG of the window's own in %TEMP%, or picture files copied in
         /// Explorer. False where the clipboard holds neither, so the words box pastes its text as it always did.
         private bool PasteImages()
@@ -510,7 +529,7 @@ namespace CodexAutoResume
                 {
                     if (pasted == null) return false;
                     string path = System.IO.Path.Combine(System.IO.Path.GetTempPath(),
-                                                         "codex-auto-resume-paste-" + Guid.NewGuid().ToString("N") + ".png");
+                                                         PastedPrefix + Guid.NewGuid().ToString("N") + ".png");
                     pasted.Save(path, System.Drawing.Imaging.ImageFormat.Png);
                     editorTemps.Add(path);
                     AddImages(new[] { path });
@@ -638,20 +657,12 @@ namespace CodexAutoResume
                 tile.AutoSizeMode = AutoSizeMode.GrowAndShrink;
                 tile.Margin = Pad(0, 2, 12, 6);
                 tile.BackColor = Card;
-                var picture = new PictureBox();
+                var picture = new SoftThumb();
                 picture.Size = new Size(Px(ThumbSide), Px(ThumbSide));
-                picture.SizeMode = PictureBoxSizeMode.CenterImage;
-                picture.BackColor = Palette.Inset;
                 picture.Image = image.Thumb;
                 picture.AccessibleName = name;
                 picture.AccessibleRole = AccessibleRole.Graphic;
                 picture.Margin = new Padding(0);
-                picture.Paint += delegate(object sender, PaintEventArgs e)
-                {
-                    var box = (PictureBox)sender;
-                    using (var pen = new Pen(Palette.Line))
-                        e.Graphics.DrawRectangle(pen, 0, 0, box.Width - 1, box.Height - 1);
-                };
                 tile.Controls.Add(picture);
                 int index = i;
                 Button remove = MakeButton(Word("page.editor.images.remove", "Remove"), false, delegate { RemoveImage(index); });
@@ -790,6 +801,35 @@ namespace CodexAutoResume
             if (refusal == "queue_full")
                 return Word("page.refused.steer_full", "As many steers were asked for as may: 30 in a conversation and 60 in all in a day.");
             return PromptRefusal(refusal);
+        }
+    }
+
+    /// A picture's thumbnail (v0.6.23): the well every value stands in, the picture centred in it and clipped to its corners.
+    internal sealed class SoftThumb : Control
+    {
+        internal SoftThumb()
+        {
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
+                     ControlStyles.ResizeRedraw, true);
+            TabStop = false;
+        }
+
+        /// The picture, or null where Windows could not draw it: the well alone. Not owned here.
+        internal Image Image { get; set; }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            Graphics g = e.Graphics;
+            float radius = Soft.PxF(Palette.RadiusControl);
+            Ground.PaintBehind(this, g, ClientRectangle, radius);
+            Soft.InsetWell(g, ClientRectangle, radius, false);
+            if (Image == null) return;
+            GraphicsState state = g.Save();
+            int edge = Soft.Hairline;
+            using (GraphicsPath path = Soft.Rounded(Rectangle.Inflate(ClientRectangle, -edge, -edge), Math.Max(0f, radius - edge)))
+                g.SetClip(path, CombineMode.Intersect);
+            g.DrawImage(Image, (Width - Image.Width) / 2, (Height - Image.Height) / 2, Image.Width, Image.Height);
+            g.Restore(state);
         }
     }
 }

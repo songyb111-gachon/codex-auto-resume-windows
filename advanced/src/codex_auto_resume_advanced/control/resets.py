@@ -8,7 +8,7 @@ update_settings has no field they could be written through.
 
 A rule is added only while its capability stands on - watched, a rule could neither be adopted nor counted (its
 errand is not run, runtime.py) - and every rule of a capability that stands anywhere else is cancelled at the next
-sweep, its words with it (arming.py). A message is for one conversation, ten in all and one to a conversation, at
+sweep, its words with it (arming.py). A message is for one conversation, fifty in all and one to a conversation, at
 most 2,000 characters - A27's bound - unless Longer reset messages stands on, and then what one continuation can
 carry (continuation.PROMPT_LIMIT); it is checked as core checks it before it is sent (validate_prompt). Use a reset
 credit now is a person's click: a rule of its own, good for fifteen minutes, which the errand spends at its next
@@ -23,6 +23,7 @@ from codex_auto_resume.domain import ids
 
 from ..engine import credits as reset_credit
 from ..engine.resetmessage import CAPABILITY as MESSAGE, LONG, SHORT_LIMIT
+from ..state.resets import CREDIT_RULES_LIMIT, MESSAGES_LIMIT
 from ..state.schema import BUCKETS
 from ..vocabulary import ArmingState, Measurement, Refusal, RuleState
 
@@ -155,7 +156,7 @@ def view(runtime) -> dict:
             "count_unproven": count_unproven(runtime),
             # v0.6.20: ... and whether MU failed, and whether MR - what lets a credit be used with no click - failed.
             "count_failed": _failed(runtime, Measurement.MU), "credit_failed": _failed(runtime, Measurement.MR),
-            "limits": {"messages": 10, "credit_rules": 4, "words": words_limit(runtime), "ordinals": 9,
+            "limits": {"messages": MESSAGES_LIMIT, "credit_rules": CREDIT_RULES_LIMIT, "words": words_limit(runtime), "ordinals": 9,
                        "use_now_minutes": reset_credit.USE_NOW // 60}}
 
 

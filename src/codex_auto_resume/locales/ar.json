@@ -669,6 +669,7 @@
   "installer.done.removed": "تمت إزالة Codex Auto Resume.",
   "installer.done.repaired": "تم إصلاح Codex Auto Resume.",
   "installer.done.setup_stopped": "توقف برنامج الإعداد قبل تشغيل برنامج التثبيت. يوضح السجل السبب.",
+  "installer.done.still_removing": "يستغرق الأمر وقتًا أطول من المعتاد وما زال يعمل في الخلفية. سينتهي من تلقاء نفسه، ولا حاجة إلى فعل أي شيء آخر.",
   "installer.done.still_running": "يستغرق الأمر وقتًا أطول من المعتاد وما زال يعمل في الخلفية. تحقّق من لوحة المعلومات مرة أخرى بعد بضع دقائق.",
   "installer.done.unconfirmed": "تعذّر التأكد من أن المراقِب يعمل، لذا لا شيء قيد المراقبة بعد. شغّله من لوحة المعلومات.",
   "installer.done.updated": "تم تحديث Codex Auto Resume.",
@@ -856,6 +857,7 @@
   "msg.toast_accounts_exhausted_body": "ينتظر الاستئناف أقرب إعادة تعيين، كما لو لم يحدث تبديل. لا يُرسل شيء حتى ذلك الحين.",
   "msg.toast_switch_not_finished": "لم يكتمل التبديل التلقائي للحساب",
   "msg.toast_switch_not_finished_body": "افتح Codex وتحقق من الحساب الذي سُجِّل الدخول به. ينتظر الاستئناف أقرب إعادة تعيين، كما لو لم يحدث تبديل. لا يُرسل شيء حتى ذلك الحين.",
+  "status.aside": "لا بأس إن توقّف. سأكمله أنا.",
   "why.account_changed": "سُجّل الدخول بحساب Codex آخر بعد أن توقفت: لا يُرسل شيء حتى تسمح لها بالمتابعة.",
   "msg.toast_usage_at": "بُلغ حدّ استخدام Codex. ستُستأنف هذه المهمة في {time}.",
   "msg.toast_usage_soon": "بُلغ حدّ استخدام Codex. ستُستأنف هذه المهمة بعد إعادة التعيين.",
@@ -1281,5 +1283,8 @@
   "why.user_input_queued": "لديك شيء في قائمة الانتظار في هذه المحادثة، وسيأتي أولًا.",
   "why.version_newer_than_engine": "شغّل إصدار أحدث من Codex هذه المحادثة آخر مرة مقارنةً بالإصدار الموجود هنا؛ تستمر بمجرد تحديث Codex.",
   "why.waiting_reset": "لم يُعَد تعيين حدّ الاستخدام بعد.",
-  "why.workspace_changed": "تغيّر فرع مجلدها أو نموذجها أو وضع الموافقة الخاص بها منذ توقفها: لا يُرسل شيء حتى تسمح لها بالمتابعة."
+  "why.workspace_changed": "تغيّر فرع مجلدها أو نموذجها أو وضع الموافقة الخاص بها منذ توقفها: لا يُرسل شيء حتى تسمح لها بالمتابعة.",
+  "msg.toast_python_returned": "عاد إلى Python المرفق",
+  "msg.toast_python_returned_start": "لم يبدأ المراقِب على Python {version}، فعاد إلى Python الذي جاء مع هذا البرنامج.",
+  "msg.toast_python_returned_line": "لم يعد هذا الإصدار من البرنامج يعرض Python {version}، فعاد المراقِب إلى Python الذي جاء معه."
 }

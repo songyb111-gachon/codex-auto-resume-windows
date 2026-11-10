@@ -538,7 +538,7 @@ class PolicySinceTests(unittest.TestCase):
     def test_it_is_the_first_tag_with_managed_py(self):
         text = BOOTSTRAP.read_text(encoding="utf-8")
         since = re.search(r"^\$PolicySince = '([^']+)'$", text, re.M).group(1)
-        listed = subprocess.run(["git", "-C", str(ROOT), "tag", "--list", "v*"], capture_output=True, text=True,
+        listed = subprocess.run(["git", "-C", str(ROOT), "tag", "--list", "v*"], capture_output=True, encoding="utf-8", errors="replace",
                                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)).stdout.split()
         tags = []
         for tag in listed:
@@ -584,7 +584,7 @@ class AdvancedStateSinceTests(unittest.TestCase):
         text = BOOTSTRAP.read_text(encoding="utf-8")
         block = re.search(r"^\$AdvancedStateSince = (@\(.*?\))$", text, re.M | re.S).group(1)
         table = [(version, int(form)) for version, form in re.findall(r"@\('([^']+)', (\d+)\)", block)]
-        listed = subprocess.run(["git", "-C", str(ROOT), "tag", "--list", "v*"], capture_output=True, text=True,
+        listed = subprocess.run(["git", "-C", str(ROOT), "tag", "--list", "v*"], capture_output=True, encoding="utf-8", errors="replace",
                                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)).stdout.split()
         if "v0.6.16-beta.2" not in listed:
             if os.environ.get("CI"):
@@ -1182,7 +1182,7 @@ class PickRunTests(PickerRun):
         self.serve(OLDER)
         self.published("0.6.10", pin=True)
         holder = subprocess.Popen([sys.executable, "-c", LOCK_HOLDER], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                  text=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                                  encoding="utf-8", errors="replace", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         try:
             self.assertEqual(holder.stdout.readline().strip(), "held")
             code, output, _ = self.pick("0.6.10", Force=True)

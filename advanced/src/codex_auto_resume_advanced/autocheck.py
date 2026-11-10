@@ -241,9 +241,19 @@ def _offered(document, name) -> dict:
     return found
 
 
+def feature_words(text, name):
+    """The words after `name` on the line of `codex features list` that begins with it (a table's bars are no words), or
+    None where no line does: how this check and the live probe (measure._feature) both read that list."""
+    for line in text.splitlines():
+        words = line.replace("|", " ").split()
+        if words and words[0] == name:
+            return words[1:]
+    return None
+
+
 def _feature_listed(text, name) -> bool:
-    """Whether `codex features list` printed a line for `name`, its first word (measure._feature reads it the same way)."""
-    return any((line.replace("|", " ").split() or [""])[0] == name for line in text.splitlines())
+    """Whether `codex features list` printed a line for `name`."""
+    return feature_words(text, name) is not None
 
 
 def judge_row(row, document, client, server, features) -> tuple:

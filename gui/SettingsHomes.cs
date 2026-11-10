@@ -386,11 +386,12 @@ namespace CodexAutoResume
                 area.Box.AccessibleName = S("homes.alias", "Name for this Codex home");
                 area.Height = Px(38);
                 body.Controls.Add(area);
-                dialog.Controls.Add(body);
+                dialog.Controls.Add(DialogBodyCard(body));
+                dialog.ClientSize += DialogCardGrowth();
                 string chosen = null;
                 FlowLayoutPanel buttons = ButtonRow();
                 buttons.FlowDirection = FlowDirection.RightToLeft;
-                buttons.Padding = Pad(0, 12, 16, 16);
+                buttons.Padding = Pad(0, 0, 16, 16);
                 Button save = MakeButton(S("action.save", "Save"), true, delegate
                 {
                     string text = (area.Box.Text ?? "").Trim();

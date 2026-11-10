@@ -72,7 +72,7 @@ class OutsideGateQuoteTests(unittest.TestCase):
         made = Path(temp.name) / "maker.ps1"
         made.write_text(maker, encoding="utf-8-sig")
         done = subprocess.run([POWERSHELL, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", str(made)],
-                              capture_output=True, text=True, timeout=120, creationflags=NO_WINDOW)
+                              capture_output=True, encoding="locale", errors="replace", timeout=120, creationflags=NO_WINDOW)
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
         done = subprocess.run([POWERSHELL, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
                                "-File", str(Path(temp.name) / "outer.ps1")],

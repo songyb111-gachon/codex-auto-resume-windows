@@ -14,8 +14,10 @@ from __future__ import annotations
 # CSS cubic-bezier's four control numbers, so a switch answers the click at once and settles. The
 # panel writes it as `--transition-ease`, the window reads Brand.TransitionEase*, the popup calls
 # ease(); a change that waits for confirmation starts only once confirmed, and nothing slides
-# under Reduce motion, Windows' animation setting or High Contrast.
-MOTION = {"transition_ms": 160, "ease": (0.33, 1.0, 0.68, 1.0)}
+# under Reduce motion, Windows' animation setting or High Contrast. `press_ms` (v0.6.23) is the one
+# shorter time, a press and its release: a finger going down is answered sooner than a pointer passing
+# over; the window reads Brand.TransitionPressMs, the panel's stylesheet --transition-press.
+MOTION = {"transition_ms": 160, "press_ms": 80, "ease": (0.33, 1.0, 0.68, 1.0)}
 
 
 

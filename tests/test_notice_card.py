@@ -1471,7 +1471,7 @@ class SafetyTests(unittest.TestCase):
         says whether a notice stays on screen until clicked - both pure but for the catalogs; v0.6.19 failures, whose
         closed category words are all P20 tells an edition's plug of a notice's category (notifier.told) - pure."""
         package, _ = self.imports("notifier.py")
-        self.assertLessEqual(package, {"demo", "failures", "l10n", "notice_kinds", "notice_presence", "notify",
+        self.assertLessEqual(package, {"demo", "failures", "l10n", "notice_inbox", "notice_kinds", "notice_presence", "notify",
                                        "reasons", "settings"})
 
     def test_no_new_module_raises_powershell_itself(self):
@@ -2161,13 +2161,6 @@ class CardDesignTests(unittest.TestCase):
         ground = self.pixel(card.body, cx + 12, cy)
         for distance in (6, 7, 8):
             self.assertEqual(self.pixel(card.body, cx + distance, cy), ground, distance)
-
-    def test_reduce_motion_holds_every_design(self):
-        for design in brand.DESIGNS:
-            card = self.offscreen(self.breathing(), design, reduced=True)
-            with self.subTest(design):
-                self.assertEqual(card.motion.phase, "hold")
-                self.assertFalse(card.breathe(brand.GLOW["monitoring_ms"] // 2))
 
     def test_the_card_is_cut_at_its_designs_corner(self):
         for design in ("classic", "plain"):

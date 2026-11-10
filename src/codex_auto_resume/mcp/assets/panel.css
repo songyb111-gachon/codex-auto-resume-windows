@@ -94,14 +94,39 @@ button, select, input { font: inherit; }
 /* State leads. Whether anything is being watched is the reason the panel gets opened,
    so it is the first thing on it and the largest type on it - a word, never a colour
    alone, with the halo saying the same thing for a reader who glances. */
-.hero { display: grid; gap: var(--size-hero-gap); padding: var(--size-hero-pad); }
+.hero { display: grid; gap: var(--size-hero-gap); padding: var(--size-hero-pad); position: relative; }
+.day-scene { position: absolute; top: 1px; inset-inline-end: 1px; pointer-events: none; overflow: clip;
+             border-start-end-radius: var(--radius-card); }
+.day-veil { position: absolute; inset: 0; }
+.day-fall { transform-box: fill-box; transform-origin: center; animation: day-fall var(--d) linear var(--w) infinite; }
+.day-twinkle { transform-box: fill-box; transform-origin: center; animation: day-twinkle var(--d) ease-in-out var(--w) infinite; }
+.day-breathe { animation: day-breathe var(--d) ease-in-out infinite; }
+.day-drift { animation: day-drift var(--d) ease-in-out infinite alternate; }
+.day-sway { transform-box: view-box; animation: day-sway var(--d) ease-in-out infinite; }
+.day-flame { transform-box: view-box; animation: day-flame var(--d) ease-in-out infinite; }
+@keyframes day-fall { from { transform: translateY(-14px) rotate(0); } to { transform: translateY(82px) rotate(var(--spin)); } }
+@keyframes day-twinkle { 0%, 100% { opacity: .25; transform: scale(.7); } 50% { opacity: 1; transform: scale(1.1); } }
+@keyframes day-breathe { 0%, 100% { opacity: var(--low); } 50% { opacity: var(--high); } }
+@keyframes day-drift { from { transform: translateX(-10px); } to { transform: translateX(14px); } }
+@keyframes day-sway { 0%, 100% { transform: rotate(-5deg); } 50% { transform: rotate(5deg); } }
+@keyframes day-flame { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(1.35); } }
+.day-sweep { position: absolute; pointer-events: none; overflow: visible; }
+.day-ring { transform-box: fill-box; transform-origin: center; opacity: 0; vector-effect: non-scaling-stroke;
+            animation: day-ring 900ms var(--transition-ease) both; }
+.day-arc { opacity: 0; animation: day-arc 1050ms var(--transition-ease) 1; }
+.day-head { opacity: 0; animation: day-head 1050ms var(--transition-ease) 1; }
+@keyframes day-ring { from { transform: scale(.5769); opacity: .65; } to { transform: scale(1); opacity: 0; } }
+@keyframes day-arc { 0% { stroke-dashoffset: 100; opacity: 1; } 70% { stroke-dashoffset: 0; opacity: 1; } 100% { stroke-dashoffset: 0; opacity: 0; } }
+@keyframes day-head { 0% { transform: rotate(0); opacity: 1; } 70% { transform: rotate(360deg); opacity: 1; } 100% { transform: rotate(360deg); opacity: 0; } }
+.aside-in { animation: aside-in 450ms var(--transition-ease); }
+@keyframes aside-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 .eyebrow { font-size: var(--type-small); color: var(--muted); }
 /* The edition after the version (v0.6.11; the owner's decision of 2026-10-02): quiet secondary text, a space after
    the version and no separator, .5625 of its size - 9px beside 16, a pixel under the 10 of the mock he approved,
    since he asked for it smaller again on 2026-10-15 - but never under those 9px, muted whichever edition it is, and
    on the version's baseline. The window's VersionLabel takes the same two numbers (Soft.AsideShare, Soft.AsideLeast). */
 .edition { font-size: var(--type-edition); color: var(--muted); vertical-align: baseline; }
-.hero-state { display: flex; align-items: center; gap: 18px; padding-block: 8px 4px; padding-inline: 9px 0; }
+.hero-state { display: flex; align-items: center; gap: 18px; padding-block: 8px 4px; padding-inline: 9px 0; position: relative; }
 .hero h1 { font-size: var(--type-display); line-height: var(--lh-display); font-weight: 600;
            letter-spacing: -.01em; }
 .facts { display: flex; flex-wrap: wrap; color: var(--muted); }
@@ -190,13 +215,14 @@ button { min-height: var(--size-button-height); padding: var(--size-button-pad);
                      box-shadow var(--transition), color var(--transition);
          transition-timing-function: var(--transition-ease); }
 button:hover:not([disabled]) { background: var(--surface); }
-button:active:not([disabled]) { background: var(--inset); box-shadow: var(--elev-inset); }
+button:active:not([disabled]) { background: var(--inset); box-shadow: var(--elev-inset);
+                                transition-duration: var(--transition-press); }
 button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 button.primary:hover:not([disabled]) { background: var(--accent-hover); border-color: var(--accent-hover); }
 /* After hover, which it would otherwise lose to: a pressed primary stays primary. Without it a
    key press, which is active without hover, fell through to `inset` under white text. */
 button.primary:active:not([disabled]) { background: var(--accent-pressed); border-color: var(--accent-pressed);
-                                        box-shadow: var(--elev-inset); }
+                                        box-shadow: var(--elev-inset); transition-duration: var(--transition-press); }
 button.danger { color: var(--danger); }
 /* Disabled is said by the text and the lost lift, not by fading the whole control: at half
    opacity the label fell to about 3.3:1. `muted` on the card's ground stays above 4.5. */

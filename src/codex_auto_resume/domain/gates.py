@@ -100,6 +100,22 @@ def gate_schedule(record, now, *, quiet_until=None, early=False, forced=False) -
     return gate(PASS)
 
 
+def usage_read_stopped(*, enabled, conversation_on, observing, quiet):
+    """What stops usage being read for a recovery a person asked about, in store/schedule.NOT_CHECKED's words, or None:
+    recovery paused (by a person or an administrator), the conversation's recovery off, Observe only, quiet hours. The
+    one rule of the click that promises a reading (control/actions._not_checked) and the watcher that makes it
+    (engine/freshness._not_served), so the click never promises what the watcher will refuse."""
+    if not enabled:
+        return "paused"
+    if not conversation_on:
+        return "conversation_off"
+    if observing:
+        return "observe_only"
+    if quiet:
+        return "quiet_hours"
+    return None
+
+
 def gate_submission_safe(record, others_in_flight: int) -> tuple:
     if record.get("submitted_at") is not None or record.get("state") not in WAITING:
         return gate(BLOCK, "possibly_sent")

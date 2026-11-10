@@ -74,6 +74,14 @@ class ReopenEveryPageTests(unittest.TestCase):
         self.assertIn(outside, started)
         self.assertEqual(left, [])
 
+    def test_a_window_opened_again_after_an_update_says_so_on_its_command_line(self):
+        """Fails with the reopen as the window wrote it: it asks nothing, and sits beside a Dashboard a person opened."""
+        word = constant(ROOT / "gui" / "WindowReopen.cs", "ReopenedAfterUpdate")
+        said, started, left = self.run_reopen([("reopen-after-update-402.txt", "--page=pending --reopened=1", None)])
+        self.assertEqual(said.count("[ok] The Dashboard was opened again on the new version"), 1, said)
+        self.assertIn(word, started)
+        self.assertEqual(left, [])
+
     def test_the_rule_still_refuses_what_no_window_takes(self):
         refused = ["--page=Advanced", "--page=advancedx", "--page=chat --uninstall", "--outside=1", "--outsider",
                    "--focus=page.advanced;calc", "--page=chat  --reopened=1"]

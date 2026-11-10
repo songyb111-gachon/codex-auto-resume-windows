@@ -607,6 +607,7 @@
           "stats.outcomes": "How recoveries ended",
           "stats.period": "Period",
           "stats.retry_now": "Retry now requests",
+          "status.aside": "It's okay if it stops. I'll pick it up.",
           "status.next_check": "next check {time}",
           "status.not_responding": "Watcher not responding",
           "status.not_running": "Watcher not running",
@@ -1208,6 +1209,7 @@
           "installer.done.read_log": "The log below is what the installer said.",
           "installer.done.removed": "Codex Auto Resume is removed.",
           "installer.done.setup_stopped": "The setup program stopped before the installer ran. The log says why.",
+          "installer.done.still_removing": "It is taking longer than usual and is still working in the background. It finishes by itself, and there is nothing more to do.",
           "installer.done.still_running": "It is taking longer than usual and is still working in the background. Look at the Dashboard again in a few minutes.",
           "installer.done.unconfirmed": "The watcher could not be confirmed running, so nothing is being watched yet. Start it from the Dashboard.",
           "installer.done.updated": "Codex Auto Resume is updated.",
@@ -1290,7 +1292,10 @@
           "msg.toast_accounts_exhausted_body": "Recovery waits for the earliest reset, as it would with no switch. Nothing is sent until then.",
           "msg.toast_switch_not_finished": "The automatic account switch did not finish",
           "msg.toast_switch_not_finished_body": "Open Codex and check which account is signed in. Recovery waits for the earliest reset, as it would with no switch. Nothing is sent until then.",
-          "why.account_changed": "Another Codex account was signed in after it stopped: nothing is sent until you let it continue."
+          "why.account_changed": "Another Codex account was signed in after it stopped: nothing is sent until you let it continue.",
+          "msg.toast_python_returned": "Back on the bundled Python",
+          "msg.toast_python_returned_start": "The watcher did not start on Python {version}, so it went back to the Python that came with this program.",
+          "msg.toast_python_returned_line": "This version of the program no longer offers Python {version}, so the watcher went back to the Python that came with it."
         },
         "preference": "system",
         "system_language": "en",

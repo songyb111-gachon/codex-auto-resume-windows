@@ -178,6 +178,8 @@ namespace CodexAutoResume
                 form.advancedAccounts = Map(kept, "advanced-accounts");
                 // v0.6.22: this PC's name and folder and the other PCs at their fullest (AdvancedFleet.cs).
                 form.advancedFleet = Map(kept, "advanced-fleet");
+                // v0.6.23: the Python version card at its fullest (AdvancedPythons.cs), drawn once the capability is offered.
+                form.advancedPython = Map(kept, "advanced-python");
                 Dictionary<string, object> shot = Map(kept, "snapshot");
                 form.AdoptAdvancedWords(Json.Parse(wordsJson) as Dictionary<string, object>);
                 // The conversations the reset forms offer, and Pending's list, are the snapshot's.
@@ -1195,6 +1197,19 @@ namespace CodexAutoResume
                         if (found == null || !found.Enabled) disabled.Add("remote " + Str(step, "button"));
                         else Pressed.Invoke(found, new object[] { EventArgs.Empty });
                     }
+                    else if (what == "tick")
+                    {
+                        // v0.6.23: a row of the power tasks' or the saved accounts' card ticked, by its id.
+                        List<CheckBox> rows = Str(step, "card") == "power" ? form.powerTaskRows : form.accountsRows;
+                        CheckBox found = rows.Find(delegate(CheckBox each) { return Equals(each.Tag, Str(step, "id")); });
+                        if (found == null || !found.Enabled) disabled.Add("tick " + Str(step, "id"));
+                        else found.Checked = true;
+                    }
+                    else if (what == "read_card")
+                    {
+                        if (Str(step, "card") == "power") form.ReadPowerTasks(null);
+                        else form.ReadAccounts(null);
+                    }
                     else if (what == "courier_type")
                     {
                         // and one of its boxes, "<channel>.<field>", filled whole.
@@ -1253,6 +1268,7 @@ namespace CodexAutoResume
                         else box.Box.Text = Str(step, "text") ?? "";
                     }
                     else if (what == "poll") form.PollReport();
+                    else if (what == "poll_python") form.ReadPython(null);    // v0.6.23: the Python version card reads itself.
                     else if (what == "poll_account") form.ReadAccount(null);    // v0.6.20: the account card read again
                     else if (what == "save_to") form.advancedSaveTo = Str(step, "path");
                     else if (what == "reply")
@@ -1418,7 +1434,7 @@ namespace CodexAutoResume
             var names = new List<object>();
             foreach (Control tile in editorThumbs.Controls)
             {
-                var picture = tile.Controls[0] as PictureBox;
+                var picture = tile.Controls[0] as SoftThumb;
                 names.Add(picture.AccessibleName + (picture.Image != null ? ":drawn" : ":blank"));
             }
             return names;
@@ -1635,6 +1651,13 @@ namespace CodexAutoResume
             // v0.6.20: the Overview's OpenAI status line, while it is shown (AdvancedCourier.cs), and the courier card's buttons.
             look["feed"] = feedValue != null && OwnVisible(feedValue) ? feedValue.Text : null;
             look["courier_buttons"] = Tags(courierButtons);
+            // v0.6.23: the ticked rows of the two cards, each by its id.
+            var ticked = new List<string>(PowerTasksPicked());
+            ticked.AddRange(AccountsPicked());
+            look["ticked"] = ticked.ConvertAll<object>(delegate(string id) { return id; });
+            // v0.6.23: how far the open capability's column is scrolled, and where the courier's card stands in it.
+            look["scrolled"] = advancedScroll == null ? 0.0 : (double)((ISoftScroller)advancedScroll).Offset;
+            look["courier_top"] = (double)CourierCardTop();
             // v0.6.22: the Overview's Other PCs list while it shows, and the card's name, folder and Save.
             bool fleetShows = fleetCard != null && OwnVisible(fleetCard);
             look["fleet_shown"] = fleetShows;

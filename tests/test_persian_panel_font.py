@@ -63,6 +63,15 @@ class PersianPanelFontTests(unittest.TestCase):
         self.assertIn(panel.persian_font_style(), page)
         self.assertIn('window.__CODEX_AUTO_RESUME_LOCALE__="en"', page)
 
+    def test_special_day_data_and_persian_faces_ship_together(self):
+        look = next(iter(panel.brand.DAY_LOOKS))
+        with patch.object(panel.interface, "language", return_value="en"), \
+             patch.object(panel, "typeface_style", return_value=""):
+            page = panel.settings_page(text=1, face="Segoe UI", day=look)
+        self.assertIn(panel.persian_font_style(), page)
+        self.assertIn("window.__CODEX_AUTO_RESUME_DAY__=", page)
+        self.assertIn(panel._script_json(panel.day_data(look)), page)
+
 
 if __name__ == "__main__":
     unittest.main()

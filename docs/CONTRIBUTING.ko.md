@@ -169,6 +169,15 @@ python build/smoke_archive.py build/dist/CodexAutoResume-v<version>-win-x64.zip 
 페이로드를 조립한 뒤 ZIP과 그 SHA-256을 `build/dist/`에 씁니다. 판마다의 설치 마법사인 `CodexAutoResume-Setup-v<version>.exe`와
 `CodexAutoResume-Advanced-Setup-v<version>.exe`도 `.sha256` 파일과 함께 나옵니다.
 
+압축 파일이 `assets/`와 `scripts/`에서 가져가는 것은 `build/make_release.py`에 파일별로 적혀 있습니다
+(`SHIPPED_ASSETS`, `SHIPPED_SCRIPTS`). 그래서 새 그림이나 스크립트는 거기에 적고 `tests/test_release_size.py`에
+무엇이 읽는지 알려 주기 전까지 릴리스에 들어가지 않습니다. 압축 파일의 `docs/CHANGELOG.md`는 그 버전의 항목과,
+전체 변경 이력이 어디 있는지 알려 주는 한 줄입니다. 함께 넣는 런타임은 `build/runtime_keep.json`대로 덜어 내고,
+빌드는 남은 런타임으로 `build/runtime_check.py`를 돌려 준비된 모듈을 모두 불러오고, 준비된 코드와 남긴 표준
+라이브러리의 import 문을 모두 읽습니다. 새 Python으로 옮기면 그 목록의 `python`과 `sha256`을 고칠 때까지 빌드가
+멈추고, 고친 뒤에는 이 검사가 목록이 잘라 낸 import 중 아무도 읽지 않은 것을 하나하나 짚어 줍니다. 앱의 압축 크기는
+`tests/data/release_budget.json`이 정합니다. 기능이 그만한 값을 하면 거기 숫자를 올리세요.
+
 세 번째는 압축 파일의 바이트 그 자체를 돌려 봅니다. ZIP을 풀고, 그 실행에만 존재하는 상태
 디렉터리를 대상으로 압축 파일 안의 인터프리터로 압축 파일 안의 엔진을 실행하며, 두 실행 파일의 버전
 리소스를 읽습니다. 그 디렉터리 밖의 것은 아무것도 건드리지 않습니다. 이 컴퓨터에 아무것도 등록하지

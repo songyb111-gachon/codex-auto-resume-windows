@@ -123,6 +123,17 @@ function Ask([string]$text, $affirm, [string]$press, $away = $null) {
                     $look.well = $true
                     $look.readonly = [bool]$box.ReadOnly
                 }
+                # v0.6.23: a well stands on the dialog's card (DialogBodyCard): the card is what is inset and ends with the buttons.
+                if ($k.GetType().Name -eq 'SoftCard') {
+                    foreach ($w in $k.Controls) {
+                        if ($w.GetType().Name -ne 'SoftTextArea') { continue }
+                        $box = $w.GetType().GetField('Box', $instance).GetValue($w)
+                        $look.words = [string]$box.Text
+                        $look.wordsAt = @(($c.Left + $k.Bounds.Left), ($c.Left + $k.Bounds.Right))
+                        $look.well = $true
+                        $look.readonly = [bool]$box.ReadOnly
+                    }
+                }
             }
         }
         foreach ($k in $row.Controls) {
@@ -368,6 +379,7 @@ foreach ($tag in $cases.Keys) {
                         $seen.needs = @($needs.Width, $needs.Height)
                     }
                     if ($k.GetType().Name -eq 'SoftTextArea') { $seen.well = $true }
+                    if ($k.GetType().Name -eq 'SoftCard') { foreach ($w in $k.Controls) { if ($w.GetType().Name -eq 'SoftTextArea') { $seen.well = $true } } }
                 }
                 if ($c -is [Windows.Forms.FlowLayoutPanel]) {
                     foreach ($k in $c.Controls) {

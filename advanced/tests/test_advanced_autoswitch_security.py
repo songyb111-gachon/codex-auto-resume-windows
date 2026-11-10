@@ -500,9 +500,9 @@ class SaysSoOnce(unittest.TestCase):
         self.assertIn(l10n.message("toast_switch_not_finished"), json_of(said))
         plain = notifier._account_changed_content(None, "accounts_exhausted")
         self.assertIn(l10n.message("toast_accounts_exhausted"), json_of(plain))
-        app = (Path(__file__).resolve().parents[2] / "src" / "codex_auto_resume" / "runtime" / "app.py").read_text(
-            encoding="utf-8")
-        self.assertIn('self._watcher_notice("accounts_exhausted", {"why": notice.get("why")})', app)
+        notices = (Path(__file__).resolve().parents[2] / "src" / "codex_auto_resume" / "runtime"
+                   / "plugnotices.py").read_text(encoding="utf-8")
+        self.assertIn('self._watcher_notice("accounts_exhausted", {"why": notice.get("why")})', notices)
 
 
 def json_of(content):

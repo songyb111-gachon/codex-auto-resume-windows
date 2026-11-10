@@ -35,6 +35,7 @@ import os
 from pathlib import Path
 
 from . import homes
+from .domain.ids import CODEX_APP_FAMILY
 
 SWITCH = "home_suggestions"
 DISMISSED = "home_suggestions_dismissed"
@@ -42,15 +43,11 @@ DISMISSED = "home_suggestions_dismissed"
 DISMISSED_MAX = 16
 APP_FILE = ("OpenAI", "Codex", "chrome-native-hosts-v2.json")
 # The Codex app's package, where Windows keeps what an MSIX app writes under LOCALAPPDATA.
-APP_PACKAGE = ("Packages", "OpenAI.Codex_2p2nqsd0c76g0", "LocalCache", "Local")
+APP_PACKAGE = ("Packages", CODEX_APP_FAMILY, "LocalCache", "Local")
 APP_FILE_MAX = 1024 * 1024
 # The most entries of that file looked at, and the most folders offered from all the places together.
 APP_ENTRIES_MAX = 256
 FOUND_MAX = 16
-
-
-def _spelling(path) -> str:
-    return os.path.normcase(os.path.normpath(str(path)))
 
 
 def _well_formed(path) -> bool:
@@ -65,7 +62,7 @@ def coerce_dismissed(value, default):
         return list(default)
     if not all(_well_formed(path) for path in value):
         return list(default)
-    if len({_spelling(path) for path in value}) != len(value):
+    if len({homes.as_written(path) for path in value}) != len(value):
         return list(default)
     return list(value)
 
@@ -73,7 +70,7 @@ def coerce_dismissed(value, default):
 def dismissed_with(stored, path) -> list:
     """The folders set aside once `path` is: added last, any other spelling of it dropped, the oldest let go
     past DISMISSED_MAX."""
-    kept = [entry for entry in coerce_dismissed(stored, []) if _spelling(entry) != _spelling(path)]
+    kept = [entry for entry in coerce_dismissed(stored, []) if homes.as_written(entry) != homes.as_written(path)]
     return (kept + [os.path.normpath(path)])[-DISMISSED_MAX:]
 
 
@@ -126,7 +123,7 @@ def found(environment=None, app=None, installed=None) -> list:
     for path in [environment()] + list(app()):
         if not isinstance(path, str) or not path.strip():
             continue
-        spelled = _spelling(path.strip())
+        spelled = homes.as_written(path.strip())
         if spelled in seen:
             continue
         seen.add(spelled)
@@ -156,10 +153,10 @@ def candidates(values, default_home, named, identity=None) -> list:
             except Exception:
                 continue
         ids.discard(None)
-    aside = {_spelling(path) for path in coerce_dismissed((values or {}).get(DISMISSED), [])}
+    aside = {homes.as_written(path) for path in coerce_dismissed((values or {}).get(DISMISSED), [])}
     offered = []
     for path in named:
-        if not _well_formed(path) or _spelling(path) in aside or homes.problem(path) is not None:
+        if not _well_formed(path) or homes.as_written(path) in aside or homes.problem(path) is not None:
             continue
         name = _key(path)
         if name is None or name in keys:

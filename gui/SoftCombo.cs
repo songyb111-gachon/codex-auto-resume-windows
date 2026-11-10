@@ -89,8 +89,31 @@ namespace CodexAutoResume
             // in the window and the panel (panel.js COMBO_ROWS). A shorter list shows whole.
             MaxDropDownItems = 10;
             closer = delegate { CloseList(); };
+            faceGlide = new SoftSurfaceGlide(this, FaceWanted);
+            chevron = new Transition(this, 0.0);
             Fit();
         }
+
+        private readonly SoftSurfaceGlide faceGlide;
+        private readonly Transition chevron;
+        private bool faceHover;
+        private SoftDropList fading;
+
+        /// How far the chevron has turned, 0 pointing down to 1 pointing up (for the tests).
+        internal double ChevronTurn { get { return chevron.Value; } }
+
+        /// What the closed face looks like now (v0.6.23): the hairline a step darker under the pointer and a step more with its
+        /// list open, as the scroll bar's edge, and the focus line while it has the keyboard.
+        private SurfaceLook FaceWanted()
+        {
+            Color edge = Palette.Line;
+            if (Enabled && !Palette.Contrast && (Open || faceHover)) edge = Soft.Mix(Palette.Line, Palette.Muted, Open ? 0.6 : 0.35);
+            return new SurfaceLook(Palette.Inset, edge, Enabled ? Palette.Ink : Palette.Muted,
+                                   Focused && ShowFocusCues ? Palette.Focus : SurfaceLook.None(Palette.Focus));
+        }
+
+        protected override void OnMouseEnter(EventArgs e) { base.OnMouseEnter(e); faceHover = true; faceGlide.Changed(); }
+        protected override void OnMouseLeave(EventArgs e) { base.OnMouseLeave(e); faceHover = false; faceGlide.Changed(); }
 
         /// The height every SoftCombo has: the panel's field height.
         internal static int FieldHeight
@@ -130,7 +153,7 @@ namespace CodexAutoResume
         }
 
         protected override void OnHandleCreated(EventArgs e) { base.OnHandleCreated(e); Fit(); }
-        protected override void OnHandleDestroyed(EventArgs e) { CloseList(); base.OnHandleDestroyed(e); }
+        protected override void OnHandleDestroyed(EventArgs e) { CloseList(false); base.OnHandleDestroyed(e); }
         protected override void OnFontChanged(EventArgs e) { base.OnFontChanged(e); Fit(); Invalidate(); }
 
         /// The height it really has. The base class answers from the font alone - 33 for a
@@ -152,15 +175,22 @@ namespace CodexAutoResume
         }
 
         protected override void OnSelectedIndexChanged(EventArgs e) { base.OnSelectedIndexChanged(e); Invalidate(); }
-        protected override void OnEnabledChanged(EventArgs e) { base.OnEnabledChanged(e); Invalidate(); }
-        protected override void OnGotFocus(EventArgs e) { base.OnGotFocus(e); Invalidate(); }
-        protected override void OnLostFocus(EventArgs e) { base.OnLostFocus(e); Invalidate(); }
+        protected override void OnEnabledChanged(EventArgs e) { base.OnEnabledChanged(e); faceGlide.Changed(); Invalidate(); }
+        protected override void OnGotFocus(EventArgs e) { base.OnGotFocus(e); faceGlide.Changed(); Invalidate(); }
+        protected override void OnLostFocus(EventArgs e) { base.OnLostFocus(e); faceGlide.Changed(); Invalidate(); }
         protected override void OnDropDownClosed(EventArgs e) { base.OnDropDownClosed(e); Invalidate(); }
         protected override void OnResize(EventArgs e) { base.OnResize(e); Invalidate(); }
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing) CloseList();
+            if (disposing)
+            {
+                CloseList(false);
+                if (fading != null) fading.Dispose();
+                fading = null;
+                faceGlide.Dispose();
+                chevron.Dispose();
+            }
             base.Dispose(disposing);
         }
 
@@ -394,6 +424,8 @@ namespace CodexAutoResume
             OnDropDown(EventArgs.Empty);
             if (drop == null) return;
             drop.Show();
+            faceGlide.Changed();
+            chevron.To(1.0, Motion.Allowed(this));
             Invalidate();
             AccessibilityNotifyClients(AccessibleEvents.StateChange, -1);
             AccessibilityNotifyClients(AccessibleEvents.Show, ListObjectId, -1);
@@ -403,11 +435,26 @@ namespace CodexAutoResume
         /// Closes its list, if it is open, leaving the choice as it is.
         internal void CloseList()
         {
+            CloseList(Motion.Allowed(this));
+        }
+
+        // v0.6.23: with `fade`, its window stays for one short fade after the list has closed in every other sense - it no
+        // longer answers the pointer, and nothing here knows it - as a list that faded in should leave.
+        private void CloseList(bool fade)
+        {
             if (drop == null) return;
             SoftDropList closing = drop;
             drop = null;
             Unwatch();
-            closing.Dispose();
+            if (fade)
+            {
+                if (fading != null) fading.Dispose();
+                fading = closing;
+                closing.FadeOut(delegate { if (fading == closing) fading = null; });
+            }
+            else closing.Dispose();
+            faceGlide.Changed();
+            chevron.To(0.0, fade);
             typed = "";
             if (IsHandleCreated)
             {
@@ -737,17 +784,20 @@ namespace CodexAutoResume
             Rectangle face = ClientRectangle;
             float radius = Soft.PxF(Palette.RadiusControl);
             Ground.PaintBehind(this, g, face, radius);
-            Soft.InsetWell(g, face, radius, Focused && ShowFocusCues);
+            SurfaceLook look = faceGlide.Now;
+            Soft.Body(g, face, radius, look.Fill, look.Edge, Palette.Depth);
+            if (look.Mark.A > 0) Soft.Edge(g, face, radius, look.Mark, Soft.PxF(Brand.FocusWidth));
             string text = SelectedIndex >= 0 ? GetItemText(SelectedItem) : "";
             int left = Soft.Px(Brand.SelectPadLeft), right = Soft.Px(Brand.SelectPadRight);
             // v0.6.20: mirrored, the words from the right and the chevron at the left (Mirror).
             bool mirrored = Mirror.Of(this);
             int room = Math.Max(0, face.Width - left - right);
             TextRenderer.DrawText(g, text, Font, new Rectangle(Mirror.X(mirrored, face.Width, left, room), 0, room, face.Height),
-                                  Enabled ? Palette.Ink : Palette.Muted,
+                                  look.Ink,
                                   Mirror.Words(mirrored, TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.SingleLine |
                                                          TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix));
-            // The chevron: a small wedge in the muted colour, where the panel's select has it.
+            // The chevron: a small wedge in the muted colour, where the panel's select has it. It turns over as the list
+            // opens, about its own middle (v0.6.23).
             float wedge = Soft.PxF(Brand.ChevronWidth), tall = Soft.PxF(Brand.ChevronHeight);
             float right1 = face.Right - Soft.Hairline - Soft.PxF(Brand.ChevronRight), left1 = right1 - wedge;
             if (mirrored)
@@ -759,6 +809,13 @@ namespace CodexAutoResume
             GraphicsState state = g.Save();
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.PixelOffsetMode = PixelOffsetMode.Half;
+            double turned = chevron.Value;
+            if (turned > 0.0)
+            {
+                g.TranslateTransform((left1 + right1) / 2f, top + tall / 2f);
+                g.RotateTransform((float)(180.0 * turned));
+                g.TranslateTransform(-(left1 + right1) / 2f, -(top + tall / 2f));
+            }
             using (var brush = new SolidBrush(Enabled ? Palette.Muted : Soft.Mix(Palette.Muted, Palette.Inset, 0.5)))
                 g.FillPolygon(brush, new[] { new PointF(left1, top), new PointF(right1, top), new PointF((left1 + right1) / 2f, top + tall) });
             g.Restore(state);
@@ -1149,8 +1206,49 @@ namespace CodexAutoResume
             return image;
         }
 
+        private bool closing;
+        private int closingFrom;
+        private Action gone;
+
+        /// Whether it is on its way out: closed in every sense but the picture on the screen.
+        internal bool Closing { get { return closing; } }
+
+        /// Fades it out from wherever it has got to in brand's press time, and disposes it: a list that faded in leaves the same way.
+        /// From here it no longer answers the pointer. `done` runs when it has gone.
+        internal void FadeOut(Action done)
+        {
+            if (dragging) ReleaseCapture();
+            dragging = false;
+            closing = true;
+            closingFrom = alpha;
+            gone = done;
+            clock.Reset();
+            clock.Start();
+            timer.Start();
+        }
+
+        private void FadeFrame()
+        {
+            double part = clock.Elapsed.TotalMilliseconds / Math.Max(1, Motion.Press);
+            if (part >= 1.0 || Handle == IntPtr.Zero)
+            {
+                Action then = gone;
+                gone = null;
+                Dispose();
+                if (then != null) then();
+                return;
+            }
+            alpha = (int)Math.Round(closingFrom * (1.0 - Motion.Ease(part)));
+            Push();
+        }
+
         private void Tick()
         {
+            if (closing)
+            {
+                FadeFrame();
+                return;
+            }
             double t = clock.Elapsed.TotalMilliseconds / Math.Max(1, Motion.Duration);
             double eased = Motion.Ease(t);
             alpha = t >= 1.0 ? 255 : (int)Math.Round(255 * eased);
@@ -1259,6 +1357,7 @@ namespace CodexAutoResume
         internal void Render()
         {
             if (card.Width <= 0 || card.Height <= 0) return;
+            Renders++;
             var size = new Size(card.Width + margin.Horizontal, card.Height + margin.Vertical);
             var next = new Bitmap(size.Width, size.Height, PixelFormat.Format32bppPArgb);
             var body = new Rectangle(margin.Left, margin.Top, card.Width, card.Height);
@@ -1345,6 +1444,29 @@ namespace CodexAutoResume
         private int[] Face(int width, int height)
         {
             var pixels = new int[width * height];
+            IntPtr bits = FaceBits(width, height);
+            if (bits == IntPtr.Zero) return pixels;
+            using (Graphics f = Graphics.FromHdc(faceDc)) PaintFace(f, new Rectangle(0, 0, width, height));
+            GdiFlush();
+            int stride = (width * 3 + 3) & ~3;
+            var row = new byte[stride];
+            for (int y = 0; y < height; y++)
+            {
+                Marshal.Copy(new IntPtr(bits.ToInt64() + (long)y * stride), row, 0, stride);
+                for (int x = 0; x < width; x++)
+                    pixels[y * width + x] = (row[x * 3 + 2] << 16) | (row[x * 3 + 1] << 8) | row[x * 3];
+            }
+            return pixels;
+        }
+
+        // The device-independent bitmap the face is drawn in, kept while the list is open and of one size.
+        private IntPtr faceDib, faceDc, faceOld, faceData;
+        private Size faceSize;
+
+        private IntPtr FaceBits(int width, int height)
+        {
+            if (faceDib != IntPtr.Zero && faceSize == new Size(width, height)) return faceData;
+            ReleaseFace();
             var header = new BitmapHeader();
             header.Size = Marshal.SizeOf(typeof(BitmapHeader));
             header.Width = width;
@@ -1352,41 +1474,114 @@ namespace CodexAutoResume
             header.Planes = 1;
             header.BitCount = 24;
             IntPtr screen = GetDC(IntPtr.Zero);
-            IntPtr bits, bitmap = IntPtr.Zero, dc = IntPtr.Zero, old = IntPtr.Zero;
             try
             {
-                bitmap = CreateDIBSection(screen, ref header, 0, out bits, IntPtr.Zero, 0);
-                if (bitmap == IntPtr.Zero || bits == IntPtr.Zero) return pixels;
-                dc = CreateCompatibleDC(screen);
-                old = SelectObject(dc, bitmap);
-                using (Graphics f = Graphics.FromHdc(dc)) PaintFace(f);
-                GdiFlush();
-                int stride = (width * 3 + 3) & ~3;
-                var row = new byte[stride];
-                for (int y = 0; y < height; y++)
+                faceDib = CreateDIBSection(screen, ref header, 0, out faceData, IntPtr.Zero, 0);
+                if (faceDib == IntPtr.Zero || faceData == IntPtr.Zero)
                 {
-                    Marshal.Copy(new IntPtr(bits.ToInt64() + (long)y * stride), row, 0, stride);
-                    for (int x = 0; x < width; x++)
-                        pixels[y * width + x] = (row[x * 3 + 2] << 16) | (row[x * 3 + 1] << 8) | row[x * 3];
+                    faceDib = IntPtr.Zero;
+                    return IntPtr.Zero;
                 }
+                faceDc = CreateCompatibleDC(screen);
+                faceOld = SelectObject(faceDc, faceDib);
+                faceSize = new Size(width, height);
+                return faceData;
             }
-            finally
-            {
-                if (dc != IntPtr.Zero)
-                {
-                    SelectObject(dc, old);
-                    DeleteDC(dc);
-                }
-                if (bitmap != IntPtr.Zero) DeleteObject(bitmap);
-                ReleaseDC(IntPtr.Zero, screen);
-            }
-            return pixels;
+            finally { ReleaseDC(IntPtr.Zero, screen); }
         }
 
-        private void PaintFace(Graphics f)
+        private void ReleaseFace()
+        {
+            if (faceDc != IntPtr.Zero)
+            {
+                SelectObject(faceDc, faceOld);
+                DeleteDC(faceDc);
+                faceDc = IntPtr.Zero;
+            }
+            if (faceDib != IntPtr.Zero) DeleteObject(faceDib);
+            faceDib = IntPtr.Zero;
+            faceData = IntPtr.Zero;
+        }
+
+        /// How many times the whole card has been drawn again (for the tests: moving down the list costs none of these).
+        internal int Renders { get; private set; }
+
+        /// How many times a change of the item under the pointer has been answered by a patch of the pictures it stands in.
+        internal int Patches { get; private set; }
+
+        // The item under the pointer moved from `before` to `after`: only their rows are drawn again, into the face already
+        // kept, and laid straight into the two pictures of the card (v0.6.23, the design audit's M7: every step down a long list
+        // drew the whole card, its shadow and its every pixel again). False where that cannot be done: a row whose pill or
+        // lift reaches a corner of the card, or a list drawn with no pictures yet - the whole card is drawn then, as before.
+        private bool Patched(int before, int after)
+        {
+            if (image == null || dib == IntPtr.Zero || dibData == IntPtr.Zero || faceDib == IntPtr.Zero) return false;
+            var inside = Rectangle.Inflate(new Rectangle(0, 0, card.Width, card.Height), -(Soft.Hairline + 1), -(Soft.Hairline + 1));
+            Rectangle one = RowArea(before, inside), other = RowArea(after, inside);
+            if (one.IsEmpty && other.IsEmpty) return before < 0 && after < 0;
+            int corner = (int)Math.Ceiling(Soft.PxF(Palette.RadiusCard)) + 1;
+            if (TouchesCorner(one, corner) || TouchesCorner(other, corner)) return false;
+            using (Graphics f = Graphics.FromHdc(faceDc))
+            {
+                if (!one.IsEmpty) PaintFace(f, one);
+                if (!other.IsEmpty) PaintFace(f, other);
+            }
+            GdiFlush();
+            if (!one.IsEmpty) Copy(one);
+            if (!other.IsEmpty) Copy(other);
+            Patches++;
+            Push();
+            return true;
+        }
+
+        // The rows of the card item `index`'s pill and its lift can cover, kept inside `inside`; empty for no item. A row
+        // scrolled partly out of the list is not one a patch can do: the card's padding stands over it.
+        private Rectangle RowArea(int index, Rectangle inside)
+        {
+            if (index < 0 || index >= combo.Items.Count) return Rectangle.Empty;
+            Rectangle pill = PillRect(index);
+            if (pill.Top < pad || pill.Bottom > card.Height - pad) return new Rectangle(-1, -1, card.Width + 2, card.Height + 2);
+            Padding reach = Elevation.Reach("control");
+            var area = new Rectangle(pill.X - reach.Left, pill.Y - reach.Top, pill.Width + reach.Horizontal, pill.Height + reach.Vertical);
+            return Rectangle.Intersect(area, inside);
+        }
+
+        private bool TouchesCorner(Rectangle area, int corner)
+        {
+            if (area.IsEmpty) return false;
+            if (area.X < 0) return true;
+            return area.IntersectsWith(new Rectangle(0, 0, corner, corner)) ||
+                   area.IntersectsWith(new Rectangle(card.Width - corner, 0, corner, corner)) ||
+                   area.IntersectsWith(new Rectangle(0, card.Height - corner, corner, corner)) ||
+                   area.IntersectsWith(new Rectangle(card.Width - corner, card.Height - corner, corner, corner));
+        }
+
+        // `area` of the kept face, opaque, into the card in both pictures: the bitmap Render made, and Windows' copy of it.
+        private void Copy(Rectangle area)
+        {
+            int stride = (card.Width * 3 + 3) & ~3;
+            var source = new byte[area.Width * 3];
+            var row = new int[area.Width];
+            var inImage = new Rectangle(area.X + margin.Left, area.Y + margin.Top, area.Width, area.Height);
+            BitmapData data = image.LockBits(inImage, ImageLockMode.WriteOnly, PixelFormat.Format32bppPArgb);
+            try
+            {
+                for (int y = 0; y < area.Height; y++)
+                {
+                    Marshal.Copy(new IntPtr(faceData.ToInt64() + (long)(area.Y + y) * stride + area.X * 3), source, 0, source.Length);
+                    for (int x = 0; x < area.Width; x++)
+                        row[x] = unchecked((int)0xFF000000) | (source[x * 3 + 2] << 16) | (source[x * 3 + 1] << 8) | source[x * 3];
+                    Marshal.Copy(row, 0, new IntPtr(data.Scan0.ToInt64() + (long)y * data.Stride), row.Length);
+                    Marshal.Copy(row, 0, new IntPtr(dibData.ToInt64() + (long)(inImage.Y + y) * image.Width * 4 + inImage.X * 4), row.Length);
+                }
+            }
+            finally { image.UnlockBits(data); }
+        }
+
+        private void PaintFace(Graphics f, Rectangle region)
         {
             var whole = new Rectangle(0, 0, card.Width, card.Height);
-            using (var brush = new SolidBrush(Palette.Card)) f.FillRectangle(brush, whole);
+            using (var brush = new SolidBrush(Palette.Card)) f.FillRectangle(brush, region);
             int count = combo.Items.Count, chosen = combo.SelectedIndex, highlight = combo.Highlight;
             bool cues = combo.KeyboardCues;
             float radius = Soft.PxF(Palette.RadiusSmall);
@@ -1395,6 +1590,7 @@ namespace CodexAutoResume
             {
                 Rectangle item = PillRect(i);
                 if (item.Bottom < 0 || item.Top > card.Height) continue;
+                if (!Rectangle.Inflate(item, Soft.Px(Brand.SpaceS), Soft.Px(Brand.SpaceS)).IntersectsWith(region)) continue;
                 Color ink = Palette.Ink;
                 if (i == chosen)
                 {
@@ -1433,7 +1629,7 @@ namespace CodexAutoResume
             if (cues && highlight >= 0 && highlight < count) Soft.Ring(f, PillRect(highlight), radius);
             // The list is its own window, drawn here rather than by a parent: its ground is the card it
             // just filled, which is what the track's colour is chosen against.
-            if (scrolls) SoftBar.Draw(f, TrackRect, ThumbRect, dragging ? 2 : 0, Palette.Card);
+            if (scrolls && TrackRect.IntersectsWith(region)) SoftBar.Draw(f, TrackRect, ThumbRect, dragging ? 2 : 0, Palette.Card);
         }
 
         // Copies what was drawn into a bitmap Windows can lay on the screen: premultiplied, top down.
@@ -1453,6 +1649,7 @@ namespace CodexAutoResume
                 IntPtr bits;
                 dib = CreateDIBSection(screen, ref header, 0, out bits, IntPtr.Zero, 0);
                 if (dib == IntPtr.Zero || bits == IntPtr.Zero) return;
+                dibData = bits;
                 BitmapData data = image.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.ReadOnly, PixelFormat.Format32bppPArgb);
                 try
                 {
@@ -1499,7 +1696,10 @@ namespace CodexAutoResume
                 DeleteObject(dib);
                 dib = IntPtr.Zero;
             }
+            dibData = IntPtr.Zero;
         }
+
+        private IntPtr dibData;
 
         // ------------------------------------------------------------------ the pointer
 
@@ -1513,7 +1713,7 @@ namespace CodexAutoResume
             }
             if (message == WM_NCHITTEST)
             {
-                m.Result = (IntPtr)(CardOnScreen.Contains(ScreenPoint(m.LParam)) ? HTCLIENT : HTTRANSPARENT);
+                m.Result = (IntPtr)(!closing && CardOnScreen.Contains(ScreenPoint(m.LParam)) ? HTCLIENT : HTTRANSPARENT);
                 return;
             }
             if (message == WM_SETCURSOR)
@@ -1530,10 +1730,11 @@ namespace CodexAutoResume
             if (message == WM_MOUSELEAVE)
             {
                 tracking = false;
-                if (!dragging && hover >= 0)
+                if (!closing && !dragging && hover >= 0)
                 {
+                    int was = hover;
                     hover = -1;
-                    Render();
+                    if (combo.KeyboardCues || !Patched(was, -1)) Render();
                 }
                 return;
             }
@@ -1600,9 +1801,11 @@ namespace CodexAutoResume
         private void SetHover(int index)
         {
             if (index == hover && !combo.KeyboardCues) return;
+            bool cues = combo.KeyboardCues;
+            int was = hover;
             hover = index;
-            if (index >= 0 || combo.KeyboardCues) combo.Hovered(index);
-            Render();
+            if (index >= 0 || cues) combo.Hovered(index);
+            if (cues || !Patched(was, index)) Render();
         }
 
         private void Pressed(Point local)
@@ -1667,6 +1870,7 @@ namespace CodexAutoResume
             dragging = false;
             if (Handle != IntPtr.Zero) DestroyHandle();
             Release();
+            ReleaseFace();
             if (image != null)
             {
                 image.Dispose();

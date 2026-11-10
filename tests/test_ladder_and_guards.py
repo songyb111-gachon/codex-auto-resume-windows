@@ -80,9 +80,9 @@ def checkout(folder: Path, head: str = "ref: refs/heads/main\n") -> Path:
 class LadderTests(unittest.TestCase):
     def test_what_is_taken_up_waits_and_lasts_as_long_as_core_says(self):
         """v0.6.14: a failure the edition's plug took up (P17) waits ten, fifteen and thirty minutes
-        by its attempt; only one from the last hour is taken up, and one ends a day on."""
+        by its attempt; only one from the last six hours is taken up, and one ends a day on."""
         self.assertEqual(ladder.ADMITTED_WAITS, (600, 900, 1800))
-        self.assertEqual((ladder.ADMISSION_MAX_AGE, ladder.ADMITTED_MAX_SECONDS), (3600, 86400))
+        self.assertEqual((ladder.ADMISSION_MAX_AGE, ladder.ADMITTED_MAX_SECONDS), (21600, 86400))
         self.assertTrue(all(wait >= 300 for wait in ladder.ADMITTED_WAITS))
 
     def test_capacity_retries_are_held_to_core_s_own_bounds(self):

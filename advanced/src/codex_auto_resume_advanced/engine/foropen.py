@@ -11,7 +11,7 @@ whether to keep it there: yes while the override is within the person's Days (3 
 core takes it back at 30 days and an hour whatever is answered (core's engine/foropen.py). An interruption once
 queued for opening is never queued for opening again: given back to waiting, it waits for the app as A11 says.
 
-Opened and not delivered within core's 180 seconds, core takes it back (not_delivered_on_open), gives it back to
+Opened and not delivered within core's delivery timeout (300 seconds), core takes it back (not_delivered_on_open), gives it back to
 waiting and sends it the ordinary way to the now loaded conversation - and this capability turns off: the tripwire
 NOT_DELIVERED_ON_OPEN (runtime.moved). Where the goal continuation's route applies it answers first, before this in
 the registry, and its route is carried out.

@@ -58,7 +58,7 @@ class PartialRollbackTests(unittest.TestCase):
         path.write_text(source, encoding="utf-8-sig")
         return subprocess.run([POWERSHELL, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
                                "-File", str(path)],
-                              capture_output=True, text=True, timeout=180, creationflags=NO_WINDOW)
+                              capture_output=True, encoding="locale", errors="replace", timeout=180, creationflags=NO_WINDOW)
 
     def test_the_previous_tree_is_never_moved_into_the_half_copied_one(self):
         done = self.rollback()

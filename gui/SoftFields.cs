@@ -19,10 +19,16 @@ namespace CodexAutoResume
     /// primary action. Under the pointer a plain button comes up to the surface and the accent
     /// brightens a step; pressed, either sinks into a well; disabled, it is flat, with muted
     /// words and no accent, so the accent never marks a dead control.
-    internal sealed class SoftButton : Button, ISoftLifted
+    ///
+    /// v0.6.23: each of those changes glides (SoftSurfaceGlide) - hover and enabled in brand's transition, a press and its
+    /// release in its shorter press time - and a press from the keyboard shows as one from the mouse does. The shadow goes
+    /// and comes at the moment of the press: a shadow has no way to fade (Elevation).
+    internal sealed class SoftButton : Button, ISoftLifted, IBusyFace
     {
         private bool primary, danger, hover, pressed;
+        private bool held;
         private readonly LiftTracker tracker;
+        private readonly SoftSurfaceGlide glide;
 
         internal SoftButton(bool primary)
         {
@@ -34,22 +40,26 @@ namespace CodexAutoResume
             UseVisualStyleBackColor = false;
             Cursor = Cursors.Hand;
             tracker = new LiftTracker(this, "control");
+            glide = new SoftSurfaceGlide(this, Wanted);
         }
 
         internal bool Primary
         {
             get { return primary; }
-            set { primary = value; Invalidate(); }
+            set { primary = value; glide.Changed(); Invalidate(); }
         }
 
         /// A button whose action cannot be taken back: its words are in the danger colour.
         internal bool Danger
         {
             get { return danger; }
-            set { danger = value; Invalidate(); }
+            set { danger = value; glide.Changed(); Invalidate(); }
         }
 
-        string ISoftLifted.Lift { get { return Enabled && !pressed ? "control" : null; } }
+        /// Whether it looks enabled: it is, or it was turned off a moment ago by a call that may yet be over at once (BusyHold).
+        private bool LooksEnabled { get { return Enabled || held; } }
+
+        string ISoftLifted.Lift { get { return LooksEnabled && !pressed ? "control" : null; } }
         float ISoftLifted.Radius { get { return Soft.PxF(Palette.RadiusControl); } }
         Rectangle ISoftLifted.Face { get { return ClientRectangle; } }
         bool ISoftLifted.Ring { get { return Focused && ShowFocusCues; } }
@@ -58,17 +68,72 @@ namespace CodexAutoResume
         {
             if (pressed == down) return;
             pressed = down;
+            glide.Changed(Motion.Press);
             Invalidate();
             tracker.Update();
         }
 
-        protected override void OnMouseEnter(EventArgs e) { hover = true; Invalidate(); base.OnMouseEnter(e); }
-        protected override void OnMouseLeave(EventArgs e) { hover = false; Press(false); Invalidate(); base.OnMouseLeave(e); }
+        /// What its state looks like, for SoftSurfaceGlide.
+        private SurfaceLook Wanted()
+        {
+            if (!LooksEnabled) return new SurfaceLook(Palette.Surface, Palette.Line, Palette.Muted);
+            if (primary)
+            {
+                Color accent = pressed ? Palette.AccentPressed : hover ? Palette.AccentHover : Palette.Accent;
+                return new SurfaceLook(accent, accent, Palette.OnAccent);
+            }
+            return new SurfaceLook(pressed ? Palette.Inset : hover ? Palette.Surface : Palette.Raised, Palette.Line,
+                                   danger ? Palette.Danger : Palette.Ink);
+        }
+
+        private void Hover(bool over)
+        {
+            hover = over;
+            glide.Changed();
+        }
+
+        protected override void OnMouseEnter(EventArgs e) { Hover(true); base.OnMouseEnter(e); }
+        protected override void OnMouseLeave(EventArgs e) { Press(false); Hover(false); base.OnMouseLeave(e); }
         protected override void OnMouseDown(MouseEventArgs e) { if (e.Button == MouseButtons.Left) Press(true); base.OnMouseDown(e); }
         protected override void OnMouseUp(MouseEventArgs e) { Press(false); base.OnMouseUp(e); }
-        protected override void OnEnabledChanged(EventArgs e) { Invalidate(); base.OnEnabledChanged(e); }
+
+        // Space presses it while the key is down, as Windows' own button does; Enter clicks it at once, and shows until the key
+        // comes up. The key's own action, and the click, stay ButtonBase's.
+        protected override void OnKeyDown(KeyEventArgs e) { if (e.KeyCode == Keys.Space) Press(true); base.OnKeyDown(e); }
+        protected override void OnKeyUp(KeyEventArgs e) { if (e.KeyCode == Keys.Space || e.KeyCode == Keys.Enter) Press(false); base.OnKeyUp(e); }
+
+        protected override bool ProcessDialogKey(Keys keyData)
+        {
+            if (keyData == Keys.Enter && Focused && Enabled) Press(true);
+            return base.ProcessDialogKey(keyData);
+        }
+
+        protected override void OnEnabledChanged(EventArgs e)
+        {
+            held = !Enabled && BusyHold.Join(this);
+            if (!Enabled && pressed) { pressed = false; }
+            glide.Changed();
+            Invalidate();
+            base.OnEnabledChanged(e);
+        }
+
+        void IBusyFace.HoldEnded()
+        {
+            if (!held || IsDisposed) return;
+            held = false;
+            glide.Changed();
+            Invalidate();
+            tracker.Update();
+        }
+
         protected override void OnGotFocus(EventArgs e) { Invalidate(); base.OnGotFocus(e); }
-        protected override void OnLostFocus(EventArgs e) { Invalidate(); base.OnLostFocus(e); }
+        protected override void OnLostFocus(EventArgs e) { Press(false); Invalidate(); base.OnLostFocus(e); }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) glide.Dispose();
+            base.Dispose(disposing);
+        }
 
         public override Size GetPreferredSize(Size proposedSize)
         {
@@ -85,26 +150,9 @@ namespace CodexAutoResume
             Rectangle face = ClientRectangle;
             float radius = Soft.PxF(Palette.RadiusControl);
             Ground.PaintBehind(this, g, face, radius);
-            Color fill, edge, text;
-            if (!Enabled)
-            {
-                fill = Palette.Surface;
-                edge = Palette.Line;
-                text = Palette.Muted;
-            }
-            else if (primary)
-            {
-                fill = pressed ? Palette.AccentPressed : hover ? Palette.AccentHover : Palette.Accent;
-                edge = fill;
-                text = Palette.OnAccent;
-            }
-            else
-            {
-                fill = pressed ? Palette.Inset : hover ? Palette.Surface : Palette.Raised;
-                edge = Palette.Line;
-                text = danger ? Palette.Danger : Palette.Ink;
-            }
-            Soft.Body(g, face, radius, fill, edge, pressed && Enabled);
+            SurfaceLook look = glide.Now;
+            Color text = look.Ink;
+            Soft.Body(g, face, radius, look.Fill, look.Edge, pressed && LooksEnabled);
             TextRenderer.DrawText(g, Text, Font, face, text,
                                   Mirror.Words(Mirror.Of(this), TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
                                                                 TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis));
@@ -129,11 +177,16 @@ namespace CodexAutoResume
     /// arrives. With motion reduced, Windows' animation effects off, in High Contrast, or out of sight,
     /// the change is immediate. It follows Checked, so a caller that asks first and sets Checked only once
     /// the change is confirmed has a switch that moves only then.
-    internal sealed class SoftCheck : CheckBox, ISoftLifted
+    ///
+    /// v0.6.23: it answers the pointer as well - the well comes up under it, held down a switch's knob widens and a box darkens,
+    /// the same from the keyboard's Space - and a check box's mark is drawn on along its stroke. A frame lays down one picture of
+    /// the ground (GroundShot) and cached glyphs (BoxGlyphs) rather than working either out again.
+    internal sealed class SoftCheck : CheckBox, ISoftLifted, IBusyFace
     {
         private readonly LiftTracker tracker;
-        private readonly Transition turn;
-        private bool box;
+        private readonly Transition turn, hot, down, live;
+        private readonly GroundShot shot = new GroundShot();
+        private bool box, held;
 
         internal SoftCheck()
         {
@@ -142,8 +195,23 @@ namespace CodexAutoResume
             Cursor = Cursors.Hand;
             AccessibleRole = AccessibleRole.CheckButton;
             tracker = new LiftTracker(this, "control");
-            turn = new Transition(this, 0.0);
+            turn = Part(0.0);
+            hot = Part(0.0);
+            down = Part(0.0);
+            live = Part(1.0);
         }
+
+        // One of the things that move, repainting the glyph where it is now.
+        private Transition Part(double value)
+        {
+            var part = new Transition(this, value);
+            part.Where = delegate { return Glyph; };
+            return part;
+        }
+
+        /// How far under the pointer it is drawn, and how far held down, each from 0 to 1 (for the tests).
+        internal double Hot { get { return hot.Value; } }
+        internal double Down { get { return down.Value; } }
 
         /// How far on the glyph is drawn, from 0 (off) to 1 (on): between the two only while it moves.
         internal double Progress { get { return turn.Value; } }
@@ -230,35 +298,74 @@ namespace CodexAutoResume
         protected override void OnCheckedChanged(EventArgs e)
         {
             // Paint only: the glyph glides to its new state, and nothing is laid out.
-            turn.Area = Glyph;
             turn.To(Checked ? 1.0 : 0.0, Motion.Allowed(this));
             Invalidate();
             base.OnCheckedChanged(e);
         }
 
-        protected override void OnEnabledChanged(EventArgs e) { Invalidate(); base.OnEnabledChanged(e); }
+        private void Held(bool on) { down.To(on ? 1.0 : 0.0, Motion.Allowed(this), Motion.Press); }
+
+        protected override void OnMouseEnter(EventArgs e) { hot.To(1.0, Motion.Allowed(this)); base.OnMouseEnter(e); }
+        protected override void OnMouseLeave(EventArgs e) { Held(false); hot.To(0.0, Motion.Allowed(this)); base.OnMouseLeave(e); }
+        protected override void OnMouseDown(MouseEventArgs e) { if (e.Button == MouseButtons.Left) Held(true); base.OnMouseDown(e); }
+        protected override void OnMouseUp(MouseEventArgs e) { Held(false); base.OnMouseUp(e); }
+        protected override void OnKeyDown(KeyEventArgs e) { if (e.KeyCode == Keys.Space) Held(true); base.OnKeyDown(e); }
+        protected override void OnKeyUp(KeyEventArgs e) { if (e.KeyCode == Keys.Space) Held(false); base.OnKeyUp(e); }
+
+        protected override void OnEnabledChanged(EventArgs e)
+        {
+            held = !Enabled && BusyHold.Join(this);
+            if (!Enabled) { down.To(0.0, false); hot.To(0.0, false); }
+            live.To(Enabled || held ? 1.0 : 0.0, Motion.Allowed(this));
+            Invalidate();
+            base.OnEnabledChanged(e);
+        }
+
+        void IBusyFace.HoldEnded()
+        {
+            if (!held || IsDisposed) return;
+            held = false;
+            live.To(Enabled ? 1.0 : 0.0, Motion.Allowed(this));
+            Invalidate();
+        }
+
         protected override void OnGotFocus(EventArgs e) { Invalidate(); base.OnGotFocus(e); }
-        protected override void OnLostFocus(EventArgs e) { Invalidate(); base.OnLostFocus(e); }
+        protected override void OnLostFocus(EventArgs e) { Held(false); Invalidate(); base.OnLostFocus(e); }
         protected override void OnTextChanged(EventArgs e) { Invalidate(); base.OnTextChanged(e); }
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing) turn.Dispose();
+            if (disposing)
+            {
+                turn.Dispose();
+                hot.Dispose();
+                down.Dispose();
+                live.Dispose();
+                shot.Dispose();
+            }
             base.Dispose(disposing);
         }
 
         protected override void OnPaint(PaintEventArgs e)
         {
             Graphics g = e.Graphics;
-            Ground.PaintArea(this, g, ClientRectangle);
             Rectangle glyph = Glyph;
+            // A frame of a glide repaints the glyph alone, and lays down the one picture of the ground it took at its first.
+            bool frame = (turn.Running || hot.Running || down.Running || live.Running) && glyph.Contains(e.ClipRectangle);
+            if (frame) shot.Paint(this, g, glyph);
+            else
+            {
+                shot.Forget();
+                Ground.PaintArea(this, g, ClientRectangle);
+            }
             double on = turn.Value;
             bool mirrored = Mirror.Of(this);
-            if (box) DrawBoxAt(g, glyph, on, Enabled);
-            else Soft.SwitchSide(g, glyph, on, Enabled, Parent != null ? Ground.Colour(Parent) : Palette.Card, mirrored);
+            if (box) DrawBoxLive(g, glyph, on, live.Value, hot.Value, down.Value);
+            else Soft.SwitchLive(g, glyph, on, live.Value, hot.Value, down.Value, Parent != null ? Ground.Colour(Parent) : Palette.Card, mirrored);
+            if (frame) return;
             int wide = glyph.Width + Gap;
             var textBounds = Mirror.Box(mirrored, Width, new Rectangle(wide, 0, Math.Max(0, Width - wide), Height));
-            Color ink = Enabled ? ForeColor : Palette.Muted;
+            Color ink = Enabled || held ? ForeColor : Palette.Muted;
             int room = textBounds.Width - Soft.Px(6);
             if (Wraps && TextRenderer.MeasureText(Text ?? "", Font, new Size(int.MaxValue, int.MaxValue),
                                                   TextFormatFlags.SingleLine).Width > room)
@@ -282,27 +389,46 @@ namespace CodexAutoResume
         /// stroked CheckStroke wide with flat ends and a mitred corner.
         internal static void DrawBox(Graphics g, Rectangle face, bool on, bool enabled)
         {
-            Color fill, edge, mark;
-            bool marked, well;
+            BoxBody(g, face, on, enabled);
+            BoxMark(g, face, on, enabled, 1.0);
+        }
+
+        // The box without its mark: the fill, the inset well while it has one, the hairline.
+        private static void BoxBody(Graphics g, Rectangle face, bool on, bool enabled)
+        {
+            Color fill, edge;
+            bool well;
+            BoxColours(on, enabled, out fill, out edge, out well);
+            Soft.Body(g, face, Soft.PxF(Palette.RadiusCheck), fill, edge, well ? "inset" : null);
+        }
+
+        // Its colours: the design's own in the theme in effect (Tokens: Soft's, Classic's or Plain's), and the well only
+        // where the design has depth - in Classic and Plain an empty box is its fill and its hairline. The system's in
+        // High Contrast.
+        private static void BoxColours(bool on, bool enabled, out Color fill, out Color edge, out bool well)
+        {
             if (Palette.Contrast)
             {
                 fill = Brand.CheckSystemFill(on, enabled);
                 edge = Brand.CheckSystemEdge(on, enabled);
-                marked = Brand.CheckSystemMark(on, enabled, out mark);
                 well = false;
+                return;
             }
-            else
-            {
-                // The design's own colours in the theme in effect (Tokens: Soft's, Classic's or Plain's), and the well
-                // only where the design has depth: in Classic and Plain an empty box is its fill and its hairline.
-                fill = Tokens.CheckFill(on, enabled);
-                edge = Tokens.CheckEdge(on, enabled);
-                marked = Tokens.CheckMark(on, enabled, out mark);
-                well = Palette.Depth && Brand.CheckWell(on, enabled);
-            }
-            Soft.Body(g, face, Soft.PxF(Palette.RadiusCheck), fill, edge, well ? "inset" : null);
-            if (!marked) return;
+            fill = Tokens.CheckFill(on, enabled);
+            edge = Tokens.CheckEdge(on, enabled);
+            well = Palette.Depth && Brand.CheckWell(on, enabled);
+        }
+
+        // The mark, as far along its stroke as `length` says, from its start: all of it at 1, exactly as it has always been.
+        private static void BoxMark(Graphics g, Rectangle face, bool on, bool enabled, double length)
+        {
+            Color mark;
+            bool marked = Palette.Contrast ? Brand.CheckSystemMark(on, enabled, out mark) : Tokens.CheckMark(on, enabled, out mark);
+            if (!marked || length <= 0.0) return;
             float scale = (float)SettingsForm.DpiScale;
+            var start = new PointF(face.X + Brand.CheckMarkStartX * scale, face.Y + Brand.CheckMarkStartY * scale);
+            var corner = new PointF(face.X + Brand.CheckMarkCornerX * scale, face.Y + Brand.CheckMarkCornerY * scale);
+            var end = new PointF(face.X + Brand.CheckMarkEndX * scale, face.Y + Brand.CheckMarkEndY * scale);
             GraphicsState state = g.Save();
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.PixelOffsetMode = PixelOffsetMode.Half;
@@ -311,17 +437,30 @@ namespace CodexAutoResume
                 pen.StartCap = LineCap.Flat;
                 pen.EndCap = LineCap.Flat;
                 pen.LineJoin = LineJoin.Miter;
-                g.DrawLines(pen, new[] {
-                    new PointF(face.X + Brand.CheckMarkStartX * scale, face.Y + Brand.CheckMarkStartY * scale),
-                    new PointF(face.X + Brand.CheckMarkCornerX * scale, face.Y + Brand.CheckMarkCornerY * scale),
-                    new PointF(face.X + Brand.CheckMarkEndX * scale, face.Y + Brand.CheckMarkEndY * scale) });
+                if (length >= 1.0) g.DrawLines(pen, new[] { start, corner, end });
+                else
+                {
+                    double first = Math.Sqrt(Square(corner.X - start.X) + Square(corner.Y - start.Y));
+                    double second = Math.Sqrt(Square(end.X - corner.X) + Square(end.Y - corner.Y));
+                    double drawn = (first + second) * length;
+                    if (drawn <= first) g.DrawLine(pen, start, Along(start, corner, drawn / first));
+                    else g.DrawLines(pen, new[] { start, corner, Along(corner, end, (drawn - first) / second) });
+                }
             }
             g.Restore(state);
         }
 
-        /// The check box `on` of the way from unchecked (0) to checked (1), as it fades between them
-        /// (v0.6.5): the unchecked box, and the checked one - its fill, edge and mark - over it at that
-        /// opacity. At 0 and 1 it is exactly DrawBox.
+        private static double Square(double value) { return value * value; }
+
+        private static PointF Along(PointF from, PointF to, double part)
+        {
+            return new PointF((float)(from.X + (to.X - from.X) * part), (float)(from.Y + (to.Y - from.Y) * part));
+        }
+
+        /// The check box `on` of the way from unchecked (0) to checked (1), as it moves between them: the unchecked box, the
+        /// checked box's fill and edge over it at that opacity, and the mark drawn on along its stroke that far (v0.6.23; until
+        /// then the mark faded with the fill). Both boxes are kept pictures (BoxGlyphs), so a frame makes none. At 0 and 1 it
+        /// is exactly DrawBox.
         internal static void DrawBoxAt(Graphics g, Rectangle face, double on, bool enabled)
         {
             if (on <= 0.0 || on >= 1.0 || Palette.Contrast || face.Width <= 0 || face.Height <= 0)
@@ -329,17 +468,273 @@ namespace CodexAutoResume
                 DrawBox(g, face, on >= 0.5, enabled);
                 return;
             }
-            DrawBox(g, face, false, enabled);
-            using (var layer = new Bitmap(face.Width + 2, face.Height + 2, PixelFormat.Format32bppPArgb))
+            Rectangle dest = BoxGlyphs.Around(face);
+            g.DrawImage(BoxGlyphs.Of(face, false, enabled), dest);
+            Soft.Faded(g, BoxGlyphs.Of(face, true, enabled), dest, on);
+            BoxMark(g, face, true, enabled, on);
+        }
+
+        /// The check box with what else moves, each from 0 to 1 and exact at its ends: `live`, how enabled it is, `hover`, the
+        /// pointer on it, `press`, held down.
+        internal static void DrawBoxLive(Graphics g, Rectangle face, double on, double live, double hover, double press)
+        {
+            bool enabled = live >= 0.5;
+            bool whole = on <= 0.0 || on >= 1.0;
+            if (Palette.Contrast || face.Width <= 0 || face.Height <= 0 || (hover <= 0.0 && press <= 0.0 && (live <= 0.0 || live >= 1.0)))
             {
-                using (Graphics drawn = Graphics.FromImage(layer))
+                DrawBoxAt(g, face, on, enabled);
+                return;
+            }
+            bool chosen = on >= 0.5;
+            if (whole && live > 0.0 && live < 1.0)
+            {
+                // Between enabled and not: the one over the other, at how far it has come.
+                Rectangle dest = BoxGlyphs.Around(face);
+                g.DrawImage(BoxGlyphs.Of(face, chosen, false), dest);
+                Soft.Faded(g, BoxGlyphs.Of(face, chosen, true), dest, live);
+                BoxMark(g, face, chosen, enabled, 1.0);
+                return;
+            }
+            if (whole) BoxBody(g, face, chosen, enabled);
+            else
+            {
+                Rectangle dest = BoxGlyphs.Around(face);
+                g.DrawImage(BoxGlyphs.Of(face, false, enabled), dest);
+                Soft.Faded(g, BoxGlyphs.Of(face, true, enabled), dest, on);
+            }
+            // Over the body and under the mark: under the pointer it comes up a step, held down it goes down one.
+            Tint(g, face, chosen ? Palette.AccentHover : Palette.Surface, hover * 0.8);
+            Tint(g, face, chosen ? Palette.AccentPressed : Palette.Accent, press * (chosen ? 1.0 : 0.25));
+            BoxMark(g, face, whole ? chosen : true, enabled, whole ? 1.0 : on);
+        }
+
+        private static void Tint(Graphics g, Rectangle face, Color colour, double amount)
+        {
+            if (amount <= 0.0) return;
+            int hairline = Soft.Hairline;
+            GraphicsState state = g.Save();
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.PixelOffsetMode = PixelOffsetMode.Half;
+            using (GraphicsPath path = Soft.Rounded(Rectangle.Inflate(face, -hairline, -hairline), Math.Max(0f, Soft.PxF(Palette.RadiusCheck) - hairline)))
+            using (var brush = new SolidBrush(Soft.WithAlpha(colour, amount)))
+                g.FillPath(brush, path);
+            g.Restore(state);
+        }
+
+        /// The two boxes a moving check box is made of (v0.6.23): each one's body, drawn once for its size, state and colours and
+        /// kept, so a frame of the glide lays pictures down and makes none. Until then every frame drew a new bitmap.
+        internal static class BoxGlyphs
+        {
+            private static readonly Dictionary<string, Bitmap> kept = new Dictionary<string, Bitmap>();
+
+            /// How many have been drawn since the window started: what a test counts across the frames of a glide.
+            internal static int Made;
+
+            internal static Rectangle Around(Rectangle face)
+            {
+                return new Rectangle(face.X - 1, face.Y - 1, face.Width + 2, face.Height + 2);
+            }
+
+            internal static Bitmap Of(Rectangle face, bool on, bool enabled)
+            {
+                Color fill, edge;
+                bool well;
+                BoxColours(on, enabled, out fill, out edge, out well);
+                string key = face.Width.ToString() + "x" + face.Height.ToString() + (on ? "+" : "-") + (enabled ? "e" : "d") +
+                             (well ? "w" : "f") + fill.ToArgb().ToString() + "," + edge.ToArgb().ToString();
+                Bitmap found;
+                if (kept.TryGetValue(key, out found)) return found;
+                // A theme, a design or a scale change is what puts a new one in here, so this holds a few.
+                if (kept.Count >= 24)
+                {
+                    foreach (Bitmap old in kept.Values) old.Dispose();
+                    kept.Clear();
+                }
+                found = new Bitmap(face.Width + 2, face.Height + 2, PixelFormat.Format32bppPArgb);
+                Made++;
+                using (Graphics drawn = Graphics.FromImage(found))
                 {
                     drawn.Clear(Color.Transparent);
-                    drawn.TranslateTransform(1 - face.X, 1 - face.Y);
-                    DrawBox(drawn, face, true, enabled);
+                    BoxBody(drawn, new Rectangle(1, 1, face.Width, face.Height), on, enabled);
                 }
-                Soft.Faded(g, layer, new Rectangle(face.X - 1, face.Y - 1, layer.Width, layer.Height), on);
+                kept[key] = found;
+                return found;
             }
+        }
+    }
+
+    /// A link in the window's own terms (v0.6.23, the design audit's D4): accent words on the card, underlined under the pointer and
+    /// from the keyboard, darker held down, gliding between those as a button does, and the soft focus ring. Enter and Space press it;
+    /// a screen reader is told it is a link and can press it.
+    internal sealed class SoftLink : Control
+    {
+        private bool hover, pressed;
+        private readonly SoftSurfaceGlide glide;
+
+        internal SoftLink()
+        {
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
+                     ControlStyles.ResizeRedraw | ControlStyles.Selectable, true);
+            TabStop = true;
+            Cursor = Cursors.Hand;
+            AccessibleRole = AccessibleRole.Link;
+            glide = new SoftSurfaceGlide(this, Wanted);
+        }
+
+        private const TextFormatFlags Line = TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.SingleLine |
+                                             TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding;
+
+        private SurfaceLook Wanted()
+        {
+            Color words = pressed ? Palette.AccentPressed : Palette.Accent;
+            bool marked = hover || pressed || (Focused && ShowFocusCues);
+            return new SurfaceLook(Color.Empty, Color.Empty, words, marked ? words : SurfaceLook.None(words));
+        }
+
+        private void Press(bool down)
+        {
+            if (pressed == down) return;
+            pressed = down;
+            glide.Changed(Motion.Press);
+        }
+
+        protected override void OnMouseEnter(EventArgs e) { hover = true; glide.Changed(); base.OnMouseEnter(e); }
+        protected override void OnMouseLeave(EventArgs e) { hover = false; Press(false); glide.Changed(); base.OnMouseLeave(e); }
+        protected override void OnMouseDown(MouseEventArgs e) { if (e.Button == MouseButtons.Left) { Focus(); Press(true); } base.OnMouseDown(e); }
+        protected override void OnMouseUp(MouseEventArgs e) { Press(false); base.OnMouseUp(e); }
+        protected override void OnGotFocus(EventArgs e) { glide.Changed(); Invalidate(); base.OnGotFocus(e); }
+        protected override void OnLostFocus(EventArgs e) { Press(false); glide.Changed(); Invalidate(); base.OnLostFocus(e); }
+        protected override void OnTextChanged(EventArgs e) { Invalidate(); base.OnTextChanged(e); }
+        protected override bool IsInputKey(Keys keyData) { return keyData == Keys.Enter || keyData == Keys.Space || base.IsInputKey(keyData); }
+
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Space) Press(true);
+            base.OnKeyDown(e);
+        }
+
+        protected override void OnKeyUp(KeyEventArgs e)
+        {
+            bool key = (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Space) && pressed;
+            Press(false);
+            base.OnKeyUp(e);
+            if (key) OnClick(EventArgs.Empty);
+        }
+
+        public override Size GetPreferredSize(Size proposedSize)
+        {
+            return Soft.Measure(Text ?? "", Font, int.MaxValue, Line) + new Size(Soft.Px(6), Soft.Px(6));
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            Graphics g = e.Graphics;
+            Ground.PaintArea(this, g, ClientRectangle);
+            bool mirrored = Mirror.Of(this);
+            SurfaceLook look = glide.Now;
+            int inset = Soft.Px(3);
+            var line = new Rectangle(inset, 0, Math.Max(0, Width - 2 * inset), Height);
+            TextRenderer.DrawText(g, Text, Font, line, look.Ink, Mirror.Words(mirrored, Line));
+            Size words = Soft.Measure(Text ?? "", Font, int.MaxValue, Line);
+            int wide = Math.Min(words.Width, line.Width);
+            var box = new Rectangle(mirrored ? line.Right - wide : line.X, (Height - words.Height) / 2, wide, words.Height);
+            if (look.Mark.A > 0) g.FillRectangle(Soft.Fill(look.Mark), box.X, box.Bottom - Soft.Hairline, box.Width, Soft.Hairline);
+            if (Focused && ShowFocusCues) Soft.FocusRing(g, Rectangle.Inflate(box, 1, 1), Soft.PxF(Palette.RadiusSmall) / 2f);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) glide.Dispose();
+            base.Dispose(disposing);
+        }
+
+        protected override AccessibleObject CreateAccessibilityInstance()
+        {
+            return new LinkAccessible(this);
+        }
+
+        private sealed class LinkAccessible : Control.ControlAccessibleObject
+        {
+            private readonly SoftLink link;
+
+            internal LinkAccessible(SoftLink owner) : base(owner) { link = owner; }
+
+            public override string DefaultAction { get { return "Press"; } }
+
+            public override void DoDefaultAction() { link.OnClick(EventArgs.Empty); }
+        }
+    }
+
+    /// A control whose disabled look can wait a moment (BusyHold).
+    internal interface IBusyFace
+    {
+        /// The moment is over: look as you are.
+        void HoldEnded();
+    }
+
+    /// Every action turned every button in the window off and on again around its call, and most calls are over in 17 to
+    /// 87 ms: a flash of flat grey on each click, longer than the action (v0.6.23, the design audit's M3). The controls are
+    /// disabled at once as ever - a second click is refused - but for the first 150 ms of a call those turned off go on
+    /// looking as they did. A call still running then shows, and fades; one over by then has shown nothing. With motion
+    /// reduced there is no holding at all.
+    internal static class BusyHold
+    {
+        internal const int Milliseconds = 150;
+
+        private static readonly List<IBusyFace> faces = new List<IBusyFace>();
+        private static Timer timer;
+        private static Action lapsed;
+
+        /// Whether a call's first moments are on now.
+        internal static bool On { get; private set; }
+
+        /// A call has started. `whenLapsed` runs if it is still running when the moment is over. False when nothing is held.
+        internal static bool Begin(Action whenLapsed)
+        {
+            if (On) return true;
+            if (Soft.ReduceMotion) return false;
+            if (timer == null)
+            {
+                timer = new Timer();
+                timer.Interval = Milliseconds;
+                timer.Tick += delegate { Lapse(); };
+            }
+            On = true;
+            lapsed = whenLapsed;
+            timer.Start();
+            return true;
+        }
+
+        /// `face` has just been turned off: whether it goes on looking as it did for now.
+        internal static bool Join(IBusyFace face)
+        {
+            if (On) faces.Add(face);
+            return On;
+        }
+
+        /// The last call is over.
+        internal static void End()
+        {
+            lapsed = null;
+            Finish();
+        }
+
+        /// The moment is over now, as if its timer had run out: a call still running looks it (also a still of one: RenderBusy).
+        internal static void Lapse()
+        {
+            Action then = lapsed;
+            lapsed = null;
+            Finish();
+            if (then != null) then();
+        }
+
+        private static void Finish()
+        {
+            if (timer != null) timer.Stop();
+            On = false;
+            IBusyFace[] held = faces.ToArray();
+            faces.Clear();
+            foreach (IBusyFace face in held) face.HoldEnded();
         }
     }
 
@@ -352,6 +747,7 @@ namespace CodexAutoResume
         internal readonly NumericUpDown Spin = new NumericUpDown();
         private SpinPainter painter;
         private bool hooked;
+        private readonly Transition focus;
 
         internal SoftNumber()
         {
@@ -361,8 +757,9 @@ namespace CodexAutoResume
             Spin.BorderStyle = BorderStyle.None;
             Spin.BackColor = Palette.Inset;
             Spin.ForeColor = Palette.Ink;
-            Spin.Enter += delegate { Invalidate(); };
-            Spin.Leave += delegate { Invalidate(); };
+            focus = new Transition(this, 0.0);
+            Spin.Enter += delegate { focus.To(1.0, Motion.Allowed(this)); };
+            Spin.Leave += delegate { focus.To(0.0, Motion.Allowed(this)); };
             Spin.HandleCreated += delegate { Hook(); };
             Controls.Add(Spin);
             Size = new Size(Soft.Px(Brand.NumberWidth), SoftCombo.FieldHeight);
@@ -402,25 +799,74 @@ namespace CodexAutoResume
         {
             float radius = Soft.PxF(Palette.RadiusControl);
             Ground.PaintBehind(this, e.Graphics, ClientRectangle, radius);
-            Soft.InsetWell(e.Graphics, ClientRectangle, radius, Spin.ContainsFocus);
+            // At rest what the keyboard says (v0.6.23); only while it moves, where the glide has got to.
+            Soft.InsetWellAt(e.Graphics, ClientRectangle, radius, focus.Running ? focus.Value : Spin.ContainsFocus ? 1.0 : 0.0);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) focus.Dispose();
+            base.Dispose(disposing);
         }
 
         /// Draws the spin buttons as two muted wedges on the well in place of the grey
         /// scroll-bar buttons. Only painting is taken over; clicks, holds and the keyboard go on
-        /// to the control underneath.
+        /// to the control underneath. v0.6.23: the half under the pointer has a pill behind its wedge, and held
+        /// down the pill comes up a step - the only control in the window that showed nothing of a press.
         private sealed class SpinPainter : NativeWindow
         {
+            private const int WM_MOUSEMOVE = 0x0200, WM_LBUTTONDOWN = 0x0201, WM_LBUTTONUP = 0x0202, WM_MOUSELEAVE = 0x02A3;
+
             private readonly Control buttons;
+            private readonly Transition glow;
+            private int hotHalf = -1;
+            private bool over, held;
 
             internal SpinPainter(Control buttons)
             {
                 this.buttons = buttons;
+                glow = new Transition(buttons, 0.0);
+                buttons.Disposed += delegate { glow.Dispose(); };
                 AssignHandle(buttons.Handle);
+            }
+
+            /// Which half the pointer is on (0 the upper, 1 the lower, -1 neither), and whether it is held down (for the tests).
+            internal int Half { get { return over ? hotHalf : -1; } }
+            internal bool Held { get { return held; } }
+
+            private void Hot(int now)
+            {
+                if (now < 0)
+                {
+                    if (!over) return;
+                    over = false;
+                    glow.To(0.0, Motion.Allowed(buttons), Motion.Press);
+                    return;
+                }
+                if (!over)
+                {
+                    over = true;
+                    hotHalf = now;
+                    glow.To(1.0, Motion.Allowed(buttons), Motion.Press);
+                }
+                else if (hotHalf != now)
+                {
+                    hotHalf = now;
+                    buttons.Invalidate();
+                }
             }
 
             protected override void WndProc(ref Message m)
             {
                 if (NativePaint.Handle(ref m, buttons.ClientSize, Draw)) return;
+                if (m.Msg == WM_MOUSEMOVE && buttons.Enabled)
+                {
+                    int y = unchecked((short)((m.LParam.ToInt64() >> 16) & 0xFFFF));
+                    Hot(y < buttons.ClientSize.Height / 2 ? 0 : 1);
+                }
+                else if (m.Msg == WM_MOUSELEAVE) { Hot(-1); held = false; }
+                else if (m.Msg == WM_LBUTTONDOWN) { held = true; buttons.Invalidate(); }
+                else if (m.Msg == WM_LBUTTONUP) { held = false; buttons.Invalidate(); }
                 base.WndProc(ref m);
             }
 
@@ -428,6 +874,19 @@ namespace CodexAutoResume
             {
                 Size size = buttons.ClientSize;
                 using (var brush = new SolidBrush(Palette.Inset)) g.FillRectangle(brush, 0, 0, size.Width, size.Height);
+                double shown = glow.Value;
+                if (shown > 0.0 && hotHalf >= 0 && !Palette.Contrast)
+                {
+                    int tall2 = size.Height / 2;
+                    var pill = new Rectangle(0, hotHalf == 0 ? 0 : tall2, size.Width, hotHalf == 0 ? tall2 : size.Height - tall2);
+                    GraphicsState under = g.Save();
+                    g.SmoothingMode = SmoothingMode.AntiAlias;
+                    g.PixelOffsetMode = PixelOffsetMode.Half;
+                    using (GraphicsPath path = Soft.Rounded(pill, Soft.PxF(Palette.RadiusSmall) / 2f))
+                    using (var brush = new SolidBrush(Soft.WithAlpha(held ? Palette.Raised : Palette.Surface, shown)))
+                        g.FillPath(brush, path);
+                    g.Restore(under);
+                }
                 float wedge = Math.Max(2f, Math.Min(Soft.PxF(7), size.Width - Soft.PxF(4))), tall = wedge / 2f;
                 float centre = size.Width / 2f, half = size.Height / 2f;
                 float up = half / 2f + Soft.PxF(1), down = half + half / 2f - Soft.PxF(1);
@@ -456,6 +915,7 @@ namespace CodexAutoResume
         private bool hover;
         private Font titleFont, titleFrom;
         private readonly LiftTracker tracker;
+        private readonly SoftSurfaceGlide glide;
 
         internal ChoiceCard(string value, string title, string help)
         {
@@ -468,6 +928,19 @@ namespace CodexAutoResume
             AutoSize = false;
             Cursor = Cursors.Hand;
             tracker = new LiftTracker(this, "control");
+            glide = new SoftSurfaceGlide(this, Wanted);
+        }
+
+        // In High Contrast the chosen card is filled with Highlight, so everything drawn on it takes HighlightText, the
+        // colour every contrast theme pairs with Highlight - as the page tabs do. In Accent the radio dot was Highlight on
+        // Highlight, and the title and help in WindowText were under 1.5:1.
+        private SurfaceLook Wanted()
+        {
+            bool onHighlight = Checked && Palette.Contrast;
+            return new SurfaceLook(onHighlight ? Palette.AccentSoft : Checked ? Palette.Inset : hover ? Palette.Surface : Palette.Raised,
+                                   Checked ? Palette.Accent : Palette.Line,
+                                   onHighlight ? SystemColors.HighlightText : Checked ? Palette.Accent : Palette.Ink,
+                                   onHighlight ? SystemColors.HighlightText : Checked ? Palette.Accent : Palette.Muted);
         }
 
         /// The title's font: 600, chosen or not, so a card keeps its height when it is picked.
@@ -520,15 +993,20 @@ namespace CodexAutoResume
             return Soft.Px(12) + top + help + Soft.Px(12);
         }
 
-        protected override void OnCheckedChanged(EventArgs e) { Invalidate(); tracker.Update(); base.OnCheckedChanged(e); }
-        protected override void OnMouseEnter(EventArgs e) { hover = true; Invalidate(); base.OnMouseEnter(e); }
-        protected override void OnMouseLeave(EventArgs e) { hover = false; Invalidate(); base.OnMouseLeave(e); }
+        // v0.6.23: the colours and the dot glide; the shadow goes and comes at the moment of the change (Elevation has no fade).
+        protected override void OnCheckedChanged(EventArgs e) { glide.Changed(); Invalidate(); tracker.Update(); base.OnCheckedChanged(e); }
+        protected override void OnMouseEnter(EventArgs e) { hover = true; glide.Changed(); base.OnMouseEnter(e); }
+        protected override void OnMouseLeave(EventArgs e) { hover = false; glide.Changed(); base.OnMouseLeave(e); }
         protected override void OnGotFocus(EventArgs e) { Invalidate(); base.OnGotFocus(e); }
         protected override void OnLostFocus(EventArgs e) { Invalidate(); base.OnLostFocus(e); }
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing && titleFont != null) { titleFont.Dispose(); titleFont = null; }
+            if (disposing)
+            {
+                glide.Dispose();
+                if (titleFont != null) { titleFont.Dispose(); titleFont = null; }
+            }
             base.Dispose(disposing);
         }
 
@@ -538,28 +1016,26 @@ namespace CodexAutoResume
             var body = Body(Width, Height);
             float radius = Soft.PxF(Palette.RadiusControl);
             Ground.PaintBehind(this, g, ClientRectangle, radius);
-            // In High Contrast the chosen card is filled with Highlight, so everything drawn on
-            // it takes HighlightText, the colour every contrast theme pairs with Highlight - as
-            // the page tabs do. In Accent the radio dot was Highlight on Highlight, and the title
-            // and help in WindowText were under 1.5:1.
             bool onHighlight = Checked && Palette.Contrast;
-            Color fill = onHighlight ? Palette.AccentSoft : Checked ? Palette.Inset : hover ? Palette.Surface : Palette.Raised;
+            SurfaceLook look = glide.Now;
             // Resting, raised as a button and as the panel's segment for the same setting are - no top light in
             // dark. Chosen, a well.
-            Soft.Body(g, ClientRectangle, radius, fill, Checked ? Palette.Accent : Palette.Line, Checked && Palette.Depth);
+            Soft.Body(g, ClientRectangle, radius, look.Fill, look.Edge, Checked && Palette.Depth);
             // The radio mark, so the card still says "one of these" without its colour.
             float mark = Soft.PxF(16);
             // v0.6.20: mirrored, the mark at the right and the words left of it (Mirror).
             bool mirrored = Mirror.Of(this);
             var ring = Mirror.Box(mirrored, (float)Width, new RectangleF(body.X + Soft.PxF(14), body.Y + Soft.PxF(12), mark, mark));
-            Color markColour = onHighlight ? SystemColors.HighlightText : Checked ? Palette.Accent : Palette.Muted;
+            Color markColour = look.Mark;
             GraphicsState state = g.Save();
             g.SmoothingMode = SmoothingMode.AntiAlias;
             using (var pen = new Pen(markColour, Soft.PxF(1.5))) g.DrawEllipse(pen, ring);
-            if (Checked)
+            // The dot fades in on the card chosen, and out on the one left, as the rest of it glides.
+            double shown = !glide.Running ? (Checked ? 1.0 : 0.0) : Checked ? glide.Progress : 1.0 - glide.Progress;
+            if (shown > 0.0)
             {
                 float dot = mark * 0.5f;
-                using (var brush = new SolidBrush(markColour))
+                using (var brush = new SolidBrush(shown >= 1.0 ? markColour : Soft.WithAlpha(markColour, shown)))
                     g.FillEllipse(brush, ring.X + (mark - dot) / 2f, ring.Y + (mark - dot) / 2f, dot, dot);
             }
             g.Restore(state);
@@ -570,8 +1046,7 @@ namespace CodexAutoResume
             string heading = Soft.Wrap(Text ?? "", title, textWidth, Words);
             Size top = TextRenderer.MeasureText(heading, title, new Size(textWidth, int.MaxValue), Words);
             TextRenderer.DrawText(g, heading, title, new Rectangle(left, (int)body.Y + Soft.Px(10), textWidth, top.Height),
-                                  onHighlight ? SystemColors.HighlightText : Checked ? Palette.Accent : Palette.Ink,
-                                  words);
+                                  look.Ink, words);
             if (!string.IsNullOrEmpty(Help))
                 TextRenderer.DrawText(g, Soft.Wrap(Help, Font, textWidth, Words), Font,
                                       new Rectangle(left, (int)body.Y + Soft.Px(12) + top.Height, textWidth, Height),
@@ -695,6 +1170,7 @@ namespace CodexAutoResume
         private readonly ListClip clip = new ListClip();
         private readonly SoftScrollBar bar;
         private readonly Watcher watcher;
+        private readonly Transition focus;
 
         internal SoftTextArea()
         {
@@ -714,8 +1190,9 @@ namespace CodexAutoResume
             Box.ScrollBars = ScrollBars.Vertical;
             Box.BackColor = Palette.Inset;
             Box.ForeColor = Palette.Ink;
-            Box.GotFocus += delegate { Invalidate(); };
-            Box.LostFocus += delegate { Invalidate(); };
+            focus = new Transition(this, 0.0);
+            Box.GotFocus += delegate { focus.To(1.0, Motion.Allowed(this)); };
+            Box.LostFocus += delegate { focus.To(0.0, Motion.Allowed(this)); };
             Box.TextChanged += delegate { Changed(); };
             Box.HandleCreated += delegate { Changed(); };
             watcher = new Watcher(this);
@@ -865,13 +1342,20 @@ namespace CodexAutoResume
         {
             float radius = Soft.PxF(Palette.RadiusControl);
             Ground.PaintBehind(this, e.Graphics, ClientRectangle, radius);
-            Soft.InsetWell(e.Graphics, ClientRectangle, radius, Box.Focused);
+            // At rest what the keyboard says (v0.6.23); only while it moves, where the glide has got to.
+            Soft.InsetWellAt(e.Graphics, ClientRectangle, radius, focus.Running ? focus.Value : Box.Focused ? 1.0 : 0.0);
         }
 
         protected override void OnPaint(PaintEventArgs e)
         {
             base.OnPaint(e);
             if (!bar.Track.IsEmpty) bar.Paint(e.Graphics);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) focus.Dispose();
+            base.Dispose(disposing);
         }
     }
 

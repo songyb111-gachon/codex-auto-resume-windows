@@ -7,8 +7,8 @@ leaves the installation running as the standard edition, with a badge that says 
 
 Every hook hands its question to the runtime (runtime.py), which asks the registry's
 capabilities in the state each one is in; the claim ledger (P11) and the surfaces (P10) are the
-plug's own. Nothing is opened, read or written until a hook needs it, and with no capability -
-as this version ships - every decision point answers as NULL does.
+plug's own. Nothing is opened, read or written until a hook needs it, and with no capability on
+every decision point answers as NULL does.
 """
 from __future__ import annotations
 
@@ -22,8 +22,8 @@ PLUG_API = 8
 class AdvancedPlug(Plug):
     """The advanced edition's plug.
 
-    Every capability is off until a person turns it on, and there is none yet, so every decision
-    still answers as NULL does: an advanced installation with nothing on is the standard one
+    Every capability is off until a person turns it on, and while none is on every decision
+    answers as NULL does: an advanced installation with nothing on is the standard one
     (advanced/tests/test_advanced_package.py holds that at every point). What it adds is on its
     surfaces: the Dashboard's bridge commands and a model's MCP tools, which list the
     capabilities and turn them off."""
@@ -86,7 +86,15 @@ class AdvancedPlug(Plug):
         return self.runtime.partition(records)
 
     def supervise(self, facts):
+        # v0.6.23 (python_choice): which Python the watcher runs under; reads nothing where no choice was made.
+        if isinstance(facts, dict) and facts.get("phase") in ("runtime", "runtime_failed"):
+            from .control import pythons
+            return pythons.supervised(self.runtime, facts)
         return self.runtime.supervise(facts)
+
+    def supervise_held(self):
+        """Why the start question just named no supervisor (core's Plug.supervise_held, runtime.Runtime.supervise_held)."""
+        return self.runtime.supervise_held()
 
     def moved(self, record, state):
         return self.runtime.moved(record, state)
@@ -160,7 +168,9 @@ NOTICE_KINDS = (("near_limit", ("near_limit",), "msg.toast_near_limit"),
                 # v0.6.20: another Codex account signed in, and what waited for a usage limit waits for you (account_switch).
                 ("account_changed", ("account_changed",), "msg.toast_account_changed"),
                 # v0.6.22: every saved account at its limit, and recoveries waiting for the reset (account_auto_switch).
-                ("accounts_exhausted", ("accounts_exhausted",), "msg.toast_accounts_exhausted"))
+                ("accounts_exhausted", ("accounts_exhausted",), "msg.toast_accounts_exhausted"),
+                # v0.6.23: the watcher went back to the bundled Python by itself (python_choice).
+                ("python_returned", ("python_returned",), "msg.toast_python_returned"))
 
 
 def register_notice_kinds():

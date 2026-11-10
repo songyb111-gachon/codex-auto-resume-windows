@@ -60,6 +60,23 @@ def share_columns(available, needs) -> list:
     return needs
 
 
+def _scene_item(look, px, margin, card_width, words_end, below):
+    """The day's scene in what the header's words leave at the card's top right, at most two thirds of it: beginning at exactly
+    the card's colour past the last word, and its main piece whole. None where the words leave too little room for that."""
+    edge = max(1, px(1))
+    left = max(words_end + px(8), margin + card_width * 34 // 100)
+    right, top, bottom = margin + card_width - edge, margin + edge, min(margin + px(66), below - px(2))
+    whole = (bottom - top) / brand.SCENE_HEIGHT
+    focal = brand.SCENE_WIDTH - brand.SCENE_FOCUS[look]
+    least_fade = px(28)
+    unit = min(whole, (right - left - least_fade) / focal)
+    if unit < whole * 0.75:
+        return None
+    solid = left + px(2)
+    return {"kind": "scene", "scene": look, "rect": (left, top, right, bottom), "unit": unit,
+            "fade": (solid, solid + min(px(72), int(right - left - px(2) - focal * unit)))}
+
+
 def layout(vm, scale, measure, width=WIDTH) -> dict:
     """Every rectangle the window draws, in device pixels, and the height it needs.
 
@@ -94,17 +111,24 @@ def layout(vm, scale, measure, width=WIDTH) -> dict:
     mark = px(MARK)
     text_left = left + mark + px(space["s"] + 2)
     text_width = right - text_left
-    _, title_h = measure("title", vm["title"], text_width, False)
-    _, state_h = measure("state", vm["state_text"], text_width, True)
+    title_w, title_h = measure("title", vm["title"], text_width, False)
+    state_w, state_h = measure("state", vm["state_text"], text_width, True)
     stack = title_h + state_h
     header_h = max(mark, stack)
     top = y + (header_h - stack) // 2
     items.append({"kind": "halo", "cx": left + mark / 2.0, "cy": y + header_h / 2.0, "state": vm["light"],
-                  "radius": brand.glow_extent(brand.STATUS_DOT["popup"]) * scale})
+                  "radius": brand.glow_extent(brand.STATUS_DOT["popup"]) * scale,
+                  # What the seventh press's rings may reach: to the words, and within the header.
+                  "sweep_reach": min(mark / 2.0 + px(space["s"]), header_h / 2.0)})
+    items.append({"kind": "title_press", "rect": (text_left, top, text_left + title_w, top + title_h)})
     text((text_left, top, right, top + title_h), "title", vm["title"], "ink")
     text((text_left, top + title_h, right, top + stack), "state", vm["state_text"],
          STATE_INK.get(vm["state"], "ink"), wrap=True)
     y += header_h + px(space["m"])
+    if vm.get("scene"):
+        scene = _scene_item(vm["scene"], px, margin, card_width, text_left + max(title_w, state_w), y)
+        if scene is not None:
+            items.append(scene)
 
     # Summary: waiting, recovering, next check - three values read off a field, so since v0.6.5
     # they sit in one sunken well, as the panel's fields do, with a hairline between them. The

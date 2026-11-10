@@ -163,6 +163,8 @@ to keep a secret, and it never reads Codex's own credentials.
 
 ## Today's capabilities
 
+An installed copy also offers one more, *Run on another Python version*, which a run from source has no use for.
+
 Forty-eight: twenty-three that change how a recovery is made, which conversations are recovered or what
 follows a turn, two that tell you elsewhere - notices sent to your phone or inbox, and OpenAI's service status
 on the Overview (v0.6.20) - three that let a browser or a script of yours read how this PC stands, pause and cancel,
@@ -647,7 +649,7 @@ budget stops a recovery) and [H2](STANDARDS.md#h-user-control) (nothing can forc
 
 None of the eight rests on a measurement: what each sends is the continuation the standard edition sends.
 Each of the four that take up a failure the standard edition leaves for you takes up only failures
-from the last hour, and none from before it was turned on or set to watch; turning it off or setting
+from the last six hours, and none from before it was turned on or set to watch; turning it off or setting
 it to watch only ends what it took up and has not sent, and the program ends such a recovery unsent a
 day on the clock after the failure in any case.
 
@@ -954,7 +956,7 @@ that conversation for the same reset sends your message in its place, at the ver
 resets too; it waits for your message up to 30 minutes after the reset, and then goes on. It counts from the first reading after you added it, so the window open
 then is the first to reset; a window not used yet counts once it is. While a message waits it reads
 usage every 15 minutes, at most once in five minutes. One message may wait for a conversation, and
-ten in all; the page lists each with its words, and Pending lists each as a row of its own, with
+fifty in all; the page lists each with its words, and Pending lists each as a row of its own, with
 Cancel - its words are never shown there.
 
 **When it helps.** When you know what a conversation should do once the limit is gone - "carry on with
@@ -990,7 +992,7 @@ there, the statement carries it as a warning.
 
 **What it does.** An action: it sends nothing and answers at no point of a recovery. While it is on, a
 message you schedule for a reset, and from v0.6.16-beta (revision 2) a message you queue, may be up to
-8,154 characters - the most one continuation can carry - instead of 2,000. Turned off, every waiting
+29,962 characters - the most one continuation can carry - instead of 2,000. Turned off, every waiting
 message longer than 2,000 characters is cancelled.
 
 **When it helps.** When what you want a conversation to do after a reset takes more than 2,000
@@ -1046,7 +1048,7 @@ journal says why.
 it.
 
 **What it risks.** A message may wait in Codex for days, and while it waits its recovery counts as open, so
-an action set for after every recovery has finished waits too. Opened and not run within three minutes, it
+an action set for after every recovery has finished waits too. Opened and not run within five minutes, it
 is taken back, sent the ordinary way, and this turns itself off.
 
 **Departs from** [A11](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (nothing is queued on the off
@@ -1130,7 +1132,7 @@ conversation held by another session waits with a reason of its own.
 **What it risks.** The words Codex uses to tell these conversations apart (MO) were measured on
 `codex-cli 0.163.0-alpha.10.2` and may differ in another version of Codex: a wrong word finds nothing, never the wrong conversation. A session that ends with
 the continuation still queued leaves it to be taken back, and one that cannot be taken back is never sent
-twice. A session that did not take a queued message within three minutes turns this off; kept on, it stays on and
+twice. A session that did not take a queued message within five minutes turns this off; kept on, it stays on and
 the page notes it, and the message is still taken back and waits again.
 
 **Departs from** [A15](STANDARDS.md#a-what-it-may-send-to-codex-and-when) (only the desktop app's
@@ -1209,7 +1211,7 @@ Until it passes, or where it fails, no more than 3 are sent; its failing never t
 
 **What it does.** You queue messages of your own for one conversation - one the Dashboard knows from Pending
 and History that is switched on: to go after the turn now running, at a
-time you pick, or every day or week from a time - 30 times and 30 days at most. They go in the order you queued
+time you pick, or every day or week from a time - as many times as you pick, up to 30 (a series written by an earlier version keeps its 30 days). They go in the order you queued
 them, each once, exactly as you wrote them, and one can wait for the one before it to arrive. For a message at a
 time or on a schedule you choose what it does while a turn is running in that conversation: **Wait until it ends**
 (recommended, and what a new message does unless you choose otherwise) or **Add it to Codex's queue now**, for
@@ -1734,6 +1736,45 @@ does; nothing asks Codex for a token), C4 (it acts on its own), C9 (usage of acc
 **Measurements MPROFILE and MSWAP: passed** on `codex-cli 0.166.0-alpha.6` (2026-11-06) - a second saved account read
 on a scratch home left the real sign-in, the app and its account as they were (MPROFILE); the app came up as the other
 saved account and back, each with no sign-in page and no other Codex engine running (MSWAP, completed by the owner).
+
+### Run on another Python version
+
+**What it does.** Lets this program run on another official Python from python.org instead of the one it came
+with: the newest release of 3.13, 3.14 or 3.15 (3.15 is a preview: the bundled version moves to it only in a later
+version). Its card says which Python the watcher runs on. Nothing is read from the network until you press a
+button. **Check python.org** reads python.org's public list of releases, and only the lines this version of the
+program allows are offered, so a new patch needs no update of this program. **Use this version** asks first, then
+downloads that version's Windows embeddable package from `www.python.org`, and no other address, showing the
+bytes truly written. Before any of it runs: the whole file must match the SHA-256 python.org published, computed on
+the bytes on disk; it must unpack safely into a new folder of its own, `runtimes\<version>` inside this program's
+folder (flat, plain files, bounded in size); `python.exe`, `pythonw.exe` and the Python library must each carry a
+valid signature of the Python Software Foundation, as Windows judges it; and every part of this program must load
+under it, with no bytecode left behind. It then replaces the bundled Python: for the watcher at a restart the card
+asks for, and for the Dashboard and the Codex tools the next time they start. Only an installed copy offers it.
+
+**When it helps.** When you want a Python fix or a newer version sooner than this program's next release.
+
+**What it risks.** This program is tested most on the Python it comes with, so another version can behave
+differently, and 3.15 is a preview here. A step that fails deletes what it unpacked, says which step it was and
+leaves the Python in use alone. If the watcher does not start on the chosen version within 45 seconds, it goes back
+to the bundled Python by itself and tells you once. A chosen version takes about 30 MB and is not updated for you.
+Its folder can be opened by you, administrators and Windows, like the rest of this program's folder. Nothing
+about you is sent to python.org beyond what any download shows, and nothing here touches Codex or sends anything to it.
+
+**How to go back.** **Back to the bundled version** on the card works even when the chosen version is broken: the
+Dashboard leaves a Python that does not answer for the bundled one by itself. Turning this off does the same. Only
+the chosen version is kept; a previous one, and a folder something still runs from, are deleted once nothing runs
+from them. An update or a repair keeps your choice while its line is still allowed, and otherwise goes back to the
+bundled Python and says so. Uninstalling removes the folder with the rest of the program, and so does changing to
+the standard edition, which only ever runs the Python it was installed with.
+
+**Departs from** [B14](STANDARDS.md#b-what-it-reads-and-how) (a second Python runtime), [C1](STANDARDS.md#c-network) and
+[C2](STANDARDS.md#c-network) (network code, in the courier's package, for python.org),
+[F3](STANDARDS.md#f-footprint-on-the-machine) (program files it fetched itself),
+[F6](STANDARDS.md#f-footprint-on-the-machine) (it starts the chosen `python.exe`) and
+[I10](STANDARDS.md#i-release-and-supply-chain) (a Python no release of this program pinned).
+
+**Ceilings.** None come into play: it sends nothing to Codex. It rests on no measurement.
 
 ### Compatibility report
 

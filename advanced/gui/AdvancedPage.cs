@@ -715,6 +715,12 @@ namespace CodexAutoResume
                 MethodInvoker after = done;
                 done = delegate { ReadFleet(after); };
             }
+            // v0.6.23: the Python version card (AdvancedPythons.cs) - this PC alone is read; python.org only on a press.
+            if (id == PythonId && Standing(item))
+            {
+                MethodInvoker after = done;
+                done = delegate { ReadPython(after); };
+            }
             // v0.6.22: the saved accounts of the automatic account switch (AdvancedAccounts.cs) - asked in every state, and
             // on account_switch's column too, so a saved sign-in can be deleted while the switch is off or hidden.
             if (id == AccountsId || id == AccountId)
@@ -978,7 +984,7 @@ namespace CodexAutoResume
                            ResetsShown(item) + "|" + KeepGoingShown(item) + "|" + QueueShown(item) + "|" +
                            WordingsShown(item) + "|" + RunsShown(item) + "|" + CourierShown(item) + "|" + AnalyticsShown(item)
                            + "|" + AnchorShownText(item) + "|" + AccountShown(item) + "|" + PowerTasksShown(item) + "|" + AccountsShown(item)
-                           + "|" + RemoteShown(item) + "|" + FleetCardShown(item);
+                           + "|" + RemoteShown(item) + "|" + FleetCardShown(item) + "|" + PythonShown(item);
             if (shown == advancedShown)
             {
                 UpdateAdvancedButtons();
@@ -1012,6 +1018,7 @@ namespace CodexAutoResume
             ForgetPowerTasksCard();
             ForgetAccountsCard();
             ForgetFleetCard();
+            ForgetPythonCard();
             ForgetRemoteCard();
             if (item == null)
             {
@@ -1188,6 +1195,8 @@ namespace CodexAutoResume
             BuildAccounts(item);
             // v0.6.22: this PC's name and folder among the person's PCs (AdvancedFleet.cs).
             BuildFleet(item);
+            // v0.6.23: which Python this runs on (AdvancedPythons.cs).
+            BuildPython(item);
             // v0.6.22: the loopback API's address and token (AdvancedRemote.cs).
             BuildRemote(item);
 
@@ -1702,6 +1711,7 @@ namespace CodexAutoResume
             UpdatePowerTasksButtons(idle);
             UpdateAccountsButtons(idle);
             UpdateFleetButtons(idle);
+            UpdatePythonButtons(idle);
             UpdateRemoteButtons(idle);
             UpdateReportButtons();
         }

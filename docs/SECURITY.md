@@ -193,7 +193,7 @@ them `thread/goal/set`, `thread/queue/add` with words this product wrote, and `t
   redirect followed and nothing about the machine in it. It is the one body the update check
   parses, and it is read for one thing: the newest published pre-release - not a draft, tagged
   `vMAJOR.MINOR.PATCH-alpha` or `-beta` with a stage's number - that is newer than both the version
-  installed and the newest release. A list that cannot be read, is over 2 MiB, is not a list or
+  installed and the newest release. A list that cannot be read, is over 8 MiB, is not a list or
   has not arrived within the time the check has left - a deadline for the whole request, not only
   for its first byte - offers nothing and changes nothing else in the answer. What it finds is only
   offered, and only where there is no release to offer first, in a question whose default button is
@@ -713,6 +713,11 @@ every other request, a token
 refresh, an attestation or a tool call among them, with an error. Its package imports no
 networking module but in the courier's own folder (`tests/test_privacy_claims.py`,
 ADVANCED_NETWORK_MODULES), below. The compatibility report reaches GitHub only through gh, above.
+
+**Run on another Python version** (off until a person turns it on) reaches `www.python.org` alone, from a file in the
+courier's package, in the Dashboard's process and only when a button on its card is pressed. Before a byte of the package
+runs, its SHA-256 matches what python.org published, it unpacks flat into a new folder, its interpreters and library carry
+a valid signature of the Python Software Foundation, and every shipped module imports under it.
 
 **The courier** (v0.6.20; push notices and the status feed, each off until a person turns it on). The
 advanced edition's only network code: `pythonw.exe` running the advanced package's `courier`, started by

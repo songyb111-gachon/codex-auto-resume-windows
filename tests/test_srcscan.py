@@ -62,7 +62,7 @@ class ListingTests(unittest.TestCase):
         # since v0.6.10 took the window's messages out of window.py, fifteen since v0.6.11 told a
         # screen reader what is in it, seventeen since v0.6.20 drew the icon's right-click menu there -
         # and a rule written about `tray_popup` covers all of them without naming one.
-        self.assertEqual(len(srcscan.files_of("codex_auto_resume.ui.popup")), 17)
+        self.assertEqual(len(srcscan.files_of("codex_auto_resume.ui.popup")), 18)
         self.assertIn(srcscan.modules()["codex_auto_resume.ui.popup.window"],
                       srcscan.files_of("codex_auto_resume.ui.popup"))
 

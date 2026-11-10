@@ -196,7 +196,7 @@ class ParseTests(unittest.TestCase):
         ) % str(PS1).replace("'", "''")
         completed = subprocess.run(
             ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
-            capture_output=True, text=True, timeout=120)
+            capture_output=True, encoding="locale", errors="replace", timeout=120)
         self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
 
 
@@ -315,7 +315,7 @@ class InPlaceUpgradeTests(unittest.TestCase):
         ) % str(PS1).replace("'", "''")
         completed = subprocess.run(
             ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
-            capture_output=True, text=True, timeout=120)
+            capture_output=True, encoding="locale", errors="replace", timeout=120)
         self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
 
     def test_it_tells_the_user_what_to_do_when_it_cannot_replace(self):

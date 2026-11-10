@@ -146,7 +146,8 @@ namespace CodexAutoResume
         /// (compat.files.REFRESH_TIMEOUT_SECONDS), and the interpreter's start comes on top.
         internal static int LongCallMilliseconds = 180000;
 
-        private readonly string python;
+        private string python;
+        private readonly string bundled;
         private readonly string appSrc;
         // Every one-shot child on its way, so the window's close can end them (Stop): the long-lived bridge's own
         // Stop could only end its own process.
@@ -155,9 +156,13 @@ namespace CodexAutoResume
 
         internal Bridge(string root)
         {
-            python = Path.Combine(root, "runtime", "python.exe");
+            python = RuntimeChoice.Python(root);
+            bundled = RuntimeChoice.BundledPython(root);
             appSrc = Path.Combine(root, "app", "src");
         }
+
+        /// The bundled runtime from now on, for the life of this window: the chosen one did not answer (PersistentBridge).
+        internal void UseBundled() { python = bundled; }
 
         internal bool Available { get { return File.Exists(python) && Directory.Exists(appSrc); } }
 
@@ -415,9 +420,23 @@ namespace CodexAutoResume
         private readonly SoftCard hero = new SoftCard();
         private readonly SoftCard savebar = new SoftCard();
         private readonly Label headline = new Label();
-        private readonly Label detail = new Label();
+        private readonly AsideLabel detail = new AsideLabel();
         private readonly VersionLabel versionText = new VersionLabel();
         private readonly HaloDot stateDot = new HaloDot();
+        private readonly SoftDayScene dayScene = new SoftDayScene();
+        private string dayLook;
+        private readonly System.Diagnostics.Stopwatch versionClock = System.Diagnostics.Stopwatch.StartNew();
+        private readonly PressRun versionPresses = new PressRun();
+
+        // The sentence comes in as the sweep ends, and goes 4 s after it has come in.
+        internal const int AsideAfterMs = 850, AsideMs = 4150;
+
+        private void VersionPressed()
+        {
+            if (!versionPresses.Press(versionClock.Elapsed.TotalMilliseconds)) return;
+            stateDot.Sweep();
+            detail.Aside(S("status.aside", "It's okay if it stops. I'll pick it up."), stateDot.Sweeping ? AsideAfterMs : 0, AsideMs);
+        }
         // v0.6.5: the notification-area icon's motion on the taskbar button (TaskbarMark), told the icon's state for what
         // the window read wherever stateDot is told its own (TellTaskbar); null in a window LayoutAudit builds, and
         // without the product's own icon.
@@ -724,7 +743,7 @@ namespace CodexAutoResume
 
         private int Px(int atNinetySix)
         {
-            return (int)Math.Round(atNinetySix * DpiScale);
+            return Soft.Px(atNinetySix);
         }
 
         private Padding Pad(int left, int top, int right, int bottom)
@@ -1209,6 +1228,8 @@ namespace CodexAutoResume
             headline.ForeColor = Ink;
             headline.Font = Soft.RoleFont("display");
             headline.AutoEllipsis = true;
+            // The light's name for a screen reader is the headline, whichever of the header's writers set it last.
+            headline.TextChanged += delegate { stateDot.AccessibleName = headline.Text; };
             // In the window's language until the first status arrives: after a reopen it showed a moment, in English in
             // every language (the v0.6.20 final's live acceptance, A5).
             headline.Text = S("status.loading", "Loading...");
@@ -1256,6 +1277,38 @@ namespace CodexAutoResume
             };
             fit(this, EventArgs.Empty);
             FontChanged += fit;
+            dayLook = Palette.AccentBar ? null : DayArt.Today();
+            if (dayLook != null)
+            {
+                header.Controls.Add(dayScene);
+                dayScene.BringToFront();
+                EventHandler place = delegate { PlaceDayScene(); };
+                hero.SizeChanged += place;
+                headline.TextChanged += place;
+                detail.TextChanged += place;
+                startButton.VisibleChanged += place;
+                Resize += place;
+                Shown += place;
+            }
+        }
+
+        private int WordsEnd(Label label, bool mirrored, int width)
+        {
+            Size words = Soft.Measure(label.Text ?? "", label.Font, int.MaxValue, TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix);
+            return (mirrored ? width - label.Right : label.Left) + Math.Min(words.Width, label.Width);
+        }
+
+        /// The day's scene in what the header's words leave at the card's outer side: no word on it, or no scene.
+        private void PlaceDayScene()
+        {
+            if (dayLook == null) return;
+            bool mirrored = Mirror.Of(hero);
+            int width = hero.Width, hair = Soft.Hairline, outer = width - hair;
+            if (Soft.OwnVisible(startButton)) outer = (mirrored ? width - startButton.Left : startButton.Left) - Px(8);
+            int end = Math.Max(WordsEnd(headline, mirrored, width), WordsEnd(detail, mirrored, width)), left, fade;
+            double unit;
+            bool fits = DayArt.Fit(dayLook, end, 0, width, outer, hair, hero.Height - hair, out left, out unit, out fade);
+            dayScene.Place(fits, dayLook, hero.Left + (mirrored ? width - outer : left), hero.Top + hair, outer - left, hero.Height - 2 * hair, unit, fade);
         }
 
         private void BuildFooter()
@@ -1323,6 +1376,8 @@ namespace CodexAutoResume
             row.Controls.Add(restoreButton);
 
             versionText.Margin = new Padding(0);
+            // Each press, not Click: a quick second press is a double click and raises no Click.
+            versionText.MouseDown += delegate(object sender, MouseEventArgs e) { if (e.Button == MouseButtons.Left) VersionPressed(); };
             savebar.Controls.Add(versionText, 0, 0);
             savebar.Controls.Add(reopenNote, 1, 0);
             savebar.Controls.Add(row, 2, 0);
@@ -1372,6 +1427,61 @@ namespace CodexAutoResume
 
     }
 
+    /// What becomes of an exception thrown in a click, a timer or a reply handed back to the window (v0.6.23): never .NET's
+    /// own dialog, which is in English and whose Quit ends the program with its bridge still up. It goes to errors.log,
+    /// where the watcher's own go, and the window stays: one such exception leaves what is on the screen as it was. Where
+    /// they keep coming - a timer or a paint that fails each time - going on is not safe, so the bridge is stopped and
+    /// the program ends.
+    internal static class UiFaults
+    {
+        internal const int MostInAMinute = 5;
+        private const long Minute = 60000;
+        private const int MostWritten = 8000;
+        private static readonly Stopwatch clock = Stopwatch.StartNew();
+        private static long firstAt = -Minute - 1;
+        private static int seen;
+        private static string home;
+        private static PersistentBridge bridge;
+
+        /// The installation errors.log is in, and the bridge to stop; before this nothing is written and nothing stopped.
+        internal static void Follow(string root, PersistentBridge running)
+        {
+            home = root;
+            bridge = running;
+        }
+
+        internal static void Caught(object sender, System.Threading.ThreadExceptionEventArgs e)
+        {
+            Write(e.Exception);
+            long now = clock.ElapsedMilliseconds;
+            if (now - firstAt > Minute)
+            {
+                firstAt = now;
+                seen = 0;
+            }
+            if (++seen < MostInAMinute) return;
+            try { if (bridge != null) bridge.Stop(); }
+            catch (Exception) { /* it ends with this process's pipes all the same */ }
+            Environment.Exit(1);
+        }
+
+        private static void Write(Exception error)
+        {
+            try
+            {
+                if (home == null) return;
+                string logs = Path.Combine(home, "logs");
+                if (!Directory.Exists(logs)) return;
+                string what = error == null ? "" : error.ToString();
+                if (what.Length > MostWritten) what = what.Substring(0, MostWritten);
+                File.AppendAllText(Path.Combine(logs, "errors.log"),
+                                   "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) +
+                                   "] the window\n" + what + "\n", new UTF8Encoding(false));
+            }
+            catch (Exception) { /* not written: the window goes on */ }
+        }
+    }
+
     internal static class Program
     {
         [DllImport("shell32.dll", PreserveSig = false)]
@@ -1410,6 +1520,7 @@ namespace CodexAutoResume
             TakeOwnTaskbarIdentity();
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
+            Application.ThreadException += UiFaults.Caught;
             // Only a window build/capture_window.ps1 started: the mouse changes nothing it draws.
             SettingsForm.ShutOutPointer();
             // v0.6.16: the entry in Add or remove programs, in the installer window (SettingsRemove), and nothing else.
@@ -1468,7 +1579,10 @@ namespace CodexAutoResume
             // v0.6.11: Windows' text size, as far as the screen the window opens on holds it at its narrowest.
             double text = TextScale.Read();
             SettingsForm.AdoptTextSize(text, TextScale.Fitting(text, opening.WorkingArea.Size, SettingsForm.DpiScale));
-            var window = new SettingsForm(new PersistentBridge(root, bridge));
+            var persistent = new PersistentBridge(root, bridge);
+            UiFaults.Follow(root, persistent);
+            DayArt.On = Soft.StillClock < 0;
+            var window = new SettingsForm(persistent);
             // A window a person opened comes to the front - after Finish, and opened again outside (v0.6.17); a window
             // that reopens itself, and a capture's, keep their place.
             if (request.Generation == 0 && Soft.StillReady == null) HostApp.BringToFront(window);

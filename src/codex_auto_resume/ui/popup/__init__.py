@@ -203,6 +203,7 @@ from .gdiplus import (PIXEL_FORMAT_32BPP_PARGB,
                       gdiplus_objects)  # noqa: F401
 from .renderer import CHIP_ALPHA, DOT_FILL, Renderer  # noqa: F401
 from .access import PopupAccessible, accessible_items  # noqa: F401
+from .hidden import PopupHidden  # noqa: F401
 from .messages import REFRESH_TICKS  # noqa: F401
 from .window import FIRST_READ_WAIT_MS, FRAME_MS, Popup  # noqa: F401
 from .menuwindow import Menu, MenuAccessible, MenuRenderer  # noqa: F401

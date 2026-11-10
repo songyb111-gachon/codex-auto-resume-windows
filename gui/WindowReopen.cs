@@ -622,8 +622,13 @@ namespace CodexAutoResume
         // old window is still on screen until the new one is), the chat a notice opens (--chat, --capability), a capture
         // (a picture's ready event, which SettingsApp.cs reads) and anything else start as they always did. A window of a
         // scratch build - a capture's, a test's - is another program and is never asked; the audit's window and one not yet
-        // shown refuse (TakeOpenRequest).
+        // shown refuse (TakeOpenRequest). A window the installer opens again after an update is on the command line of a
+        // reopen, but the window it replaces is gone, so it asks too (ReopenedAfterUpdate): one a person opened meanwhile takes it.
         private const int OpenRequestWait = 3000;          // the window answers at once and comes forward afterwards
+        // What install.ps1 (Open-ClosedDashboard) adds to the reopen a closed window wrote: this start has no old window to
+        // wait for, so it hands over to one that is open. One that hangs is not answered for (SmtoAbortIfHung) and the start
+        // goes on. Every other parser of the command line ignores it, as an unknown argument always was.
+        internal const string ReopenedAfterUpdate = "--after-update";
         private const int SmtoAbortIfHung = 0x0002;
         private const int GwOwner = 4;
         private const int QueryLimitedInformation = 0x1000;
@@ -671,7 +676,7 @@ namespace CodexAutoResume
         internal static bool HandsOverOnStart(string[] arguments, bool capture)
         {
             if (capture) return false;
-            if (arguments == null) return true;
+            if (arguments == null || Array.IndexOf(arguments, ReopenedAfterUpdate) >= 0) return true;
             foreach (string argument in arguments)
             {
                 if (string.IsNullOrEmpty(argument) || argument == HostApp.Outside || argument == "--settings") continue;
@@ -699,7 +704,7 @@ namespace CodexAutoResume
             {
                 string target = SameFile(exe);
                 if (target == null) return false;
-                int own = Process.GetCurrentProcess().Id;
+                int own = OwnProcess.Id;
                 var asked = new List<KeyValuePair<IntPtr, int>>();
                 var programs = new Dictionary<int, bool>();
                 EachWindow each = delegate(IntPtr window, IntPtr data)
@@ -1076,7 +1081,7 @@ namespace CodexAutoResume
             {
                 string config = Path.Combine(installRoot, "config");
                 if (Directory.Exists(config))
-                    File.WriteAllText(Path.Combine(config, UpdateUnsavedFile(Process.GetCurrentProcess().Id)), "unsaved",
+                    File.WriteAllText(Path.Combine(config, UpdateUnsavedFile(OwnProcess.Id)), "unsaved",
                                       new UTF8Encoding(false));
             }
             catch (Exception) { /* unanswered: the installer treats it as a window that cannot be asked */ }
@@ -1236,7 +1241,7 @@ namespace CodexAutoResume
             {
                 string config = Path.Combine(installRoot, "config");
                 if (Directory.Exists(config))
-                    File.WriteAllText(Path.Combine(config, UpdateReopenFile(Process.GetCurrentProcess().Id)), arguments,
+                    File.WriteAllText(Path.Combine(config, UpdateReopenFile(OwnProcess.Id)), arguments,
                                       new UTF8Encoding(false));
             }
             catch (Exception) { /* it closes all the same; the installer opens nothing it was not told of */ }

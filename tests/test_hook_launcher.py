@@ -26,6 +26,7 @@ sys.path.insert(0, str(ROOT / "build"))
 import normalize_pe  # noqa: E402
 
 SOURCE = ROOT / "gui" / "HookLauncher.cs"
+READER = ROOT / "gui" / "RuntimeChoice.cs"
 CSC = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Microsoft.NET" / "Framework64" / "v4.0.30319" / "csc.exe"
 NO_WINDOW = 0x08000000
 
@@ -53,7 +54,7 @@ static class Program {
 
 def _compile(source: Path, out: Path) -> Path:
     subprocess.run([str(CSC), "/nologo", "/target:exe", "/platform:x64", "/optimize+", "/out:" + str(out),
-                    "/reference:System.dll", str(source)],
+                    "/reference:System.dll", str(source)] + ([str(READER)] if source == SOURCE else []),
                    check=True, capture_output=True, timeout=180, creationflags=NO_WINDOW)
     return out
 
@@ -76,7 +77,9 @@ class SourceTests(unittest.TestCase):
         self.assertNotIn("return process.ExitCode", self.text)
 
     def test_it_starts_the_advanced_package_s_handler_with_the_installation_s_interpreter(self):
-        self.assertIn('Path.Combine(home, "runtime", "python.exe")', self.text)
+        # v0.6.23: through the one reader of which Python this installation runs under; its bundled runtime unless one is chosen.
+        self.assertIn("RuntimeChoice.Python(home)", self.text)
+        self.assertIn('Path.Combine(Path.Combine(home, Bundled), name)', READER.read_text(encoding="utf-8"))
         self.assertIn("from codex_auto_resume_advanced.hook import main;", self.text)
         self.assertIn('"-I -X disable-remote-debug -c "', self.text)
 

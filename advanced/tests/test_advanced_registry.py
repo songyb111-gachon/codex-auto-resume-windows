@@ -80,7 +80,7 @@ def standards_text(rule) -> str:
 # v0.6.22: Codex's own retry settings on MB2, still waiting (MB2 failed, 2026-11-06), and the automatic account switch on
 # MPROFILE and MSWAP, offered since both passed (2026-11-06).
 STATED_WAITING = (registry.OPEN_TO_SEND, registry.STOP_HOOK, registry.CODEX_RETRY_SETTINGS,
-                  registry.ACCOUNT_AUTO_SWITCH)
+                  registry.ACCOUNT_AUTO_SWITCH) + registry.INSTALLED_ONLY    # v0.6.23: offered only on an installation
 
 class ShippedTests(unittest.TestCase):
     SHIPPED = ("start_with_codex",

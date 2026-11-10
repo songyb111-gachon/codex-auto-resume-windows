@@ -669,6 +669,7 @@
   "installer.done.removed": "Codex Auto Resume est désinstallé.",
   "installer.done.repaired": "Codex Auto Resume est réparé.",
   "installer.done.setup_stopped": "Le programme d'installation s'est arrêté avant l'exécution de l'installateur. Le journal en donne la raison.",
+  "installer.done.still_removing": "Cela prend plus de temps que d'habitude et se poursuit en arrière-plan. Cela se terminera tout seul ; vous n'avez rien d'autre à faire.",
   "installer.done.still_running": "Cela prend plus de temps que d'habitude et se poursuit en arrière-plan. Regardez à nouveau le Tableau de bord dans quelques minutes.",
   "installer.done.unconfirmed": "Impossible de confirmer que le surveillant tourne ; rien n'est donc surveillé pour l'instant. Lancez-le depuis le Tableau de bord.",
   "installer.done.updated": "Codex Auto Resume est à jour.",
@@ -856,6 +857,7 @@
   "msg.toast_accounts_exhausted_body": "La reprise attend la réinitialisation la plus proche, comme sans changement. Rien n'est envoyé d'ici là.",
   "msg.toast_switch_not_finished": "Le changement automatique de compte n'a pas abouti",
   "msg.toast_switch_not_finished_body": "Ouvrez Codex et vérifiez quel compte est connecté. La reprise attend la réinitialisation la plus proche, comme sans changement. Rien n'est envoyé d'ici là.",
+  "status.aside": "Ce n'est pas grave si ça s'arrête. Je prends le relais.",
   "why.account_changed": "Un autre compte Codex s'est connecté après son arrêt : rien n'est envoyé tant que vous ne la laissez pas continuer.",
   "msg.toast_usage_at": "Limite d'utilisation de Codex atteinte. Cette tâche reprendra à {time}.",
   "msg.toast_usage_soon": "Limite d'utilisation de Codex atteinte. Cette tâche reprendra après la réinitialisation.",
@@ -1281,5 +1283,8 @@
   "why.user_input_queued": "Quelque chose de votre part est en file d'attente dans cette conversation et passe d'abord.",
   "why.version_newer_than_engine": "Un Codex plus récent que celui d’ici a exécuté cette conversation en dernier ; elle reprend dès que Codex est mis à jour.",
   "why.waiting_reset": "La limite d'utilisation n'est pas encore réinitialisée.",
-  "why.workspace_changed": "La branche de son dossier, son modèle ou son mode d'approbation a changé depuis l'arrêt : rien n'est envoyé tant que vous ne la laissez pas continuer."
+  "why.workspace_changed": "La branche de son dossier, son modèle ou son mode d'approbation a changé depuis l'arrêt : rien n'est envoyé tant que vous ne la laissez pas continuer.",
+  "msg.toast_python_returned": "De retour sur le Python fourni",
+  "msg.toast_python_returned_start": "Le surveillant n'a pas démarré avec Python {version}, il est donc revenu au Python fourni avec ce programme.",
+  "msg.toast_python_returned_line": "Cette version du programme ne propose plus Python {version}, le surveillant est donc revenu au Python fourni avec lui."
 }

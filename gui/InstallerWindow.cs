@@ -400,16 +400,11 @@ namespace CodexAutoResume
         {
             Row(Words(words.Say("installer.welcome.heading", "Welcome"), "title", Palette.Ink), 0);
             Row(Words(words.Say("installer.welcome.what", "When a Codex conversation stops at a usage limit or a dropped connection, Codex Auto Resume carries it on by itself once it can."), null, Palette.Ink), 8);
-            var guide = new LinkLabel();
+            var guide = new SoftLink();
             guide.Text = words.Say("installer.welcome.guide", "Read the guide");
-            guide.UseMnemonic = false;
-            guide.AutoSize = false;
             guide.BackColor = Palette.Card;
-            guide.LinkColor = Palette.Accent;
-            guide.ActiveLinkColor = Palette.AccentPressed;
-            guide.VisitedLinkColor = Palette.Accent;
             guide.Font = Font;
-            guide.LinkClicked += delegate { OpenGuide(); };
+            guide.Click += delegate { OpenGuide(); };
             Row(guide, 8);
             if (speaker == null) return;
             Row(Words(words.Say("installer.language", "Language"), "label", Palette.Secondary), 20);
@@ -662,16 +657,11 @@ namespace CodexAutoResume
 
         private Control LogToggle()
         {
-            var toggle = new LinkLabel();
+            var toggle = new SoftLink();
             toggle.Text = logShown ? words.Say("installer.log.hide", "Hide the log") : words.Say("installer.log.show", "Show the log");
-            toggle.UseMnemonic = false;
-            toggle.AutoSize = false;
             toggle.BackColor = Palette.Card;
-            toggle.LinkColor = Palette.Accent;
-            toggle.ActiveLinkColor = Palette.AccentPressed;
-            toggle.VisitedLinkColor = Palette.Accent;
             toggle.Font = Font;
-            toggle.LinkClicked += delegate
+            toggle.Click += delegate
             {
                 logShown = !logShown;
                 toggle.Text = logShown ? words.Say("installer.log.hide", "Hide the log") : words.Say("installer.log.show", "Show the log");
@@ -708,9 +698,7 @@ namespace CodexAutoResume
             if (control == bar) return Px(10);
             if (control is SoftCombo) return SoftCombo.FieldHeight;
             if (control is ChoiceCard) return ((ChoiceCard)control).HeightFor(width);
-            if (control is LinkLabel)
-                return TextRenderer.MeasureText(control.Text, control.Font, new Size(width, 0),
-                                                TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix).Height;
+            if (control is SoftLink) return control.GetPreferredSize(new Size(width, 0)).Height;
             return control.GetPreferredSize(new Size(width, 0)).Height;
         }
 

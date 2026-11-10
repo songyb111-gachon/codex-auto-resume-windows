@@ -189,6 +189,6 @@ Build -Name 'CodexAutoResumeSettings.exe' -Target 'winexe' -WithManifest `
 if ($Edition -eq 'standard') {
     Build -Name 'codex-auto-resume-mcp.exe' -Target 'exe' `
           -Description 'Codex Auto Resume MCP launcher' `
-          -Sources @((Join-Path $Root 'gui\McpLauncher.cs')) `
+          -Sources @((Join-Path $Root 'gui\McpLauncher.cs'), (Join-Path $Root 'gui\RuntimeChoice.cs')) `
           -References @('System.dll')
 }

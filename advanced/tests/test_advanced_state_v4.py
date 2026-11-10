@@ -206,14 +206,14 @@ class PromptTests(StateCase):
         self.assertEqual([row["position"] for row in rows], [0, 1, 2])
         self.assertEqual(rows[0]["due_at"], self.now)
         self.assertEqual((rows[1]["due_at"], rows[1]["depends"]), (self.now + 3600, True))
-        self.assertEqual(rows[2]["until"], self.now + schema_module.PROMPT_SPAN, "30 days at most, by default")
+        self.assertIsNone(rows[2]["until"], "it ends with its occurrences")
 
     def test_what_is_not_on_offer_is_refused(self):
         state = self.state()
         for words, trigger, options, refusal in (
                 ("", "after_turn", {}, Refusal.PROMPT_REFUSED),
                 ("   ", "after_turn", {}, Refusal.PROMPT_REFUSED),
-                ("x" * 8193, "after_turn", {}, Refusal.PROMPT_REFUSED),
+                ("x" * 30001, "after_turn", {}, Refusal.PROMPT_REFUSED),
                 ("mine", "soon", {}, Refusal.OCCASION_INVALID),
                 ("mine", "at_time", {}, Refusal.OCCASION_INVALID),
                 ("mine", "at_time", {"at": self.now - 3600}, Refusal.OCCASION_INVALID),
@@ -231,14 +231,14 @@ class PromptTests(StateCase):
                 self.assertEqual(refused.exception.refusal, refusal)
         self.assertEqual(state.prompts(), [])
 
-    def test_five_to_a_conversation_and_twenty_in_all(self):
+    def test_as_many_as_may_wait_to_a_conversation_and_in_all(self):
         state = self.state()
         for n in range(PER_CONVERSATION):
             state.add_prompt(ac.THREAD, "mine %d" % n, "after_turn")
         with self.assertRaises(Refused) as refused:
             state.add_prompt(ac.THREAD, "one more", "after_turn")
         self.assertEqual(refused.exception.refusal, Refusal.QUEUE_FULL)
-        threads = ["0a1b2c3d-0003-7000-8000-%012d" % n for n in range(10)]
+        threads = ["0a1b2c3d-0003-7000-8000-%012d" % n for n in range(PROMPTS_LIMIT)]
         added = PER_CONVERSATION
         for thread in threads:
             while added < PROMPTS_LIMIT and len(state.prompts(thread_id=thread)) < 2:

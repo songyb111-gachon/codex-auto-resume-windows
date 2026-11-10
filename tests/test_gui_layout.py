@@ -112,8 +112,8 @@ class WatcherStartReportingTests(unittest.TestCase):
 
         Removing `Thread.Sleep` did not remove the wait: it moved into the bridge call,
         which starts python.exe and blocks until it exits, and the engine behind it now
-        waits up to six seconds for the watcher to report in. On the click handler that
-        is six seconds without pumping messages, and Windows retitles a window that has
+        waits up to 45 seconds for the watcher to report in. On the click handler that
+        is 45 seconds without pumping messages, and Windows retitles a window that has
         not pumped for five "Not Responding" and paints a grey ghost of it. The old test
         passed throughout, because it only looked for the word `Sleep`.
         """
@@ -121,7 +121,7 @@ class WatcherStartReportingTests(unittest.TestCase):
                       "the blocking call must not run on the click handler")
         self.assertIn("BeginInvoke", self.method,
                       "the answer has to come back to the UI thread to touch a control")
-        call = self.method.index('bridge.Call("start-watcher"')
+        call = self.method.index('bridge.CallOnce("start-watcher"')
         worker = self.method.index("QueueUserWorkItem")
         self.assertLess(worker, call, "the call must be inside the worker, not before it")
 
@@ -928,7 +928,7 @@ class WindowCompositionTests(unittest.TestCase):
         write is only a miss - and the window never once opened from its cache (measured)."""
         write = self.method(self.window, "internal static void Write(string root, string key,")
         self.assertNotIn("Guid", write)
-        self.assertIn("Process.GetCurrentProcess().Id", write)
+        self.assertIn("OwnProcess.Id", write)
 
 
 PROBE = r"""

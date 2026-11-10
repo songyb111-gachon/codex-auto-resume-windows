@@ -387,6 +387,14 @@ namespace CodexAutoResume
             if (on == renderBusy) return;
             renderBusy = on;
             SetBusy(on);
+            if (on) BusyHold.Lapse();       // a picture of a call in flight is of one that has lasted, not of its first 150 ms
+            // Every button's look has just begun to glide; a picture is of where it ends.
+            var waited = Stopwatch.StartNew();
+            while (Transition.Moving > 0 && waited.ElapsedMilliseconds < RenderSettleLimit)
+            {
+                Application.DoEvents();
+                System.Threading.Thread.Sleep(5);
+            }
         }
 
         /// Why it is waiting scrolled `notches` turns of the wheel down, the last of them `glide_ms` into its glide: its
@@ -470,7 +478,7 @@ namespace CodexAutoResume
         }
 
         /// The page scrolled `notches` turns of the wheel down, the last of them `glide_ms` into its glide - as
-        /// SoftPage glides, a step of SoftBar.GlideStep every SoftBar.GlideInterval - or at rest.
+        /// SoftPage glides, SoftBar.GlideAt along brand's curve over brand's transition - or at rest.
         private void RenderScroll(string page, Dictionary<string, object> scroll)
         {
             Control built;
@@ -494,7 +502,7 @@ namespace CodexAutoResume
                 int step = SoftBar.WheelStep(-120, RenderWheelLines, Soft.Px(SoftBar.Line), viewport);
                 int target = Math.Max(0, Math.Min(range, offset + step));
                 if (notch < notches - 1 || glide < 0) { offset = target; continue; }
-                for (int tick = 0; tick < glide / SoftBar.GlideInterval; tick++) offset = SoftBar.GlideStep(offset, target);
+                offset = SoftBar.GlideAt(offset, target, Motion.Ease(glide / (double)Math.Max(1, Motion.Duration)));
             }
             return offset;
         }

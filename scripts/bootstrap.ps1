@@ -260,7 +260,10 @@ $CompatibilityCheckTimeoutMin = 5
 # deadline for the whole request, body and all (Invoke-BoundedWebRequest). -Version, which the
 # window waits far longer for, gives the same request $ReleasesVersionTimeout.
 $ReleasesHosts = @('api.github.com')
-$ReleasesMaxChars = 2097152
+# 8 MiB (the owner, 2026-11-10; it was 2 MiB, and a page of 30 releases had reached 60 % of that, release notes and all).
+# An installed copy keeps the bound of the bootstrap.ps1 it was installed with until it is updated: for those the only
+# relief is keeping the release notes short.
+$ReleasesMaxChars = 8388608
 $ReleasesTimeoutMax = 15
 $ReleasesTimeoutMin = 5
 $ReleasesVersionTimeout = 60

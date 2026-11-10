@@ -58,6 +58,17 @@ Marker = NewType("Marker", str)
 SessionId = NewType("SessionId", str)
 Epoch = NewType("Epoch", float)
 
+# The Codex app's Windows package: the publisher id Windows made its package with, and the family name every install of
+# it shares whatever its version or architecture (codex/pairing.py knows its processes by it, homefind.py its folder).
+CODEX_APP_PUBLISHER = "2p2nqsd0c76g0"
+CODEX_APP_FAMILY = "OpenAI.Codex_" + CODEX_APP_PUBLISHER
+
+# A version of this product a check may offer: three numbers with no leading zero, up to six digits, and a pre-release's
+# stage after them. notify.UPDATE_VERSION and the advanced update check are built from these two; the window's
+# DashboardVersions.VersionRule and DashboardMaintenance.PrereleaseRule are the same text (tests/test_rule_copies.py).
+PRODUCT_RELEASE = r"(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})"
+PRODUCT_STAGE = r"-(alpha|beta)(\.([2-9]|[1-9][0-9]{1,2}))?"
+
 
 # --------------------------------------------------------------------------- Codex's UUIDs
 MALFORMED = "malformed"              # not a UUID at all

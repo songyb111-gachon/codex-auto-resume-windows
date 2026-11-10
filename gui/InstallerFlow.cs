@@ -51,6 +51,9 @@ namespace CodexAutoResume
         /// The window's own code for a run that has not finished in the time it was given (the Dashboard's update):
         /// never ended by force, for it may be part way through replacing an installation.
         internal const int StillRunning = -2;
+        /// How long the setup program's window and the uninstall's wait for the script they ran (30 minutes, generous beside
+        /// the Dashboard's update and its download): past it the window says StillRunning and leaves the script alone.
+        internal const int ScriptMilliseconds = 1800000;
         /// The window's own code for an installer that could not be started at all.
         internal const int NotStarted = -1;
         /// The window's own code for an update the person put off on the Notes page: nothing was installed.
@@ -1000,6 +1003,8 @@ namespace CodexAutoResume
                 if (mode == InstallerFlow.Update) return Say("installer.done.updated", "Codex Auto Resume is updated.");
                 return Say("installer.done.installed", "Codex Auto Resume is installed.");
             }
+            if (code == InstallerFlow.StillRunning && mode == InstallerFlow.Uninstall)
+                return Say("installer.done.still_removing", "It is taking longer than usual and is still working in the background. It finishes by itself, and there is nothing more to do.");
             if (code == InstallerFlow.StillRunning)
                 return Say("installer.done.still_running", "It is taking longer than usual and is still working in the background. Look at the Dashboard again in a few minutes.");
             if (code == InstallerFlow.NotStarted)
@@ -1153,11 +1158,5 @@ namespace CodexAutoResume
 
         [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
         private static extern bool GetUserPreferredUILanguages(int flags, out int count, char[] buffer, ref int size);
-
-        /// Whether a language is written right to left.
-        internal static bool RightToLeft(string locale)
-        {
-            return locale == "ar" || locale == "he" || locale == "fa";
-        }
     }
 }

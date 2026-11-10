@@ -110,7 +110,7 @@ class HomeLockTests(unittest.TestCase):
             "    time.sleep(30)\n"
         ) % (str(ROOT / "src"), str(self.home), str(self.base))
         child = subprocess.Popen([sys.executable, "-c", program],
-                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8", errors="replace")
         try:
             first = child.stdout.readline().strip()
             self.assertEqual(first, "held", "the child never took the lock")
@@ -164,7 +164,7 @@ class WakeEventTests(unittest.TestCase):
             "    print('%%s %%.2f' %% (fired, time.monotonic() - started), flush=True)\n"
         ) % (str(ROOT / "src"), self.name, seconds)
         child = subprocess.Popen([sys.executable, "-c", program],
-                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8", errors="replace")
         self.assertEqual(child.stdout.readline().strip(), "waiting",
                          "the waiter never took the event")
         return child
