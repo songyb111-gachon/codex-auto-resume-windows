@@ -57,11 +57,12 @@ class StartWithCodex:
     left to decide: the capability's whole purpose is to offer the escape, and the hook hands
     core this object as the route. `start` is what core then calls, with the command line it
     built, to run the WMI create and hand back the created watcher's pid or a refusal code."""
-    __slots__ = ("paths", "_scoped")
+    __slots__ = ("paths", "_scoped", "_acted")
 
     def __init__(self, paths):
         self.paths = paths
         self._scoped = None
+        self._acted = None
 
     def bind(self, scoped):
         """Its view of the state (runtime.Runtime._code_of): the one write it uses is `count`, its own
@@ -72,12 +73,28 @@ class StartWithCodex:
         """What core made of the route it named (core's control/codexstart.OUTCOMES): written to the
         journal as the capability's own code - started, refused, already running, held by a pause or an
         installation, a watcher that ended at once (v0.6.16-beta.3, issue #31). A word it has no code
-        for is not written. Never raises."""
+        for is not written. Never raises.
+
+        `running` changed nothing and comes many times a day - Codex starts four servers in a second, each a process of
+        its own: it is counted by the day (the sampler) and leaves no journal line, neither its own nor the `acted`
+        written for the route named. On the owner's PC the two were 2,840 of 4,029 rows, and the 5,000-row bound would
+        have cut arming and trip history near 50 days instead of the promised 90 (v0.6.23)."""
         try:
-            if self._scoped is not None and isinstance(word, str):
-                self._scoped.count(word)
+            acted, self._acted = self._acted, None
+            if self._scoped is None or not isinstance(word, str):
+                return
+            if word == "running":
+                self._scoped.sample(word)
+                return
+            if acted is not None:
+                acted()
+            self._scoped.count(word)
         except Exception:
             pass
+
+    def acted_when_told(self, write):
+        """The `acted` line of this start, written by `told` once what core made of the route is known (runtime `ask`)."""
+        self._acted = write
 
     def start_route(self, request):
         """P9: the route that starts the watcher outside Codex's job. `request` is core's copy

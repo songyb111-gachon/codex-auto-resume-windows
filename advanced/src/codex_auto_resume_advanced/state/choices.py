@@ -220,6 +220,9 @@ class Scoped:
             "rules": lambda: state.rules() if rules_editor else [],
             "admission": admission,
             "count": count,
+            # v0.6.23: one of its own codes counted today and nothing written to the journal, for what happens often
+            # and changes nothing (the journal's 5,000 rows are for what a person may need to look back at).
+            "sample": lambda code: on is not None and on() is True and state.sample(capability, code),
             "resent": lambda interruption_id: state.resent(interruption_id),
             "channel_paid": lambda interruption_id, claimed_at: state.channel_paid(interruption_id, claimed_at),
             "request": lambda interruption_id: state.override(interruption_id, capability),

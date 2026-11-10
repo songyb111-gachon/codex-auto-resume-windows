@@ -582,6 +582,10 @@ class Runtime:
                 (point, chooser.id, _word(chosen, point)))
         if point == Point.SENDER:
             self._alone(chooser, chosen, record)
+        later = _own(self._code_of(chooser), "acted_when_told") if point == Point.START_ROUTE else None
+        if later is not None:
+            later(lambda: self._once(JournalCode.ACTED, chooser, point, chosen, record))
+            return chosen
         self._once(JournalCode.ACTED, chooser, point, chosen, record)
         return chosen
 
