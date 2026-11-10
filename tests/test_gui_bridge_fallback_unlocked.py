@@ -70,7 +70,14 @@ try {
     $bridge = $PB.GetConstructors($flags)[0].Invoke([object[]]@($home_, $oneShot))
     $call = $PB.GetMethod('Call', $flags, $null, [type[]]@([string], [string]), $null)
     $advanced = $PB.GetMethod('CallAdvanced', $flags)
-    function Lines { if (Test-Path $log) { return ,@([IO.File]::ReadAllLines($log)) } else { return ,@() } }
+    # Read beside the stand-in's own append, which holds the file for writing: ReadAllLines opens it denying writers, so
+    # it fails with a sharing violation whenever the two meet, and the probe ended there (CI's 3.15 lane).
+    function Lines {
+        if (-not (Test-Path $log)) { return ,@() }
+        $stream = [IO.File]::Open($log, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]'ReadWrite, Delete')
+        try { $reader = New-Object IO.StreamReader($stream, $utf8); $text = $reader.ReadToEnd() } finally { $stream.Dispose() }
+        return ,@($text -split "`n" | Where-Object { $_ -ne '' })
+    }
     # The slow call on a worker of its own: its long-lived call fails, and its one-shot answer takes seconds.
     $worker = [powershell]::Create()
     [void]$worker.AddScript({ param($m, $b) $m.Invoke($b, [object[]]@('slow', $null)) | Out-Null }).AddArgument($call).AddArgument($bridge)
