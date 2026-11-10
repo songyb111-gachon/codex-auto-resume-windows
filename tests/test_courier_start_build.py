@@ -66,7 +66,7 @@ class CourierStartCheckTests(unittest.TestCase):
     def test_the_stand_in_ignores_the_environment_as_the_bundled_runtime_does(self):
         done = subprocess.run([str(self.stage / "payload" / "runtime" / "python.exe"), "-c",
                                "import sys; print(sys.flags.ignore_environment)"],
-                              env=dict(os.environ, PYTHONPATH=str(ROOT / "src")), capture_output=True, text=True,
+                              env=dict(os.environ, PYTHONPATH=str(ROOT / "src")), capture_output=True, encoding="utf-8", errors="replace",
                               timeout=60, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         self.assertEqual(done.stdout.strip(), "1", done.stderr)
 

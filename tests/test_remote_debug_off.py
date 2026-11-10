@@ -280,7 +280,7 @@ class RuntimeTests(unittest.TestCase):
     def test_the_interpreter_has_it_on_unless_told_and_only_the_hyphens_tell_it(self):
         def remote(*options):
             return subprocess.run([sys.executable, *options, "-c", "import sys;print(sys.is_remote_debug_enabled())"],
-                                  capture_output=True, text=True, timeout=60).stdout.strip()
+                                  capture_output=True, encoding="utf-8", errors="replace", timeout=60).stdout.strip()
         self.assertEqual(remote(), "True")
         self.assertEqual(remote("-X", WRONG), "True")
         self.assertEqual(remote(*startup.NO_REMOTE_DEBUG), "False")
@@ -325,7 +325,7 @@ class RuntimeTests(unittest.TestCase):
                           "        print('remote', sys.is_remote_debug_enabled(), sys.argv[1:])\n"
                           "        sys.exit(7)\n"
                           "    sys.exit(again)\n", encoding="utf-8")
-        done = subprocess.run([sys.executable, str(script), "setup", "--keep-state"], capture_output=True, text=True,
+        done = subprocess.run([sys.executable, str(script), "setup", "--keep-state"], capture_output=True, encoding="utf-8", errors="replace",
                               timeout=60, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         self.assertEqual((done.returncode, done.stdout.strip()), (7, "remote False ['setup', '--keep-state']"))
 

@@ -403,7 +403,7 @@ class OlderReleaseTests(V8Case):
     def run_release(self, ref) -> dict:
         tree = self.sources(ref)
         ran = subprocess.run([sys.executable, "-I", "-c", OLDER, str(self.home), ac.THREAD, str(tree / "src"),
-                              str(tree / "advanced" / "src")], capture_output=True, text=True, timeout=120,
+                              str(tree / "advanced" / "src")], capture_output=True, encoding="utf-8", errors="replace", timeout=120,
                              env=dict(os.environ, CODEX_AR_EDITION="advanced"), cwd=tree,
                              creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         self.assertEqual(ran.returncode, 0, ran.stderr)

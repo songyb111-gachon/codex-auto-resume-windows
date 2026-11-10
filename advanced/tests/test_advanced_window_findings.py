@@ -203,7 +203,7 @@ class PastedSweepTests(unittest.TestCase):
             temp.mkdir()
             (work / "sweep.cs").write_text(HARNESS % (prefix, body), encoding="utf-8")
             built = subprocess.run([str(CSC), "/nologo", "/out:" + str(work / "sweep.exe"), str(work / "sweep.cs")],
-                                   capture_output=True, text=True, timeout=120,
+                                   capture_output=True, encoding="locale", errors="replace", timeout=120,
                                    creationflags=subprocess.CREATE_NO_WINDOW)
             self.assertEqual(built.returncode, 0, built.stdout)
             old = time.time() - 2 * 86400

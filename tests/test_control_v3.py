@@ -343,7 +343,7 @@ class UpgradeWindowTests(Base):
                 "with Mutex(%r, timeout=0):\n"
                 "    print('held', flush=True)\n"
                 "    time.sleep(60)\n" % (SRC, str(self.paths.state_dir)))
-        process = subprocess.Popen([sys.executable, "-c", code], stdout=subprocess.PIPE, text=True)
+        process = subprocess.Popen([sys.executable, "-c", code], stdout=subprocess.PIPE, encoding="utf-8", errors="replace")
         try:
             self.assertEqual(process.stdout.readline().strip(), "held")
             yield

@@ -321,7 +321,7 @@ class NothingWhileOffTests(ResidentCase):
                 "                   'codex_auto_resume_advanced.courier.page') if m in sys.modules]\n"
                 "sys.exit(repr(bad) if bad else 0)\n")
         root = Path(__file__).resolve().parents[2]
-        found = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=120,
+        found = subprocess.run([sys.executable, "-c", code], capture_output=True, encoding="utf-8", errors="replace", timeout=120,
                                env=dict(_environment(), PYTHONPATH="%s;%s" % (root / "src", root / "advanced" / "src")),
                                creationflags=NO_WINDOW)
         self.assertEqual((found.returncode, found.stderr), (0, ""))

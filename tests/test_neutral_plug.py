@@ -140,7 +140,7 @@ class NeutralPlugTests(unittest.TestCase):
         import time
         hang = "import sys, time\nsys.stdin.readline()\ntime.sleep(600)\n"
         with subprocess.Popen([sys.executable, "-c", hang], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                              text=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)) as process:
+                              encoding="utf-8", errors="replace", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)) as process:
             started = time.monotonic()
             line, stalled = neutral.answer(process, "a.scenario", stall=1)
             self.assertEqual((line, stalled), ("", True))
@@ -148,7 +148,7 @@ class NeutralPlugTests(unittest.TestCase):
             self.assertIsNotNone(process.wait(timeout=30))
         prompt = "import sys\nfor line in sys.stdin:\n    print(line.strip(), flush=True)\n"
         with subprocess.Popen([sys.executable, "-c", prompt], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                              text=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)) as process:
+                              encoding="utf-8", errors="replace", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)) as process:
             self.assertEqual(neutral.answer(process, "b.scenario", stall=60), ("b.scenario\n", False))
             process.stdin.close()
 

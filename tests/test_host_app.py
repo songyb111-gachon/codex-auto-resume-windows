@@ -135,7 +135,7 @@ class DecisionTests(unittest.TestCase):
         cls.build_output = built.stdout + built.stderr
         cls.answers = {}
         if cls.built:
-            ran = subprocess.run([str(exe)], capture_output=True, text=True, timeout=120, creationflags=NO_WINDOW)
+            ran = subprocess.run([str(exe)], capture_output=True, encoding="locale", errors="replace", timeout=120, creationflags=NO_WINDOW)
             for line in ran.stdout.splitlines():
                 answer = json.loads(line)
                 cls.answers[answer["case"]] = answer

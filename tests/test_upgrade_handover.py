@@ -389,7 +389,7 @@ class DashboardAfterUpdateTests(unittest.TestCase):
             probe = Path(folder) / "ast.ps1"
             probe.write_text(probe_text, encoding="utf-8-sig")
             done = subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
-                                   "-File", str(probe), str(INSTALL)], capture_output=True, text=True, timeout=120,
+                                   "-File", str(probe), str(INSTALL)], capture_output=True, encoding="locale", errors="replace", timeout=120,
                                   creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         found = {}
         for line in done.stdout.splitlines():
@@ -564,7 +564,7 @@ class DashboardAfterUpdateTests(unittest.TestCase):
             probe = Path(folder) / "page.ps1"
             probe.write_text(script, encoding="utf-8-sig")
             done = subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
-                                   "-File", str(probe)], capture_output=True, text=True, timeout=120,
+                                   "-File", str(probe)], capture_output=True, encoding="locale", errors="replace", timeout=120,
                                   creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         self.assertEqual(done.stdout.split(), ["[pending]", "[settings]", "[]", "[]", "[]", "[]", "[history]", "[]"],
                          done.stderr)
@@ -631,7 +631,7 @@ class DashboardAfterUpdateTests(unittest.TestCase):
             probe = Path(folder) / "name.ps1"
             probe.write_text(script, encoding="utf-8-sig")
             done = subprocess.run([str(powershell), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
-                                   "-File", str(probe), *homes], capture_output=True, text=True, timeout=120,
+                                   "-File", str(probe), *homes], capture_output=True, encoding="locale", errors="replace", timeout=120,
                                   creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         self.assertEqual(done.stdout.split(), expected, done.stderr)
         name = self.window[self.window.index("internal static string UpdateEventName(string root)"):]

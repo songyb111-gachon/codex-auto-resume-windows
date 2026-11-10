@@ -245,7 +245,7 @@ class FileTests(StateCase):
         (outside / config.OWNER_MARKER).write_text(config.OWNER_TEXT, encoding="utf-8")
         self.paths.ensure()
         made = subprocess.run(["cmd", "/c", "mklink", "/J", str(self.paths.advanced_dir), str(outside)],
-                              capture_output=True, text=True) if sys.platform == "win32" else None
+                              capture_output=True, encoding="locale", errors="replace") if sys.platform == "win32" else None
         if made is None or made.returncode != 0:
             self.skipTest("could not create a junction here")
         state = self.state()
@@ -265,7 +265,7 @@ class FileTests(StateCase):
         target = self.paths.logs_dir
         before = sorted(path.name for path in target.iterdir())
         made = subprocess.run(["cmd", "/c", "mklink", "/J", str(self.paths.advanced_dir), str(target)],
-                              capture_output=True, text=True) if sys.platform == "win32" else None
+                              capture_output=True, encoding="locale", errors="replace") if sys.platform == "win32" else None
         if made is None or made.returncode != 0:
             self.skipTest("could not create a junction here")
         state = self.state()

@@ -2586,7 +2586,7 @@ class FasterRunTests(unittest.TestCase):
             try:
                 for _turn in range(count):
                     holder = subprocess.Popen([sys.executable, "-c", takes, str(ROOT / "build"), name, str(count)],
-                                              stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
+                                              stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, encoding="utf-8", errors="replace",
                                               creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
                     holders.append(holder)
                     self.assertEqual(holder.stdout.readline().strip(), "held")
@@ -2643,7 +2643,7 @@ class FasterRunTests(unittest.TestCase):
             self.assertLessEqual(len([name for name in started if name in queued]), 1, started)
             for name in started:
                 # Empty only for a job ended between opening its mark and writing it.
-                pid = (marks / name).read_text()
+                pid = (marks / name).read_text(encoding="utf-8")
                 self.assertTrue(not pid or process_ended(int(pid)), "job %s is still running" % name)
             time.sleep(1.5)
             self.assertEqual(sorted(path.name for path in marks.iterdir()), started,
@@ -2676,7 +2676,7 @@ class FasterRunTests(unittest.TestCase):
                 generator_run.kill()
                 generator_run.wait(10)
             for name in ("a", "b"):
-                self.assertTrue(process_ended(int((marks / name).read_text())), "job %s outlived its run" % name)
+                self.assertTrue(process_ended(int((marks / name).read_text(encoding="utf-8"))), "job %s outlived its run" % name)
 
     def test_a_slow_window_is_waited_for_rather_than_failing_the_run(self):
         """With every processor taken by other work, windows took more than the five minutes a capture was given, and
@@ -2724,7 +2724,7 @@ class FasterRunTests(unittest.TestCase):
             home = Path(scratch) / "home"
             holder = subprocess.Popen([sys.executable, "-c", g.HOLD_MUTEX, str(ROOT / "src"), str(home), "unknown"],
                                       stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                      text=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                                      encoding="utf-8", errors="replace", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
             try:
                 self.assertEqual(holder.stdout.readline().strip(), "held")
                 with self.assertRaises(subprocess.TimeoutExpired):
@@ -2761,7 +2761,7 @@ class FasterRunTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as scratch:
             home = Path(scratch) / "home"
             parent = subprocess.Popen([sys.executable, "-c", capture, g.HOLD_MUTEX, str(ROOT / "src"), str(home)],
-                                      stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                      stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8", errors="replace",
                                       creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
             pids = []
             try:

@@ -1399,7 +1399,7 @@ class GeneratedStatusLightTests(unittest.TestCase):
         dll = work / "Brand.dll"
         compiled = subprocess.run([str(CSC), "/nologo", "/target:library", "/out:" + str(dll),
                                    "/reference:System.Drawing.dll", str(make_brand.TARGET)],
-                                  capture_output=True, text=True, errors="replace", timeout=300)
+                                  capture_output=True, encoding="locale", errors="replace", timeout=300)
         cls.error, cls.records = "", {}
         if compiled.returncode != 0:
             cls.error = "Brand.cs does not compile: " + compiled.stdout + compiled.stderr

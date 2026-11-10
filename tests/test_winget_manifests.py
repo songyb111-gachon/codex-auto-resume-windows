@@ -359,7 +359,7 @@ class SidecarTests(unittest.TestCase):
                 name = "CodexAutoResume%s-Setup-v0.6.15.exe" % ("-Advanced" if edition == "advanced" else "")
                 (folder / (name + ".sha256")).write_text("%s  %s\n" % (digest, name), encoding="utf-8")
                 self.assertEqual(wm.read_sidecar(folder, edition, "0.6.15"), digest)
-            (folder / "CodexAutoResume-Setup-v0.6.15.exe.sha256").write_text("%s  other.exe\n" % DIGESTS["standard"])
+            (folder / "CodexAutoResume-Setup-v0.6.15.exe.sha256").write_text("%s  other.exe\n" % DIGESTS["standard"], encoding="utf-8")
             with self.assertRaises(SystemExit):
                 wm.read_sidecar(folder, "standard", "0.6.15")
             with self.assertRaises(SystemExit):

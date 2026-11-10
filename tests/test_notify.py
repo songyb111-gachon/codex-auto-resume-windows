@@ -317,7 +317,7 @@ class ImportCostTests(unittest.TestCase):
                    "print(sorted(name for name in sys.modules\n"
                    "             if name == 'xml.sax' or name.startswith('xml.sax.')))\n")
         result = subprocess.run([sys.executable, "-c", program, SRC], capture_output=True,
-                                text=True, timeout=60)
+                                encoding="utf-8", errors="replace", timeout=60)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), "[]")
 
