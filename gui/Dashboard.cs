@@ -805,7 +805,7 @@ namespace CodexAutoResume
         // already scaled by its font, so unscaled gaps beside it look cramped at 200%.
         private static int Px(int atNinetySix)
         {
-            return (int)Math.Round(atNinetySix * SettingsForm.DpiScale);
+            return Soft.Px(atNinetySix);
         }
 
         /// A row: a line of text and the room round its bar for the control's lift in the Soft design, the same in
