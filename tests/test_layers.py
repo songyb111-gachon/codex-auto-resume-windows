@@ -110,7 +110,7 @@ LAYER = {_q(name): layer for layer, names in {
                  "compat.model", "compat.standing", "compat.report", "compat.permits", "compat.files", "compat.cache", "compat.probes", "compat.views", "compat.evaluator",
                  # v0.6.10: what others report, read beside the registry and never by it.
                  "compat.reported",
-                 "pwsh", "notify", "notice_presence", "tray_place",
+                 "pwsh", "notify", "notice_uris", "notice_presence", "tray_place",
                  # v0.6.18: the Codex app's link to one conversation, handed to explorer.exe - out of notify.
                  "codex_link",
                  # v0.6.10-alpha: store.py became store/. Every part of it is the same layer
@@ -199,7 +199,7 @@ LAYER = {_q(name): layer for layer, names in {
                 "control.poweraction"),
     "front": ("auto_resume", "cli", "controlcli", "mcpserver", "mcp.panel", "app", "ui.tray",
               # v0.6.10-alpha: app.py became runtime/ - the wiring, the loop and the toasts.
-              "runtime", "runtime.app", "runtime.loop", "runtime.toasts",
+              "runtime", "runtime.app", "runtime.loop", "runtime.toasts", "runtime.plugnotices",
               # v0.6.11: the watcher's side of sleep and of keeping this PC awake.
               "runtime.waking",
               # and of its own memory, how it ended and the status file.
@@ -223,7 +223,7 @@ LAYER = {_q(name): layer for layer, names in {
               # v0.6.10-alpha: mcpserver.py's body became mcp/, beside the panel's own files.
               "mcp", "mcp.server", "mcp.tools",
               "ui.popup", "brand",
-              "notice_card", "notice_window", "notifier",
+              "notice_card", "notice_window", "notifier", "notice_inbox",
               # v0.6.10-alpha: notice_window.py became ui/card/, the last module over budget.
               "ui.card", "ui.card.win32", "ui.card.surfaces", "ui.card.card", "ui.card.stack",
               # v0.6.10-alpha: brand.py became brand/ - one palette in nine files.

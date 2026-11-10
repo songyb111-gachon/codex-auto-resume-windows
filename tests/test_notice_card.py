@@ -1471,7 +1471,7 @@ class SafetyTests(unittest.TestCase):
         says whether a notice stays on screen until clicked - both pure but for the catalogs; v0.6.19 failures, whose
         closed category words are all P20 tells an edition's plug of a notice's category (notifier.told) - pure."""
         package, _ = self.imports("notifier.py")
-        self.assertLessEqual(package, {"demo", "failures", "l10n", "notice_kinds", "notice_presence", "notify",
+        self.assertLessEqual(package, {"demo", "failures", "l10n", "notice_inbox", "notice_kinds", "notice_presence", "notify",
                                        "reasons", "settings"})
 
     def test_no_new_module_raises_powershell_itself(self):
