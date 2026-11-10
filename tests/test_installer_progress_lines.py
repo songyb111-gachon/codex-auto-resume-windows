@@ -565,8 +565,7 @@ class RouteTests(unittest.TestCase):
 
     def test_the_dashboard_s_update_asks_only_for_its_window_and_keeps_no_progress_line(self):
         dashboard = (ROOT / "gui" / "DashboardMaintenance.cs").read_text(encoding="utf-8")
-        self.assertIn("if (Heard != null) info.EnvironmentVariables[InstallerProgress.Variable] = \"1\";", dashboard)
-        self.assertIn("else info.EnvironmentVariables.Remove(InstallerProgress.Variable);", dashboard)
+        # Asked for only while its window hears the lines: tests/test_gui_pick_window.py holds those two.
         self.assertIn("if (!InstallerProgress.IsProgress(line)) lines.Append(line)", dashboard)
 
     def test_the_uninstall_from_settings_asks_for_its_window(self):

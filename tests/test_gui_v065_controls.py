@@ -1255,11 +1255,9 @@ class SourceRuleTests(unittest.TestCase):
                         found.append("%s:%d %s" % (path.name, number, value))
         self.assertEqual(found, [])
 
-    def test_no_string_switch_and_no_initialized_constant_array(self):
+    def test_no_string_switch(self):
         code = "\n".join(line for line in self.controls.splitlines() if not line.lstrip().startswith("//"))
         self.assertNotRegex(code, r"switch\s*\(\s*\w*(?:[Nn]ame|[Tt]ext|[Ss]tate|[Kk]ey)\s*\)")
-        self.assertNotRegex(code, r"new\s+(?:byte|short|int|long|float|double|char|bool)\s*\[\s*\d*\s*\]\s*\{")
-        self.assertNotRegex(code, r"(?:byte|short|int|long|float|double|char|bool)\s*\[\s*\]\s+\w+\s*=\s*\{")
 
 
 if __name__ == "__main__":

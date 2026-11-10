@@ -919,8 +919,7 @@ class SourceTests(unittest.TestCase):
         closing = WINDOW[WINDOW.index("protected override void OnFormClosing("):]
         closing = closing[:closing.index("\n        }\n")]
         # v0.6.18 acceptance (B2): any close but Windows ending the session - a raw WM_CLOSE arrives as
-        # TaskManagerClosing (tests/test_gui_pick_close.py).
-        self.assertIn("if (running && e.CloseReason != CloseReason.WindowsShutDown)", closing)
+        # TaskManagerClosing: tests/test_gui_pick_close.py holds that condition.
         self.assertIn("e.Cancel = true;", closing)
 
     def test_it_asks_for_no_elevation_and_writes_nothing_under_hklm(self):
