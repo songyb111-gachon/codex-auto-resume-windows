@@ -266,3 +266,68 @@ class DashboardSceneTests(unittest.TestCase):
         body = guiscan.member_body("SettingsForm", "PlaceDayScene")
         self.assertIn("WordsEnd(headline, mirrored, width), WordsEnd(detail, mirrored, width)", body)
         self.assertIn("DayArt.Fit(", body)
+
+
+PROBE_TASKBAR = r"""
+$out.frames = @{}
+$head = [Drawing.Color]::FromArgb(10, 200, 90)
+$plain = (T 'MarkFrames').GetMethod('For', $static).Invoke($null, [object[]]@([int]32))
+foreach ($look in 'birthday', 'chuseok', 'seollal') {
+    $themed = Call $plain 'Themed' @($look)
+    $out.frames[$look] = [Convert]::ToBase64String([byte[]](Call $themed 'Compose' @([int]0, $head)))
+}
+function Turned([int]$r, [int]$g, [int]$b) {
+    $from = [Drawing.Color]::FromArgb(238, 132, 104); $to = [Drawing.Color]::FromArgb(158, 58, 75)
+    $call = [object[]]@([int]32, [int]16, $from, $to, [int]$r, [int]$g, [int]$b)
+    $ok = (T 'DayIcon').GetMethod('Turn', $static).Invoke($null, $call)
+    return @([bool]$ok, [int]$call[4], [int]$call[5], [int]$call[6])
+}
+$out.turnHead = Turned 0x4F 0xE0 0xF5
+$out.small = @((T 'DayIcon').GetMethod('Mark', $static).Invoke($null, [object[]]@('chuseok', [int]16)) -eq $null)
+"""
+
+
+class TaskbarTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.folder = tempfile.TemporaryDirectory()
+        work = Path(cls.folder.name)
+        exe = compile_window(work)
+        script = PROBE_HEAD + PROBE_HELPERS + PROBE_TASKBAR + PROBE_TAIL
+        cls.answer = run_probe(script, work, 200, CAR_EXE=str(exe))
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.folder.cleanup()
+
+    def test_the_taskbars_frames_are_the_tray_icons_on_the_days_body(self):
+        head = (10, 200, 90)
+        for look, text in self.answer["frames"].items():
+            window = base64.b64decode(text)
+            frames = IconFrames(32, look=look)
+            icon = frames.compose(0, head)
+            self.assertEqual(len(window), len(icon))
+            cover = frames._mark
+            for y in range(32):
+                for x in range(32):
+                    at = (y * 32 + x) * 4
+                    if icon[at + 3] != 255 or (x, y) in cover or any((x + dx, y + dy) in cover for dx in (-1, 1) for dy in (-1, 1)):
+                        continue
+                    for channel in range(3):
+                        self.assertLessEqual(abs(window[at + channel] - icon[at + channel]), 14, (look, x, y))
+
+    def test_the_mark_is_there_from_24_px_and_not_below(self):
+        window = base64.b64decode(self.answer["frames"]["chuseok"])
+        at = (7 * 32 + 26) * 4
+        self.assertLessEqual(max(abs(window[at + 2 - channel] - brand.rgb("#F6E7B4")[channel]) for channel in range(3)), 10)
+        self.assertTrue(self.answer["small"][0])
+
+    def test_the_head_is_never_turned(self):
+        self.assertFalse(self.answer["turnHead"][0])
+
+    def test_it_is_the_windows_own_icon_so_the_state_stays_as_it_is(self):
+        marks = guiscan.type_body("TaskbarMark")
+        self.assertIn("ApplyDay();", marks)
+        self.assertIn("frames = frames.Themed(look);", marks)
+        self.assertIn("Send(WM_SETICON, ICON_SMALL, daySmall);", marks)
+        self.assertIn("Brand.Mark.HeadColour(state)", marks, "the head keeps the state's colour")

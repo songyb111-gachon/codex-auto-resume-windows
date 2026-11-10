@@ -446,6 +446,45 @@ namespace CodexAutoResume
             return new MarkFrames(size, ground, heads);
         }
 
+        /// These frames on `look`'s body, its mark on them from 24 px up (the head's own pixels as they are).
+        internal MarkFrames Themed(string look)
+        {
+            string name, first, last;
+            Brand.DayGround(look, out name, out first, out last);
+            Color top = ColorTranslator.FromHtml(first), bottom = ColorTranslator.FromHtml(last);
+            byte[] mark = DayIcon.Mark(look, Size);
+            var day = (byte[])ground.Clone();
+            for (int at = 0; at < day.Length; at += 4)
+            {
+                if (day[at + 3] == 0) continue;
+                int r = day[at + 2], g = day[at + 1], b = day[at];
+                if (DayIcon.Turn(Size, at / 4 / Size, top, bottom, ref r, ref g, ref b))
+                {
+                    day[at + 2] = (byte)r;
+                    day[at + 1] = (byte)g;
+                    day[at] = (byte)b;
+                }
+                DayIcon.Lay(day, at, mark);
+            }
+            var turned = new int[heads.Length][];
+            for (int position = 0; position < heads.Length; position++)
+            {
+                var entries = (int[])heads[position].Clone();
+                for (int i = 0; i < entries.Length; i += 6)
+                {
+                    int others = entries[i + 1] - entries[i + 2];
+                    if (others <= 0) continue;
+                    int r = entries[i + 3] / others, g = entries[i + 4] / others, b = entries[i + 5] / others;
+                    DayIcon.Turn(Size, entries[i] / 4 / Size, top, bottom, ref r, ref g, ref b);
+                    entries[i + 3] = r * others;
+                    entries[i + 4] = g * others;
+                    entries[i + 5] = b * others;
+                }
+                turned[position] = entries;
+            }
+            return new MarkFrames(Size, day, turned);
+        }
+
         /// One frame: the head at `position` in `head`, top-down BGRA with straight alpha - tray.IconFrames.compose
         /// with no badge.
         internal byte[] Compose(int position, Color head)
@@ -737,6 +776,8 @@ namespace CodexAutoResume
                 framesRead = true;
                 Icon own = owner.Icon;
                 frames = own == null ? null : MarkFrames.For(own.Width);
+                string look = DayArt.Today();
+                if (frames != null && look != null) frames = frames.Themed(look);
             }
             return frames;
         }
@@ -781,11 +822,30 @@ namespace CodexAutoResume
         private bool Own()
         {
             if (ownBig != IntPtr.Zero && ownSmall != IntPtr.Zero) return true;
+            ApplyDay();
             IntPtr big = Send(WM_GETICON, ICON_BIG, IntPtr.Zero), small = Send(WM_GETICON, ICON_SMALL, IntPtr.Zero);
             if (big == IntPtr.Zero || small == IntPtr.Zero) return false;
             ownBig = big;
             ownSmall = small;
             return true;
+        }
+
+        private bool dayApplied;
+        private IntPtr dayBig, daySmall;
+
+        // On a special day the window's own icons, big and small, are the day's: the first thing the mark takes as "its own".
+        private void ApplyDay()
+        {
+            if (dayApplied) return;
+            string look = DayArt.Today();
+            Icon icon = owner.Icon;
+            if (icon == null || !owner.IsHandleCreated) return;
+            dayApplied = true;
+            if (look == null) return;
+            dayBig = DayIcon.From(icon, icon.Width, look);
+            daySmall = DayIcon.From(icon, SystemInformation.SmallIconSize.Width, look);
+            if (dayBig != IntPtr.Zero) Send(WM_SETICON, ICON_BIG, dayBig);
+            if (daySmall != IntPtr.Zero) Send(WM_SETICON, ICON_SMALL, daySmall);
         }
 
         /// Make the taskbar look at the big icon again: the small icon set again, with the other of two handles to its
@@ -844,6 +904,9 @@ namespace CodexAutoResume
             if (disposed) return;
             disposed = true;
             Stop();
+            if (dayBig != IntPtr.Zero) DestroyIcon(dayBig);
+            if (daySmall != IntPtr.Zero) DestroyIcon(daySmall);
+            dayBig = daySmall = IntPtr.Zero;
             if (owner.IsHandleCreated)
             {
                 if (shown != IntPtr.Zero && Send(WM_GETICON, ICON_BIG, IntPtr.Zero) == shown) Send(WM_SETICON, ICON_BIG, ownBig);
