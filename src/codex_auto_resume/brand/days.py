@@ -295,6 +295,19 @@ def scene_elements(look):
     return _kept[look]
 
 
+def mark_text(look):
+    """The icon's mark as scene_text's lines, for the window (Brand.DayMark)."""
+    lines = []
+    for shape in MARKS[look]:
+        if shape[0] == "poly":
+            lines.append("poly;%s;%s;1;;" % (" ".join("%g" % value for value in _flat(shape[1])), shape[-1]))
+        elif shape[0] == "circle":
+            lines.append("circle;%g %g %g;%s;1;;" % (shape[1], shape[2], shape[3], shape[-1]))
+        else:
+            lines.append("stroke;%g %g %g %g %g;%s;1;;" % (shape[5], shape[1], shape[2], shape[3], shape[4], shape[-1]))
+    return "\n".join(lines)
+
+
 def scene_text(look):
     """The same list as one line per element, for the window (Brand.DayScene): kind;numbers;colour;opacity;motion;numbers."""
     return "\n".join(";".join((element[0], " ".join("%g" % value for value in element[1]), element[2], "%g" % element[3], element[4],

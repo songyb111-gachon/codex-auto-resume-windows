@@ -150,3 +150,119 @@ class PopupSweepDrawnTests(unittest.TestCase):
 
     def test_the_seam_of_a_frame_is_the_band_kept_for_it(self):
         self.assertGreaterEqual(self.halo["sweep_reach"], self.halo["radius"] * 0.5)
+
+
+PROBE_WINDOW = r"""
+$out.parity = @{}
+$times = @(0.0, 1.3, 9.7)
+foreach ($look in 'birthday', 'new_year', 'christmas', 'seollal', 'chuseok') {
+    $elements = S 'DayArt' 'Parse' @((S 'Brand' 'DayScene' @($look)))
+    $all = @()
+    foreach ($seconds in $times) {
+        foreach ($element in $elements) {
+            $call = [object[]]@($element, [double]$seconds, $null, [double]0)
+            $null = (T 'DayArt').GetMethod('At', $static).Invoke($null, $call)
+            $all += ,@(@($call[2] | ForEach-Object { [double]$_ }), [double]$call[3])
+        }
+    }
+    $out.parity[$look] = $all
+}
+$out.todayOff = (S 'DayArt' 'Today' @()) -eq $null
+function Fit([int]$end, [int]$width) {
+    $call = [object[]]@('birthday', [int]$end, [int]0, [int]$width, [int]($width - 1), [int]1, [int]65, [int]0, [double]0, [int]0)
+    $ok = (T 'DayArt').GetMethod('Fit', $static).Invoke($null, $call)
+    return @([bool]$ok, [int]$call[7], [double]$call[8], [int]$call[9])
+}
+$out.fitRoom = Fit 120 400
+$out.fitNone = Fit 380 400
+$card = (SProp 'Palette' 'Card')
+$scene = Make 'SoftDayScene'
+$form.Controls.Add($scene)
+$scene.GetType().GetMethod('Place', $instance).Invoke($scene, [object[]]@($true, 'chuseok', [int]100, [int]10, [int]300, [int]60, [double](60.0 / 66.0), [int]60)) | Out-Null
+Pump 30
+$out.scene = @{ visible = [bool]$scene.Visible; moving = [bool](P $scene 'Moving') }
+function Paint {
+    $bitmap = New-Object Drawing.Bitmap $scene.Width, $scene.Height
+    $g = [Drawing.Graphics]::FromImage($bitmap)
+    $e = New-Object Windows.Forms.PaintEventArgs $g, $scene.ClientRectangle
+    $null = Call $scene 'OnPaint' @($e)
+    $g.Dispose()
+    return $bitmap
+}
+$bitmap = Paint
+$first = @(); foreach ($y in 0, 20, 40, 59) { $first += (Argb $bitmap.GetPixel(0, $y)) }
+$out.scene.first = $first
+$out.scene.card = (Argb $card)
+$out.scene.far = (Argb $bitmap.GetPixel($scene.Width - 40, 30))
+$bitmap.Dispose()
+$scene.Visible = $false
+Pump 30
+$out.scene.hiddenMoving = [bool](P $scene 'Moving')
+$scene.Visible = $true
+Pump 30
+Reduce $true
+$null = Call $scene 'Sync' @()
+$out.scene.reducedMoving = [bool](P $scene 'Moving')
+Reduce $false
+$null = Call $scene 'Sync' @()
+$out.scene.allowedAgain = [bool](P $scene 'Moving')
+$scene.GetType().GetMethod('Place', $instance).Invoke($scene, [object[]]@($false, 'chuseok', [int]0, [int]0, [int]0, [int]0, [double]0, [int]0)) | Out-Null
+$out.scene.off = @([bool]$scene.Visible, [bool](P $scene 'Moving'))
+"""
+
+
+class DashboardSceneTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.folder = tempfile.TemporaryDirectory()
+        work = Path(cls.folder.name)
+        exe = compile_window(work)
+        cls.answer = run_probe(PROBE_HEAD + PROBE_HELPERS + PROBE_WINDOW + PROBE_TAIL, work, 200, CAR_EXE=str(exe))
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.folder.cleanup()
+
+    def test_the_window_draws_brands_own_list(self):
+        for look in LOOKS:
+            expected = [brand.element_at(element, seconds) for seconds in (0.0, 1.3, 9.7) for element in brand.scene_elements(look)]
+            got = self.answer["parity"][look]
+            self.assertEqual(len(got), len(expected), look)
+            for (numbers, opacity), (_, python, _, alpha) in zip(got, expected):
+                self.assertAlmostEqual(opacity, alpha, places=2, msg=look)
+                for one, other in zip(numbers, python):
+                    self.assertAlmostEqual(one, other, delta=0.01, msg=look)
+
+    def test_no_window_looks_at_the_date_unless_a_person_opened_it(self):
+        self.assertTrue(self.answer["todayOff"])
+        self.assertIn("DayArt.On = Soft.StillClock < 0;", guiscan.settings())
+
+    def test_the_words_leave_room_or_there_is_no_scene(self):
+        ok, left, unit, fade = self.answer["fitRoom"]
+        self.assertTrue(ok)
+        self.assertGreaterEqual(left, 128)
+        self.assertGreater(fade, 0)
+        self.assertFalse(self.answer["fitNone"][0])
+
+    def test_there_is_no_seam(self):
+        scene = self.answer["scene"]
+        self.assertEqual(scene["first"], [scene["card"]] * 4)
+        self.assertNotEqual(scene["far"], scene["card"])
+
+    def test_it_moves_only_while_it_can_be_seen_and_motion_is_allowed(self):
+        scene = self.answer["scene"]
+        self.assertTrue(scene["moving"])
+        self.assertFalse(scene["hiddenMoving"])
+        self.assertFalse(scene["reducedMoving"])
+        self.assertTrue(scene["allowedAgain"])
+        self.assertEqual(scene["off"], [False, False])
+
+    def test_classic_has_none_and_a_frame_lays_nothing_out(self):
+        self.assertIn("dayLook = Palette.AccentBar ? null : DayArt.Today();", guiscan.settings())
+        self.assertNotIn("PerformLayout", guiscan.type_body("SoftDayScene"))
+        self.assertIn("dayScene.Sync();", guiscan.member_body("SettingsForm", "UpdateCountdowns"))
+
+    def test_the_scene_stands_clear_of_the_words(self):
+        body = guiscan.member_body("SettingsForm", "PlaceDayScene")
+        self.assertIn("WordsEnd(headline, mirrored, width), WordsEnd(detail, mirrored, width)", body)
+        self.assertIn("DayArt.Fit(", body)
