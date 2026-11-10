@@ -59,7 +59,32 @@ def saved(*keys):
                                    "profiles": [profile(key) for key in keys]}}
 
 
+def telegram():
+    return {"ok": True, "result": {"done": True, "refusal": None, "paired": False, "token_saved": False, "pairing": False,
+                                   "state": "no_token", "continue": False}}
+
+
+def courier():
+    rows = [{"channel": channel, "on": False, "saved": False, "refused_today": 0, "tripped": False}
+            for channel in ("ntfy", "webhook", "telegram", "email")]
+    return {"ok": True, "result": {"done": True, "refusal": None, "channels": rows, "events": 15,
+                                   "event_order": ["recovered", "failed"],
+                                   "telegram": {"token_saved": False, "paired": False, "pairing": False}, "feed": None}}
+
+
 class PageTests(PageCase):
+    @classmethod
+    def scenario_notices(cls, bridge):
+        """No bot token: Open the notices card, and where the column stands once that card is read."""
+        cls.watched(bridge, PUSH, state="armed")
+        cls.watched(bridge, TELEGRAM, state="armed")
+        script = cls.opening(bridge, "en")
+        script["advanced-remote-pair-state"] = [telegram()] * 8
+        script["advanced-courier"] = [courier()] * 8
+        steps = [{"do": "snapshot", "reply": snapshot()}, {"do": "show"}, {"do": "choose", "id": TELEGRAM}, {"do": "look"},
+                 {"do": "remote", "button": "open notices"}, {"do": "look"}]
+        return "en", {"script": script, "steps": steps}, {}
+
     @classmethod
     def scenario_power_ticks(cls, bridge):
         """Two ticked of three; one turn ends and the next read's list has lost it: the other stays ticked."""
@@ -90,6 +115,16 @@ class PageTests(PageCase):
     def test_the_saved_accounts_ticked_survive_a_changed_list(self):
         result, _ = self.of("scenario_account_ticks")
         self.assertEqual([look["ticked"] for look in result["looks"]], [["two"], ["two"]])
+
+    def test_open_the_notices_card_lands_on_the_card(self):
+        result, _ = self.of("scenario_notices")
+        before, opened = result["looks"]
+        self.assertEqual((before["open"], before["scrolled"]), (TELEGRAM, 0))
+        self.assertEqual(opened["open"], PUSH)
+        self.assertGreater(opened["courier_top"], 0, "the courier's card is under the capability's own")
+        self.assertGreater(opened["scrolled"], 0, "it stayed at the top of the column")
+        self.assertLessEqual(opened["scrolled"], opened["courier_top"])
+
 
 class SendAgainOfferedTests(ac.AdvancedCase):
     """Also send again when unsure... is a button that can do something, or it is not there."""

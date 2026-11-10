@@ -1652,6 +1652,9 @@ namespace CodexAutoResume
             var ticked = new List<string>(PowerTasksPicked());
             ticked.AddRange(AccountsPicked());
             look["ticked"] = ticked.ConvertAll<object>(delegate(string id) { return id; });
+            // v0.6.23: how far the open capability's column is scrolled, and where the courier's card stands in it.
+            look["scrolled"] = advancedScroll == null ? 0.0 : (double)((ISoftScroller)advancedScroll).Offset;
+            look["courier_top"] = (double)CourierCardTop();
             // v0.6.22: the Overview's Other PCs list while it shows, and the card's name, folder and Save.
             bool fleetShows = fleetCard != null && OwnVisible(fleetCard);
             look["fleet_shown"] = fleetShows;

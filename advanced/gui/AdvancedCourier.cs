@@ -58,6 +58,9 @@ namespace CodexAutoResume
         private readonly List<SoftCheck> courierEvents = new List<SoftCheck>();
         // The Overview's status line (one fact of Right now), made the first time the page says something is wrong.
         private Label feedName, feedValue;
+        // The courier's card as it was built, and whether the next reading of it lands the column on it.
+        private TableLayoutPanel courierCard;
+        private bool courierLanding;
         // Whether this window has asked for its one reading yet (FeedListingApplied).
         private bool feedAsked;
 
@@ -96,12 +99,34 @@ namespace CodexAutoResume
                 advancedCourier = AdvancedDone(result) ? result : null;
                 if (advancedCourier != null && !Equals(Get(Map(advancedCourier, "telegram"), "pairing"), true)) courierCode = null;
                 ShowAdvancedDetail();
+                LandOnCourier();
                 if (done != null) done();
             });
         }
 
+        /// Where the courier's card starts in the open capability's column, or -1 where it does not show.
+        private int CourierCardTop()
+        {
+            Control card = courierCard;
+            while (card != null && card.Parent != advancedStack) card = card.Parent;
+            return card == null ? -1 : card.Top - card.Margin.Top;
+        }
+
+        /// Asked for by Open the notices card (AdvancedRemote.cs), once the card has been read: the column scrolled to it.
+        /// With push notices off there is no card, and the column stays at its top, where Turn on is.
+        private void LandOnCourier()
+        {
+            if (!courierLanding) return;
+            courierLanding = false;
+            int top = CourierCardTop();
+            if (top < 0 || advancedScroll == null) return;
+            advancedScroll.PerformLayout();
+            ((ISoftScroller)advancedScroll).ScrollTo(top);
+        }
+
         private void ForgetCourierCard()
         {
+            courierCard = null;
             courierBoxes.Clear();
             courierPort = null;
             courierButtons.Clear();
@@ -114,6 +139,7 @@ namespace CodexAutoResume
             ForgetCourierCard();
             if (Str(item, "id") != PushId || !Standing(item) || advancedCourier == null) return;
             TableLayoutPanel card = NewGroup(Word("page.courier.title", "Where notices go"), advancedStack);
+            courierCard = card;
             card.Controls.Add(HelpText(Word("page.courier.secret_note",
                 "What you type here is kept in Windows Credential Manager and never shown again.")));
             var options = new Dictionary<string, int>();
