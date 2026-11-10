@@ -7,6 +7,7 @@ from __future__ import annotations
 import contextlib
 import json
 from pathlib import Path
+import sqlite3
 import sys
 import unittest
 
@@ -14,7 +15,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import advancedcase as ac  # noqa: E402
 from test_advanced_state import StateCase  # noqa: E402
-from codex_auto_resume import ladder, settings  # noqa: E402
+from codex_auto_resume import continuation, ladder, settings  # noqa: E402
+from codex_auto_resume.domain import ids, plughands  # noqa: E402
+from codex_auto_resume_advanced.engine import markerfree  # noqa: E402
 from codex_auto_resume_advanced.state import Refused  # noqa: E402
 from codex_auto_resume_advanced.state import prompts as prompts_module, resets as resets_module  # noqa: E402
 from codex_auto_resume_advanced.state import schema as schema_module  # noqa: E402
@@ -140,6 +143,74 @@ class SeriesSpan(StateCase):
     def generation(self, state):
         with contextlib.closing(self.raw(state)) as connection:
             return connection.execute("SELECT generation FROM meta").fetchone()[0]
+
+
+class LongestMessage(StateCase):
+    """L1.2: 30,000 characters, in every place the bound is written, and a file written with the old CHECK keeps working."""
+
+    LONGEST = continuation.PROMPT_LIMIT
+
+    def test_every_place_says_the_same(self):
+        self.assertEqual(continuation.PROMPT_SEND_LIMIT, 30000)
+        self.assertEqual(self.LONGEST, 30000 - len("\n\n" + ids.short_marker("0" * ids.INTERRUPTION_ID_LENGTH)))
+        for name, value in (("plughands", plughands.WORDS_LIMIT), ("markerfree", markerfree.MAX_PROMPT),
+                            ("prompts", prompts_module.WORDS_LIMIT), ("resets", resets_module.WORDS_LIMIT),
+                            ("steers", schema_module.STEER_WORDS), ("schema", schema_module.WORDS_MOST)):
+            self.assertEqual(value, continuation.PROMPT_SEND_LIMIT, name)
+
+    def test_a_new_file_holds_the_longest_and_refuses_one_more(self):
+        state = self.state()
+        kept = state.add_prompt(ac.THREAD, "x" * 30000, "after_turn")
+        self.assertEqual(len(state.prompt(kept)["words"]), 30000)
+        state.add_reset_rule("reset_message", "codex", 300, 1, thread_id=thread(1), words="y" * 30000, record_id=key(1))
+        with self.assertRaises(Refused):
+            state.add_prompt(ac.THREAD, "x" * 30001, "after_turn")
+
+    def narrowed(self, state, first_id):
+        """The file as an earlier version wrote it: each CHECK saying 8,192, a prompt in it, and a higher id used and gone."""
+        kept = state.add_prompt(ac.THREAD, "written before", "after_turn")
+        state.add_prompt(ac.THREAD, "gone", "after_turn")
+        path = state.path
+        state.close()
+        with contextlib.closing(sqlite3.connect(path)) as connection:
+            for table in schema_module.WORDS_TABLES:
+                stored = connection.execute("SELECT sql FROM sqlite_master WHERE name=?", (table,)).fetchone()[0]
+                self.assertIn("BETWEEN 1 AND 30000", stored, table)
+                connection.execute("PRAGMA writable_schema=ON")
+                connection.execute("UPDATE sqlite_master SET sql=? WHERE type='table' AND name=?",
+                                   (stored.replace("BETWEEN 1 AND 30000", "BETWEEN 1 AND 8192"), table))
+                connection.execute("PRAGMA writable_schema=OFF")
+            connection.execute("DELETE FROM prompts WHERE words='gone'")
+            connection.commit()
+        return kept, path
+
+    def stored(self, path, table):
+        with contextlib.closing(sqlite3.connect(path)) as connection:
+            return connection.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone()[0]
+
+    def test_a_file_with_the_old_check_is_widened_and_keeps_its_rows_indexes_and_ids(self):
+        state = self.state()
+        kept, path = self.narrowed(state, 1)
+        for table in schema_module.WORDS_TABLES:
+            self.assertIn("BETWEEN 1 AND 8192", self.stored(path, table), table)
+        opened = self.state()
+        self.assertEqual(opened.prompt(kept)["words"], "written before", "the row is kept")
+        for table in schema_module.WORDS_TABLES:
+            self.assertIn("BETWEEN 1 AND 30000", self.stored(path, table), table)
+        longest = opened.add_prompt(thread(2), "x" * 30000, "after_turn")
+        self.assertEqual(longest, kept + 2, "an id once given is not given again")
+        path_now = opened.path
+        opened.close()
+        with contextlib.closing(sqlite3.connect(path_now)) as connection:
+            indexes = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='index'")}
+            version = connection.execute("PRAGMA user_version").fetchone()[0]
+        self.assertTrue({"prompts_thread", "reset_rules_state", "steers_created"} <= indexes, indexes)
+        self.assertEqual(version, schema_module.SCHEMA_VERSION, "no version raised: an older reader still reads the file")
+
+    def test_a_person_reads_the_same_number(self):
+        words = json.loads(CATALOG.read_text(encoding="utf-8"))["statement.long_reset_message.does"]
+        self.assertIn("29,962 characters", words)
+        self.assertEqual(self.LONGEST, 29962)
 
 
 if __name__ == "__main__":

@@ -1025,7 +1025,7 @@
   "statement.keep_going.risks": "O trabalho continua quando talvez você quisesse que parasse: pare-o no Dashboard ou desligue a conversa. O ritmo é o de toda recuperação, quinze minutos de intervalo e cinco por dia em uma conversa.",
   "statement.keep_going.stop": "Desligue aqui ou desligue todos os recursos avançados; nenhuma conversa continua andando, e uma continuação ainda não enviada é descartada.",
   "statement.long_reset_message.departs": "A27 (uma mensagem escrita por uma pessoa tem no máximo 2.000 caracteres).",
-  "statement.long_reset_message.does": "Permite que uma mensagem que você agenda para uma redefinição, e uma que você coloca na fila, tenha até 8.154 caracteres - o máximo que uma continuação pode levar - em vez de 2.000.",
+  "statement.long_reset_message.does": "Permite que uma mensagem que você agenda para uma redefinição, e uma que você coloca na fila, tenha até 29.962 caracteres - o máximo que uma continuação pode levar - em vez de 2.000.",
   "statement.long_reset_message.instead": "Uma mensagem que você escreve tem no máximo 2.000 caracteres, como a mensagem personalizada.",
   "statement.long_reset_message.risks": "Uma mensagem longa usa mais da janela que inicia do que uma curta. Ao desligar, toda mensagem em espera com mais de 2.000 caracteres - em uma redefinição ou na fila - é cancelada.",
   "statement.long_reset_message.stop": "Desligue aqui ou com Desligar todos os recursos avançados; as mensagens em espera com mais de 2.000 caracteres, em uma redefinição ou na fila, são então canceladas.",

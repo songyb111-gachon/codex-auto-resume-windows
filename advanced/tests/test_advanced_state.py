@@ -763,7 +763,7 @@ class ResetStateTests(StateCase):
                                                              words="x", record_id="%064x" % 1), Refusal.OCCASION_INVALID),
                               (lambda: state.add_reset_rule("reset_credit", "codex", 300, 10), Refusal.OCCASION_INVALID),
                               (lambda: self.message(state, words=""), Refusal.MESSAGE_REFUSED),
-                              (lambda: self.message(state, words="x" * 8193), Refusal.MESSAGE_REFUSED)):
+                              (lambda: self.message(state, words="x" * 30001), Refusal.MESSAGE_REFUSED)):
             with self.subTest(refusal=refusal):
                 with self.assertRaises(Refused) as refused:
                     call()

@@ -1025,7 +1025,7 @@
   "statement.keep_going.risks": "Công việc vẫn tiếp tục khi có thể bạn muốn nó dừng: hãy dừng trong Bảng điều khiển hoặc tắt cuộc trò chuyện. Nhịp độ như mọi lần khôi phục, cách nhau mười lăm phút và năm lần mỗi ngày trong một cuộc trò chuyện.",
   "statement.keep_going.stop": "Tắt nó ở đây hoặc tắt mọi tính năng nâng cao; không cuộc trò chuyện nào còn được giữ tiếp tục, và lời tiếp tục chưa gửi sẽ bị bỏ.",
   "statement.long_reset_message.departs": "A27 (một tin nhắn do người viết có tối đa 2.000 ký tự).",
-  "statement.long_reset_message.does": "Cho phép tin nhắn bạn lên lịch cho lần đặt lại, và tin nhắn bạn xếp hàng, dài tới 8.154 ký tự - mức tối đa một lời tiếp tục mang được - thay vì 2.000.",
+  "statement.long_reset_message.does": "Cho phép tin nhắn bạn lên lịch cho lần đặt lại, và tin nhắn bạn xếp hàng, dài tới 29.962 ký tự - mức tối đa một lời tiếp tục mang được - thay vì 2.000.",
   "statement.long_reset_message.instead": "Một tin nhắn bạn viết, cũng như tin nhắn tùy chỉnh, có tối đa 2.000 ký tự.",
   "statement.long_reset_message.risks": "Tin nhắn dài dùng nhiều mức sử dụng của khung mà nó bắt đầu hơn tin nhắn ngắn. Khi tắt, mọi tin đang chờ dài hơn 2.000 ký tự - ở lần đặt lại hay trong hàng đợi - đều bị hủy.",
   "statement.long_reset_message.stop": "Tắt nó ở đây hoặc bằng Tắt mọi tính năng nâng cao; khi đó các tin đang chờ dài hơn 2.000 ký tự, ở lần đặt lại hay trong hàng đợi, sẽ bị hủy.",

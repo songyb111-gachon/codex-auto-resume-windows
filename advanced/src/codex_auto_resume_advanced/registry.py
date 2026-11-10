@@ -1550,7 +1550,7 @@ WINDOW_ANCHOR = CapabilityDef(
 )
 
 # Longer reset messages (v0.6.14, the owner's answer of 2026-10-08): a message sent at a reset may be up to what one
-# continuation carries (continuation.PROMPT_LIMIT, 8,154 characters) instead of A27's 2,000 - a separate opt-in, off
+# continuation carries (continuation.PROMPT_LIMIT, 29,962 characters) instead of A27's 2,000 - a separate opt-in, off
 # until a person turns it on after its statement, which names A27. An action: it answers at no point and sends
 # nothing; reset_message reads whether it stands on, and when it does not, a waiting message over 2,000 is cancelled.
 # It requires nothing (v0.6.16-beta.3's audit of the registry for `requires`): it lengthens what reset_message and

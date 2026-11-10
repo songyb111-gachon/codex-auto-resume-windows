@@ -42,7 +42,7 @@ from .schema import (ADD_RESETS, ATTACHED, FILE_NAME, SCHEMA_VERSION, STATEMENTS
                      TABLES_BEFORE_STAGE4, UPGRADE_TO_STAGE4, WINDOW_CHOICES, WINDOW_FOLLOWERS, WINDOW_LEADER,
                      WINDOW_OFF, WINDOW_ON, FREE_OPTIONS, MARKED, READABLE_FROM, holds, names_checked,
                      readable_from, TABLES_V7, UPGRADE_TO_V019, FREE_WORDINGS, wordings_checked, TABLES_V8,
-                     UPGRADE_TO_V020, V019_VERSION, HOURLY_REMADE, hourly_bound)
+                     UPGRADE_TO_V020, V019_VERSION, HOURLY_REMADE, hourly_bound, widen_words)
 
 
 class StateError(RuntimeError):
@@ -235,6 +235,8 @@ class SessionMixin:
                 for statement in HOURLY_REMADE:
                     connection.execute(statement)
                 connection.execute("UPDATE meta SET global_hourly=? WHERE global_hourly=?", (GLOBAL_HOURLY, old))
+            # v0.6.23: the tables holding a person's words, made again with today's longest message, once (schema.widen_words).
+            widen_words(connection)
         if connection.execute("SELECT count(*) FROM meta").fetchone()[0] != 1:
             raise StateError("malformed advanced state")
         self._carry_windows(connection)

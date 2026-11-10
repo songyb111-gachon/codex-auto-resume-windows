@@ -1025,7 +1025,7 @@
   "statement.keep_going.risks": "El trabajo sigue cuando quizá querías que parara: detenlo en el Panel o desactiva la conversación. Va al ritmo de toda recuperación, con quince minutos entre una y otra y cinco al día en una conversación.",
   "statement.keep_going.stop": "Desactívala aquí o desactiva todas las funciones avanzadas; ninguna conversación se mantiene en marcha y una continuación aún no enviada se descarta.",
   "statement.long_reset_message.departs": "A27 (un mensaje que escribe una persona tiene como máximo 2.000 caracteres).",
-  "statement.long_reset_message.does": "Permite que un mensaje que programas para un restablecimiento, y uno que pones en cola, tenga hasta 8.154 caracteres - lo máximo que puede llevar una continuación - en lugar de 2.000.",
+  "statement.long_reset_message.does": "Permite que un mensaje que programas para un restablecimiento, y uno que pones en cola, tenga hasta 29.962 caracteres - lo máximo que puede llevar una continuación - en lugar de 2.000.",
   "statement.long_reset_message.instead": "Un mensaje que escribes tiene como máximo 2.000 caracteres, como el mensaje personalizado.",
   "statement.long_reset_message.risks": "Un mensaje largo usa más de la ventana que inicia que uno corto. Al desactivarlo, todo mensaje en espera de más de 2.000 caracteres - en un restablecimiento o en la cola - se cancela.",
   "statement.long_reset_message.stop": "Desactívalo aquí o con Desactivar todas las funciones avanzadas; los mensajes en espera de más de 2.000 caracteres, en un restablecimiento o en la cola, se cancelan entonces.",

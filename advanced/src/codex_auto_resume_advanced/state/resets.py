@@ -25,7 +25,7 @@ from __future__ import annotations
 
 from ..vocabulary import Refusal, RecordState, RuleReason, RuleState, SpendOutcome
 from .choices import Refused
-from .schema import BUCKETS, RESET_CAPABILITIES
+from .schema import BUCKETS, RESET_CAPABILITIES, WORDS_MOST
 from .session import StateError, _key, _thread, _timestamp, _word
 
 CREDIT, MESSAGE = RESET_CAPABILITIES
@@ -38,7 +38,7 @@ MESSAGES_LIMIT = 50
 CREDIT_RULES_LIMIT = 4
 # A message's words, at most: what core's one send carries less the blank line and the marker
 # (continuation.PROMPT_LIMIT), which the file holds them under too.
-WORDS_LIMIT = 8192
+WORDS_LIMIT = WORDS_MOST
 ORDINALS = range(0, 10)
 # What a rule's row may be changed in, and nothing else of it.
 CHANGES = frozenset({"state", "reason", "adopted_at", "base", "ordinal", "due_at", "launching_at", "sent_at",

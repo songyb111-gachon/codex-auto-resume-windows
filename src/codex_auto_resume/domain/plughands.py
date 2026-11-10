@@ -37,8 +37,9 @@ BASE_RECORD_KEYS = frozenset({"record_id", "thread_id", "marker", "state", "word
 # took and whether a person asked for it back - each optional, a record without it being what one was before.
 RECORD_KEYS = BASE_RECORD_KEYS | {"purpose", "ordinal", "queue_id", "withdraw"}
 # How long the words of one may be, at most: what core's one send carries, less the blank line and the
-# marker it ends with (continuation.validate_prompt checks them again, as text).
-WORDS_LIMIT = 8192
+# marker it ends with (continuation.validate_prompt checks them again, as text). 30,000: continuation.PROMPT_SEND_LIMIT,
+# written again because this layer is below it (the owner, 2026-11-10; a test holds the two equal).
+WORDS_LIMIT = 30000
 # How many guards one errand may ask for in one tick: one for each capability whose errand the plug
 # joins into it, and no more. A guard asked for past this is refused without a transaction.
 ERRAND_GUARDS = 8

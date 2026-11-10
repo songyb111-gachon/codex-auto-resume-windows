@@ -1025,7 +1025,7 @@
   "statement.keep_going.risks": "Le travail continue alors que vous auriez pu vouloir qu'il s'arrête : arrêtez-le dans le Tableau de bord ou désactivez la conversation. Le rythme est celui de toute récupération, quinze minutes d'écart et cinq par jour dans une conversation.",
   "statement.keep_going.stop": "Désactivez-la ici ou désactivez toutes les fonctions avancées ; plus aucune conversation n'avance d'elle-même, et une relance pas encore envoyée est abandonnée.",
   "statement.long_reset_message.departs": "A27 (un message écrit par une personne compte au plus 2 000 caractères).",
-  "statement.long_reset_message.does": "Permet à un message que vous planifiez pour une réinitialisation, et à un message mis en file, de faire jusqu'à 8 154 caractères - le maximum qu'une relance peut porter - au lieu de 2 000.",
+  "statement.long_reset_message.does": "Permet à un message que vous planifiez pour une réinitialisation, et à un message mis en file, de faire jusqu'à 29 962 caractères - le maximum qu'une relance peut porter - au lieu de 2 000.",
   "statement.long_reset_message.instead": "Un message que vous écrivez compte au plus 2 000 caractères, comme le message personnalisé.",
   "statement.long_reset_message.risks": "Un message long consomme plus de la fenêtre qu'il ouvre qu'un message court. Désactivé, tout message en attente de plus de 2 000 caractères - à une réinitialisation ou dans la file - est annulé.",
   "statement.long_reset_message.stop": "Désactivez-le ici ou avec Désactiver toutes les fonctions avancées ; les messages en attente de plus de 2 000 caractères, à une réinitialisation ou dans la file, sont alors annulés.",

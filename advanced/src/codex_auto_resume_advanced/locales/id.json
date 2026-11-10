@@ -1025,7 +1025,7 @@
   "statement.keep_going.risks": "Pekerjaan terus berjalan saat mungkin Anda ingin berhenti: hentikan di Dasbor atau matikan percakapannya. Lajunya seperti setiap pemulihan, berselang lima belas menit dan lima kali sehari dalam satu percakapan.",
   "statement.keep_going.stop": "Matikan di sini atau matikan semua fitur tingkat lanjut; tidak ada lagi percakapan yang dijaga tetap berjalan, dan lanjutan yang belum dikirim dibuang.",
   "statement.long_reset_message.departs": "A27 (pesan yang ditulis seseorang paling banyak 2.000 karakter).",
-  "statement.long_reset_message.does": "Memungkinkan pesan yang Anda jadwalkan untuk reset, dan pesan yang Anda antrekan, panjangnya sampai 8.154 karakter - paling banyak yang bisa dibawa satu lanjutan - alih-alih 2.000.",
+  "statement.long_reset_message.does": "Memungkinkan pesan yang Anda jadwalkan untuk reset, dan pesan yang Anda antrekan, panjangnya sampai 29.962 karakter - paling banyak yang bisa dibawa satu lanjutan - alih-alih 2.000.",
   "statement.long_reset_message.instead": "Pesan yang Anda tulis, seperti pesan kustom, paling banyak 2.000 karakter.",
   "statement.long_reset_message.risks": "Pesan panjang memakai lebih banyak jendela yang dimulainya daripada pesan pendek. Saat dimatikan, setiap pesan yang menunggu lebih dari 2.000 karakter - saat reset atau di antrean - dibatalkan.",
   "statement.long_reset_message.stop": "Matikan di sini atau dengan Nonaktifkan semua fitur tingkat lanjut; pesan menunggu yang lebih dari 2.000 karakter, saat reset atau di antrean, lalu dibatalkan.",

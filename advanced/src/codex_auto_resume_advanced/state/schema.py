@@ -556,6 +556,12 @@ _STATEMENTS_V3 = _STATEMENTS_V3 + _STATEMENTS_RESETS
 # already in Codex's queue, for core to take back (the owner's answer of 2026-10-09).
 _KEY = "CHECK (%s IS NULL OR (length(%s) = 64 AND %s NOT GLOB '*[^0-9a-f]*'))"
 _UUID = "CHECK (length(thread_id) = 36 AND thread_id NOT GLOB '*[^0-9a-f-]*')"
+# The most words a message of a person's may be, in every table that holds them: what core's one send carries
+# (continuation.PROMPT_SEND_LIMIT): 30,000 (the owner, 2026-11-10; plans/measure-20261110-limits-result.md). The files'
+# older CHECKs name 8,192 (WORDS_BEFORE): `widen_words` makes those tables again at the opening. The two CREATEs written
+# with it stay as they were for the upgrades that start from them, and a new file gets them with today's number.
+WORDS_MOST = 30000
+WORDS_BEFORE = 8192
 # The latest a prompt's `until` may be, from when it was written: the CHECK below, kept so that no stored row changes
 # meaning. Since v0.6.23 (the owner, 2026-11-10) a new series writes no `until` and runs the occurrences picked (30 weekly
 # is 210 days); a row written before it keeps its 30 days.
@@ -829,7 +835,7 @@ _STATEMENTS_V019 = (
 # Version 9's own (v0.6.20): the steers. The words are the person's own, at most a queued message's (WORDS_LIMIT in
 # state/prompts.py) and never a control character but a line break or a tab; a settled steer has its time, a waiting
 # one none; only a refusal has a reason.
-STEER_WORDS = 8192
+STEER_WORDS = WORDS_MOST
 _STATEMENTS_V020 = (
     """CREATE TABLE steers (
         steer_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -848,7 +854,12 @@ _STATEMENTS_V020 = (
 )
 _STATEMENTS_V7 = _STATEMENTS_V2 + _STATEMENTS_V3 + _STATEMENTS_V4 + _STATEMENTS_V5 + _STATEMENTS_V6 + _STATEMENTS_STAGE4
 MARKED = "PRAGMA application_id=%d" % (MARK | READABLE_FROM)
+_WORDS_CHECK = "length(words) BETWEEN 1 AND %d"
+_RESET_RULES_V3 = next(s for s in _STATEMENTS_RESETS if s.lstrip().startswith("CREATE TABLE reset_rules"))
 _FREED = {id(_STATEMENTS_V3[0]): _OPTIONS_FREE, id(_STATEMENTS_V6[0]): _WORDINGS_FREE,
+          # v0.6.23: a new file's messages may be as long as core's one send.
+          id(_PROMPTS_V4): _PROMPTS_V4.replace(_WORDS_CHECK % WORDS_BEFORE, _WORDS_CHECK % WORDS_MOST),
+          id(_RESET_RULES_V3): _RESET_RULES_V3.replace(_WORDS_CHECK % WORDS_BEFORE, _WORDS_CHECK % WORDS_MOST),
           # v0.6.22: a new file's ceiling is the registry's today (GLOBAL_HOURLY), in its CHECK and its row.
           id(_STATEMENTS_V2[0]): _META_NOW, id(_STATEMENTS_V2[1]): "INSERT INTO meta VALUES (1, 0, %d)" % GLOBAL_HOURLY}
 STATEMENTS = (tuple(_FREED.get(id(statement), statement) for statement in _STATEMENTS_V7) + _STATEMENTS_V019
@@ -954,6 +965,37 @@ def hourly_bound(connection):
 # could have chosen the old highest as a cap, since there was no higher value to be held back from, so it is the
 # default and stays the default. Every lower value a person chose is kept as it was.
 HOURLY_REMADE = _remade(_META_NOW, "meta", TABLES["meta"], suffix="hourly")
+
+
+# v0.6.23 (the longest message, 8,192 -> 30,000): SQLite cannot change a CHECK in place, so each table whose stored CREATE
+# still names the old bound is made again from that CREATE with the new one, every row, index and id counter kept, in the
+# opening's one transaction - a run cut short leaves the old table whole. The version and the mark stay, as with the
+# global ceiling above: an older reader compares tables and columns, and reads a longer message as it reads any text.
+WORDS_TABLES = ("reset_rules", "prompts", "steers")
+_WORDS_OLD = re.compile(r"(length\(words\)\s+BETWEEN\s+1\s+AND\s+)%d\b" % WORDS_BEFORE, re.I)
+
+
+def widen_words(connection) -> None:
+    """The tables of WORDS_TABLES whose CHECK still says WORDS_BEFORE, made again saying WORDS_MOST."""
+    for table in WORDS_TABLES:
+        found = connection.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone()
+        if found is None or _WORDS_OLD.search(found[0]) is None:
+            continue
+        wider = _WORDS_OLD.sub(lambda match: match.group(1) + str(WORDS_MOST), found[0])
+        made = re.sub(r"^CREATE TABLE\s+\"?%s\"?" % table, "CREATE TABLE %s_wide" % table, wider, count=1)
+        indexes = [row[0] for row in connection.execute(
+            "SELECT sql FROM sqlite_master WHERE type='index' AND tbl_name=? AND sql IS NOT NULL", (table,))]
+        columns = ", ".join(row[1] for row in connection.execute("PRAGMA table_info(%s)" % table))
+        counter = connection.execute("SELECT seq FROM sqlite_sequence WHERE name=?", (table,)).fetchone()
+        connection.execute(made)
+        connection.execute("INSERT INTO %s_wide (%s) SELECT %s FROM %s" % (table, columns, columns, table))
+        connection.execute("DROP TABLE %s" % table)
+        connection.execute("ALTER TABLE %s_wide RENAME TO %s" % (table, table))
+        for index in indexes:
+            connection.execute(index)
+        if counter is not None:                # an id once given is never given again: a prompt's pictures go by it
+            connection.execute("DELETE FROM sqlite_sequence WHERE name=?", (table,))
+            connection.execute("INSERT INTO sqlite_sequence (name, seq) VALUES (?, ?)", (table, counter[0]))
 
 
 def wordings_checked(connection) -> bool:

@@ -22,7 +22,7 @@ from ..vocabulary import PromptEvery, PromptReason, PromptState, PromptTrigger, 
 PROMPT_QUEUE = "prompt_queue"
 from .choices import Refused
 from .resets import _gate_word
-from .schema import PROMPT_SPAN
+from .schema import PROMPT_SPAN, WORDS_MOST
 from .session import StateError, _key, _thread, _timestamp, _word
 
 # A prompt still to go: waiting for its time, due and being tried, or held for a person.
@@ -31,7 +31,7 @@ PROMPTS_LIMIT = 50
 PER_CONVERSATION = 20
 OCCURRENCES = range(1, 31)
 # A prompt's words at most, as a reset message's: what core's one send carries less the marker.
-WORDS_LIMIT = 8192
+WORDS_LIMIT = WORDS_MOST
 # What a prompt's row may be changed in by the engine (engine/promptqueue.py), and nothing else of it.
 CHANGES = frozenset({"state", "reason", "record_id", "gate", "gate_reason", "due_at", "launching_at", "sent_at",
                      "finished_at", "sent_count"})

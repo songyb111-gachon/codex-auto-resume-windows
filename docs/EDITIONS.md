@@ -990,7 +990,7 @@ there, the statement carries it as a warning.
 
 **What it does.** An action: it sends nothing and answers at no point of a recovery. While it is on, a
 message you schedule for a reset, and from v0.6.16-beta (revision 2) a message you queue, may be up to
-8,154 characters - the most one continuation can carry - instead of 2,000. Turned off, every waiting
+29,962 characters - the most one continuation can carry - instead of 2,000. Turned off, every waiting
 message longer than 2,000 characters is cancelled.
 
 **When it helps.** When what you want a conversation to do after a reset takes more than 2,000

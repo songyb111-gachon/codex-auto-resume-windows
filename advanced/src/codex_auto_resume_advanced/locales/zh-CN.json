@@ -1025,7 +1025,7 @@
   "statement.keep_going.risks": "在你可能希望停止时工作仍会继续：请在仪表板中停止，或关闭该对话。它与所有恢复一样受节奏限制，同一对话中间隔十五分钟、每天五次。",
   "statement.keep_going.stop": "在这里关闭它，或关闭所有高级功能；不再让任何对话继续，尚未发送的续接会被丢弃。",
   "statement.long_reset_message.departs": "A27（个人编写的消息最多 2,000 个字符）。",
-  "statement.long_reset_message.does": "让你为重置安排的消息以及你排队的消息最多可达 8,154 个字符——一条续接所能承载的上限——而不是 2,000 个字符。",
+  "statement.long_reset_message.does": "让你为重置安排的消息以及你排队的消息最多可达 29,962 个字符——一条续接所能承载的上限——而不是 2,000 个字符。",
   "statement.long_reset_message.instead": "你写的消息和自定义消息一样，最多 2,000 个字符。",
   "statement.long_reset_message.risks": "长消息比短消息更多地占用它开启的窗口。关闭后，所有超过 2,000 个字符的等待中消息——无论是重置时的还是队列中的——都会被取消。",
   "statement.long_reset_message.stop": "在这里关闭它，或用“关闭所有高级功能”关闭；届时超过 2,000 个字符的等待中消息，无论是重置时的还是队列中的，都会被取消。",

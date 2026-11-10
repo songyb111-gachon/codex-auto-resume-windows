@@ -1025,7 +1025,7 @@
   "statement.keep_going.risks": "Praca trwa, gdy być może miała się zatrzymać: zatrzymaj ją w oknie Dashboard albo wyłącz rozmowę. Tempo jest takie jak przy każdym odzyskiwaniu: piętnaście minut odstępu i pięć razy dziennie w jednej rozmowie.",
   "statement.keep_going.stop": "Wyłącz ją tutaj albo wyłącz wszystkie funkcje zaawansowane; żadna rozmowa nie jest już podtrzymywana, a jeszcze niewysłana kontynuacja jest porzucana.",
   "statement.long_reset_message.departs": "A27 (wiadomość pisana przez osobę ma najwyżej 2000 znaków).",
-  "statement.long_reset_message.does": "Pozwala, by wiadomość zaplanowana na reset i wiadomość dodana do kolejki miały do 8154 znaków - najwięcej, ile mieści jedna kontynuacja - zamiast 2000.",
+  "statement.long_reset_message.does": "Pozwala, by wiadomość zaplanowana na reset i wiadomość dodana do kolejki miały do 29962 znaków - najwięcej, ile mieści jedna kontynuacja - zamiast 2000.",
   "statement.long_reset_message.instead": "Wiadomość, którą piszesz, ma najwyżej 2000 znaków, tak jak własna wiadomość.",
   "statement.long_reset_message.risks": "Długa wiadomość zużywa więcej okna, które rozpoczyna, niż krótka. Po wyłączeniu każda oczekująca wiadomość dłuższa niż 2000 znaków - przy resecie lub w kolejce - jest anulowana.",
   "statement.long_reset_message.stop": "Wyłącz ją tutaj albo przez Wyłącz wszystkie funkcje zaawansowane; oczekujące wiadomości dłuższe niż 2000 znaków, przy resecie lub w kolejce, są wtedy anulowane.",

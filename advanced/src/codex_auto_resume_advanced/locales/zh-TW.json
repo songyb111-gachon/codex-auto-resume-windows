@@ -1025,7 +1025,7 @@
   "statement.keep_going.risks": "在您可能希望停止時工作仍會繼續：請在儀表板中停止，或關閉該對話。它與所有復原一樣受節奏限制，同一對話中間隔十五分鐘、每天五次。",
   "statement.keep_going.stop": "在這裡關閉它，或關閉所有進階功能；不再讓任何對話繼續，尚未傳送的接續訊息會被捨棄。",
   "statement.long_reset_message.departs": "A27（個人撰寫的訊息最多 2,000 個字元）。",
-  "statement.long_reset_message.does": "讓您為重設排程的訊息以及您排入佇列的訊息最多可達 8,154 個字元——一則接續訊息所能承載的上限——而不是 2,000 個字元。",
+  "statement.long_reset_message.does": "讓您為重設排程的訊息以及您排入佇列的訊息最多可達 29,962 個字元——一則接續訊息所能承載的上限——而不是 2,000 個字元。",
   "statement.long_reset_message.instead": "您寫的訊息和自訂訊息一樣，最多 2,000 個字元。",
   "statement.long_reset_message.risks": "長訊息比短訊息更多地佔用它所開啟時段的使用量。關閉後，所有超過 2,000 個字元的等待中訊息——無論是重設時的還是佇列中的——都會被取消。",
   "statement.long_reset_message.stop": "在這裡關閉它，或用「關閉所有進階功能」關閉；屆時超過 2,000 個字元的等待中訊息，無論是重設時的還是佇列中的，都會被取消。",

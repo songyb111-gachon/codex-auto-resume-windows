@@ -1025,7 +1025,7 @@
   "statement.keep_going.risks": "Die Arbeit geht weiter, wenn Sie vielleicht wollten, dass sie aufhört: Halten Sie sie im Dashboard an oder schalten Sie die Unterhaltung ab. Es ist getaktet wie jede Wiederherstellung, fünfzehn Minuten Abstand und fünfmal am Tag in einer Unterhaltung.",
   "statement.keep_going.stop": "Schalten Sie es hier oder alle erweiterten Funktionen ab; keine Unterhaltung läuft mehr weiter, und eine noch nicht gesendete Fortsetzung wird verworfen.",
   "statement.long_reset_message.departs": "A27 (eine Nachricht, die eine Person schreibt, hat höchstens 2.000 Zeichen).",
-  "statement.long_reset_message.does": "Lässt eine Nachricht, die Sie für ein Zurücksetzen planen, und eine Nachricht, die Sie einreihen, bis zu 8.154 Zeichen lang sein - so viel, wie eine Fortsetzung tragen kann - statt 2.000.",
+  "statement.long_reset_message.does": "Lässt eine Nachricht, die Sie für ein Zurücksetzen planen, und eine Nachricht, die Sie einreihen, bis zu 29.962 Zeichen lang sein - so viel, wie eine Fortsetzung tragen kann - statt 2.000.",
   "statement.long_reset_message.instead": "Eine Nachricht, die Sie schreiben, hat wie die eigene Nachricht höchstens 2.000 Zeichen.",
   "statement.long_reset_message.risks": "Eine lange Nachricht verbraucht mehr vom Fenster, das sie beginnt, als eine kurze. Wird die Funktion ausgeschaltet, wird jede wartende Nachricht über 2.000 Zeichen – bei einem Zurücksetzen oder in der Warteschlange – abgebrochen.",
   "statement.long_reset_message.stop": "Schalten Sie es hier oder mit „Alle erweiterten Funktionen aus“ ab; wartende Nachrichten über 2.000 Zeichen, bei einem Zurücksetzen oder in der Warteschlange, werden dann abgebrochen.",

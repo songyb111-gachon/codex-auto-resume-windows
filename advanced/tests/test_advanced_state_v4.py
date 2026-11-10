@@ -213,7 +213,7 @@ class PromptTests(StateCase):
         for words, trigger, options, refusal in (
                 ("", "after_turn", {}, Refusal.PROMPT_REFUSED),
                 ("   ", "after_turn", {}, Refusal.PROMPT_REFUSED),
-                ("x" * 8193, "after_turn", {}, Refusal.PROMPT_REFUSED),
+                ("x" * 30001, "after_turn", {}, Refusal.PROMPT_REFUSED),
                 ("mine", "soon", {}, Refusal.OCCASION_INVALID),
                 ("mine", "at_time", {}, Refusal.OCCASION_INVALID),
                 ("mine", "at_time", {"at": self.now - 3600}, Refusal.OCCASION_INVALID),

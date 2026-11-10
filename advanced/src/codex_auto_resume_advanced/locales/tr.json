@@ -1025,7 +1025,7 @@
   "statement.keep_going.risks": "Durmasını isteyebileceğiniz bir anda iş sürebilir: Gösterge Paneli'nde durdurun ya da sohbeti kapatın. Her kurtarma gibi hızı sınırlıdır; bir sohbette on beş dakika arayla ve günde beş kez.",
   "statement.keep_going.stop": "Burada kapatın ya da tüm gelişmiş özellikleri kapatın; artık hiçbir sohbet sürdürülmez ve henüz gönderilmemiş bir devam mesajı bırakılır.",
   "statement.long_reset_message.departs": "A27 (bir kişinin yazdığı mesaj en fazla 2.000 karakterdir).",
-  "statement.long_reset_message.does": "Bir sıfırlama için zamanladığınız mesajın ve sıraya koyduğunuz mesajın 2.000 yerine 8.154 karaktere - bir devam mesajının taşıyabileceği en fazlaya - kadar olmasını sağlar.",
+  "statement.long_reset_message.does": "Bir sıfırlama için zamanladığınız mesajın ve sıraya koyduğunuz mesajın 2.000 yerine 29.962 karaktere - bir devam mesajının taşıyabileceği en fazlaya - kadar olmasını sağlar.",
   "statement.long_reset_message.instead": "Yazdığınız bir mesaj, özel mesaj gibi, en fazla 2.000 karakterdir.",
   "statement.long_reset_message.risks": "Uzun bir mesaj, başlattığı pencereden kısa bir mesaja göre daha fazlasını kullanır. Kapatıldığında, 2.000 karakterden uzun bekleyen her mesaj - sıfırlamada ya da sırada - iptal edilir.",
   "statement.long_reset_message.stop": "Burada ya da Tüm gelişmiş özellikleri kapat ile kapatın; o zaman 2.000 karakteri aşan bekleyen mesajlar, sıfırlamada ya da sırada, iptal edilir.",
