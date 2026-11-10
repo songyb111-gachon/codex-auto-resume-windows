@@ -1116,7 +1116,7 @@ class FontTests(unittest.TestCase):
                   "$f.FontFamily.GetName(0)); "
                   "($names | ForEach-Object { ([int[]][char[]]$_) -join ',' }) -join ';'")
         done = subprocess.run([str(powershell), "-NoProfile", "-NonInteractive", "-Command", script],
-                              capture_output=True, text=True, timeout=120)
+                              capture_output=True, encoding="locale", errors="replace", timeout=120)
         self.assertEqual(done.returncode, 0, done.stderr)
         window = {"".join(chr(int(point)) for point in name.split(","))
                   for name in done.stdout.strip().split(";") if name}

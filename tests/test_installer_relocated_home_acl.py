@@ -46,7 +46,7 @@ class RelocatedHomeAclTests(unittest.TestCase):
         self.home.mkdir()
         # The drive root's shape, on this scratch folder alone: every signed-in account may modify what is made below.
         done = subprocess.run([ICACLS, str(self.home), "/grant", "*%s:(OI)(CI)(M)" % AUTHENTICATED_USERS],
-                              capture_output=True, text=True, creationflags=NO_WINDOW)
+                              capture_output=True, encoding="locale", errors="replace", creationflags=NO_WINDOW)
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
         (self.home / "watcher-launcher.py").write_text("synthetic launcher fixture", encoding="utf-8")
         self.addCleanup(subprocess.run, [ICACLS, str(self.home), "/reset", "/T", "/C", "/Q"],
@@ -71,7 +71,7 @@ class RelocatedHomeAclTests(unittest.TestCase):
         path = self.folder / "probe.ps1"
         path.write_text(source, encoding="utf-8-sig")
         done = subprocess.run([POWERSHELL, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", str(path)],
-                              capture_output=True, text=True, timeout=120, creationflags=NO_WINDOW)
+                              capture_output=True, encoding="locale", errors="replace", timeout=120, creationflags=NO_WINDOW)
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
         return json.loads(done.stdout.strip().splitlines()[-1])
 

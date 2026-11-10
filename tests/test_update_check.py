@@ -266,7 +266,7 @@ class ResolverTests(unittest.TestCase):
             CAR_MALFORMED=json.dumps(MALFORMED),
         )
         result = subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-Command", PROBE],
-                                capture_output=True, text=True, timeout=300, env=environment)
+                                capture_output=True, encoding="locale", errors="replace", timeout=300, env=environment)
         cls.result = result
         cls.answer = json.loads(result.stdout) if result.returncode == 0 and result.stdout.strip() else {}
 

@@ -85,7 +85,7 @@ class BootstrapTests(unittest.TestCase):
         probe = Path(folder.name) / "probe.ps1"
         probe.write_text("\n".join(lines), encoding="utf-8-sig")
         done = subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
-                               "-File", str(probe)], capture_output=True, text=True, timeout=180, creationflags=NO_WINDOW)
+                               "-File", str(probe)], capture_output=True, encoding="locale", errors="replace", timeout=180, creationflags=NO_WINDOW)
         if done.returncode != 0:
             raise AssertionError(done.stdout[-1500:] + done.stderr[-1500:])
         cls.answer = json.loads(done.stdout.strip().splitlines()[-1])

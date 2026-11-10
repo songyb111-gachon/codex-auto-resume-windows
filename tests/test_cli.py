@@ -388,7 +388,7 @@ class ConfinementTests(unittest.TestCase):
         if sys.platform != "win32":
             return False
         result = subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(target)],
-                                capture_output=True, text=True)
+                                capture_output=True, encoding="locale", errors="replace")
         return result.returncode == 0 and link.exists()
 
     def test_confined_detects_junction_escape(self):
@@ -506,7 +506,7 @@ class UninstallSafetyTests(unittest.TestCase):
         notes = self.home / "users-notes.txt"
         notes.write_text("the person's own", encoding="utf-8")
         made = (subprocess.run(["cmd", "/c", "mklink", "/J", str(paths.advanced_dir), str(self.home)],
-                               capture_output=True, text=True) if sys.platform == "win32" else None)
+                               capture_output=True, encoding="locale", errors="replace") if sys.platform == "win32" else None)
         if made is None or made.returncode != 0:
             self.skipTest("could not create a junction here")
         self.assertEqual(paths.owned_advanced_files(), [])
@@ -529,7 +529,7 @@ class UninstallSafetyTests(unittest.TestCase):
             victim.write_text("the person's own", encoding="utf-8")
         for directory in (paths.logs_dir, paths.state_dir):
             made = (subprocess.run(["cmd", "/c", "mklink", "/J", str(directory), str(self.home)],
-                                   capture_output=True, text=True) if sys.platform == "win32" else None)
+                                   capture_output=True, encoding="locale", errors="replace") if sys.platform == "win32" else None)
             if made is None or made.returncode != 0:
                 self.skipTest("could not create a junction here")
         for directory in (paths.logs_dir, paths.state_dir):
@@ -942,7 +942,7 @@ class EntryPointTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as elsewhere:
             completed = subprocess.run(
                 [sys.executable, str(self.ENTRY), "--help"],
-                capture_output=True, text=True, timeout=120,
+                capture_output=True, encoding="utf-8", errors="replace", timeout=120,
                 cwd=elsewhere, env=environment)
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertIn("usage", completed.stdout.lower())

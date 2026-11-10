@@ -171,7 +171,7 @@ class InstallHomeProvenanceTests(unittest.TestCase):
         (outside / "precious").mkdir(parents=True)
         link = home / "escape"
         subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(outside / "precious")],
-                       capture_output=True, text=True, check=False)
+                       capture_output=True, encoding="locale", errors="replace", check=False)
         if not link.exists():
             self.skipTest("could not create an NTFS junction here")
         try:
@@ -205,7 +205,7 @@ class PathConfinementTests(unittest.TestCase):
         cls.junction = cls.home / "escape"
         subprocess.run(["cmd", "/c", "mklink", "/J", str(cls.junction),
                         str(cls.outside / "precious")],
-                       capture_output=True, text=True, check=False)
+                       capture_output=True, encoding="locale", errors="replace", check=False)
         cls.has_junction = cls.junction.exists()
 
     @classmethod

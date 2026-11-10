@@ -474,7 +474,7 @@ class DowngradeTests(OptionsCase):
         """`script` run by the oldest reader's own sources against this home, `arguments` after it: what it printed."""
         tree = self.oldest()
         ran = subprocess.run([sys.executable, "-I", "-c", script, str(self.home), *arguments, str(tree / "src"),
-                              str(tree / "advanced" / "src")], capture_output=True, text=True, timeout=120,
+                              str(tree / "advanced" / "src")], capture_output=True, encoding="utf-8", errors="replace", timeout=120,
                              env=dict(os.environ, CODEX_AR_EDITION="advanced"), cwd=tree,
                              creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         self.assertEqual(ran.returncode, 0, ran.stderr)
@@ -535,7 +535,7 @@ class DowngradeTests(OptionsCase):
         path = self.migrated()
         tree = self.oldest()
         ran = subprocess.run([sys.executable, "-I", "-c", V0616, str(self.home), str(tree / "src"),
-                              str(tree / "advanced" / "src")], capture_output=True, text=True, timeout=120,
+                              str(tree / "advanced" / "src")], capture_output=True, encoding="utf-8", errors="replace", timeout=120,
                              env=dict(os.environ, CODEX_AR_EDITION="advanced"), cwd=tree,
                              creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         self.assertEqual(ran.returncode, 0, ran.stderr)

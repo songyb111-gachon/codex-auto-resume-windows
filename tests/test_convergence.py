@@ -300,11 +300,11 @@ class ReleaseManifestTests(unittest.TestCase):
         if current in self.release.get("prerelease", []):
             self.skipTest("v%s is tagged, and published as a pre-release" % current)
         tags = subprocess.run(["git", "-C", str(ROOT), "tag", "--list", "v" + current],
-                              capture_output=True, text=True).stdout.split()
+                              capture_output=True, encoding="utf-8", errors="replace").stdout.split()
         if not tags:
             self.skipTest("v%s is not tagged in this checkout" % current)
         tagged, head = (subprocess.run(["git", "-C", str(ROOT), "rev-parse", ref], capture_output=True,
-                                       text=True).stdout.strip() for ref in ("v%s^{commit}" % current, "HEAD"))
+                                       encoding="utf-8", errors="replace").stdout.strip() for ref in ("v%s^{commit}" % current, "HEAD"))
         if tagged and tagged == head:
             self.skipTest("this is the commit v%s tags, which cannot carry its own digest" % current)
         self.assertTrue(self.release["sha256"].get(current),

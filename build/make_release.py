@@ -415,7 +415,7 @@ def check_courier_starts(stage: Path, timeout: float = 120) -> None:
         try:
             asked = subprocess.run([str(runtime / "python.exe"), "-B", "-X", "disable-remote-debug", "-c", ask,
                                     str(payload / "app" / "src"), str(home)], cwd=scratch, env=environment,
-                                   stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=timeout,
+                                   stdin=subprocess.DEVNULL, capture_output=True, encoding="utf-8", errors="replace", timeout=timeout,
                                    creationflags=flags)
             command = json.loads(asked.stdout) if asked.returncode == 0 else None
         except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
@@ -431,7 +431,7 @@ def check_courier_starts(stage: Path, timeout: float = 120) -> None:
             raise SystemExit("the courier would start under %s, not the staged pythonw.exe" % command[0])
         try:
             ran = subprocess.run([command[0], "-B", *command[1:]], cwd=scratch, env=environment,
-                                 stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=timeout,
+                                 stdin=subprocess.DEVNULL, capture_output=True, encoding="utf-8", errors="replace", timeout=timeout,
                                  creationflags=flags)
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise SystemExit("the courier did not start from the staged payload: %s" % exc)

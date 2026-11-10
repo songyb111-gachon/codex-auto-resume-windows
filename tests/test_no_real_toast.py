@@ -96,7 +96,7 @@ class GuardTests(unittest.TestCase):
         self.assertEqual((no_real_toast.attempts(), result.failures, inner.raised), (before, [], []))
 
     def test_any_other_command_runs(self):
-        done = subprocess.run([sys.executable, "-c", "print('ran')"], capture_output=True, text=True,
+        done = subprocess.run([sys.executable, "-c", "print('ran')"], capture_output=True, encoding="utf-8", errors="replace",
                               creationflags=NO_WINDOW, timeout=60)
         self.assertEqual(done.stdout.strip(), "ran")
 

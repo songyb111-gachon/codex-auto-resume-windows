@@ -117,6 +117,50 @@ Claude Code가 미완성 프로토타입을 인수해 검토하고, 건전한 �
 - **교차 프로세스 경쟁.** 네 개 프로세스가 같은 중단 건을 두고 여덟 번 경쟁했고, 매번 정확히 하나만
   성공했습니다.
 
+## 번들 Python을 옮기는 날
+
+이 페이지의 나머지는 기록이고, 이 절은 점검표입니다. 번들 런타임은 일부러 고정되어 있으며 누군가 그렇게 정했을 때만
+옮겨 갑니다. 아래 내용은 런타임을 3.14에 둔 채 3.15.2에 대고 미리 시험했으므로, 3.15로 옮기는 일은 `dev`에서 한 번의
+변경으로 이 목록을 처리하는 것이 전부입니다.
+
+1. **고정값.** `build/make_release.py`의 `PYTHON_VERSION`과 `PYTHON_SHA256`(다이제스트는 python.org 릴리스 파일 목록에서 옮겨
+   적고 실제로 받은 파일과 비교합니다). `scripts/python_support.json`의 `bundled_runtime`과 `release_build`, 그리고
+   `tests/test_python_support.py`가 그것과 맞추어 지키는 `.github/workflows/`의 정확한 버전 세 곳(`release.yml` 둘, `test.yml`
+   하나). `tests/test_python315_switch.py`의 고정(커밋된 목록은 아직 3.14의 것)도 함께 바꿉니다.
+2. **런타임에 남길 것.** `python build/runtime_keep.py <embed zip> --python X.Y.Z --sha256 <digest> --out <파일>`을 실행한 뒤
+   그 파일을 `build/runtime_keep.json` 위에 복사합니다. 도구는 버전이 붙은 이름을 바꾸고, zip에 아직 있는 것을 남기고, 배포되는
+   모듈이 없어서 실패하는 것을 더하고, 아직 맞는 사유를 옮겨 적습니다. "to read" 아래에 찍히는 것(있는 동안 종료 코드는 3)은
+   제거된 모듈을 가져오는 import입니다. 읽어 보고 실행될 수 없는 이유를 `reviewed`에 적거나 그 모듈을 남기세요. 읽지 않은 것이
+   남아 있으면 빌드 자체 검사가 멈춥니다. 3.15.2에서는 349개를 남기고, 파일 14개가 빠지고, `sre_*`는 zip에서 사라졌으며,
+   `zipfile/_path/_functools.pyc`가 더해졌고, 읽어야 할 import는 `importlib.metadata`의 `_context`와 `_typing`,
+   `sqlite3.__main__`의 `_completer`, `xml`의 `xml.utils`, `zipimport`의 `_zstd`입니다.
+3. **CI.** 할 일 없음: 3.15 레인은 이미 병합을 막습니다(`test.yml`의 `experimental: false`).
+4. **지연 import.** `src/codex_auto_resume/__init__.py`의 `LAZY_IMPORTS`이며 이날까지 꺼져 있습니다. 제품이 띄우는 인터프리터는
+   세 언어, 여덟 곳의 명령줄 어디서 시작하든 이 패키지를 가장 먼저 가져오므로 이 한 곳에 둡니다. 켜면 번들 런타임의 모든 import가
+   이름을 처음 쓸 때까지 미뤄집니다. 소스 실행은 그대로이고, 없는 모듈이 가져온 것처럼 통과하지 않도록 `build/runtime_check.py`는
+   이를 거부합니다. 콜드 스타트, 일하는 중인 노트북에서 20회 중앙값:
+
+   | | 3.14.10 | 3.15.2 | 3.15.2, 지연 |
+   |---|---|---|---|
+   | 브리지 호출 한 번(`controlcli status`) | 702 ms | 626 ms | 449 ms |
+   | MCP 서버의 첫 응답 | 626 ms | 595 ms | 410 ms |
+   | 감시기 한 틱(`run --once`) | 930 ms | 967 ms | 650 ms |
+
+   창의 오래 사는 브리지는 창을 열 때 한 번, 일회성 호출은 매번 이득을 봅니다. `tests/test_python315_lazy.py`는 3.15에서 켠 경우와
+   끈 경우의 모든 모듈 표와 브리지 응답을 비교하며 차이는 없고, import 시점에 다른 모듈에 등록하는 코드도 없습니다. 대가는, 오래
+   사는 프로세스(감시기, MCP 서버)가 시작하고 몇 시간 뒤에, 업데이트가 바꿔 놓았을 수도 있는 파일에서 모듈을 가져온다는 점입니다.
+   정식이 아니라 베타에서 켜고 그 첫 업데이트를 지켜보세요.
+5. **문서.** 두 언어의 `docs/CHANGELOG.md` 항목, 그리고 `docs/GUIDE.md`, `docs/VERIFY.md`, `docs/CONTRIBUTING.md`가 적는 버전.
+
+3.15가 저절로 바꾸는 것은 기본 텍스트 인코딩입니다(PEP 686). 인코딩을 적지 않은 텍스트 호출이 이런 PC에서는 cp949였지만 3.15에서는
+UTF-8이 됩니다. 제품, 빌드, 테스트의 호출은 모두 인코딩을 적고, `tests/test_python315_encoding.py`가 적지 않은 새 호출을 찾아냅니다.
+파이프도 바뀝니다. Python 자식은 이제 UTF-8로 출력하는데, `plugin_setup.py`와 `controlcli`가 스스로 그렇게 설정하므로 설치 프로그램과
+창은 이미 그것을 기대합니다. 콘솔 프로그램(csc, PowerShell, cmd)은 여전히 코드 페이지로 출력하므로 `encoding="locale", errors="replace"`로
+읽으며, 이는 3.15에서도 cp949입니다. 그냥 `text=True`로 두면 첫 한국어 단어에서 `UnicodeDecodeError`로 끝납니다.
+
+`tests/test_python315_ready.py`는 3.15가 제거하거나 폐기 예정으로 둔 것을 막습니다. 3.15에서 시간이 어디에 쓰이는지 보려면
+`build/profile_tachyon.py`가 임시 폴더에서 소스로 실행한 브리지나 감시기를 샘플링합니다(Tachyon, PEP 799). 배포되지 않습니다.
+
 ## 크레딧
 
 [CONTRIBUTORS.ko.md](CONTRIBUTORS.ko.md)를 참고하세요. OpenAI Codex와 Anthropic Claude Code는 AI 개발
