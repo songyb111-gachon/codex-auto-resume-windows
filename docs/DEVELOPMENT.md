@@ -121,6 +121,52 @@ Beyond code review, three empirical techniques were used:
 - **Cross-process race.** Four processes raced to reserve the same interruption, eight times. Exactly one
   winner every time.
 
+## The day the bundled Python moves
+
+The rest of this page is history; this section is a checklist. The bundled runtime is pinned on purpose and moves only when
+someone decides it does. Everything below was tried against 3.15.2 while the runtime stayed on 3.14, so moving to 3.15 is this
+list and nothing else, in one change on `dev`:
+
+1. **The pin.** `PYTHON_VERSION` and `PYTHON_SHA256` in `build/make_release.py`, the digest copied from python.org's release file
+   list and compared with the file it serves. `bundled_runtime` and `release_build` in `scripts/python_support.json`, and the
+   three exact versions in `.github/workflows/` (`release.yml` twice, `test.yml` once) that `tests/test_python_support.py` holds
+   to it. The pin in `tests/test_python315_switch.py` (the committed list is still 3.14's) goes with it.
+2. **What stays of the runtime.** `python build/runtime_keep.py <the embed zip> --python X.Y.Z --sha256 <digest> --out <file>`, then
+   copy the file over `build/runtime_keep.json`. The tool renames what carries a version, keeps what the zip still has, adds what
+   the shipped modules fail without, and carries over each reason that still applies. What it prints under "to read" (it exits 3
+   while there is any) is an import of a module that went: read it and write why it cannot run into `reviewed`, or keep the module.
+   The build's own check stops on anything left unread. Against 3.15.2: 349 members kept, 14 files leave, `sre_*` are gone from
+   the zip, `zipfile/_path/_functools.pyc` is added, and these imports wait to be read: `importlib.metadata` of its `_context` and
+   `_typing`, `sqlite3.__main__` of `_completer`, `xml` of `xml.utils`, `zipimport` of `_zstd`.
+3. **The CI.** Nothing: the 3.15 lanes block a merge already (`experimental: false` in `test.yml`).
+4. **Lazy imports.** `LAZY_IMPORTS` in `src/codex_auto_resume/__init__.py`, off until this day. Set in that one place because
+   every interpreter the product starts imports that package first, from any of eight command lines in three languages. On, every
+   import on the bundled runtime waits for its name's first use; a source run is left alone, and `build/runtime_check.py` refuses
+   it so that a missing module cannot pass as imported. Cold start, median of 20 on a working laptop under load:
+
+   | | 3.14.10 | 3.15.2 | 3.15.2, lazy |
+   |---|---|---|---|
+   | one bridge call (`controlcli status`) | 702 ms | 626 ms | 449 ms |
+   | MCP server's first reply | 626 ms | 595 ms | 410 ms |
+   | watcher, one tick (`run --once`) | 930 ms | 967 ms | 650 ms |
+
+   The window's long-lived bridge gains this once per opening, one-shot calls every time. `tests/test_python315_lazy.py` compares
+   every module's tables and the bridge's answers with and without it on 3.15 and finds no difference; nothing here registers
+   across modules at import. What it costs: a long-lived process (the watcher, the MCP server) then imports a module hours after it
+   started, from files an update may have replaced. Turn it on in a beta, not a final, and watch that first update.
+5. **The documents.** A `docs/CHANGELOG.md` entry in both languages, and the versions `docs/GUIDE.md`, `docs/VERIFY.md` and
+   `docs/CONTRIBUTING.md` name.
+
+What 3.15 changes by itself is the default text encoding (PEP 686): a text call with no encoding means UTF-8 there, where it meant
+cp949 on this kind of PC. The product's calls all name theirs, as do the build's and the tests', and
+`tests/test_python315_encoding.py` finds a new one that does not. Pipes change too: a Python child now prints UTF-8, which the
+installer and the window already expect, since `plugin_setup.py` and `controlcli` set it themselves. A console program (csc,
+PowerShell, cmd) still prints the code page, so its output is read with `encoding="locale", errors="replace"`, which stays cp949 on
+3.15; plain `text=True` there would end in a `UnicodeDecodeError` on the first Korean word.
+
+`tests/test_python315_ready.py` keeps out what 3.15 removes or deprecates. To see where the time goes on 3.15,
+`build/profile_tachyon.py` samples a source-run bridge or watcher (Tachyon, PEP 799) in a scratch folder; it is not shipped.
+
 ## Credits
 
 See [CONTRIBUTORS.md](CONTRIBUTORS.md). OpenAI Codex and Anthropic Claude Code are AI development
