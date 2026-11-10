@@ -405,7 +405,7 @@
   "shutil -> tarfile": "shutil.make_archive and unpack_archive for tar formats; nothing shipped calls either",
   "sqlite3.__main__ -> code": "the `python -m sqlite3` shell",
   "sysconfig -> _aix_support": "sysconfig.get_platform on AIX only",
-  "sysconfig -> _osx_support": "macOS only",
+  "sysconfig -> _osx_support": "sysconfig on macOS only",
   "urllib.request -> ftplib": "an ftp:// address only; courier/http.py, the one caller of urllib.request, refuses every scheme but https before it opens anything (courier/address.py, checked_url)",
   "xml.sax.expatreader -> xml.parsers": "guarded by try/except ImportError, and only xml.sax.make_parser loads this module; the product uses xml.sax.saxutils.escape alone",
   "zipfile -> bz2": "guarded by try/except ImportError: a bzip2 member is refused, and the product packs no archive",
