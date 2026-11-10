@@ -599,7 +599,8 @@ def restart_watcher(paths) -> str:
     home = Path(paths.home)
     flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
     interpreter = home / chosen_runtime.BUNDLED / "pythonw.exe"
-    process = subprocess.Popen([str(interpreter), *startup.NO_REMOTE_DEBUG, str(home / "watcher-launcher.py"), "run"],
+    script = home / "watcher-launcher.py"
+    process = subprocess.Popen([str(interpreter), *startup.NO_REMOTE_DEBUG, str(script), "run"],
                                cwd=str(home), close_fds=True, creationflags=flags, stdin=subprocess.DEVNULL,
                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return await_watcher(layer.watcher_running, process, timeout=RESTART_SECONDS)["state"]
