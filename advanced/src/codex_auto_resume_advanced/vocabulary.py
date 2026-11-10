@@ -183,6 +183,8 @@ class Refusal(StrEnum):
     # card offers no button then - and asked again while one is still waiting for the browser.
     SWITCH_UNMEASURED = "switch_unmeasured"
     SWITCH_RUNNING = "switch_running"
+    # v0.6.23 (python_choice): a Check, a download or a return to the bundled Python is already going.
+    PYTHON_BUSY = "python_busy"
     # v0.6.22 final (the reachability audit's M10): a Delete of a saved account while a switch, a read or a save holds them.
     ACCOUNTS_HELD = "accounts_held"
     # v0.6.22 final (Switch to this account, control/autoswitch.switch): the account picked is the one in use; it needs a
@@ -536,6 +538,12 @@ class BridgeCommand(StrEnum):
     ADVANCED_REMOTE_PAIR_STATE = "advanced-remote-pair-state"
     ADVANCED_FLEET = "advanced-fleet"
     ADVANCED_FLEET_SAVE = "advanced-fleet-save"
+    # v0.6.23 (python_choice, control/pythons.py): the card's read, python.org's newest of each line, one of them put in
+    # use, and back to the bundled runtime.
+    ADVANCED_PYTHON = "advanced-python"
+    ADVANCED_PYTHON_CHECK = "advanced-python-check"
+    ADVANCED_PYTHON_USE = "advanced-python-use"
+    ADVANCED_PYTHON_BACK = "advanced-python-back"
     ADVANCED_PROMPT_EDIT = "advanced-prompt-edit"
     ADVANCED_PROMPTS_CLEAR_DONE = "advanced-prompts-clear-done"
     ADVANCED_ACCOUNT = "advanced-account"

@@ -59,7 +59,8 @@ namespace CodexAutoResume
         internal static int RetryMilliseconds = 300000;
         private readonly Stopwatch givenUp = new Stopwatch();
         private readonly Bridge once;
-        private readonly string python;
+        private string python;
+        private readonly string bundled;
         private readonly string appSrc;
         private readonly object gate = new object();
         private Process process;
@@ -70,7 +71,8 @@ namespace CodexAutoResume
         internal PersistentBridge(string root, Bridge once)
         {
             this.once = once;
-            python = Path.Combine(root, "runtime", "python.exe");
+            python = RuntimeChoice.Python(root);
+            bundled = RuntimeChoice.BundledPython(root);
             appSrc = Path.Combine(root, "app", "src");
         }
 
@@ -139,8 +141,7 @@ namespace CodexAutoResume
                     }
                     catch (Exception)
                     {
-                        failures++;
-                        if (failures >= MaxFailures) givenUp.Restart();
+                        FailedLocked();
                         StopLocked();
                         // Ended by Stop while the window closes: the request may already have
                         // been carried out, and there is nobody left to show a second answer to.
@@ -188,8 +189,7 @@ namespace CodexAutoResume
                     }
                     catch (Exception)
                     {
-                        failures++;
-                        if (failures >= MaxFailures) givenUp.Restart();
+                        FailedLocked();
                         StopLocked();
                         if (closed) throw;
                         return Reconnecting();
@@ -223,6 +223,23 @@ namespace CodexAutoResume
 
         /// Whether the long-lived process is given up for now (for the tests).
         internal bool GivenUp { get { return failures >= MaxFailures; } }
+
+        /// One more failure of the long-lived process. v0.6.23: a chosen Python that has failed it MaxFailures times is
+        /// left for the bundled one, for the life of this window, and the count starts again: this is what keeps the
+        /// Advanced features page, and its Back to the bundled version, reachable while the chosen runtime is broken.
+        private void FailedLocked()
+        {
+            failures++;
+            if (failures < MaxFailures) return;
+            if (string.Equals(python, bundled, StringComparison.OrdinalIgnoreCase))
+            {
+                givenUp.Restart();
+                return;
+            }
+            python = bundled;
+            once.UseBundled();
+            failures = 0;
+        }
 
         private Dictionary<string, object> Ask(string command, string argument)
         {

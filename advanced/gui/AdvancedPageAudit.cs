@@ -178,6 +178,8 @@ namespace CodexAutoResume
                 form.advancedAccounts = Map(kept, "advanced-accounts");
                 // v0.6.22: this PC's name and folder and the other PCs at their fullest (AdvancedFleet.cs).
                 form.advancedFleet = Map(kept, "advanced-fleet");
+                // v0.6.23: the Python version card at its fullest (AdvancedPythons.cs), drawn once the capability is offered.
+                form.advancedPython = Map(kept, "advanced-python");
                 Dictionary<string, object> shot = Map(kept, "snapshot");
                 form.AdoptAdvancedWords(Json.Parse(wordsJson) as Dictionary<string, object>);
                 // The conversations the reset forms offer, and Pending's list, are the snapshot's.
@@ -1266,6 +1268,7 @@ namespace CodexAutoResume
                         else box.Box.Text = Str(step, "text") ?? "";
                     }
                     else if (what == "poll") form.PollReport();
+                    else if (what == "poll_python") form.ReadPython(null);    // v0.6.23: the Python version card reads itself.
                     else if (what == "poll_account") form.ReadAccount(null);    // v0.6.20: the account card read again
                     else if (what == "save_to") form.advancedSaveTo = Str(step, "path");
                     else if (what == "reply")

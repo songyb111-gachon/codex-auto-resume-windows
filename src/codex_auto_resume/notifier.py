@@ -77,6 +77,7 @@ NOTICE_STATUS = {
     "restart_gave_up": "attention",  # v0.6.19: the advanced edition's crash restart left the watcher stopped
     "account_changed": "paused",    # v0.6.20: the advanced edition saw another account signed in; what waited, waits
     "accounts_exhausted": "paused",  # v0.6.22: its automatic switch found every saved account at its limit
+    "python_returned": "paused",  # v0.6.23: the watcher went back to the bundled Python by itself
 }
 # v0.6.12: the power action after usage-limit recoveries (runtime/afterwork.py), whose kinds are words of
 # its own (domain/power_vocabulary.PowerNotice). Its notices are raised whatever the notification switches
@@ -318,6 +319,10 @@ def _build(event, detail, identity=None, *, sound=False):
         # usage limit for a person - or (v0.6.22) its automatic switch found every saved account at its limit. About this
         # PC, not a conversation, so it has no key and replaces no card; its one button opens Pending.
         return _notice(event, _account_changed_content(detail.get("count"), event, detail.get("why")), key=None)
+    if event == "python_returned":
+        # v0.6.23: the advanced edition's Python choice was taken back by itself. About this PC, so it has no key and
+        # replaces no card; its one button opens the Dashboard's Overview.
+        return _notice(event, _python_returned_content(detail.get("version"), detail.get("why")), key=None)
     if event in POWER_EVENTS:
         # v0.6.12: the power action (runtime/afterwork.py). About this PC, not a conversation, so it has
         # no key and replaces no card. Only the countdown's has a stop button, named by its batch (A28).
@@ -681,6 +686,14 @@ def _power_stop(nonce, control, announce, say, stay=()) -> str:
         except Exception:
             pass
     return "stopped"
+
+
+def _python_returned_content(version, why) -> dict:
+    """v0.6.23: which Python the watcher was back from, and why: it did not come up, or its line is no longer offered."""
+    named = version if isinstance(version, str) and re.fullmatch(r"3\.[0-9]{1,3}\.[0-9]{1,3}", version) else "3"
+    body = "toast_python_returned_line" if why == "line" else "toast_python_returned_start"
+    return notify._content(l10n.message("toast_python_returned"), l10n.message(body).replace("{version}", named),
+                           more=[(l10n.message("toast_button_open"), notify.open_uri("overview"))])
 
 
 def _account_changed_content(count, event="account_changed", why=None) -> dict:

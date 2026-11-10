@@ -391,6 +391,13 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "accounts.switch_not_started", "accounts.switch_undone", "accounts.switch_not_put_back", "accounts.switch_not_done",
     "refused.account_in_use", "refused.account_not_ready", "refused.accounts_switch_busy", "refused.other_engine",
 ))
+# v0.6.23 (python_choice): the Python version card (advanced/gui/AdvancedPythons.cs, control/pythons.py).
+PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + "python." + name for name in (
+    "title", "help", "in_use", "in_use_none", "bundled", "chosen", "check", "checking", "version", "preview", "use", "current", "back",
+    "none", "downloading", "verifying", "restarting", "done", "next_start", "done_back",
+    "failed.list", "failed.source", "failed.download", "failed.digest", "failed.unpack", "failed.signature",
+    "failed.import", "failed.start", "returned.start", "returned.line", "returned.off")) + tuple(PAGE_PREFIX + name for name in (
+    "confirm.python_use", "confirm.python_back", "refused.python_busy"))
 # v0.6.22 (fleet_view): the Overview's Other PCs list, its columns and state words, how the folder stands, and the card
 # this PC's name and folder are chosen on (advanced/gui/AdvancedFleet.cs, control/fleet.py).
 PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + "fleet." + name for name in (

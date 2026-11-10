@@ -146,7 +146,8 @@ namespace CodexAutoResume
         /// (compat.files.REFRESH_TIMEOUT_SECONDS), and the interpreter's start comes on top.
         internal static int LongCallMilliseconds = 180000;
 
-        private readonly string python;
+        private string python;
+        private readonly string bundled;
         private readonly string appSrc;
         // Every one-shot child on its way, so the window's close can end them (Stop): the long-lived bridge's own
         // Stop could only end its own process.
@@ -155,9 +156,13 @@ namespace CodexAutoResume
 
         internal Bridge(string root)
         {
-            python = Path.Combine(root, "runtime", "python.exe");
+            python = RuntimeChoice.Python(root);
+            bundled = RuntimeChoice.BundledPython(root);
             appSrc = Path.Combine(root, "app", "src");
         }
+
+        /// The bundled runtime from now on, for the life of this window: the chosen one did not answer (PersistentBridge).
+        internal void UseBundled() { python = bundled; }
 
         internal bool Available { get { return File.Exists(python) && Directory.Exists(appSrc); } }
 

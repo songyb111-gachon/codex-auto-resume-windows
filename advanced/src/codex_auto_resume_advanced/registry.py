@@ -67,6 +67,7 @@ one of their own to hold every rule here.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 import re
 from typing import Callable
 
@@ -74,6 +75,7 @@ from codex_auto_resume.domain.plug import Point
 
 from .control.codexstart import make as make_start_with_codex
 from .control.opencodex import make as make_open_codex_button
+from .control.pythons import CODES as PYTHON_CODES, make as make_python_choice
 from .control.sendnow import make as make_send_now
 from .engine.analytics import DAYS as ANALYTICS_DAYS, DEFAULT_DAYS as ANALYTICS_DEFAULT_DAYS, make as make_usage_analytics
 from .engine.anchor import (CODES as ANCHOR_CODES, TIME_CHOICES as ANCHOR_TIMES, TIME_OFF as ANCHOR_OFF,
@@ -1760,6 +1762,29 @@ ACCOUNT_AUTO_SWITCH = CapabilityDef(
     requires=("account_switch",),
 )
 
+# Run on another Python version (v0.6.23, the owner's 2026-11-10). A person presses Check python.org, which reads the
+# newest final release of each line in control/pythons.LINES live from python.org, and one button puts a version in use: its
+# embeddable package from the one exact address, verified before a byte of it runs (its SHA-256, a safe unpacking into
+# <home>\runtimes\<version>, the Python Software Foundation's signature, then every shipped module imported under it), named in
+# one record that every launcher reads (chosen_runtime.py, gui/RuntimeChoice.cs), and taken up by the watcher at a restart it
+# asks for. If the watcher does not come up, it is back on the bundled runtime by itself, and says so once. An action: core
+# asks it nothing at any point but the launcher's question (control/pythons.supervised), and nothing here reaches Codex. It
+# departs from B14 (a second runtime), C1 and C2 (network code, in the courier's package, for python.org), F3 (program files
+# it fetched itself), F6 (the chosen interpreter is a process of its own) and I10 (a Python not pinned by a release).
+# Offered only on an installation (`on_an_installation`): a source run has no bundled runtime to come back to.
+PYTHON_CHOICE = CapabilityDef(
+    id="python_choice",
+    kind=CapabilityKind.ACTION,
+    points=frozenset(),
+    revision=1,
+    departs_from=("B14", "C1", "C2", "F3", "F6", "I10"),
+    compat=None,
+    ceilings=None,
+    journal_prefix="pychoice",
+    make=make_python_choice,
+    codes=PYTHON_CODES,
+)
+
 # The one gate for a capability that cannot work on any Codex measured so far (the owner's rule of 2026-10-16): each
 # here, with the measurement that must pass first, is hidden - not in the registry this edition runs, so no row, no
 # statement and no switch anywhere - until that measurement passes (measured.MEASURED), and then offered after
@@ -1781,9 +1806,15 @@ def offered(measured) -> tuple:
                  if all(passed(each) for each in (measurement if isinstance(measurement, tuple) else (measurement,))))
 
 
+def on_an_installation(root=None) -> tuple:
+    """The capabilities only an installation can have: those for which a bundled runtime stands beside `app\\src`."""
+    home = Path(__file__).resolve().parents[3] if root is None else Path(root)
+    return (PYTHON_CHOICE,) if (home / "runtime" / "python.exe").is_file() else ()
+
+
 def _registry():
     from .measured import MEASURED
-    return Registry(DEFINITIONS + offered(MEASURED))
+    return Registry(DEFINITIONS + offered(MEASURED) + on_an_installation())
 
 
 REGISTRY = _registry()
@@ -1820,6 +1851,8 @@ SHOWN_ORDER = (
     # 2026-10-31, group 4: rare cases and expert settings. stop_hook_continuation is hidden (WAITING) until MHK, M4
     # and M4B pass and then takes this place.
     "silent_continuation", "stop_hook_continuation", "status_feed", "account_switch", "idle_update_check",
+    # 2026-11-10 (v0.6.23): which Python this runs on; shown only on an installation.
+    "python_choice",
     # 2026-11-05 (v0.6.22): for a person with several PCs and a folder they sync: rare, and it restarts nothing.
     "fleet_view",
     "structured_rules",
