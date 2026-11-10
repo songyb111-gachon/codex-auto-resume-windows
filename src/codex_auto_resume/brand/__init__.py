@@ -95,6 +95,8 @@ from .design import (ACCENT_BAR,
                      design_glow,
                      design_radii)  # noqa: F401
 from .motion import MOTION, _bezier, ease  # noqa: F401
+from .days import (FIXED_DAYS, LUNAR_DAYS, MOTIF_DOTS, MOTIF_ON_ICON, SPARKLE_COLOUR, SPARKLE_POINTS, day_look,  # noqa: F401
+                   day_look_at, motif_colour)
 from .elevation import (CARD_LIFT,
                         SHADOWS,
                         Shadow,

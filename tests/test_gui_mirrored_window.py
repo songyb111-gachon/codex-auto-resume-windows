@@ -136,7 +136,7 @@ class MirrorSourceTests(unittest.TestCase):
             for fragment in fragments:
                 with self.subTest(type=type_name, fragment=fragment):
                     self.assertIn(fragment, body)
-        self.assertIn("if (mirrored) x = track.X + track.Right - x - size;", guiscan.type_body("Soft"))
+        self.assertIn("if (mirrored) x = track.X + track.Right - x - width;", guiscan.type_body("Soft"))
         self.assertIn("if (Mirror.Window) RightToLeft = RightToLeft.Yes;", guiscan.type_body("SoftMenu"))
 
     def test_a_number_filled_into_a_sentence_keeps_its_own_order(self):

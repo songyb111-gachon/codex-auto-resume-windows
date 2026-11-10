@@ -269,7 +269,7 @@ class Renderer:
                 parts.append((kind, item["rect"], item["primary"], self._lifted(item, pressed)))
             elif kind not in ("text", "focusable", "halo"):
                 parts.append((kind, item["rect"], item.get("radius"), item.get("tone"), item.get("checked"),
-                              item.get("busy"), kind == "switch" and item["target"] in glides))
+                              item.get("busy"), kind == "switch" and item["target"] in glides, item.get("motif")))
         key = (plan["size"], scale, self._theme(), self._design(), self._system_key(), bool(plan.get("rtl")),
                tuple(parts))
         if self._ground_key == key and self._ground_pixels is not None:
@@ -293,10 +293,24 @@ class Renderer:
         self._ground_pixels = canvas.pixels()
         self._ground_key = key
 
+    @staticmethod
+    def _motif(paint, item):
+        left, top, right, bottom = item["rect"]
+        half = (right - left) / 2.0
+        cx, cy = left + half, top + half
+        if item["motif"] == "sparkle":
+            points = [(cx + x * half, cy - y * half) for x, y in brand.SPARKLE_POINTS]
+            paint.fill_polygon(points, _pack(brand.rgb(brand.SPARKLE_COLOUR)))
+            return
+        for x, y, radius, colour in brand.MOTIF_DOTS[item["motif"]]:
+            paint.fill_circle(cx + x * half, cy - y * half, radius * half, _pack(brand.rgb(colour)))
+
     def _ground_item(self, paint, item, scale, pressed):
         kind = item["kind"]
         hairline = max(1.0, round(scale))
-        if kind == "card":
+        if kind == "motif":
+            self._motif(paint, item)
+        elif kind == "card":
             # The panel's card: its lift, its ground (dark lifts it a step toward `raised`), dark's
             # one-pixel top light inside the border, and the hairline. In Classic, v0.6.2's accent bar.
             rect, radius = item["rect"], self._corner(item, scale)

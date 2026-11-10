@@ -856,6 +856,7 @@
   "msg.toast_accounts_exhausted_body": "復原會等待最早的重設，與不切換時相同。在此之前不會傳送任何內容。",
   "msg.toast_switch_not_finished": "自動切換帳戶未完成",
   "msg.toast_switch_not_finished_body": "請開啟 Codex，查看目前登入的是哪個帳戶。復原會等待最早的重設，與不切換時相同。在此之前不會傳送任何內容。",
+  "status.aside": "中斷了也沒關係，我會接著做。",
   "why.account_changed": "它停止後登入了另一個 Codex 帳戶：在您允許它接續之前，不會傳送任何內容。",
   "msg.toast_usage_at": "已達 Codex 使用量限制。此任務將於 {time} 接續。",
   "msg.toast_usage_soon": "已達 Codex 使用量限制。此任務將在重設後接續。",

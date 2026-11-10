@@ -856,6 +856,7 @@
   "msg.toast_accounts_exhausted_body": "Die Wiederaufnahme wartet auf den frühesten Reset, wie ohne Wechsel. Bis dahin wird nichts gesendet.",
   "msg.toast_switch_not_finished": "Der automatische Kontowechsel wurde nicht abgeschlossen",
   "msg.toast_switch_not_finished_body": "Öffnen Sie Codex und prüfen Sie, welches Konto angemeldet ist. Die Wiederaufnahme wartet auf den frühesten Reset, wie ohne Wechsel. Bis dahin wird nichts gesendet.",
+  "status.aside": "Keine Sorge, wenn es stoppt. Ich mache weiter.",
   "why.account_changed": "Nachdem sie angehalten hat, wurde ein anderes Codex-Konto angemeldet: Es wird nichts gesendet, bis Sie sie fortfahren lassen.",
   "msg.toast_usage_at": "Codex-Nutzungslimit erreicht. Diese Aufgabe wird um {time} fortgesetzt.",
   "msg.toast_usage_soon": "Codex-Nutzungslimit erreicht. Diese Aufgabe wird nach dem Zurücksetzen fortgesetzt.",

@@ -278,6 +278,7 @@ def _declare():
         _signature(gdiplus.GdipFillPath, I, H, H, H)
         _signature(gdiplus.GdipDrawPath, I, H, H, H)
         _signature(gdiplus.GdipFillEllipse, I, H, H, F, F, F, F)
+        _signature(gdiplus.GdipFillPolygon2, I, H, H, C.c_void_p, I)
         _signature(gdiplus.GdipDrawArc, I, H, H, F, F, F, F, F, F)
         _signature(gdiplus.GdipDrawLines, I, H, H, C.POINTER(PointF), I)
         _signature(gdiplus.GdipAddPathEllipse, I, H, F, F, F, F)

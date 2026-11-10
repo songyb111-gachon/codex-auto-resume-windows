@@ -227,7 +227,7 @@ LAYER = {_q(name): layer for layer, names in {
               # v0.6.10-alpha: notice_window.py became ui/card/, the last module over budget.
               "ui.card", "ui.card.win32", "ui.card.surfaces", "ui.card.card", "ui.card.stack",
               # v0.6.10-alpha: brand.py became brand/ - one palette in nine files.
-              "brand.checkbox", "brand.colour", "brand.css", "brand.elevation", "brand.light",
+              "brand.checkbox", "brand.colour", "brand.css", "brand.days", "brand.elevation", "brand.light",
               "brand.mark", "brand.motion", "brand.scale", "brand.tokens",
               # v0.6.10: the four designs, a tenth file.
               "brand.design",

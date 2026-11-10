@@ -71,6 +71,7 @@ namespace CodexAutoResume
         internal const int TypeBody = 12;
         internal const int TypeSmall = 11;
         internal const int TransitionMs = 160;
+        internal const int TransitionPressMs = 80;
         internal const double TransitionEaseX1 = 0.33;
         internal const double TransitionEaseY1 = 1;
         internal const double TransitionEaseX2 = 0.68;
@@ -359,6 +360,20 @@ namespace CodexAutoResume
         private static double BezierSlope(double a, double b, double t)
         {
             return 3.0 * (1.0 - 3.0 * b + 3.0 * a) * t * t + 2.0 * (3.0 * b - 6.0 * a) * t + 3.0 * a;
+        }
+
+        /// brand.day_look: the icon's body and its mark for a date, false for an ordinary day.
+        internal static bool DayLook(int year, int month, int day, out string body, out string motif)
+        {
+            int yearly = month * 100 + day, whole = year * 10000 + yearly;
+            if (yearly == 101) { body = "#A67C1A"; motif = "sparkle"; return true; }
+            if (yearly == 906) { body = "#C2553B"; motif = "confetti"; return true; }
+            if (yearly == 1224) { body = "#1F6B4A"; motif = "snow"; return true; }
+            if (yearly == 1225) { body = "#1F6B4A"; motif = "snow"; return true; }
+            if (whole == 20260217 || whole == 20270207 || whole == 20280127 || whole == 20290213 || whole == 20300203 || whole == 20310123 || whole == 20320211 || whole == 20330131 || whole == 20340219 || whole == 20350208 || whole == 20360128 || whole == 20370215 || whole == 20380204 || whole == 20390124 || whole == 20400212) { body = "#A32D2D"; motif = "sparkle"; return true; }
+            if (whole == 20260925 || whole == 20270915 || whole == 20281003 || whole == 20290922 || whole == 20300912 || whole == 20311001 || whole == 20320919 || whole == 20330908 || whole == 20340927 || whole == 20350916 || whole == 20361004 || whole == 20370924 || whole == 20380913 || whole == 20391002 || whole == 20400921) { body = "#26215C"; motif = "moon"; return true; }
+            body = motif = null;
+            return false;
         }
 
         /// The check box's fill (brand.CHECKBOX): the well unchecked, the accent checked, the surface

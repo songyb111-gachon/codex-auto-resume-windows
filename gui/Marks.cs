@@ -35,6 +35,8 @@ namespace CodexAutoResume
         private readonly Timer timer = new Timer();
         private readonly System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
         private double enteredAt;
+        private readonly Transition colourGlide;
+        private Color colourFrom;
 
         internal HaloDot()
         {
@@ -43,8 +45,48 @@ namespace CodexAutoResume
             TabStop = false;
             AccessibleRole = AccessibleRole.Graphic;
             timer.Interval = 33;
-            timer.Tick += delegate { Invalidate(); if (!ShouldRun()) timer.Stop(); };
+            timer.Tick += delegate { Beat(); };
+            colourGlide = new Transition(this, 1.0);
         }
+
+        private const int RippleMs = 1000;
+        private Transition ripple;
+
+        /// One ring out from the light, once. Nothing with motion reduced or out of sight.
+        internal void Ripple()
+        {
+            if (!Motion.Allowed(this)) return;
+            if (ripple == null) ripple = new Transition(this, 0.0);
+            ripple.Jump(0.0);
+            ripple.To(1.0, true, RippleMs);
+        }
+
+        /// Whether a ring is on its way (for the tests).
+        internal bool Rippling { get { return ripple != null && ripple.Running; } }
+
+        // How often, while battery saver or a locked session holds the light still, it asks whether that is over.
+        private const int StillBeat = 1000;
+        private int beat = 33;
+
+        // One frame of the breath; or, while Motion.Ambient holds it still (v0.6.23, standard H13), one question a second and
+        // no paint but the frame that stills it.
+        private void Beat()
+        {
+            bool still = Motion.Ambient;
+            if (still != (timer.Interval == StillBeat))
+            {
+                timer.Interval = still ? StillBeat : beat;
+                Invalidate();
+            }
+            else if (!still) Invalidate();
+            if (!ShouldRun()) timer.Stop();
+        }
+
+        /// Whether its loop is holding still for battery saver or a locked session: a beat a second, and nothing painted (for the tests).
+        internal bool Stilled { get { return timer.Enabled && timer.Interval == StillBeat; } }
+
+        /// Whether its colour is on its way from the state before (for the tests).
+        internal bool ColourMoving { get { return colourGlide.Running; } }
 
         internal string State
         {
@@ -53,8 +95,12 @@ namespace CodexAutoResume
             {
                 string next = string.IsNullOrEmpty(value) ? "idle" : value;
                 if (next == state) return;
+                // v0.6.23: from the colour it is showing to the new state's, once.
+                colourFrom = Shown();
                 state = next;
                 enteredAt = clock.Elapsed.TotalMilliseconds;
+                colourGlide.Jump(0.0);
+                colourGlide.To(1.0, Motion.Allowed(this));
                 Invalidate();
                 Sync();
             }
@@ -141,8 +187,15 @@ namespace CodexAutoResume
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing) { timer.Stop(); timer.Dispose(); }
+            if (disposing) { timer.Stop(); timer.Dispose(); colourGlide.Dispose(); if (ripple != null) ripple.Dispose(); }
             base.Dispose(disposing);
+        }
+
+        // The dot's colour now: the state's, or part-way to it from the one before.
+        private Color Shown()
+        {
+            Color colour = DotColour(state);
+            return colourGlide.Running ? Soft.Mix(colourFrom, colour, colourGlide.Value) : colour;
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -152,8 +205,8 @@ namespace CodexAutoResume
             double since = Soft.StillLightMs >= 0 ? Soft.StillLightMs
                                                   : clock.Elapsed.TotalMilliseconds - enteredAt;
             double dim, opacity, spread, arc;
-            bool lit = Brand.Glow(state, since, since, Soft.ReduceMotion, out dim, out opacity, out spread, out arc);
-            Color colour = DotColour(state);
+            bool lit = Brand.Glow(state, since, since, Soft.ReduceMotion || (Soft.StillLightMs < 0 && Motion.Ambient), out dim, out opacity, out spread, out arc);
+            Color colour = Shown();
             float cx = Width / 2f, cy = Height / 2f, dot = Soft.PxF(Brand.StatusDotRadius);
             GraphicsState saved = g.Save();
             g.SmoothingMode = SmoothingMode.AntiAlias;
@@ -165,6 +218,13 @@ namespace CodexAutoResume
             // Dimmed, the dot is its colour over the card it was cleared to: that far toward the ground.
             Color fill = lit && dim > 0 && !Palette.Contrast ? Soft.WithAlpha(colour, 1 - dim) : colour;
             using (var brush = new SolidBrush(fill)) g.FillEllipse(brush, cx - dot, cy - dot, dot * 2, dot * 2);
+            if (Rippling)
+            {
+                double along = ripple.Value;
+                float ring = dot + (Math.Min(Width, Height) / 2f - Soft.PxF(1) - dot) * (float)along;
+                using (var pen = new Pen(Soft.WithAlpha(colour, 1.0 - along), Soft.PxF(1.5)))
+                    g.DrawEllipse(pen, cx - ring, cy - ring, ring * 2, ring * 2);
+            }
             if (lit && arc >= 0)
             {
                 float radius = Soft.PxF(Brand.StatusDotRadius + Brand.GlowArcGap);

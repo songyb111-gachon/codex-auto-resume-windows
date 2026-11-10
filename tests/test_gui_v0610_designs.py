@@ -584,10 +584,10 @@ class DesignSourceRuleTests(unittest.TestCase):
 
     def test_every_motion_in_the_window_reads_the_one_gate(self):
         self.assertIn("if (control == null || Soft.ReduceMotion ||", guiscan.member_body("Motion", "Allowed"))
-        self.assertIn("!Soft.ReduceMotion", guiscan.member_body("SoftPage", "ScrollTo"))
+        self.assertIn("Motion.Allowed(this)", guiscan.member_body("SoftPage", "ScrollTo"))
         halo = guiscan.type_body("HaloDot")
         self.assertIn("Soft.ReduceMotion", guiscan.member_body("HaloDot", "ShouldRun"))
-        self.assertIn("Brand.Glow(state, since, since, Soft.ReduceMotion,", halo)
+        self.assertIn("Brand.Glow(state, since, since, Soft.ReduceMotion ||", halo)
         self.assertIn("MotionAllowed(Soft.ReduceMotion,", guiscan.member_body("TaskbarMark", "MayMove"))
         # No design decides what moves: the gates v0.6.10 had for it are gone, and neither Brand nor Palette.Look has
         # a motion rule to ask.

@@ -138,6 +138,22 @@ def _literal(kind: str, value) -> str:
     return text + "f" if kind == "float" else text
 
 
+def day_look_method():
+    """brand.day_look() in C#. Comparisons rather than a table: the in-box compiler holds an array's initial values in a
+    class it names with a fresh random GUID, and that one name made two builds of the same source differ."""
+    lines = ["        /// brand.day_look: the icon's body and its mark for a date, false for an ordinary day.\n",
+             "        internal static bool DayLook(int year, int month, int day, out string body, out string motif)\n",
+             "        {\n",
+             "            int yearly = month * 100 + day, whole = year * 10000 + yearly;\n"]
+    for month, day, body, motif in brand.FIXED_DAYS:
+        lines += ['            if (yearly == %d) { body = "%s"; motif = "%s"; return true; }\n' % (month * 100 + day, body, motif)]
+    for body, motif, dates in brand.LUNAR_DAYS:
+        tests = " || ".join("whole == %d" % (y * 10000 + m * 100 + d) for y, m, d in dates)
+        lines += ['            if (%s) { body = "%s"; motif = "%s"; return true; }\n' % (tests, body, motif)]
+    lines += ['            body = motif = null;\n', "            return false;\n", "        }\n"]
+    return lines
+
+
 def sections():
     """Every constant Brand.cs declares after its colours, as (comment, [(name, type, value)]).
 
@@ -149,6 +165,7 @@ def sections():
         for name, value in table.items():
             scale.append((prefix + _camel(name), "int", int(value)))
     scale.append(("TransitionMs", "int", int(brand.MOTION["transition_ms"])))
+    scale.append(("TransitionPressMs", "int", int(brand.MOTION["press_ms"])))
     for part, value in zip(("X1", "Y1", "X2", "Y2"), brand.MOTION["ease"]):
         scale.append(("TransitionEase" + part, "double", value))
     # v0.6.10: Classic's accent bar inside a card's left hairline, and its current tab's underline.
@@ -339,6 +356,7 @@ def methods() -> str:
         "        }\n",
     ]
     lines += ["\n"] + ease_method()
+    lines += ["\n"] + day_look_method()
     return "".join(lines)
 
 

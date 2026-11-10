@@ -228,6 +228,27 @@ def icon_motion_allowed(*, reduced=False, contrast=False, battery_saver=False, l
     return bool(frames) and not (reduced or contrast or battery_saver or locked or hidden)
 
 
+def _lay_motif(pixels, size, motif, steps=4):
+    """The mark at the icon's top right, over the body (top-down BGRA, straight alpha)."""
+    place = brand.MOTIF_ON_ICON
+    half = size / 2.0
+    left, right = int((1.0 + place["x"] - place["half"]) * half), int((1.0 + place["x"] + place["half"]) * half) + 1
+    top, bottom = int((1.0 - place["y"] - place["half"]) * half), int((1.0 - place["y"] + place["half"]) * half) + 1
+    for py in range(max(0, top), min(size, bottom)):
+        for px in range(max(0, left), min(size, right)):
+            hits = [brand.motif_colour(motif, ((px + (sx + 0.5) / steps) / half - 1.0 - place["x"]) / place["half"],
+                                       (1.0 - (py + (sy + 0.5) / steps) / half - place["y"]) / place["half"])
+                    for sy in range(steps) for sx in range(steps)]
+            hits = [hit for hit in hits if hit is not None]
+            index = (py * size + px) * 4
+            if not hits or pixels[index + 3] == 0:
+                continue
+            total = steps * steps
+            for channel in range(3):
+                under = pixels[index + channel]
+                pixels[index + channel] = (under * (total - len(hits)) + sum(hit[2 - channel] for hit in hits)) // total
+
+
 class IconFrames:
     """The icon's frames for one size, as pixels: pure, built on any thread, drawn on the icon's.
 
@@ -241,24 +262,28 @@ class IconFrames:
     plain table's.
     """
 
-    def __init__(self, size, fine=1):
+    def __init__(self, size, fine=1, look=None):
         self.size = size = int(size)
         if size <= 0 or int(fine) < 1:
             raise ValueError("an icon has a size, and a position at least one step")
         self.fine = int(fine)
         positions = ICON_MOTION["positions"] * self.fine
+        self.look = look
+        body = look[0] if look else None
         base = bytearray(size * size * 4)
-        for y, row in enumerate(brand.icon_samples(size, head=False)):
+        for y, row in enumerate(brand.icon_samples(size, head=False, body=body)):
             for x, sample in enumerate(row):
                 red, green, blue, alpha = brand.icon_pixel(sample, (0, 0, 0))
                 index = (y * size + x) * 4
                 base[index:index + 4] = bytes((blue, green, red, alpha))
+        if look and size >= brand.MOTIF_ON_ICON["least"]:
+            _lay_motif(base, size, look[1])
         self.ground = bytes(base)
         self.heads = []
         for position in range(positions):
             angle = brand.ICON_SHAPE["arc_end"] - 360.0 * position / positions   # clockwise
             box = brand.icon_head_box(size, angle)
-            self.heads.append((box, brand.icon_samples(size, head_angle=angle, box=box)))
+            self.heads.append((box, brand.icon_samples(size, head_angle=angle, box=box, body=body)))
         self._cache = {}
 
     def compose(self, position, head) -> bytes:
@@ -282,10 +307,10 @@ class IconFrames:
         return frame
 
 
-def build_icon_frames(size, clock=time.perf_counter, fine=1):
+def build_icon_frames(size, clock=time.perf_counter, fine=1, look=None):
     """IconFrames for `size` (and `fine`), or None when it cannot be built inside ICON_MOTION's budget."""
     started = clock()
-    frames = IconFrames(size, fine)
+    frames = IconFrames(size, fine, look)
     if (clock() - started) * 1000.0 > ICON_MOTION["build_budget_ms"]:
         return None
     return frames

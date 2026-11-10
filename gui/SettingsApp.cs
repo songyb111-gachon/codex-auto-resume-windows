@@ -415,9 +415,20 @@ namespace CodexAutoResume
         private readonly SoftCard hero = new SoftCard();
         private readonly SoftCard savebar = new SoftCard();
         private readonly Label headline = new Label();
-        private readonly Label detail = new Label();
+        private readonly AsideLabel detail = new AsideLabel();
         private readonly VersionLabel versionText = new VersionLabel();
         private readonly HaloDot stateDot = new HaloDot();
+        private readonly System.Diagnostics.Stopwatch versionClock = System.Diagnostics.Stopwatch.StartNew();
+        private readonly PressRun versionPresses = new PressRun();
+
+        internal const int AsideMs = 4000;
+
+        private void VersionPressed()
+        {
+            if (!versionPresses.Press(versionClock.Elapsed.TotalMilliseconds)) return;
+            stateDot.Ripple();
+            detail.Aside(S("status.aside", "It's okay if it stops. I'll pick it up."), AsideMs);
+        }
         // v0.6.5: the notification-area icon's motion on the taskbar button (TaskbarMark), told the icon's state for what
         // the window read wherever stateDot is told its own (TellTaskbar); null in a window LayoutAudit builds, and
         // without the product's own icon.
@@ -1315,6 +1326,8 @@ namespace CodexAutoResume
             row.Controls.Add(restoreButton);
 
             versionText.Margin = new Padding(0);
+            // Each press, not Click: a quick second press is a double click and raises no Click.
+            versionText.MouseDown += delegate(object sender, MouseEventArgs e) { if (e.Button == MouseButtons.Left) VersionPressed(); };
             savebar.Controls.Add(versionText, 0, 0);
             savebar.Controls.Add(reopenNote, 1, 0);
             savebar.Controls.Add(row, 2, 0);
