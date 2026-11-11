@@ -11,7 +11,9 @@ reaches both editions.
 
 **Going back.** Nothing that an earlier version reads changes: the watcher's state stays schema 5, the settings file gains no key and the
 advanced edition's own file stays version 9. An earlier version does not ship the four new languages, so where one of them was picked
-it falls back to English, as it does for any language it does not ship, until another is picked.
+that setting goes back to its default, as any value it does not know does, until another is picked: *System* for the
+interface - the language Windows uses, or English where that version does not ship it - and *Same as the interface* for the continuation
+message.
 
 ### Both editions
 
