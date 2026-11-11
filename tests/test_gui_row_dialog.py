@@ -52,8 +52,8 @@ def asked(dialog, index, thread=None):
 GOOD = asked("once_words", 1)
 MALFORMED = [
     "", "once_words", "once_words:" + ROW[1][0], "settings:%s:%s" % ROW[1], "Once_words:%s:%s" % ROW[1],
-    "once_words:%s:%s" % (ROW[1][0].upper(), ROW[1][1]), "once_words:%s:%s" % (ROW[1][0][:-1], ROW[1][1]),
-    "once_words:%s0:%s" % ROW[1], "once_words:%s:%s" % (ROW[1][0], ROW[1][1].upper()),
+    "once_words:%s:%s" % ("AB" * 32, ROW[1][1]), "once_words:%s:%s" % (ROW[1][0][:-1], ROW[1][1]),
+    "once_words:%s0:%s" % ROW[1], "once_words:%s:%s" % (ROW[1][0], "0000000A-0000-7000-8000-00000000000B"),
     "once_words:%s:{%s}" % ROW[1], "once_words:%s:%s:x" % ROW[1], "once_words:%s:%s " % ROW[1],
     "once_words:%s:%s" % (ROW[1][0], ROW[1][1].replace("-", "")), "message:%s:%s\n--page=x" % ROW[1],
 ]
@@ -180,7 +180,7 @@ ARGV = [
 REQUESTS = ["pending", "", "pending\n" + GOOD, "pending\n" + asked("message", 2), "history\n" + GOOD,
             "pending\n" + MALFORMED[3], "pending\n", "\n" + GOOD, "pending\n" + GOOD + "\n"]
 ASKED = [GOOD, asked("once_words", 2), asked("message", 3), asked("once_words", 3), asked("once_words", 1, ROW[2][1]),
-         "once_words:%s:%s" % ("f" * 64, ROW[1][1]), MALFORMED[5]]
+         "once_words:%s:%s" % ("f" * 64, ROW[1][1]), MALFORMED[6]]
 
 
 @unittest.skipUnless(CSC.is_file() and POWERSHELL.is_file(), "needs the in-box compiler and PowerShell")
