@@ -11,8 +11,8 @@ Now (gui/Dashboard.cs):
   after - built by PageFor as a click builds it, given the room it will fill, its controls made and laid out, hidden all
   the while - one step a turn and none while the window has just had a key or the mouse (PreparePagesLater, PrepareNext);
   Statistics and Diagnostics read once then what they read on each visit, and read it again on the visit as before;
-* a snapshot, a statistics answer and the compatibility card are written with every page's layout held, and each page
-  laid out once after (HoldPages, LayOutHeld);
+* a snapshot, a statistics answer and the compatibility card are written with the layout of every page but the one on
+  screen held, and each laid out once after (HoldPages, LayOutHeld);
 * a page shown has everything in it that lays others out held while it becomes visible, and let go innermost first
   (HoldWithin, LetGoWithin).
 
@@ -95,6 +95,8 @@ class SourceTests(unittest.TestCase):
         hold = guiscan.member_body("SettingsForm", "HoldPages")
         self.assertIn("foreach (Control page in pageHost.Controls)", hold)
         self.assertIn("page.SuspendLayout();", hold)
+        # Never the page on screen: held, the Overview took more than one layout to settle (test_gui_layout's states audit).
+        self.assertLess(hold.index("if (Soft.OwnVisible(page)) continue;"), hold.index("page.SuspendLayout();"))
         self.assertIn("page.ResumeLayout(true);", guiscan.member_body("SettingsForm", "LayOutHeld"))
         applied = guiscan.member_body("SettingsForm", "ApplySnapshot")
         self.assertLess(applied.index("List<Control> held = HoldPages();"), applied.index("ApplyStatus(status, null);"))

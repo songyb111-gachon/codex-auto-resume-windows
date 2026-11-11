@@ -1652,16 +1652,20 @@ namespace CodexAutoResume
             return page;
         }
 
-        /// v0.6.23: every page in the page host held from laying itself out (LayOutHeld lets them go), while what they
-        /// show is written. Each line written asked its whole page for a layout of its own, card by card up to the page's
-        /// scrolling measure, and a page took them one by one: a snapshot with Diagnostics built cost 210 ms, and the first
-        /// compatibility read after Diagnostics was opened held the window 1.0-3.0 s (measured 2026-11-11). Laid out once
-        /// after, each page is laid out from the same text as before, so it is the same page.
+        /// v0.6.23: every page in the page host but the one on screen held from laying itself out (LayOutHeld lets them
+        /// go), while what they show is written. Each line written asked its whole page for a layout of its own, card by
+        /// card up to the page's scrolling measure, and a page took them one by one: a snapshot with Diagnostics built
+        /// cost 210 ms, and the compatibility answer for a Diagnostics not yet shown as much as 1.0-3.0 s (measured
+        /// 2026-11-11). Laid out once after, each page is laid out from the same text as before, so it is the same page.
         private List<Control> HoldPages()
         {
             var held = new List<Control>();
             foreach (Control page in pageHost.Controls)
             {
+                // Not the page on screen: its layout runs on as written, each step as before. Held too, the Overview's
+                // History card kept its button 2 px under its corner after a refresh whose Pending could not be read
+                // (test_gui_layout's states audit) - it takes more than one layout to settle.
+                if (Soft.OwnVisible(page)) continue;
                 page.SuspendLayout();
                 held.Add(page);
             }
