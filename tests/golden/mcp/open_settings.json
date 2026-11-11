@@ -516,7 +516,10 @@
                   "id",
                   "ar",
                   "he",
-                  "fa"
+                  "fa",
+                  "cs",
+                  "hu",
+                  "th"
                 ],
                 "group": "general"
               },
@@ -544,7 +547,10 @@
                   "id",
                   "ar",
                   "he",
-                  "fa"
+                  "fa",
+                  "cs",
+                  "hu",
+                  "th"
                 ],
                 "group": "continuation"
               },
@@ -1518,7 +1524,10 @@
               "id": "Bahasa Indonesia",
               "ar": "العربية",
               "he": "עברית",
-              "fa": "فارسی"
+              "fa": "فارسی",
+              "cs": "Čeština",
+              "hu": "Magyar",
+              "th": "ไทย"
             },
             "system_language": "en"
           },

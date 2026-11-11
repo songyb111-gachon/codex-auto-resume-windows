@@ -239,7 +239,10 @@
                   "id",
                   "ar",
                   "he",
-                  "fa"
+                  "fa",
+                  "cs",
+                  "hu",
+                  "th"
                 ],
                 "description": "See the settings documentation."
               },
@@ -265,7 +268,10 @@
                   "id",
                   "ar",
                   "he",
-                  "fa"
+                  "fa",
+                  "cs",
+                  "hu",
+                  "th"
                 ],
                 "description": "See the settings documentation."
               },
