@@ -152,7 +152,7 @@ class OwnReportTextTests(unittest.TestCase):
 
 class SourceTests(unittest.TestCase):
     def test_the_button_is_the_tools_cards_last_and_opens_the_dialog(self):
-        body = guiscan.member_body("SettingsForm", "BuildDiagnostics")
+        body = guiscan.member_body("SettingsForm", "DiagnosticsSteps")
         start = body.index("foreach (Button button in new[] {")
         buttons = body[start:body.index("button.Margin", start)]
         self.assertTrue(re.search(r'S\("action\.own_report", "Compatibility report from this PC\.\.\."\), false,\s*'

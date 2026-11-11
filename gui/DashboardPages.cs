@@ -659,7 +659,17 @@ namespace CodexAutoResume
         // ------------------------------------------------------------- diagnostics
         private Control BuildDiagnostics()
         {
+            return Built(DiagnosticsSteps);
+        }
+
+        /// v0.6.23 (the live acceptance, 2026-11-11): Diagnostics built a card a step - Health, Tools, the two side by
+        /// side, the compatibility card, the page - so that made ready ahead no step holds the window for the whole page
+        /// (350-610 ms in one on an installation that had run for months). A click builds every step at once
+        /// (BuildDiagnostics, PageFor). The same controls in the same order: only when.
+        private IEnumerator<bool> DiagnosticsSteps(PageBuild build)
+        {
             Panel page = Page();
+            build.Page = page;
             TableLayoutPanel grid = Grid(2);
             TableLayoutPanel health = MakeCard(S("diag.health", "Health"));
             health.Margin = GridGap(0, false);
@@ -711,6 +721,7 @@ namespace CodexAutoResume
             diagHostNote.MaximumSize = new Size(Px(360), 0);
             health.Controls.Add(diagHostNote);
 
+            yield return true;
             TableLayoutPanel tools = MakeCard(S("diag.tools", "Tools"));
             tools.Margin = GridGap(1, false);
             exportButton = MakeButton(S("action.export", "Export diagnostics..."), false, delegate { ExportDiagnostics(); });
@@ -750,14 +761,16 @@ namespace CodexAutoResume
                 button.Margin = Pad(0, 0, 0, 9);
                 tools.Controls.Add(button);
             }
+            yield return true;
             grid.Controls.Add(health, 0, 0);
             grid.Controls.Add(tools, 1, 0);
+            yield return true;
             // Under both, across the page: what the Codex Compatibility Registry says about the engine on this machine.
             TableLayoutPanel compat = BuildCompatibility();
             grid.Controls.Add(compat, 0, 1);
             grid.SetColumnSpan(compat, 2);
+            yield return true;
             page.Controls.Add(grid);
-            return page;
         }
 
         // ---------------------------------------------------------- compatibility

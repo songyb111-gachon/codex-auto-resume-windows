@@ -228,7 +228,7 @@ class WordsTests(unittest.TestCase):
         self.assertIn("compatNote = Note();", build, "what it did, said to a screen reader too")
         self.assertIn("new GateList()", method(self.dashboard, "private GateList CompatList()"),
                       "rows as Why it is waiting draws its checks, which are the panel's settings rows")
-        diagnostics = method(self.dashboard, "private Control BuildDiagnostics()")
+        diagnostics = method(self.dashboard, "private IEnumerator<bool> DiagnosticsSteps(PageBuild build)")
         self.assertIn("grid.SetColumnSpan(compat, 2);", diagnostics)
         self.assertIn("health.Margin = GridGap(0, false);", diagnostics)
         self.assertIn("tools.Margin = GridGap(1, false);", diagnostics)

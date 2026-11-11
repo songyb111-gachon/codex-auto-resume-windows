@@ -1544,7 +1544,8 @@ namespace CodexAutoResume
         private bool BuildSome(string name)
         {
             if (pages.ContainsKey(name)) return false;
-            Func<PageBuild, IEnumerator<bool>> steps = name == "pending" ? (Func<PageBuild, IEnumerator<bool>>)PendingSteps : null;
+            Func<PageBuild, IEnumerator<bool>> steps = name == "pending" ? (Func<PageBuild, IEnumerator<bool>>)PendingSteps
+                                                     : name == "diagnostics" ? (Func<PageBuild, IEnumerator<bool>>)DiagnosticsSteps : null;
             if (steps == null) return false;
             PageBuild build;
             if (!pageBuilds.TryGetValue(name, out build))
