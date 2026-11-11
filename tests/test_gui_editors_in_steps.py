@@ -53,7 +53,11 @@ class SourceTests(unittest.TestCase):
         self.assertGreaterEqual(steps.count("yield return true;"), 4)
         self.assertLess(steps.index("BuildHomes(sections[\"advanced\"]);"), steps.index("yield return true;"))
         self.assertIn("if (slice.ElapsedMilliseconds >= EditorSliceMilliseconds)", steps)
-        self.assertLess(steps.rindex("yield return true;"), steps.index("columns.ResumeLayout(true);"))
+        # v0.6.23 (round 5): the page laid out a step before its section is shown, and the Continuation cards a card a step.
+        self.assertLess(steps.index("columns.ResumeLayout(true);"), steps.rindex("yield return true;"))
+        self.assertLess(steps.rindex("yield return true;"), steps.index("ShowSection(currentSection);"))
+        self.assertIn("while (continuation.MoveNext()) yield return true;", steps)
+        self.assertGreaterEqual(guiscan.member_body("SettingsForm", "ContinuationSteps").count("yield return true;"), 2)
         self.assertIn("ForgetPins();", steps, "rows built again after Restore defaults leave nothing pinned behind")
         once = guiscan.member_body("SettingsForm", "BuildEditors")
         self.assertIn("while (editorSteps.MoveNext()) { }", once, "a build asked for at once is still one build")
