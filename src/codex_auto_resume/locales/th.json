@@ -745,6 +745,7 @@
   "menu.once_words_change": "เปลี่ยนถ้อยคำสำหรับครั้งนี้...",
   "menu.once_words_remove": "ลบถ้อยคำสำหรับครั้งนี้",
   "menu.open": "เปิดแดชบอร์ด",
+  "menu.open_popup": "เปิดป๊อปอัป",
   "menu.pause": "หยุดการกู้คืนชั่วคราว",
   "menu.pending": "แสดงสิ่งที่รออยู่ ({n})",
   "menu.postpone": "เลื่อน",

@@ -745,6 +745,7 @@
   "menu.once_words_change": "變更僅本次附加的話…",
   "menu.once_words_remove": "移除僅本次附加的話",
   "menu.open": "開啟儀表板",
+  "menu.open_popup": "開啟快顯視窗",
   "menu.pause": "暫停復原",
   "menu.pending": "顯示等待中的項目（{n}）",
   "menu.postpone": "延後",

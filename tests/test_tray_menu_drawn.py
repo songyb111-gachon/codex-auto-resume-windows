@@ -165,7 +165,7 @@ class ParityTests(unittest.TestCase):
                 made.update(snapshot)
                 with unittest.mock.patch.object(tray_menu.time, "time", lambda: NOW):
                     made._menu()
-                    expected = tray.menu_items(made._shown(), EN, NOW, pending, armed)
+                    expected = tray.menu_items(made._shown(), EN, NOW, pending, armed, made._popup_can_open())
                 (entries, strings, _), = made._menu_drawn.shown
                 self.assertEqual(entries, expected)
                 self.assertEqual(strings, EN)

@@ -745,6 +745,7 @@
   "menu.once_words_change": "Cambiar las palabras para esta vez...",
   "menu.once_words_remove": "Quitar las palabras para esta vez",
   "menu.open": "Abrir Panel",
+  "menu.open_popup": "Abrir la ventana emergente",
   "menu.pause": "Pausar recuperación",
   "menu.pending": "Mostrar lo que está en espera ({n})",
   "menu.postpone": "Posponer",

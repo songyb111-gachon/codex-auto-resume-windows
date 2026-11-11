@@ -745,6 +745,7 @@
   "menu.once_words_change": "Az erre az alkalomra szóló szöveg módosítása...",
   "menu.once_words_remove": "Az erre az alkalomra szóló szöveg eltávolítása",
   "menu.open": "Irányítópult megnyitása",
+  "menu.open_popup": "Felugró ablak megnyitása",
   "menu.pause": "Helyreállítás szüneteltetése",
   "menu.pending": "Várakozók megjelenítése ({n})",
   "menu.postpone": "Elhalasztás",

@@ -745,6 +745,7 @@
   "menu.once_words_change": "Modifica le parole per questa volta...",
   "menu.once_words_remove": "Rimuovi le parole per questa volta",
   "menu.open": "Apri la Dashboard",
+  "menu.open_popup": "Apri il popup",
   "menu.pause": "Sospendi il recupero",
   "menu.pending": "Mostra ciò che è in attesa ({n})",
   "menu.postpone": "Rimanda",

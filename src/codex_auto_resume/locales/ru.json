@@ -745,6 +745,7 @@
   "menu.once_words_change": "Изменить слова на этот раз...",
   "menu.once_words_remove": "Удалить слова на этот раз",
   "menu.open": "Открыть Дашборд",
+  "menu.open_popup": "Открыть всплывающее окно",
   "menu.pause": "Поставить на паузу",
   "menu.pending": "Показать ожидающие ({n})",
   "menu.postpone": "Отложить",

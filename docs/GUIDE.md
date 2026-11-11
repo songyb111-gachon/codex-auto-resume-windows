@@ -571,7 +571,8 @@ tasks, each with its own **Auto-resume** switch bound to that task's exact inter
 closes it too. The popup runs inside the watcher process, on the icon's own thread, and goes
 through the same control layer as every other surface; nothing in it can send a continuation.
 A right click on the icon opens its menu, drawn in the popup's own design: a line that says how
-the watcher is doing, **Open Dashboard**, **Show what is waiting** while anything waits,
+the watcher is doing, **Open Dashboard**, **Open the popup** (from v0.6.23: the popup a click on the icon
+opens, in the same place), **Show what is waiting** while anything waits,
 **Pause recovery** or **Resume recovery**, **Don't sleep after recoveries** (or hibernate, shut down)
 while that power action is armed, and **Stop the watcher**. It opens at the pointer, light or dark
 as the popup is, in the system's colours in High Contrast, and right to left in Arabic, Hebrew and Persian.

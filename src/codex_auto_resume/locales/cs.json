@@ -745,6 +745,7 @@
   "menu.once_words_change": "Změnit slova pro tentokrát...",
   "menu.once_words_remove": "Odebrat slova pro tentokrát",
   "menu.open": "Otevřít Dashboard",
+  "menu.open_popup": "Otevřít rozevírací okno",
   "menu.pause": "Pozastavit obnovení",
   "menu.pending": "Zobrazit, co čeká ({n})",
   "menu.postpone": "Odložit",

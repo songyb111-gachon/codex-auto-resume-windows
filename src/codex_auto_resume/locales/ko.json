@@ -745,6 +745,7 @@
   "menu.once_words_change": "이번에만 덧붙일 말 바꾸기...",
   "menu.once_words_remove": "이번에만 덧붙일 말 지우기",
   "menu.open": "대시보드 열기",
+  "menu.open_popup": "팝업 열기",
   "menu.pause": "자동 복구 일시 정지",
   "menu.pending": "기다리는 작업 보기 ({n})",
   "menu.postpone": "미루기",

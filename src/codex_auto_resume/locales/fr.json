@@ -745,6 +745,7 @@
   "menu.once_words_change": "Modifier les mots pour cette fois...",
   "menu.once_words_remove": "Retirer les mots pour cette fois",
   "menu.open": "Ouvrir le Tableau de bord",
+  "menu.open_popup": "Ouvrir la fenêtre contextuelle",
   "menu.pause": "Suspendre la récupération",
   "menu.pending": "Afficher ce qui est en attente ({n})",
   "menu.postpone": "Reporter",

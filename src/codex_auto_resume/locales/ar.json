@@ -745,6 +745,7 @@
   "menu.once_words_change": "تغيير كلمات هذه المرة...",
   "menu.once_words_remove": "إزالة كلمات هذه المرة",
   "menu.open": "فتح لوحة المعلومات",
+  "menu.open_popup": "فتح النافذة المنبثقة",
   "menu.pause": "إيقاف الاستعادة مؤقتًا",
   "menu.pending": "إظهار ما ينتظر ({n})",
   "menu.postpone": "تأجيل",

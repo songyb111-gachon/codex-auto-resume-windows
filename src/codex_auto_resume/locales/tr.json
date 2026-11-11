@@ -745,6 +745,7 @@
   "menu.once_words_change": "Bu seferlik sözü değiştir...",
   "menu.once_words_remove": "Bu seferlik sözü kaldır",
   "menu.open": "Gösterge Paneli'ni aç",
+  "menu.open_popup": "Açılır pencereyi aç",
   "menu.pause": "Kurtarmayı duraklat",
   "menu.pending": "Bekleyenleri göster ({n})",
   "menu.postpone": "Ertele",
