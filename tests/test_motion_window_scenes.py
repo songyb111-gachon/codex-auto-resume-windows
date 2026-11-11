@@ -51,7 +51,8 @@ class SourceTests(unittest.TestCase):
         body = guiscan.member_body(TYPE, "RenderExplain")
         self.assertIn("RenderOffset(", body)
         self.assertIn("explainPage", body)
-        self.assertIn("explainPage = gates;", guiscan.member_body(TYPE, "BuildPending"))
+        # v0.6.23: Pending is built in steps (PendingSteps).
+        self.assertIn("explainPage = gates;", guiscan.member_body(TYPE, "PendingSteps"))
 
 
 @unittest.skipUnless(os.name == "nt" and motion_window.CSC.is_file(), "the window is built with Windows' C# compiler")

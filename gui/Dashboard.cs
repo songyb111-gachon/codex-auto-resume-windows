@@ -1423,6 +1423,8 @@ namespace CodexAutoResume
         private void ShowPage(string name)
         {
             if (Array.IndexOf(PageOrder, name) < 0) name = "overview";
+            // v0.6.23 (round 5): what making it ready ahead holds of it let go first, innermost first, as it would be.
+            if (preparing == name) LetGoAll();
             currentPage = name;
             bool settings = name == "settings";
             // Settings asked for before its editors were built on idle: built now, before it shows.
@@ -1497,11 +1499,20 @@ namespace CodexAutoResume
         {
             Control page;
             if (pages.TryGetValue(name, out page)) return page;
-            page = name == "pending" ? BuildPending()
-                 : name == "history" ? BuildHistory()
-                 : name == "statistics" ? BuildStatistics()
-                 : name == "diagnostics" ? BuildDiagnostics()
-                 : BuildOverview();
+            // v0.6.23: a build begun ahead (BuildSome) finished now, at once; else the page built whole.
+            PageBuild begun;
+            if (pageBuilds.TryGetValue(name, out begun))
+            {
+                pageBuilds.Remove(name);
+                while (begun.Steps.MoveNext()) { }
+                page = begun.Page;
+            }
+            else
+                page = name == "pending" ? BuildPending()
+                     : name == "history" ? BuildHistory()
+                     : name == "statistics" ? BuildStatistics()
+                     : name == "diagnostics" ? BuildDiagnostics()
+                     : BuildOverview();
             page.Visible = false;
             pages[name] = page;
             pageHost.Controls.Add(page);
@@ -1510,6 +1521,44 @@ namespace CodexAutoResume
             if (snapshot != null && !Writes(name)) return page;
             if (snapshot != null) ApplySnapshot(snapshot);
             return page;
+        }
+
+        /// v0.6.23: a page being built a step at a time (PendingSteps, DiagnosticsSteps) - the page as soon as its first step
+        /// has made it, and the steps left.
+        private sealed class PageBuild
+        {
+            internal Control Page;
+            internal IEnumerator<bool> Steps;
+        }
+
+        // The builds begun ahead of their page's first visit (BuildSome), by page, until PageFor finishes one.
+        private readonly Dictionary<string, PageBuild> pageBuilds = new Dictionary<string, PageBuild>();
+
+        /// A page built by its steps, all of them, at once.
+        private static Control Built(Func<PageBuild, IEnumerator<bool>> steps)
+        {
+            var build = new PageBuild();
+            build.Steps = steps(build);
+            while (build.Steps.MoveNext()) { }
+            return build.Page;
+        }
+
+        /// One step of building `name` ahead, where its builder has steps; true while there are more. The last step
+        /// leaves the build to PageFor, which finishes it (nothing is left) and puts the page in the host.
+        private bool BuildSome(string name)
+        {
+            if (pages.ContainsKey(name)) return false;
+            Func<PageBuild, IEnumerator<bool>> steps = name == "pending" ? (Func<PageBuild, IEnumerator<bool>>)PendingSteps
+                                                     : name == "diagnostics" ? (Func<PageBuild, IEnumerator<bool>>)DiagnosticsSteps : null;
+            if (steps == null) return false;
+            PageBuild build;
+            if (!pageBuilds.TryGetValue(name, out build))
+            {
+                build = new PageBuild();
+                build.Steps = steps(build);
+                pageBuilds[name] = build;
+            }
+            return build.Steps.MoveNext();
         }
 
         // ------------------------------------------------------------ pages made ready ahead (v0.6.23)
@@ -1575,6 +1624,12 @@ namespace CodexAutoResume
             // PageFor leaves it marked (Writes) - and written on the next (WriteIfStale), each a turn of its own: built and
             // written in one, Pending and Diagnostics held the window 550-750 ms on an installation that had run for
             // months (the live acceptance, 2026-11-11). A click in between writes it as it shows (ShowPage).
+            // A page whose builder has steps is built a step a turn first (BuildSome).
+            if (prepareStep == 0 && BuildSome(preparing)) return true;
+            // Put in the page host on a turn of its own, and given its room on the next (round 5: the two together took
+            // 260 ms for Diagnostics at that size).
+            bool joining = prepareStep == 0 && Array.IndexOf(PageOrder, preparing) >= 0 && preparing != "settings" &&
+                           !pages.ContainsKey(preparing);
             Control page = PreparedPage(preparing);
             if (page == null || Soft.OwnVisible(page))
             {
@@ -1582,10 +1637,17 @@ namespace CodexAutoResume
                 Prepared();
                 return true;
             }
+            if (joining) return true;
             if (prepareStep == 0)
             {
                 // Built (PreparedPage), and the room the page host will give it once shown, so it is never laid out
-                // narrower first.
+                // narrower first. Everything in it that lays others out held from now (round 5), so that its room, what
+                // is written into it and what its reads add lay nothing out; let go a few at a time, innermost first, at
+                // the end (LetGoSome) - as ShowPage lets a page go when it shows. Settings' room took 140-290 ms in one
+                // turn, Diagnostics' compatibility answer 300-500, at that size.
+                prepareHeld = HoldWithin(page);
+                page.SuspendLayout();
+                prepareHeld.Insert(0, page);
                 page.Bounds = pageHost.DisplayRectangle;
                 prepareStep = 1;
             }
@@ -1602,14 +1664,12 @@ namespace CodexAutoResume
             }
             else if (prepareStep == 3)
             {
-                page.PerformLayout();
                 // What it reads on each visit that the snapshot does not hold, read once now, so its first visit finds it
                 // there as every later visit does; the visit reads it again (ShowPage).
                 bool reads = preparing == "statistics" || preparing == "diagnostics";
                 if (preparing == "statistics") LoadStatistics();
                 if (preparing == "diagnostics") LoadCompatibility();
-                if (reads) prepareStep = 4;
-                else Prepared();
+                prepareStep = reads ? 4 : 6;
             }
             else if (prepareStep == 4)
             {
@@ -1620,12 +1680,49 @@ namespace CodexAutoResume
             {
                 if (MakeSome(page)) prepareStep = 6;
             }
+            else if (prepareStep == 6)
+            {
+                if (LetGoSome()) prepareStep = 7;
+            }
             else
             {
                 page.PerformLayout();
                 Prepared();
             }
             return true;
+        }
+
+        // What the page being made ready holds from laying itself out, outermost first, the page itself first of all
+        // (PrepareNext); null when nothing is held.
+        private List<Control> prepareHeld;
+
+        /// Lets what the page being made ready holds lay itself out, innermost first, until PrepareSliceMilliseconds have
+        /// gone; the page itself last, on a turn of its own. True once all are let go.
+        private bool LetGoSome()
+        {
+            if (prepareHeld == null) return true;
+            var slice = Stopwatch.StartNew();
+            int let = 0;
+            while (prepareHeld.Count > 1 && slice.ElapsedMilliseconds < PrepareSliceMilliseconds)
+            {
+                Control last = prepareHeld[prepareHeld.Count - 1];
+                prepareHeld.RemoveAt(prepareHeld.Count - 1);
+                if (!last.IsDisposed) last.ResumeLayout(true);
+                let++;
+            }
+            if (let > 0) return false;
+            LetGoAll();
+            return true;
+        }
+
+        /// Lets everything the page being made ready holds go at once, innermost first: as it is shown, or given up.
+        private void LetGoAll()
+        {
+            if (prepareHeld == null) return;
+            List<Control> held = prepareHeld;
+            prepareHeld = null;
+            for (int i = held.Count - 1; i >= 0; i--)
+                if (!held[i].IsDisposed) held[i].ResumeLayout(true);
         }
 
         /// Makes the native controls of `page` not yet made - each before the controls in it, siblings in their order, as
@@ -1652,6 +1749,7 @@ namespace CodexAutoResume
 
         private void Prepared()
         {
+            LetGoAll();
             if (preparing != null && !preparedPages.Contains(preparing)) preparedPages.Add(preparing);
             preparing = null;
             prepareStep = 0;

@@ -238,7 +238,7 @@ class SourceTests(unittest.TestCase):
         body = guiscan.member_body("SettingsForm", "WatcherButton")
         self.assertIn("if (watcherStopped) StartWatcher();", body)
         self.assertIn("else StopWatcher();", body)
-        page = guiscan.member_body("SettingsForm", "BuildDiagnostics")
+        page = guiscan.member_body("SettingsForm", "DiagnosticsSteps")
         self.assertIn("delegate { WatcherButton(); }", page)
         self.assertNotIn("delegate { StopWatcher(); }", page)
 

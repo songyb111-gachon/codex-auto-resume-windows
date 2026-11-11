@@ -70,6 +70,17 @@ class SourceTests(unittest.TestCase):
         self.assertIn("if (auditing || page == currentPage || page == writingPage) return true;", writes)
         self.assertIn("stalePages.Add(page);", writes)
 
+    def test_a_page_made_ready_is_held_and_let_go_innermost_first(self):
+        step = guiscan.member_body("SettingsForm", "PrepareNext")
+        self.assertLess(step.index("prepareHeld = HoldWithin(page);"), step.index("page.Bounds = pageHost.DisplayRectangle;"))
+        self.assertIn("if (LetGoSome()) prepareStep = 7;", step)
+        let = guiscan.member_body("SettingsForm", "LetGoSome")
+        self.assertIn("Control last = prepareHeld[prepareHeld.Count - 1];", let, "innermost first")
+        self.assertIn("if (let > 0) return false;", let, "the page itself on a turn of its own")
+        self.assertIn("if (preparing == name) LetGoAll();", guiscan.member_body("SettingsForm", "ShowPage"),
+                      "a page shown before it is let go is let go at once, as it would be")
+        self.assertIn("LetGoAll();", guiscan.member_body("SettingsForm", "Prepared"))
+
     def test_a_page_is_brought_up_to_date_before_it_shows(self):
         show = guiscan.member_body("SettingsForm", "ShowPage")
         self.assertLess(show.index("Control page = PageFor(name);"), show.index("WriteIfStale(name);"))
@@ -260,6 +271,12 @@ class RefreshTests(unittest.TestCase):
         turns = self.answer["turns"]
         self.assertGreaterEqual(turns.get("settings:2", 0), 3, "Settings' controls made in one turn again: %r" % turns)
         self.assertGreaterEqual(turns.get("pending:1", 0), 1, "Pending written on a turn of its own: %r" % turns)
+        # v0.6.23 (round 5): Pending and Diagnostics built a part a turn (PendingSteps, DiagnosticsSteps).
+        self.assertGreaterEqual(turns.get("pending:0", 0), 5, "Pending built in one turn again: %r" % turns)
+        self.assertGreaterEqual(turns.get("diagnostics:0", 0), 4, "Diagnostics built in one turn again: %r" % turns)
+        # v0.6.23 (round 5): a page made ready is held from laying itself out from its room on (so its room, its writes
+        # and its reads' answers lay nothing out) and let go a few at a time, the page itself on a turn of its own.
+        self.assertGreaterEqual(turns.get("settings:6", 0), 2, "Settings let go in one turn again: %r" % turns)
 
     def test_a_refresh_on_the_overview_fills_no_hidden_list(self):
         self.assertEqual(self.answer["fills_on_refresh"], 0, "a hidden list was written by a refresh")

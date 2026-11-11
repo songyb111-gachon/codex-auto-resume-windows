@@ -327,7 +327,7 @@ class WindowTests(unittest.TestCase):
     def test_the_button_follows_show_me_what_happens_and_has_one_handler(self):
         """It was last in the Tools card from v0.6.12; v0.6.16-beta.3's check of why a failure was not taken up
         comes after it, so no button before either moves."""
-        page = self.body("BuildDiagnostics")
+        page = self.body("DiagnosticsSteps")
         self.assertIn('versionsButton = MakeButton(S("action.pick_version", "Install another version..."), false, '
                       'delegate { OpenVersions(); });', page)
         tools = page[page.index("foreach (Button button in new[] {"):]

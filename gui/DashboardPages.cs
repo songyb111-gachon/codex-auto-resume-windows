@@ -369,8 +369,18 @@ namespace CodexAutoResume
         // ----------------------------------------------------------------- pending
         private Control BuildPending()
         {
+            return Built(PendingSteps);
+        }
+
+        /// v0.6.23 (the live acceptance, 2026-11-11): Pending built a part a step - its list, its buttons, the row's menu,
+        /// Why it is waiting, the two side by side - so that made ready ahead no step holds the window for the whole
+        /// page (230-340 ms in one on an installation that had run for months). A click builds every step at once
+        /// (BuildPending, PageFor). The same controls in the same order: only when.
+        private IEnumerator<bool> PendingSteps(PageBuild build)
+        {
             Panel page = Page();
-            pendingList = List(S("nav.pending", "Pending"),
+            build.Page = page;
+            ListView list = List(S("nav.pending", "Pending"),
                                Col(S("pending.col_conversation", "Conversation"), 140),
                                Col(S("pending.col_status", "Status"), 190),
                                Col(S("pending.col_category", "Kind"), 110),
@@ -381,13 +391,14 @@ namespace CodexAutoResume
             pendingEmpty.ForeColor = Secondary;
             pendingEmpty.Dock = DockStyle.Top;
             pendingEmpty.Padding = Pad(8, 0, 0, 10);
+            yield return true;
 
             FlowLayoutPanel row = ButtonRow();
             retryButton = MakeButton(S("action.retry_now", "Retry now"), true, delegate { RetryNow(); });
             cancelButton = MakeButton(S("action.cancel", "Cancel"), false, delegate { CancelSelected(); });
-            timelineButton = MakeButton(S("action.timeline", "Timeline"), false, delegate { ShowTimeline(pendingList); });
+            timelineButton = MakeButton(S("action.timeline", "Timeline"), false, delegate { ShowTimeline(list); });
             threadButton = MakeButton(S("action.thread_off", "Turn off for this conversation"), false,
-                                      delegate { ToggleThread(pendingList); });
+                                      delegate { ToggleThread(list); });
             // Only cancelling is offered for everything at once: it can only reduce what runs.
             cancelAllButton = MakeButton(S("action.cancel_all", "Cancel all"), false, delegate { CancelAll(); });
             // v0.6.16 (issue #39): and every waiting recovery looked at again - one retired only on proof of newer
@@ -406,7 +417,8 @@ namespace CodexAutoResume
             // until another row is chosen or its record leaves the list.
             pendingNote = Note();
             row.Controls.Add(pendingNote);
-            pendingList.SelectedIndexChanged += delegate
+            yield return true;
+            list.SelectedIndexChanged += delegate
             {
                 if (filling) return;
                 if (pendingNoteFor == BulkNote) pendingNoteFor = null;
@@ -418,20 +430,20 @@ namespace CodexAutoResume
             // on it, or Space on the chosen row, switches it. The request carries that row's
             // interruption and conversation ids, and the control layer refuses it if the record
             // has since finished, gone, or turned out to belong to another conversation.
-            pendingList.MouseClick += delegate(object sender, MouseEventArgs e)
+            list.MouseClick += delegate(object sender, MouseEventArgs e)
             {
                 // A ListView raises MouseClick for the right button as well, and turning recovery
                 // off asks nothing, so a right-click on the box switched a conversation off.
                 if (e.Button != MouseButtons.Left) return;
-                ListViewHitTestInfo hit = pendingList.HitTest(e.Location);
+                ListViewHitTestInfo hit = list.HitTest(e.Location);
                 if (hit.Item == null || hit.SubItem == null) return;
                 if (hit.Item.SubItems.IndexOf(hit.SubItem) != ResumeColumn) return;
                 ToggleAutoResume(hit.Item.Tag as Dictionary<string, object>);
             };
-            pendingList.KeyDown += delegate(object sender, KeyEventArgs e)
+            list.KeyDown += delegate(object sender, KeyEventArgs e)
             {
                 if (e.KeyCode != Keys.Space) return;
-                ToggleAutoResume(Selected(pendingList));
+                ToggleAutoResume(Selected(list));
                 e.Handled = true;
             };
             // v0.6.11: the row's own menu - postpone it, let a held one continue, how its conversation
@@ -444,10 +456,10 @@ namespace CodexAutoResume
             {
                 e.Cancel = !PrepareRowMenu();
             };
-            pendingList.MouseDoubleClick += delegate(object sender, MouseEventArgs e)
+            list.MouseDoubleClick += delegate(object sender, MouseEventArgs e)
             {
                 if (e.Button != MouseButtons.Left) return;
-                ListViewHitTestInfo hit = pendingList.HitTest(e.Location);
+                ListViewHitTestInfo hit = list.HitTest(e.Location);
                 // The Auto-resume box answers each click itself, so a double-click on it opens nothing.
                 if (hit.Item == null || (hit.SubItem != null && hit.Item.SubItems.IndexOf(hit.SubItem) == ResumeColumn)) return;
                 // v0.6.19: a row of the edition's own opens what it opens (a waiting message, its editor).
@@ -459,12 +471,13 @@ namespace CodexAutoResume
                 }
                 OpenRowMenu(hit.Item, e.Location);
             };
-            pendingList.ContextMenuStrip = pendingMenu;
-            pendingList.MouseDown += delegate(object sender, MouseEventArgs e)
+            list.ContextMenuStrip = pendingMenu;
+            yield return true;
+            list.MouseDown += delegate(object sender, MouseEventArgs e)
             {
                 if (e.Button != MouseButtons.Right) return;
                 menuByMouse = true;
-                ListViewItem under = pendingList.GetItemAt(e.X, e.Y);
+                ListViewItem under = list.GetItemAt(e.X, e.Y);
                 if (under != null) under.Selected = true;
             };
 
@@ -478,23 +491,24 @@ namespace CodexAutoResume
             explainAsOf = Value("");
             explainAsOf.ForeColor = Secondary;
             explain.Controls.Add(explainAsOf);
-            explainList = new GateList();
-            explainList.Dock = DockStyle.Top;
-            explainList.Font = Font;
-            explainList.AccessibleName = S("explain.title", "Why it is waiting");
+            var gateList = new GateList();
+            gateList.Dock = DockStyle.Top;
+            gateList.Font = Font;
+            gateList.AccessibleName = S("explain.title", "Why it is waiting");
             var gates = new SoftPage();
             gates.BackColor = Card;
             gates.Dock = DockStyle.Fill;
             gates.Margin = new Padding(0);
             // A little room between the results and the bar when it shows; the card's padding is past it.
             gates.Padding = Pad(0, 0, 6, 0);
-            gates.Controls.Add(explainList);
+            gates.Controls.Add(gateList);
             gates.Scrolls = true;
             explainPage = gates;
             explain.Controls.Add(gates);
             explain.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             explain.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             explain.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+            yield return true;
 
             // The list and why its task waits, side by side with the panel's gap between them. A
             // table rather than two docked cards: docking ignores margins, and the gap is one. The
@@ -507,27 +521,33 @@ namespace CodexAutoResume
             split.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
             split.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, Px(Brand.PageGap + 256)));
             split.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
-            Control listCard = ListCard(pendingList);
+            Control listCard = ListCard(list);
             split.Controls.Add(listCard, 0, 0);
             split.Controls.Add(explain, 1, 0);
             // The explanation gives way, down to 200 px, when the list's column headings need the
             // room: Spanish needs about 20 px more than the list has beside a 256-px explanation.
             EventHandler share = delegate
             {
-                int needed = HeadingsWidth(pendingList) + listCard.Padding.Horizontal;
+                int needed = HeadingsWidth(list) + listCard.Padding.Horizontal;
                 int width = Math.Max(Px(Brand.PageGap + 200), Math.Min(Px(Brand.PageGap + 256), split.ClientSize.Width - needed));
                 if ((int)split.ColumnStyles[1].Width != width) split.ColumnStyles[1].Width = width;
             };
             split.SizeChanged += share;
-            pendingList.FontChanged += share;
+            list.FontChanged += share;
 
             page.Controls.Add(split);
+            yield return true;
+
+            // The list and its explanation the window's own only now, with every button and card they speak through
+            // made: whatever looks at Pending between two steps finds no list yet and leaves it alone.
+            pendingList = list;
+            explainList = gateList;
             page.Controls.Add(pendingEmpty);
             PendingBuilt(page);
             page.Controls.Add(row);
+            yield return true;
             UpdatePendingButtons();
             ShowExplain();
-            return page;
         }
 
         // ----------------------------------------------------------------- history
@@ -639,7 +659,17 @@ namespace CodexAutoResume
         // ------------------------------------------------------------- diagnostics
         private Control BuildDiagnostics()
         {
+            return Built(DiagnosticsSteps);
+        }
+
+        /// v0.6.23 (the live acceptance, 2026-11-11): Diagnostics built a card a step - Health, Tools, the two side by
+        /// side, the compatibility card, the page - so that made ready ahead no step holds the window for the whole page
+        /// (350-610 ms in one on an installation that had run for months). A click builds every step at once
+        /// (BuildDiagnostics, PageFor). The same controls in the same order: only when.
+        private IEnumerator<bool> DiagnosticsSteps(PageBuild build)
+        {
             Panel page = Page();
+            build.Page = page;
             TableLayoutPanel grid = Grid(2);
             TableLayoutPanel health = MakeCard(S("diag.health", "Health"));
             health.Margin = GridGap(0, false);
@@ -691,6 +721,7 @@ namespace CodexAutoResume
             diagHostNote.MaximumSize = new Size(Px(360), 0);
             health.Controls.Add(diagHostNote);
 
+            yield return true;
             TableLayoutPanel tools = MakeCard(S("diag.tools", "Tools"));
             tools.Margin = GridGap(1, false);
             exportButton = MakeButton(S("action.export", "Export diagnostics..."), false, delegate { ExportDiagnostics(); });
@@ -730,14 +761,16 @@ namespace CodexAutoResume
                 button.Margin = Pad(0, 0, 0, 9);
                 tools.Controls.Add(button);
             }
+            yield return true;
             grid.Controls.Add(health, 0, 0);
             grid.Controls.Add(tools, 1, 0);
+            yield return true;
             // Under both, across the page: what the Codex Compatibility Registry says about the engine on this machine.
             TableLayoutPanel compat = BuildCompatibility();
             grid.Controls.Add(compat, 0, 1);
             grid.SetColumnSpan(compat, 2);
+            yield return true;
             page.Controls.Add(grid);
-            return page;
         }
 
         // ---------------------------------------------------------- compatibility

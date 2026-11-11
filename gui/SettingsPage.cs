@@ -723,10 +723,14 @@ namespace CodexAutoResume
             }
             yield return true;
 
-            BuildContinuation(fields, current, words, preview);
+            // v0.6.23 (round 5): the Continuation cards a card a step, and the page laid out a step before its section is
+            // shown - each of the two was one step of 130-310 ms on an installation that had run for months.
+            IEnumerator<bool> continuation = ContinuationSteps(fields, current, words, preview);
+            while (continuation.MoveNext()) yield return true;
             yield return true;
 
             columns.ResumeLayout(true);
+            yield return true;
             ShowSection(currentSection);
             // What unsaved edits are measured from: the page as it was built.
             baseline = EditorValues();
@@ -737,9 +741,9 @@ namespace CodexAutoResume
             if (!auditing) RefreshStatusAsync(null);
         }
 
-        private void BuildContinuation(Dictionary<string, Dictionary<string, object>> fields,
-                                       Dictionary<string, object> current, TableLayoutPanel words,
-                                       TableLayoutPanel preview)
+        private IEnumerator<bool> ContinuationSteps(Dictionary<string, Dictionary<string, object>> fields,
+                                                    Dictionary<string, object> current, TableLayoutPanel words,
+                                                    TableLayoutPanel preview)
         {
             continuationCombo = LanguageCombo(fields, "continuation_language", current);
             words.Controls.Add(NewRow(S("field.continuation_language", "Continuation language"), continuationCombo));
@@ -767,6 +771,7 @@ namespace CodexAutoResume
             ChoiceGroup chosenStyle = styleGroup;
             jsonValues["continuation_style"] = delegate { return Json.Escape(chosenStyle.Value ?? "standard"); };
 
+            yield return true;
             // Custom: shown only while Custom is the style. Its text is sent exactly as it is
             // typed; the only change made is the one the text box makes itself - Windows line
             // breaks are stored as plain ones.
@@ -825,6 +830,7 @@ namespace CodexAutoResume
             customCard.Controls.Add(HelpText(S("custom.fallback",
                 "An empty message falls back to the message for every interruption, and then to the Standard message.")));
 
+            yield return true;
             // Preview: the exact text, from the same function the watcher sends with.
             previewReason = new SoftCombo();
             previewReason.Width = Px(260);
