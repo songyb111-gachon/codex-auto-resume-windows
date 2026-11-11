@@ -1513,11 +1513,7 @@ namespace CodexAutoResume
                      : BuildOverview();
             page.Visible = false;
             pages[name] = page;
-            // v0.6.23 (round 5): put in the host without a layout of its own - hidden, it is laid out at the room it is
-            // given (PrepareNext) or as it is shown (ShowPage), and laid out here too it was laid out twice.
-            page.SuspendLayout();
             pageHost.Controls.Add(page);
-            page.ResumeLayout(false);
             // v0.6.23: a page built out of sight - made ready ahead - is only marked, and written when it is (Writes,
             // WriteIfStale): a whole snapshot written for it cost 100-300 ms on an installation that had run for months.
             if (snapshot != null && !Writes(name)) return page;

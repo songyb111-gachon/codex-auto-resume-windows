@@ -258,7 +258,7 @@ class ReviewedRulesTests(unittest.TestCase):
 
     def test_only_a_left_click_switches_auto_resume(self):
         """A ListView raises MouseClick for the right button too, and off asks nothing."""
-        start = self.dashboard.index("pendingList.MouseClick +=")
+        start = self.dashboard.index("list.MouseClick +=")  # v0.6.23: PendingSteps builds it as `list`
         handler = self.dashboard[start:self.dashboard.index("};", start)]
         self.assertIn("if (e.Button != MouseButtons.Left) return;", handler)
         self.assertLess(handler.index("MouseButtons.Left"), handler.index("ToggleAutoResume"))
