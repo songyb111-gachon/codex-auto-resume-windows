@@ -1034,7 +1034,7 @@ namespace CodexAutoResume
         internal static readonly string[] All =
         {
             "en", "ko", "ja", "zh-CN", "zh-TW", "es", "de", "fr", "pt-BR", "ru", "it", "tr", "pl", "uk", "vi", "id",
-            "ar", "he", "fa",
+            "ar", "he", "fa", "cs", "hu", "th",
         };
 
         internal static readonly string[] Held = new string[0];
@@ -1043,6 +1043,7 @@ namespace CodexAutoResume
         private static readonly string[] Own =
         {
             "en", "ko", "ja", "es", "de", "fr", "ru", "it", "tr", "pl", "uk", "vi", "id", "ar", "he", "fa",
+            "cs", "hu", "th",
         };
 
         internal static readonly Dictionary<string, string> Endonyms = MakeEndonyms();
@@ -1069,6 +1070,9 @@ namespace CodexAutoResume
             names["ar"] = "العربية";
             names["he"] = "עברית";
             names["fa"] = "فارسی";
+            names["cs"] = "Čeština";
+            names["hu"] = "Magyar";
+            names["th"] = "ไทย";
             return names;
         }
 

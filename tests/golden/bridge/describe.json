@@ -303,7 +303,10 @@
               "id",
               "ar",
               "he",
-              "fa"
+              "fa",
+              "cs",
+              "hu",
+              "th"
             ],
             "group": "general"
           },
@@ -331,7 +334,10 @@
               "id",
               "ar",
               "he",
-              "fa"
+              "fa",
+              "cs",
+              "hu",
+              "th"
             ],
             "group": "continuation"
           },
@@ -1318,7 +1324,10 @@
               "id",
               "ar",
               "he",
-              "fa"
+              "fa",
+              "cs",
+              "hu",
+              "th"
             ],
             "group": "general"
           },
@@ -1346,7 +1355,10 @@
               "id",
               "ar",
               "he",
-              "fa"
+              "fa",
+              "cs",
+              "hu",
+              "th"
             ],
             "group": "continuation"
           },

@@ -26,8 +26,8 @@ from pagecase import CSC, POWERSHELL, PageCase, snapshot  # noqa: E402
 CAP = "window_anchor"
 KEY = "page.anchor.needs_occasion"
 TIME_OFF, SWITCH_ON, SWITCH_OFF = 1, 1, 2  # a time off is 1; a switch is on at 1 and off at 2
-LOCALES = ("ar", "de", "en", "es", "fa", "fr", "he", "id", "it", "ja", "ko", "pl", "pt-BR", "ru", "tr", "uk", "vi", "zh-CN",
-           "zh-TW")
+LOCALES = ("ar", "cs", "de", "en", "es", "fa", "fr", "he", "hu", "id", "it", "ja", "ko", "pl", "pt-BR", "ru", "th", "tr", "uk",
+           "vi", "zh-CN", "zh-TW")
 
 
 def scenario(bridge, state, times=(), after=None):

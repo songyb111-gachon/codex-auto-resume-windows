@@ -6,8 +6,8 @@ each lay out a view or two; eighteen catalogs later, a sentence that only one la
 to cut would pass them. Here each of their slots is filled with every string that can stand in it - every
 state, every status of a task, both labels of the toggle, both notices, every note, a usage line of two
 windows, every notification with every reason - measured by GDI in the fonts each language is drawn in, at
-every scale from 100% to 300% (a display's scaling, or Windows' text size on top of it), in all eighteen
-catalogs: the two held right-to-left ones too, mirrored as they would be drawn.
+every scale from 100% to 300% (a display's scaling, or Windows' text size on top of it), in every catalog:
+the right-to-left ones mirrored as they would be drawn.
 
 What counts as cut is each surface's own rule: a line on its own that is wider than its place (only a
 conversation's name and a reason's chip may end in an ellipsis), a word wider than the column it wraps in

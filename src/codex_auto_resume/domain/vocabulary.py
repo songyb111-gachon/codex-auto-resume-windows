@@ -551,6 +551,9 @@ class Locale(StrEnum):
     AR = "ar"
     HE = "he"
     FA = "fa"
+    CS = "cs"
+    HU = "hu"
+    TH = "th"
 
 
 # ------------------------------------------------------------------------ Codex's answers

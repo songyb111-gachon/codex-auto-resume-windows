@@ -69,7 +69,7 @@ class TheStatementSaysItRepeatsTests(unittest.TestCase):
         import json
         folder = Path(anchor.__file__).resolve().parents[1] / "locales"
         catalogs = sorted(folder.glob("*.json"))
-        self.assertEqual(len(catalogs), 19)
+        self.assertEqual(len(catalogs), 22)
         for catalog in catalogs:
             words = json.loads(catalog.read_text(encoding="utf-8"))
             does = words["statement.window_anchor.does"]
