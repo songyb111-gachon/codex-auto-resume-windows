@@ -1,11 +1,12 @@
 """The window mirrored for a language written right to left (v0.6.20, W8a: phase A of plans/v0619-design/D-rtl.md).
 
-Arabic and Hebrew read from the right, so a window in either is mirrored: what stands at the left in every other language
-stands at the right - a table's columns, a row's buttons, a card's light and its words, a switch's knob, the scroll bar - and
-its words read right to left (gui/SoftMirror.cs). Measured in v0.6.11 (plans/v0611-sources/s2c_rtl_gaps.md): Windows' own
-mirroring (Form.RightToLeftLayout, WS_EX_LAYOUTRTL) reaches only a form's direct children and draws GDI+ text reversed in
-a double-buffered control, so the window sets RightToLeft on each form - which mirrors every table, flowing row and anchor
-in them - and each of its own layout engines and painters asks Mirror where a thing goes.
+Arabic, Hebrew and Persian read from the right, so a window in any of them is mirrored: what stands at the left in every
+other language stands at the right - a table's columns, a row's buttons, a card's light and its words, a switch's knob, the
+scroll bar - and its words read right to left (gui/SoftMirror.cs). Measured in v0.6.11
+(plans/v0611-sources/s2c_rtl_gaps.md): Windows' own mirroring (Form.RightToLeftLayout, WS_EX_LAYOUTRTL) reaches only a
+form's direct children and draws GDI+ text reversed in a double-buffered control, so the window sets RightToLeft on each
+form - which mirrors every table, flowing row and anchor in them - and each of its own layout engines and painters asks
+Mirror where a thing goes.
 
 Two kinds of test:
 * the source's shape: the mirror is taken from the words' language before anything is built, every window and dialog takes

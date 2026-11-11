@@ -50,7 +50,7 @@ MESSAGE_FACES = ("Segoe UI", "Malgun Gothic", "Yu Gothic UI", "Microsoft YaHei U
 # message font, as the window and the panel set it.
 SCRIPT_FACED = frozenset({"ko", "ja", "zh-CN", "zh-TW"})
 # The four scripts v0.6.11 brought, each by a catalog written in it.
-SCRIPTS = {"Cyrillic": ("ru", "uk"), "Vietnamese": ("vi",), "Arabic": ("ar",), "Hebrew": ("he",)}
+SCRIPTS = {"Cyrillic": ("ru", "uk"), "Vietnamese": ("vi",), "Arabic": ("ar", "fa"), "Hebrew": ("he",)}
 LINK_KEY = r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\FontLink\SystemLink"
 GGI_MARK_NONEXISTING_GLYPHS = 0x1
 MISSING = 0xFFFF

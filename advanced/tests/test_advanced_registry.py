@@ -885,7 +885,7 @@ class StatementTests(unittest.TestCase):
         # Every catalog core has, the held ones too (v0.6.11: eighteen, l10n.HELD not yet offered).
         catalogs = ac.catalogs(self.where, ac.definition())
         self.assertEqual(catalogs.missing(ac.definition()), [])
-        self.assertEqual(len(l10n.LOCALES), 18)
+        self.assertEqual(len(l10n.LOCALES), 19)
         self.assertEqual([str(field) for field in statement.FIELDS],
                          ["does", "instead", "departs", "risks", "stop"])
 

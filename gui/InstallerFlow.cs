@@ -1033,7 +1033,7 @@ namespace CodexAutoResume
         internal static readonly string[] All =
         {
             "en", "ko", "ja", "zh-CN", "zh-TW", "es", "de", "fr", "pt-BR", "ru", "it", "tr", "pl", "uk", "vi", "id",
-            "ar", "he",
+            "ar", "he", "fa",
         };
 
         internal static readonly string[] Held = new string[0];
@@ -1041,7 +1041,7 @@ namespace CodexAutoResume
         // The languages whose subtag is their catalog's name (l10n._LANGUAGE_HOME, the rest of it is in Normalize).
         private static readonly string[] Own =
         {
-            "en", "ko", "ja", "es", "de", "fr", "ru", "it", "tr", "pl", "uk", "vi", "id", "ar", "he",
+            "en", "ko", "ja", "es", "de", "fr", "ru", "it", "tr", "pl", "uk", "vi", "id", "ar", "he", "fa",
         };
 
         internal static readonly Dictionary<string, string> Endonyms = MakeEndonyms();
@@ -1067,6 +1067,7 @@ namespace CodexAutoResume
             names["id"] = "Bahasa Indonesia";
             names["ar"] = "العربية";
             names["he"] = "עברית";
+            names["fa"] = "فارسی";
             return names;
         }
 

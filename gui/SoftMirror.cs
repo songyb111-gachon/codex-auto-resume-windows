@@ -1,6 +1,6 @@
 // Codex Auto Resume - the window mirrored for a language written right to left (v0.6.20).
 //
-// Arabic and Hebrew read from the right. A window in either is mirrored: what stands at the left in every other
+// Arabic, Hebrew and Persian read from the right. Such a window is mirrored: what stands at the left in every other
 // language stands at the right - the columns of a table, the buttons of a row, a card's light and its words, a
 // switch's knob, the scroll bar - and its words read right to left. A value written left to right inside them (an
 // id, a version, a path, a time) keeps its own order: the text a window draws is filled with it embedded
@@ -43,7 +43,7 @@ namespace CodexAutoResume
         {
             if (Never || string.IsNullOrEmpty(locale)) return false;
             string language = locale.Split('-', '_')[0].ToLowerInvariant();
-            return language == "ar" || language == "he" || language == "iw";
+            return language == "ar" || language == "he" || language == "iw" || language == "fa";
         }
 
         /// Whether `control` is laid out and drawn mirrored: its window's RightToLeft, which a control inherits from

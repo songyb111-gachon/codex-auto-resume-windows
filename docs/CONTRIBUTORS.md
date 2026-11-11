@@ -79,6 +79,8 @@ Everyone below is a person outside the project who helped it, in the order they 
   window each time ([#55](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/55)).
 - [@Chen017](https://github.com/Chen017) reported that every recovery waited when the Codex app ran its engine from its own package instead of the
   usual folder, with the engine path read out of the code and the diagnostics attached ([#58](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/58)).
+- [@Amin-Tgz](https://github.com/Amin-Tgz) sent Persian: the catalogs of both editions, Persian among the right-to-left
+  languages on every surface, and the language lists and counts in the documents ([#63](https://github.com/songyb111-gachon/codex-auto-resume-windows/pull/63)).
 
 ## A note on the AI contributors
 

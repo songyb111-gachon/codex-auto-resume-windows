@@ -15,7 +15,7 @@
 // action, warning and wait lines are the Settings card's own (SettingsPower.cs).
 //
 // Nothing here draws anything the page does not draw already: the card, its captions, help lines, check rows, drop-downs
-// and buttons are the Settings page's, in both themes and both designs, mirrored for Arabic and Hebrew by the page.
+// and buttons are the Settings page's, in both themes and both designs, mirrored right to left by the page.
 //
 // C# 5 (the in-box compiler), as the rest of the window.
 

@@ -20,7 +20,7 @@
 // continue among them only while that is on (advanced-remote-pair-state, advanced-remote-pair-start).
 //
 // Nothing here draws anything the page does not draw already: the card, its help lines and its buttons are the Settings
-// page's, in both themes and both designs, mirrored for Arabic and Hebrew by the page. It opens no window of its own.
+// page's, in both themes and both designs, mirrored right to left by the page. It opens no window of its own.
 //
 // C# 5 (the in-box compiler), as the rest of the window.
 

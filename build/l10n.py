@@ -21,7 +21,7 @@ moved, and `import` merges them back, checks them, and records what they were ma
 
 `--advanced` before the command does all of it for the advanced edition's own catalogs -
 its capabilities' statements and its Dashboard page's words - with their basis in
-`build/l10n/advanced/`. They are the same eighteen languages, held to the same rules, and
+`build/l10n/advanced/`. They are the same languages, held to the same rules, and
 kept apart only because the standard edition carries none of them:
 
     py build/l10n.py --advanced export ko > work.json
