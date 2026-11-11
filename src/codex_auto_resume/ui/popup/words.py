@@ -28,6 +28,14 @@ def one_line(text, limit=120) -> str:
     return flat if len(flat) <= limit else flat[:limit - 1] + "…"
 
 
+def kept(strings):
+    """What keeps a value - a time, a date - one left-to-right run in a sentence of the language `strings` speak
+    (v0.6.23): l10n.embedded in that language, nothing in a left-to-right one. A right-to-left sentence otherwise lets
+    the bidi algorithm turn "2026-11-12 21:49" into "21:49 12-11-2026" (the live acceptance, Persian, 2026-11-11)."""
+    locale = locale_of(strings)
+    return lambda value: l10n.embedded(value, locale)
+
+
 _LOCALE_PROBES = ("activity.monitoring", "popup.nothing", "action.pause", "popup.open_dashboard")
 
 

@@ -70,22 +70,25 @@ def share(window) -> int:
     return 100 if used >= 100 else int(used // 1)
 
 
-def usage_windows(windows, say, now) -> str:
-    """Each window of a reading: its length, its share, and when it resets where Codex said."""
+def usage_windows(windows, say, now, keep=None) -> str:
+    """Each window of a reading: its length, its share, and when it resets where Codex said. `keep` (v0.6.23) is
+    given each reset time before it goes into its sentence - the popup's keeps it one left-to-right run in a
+    right-to-left language (l10n.embedded), or the bidi algorithm turned a date's parts round (Persian, 2026-11-11)."""
+    keep = keep or (lambda value: value)
     parts = []
     for window in windows or ():
         name = window_name(window.get("window_minutes"), say)
         if window.get("reset_at"):
             parts.append(say("usage.window_resets", window=name, percent=share(window),
-                             time=clock_time(window["reset_at"], now)))
+                             time=keep(clock_time(window["reset_at"], now))))
         else:
             parts.append(say("usage.window", window=name, percent=share(window)))
     return " · ".join(parts)
 
 
-def usage_line(reading, say, now):
-    """The last usage reading as one line, with its age - or None when there is none."""
+def usage_line(reading, say, now, keep=None):
+    """The last usage reading as one line, with its age - or None when there is none. `keep`: usage_windows'."""
     if not isinstance(reading, dict) or not reading.get("windows") or not reading.get("read_at"):
         return None
     return say("usage.line", age=age(now - reading["read_at"], say),
-               windows=usage_windows(reading["windows"], say, now))
+               windows=usage_windows(reading["windows"], say, now, keep))

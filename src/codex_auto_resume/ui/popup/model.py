@@ -9,7 +9,7 @@ from __future__ import annotations
 from ... import machine
 from ... import reasons
 from ..words import countdown, usage_line
-from .words import one_line, say
+from .words import kept, one_line, say
 
 
 MAX_TASKS = 3
@@ -167,8 +167,10 @@ def snapshot_activity(snapshot, now, *, attention=False) -> str:
     return "monitoring"
 
 
-def task_item(row, strings, now) -> dict:
-    """One pending recovery as the window shows it, with the identities its switch acts on."""
+def task_item(row, strings, now, keep=None) -> dict:
+    """One pending recovery as the window shows it, with the identities its switch acts on. `keep` keeps its time one
+    run in a right-to-left sentence (words.kept, v0.6.23); the strings' own when not given."""
+    keep = keep or kept(strings)
     category = row.get("category") or "unknown"
     usage = reasons.has_reset_time(category)
     at = row.get("eligible_at")
@@ -185,7 +187,7 @@ def task_item(row, strings, now) -> dict:
         # v0.6.11: Wait for an internet connection - Windows reports none, so usage is not read yet.
         if row.get("reason") == "offline":
             key = "popup.offline"
-        status = say(strings, key, time=countdown(seconds))
+        status = say(strings, key, time=keep(countdown(seconds)))
     overlays = set(row.get("overlays") or ())
     enabled = bool(row.get("thread_enabled", True))
     if "held" in overlays and is_waiting(row):
@@ -289,7 +291,8 @@ def view_model(rows, status, strings, now, *, notice=None, error=None) -> dict:
     due = [row["eligible_at"] for row in waiting if row.get("eligible_at") is not None]
     dash = "—"
     state = activity(status, ordered if known else None, now)
-    tasks = [task_item(row, strings, now) for row in ordered[:MAX_TASKS]]
+    keep = kept(strings)
+    tasks = [task_item(row, strings, now, keep) for row in ordered[:MAX_TASKS]]
     more = len(ordered) - len(tasks)
     # What the header says and what the toggle offers are one reading: recovery not known to be on is paused.
     paused = None if status is None else status.get("enabled") is not True
@@ -318,7 +321,7 @@ def view_model(rows, status, strings, now, *, notice=None, error=None) -> dict:
         "observe_note": (say(strings, "popup.observe_only")
                          if status is not None and status.get("observe_only") is True and not paused else None),
         # v0.6.11: Codex's usage as the watcher last read it, and how long ago - None until it has.
-        "usage_note": usage_line(newest_reading(status), lambda key, **fields: say(strings, key, **fields), now),
+        "usage_note": usage_line(newest_reading(status), lambda key, **fields: say(strings, key, **fields), now, keep),
     }
 
 

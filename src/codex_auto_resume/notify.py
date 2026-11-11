@@ -153,7 +153,8 @@ def show(title: str, body: str, *, button: str | None = None, uri: str | None = 
 
 
 def _local_time(when: float) -> str:
-    return time.strftime("%H:%M", time.localtime(when))
+    """A time of day as a notice and the card say it - kept one run in a right-to-left sentence (_run, v0.6.23)."""
+    return _run(time.strftime("%H:%M", time.localtime(when)))
 
 
 def headline(identity) -> str:
@@ -532,7 +533,7 @@ def update_offered_content(version, prerelease=False):
     if not isinstance(version, str) or not UPDATE_VERSION.match(version):
         return None
     body = l10n.message("toast_update_offered_prerelease_body" if prerelease else "toast_update_offered_body")
-    return _content(l10n.message("toast_update_offered"), body.replace("{version}", version),
+    return _content(l10n.message("toast_update_offered"), body.replace("{version}", _run(version)),
                     more=[(l10n.message("toast_button_open"), open_uri("diagnostics"))])
 
 
