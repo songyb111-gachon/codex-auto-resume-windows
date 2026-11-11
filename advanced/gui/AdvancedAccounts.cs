@@ -46,7 +46,7 @@
 // catalog's.
 //
 // Nothing here draws anything the page does not draw already: the card, its help lines, check rows and buttons are the
-// Settings page's, in both themes and both designs, mirrored for Arabic and Hebrew by the page.
+// Settings page's, in both themes and both designs, mirrored right to left by the page.
 //
 // C# 5 (the in-box compiler), as the rest of the window.
 

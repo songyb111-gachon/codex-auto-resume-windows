@@ -18,7 +18,7 @@
 //
 // Nothing here draws anything the window does not draw already: the card, its heading, the list and its rows (DrawCell, a
 // greyed row as Install another version greys one), the help lines, the box and the buttons are the window's own, in both
-// themes and both designs, mirrored for Arabic and Hebrew by the window. It opens no window of its own.
+// themes and both designs, mirrored right to left by the window. It opens no window of its own.
 //
 // C# 5 (the in-box compiler), as the rest of the window.
 

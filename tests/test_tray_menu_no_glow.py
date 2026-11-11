@@ -4,7 +4,7 @@ The menu is the product's neumorphic card, but the raised look's lit edge does n
 card's highlight - a white glow up and to the left, `shadow_light` - made a bright halo round it, and in dark the card's
 one-pixel top light lay inside its border (the owner: "트레이 우클릭했을 때 뜨는거 ... 가장자리를 밝게 하는 것이 남아있더라.
 없어야 하는 부분인데"). Its drop shadow, ground, hairline, items and the item in hand stay as they were, in both themes, in both
-designs, and mirrored in Arabic and Hebrew. The popup and the window's cards keep their lit edges: only the menu asks the
+designs, and mirrored in the right-to-left languages. The popup and the window's cards keep their lit edges: only the menu asks the
 renderer for none (`_lift(..., lights=False)`, no `_inner`).
 
 The renderer draws into memory here, as test_tray_menu_drawn's LookTests do: nothing is shown and nothing is captured.
@@ -24,7 +24,7 @@ from codex_auto_resume import brand, interface  # noqa: E402
 from codex_auto_resume.ui import popup, tray  # noqa: E402
 
 NOW = 1_800_000_000.0
-LOCALES = ("en", "ar", "he")
+LOCALES = ("en", "ar", "he", "fa")
 
 
 @unittest.skipUnless(os.name == "nt", "the drawn menu is a Windows window")

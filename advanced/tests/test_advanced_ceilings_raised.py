@@ -2,7 +2,7 @@
 
 Each value of the table is pinned here, with the choices some capabilities offer, every second copy of a number the
 registry holds (the engines' own caps, core's bounds a plug cannot widen) and the words that tell a person the number,
-in all eighteen languages. The global hourly ceiling is also the highest a person may set, so its stored form is held:
+in every language. The global hourly ceiling is also the highest a person may set, so its stored form is held:
 a file made before this version names 12 in its CHECK, and is made again on opening with 24, keeping every other row.
 
     CODEX_AR_EDITION=advanced PYTHONPATH="src;advanced/src;tests;advanced/tests" python -m unittest test_advanced_ceilings_raised

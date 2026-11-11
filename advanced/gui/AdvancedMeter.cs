@@ -6,7 +6,7 @@
 // Each meter is a groove in the Soft design's inset look - the scroll bar's well (SoftBar.TrackFill, its hairline and the
 // inset recipe's depth, Soft.Body), a step deeper than the card it lies on - with the share used as a bar inside it: the
 // accent below WarnAt per cent, the warning colour at WarnAt or more, and nothing at all where no reading was made. The bar
-// grows from the left, and from the right where the page is mirrored for Arabic and Hebrew. In High Contrast the groove is
+// grows from the left, and from the right where the page is mirrored right to left. In High Contrast the groove is
 // Window with a WindowFrame edge, as the scroll bar's is, and the bar the theme's accent or warning colour.
 //
 // The card's own pieces stand here too, so AdvancedAccounts.cs keeps to the page's: the heading with Read usage at its

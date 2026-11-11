@@ -36,7 +36,7 @@ def locale_of(strings) -> str:
 
     The language this process speaks is asked first, and a catalog every probe matches ends the
     search (v0.6.11): the popup is almost always given that language's words, so the answer reads
-    the one catalog already loaded instead of loading all eighteen into the watcher."""
+    the one catalog already loaded instead of loading every one into the watcher."""
     if not strings:
         return l10n.DEFAULT
     first = l10n.current()

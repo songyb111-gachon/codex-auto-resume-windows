@@ -551,11 +551,11 @@ class LookTests(unittest.TestCase):
         outside = [self.pixel(plan, pixels, x, (card[1] + card[3]) // 2)[1] for x in range(card[2] + 1, plan["size"][0])]
         self.assertEqual(set(outside), {0}, "no shadow")
 
-    def test_arabic_and_hebrew_are_laid_out_right_to_left_and_nothing_else_is(self):
-        for locale in ("ar", "he", "en", "ko", "de"):
+    def test_the_right_to_left_languages_are_laid_out_right_to_left_and_nothing_else_is(self):
+        for locale in ("ar", "he", "fa", "en", "ko", "de"):
             with self.subTest(locale=locale):
                 plan, _ = self.draw(locale=locale)
-                self.assertEqual(plan["rtl"], locale in ("ar", "he"))
+                self.assertEqual(plan["rtl"], locale in ("ar", "he", "fa"))
 
 
 @unittest.skipUnless(os.name == "nt" and ctypes.sizeof(ctypes.c_void_p) == 8, "Windows' accessibility, 64-bit")

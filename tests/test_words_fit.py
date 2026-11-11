@@ -100,7 +100,7 @@ def popup_views(strings):
 
 
 def every_language():
-    """All eighteen catalogs, the two held ones as though offered, so each is built in its own words."""
+    """Every catalog, a held one as though offered, so each is built in its own words."""
     return (patch.object(l10n, "OFFERED", l10n.LOCALES),
             patch.object(l10n, "CHOICES", (l10n.SYSTEM,) + l10n.LOCALES))
 
