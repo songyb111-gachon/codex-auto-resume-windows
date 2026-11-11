@@ -971,7 +971,7 @@ class SourceTests(unittest.TestCase):
 
     def test_the_word_is_a_finish_key_in_every_language_and_not_an_options_key(self):
         locales = sorted(LOCALES.glob("*.json"))
-        self.assertEqual(len(locales), 18)
+        self.assertEqual(len(locales), 19)
         for path in locales:
             with self.subTest(path.stem):
                 catalog = json.loads(path.read_text(encoding="utf-8"))

@@ -59,15 +59,15 @@ def across(rect, width):
 
 # ------------------------------------------------------------------------------------------ the language
 class DirectionTests(unittest.TestCase):
-    def test_arabic_and_hebrew_are_the_right_to_left_catalogs_and_offered(self):
-        self.assertEqual(l10n.RIGHT_TO_LEFT, frozenset({"ar", "he"}))
+    def test_arabic_hebrew_and_persian_are_the_right_to_left_catalogs_and_offered(self):
+        self.assertEqual(l10n.RIGHT_TO_LEFT, frozenset({"ar", "he", "fa"}))
         self.assertLessEqual(l10n.RIGHT_TO_LEFT, set(l10n.LOCALES))
-        # Every surface mirrors from v0.6.20 - the window too (tests/test_gui_mirrored_window.py) - so both are
+        # Every surface mirrors from v0.6.20 - the window too (tests/test_gui_mirrored_window.py) - so all are
         # offered (docs: every surface, or not at all).
         self.assertLessEqual(l10n.RIGHT_TO_LEFT, set(l10n.OFFERED))
         self.assertFalse(l10n.RIGHT_TO_LEFT & l10n.HELD)
         for locale in l10n.LOCALES:
-            self.assertEqual(l10n.right_to_left(locale), locale in ("ar", "he"))
+            self.assertEqual(l10n.right_to_left(locale), locale in ("ar", "he", "fa"))
         self.assertFalse(l10n.right_to_left(None))
 
     def test_a_value_s_direction_is_its_first_strong_character(self):
@@ -318,7 +318,7 @@ class PanelDirectionTests(unittest.TestCase):
         probe = ("process.stdout.write(JSON.stringify({dir: document.documentElement.getAttribute('dir'),"
                  " lang: document.documentElement.getAttribute('lang'),"
                  " filled: fill('panel.more', 'and {n} more', {n: 5})}));")
-        for locale in ("ar", "he", "en", "de", "ja"):
+        for locale in ("ar", "he", "fa", "en", "de", "ja"):
             seen = self.run_page(locale, probe)
             with self.subTest(locale=locale):
                 self.assertEqual(seen["lang"], locale)

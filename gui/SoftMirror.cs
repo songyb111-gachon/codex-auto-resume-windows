@@ -43,7 +43,7 @@ namespace CodexAutoResume
         {
             if (Never || string.IsNullOrEmpty(locale)) return false;
             string language = locale.Split('-', '_')[0].ToLowerInvariant();
-            return language == "ar" || language == "he" || language == "iw";
+            return language == "ar" || language == "he" || language == "iw" || language == "fa";
         }
 
         /// Whether `control` is laid out and drawn mirrored: its window's RightToLeft, which a control inherits from

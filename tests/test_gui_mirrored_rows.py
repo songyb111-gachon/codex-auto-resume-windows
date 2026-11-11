@@ -33,7 +33,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CSC = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Microsoft.NET" / "Framework64" / "v4.0.30319" / "csc.exe"
 POWERSHELL = (Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
               / "WindowsPowerShell" / "v1.0" / "powershell.exe")
-LOCALES = ("en", "ar", "he")
+LOCALES = ("en", "ar", "he", "fa")
 LISTS = ("pendingList", "historyList")
 
 PROBE = r"""
@@ -179,7 +179,7 @@ class RowLineTests(unittest.TestCase):
             self.fail("the probe did not run: " + (self.result.stderr or self.result.stdout)[-4000:])
 
     def test_the_locales_are_mirrored_where_they_are_written_right_to_left(self):
-        self.assertEqual([self.answer[locale]["mirrored"] for locale in LOCALES], [False, True, True])
+        self.assertEqual([self.answer[locale]["mirrored"] for locale in LOCALES], [False, True, True, True])
 
     def test_every_row_s_hairline_runs_the_whole_width_in_both_directions(self):
         for locale in LOCALES:

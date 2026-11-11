@@ -588,7 +588,15 @@ namespace CodexAutoResume
         /// whole beside "Why it is waiting" at its full 256 px: 933 to 946 in English, 813 to 817 in
         /// Korean.
         internal const int OpeningWidth = 1000;
-        internal const int OpeningHeight = 664;
+        internal static int OpeningHeight
+        {
+            get
+            {
+                // Vazirmatn keeps the same readable glyph size but reserves more ascent/descent per line.
+                // The two Overview rows need up to 45 extra logical pixels; keep their existing spacing.
+                return Soft.BaseFont != null && Soft.BaseFont.FontFamily.Name == Typeface.Persian ? 728 : 664;
+            }
+        }
 
         /// The display's scale, times the text size the window is drawn at (v0.6.11, AdoptTextSize). Read-only to the
         /// window; only LayoutAudit stands another scale in, to measure a layout at a scaling this machine is not set to.
@@ -854,6 +862,8 @@ namespace CodexAutoResume
                 Font = whole;
                 Soft.BaseFont = Font;
             }
+            // The language face is now known: its line metrics determine the opening height.
+            ClientSize = new Size(Px(OpeningWidth), Px(OpeningHeight));
             // v0.6.20: in a language written right to left the window is mirrored (Mirror), and so is every dialog it
             // opens (Soft.TitleBar). Before anything is built, so what is built inherits it.
             Mirror.Window = Mirror.Language(wordsLanguage);

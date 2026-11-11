@@ -87,6 +87,9 @@ LISTED_TREES = {"assets": SHIPPED_ASSETS, "scripts": SHIPPED_SCRIPTS}
 # baseline is also parsed by the validator that will read it, so a build cannot ship data
 # the product would refuse.
 REQUIRED_APP_FILES = ("src/codex_auto_resume/data/codex_compat.json",
+                      "assets/fonts/vazirmatn/Vazirmatn-Regular.ttf",
+                      "assets/fonts/vazirmatn/Vazirmatn-Bold.ttf",
+                      "assets/fonts/vazirmatn/OFL.txt",
                       # Without these the panel in Codex is an empty white rectangle.
                       "src/codex_auto_resume/mcp/assets/panel.css",
                       "src/codex_auto_resume/mcp/assets/panel.js")

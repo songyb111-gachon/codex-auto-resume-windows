@@ -26,7 +26,7 @@ from pagecase import CSC, POWERSHELL, PageCase, snapshot  # noqa: E402
 CAP = "window_anchor"
 KEY = "page.anchor.needs_occasion"
 TIME_OFF, SWITCH_ON, SWITCH_OFF = 1, 1, 2  # a time off is 1; a switch is on at 1 and off at 2
-LOCALES = ("ar", "de", "en", "es", "fr", "he", "id", "it", "ja", "ko", "pl", "pt-BR", "ru", "tr", "uk", "vi", "zh-CN",
+LOCALES = ("ar", "de", "en", "es", "fa", "fr", "he", "id", "it", "ja", "ko", "pl", "pt-BR", "ru", "tr", "uk", "vi", "zh-CN",
            "zh-TW")
 
 
@@ -117,7 +117,7 @@ class PageTests(PageCase):
 
 
 class WordsTests(unittest.TestCase):
-    def test_the_line_is_in_all_eighteen_catalogs_and_names_the_options_by_their_own_words(self):
+    def test_the_line_is_in_all_catalogs_and_names_the_options_by_their_own_words(self):
         from codex_auto_resume_advanced import statement
         catalogs = Path(statement.__file__).parent / "locales"
         self.assertEqual(sorted(path.stem for path in catalogs.glob("*.json")), sorted(LOCALES))

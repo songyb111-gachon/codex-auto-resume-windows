@@ -434,7 +434,7 @@ def _powershell(script: str, work: Path, timeout: int, **environment) -> subproc
 @unittest.skipUnless(CSC.is_file() and POWERSHELL.is_file(), "needs the in-box compiler and PowerShell")
 class FlowTests(unittest.TestCase):
     TAGS = ["ko", "ko-KR", "en-US", "zh", "zh-Hant-TW", "zh-HK", "zh-Hans", "pt-PT", "pt", "es-419", "in", "iw", "he",
-            "ar-EG", "xx", "", "de_AT", "uk-UA", "nb-NO"]
+            "ar-EG", "fa", "fa-IR", "fa_AF", "xx", "", "de_AT", "uk-UA", "nb-NO"]
 
     @classmethod
     def setUpClass(cls):

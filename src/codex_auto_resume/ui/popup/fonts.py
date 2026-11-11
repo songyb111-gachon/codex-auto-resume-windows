@@ -37,6 +37,8 @@ def font_faces(locale, system=_ASK_WINDOWS, lacks=None) -> tuple:
     `lacks(face, text)` says which characters a face has no glyph for, and without it every
     face is taken as whole.
     """
+    if locale == "fa" and typeface.ensure_persian_font():
+        return (typeface.PERSIAN_FACE, _ON_EVERY_WINDOWS)
     if locale in _SCRIPT_FACES:
         return (_SCRIPT_FACES[locale], _ON_EVERY_WINDOWS)
     first = message_face() if system is _ASK_WINDOWS else system
@@ -157,6 +159,8 @@ def _face_exists(dc, face) -> bool:
     its Korean name on a Korean system - so a face counts as present when the answer is its
     own name, or is anything other than what a face that does not exist is mapped to.
     """
+    if face == typeface.PERSIAN_FACE:
+        typeface.ensure_persian_font()
     if face not in _FACE_CACHE:
         if "name" not in _SUBSTITUTE:
             _SUBSTITUTE["name"] = _realized_face(dc, _NO_SUCH_FACE)

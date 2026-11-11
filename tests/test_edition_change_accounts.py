@@ -384,9 +384,9 @@ class WindowTests(unittest.TestCase):
 
 
 class WordsTests(unittest.TestCase):
-    def test_both_sentences_are_in_all_18_catalogs_with_the_right_placeholders(self):
+    def test_both_sentences_are_in_all_19_catalogs_with_the_right_placeholders(self):
         catalogs = sorted(LOCALES.glob("*.json"))
-        self.assertEqual(len(catalogs), 18)
+        self.assertEqual(len(catalogs), 19)
         for catalog in catalogs:
             words = json.loads(catalog.read_text(encoding="utf-8"))
             for key in (LINE, BOX):

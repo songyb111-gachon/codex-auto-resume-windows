@@ -515,7 +515,8 @@
                   "vi",
                   "id",
                   "ar",
-                  "he"
+                  "he",
+                  "fa"
                 ],
                 "group": "general"
               },
@@ -542,7 +543,8 @@
                   "vi",
                   "id",
                   "ar",
-                  "he"
+                  "he",
+                  "fa"
                 ],
                 "group": "continuation"
               },
@@ -1515,7 +1517,8 @@
               "vi": "Tiếng Việt",
               "id": "Bahasa Indonesia",
               "ar": "العربية",
-              "he": "עברית"
+              "he": "עברית",
+              "fa": "فارسی"
             },
             "system_language": "en"
           },
