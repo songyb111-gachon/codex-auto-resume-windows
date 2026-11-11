@@ -1495,11 +1495,20 @@ namespace CodexAutoResume
         {
             Control page;
             if (pages.TryGetValue(name, out page)) return page;
-            page = name == "pending" ? BuildPending()
-                 : name == "history" ? BuildHistory()
-                 : name == "statistics" ? BuildStatistics()
-                 : name == "diagnostics" ? BuildDiagnostics()
-                 : BuildOverview();
+            // v0.6.23: a build begun ahead (BuildSome) finished now, at once; else the page built whole.
+            PageBuild begun;
+            if (pageBuilds.TryGetValue(name, out begun))
+            {
+                pageBuilds.Remove(name);
+                while (begun.Steps.MoveNext()) { }
+                page = begun.Page;
+            }
+            else
+                page = name == "pending" ? BuildPending()
+                     : name == "history" ? BuildHistory()
+                     : name == "statistics" ? BuildStatistics()
+                     : name == "diagnostics" ? BuildDiagnostics()
+                     : BuildOverview();
             page.Visible = false;
             pages[name] = page;
             pageHost.Controls.Add(page);
@@ -1508,6 +1517,43 @@ namespace CodexAutoResume
             if (snapshot != null && !Writes(name)) return page;
             if (snapshot != null) ApplySnapshot(snapshot);
             return page;
+        }
+
+        /// v0.6.23: a page being built a step at a time (PendingSteps, DiagnosticsSteps) - the page as soon as its first step
+        /// has made it, and the steps left.
+        private sealed class PageBuild
+        {
+            internal Control Page;
+            internal IEnumerator<bool> Steps;
+        }
+
+        // The builds begun ahead of their page's first visit (BuildSome), by page, until PageFor finishes one.
+        private readonly Dictionary<string, PageBuild> pageBuilds = new Dictionary<string, PageBuild>();
+
+        /// A page built by its steps, all of them, at once.
+        private static Control Built(Func<PageBuild, IEnumerator<bool>> steps)
+        {
+            var build = new PageBuild();
+            build.Steps = steps(build);
+            while (build.Steps.MoveNext()) { }
+            return build.Page;
+        }
+
+        /// One step of building `name` ahead, where its builder has steps; true while there are more. The last step
+        /// leaves the build to PageFor, which finishes it (nothing is left) and puts the page in the host.
+        private bool BuildSome(string name)
+        {
+            if (pages.ContainsKey(name)) return false;
+            Func<PageBuild, IEnumerator<bool>> steps = name == "pending" ? (Func<PageBuild, IEnumerator<bool>>)PendingSteps : null;
+            if (steps == null) return false;
+            PageBuild build;
+            if (!pageBuilds.TryGetValue(name, out build))
+            {
+                build = new PageBuild();
+                build.Steps = steps(build);
+                pageBuilds[name] = build;
+            }
+            return build.Steps.MoveNext();
         }
 
         // ------------------------------------------------------------ pages made ready ahead (v0.6.23)
@@ -1573,6 +1619,8 @@ namespace CodexAutoResume
             // PageFor leaves it marked (Writes) - and written on the next (WriteIfStale), each a turn of its own: built and
             // written in one, Pending and Diagnostics held the window 550-750 ms on an installation that had run for
             // months (the live acceptance, 2026-11-11). A click in between writes it as it shows (ShowPage).
+            // A page whose builder has steps is built a step a turn first (BuildSome).
+            if (prepareStep == 0 && BuildSome(preparing)) return true;
             Control page = PreparedPage(preparing);
             if (page == null || Soft.OwnVisible(page))
             {

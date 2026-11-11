@@ -717,7 +717,8 @@ class RowSourceTests(unittest.TestCase):
         self.assertIn("list.SmallImageList.ImageSize = new Size(1, Math.Max(16, Math.Min(255, Px(34))));", self.dashboard)
 
     def test_nothing_to_list_is_a_line_over_the_card(self):
-        for build, name, key in (("private Control BuildPending(", "pendingEmpty", "pending.empty"),
+        # v0.6.23: Pending is built in steps (PendingSteps).
+        for build, name, key in (("private IEnumerator<bool> PendingSteps(", "pendingEmpty", "pending.empty"),
                                  ("private Control BuildHistory(", "historyEmpty", "history.empty")):
             with self.subTest(name):
                 body = self.method(self.dashboard, build)

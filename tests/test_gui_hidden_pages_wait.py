@@ -260,6 +260,8 @@ class RefreshTests(unittest.TestCase):
         turns = self.answer["turns"]
         self.assertGreaterEqual(turns.get("settings:2", 0), 3, "Settings' controls made in one turn again: %r" % turns)
         self.assertGreaterEqual(turns.get("pending:1", 0), 1, "Pending written on a turn of its own: %r" % turns)
+        # v0.6.23 (round 5): Pending and Diagnostics built a part a turn (PendingSteps, DiagnosticsSteps).
+        self.assertGreaterEqual(turns.get("pending:0", 0), 5, "Pending built in one turn again: %r" % turns)
 
     def test_a_refresh_on_the_overview_fills_no_hidden_list(self):
         self.assertEqual(self.answer["fills_on_refresh"], 0, "a hidden list was written by a refresh")
