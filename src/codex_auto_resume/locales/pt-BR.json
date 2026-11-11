@@ -657,6 +657,7 @@
   "installer.done.edition_kept": "A outra edição está instalada aqui e não foi alterada.",
   "installer.done.desktop_failed": "Não foi possível alterar o atalho da área de trabalho. Todo o resto seguiu normalmente; o log traz mais detalhes.",
   "installer.done.desktop_shortcut": "Adicionar um atalho na área de trabalho",
+  "installer.done.desktop_shortcut_keep": "Manter o atalho na área de trabalho",
   "installer.done.desktop_taken": "Já existe outro atalho com o mesmo nome na área de trabalho. Ele foi mantido como está e nenhum foi criado.",
   "installer.done.exit_code": "Código de saída: {code}",
   "installer.done.failed": "Não foi concluído (código de saída {code}).",

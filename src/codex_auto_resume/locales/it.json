@@ -657,6 +657,7 @@
   "installer.done.edition_kept": "L'altra edizione è installata qui e non è stata modificata.",
   "installer.done.desktop_failed": "Non è stato possibile modificare il collegamento sul desktop. Tutto il resto è proseguito normalmente; il log riporta i dettagli.",
   "installer.done.desktop_shortcut": "Aggiungi un collegamento sul desktop",
+  "installer.done.desktop_shortcut_keep": "Mantieni il collegamento sul desktop",
   "installer.done.desktop_taken": "Sul desktop c'è già un altro collegamento con lo stesso nome. È stato lasciato com'è e non ne è stato creato nessuno.",
   "installer.done.exit_code": "Codice di uscita: {code}",
   "installer.done.failed": "L'operazione non è terminata (codice di uscita {code}).",

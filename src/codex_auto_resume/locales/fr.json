@@ -657,6 +657,7 @@
   "installer.done.edition_kept": "L'autre édition est installée ici et n'a pas été modifiée.",
   "installer.done.desktop_failed": "Le raccourci du Bureau n'a pas pu être modifié. Tout le reste s'est déroulé normalement ; le journal en dit plus.",
   "installer.done.desktop_shortcut": "Ajouter un raccourci sur le Bureau",
+  "installer.done.desktop_shortcut_keep": "Garder le raccourci sur le Bureau",
   "installer.done.desktop_taken": "Un autre raccourci du même nom se trouve sur le Bureau. Il a été laissé tel quel et aucun n'a été créé.",
   "installer.done.exit_code": "Code de sortie : {code}",
   "installer.done.failed": "L'opération ne s'est pas terminée (code de sortie {code}).",

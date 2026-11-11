@@ -76,7 +76,8 @@ namespace CodexAutoResume
         internal bool StartAtSignIn = true;
         /// The Finish page's box for a shortcut on the Desktop (v0.6.22, the owner: it comes last, as in an ordinary
         /// installer): ticked makes this installation's, unticked removes it. Starts as what is true as the page opens
-        /// (KnowDesktopShortcut), so off where there is no shortcut of ours, and left as it was, nothing changes.
+        /// (KnowDesktopShortcut), so off where there is no shortcut of ours, and left as it was, nothing changes. It reads
+        /// "Add a shortcut to the desktop" there and "Keep the shortcut on the desktop" where ours is already there.
         internal bool MakeDesktopShortcut;
         /// Whether this installation's shortcut is on the Desktop, as it was last looked at: as the window opens, and
         /// again as a run that succeeded ends.

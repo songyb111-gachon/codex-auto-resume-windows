@@ -638,6 +638,7 @@
   "installer.back": "قبلی",
   "installer.done.desktop_failed": "تغییر میان‌بر دسکتاپ ممکن نشد. بقیهٔ کارها عادی پیش رفتند؛ جزئیات در گزارش است.",
   "installer.done.desktop_shortcut": "افزودن میان‌بر به دسکتاپ",
+  "installer.done.desktop_shortcut_keep": "نگه داشتن میان‌بر در دسکتاپ",
   "installer.done.desktop_taken": "میان‌بر دیگری با همین نام روی دسکتاپ است. تغییری نکرد و میان‌بر جدیدی ساخته نشد.",
   "installer.done.edition_kept": "ویرایش دیگر اینجا نصب است و تغییر نکرد.",
   "installer.done.exit_code": "کد خروج: {code}",

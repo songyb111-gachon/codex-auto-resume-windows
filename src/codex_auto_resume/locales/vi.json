@@ -657,6 +657,7 @@
   "installer.done.edition_kept": "Phiên bản kia đã được cài ở đây và không bị thay đổi.",
   "installer.done.desktop_failed": "Không thể thay đổi lối tắt trên màn hình nền. Mọi thứ khác vẫn diễn ra như thường; nhật ký có thêm chi tiết.",
   "installer.done.desktop_shortcut": "Thêm lối tắt vào màn hình nền",
+  "installer.done.desktop_shortcut_keep": "Giữ lối tắt trên màn hình nền",
   "installer.done.desktop_taken": "Trên màn hình nền đã có một lối tắt khác cùng tên. Lối tắt đó được giữ nguyên và không có lối tắt mới nào được tạo.",
   "installer.done.exit_code": "Mã thoát: {code}",
   "installer.done.failed": "Chưa hoàn tất (mã thoát {code}).",

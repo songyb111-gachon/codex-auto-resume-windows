@@ -657,6 +657,7 @@
   "installer.done.edition_kept": "La otra edición está instalada aquí y no se ha modificado.",
   "installer.done.desktop_failed": "No se pudo cambiar el acceso directo del escritorio. Todo lo demás siguió con normalidad; el registro da más detalles.",
   "installer.done.desktop_shortcut": "Añadir un acceso directo al escritorio",
+  "installer.done.desktop_shortcut_keep": "Mantener el acceso directo en el escritorio",
   "installer.done.desktop_taken": "Ya hay otro acceso directo con el mismo nombre en el escritorio. Se dejó como está y no se creó ninguno.",
   "installer.done.exit_code": "Código de salida: {code}",
   "installer.done.failed": "No terminó (código de salida {code}).",

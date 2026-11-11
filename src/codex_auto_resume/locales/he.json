@@ -657,6 +657,7 @@
   "installer.done.edition_kept": "המהדורה האחרת מותקנת כאן ולא שונתה.",
   "installer.done.desktop_failed": "לא ניתן היה לשנות את קיצור הדרך בשולחן העבודה. כל השאר נמשך כרגיל, ובקובץ היומן יש פרטים נוספים.",
   "installer.done.desktop_shortcut": "הוספת קיצור דרך לשולחן העבודה",
+  "installer.done.desktop_shortcut_keep": "השארת קיצור הדרך בשולחן העבודה",
   "installer.done.desktop_taken": "בשולחן העבודה יש כבר קיצור דרך אחר באותו שם. הוא נשאר כפי שהוא, ולא נוצר קיצור דרך חדש.",
   "installer.done.exit_code": "קוד יציאה: {code}",
   "installer.done.failed": "הפעולה לא הסתיימה (קוד יציאה {code}).",
