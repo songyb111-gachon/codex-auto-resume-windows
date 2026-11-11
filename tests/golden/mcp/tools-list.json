@@ -238,7 +238,11 @@
                   "vi",
                   "id",
                   "ar",
-                  "he"
+                  "he",
+                  "fa",
+                  "cs",
+                  "hu",
+                  "th"
                 ],
                 "description": "See the settings documentation."
               },
@@ -263,7 +267,11 @@
                   "vi",
                   "id",
                   "ar",
-                  "he"
+                  "he",
+                  "fa",
+                  "cs",
+                  "hu",
+                  "th"
                 ],
                 "description": "See the settings documentation."
               },

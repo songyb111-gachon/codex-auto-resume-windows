@@ -29,7 +29,7 @@
      mark and a list that opens leave at once and settle softly, as they do in the window and the
      popup. */
   --font: system-ui, "Segoe UI Variable Text", "Segoe UI", "Malgun Gothic", "Yu Gothic UI",
-          "Microsoft YaHei UI", "Microsoft JhengHei UI", sans-serif;
+          "Microsoft YaHei UI", "Microsoft JhengHei UI", "Leelawadee UI", sans-serif;
   --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
 }
 @media (prefers-color-scheme: dark) {
@@ -65,6 +65,8 @@
 :root:lang(ja) { --font: "Yu Gothic UI", system-ui, "Segoe UI Variable Text", "Segoe UI", sans-serif; }
 :root:lang(zh-CN) { --font: "Microsoft YaHei UI", system-ui, "Segoe UI Variable Text", "Segoe UI", sans-serif; }
 :root:lang(zh-TW) { --font: "Microsoft JhengHei UI", system-ui, "Segoe UI Variable Text", "Segoe UI", sans-serif; }
+/* v0.6.23: Thai in Leelawadee UI, as Windows sets it; the browser breaks Thai between words by its dictionary. */
+:root:lang(th) { --font: "Leelawadee UI", system-ui, "Segoe UI Variable Text", "Segoe UI", sans-serif; }
 body { margin: 0; padding: var(--size-page-pad); background: var(--canvas); color: var(--ink);
        font: var(--type-body)/var(--lh-body) var(--font); -webkit-font-smoothing: antialiased; }
 h1, h2, h3, p, ul { margin: 0; }

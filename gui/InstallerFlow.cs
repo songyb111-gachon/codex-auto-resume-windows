@@ -76,7 +76,8 @@ namespace CodexAutoResume
         internal bool StartAtSignIn = true;
         /// The Finish page's box for a shortcut on the Desktop (v0.6.22, the owner: it comes last, as in an ordinary
         /// installer): ticked makes this installation's, unticked removes it. Starts as what is true as the page opens
-        /// (KnowDesktopShortcut), so off where there is no shortcut of ours, and left as it was, nothing changes.
+        /// (KnowDesktopShortcut), so off where there is no shortcut of ours, and left as it was, nothing changes. It reads
+        /// "Add a shortcut to the desktop" there and "Keep the shortcut on the desktop" where ours is already there.
         internal bool MakeDesktopShortcut;
         /// Whether this installation's shortcut is on the Desktop, as it was last looked at: as the window opens, and
         /// again as a run that succeeded ends.
@@ -1033,7 +1034,7 @@ namespace CodexAutoResume
         internal static readonly string[] All =
         {
             "en", "ko", "ja", "zh-CN", "zh-TW", "es", "de", "fr", "pt-BR", "ru", "it", "tr", "pl", "uk", "vi", "id",
-            "ar", "he",
+            "ar", "he", "fa", "cs", "hu", "th",
         };
 
         internal static readonly string[] Held = new string[0];
@@ -1041,7 +1042,8 @@ namespace CodexAutoResume
         // The languages whose subtag is their catalog's name (l10n._LANGUAGE_HOME, the rest of it is in Normalize).
         private static readonly string[] Own =
         {
-            "en", "ko", "ja", "es", "de", "fr", "ru", "it", "tr", "pl", "uk", "vi", "id", "ar", "he",
+            "en", "ko", "ja", "es", "de", "fr", "ru", "it", "tr", "pl", "uk", "vi", "id", "ar", "he", "fa",
+            "cs", "hu", "th",
         };
 
         internal static readonly Dictionary<string, string> Endonyms = MakeEndonyms();
@@ -1067,6 +1069,10 @@ namespace CodexAutoResume
             names["id"] = "Bahasa Indonesia";
             names["ar"] = "العربية";
             names["he"] = "עברית";
+            names["fa"] = "فارسی";
+            names["cs"] = "Čeština";
+            names["hu"] = "Magyar";
+            names["th"] = "ไทย";
             return names;
         }
 

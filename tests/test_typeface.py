@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import re
 import sys
 import tempfile
 import unittest
@@ -31,8 +32,11 @@ from codex_auto_resume import l10n  # noqa: E402
 from codex_auto_resume.mcp import panel as mcpui  # noqa: E402
 from codex_auto_resume.ui import popup  # noqa: E402
 from codex_auto_resume.win import typeface  # noqa: E402
+import guiscan  # noqa: E402
 import test_glyph_coverage as coverage  # noqa: E402
 from test_gui_v0611_access import CSC, POWERSHELL, compile_window, reply, run_probe  # noqa: E402
+
+ROOT = Path(__file__).resolve().parents[1]
 
 EAST_ASIAN = ("Malgun Gothic", "Yu Gothic UI", "Microsoft YaHei UI", "Microsoft JhengHei UI")
 # The languages v0.6.10 spoke outside a script face: each keeps Windows' UI font, whichever it is.
@@ -82,6 +86,52 @@ class RuleTests(unittest.TestCase):
             self.assertIn("</style>" + style + "</head>", page)
             self.assertEqual(mcpui.settings_page(text=1.0, face="Segoe UI").count("<style>"), 1,
                              "a Windows set in Segoe UI is served the page as it always was")
+
+
+class PersianFaceTests(unittest.TestCase):
+    """Persian is drawn in Segoe UI, as Arabic is (the owner, 2026-11-11, on pull request #63): Windows' own face
+    has every letter both Persian catalogs use, so Persian takes no face of its own on any surface and no font
+    file ships with the product."""
+
+    @staticmethod
+    def whole(face, text):
+        return ""                                     # a Segoe UI Windows: every face has every letter
+
+    def test_persian_takes_the_face_arabic_takes_on_every_surface(self):
+        self.assertLessEqual({"ar", "fa"}, l10n.RIGHT_TO_LEFT)
+        for locale in ("ar", "fa"):
+            with self.subTest(locale=locale):
+                self.assertNotIn(locale, typeface.SCRIPT_FACES, "a face of its own, as Korean has")
+                text = typeface.letters(l10n.catalog(locale).values())
+                self.assertEqual(typeface.language_face(locale, "Segoe UI", text, self.whole, lambda face: True),
+                                 "Segoe UI")
+                self.assertEqual(popup.font_faces(locale, "Segoe UI", self.whole), ("Segoe UI",))
+        for weight in (400, 600):
+            self.assertEqual(popup.font_candidates("fa", weight, "Segoe UI", self.whole),
+                             popup.font_candidates("ar", weight, "Segoe UI", self.whole))
+        # The window: Typeface.ScriptFaces is the same table as Python's, and so names no Persian face either.
+        body = guiscan.type_body("Typeface")
+        table = re.search(r"ScriptFaces\s*=\s*new Dictionary<string, string>\s*\{(.*?)\};", body, re.S)
+        self.assertIsNotNone(table, "Typeface.ScriptFaces is where the window names its script faces")
+        self.assertEqual(set(re.findall(r'\{\s*"([^"]+)"\s*,', table.group(1))), set(typeface.SCRIPT_FACES))
+        # The panel: no rule on Persian's language and no face loaded into the page.
+        with unittest.mock.patch.object(typeface, "lacks", self.whole):
+            self.assertEqual(mcpui.typeface_style("Segoe UI"), "")
+        css = (ROOT / "src" / "codex_auto_resume" / "mcp" / "assets" / "panel.css").read_text(encoding="utf-8")
+        self.assertNotIn(":lang(fa)", css)
+        self.assertNotIn("@font-face", css)
+
+    def test_no_font_file_is_bundled_or_shipped(self):
+        fonts = (".ttf", ".otf", ".woff", ".woff2", ".ttc")
+        for tree in ("src", "assets", "advanced/src", "gui"):
+            with self.subTest(tree=tree):
+                self.assertEqual([path.relative_to(ROOT).as_posix() for path in (ROOT / tree).rglob("*")
+                                  if path.suffix.lower() in fonts], [])
+        self.assertFalse((ROOT / "assets" / "fonts").exists())
+        source = (ROOT / "build" / "make_release.py").read_text(encoding="utf-8")
+        shipped = re.search(r"SHIPPED_ASSETS\s*=\s*\((.*?)\)", source, re.S)
+        self.assertIsNotNone(shipped)
+        self.assertNotIn("font", shipped.group(1).lower())
 
 
 @unittest.skipUnless(os.name == "nt", "the faces are Windows' own, asked through GDI")

@@ -55,6 +55,7 @@ BOOTSTRAP = (ROOT / "scripts" / "bootstrap.ps1").read_text(encoding="utf-8")
 FLOW = (ROOT / "gui" / "InstallerFlow.cs").read_text(encoding="utf-8")
 ENGLISH = json.loads((ROOT / "src" / "codex_auto_resume" / "locales" / "en.json").read_text(encoding="utf-8"))
 LABEL = ENGLISH["installer.done.desktop_shortcut"]
+KEEP_LABEL = ENGLISH["installer.done.desktop_shortcut_keep"]
 
 _real_before = None
 
@@ -587,10 +588,17 @@ function Rows($window, $kind) {
     foreach ($row in @(CallOn $window 'ShownRows' @())) { if ($row.GetType().Name -ceq $kind) { $found += $row } }
     $found
 }
+# The box is the one SoftCheck that says "Add" (no shortcut of ours is there) or "Keep" (ours is).
+function IsBox($row) { ($row.Text -ceq $env:CAR_LABEL) -or ($row.Text -ceq $env:CAR_KEEP_LABEL) }
+function BoxText($window) {
+    $found = @()
+    foreach ($row in @(Rows $window 'SoftCheck')) { if (IsBox $row) { $found += [string]$row.Text } }
+    $found -join ' | '
+}
 function Boxes($window) {
     $found = @()
     foreach ($row in @(Rows $window 'SoftCheck')) {
-        if ($row.Text -ceq $env:CAR_LABEL) { $found += (@('off', 'on')[[int][bool]$row.Checked] + ':' + @('switch', 'box')[[int][bool]$row.GetType().GetProperty('Box', $any).GetValue($row, $null)]) }
+        if (IsBox $row) { $found += (@('off', 'on')[[int][bool]$row.Checked] + ':' + @('switch', 'box')[[int][bool]$row.GetType().GetProperty('Box', $any).GetValue($row, $null)]) }
     }
     $found -join ','
 }
@@ -631,8 +639,9 @@ function Run($name, $mode, $installed, $place, $tick, [switch]$maintaining) {
     $r = @{}
     $r.page = CallOn $window 'get_Page' @()
     $r.box = Boxes $window
+    $r.box_text = BoxText $window
     if ($null -ne $tick) {
-        foreach ($row in @(Rows $window 'SoftCheck')) { if ($row.Text -ceq $env:CAR_LABEL) { $row.Checked = [bool]$tick } }
+        foreach ($row in @(Rows $window 'SoftCheck')) { if (IsBox $row) { $row.Checked = [bool]$tick } }
     }
     $calls = Calls
     $before = Digest (LinkOf (Desktop $name))
@@ -646,6 +655,7 @@ function Run($name, $mode, $installed, $place, $tick, [switch]$maintaining) {
         $r.callouts = Callouts $window
         $r.log = [string](CallOn $window 'get_Log' @())
         $r.box_after = Boxes $window
+        $r.box_text_after = BoxText $window
         $r.page_after = CallOn $window 'get_Page' @()
         $null = CallOn $window 'Forward' @()
         Pump $window 120000
@@ -859,7 +869,7 @@ class WindowTests(unittest.TestCase):
             _make_ours(homes["ok"], cls.work / ("d-" + name))
         cls.ours_target = homes["ok"]
         cls.log = cls.work / "stub.log"
-        cls.result = _powershell(WINDOW_PROBE, cls.work, 900, CAR_EXE=str(exe), CAR_LABEL=LABEL,
+        cls.result = _powershell(WINDOW_PROBE, cls.work, 900, CAR_EXE=str(exe), CAR_LABEL=LABEL, CAR_KEEP_LABEL=KEEP_LABEL,
                                  CAR_CATALOG=str(ROOT / "src" / "codex_auto_resume" / "locales" / "en.json"),
                                  CAR_HOME_OK=str(homes["ok"]), CAR_HOME_BARE=str(homes["bare"]),
                                  CAR_WORK=str(cls.work), CAR_STUB_LOG=str(cls.log), CAR_REAL_PYTHON=sys.executable,
@@ -890,6 +900,17 @@ class WindowTests(unittest.TestCase):
         self.assertEqual(self.answer["ours_keep"]["box"], "on:box")
         self.assertEqual(self.answer["repair"]["box"], "on:box")
         self.assertEqual(self.answer["update_tick"]["box"], "off:box", "the Dashboard's update has it too")
+
+    def test_the_box_reads_keep_where_ours_is_already_there_and_add_where_none_is(self):
+        """v0.6.23 (the owner): "Add" ticked beside a shortcut that exists reads as if a second would be made."""
+        self.assertEqual(self.answer["first_keep"]["box_text"], LABEL, "none there: Add, off")
+        self.assertEqual(self.answer["first_tick"]["box_text"], LABEL)
+        self.assertEqual(self.answer["update_tick"]["box_text"], LABEL, "the Dashboard's update, none there")
+        for case in ("ours_keep", "ours_untick", "repair"):
+            with self.subTest(case):
+                self.assertEqual(self.answer[case]["box_text"], KEEP_LABEL, "ours there: Keep, ticked")
+                self.assertEqual(self.answer[case]["box"], "on:box")
+        self.assertEqual(self.answer["taken"]["box_text_after"], LABEL, "a make that was refused: nothing of ours is there")
 
     def test_no_box_after_a_run_that_failed_an_uninstall_or_a_pick(self):
         for case in ("failed", "refused", "still", "notstarted", "uninstall", "pick"):
@@ -971,13 +992,29 @@ class SourceTests(unittest.TestCase):
 
     def test_the_word_is_a_finish_key_in_every_language_and_not_an_options_key(self):
         locales = sorted(LOCALES.glob("*.json"))
-        self.assertEqual(len(locales), 18)
+        self.assertEqual(len(locales), 22)
         for path in locales:
             with self.subTest(path.stem):
                 catalog = json.loads(path.read_text(encoding="utf-8"))
                 self.assertIn("installer.done.desktop_shortcut", catalog)
+                self.assertIn("installer.done.desktop_shortcut_keep", catalog, "v0.6.23: the Keep words")
                 self.assertNotIn("installer.options.desktop_shortcut", catalog)
+                if path.stem != "en":
+                    self.assertNotEqual(catalog["installer.done.desktop_shortcut_keep"], KEEP_LABEL, "translated")
+                    self.assertNotEqual(catalog["installer.done.desktop_shortcut_keep"],
+                                        catalog["installer.done.desktop_shortcut"], "and not the Add words")
         self.assertEqual(LABEL, "Add a shortcut to the desktop")
+        self.assertEqual(KEEP_LABEL, "Keep the shortcut on the desktop")
+
+    def test_the_box_reads_keep_by_the_value_known_when_the_page_is_built(self):
+        body = guiscan.member_body("InstallerWindow", "DesktopChoice")
+        self.assertIn("flow.DesktopShortcutThere", body)
+        self.assertIn("installer.done.desktop_shortcut_keep", body)
+        self.assertIn('"Keep the shortcut on the desktop"', body)
+        self.assertIn('"installer.done.desktop_shortcut"', body)
+        # The value is read as a run ends, before the Finish page is shown, on every path that has a box.
+        ended = guiscan.member_body("InstallerWindow", "Ended")
+        self.assertLess(ended.index("flow.KnowDesktopShortcut(DesktopShortcut.OursAt(flow.Home))"), ended.index("ShowFinish"))
 
     def test_the_options_and_maintain_pages_do_not_build_it_and_the_finish_page_does(self):
         for member in ("BuildOptions", "BuildMaintain", "BuildConfirm"):

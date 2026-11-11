@@ -1290,6 +1290,11 @@ namespace CodexAutoResume
         partial void DashboardBuilt();
         // v0.6.22: how much the Overview keeps under its two rows of cards, for what the edition shows there; nothing here.
         partial void OverviewRoomAsked(ref int under);
+        // v0.6.23: once the standard pages have been made ready ahead of their first visit (PrepareNext), a page of the
+        // advanced edition's to make ready the same way, by its name, which `prepared` does not yet hold; and that page,
+        // built as its tab's first press builds it.
+        partial void EditionPageNamed(List<string> prepared, ref string name);
+        partial void EditionPageFor(string name, ref Control page);
         // A snapshot has been shown (ApplySnapshot), or there is none and the pages say so
         // (MarkUnavailable, with null). A page of the advanced edition follows the same read.
         partial void SnapshotApplied(Dictionary<string, object> reply);
@@ -1442,7 +1447,12 @@ namespace CodexAutoResume
                 // Coming back to the Overview: its Waiting lines, which the clock writes only while it is in front
                 // (UpdateCountdowns), written before it shows and so laid out with it.
                 if (name == "overview" && snapshot != null) UpdateCountdowns();
+                // v0.6.23: and everything in it that lays others out. Shown, each card, grid and row of the page asked for a
+                // layout of its own, outermost first, and each one's layout asked the one around it again: Diagnostics took
+                // 130-320 ms on every switch to it (measured 2026-11-11). Let go innermost first, each lays itself out once.
+                List<Control> inner = HoldWithin(page);
                 page.Visible = true;
+                LetGoWithin(inner);
                 if (section != null) section.ResumeLayout(true);
                 page.ResumeLayout(true);
                 pageHost.ResumeLayout(false);
@@ -1493,6 +1503,204 @@ namespace CodexAutoResume
             pageHost.Controls.Add(page);
             if (snapshot != null) ApplySnapshot(snapshot);
             return page;
+        }
+
+        // ------------------------------------------------------------ pages made ready ahead (v0.6.23)
+        // The owner (2026-11-11): a page took a moment to appear the first time its tab was pressed - building it, making
+        // its native controls and laying it out all waited for the click (measured 2026-11-11, medians in four languages:
+        // Pending 150-630 ms, Diagnostics 440-1420, Settings 320-760, the Advanced features page 340-680, where a page seen
+        // before takes 15-320). Once
+        // the window is on screen and has read its first snapshot, each page it has not shown is made ready the next times
+        // nothing else is waiting: built by PageFor as a click builds it, given the room it will fill, its controls made and
+        // laid out - hidden all the while, so nothing on screen changes. One step a turn, and none while a person is using
+        // its mouse or keyboard (PrepareInput), so no step is taken while a hover or a click waits on it. A tab pressed
+        // before its page is ready builds it as it always did. What a page shows is read as it always was: a page made
+        // ready ahead is handed the snapshot already held (PageFor), and its own reads wait for its first visit (ShowPage).
+        private readonly List<string> preparedPages = new List<string>();
+        // The page being made ready and how far it has got: 0 not begun, 1 built, 2 its controls made, 3 its own reads asked.
+        private string preparing;
+        private int prepareStep;
+        private bool prepareQueued;
+
+        // When this window last had a key or the mouse (PrepareInput), so no step is taken while a person uses it.
+        private PrepareInput prepareInput;
+        // How long its mouse and keyboard must have been still before a step is taken, in milliseconds.
+        private const int PrepareAfterInputMilliseconds = 250;
+
+        /// Starts making the pages not yet shown ready, on the window's idle turns, once it is on screen.
+        private void PreparePagesLater()
+        {
+            if (!shown || prepareQueued || auditing || IsDisposed) return;
+            prepareQueued = true;
+            if (prepareInput == null) prepareInput = new PrepareInput();
+            Application.AddMessageFilter(prepareInput);
+            EventHandler idle = null;
+            idle = delegate
+            {
+                if (IsDisposed || !PrepareNext())
+                {
+                    Application.Idle -= idle;
+                    Application.RemoveMessageFilter(prepareInput);
+                    prepareQueued = false;
+                }
+            };
+            Application.Idle += idle;
+        }
+
+        /// One step of making a page ready; false when there is nothing left to make ready for now.
+        private bool PrepareNext()
+        {
+            // Not before the first snapshot and the Settings editors: a page is built with what it will show, and the
+            // editors are built first on these turns (BuildEditorsLater).
+            if (snapshot == null || !settingsRead || pendingSchema != null || buildQueued) return true;
+            if (busy > 0 || refreshing || prepareInput.Since < PrepareAfterInputMilliseconds) return true;
+            if (preparing == null)
+            {
+                preparing = NextToPrepare();
+                prepareStep = 0;
+                if (preparing == null) return false;
+            }
+            Control page = PreparedPage(preparing);
+            if (page == null || Soft.OwnVisible(page))
+            {
+                // Shown meanwhile, by a click: ready as it is.
+                Prepared();
+                return true;
+            }
+            if (prepareStep == 0)
+            {
+                // Built, and the room the page host will give it once shown, so it is never laid out narrower first.
+                page.Bounds = pageHost.DisplayRectangle;
+                prepareStep = 1;
+            }
+            else if (prepareStep == 1)
+            {
+                // Its native controls, made as showing it would make them, while it stays hidden.
+                IntPtr made = page.Handle;
+                if (made != IntPtr.Zero) Materialise(page);
+                prepareStep = 2;
+            }
+            else if (prepareStep == 2)
+            {
+                page.PerformLayout();
+                // What it reads on each visit that the snapshot does not hold, read once now, so its first visit finds it
+                // there as every later visit does; the visit reads it again (ShowPage).
+                bool reads = preparing == "statistics" || preparing == "diagnostics";
+                if (preparing == "statistics") LoadStatistics();
+                if (preparing == "diagnostics") LoadCompatibility();
+                if (reads) prepareStep = 3;
+                else Prepared();
+            }
+            else if (!loadingStats && !loadingCompat && bridge.InFlight == 0)
+            {
+                // Those answers written: whatever they added made and laid out too.
+                Materialise(page);
+                page.PerformLayout();
+                Prepared();
+            }
+            return true;
+        }
+
+        private void Prepared()
+        {
+            if (preparing != null && !preparedPages.Contains(preparing)) preparedPages.Add(preparing);
+            preparing = null;
+            prepareStep = 0;
+        }
+
+        /// Stamps the moment the window's thread last had a key or the mouse, and lets every message through.
+        private sealed class PrepareInput : IMessageFilter
+        {
+            private readonly Stopwatch since = Stopwatch.StartNew();
+
+            /// Milliseconds since the last key or mouse message.
+            internal long Since { get { return since.ElapsedMilliseconds; } }
+
+            public bool PreFilterMessage(ref Message m)
+            {
+                int message = m.Msg;
+                // WM_KEYFIRST-WM_KEYLAST, WM_MOUSEFIRST-WM_MOUSELAST, and the mouse over a frame (WM_NCMOUSEMOVE-WM_NCXBUTTONDBLCLK).
+                if ((message >= 0x0100 && message <= 0x0109) || (message >= 0x0200 && message <= 0x020E) ||
+                    (message >= 0x00A0 && message <= 0x00AD))
+                    since.Restart();
+                return false;
+            }
+        }
+
+        /// The next page to make ready: the Dashboard's in their order, Settings once its editors are built, then the
+        /// advanced edition's.
+        private string NextToPrepare()
+        {
+            foreach (string name in PageOrder)
+            {
+                // Shown once already, or made ready: its controls are made.
+                Control built = name == "settings" ? columns : pages.ContainsKey(name) ? pages[name] : null;
+                if (name != currentPage && !preparedPages.Contains(name) && (built == null || !built.IsHandleCreated)) return name;
+            }
+            string edition = null;
+            EditionPageNamed(preparedPages, ref edition);
+            return edition;
+        }
+
+        /// The page, built now if it has not been (PageFor); Settings is the page its editors are on.
+        private Control PreparedPage(string name)
+        {
+            if (name == "settings") return columns;
+            if (Array.IndexOf(PageOrder, name) >= 0) return PageFor(name);
+            Control page = null;
+            EditionPageFor(name, ref page);
+            return page;
+        }
+
+        /// v0.6.23: every page in the page host but the one on screen held from laying itself out (LayOutHeld lets them
+        /// go), while what they show is written. Each line written asked its whole page for a layout of its own, card by
+        /// card up to the page's scrolling measure, and a page took them one by one: a snapshot with Diagnostics built
+        /// cost 210 ms, and the compatibility answer for a Diagnostics not yet shown as much as 1.0-3.0 s (measured
+        /// 2026-11-11). Laid out once after, each page is laid out from the same text as before, so it is the same page.
+        private List<Control> HoldPages()
+        {
+            var held = new List<Control>();
+            foreach (Control page in pageHost.Controls)
+            {
+                // Not the page on screen: its layout runs on as written, each step as before. Held too, the Overview's
+                // History card kept its button 2 px under its corner after a refresh whose Pending could not be read
+                // (test_gui_layout's states audit) - it takes more than one layout to settle.
+                if (Soft.OwnVisible(page)) continue;
+                page.SuspendLayout();
+                held.Add(page);
+            }
+            return held;
+        }
+
+        private static void LayOutHeld(List<Control> held)
+        {
+            foreach (Control page in held) page.ResumeLayout(true);
+        }
+
+        /// v0.6.23: every control in `root` that holds others, outermost first, each held from laying itself out
+        /// (LetGoWithin lets them go).
+        private static List<Control> HoldWithin(Control root)
+        {
+            var held = new List<Control>();
+            HoldWithin(root, held);
+            return held;
+        }
+
+        private static void HoldWithin(Control parent, List<Control> held)
+        {
+            foreach (Control child in parent.Controls)
+            {
+                if (child.Controls.Count == 0) continue;
+                child.SuspendLayout();
+                held.Add(child);
+                HoldWithin(child, held);
+            }
+        }
+
+        /// Lets go innermost first, each laid out once if anything asked it to be.
+        private static void LetGoWithin(List<Control> held)
+        {
+            for (int i = held.Count - 1; i >= 0; i--) held[i].ResumeLayout(true);
         }
 
         private Panel Page()

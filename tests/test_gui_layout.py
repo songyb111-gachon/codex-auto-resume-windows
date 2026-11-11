@@ -854,7 +854,8 @@ class WindowCompositionTests(unittest.TestCase):
         footer = self.method(self.window, "private Control TextFooter(")
         self.assertIn("clear.Anchor = AnchorStyles.Right | AnchorStyles.Bottom;", footer)
         self.assertIn("Pinned(clear, row);", footer)
-        self.assertIn("ForgetPins();", self.method(self.window, "private void BuildEditors("),
+        # v0.6.23: the build is EditorSteps, a step a turn (BuildEditors runs every step at once).
+        self.assertIn("ForgetPins();", self.method(self.window, "private IEnumerator<bool> EditorSteps("),
                       "rows built again after Restore defaults leave nothing pinned behind")
 
     def test_recently_finished_fits_its_names_after_every_outcome_and_age_is_written(self):

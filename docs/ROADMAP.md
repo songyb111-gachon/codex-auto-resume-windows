@@ -1293,7 +1293,7 @@ there is (the owner, 2026-10-31). What stays in v0.6.23 is the preparation, as t
 
 The switch itself - the newest 3.15.x bundled (3.15.3 or newer), its version and SHA-256 pinned, remote debugging off as now - is the day that checklist describes.
 
-### v0.6.23-beta 🚧 — Smaller archives, controls that glide, higher limits, the code ready for Python 3.15 and the advanced edition's Python choice (a pre-release)
+### v0.6.23-beta ✅ — Smaller archives, controls that glide, higher limits, the code ready for Python 3.15 and the advanced edition's Python choice (a pre-release)
 
 The first pre-release of v0.6.23. In both editions: the archives are more than a quarter smaller (17.6 to 12.4 MB for the standard edition, 19.4 to 14.3 MB for the
 advanced) because the release leaves out the README-only pictures and the development tools and trims the bundled Python to what the product can reach; buttons, switches, check boxes,
@@ -1301,6 +1301,12 @@ drop-downs, tabs, list rows, menus and the status light glide between their stat
 continuation delivered; Retry now and the watcher stop for the same four reasons; the list of releases may be 8 MiB; the code is ready for 3.15; and the standards page was reworded
 at the owner's word. In the advanced edition: *Run on another Python version*; fifty scheduled messages and fifty reset messages, a series that runs as many times as picked, a message of 30,000 characters
 and admitted failures taken up within six hours; and a start of the 5-hour window that tries again after a failed read. The final follows the second round of audits.
+
+### v0.6.23-beta.2 🚧 — Four more languages and pages that open quickly the first time (a pre-release)
+
+The second pre-release of v0.6.23, in both editions: Persian, Czech, Hungarian and Thai are offered, twenty-two languages in all, Persian written right to left and
+Thai drawn in the face Windows sets it in; a page opens in about a tenth of a second the first time its tab is pressed, because the pages are made ready while the window
+is idle; and the setup program's Finish page keeps a shortcut that is already on the desktop. The final follows the second round of audits.
 
 ---
 
@@ -1593,8 +1599,13 @@ The loopback API, remote control and a view of other PCs (advanced edition), and
 
         ↓
 
-v0.6.23-beta  🚧 In development
+v0.6.23-beta  ✅ Released
 The first pre-release: smaller archives, controls that glide, higher limits, the code ready for Python 3.15 and the advanced edition's Python choice
+
+        ↓
+
+v0.6.23-beta.2  🚧 In development
+The second pre-release: four more languages (Persian, Czech, Hungarian, Thai) and pages that open quickly the first time
 
         ↓
 

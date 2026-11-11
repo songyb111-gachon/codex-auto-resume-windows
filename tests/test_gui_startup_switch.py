@@ -44,7 +44,8 @@ class SourceTests(unittest.TestCase):
         self.assertIn('S("settings.startup_unchecked",', save)
 
     def test_a_build_forgets_what_was_read(self):
-        self.assertIn("startupKnown = false;", body("BuildEditors"))
+        # v0.6.23: the build is EditorSteps, a step a turn (BuildEditors runs every step at once).
+        self.assertIn("startupKnown = false;", body("EditorSteps"))
 
     def test_every_status_read_reaches_the_switch_through_one_place(self):
         self.assertIn("KnowStartup(status, startup);", body("ApplyStatus"))

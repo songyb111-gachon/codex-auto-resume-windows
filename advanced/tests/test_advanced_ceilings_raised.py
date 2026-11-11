@@ -2,7 +2,7 @@
 
 Each value of the table is pinned here, with the choices some capabilities offer, every second copy of a number the
 registry holds (the engines' own caps, core's bounds a plug cannot widen) and the words that tell a person the number,
-in all eighteen languages. The global hourly ceiling is also the highest a person may set, so its stored form is held:
+in every language. The global hourly ceiling is also the highest a person may set, so its stored form is held:
 a file made before this version names 12 in its CHECK, and is made again on opening with 24, keeping every other row.
 
     CODEX_AR_EDITION=advanced PYTHONPATH="src;advanced/src;tests;advanced/tests" python -m unittest test_advanced_ceilings_raised
@@ -15,6 +15,7 @@ from pathlib import Path
 import re
 import sqlite3
 import sys
+import unicodedata
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -136,8 +137,20 @@ class WordsTests(unittest.TestCase):
         return json.loads((statement.DIRECTORY / ("%s.json" % locale)).read_text(encoding="utf-8"))
 
     @staticmethod
+    def decimal_digits(text):
+        """Compare the printed number, regardless of the catalog's decimal digit shapes."""
+        return "".join(str(unicodedata.decimal(char)) if char.isdecimal() else char for char in text)
+
+    @staticmethod
     def has(number, text):
-        return re.search(r"(?<![\dA-Za-z.])%s(?!\d|\.\d)" % number, text) is not None
+        return re.search(r"(?<![\dA-Za-z.])%s(?!\d|\.\d)" % number, WordsTests.decimal_digits(text)) is not None
+
+    def test_decimal_digit_shapes_preserve_the_number_and_its_boundaries(self):
+        self.assertEqual(self.decimal_digits("۲۴"), "24")
+        self.assertTrue(self.has(24, "تا ۲۴ ساعت"))
+        for text in ("۲۵", "۱۲۴", "۲۴۰", "۲۴.۵", "²⁴"):
+            with self.subTest(text=text):
+                self.assertFalse(self.has(24, text))
 
     def test_every_catalog_says_the_new_numbers(self):
         for locale in CATALOGS:
@@ -192,7 +205,7 @@ class WordsTests(unittest.TestCase):
         for path in sorted(core.glob("*.json")):
             with self.subTest(path.stem):
                 text = json.loads(path.read_text(encoding="utf-8"))["why.capacity_window"]
-                self.assertIn("24", text)
+                self.assertTrue(self.has(24, text), "24 hours, in the catalog's own decimal digits")
 
 
 class HourlyCase(V8Case):

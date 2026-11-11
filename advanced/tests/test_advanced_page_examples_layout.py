@@ -24,7 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from pagecase import CSC, IDS, POWERSHELL, Bridge, compile_window, probe, strings  # noqa: E402
 from codex_auto_resume_advanced import registry  # noqa: E402
 
-LOCALES = ("en", "de", "ja", "ko", "ar")
+LOCALES = ("en", "de", "ja", "ko", "ar", "fa", "cs", "hu", "th")
 # CI's screen, less a taskbar: (scale, width, height) in physical pixels.
 SMALL = 1024, 728
 VIEWS = ((1.75,) + SMALL, (2.0,) + SMALL, (1.0, 1920, 1040))

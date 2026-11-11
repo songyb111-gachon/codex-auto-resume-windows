@@ -1,5 +1,5 @@
 {
-  "about": "What the release's app payload may weigh, packed as the archive packs it (each staged file deflated at level 9, in MiB; the bundled runtime is not counted). tests/test_release_size.py holds it and prints the bytes per group when it is over. Raise a number when a feature earns it. Measured for v0.6.22's tree: standard 2.15, advanced adds 1.58.",
+  "about": "What the release's app payload may weigh, packed as the archive packs it (each staged file deflated at level 9, in MiB; the bundled runtime is not counted). tests/test_release_size.py holds it and prints the bytes per group when it is over. Raise a number when a feature earns it. Measured for v0.6.23's tree, 22 languages: standard 2.28, advanced adds 1.85.",
   "standard_app_mib": 2.4,
-  "advanced_extra_mib": 1.75
+  "advanced_extra_mib": 2.1
 }

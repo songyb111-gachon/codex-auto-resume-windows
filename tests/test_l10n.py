@@ -71,17 +71,17 @@ class ShippedCatalogTests(unittest.TestCase):
     def test_the_endonyms_cover_exactly_the_shipped_languages(self):
         self.assertEqual(set(l10n.ENDONYMS), set(l10n.LOCALES))
 
-    def test_eighteen_catalogs_all_offered(self):
+    def test_twenty_two_catalogs_all_offered(self):
         """v0.6.11 shipped eighteen complete catalogs and offered sixteen: Arabic and Hebrew were held
         until every surface mirrored right to left (l10n.HELD). v0.6.20 mirrored the Dashboard, its
-        dialogs and the setup window (gui/SoftMirror.cs), the last of them, and offers all eighteen:
-        in a picker, as a setting and as where Windows' language leads. A language held again would be
+        dialogs and the setup window (gui/SoftMirror.cs), the last of them. Persian is the nineteenth, and
+        Czech, Hungarian and Thai (v0.6.23) the twentieth to the twenty-second: each offered in a picker, as a setting and as where Windows' language leads. A language held again would be
         offered nowhere, which the loop below still holds it to."""
         from codex_auto_resume import settings
-        self.assertEqual(len(l10n.LOCALES), 18)
+        self.assertEqual(len(l10n.LOCALES), 22)
         self.assertEqual(l10n.HELD, frozenset())
         self.assertEqual(l10n.OFFERED, tuple(locale for locale in l10n.LOCALES if locale not in l10n.HELD))
-        self.assertEqual(len(l10n.OFFERED), 18)
+        self.assertEqual(len(l10n.OFFERED), 22)
         for locale in l10n.RIGHT_TO_LEFT:
             with self.subTest(offered=locale):
                 self.assertEqual(l10n.normalize(locale), locale)
@@ -293,7 +293,9 @@ class OneNameTests(unittest.TestCase):
                  # name after an apostrophe, Polish and Ukrainian keep the English name as de does.
                  "ru": "Дашборд", "it": "Dashboard", "tr": "Gösterge Paneli", "pl": "Dashboard",
                  "uk": "Dashboard", "vi": "Bảng điều khiển", "id": "Dasbor", "ar": "لوحة المعلومات",
-                 "he": "לוח המחוונים"}
+                 "he": "לוח המחוונים", "fa": "داشبورد",
+                 # v0.6.23: Czech keeps the English name as Polish does; Hungarian and Thai name it in their own words.
+                 "cs": "Dashboard", "hu": "Irányítópult", "th": "แดชบอร์ด"}
     # Every sentence that names the window, on whichever surface shows it.
     NAMING = ("menu.open", "popup.open_dashboard", "msg.toast_button_open", "popup.more",
               "custom.dashboard_only", "help.interface_language", "help.theme", "help.reduce_motion",
@@ -554,10 +556,12 @@ class WindowsLanguageTableTests(unittest.TestCase):
         "vi-VN": "vi",
         "id-ID": "id", "in-ID": "id",
         # Offered from v0.6.20, once the window was mirrored for them; `iw`, Hebrew's older code.
-        "ar-SA": "ar", "ar-EG": "ar", "ar-AE": "ar", "he-IL": "he", "iw-IL": "he",
+        "fa": "fa", "fa-IR": "fa", "fa_AF": "fa", "ar-SA": "ar", "ar-EG": "ar", "ar-AE": "ar", "he-IL": "he", "iw-IL": "he",
+        # Offered from v0.6.23.
+        "cs-CZ": "cs", "cs": "cs", "hu-HU": "hu", "hu": "hu", "th-TH": "th", "th": "th",
         # Not in the list: English, however close a neighbour is.
-        "sv-SE": "en", "nb-NO": "en", "nl-NL": "en", "fi-FI": "en", "da-DK": "en", "cs-CZ": "en",
-        "el-GR": "en", "hu-HU": "en", "th-TH": "en", "hi-IN": "en", "fa-IR": "en", "ca-ES": "en",
+        "sv-SE": "en", "nb-NO": "en", "nl-NL": "en", "fi-FI": "en", "da-DK": "en", "sk-SK": "en",
+        "el-GR": "en", "lo-LA": "en", "hi-IN": "en", "ca-ES": "en",
         "gl-ES": "en", "be-BY": "en", "kk-KZ": "en", "ms-MY": "en", "sr-Latn-RS": "en",
         "sr-Cyrl-RS": "en", "yue-HK": "en",
     }

@@ -657,6 +657,7 @@
   "installer.done.edition_kept": "Другая редакция установлена здесь и не изменилась.",
   "installer.done.desktop_failed": "Не удалось изменить ярлык на рабочем столе. Всё остальное прошло как обычно; подробности в журнале.",
   "installer.done.desktop_shortcut": "Добавить ярлык на рабочий стол",
+  "installer.done.desktop_shortcut_keep": "Оставить ярлык на рабочем столе",
   "installer.done.desktop_taken": "На рабочем столе уже есть другой ярлык с таким же именем. Он оставлен как есть, новый не создан.",
   "installer.done.exit_code": "Код выхода: {code}",
   "installer.done.failed": "Операция не завершилась (код выхода {code}).",

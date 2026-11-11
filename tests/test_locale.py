@@ -84,12 +84,14 @@ class DecisionTests(unittest.TestCase):
                                # v0.6.11: seven more languages, in any region.
                                (["ru-RU"], "ru"), (["it-IT"], "it"), (["tr-TR"], "tr"),
                                (["pl-PL"], "pl"), (["uk-UA"], "uk"), (["vi-VN"], "vi"),
-                               (["id-ID"], "id")):
+                               (["id-ID"], "id"),
+                               # v0.6.23: Czech, Hungarian and Thai.
+                               (["cs-CZ"], "cs"), (["hu-HU"], "hu"), (["th-TH"], "th")):
             with self.subTest(tags):
                 self.assertEqual(self.resolve(tags), expected)
 
     def test_english_for_a_language_this_product_does_not_have(self):
-        for tags in (["nl-NL"], ["fi-FI"], ["hi-IN"], ["sv-SE"], ["th-TH"]):
+        for tags in (["nl-NL"], ["fi-FI"], ["hi-IN"], ["sv-SE"], ["el-GR"]):
             with self.subTest(tags):
                 self.assertEqual(self.resolve(tags), "en")
 

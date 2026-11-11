@@ -38,7 +38,9 @@ from codex_auto_resume.ui.popup import fonts  # noqa: E402
 from codex_auto_resume.win import typeface  # noqa: E402
 from test_gui_v0611_access import CSC, POWERSHELL, compile_window, reply, run_probe  # noqa: E402
 
-FACES = {"ko": "Malgun Gothic", "ja": "Yu Gothic UI", "zh-CN": "Microsoft YaHei UI", "zh-TW": "Microsoft JhengHei UI"}
+FACES = {"ko": "Malgun Gothic", "ja": "Yu Gothic UI", "zh-CN": "Microsoft YaHei UI", "zh-TW": "Microsoft JhengHei UI",
+         # v0.6.23: Thai, whose letters Segoe UI does not have.
+         "th": "Leelawadee UI"}
 MISSING = "CodexAutoResume No Such Face"
 
 
@@ -170,7 +172,7 @@ foreach ($locale in $ask['locales']) {
 class WindowTests(unittest.TestCase):
     """The compiled window's own answers, against win/typeface.py's."""
 
-    LOCALES = ("ko", "ja", "zh-CN", "zh-TW", "en", "vi")
+    LOCALES = ("ko", "ja", "zh-CN", "zh-TW", "th", "en", "vi")
     SYSTEMS = ("Segoe UI", "Malgun Gothic")
 
     @classmethod

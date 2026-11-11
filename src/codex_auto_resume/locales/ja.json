@@ -657,6 +657,7 @@
   "installer.done.edition_kept": "もう一方のエディションがここにインストールされており、変更されていません。",
   "installer.done.desktop_failed": "デスクトップのショートカットを変更できませんでした。ほかの処理は通常どおり進みました。詳しくはログをご覧ください。",
   "installer.done.desktop_shortcut": "デスクトップにショートカットを追加する",
+  "installer.done.desktop_shortcut_keep": "デスクトップのショートカットを残す",
   "installer.done.desktop_taken": "同じ名前の別のショートカットがデスクトップにあります。そのままにし、新しくは作成しませんでした。",
   "installer.done.exit_code": "終了コード: {code}",
   "installer.done.failed": "完了しませんでした (終了コード {code})。",

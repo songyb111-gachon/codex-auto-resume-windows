@@ -217,7 +217,9 @@ class WordTests(unittest.TestCase):
         ko = l10n.catalog("ko")
         cls.texts = sorted({text for text in ko.values() if HANGUL.search(text) and len(text) >= 40 and "\n" not in text})
         others = []
-        for locale in ("en", "de", "ja", "zh-CN"):
+        # v0.6.23: Thai, set without spaces between its words, is Windows' to break as Japanese is (Uniscribe breaks it
+        # by its dictionary when the window measures it and when it draws it alike); Hungarian's long words likewise.
+        for locale in ("en", "de", "ja", "zh-CN", "th", "hu"):
             catalog = l10n.catalog(locale)
             others += [catalog[key] for key in ("help.notification_card", "help.reduce_motion", "explain.none_selected")]
         cls.help = ko["help.notification_card"]

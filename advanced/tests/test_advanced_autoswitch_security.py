@@ -192,7 +192,7 @@ class SavedSignInsCanAlwaysGo(SwapCase):
         self.assertIn("InstallerFlow.SavedAccountsAt(home)",
                       (self.ROOT / "build" / "setup" / "SetupWindow.cs").read_text(encoding="utf-8"))
         catalogs = sorted((self.ROOT / "src" / "codex_auto_resume" / "locales").glob("*.json"))
-        self.assertEqual(len(catalogs), 18)
+        self.assertEqual(len(catalogs), 22)
         for catalog in catalogs:
             words = json.loads(catalog.read_text(encoding="utf-8"))
             self.assertIn("Codex", words["installer.uninstall.saved_accounts"], catalog.name)
@@ -988,7 +988,7 @@ class TheStatementNamesTheEarlyLooksBound(unittest.TestCase):
         day, conversation = ACCOUNT_AUTO_SWITCH.ceilings.per_day, ACCOUNT_AUTO_SWITCH.ceilings.per_conversation
         catalogs = sorted((Path(__file__).resolve().parents[1] / "src" / "codex_auto_resume_advanced" / "locales")
                           .glob("*.json"))
-        self.assertEqual(len(catalogs), 18)
+        self.assertEqual(len(catalogs), 22)
         english = json.loads(catalogs[[c.stem for c in catalogs].index("en")].read_text(encoding="utf-8"))
         self.assertIn("at most %d a day and %d for any one conversation" % (day, conversation),
                       english["statement.account_auto_switch.does"])
@@ -1062,11 +1062,11 @@ class TheStopTextNamesItsOneException(unittest.TestCase):
         self.assertEqual(ACCOUNT_AUTO_SWITCH.revision, 2, "a person who turned it on reads the statement again")
         root = Path(__file__).resolve().parents[2]
         catalogs = sorted((root / "advanced" / "src" / "codex_auto_resume_advanced" / "locales").glob("*.json"))
-        self.assertEqual(len(catalogs), 18)
+        self.assertEqual(len(catalogs), 22)
         stops = {c.stem: json.loads(c.read_text(encoding="utf-8"))["statement.account_auto_switch.stop"] for c in catalogs}
         self.assertIn("a switch that did not finish is still undone", stops["en"])
         self.assertIn("끝나지 않은 전환", stops["ko"])
-        self.assertEqual(len(set(stops.values())), 18)
+        self.assertEqual(len(set(stops.values())), 22)
         for name in ("SECURITY.md", "PRIVACY.md"):
             self.assertIn("a switch that did\nnot finish is still undone" if name == "SECURITY.md"
                           else "a switch that did not finish is\n  still undone",

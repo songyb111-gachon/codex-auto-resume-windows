@@ -1200,6 +1200,7 @@
           "installer.done.failed": "It did not finish (exit code {code}).",
           "installer.done.desktop_failed": "The desktop shortcut could not be changed. Everything else went on as usual; the log says more.",
           "installer.done.desktop_shortcut": "Add a shortcut to the desktop",
+          "installer.done.desktop_shortcut_keep": "Keep the shortcut on the desktop",
           "installer.done.desktop_taken": "Another shortcut with the same name is on the desktop. It was left as it is, and none was made.",
           "installer.done.exit_code": "Exit code: {code}",
           "installer.done.installed": "Codex Auto Resume is installed.",
@@ -1317,7 +1318,11 @@
           "vi": "Tiếng Việt",
           "id": "Bahasa Indonesia",
           "ar": "العربية",
-          "he": "עברית"
+          "he": "עברית",
+          "fa": "فارسی",
+          "cs": "Čeština",
+          "hu": "Magyar",
+          "th": "ไทย"
         }
       }
     }

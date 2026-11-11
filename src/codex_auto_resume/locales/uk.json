@@ -657,6 +657,7 @@
   "installer.done.edition_kept": "Інша редакція встановлена тут і не змінилася.",
   "installer.done.desktop_failed": "Не вдалося змінити ярлик на робочому столі. Усе інше пройшло як зазвичай; докладніше в журналі.",
   "installer.done.desktop_shortcut": "Додати ярлик на робочий стіл",
+  "installer.done.desktop_shortcut_keep": "Залишити ярлик на робочому столі",
   "installer.done.desktop_taken": "На робочому столі вже є інший ярлик із такою самою назвою. Його залишено як є, новий не створено.",
   "installer.done.exit_code": "Код виходу: {code}",
   "installer.done.failed": "Не завершилося (код виходу {code}).",

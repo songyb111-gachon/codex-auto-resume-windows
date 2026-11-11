@@ -657,6 +657,7 @@
   "installer.done.edition_kept": "Druga edycja jest tu zainstalowana i nie została zmieniona.",
   "installer.done.desktop_failed": "Nie udało się zmienić skrótu na pulpicie. Cała reszta przebiegła normalnie; więcej informacji jest w dzienniku.",
   "installer.done.desktop_shortcut": "Dodaj skrót na pulpicie",
+  "installer.done.desktop_shortcut_keep": "Zachowaj skrót na pulpicie",
   "installer.done.desktop_taken": "Na pulpicie jest już inny skrót o tej samej nazwie. Pozostawiono go bez zmian i nie utworzono nowego.",
   "installer.done.exit_code": "Kod wyjścia: {code}",
   "installer.done.failed": "Nie zakończono (kod wyjścia {code}).",

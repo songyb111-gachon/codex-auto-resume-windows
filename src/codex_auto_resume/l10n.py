@@ -65,7 +65,7 @@ OFFERED = tuple(locale for locale in LOCALES if locale not in HELD)
 # The catalogs written right to left. A surface drawn in one of them is mirrored - what stands at
 # the left in every other language stands at the right - and reads its sentences right to left
 # (right_to_left, embedded). Offered from v0.6.20, once every surface mirrored.
-RIGHT_TO_LEFT = frozenset({"ar", "he"})
+RIGHT_TO_LEFT = frozenset({"ar", "he", "fa"})
 # What a settings field may hold. `system` is stored as a choice in its own right so
 # that "follow Windows" survives a Windows language change, which storing the resolved
 # locale would quietly throw away.
@@ -88,7 +88,8 @@ _LANGUAGE_HOME = {
     "en": "en", "ko": "ko", "ja": "ja",
     "es": "es", "de": "de", "fr": "fr", "pt": "pt-BR",
     "ru": "ru", "it": "it", "tr": "tr", "pl": "pl", "uk": "uk", "vi": "vi",
-    "id": "id", "in": "id", "ar": "ar", "he": "he", "iw": "he",
+    "id": "id", "in": "id", "ar": "ar", "he": "he", "iw": "he", "fa": "fa",
+    "cs": "cs", "hu": "hu", "th": "th",
 }
 
 # Chinese is chosen by script, not by country, and Windows may say either. Simplified
@@ -263,6 +264,10 @@ ENDONYMS = {
     "id": "Bahasa Indonesia",
     "ar": "العربية",
     "he": "עברית",
+    "fa": "فارسی",
+    "cs": "Čeština",
+    "hu": "Magyar",
+    "th": "ไทย",
 }
 
 

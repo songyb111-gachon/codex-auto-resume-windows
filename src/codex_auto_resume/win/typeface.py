@@ -14,7 +14,8 @@ UI (`face_for`) - as it is on every Windows set to that language - on the Dashbo
 Typeface, the same rule), the popup, the card and the panel alike. Every language the UI font has
 whole is set in it, exactly as before; on an English Windows that is every language.
 
-And since v0.6.17 (#48) a language with a script face of its own - Korean, Japanese, Chinese - is set
+And since v0.6.17 (#48) a language with a script face of its own - Korean, Japanese, Chinese, and from
+v0.6.23 Thai in Leelawadee UI - is set
 in the face Windows itself sets it in on a Windows set to that language (`SCRIPT_FACES`, `language_face`):
 Malgun Gothic, Yu Gothic UI, Microsoft YaHei UI, Microsoft JhengHei UI - whatever Windows' UI font is,
 where that face is installed, and as before where it is not. Until then Japanese on an English Windows
@@ -39,8 +40,10 @@ from .dll import library
 SEGOE = "Segoe UI"
 # The face Windows sets each language with a script face of its own in, on a Windows set to that language (v0.6.17,
 # #48): the window (gui/SoftTheme.cs, Typeface.ScriptFaces), the popup and the card (ui/popup/fonts.py) and the panel
-# (mcp/assets/panel.css, a rule on the page's language) all set these languages in them.
-SCRIPT_FACES = {"ko": "Malgun Gothic", "ja": "Yu Gothic UI", "zh-CN": "Microsoft YaHei UI", "zh-TW": "Microsoft JhengHei UI"}
+# (mcp/assets/panel.css, a rule on the page's language) all set these languages in them. Thai (v0.6.23) is set in
+# Leelawadee UI, as Windows sets it: Segoe UI has no Thai letters, which Windows links in from that face.
+SCRIPT_FACES = {"ko": "Malgun Gothic", "ja": "Yu Gothic UI", "zh-CN": "Microsoft YaHei UI", "zh-TW": "Microsoft JhengHei UI",
+                "th": "Leelawadee UI"}
 SPI_GETNONCLIENTMETRICS = 0x0029
 GGI_MARK_NONEXISTING_GLYPHS = 0x1
 _NO_GLYPH = 0xFFFF

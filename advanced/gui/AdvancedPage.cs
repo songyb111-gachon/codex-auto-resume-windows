@@ -287,6 +287,8 @@ namespace CodexAutoResume
             advancedTab.Visible = true;
             HoldTabs();
             ReturnToAdvanced();
+            // v0.6.23: this page made ready too, if the standard ones were before these words came.
+            PreparePagesLater();
         }
 
         /// The window no narrower than its tabs, this page's among them. The standard strip neither wraps nor scrolls,
@@ -482,6 +484,20 @@ namespace CodexAutoResume
         private bool Offline
         {
             get { return auditing && advancedScript == null; }
+        }
+
+        /// v0.6.23: the page made ready ahead of its first visit, once this edition has answered with its words, as the
+        /// standard pages are (PrepareNext); never while it is the page on screen.
+        partial void EditionPageNamed(List<string> prepared, ref string name)
+        {
+            if (name == null && advancedWords != null && currentPage != AdvancedPageName && !prepared.Contains(AdvancedPageName) &&
+                (advancedPage == null || !advancedPage.IsHandleCreated))
+                name = AdvancedPageName;
+        }
+
+        partial void EditionPageFor(string name, ref Control page)
+        {
+            if (name == AdvancedPageName && advancedWords != null) page = AdvancedPageBuilt();
         }
 
         /// The page, built the first time it is shown, as the standard pages are (PageFor).

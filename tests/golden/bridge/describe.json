@@ -302,7 +302,11 @@
               "vi",
               "id",
               "ar",
-              "he"
+              "he",
+              "fa",
+              "cs",
+              "hu",
+              "th"
             ],
             "group": "general"
           },
@@ -329,7 +333,11 @@
               "vi",
               "id",
               "ar",
-              "he"
+              "he",
+              "fa",
+              "cs",
+              "hu",
+              "th"
             ],
             "group": "continuation"
           },
@@ -1315,7 +1323,11 @@
               "vi",
               "id",
               "ar",
-              "he"
+              "he",
+              "fa",
+              "cs",
+              "hu",
+              "th"
             ],
             "group": "general"
           },
@@ -1342,7 +1354,11 @@
               "vi",
               "id",
               "ar",
-              "he"
+              "he",
+              "fa",
+              "cs",
+              "hu",
+              "th"
             ],
             "group": "continuation"
           },

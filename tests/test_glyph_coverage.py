@@ -42,15 +42,21 @@ sys.path.insert(0, str(ROOT / "src"))
 from codex_auto_resume import l10n  # noqa: E402
 from codex_auto_resume.mcp import panel as mcpui  # noqa: E402
 from codex_auto_resume.ui import popup  # noqa: E402
+from codex_auto_resume.win import typeface  # noqa: E402
 
 ADVANCED = ROOT / "advanced" / "src" / "codex_auto_resume_advanced" / "locales"
 # The message fonts a Windows sets: Segoe UI, and the East Asian UI faces an East Asian Windows sets instead.
 MESSAGE_FACES = ("Segoe UI", "Malgun Gothic", "Yu Gothic UI", "Microsoft YaHei UI", "Microsoft JhengHei UI")
 # A script's own face in the popup and the card (ui/popup/fonts.py); every other language is set in the
 # message font, as the window and the panel set it.
-SCRIPT_FACED = frozenset({"ko", "ja", "zh-CN", "zh-TW"})
-# The four scripts v0.6.11 brought, each by a catalog written in it.
-SCRIPTS = {"Cyrillic": ("ru", "uk"), "Vietnamese": ("vi",), "Arabic": ("ar",), "Hebrew": ("he",)}
+SCRIPT_FACED = frozenset({"ko", "ja", "zh-CN", "zh-TW", "th"})
+# Of them, the languages no message font has the letters of, nor links them in from another face: the window sets
+# them in their own face, as the popup and the card do (v0.6.23: Thai).
+ONLY_IN_OWN_FACE = frozenset({"th"})
+# The four scripts v0.6.11 brought, each by a catalog written in it, and Thai (v0.6.23).
+SCRIPTS = {"Cyrillic": ("ru", "uk"), "Vietnamese": ("vi",), "Arabic": ("ar", "fa"), "Hebrew": ("he",),
+           # v0.6.23: Thai, in its own face (Leelawadee UI), which Segoe UI links it from.
+           "Thai": ("th",)}
 LINK_KEY = r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\FontLink\SystemLink"
 GGI_MARK_NONEXISTING_GLYPHS = 0x1
 MISSING = 0xFFFF
@@ -252,7 +258,10 @@ class GlyphCoverageTests(unittest.TestCase):
                 continue
             weighted = [(system, 400), (system + " Semibold", 400) if system == "Segoe UI" else (system, 700)]
             for locale in l10n.LOCALES:
-                for face, weight in weighted:
+                # Thai (v0.6.23) has no letter in any message font: the window sets it in its own face
+                # (Typeface.ForLanguage, typeface.SCRIPT_FACES) and its bold, whatever Windows' UI font is.
+                own = typeface.SCRIPT_FACES.get(str(locale)) if locale in ONLY_IN_OWN_FACE else None
+                for face, weight in ([(own, 400), (own, 700)] if own and self.gdi.installed(own) else weighted):
                     with self.subTest(system=system, locale=locale, face=face, weight=weight):
                         self.assertEqual(self.reached(self.gdi_faces(face), characters(locale), weight), "")
 
@@ -300,7 +309,7 @@ class GlyphCoverageTests(unittest.TestCase):
             box = self.gdi.ink(system, "͸")
             for script, locales in SCRIPTS.items():
                 letters = [char for locale in locales for char in characters(locale)
-                           if unicodedata.name(char, "").split(" ")[0] in ("CYRILLIC", "LATIN", "ARABIC", "HEBREW")
+                           if unicodedata.name(char, "").split(" ")[0] in ("CYRILLIC", "LATIN", "ARABIC", "HEBREW", "THAI")
                            and ord(char) > 0x7F]
                 for char in sorted(set(letters))[:40]:
                     with self.subTest(system=system, script=script, char="U+%04X" % ord(char)):
@@ -312,7 +321,7 @@ class GlyphCoverageTests(unittest.TestCase):
         """So a later catalog in a fifth script cannot pass here unlooked-at: each language's letters beyond
         ASCII come from the scripts its catalog is known to use."""
         known = {"LATIN", "CYRILLIC", "ARABIC", "HEBREW", "HANGUL", "CJK", "HIRAGANA", "KATAKANA", "FULLWIDTH",
-                 "IDEOGRAPHIC", "HALFWIDTH", "KATAKANA-HIRAGANA", "BOPOMOFO"}
+                 "IDEOGRAPHIC", "HALFWIDTH", "KATAKANA-HIRAGANA", "BOPOMOFO", "THAI"}
         for locale in l10n.LOCALES:
             for char in characters(locale):
                 if ord(char) < 0x80 or unicodedata.category(char)[0] != "L":

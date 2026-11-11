@@ -106,7 +106,8 @@ class StyleTextTests(unittest.TestCase):
 
     Pinned as digests, since a shallow checkout has no 9678fd68 to read. They are `digest()` of each
     catalog as `git show 9678fd68:src/codex_auto_resume/locales/<locale>.json` has it, and `built()` as
-    9678fd68's own code made it."""
+    9678fd68's own code made it. New catalogs are tested separately; these historical digests
+    continue to cover exactly the languages that existed at that revision."""
 
     STYLES = ("minimal", "standard", "detailed", "custom")
     # locale -> (how many keys, SHA-256 of them as sorted JSON), at 9678fd68.
@@ -149,7 +150,7 @@ class StyleTextTests(unittest.TestCase):
     @classmethod
     def built(cls):
         made, count = hashlib.sha256(), 0
-        for locale in l10n.LOCALES:
+        for locale in cls.PINNED:
             for category in sorted(reasons.RECOVERABLE):
                 for style in cls.STYLES:
                     made.update(("%s|%s|%s|" % (locale, category, style)).encode())
@@ -159,9 +160,9 @@ class StyleTextTests(unittest.TestCase):
         return count, made.hexdigest()
 
     def test_every_catalogs_style_words_are_9678fd68s(self):
-        self.assertEqual(set(self.PINNED), set(l10n.LOCALES))
+        self.assertLessEqual(set(self.PINNED), set(l10n.LOCALES))
         folder = ROOT / "src" / "codex_auto_resume" / "locales"
-        for locale in l10n.LOCALES:
+        for locale in self.PINNED:
             with self.subTest(locale):
                 table = json.loads((folder / ("%s.json" % locale)).read_text(encoding="utf-8"))
                 self.assertEqual(self.digest(table), self.PINNED[locale])

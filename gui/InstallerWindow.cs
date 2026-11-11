@@ -477,11 +477,16 @@ namespace CodexAutoResume
 
         /// The Finish page's box for a shortcut on the Desktop (v0.6.22, the owner: it comes last, as in an ordinary
         /// installer): what is true as the page opens, so off where there is no shortcut of ours. What it asks is done by
-        /// the Finish button (Finish), never before.
+        /// the Finish button (Finish), never before. Where this installation's shortcut is already there (v0.6.23, the
+        /// owner: "Add" ticked beside one that exists reads as if a second would be made) the box reads "Keep the
+        /// shortcut on the desktop": ticked keeps it, unticked removes it, the same as ever. DesktopShortcutThere is read
+        /// as a run ends (Ended, before ShowFinish), so the page is built after it on every path.
         private SoftCheck DesktopChoice()
         {
-            return Choice(words.Say("installer.done.desktop_shortcut", "Add a shortcut to the desktop"), flow.MakeDesktopShortcut, true,
-                          delegate(bool on) { flow.MakeDesktopShortcut = on; });
+            string text = flow.DesktopShortcutThere
+                ? words.Say("installer.done.desktop_shortcut_keep", "Keep the shortcut on the desktop")
+                : words.Say("installer.done.desktop_shortcut", "Add a shortcut to the desktop");
+            return Choice(text, flow.MakeDesktopShortcut, true, delegate(bool on) { flow.MakeDesktopShortcut = on; });
         }
 
         /// v0.6.17: a setup program that could not get out of another app's private view of Windows
