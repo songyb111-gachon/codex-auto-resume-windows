@@ -603,6 +603,29 @@ class ReturnTests(Case):
         self.assertIsNone(self.record())
         self.assertEqual(hands.log.count("restart"), 2, "once more, on the bundled runtime")
 
+    def test_the_dashboard_waits_past_the_launcher_s_slowest_healthy_start(self):
+        """Fails with v0.6.23-beta.2's 90 s: the launcher's question took 48 s on the owner's PC before its child, which then
+        has 45 s of its own, so a healthy start could be taken back from here by the wrong clock."""
+        launcher = (ROOT / "scripts" / "watcher_launcher.py").read_text(encoding="utf-8")
+        self.assertIn("WATCHER_WAIT = %r" % pythons.WATCHER_WAIT, launcher)
+        from codex_auto_resume import control
+        self.assertEqual(pythons.WATCHER_WAIT, control.WATCHER_START_TIMEOUT)
+        self.assertGreaterEqual(pythons.LAUNCHER_ASKS_SEEN, 48.0)
+        self.assertGreater(pythons.RESTART_SECONDS, pythons.LAUNCHER_ASKS_SEEN + pythons.WATCHER_WAIT + 30.0,
+                           "room for a start on the bundled runtime after the launcher took a choice back")
+
+    def test_the_restart_is_waited_for_that_long(self):
+        from codex_auto_resume import control
+        layer = control.Control
+        with patch.object(layer, "watcher_running", return_value=True), \
+                patch.object(layer, "stop_watcher", return_value={"stopped": True}), \
+                patch.object(pythons.subprocess, "Popen") as started, \
+                patch("codex_auto_resume.control.await_watcher", return_value={"state": "running"}) as waited:
+            from codex_auto_resume import config
+            self.assertEqual(pythons.restart_watcher(config.Paths(self.home)), pythons.RUNNING)
+        self.assertEqual(waited.call_args[1]["timeout"], pythons.RESTART_SECONDS)
+        self.assertTrue(started.call_args[1]["creationflags"] & getattr(subprocess, "DETACHED_PROCESS", 0))
+
     def test_with_no_watcher_it_waits_for_the_next_start(self):
         self.chosen_now(Hands(restart=pythons.NOT_RUNNING))
         self.assertEqual(self.outcome()["word"], pythons.NEXT_START)

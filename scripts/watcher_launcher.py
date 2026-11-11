@@ -61,8 +61,14 @@ SUPERVISE, RESTART = "supervise", "restart"
 # that a watcher started under the chosen Python did not come up. Asked only where a record of a choice exists.
 PHASE_RUNTIME, PHASE_RUNTIME_FAILED = "runtime", "runtime_failed"
 # How long a watcher started under the chosen Python has to take its mutex: plugin_setup's WATCHER_WAIT, kept here as
-# NO_REMOTE_DEBUG is, since this file runs before any engine is found.
+# NO_REMOTE_DEBUG is, since this file runs before any engine is found. Counted from that child's start, never from this
+# launcher's: what comes before it - the plug's question, on the bundled runtime - is no part of the chosen Python's start
+# (41 and 48 s on the owner's PC on 2026-11-11, before a child that then came up). The Dashboard's own wait for a
+# restart it asked for is longer than both together (control/pythons.RESTART_SECONDS).
 WATCHER_WAIT = 45.0
+# When this process started, on the clock a wait is measured by: the launcher's log says how long each step of a start
+# under the chosen Python took after it (`_since`).
+BEGAN = time.monotonic()
 # The argument, after `run`, that starts the watcher as a supervised child: the launcher's own, in this process, and
 # never a supervisor of its own - no grandchildren.
 CHILD_ARGUMENT = "--supervised-child"
@@ -203,6 +209,11 @@ def _note(home: Path, text: str) -> None:
         pass
 
 
+def _since() -> str:
+    """Seconds since this launcher started, for its log."""
+    return "%.1f s" % (time.monotonic() - BEGAN)
+
+
 def main(argv=None) -> int:
     here = Path(__file__).resolve().parent
     _note(here, "launcher started (pid %d)" % os.getpid())
@@ -317,7 +328,13 @@ def _on_chosen(here: Path, home: Path):
     except OSError:
         return None
     # No record, no question: the launcher of an installation that chose nothing is the launcher it always was.
-    if not (home / "runtimes" / "chosen.json").is_file() or _supervise(home, {"phase": PHASE_RUNTIME}) != SUPERVISE:
+    if not (home / "runtimes" / "chosen.json").is_file():
+        return None
+    answer = _supervise(home, {"phase": PHASE_RUNTIME})
+    # How long the question took, in the log: the one step of a start under the chosen Python this process makes before
+    # its child starts (2026-11-11: 41 and 48 s from this launcher to its child on the owner's PC, 7 s the same evening).
+    _note(here, "asked which Python to run the watcher under (%s since the launcher started)" % _since())
+    if answer != SUPERVISE:
         return None
     try:
         from codex_auto_resume import chosen_runtime, config
@@ -408,10 +425,13 @@ def _supervised(here: Path, home: Path, chosen=None):
                 return None
             return EXIT_ERROR if started else None
         started = True
-        _note(here, "watcher started as a supervised child (pid %d)" % child.pid)
-        if chosen is not None and not _came_up(home, child):
-            _not_up(here, home, child)
-            return None
+        _note(here, "watcher started as a supervised child (pid %d)" % child.pid
+              + ("" if chosen is None else " under the chosen Python, %s since the launcher started" % _since()))
+        if chosen is not None:
+            if not _came_up(home, child):
+                _not_up(here, home, child)
+                return None
+            _note(here, "the watcher came up under the chosen Python (%s since the launcher started)" % _since())
         code = child.wait()
         if code == EXIT_SCHEMA_NEWER:
             return code

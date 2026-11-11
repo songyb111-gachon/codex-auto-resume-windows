@@ -76,8 +76,14 @@ UNPACKED_MOST = 256 * 1024 * 1024           # bytes unpacked at most (2026-11-10
 MEMBERS_MOST = 512
 IMPORT_SECONDS = 180
 VERSION_SECONDS = 15
-# The launcher waits WATCHER_WAIT for the chosen Python, and starts the bundled one after that: longer than both.
-RESTART_SECONDS = 90.0
+# How long the Dashboard waits for the restart it asked for, before it takes the choice back itself. The launcher is the one
+# that judges the chosen Python: it waits WATCHER_WAIT from its child's start, after its own question, and starts the bundled
+# runtime after that. Its question took 41 and 48 s on the owner's PC on 2026-11-11 (LAUNCHER_ASKS_SEEN), before children
+# that came up; with 90 s here, a child that came up after 43 of its 45 s would still have been taken back from here - a
+# healthy start undone by the wrong clock. Twice the longest question seen and the whole wait: room for a bundled start too.
+WATCHER_WAIT = 45.0                         # scripts/watcher_launcher.WATCHER_WAIT, control.WATCHER_START_TIMEOUT
+LAUNCHER_ASKS_SEEN = 48.0
+RESTART_SECONDS = 2 * (LAUNCHER_ASKS_SEEN + WATCHER_WAIT)
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 CODES = ("checked", "check_failed", "asked", "chosen", "next_start", "refused", "returned", "back")
 
