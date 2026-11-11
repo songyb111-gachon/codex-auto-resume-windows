@@ -444,7 +444,9 @@ class CharacterizationTests(unittest.TestCase):
                     for element in ElementTree.fromstring(document).iter()]
 
         later = [locale for locale in l10n.LOCALES if locale not in self.V064]
-        self.assertEqual(len(later), 9)
+        # v0.6.11's nine, and v0.6.23's Persian, Czech, Hungarian and Thai.
+        self.assertEqual(later, ["ru", "it", "tr", "pl", "uk", "vi", "id", "ar", "he", "fa", "cs", "hu", "th"])
+        self.assertEqual(len(later), 13)
         with patch.object(l10n, "OFFERED", l10n.LOCALES), \
                 patch.object(l10n, "CHOICES", (l10n.SYSTEM,) + l10n.LOCALES):
             for locale in later:

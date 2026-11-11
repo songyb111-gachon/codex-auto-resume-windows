@@ -65,7 +65,7 @@ class EveryReasonEveryLanguageTests(unittest.TestCase):
 
 
 class NewLanguagesTests(unittest.TestCase):
-    """v0.6.11 adds nine catalogs. Each speaks every style of continuation in its own words, and the
+    """v0.6.11 adds nine catalogs, and v0.6.23 four more. Each speaks every style of continuation in its own words, and the
     nine languages v0.6.10 spoke still send exactly what v0.6.10 sent."""
 
     V0610 = ("en", "ko", "ja", "zh-CN", "zh-TW", "es", "de", "fr", "pt-BR")
@@ -73,7 +73,9 @@ class NewLanguagesTests(unittest.TestCase):
 
     def test_every_new_language_has_its_own_text_for_every_style_and_reason(self):
         later = [locale for locale in l10n.LOCALES if locale not in self.V0610]
-        self.assertEqual(len(later), 9)
+        # v0.6.11's nine, and v0.6.23's Persian, Czech, Hungarian and Thai.
+        self.assertEqual(later, ["ru", "it", "tr", "pl", "uk", "vi", "id", "ar", "he", "fa", "cs", "hu", "th"])
+        self.assertEqual(len(later), 13)
         self.assertEqual(self.WITH_TEXT, ("minimal", "standard", "detailed"))
         for locale in later:
             for style in self.WITH_TEXT:
