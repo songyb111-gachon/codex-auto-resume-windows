@@ -1208,6 +1208,7 @@
   "page.python.back": "Kembali ke versi bawaan",
   "page.python.none": "python.org tidak mencantumkan versi yang bisa dipakai program ini.",
   "page.python.no_package": "python.org tidak punya paket Windows untuk Python {line}, jadi versi itu belum bisa dipilih.",
+  "page.python.limits": "Fitur ini tidak mengirim apa pun ke Codex, jadi tidak punya batas pengiriman. Fitur ini hanya membaca python.org saat Anda menekan tombol, dan menyimpan paling banyak satu Python pilihan di samping Python bawaan.",
   "page.python.downloading": "Mengunduh Python {version}: {got} dari {total} MB",
   "page.python.verifying": "Memeriksa Python {version} sebelum dijalankan...",
   "page.python.restarting": "Memulai ulang pemantau...",

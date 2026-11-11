@@ -1208,6 +1208,7 @@
   "page.python.back": "العودة إلى الإصدار المرفق",
   "page.python.none": "لا يسرد python.org أي إصدار يستطيع هذا البرنامج استخدامه.",
   "page.python.no_package": "لا يوفّر python.org حزمة Windows من Python {line}، لذا لا يمكن اختياره الآن.",
+  "page.python.limits": "لا ترسل شيئًا إلى Codex، لذا ليست لها حدود للإرسال. لا تقرأ python.org إلا عندما تضغط زرًّا، ولا تحتفظ بجانب الإصدار المرفق إلا بإصدار Python مختار واحد على الأكثر.",
   "page.python.downloading": "جارٍ تنزيل Python {version}: {got} من {total} MB",
   "page.python.verifying": "جارٍ فحص Python {version} قبل أن يعمل...",
   "page.python.restarting": "جارٍ إعادة تشغيل المراقِب...",

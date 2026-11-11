@@ -1208,6 +1208,7 @@
   "page.python.back": "Zurück zur mitgelieferten Version",
   "page.python.none": "python.org listet keine Version auf, die dieses Programm verwenden kann.",
   "page.python.no_package": "python.org hat kein Windows-Paket von Python {line}, daher kann es jetzt nicht gewählt werden.",
+  "page.python.limits": "Sie sendet nichts an Codex und hat daher keine Sendelimits. Sie fragt python.org nur, wenn Sie eine Schaltfläche drücken, und behält neben dem mitgelieferten Python höchstens ein gewähltes.",
   "page.python.downloading": "Python {version} wird heruntergeladen: {got} von {total} MB",
   "page.python.verifying": "Python {version} wird geprüft, bevor es läuft...",
   "page.python.restarting": "Der Watcher wird neu gestartet...",

@@ -982,6 +982,20 @@ namespace CodexAutoResume
         }
 
         // ---------------------------------------------------------------- the open capability
+        /// What bounds an action other than the report, in its Limits card: each its own sentence, or null where it has
+        /// none to state. (Until v0.6.23 every action showed Longer reset messages' sentence, python_choice's included.)
+        private string ActionLimits(string id)
+        {
+            if (id == "long_reset_message")
+                return Word("page.long_limits",
+                    "It sends nothing itself. While it is on, a message at a reset may be as long as one continuation can be, not only {n} characters.",
+                    "n", 2000);
+            if (id == PythonId)
+                return Word("page.python.limits",
+                    "It sends nothing to Codex, so it has no sending limits. It reads python.org only when you press a button, and keeps at most one chosen Python beside the bundled one.");
+            return null;
+        }
+
         /// The open capability's cards, built again only when what they show changed.
         private void ShowAdvancedDetail()
         {
@@ -1166,15 +1180,17 @@ namespace CodexAutoResume
             if (IsReport(item)) BuildReportCard(item);
 
             // Its limits, and the one a person may set for every capability together: lower, never above the registry's.
-            // An action has no ceilings of its own: it sends nothing to Codex, and says what bounds it instead.
+            // An action has no ceilings of its own: it sends nothing to Codex, and says what bounds it instead, each in its
+            // own words (ActionLimits).
             TableLayoutPanel limits = NewGroup(Word("page.limits", "Limits"), advancedStack);
             if (IsReport(item))
                 limits.Controls.Add(HelpText(Word("page.action_limits",
                     "It sends nothing to Codex. A report goes to GitHub only when you type send, and the project takes one report per GitHub login for each Codex version.")));
             else if (IsAction(item))
-                limits.Controls.Add(HelpText(Word("page.long_limits",
-                    "It sends nothing itself. While it is on, a message at a reset may be as long as one continuation can be, not only {n} characters.",
-                    "n", 2000)));
+            {
+                string bounds = ActionLimits(Str(item, "id"));
+                if (bounds != null) limits.Controls.Add(HelpText(bounds));
+            }
             else
             {
                 TableLayoutPanel numbers = Facts(limits);

@@ -1208,6 +1208,7 @@
   "page.python.back": "Back to the bundled version",
   "page.python.none": "python.org lists no version this program can use.",
   "page.python.no_package": "python.org has no Windows package of Python {line}, so it cannot be chosen now.",
+  "page.python.limits": "It sends nothing to Codex, so it has no sending limits. It reads python.org only when you press a button, and keeps at most one chosen Python beside the bundled one.",
   "page.python.downloading": "Downloading Python {version}: {got} of {total} MB",
   "page.python.verifying": "Checking Python {version} before it runs...",
   "page.python.restarting": "Restarting the watcher...",

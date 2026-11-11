@@ -1208,6 +1208,7 @@
   "page.python.back": "Zpět na dodanou verzi",
   "page.python.none": "python.org neuvádí žádnou verzi, kterou může tento program použít.",
   "page.python.no_package": "python.org nemá pro Python {line} žádný balíček pro Windows, takže ho teď nelze zvolit.",
+  "page.python.limits": "Do Codexu nic neodesílá, takže nemá žádné limity odesílání. Na python.org se ptá, jen když stisknete tlačítko, a vedle dodaného Pythonu uchovává nejvýše jeden zvolený.",
   "page.python.downloading": "Stahuje se Python {version}: {got} z {total} MB",
   "page.python.verifying": "Python {version} se před spuštěním kontroluje...",
   "page.python.restarting": "Restartuje se hlídač...",
