@@ -182,7 +182,7 @@ namespace CodexAutoResume
         private void BuildPythonOffers(TableLayoutPanel card, string chosen)
         {
             card.Controls.Add(HelpText(Word("page.python.help",
-                "Nothing is read from the network until you press a button. Check python.org lists the newest release of each version; Use this version downloads it from www.python.org and checks it before it runs.")));
+                "Nothing is read from the network until you press a button. Check python.org lists, for each version, the newest release that python.org publishes with a Windows embeddable package; Use this version downloads it from www.python.org and checks it before it runs.")));
             pythonCheck = CardButton(card, Word("page.python.check", "Check python.org"), delegate { PythonAsk(); });
             pythonCheck.Margin = Pad(0, 8, 0, 4);
             if (!Equals(Get(advancedPython, "checked"), true)) return;

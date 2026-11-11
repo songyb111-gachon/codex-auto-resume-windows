@@ -64,7 +64,7 @@ PHASE_RUNTIME, PHASE_RUNTIME_FAILED = "runtime", "runtime_failed"
 # NO_REMOTE_DEBUG is, since this file runs before any engine is found. Counted from that child's start, never from this
 # launcher's: what comes before it - the plug's question, on the bundled runtime - is no part of the chosen Python's start
 # (41 and 48 s on the owner's PC on 2026-11-11, before a child that then came up). The Dashboard's own wait for a
-# restart it asked for is longer than both together (control/pythons.RESTART_SECONDS).
+# restart it asked for, the advanced edition's own, is longer than both together.
 WATCHER_WAIT = 45.0
 # When this process started, on the clock a wait is measured by: the launcher's log says how long each step of a start
 # under the chosen Python took after it (`_since`).

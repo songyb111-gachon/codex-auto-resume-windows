@@ -116,8 +116,10 @@ uses, or English where that version does not ship it - and *Same as the interfac
 
 ### Advanced edition
 
-- **Run on another Python version** (new). From the Advanced page you can have the program run on the newest release of Python 3.13,
-  3.14 or 3.15 (3.15 as a preview) instead of the one it came with. *Check python.org* reads python.org's list of releases and
+- **Run on another Python version** (new). From the Advanced page you can have the program run on Python 3.13,
+  3.14 or 3.15 (3.15 as a preview) instead of the one it came with: for each version, the newest release python.org publishes with a
+  Windows embeddable package (a version with none is named on the card and cannot be chosen; 3.13, in its security-only phase, is
+  offered as its last such release). *Check python.org* reads python.org's list of releases and
   SHA-256 digests, so a new patch needs no update of this program; *Use this version* asks first, then downloads that version's Windows
   embeddable package from `www.python.org` alone. Before it runs, the whole file must match the published SHA-256, it must unpack into a
   folder of its own inside the installation, `python.exe`, `pythonw.exe` and the Python library must each carry a valid Authenticode
