@@ -116,6 +116,9 @@ namespace CodexAutoResume
         internal Padding Frame;
         /// Where the keyboard was in the window this one replaces (SettingsForm.FocusName): `--focus=<name>`.
         internal string Focus;
+        /// v0.6.23: a row of Pending and one of its own dialogs to open for it, from the popup's row menu:
+        /// `--dialog=<dialog>:<interruption id>:<thread id>` (SettingsForm.RowDialogRequest), which opens Pending.
+        internal string RowDialog;
     }
 
     /// A drop-down entry whose stored value and displayed label differ.

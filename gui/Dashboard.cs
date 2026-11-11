@@ -1349,6 +1349,8 @@ namespace CodexAutoResume
             // (ParseArguments), and anything else opens the Overview and General.
             if (request.Page != null) firstPage = request.Page;
             if (request.Section != null) currentSection = request.Section;
+            // v0.6.23: `--dialog=` (ParseArguments: Pending, and a row's dialog) is asked for once the rows are read.
+            if (request.RowDialog != null) rowAsked = request.RowDialog;
 
             nav.Dock = DockStyle.Top;
             nav.Padding = Pad(12, 0, 14, 0);

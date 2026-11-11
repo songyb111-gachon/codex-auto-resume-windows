@@ -129,13 +129,21 @@ def ask(window, pid, page) -> bool:
     return bool(sent) and answer.value == OPEN_REQUEST_TAKEN
 
 
-def hand_over(exe, page=None) -> bool:
-    """True when a window of `exe` that is already open took the request to come forward on `page`."""
+def request_text(page=None, row=None) -> str:
+    """What an open request carries: the page ("" where it is) - and, v0.6.23, for the popup's row menu, a second line,
+    the row and its dialog as ui/tray/dashboard.py row_argument wrote them (checked there and again by the window). A
+    window from before v0.6.23 refuses a request with that line, and the open starts one as it always did."""
+    return (page or "") if row is None else "%s\n%s" % (page or "", row)
+
+
+def hand_over(exe, page=None, row=None) -> bool:
+    """True when a window of `exe` that is already open took the request to come forward on `page` - with `row`, also
+    to open that row's dialog (request_text)."""
     if os.name != "nt":
         return False
     try:
         for window, pid in windows_of(exe):
-            if ask(window, pid, page):
+            if ask(window, pid, request_text(page, row)):
                 return True
     except Exception:
         pass

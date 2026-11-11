@@ -401,6 +401,70 @@ namespace CodexAutoResume
         // The last words-for-this-time dialog's text box, for LayoutAudit.
         private SoftTextArea onceWordsArea;
 
+        // ------------------------------------------------------------ a row's dialog, asked from the popup (v0.6.23)
+        // The owner, 2026-11-11: the popup's row menu offers what Pending's offers, and its Message for this
+        // conversation... and Add (or Change) words for this time... open this window - "대시보드 창 띄우기" - on Pending
+        // with that row and its own dialog here, one dialog and no copy in the popup. Asked by `--dialog=` at the start
+        // or by an open request handed to a window that is open (WindowReopen.cs RowDialogRequest, ComeForwardOn).
+        // The request waits for the next read, the row's identities are checked against it as every row action's
+        // are (RowForDialog), and a row no longer there - or no longer offered that dialog - opens Pending and nothing more.
+        private string rowAsked;
+        // What the last request opened, `<dialog>:<interruption id>`, or null: what a window nobody sees says (the tests).
+        private string rowDialogOpened;
+
+        /// A row's dialog asked for by an open request: read again, then opened for that row if it still is one.
+        private void AskRowDialog(string row)
+        {
+            if (RowDialogRequest(row) == null) return;
+            rowAsked = row;
+            RefreshAfterChange();
+        }
+
+        /// The row of Pending `asked` names (RowDialogRequest's shape) if its dialog may open for it now, by the rules the
+        /// row menu offers it with (FillRowMenu): the same interruption and the same conversation, never a made-up task,
+        /// Message for this conversation... while nothing is on its way, words for this time while it waits
+        /// (CanAddOnceWords). Null otherwise. Pure.
+        internal static Dictionary<string, object> RowForDialog(string asked, IEnumerable<Dictionary<string, object>> rows,
+                                                                bool idle)
+        {
+            if (RowDialogRequest(asked) == null || rows == null) return null;
+            string[] parts = asked.Split(':');
+            foreach (Dictionary<string, object> row in rows)
+            {
+                if (row == null || Str(row, "interruption_id") != parts[1]) continue;
+                if (Str(row, "thread_id") != parts[2] || IsDemo(row)) return null;
+                if (parts[0] == "once_words") return CanAddOnceWords(row, idle) ? row : null;
+                return idle ? row : null;
+            }
+            return null;
+        }
+
+        /// The row's dialog asked for, once Pending's rows are read: the row chosen in the list and its dialog opened -
+        /// after the read is written, and never in a window nobody sees, which only says what it would open. Asked
+        /// once: whatever the rows say, the request is spent, except while Pending is not built or an action is on its way.
+        private void TakeRowAsked()
+        {
+            string asked = rowAsked;
+            if (asked == null || pendingList == null || busy > 0) return;
+            rowAsked = null;
+            rowDialogOpened = null;
+            var rows = new List<Dictionary<string, object>>();
+            foreach (ListViewItem item in pendingList.Items) rows.Add(item.Tag as Dictionary<string, object>);
+            Dictionary<string, object> row = RowForDialog(asked, rows, true);
+            if (row == null) return;
+            if (!auditing && IsHandleCreated && !IsWindowEnabled(Handle)) return;        // never under a dialog
+            SelectRow(pendingList, Str(row, "interruption_id"));
+            string dialog = asked.Substring(0, asked.IndexOf(':'));
+            rowDialogOpened = dialog + ":" + Str(row, "interruption_id");
+            if (auditing || !IsHandleCreated) return;
+            BeginInvoke(new MethodInvoker(delegate
+            {
+                if (IsDisposed) return;
+                if (dialog == "once_words") EditOnceWords(row);
+                else EditConversationMessage(row);
+            }));
+        }
+
         /// v0.6.16-beta.3: under a task's checks, that words for this time go with its next continuation - never the words.
         private static string WithOnceWords(Dictionary<string, object> row, string note, string said)
         {

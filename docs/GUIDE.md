@@ -494,12 +494,16 @@ described under [Quiet hours and how a conversation resumes](#quiet-hours-and-ho
 for that conversation alone. **Let this project resume** and **Hold this project for me** decide for
 the project that task's conversation is filed under, as described under
 [Observe only, and which conversations and projects resume](#observe-only-and-which-conversations-and-projects-resume).
-Last, in the Dashboard's menu only, **Message for this conversation...** gives that conversation a
+Last, after a line, **Message for this conversation...** gives that conversation a
 continuation message of its own, and, from v0.6.16-beta.3, **Add words for this time...** adds words of
 yours to that task's next continuation alone, once - both as described under
-[The continuation message](#the-continuation-message).
+[The continuation message](#the-continuation-message) - with **Change words for this time...** in its place
+and **Remove words for this time** after it once the task has some.
 None of them sends anything, each is refused if its row has since become another task, and the
-notification-area popup offers the same menu on a right click on a task, but for the message:
+notification-area popup offers the same menu on a right click on a task - from v0.6.23 with its last items
+too, by the same rules. The two that are written there open the Dashboard on Pending with that task chosen
+and the Dashboard's own dialog for it (the window that is open, if one is), and only if the task is still
+waiting there; **Remove words for this time** takes them away at once, as in the Dashboard:
 
 <img src="images/dashboard-pending.png" alt="The Pending page of the Dashboard: two conversations waiting, one for the usage reset and one with a retry scheduled, each with a state chip and an Auto-resume switch, the Why it is waiting checklist for the selected task, and Retry now, Cancel, Timeline, Turn off for this conversation and Cancel all buttons" width="680">
 
