@@ -262,123 +262,6 @@ namespace CodexAutoResume
         [DllImport("gdi32.dll", CharSet = CharSet.Unicode)]
         private static extern uint GetGlyphIndicesW(IntPtr dc, string text, int count, [Out] ushort[] glyphs, uint flags);
 
-        internal const string Persian = "Vazirmatn";
-        private const uint FontPrivate = 0x10; // FR_PRIVATE: visible only to this process.
-        private static readonly object persianLock = new object();
-        // Fonts and their families may outlive any one window; retain the collection for the process lifetime.
-        private static System.Drawing.Text.PrivateFontCollection persianFonts;
-        private static FontFamily persianFamily;
-        private static bool persianTried;
-        private static readonly List<IntPtr> persianMemory = new List<IntPtr>();
-        private static readonly List<IntPtr> persianHandles = new List<IntPtr>();
-
-        [DllImport("gdi32.dll")]
-        private static extern IntPtr AddFontMemResourceEx(IntPtr memory, uint size, IntPtr reserved, ref uint count);
-        [DllImport("gdi32.dll")]
-        private static extern bool RemoveFontMemResourceEx(IntPtr handle);
-
-        [DllImport("gdi32.dll", CharSet = CharSet.Unicode, EntryPoint = "AddFontResourceExW")]
-        private static extern int AddFontResourceEx(string file, uint flags, IntPtr reserved);
-        [DllImport("gdi32.dll", CharSet = CharSet.Unicode, EntryPoint = "RemoveFontResourceExW")]
-        private static extern bool RemoveFontResourceEx(string file, uint flags, IntPtr reserved);
-
-        /// A packaged font, never one found through the working directory or a system installation.
-        /// The same bounded search covers app/, the setup executable and a source build under build/.
-        private static string PersianDirectory()
-        {
-            DirectoryInfo directory = new DirectoryInfo(Path.GetDirectoryName(typeof(Typeface).Assembly.Location));
-            for (int depth = 0; directory != null && depth <= 4; depth++, directory = directory.Parent)
-                foreach (string relative in new[] { "assets", Path.Combine("app", "assets") })
-                {
-                    string candidate = Path.Combine(Path.Combine(directory.FullName, relative),
-                                                    Path.Combine("fonts", "vazirmatn"));
-                    if (File.Exists(Path.Combine(candidate, "Vazirmatn-Regular.ttf")) &&
-                        File.Exists(Path.Combine(candidate, "Vazirmatn-Bold.ttf"))) return candidate;
-                }
-            return null;
-        }
-
-        private static Stream PersianEmbedded(string name)
-        {
-            // This holder is generated into Setup.exe only; the regular window has no such type.
-            Type holder = typeof(Typeface).Assembly.GetType("CodexAutoResume.BundledPersianFonts", false);
-            if (holder == null) return null;
-            var field = holder.GetField(name == "Vazirmatn-Regular.ttf" ? "Regular" : "Bold",
-                System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
-            string encoded = field == null ? null : field.GetValue(null) as string;
-            if (encoded == null || encoded.Length > 6 * 1024 * 1024) return null;
-            return new MemoryStream(Convert.FromBase64String(encoded), false);
-        }
-
-        private static FontFamily PersianFamily()
-        {
-            lock (persianLock)
-            {
-                if (persianTried) return persianFamily;
-                persianTried = true;
-                var registered = new List<string>();
-                System.Drawing.Text.PrivateFontCollection collection = null;
-                try
-                {
-                    string directory = PersianDirectory();
-                    collection = new System.Drawing.Text.PrivateFontCollection();
-                    foreach (string name in new[] { "Vazirmatn-Regular.ttf", "Vazirmatn-Bold.ttf" })
-                    {
-                        if (directory != null)
-                        {
-                            string file = Path.Combine(directory, name);
-                            if (AddFontResourceEx(file, FontPrivate, IntPtr.Zero) == 0)
-                                throw new ArgumentException("Private font could not be loaded.");
-                            registered.Add(file);
-                            collection.AddFontFile(file);
-                        }
-                        else
-                        {
-                            // Setup has no extracted app/ yet. Its two embedded faces remain private in memory.
-                            using (Stream source = PersianEmbedded(name))
-                            {
-                                if (source == null || source.Length <= 0 || source.Length > 4 * 1024 * 1024)
-                                    throw new ArgumentException("Embedded font is missing or too large.");
-                                byte[] bytes = new byte[(int)source.Length];
-                                int read = 0;
-                                while (read < bytes.Length)
-                                {
-                                    int n = source.Read(bytes, read, bytes.Length - read);
-                                    if (n == 0) throw new EndOfStreamException();
-                                    read += n;
-                                }
-                                IntPtr memory = Marshal.AllocHGlobal(bytes.Length);
-                                persianMemory.Add(memory);
-                                Marshal.Copy(bytes, 0, memory, bytes.Length);
-                                uint count = 0;
-                                IntPtr handle = AddFontMemResourceEx(memory, (uint)bytes.Length, IntPtr.Zero, ref count);
-                                if (handle == IntPtr.Zero || count == 0)
-                                    throw new ArgumentException("Embedded private font could not be loaded.");
-                                persianHandles.Add(handle);
-                                collection.AddMemoryFont(memory, bytes.Length);
-                            }
-                        }
-                    }
-                    foreach (FontFamily family in collection.Families)
-                        if (string.Equals(family.Name, Persian, StringComparison.OrdinalIgnoreCase) &&
-                            family.IsStyleAvailable(FontStyle.Regular) && family.IsStyleAvailable(FontStyle.Bold))
-                        {
-                            persianFonts = collection;
-                            persianFamily = family;
-                            return family;
-                        }
-                }
-                catch (Exception) { /* Missing, unreadable or malformed assets keep Windows' existing font. */ }
-                if (collection != null) collection.Dispose();
-                foreach (string file in registered) RemoveFontResourceEx(file, FontPrivate, IntPtr.Zero);
-                foreach (IntPtr handle in persianHandles) RemoveFontMemResourceEx(handle);
-                foreach (IntPtr memory in persianMemory) Marshal.FreeHGlobal(memory);
-                persianHandles.Clear();
-                persianMemory.Clear();
-                return null;
-            }
-        }
-
         /// Every character of a catalog's words that is drawn - no white space, control or format character - once
         /// each, in order (typeface.letters). Pure.
         internal static string Letters(Dictionary<string, object> strings)
@@ -475,19 +358,8 @@ namespace CodexAutoResume
         /// that language, whatever Windows' UI font is here - and otherwise For(font, strings), as before v0.6.17. Until
         /// then Japanese on an English Windows was set in Segoe UI with every kana and kanji borrowed through a font
         /// link, measured and drawn that way, and a click on the Advanced page waited seconds for those measurements.
-        /// Persian instead uses the bundled, process-private Vazirmatn family when its two faces can be loaded.
         internal static Font ForLanguage(Font font, Dictionary<string, object> strings, string language)
         {
-            if (font != null && language == "fa")
-            {
-                FontFamily family = PersianFamily();
-                if (family != null)
-                {
-                    if (string.Equals(font.FontFamily.Name, Persian, StringComparison.OrdinalIgnoreCase)) return font;
-                    try { return new Font(family, font.SizeInPoints, font.Style, GraphicsUnit.Point); }
-                    catch (ArgumentException) { /* Unsupported style: retain the existing font rule. */ }
-                }
-            }
             string own;
             if (font != null && language != null && ScriptFaces.TryGetValue(language, out own) && Installed(own))
             {

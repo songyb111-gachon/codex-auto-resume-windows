@@ -53,12 +53,11 @@ change, not Codex's (mcp.tools.PANEL_APPEARANCE).
 """
 from __future__ import annotations
 
-import base64
 import json
 from pathlib import Path
 import re
 
-from .. import brand, config, interface, l10n
+from .. import brand, interface, l10n
 from ..win import textsize, typeface
 
 _ASSETS = Path(__file__).resolve().parent / "assets"
@@ -248,10 +247,8 @@ def typeface_style(face) -> str:
     as the Dashboard, the popup and the card set them - a rule on the page's language, so a language chosen in the
     panel is set in its face at once. "" when the UI font has every letter of every offered language - on every
     Windows whose UI font is Segoe UI - so the page is served as it always was."""
-    bundled_persian = bool(persian_font_style())
     whole = [locale for locale in l10n.OFFERED
-             if not (str(locale) == "fa" and bundled_persian)
-             and typeface.face_for(face, typeface.letters(l10n.catalog(locale).values()), typeface.lacks) != face]
+             if typeface.face_for(face, typeface.letters(l10n.catalog(locale).values()), typeface.lacks) != face]
     if not whole:
         return ""
     return '<style>%s { --font: "%s", %s; }</style>' % (
@@ -260,31 +257,6 @@ def typeface_style(face) -> str:
 
 def _script_json(value) -> str:
     return json.dumps(value, ensure_ascii=False, allow_nan=False).replace("<", "\\u003c")
-
-
-def persian_font_style() -> str:
-    """Carry the bundled Persian faces in the standalone page, without a font request.
-
-    Every page carries the faces so switching to Persian works immediately. The family
-    applies only to Persian; an incomplete installation retains the normal stack.
-    """
-    directory = config.PROJECT_ROOT / "assets" / "fonts" / "vazirmatn"
-    rules = []
-    for name, weight in (("Regular", 400), ("Bold", 700)):
-        try:
-            data = (directory / ("Vazirmatn-%s.ttf" % name)).read_bytes()
-        except OSError:
-            continue
-        if not data:
-            continue
-        encoded = base64.b64encode(data).decode("ascii")
-        rules.append('@font-face { font-family: "Vazirmatn"; font-style: normal; '
-                     'font-weight: %d; font-display: swap; '
-                     'src: url("data:font/ttf;base64,%s") format("truetype"); }' % (weight, encoded))
-    if not rules:
-        return ""
-    rules.append(':root:lang(fa) { --font: "Vazirmatn", "Segoe UI", sans-serif; }')
-    return "<style>%s</style>" % "\n".join(rules)
 
 
 def day_data(look) -> dict:
@@ -346,5 +318,4 @@ def settings_page(data=None, theme=None, design=None, text=None, face=None, day=
         "<title>Codex Auto Resume</title><style>%s</style>%s%s</head>"
         "<body><div id=\"root\"></div>%s%s%s<script>%s</script></body></html>"
         % (_STYLE, text_scale_style(textsize.read() if text is None else text),
-           typeface_style(typeface.ui_face() if face is None else face) + persian_font_style(),
-           catalog, catalogs, seed, _SCRIPT))
+           typeface_style(typeface.ui_face() if face is None else face), catalog, catalogs, seed, _SCRIPT))

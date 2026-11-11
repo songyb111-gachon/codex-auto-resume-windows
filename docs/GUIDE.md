@@ -1577,8 +1577,6 @@ Pending, History, the Codex panel and the cards show the alias beside a record o
 
 ### Languages
 
-Persian uses the bundled Vazirmatn font (Regular and Bold, version 33.003), licensed under the SIL Open Font License 1.1. It is loaded privately by the app and embedded in the Codex panel: no Windows font installation or runtime download is needed. If it cannot be loaded, the existing system-font fallback applies.
-
 The interface speaks English, 한국어, 日本語, 简体中文, 繁體中文, Español, Deutsch, Français,
 Português (Brasil), Русский, Italiano, Türkçe, Polski, Українська, Tiếng Việt, Bahasa Indonesia,
 العربية, עברית and فارسی. **Interface language** defaults to *System*, which follows the first language

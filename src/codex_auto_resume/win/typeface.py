@@ -21,11 +21,9 @@ where that face is installed, and as before where it is not. Until then Japanese
 was set in Segoe UI with every kana and kanji borrowed through a font link, as the window measured and
 drew it, and a click on the Advanced page in Japanese waited seconds for those measurements.
 
-Persian uses the bundled Vazirmatn regular and bold faces, registered privately for the
-current process. Missing assets or registration failure retain the Windows fallback.
 GDI is asked which glyphs a face has (GetGlyphIndicesW) once per face and text, and the answer is
-remembered. Nothing changes Windows' installed fonts; nothing here draws or raises: what cannot
-be asked is taken as whole, which keeps the face v0.6.10 used.
+remembered. Read, never written; nothing here draws, and nothing here raises: what cannot be asked
+is taken as whole, which keeps the face v0.6.10 used.
 """
 from __future__ import annotations
 
@@ -35,44 +33,10 @@ import os
 import threading
 import unicodedata
 
-from ..config import PROJECT_ROOT
 from .dll import library
 
 # The face every Windows has, with every letter of every language not set in a script face of its own.
 SEGOE = "Segoe UI"
-PERSIAN_FACE = "Vazirmatn"
-FR_PRIVATE = 0x10
-_FONT_LOCK = threading.Lock()
-_PERSIAN_READY = None
-
-
-def ensure_persian_font() -> bool:
-    """Register the bundled regular and bold faces for this process only.
-
-    GDI releases these private resources when the process exits. No Windows font
-    installation or registry write is involved. A missing or unreadable bundle
-    keeps the existing Windows font fallback.
-    """
-    global _PERSIAN_READY
-    if os.name != "nt":
-        return False
-    with _FONT_LOCK:
-        if _PERSIAN_READY is not None:
-            return _PERSIAN_READY
-        try:
-            directory = PROJECT_ROOT / "assets" / "fonts" / "vazirmatn"
-            paths = [directory / ("Vazirmatn-%s.ttf" % weight) for weight in ("Regular", "Bold")]
-            if not all(path.is_file() for path in paths):
-                _PERSIAN_READY = False
-                return False
-            add = _dll("gdi32").AddFontResourceExW
-            add.argtypes, add.restype = [W.LPCWSTR, W.DWORD, C.c_void_p], C.c_int
-            # Evaluate both registrations even when one fails.
-            loaded = [add(str(path), FR_PRIVATE, None) > 0 for path in paths]
-            _PERSIAN_READY = all(loaded)
-        except Exception:
-            _PERSIAN_READY = False
-        return _PERSIAN_READY
 # The face Windows sets each language with a script face of its own in, on a Windows set to that language (v0.6.17,
 # #48): the window (gui/SoftTheme.cs, Typeface.ScriptFaces), the popup and the card (ui/popup/fonts.py) and the panel
 # (mcp/assets/panel.css, a rule on the page's language) all set these languages in them.
@@ -124,10 +88,7 @@ def face_for(face, text, lacks) -> str:
 def language_face(locale, face, text, lacks, installed) -> str:
     """The face the words of `locale`, whose letters are `text`, are set in when Windows' UI font is `face`: the
     language's own script face (SCRIPT_FACES) where `installed` says Windows has it, and otherwise what `face_for`
-    chooses, as before v0.6.17. Persian first registers its process-private bundled face.
-    `lacks` and `installed` answer for GDI."""
-    if str(locale) == "fa" and ensure_persian_font() and installed(PERSIAN_FACE):
-        return PERSIAN_FACE
+    chooses, as before v0.6.17. `lacks` and `installed` answer for GDI. Pure, given them."""
     own = SCRIPT_FACES.get(str(locale)) if locale is not None else None
     if own and installed(own):
         return own
@@ -158,8 +119,6 @@ def installed(face) -> bool:
     but what a face that does not exist is realized as. False when Windows cannot be asked. Asked once per face."""
     if os.name != "nt" or not isinstance(face, str) or not face.strip():
         return False
-    if face == PERSIAN_FACE:
-        ensure_persian_font()
     with _LOCK:
         if face in _INSTALLED:
             return _INSTALLED[face]
@@ -205,8 +164,6 @@ def lacks(face, text) -> str:
     through a font link. "" when Windows cannot be asked. Asked once per face and text."""
     if os.name != "nt" or not isinstance(face, str) or not face.strip() or not text:
         return ""
-    if face == PERSIAN_FACE:
-        ensure_persian_font()
     key = (face, text)
     with _LOCK:
         if key in _LACKING:

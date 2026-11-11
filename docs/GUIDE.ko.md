@@ -1417,8 +1417,6 @@ v0.6.16부터(처음에는 v0.6.15-beta로 공개되었습니다) 워처 하나�
 
 ### 언어
 
-페르시아어는 SIL Open Font License 1.1로 배포되는 Vazirmatn 33.003의 Regular와 Bold를 함께 제공합니다. 앱 안에서만 불러오고 Codex 패널에는 포함하므로 Windows에 글꼴을 설치하거나 실행 중 다운로드할 필요가 없습니다. 불러오지 못하면 기존 시스템 글꼴을 사용합니다.
-
 화면은 English, 한국어, 日本語, 简体中文, 繁體中文, Español, Deutsch, Français, Português (Brasil),
 Русский, Italiano, Türkçe, Polski, Українська, Tiếng Việt, Bahasa Indonesia, العربية, עברית, فارسی로 표시됩니다.
 **화면 언어**의 기본값은 *시스템*이며, Windows가 첫 번째로 꼽는 언어를 따르고(지역은 가리지 않아 포르투갈의

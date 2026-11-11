@@ -79,11 +79,9 @@ class RuleTests(unittest.TestCase):
         self.assertEqual(mcpui.typeface_style(None), "")
         with unittest.mock.patch.object(typeface, "lacks", lacking({"Malgun Gothic": "ếệĐ"})):
             page = mcpui.settings_page(text=1.0, face="Malgun Gothic")
-            persian = mcpui.persian_font_style()
-            self.assertIn("</style>" + style + persian + "</head>", page)
-            self.assertEqual(mcpui.settings_page(text=1.0, face="Segoe UI").count("<style>"),
-                             1 + bool(persian),
-                             "Segoe UI needs no fallback rule; only the bundled Persian faces are added")
+            self.assertIn("</style>" + style + "</head>", page)
+            self.assertEqual(mcpui.settings_page(text=1.0, face="Segoe UI").count("<style>"), 1,
+                             "a Windows set in Segoe UI is served the page as it always was")
 
 
 @unittest.skipUnless(os.name == "nt", "the faces are Windows' own, asked through GDI")

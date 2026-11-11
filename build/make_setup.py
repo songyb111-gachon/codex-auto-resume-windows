@@ -31,7 +31,6 @@ what they were; this is one more file beside them.
 from __future__ import annotations
 
 import argparse
-import base64
 import hashlib
 import json
 import os
@@ -150,22 +149,6 @@ def embedded_source(archive_name: str, data: bytes) -> str:
     ])
 
 
-def font_source(root: Path = ROOT) -> str:
-    """Setup's two private Persian faces before its carried archive has been extracted.
-
-    Compiled as constants rather than managed resources, so archive.zip remains the one resource
-    and carried_span's strict archive verification stays intact.
-    """
-    fields = []
-    for style in ("Regular", "Bold"):
-        path = root / "assets" / "fonts" / "vazirmatn" / ("Vazirmatn-%s.ttf" % style)
-        encoded = base64.b64encode(path.read_bytes()).decode("ascii")
-        fields.append('        internal const string %s = "%s";' % (style, encoded))
-    return "\r\n".join(["// Generated from the bundled OFL fonts; do not edit.",
-                            "namespace CodexAutoResume { internal static class BundledPersianFonts {",
-                            *fields, "} }", ""])
-
-
 def manifest_bytes(root: Path = ROOT) -> bytes:
     """build/setup/setup.manifest as it is embedded: with CRLF line endings, however it was checked out."""
     return (root / MANIFEST).read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
@@ -193,8 +176,6 @@ def build(archive: Path, out: Path, edition: str, version: str, root: Path = ROO
         info.write_bytes(version_source(edition, version, root).encode("ascii"))
         embedded = work / "Setup.Embedded.cs"
         embedded.write_bytes(embedded_source(archive.name, data).encode("ascii"))
-        fonts = work / "Setup.Fonts.cs"
-        fonts.write_bytes(font_source(root).encode("ascii"))
         manifest = work / "setup.manifest"
         manifest.write_bytes(manifest_bytes(root))
         # csc reads /resource:<file>,<name>: the archive is given from here, under a path with no comma.
@@ -211,7 +192,7 @@ def build(archive: Path, out: Path, edition: str, version: str, root: Path = ROO
         arguments += ["/reference:" + reference for reference in REFERENCES]
         arguments += [str(root / SOURCE), str(root / WINDOW)]
         arguments += [str(root / name) for name in window_sources(root)]
-        arguments += [str(info), str(embedded), str(fonts)]
+        arguments += [str(info), str(embedded)]
         done = subprocess.run(arguments, capture_output=True, stdin=subprocess.DEVNULL, timeout=600,
                               creationflags=NO_WINDOW)
     if done.returncode:
