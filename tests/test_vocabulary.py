@@ -147,7 +147,7 @@ LISTS = {
     "settings.DEFAULT_THEME": "system",
     # v0.6.11: the nine new languages, less the two held until they mirror (l10n.HELD); v0.6.20: those two as well,
     # once the window was mirrored for them.
-    "settings.CONTINUATION_LANGUAGES": ("tuple", 20, "8e42a12e5bc99c26"),
+    "settings.CONTINUATION_LANGUAGES": ("tuple", 23, "251744644dbc6533"),
     # v0.6.11: the days quiet hours start on, and the tiers a conversation may have by default.
     "settings.QUIET_DAYS": ("tuple", 3, "b7883f3f9fa3397d"),
     "settings.TIERS": ("tuple", 4, "1020c428556c4555"),
@@ -158,10 +158,11 @@ LISTS = {
     # v0.6.11: nine more catalogs after pt-BR - ru, it, tr, pl, uk, vi, id, ar, he - of which ar and he
     # were held: registered and complete, never offered or reached, until every surface mirrored. v0.6.20
     # mirrored the last of them, the window (gui/SoftMirror.cs), and offers every catalog.
-    "l10n.LOCALES": ("tuple", 19, "a31c95219acbbd35"),
-    "l10n.OFFERED": ("tuple", 19, "a31c95219acbbd35"),
+    # v0.6.23: Persian, Czech, Hungarian and Thai.
+    "l10n.LOCALES": ("tuple", 22, "eeadbea164d88705"),
+    "l10n.OFFERED": ("tuple", 22, "eeadbea164d88705"),
     "l10n.HELD": ("set", 0, "4f53cda18c2baa0c"),
-    "l10n.CHOICES": ("tuple", 20, "676f4eef3ff97f4f"),
+    "l10n.CHOICES": ("tuple", 23, "6acc82fc1af7c688"),
     "l10n.SYSTEM": "system",
     "l10n.DEFAULT": "en",
     "compat.STATES": ("tuple", 6, "17f36047142c2622"),

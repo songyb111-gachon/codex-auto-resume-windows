@@ -89,6 +89,7 @@ _LANGUAGE_HOME = {
     "es": "es", "de": "de", "fr": "fr", "pt": "pt-BR",
     "ru": "ru", "it": "it", "tr": "tr", "pl": "pl", "uk": "uk", "vi": "vi",
     "id": "id", "in": "id", "ar": "ar", "he": "he", "iw": "he", "fa": "fa",
+    "cs": "cs", "hu": "hu", "th": "th",
 }
 
 # Chinese is chosen by script, not by country, and Windows may say either. Simplified
@@ -264,6 +265,9 @@ ENDONYMS = {
     "ar": "العربية",
     "he": "עברית",
     "fa": "فارسی",
+    "cs": "Čeština",
+    "hu": "Magyar",
+    "th": "ไทย",
 }
 
 
