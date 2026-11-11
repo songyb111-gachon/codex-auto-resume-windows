@@ -60,14 +60,21 @@ class SourceTests(unittest.TestCase):
         # After the first snapshot and the Settings editors, never while an action runs or the window has just had input.
         self.assertIn("if (snapshot == null || !settingsRead || pendingSchema != null || buildQueued) return true;", step)
         self.assertIn("prepareInput.Since < PrepareAfterInputMilliseconds", step)
-        for part in ("page.Bounds = pageHost.DisplayRectangle;", "IntPtr made = page.Handle;", "Materialise(page);",
+        # v0.6.23 (the live acceptance): built, then written (WriteIfStale), then its controls made a slice at a time
+        # (MakeSome, in Materialise's order), each a turn of its own.
+        for part in ("page.Bounds = pageHost.DisplayRectangle;", "WriteIfStale(preparing);", "if (MakeSome(page)) prepareStep = 3;",
                      "page.PerformLayout();", 'if (preparing == "statistics") LoadStatistics();',
                      'if (preparing == "diagnostics") LoadCompatibility();'):
             self.assertIn(part, step)
         self.assertIn("if (page == null || Soft.OwnVisible(page))", step, "a page on screen is left as it is")
+        self.assertLess(step.index("page.Bounds = pageHost.DisplayRectangle;"), step.index("WriteIfStale(preparing);"))
+        self.assertLess(step.index("WriteIfStale(preparing);"), step.index("if (MakeSome(page)) prepareStep = 3;"))
         # Its own reads' answers written, what they added is made and laid out too.
-        self.assertEqual(step.count("Materialise(page);"), 2)
-        self.assertIn("else if (!loadingStats && !loadingCompat && bridge.InFlight == 0)", step)
+        self.assertIn("if (MakeSome(page)) prepareStep = 6;", step)
+        self.assertIn("if (!loadingStats && !loadingCompat && bridge.InFlight == 0) prepareStep = 5;", step)
+        make = guiscan.member_body("SettingsForm", "MakeSome")
+        self.assertIn("while (prepareMake.Count > 0 && slice.ElapsedMilliseconds < PrepareSliceMilliseconds)", make)
+        self.assertIn("if (next.IsDisposed || next.Handle == IntPtr.Zero) continue;", make)
         # Built by the very function a click builds it with, so it is the same page with the same snapshot.
         built = guiscan.member_body("SettingsForm", "PreparedPage")
         self.assertIn("return PageFor(name);", built)

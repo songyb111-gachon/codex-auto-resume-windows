@@ -487,13 +487,18 @@ namespace CodexAutoResume
         }
 
         /// v0.6.23: the page made ready ahead of its first visit, once this edition has answered with its words, as the
-        /// standard pages are (PrepareNext); never while it is the page on screen.
+        /// standard pages are (PrepareNext); never while it is the page on screen. Not while AdvancedReadyAhead is false:
+        /// built ahead, the open feature's cards came in one turn of 480-630 ms on an installation that had run for months
+        /// (the live acceptance, 2026-11-11), which no step of making a page ready may take; built on the click as before.
         partial void EditionPageNamed(List<string> prepared, ref string name)
         {
+            if (!AdvancedReadyAhead) return;
             if (name == null && advancedWords != null && currentPage != AdvancedPageName && !prepared.Contains(AdvancedPageName) &&
                 (advancedPage == null || !advancedPage.IsHandleCreated))
                 name = AdvancedPageName;
         }
+
+        private static readonly bool AdvancedReadyAhead = false;
 
         partial void EditionPageFor(string name, ref Control page)
         {
