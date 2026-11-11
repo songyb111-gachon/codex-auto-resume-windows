@@ -374,8 +374,14 @@ namespace CodexAutoResume
         /// Builds the Settings editors once the first screen is up, when the window did not open on
         /// Settings. They took 0.7-1.2 s of the window's own thread before its first paint, for a
         /// page nobody had asked to see yet; now the header and the first page are painted first,
-        /// and the editors are built the next time nothing else is waiting. Switching to Settings
-        /// before then builds them at once (ShowPage).
+        /// and the editors are built the next times nothing else is waiting. Switching to Settings
+        /// before then builds what is left at once (ShowPage).
+        ///
+        /// v0.6.23 (the owner, 2026-11-11): a step a turn (EditorSteps), never all in one. Built in one turn they held
+        /// the window - its light, a hover, a click - for 570-1080 ms after it opened (measured 2026-11-11), the longest
+        /// turn it took; in steps of about EditorSliceMilliseconds the same editors are built in the same order, each
+        /// step letting whatever waits go first. Until the last step `buildQueued` stays set, so everything that waits
+        /// for the editors (Settled, the pages made ready ahead) waits for all of them.
         private void BuildEditorsLater()
         {
             if (pendingSchema == null || !shown || buildQueued || auditing) return;
@@ -383,25 +389,51 @@ namespace CodexAutoResume
             EventHandler idle = null;
             idle = delegate
             {
+                if (!IsDisposed && BuildEditorsStep()) return;
                 Application.Idle -= idle;
                 buildQueued = false;
-                if (!IsDisposed) BuildPendingEditors();
             };
             Application.Idle += idle;
         }
 
+        /// Builds what is left of the editors, all of it, now: the settings read, a Save or a switch to Settings.
         private void BuildPendingEditors()
         {
-            if (pendingSchema == null) return;
-            BuildEditors(pendingSchema, pendingSettings);
+            while (BuildEditorsStep()) { }
         }
 
+        /// One step of building the editors; true while there are more. Settings read again since the build began
+        /// (pendingSchema, which its first step takes) start it again from the beginning, as a build of them would.
+        private bool BuildEditorsStep()
+        {
+            if (pendingSchema != null) editorSteps = EditorSteps(pendingSchema, pendingSettings);
+            if (editorSteps == null) return false;
+            if (editorSteps.MoveNext()) return true;
+            editorSteps = null;
+            return false;
+        }
+
+        // The build of the editors under way, a step at a time (EditorSteps), or null; and about how long a step takes.
+        private IEnumerator<bool> editorSteps;
+        private const int EditorSliceMilliseconds = 30;
+
         private void BuildEditors(List<object> schema, Dictionary<string, object> current)
+        {
+            editorSteps = EditorSteps(schema, current);
+            while (editorSteps.MoveNext()) { }
+            editorSteps = null;
+        }
+
+        /// The Settings editors built, in steps: each `yield` hands the window's thread back between two of them, after
+        /// the General cards and the groups, every EditorSliceMilliseconds through the schema's fields, before the
+        /// Continuation cards and before the page is laid out. The order of everything built is the one a single build
+        /// had; only when it is built changes.
+        private IEnumerator<bool> EditorSteps(List<object> schema, Dictionary<string, object> current)
         {
             // Whatever was waiting to be built is this, or older than this.
             pendingSchema = null;
             pendingSettings = null;
-            if (schema == null || current == null) { ReloadFailed(null); return; }
+            if (schema == null || current == null) { ReloadFailed(null); yield break; }
             columns.SuspendLayout();
             foreach (TableLayoutPanel stack in sections.Values)
             {
@@ -463,7 +495,9 @@ namespace CodexAutoResume
             limits.Controls.Add(HelpText(S("help.limits", "Sets how hard recovery tries before it stops and leaves the task to you.")));
             // v0.6.15-beta: the Codex homes watched, after the limits - never an editor (SettingsHomes.cs).
             BuildHomes(sections["advanced"]);
+            yield return true;
 
+            var slice = Stopwatch.StartNew();
             CheckBox master = null;
             var subordinate = new List<CheckBox>();
             // v0.6.11: When a conversation needs you, and what is told only while it is on (NeedsYouPart).
@@ -662,6 +696,11 @@ namespace CodexAutoResume
                         host.Controls.Add(HelpText(S("help.context_guard",
                             "Codex's own count, read when an interruption is detected, where Codex keeps one. Show them in Pending puts the count beside the task; a Hold choice also keeps a task whose conversation has used more waiting until you let it continue. Nothing is read while this is Off. For interruptions detected from then on.")));
                 }
+                if (slice.ElapsedMilliseconds >= EditorSliceMilliseconds)
+                {
+                    yield return true;
+                    slice.Restart();
+                }
             }
             UpdateRetryPreview();
             UpdateHighLimits();
@@ -682,8 +721,10 @@ namespace CodexAutoResume
                 if (told != null) told.CheckedChanged += follow;
                 follow(governing, EventArgs.Empty);
             }
+            yield return true;
 
             BuildContinuation(fields, current, words, preview);
+            yield return true;
 
             columns.ResumeLayout(true);
             ShowSection(currentSection);

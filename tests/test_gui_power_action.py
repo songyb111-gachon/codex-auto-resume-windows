@@ -55,7 +55,8 @@ class PlaceTests(unittest.TestCase):
         self.assertIn(CARD, guiscan.group("settings"))
 
     def test_it_is_built_right_after_notifications_and_is_the_last_card_of_general(self):
-        build = body("BuildEditors")
+        # v0.6.23: the build is EditorSteps, a step a turn (BuildEditors runs every step at once).
+        build = body("EditorSteps")
         notifications = build.index('NewGroup(S("group.notifications", "Notifications"), sections["general"])')
         power = build.index('BuildPower(sections["general"]);')
         self.assertLess(notifications, power)
