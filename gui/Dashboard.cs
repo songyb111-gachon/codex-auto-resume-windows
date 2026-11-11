@@ -1421,6 +1421,8 @@ namespace CodexAutoResume
         private void ShowPage(string name)
         {
             if (Array.IndexOf(PageOrder, name) < 0) name = "overview";
+            // v0.6.23 (round 5): what making it ready ahead holds of it let go first, innermost first, as it would be.
+            if (preparing == name) LetGoAll();
             currentPage = name;
             bool settings = name == "settings";
             // Settings asked for before its editors were built on idle: built now, before it shows.
@@ -1641,7 +1643,13 @@ namespace CodexAutoResume
             if (prepareStep == 0)
             {
                 // Built (PreparedPage), and the room the page host will give it once shown, so it is never laid out
-                // narrower first.
+                // narrower first. Everything in it that lays others out held from now (round 5), so that its room, what
+                // is written into it and what its reads add lay nothing out; let go a few at a time, innermost first, at
+                // the end (LetGoSome) - as ShowPage lets a page go when it shows. Settings' room took 140-290 ms in one
+                // turn, Diagnostics' compatibility answer 300-500, at that size.
+                prepareHeld = HoldWithin(page);
+                page.SuspendLayout();
+                prepareHeld.Insert(0, page);
                 page.Bounds = pageHost.DisplayRectangle;
                 prepareStep = 1;
             }
@@ -1658,14 +1666,12 @@ namespace CodexAutoResume
             }
             else if (prepareStep == 3)
             {
-                page.PerformLayout();
                 // What it reads on each visit that the snapshot does not hold, read once now, so its first visit finds it
                 // there as every later visit does; the visit reads it again (ShowPage).
                 bool reads = preparing == "statistics" || preparing == "diagnostics";
                 if (preparing == "statistics") LoadStatistics();
                 if (preparing == "diagnostics") LoadCompatibility();
-                if (reads) prepareStep = 4;
-                else Prepared();
+                prepareStep = reads ? 4 : 6;
             }
             else if (prepareStep == 4)
             {
@@ -1676,12 +1682,49 @@ namespace CodexAutoResume
             {
                 if (MakeSome(page)) prepareStep = 6;
             }
+            else if (prepareStep == 6)
+            {
+                if (LetGoSome()) prepareStep = 7;
+            }
             else
             {
                 page.PerformLayout();
                 Prepared();
             }
             return true;
+        }
+
+        // What the page being made ready holds from laying itself out, outermost first, the page itself first of all
+        // (PrepareNext); null when nothing is held.
+        private List<Control> prepareHeld;
+
+        /// Lets what the page being made ready holds lay itself out, innermost first, until PrepareSliceMilliseconds have
+        /// gone; the page itself last, on a turn of its own. True once all are let go.
+        private bool LetGoSome()
+        {
+            if (prepareHeld == null) return true;
+            var slice = Stopwatch.StartNew();
+            int let = 0;
+            while (prepareHeld.Count > 1 && slice.ElapsedMilliseconds < PrepareSliceMilliseconds)
+            {
+                Control last = prepareHeld[prepareHeld.Count - 1];
+                prepareHeld.RemoveAt(prepareHeld.Count - 1);
+                if (!last.IsDisposed) last.ResumeLayout(true);
+                let++;
+            }
+            if (let > 0) return false;
+            LetGoAll();
+            return true;
+        }
+
+        /// Lets everything the page being made ready holds go at once, innermost first: as it is shown, or given up.
+        private void LetGoAll()
+        {
+            if (prepareHeld == null) return;
+            List<Control> held = prepareHeld;
+            prepareHeld = null;
+            for (int i = held.Count - 1; i >= 0; i--)
+                if (!held[i].IsDisposed) held[i].ResumeLayout(true);
         }
 
         /// Makes the native controls of `page` not yet made - each before the controls in it, siblings in their order, as
@@ -1708,6 +1751,7 @@ namespace CodexAutoResume
 
         private void Prepared()
         {
+            LetGoAll();
             if (preparing != null && !preparedPages.Contains(preparing)) preparedPages.Add(preparing);
             preparing = null;
             prepareStep = 0;
