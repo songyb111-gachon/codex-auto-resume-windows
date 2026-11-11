@@ -1,6 +1,6 @@
 {
   "action.cancel": "Mégse",
-  "action.cancel_all": "Összes megszakítása",
+  "action.cancel_all": "Összes elvetése",
   "action.check_updates": "Frissítések keresése...",
   "action.clear_history": "Előzmények törlése",
   "action.close": "Bezárás",
@@ -46,8 +46,8 @@
   "action.search_logs": "Keresés a naplóban...",
   "action.start": "Figyelő indítása",
   "action.stop_watcher": "Figyelő leállítása",
-  "action.thread_off": "Kikapcsolás ennél a beszélgetésnél",
-  "action.thread_on": "Bekapcsolás ennél a beszélgetésnél",
+  "action.thread_off": "Beszélgetés kikapcsolása",
+  "action.thread_on": "Beszélgetés bekapcsolása",
   "action.timeline": "Idővonal",
   "activity.attention": "Beavatkozást igényel",
   "activity.checking": "Ellenőrzés",
