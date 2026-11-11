@@ -1,5 +1,34 @@
 # Changelog
 
+## v0.6.23-beta.2 — Four more languages: Persian, Czech, Hungarian and Thai, pages that open quickly the first time, and a Finish page that keeps the shortcut you already have
+
+[The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.23-beta...v0.6.23-beta.2)
+
+**A pre-release: the second of v0.6.23.** It is a GitHub pre-release, so `releases/latest` stays v0.6.22. An installation is offered it
+by *Check for updates* where pre-releases are offered - the check asks first and says it is tested less - and *Install another
+version...* lists it, in the edition you pick. It carries everything v0.6.23-beta carried, and adds what follows. Everything below
+reaches both editions.
+
+**Going back.** Nothing that an earlier version reads changes: the watcher's state stays schema 5, the settings file gains no key and the
+advanced edition's own file stays version 9. An earlier version does not ship the four new languages, so where one of them was picked
+it falls back to English, as it does for any language it does not ship, until another is picked.
+
+### Both editions
+
+- **Four more interface languages, twenty-two in all.** Persian (فارسی), from a pull request
+  ([@Amin-Tgz](https://github.com/Amin-Tgz), [#63](https://github.com/songyb111-gachon/codex-auto-resume-windows/pull/63)); Czech
+  (Čeština), Hungarian (Magyar) and Thai (ไทย). Persian is written right to left on every surface, as Arabic and Hebrew are, drawn in
+  Segoe UI with its numbers in 0-9; Thai is drawn in Leelawadee UI, the face Windows sets Thai in. A Windows set to one of the four picks
+  it on its own. The advanced edition's own words are in all four as well.
+- **Pages open quickly the first time.** A Dashboard page used to take up to about 1.4 seconds the first time its tab was pressed
+  (Diagnostics; Settings up to about 0.8 seconds). The pages are now made ready while the window is idle, so the first press shows a
+  page in about a tenth of a second, as the second press always did. The Settings page's fields are made in short steps after the window
+  opens, so the window does not stand still for half a second. Nothing on screen looks different. The numbers are one PC's, measured
+  on 2026-11-11: read them as "about", not as a promise.
+- **The setup program's Finish page keeps the shortcut you already have.** Where the installation's shortcut is already on the desktop,
+  its box reads *Keep the shortcut on the desktop* and is ticked; unticking it removes the shortcut, as before. Where there is none, it
+  reads *Add a shortcut to the desktop* and is off, as before.
+
 ## v0.6.23-beta — Archives more than a quarter smaller, controls that glide between their states, room for longer messages and waits, the code made ready for Python 3.15, and the advanced edition's choice of another Python
 
 [The commits in this pre-release](https://github.com/songyb111-gachon/codex-auto-resume-windows/compare/v0.6.22...v0.6.23-beta)
