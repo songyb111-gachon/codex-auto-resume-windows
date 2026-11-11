@@ -152,7 +152,9 @@ class PointTests(unittest.TestCase):
                                  # v0.6.20: the header's light while a chat message is on its way.
                                  "HeroTold": "gui/Dashboard.cs",
                                  # v0.6.22: what the Overview keeps under its rows of cards.
-                                 "OverviewRoomAsked": "gui/Dashboard.cs"})
+                                 "OverviewRoomAsked": "gui/Dashboard.cs",
+                                 # v0.6.23: the edition's page made ready ahead of its first visit, as the standard ones.
+                                 "EditionPageNamed": "gui/Dashboard.cs", "EditionPageFor": "gui/Dashboard.cs"})
         # No other shape of partial method: one with a body in a standard source would be
         # compiled into the standard window, which is the whole thing this rules out.
         whole = guiscan.whole()
@@ -175,7 +177,9 @@ class PointTests(unittest.TestCase):
                                  # and Pending as one list.
                                  "ListRowsJoined": 1, "PendingButtonsBuilt": 1, "HistoryButtonsBuilt": 1,
                                  "PendingButtonsUpdated": 1, "HistoryButtonsUpdated": 1, "EditionRowOpened": 1,
-                                 "ClearHistoryPressed": 1, "HeroTold": 1, "OverviewRoomAsked": 1})
+                                 "ClearHistoryPressed": 1, "HeroTold": 1, "OverviewRoomAsked": 1,
+                                 # v0.6.23: the edition's page made ready ahead (NextToPrepare, PreparedPage).
+                                 "EditionPageNamed": 1, "EditionPageFor": 1})
 
 
 def copy_window(target: Path) -> Path:
@@ -261,7 +265,8 @@ class WindowTests(unittest.TestCase):
         # point, declared once and called once (Cells). v0.6.16: RenderStateNamed - the page the render mode draws - is
         # the seventh, declared once and called once.
         # v0.6.20: HeroTold - the header's light while a chat message is on its way - the seventeenth, called once.
-        self.assertEqual(self.cut_lines, 18 + 20, "eighteen declarations and twenty calls")
+        # v0.6.23: EditionPageNamed and EditionPageFor - the edition's page made ready ahead - declared and called once each.
+        self.assertEqual(self.cut_lines, 20 + 22, "twenty declarations and twenty-two calls")
         self.assertEqual(self.standard, (self.work / "without" / WINDOW).read_bytes())
         self.assertEqual((self.work / "standard" / LAUNCHER).read_bytes(),
                          (self.work / "without" / LAUNCHER).read_bytes())
