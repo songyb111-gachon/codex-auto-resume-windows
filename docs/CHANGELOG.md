@@ -109,6 +109,15 @@ uses, or English where that version does not ship it - and *Same as the interfac
   *Let it continue*, *How this conversation resumes* and the project items, it now has *Message for this conversation...*, *Add words
   for this time...* (*Change words for this time...* where words are already set) and *Remove words for this time*. The ones that write
   open the Dashboard on its Pending page with that task's own dialog.
+- **Every translation was read again** (new since beta.2). All twenty-two languages, both editions, were read against English and
+  mended where they had drifted: in some languages the words a queued message sends were said to be deleted from this PC where they
+  leave it, the status page's token was said to need no separate sending where the address keeps it from the server, a digest made
+  with a key was called encrypted, and a few safety statements said reset or resume where they mean recovery. Each language now uses
+  one word for the watcher, recovery, the Dashboard and a turn throughout.
+- **Right to left, a date keeps its order** (new since beta.2). In Arabic, Hebrew and Persian a date, a time or a version inside a
+  sentence of the popup or a notice reads in its own order; the popup's two reset dates no longer read one of them backwards.
+- **A refresh rewrites only the page on screen** (new since beta.2). Pages out of sight are brought up to date as they are shown, and a
+  tab pressed while the window is still making pages ready is built at once.
 - **The roadmap moves the Rust core to v0.6.25 and its audit to v0.6.26** (new since beta.2). v0.6.24 becomes a second round of
   audits over the finished code, with the review of which advanced capabilities the standard edition could take and the switch of the
   bundled Python to 3.15 if CPython 3.15.3 is out by then. Rule 0.7 of *docs/STANDARDS.md* names the new number, the owner's
@@ -156,6 +165,11 @@ uses, or English where that version does not ship it - and *Same as the interfac
   continuation, not for one that sends nothing; the power tasks and saved accounts cards keep the rows you ticked when a re-read
   changes the list; a picture a killed window left in the temporary folder is swept when the editor opens; the editor's thumbnails are
   drawn in the design; and the saved accounts' Korean help line speaks to you as its sibling does.
+- **Run on another Python version offers a release it can use** (new since beta.2). For each version it offers the newest release
+  python.org publishes with a Windows embeddable package: 3.13, whose newest releases are now source-only security releases, is
+  offered as its last such release, and a version with none is named on the card. A start under a chosen Python that is slow but
+  healthy is no longer taken back: the Dashboard's wait is counted as the launcher's own is. Its card's limits line says its own
+  sentence; it and four other cards had shown another capability's.
 
 ## v0.6.23-beta.2 — Four more languages: Persian, Czech, Hungarian and Thai, pages that open quickly the first time, and a Finish page that keeps the shortcut you already have
 
