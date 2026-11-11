@@ -336,10 +336,12 @@ namespace CodexAutoResume
         }
 
         /// The face Windows sets each language with a script face of its own in, on a Windows set to that language
-        /// (v0.6.17, #48; typeface.SCRIPT_FACES, the popup's, the card's and the panel's table too).
+        /// (v0.6.17, #48; typeface.SCRIPT_FACES, the popup's, the card's and the panel's table too). Thai (v0.6.23) is set
+        /// in Leelawadee UI, as Windows sets it: Segoe UI has no Thai letters.
         internal static readonly Dictionary<string, string> ScriptFaces = new Dictionary<string, string>
         {
             { "ko", "Malgun Gothic" }, { "ja", "Yu Gothic UI" }, { "zh-CN", "Microsoft YaHei UI" }, { "zh-TW", "Microsoft JhengHei UI" },
+            { "th", "Leelawadee UI" },
         };
 
         /// Whether this machine has the face `family` itself (typeface.installed): GDI+ refuses a family it does not have.

@@ -604,7 +604,8 @@ class StyleTests(unittest.TestCase):
     def test_the_shared_type_stack(self):
         self.assertIn('system-ui, "Segoe UI Variable Text", "Segoe UI", "Malgun Gothic", "Yu Gothic UI",',
                       mcpui._STYLE)
-        self.assertIn('"Microsoft YaHei UI", "Microsoft JhengHei UI", sans-serif', mcpui._STYLE)
+        # v0.6.23: and Thai's face, which a browser takes Thai letters from as GDI takes them through a font link.
+        self.assertIn('"Microsoft YaHei UI", "Microsoft JhengHei UI", "Leelawadee UI", sans-serif', mcpui._STYLE)
 
     def test_focus_is_drawn_for_the_keyboard_only(self):
         self.assertNotRegex(mcpui._STYLE, r"(?<!-)\b:focus\s*\{[^}]*outline:\s*2px")
