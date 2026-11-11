@@ -538,130 +538,136 @@ namespace CodexAutoResume
         private void ApplySnapshot(Dictionary<string, object> reply)
         {
             snapshot = reply;
-            var status = Map(reply, "status");
-            // Only the pages built so far have anything to write to. A page built later is handed
-            // this same snapshot when it is (PageFor), so every part below checks for its page.
-            if (status != null)
+            // v0.6.23: written with every page's layout held, and each page laid out once after (HoldPages).
+            List<Control> held = HoldPages();
+            try
             {
-                ApplyStatus(status, null);
-                var watcher = Map(status, "watcher");
-                bool enabled = Equals(Get(status, "enabled"), true);
-                shownEnabled = enabled;
-                bool upgrade = Equals(Get(status, "upgrade_pending"), true);
-                // v0.6.11: the administrator's policy keys in force, by name (managed.py); none, and
-                // the status carries no list and nothing below says anything it did not.
-                var managed = new List<string>();
-                foreach (object code in Items(status, "managed") ?? new List<object>())
-                    if (code is string) managed.Add((string)code);
-                updatesManaged = managed.Contains("DisableUpdateCheck");
-                // v0.6.11: observe only is on, but nothing is sent - said where on is.
-                string recovery = !enabled ? (managed.Contains("DisableAutoResume")
-                                              ? S("overview.off_managed", "paused by your administrator")
-                                              : S("overview.off", "paused"))
-                                : Equals(Get(status, "observe_only"), true) ? S("overview.observe_only", "observe only")
-                                : S("overview.on", "on");
-                // and that some settings are an administrator's, said after whatever the state is.
-                if (managed.Count > 0 && !(!enabled && managed.Contains("DisableAutoResume")))
-                    recovery = S("overview.managed", "{state} · managed by your administrator", "state", recovery);
-                object running = Get(status, "watcher_running");
-                string watcherText = running == null ? S("diag.unknown", "unknown")
-                                   : !Equals(running, true) ? StoppedText(watcher, false)
-                                   : Equals(Get(watcher, "ticking"), false) ? S("diag.not_responding", "not responding")
-                                   : S("diag.running", "running");
-                // Diagnostics says a stop with when; Right now without it (StoppedText).
-                string watcherFull = running != null && !Equals(running, true) ? StoppedText(watcher, true) : watcherText;
-                string engine = Str(watcher, "engine_state") ?? "unknown";
-                string engineText = S("engine." + engine, engine);
-                double last = Number(watcher, "last_tick_at");
-                // v0.6.11: under what is waiting, the last usage reading - and before it that the watcher keeps this PC
-                // awake while a task waits - in one line, whole in its tooltip and on Diagnostics (WaitingLine).
-                ShowWaitingLine(WaitingLine(watcher, running));
-                if (nowRecovery != null)
+                var status = Map(reply, "status");
+                // Only the pages built so far have anything to write to. A page built later is handed
+                // this same snapshot when it is (PageFor), so every part below checks for its page.
+                if (status != null)
                 {
-                    nowRecovery.Text = recovery;
-                    nowWatcher.Text = watcherText;
-                    nowEngine.Text = engineText;
-                    nowLastCheck.Text = Ago(last);
+                    ApplyStatus(status, null);
+                    var watcher = Map(status, "watcher");
+                    bool enabled = Equals(Get(status, "enabled"), true);
+                    shownEnabled = enabled;
+                    bool upgrade = Equals(Get(status, "upgrade_pending"), true);
+                    // v0.6.11: the administrator's policy keys in force, by name (managed.py); none, and
+                    // the status carries no list and nothing below says anything it did not.
+                    var managed = new List<string>();
+                    foreach (object code in Items(status, "managed") ?? new List<object>())
+                        if (code is string) managed.Add((string)code);
+                    updatesManaged = managed.Contains("DisableUpdateCheck");
+                    // v0.6.11: observe only is on, but nothing is sent - said where on is.
+                    string recovery = !enabled ? (managed.Contains("DisableAutoResume")
+                                                  ? S("overview.off_managed", "paused by your administrator")
+                                                  : S("overview.off", "paused"))
+                                    : Equals(Get(status, "observe_only"), true) ? S("overview.observe_only", "observe only")
+                                    : S("overview.on", "on");
+                    // and that some settings are an administrator's, said after whatever the state is.
+                    if (managed.Count > 0 && !(!enabled && managed.Contains("DisableAutoResume")))
+                        recovery = S("overview.managed", "{state} · managed by your administrator", "state", recovery);
+                    object running = Get(status, "watcher_running");
+                    string watcherText = running == null ? S("diag.unknown", "unknown")
+                                       : !Equals(running, true) ? StoppedText(watcher, false)
+                                       : Equals(Get(watcher, "ticking"), false) ? S("diag.not_responding", "not responding")
+                                       : S("diag.running", "running");
+                    // Diagnostics says a stop with when; Right now without it (StoppedText).
+                    string watcherFull = running != null && !Equals(running, true) ? StoppedText(watcher, true) : watcherText;
+                    string engine = Str(watcher, "engine_state") ?? "unknown";
+                    string engineText = S("engine." + engine, engine);
+                    double last = Number(watcher, "last_tick_at");
+                    // v0.6.11: under what is waiting, the last usage reading - and before it that the watcher keeps this PC
+                    // awake while a task waits - in one line, whole in its tooltip and on Diagnostics (WaitingLine).
+                    ShowWaitingLine(WaitingLine(watcher, running));
+                    if (nowRecovery != null)
+                    {
+                        nowRecovery.Text = recovery;
+                        nowWatcher.Text = watcherText;
+                        nowEngine.Text = engineText;
+                        nowLastCheck.Text = Ago(last);
+                    }
+                    if (diagVersion != null)
+                    {
+                        ShowVersion(diagVersion, status);
+                        diagWatcher.Text = watcherFull;
+                        diagEngine.Text = engineText;
+                        diagLastCheck.Text = Ago(last);
+                        // v0.6.11: the most private memory the watcher committed, in whole MB, rounded up (memguard.mib).
+                        double peak = Number(watcher, "memory_peak");
+                        diagMemory.Text = peak > 0 ? S("diag.memory_mb", "{n} MB", "n",
+                                                       Math.Ceiling(peak / (1024.0 * 1024.0)).ToString("0", CultureInfo.InvariantCulture))
+                                                   : "-";
+                        // Diagnostics names the keys themselves, as a person reads them in the registry.
+                        diagRecovery.Text = managed.Count > 0 ? recovery + " (" + string.Join(", ", managed.ToArray()) + ")" : recovery;
+                        if (updateButton != null) updateButton.Enabled = busy == 0 && !updatesManaged;
+                        if (versionsButton != null) versionsButton.Enabled = busy == 0 && !updatesManaged;
+                        if (updatesManaged) diagUpdate.Text = S("diag.update_managed", "turned off by your administrator");
+                        diagStartup.Text = Equals(Get(status, "startup_enabled"), true) ? S("diag.yes", "yes") : S("diag.no", "no");
+                        diagUpgrade.Text = upgrade ? S("diag.upgrade_pending", "An older watcher still owns the state") : "";
+                    }
                 }
-                if (diagVersion != null)
-                {
-                    ShowVersion(diagVersion, status);
-                    diagWatcher.Text = watcherFull;
-                    diagEngine.Text = engineText;
-                    diagLastCheck.Text = Ago(last);
-                    // v0.6.11: the most private memory the watcher committed, in whole MB, rounded up (memguard.mib).
-                    double peak = Number(watcher, "memory_peak");
-                    diagMemory.Text = peak > 0 ? S("diag.memory_mb", "{n} MB", "n",
-                                                   Math.Ceiling(peak / (1024.0 * 1024.0)).ToString("0", CultureInfo.InvariantCulture))
-                                               : "-";
-                    // Diagnostics names the keys themselves, as a person reads them in the registry.
-                    diagRecovery.Text = managed.Count > 0 ? recovery + " (" + string.Join(", ", managed.ToArray()) + ")" : recovery;
-                    if (updateButton != null) updateButton.Enabled = busy == 0 && !updatesManaged;
-                    if (versionsButton != null) versionsButton.Enabled = busy == 0 && !updatesManaged;
-                    if (updatesManaged) diagUpdate.Text = S("diag.update_managed", "turned off by your administrator");
-                    diagStartup.Text = Equals(Get(status, "startup_enabled"), true) ? S("diag.yes", "yes") : S("diag.no", "no");
-                    diagUpgrade.Text = upgrade ? S("diag.upgrade_pending", "An older watcher still owns the state") : "";
-                }
-            }
-            UpdateToggle();
+                UpdateToggle();
 
-            // A part that could not be read is shown as unreadable, never as empty. "Nothing
-            // is waiting" over a list that could not be read is the one wrong answer this page
-            // must not give - recoveries may well be waiting, and an older watcher may still
-            // be sending them.
-            string unreadable = UnreadableReason(status);
-            var week = Map(reply, "week");
-            if (weekDetected != null)
-            {
-                if (week != null)
+                // A part that could not be read is shown as unreadable, never as empty. "Nothing
+                // is waiting" over a list that could not be read is the one wrong answer this page
+                // must not give - recoveries may well be waiting, and an older watcher may still
+                // be sending them.
+                string unreadable = UnreadableReason(status);
+                var week = Map(reply, "week");
+                if (weekDetected != null)
                 {
-                    var outcomes = Map(week, "outcomes");
-                    weekDetected.Text = ((int)Number(week, "interruptions_detected")).ToString(CultureInfo.CurrentCulture);
-                    weekSent.Text = ((int)Number(week, "continuations_submitted")).ToString(CultureInfo.CurrentCulture);
-                    weekRecovered.Text = ((int)Number(outcomes, "recovered")).ToString(CultureInfo.CurrentCulture);
-                    weekSuccess.Text = Rate(week);
+                    if (week != null)
+                    {
+                        var outcomes = Map(week, "outcomes");
+                        weekDetected.Text = ((int)Number(week, "interruptions_detected")).ToString(CultureInfo.CurrentCulture);
+                        weekSent.Text = ((int)Number(week, "continuations_submitted")).ToString(CultureInfo.CurrentCulture);
+                        weekRecovered.Text = ((int)Number(outcomes, "recovered")).ToString(CultureInfo.CurrentCulture);
+                        weekSuccess.Text = Rate(week);
+                    }
+                    else
+                    {
+                        weekDetected.Text = weekSent.Text = weekRecovered.Text = weekSuccess.Text = "-";
+                    }
                 }
-                else
+                if (pendingList != null)
                 {
-                    weekDetected.Text = weekSent.Text = weekRecovered.Text = weekSuccess.Text = "-";
+                    if (Unreadable(reply, "pending")) ShowUnreadableList(pendingList, pendingEmpty, unreadable);
+                    else
+                    {
+                        FillList(pendingList, WithDemo(Items(reply, "pending"), demoPending, false), true);
+                        pendingEmpty.Text = S("pending.empty", "Nothing is waiting");
+                        pendingEmpty.Visible = pendingList.Items.Count == 0;
+                    }
                 }
-            }
-            if (pendingList != null)
-            {
-                if (Unreadable(reply, "pending")) ShowUnreadableList(pendingList, pendingEmpty, unreadable);
-                else
+                bool historyUnreadable = Unreadable(reply, "history");
+                if (historyList != null)
                 {
-                    FillList(pendingList, WithDemo(Items(reply, "pending"), demoPending, false), true);
-                    pendingEmpty.Text = S("pending.empty", "Nothing is waiting");
-                    pendingEmpty.Visible = pendingList.Items.Count == 0;
+                    if (historyUnreadable) ShowUnreadableList(historyList, historyEmpty, unreadable);
+                    else
+                    {
+                        FillList(historyList, WithDemo(Items(reply, "history"), demoHistory, true), false);
+                        historyEmpty.Text = S("history.empty", "No recoveries yet");
+                        historyEmpty.Visible = historyList.Items.Count == 0;
+                    }
                 }
-            }
-            bool historyUnreadable = Unreadable(reply, "history");
-            if (historyList != null)
-            {
-                if (historyUnreadable) ShowUnreadableList(historyList, historyEmpty, unreadable);
-                else
+                if (recentGrid != null)
                 {
-                    FillList(historyList, WithDemo(Items(reply, "history"), demoHistory, true), false);
-                    historyEmpty.Text = S("history.empty", "No recoveries yet");
-                    historyEmpty.Visible = historyList.Items.Count == 0;
+                    if (historyUnreadable) ClearRecent(unreadable);
+                    else FillRecent(Items(reply, "history"));
                 }
+                // A Retry now note belongs to one record; once that record has left Pending -
+                // sent, finished or cancelled - the note no longer describes anything on screen.
+                if (pendingNoteFor != null && pendingNoteFor != BulkNote && pendingList != null && !Contains(pendingList, pendingNoteFor))
+                    pendingNoteFor = null;
+                ShowPendingNote();
+                ShowExplain();
+                UpdateCountdowns();
+                UpdatePendingButtons();
+                UpdateHistoryButtons();
+                SnapshotApplied(reply);
             }
-            if (recentGrid != null)
-            {
-                if (historyUnreadable) ClearRecent(unreadable);
-                else FillRecent(Items(reply, "history"));
-            }
-            // A Retry now note belongs to one record; once that record has left Pending -
-            // sent, finished or cancelled - the note no longer describes anything on screen.
-            if (pendingNoteFor != null && pendingNoteFor != BulkNote && pendingList != null && !Contains(pendingList, pendingNoteFor))
-                pendingNoteFor = null;
-            ShowPendingNote();
-            ShowExplain();
-            UpdateCountdowns();
-            UpdatePendingButtons();
-            UpdateHistoryButtons();
-            SnapshotApplied(reply);
+            finally { LayOutHeld(held); }
         }
 
         /// Whether one part of a snapshot came back as an error rather than as data.

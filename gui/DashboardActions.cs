@@ -1241,8 +1241,14 @@ namespace CodexAutoResume
                         return;
                     }
                     if (mine != statsToken) return;
-                    if (Ok(reply)) ApplyStatistics(Map(reply, "result"));
-                    else MarkStatisticsUnavailable();
+                    // v0.6.23: written with the pages' layout held, and laid out once after (HoldPages).
+                    List<Control> held = HoldPages();
+                    try
+                    {
+                        if (Ok(reply)) ApplyStatistics(Map(reply, "result"));
+                        else MarkStatisticsUnavailable();
+                    }
+                    finally { LayOutHeld(held); }
                 };
                 try { if (IsHandleCreated && !IsDisposed) BeginInvoke(apply); }
                 catch (Exception) { loadingStats = false; statsAgain = false; }

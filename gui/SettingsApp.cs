@@ -923,6 +923,8 @@ namespace CodexAutoResume
                 Padding measured = InvisibleFrame();
                 if (measured != Padding.Empty) invisibleFrame = measured;
                 BuildEditorsLater();
+                // v0.6.23: the pages not yet shown made ready on the turns after, so a tab's first press is as quick as its next.
+                PreparePagesLater();
                 // Only a window build/capture_window.ps1 started, which says when it may be photographed.
                 WatchForStill();
                 // v0.6.16: an update from a setup program closes this window and opens it again on the new version.
