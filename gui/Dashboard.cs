@@ -1511,7 +1511,11 @@ namespace CodexAutoResume
                      : BuildOverview();
             page.Visible = false;
             pages[name] = page;
+            // v0.6.23 (round 5): put in the host without a layout of its own - hidden, it is laid out at the room it is
+            // given (PrepareNext) or as it is shown (ShowPage), and laid out here too it was laid out twice.
+            page.SuspendLayout();
             pageHost.Controls.Add(page);
+            page.ResumeLayout(false);
             // v0.6.23: a page built out of sight - made ready ahead - is only marked, and written when it is (Writes,
             // WriteIfStale): a whole snapshot written for it cost 100-300 ms on an installation that had run for months.
             if (snapshot != null && !Writes(name)) return page;
@@ -1622,6 +1626,10 @@ namespace CodexAutoResume
             // months (the live acceptance, 2026-11-11). A click in between writes it as it shows (ShowPage).
             // A page whose builder has steps is built a step a turn first (BuildSome).
             if (prepareStep == 0 && BuildSome(preparing)) return true;
+            // Put in the page host on a turn of its own, and given its room on the next (round 5: the two together took
+            // 260 ms for Diagnostics at that size).
+            bool joining = prepareStep == 0 && Array.IndexOf(PageOrder, preparing) >= 0 && preparing != "settings" &&
+                           !pages.ContainsKey(preparing);
             Control page = PreparedPage(preparing);
             if (page == null || Soft.OwnVisible(page))
             {
@@ -1629,6 +1637,7 @@ namespace CodexAutoResume
                 Prepared();
                 return true;
             }
+            if (joining) return true;
             if (prepareStep == 0)
             {
                 // Built (PreparedPage), and the room the page host will give it once shown, so it is never laid out
