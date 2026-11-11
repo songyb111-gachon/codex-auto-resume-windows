@@ -59,7 +59,7 @@
     "CI does not translate anything. A person decides what the Korean should say."
   ],
   "reviewed": {
-    "docs/CHANGELOG.md": "89481a9902238c0bcb9254500518cfdb9effec50a7b2c8d4b16d24247e96e96d",
+    "docs/CHANGELOG.md": "6c79cea88e56b38efc0f9665f18a9ee65bfafb252708aef637160437dfb79b18",
     "docs/CONTRIBUTING.md": "84e5240e311bca4843a9c8bee8ae80f13eb2edd6b30855a3d70f7ab32a0a3b0b",
     "docs/CONTRIBUTORS.md": "53e172af8cfbd19211241e79e22c60551d96be1218bab2fbc560eea6c9a73dee",
     "docs/PRIVACY.md": "c72564c26f18bfef90b15ac9c55b3e8ea62f15e6fdeef42f3abe0ec8cf94c2f6",
@@ -73,9 +73,9 @@
     "docs/VERIFY.md": "9fbf1a0ea966ee98450862d0ea5562b0b7291b77482f78e67145e88888a79dc0",
     "docs/FEATURE_MATRIX.md": "03ecb44336b5db49d688c327123396a4cf22deb132229d603cfb230c28407da4",
     "docs/LIVE_ACCEPTANCE.md": "af8c87ff3106a146cf11dec6b28dadb479e960b82729ad0eee8417c198bbf0ca",
-    "docs/ROADMAP.md": "7251a08ffdd35a936062d1f34aa44c59e41dcc3e44524c9a20744f45ba723988",
+    "docs/ROADMAP.md": "a73050680cc938214cb9bc241289d4da927bd292eb00d71d478d6cff6e7fc63a",
     "docs/GUIDE.md": "7b424474c31e486de49cef632d5af1baa77630d76664f473f43c4ff2c85421ec",
-    "docs/STANDARDS.md": "2d0e457378465fb2601a01370f4246479054d410a4bf316891e3f9c67bb47e5e",
+    "docs/STANDARDS.md": "b5362c7d056146be8e7b75e6311dea831cd4e69d904306059218a0872b96dd36",
     "docs/EDITIONS.md": "c0c500354731ccb731f04a7ada8e1f6f6ca17e0fe3f221cca533128950cee6e7"
   }
 }
