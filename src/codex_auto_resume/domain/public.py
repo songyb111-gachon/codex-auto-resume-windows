@@ -11,7 +11,7 @@ from .vocabulary import (Actor, EventCode, GateName, GateResult, HoldKind, HomeS
                          WithdrawReason)
 from .states import CLAIMED, IN_FLIGHT, OBSERVING, TERMINAL, WAITING, waiting_state
 # v0.6.19: whether a value is a conversation id, for a surface that puts one on a command line (ui/tray/dashboard.py).
-from .ids import is_uuid  # noqa: F401
+from .ids import is_interruption_id, is_uuid  # noqa: F401
 
 
 # ---------------------------------------------------------------------------- reasons

@@ -453,7 +453,7 @@ namespace CodexAutoResume
             Dictionary<string, object> row = RowForDialog(asked, rows, true);
             if (row == null) return;
             if (!auditing && IsHandleCreated && !IsWindowEnabled(Handle)) return;        // never under a dialog
-            pendingList.SelectedItems.Clear();
+            foreach (ListViewItem item in pendingList.Items) item.Selected = false;      // that row alone
             SelectRow(pendingList, Str(row, "interruption_id"));
             string dialog = asked.Substring(0, asked.IndexOf(':'));
             rowDialogOpened = dialog + ":" + Str(row, "interruption_id");

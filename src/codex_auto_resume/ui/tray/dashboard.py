@@ -6,7 +6,6 @@ here and why `tests/test_structural_invariants.py` names this path rather than t
 from __future__ import annotations
 
 from pathlib import Path
-import re
 import subprocess
 
 from ... import machine
@@ -22,8 +21,6 @@ PAGES = machine.PAGES
 # conversation... and Add (or Change) words for this time... - by the names its `--dialog=` argument takes
 # (gui/WindowReopen.cs RowDialogs). Like the page, nothing else may ever reach its command line.
 ROW_DIALOGS = ("message", "once_words")
-# An interruption id as the product makes one (domain/ids.py is_interruption_id): 64 lowercase hex digits, nothing round.
-_INTERRUPTION_ID = re.compile(r"[0-9a-f]{64}")
 
 
 def row_argument(row) -> str:
@@ -37,7 +34,7 @@ def row_argument(row) -> str:
         raise ValueError("not a row of the window") from None
     if dialog not in ROW_DIALOGS:
         raise ValueError("not a dialog of the window")
-    if not (isinstance(interruption_id, str) and _INTERRUPTION_ID.fullmatch(interruption_id)):
+    if not machine.is_interruption_id(interruption_id):
         raise ValueError("not a row of the window")
     if not machine.is_uuid(thread_id):
         raise ValueError("not a row of the window")
