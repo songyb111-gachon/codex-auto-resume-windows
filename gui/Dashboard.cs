@@ -1447,7 +1447,12 @@ namespace CodexAutoResume
                 // Coming back to the Overview: its Waiting lines, which the clock writes only while it is in front
                 // (UpdateCountdowns), written before it shows and so laid out with it.
                 if (name == "overview" && snapshot != null) UpdateCountdowns();
+                // v0.6.23: and everything in it that lays others out. Shown, each card, grid and row of the page asked for a
+                // layout of its own, outermost first, and each one's layout asked the one around it again: Diagnostics took
+                // 130-320 ms on every switch to it (measured 2026-11-11). Let go innermost first, each lays itself out once.
+                List<Control> inner = HoldWithin(page);
                 page.Visible = true;
+                LetGoWithin(inner);
                 if (section != null) section.ResumeLayout(true);
                 page.ResumeLayout(true);
                 pageHost.ResumeLayout(false);
@@ -1512,7 +1517,7 @@ namespace CodexAutoResume
         // before its page is ready builds it as it always did. What a page shows is read as it always was: a page made
         // ready ahead is handed the snapshot already held (PageFor), and its own reads wait for its first visit (ShowPage).
         private readonly List<string> preparedPages = new List<string>();
-        // The page being made ready and how far it has got: 0 not begun, 1 built, 2 its controls made.
+        // The page being made ready and how far it has got: 0 not begun, 1 built, 2 its controls made, 3 its own reads asked.
         private string preparing;
         private int prepareStep;
         private bool prepareQueued;
@@ -1575,13 +1580,22 @@ namespace CodexAutoResume
                 if (made != IntPtr.Zero) Materialise(page);
                 prepareStep = 2;
             }
-            else
+            else if (prepareStep == 2)
             {
                 page.PerformLayout();
                 // What it reads on each visit that the snapshot does not hold, read once now, so its first visit finds it
                 // there as every later visit does; the visit reads it again (ShowPage).
+                bool reads = preparing == "statistics" || preparing == "diagnostics";
                 if (preparing == "statistics") LoadStatistics();
                 if (preparing == "diagnostics") LoadCompatibility();
+                if (reads) prepareStep = 3;
+                else Prepared();
+            }
+            else if (!loadingStats && !loadingCompat && bridge.InFlight == 0)
+            {
+                // Those answers written: whatever they added made and laid out too.
+                Materialise(page);
+                page.PerformLayout();
                 Prepared();
             }
             return true;
@@ -1657,6 +1671,32 @@ namespace CodexAutoResume
         private static void LayOutHeld(List<Control> held)
         {
             foreach (Control page in held) page.ResumeLayout(true);
+        }
+
+        /// v0.6.23: every control in `root` that holds others, outermost first, each held from laying itself out
+        /// (LetGoWithin lets them go).
+        private static List<Control> HoldWithin(Control root)
+        {
+            var held = new List<Control>();
+            HoldWithin(root, held);
+            return held;
+        }
+
+        private static void HoldWithin(Control parent, List<Control> held)
+        {
+            foreach (Control child in parent.Controls)
+            {
+                if (child.Controls.Count == 0) continue;
+                child.SuspendLayout();
+                held.Add(child);
+                HoldWithin(child, held);
+            }
+        }
+
+        /// Lets go innermost first, each laid out once if anything asked it to be.
+        private static void LetGoWithin(List<Control> held)
+        {
+            for (int i = held.Count - 1; i >= 0; i--) held[i].ResumeLayout(true);
         }
 
         private Panel Page()
