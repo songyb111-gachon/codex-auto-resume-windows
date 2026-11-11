@@ -1638,6 +1638,27 @@ namespace CodexAutoResume
             return page;
         }
 
+        /// v0.6.23: every page in the page host held from laying itself out (LayOutHeld lets them go), while what they
+        /// show is written. Each line written asked its whole page for a layout of its own, card by card up to the page's
+        /// scrolling measure, and a page took them one by one: a snapshot with Diagnostics built cost 210 ms, and the first
+        /// compatibility read after Diagnostics was opened held the window 1.0-3.0 s (measured 2026-11-11). Laid out once
+        /// after, each page is laid out from the same text as before, so it is the same page.
+        private List<Control> HoldPages()
+        {
+            var held = new List<Control>();
+            foreach (Control page in pageHost.Controls)
+            {
+                page.SuspendLayout();
+                held.Add(page);
+            }
+            return held;
+        }
+
+        private static void LayOutHeld(List<Control> held)
+        {
+            foreach (Control page in held) page.ResumeLayout(true);
+        }
+
         private Panel Page()
         {
             var page = new SoftPage();

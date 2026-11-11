@@ -187,6 +187,14 @@ namespace CodexAutoResume
         private void ShowCompatibility()
         {
             if (compatOverall == null) return;
+            // v0.6.23: the page laid out once, after the card has been written (HoldPages).
+            List<Control> held = HoldPages();
+            try { WriteCompatibility(); }
+            finally { LayOutHeld(held); }
+        }
+
+        private void WriteCompatibility()
+        {
             Dictionary<string, object> view = compatLive ?? compatView;
             var shown = new List<string[]>();
             var notices = new List<string>();
