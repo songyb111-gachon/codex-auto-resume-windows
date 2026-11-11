@@ -408,12 +408,18 @@ namespace CodexAutoResume
         /// tooltip - and whole on Diagnostics, "-" there when there is none.
         private void ShowWaitingLine(string whole)
         {
-            if (usageLine != null)
+            ShowWaitingLine(whole, true, true);
+        }
+
+        /// v0.6.23: the line on the Overview (`overview`) and on Diagnostics (`diagnostics`), either or both.
+        private void ShowWaitingLine(string whole, bool overview, bool diagnostics)
+        {
+            if (usageLine != null && overview)
             {
                 usageLine.Text = whole;
                 if (lineTip != null) lineTip.SetToolTip(usageLine, whole.Length > 0 ? whole : null);
             }
-            if (diagWaiting != null) diagWaiting.Text = whole.Length > 0 ? whole : "-";
+            if (diagWaiting != null && diagnostics) diagWaiting.Text = whole.Length > 0 ? whole : "-";
         }
 
         /// A weekly window the last reading found used up, with the day and time it resets - what a usage limit then waits
@@ -579,15 +585,16 @@ namespace CodexAutoResume
                     double last = Number(watcher, "last_tick_at");
                     // v0.6.11: under what is waiting, the last usage reading - and before it that the watcher keeps this PC
                     // awake while a task waits - in one line, whole in its tooltip and on Diagnostics (WaitingLine).
-                    ShowWaitingLine(WaitingLine(watcher, running));
-                    if (nowRecovery != null)
+                    ShowWaitingLine(WaitingLine(watcher, running), usageLine != null && Writes("overview"),
+                                    diagWaiting != null && Writes("diagnostics"));
+                    if (nowRecovery != null && Writes("overview"))
                     {
                         nowRecovery.Text = recovery;
                         nowWatcher.Text = watcherText;
                         nowEngine.Text = engineText;
                         nowLastCheck.Text = Ago(last);
                     }
-                    if (diagVersion != null)
+                    if (diagVersion != null && Writes("diagnostics"))
                     {
                         ShowVersion(diagVersion, status);
                         diagWatcher.Text = watcherFull;
@@ -615,7 +622,7 @@ namespace CodexAutoResume
                 // be sending them.
                 string unreadable = UnreadableReason(status);
                 var week = Map(reply, "week");
-                if (weekDetected != null)
+                if (weekDetected != null && Writes("overview"))
                 {
                     if (week != null)
                     {
@@ -630,7 +637,8 @@ namespace CodexAutoResume
                         weekDetected.Text = weekSent.Text = weekRecovered.Text = weekSuccess.Text = "-";
                     }
                 }
-                if (pendingList != null)
+                bool pending = pendingList != null && Writes("pending");
+                if (pending)
                 {
                     if (Unreadable(reply, "pending")) ShowUnreadableList(pendingList, pendingEmpty, unreadable);
                     else
@@ -641,7 +649,8 @@ namespace CodexAutoResume
                     }
                 }
                 bool historyUnreadable = Unreadable(reply, "history");
-                if (historyList != null)
+                bool history = historyList != null && Writes("history");
+                if (history)
                 {
                     if (historyUnreadable) ShowUnreadableList(historyList, historyEmpty, unreadable);
                     else
@@ -651,20 +660,23 @@ namespace CodexAutoResume
                         historyEmpty.Visible = historyList.Items.Count == 0;
                     }
                 }
-                if (recentGrid != null)
+                if (recentGrid != null && Writes("overview"))
                 {
                     if (historyUnreadable) ClearRecent(unreadable);
                     else FillRecent(Items(reply, "history"));
                 }
                 // A Retry now note belongs to one record; once that record has left Pending -
                 // sent, finished or cancelled - the note no longer describes anything on screen.
-                if (pendingNoteFor != null && pendingNoteFor != BulkNote && pendingList != null && !Contains(pendingList, pendingNoteFor))
-                    pendingNoteFor = null;
-                ShowPendingNote();
-                ShowExplain();
+                if (pending)
+                {
+                    if (pendingNoteFor != null && pendingNoteFor != BulkNote && !Contains(pendingList, pendingNoteFor))
+                        pendingNoteFor = null;
+                    ShowPendingNote();
+                    ShowExplain();
+                }
                 UpdateCountdowns();
-                UpdatePendingButtons();
-                UpdateHistoryButtons();
+                if (pending) UpdatePendingButtons();
+                if (history) UpdateHistoryButtons();
                 SnapshotApplied(reply);
             }
             finally { LayOutHeld(held); }

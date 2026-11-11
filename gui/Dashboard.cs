@@ -1431,6 +1431,8 @@ namespace CodexAutoResume
             try
             {
                 Control page = PageFor(name);
+                // v0.6.23: what came while it was out of sight, written before it shows (Writes).
+                WriteIfStale(name);
                 // Every page stays in the host once built and only the one shown is visible: taking a
                 // page off and putting the next on moved every native control in it to Windows'
                 // parking window and back.
@@ -1501,6 +1503,9 @@ namespace CodexAutoResume
             page.Visible = false;
             pages[name] = page;
             pageHost.Controls.Add(page);
+            // v0.6.23: a page built out of sight - made ready ahead - is only marked, and written when it is (Writes,
+            // WriteIfStale): a whole snapshot written for it cost 100-300 ms on an installation that had run for months.
+            if (snapshot != null && !Writes(name)) return page;
             if (snapshot != null) ApplySnapshot(snapshot);
             return page;
         }
@@ -1517,7 +1522,8 @@ namespace CodexAutoResume
         // before its page is ready builds it as it always did. What a page shows is read as it always was: a page made
         // ready ahead is handed the snapshot already held (PageFor), and its own reads wait for its first visit (ShowPage).
         private readonly List<string> preparedPages = new List<string>();
-        // The page being made ready and how far it has got: 0 not begun, 1 built, 2 its controls made, 3 its own reads asked.
+        // The page being made ready and how far it has got: 0 not begun, 1 built, 2 written, 3 its controls made, 4 laid out
+        // and its own reads asked, 5 those answered, 6 what they added made.
         private string preparing;
         private int prepareStep;
         private bool prepareQueued;
@@ -1526,6 +1532,9 @@ namespace CodexAutoResume
         private PrepareInput prepareInput;
         // How long its mouse and keyboard must have been still before a step is taken, in milliseconds.
         private const int PrepareAfterInputMilliseconds = 250;
+        // How long one step makes native controls for before it leaves the rest to the next; and those still to be made.
+        private const int PrepareSliceMilliseconds = 40;
+        private Stack<Control> prepareMake;
 
         /// Starts making the pages not yet shown ready, on the window's idle turns, once it is on screen.
         private void PreparePagesLater()
@@ -1560,6 +1569,10 @@ namespace CodexAutoResume
                 prepareStep = 0;
                 if (preparing == null) return false;
             }
+            // Built on the first step as a click builds it, the snapshot not yet written into it - it is out of sight, so
+            // PageFor leaves it marked (Writes) - and written on the next (WriteIfStale), each a turn of its own: built and
+            // written in one, Pending and Diagnostics held the window 550-750 ms on an installation that had run for
+            // months (the live acceptance, 2026-11-11). A click in between writes it as it shows (ShowPage).
             Control page = PreparedPage(preparing);
             if (page == null || Soft.OwnVisible(page))
             {
@@ -1569,18 +1582,23 @@ namespace CodexAutoResume
             }
             if (prepareStep == 0)
             {
-                // Built, and the room the page host will give it once shown, so it is never laid out narrower first.
+                // Built (PreparedPage), and the room the page host will give it once shown, so it is never laid out
+                // narrower first.
                 page.Bounds = pageHost.DisplayRectangle;
                 prepareStep = 1;
             }
             else if (prepareStep == 1)
             {
-                // Its native controls, made as showing it would make them, while it stays hidden.
-                IntPtr made = page.Handle;
-                if (made != IntPtr.Zero) Materialise(page);
+                WriteIfStale(preparing);
                 prepareStep = 2;
             }
             else if (prepareStep == 2)
+            {
+                // Its native controls, made as showing it would make them while it stays hidden: in Materialise's order,
+                // for PrepareSliceMilliseconds a turn (Settings' took 860 ms in one on that installation).
+                if (MakeSome(page)) prepareStep = 3;
+            }
+            else if (prepareStep == 3)
             {
                 page.PerformLayout();
                 // What it reads on each visit that the snapshot does not hold, read once now, so its first visit finds it
@@ -1588,16 +1606,45 @@ namespace CodexAutoResume
                 bool reads = preparing == "statistics" || preparing == "diagnostics";
                 if (preparing == "statistics") LoadStatistics();
                 if (preparing == "diagnostics") LoadCompatibility();
-                if (reads) prepareStep = 3;
+                if (reads) prepareStep = 4;
                 else Prepared();
             }
-            else if (!loadingStats && !loadingCompat && bridge.InFlight == 0)
+            else if (prepareStep == 4)
             {
-                // Those answers written: whatever they added made and laid out too.
-                Materialise(page);
+                // Those answers written: whatever they added made, a few at a time, and laid out.
+                if (!loadingStats && !loadingCompat && bridge.InFlight == 0) prepareStep = 5;
+            }
+            else if (prepareStep == 5)
+            {
+                if (MakeSome(page)) prepareStep = 6;
+            }
+            else
+            {
                 page.PerformLayout();
                 Prepared();
             }
+            return true;
+        }
+
+        /// Makes the native controls of `page` not yet made - each before the controls in it, siblings in their order, as
+        /// Materialise makes them - until PrepareSliceMilliseconds have gone; true once all are made.
+        private bool MakeSome(Control page)
+        {
+            if (prepareMake == null)
+            {
+                prepareMake = new Stack<Control>();
+                prepareMake.Push(page);
+            }
+            var slice = Stopwatch.StartNew();
+            while (prepareMake.Count > 0 && slice.ElapsedMilliseconds < PrepareSliceMilliseconds)
+            {
+                Control next = prepareMake.Pop();
+                if (next.IsDisposed || next.Handle == IntPtr.Zero) continue;
+                for (int i = next.Controls.Count - 1; i >= 0; i--)
+                    if (Soft.OwnVisible(next.Controls[i])) prepareMake.Push(next.Controls[i]);
+            }
+            if (prepareMake.Count > 0) return false;
+            prepareMake = null;
             return true;
         }
 
@@ -1606,6 +1653,7 @@ namespace CodexAutoResume
             if (preparing != null && !preparedPages.Contains(preparing)) preparedPages.Add(preparing);
             preparing = null;
             prepareStep = 0;
+            prepareMake = null;
         }
 
         /// Stamps the moment the window's thread last had a key or the mouse, and lets every message through.
@@ -1701,6 +1749,33 @@ namespace CodexAutoResume
         private static void LetGoWithin(List<Control> held)
         {
             for (int i = held.Count - 1; i >= 0; i--) held[i].ResumeLayout(true);
+        }
+
+        // v0.6.23 (the live acceptance, 2026-11-11): the pages a snapshot was not written into because they were out of
+        // sight (Writes), each written when it is next shown (ShowPage); and the page being written although it is not
+        // the one on screen - the page made ready ahead (PrepareNext), or brought up to date as it is shown.
+        private readonly HashSet<string> stalePages = new HashSet<string>();
+        private string writingPage;
+
+        /// Whether a snapshot is written into `page` now: the page on screen and the one being written are; every other
+        /// is marked to be written when it is shown. Every 5 s the snapshot was written into every page built - on an
+        /// installation that had run for months, each refresh held the window 0.16-0.59 s for pages nobody was looking
+        /// at. The layout audits write every page, as they measure every page.
+        private bool Writes(string page)
+        {
+            if (auditing || page == currentPage || page == writingPage) return true;
+            stalePages.Add(page);
+            return false;
+        }
+
+        /// The snapshot written into `page` before it is shown, when a snapshot came while it was out of sight.
+        private void WriteIfStale(string page)
+        {
+            if (!stalePages.Remove(page) || snapshot == null) return;
+            string before = writingPage;
+            writingPage = page;
+            try { ApplySnapshot(snapshot); }
+            finally { writingPage = before; }
         }
 
         private Panel Page()
