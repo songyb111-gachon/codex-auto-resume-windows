@@ -74,6 +74,8 @@
   알려 주셨습니다([#55](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/55)).
 - [@Chen017](https://github.com/Chen017) 님은 Codex 앱이 엔진을 늘 쓰던 폴더가 아니라 자기 패키지에서 실행하는 PC에서 모든 복구가 기다리기만 한다는
   것을, 엔진 경로를 코드에서 읽어 정확히 짚고 진단 정보를 붙여 알려 주셨습니다([#58](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/58)).
+- [@Amin-Tgz](https://github.com/Amin-Tgz) 님은 페르시아어를 보내 주셨습니다. 두 판의 카탈로그, 모든 화면에서 오른쪽에서 왼쪽으로 쓰는 언어로서의
+  페르시아어, 그리고 문서의 언어 목록과 개수입니다([#63](https://github.com/songyb111-gachon/codex-auto-resume-windows/pull/63)).
 
 ## AI 기여자에 대한 참고
 
