@@ -1,8 +1,11 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
 """Run this installation on another official Python (python_choice, v0.6.23): the card, its work, and how it is taken back.
 
-What it offers: the newest final release of each line in LINES, read live from python.org (courier/pythonorg.py) when a
-person presses Check, and the bundled runtime, always. Nothing of a version but its line is pinned here.
+What it offers: the newest final release of each line in LINES that has a Windows embeddable package, read live from
+python.org (courier/pythonorg.offered) when a person presses Check, and the bundled runtime, always. A line in its
+security-only phase publishes source alone, so the release before its newest is offered (3.13.17 beside 3.13.18 on
+2026-11-11); a line with no such release at all is named on the card as one that cannot be chosen (`missing`). Nothing of a
+version but its line is pinned here.
 
 What `use` does, on a thread of the Dashboard's process, after the window asked first. Each step that fails deletes what
 it unpacked, leaves the runtime in use alone and says which step it was (STEPS):
@@ -73,8 +76,14 @@ UNPACKED_MOST = 256 * 1024 * 1024           # bytes unpacked at most (2026-11-10
 MEMBERS_MOST = 512
 IMPORT_SECONDS = 180
 VERSION_SECONDS = 15
-# The launcher waits WATCHER_WAIT for the chosen Python, and starts the bundled one after that: longer than both.
-RESTART_SECONDS = 90.0
+# How long the Dashboard waits for the restart it asked for, before it takes the choice back itself. The launcher is the one
+# that judges the chosen Python: it waits WATCHER_WAIT from its child's start, after its own question, and starts the bundled
+# runtime after that. Its question took 41 and 48 s on the owner's PC on 2026-11-11 (LAUNCHER_ASKS_SEEN), before children
+# that came up; with 90 s here, a child that came up after 43 of its 45 s would still have been taken back from here - a
+# healthy start undone by the wrong clock. Twice the longest question seen and the whole wait: room for a bundled start too.
+WATCHER_WAIT = 45.0                         # scripts/watcher_launcher.WATCHER_WAIT, control.WATCHER_START_TIMEOUT
+LAUNCHER_ASKS_SEEN = 48.0
+RESTART_SECONDS = 2 * (LAUNCHER_ASKS_SEEN + WATCHER_WAIT)
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 CODES = ("checked", "check_failed", "asked", "chosen", "next_start", "refused", "returned", "back")
 
@@ -98,7 +107,7 @@ class Hands:
     @staticmethod
     def newest(lines):
         from ..courier import pythonorg
-        return pythonorg.newest(lines)
+        return pythonorg.offered(lines)
 
     @staticmethod
     def embeddable(release, version):
@@ -216,8 +225,9 @@ def _returned(home) -> dict | None:
 
 
 def view(runtime) -> dict:
-    """advanced-python: {bundled, chosen, in_use, button, checked, offers, job, outcome, returned}. Reads this PC alone;
-    python.org is asked only by `check`, after a person pressed it. NOT_ON while the capability is off."""
+    """advanced-python: {bundled, chosen, in_use, button, checked, offers, missing, job, outcome, returned}. Reads this PC
+    alone; python.org is asked only by `check`, after a person pressed it. `missing`: after a Check, the lines python.org
+    has no release with a Windows embeddable package of. NOT_ON while the capability is off."""
     if not _standing(runtime, CAPABILITY):
         return _refused(Refusal.NOT_ON)
     paths, home = runtime.paths, _home(runtime)
@@ -232,6 +242,7 @@ def view(runtime) -> dict:
             "button": offered(runtime), "checked": offers is not None,
             "offers": [{"version": each["version"], "line": each["line"], "preview": each["line"] in PREVIEW}
                        for each in offers or ()],
+            "missing": [] if offers is None else [line for line in LINES if line not in {each["line"] for each in offers}],
             "job": job, "outcome": dict(outcome) if outcome else None, "returned": _returned(home)}
 
 
@@ -266,7 +277,8 @@ def _run(home, target, start, name) -> bool:
 
 
 def check(runtime, *, start=None, hands=Hands) -> dict:
-    """advanced-python-check: python.org's newest final release of each line, on a thread of its own."""
+    """advanced-python-check: python.org's newest final release of each line that has a Windows embeddable package, on a
+    thread of its own."""
     if not offered(runtime):
         return _refused(Refusal.NOT_ON)
     home = _home(runtime)

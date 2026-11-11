@@ -1207,6 +1207,8 @@
   "page.python.current": "現在選択中です。",
   "page.python.back": "付属のバージョンに戻す",
   "page.python.none": "このプログラムが使えるバージョンは python.org に一覧されていません。",
+  "page.python.no_package": "python.org に Python {line} の Windows 用パッケージがないため、今は選べません。",
+  "page.python.limits": "Codex には何も送らないため、送信の上限はありません。python.org を読むのはボタンを押したときだけで、付属の Python のほかに残す選択済みの Python は最大 1 つです。",
   "page.python.downloading": "Python {version} をダウンロードしています: {got} / {total} MB",
   "page.python.verifying": "実行する前に Python {version} を確認しています...",
   "page.python.restarting": "監視プロセスを再起動しています...",

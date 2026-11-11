@@ -1207,6 +1207,8 @@
   "page.python.current": "目前已選擇。",
   "page.python.back": "返回內建版本",
   "page.python.none": "python.org 沒有列出本程式可以使用的版本。",
+  "page.python.no_package": "python.org 沒有 Python {line} 的 Windows 套件，因此現在無法選擇。",
+  "page.python.limits": "它不向 Codex 傳送任何內容，因此沒有傳送限制。只有在你按下按鈕時才讀取 python.org，除內建的 Python 外最多保留一個所選的 Python。",
   "page.python.downloading": "正在下載 Python {version}：{got} / {total} MB",
   "page.python.verifying": "正在檢查 Python {version}，之後才會執行...",
   "page.python.restarting": "正在重新啟動監看程式...",

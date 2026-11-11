@@ -1207,6 +1207,8 @@
   "page.python.current": "Most kiválasztva.",
   "page.python.back": "Vissza a mellékelt verzióhoz",
   "page.python.none": "A python.org nem sorol fel olyan verziót, amelyet ez a program használni tudna.",
+  "page.python.no_package": "A python.org-on nincs Windows-csomag a Python {line} verzióhoz, ezért most nem választható.",
+  "page.python.limits": "Semmit sem küld a Codexnek, így nincsenek küldési korlátai. Csak akkor kérdezi a python.org-ot, ha megnyom egy gombot, és a mellékelt Python mellett legfeljebb egy kiválasztottat tart meg.",
   "page.python.downloading": "Python {version} letöltése: {got} / {total} MB",
   "page.python.verifying": "Python {version} ellenőrzése a futtatása előtt...",
   "page.python.restarting": "A figyelő újraindítása...",

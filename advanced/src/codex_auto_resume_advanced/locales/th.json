@@ -1207,6 +1207,8 @@
   "page.python.current": "เลือกอยู่ในขณะนี้",
   "page.python.back": "กลับไปใช้เวอร์ชันที่มาพร้อมกัน",
   "page.python.none": "python.org ไม่มีเวอร์ชันที่โปรแกรมนี้ใช้ได้",
+  "page.python.no_package": "python.org ไม่มีแพ็กเกจ Windows ของ Python {line} จึงยังเลือกไม่ได้ในตอนนี้",
+  "page.python.limits": "ฟีเจอร์ไม่ส่งสิ่งใดไปยัง Codex จึงไม่มีขีดจำกัดการส่ง จะอ่าน python.org เฉพาะเมื่อคุณกดปุ่ม และนอกจากเวอร์ชันที่มาพร้อมกันแล้ว จะเก็บ Python ที่เลือกไว้ได้มากที่สุดหนึ่งเวอร์ชัน",
   "page.python.downloading": "กำลังดาวน์โหลด Python {version}: {got} จาก {total} MB",
   "page.python.verifying": "กำลังตรวจสอบ Python {version} ก่อนที่จะทำงาน...",
   "page.python.restarting": "กำลังรีสตาร์ทตัวเฝ้าดู...",

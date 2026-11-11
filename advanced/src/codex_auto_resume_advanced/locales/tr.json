@@ -1207,6 +1207,8 @@
   "page.python.current": "Şu anda seçili.",
   "page.python.back": "Birlikte gelen sürüme dön",
   "page.python.none": "python.org, bu programın kullanabileceği hiçbir sürüm listelemiyor.",
+  "page.python.no_package": "python.org'da Python {line} için Windows paketi yok, bu yüzden şu an seçilemez.",
+  "page.python.limits": "Codex'e hiçbir şey göndermez, bu yüzden gönderme sınırı yoktur. python.org'u yalnızca bir düğmeye bastığınızda okur ve birlikte gelen Python'un yanında en fazla bir seçilmiş Python tutar.",
   "page.python.downloading": "Python {version} indiriliyor: {got} / {total} MB",
   "page.python.verifying": "Python {version} çalışmadan önce denetleniyor...",
   "page.python.restarting": "İzleyici yeniden başlatılıyor...",

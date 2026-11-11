@@ -13,6 +13,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -320,6 +321,35 @@ class LauncherTests(unittest.TestCase):
             self.assertEqual(self.launcher._on_chosen(self.home, self.home), 0)
         self.assertEqual(started.call_args[0][0][0], str(self.home / "runtime" / "pythonw.exe"))
         self.assertEqual(self.asked, [], "the plug is asked by the launcher that stays")
+
+    def test_the_log_says_how_long_each_step_of_a_chosen_start_took(self):
+        """Fails without the times (v0.6.23-beta.2): 41-48 s from the launcher to its child on the owner's PC, and nothing in
+        launcher.log to say which step took them. The question, the child's start and its coming up each say when."""
+        said = []
+        with patch.object(self.launcher, "_note", lambda _here, text: said.append(text)), \
+                patch("subprocess.Popen", return_value=self.child(0)), patch.object(self.launcher, "_came_up", return_value=True):
+            self.assertEqual(self.launcher._on_chosen(self.home, self.home), 0)
+        timed = [line for line in said if re.search(r"[0-9]+\.[0-9] s since the launcher started", line)]
+        self.assertEqual(len(timed), 3, said)
+        self.assertIn("asked which Python", timed[0])
+        self.assertIn("supervised child (pid 4242) under the chosen Python", timed[1])
+        self.assertIn("came up under the chosen Python", timed[2])
+
+    def test_the_wait_is_counted_from_the_child_s_start(self):
+        """The 45 s the statement names are the chosen Python's own: the wait begins once its child exists, however long the
+        question before it took. Fails with the wait begun before the child was started."""
+        order = []
+
+        def started(*_a, **_k):
+            order.append("child")
+            return self.child(0)
+
+        def waited(_home, child):
+            order.append("wait")
+            return True
+        with patch("subprocess.Popen", side_effect=started), patch.object(self.launcher, "_came_up", side_effect=waited):
+            self.launcher._on_chosen(self.home, self.home)
+        self.assertEqual(order, ["child", "wait"])
 
     def test_came_up_is_the_mutex_within_the_wait_and_one_more_look(self):
         probe = self.app.return_value.watcher_running

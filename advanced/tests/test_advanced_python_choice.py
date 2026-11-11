@@ -113,6 +113,83 @@ class ListTests(unittest.TestCase):
                 pythonorg.newest(pythons.LINES, opener=Opener({pythonorg.RELEASES: body}))
 
 
+class OfferTests(unittest.TestCase):
+    """What a Check offers of each line (v0.6.23 final): its newest release whose files include the Windows embeddable
+    package. python.org's answers here are fixtures of the shape its API gives; nothing reaches the network."""
+
+    LIST = [release("Python 3.13.16", 101), release("Python 3.13.17", 102), release("Python 3.13.18", 103),
+            release("Python 3.14.10", 201), release("Python 3.15.2", 301)]
+
+    def opener(self, files, rows=None):
+        table = {pythonorg.RELEASES: json.dumps(self.LIST if rows is None else rows).encode()}
+        table.update({pythonorg.FILES % number: json.dumps(found).encode() for number, found in files.items()})
+        return Opener(table)
+
+    @staticmethod
+    def source_only(version):
+        return [{"name": "Gzipped source tarball", "url": "https://www.python.org/ftp/python/%s/Python-%s.tgz" % (version, version)},
+                {"name": "XZ compressed source tarball",
+                 "url": "https://www.python.org/ftp/python/%s/Python-%s.tar.xz" % (version, version)}]
+
+    @staticmethod
+    def with_package(version):
+        return OfferTests.source_only(version) + [file_row(url=pythonorg.PACKAGE % (version, version))]
+
+    def test_a_line_whose_newest_release_is_source_only_offers_the_release_before(self):
+        """3.13.18 on 2026-11-11: source alone, so 3.13.17 is offered. Fails with the newest release offered as it was."""
+        opener = self.opener({103: self.source_only("3.13.18"), 102: self.with_package("3.13.17"),
+                              101: self.with_package("3.13.16"), 201: self.with_package("3.14.10"),
+                              301: self.with_package("3.15.2")})
+        self.assertEqual(pythonorg.offered(pythons.LINES, opener=opener),
+                         {"3.13": {"version": "3.13.17", "release": 102}, "3.14": {"version": "3.14.10", "release": 201},
+                          "3.15": {"version": "3.15.2", "release": 301}})
+        self.assertNotIn(pythonorg.FILES % 101, opener.asked, "asked newest first, and no further than the first with one")
+        self.assertEqual(opener.asked.index(pythonorg.FILES % 103) + 1, opener.asked.index(pythonorg.FILES % 102))
+
+    def test_a_line_with_no_package_at_all_is_left_out(self):
+        opener = self.opener({103: self.source_only("3.13.18"), 102: self.source_only("3.13.17"),
+                              101: self.source_only("3.13.16"), 201: self.with_package("3.14.10"),
+                              301: self.with_package("3.15.2")})
+        self.assertEqual(set(pythonorg.offered(pythons.LINES, opener=opener)), {"3.14", "3.15"})
+
+    def test_a_32_bit_or_another_package_is_not_the_embeddable(self):
+        opener = self.opener({103: [file_row(name="Windows embeddable package (32-bit)", url="x"),
+                                    file_row(name="Windows installer (64-bit)", url="y")],
+                              102: self.with_package("3.13.17"), 201: [], 301: self.with_package("3.15.2")},
+                             rows=self.LIST[1:])
+        found = pythonorg.offered(pythons.LINES, opener=opener)
+        self.assertEqual(found["3.13"]["version"], "3.13.17")
+        self.assertNotIn("3.14", found)
+
+    def test_a_files_list_that_cannot_be_read_fails_the_check(self):
+        """As the list's own failure: a release that could not be asked is not passed over as one with no package."""
+        opener = self.opener({103: self.source_only("3.13.18"), 201: self.with_package("3.14.10"),
+                              301: self.with_package("3.15.2")})
+        opener.table[pythonorg.FILES % 102] = b"not json"
+        with self.assertRaises(pythonorg.Refused) as refused:
+            pythonorg.offered(pythons.LINES, opener=opener)
+        self.assertEqual(refused.exception.step, pythonorg.LIST)
+
+    def test_a_line_s_releases_are_asked_at_most_so_far(self):
+        patches = range(pythonorg.RELEASES_MOST + 5)
+        rows = [release("Python 3.13.%d" % patch, 1000 + patch) for patch in patches]
+        opener = self.opener({1000 + patch: self.source_only("3.13.%d" % patch) for patch in patches}, rows=rows)
+        self.assertEqual(pythonorg.offered(pythons.LINES, opener=opener), {})
+        self.assertEqual(len([url for url in opener.asked if url != pythonorg.RELEASES]), pythonorg.RELEASES_MOST)
+
+    def test_only_python_org_is_asked(self):
+        opener = self.opener({103: self.with_package("3.13.18"), 201: self.with_package("3.14.10"),
+                              301: self.with_package("3.15.2")})
+        pythonorg.offered(pythons.LINES, opener=opener)
+        self.assertEqual({url.split("/")[2] for url in opener.asked}, {"www.python.org"})
+
+    def test_the_check_asks_for_releases_with_a_package(self):
+        """Fails with the check asking for the newest release alone (v0.6.23-beta.2)."""
+        with patch.object(pythonorg, "offered", return_value={"3.14": {"version": "3.14.10", "release": 201}}) as asked:
+            self.assertEqual(pythons.Hands.newest(pythons.LINES), {"3.14": {"version": "3.14.10", "release": 201}})
+        asked.assert_called_once_with(pythons.LINES)
+
+
 class SourceTests(unittest.TestCase):
     def files(self, *rows):
         return Opener({pythonorg.FILES % RELEASE: json.dumps(list(rows)).encode()})
@@ -526,6 +603,29 @@ class ReturnTests(Case):
         self.assertIsNone(self.record())
         self.assertEqual(hands.log.count("restart"), 2, "once more, on the bundled runtime")
 
+    def test_the_dashboard_waits_past_the_launcher_s_slowest_healthy_start(self):
+        """Fails with v0.6.23-beta.2's 90 s: the launcher's question took 48 s on the owner's PC before its child, which then
+        has 45 s of its own, so a healthy start could be taken back from here by the wrong clock."""
+        launcher = (ROOT / "scripts" / "watcher_launcher.py").read_text(encoding="utf-8")
+        self.assertIn("WATCHER_WAIT = %r" % pythons.WATCHER_WAIT, launcher)
+        from codex_auto_resume import control
+        self.assertEqual(pythons.WATCHER_WAIT, control.WATCHER_START_TIMEOUT)
+        self.assertGreaterEqual(pythons.LAUNCHER_ASKS_SEEN, 48.0)
+        self.assertGreater(pythons.RESTART_SECONDS, pythons.LAUNCHER_ASKS_SEEN + pythons.WATCHER_WAIT + 30.0,
+                           "room for a start on the bundled runtime after the launcher took a choice back")
+
+    def test_the_restart_is_waited_for_that_long(self):
+        from codex_auto_resume import control
+        layer = control.Control
+        with patch.object(layer, "watcher_running", return_value=True), \
+                patch.object(layer, "stop_watcher", return_value={"stopped": True}), \
+                patch.object(pythons.subprocess, "Popen") as started, \
+                patch("codex_auto_resume.control.await_watcher", return_value={"state": "running"}) as waited:
+            from codex_auto_resume import config
+            self.assertEqual(pythons.restart_watcher(config.Paths(self.home)), pythons.RUNNING)
+        self.assertEqual(waited.call_args[1]["timeout"], pythons.RESTART_SECONDS)
+        self.assertTrue(started.call_args[1]["creationflags"] & getattr(subprocess, "DETACHED_PROCESS", 0))
+
     def test_with_no_watcher_it_waits_for_the_next_start(self):
         self.chosen_now(Hands(restart=pythons.NOT_RUNNING))
         self.assertEqual(self.outcome()["word"], pythons.NEXT_START)
@@ -575,7 +675,8 @@ class CardTests(Case):
     def test_its_fields(self):
         found = pythons.view(self.runtime)
         self.assertEqual(found, {"done": True, "refusal": None, "bundled": "3.14.10", "chosen": None, "in_use": "3.14.10",
-                                 "button": True, "checked": False, "offers": [], "job": None, "outcome": None, "returned": None})
+                                 "button": True, "checked": False, "offers": [], "missing": [], "job": None, "outcome": None,
+                                 "returned": None})
 
     def test_reading_the_card_asks_python_org_nothing(self):
         with patch.object(pythonorg, "newest", side_effect=AssertionError), patch.object(pythonorg.http, "request", side_effect=AssertionError):
@@ -587,6 +688,23 @@ class CardTests(Case):
         self.assertTrue(found["checked"])
         self.assertEqual(found["offers"], [{"version": "3.13.18", "line": "3.13", "preview": False},
                                            {"version": VERSION, "line": "3.15", "preview": True}])
+
+    def test_a_line_with_no_package_is_named_after_a_check(self):
+        """Fails with the card not saying which line python.org has no Windows package of (v0.6.23-beta.2)."""
+        self.checked(Hands())
+        self.assertEqual(pythons.view(self.runtime)["missing"], ["3.14"])
+        hands = Hands()
+        hands.newest = lambda _lines: {}
+        self.checked(hands)
+        self.assertEqual(pythons.view(self.runtime)["missing"], list(pythons.LINES))
+
+    def test_the_card_says_so_in_its_own_sentence(self):
+        text = (ROOT / "advanced" / "gui" / "AdvancedPythons.cs").read_text(encoding="utf-8")
+        self.assertIn('Items(advancedPython, "missing")', text)
+        self.assertIn('Word("page.python.no_package"', text)
+        for locale in l10n.LOCALES:
+            with self.subTest(locale):
+                self.assertIn("{line}", statement.CATALOGS.words(locale)["page.python.no_package"])
 
     def test_a_list_that_failed_says_so(self):
         hands = Hands()

@@ -1207,6 +1207,8 @@
   "page.python.current": "当前已选择。",
   "page.python.back": "返回自带版本",
   "page.python.none": "python.org 没有列出本程序可以使用的版本。",
+  "page.python.no_package": "python.org 没有 Python {line} 的 Windows 软件包，因此现在无法选择。",
+  "page.python.limits": "它不向 Codex 发送任何内容，因此没有发送限制。只有在你按下按钮时才读取 python.org，除自带的 Python 外最多保留一个所选的 Python。",
   "page.python.downloading": "正在下载 Python {version}：{got} / {total} MB",
   "page.python.verifying": "正在检查 Python {version}，之后才会运行...",
   "page.python.restarting": "正在重启监视程序...",

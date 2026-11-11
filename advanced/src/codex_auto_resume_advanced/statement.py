@@ -392,7 +392,11 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + "python." + name for name in (
     "title", "help", "in_use", "in_use_none", "bundled", "chosen", "check", "checking", "version", "preview", "use", "current", "back",
     "none", "downloading", "verifying", "restarting", "done", "next_start", "done_back",
     "failed.list", "failed.source", "failed.download", "failed.digest", "failed.unpack", "failed.signature",
-    "failed.import", "failed.start", "returned.start", "returned.line", "returned.off")) + tuple(PAGE_PREFIX + name for name in (
+    "failed.import", "failed.start", "returned.start", "returned.line", "returned.off",
+    # Its Limits card's sentence (AdvancedPage.ActionLimits): an action's own, not Longer reset messages'.
+    "limits",
+    # v0.6.23 final: a line python.org has no Windows embeddable package of, after a Check.
+    "no_package")) + tuple(PAGE_PREFIX + name for name in (
     "confirm.python_use", "confirm.python_back", "refused.python_busy"))
 # v0.6.22 (fleet_view): the Overview's Other PCs list, its columns and state words, how the folder stands, and the card
 # this PC's name and folder are chosen on (advanced/gui/AdvancedFleet.cs, control/fleet.py).

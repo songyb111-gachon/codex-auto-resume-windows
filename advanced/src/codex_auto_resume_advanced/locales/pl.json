@@ -1207,6 +1207,8 @@
   "page.python.current": "Wybrana teraz.",
   "page.python.back": "Wróć do dołączonej wersji",
   "page.python.none": "python.org nie wymienia żadnej wersji, której ten program może użyć.",
+  "page.python.no_package": "python.org nie ma pakietu dla Windows z Pythonem {line}, więc teraz nie można go wybrać.",
+  "page.python.limits": "Niczego nie wysyła do Codexa, więc nie ma limitów wysyłania. Odczytuje python.org tylko po naciśnięciu przycisku i obok dołączonego Pythona przechowuje najwyżej jeden wybrany.",
   "page.python.downloading": "Pobieranie wersji Python {version}: {got} z {total} MB",
   "page.python.verifying": "Sprawdzanie wersji Python {version}, zanim zostanie uruchomiona...",
   "page.python.restarting": "Ponowne uruchamianie monitora...",

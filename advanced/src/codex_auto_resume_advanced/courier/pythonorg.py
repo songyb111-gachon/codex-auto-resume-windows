@@ -1,6 +1,10 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
 """python.org's list of releases and the Windows embeddable package of one of them (v0.6.23, python_choice).
 
+What is offered of a line is its newest final release whose files include the Windows embeddable package (`offered`): a
+line in its security-only phase publishes source alone (3.13.18, 2026-11: no python-3.13.18-embed-amd64.zip), so the newest
+release of it may be one that can never be run here, and the release before it is offered instead.
+
 The list is read live, so no version is pinned in a release of this product; only the lines it may offer are, in
 control/pythons.py. Every address here is written out or built from constants, and www.python.org is the only host this
 file ever asks: what the service answers can never name another. Each answer is bounded, redirects are refused as every
@@ -25,6 +29,9 @@ RELEASE_ADDRESS = re.compile(re.escape(RELEASES.partition("?")[0]) + r"([0-9]{1,
 FILE_NAME = "Windows embeddable package (64-bit)"
 NAME = re.compile(r"Python (3\.[1-9][0-9]\.(?:0|[1-9][0-9]{0,2}))", re.ASCII)
 DIGEST = re.compile(r"[0-9a-f]{64}", re.ASCII)
+# The releases of one line asked for their files at most, newest first: twice the 19 that 3.13 had on 2026-11-11, which
+# covers a line's whole security-only phase of source-only releases. Each costs one read, and only on Check.
+RELEASES_MOST = 40
 ANSWER_MOST = 2 * 1024 * 1024               # bytes of one answer of the API (2026-11-10: 148 KB for the whole list)
 PACKAGE_MOST = 64 * 1024 * 1024             # bytes of one package (2026-11-10: 13.7 MB for 3.15.2)
 LIST_TIMEOUT = 30                           # seconds, each read
@@ -59,7 +66,13 @@ def _order(version) -> tuple:
 def newest(lines, *, opener=None) -> dict:
     """{line: {"version", "release"}}: for each of `lines`, its newest final release python.org has published, and the
     number python.org lists its files under. A pre-release, or a name not exactly "Python 3.X.Y", is passed over."""
-    best = {}
+    return {line: found[0] for line, found in finals(lines, opener=opener).items()}
+
+
+def finals(lines, *, opener=None) -> dict:
+    """{line: [{"version", "release"}, ...]}: every final release of each of `lines` python.org lists, newest first, as
+    `newest` reads them; a line with none is left out."""
+    found = {}
     for row in _answer(RELEASES, opener):
         if not isinstance(row, dict) or row.get("pre_release") is not False or not isinstance(row.get("name"), str):
             continue
@@ -69,9 +82,32 @@ def newest(lines, *, opener=None) -> dict:
             continue
         version = named.group(1)
         line = ".".join(version.split(".")[:2])
-        if line in lines and (line not in best or _order(version) > _order(best[line]["version"])):
-            best[line] = {"version": version, "release": int(address.group(1))}
-    return best
+        if line in lines:
+            found.setdefault(line, {}).setdefault(version, int(address.group(1)))
+    return {line: [{"version": version, "release": versions[version]}
+                   for version in sorted(versions, key=_order, reverse=True)]
+            for line, versions in found.items()}
+
+
+def packaged(release, *, opener=None) -> bool:
+    """Whether the files python.org lists under `release` include a Windows embeddable package (64-bit) at all. Only
+    which release to offer is decided here: `embeddable` still holds the one that is used to every check of its own."""
+    if type(release) is not int or release < 0:
+        raise Refused(SOURCE)
+    return any(isinstance(row, dict) and row.get("name") == FILE_NAME for row in _answer(FILES % release, opener))
+
+
+def offered(lines, *, opener=None) -> dict:
+    """{line: {"version", "release"}}: for each of `lines`, its newest final release whose files include the Windows
+    embeddable package, newest first, at most RELEASES_MOST asked of a line; a line with none is left out. Read on Check
+    alone, as `newest` is; a read that fails is LIST, as the list's own."""
+    chosen = {}
+    for line, found in finals(lines, opener=opener).items():
+        for each in found[:RELEASES_MOST]:
+            if packaged(each["release"], opener=opener):
+                chosen[line] = each
+                break
+    return chosen
 
 
 def embeddable(release, version, *, opener=None) -> dict:
