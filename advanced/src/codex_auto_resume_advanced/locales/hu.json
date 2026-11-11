@@ -426,7 +426,7 @@
   "page.option.workers": "Egyszerre",
   "page.option.wrap_after_reset": "Folytatás a visszaállás után",
   "page.option.wrap_five_hour": "Lezárás ennél (5 órás időszak)",
-  "page.option.wrap_reset_time": "A visszaállási idő megadása",
+  "page.option.wrap_reset_time": "Visszaállási idő megadása",
   "page.option.wrap_style": "Megfogalmazás",
   "page.option.wrap_weekly": "Lezárás ennél (heti időszak)",
   "page.options": "Választások",
