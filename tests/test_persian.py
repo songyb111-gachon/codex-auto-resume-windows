@@ -1,6 +1,9 @@
 """Persian language selection, message construction and bidirectional values."""
 from __future__ import annotations
 
+import json
+from pathlib import Path
+import re
 import unittest
 from unittest.mock import patch
 
@@ -34,6 +37,25 @@ class PersianTests(unittest.TestCase):
         embedded = l10n.embedded(path, 'fa')
         self.assertIn(path, embedded)
         self.assertEqual(l10n.first_strong(path), 'L')
+
+
+class DigitTests(unittest.TestCase):
+    """Every catalog writes its numbers in the digits 0-9, as the values the product fills in are written (the owner,
+    2026-11-11: Persian as Arabic, "일반 숫자"): a choice in Persian digits beside a count the panel prints in Latin
+    ones reads as two number systems on one screen (test_gui_own_values)."""
+
+    NATIVE = re.compile("[٠-٩۰-۹٪-٬๐-๙]")
+
+    def test_no_catalog_of_either_edition_writes_another_script_s_digits(self):
+        root = Path(__file__).resolve().parents[1]
+        folders = [root / "src" / "codex_auto_resume" / "locales"]
+        folders += sorted((root / "advanced" / "src").glob("*/locales"))
+        for folder in folders:
+            for catalog in sorted(folder.glob("*.json")):
+                words = json.loads(catalog.read_text(encoding="utf-8"))
+                with self.subTest(catalog=str(catalog.relative_to(root))):
+                    self.assertEqual([key for key, text in words.items()
+                                      if isinstance(text, str) and self.NATIVE.search(text)], [])
 
 
 if __name__ == '__main__':
