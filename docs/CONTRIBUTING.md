@@ -419,7 +419,7 @@ declare it.
 
 ## Translations
 
-The interface speaks nineteen languages, and every word of it - the Dashboard, the popup and
+The interface speaks twenty-two languages, and every word of it - the Dashboard, the popup and
 menu, notifications, the panel in Codex and the continuation message - comes from a catalog:
 `src/codex_auto_resume/locales/<locale>.json`, one per language. Arabic and Hebrew were held
 (`l10n.HELD`, empty now) until every surface mirrored right to left; a language added later can be
