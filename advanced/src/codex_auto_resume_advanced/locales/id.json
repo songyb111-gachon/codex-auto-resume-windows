@@ -1207,6 +1207,7 @@
   "page.python.current": "Sedang dipilih.",
   "page.python.back": "Kembali ke versi bawaan",
   "page.python.none": "python.org tidak mencantumkan versi yang bisa dipakai program ini.",
+  "page.python.no_package": "python.org tidak punya paket Windows untuk Python {line}, jadi versi itu belum bisa dipilih.",
   "page.python.downloading": "Mengunduh Python {version}: {got} dari {total} MB",
   "page.python.verifying": "Memeriksa Python {version} sebelum dijalankan...",
   "page.python.restarting": "Memulai ulang pemantau...",

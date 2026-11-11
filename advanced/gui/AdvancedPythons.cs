@@ -207,6 +207,16 @@ namespace CodexAutoResume
                 use.Margin = Pad(0, 2, 0, 6);
                 pythonUse.Add(use);
             }
+            // A line python.org has no Windows package of (v0.6.23 final): said in one sentence, never offered. With nothing
+            // offered at all, the sentence above says it for every line.
+            if (offers.Count == 0) return;
+            foreach (object line in Items(advancedPython, "missing") ?? new List<object>())
+            {
+                string named = line as string;
+                if (named != null)
+                    card.Controls.Add(HelpText(Word("page.python.no_package",
+                        "python.org has no Windows package of Python {line}, so it cannot be chosen now.", "line", named)));
+            }
         }
 
         private void UpdatePythonButtons(bool idle)

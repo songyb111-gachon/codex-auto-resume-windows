@@ -1207,6 +1207,7 @@
   "page.python.current": "Choisie actuellement.",
   "page.python.back": "Revenir à la version fournie",
   "page.python.none": "python.org ne liste aucune version que ce programme puisse utiliser.",
+  "page.python.no_package": "python.org n'a aucun paquet Windows de Python {line} : il ne peut donc pas être choisi pour l'instant.",
   "page.python.downloading": "Téléchargement de Python {version} : {got} sur {total} MB",
   "page.python.verifying": "Vérification de Python {version} avant son exécution...",
   "page.python.restarting": "Redémarrage du surveillant...",

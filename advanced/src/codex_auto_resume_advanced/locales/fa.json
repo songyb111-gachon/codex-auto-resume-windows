@@ -557,6 +557,7 @@
   "page.python.in_use_none": "ناظر اکنون اجرا نمی‌شود.",
   "page.python.next_start": "Python {version} آماده است. ناظر در شروع بعدی از آن استفاده می‌کند.",
   "page.python.none": "python.org نسخه‌ای که این برنامه بتواند استفاده کند فهرست نکرده است.",
+  "page.python.no_package": "python.org بستهٔ Windows برای Python {line} ندارد، پس اکنون نمی‌توان آن را انتخاب کرد.",
   "page.python.preview": "Python {version} (پیش‌نمایش: نسخهٔ همراه برنامه فقط در انتشار بعدی به آن تغییر می‌کند)",
   "page.python.restarting": "در حال شروع دوبارهٔ ناظر...",
   "page.python.returned.line": "این نسخهٔ برنامه دیگر Python {version} را ارائه نمی‌کند؛ بنابراین به نسخهٔ همراه برنامه برگشت.",

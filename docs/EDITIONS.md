@@ -1741,10 +1741,13 @@ saved account and back, each with no sign-in page and no other Codex engine runn
 ### Run on another Python version
 
 **What it does.** Lets this program run on another official Python from python.org instead of the one it came
-with: the newest release of 3.13, 3.14 or 3.15 (3.15 is a preview: the bundled version moves to it only in a later
-version). Its card says which Python the watcher runs on. Nothing is read from the network until you press a
-button. **Check python.org** reads python.org's public list of releases, and only the lines this version of the
-program allows are offered, so a new patch needs no update of this program. **Use this version** asks first, then
+with: the newest release of 3.13, 3.14 or 3.15 that has a Windows embeddable package (3.15 is a preview: the bundled
+version moves to it only in a later version). Its card says which Python the watcher runs on. Nothing is read from the
+network until you press a button. **Check python.org** reads python.org's public list of releases, and only the lines
+this version of the program allows are offered, so a new patch needs no update of this program. A line in its
+security-only phase publishes source alone, so its newest release that has the package is offered instead (3.13.17
+while 3.13.18 is source only); a line with no such release is named on the card as one that cannot be chosen now.
+**Use this version** asks first, then
 downloads that version's Windows embeddable package from `www.python.org`, and no other address, showing the
 bytes truly written. Before any of it runs: the whole file must match the SHA-256 python.org published, computed on
 the bytes on disk; it must unpack safely into a new folder of its own, `runtimes\<version>` inside this program's

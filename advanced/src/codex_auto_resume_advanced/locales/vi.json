@@ -1207,6 +1207,7 @@
   "page.python.current": "Đang được chọn.",
   "page.python.back": "Quay lại phiên bản đi kèm",
   "page.python.none": "python.org không liệt kê phiên bản nào mà chương trình này dùng được.",
+  "page.python.no_package": "python.org không có gói Windows cho Python {line}, nên hiện chưa thể chọn.",
   "page.python.downloading": "Đang tải Python {version}: {got} / {total} MB",
   "page.python.verifying": "Đang kiểm tra Python {version} trước khi chạy...",
   "page.python.restarting": "Đang khởi động lại bộ theo dõi...",

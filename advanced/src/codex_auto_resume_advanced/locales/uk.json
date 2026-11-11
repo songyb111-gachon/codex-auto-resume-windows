@@ -1207,6 +1207,7 @@
   "page.python.current": "Вибрано зараз.",
   "page.python.back": "Повернутися до вбудованої версії",
   "page.python.none": "python.org не перелічує жодної версії, яку може використати ця програма.",
+  "page.python.no_package": "На python.org немає пакета для Windows для Python {line}, тому зараз його не можна вибрати.",
   "page.python.downloading": "Завантаження версії Python {version}: {got} з {total} MB",
   "page.python.verifying": "Перевірка версії Python {version} перед запуском...",
   "page.python.restarting": "Перезапуск монітора...",

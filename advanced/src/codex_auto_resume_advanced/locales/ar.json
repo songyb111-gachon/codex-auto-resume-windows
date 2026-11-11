@@ -1207,6 +1207,7 @@
   "page.python.current": "مختار الآن.",
   "page.python.back": "العودة إلى الإصدار المرفق",
   "page.python.none": "لا يسرد python.org أي إصدار يستطيع هذا البرنامج استخدامه.",
+  "page.python.no_package": "لا يوفّر python.org حزمة Windows من Python {line}، لذا لا يمكن اختياره الآن.",
   "page.python.downloading": "جارٍ تنزيل Python {version}: {got} من {total} MB",
   "page.python.verifying": "جارٍ فحص Python {version} قبل أن يعمل...",
   "page.python.restarting": "جارٍ إعادة تشغيل المراقِب...",

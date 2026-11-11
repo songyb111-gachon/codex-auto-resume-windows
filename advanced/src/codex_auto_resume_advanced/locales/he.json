@@ -1207,6 +1207,7 @@
   "page.python.current": "נבחרה כעת.",
   "page.python.back": "חזרה לגרסה המצורפת",
   "page.python.none": "python.org לא מפרט אף גרסה שהתוכנה הזו יכולה להשתמש בה.",
+  "page.python.no_package": "ל-python.org אין חבילת Windows של Python {line}, ולכן אי אפשר לבחור בה עכשיו.",
   "page.python.downloading": "מוריד את Python {version}: {got} מתוך {total} MB",
   "page.python.verifying": "בודק את Python {version} לפני שהוא רץ...",
   "page.python.restarting": "מפעיל מחדש את תהליך הניטור...",

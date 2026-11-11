@@ -1207,6 +1207,7 @@
   "page.python.current": "지금 선택됨.",
   "page.python.back": "함께 제공된 버전으로 돌아가기",
   "page.python.none": "python.org에 이 프로그램이 쓸 수 있는 버전이 없습니다.",
+  "page.python.no_package": "python.org에 Python {line}의 Windows용 패키지가 없어서 지금은 선택할 수 없습니다.",
   "page.python.downloading": "Python {version} 내려받는 중: {got} / {total} MB",
   "page.python.verifying": "실행하기 전에 Python {version} 검사 중...",
   "page.python.restarting": "워처를 다시 시작하는 중...",

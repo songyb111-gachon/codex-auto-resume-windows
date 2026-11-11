@@ -1207,6 +1207,7 @@
   "page.python.current": "Escolhida agora.",
   "page.python.back": "Voltar à versão incluída",
   "page.python.none": "O python.org não lista nenhuma versão que este programa possa usar.",
+  "page.python.no_package": "O python.org não tem pacote para Windows do Python {line}, então ele não pode ser escolhido agora.",
   "page.python.downloading": "Baixando o Python {version}: {got} de {total} MB",
   "page.python.verifying": "Verificando o Python {version} antes de rodar...",
   "page.python.restarting": "Reiniciando o monitor...",
