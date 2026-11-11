@@ -64,8 +64,6 @@ from .words import locale_of, say, vocabulary
 
 
 FRAME_MS = 33                # about thirty frames a second, and only while something moves
-
-
 FIRST_READ_WAIT_MS = 300     # the first opening waits this long for real numbers at most
 
 
@@ -625,6 +623,8 @@ class Popup(PopupMessages):
             action = actions.get(command)
             if action is None or not self.model.begin(action):
                 return
+            if action[0] == "dashboard_row":     # v0.6.23: the Dashboard's own dialog for the row; the popup closes
+                self.hide()
             self._run(action)
             self._update()
         if self._draw_row_menu(numbered, run, (point.x, point.y)):

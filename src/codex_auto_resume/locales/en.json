@@ -374,6 +374,7 @@
   "history.reset_limit": "Its attempts were already given back as many times as allowed; continue this task in Codex yourself.",
   "history.reset_thread_off": "Automatic recovery is off for this conversation; switch it on before recovery can run.",
   "menu.open": "Open Dashboard",
+  "menu.open_popup": "Open the popup",
   "menu.pause": "Pause recovery",
   "menu.pending": "Show what is waiting ({n})",
   "menu.power_off.sleep": "Don't sleep after recoveries",

@@ -678,6 +678,8 @@ namespace CodexAutoResume
                 if (pending) UpdatePendingButtons();
                 if (history) UpdateHistoryButtons();
                 SnapshotApplied(reply);
+                // v0.6.23: a row's dialog the popup asked for, against the rows just read (TakeRowAsked).
+                TakeRowAsked();
             }
             finally { LayOutHeld(held); }
         }

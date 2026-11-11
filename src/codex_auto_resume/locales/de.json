@@ -745,6 +745,7 @@
   "menu.once_words_change": "Worte für dieses Mal ändern…",
   "menu.once_words_remove": "Worte für dieses Mal entfernen",
   "menu.open": "Dashboard öffnen",
+  "menu.open_popup": "Popup öffnen",
   "menu.pause": "Wiederherstellung pausieren",
   "menu.pending": "Wartende Aufgaben anzeigen ({n})",
   "menu.postpone": "Verschieben",

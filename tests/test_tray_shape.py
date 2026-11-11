@@ -68,6 +68,8 @@ METHODS = {
     "_unconfirmed_unseen",
     # v0.6.20: the right-click menu drawn in the product's design, and Windows' own as its fallback (menu.py).
     "_draw_menu", "_drop_menu", "_native_menu",
+    # v0.6.23 (the owner, 2026-11-11): the menu's Open the popup, and whether the icon has one to open (clicks.py).
+    "_open_popup", "_popup_can_open",
 }
 
 

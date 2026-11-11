@@ -745,6 +745,7 @@
   "menu.once_words_change": "今回だけ添える言葉を変更...",
   "menu.once_words_remove": "今回だけ添える言葉を削除",
   "menu.open": "ダッシュボードを開く",
+  "menu.open_popup": "ポップアップを開く",
   "menu.pause": "復旧を一時停止",
   "menu.pending": "待機中のものを表示 ({n})",
   "menu.postpone": "延期",

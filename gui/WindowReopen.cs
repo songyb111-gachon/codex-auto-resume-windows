@@ -119,7 +119,8 @@ namespace CodexAutoResume
         /// a page, a section, a Theme or a Design there is; `--bounds=` is four whole numbers, a position in the virtual
         /// screen's range and a size from 1 to 32767; `--frame=` is four whole numbers from 0 to MaxFrame;
         /// `--focus=` is a name IsFocusName accepts; `--reopened=` is one digit from 1 to 9;
-        /// `--maximized` and `--settings` are flags. Anything else, including a value that fails its
+        /// `--maximized` and `--settings` are flags. v0.6.23: `--dialog=` is a row and a dialog RowDialogRequest
+        /// accepts, and opens Pending. Anything else, including a value that fails its
         /// check, is ignored, as an unknown argument always was.
         internal static OpenRequest ParseArguments(string[] arguments)
         {
@@ -170,9 +171,48 @@ namespace CodexAutoResume
                 {
                     if (IsFocusName(value)) request.Focus = value;
                 }
+                else if ((value = After(argument, "--dialog=")) != null)
+                {
+                    if (RowDialogRequest(value) != null) request.RowDialog = value;
+                }
                 ArgumentParsed(argument, request);
             }
+            // A row's dialog is on Pending, whatever page was named beside it.
+            if (request.RowDialog != null) request.Page = "pending";
             return request;
+        }
+
+        // ------------------------------------------------------------- a row's dialog, asked from the popup (v0.6.23)
+        /// The dialogs of a Pending row the popup's row menu opens the window on (the owner, 2026-11-11: "대시보드 창
+        /// 띄우기"): Message for this conversation... and Add (or Change) words for this time... - ui/tray/dashboard.py
+        /// ROW_DIALOGS. The window's own dialog opens, for that row; the popup has no copy of either.
+        internal static readonly string[] RowDialogs = { "message", "once_words" };
+
+        /// `text` when it is `<dialog>:<interruption id>:<thread id>` exactly - a dialog of RowDialogs, an interruption id
+        /// as the product makes one (64 lowercase hex digits) and a conversation's UUID in its canonical text (lowercase,
+        /// hyphens at 8, 13, 18 and 23) - and null for anything else. Pure; the shape alone, since the record is checked
+        /// when the dialog is to open (RowForDialog).
+        internal static string RowDialogRequest(string text)
+        {
+            if (text == null || text.Length > 128) return null;
+            string[] parts = text.Split(':');
+            if (parts.Length != 3 || Array.IndexOf(RowDialogs, parts[0]) < 0) return null;
+            if (parts[1].Length != 64) return null;
+            foreach (char c in parts[1])
+                if (!LowerHex(c)) return null;
+            string thread = parts[2];
+            if (thread.Length != 36) return null;
+            for (int i = 0; i < thread.Length; i++)
+            {
+                bool hyphen = i == 8 || i == 13 || i == 18 || i == 23;
+                if (hyphen ? thread[i] != '-' : !LowerHex(thread[i])) return null;
+            }
+            return text;
+        }
+
+        private static bool LowerHex(char c)
+        {
+            return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
         }
 
         /// Four whole numbers from 0 to MaxFrame, one or two digits each: an invisible resize border.
@@ -560,12 +600,27 @@ namespace CodexAutoResume
         private static extern bool ChangeWindowMessageFilterEx(IntPtr window, int message, int action, IntPtr status);
 
         /// The page an open request's text asks for: "" to come forward where it is, a page of PageOrder, or null when
-        /// it is neither, which this window does not take. Pure, so the rule can be checked without a window.
+        /// it is neither, which this window does not take. Pure, so the rule can be checked without a window. v0.6.23: or
+        /// "pending" and, on a second line, a row's dialog RowDialogRequest accepts (OpenRequestRow) - the popup's row menu.
         internal static string OpenRequestPage(string text)
         {
             if (text == null || text.Length == 0) return text;
+            if (text.IndexOf('\n') >= 0) return OpenRequestRow(text) != null ? "pending" : null;
             return Array.IndexOf(PageOrder, text) >= 0 ? text : null;
         }
+
+        /// The row's dialog an open request asks for (v0.6.23): its second line, after "pending", when RowDialogRequest
+        /// accepts it; null for a request without one, or with anything else.
+        internal static string OpenRequestRow(string text)
+        {
+            if (text == null) return null;
+            int line = text.IndexOf('\n');
+            if (line < 0 || text.Substring(0, line) != "pending") return null;
+            return RowDialogRequest(text.Substring(line + 1));
+        }
+
+        /// The longest open request's text, in bytes: a page alone is at most 64, a page and a row's dialog 240.
+        private const int OpenRequestBytes = 512;
 
         private bool TakeOpenRequest(ref Message m)
         {
@@ -577,25 +632,29 @@ namespace CodexAutoResume
             if (auditing || !shown || IsDisposed || Disposing) return false;
             string text = null;
             if (copy.Size == 0) text = "";
-            else if (copy.Size > 0 && copy.Size <= 64 && copy.Size % 2 == 0 && copy.Bytes != IntPtr.Zero)
+            else if (copy.Size > 0 && copy.Size <= OpenRequestBytes && copy.Size % 2 == 0 && copy.Bytes != IntPtr.Zero)
             {
                 try { text = Marshal.PtrToStringUni(copy.Bytes, copy.Size / 2); }
                 catch (Exception) { text = null; }
             }
             string page = OpenRequestPage(text);
             if (page == null) return false;
+            string row = OpenRequestRow(text);
             m.Result = (IntPtr)OpenRequestTaken;
             // Answered first, so the watcher waits on nothing a page takes to show.
-            BeginInvoke(new MethodInvoker(delegate { ComeForwardOn(page); }));
+            BeginInvoke(new MethodInvoker(delegate { ComeForwardOn(page, row); }));
             return true;
         }
 
         /// On `page` ("" where it is) and in front. The page is left as it is under a dialog, which comes forward with it.
-        private void ComeForwardOn(string page)
+        /// v0.6.23: with `row`, that row's dialog is asked for once it is read again (AskRowDialog) - never under a dialog.
+        private void ComeForwardOn(string page, string row)
         {
             if (IsDisposed) return;
             try { if (page.Length > 0 && page != currentPage && IsWindowEnabled(Handle)) ShowPage(page); }
             catch (Exception) { /* it comes forward on the page it shows */ }
+            try { if (row != null && IsWindowEnabled(Handle)) AskRowDialog(row); }
+            catch (Exception) { /* it comes forward on Pending */ }
             // Restored if minimized, then activated - which brings it to the front, as the watcher allowed it to.
             try
             {
@@ -673,6 +732,7 @@ namespace CodexAutoResume
         /// Whether a start with `arguments` asks a window that is open to take it: one a person made - the Start menu's
         /// shortcut, the program itself, the setup's Finish - whose command line names at most a page (`--page=`, the older
         /// `--settings`), opened again outside another app's view (HostApp.Outside) or not, and not a capture's. Pure.
+        /// v0.6.23: and a row's dialog (`--dialog=`, RowDialogRequest), which the request carries on its second line.
         internal static bool HandsOverOnStart(string[] arguments, bool capture)
         {
             if (capture) return false;
@@ -682,15 +742,20 @@ namespace CodexAutoResume
                 if (string.IsNullOrEmpty(argument) || argument == HostApp.Outside || argument == "--settings") continue;
                 if (argument.StartsWith("--page=", StringComparison.Ordinal) &&
                     Array.IndexOf(PageOrder, argument.Substring("--page=".Length)) >= 0) continue;
+                if (argument.StartsWith("--dialog=", StringComparison.Ordinal) &&
+                    RowDialogRequest(argument.Substring("--dialog=".Length)) != null) continue;
                 return false;
             }
             return true;
         }
 
         /// The page a start that hands over asks for: the one its command line names, or "" - come forward where it is.
+        /// v0.6.23: with a row's dialog, "pending" and that on a second line, as win/handover.py request_text writes it.
         internal static string HandOverPage(string[] arguments)
         {
-            string page = ParseArguments(HostApp.Without(arguments)).Page;
+            OpenRequest request = ParseArguments(HostApp.Without(arguments));
+            if (request.RowDialog != null) return "pending\n" + request.RowDialog;
+            string page = request.Page;
             return page != null && Array.IndexOf(PageOrder, page) >= 0 ? page : "";
         }
 

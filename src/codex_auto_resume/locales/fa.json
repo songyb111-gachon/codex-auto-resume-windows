@@ -727,6 +727,7 @@
   "menu.once_words_change": "تغییر متن این بار...",
   "menu.once_words_remove": "حذف متن این بار",
   "menu.open": "باز کردن داشبورد",
+  "menu.open_popup": "باز کردن پنجرهٔ ناحیهٔ اعلان",
   "menu.pause": "توقف موقت بازیابی",
   "menu.pending": "نمایش موارد در انتظار ({n})",
   "menu.postpone": "به تعویق انداختن",

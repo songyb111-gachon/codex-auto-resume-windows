@@ -615,7 +615,8 @@ class App(WatchLoop, PlugNotices):
                               on_pending=lambda: tray.open_dashboard(home, "pending"),
                               on_stop=lambda: StopEvent(str(self.paths.state_dir)).signal(),
                               control=Control(self.paths, plug=self.plug), pending_source=names,
-                              on_dashboard=lambda: tray.open_dashboard(home, "pending"),
+                              # v0.6.23: a row of its menu also names the row and the Dashboard's dialog to open for it.
+                              on_dashboard=lambda row=None: tray.open_dashboard(home, "pending", row=row),
                               log=self.logger.info, inbox=self._inbox,
                               on_notice_action=self._notice_action,
                               on_notice_complete=notifier.complete,
