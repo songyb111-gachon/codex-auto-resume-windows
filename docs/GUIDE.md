@@ -97,8 +97,9 @@ when it stops.
 The setup window can add a shortcut on your Desktop, which opens what the Start Menu entry opens: *Add a shortcut to
 the desktop*, on the last page - Finish, once the installation is made, as an ordinary installer has it - off unless you
 tick it. After a repair or an update, from the setup program or from the Dashboard, the box shows what is true now:
-ticked where this installation's shortcut is there. Ticking it makes the shortcut and unticking it removes it when you
-press Finish, and left as it was nothing changes. A failed installation, and an uninstall (which removes this
+where this installation's shortcut is already there, it reads *Keep the shortcut on the desktop*, ticked, and unticking
+it removes the shortcut when you press Finish. Where none is there, it reads *Add a shortcut to the desktop*, and
+ticking it makes the shortcut when you press Finish. Left as it was, nothing changes. A failed installation, and an uninstall (which removes this
 installation's shortcut as it always did), have no box. `-Silent` makes none: add `-DesktopShortcut` to make one, or
 `-NoDesktopShortcut` to remove it (`CodexAutoResume-Setup-vX.Y.Z.exe -Silent -DesktopShortcut`); with neither, as
 `winget` runs it, the Desktop is left as it is. Only a shortcut named `Codex Auto Resume.lnk` whose target is inside

@@ -657,6 +657,7 @@
   "installer.done.edition_kept": "다른 판이 여기에 설치되어 있으며, 변경되지 않았습니다.",
   "installer.done.desktop_failed": "바탕 화면 바로 가기를 바꾸지 못했습니다. 나머지는 평소대로 진행되었으며, 자세한 내용은 로그에 있습니다.",
   "installer.done.desktop_shortcut": "바탕 화면에 바로 가기 추가",
+  "installer.done.desktop_shortcut_keep": "바탕 화면에 바로 가기 유지",
   "installer.done.desktop_taken": "바탕 화면에 이름이 같은 다른 바로 가기가 있습니다. 그대로 두었고 새로 만들지 않았습니다.",
   "installer.done.exit_code": "종료 코드: {code}",
   "installer.done.failed": "완료되지 않았습니다(종료 코드 {code}).",

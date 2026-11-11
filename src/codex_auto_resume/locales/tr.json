@@ -657,6 +657,7 @@
   "installer.done.edition_kept": "Diğer sürüm burada kurulu ve değiştirilmedi.",
   "installer.done.desktop_failed": "Masaüstü kısayolu değiştirilemedi. Diğer her şey her zamanki gibi devam etti; ayrıntılar günlükte.",
   "installer.done.desktop_shortcut": "Masaüstüne kısayol ekle",
+  "installer.done.desktop_shortcut_keep": "Kısayolu masaüstünde tut",
   "installer.done.desktop_taken": "Masaüstünde aynı adda başka bir kısayol var. Olduğu gibi bırakıldı ve yenisi oluşturulmadı.",
   "installer.done.exit_code": "Çıkış kodu: {code}",
   "installer.done.failed": "Tamamlanamadı (çıkış kodu {code}).",

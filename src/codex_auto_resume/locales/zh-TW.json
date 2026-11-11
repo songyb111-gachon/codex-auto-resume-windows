@@ -657,6 +657,7 @@
   "installer.done.edition_kept": "另一個版別已安裝在此處，且未被變更。",
   "installer.done.desktop_failed": "無法變更桌面捷徑。其他作業照常完成；詳情請查看記錄。",
   "installer.done.desktop_shortcut": "在桌面上新增捷徑",
+  "installer.done.desktop_shortcut_keep": "在桌面上保留捷徑",
   "installer.done.desktop_taken": "桌面上已有另一個同名捷徑。它維持不變，沒有建立新的捷徑。",
   "installer.done.exit_code": "結束代碼：{code}",
   "installer.done.failed": "未能完成（結束代碼 {code}）。",

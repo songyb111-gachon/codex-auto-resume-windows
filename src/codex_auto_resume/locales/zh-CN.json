@@ -657,6 +657,7 @@
   "installer.done.edition_kept": "另一个版别已安装在此处，且未被更改。",
   "installer.done.desktop_failed": "无法更改桌面快捷方式。其他操作照常完成；详情请查看日志。",
   "installer.done.desktop_shortcut": "在桌面上添加快捷方式",
+  "installer.done.desktop_shortcut_keep": "在桌面上保留快捷方式",
   "installer.done.desktop_taken": "桌面上已有另一个同名快捷方式。它保持不变，没有创建新的快捷方式。",
   "installer.done.exit_code": "退出代码：{code}",
   "installer.done.failed": "未能完成（退出代码 {code}）。",

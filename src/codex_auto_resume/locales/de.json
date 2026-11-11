@@ -657,6 +657,7 @@
   "installer.done.edition_kept": "Die andere Edition ist hier installiert und wurde nicht geändert.",
   "installer.done.desktop_failed": "Die Desktop-Verknüpfung konnte nicht geändert werden. Alles andere lief wie gewohnt; mehr steht im Protokoll.",
   "installer.done.desktop_shortcut": "Verknüpfung auf dem Desktop hinzufügen",
+  "installer.done.desktop_shortcut_keep": "Verknüpfung auf dem Desktop beibehalten",
   "installer.done.desktop_taken": "Auf dem Desktop liegt bereits eine andere Verknüpfung mit demselben Namen. Sie bleibt unverändert, und es wurde keine neue erstellt.",
   "installer.done.exit_code": "Exitcode: {code}",
   "installer.done.failed": "Der Vorgang wurde nicht abgeschlossen (Exitcode {code}).",
