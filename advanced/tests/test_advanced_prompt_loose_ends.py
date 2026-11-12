@@ -49,6 +49,46 @@ class LooseEndTests(images_case.ImagesCase):
         self.assertEqual(row["due_at"], first + DAY, "on to its next occurrence")
         self.assertEqual(self.calls, [], "never sent without its pictures")
 
+    def test_m2_a_tick_between_the_write_and_the_pictures_sends_nothing(self):
+        """Fails with the prompt written waiting: the tick would send its words without its pictures."""
+        plug = self.on()
+        place = copies.place
+        during = []
+
+        def placed_late(paths, prompt, images):
+            self.h.tick(advance=1)                     # the watcher's tick, between the write and the pictures
+            during.append((list(self.h.backend.send_calls), list(self.calls)))
+            return place(paths, prompt, images)
+        with patch.object(copies, "place", placed_late):
+            prompt = self.queued(plug, [self.picture()])
+        self.assertEqual(during, [([], [])], "nothing went before its pictures were placed")
+        self.assertEqual(plug.runtime.state.prompt(prompt)["state"], PromptState.WAITING)
+        self.h.tick(advance=1)
+        (method, params), = self.calls
+        self.assertEqual([item["type"] for item in params["input"]], ["text", "localImage"], "with its picture")
+        self.assertEqual(self.h.backend.send_calls, [])
+
+    def test_m2_an_edit_s_tick_before_its_new_pictures_sends_nothing(self):
+        """Fails with the edit written waiting: the tick would send the new words with the old picture."""
+        plug = self.on()
+        answer = self.add_with(plug, [self.picture()])          # at a time two hours on
+        prompt = answer["prompt"]
+        place = copies.place
+        during = []
+
+        def placed_late(paths, prompt_id, images):
+            self.h.tick(advance=1)
+            during.append((list(self.h.backend.send_calls), list(self.calls)))
+            return place(paths, prompt_id, images)
+        with patch.object(copies, "place", placed_late):
+            edited = surfaces.bridge(plug.runtime, "advanced-prompt-edit",
+                                     dict(prompt=prompt, words="New words, new picture.", trigger="after_turn",
+                                          images=[{"path": self.picture(name=images_case.OWN_NAME + "-2.png")}],
+                                          generation=plug.runtime.state.meta()["generation"]))
+        self.assertTrue(edited["done"], edited)
+        self.assertEqual(during, [([], [])], "nothing went with the old picture")
+        self.assertEqual(plug.runtime.state.prompt(prompt)["state"], PromptState.WAITING)
+
     def test_m3_an_expired_occurrence_drops_its_record(self):
         """Fails with `_expired` leaving the record: it would stay waiting, never pruned."""
         plug = self.on()

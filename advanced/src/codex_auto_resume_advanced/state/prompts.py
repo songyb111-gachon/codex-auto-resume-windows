@@ -86,12 +86,13 @@ def _occasion(words, trigger, at, every, occurrences, until, while_running, curr
 
 class PromptsMixin:
     def add_prompt(self, thread_id, words, trigger, *, at=None, every=None, occurrences=1, until=None,
-                   depends=False, while_running=WhileRunning.QUEUE, now=None) -> int:
+                   depends=False, while_running=WhileRunning.QUEUE, now=None, held=False) -> int:
         """A person's prompt, waiting, last in its conversation's queue; its id. Refused (Refused) for words that
         are empty or too long (prompt_refused), a time or schedule that is not one on offer (occasion_invalid),
         fifty waiting in all or twenty in that conversation (queue_full), and a prompt that waits for the one
         before it where there is none (dependency_unknown). `while_running` (v0.6.19, #50): what it does while a turn
-        of its conversation runs - after_turn goes into Codex's queue by its nature, so it waits for nothing."""
+        of its conversation runs - after_turn goes into Codex's queue by its nature, so it waits for nothing. `held`
+        (v0.6.23, M2): written held, with no reason, while its pictures are placed - `placed_prompt` lets it wait."""
         _thread(thread_id)
         current = self._now(now)
         trigger, every, while_running, due, until = _occasion(words, trigger, at, every, occurrences, until,
@@ -107,18 +108,19 @@ class PromptsMixin:
                 "INSERT INTO prompts (thread_id, words, trigger, at, every, occurrences, sent_count, until, depends, "
                 "position, state, created_at, due_at, while_running) VALUES (?,?,?,?,?,?,0,?,?,?,?,?,?,?)",
                 (thread_id, words, trigger, None if trigger == PromptTrigger.AFTER_TURN else due, every, occurrences,
-                 until, int(bool(depends)), 0 if last is None else last + 1, PromptState.WAITING, current, due,
-                 while_running))
+                 until, int(bool(depends)), 0 if last is None else last + 1,
+                 PromptState.HELD if held else PromptState.WAITING, current, due, while_running))
             return cursor.lastrowid
 
     def edit_prompt(self, prompt_id, generation, words, trigger, *, at=None, every=None, occurrences=1, depends=False,
-                    while_running=WhileRunning.QUEUE, now=None) -> None:
+                    while_running=WhileRunning.QUEUE, now=None, held=False) -> None:
         """A person's edit of one prompt still waiting (v0.6.19, #50): its words, when it goes, whether it waits for the
         one before it and what it does while a turn runs - its conversation and its place kept. Refused (Refused) as
         add_prompt refuses the same fields; where anything moved since the list was read at `generation`
         (stale_generation); and for a prompt that is not waiting with no occurrence made - due, being sent, held,
         finished or gone (invalid_request) - checked in the writing transaction, so an edit never reaches a message
-        core may be sending. A series keeps the occurrences it used, and one written before v0.6.23 its `until`."""
+        core may be sending. A series keeps the occurrences it used, and one written before v0.6.23 its `until`.
+        `held` (v0.6.23, M2): held, with no reason, while its new pictures are placed - `placed_prompt` lets it wait."""
         if type(prompt_id) is not int:
             raise Refused(Refusal.INVALID_REQUEST)
         if type(generation) is not int:
@@ -144,9 +146,22 @@ class PromptsMixin:
                 raise Refused(Refusal.DEPENDENCY_UNKNOWN)
             connection.execute(
                 "UPDATE prompts SET words=?, trigger=?, at=?, every=?, occurrences=?, until=?, depends=?, due_at=?, "
-                "while_running=?, reason=NULL, gate=NULL, gate_reason=NULL WHERE prompt_id=?",
+                "while_running=?, reason=NULL, gate=NULL, gate_reason=NULL, state=? WHERE prompt_id=?",
                 (words, trigger, None if trigger == PromptTrigger.AFTER_TURN else due, every, occurrences, until,
-                 int(bool(depends)), due, while_running, prompt_id))
+                 int(bool(depends)), due, while_running, PromptState.HELD if held else PromptState.WAITING,
+                 prompt_id))
+
+    def placed_prompt(self, prompt_id) -> bool:
+        """A prompt written held while its pictures were placed (v0.6.23, M2: add_prompt and edit_prompt's `held`) waiting
+        now, its pictures its own: never one held for another reason - the one before it, a Pause - nor one that moved
+        on meanwhile. False where there is none such."""
+        if type(prompt_id) is not int:
+            raise StateError("invalid prompt id")
+        with self._transaction(create=False) as connection:
+            if connection is None:
+                return False
+            return connection.execute("UPDATE prompts SET state=? WHERE prompt_id=? AND state=? AND reason IS NULL",
+                                      (PromptState.WAITING, prompt_id, PromptState.HELD)).rowcount == 1
 
     def prompts(self, *, thread_id=None, pending=True) -> list:
         """The prompts in queue order - by conversation, then place - each with its current occurrence's record

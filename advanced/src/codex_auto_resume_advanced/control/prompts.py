@@ -185,10 +185,12 @@ def add(runtime, argument) -> dict:
         return _refused(refusal, runtime)
     images, made = staged
     try:
+        # v0.6.23 (M2): one with pictures is written held, and waits only once they are placed - a watcher tick between
+        # the two would send its words without them.
         prompt = runtime.state.add_prompt(thread, words, argument.get("trigger"), at=argument.get("at"),
                                           every=argument.get("every"), occurrences=argument.get("occurrences", 1),
                                           depends=argument.get("depends") is True,
-                                          while_running=argument.get("while_running") or "queue")
+                                          while_running=argument.get("while_running") or "queue", held=bool(images))
     except Refused as refused:
         copies.drop(runtime.paths, made)
         return _refused(refused.refusal, runtime)
@@ -206,6 +208,10 @@ def add(runtime, argument) -> dict:
                 pass
             copies.drop(runtime.paths, made)
             sweep(runtime)
+            return _refused(Refusal.STATE_UNAVAILABLE, runtime)
+        try:
+            runtime.state.placed_prompt(prompt)
+        except Exception:
             return _refused(Refusal.STATE_UNAVAILABLE, runtime)
     sweep(runtime)
     return dict(view(runtime), done=True, prompt=prompt)
@@ -277,7 +283,8 @@ def edit(runtime, argument) -> dict:
         runtime.state.edit_prompt(prompt, argument.get("generation"), words, argument.get("trigger"),
                                   at=argument.get("at"), every=argument.get("every"),
                                   occurrences=argument.get("occurrences", 1), depends=argument.get("depends") is True,
-                                  while_running=argument.get("while_running") or "queue", now=runtime.clock())
+                                  while_running=argument.get("while_running") or "queue", now=runtime.clock(),
+                                  held=images is not None)
     except Refused as refused:
         copies.drop(runtime.paths, made)
         return _refused(refused.refusal, runtime)
@@ -285,11 +292,18 @@ def edit(runtime, argument) -> dict:
         copies.drop(runtime.paths, made)
         return _refused(Refusal.STATE_UNAVAILABLE, runtime)
     if images is not None:
+        # v0.6.23 (M2): held while its new pictures are placed, so no tick sends the new words with the old ones; it
+        # waits again either way, as an edit whose pictures could not be placed did before.
         try:
             copies.place(runtime.paths, prompt, images)
         except (OSError, copies.ImageRefused):
             copies.drop(runtime.paths, made)
             return _refused(Refusal.STATE_UNAVAILABLE, runtime)
+        finally:
+            try:
+                runtime.state.placed_prompt(prompt)
+            except Exception:
+                pass
     return dict(view(runtime), done=True, prompt=prompt)
 
 
