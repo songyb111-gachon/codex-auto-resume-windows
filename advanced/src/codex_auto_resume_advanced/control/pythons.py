@@ -13,8 +13,9 @@ it unpacked, leaves the runtime in use alone and says which step it was (STEPS):
   download   the Windows embeddable package from the one exact address, its size bounded;
   digest     SHA-256 of the bytes kept on disk against what python.org published;
   unpack     into a new folder of its own, <home>\\runtimes\\<version>: flat, plain files of plain names, size bounded;
-  signature  python.exe, pythonw.exe and python3XX.dll signed by the Python Software Foundation, as Windows judges
-             (core's win/authenticode.py, the check #58 made for OpenAI's engine);
+  signature  every *.exe, *.dll and *.pyd unpacked - python.exe, pythonw.exe and python3XX.dll among them - signed by
+             the Python Software Foundation (Microsoft only on the Visual C++ runtime), as Windows judges (core's
+             win/authenticode.py, the check #58 made for OpenAI's engine);
   import     for the first time, it runs: every shipped module imported under it, leaving no bytecode (pythoncheck.py);
   start      the record is written (chosen_runtime.py), and the watcher restarted; the launcher takes the record away by
              itself if it does not come up under that Python (scripts/watcher_launcher.py, `supervised` below).
@@ -54,6 +55,13 @@ LINES = ("3.13", "3.14", "3.15")
 # Shown as a preview: the bundled runtime moves to it only in a later version.
 PREVIEW = frozenset({"3.15"})
 PYTHON_SIGNER = "Python Software Foundation"
+# What must be signed before anything runs: every program file of the package (`_signed`). The Visual C++ runtime the
+# package ships beside the interpreter is Microsoft's own: measured on 2026-11-13 on a python.org 3.13 installation, its
+# vcruntime140.dll and vcruntime140_1.dll carry "Microsoft Windows Software Compatibility Publisher" and its 43 other
+# *.exe, *.dll and *.pyd the Foundation's. Microsoft's names are taken for those files alone, the Foundation's as well.
+SIGNED_KINDS = (".exe", ".dll", ".pyd")
+VC_RUNTIME = re.compile(r"vcruntime140(?:_[0-9])?\.dll", re.IGNORECASE)
+SIGNERS_OF_VC_RUNTIME = (PYTHON_SIGNER, "Microsoft Corporation", "Microsoft Windows Software Compatibility Publisher")
 # The steps a person is told of, in the order they run.
 LIST, SOURCE, DOWNLOAD, DIGEST, UNPACK, SIGNATURE, IMPORT, START = (
     "list", "source", "download", "digest", "unpack", "signature", "import", "start")
@@ -537,10 +545,23 @@ def _members_allowed(members, version) -> None:
 
 
 def _signed(target, version, hands) -> None:
+    """Every program file unpacked - each *.exe, *.dll and *.pyd - signed by the Python Software Foundation, as Windows
+    judges it, before the import step runs any of them; Microsoft is allowed only on the Visual C++ runtime the package
+    ships (VC_RUNTIME). The interpreters and the library are among them, and must be there.
+
+    v0.6.23 final (S3 of the second round's security audit): only those three were checked, and every extension module
+    and other DLL the import step then loads rested on a SHA-256 read from the same host as the package."""
     stem = "python3" + version.split(".")[1]
-    for name in ("python.exe", "pythonw.exe", stem + ".dll"):
+    try:
+        names = sorted(entry.name for entry in target.iterdir() if entry.suffix.lower() in SIGNED_KINDS)
+    except OSError:
+        raise _Failed(SIGNATURE) from None
+    if not {"python.exe", "pythonw.exe", stem + ".dll"} <= {name.lower() for name in names}:
+        raise _Failed(SIGNATURE)
+    for name in names:
+        allowed = SIGNERS_OF_VC_RUNTIME if VC_RUNTIME.fullmatch(name) else (PYTHON_SIGNER,)
         try:
-            if hands.signer(target / name) != PYTHON_SIGNER:
+            if hands.signer(target / name) not in allowed:
                 raise _Failed(SIGNATURE)
         except AdapterError:
             raise _Failed(SIGNATURE) from None

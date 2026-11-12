@@ -439,6 +439,50 @@ class VerifyTests(Case):
                     self.assert_refused(hands, pythons.SIGNATURE)
                     self.assertNotIn("imports", hands.log)
 
+    # A package as python.org ships it: extension modules, the stable ABI's DLL, other DLLs and the Visual C++ runtime.
+    PROGRAMS = ("_socket.pyd", "_ssl.pyd", "python3.dll", "libcrypto-3.dll", "sqlite3.dll", "vcruntime140.dll",
+                "vcruntime140_1.dll")
+    MICROSOFT = {"vcruntime140.dll": "Microsoft Windows Software Compatibility Publisher",
+                 "vcruntime140_1.dll": "Microsoft Corporation"}
+
+    def test_the_genuine_set_is_signed_file_by_file_and_passes(self):
+        """S3 of the second round: every *.exe, *.dll and *.pyd asked, the Visual C++ runtime as Microsoft's; the stdlib
+        zip, the ._pth and other files are not programs and are not asked."""
+        hands = Hands(archive=good_zip(extra=self.PROGRAMS + ("LICENSE.txt",)), signers=dict(self.MICROSOFT))
+        self.assertTrue(self.chosen_now(hands)["done"])
+        self.assertEqual(self.outcome(), {"word": pythons.CHOSEN_DONE, "step": None, "version": VERSION})
+        self.assertEqual(hands.log.count("signer"), 3 + len(self.PROGRAMS))
+        self.assertLess(hands.log.index("signer"), hands.log.index("imports"))
+        self.assertEqual(hands.log[-2:], ["imports", "restart"])
+
+    def test_one_program_file_not_signed_by_the_foundation_refuses_the_version(self):
+        """Fails with S3 reverted: a _socket.pyd of anyone's would have been loaded by the import step, and then at every start."""
+        for name in ("_socket.pyd", "libcrypto-3.dll", "python3.dll"):
+            for said in (AdapterError("unsigned"), AdapterError("signature_invalid"), "Microsoft Corporation",
+                         "Microsoft Windows Software Compatibility Publisher", "Someone Else", "python software foundation"):
+                with self.subTest(name=name, said=str(said)):
+                    self.forget()
+                    signers = dict(self.MICROSOFT, **{name: said})
+                    hands = Hands(archive=good_zip(extra=self.PROGRAMS), signers=signers)
+                    self.assert_refused(hands, pythons.SIGNATURE)
+                    self.assertNotIn("imports", hands.log)
+
+    def test_the_visual_c_runtime_is_still_held_to_a_valid_signature(self):
+        for said in (AdapterError("unsigned"), "Someone Else", "microsoft corporation"):
+            with self.subTest(said=str(said)):
+                self.forget()
+                signers = dict(self.MICROSOFT, **{"vcruntime140.dll": said})
+                self.assert_refused(Hands(archive=good_zip(extra=self.PROGRAMS), signers=signers), pythons.SIGNATURE)
+
+    def test_a_program_whose_name_is_spelt_in_capitals_is_asked_too(self):
+        hands = Hands(archive=good_zip(extra=("_EVIL.PYD",)), signers={"_EVIL.PYD": AdapterError("unsigned")})
+        self.assert_refused(hands, pythons.SIGNATURE)
+
+    def test_a_refused_signature_reaches_the_card_in_the_existing_words(self):
+        """The refusal is the signature step's, whose words already say "a program in the package"."""
+        words = json.loads((PACKAGE_DIR / "locales" / "en.json").read_text(encoding="utf-8"))
+        self.assertIn("program in the package", words["page.python.failed.signature"])
+
     def test_the_signature_check_is_core_s_shared_one(self):
         text = (PACKAGE_DIR / "control" / "pythons.py").read_text(encoding="utf-8")
         self.assertIn("from codex_auto_resume.win import authenticode", text)
