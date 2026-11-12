@@ -69,6 +69,13 @@ NOT_FINISHED = ("not_signed_in", "not_put_back", "not_started", "changed_under",
 # sign-in was not a file (MANUAL_NOTHING).
 MANUAL_SWITCHED, MANUAL_NOT_FINISHED, MANUAL_NOT_DONE = "manual_switched", "manual_not_finished", "manual_not_done"
 MANUAL_NOTHING = ("not_closed", "held", "locked", "not_usable")
+# What a switch left unsettled comes to at every look while it waits (the v0.6.23 second round's M5): a put-back that
+# cannot be made yet, the saved accounts held by another process, an account that could not be read. Journalled once for
+# each switch left; every repeat only counted for the day (Scoped.sample), so a wait of a day writes one line, not 1,440
+# of the journal's 5,000.
+REPEATING = ("not_put_back", "locked", "unverified")
+# How many switches left this watcher remembers having journalled.
+TOLD_KEPT = 8
 
 
 class _Errand:
@@ -106,7 +113,7 @@ def _idle():
 class AutoSwitch:
     """account_auto_switch's code: its P8 errand and its P7 answer. See the module."""
     __slots__ = ("paths", "_scoped", "_saved", "_session_for", "_restart", "_read_real", "_idle", "_busy", "_home",
-                 "_looked", "_episode", "_switched_at", "_notice", "_others")
+                 "_looked", "_episode", "_switched_at", "_notice", "_others", "_told")
 
     def __init__(self, paths, *, store=None, session_for=None, restart=None, read_real=None, idle=None, busy=None,
                  home=None):
@@ -121,6 +128,7 @@ class AutoSwitch:
         self._switched_at = None
         self._notice = None
         self._others = 0
+        self._told = []
 
     def bind(self, scoped):
         self._scoped = scoped
@@ -210,13 +218,22 @@ class AutoSwitch:
 
     def _today(self, now) -> int:
         """How many switches were made in the last DAY seconds - a rolling 24 hours, not a UTC calendar day, which let
-        twenty through around midnight UTC (the v0.6.23 audit's A-R2)."""
-        return len(self._recent(now))
+        twenty through around midnight UTC (the v0.6.23 audit's A-R2). PER_DAY where the times kept cannot be read (the
+        second round's M4): the ceiling fails closed, and the file is written again as the ceiling reached now, so it
+        frees a day later rather than never."""
+        recent = self._recent(now)
+        if recent is None:
+            self._keep([int(now)] * PER_DAY)
+            return PER_DAY
+        return len(recent)
 
-    def _recent(self, now) -> list:
+    def _recent(self, now):
+        """The switch times within the last DAY seconds, or None where they were kept and cannot be read."""
         store = self.store()
         try:
             times = store.attempts()
+        except OSError:
+            return None                                  # kept but unreadable (ProfileError): not "none made" (M4)
         except Exception:
             times = None
         if times is None:
@@ -231,8 +248,9 @@ class AutoSwitch:
         return [value for value in times if 0 <= now - value < DAY]
 
     def _attempted(self, now) -> None:
-        """One more switch counted toward the 24-hour ceiling."""
-        self._keep((self._recent(now) + [int(now)])[-PER_DAY:])
+        """One more switch counted toward the 24-hour ceiling - where the times cannot be read, the ceiling reached."""
+        recent = self._recent(now)
+        self._keep([int(now)] * PER_DAY if recent is None else (recent + [int(now)])[-PER_DAY:])
 
     def _keep(self, times) -> None:
         try:
@@ -254,9 +272,11 @@ class AutoSwitch:
         if settled == swap.SWITCHED:
             self._switched(now)
         elif settled is not None:
-            self._count(settled)
+            self._settled(settled, intent)
             if settled in NOT_FINISHED and isinstance(intent, dict):
                 self._not_finished(intent.get("to"))
+        if store.intent() is not None:
+            return None                                  # a switch not settled yet (a put-back, an account not read): no other
         rows = self.waiting(view, now)
         if self._why_not(view, rows) is not None:
             return None
@@ -264,8 +284,11 @@ class AutoSwitch:
         if episode == self._episode:
             return None                                  # one attempt for each set of waiting records
         self._episode = episode
+        unread = self._recent(now) is None
         if self._today(now) >= PER_DAY:
             self._count("ceiling")
+            if unread:
+                self._not_finished("ceiling")            # M4: no switch, said once in the not-finished words
             return None
         target = self.choose(store, now)
         if target is None and not self._others:
@@ -276,7 +299,9 @@ class AutoSwitch:
             self._notice = {"key": "autoswitch:%d" % int(min(row["detected_at"] for row in rows))}
             return None
         outcome, closed = self.put_in(target, now)
-        self._count(outcome)
+        # A switch that leaves a wait (a put-back not made yet, an account not read) is told once, here: the looks after
+        # it only count the day's repeats (`_settled`).
+        self._settled(outcome, store.intent() if outcome in REPEATING else None)
         if outcome in NOT_FINISHED:
             self._not_finished(target)
         if outcome == swap.SWITCHED:
@@ -371,11 +396,28 @@ class AutoSwitch:
 
     def settle(self):
         from ..codex import swap
-        settled = swap.recover(self.paths, self.store(), self.home(), read_real=self.read_real,
-                               restart=self._restart_now)
+        store = self.store()
+        intent = store.intent()
+        settled = swap.recover(self.paths, store, self.home(), read_real=self.read_real, restart=self._restart_now)
         if settled is not None:
-            self._count(settled)
+            self._settled(settled, intent)
         return None
+
+    def _settled(self, settled, intent) -> None:
+        """What a look's settling of a switch left came to, in the journal: once for each switch left where it only
+        waits again (REPEATING) - told apart by what the intent holds, never by its time, which each try writes anew -
+        and every other word as it comes."""
+        if settled in REPEATING:
+            left = intent if isinstance(intent, dict) else {}
+            key = (settled, left.get("from"), left.get("to"), left.get("put_in"), left.get("step"))
+            if key in self._told:
+                try:
+                    self._scoped.sample(settled)
+                except Exception:
+                    pass
+                return
+            self._told = (self._told + [key])[-TOLD_KEPT:]
+        self._count(settled)
 
     # ------------------------------------------------------------------ P7
     def schedule(self, record, eligible_at):

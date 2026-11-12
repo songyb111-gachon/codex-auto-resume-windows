@@ -308,18 +308,26 @@ def meter_view(runtime) -> dict:
     shown, notices = [], []
     # v0.6.16 final: each stage by the windows its own switches leave on.
     on = {capability: usage.acting(values) for capability, values in options.items()}
+    # v0.6.23 second round B1: a window read before the account changed is the old account's - shown as read, but in no
+    # stage's band and with no warning: nothing acts on it (usage.of_account, the one rule every stage asks).
+    try:
+        current = {(row["bucket"], row["minutes"])
+                   for row in usage.of_account(rows, runtime.paths, runtime.state.stamped)}
+    except Exception:
+        current = set(rows)
     for (bucket, minutes), row in sorted(rows.items()):
         band = "none"
+        acts = (bucket, minutes) in current
         for capability, word in ((usage.PAUSE, "pause"), (usage.WRAP_UP, "wrap_up"), (usage.METER, "warn")):
-            if (minutes in on[capability] and states.get(capability) == ArmingState.ARMED
+            if (acts and minutes in on[capability] and states.get(capability) == ArmingState.ARMED
                     and usage.reached(row, usage.percent(options[capability], capability, minutes), now)):
                 band = word
                 break
         shown.append({"bucket": bucket, "window_minutes": minutes, "used_percent": row["used_percent"],
                       "reset_at": row["reset_at"], "band": band})
         warned = row["warned_at"]
-        if (warned is not None and 0 <= now - warned < usage.NOTICE_FOR and row["warned_reset_at"] == row["reset_at"]
-                and row["reset_at"] is not None):
+        if (acts and warned is not None and 0 <= now - warned < usage.NOTICE_FOR
+                and row["warned_reset_at"] == row["reset_at"] and row["reset_at"] is not None):
             notices.append({"key": "%s:%d:%d" % (bucket, minutes, row["reset_at"]), "window_minutes": minutes,
                             "used_percent": row["used_percent"], "reset_at": row["reset_at"], "kind": "warn"})
     # v0.6.16-beta.4 (h): what the forced stop has to say - a turn it could not stop, a queue to Resume in Codex, a

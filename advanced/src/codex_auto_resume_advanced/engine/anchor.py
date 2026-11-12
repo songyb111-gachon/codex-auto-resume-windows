@@ -82,7 +82,10 @@ LEARN_EVERY = 1800
 LOOK_EVERY = 15
 # How often an occasion a passing failure holds open is looked at again. Such a failure is mostly a moment's (a PC just
 # woken, Codex restarting, the state busy), and each look opens a session of Codex: six tries for a time picked, sixty at
-# the very most for a reset seen.
+# the very most for a reset seen. A full weekly window is no passing failure: a reset seen under it is looked at again
+# once that window resets, not every RETRY_EVERY (`_held`, the v0.6.23 second round's M6 - it was a session every five
+# minutes for up to a week, about 2,000), so its looks stay within the sixty and one more after the weekly reset. A
+# ceiling's hold looks every RETRY_EVERY too, but opens no session: its own check comes before any read (`_before`).
 RETRY_EVERY = 300
 # The request's own bound, and how long a request killed at it has to end.
 TIMEOUT = 120
@@ -677,9 +680,22 @@ class WindowAnchor:
         held.update(next=now + RETRY_EVERY, reason=reason)
         if longer is not None:
             held["until"] = longer
+        weekly = reason == "weekly" and longer is not None
+        if weekly:
+            # M6: the weekly window is full until its reset - nothing to look at before it. The one look is a little past
+            # that reset (`_past_weekly` holds the occasion RETRY_EVERY beyond it), and the card says no "trying again
+            # every 5 minutes" meanwhile (`_show_retry`).
+            held["next"] = max(held["next"], longer - RETRY_EVERY)
+        held["weekly"] = weekly
         if now >= held["until"]:
             return self._span_ended(occasion, now)
-        if first:
+        if weekly and not held.get("said_weekly"):
+            held["said_weekly"] = True
+            self._say("the weekly limit is reached; looking again once it resets, at %s"
+                      % time.strftime("%Y-%m-%d %H:%M", self._local(int(held["next"]))))
+            self._unstamp(OptionKey.ANCHOR_STOPPED_AT)
+            self._show_retry()
+        elif first and not weekly:
             self._say("could not start the window now (%s); trying again every %d minutes until %s"
                       % (reason, RETRY_EVERY // 60, time.strftime("%Y-%m-%d %H:%M", self._local(int(held["until"])))))
             self._unstamp(OptionKey.ANCHOR_STOPPED_AT)
@@ -707,7 +723,8 @@ class WindowAnchor:
 
     def _show_retry(self) -> None:
         """Its card's "trying again until": the stamp written only when it changes, and taken away when nothing is held open."""
-        untils = [held["until"] for held in self._held_open.values() if held["until"] != float("inf")]
+        untils = [held["until"] for held in self._held_open.values()
+                  if held["until"] != float("inf") and not held.get("weekly")]
         until = int(max(untils)) if untils else None
         if until == self._shown:
             return

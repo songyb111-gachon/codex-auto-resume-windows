@@ -102,6 +102,11 @@ class Locked(ProfileError):
     """Another switch, put-back, save or delete holds the saved accounts - in this process or another."""
 
 
+class PutBackWaits(Locked):
+    """Delete all refused (R2): a switch's copy is in Codex's place and the previous sign-in, kept only here, waits to go
+    back while Codex runs. Held as a switch holds the saved accounts, and refused in the same words."""
+
+
 def _mutex(directory, seconds):
     """One named mutex for the saved accounts of one product home, across every process of the person's (the watcher,
     the bridge, a measurement's hand): core's win/sync.Mutex, which an abandoned holder releases."""
@@ -251,7 +256,16 @@ class Profiles:
 
     def delete_all(self, codex_home=None) -> int:
         """Every saved account taken away, and with them the intent, the last switch's stamp, and whatever plain sign-in
-        file a kill left (authfile.sweep: every scratch home, whatever its age). How many accounts went."""
+        file a kill left (authfile.sweep: every scratch home, whatever its age). How many accounts went.
+
+        Never the only copy of the sign-in a switch took out (v0.6.23 second round R2): while a switch's copy is still
+        in Codex's place and the previous sign-in waits to go back - kept in the intent, or in the previous account's
+        profile - the put-back is finished first where Codex does not run (codex/swap.unwind); where it runs, nothing
+        is deleted and PutBackWaits is raised (the card's "in use by a switch" refusal), so the person stays signed in
+        to the account that worked."""
+        from .codex import swap
+        if not swap.unwind(self, codex_home):
+            raise PutBackWaits("a put-back waits")
         gone = sum(self.delete(profile_id) for profile_id in self.ids())
         self._remove(INTENT)
         self._remove(LAST)
@@ -332,13 +346,16 @@ class Profiles:
 
     def attempts(self):
         """The times of the last switches (whole seconds), or None where none was ever kept. Delete all keeps them: the
-        day's ceiling is not freed by deleting the accounts."""
-        try:
-            found = self._read(TIMES)
-        except ProfileError:
+        day's ceiling is not freed by deleting the accounts. ProfileError where they were kept and cannot be read - a
+        damaged or unsealable file, a folder that became a link (v0.6.23 second round M4): an unknown count is never
+        "none made"."""
+        found = self._read(TIMES)
+        if found is None:
             return None
-        times = found.get("times") if isinstance(found, dict) else None
-        return [value for value in times if type(value) is int] if isinstance(times, list) else None
+        times = found.get("times")
+        if not isinstance(times, list):
+            raise ProfileError("the switch times cannot be read")
+        return [value for value in times if type(value) is int]
 
     def note_attempts(self, times) -> None:
         self._write(TIMES, {"times": [int(value) for value in times]})

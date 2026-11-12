@@ -386,6 +386,9 @@ PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + name for name in (
     "accounts.help_switch", "accounts.switch", "confirm.accounts_switch", "accounts.switching", "accounts.switched",
     "accounts.switch_not_started", "accounts.switch_undone", "accounts.switch_not_put_back", "accounts.switch_not_done",
     "refused.account_in_use", "refused.account_not_ready", "refused.accounts_switch_busy", "refused.other_engine",
+    # v0.6.23 second round: a switch whose account could not be read yet (R1), and Stop near a limit's own bound in
+    # place of the day's send limits, which never bind its stops (R3).
+    "accounts.switch_unverified", "pause_limits",
 ))
 # v0.6.23 (python_choice): the Python version card (advanced/gui/AdvancedPythons.cs, control/pythons.py).
 PAGE_KEYS = PAGE_KEYS + tuple(PAGE_PREFIX + "python." + name for name in (

@@ -1196,6 +1196,11 @@ namespace CodexAutoResume
                 string bounds = ActionLimits(Str(item, "id"));
                 if (bounds != null) limits.Controls.Add(HelpText(bounds));
             }
+            else if (Str(item, "id") == "usage_pause")
+                // v0.6.23 second round R3: its stops and continuations are not the ledger's sends, so the day's numbers
+                // never bind them; what does is said instead.
+                limits.Controls.Add(HelpText(Word("page.pause_limits",
+                    "It has no daily send limits. Each time a window reaches its stop percentage, it stops each conversation's running turn once, and continues that conversation once after the reset.")));
             else
             {
                 TableLayoutPanel numbers = Facts(limits);
