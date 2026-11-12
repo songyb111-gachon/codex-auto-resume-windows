@@ -6,6 +6,7 @@ has a motion, smooth, through the shared pieces; lists stay flat hairline rows. 
 * F6  - choosing a page changes only the weight its tab's name is drawn in: no tab in the strip moves.
 * F7  - Pending's Auto-resume switch comes up under the pointer, widens its knob while held and fades halfway into its row
         while its call is awaited past BusyHold's moment (ListSwitchFeel); its knob still moves only on the reply.
+* F8  - a tooltip fades out on a window of its own, as a closed menu does (SoftTipWindow.Close, SoftLayerFade).
 
 The real compiled window is loaded and its controls are made in a window of the probe's own, far off the screen and shown
 without taking activation, as tests/test_gui_v0623_motion.py does (its head, tail and helpers are this module's). Nothing
@@ -129,6 +130,26 @@ $out.feel.drawn = @{ rest = (Same $atRest (SwitchPixels 1 0 0)); hover = (Same $
                      awaited = (Same $atRest (SwitchPixels 0 0 0)) }
 """
 
+PROBE_TIP = r"""
+# ------------------------------------------------------------------ F8: the tooltip leaving
+$label8 = New-Object Windows.Forms.Label; $label8.Text = 'Words'; Place $label8 20 200 200 24; Pump 20
+$tip8 = Make 'SoftTip'
+$null = Call $tip8 'Open' @($label8, 'A line too long for its place', (New-Object Drawing.Size 180, 20))
+Pump 400
+$live = [int](SF 'SoftLayerFade' 'Live')
+$null = Call $label8 'OnMouseLeave' @($None)
+$out.tipOut = @{ ghost = ([int](SF 'SoftLayerFade' 'Live') - $live); gone = ((P $tip8 'Card') -eq $null) }
+Pump 400
+$out.tipOut.ghostGone = ([int](SF 'SoftLayerFade' 'Live') - $live)
+Reduce $true
+$null = Call $tip8 'Open' @($label8, 'Words', (New-Object Drawing.Size 80, 20))
+$live = [int](SF 'SoftLayerFade' 'Live')
+$null = Call $label8 'OnMouseLeave' @($None)
+$out.tipOut.reduced = @(([int](SF 'SoftLayerFade' 'Live') - $live), ((P $tip8 'Card') -eq $null))
+Reduce $false
+$tip8.Dispose()
+"""
+
 
 class TabStripTests(first.Probed):
     """F6: the strip laid out with no page chosen and then with each page chosen in turn."""
@@ -214,6 +235,26 @@ class PendingSwitchTests(first.Probed):
         self.assertIn("BusyHold.Join(this)", feel)
         self.assertNotIn("new Bitmap", feel)
         self.assertNotIn("PerformLayout", feel)
+
+
+class TooltipLeavingTests(first.Probed):
+    """F8: the tooltip closed by the pointer leaving."""
+
+    sections = (first.PROBE_HELPERS, PROBE_TIP)
+
+    def test_a_tooltip_closed_fades_out_on_a_window_of_its_own_and_leaves_nothing(self):
+        tip = self.answer["tipOut"]
+        self.assertEqual(tip["ghost"], 1, "the closing picture fades out on a window of its own")
+        self.assertTrue(tip["gone"], "the tip itself is closed at once")
+        self.assertEqual(tip["ghostGone"], 0)
+
+    def test_with_motion_reduced_a_tooltip_is_simply_gone(self):
+        self.assertEqual(self.answer["tipOut"]["reduced"], [0, True])
+
+    def test_it_is_the_menus_fade_and_no_other(self):
+        close = guiscan.member_body("SoftTipWindow", "Close")
+        self.assertIn("new SoftLayerFade(memory, dib, previous,", close)
+        self.assertIn("card.Close(fade);", guiscan.member_body("SoftTip", "Close"))
 
 
 if __name__ == "__main__":

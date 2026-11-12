@@ -795,6 +795,8 @@ namespace CodexAutoResume
         private void Close()
         {
             popDown.Stop();
+            // v0.6.23 (the second round's F8): it fades out as it faded in, as the menu and the drop-down leave (SoftTipWindow.Close).
+            bool fade = over != null && Motion.Allowed(over);
             if (over != null)
             {
                 over.MouseLeave -= left;
@@ -802,7 +804,7 @@ namespace CodexAutoResume
                 over.Disposed -= left;
                 over = null;
             }
-            if (card != null) card.Dispose();
+            if (card != null) card.Close(fade);
             card = null;
         }
 
