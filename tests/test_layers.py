@@ -317,6 +317,8 @@ LAZY_IMPORTS = {(_q(importer), _q(imported)): (kind, reason) for (importer, impo
     ("runtime.app", "control.policy"): ("cost", "the administrator's policy keys, asked where the control "
                                                 "layer asks them, when the settings are read"),
     ("runtime.loop", "control"): ("cost", "only a card's button and the icon's thread use the control layer"),
+    # v0.6.23 final (M1 of the owner's logs): the Dashboard's reading of how the watcher before this one ended, once at a start.
+    ("runtime.loop", "control.watcher"): ("cost", "how the watcher before this one ended, read once as a watcher starts"),
     ("runtime.app", "interface"): ("cost", "the icon's catalogue, when the icon starts or the language changes"),
     ("runtime.app", "ui.tray"): ("cost", "the notification-area icon, only in a watcher that shows one"),
     # Reaching `ui.tray` loads `ui/__init__.py` with it, and since v0.6.10-alpha the icon
