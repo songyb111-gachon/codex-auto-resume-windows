@@ -84,6 +84,9 @@ def stopped(journal_times, now, since=None) -> bool:
 
 
 class _Errand:
+    """One start of the resident. Both capabilities answer P8 in the same tick, before either errand runs, so each looks
+    again just before it launches (v0.6.23): a resident that answers now, or one started within STARTING - by the other's
+    errand a moment ago - or the hour's starts used, and it starts nothing. One launch a tick, one start counted."""
     __slots__ = ("code",)
 
     def __init__(self, code):
@@ -91,14 +94,23 @@ class _Errand:
 
     def run(self, guard):
         code = self.code
+        try:
+            scoped = code._scoped
+            now = scoped.now()
+            started = starts(scoped.journal_times, now, setup_time(code.paths))
+            if (code._running(code.paths) or (started and now - started[-1] < STARTING)
+                    or len(started) > RESTARTS):
+                return None
+        except Exception:
+            return None
         if code._launch(code.paths):
-            code._scoped.count(START_WORD)
+            scoped.count(START_WORD)
         return None
 
 
 class Resident:
     """local_api's and telegram_remote's code: the P8 errand that keeps the resident courier running. Both answer, and the first in the
-    registry's order starts it - the second finds it running, or just started. `running` and `launch` are seams a test
+    registry's order starts it - the second's errand finds it running, or just started (`_Errand.run`). `running` and `launch` are seams a test
     fills: whether a resident answers its mutex, and how one is started."""
     __slots__ = ("paths", "capability", "_scoped", "_running", "_launch", "_told")
 

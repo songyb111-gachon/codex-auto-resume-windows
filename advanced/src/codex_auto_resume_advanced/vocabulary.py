@@ -787,7 +787,8 @@ class ChatState(StrEnum):
 
 class ChatReason(StrEnum):
     """Why a chat message stands where it stands: Codex took it and its turn started (delivered); Codex did not take
-    it within three minutes and it was taken back (not_taken); a Pause took it back (withdrawn); a person cancelled
+    it within three minutes and it was taken back (not_taken); a Pause took it back (withdrawn: before v0.6.23 only,
+    since when a Pause leaves it with Codex); a person cancelled
     it; chat was turned off; its conversation was switched off; or what came of it cannot be proven (unknown)."""
     DELIVERED = "delivered"
     NOT_TAKEN = "not_taken"

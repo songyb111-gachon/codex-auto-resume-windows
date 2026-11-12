@@ -17,7 +17,9 @@ typed: nothing is filled in, and it is at most 2,000 characters unless Longer re
   closes; then every message due is handed core with its words, and every one in flight, to be watched.
   One whose conversation is found switched off is cancelled (H5: the switch itself cancels it, as it
   happens, runtime.conversation_off - this is for what that could not write); one unsent eight days after
-  it was written, or a day after it fell due, has expired. Either way its words go.
+  it was written, or a day after it fell due, has expired. Either way its words go. The day counts on from the last
+  time the claim's pace held it (v0.6.23, finding B2: twenty a day, four a conversation - `waiting_since`,
+  state/resets.paced_wait), so all fifty that may wait are sent, twenty a day, and none expires for that pace.
 * P3 `usage`: a core record of the same conversation is held while one of its messages is due or in
   flight, and while one counts for the very reset that record waits for - so when a continuation and the
   person's message wait for the same reset, only the message is sent, in the continuation's place (the
@@ -212,7 +214,9 @@ class ResetMessage:
             on = True                                    # what cannot be read cancels nothing
         if on is False:
             return RuleState.CANCELLED, RuleReason.CONVERSATION_OFF
-        if now - rule["created_at"] >= KEEP_FOR or (rule["due_at"] is not None and now - rule["due_at"] >= DUE_FOR):
+        if now - rule["created_at"] >= KEEP_FOR or (rule["due_at"] is not None
+                                                    and now - max(rule["due_at"], rule.get("waiting_since") or 0)
+                                                    >= DUE_FOR):
             return RuleState.DONE, RuleReason.EXPIRED
         if rule["words"] is not None and len(rule["words"]) > SHORT_LIMIT and not self._scoped.armed(LONG):
             return RuleState.CANCELLED, RuleReason.TURNED_OFF
