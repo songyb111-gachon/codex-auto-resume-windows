@@ -237,6 +237,20 @@ class PairedChatTests(TelegramCase):
         self.assertEqual((bot.answers, self.layer.calls), ([], []))
         self.assertEqual(self.said("/pause"), ["Recovery is paused."], "at its age it is")
 
+    def test_a_command_dated_ahead_of_this_pc_s_clock_is_obeyed(self):
+        """R1 (the second advanced review of v0.6.23): fails with no room ahead - Telegram's `date` is its own clock, and
+        on a PC a second or two behind it every command looked newer than now and was ignored, with no answer."""
+        for ahead in (1, 2, 60, telegram.AHEAD):
+            with self.subTest(ahead=ahead):
+                bot = Bot([self.message("/status", age=-ahead)])
+                self.poller(bot).once()
+                self.assertEqual(len(bot.answers), 1, "a clock %d s behind Telegram's" % ahead)
+
+    def test_a_command_dated_further_ahead_than_that_is_still_ignored(self):
+        bot = Bot([self.message("/pause", age=-(telegram.AHEAD + 1))])
+        self.poller(bot).once()
+        self.assertEqual((bot.answers, self.layer.calls), ([], []))
+
     def test_with_no_bot_or_no_chat_kept_nothing_is_asked(self):
         for kept in ({}, {"telegram_token": BOT_INK}, {"telegram_chat": str(CHAT)},
                      {"telegram_token": "not a token", "telegram_chat": str(CHAT)},

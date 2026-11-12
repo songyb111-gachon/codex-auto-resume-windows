@@ -6,7 +6,8 @@ resident courier's long poll of the bot push_notices keeps (channels.py), obeyin
 `remote` table) for as long as telegram_remote stands on, and waits while a pairing is under way - the pairing reads the
 same bot (channels.pair) and Telegram answers only one reader at a time. A message from any chat but the paired one is
 ignored without an answer, and so is one older than FRESH seconds: a /pause sent while this PC was off is not obeyed
-hours later. The paired chat's text is read as one of COMMANDS and nothing else:
+hours later. A message may also seem up to AHEAD seconds newer than this PC's clock, which is behind Telegram's.
+The paired chat's text is read as one of COMMANDS and nothing else:
 
     /status            what the watcher is doing: running or not, recovery on or paused, how many wait
     /list              the waiting recoveries as `task N`, their public state and next check (control/remote.py)
@@ -49,6 +50,12 @@ AFTER_REFUSAL = 60                 # ... after Telegram refused (a token it does
 AFTER_FAILURE = 10                 # ... after no answer, or another reader of the same bot (409: a pairing starting)
 CONFLICT = 409
 FRESH = 300                        # seconds a message may be old and still be obeyed
+# Seconds a message may seem to come from the future: Telegram's `date` is its own clock, and a PC's clock a second
+# behind it made every command look newer than now and be ignored (R1, the second advanced review of v0.6.23). FRESH is
+# there so a command is not obeyed long after it was sent; a date ahead of this PC's clock can only be the two clocks
+# differing, never an old command, so it is allowed as far as FRESH is the other way - a clock off by more than five
+# minutes is one Windows' time service would have put right - and a date further ahead is still ignored.
+AHEAD = FRESH
 UPDATES = 2                        # messages one read may bring: each at most 4,096 characters
 IGNORED_EVERY = 3600               # seconds between two journal lines for what other chats sent: one an hour at most
 MAX_TEXT = 64                      # characters of a message read; a longer one is no command
@@ -174,7 +181,7 @@ class Poller:
             sender = message.get("chat").get("id") if isinstance(message.get("chat"), dict) else None
             sent_at = message.get("date")
             if (type(sender) is not int or sender != chat or type(sent_at) is not int
-                    or not 0 <= now - sent_at <= FRESH):
+                    or not -AHEAD <= now - sent_at <= FRESH):
                 ignored = True
                 continue
             keep_chat_name(self.secrets, message.get("chat"))   # the card names the chat (M6): only when it changed
