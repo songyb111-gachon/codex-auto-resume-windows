@@ -129,10 +129,11 @@ uses, or English where that version does not ship it - and *Same as the interfac
   is too large or holds no JSON is now left as it is: the watcher keeps the settings it had (with none yet, it sends nothing), a save
   is refused and says why, the Diagnostics check names it, and *Restore defaults* keeps the file beside it before it starts again. A
   Codex path you name may be up to 32,767 characters, the longest Windows takes.
-- **The roadmap moves the Rust core to v0.6.25 and its audit to v0.6.26** (new since beta.2). v0.6.24 becomes a second round of
-  audits over the finished code, with the review of which advanced capabilities the standard edition could take and the switch of the
-  bundled Python to 3.15 if CPython 3.15.3 is out by then. Rule 0.7 of *docs/STANDARDS.md* names the new number, the owner's
-  amendment of 2026-11-11; the Python fork repository now follows v0.6.24.
+- **The roadmap says where the second and third rounds of audits go, and moves the Rust core to v0.6.25 and its audit to v0.6.26** (new
+  since beta.2). This release carries the whole second round of audits over the finished code. v0.6.24 is a third round that checks
+  everything again, with the review of which advanced capabilities the standard edition could take and the switch of the bundled Python
+  to 3.15 if CPython 3.15.3 is out by then. The Rust core stays v0.6.25 and its audit v0.6.26, and the Python fork repository follows
+  v0.6.24. Rule 0.7 of *docs/STANDARDS.md* names the Rust core's number, v0.6.25, the owner's amendment of 2026-11-11.
 
 ### Advanced edition
 
