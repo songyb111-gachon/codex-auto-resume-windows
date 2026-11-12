@@ -1586,8 +1586,17 @@ namespace CodexAutoResume
         private int prepareInputUsers;
         // How long its mouse and keyboard must have been still before a step is taken, in milliseconds.
         private const int PrepareAfterInputMilliseconds = 250;
-        // How long one step makes native controls for before it leaves the rest to the next; and those still to be made.
-        private const int PrepareSliceMilliseconds = 40;
+        // How long one step makes native controls for, or lets what it holds lay itself out, before it leaves the rest to
+        // the next - the pages made ready ahead and the Settings editors alike; and the controls still to be made.
+        // v0.6.23 (F2, R8): one slice for both, 30 ms, from what a step comes to over it - a step ends on the first control
+        // or field past its slice, which takes 10-40 ms more. Measured 2026-11-13 (the idle probe: months of data, 40 ms per
+        // bridge read, 3 runs a build and edition, the PC shared with other test runs): at 40 the controls' steps took 43-58
+        // ms (median), at 30 they take 33-47; the editors' field steps, at 30 already, 30-50, and the editors' longest
+        // step 60-110 (the interface language's card, one part of the Custom card), up to 225 on a loaded run, where it
+        // was 80-290 before their long steps were split. Longer than a slice are only the steps one control or one
+        // container takes on its own: History's list made with its 200 rows (up to 450), a page's own last layout when
+        // let go (Settings up to 500, Diagnostics up to 360).
+        private const int PrepareSliceMilliseconds = 30;
         private Stack<Control> prepareMake;
 
         /// Starts making the pages not yet shown ready, on the window's idle turns, once it is on screen.

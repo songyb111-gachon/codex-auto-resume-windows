@@ -3,7 +3,7 @@ r"""The Settings editors are built a step a turn, never all in one (v0.6.23, the
 Built on the first idle turn after the window opened (BuildEditorsLater), the editors held the window's thread for
 570-1080 ms in one turn - the longest the window took after it opened: its light stood still, a hover or a click
 waited. They are now built by EditorSteps, an iterator that hands the thread back after the General cards and the
-groups, every EditorSliceMilliseconds through the schema's fields, before the Continuation cards and before the page
+groups, every PrepareSliceMilliseconds through the schema's fields, before the Continuation cards and before the page
 is laid out - the same editors in the same order, only built over several turns. `buildQueued` stays set until the last
 step, so whatever waits for the editors waits for all of them; a switch to Settings before then builds what is left at
 once (BuildPendingEditors), and settings read again during the build start it again.
@@ -50,11 +50,11 @@ class SourceTests(unittest.TestCase):
 
     def test_the_build_hands_the_thread_back_between_its_parts(self):
         steps = guiscan.member_body("SettingsForm", "EditorSteps")
-        # v0.6.23 (F2): the General cards a few to a step.
+        # v0.6.23 (F2): the General cards a few to a step, the fields' slice the one the pages made ready ahead take.
         self.assertGreaterEqual(steps.count("yield return true;"), 10)
         self.assertLess(steps.index("BuildHomes(sections[\"advanced\"]);"), steps.index("var slice = Stopwatch.StartNew();"))
         self.assertLess(steps.index("yield return true;"), steps.index("BuildPower(sections[\"general\"]);"))
-        self.assertIn("if (slice.ElapsedMilliseconds >= EditorSliceMilliseconds)", steps)
+        self.assertIn("if (slice.ElapsedMilliseconds >= PrepareSliceMilliseconds)", steps)
         # v0.6.23 (round 5): the page laid out a step before its section is shown, and the Continuation cards a card a step.
         show = steps.index("ShowSection(currentSection);")
         self.assertLess(steps.index("columns.ResumeLayout(true);"), steps.rindex("yield return true;", 0, show),

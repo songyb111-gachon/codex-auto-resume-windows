@@ -379,7 +379,7 @@ namespace CodexAutoResume
         ///
         /// v0.6.23 (the owner, 2026-11-11): a step a turn (EditorSteps), never all in one. Built in one turn they held
         /// the window - its light, a hover, a click - for 570-1080 ms after it opened (measured 2026-11-11), the longest
-        /// turn it took; in steps of about EditorSliceMilliseconds the same editors are built in the same order, each
+        /// turn it took; in steps of about PrepareSliceMilliseconds the same editors are built in the same order, each
         /// step letting whatever waits go first. Until the last step `buildQueued` stays set, so everything that waits
         /// for the editors (Settled, the pages made ready ahead) waits for all of them.
         ///
@@ -421,9 +421,9 @@ namespace CodexAutoResume
             return false;
         }
 
-        // The build of the editors under way, a step at a time (EditorSteps), or null; and about how long a step takes.
+        // The build of the editors under way, a step at a time (EditorSteps), or null. A step through the schema's fields
+        // takes about PrepareSliceMilliseconds, the slice the pages made ready ahead take too (v0.6.23, R8).
         private IEnumerator<bool> editorSteps;
-        private const int EditorSliceMilliseconds = 30;
 
         private void BuildEditors(List<object> schema, Dictionary<string, object> current)
         {
@@ -433,7 +433,7 @@ namespace CodexAutoResume
         }
 
         /// The Settings editors built, in steps: each `yield` hands the window's thread back between two of them, after
-        /// the General cards and the groups, every EditorSliceMilliseconds through the schema's fields, before the
+        /// the General cards and the groups, every PrepareSliceMilliseconds through the schema's fields, before the
         /// Continuation cards and before the page is laid out. The order of everything built is the one a single build
         /// had; only when it is built changes.
         private IEnumerator<bool> EditorSteps(List<object> schema, Dictionary<string, object> current)
@@ -709,7 +709,7 @@ namespace CodexAutoResume
                         host.Controls.Add(HelpText(S("help.context_guard",
                             "Codex's own count, read when an interruption is detected, where Codex keeps one. Show them in Pending puts the count beside the task; a Hold choice also keeps a task whose conversation has used more waiting until you let it continue. Nothing is read while this is Off. For interruptions detected from then on.")));
                 }
-                if (slice.ElapsedMilliseconds >= EditorSliceMilliseconds)
+                if (slice.ElapsedMilliseconds >= PrepareSliceMilliseconds)
                 {
                     yield return true;
                     slice.Restart();
