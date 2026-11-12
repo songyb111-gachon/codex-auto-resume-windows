@@ -1192,7 +1192,7 @@
   "statement.python_choice.instead": "標準版只執行安裝時附帶的 Python，由它的發行版固定，它唯一的下載是來自 GitHub 的自身安裝程式。",
   "statement.python_choice.departs": "B14（第二個 Python 執行階段）、C1 和 C2（本程式的程式碼連線到 python.org）、F3（程式自己取得的程式檔案）、F6（啟動所選的 python.exe）和 I10（本程式沒有任何發行版固定過的 Python）。",
   "statement.python_choice.risks": "本程式在內建的 Python 上測試得最多，因此換一個版本可能表現不同；在這裡 3.15 是預覽版。如果無法連線到 python.org，或某項檢查失敗，它會停在那一步，刪除已解壓縮的內容，說明是哪一步，並且不動正在使用的 Python。如果監看程式在所選版本上 45 秒內沒有啟動，它會自行回到內建的 Python，並告訴您一次。所選版本約佔 30 MB，不會替您更新：要找更新的發行版，請按「檢查 python.org」。",
-  "statement.python_choice.stop": "在本卡片上按「返回內建版本」，即使所選版本已損壞也能用；或者在這裡關閉它，或一次關閉所有進階功能：監看程式會在內建的 Python 上重新啟動。只保留所選版本，它的資料夾在沒有任何程式從中執行後刪除。更新時，只要它所屬的系列仍在提供，就會保留您的選擇，否則會回到內建的 Python 並告知您。解除安裝時，該資料夾會隨程式的其餘部分一起刪除。",
+  "statement.python_choice.stop": "在本卡片上按「返回內建版本」，即使所選版本已損壞也能用；或者在這裡關閉它，或一次關閉所有進階功能：監看程式會在內建的 Python 上重新啟動。如果從 Codex 關閉，監看程式會在下次啟動時改用內建的 Python。只保留所選版本，它的資料夾在沒有任何程式從中執行後刪除。更新時，只要它所屬的系列仍在提供，就會保留您的選擇，否則會回到內建的 Python 並告知您。解除安裝時，該資料夾會隨程式的其餘部分一起刪除。",
   "page.python.title": "Python 版本",
   "page.python.help": "在您按下按鈕之前，不會從網路讀取任何內容。「檢查 python.org」列出每個版本中 python.org 隨 Windows 嵌入式套件一起發布的最新發行版；「使用此版本」從 www.python.org 下載它，並在執行之前檢查它。",
   "page.python.in_use": "監看程式正在 Python {version} 上執行。",
