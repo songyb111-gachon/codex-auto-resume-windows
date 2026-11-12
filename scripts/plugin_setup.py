@@ -135,9 +135,9 @@ def installed(home: Path) -> bool:
 def python_for_watcher(home: Path | None = None) -> Path:
     """pythonw.exe: the bundled one, or for a home with no runtime, the one beside this
     interpreter. Raises startup.StartupError where there is none: python.exe is never the
-    answer (startup.python_launcher)."""
-    launcher = bundled_python(home) if home is not None else None
-    return launcher if launcher is not None else startup.python_launcher()
+    answer (startup.python_launcher). startup.watcher_python's answer, which the Dashboard's
+    Start at sign-in writes too, so the two writers of the Run value cannot disagree."""
+    return startup.watcher_python(home)
 
 
 def _cli(home: Path, argv: list[str]) -> int:

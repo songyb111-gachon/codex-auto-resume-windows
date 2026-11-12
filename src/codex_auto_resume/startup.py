@@ -47,6 +47,25 @@ def python_launcher() -> Path:
     return windowless
 
 
+# The installation's own interpreter, relative to its home: what the installer deploys (scripts/plugin_setup.bundled_python).
+BUNDLED_PYTHONW = ("runtime", "pythonw.exe")
+
+
+def watcher_python(home=None) -> Path:
+    """The pythonw.exe a value Windows starts later names - the sign-in Run value above all: the installation's bundled
+    runtime where `home` has one, else the one beside this interpreter (python_launcher). The one function setup, Repair
+    and the Dashboard's Start at sign-in all write it with (v0.6.23 final, R1 of the second round's reachability audit).
+
+    Never the interpreter running this code just because it runs it: with a Python chosen (the advanced edition), the
+    bridge that turns the switch on runs under runtimes/<version>/, which Back or another version deletes - and a Run value
+    naming it would start nothing at the next sign-in while the switch still read On."""
+    if home is not None:
+        bundled = Path(home).joinpath(*BUNDLED_PYTHONW)
+        if bundled.is_file():
+            return bundled
+    return python_launcher()
+
+
 # PEP 768, new in Python 3.14: an interpreter with remote debugging on can be made, by any process of the same
 # user, to run a script of that process's choosing (sys.remote_exec) - and it is on unless the interpreter is told
 # otherwise. Every process of the bundled Python this product starts is told so on its command line, right after

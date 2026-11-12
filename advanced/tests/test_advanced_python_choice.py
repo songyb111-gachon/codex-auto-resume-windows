@@ -439,6 +439,50 @@ class VerifyTests(Case):
                     self.assert_refused(hands, pythons.SIGNATURE)
                     self.assertNotIn("imports", hands.log)
 
+    # A package as python.org ships it: extension modules, the stable ABI's DLL, other DLLs and the Visual C++ runtime.
+    PROGRAMS = ("_socket.pyd", "_ssl.pyd", "python3.dll", "libcrypto-3.dll", "sqlite3.dll", "vcruntime140.dll",
+                "vcruntime140_1.dll")
+    MICROSOFT = {"vcruntime140.dll": "Microsoft Windows Software Compatibility Publisher",
+                 "vcruntime140_1.dll": "Microsoft Corporation"}
+
+    def test_the_genuine_set_is_signed_file_by_file_and_passes(self):
+        """S3 of the second round: every *.exe, *.dll and *.pyd asked, the Visual C++ runtime as Microsoft's; the stdlib
+        zip, the ._pth and other files are not programs and are not asked."""
+        hands = Hands(archive=good_zip(extra=self.PROGRAMS + ("LICENSE.txt",)), signers=dict(self.MICROSOFT))
+        self.assertTrue(self.chosen_now(hands)["done"])
+        self.assertEqual(self.outcome(), {"word": pythons.CHOSEN_DONE, "step": None, "version": VERSION})
+        self.assertEqual(hands.log.count("signer"), 3 + len(self.PROGRAMS))
+        self.assertLess(hands.log.index("signer"), hands.log.index("imports"))
+        self.assertEqual(hands.log[-2:], ["imports", "restart"])
+
+    def test_one_program_file_not_signed_by_the_foundation_refuses_the_version(self):
+        """Fails with S3 reverted: a _socket.pyd of anyone's would have been loaded by the import step, and then at every start."""
+        for name in ("_socket.pyd", "libcrypto-3.dll", "python3.dll"):
+            for said in (AdapterError("unsigned"), AdapterError("signature_invalid"), "Microsoft Corporation",
+                         "Microsoft Windows Software Compatibility Publisher", "Someone Else", "python software foundation"):
+                with self.subTest(name=name, said=str(said)):
+                    self.forget()
+                    signers = dict(self.MICROSOFT, **{name: said})
+                    hands = Hands(archive=good_zip(extra=self.PROGRAMS), signers=signers)
+                    self.assert_refused(hands, pythons.SIGNATURE)
+                    self.assertNotIn("imports", hands.log)
+
+    def test_the_visual_c_runtime_is_still_held_to_a_valid_signature(self):
+        for said in (AdapterError("unsigned"), "Someone Else", "microsoft corporation"):
+            with self.subTest(said=str(said)):
+                self.forget()
+                signers = dict(self.MICROSOFT, **{"vcruntime140.dll": said})
+                self.assert_refused(Hands(archive=good_zip(extra=self.PROGRAMS), signers=signers), pythons.SIGNATURE)
+
+    def test_a_program_whose_name_is_spelt_in_capitals_is_asked_too(self):
+        hands = Hands(archive=good_zip(extra=("_EVIL.PYD",)), signers={"_EVIL.PYD": AdapterError("unsigned")})
+        self.assert_refused(hands, pythons.SIGNATURE)
+
+    def test_a_refused_signature_reaches_the_card_in_the_existing_words(self):
+        """The refusal is the signature step's, whose words already say "a program in the package"."""
+        words = json.loads((PACKAGE_DIR / "locales" / "en.json").read_text(encoding="utf-8"))
+        self.assertIn("program in the package", words["page.python.failed.signature"])
+
     def test_the_signature_check_is_core_s_shared_one(self):
         text = (PACKAGE_DIR / "control" / "pythons.py").read_text(encoding="utf-8")
         self.assertIn("from codex_auto_resume.win import authenticode", text)
@@ -625,6 +669,60 @@ class ReturnTests(Case):
             self.assertEqual(pythons.restart_watcher(config.Paths(self.home)), pythons.RUNNING)
         self.assertEqual(waited.call_args[1]["timeout"], pythons.RESTART_SECONDS)
         self.assertTrue(started.call_args[1]["creationflags"] & getattr(subprocess, "DETACHED_PROCESS", 0))
+
+    def restart(self, stopped):
+        """restart_watcher with a watcher that runs, a stop that answers with `stopped` (or raises it), and every step in order."""
+        from codex_auto_resume import config, control
+        order = []
+
+        def stop(_layer):
+            order.append("stop")
+            if isinstance(stopped, BaseException):
+                raise stopped
+            return {"stopped": stopped}
+
+        def started(*_a, **_k):
+            order.append("launcher")
+            return object()
+        with patch.object(control.Control, "watcher_running", return_value=True), \
+                patch.object(control.Control, "stop_watcher", stop), \
+                patch.object(pythons.subprocess, "Popen", side_effect=started) as popen, \
+                patch("codex_auto_resume.control.await_watcher", return_value={"state": "running"}):
+            try:
+                said = pythons.restart_watcher(config.Paths(self.home))
+            except BaseException as exc:                       # noqa: BLE001 - the asking thread ended mid-restart
+                said = exc
+        return said, order, popen
+
+    def test_the_new_launcher_is_started_before_the_stop_and_follows_it(self):
+        """R10 of the second round. Fails with the old order: stop, then start - a window closed between the two left the
+        watcher stopped and none started."""
+        said, order, popen = self.restart(True)
+        self.assertEqual((said, order), (pythons.RUNNING, ["launcher", "stop"]))
+        self.assertEqual(popen.call_args[1]["env"].get(pythons.AFTER_STOP_MARK), "1")
+        self.assertEqual(popen.call_args[0][0][-2:], [str(self.home / "watcher-launcher.py"), "run"], "the installed copy")
+        self.assertEqual(popen.call_args[0][0][0], str(self.home / "runtime" / "pythonw.exe"))
+        launcher = (ROOT / "scripts" / "watcher_launcher.py").read_text(encoding="utf-8")
+        self.assertIn('AFTER_STOP_MARK = "%s"' % pythons.AFTER_STOP_MARK, launcher)
+
+    def test_the_start_does_not_need_the_asking_process_once_the_stop_is_asked(self):
+        """The thread that asked ends as the stop is asked - its window closed: the detached launcher is already there."""
+        said, order, popen = self.restart(SystemExit(0))
+        self.assertIsInstance(said, SystemExit)
+        self.assertEqual(order, ["launcher", "stop"])
+        flags = popen.call_args[1]["creationflags"]
+        self.assertTrue(flags & getattr(subprocess, "DETACHED_PROCESS", 0) and flags & getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+
+    def test_a_watcher_that_will_not_stop_is_still_running_and_its_follower_gives_up_alone(self):
+        said, order, _popen = self.restart(False)
+        self.assertEqual((said, order), (pythons.STILL_RUNNING, ["launcher", "stop"]))
+
+    def test_with_no_watcher_running_nothing_is_started(self):
+        from codex_auto_resume import config, control
+        with patch.object(control.Control, "watcher_running", return_value=False), \
+                patch.object(pythons.subprocess, "Popen") as popen:
+            self.assertEqual(pythons.restart_watcher(config.Paths(self.home)), pythons.NOT_RUNNING)
+        popen.assert_not_called()
 
     def test_with_no_watcher_it_waits_for_the_next_start(self):
         self.chosen_now(Hands(restart=pythons.NOT_RUNNING))

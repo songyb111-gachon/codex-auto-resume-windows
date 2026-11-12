@@ -266,7 +266,8 @@ class WatcherMixin:
             if enabled:
                 launcher = self.paths.home / "watcher-launcher.py"
                 entry = launcher if launcher.is_file() else self.paths.entry_script
-                startup.install(startup.command_line(entry, None if launcher.is_file() else self.paths.home))
+                startup.install(startup.command_line(entry, None if launcher.is_file() else self.paths.home,
+                                                     launcher=startup.watcher_python(self.paths.home)))
             else:
                 value = startup.current_value()
                 # Only ever unregister our own; a foreign value is left alone.
