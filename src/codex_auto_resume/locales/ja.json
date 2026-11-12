@@ -73,6 +73,7 @@
   "check.home_other": "別の Codex ホーム ({n})",
   "check.home_row": "{home}: 状態の書き込み {state}、履歴の書き込み {history}{current}",
   "check.home_unreadable": "{home}: 読み取れません",
+  "check.settings_unreadable": "設定ファイルを読み取れません ({reason})。監視プロセスはそれまでの設定を保ち、既定値では何もしません。保存してもこのファイルは上書きされません。ファイルを直すか、設定の［既定値に戻す］を使ってください。ファイルは隣に残され、既定値から始め直します。",
   "check.homes_title": "監視プロセスが認識している Codex ホーム",
   "check.in_hours": "{n} 時間後",
   "check.in_minutes": "{n} 分後",

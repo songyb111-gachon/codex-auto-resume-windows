@@ -73,6 +73,7 @@
   "check.home_other": "Başka bir Codex klasörü ({n})",
   "check.home_row": "{home}: durum {state} yazıldı, geçmiş {history} yazıldı{current}",
   "check.home_unreadable": "{home}: okunamıyor",
+  "check.settings_unreadable": "Ayarlar dosyası okunamıyor ({reason}). İzleyici sahip olduğu ayarları korur ve varsayılanlara göre hiçbir şey yapmaz; hiçbir kaydetme dosyanın üzerine yazmaz. Dosyayı düzeltin ya da Ayarlar'daki Varsayılanlara dön'ü kullanın: dosya yanında saklanır ve varsayılanlarla yeniden başlanır.",
   "check.homes_title": "İzleyicinin bildiği Codex klasörleri",
   "check.in_hours": "{n} sa sonra",
   "check.in_minutes": "{n} dk sonra",

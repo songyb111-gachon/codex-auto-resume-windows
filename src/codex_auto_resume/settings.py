@@ -27,7 +27,11 @@ from .domain.vocabulary import (Design, ImportanceTier, NewConversationPolicy, N
                                 ProjectPolicy, Theme)
 
 CONFIG_VERSION = 2
-MAX_SETTINGS_BYTES = 256 * 1024
+# The most a settings file may hold (v0.6.23, audit K1; 256 KiB, which 28 Korean messages passed, each character then a
+# 6-byte escape), from the limits (tests/test_settings_size.py, every field at its most): this version writes 0.9 MB at
+# most (UTF-8, `save`), an earlier one 1.8 MB (escaped) - 4 MiB holds each twice over; gui/SoftTheme.cs has the same.
+MAX_SETTINGS_BYTES = 4 * 1024 * 1024
+CODEX_EXE_MAX = 32767           # v0.6.23: the longest Codex path, the longest Windows takes, so every field has a most
 
 # Recovery categories a user may turn off. The set is intentionally exactly the
 # categories the classifier can already recover: enabling something here can never
@@ -93,10 +97,12 @@ class SettingsError(ValueError):
 
 class Unreadable(SettingsError):
     """v0.6.18: the settings file is there and could not be read now (`transient`: a sharing violation from an
-    antivirus, a backup or a sync tool), or holds no JSON (a hand edit's typo). Never the defaults: nobody chose them."""
+    antivirus, a backup or a sync tool), holds no JSON (a typo), or (v0.6.23) is too large. Never the defaults."""
 
     def __init__(self, reason: str, transient: bool):
-        super().__init__("the settings file could not be read just now (%s); try again" % reason)
+        super().__init__(("the settings file could not be read just now (%s); try again" if transient else
+                          "the settings file cannot be read (%s): it is kept as it is and nothing was saved; fix "
+                          "it, or Restore defaults sets it aside and starts again") % reason)
         self.reason, self.transient = reason, transient
 
 
@@ -121,7 +127,7 @@ def _choice(value, default, allowed):
 
 
 def _optional_text(value, default):
-    return value if isinstance(value, str) and value.strip() else default
+    return value if isinstance(value, str) and value.strip() and len(value) <= CODEX_EXE_MAX else default
 
 
 # name -> (default, coercer). The coercer takes (raw, default) and always returns a
@@ -590,19 +596,21 @@ def _migrate(raw) -> dict:
 
 def read(path: Path) -> dict:
     """Read settings as `load` does, but raise Unreadable for a file that is there and cannot be read now or holds no
-    JSON (v0.6.18): the watcher keeps the settings it has then, and a save keeps the file. No file is the defaults."""
+    JSON (v0.6.18), or is too large (v0.6.23): the watcher keeps its settings, a save the file. None: the defaults."""
     target = Path(path)
     try:
-        if (not target.is_file() or target.is_symlink()
-                or target.stat().st_size > MAX_SETTINGS_BYTES):
+        if not target.is_file() or target.is_symlink():
             return defaults()
-        raw = json.loads(target.read_text(encoding="utf-8"))
+        too_large = target.stat().st_size > MAX_SETTINGS_BYTES
+        raw = None if too_large else json.loads(target.read_text(encoding="utf-8"))
     except FileNotFoundError:
         return defaults()               # gone between the look and the read: no file
     except OSError as exc:
         raise Unreadable(type(exc).__name__, True) from None
     except (ValueError, UnicodeError) as exc:
         raise Unreadable(type(exc).__name__, False) from None
+    if too_large:
+        raise Unreadable("too_large", False)
     return coerce(_migrate(raw))
 
 
@@ -615,14 +623,9 @@ def load(path: Path) -> dict:
 
 
 def kept(path: Path) -> dict:
-    """What a save keeps of the stored settings (v0.6.18): a file that holds no settings is repaired by the save, as
-    before; a file that could not be read just now is never overwritten with the defaults - the save is refused."""
-    try:
-        return read(path)
-    except Unreadable as exc:
-        if exc.transient:
-            raise
-        return defaults()
+    """What a save keeps: never the defaults for a file it cannot read (v0.6.18; one with no JSON or too large from
+    v0.6.23, repaired with the defaults until then) - the save is refused; Restore defaults sets it aside (policy)."""
+    return read(path)
 
 
 def save(path: Path, values: dict) -> dict:
@@ -633,10 +636,14 @@ def save(path: Path, values: dict) -> dict:
     target.parent.mkdir(parents=True, exist_ok=True)
     # mkstemp + replace: a reader never observes a half-written file, and a pre-planted
     # symlink at a predictable temp name cannot be followed.
+    # v0.6.23: as UTF-8, which every reader takes (read, gui/*.cs), and never a file the next read refuses (K1).
+    data = json.dumps(payload, indent=2, sort_keys=True, allow_nan=False, ensure_ascii=False).encode("utf-8")
+    if len(data) > MAX_SETTINGS_BYTES:
+        raise SettingsError("the settings would be %d bytes, past the %d allowed" % (len(data), MAX_SETTINGS_BYTES))
     descriptor, temporary = tempfile.mkstemp(dir=str(target.parent), prefix="settings.", suffix=".json.tmp")
     try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
-            json.dump(payload, stream, indent=2, sort_keys=True, allow_nan=False)
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(data)
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(temporary, target)

@@ -216,6 +216,11 @@ def run(control, sources=None, *, now=None, redact=None, locale=None, presence=N
         except Exception:
             locale = l10n.DEFAULT
     values = settings_module.load(control.settings_path())
+    try:
+        settings_module.read(control.settings_path())
+        unread = None
+    except settings_module.Unreadable as exc:
+        unread = exc.reason                     # v0.6.23: said second, after the summary (K1)
     held = control.managed()
 
     def engine_for(store, source):
@@ -248,6 +253,9 @@ def run(control, sources=None, *, now=None, redact=None, locale=None, presence=N
               "skips": _skip_lines(control, redact)}
     result["split"] = [{"thread": thread, "turns_under": other} for thread, other in result["split"]]
     result["lines"] = lines(result, now, locale)
+    if unread is not None:
+        # The verdicts above are on the defaults, which the watcher does not act on while the file cannot be read.
+        result["lines"].insert(1, l10n.text("check.settings_unreadable", locale, reason=unread))
     return result
 
 

@@ -73,6 +73,7 @@
   "check.home_other": "Folder Codex lain ({n})",
   "check.home_row": "{home}: status ditulis {state}, riwayat ditulis {history}{current}",
   "check.home_unreadable": "{home}: tidak dapat dibaca",
+  "check.settings_unreadable": "File pengaturan tidak dapat dibaca ({reason}). Pemantau mempertahankan pengaturan yang dimilikinya dan tidak bertindak berdasarkan default, dan tidak ada penyimpanan yang menimpa file itu. Perbaiki file itu, atau gunakan Pulihkan default di Pengaturan: file disimpan di sebelahnya dan default dimulai lagi.",
   "check.homes_title": "Folder Codex yang dikenal pemantau",
   "check.in_hours": "dalam {n} jam",
   "check.in_minutes": "dalam {n} mnt",

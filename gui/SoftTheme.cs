@@ -32,7 +32,7 @@ namespace CodexAutoResume
         private const string PersonalizeKey = @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize";
 
         /// The most a settings file may hold and still be read: settings.MAX_SETTINGS_BYTES.
-        internal const int MaxSettingsBytes = 256 * 1024;
+        internal const int MaxSettingsBytes = 4 * 1024 * 1024;
 
         /// v0.6.10's fourth design, which the settings layer reads as Soft with Reduce motion on
         /// (settings.FOLDED_DESIGN, settings._fold_design) - a name the window reads in a stored file, never draws.

@@ -73,6 +73,7 @@
   "check.home_other": "Un'altra cartella di Codex ({n})",
   "check.home_row": "{home}: stato scritto {state}, cronologia scritta {history}{current}",
   "check.home_unreadable": "{home}: impossibile da leggere",
+  "check.settings_unreadable": "Il file delle impostazioni non si può leggere ({reason}). Il monitor mantiene le impostazioni che aveva e non agisce sui predefiniti, e nessun salvataggio scrive sopra il file. Correggilo, oppure usa Ripristina i predefiniti in Impostazioni: il file viene conservato accanto e si riparte dai predefiniti.",
   "check.homes_title": "Cartelle di Codex note al monitor",
   "check.in_hours": "tra {n} h",
   "check.in_minutes": "tra {n} min",

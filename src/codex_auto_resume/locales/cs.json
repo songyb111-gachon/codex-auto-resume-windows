@@ -73,6 +73,7 @@
   "check.home_other": "Jiná domovská složka Codexu ({n})",
   "check.home_row": "{home}: stav zapsán {state}, historie zapsána {history}{current}",
   "check.home_unreadable": "{home}: nelze přečíst",
+  "check.settings_unreadable": "Soubor nastavení nelze přečíst ({reason}). Hlídač ponechá nastavení, která měl, a podle výchozích nedělá nic; žádné uložení soubor nepřepíše. Opravte ho, nebo použijte Obnovit výchozí v Nastavení: soubor se uschová vedle a začne se znovu s výchozími.",
   "check.homes_title": "Domovské složky Codexu, které hlídač zná",
   "check.in_hours": "za {n} h",
   "check.in_minutes": "za {n} min",

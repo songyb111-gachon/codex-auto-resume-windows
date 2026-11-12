@@ -73,6 +73,7 @@
   "check.home_other": "Otra carpeta de Codex ({n})",
   "check.home_row": "{home}: estado escrito {state}, historial escrito {history}{current}",
   "check.home_unreadable": "{home}: no se puede leer",
+  "check.settings_unreadable": "No se puede leer el archivo de configuración ({reason}). El monitor conserva la configuración que tenía y no hace nada con los valores predeterminados, y ningún guardado escribe sobre el archivo. Corríjalo o use Restaurar valores predeterminados en Configuración: el archivo se guarda al lado y se empieza de nuevo con los predeterminados.",
   "check.homes_title": "Carpetas de Codex que conoce el monitor",
   "check.in_hours": "en {n} h",
   "check.in_minutes": "en {n} min",

@@ -15,7 +15,11 @@ until you turn it on, except the higher limits, which only widen what a capabili
 this release: it waits for CPython 3.15.3 and a later version of this program. Nobody runs 3.15 here unless they pick it, and only the
 advanced edition can pick it (a preview, below).
 
-**Going back.** Nothing that an earlier version reads changes: the watcher's state stays schema 5 and the settings file gains no key. The
+**Going back.** Nothing that an earlier version reads changes: the watcher's state stays schema 5 and the settings file gains no key.
+Its characters are written as themselves now, which an earlier version reads the same; but a settings file over 256 KB - only many
+long messages of your own for single conversations make one, about forty of 2,000 characters in Korean - an earlier version reads as
+the defaults and writes them over it at its next save, so take a few of those messages away before going back.
+The
 advanced edition's own file stays version 9 with no table added; three of its tables - the scheduled messages, the reset messages and the
 steered lines - are made again at the first opening with room for a message of 30,000 characters, every row kept, and an earlier version
 reads the file as it is. An earlier version sends no message longer than 8,192 characters (it refuses one with its usual word for a
@@ -118,6 +122,13 @@ uses, or English where that version does not ship it - and *Same as the interfac
   sentence of the popup or a notice reads in its own order; the popup's two reset dates no longer read one of them backwards.
 - **A refresh rewrites only the page on screen** (new since beta.2). Pages out of sight are brought up to date as they are shown, and a
   tab pressed while the window is still making pages ready is built at once.
+- **A settings file the product cannot read is never taken as the defaults** (new since beta.2). The settings are written as UTF-8
+  with each character as it is, not as a six-byte escape, and the file may hold up to 4 MB - everything the limits allow, twice over.
+  Until now 28 messages of your own for single conversations, 2,000 Korean characters each, passed the old 256 KB, and the file was
+  then read as the defaults: *Observe only* and every other choice dropped, and the next save wrote the defaults over it. A file that
+  is too large or holds no JSON is now left as it is: the watcher keeps the settings it had (with none yet, it sends nothing), a save
+  is refused and says why, the Diagnostics check names it, and *Restore defaults* keeps the file beside it before it starts again. A
+  Codex path you name may be up to 32,767 characters, the longest Windows takes.
 - **The roadmap moves the Rust core to v0.6.25 and its audit to v0.6.26** (new since beta.2). v0.6.24 becomes a second round of
   audits over the finished code, with the review of which advanced capabilities the standard edition could take and the switch of the
   bundled Python to 3.15 if CPython 3.15.3 is out by then. Rule 0.7 of *docs/STANDARDS.md* names the new number, the owner's

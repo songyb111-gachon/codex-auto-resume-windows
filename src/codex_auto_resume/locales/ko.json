@@ -73,6 +73,7 @@
   "check.home_other": "다른 Codex 홈 ({n})",
   "check.home_row": "{home}: 상태 저장 {state}, 기록 저장 {history}{current}",
   "check.home_unreadable": "{home}: 읽을 수 없습니다",
+  "check.settings_unreadable": "설정 파일을 읽을 수 없습니다 ({reason}). 워처는 가지고 있던 설정을 그대로 두고 기본값으로는 아무것도 하지 않으며, 저장해도 이 파일 위에 쓰지 않습니다. 파일을 고치거나 설정의 기본값 복원을 쓰세요. 파일은 옆에 따로 남고 기본값으로 다시 시작합니다.",
   "check.homes_title": "워처가 아는 Codex 홈",
   "check.in_hours": "{n}시간 후",
   "check.in_minutes": "{n}분 후",
