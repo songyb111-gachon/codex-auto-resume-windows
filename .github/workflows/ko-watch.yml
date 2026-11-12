@@ -8,9 +8,10 @@ name: ko watch
 # runs read "cancelled" or "skipped", which is also what a healthy sync looks like from dev's
 # side, so the only way anyone learnt was by reading ko. This reads it instead, every six hours,
 # and fails - which GitHub reports to whoever maintains this schedule - when main's head is more
-# than six hours old and no sync has succeeded since it.
+# than six hours old (from when it was pushed, not from its commit's date) and no sync has
+# succeeded for it or for a later commit that contains it.
 #
-# It runs none of the repository's code: no checkout, two reads through the API.
+# It runs none of the repository's code: no checkout, only reads through the API.
 
 on:
   schedule:
@@ -38,25 +39,44 @@ jobs:
         run: |
           set -euo pipefail
           main_sha="$(gh api "repos/$REPO/commits/main" --jq .sha)"
-          main_at="$(gh api "repos/$REPO/commits/main" --jq .commit.committer.date)"
           source="$(gh api "repos/$REPO/commits/ko" --jq .commit.message \
                     | sed -n 's/^Generate ko from main@\([0-9a-f]\{40\}\).*/\1/p' | head -n 1)"
           if [ "$source" = "$main_sha" ]; then
             echo "ko is built from main's head, $main_sha"
             exit 0
           fi
-          # A sync that found nothing to change leaves ko's last message naming an older commit,
-          # so a successful sync that started after main's head was made counts as caught up.
-          synced="$(gh api "repos/$REPO/actions/workflows/sync-ko.yml/runs?status=success&per_page=1" \
-                    --jq '.workflow_runs[0].created_at // ""')"
-          if [ -n "$synced" ] && [ "$(date -u -d "$synced" +%s)" -gt "$(date -u -d "$main_at" +%s)" ]; then
-            echo "a sync succeeded at $synced, after main's head was made at $main_at"
-            exit 0
+          # A sync that found nothing to change leaves ko's last message naming an older commit. So a
+          # successful sync run counts as caught up when it was for main's head, or for a later commit
+          # that contains it - not merely when it started after main's head was committed: an earlier
+          # commit's sync can start after a later commit's date while the later one's own sync failed
+          # or was cancelled, and ko would stay on the earlier one with this check green.
+          runs="$(gh api "repos/$REPO/actions/workflows/sync-ko.yml/runs?status=success&per_page=20" \
+                  --jq '.workflow_runs[].head_sha')"
+          for run_sha in $runs; do
+            [[ $run_sha =~ ^[0-9a-f]{40}$ ]] || continue
+            if [ "$run_sha" = "$main_sha" ]; then
+              echo "a sync succeeded for main's head, $main_sha"
+              exit 0
+            fi
+            relation="$(gh api "repos/$REPO/compare/$main_sha...$run_sha" --jq .status || true)"
+            if [ "$relation" = "ahead" ] || [ "$relation" = "identical" ]; then
+              echo "a sync succeeded for $run_sha, which contains main's head, $main_sha"
+              exit 0
+            fi
+          done
+          # Main's age is from its push, not its commit: a promotion is committed locally and can be
+          # pushed hours later. The push is the first run of the tests workflow on main for that
+          # commit (the same commit was pushed to dev earlier, so the branch is named; a re-run keeps
+          # its own created_at, so the oldest is the push). With no such run, the commit's own date.
+          pushed_at="$(gh api "repos/$REPO/actions/workflows/test.yml/runs?head_sha=$main_sha&branch=main&event=push&per_page=20" \
+                       --jq '.workflow_runs[].created_at' | sort | sed -n 1p)"
+          if [ -z "$pushed_at" ]; then
+            pushed_at="$(gh api "repos/$REPO/commits/main" --jq .commit.committer.date)"
           fi
-          age=$(( $(date -u +%s) - $(date -u -d "$main_at" +%s) ))
+          age=$(( $(date -u +%s) - $(date -u -d "$pushed_at" +%s) ))
           if [ "$age" -lt 21600 ]; then
-            echo "main's head is $(( age / 60 )) minutes old; its tests and the sync have six hours"
+            echo "main's head was pushed $(( age / 60 )) minutes ago; its tests and the sync have six hours"
             exit 0
           fi
-          echo "::error::ko is built from main@${source:-unknown}, but main is $main_sha, made $(( age / 3600 )) hours ago, and no sync has succeeded since. Read the latest 'sync ko' run: a failure, or a cancellation, which is how its time limit is reported. If main's own tests are red, that is the reason."
+          echo "::error::ko is built from main@${source:-unknown}, but main is $main_sha, pushed $(( age / 3600 )) hours ago, and no sync has succeeded for it or for a later commit. Read the latest 'sync ko' run: a failure, or a cancellation, which is how its time limit is reported. If main's own tests are red, that is the reason."
           exit 1

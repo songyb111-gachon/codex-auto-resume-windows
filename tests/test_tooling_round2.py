@@ -6,6 +6,8 @@
 * StampedBuildTests (R2) - make_release packs a settings window or launcher only when the stamp
   make_gui.ps1 left beside it is this tree's (version and sources); a stale or missing one stops the
   build and names the executable and the command that rebuilds it.
+* KoWatchLogicTests (M1) - ko-watch.yml counts ko as caught up only on a sync that was for main's
+  current commit or a later one containing it, and dates main by its push, not its commit.
 """
 from __future__ import annotations
 
@@ -279,6 +281,161 @@ class StampedBuildTests(unittest.TestCase):
 
     def test_the_stamps_are_not_committed(self):
         self.assertIn("build/*.stamp", (ROOT / ".gitignore").read_text(encoding="utf-8"))
+
+
+FAKE_GH = r'''
+import json, os, sys
+sys.stdout.reconfigure(newline="\n")        # gh prints LF, on Windows too
+scenario = json.load(open(os.environ["FAKE_GH_SCENARIO"], encoding="utf-8"))
+argv = sys.argv[1:]
+with open(os.environ["FAKE_GH_LOG"], "a", encoding="utf-8") as log:
+    log.write(" ".join(argv) + "\n")
+if not argv or argv[0] != "api" or any(a in ("-X", "--method", "-f", "-F", "--input") for a in argv):
+    sys.stderr.write("fake gh: only reads\n")
+    sys.exit(2)
+endpoint = argv[1]
+jq = argv[argv.index("--jq") + 1] if "--jq" in argv else ""
+base = scenario["main_sha"]
+if endpoint.endswith("commits/main"):
+    print(base if jq == ".sha" else scenario["committer_date"])
+elif endpoint.endswith("commits/ko"):
+    print(scenario["ko_message"])
+elif "workflows/sync-ko.yml/runs" in endpoint:
+    assert "status=success" in endpoint, endpoint
+    print("\n".join(scenario["sync_runs"]))
+elif "workflows/test.yml/runs" in endpoint:
+    for wanted in ("head_sha=" + base, "branch=main", "event=push"):
+        assert wanted in endpoint, endpoint
+    print("\n".join(scenario["test_runs"]))
+elif "/compare/" in endpoint:
+    pair = endpoint.rsplit("/compare/", 1)[1]
+    first, second = pair.split("...")
+    assert first == base, pair
+    if second not in scenario["compare"]:
+        sys.stderr.write("fake gh: 404\n")
+        sys.exit(1)
+    print(scenario["compare"][second])
+else:
+    sys.stderr.write("fake gh: unexpected " + endpoint + "\n")
+    sys.exit(2)
+'''
+
+
+def _git_bash():
+    candidates = [Path(os.environ.get(name, "")) / "Git" / "bin" / "bash.exe"
+                  for name in ("ProgramFiles", "ProgramW6432", "ProgramFiles(x86)") if os.environ.get(name)]
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate)
+    return shutil.which("bash")
+
+
+def _hours_ago(hours: float) -> str:
+    import time
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - hours * 3600))
+
+
+class KoWatchLogicTests(unittest.TestCase):
+    """ko-watch.yml's script run as the runner runs it - bash -e, GNU date - against a stand-in `gh` that
+    answers each read from a recorded scenario and refuses anything that is not a read. The jq filters
+    are gh's own and run on the real API; the stand-in answers after them, so what is held here is the
+    decision the script makes on what they print."""
+
+    MAIN = "b" * 40
+    OLDER = "a" * 40
+    LATER = "c" * 40
+
+    @classmethod
+    def setUpClass(cls):
+        cls.bash = _git_bash()
+        cls.gnu_date = bool(cls.bash) and subprocess.run(
+            [cls.bash, "-c", 'test "$(date -u -d 2026-01-01T00:00:00Z +%s)" = 1767225600'],
+            capture_output=True, creationflags=NO_WINDOW, timeout=60).returncode == 0
+        cls.script = ""
+        for runs_on, step in _steps("ko-watch.yml"):
+            if "Fail when ko has fallen behind main" in step:
+                cls.script = _run_script(step)
+        assert cls.script, "ko-watch.yml has no step that fails when ko has fallen behind"
+
+    def setUp(self):
+        if not self.gnu_date:
+            self.skipTest("no bash with GNU date on this machine")
+        self._scratch = tempfile.TemporaryDirectory()
+        self.addCleanup(self._scratch.cleanup)
+        self.work = Path(self._scratch.name)
+        (self.work / "fake_gh.py").write_text(FAKE_GH, encoding="utf-8")
+        (self.work / "gh").write_text('#!/bin/sh\nexec "%s" "%s" "$@"\n'
+                                      % (Path(sys.executable).as_posix(), (self.work / "fake_gh.py").as_posix()),
+                                      encoding="utf-8", newline="\n")
+
+    def _run(self, **scenario):
+        record = {"main_sha": self.MAIN, "committer_date": _hours_ago(10),
+                  "ko_message": "Generate ko from main@" + self.OLDER + "\n\nbody",
+                  "sync_runs": [], "test_runs": [_hours_ago(10)], "compare": {}}
+        record.update(scenario)
+        (self.work / "scenario.json").write_text(json.dumps(record), encoding="utf-8")
+        (self.work / "gh.log").write_text("", encoding="utf-8")
+        env = dict(os.environ, REPO="owner/repo", GH_TOKEN="none",
+                   FAKE_GH_SCENARIO=str(self.work / "scenario.json"), FAKE_GH_LOG=str(self.work / "gh.log"))
+        env["PATH"] = str(self.work) + os.pathsep + env.get("PATH", "")
+        return subprocess.run([self.bash, "-c", "set -eo pipefail\n" + self.script], env=env, capture_output=True,
+                              text=True, creationflags=NO_WINDOW, timeout=120)
+
+    def test_ko_built_from_mains_head_is_caught_up(self):
+        done = self._run(ko_message="Generate ko from main@" + self.MAIN + "\n")
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertIn("built from main's head", done.stdout)
+
+    def test_a_sync_for_mains_head_that_changed_nothing_is_caught_up(self):
+        done = self._run(sync_runs=[self.MAIN, self.OLDER])
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertIn("for main's head", done.stdout)
+
+    def test_a_sync_for_a_later_commit_that_contains_mains_head_is_caught_up(self):
+        done = self._run(sync_runs=[self.LATER], compare={self.LATER: "ahead"})
+        self.assertEqual(done.returncode, 0, done.stderr)
+
+    def test_an_older_commits_sync_that_started_after_mains_head_was_committed_is_not_caught_up(self):
+        """The audit's (a): main got A then B, B was committed 10 hours ago and pushed 9, A's sync
+        started after B's commit time and succeeded, B's own sync failed. The sync that succeeded is
+        for A, which does not contain B: ko is behind, and the watch must say so."""
+        done = self._run(sync_runs=[self.OLDER], compare={self.OLDER: "behind"}, test_runs=[_hours_ago(9)])
+        self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+        self.assertIn("::error::", done.stdout)
+
+    def test_a_sync_of_a_commit_that_does_not_contain_mains_head_is_not_caught_up(self):
+        done = self._run(sync_runs=[self.LATER], compare={self.LATER: "diverged"}, test_runs=[_hours_ago(9)])
+        self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+
+    def test_a_run_the_comparison_cannot_place_is_not_caught_up(self):
+        done = self._run(sync_runs=[self.LATER], compare={}, test_runs=[_hours_ago(9)])
+        self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+
+    def test_a_head_pushed_an_hour_ago_has_its_six_hours_however_old_its_commit(self):
+        """The audit's (b): a promotion committed 10 hours before it was pushed is one hour old."""
+        done = self._run(committer_date=_hours_ago(10), test_runs=[_hours_ago(1)])
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertIn("minutes ago", done.stdout)
+
+    def test_the_push_is_the_main_branch_runs_oldest_not_a_later_rerun_or_another_branchs(self):
+        # Two runs for main's head; the older one, 9 hours ago, is the push.
+        done = self._run(test_runs=[_hours_ago(1), _hours_ago(9)])
+        self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+
+    def test_with_no_test_run_found_main_is_dated_by_its_commit(self):
+        done = self._run(committer_date=_hours_ago(10), test_runs=[])
+        self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+        done = self._run(committer_date=_hours_ago(2), test_runs=[])
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+
+    def test_the_script_only_reads(self):
+        self._run(sync_runs=[self.OLDER], compare={self.OLDER: "behind"})
+        calls = (self.work / "gh.log").read_text(encoding="utf-8").splitlines()
+        self.assertTrue(calls)
+        for call in calls:
+            self.assertTrue(call.startswith("api "), call)
+            for write in (" -X ", " --method", " -f ", " -F ", " --input"):
+                self.assertNotIn(write, call + " ")
 
 
 if __name__ == "__main__":
