@@ -105,9 +105,10 @@ class ServerCase(ac.AdvancedCase):
         self.addCleanup(self.running.close)
         self.port = self.running.port
 
-    def ask(self, path, method="GET", *, token=BEARER_INK, host=None, body=None, headers=None):
-        """One request as a client sends it: (status, headers, body)."""
-        connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+    def ask(self, path, method="GET", *, token=BEARER_INK, host=None, body=None, headers=None, source=None):
+        """One request as a client sends it: (status, headers, body). `source`, a loopback address it is sent from."""
+        connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10,
+                                                source_address=(source, 0) if source else None)
         try:
             connection.putrequest(method, path, skip_host=True, skip_accept_encoding=True)
             for name in ([] if host is False else host if isinstance(host, list) else
@@ -252,8 +253,9 @@ class LockTests(ServerCase):
         for _ in range(times):
             self.assertEqual(self.status("/status.json", token="wrong"), 401)
 
-    def test_ten_wrong_in_a_minute_close_it_for_five_minutes_for_everyone(self):
-        """Fails with the gate reverted: the eleventh is another 401 and the right token reads."""
+    def test_ten_wrong_in_a_minute_close_it_for_five_minutes_to_this_pc_s_programs(self):
+        """Fails with the gate reverted: the eleventh is another 401 and the right token reads. Every loopback address is
+        one client, so a program here cannot dodge the count by sending from 127.0.0.2."""
         self.wrong(10)
         for path, token in (("/status.json", BEARER_INK), ("/status.json", "wrong"), ("/", None), ("/nothing", BEARER_INK)):
             status, headers, _body = self.ask(path, token=token)
@@ -274,6 +276,25 @@ class LockTests(ServerCase):
             self.assertEqual(self.status("/status.json", token=None, headers={"Authorization": "Bearer "}), 401)
         self.assertEqual(self.status("/status.json"), 200)
         self.assertNotIn("api.locked", [line["code"] for line in self.rt.state.journal(capability="local_api")])
+
+    def test_loopback_addresses_are_one_client(self):
+        self.wrong(10)
+        self.assertEqual(self.status("/status.json", source="127.0.0.2"), 503)
+
+    def test_a_device_s_wrong_tokens_close_it_to_that_device_alone(self):
+        """S2 (the second security review of v0.6.23): fails with one count for every caller - ten wrong Bearer tokens a
+        device on the network sends close the server to this PC's own programs and to every other device. Here two
+        loopback sources stand for two devices: 127.0.0.2 for 192.168.1.50, 127.0.0.3 for 192.168.1.51."""
+        real = api.client_of
+        devices = {"127.0.0.2": "192.168.1.50", "127.0.0.3": "192.168.1.51"}
+        with patch.object(api, "client_of", lambda address: devices.get(address) or real(address)),                 patch.object(remote, "status_document", lambda layer, now: {"format": "x"}):
+            for _ in range(api.LOCK_AFTER):
+                self.assertEqual(self.status("/status.json", token="wrong", source="127.0.0.2"), 401)
+            self.assertEqual(self.status("/status.json", source="127.0.0.2"), 503, "the device that sent them is closed")
+            self.assertEqual(self.status("/status.json"), 200, "this PC's own programs are not")
+            self.assertEqual(self.status("/status.json", source="127.0.0.3"), 200, "nor is another device")
+            self.now += api.LOCK_SECONDS
+            self.assertEqual(self.status("/status.json", source="127.0.0.2"), 200, "and after five minutes, nor is it")
 
     def test_nine_do_not(self):
         self.wrong(9)
@@ -301,6 +322,29 @@ class LockTests(ServerCase):
             self.assertEqual(self.status("/status.json", token="wrong", host="evil.example"), 421)
             self.assertEqual(self.status("/nothing", token="wrong"), 404)
         self.assertEqual(self.status("/status.json"), 200)
+
+
+class GateTests(unittest.TestCase):
+    def test_a_client_is_its_address_and_every_loopback_one_client(self):
+        for address in ("127.0.0.1", "127.0.0.2", "127.255.255.254", "::1", "::ffff:127.0.0.1"):
+            self.assertEqual(api.client_of(address), api.LOOPBACK_CLIENT, address)
+        self.assertEqual(api.client_of("192.168.1.50"), "192.168.1.50")
+        self.assertEqual(api.client_of("::ffff:192.168.1.50"), "192.168.1.50")
+        self.assertEqual(api.client_of("fe80::1"), "fe80::1")
+
+    def test_the_table_is_bounded_and_forgets_one_not_closed_first(self):
+        """Fails with no bound: a device that sends from ever new addresses grows the table without limit."""
+        now = [1000.0]
+        gate = api.Gate(lambda: now[0])
+        for _ in range(api.LOCK_AFTER):
+            gate.wrong("10.0.0.1")
+        self.assertTrue(gate.closed("10.0.0.1"))
+        for number in range(api.CLIENTS * 2):
+            gate.wrong("10.1.%d.%d" % divmod(number, 256))
+            now[0] += 0.001
+        self.assertLessEqual(len(gate._clients), api.CLIENTS)
+        self.assertTrue(gate.closed("10.0.0.1"), "a closed client is the last forgotten")
+        self.assertFalse(gate.closed(api.LOOPBACK_CLIENT))
 
 
 class MethodTests(ServerCase):
