@@ -680,6 +680,12 @@ Beside those it keeps the program itself (`app\` and `runtime\`), the window, th
 icon notifications use, the sign-in launcher, and `runtime.json`, which records where the
 plugin is installed.
 
+Outside that directory the watcher keeps one empty lock file per Codex home it watches, in
+`%LOCALAPPDATA%\codex-auto-resume\homes\`, named by a hash of the home's path (and one by the
+folder's identity), so that two installations never watch the same home at once. They hold nothing.
+`Uninstall.cmd -Purge` removes them, except one another installation is still using; an uninstall
+that keeps your settings leaves them.
+
 One more file appears while an installation replaces one that is already there:
 `.codex-auto-resume-install-journal.json`, at the installation root. A first install writes
 none, because it has nothing to move aside. The installer writes it before it moves anything,
