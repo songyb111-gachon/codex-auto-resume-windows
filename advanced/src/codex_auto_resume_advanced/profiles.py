@@ -346,13 +346,16 @@ class Profiles:
 
     def attempts(self):
         """The times of the last switches (whole seconds), or None where none was ever kept. Delete all keeps them: the
-        day's ceiling is not freed by deleting the accounts."""
-        try:
-            found = self._read(TIMES)
-        except ProfileError:
+        day's ceiling is not freed by deleting the accounts. ProfileError where they were kept and cannot be read - a
+        damaged or unsealable file, a folder that became a link (v0.6.23 second round M4): an unknown count is never
+        "none made"."""
+        found = self._read(TIMES)
+        if found is None:
             return None
-        times = found.get("times") if isinstance(found, dict) else None
-        return [value for value in times if type(value) is int] if isinstance(times, list) else None
+        times = found.get("times")
+        if not isinstance(times, list):
+            raise ProfileError("the switch times cannot be read")
+        return [value for value in times if type(value) is int]
 
     def note_attempts(self, times) -> None:
         self._write(TIMES, {"times": [int(value) for value in times]})

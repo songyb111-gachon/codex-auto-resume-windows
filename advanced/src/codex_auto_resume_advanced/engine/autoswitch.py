@@ -210,13 +210,22 @@ class AutoSwitch:
 
     def _today(self, now) -> int:
         """How many switches were made in the last DAY seconds - a rolling 24 hours, not a UTC calendar day, which let
-        twenty through around midnight UTC (the v0.6.23 audit's A-R2)."""
-        return len(self._recent(now))
+        twenty through around midnight UTC (the v0.6.23 audit's A-R2). PER_DAY where the times kept cannot be read (the
+        second round's M4): the ceiling fails closed, and the file is written again as the ceiling reached now, so it
+        frees a day later rather than never."""
+        recent = self._recent(now)
+        if recent is None:
+            self._keep([int(now)] * PER_DAY)
+            return PER_DAY
+        return len(recent)
 
-    def _recent(self, now) -> list:
+    def _recent(self, now):
+        """The switch times within the last DAY seconds, or None where they were kept and cannot be read."""
         store = self.store()
         try:
             times = store.attempts()
+        except OSError:
+            return None                                  # kept but unreadable (ProfileError): not "none made" (M4)
         except Exception:
             times = None
         if times is None:
@@ -231,8 +240,9 @@ class AutoSwitch:
         return [value for value in times if 0 <= now - value < DAY]
 
     def _attempted(self, now) -> None:
-        """One more switch counted toward the 24-hour ceiling."""
-        self._keep((self._recent(now) + [int(now)])[-PER_DAY:])
+        """One more switch counted toward the 24-hour ceiling - where the times cannot be read, the ceiling reached."""
+        recent = self._recent(now)
+        self._keep([int(now)] * PER_DAY if recent is None else (recent + [int(now)])[-PER_DAY:])
 
     def _keep(self, times) -> None:
         try:
@@ -266,8 +276,11 @@ class AutoSwitch:
         if episode == self._episode:
             return None                                  # one attempt for each set of waiting records
         self._episode = episode
+        unread = self._recent(now) is None
         if self._today(now) >= PER_DAY:
             self._count("ceiling")
+            if unread:
+                self._not_finished("ceiling")            # M4: no switch, said once in the not-finished words
             return None
         target = self.choose(store, now)
         if target is None and not self._others:
