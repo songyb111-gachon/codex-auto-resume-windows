@@ -34,6 +34,12 @@ namespace CodexAutoResume
 
         private double used = -1;
 
+        // v0.6.23 (the second round's F11): a new reading glides from the share the meter showed before, as the Statistics bars
+        // do (OutcomeChart.Changed): one Transition, paint only, with motion allowed. `from` is where the glide left; `follow`,
+        // the share it starts from at its first frame on screen, or NaN for none.
+        private readonly Transition grow;
+        private double from, follow = double.NaN;
+
         internal AccountMeter()
         {
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
@@ -42,6 +48,27 @@ namespace CodexAutoResume
             AccessibleRole = AccessibleRole.ProgressBar;
             BackColor = Palette.Card;
             Size = new Size(Soft.Px(GrooveWidth), Soft.Px(GrooveHeight));
+            grow = new Transition(this, 1.0);
+        }
+
+        /// The share used the same meter showed before its card was made again, below zero for none: its new reading glides
+        /// from there once it is on screen. A meter with no reading now, or the same one, is simply drawn.
+        internal void From(double shown)
+        {
+            if (used < 0 || shown == used) return;
+            follow = Math.Max(0.0, shown);
+        }
+
+        /// Whether its bar is on its way to a new reading; its timer runs only then.
+        internal bool Growing { get { return grow.Running; } }
+
+        /// The share drawn now: the reading, or part of the way to it while it glides.
+        internal double Drawn { get { return grow.Running ? from + (used - from) * grow.Value : used; } }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) grow.Dispose();
+            base.Dispose(disposing);
         }
 
         /// The percentage used, 0 to 100 drawn (more is a full bar), or below zero where no reading was made.
@@ -82,9 +109,17 @@ namespace CodexAutoResume
             float radius = track.Height / 2f;
             Soft.Body(g, track, radius, SoftBar.TrackFill(contrast, Palette.Card), SoftBar.TrackEdge(contrast), Palette.Depth);
             if (used < 0) return;                                  // no reading: the groove empty
+            // Its first frame on screen starts the glide from what it showed before (From).
+            if (!double.IsNaN(follow))
+            {
+                from = follow;
+                follow = double.NaN;
+                grow.Jump(0.0);
+                grow.To(1.0, Motion.Allowed(this));
+            }
             int inset = Soft.Hairline;
             Rectangle groove = Rectangle.Inflate(track, -inset, -inset);
-            int width = BarWidth(used, groove.Width, groove.Height);
+            int width = BarWidth(Drawn, groove.Width, groove.Height);
             if (width <= 0) return;
             int left = RightToLeft == RightToLeft.Yes ? groove.Right - width : groove.Left;
             Rectangle bar = new Rectangle(left, groove.Top, width, groove.Height);
@@ -167,12 +202,19 @@ namespace CodexAutoResume
             meters.BackColor = Card;
             meters.Margin = Pad(26, 0, 0, 6);
             meters.Padding = new Padding(0);
-            AccountsMeterLine(meters, 0, Word("page.accounts.five_hour", "5-hour"), Get(row, "five_hour") as Dictionary<string, object>);
-            AccountsMeterLine(meters, 1, Word("page.accounts.weekly", "7-day"), Get(row, "weekly") as Dictionary<string, object>);
+            string id = Str(row, "id");
+            AccountsMeterLine(meters, 0, Word("page.accounts.five_hour", "5-hour"), Get(row, "five_hour") as Dictionary<string, object>,
+                              id == null ? null : id + "/five_hour");
+            AccountsMeterLine(meters, 1, Word("page.accounts.weekly", "7-day"), Get(row, "weekly") as Dictionary<string, object>,
+                              id == null ? null : id + "/weekly");
             return meters;
         }
 
-        private void AccountsMeterLine(TableLayoutPanel meters, int line, string name, Dictionary<string, object> window)
+        // The share each saved account's meter showed last, by the account's id and its window (v0.6.23, AccountMeter.From): the
+        // card is made again on every answer, and a meter of it glides from what the one before it showed.
+        private readonly Dictionary<string, double> accountShares = new Dictionary<string, double>();
+
+        private void AccountsMeterLine(TableLayoutPanel meters, int line, string name, Dictionary<string, object> window, string key)
         {
             var caption = new Label();
             caption.AutoSize = true;
@@ -182,6 +224,9 @@ namespace CodexAutoResume
             caption.Margin = Pad(0, 1, 8, 1);
             var meter = new AccountMeter();
             meter.Used = window != null ? Number(window, "used") : -1;
+            double shown;
+            if (key != null && accountShares.TryGetValue(key, out shown)) meter.From(shown);
+            if (key != null) accountShares[key] = meter.Used;
             meter.Anchor = AnchorStyles.Left;
             meter.Margin = Pad(0, 1, 8, 1);
             var said = new Label();
