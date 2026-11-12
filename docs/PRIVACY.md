@@ -370,7 +370,7 @@ tool's own marker (below). It never selects the `title`, `preview` or
 message, and the conversation-name label comes from `threads.name` only. Identity always
 comes from the UUID, never from a label.
 
-Four reads pass over your conversation itself, and it is better to say so plainly:
+Five reads pass over your conversation itself, and it is better to say so plainly:
 
 - **For a usage limit only**, to find when the limit resets, it reads up to 8 MiB of the
   conversation's rollout file ending at the failure, into memory. That part of the file is
@@ -569,7 +569,7 @@ default (or wherever `CODEX_AUTO_RESUME_PLUGIN_HOME`, or failing that
 - `config/status.json` — from v0.6.11, only while **Write a status file for other tools** is on (off
   by default): whether the watcher runs, whether recovery is on, the compatibility word, how many
   recoveries are pending at each state and when the next is looked at, the last usage reading's
-  numbers, the product's version and when it was written. No id, name, title or path. Nothing in this product reads it, and it goes when the setting
+  numbers, the product's version, when it was written and the file's format word. No id, name, title or path. Nothing in this product reads it, and it goes when the setting
   is turned off;
 - `config/state.vN-backup-<timestamp>.sqlite` — a copy of the state file, taken before the first
   watcher of a new version upgrades the schema and before `downgrade-state` rewrites it. It holds
@@ -913,6 +913,8 @@ process and only when you press its button: it reads python.org's public list of
   them on their card at any time - the feature on, off or hidden - or with an uninstall that deletes
   the settings. Turning it off stops every switch, with one exception: a switch that did not finish is
   still undone - the account signed in before it is put back - and nothing else is switched.
+  A switch itself writes the chosen account's `auth.json` into Codex's own home, which makes this feature an
+  exception, too, to the statement that the program does not open a Codex file for writing.
   A change to the standard edition keeps the saved accounts, unused, and the setup window says so; a box
   there, off unless you tick it, deletes them with the change.
 - **What it stores.** `config/advanced/advanced.sqlite`, made only when something is first turned

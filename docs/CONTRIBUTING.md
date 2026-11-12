@@ -795,7 +795,7 @@ files, the index, the README and the shipped counts to each other. The commit na
 your account's numeric id, which is what the weekly limits count. A report file the index does not
 list counts nowhere, which is why your pull request stays green under the ordinary tests. A report
 found to be wrong is withdrawn in the open, by removing its file and its index entry together, and
-the account and that Codex version are listed in `docs/evidence/community/withdrawn.json`, so the
+the account and that Codex version are listed in `docs/evidence/community/withdrawn.json` (created at the first withdrawal), so the
 same report is not filed again; the account's reports on other Codex versions are judged like any
 other. No report enters the compatibility data, and none changes a tier.
 

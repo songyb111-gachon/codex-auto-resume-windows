@@ -331,7 +331,7 @@ time is stored; the reason, when the record shows one, in the `note`.
 **Proves.** That the Dashboard reads the same control layer as everything else and
 agrees about a stable record — and that a part which cannot be read is shown as
 unreadable rather than as empty. Snapshots taken at different times can differ while
-a recovery changes state; the Codex panel does not refresh automatically.
+a recovery changes state; the Codex panel does not refresh on a timer (it reads again when it regains focus).
 
 **Do.** Open the window and visit Overview, Pending, History, Statistics and Diagnostics.
 Find the record from the steps above on History, open its Timeline, and compare its code
@@ -595,7 +595,7 @@ style. For the Custom text half, a Custom message has to be saved: if you are ac
 Standard, save a neutral one while recovery is paused, and restore Standard afterwards. The
 panel shows the message, offers no way to edit it, and says custom messages are written in
 the Dashboard. Change an ordinary setting in the panel and save, then reopen the
-Dashboard. The panel does not refresh by itself, so reopen it before comparing. *A pass:* the
+Dashboard. The panel does not refresh on a timer, so reopen it (or click into it) before comparing. *A pass:* the
 panel's Preview matches the Dashboard's, the Custom text cannot be changed there, and saving
 in the panel left the Custom message as it was.
 
@@ -775,7 +775,9 @@ recovery has ended. No running watcher has made that call yet, so these checks a
 owner's PC, and are never made by an agent or a script on its own. Each comes after steps 1 to 3, on
 the release being accepted, with nothing unsaved open. They are written in this table, in the same
 plain machine words as the checks above, with the date, `codex --version` and the Windows build; the
-validator knows none of them.
+validator knows none of them. The checks below are for the choice of Every recovery succeeded; the card's other
+When choices (Each one succeeded or was handed over to you, Each one ended, however it ended) and the advanced
+edition's tasks you pick are outside this checklist.
 
 | Check | Do it during | Where it is written | Result |
 | --- | --- | --- | --- |
@@ -796,7 +798,7 @@ matches what the PC did. Until MP passes, Sleep is offered only where Windows re
 **Each action, after a real usage limit.** It acts only on a usage limit, which cannot be summoned,
 so each check waits for one to happen in a throwaway conversation. Before it does, in Settings >
 General, **When usage-limit recoveries finish**, choose the action under **Then**, Every recovery
-succeeded, Once and 2 minutes, turn on the card's switch and answer **Turn on**. Let the recovery run and
+succeeded under **When**, Once under **How often** and 2 minutes under **Warn me first for**, turn on the card's switch and answer **Turn on**. Let the recovery run and
 the turn it started end, and leave the PC alone. *A pass:* the card's second line names what it waits
 for at each stage and never says it is about to act while a turn runs; a notice with the time and
 **Don't sleep** (or Don't hibernate, Don't shut down) comes once nobody has used the PC for 2 minutes;

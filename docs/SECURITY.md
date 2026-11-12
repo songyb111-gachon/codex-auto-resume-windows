@@ -156,7 +156,8 @@ them `thread/goal/set`, `thread/queue/add` with words this product wrote, and `t
   last two, a resident one that listens on 127.0.0.1 or reads the paired Telegram bot (*The courier*, under
   [The advanced edition](#the-advanced-edition)). The advanced edition's compatibility report reaches GitHub only by starting gh, the
   GitHub CLI the person installed, when they ask in the Dashboard (*The compatibility report*, under
-  [The advanced edition](#the-advanced-edition)). The traffic we know the product causes comes from elsewhere:
+  [The advanced edition](#the-advanced-edition)). *Run on another Python version* also reaches `www.python.org`, from a file of the
+  same package, but only when a button on its card is pressed (below). The traffic we know the product causes comes from elsewhere:
   - The Codex processes it starts ask OpenAI for your current usage (`account/rateLimits/read`)
     while a recovery is due. Codex identifies this tool to OpenAI by the client name and version
     the tool gives it: `codex_auto_resume` and `0.1` in v0.5.7; from v0.6.0, `codex_auto_resume`
