@@ -227,7 +227,7 @@ namespace CodexAutoResume
             if (key == homesSignature) return;
             homesSignature = key;
             homesRows.SuspendLayout();
-            homesRows.Controls.Clear();
+            ClearDisposing(homesRows);
             foreach (var home in homesShown)
             {
                 bool extra = Str(home, "key") != "";
