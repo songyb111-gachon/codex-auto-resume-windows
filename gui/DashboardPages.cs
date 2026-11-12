@@ -438,14 +438,33 @@ namespace CodexAutoResume
                 ListViewHitTestInfo hit = list.HitTest(e.Location);
                 if (hit.Item == null || hit.SubItem == null) return;
                 if (hit.Item.SubItems.IndexOf(hit.SubItem) != ResumeColumn) return;
+                // A list may hold the button's release back for its own drag (ListView): let go here at the latest.
+                if (resumeFeel != null) resumeFeel.Held(null);
                 ToggleAutoResume(hit.Item.Tag as Dictionary<string, object>);
             };
             list.KeyDown += delegate(object sender, KeyEventArgs e)
             {
                 if (e.KeyCode != Keys.Space) return;
-                ToggleAutoResume(Selected(list));
+                // Held while Space is (ListSwitchFeel), as a SoftCheck is.
+                var held = Selected(list);
+                if (resumeFeel != null && held != null && !EditionRow(held)) resumeFeel.Held(Str(held, "interruption_id"));
+                ToggleAutoResume(held);
                 e.Handled = true;
             };
+            // v0.6.23 (the second round's F7): the switch answers the pointer and its call as every other switch does
+            // (ListSwitchFeel): up while the pointer is on its cell, its knob wider while it is held, halfway into its row
+            // while the change is awaited. It still moves only once the answer has been read (FollowResumeSwitches).
+            resumeFeel = new ListSwitchFeel(list, ResumeCell, delegate { return busy > 0; });
+            list.Disposed += delegate { resumeFeel.Dispose(); };
+            list.MouseMove += delegate(object sender, MouseEventArgs e) { resumeFeel.Over(ResumeAt(list, e.Location)); };
+            list.MouseLeave += delegate { resumeFeel.Over(null); resumeFeel.Held(null); };
+            list.MouseDown += delegate(object sender, MouseEventArgs e)
+            {
+                if (e.Button == MouseButtons.Left) resumeFeel.Held(ResumeAt(list, e.Location));
+            };
+            list.MouseUp += delegate { resumeFeel.Held(null); };
+            list.KeyUp += delegate(object sender, KeyEventArgs e) { if (e.KeyCode == Keys.Space) resumeFeel.Held(null); };
+            list.LostFocus += delegate { resumeFeel.Held(null); };
             // v0.6.11: the row's own menu - postpone it, let a held one continue, how its conversation
             // resumes - on a right click, Shift+F10 or the menu key, and (v0.6.19, the owner's word of 2026-10-23) a
             // double left-click on a row. Nothing on the page moves for it, and each item acts on the row the menu was

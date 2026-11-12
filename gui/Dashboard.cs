@@ -2456,7 +2456,12 @@ namespace CodexAutoResume
             Transition glide;
             string id = Str(row, "interruption_id");
             if (id != null && resumeGlides.TryGetValue(id, out glide) && glide.Running) on = glide.Value;
-            if (mirrored) Soft.SwitchSide(g, track, on, true, ground, true);
+            // v0.6.23 (the second round's F7): up under the pointer, its knob wider while it is held, and halfway into the row
+            // while the change it sent is awaited, as every other switch and the popup's (ListSwitchFeel). At rest, as it was.
+            double hover = resumeFeel == null ? 0.0 : resumeFeel.Hover(id), press = resumeFeel == null ? 0.0 : resumeFeel.Press(id);
+            double live = resumeFeel == null ? 1.0 : resumeFeel.Live(id);
+            if (hover > 0.0 || press > 0.0 || live < 1.0) Soft.SwitchLive(g, track, on, live, hover, press, ground, mirrored);
+            else if (mirrored) Soft.SwitchSide(g, track, on, true, ground, true);
             else Soft.SwitchAt(g, track, on, true, ground);
         }
 
@@ -2464,6 +2469,8 @@ namespace CodexAutoResume
         // each that has moved.
         private readonly Dictionary<string, bool> resumeShown = new Dictionary<string, bool>();
         private readonly Dictionary<string, Transition> resumeGlides = new Dictionary<string, Transition>();
+        // And how each answers the pointer and its call (v0.6.23, ListSwitchFeel; made with the list, PendingSteps).
+        private ListSwitchFeel resumeFeel;
 
         /// Every Auto-resume switch in Pending, after its rows were written (v0.6.5). The switch never moves when it is
         /// pressed: the press sends the change, and the list is read again once the control layer has answered
@@ -2502,6 +2509,7 @@ namespace CodexAutoResume
             {
                 if (present.Contains(id)) continue;
                 resumeShown.Remove(id);
+                if (resumeFeel != null) resumeFeel.Forget(id);
                 Transition glide;
                 if (resumeGlides.TryGetValue(id, out glide))
                 {
@@ -2520,6 +2528,15 @@ namespace CodexAutoResume
                 if (Str(item.Tag as Dictionary<string, object>, "interruption_id") == id && item.SubItems.Count > ResumeColumn)
                     return item.SubItems[ResumeColumn].Bounds;
             return Rectangle.Empty;
+        }
+
+        /// The id of the record whose Auto-resume switch is at `point` in Pending's list, or null where none is.
+        private string ResumeAt(ListView list, Point point)
+        {
+            ListViewHitTestInfo hit = list.HitTest(point);
+            if (hit.Item == null || hit.SubItem == null || hit.Item.SubItems.IndexOf(hit.SubItem) != ResumeColumn) return null;
+            var row = hit.Item.Tag as Dictionary<string, object>;
+            return row == null || EditionRow(row) ? null : Str(row, "interruption_id");
         }
 
         /// The colour a record's state word is drawn in. Always beside the word itself.

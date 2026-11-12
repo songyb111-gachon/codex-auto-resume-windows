@@ -564,9 +564,23 @@ namespace CodexAutoResume
             if (enable && !Confirm(Named("confirm.thread_on",
                                          "Turn automatic recovery back on for \"{name}\"? Nothing is sent now; every check still applies.", row),
                                    S("action.thread_on", "Turn on for this conversation")))
+            {
+                if (resumeFeel != null) resumeFeel.Held(null);
                 return;
-            Send("interruption-recovery", "{\"interruption_id\":" + Json.Escape(id) + ",\"thread_id\":" +
-                 Json.Escape(thread) + ",\"enabled\":" + (enable ? "true" : "false") + "}");
+            }
+            // A question asked first had the keys and the pointer: the switch is not held any more.
+            if (enable && resumeFeel != null) resumeFeel.Held(null);
+            // v0.6.23 (the second round's F7): while the answer is awaited the switch fades halfway into its row, as the popup's
+            // does (ListSwitchFeel); the knob moves only once the list has been read again.
+            CallAsync("interruption-recovery", "{\"interruption_id\":" + Json.Escape(id) + ",\"thread_id\":" +
+                      Json.Escape(thread) + ",\"enabled\":" + (enable ? "true" : "false") + "}",
+                      delegate(Dictionary<string, object> reply)
+                      {
+                          if (resumeFeel != null) resumeFeel.Awaiting(id, false);
+                          Report(reply);
+                          RefreshAfterChange();
+                      });
+            if (resumeFeel != null) resumeFeel.Awaiting(id, true);
         }
 
         private void CancelAll()
