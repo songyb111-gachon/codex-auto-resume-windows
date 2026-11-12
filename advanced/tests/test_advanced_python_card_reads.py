@@ -45,31 +45,31 @@ try {
   $placeOf = $F.GetMethod('PlaceOf', $flags)
   $atPlace = $F.GetMethod('AtPlace', $flags)
   function Tree() {
-    $root = New-Object Windows.Forms.Panel
+    $root = [Windows.Forms.Panel]::new()
     foreach ($i in 0..2) {
-      $card = New-Object Windows.Forms.Panel
-      foreach ($j in 0..3) { $b = New-Object Windows.Forms.Button; $b.Text = "$i.$j"; $card.Controls.Add($b) }
+      $card = [Windows.Forms.Panel]::new()
+      foreach ($j in 0..3) { $b = [Windows.Forms.Button]::new(); $b.Text = "$i.$j"; $card.Controls.Add($b) }
       $root.Controls.Add($card)
     }
     return ,$root
   }
   $one = Tree
   $inner = $one.Controls[2].Controls[1]
-  $place = $placeOf.Invoke($null, [object[]]@($one, $inner))
+  $place = $placeOf.Invoke($null, [object[]]@($one.psobject.BaseObject, $inner))
   $again = Tree
-  $found = $atPlace.Invoke($null, [object[]]@($again, $place))
-  $short = New-Object Windows.Forms.Panel
-  $short.Controls.Add((New-Object Windows.Forms.Panel))
-  $outside = New-Object Windows.Forms.Button
-  $listed = New-Object 'System.Collections.Generic.List[int]'
+  $found = $atPlace.Invoke($null, [object[]]@($again.psobject.BaseObject, $place))
+  $short = [Windows.Forms.Panel]::new()
+  $short.Controls.Add(([Windows.Forms.Panel]::new()))
+  $outside = [Windows.Forms.Button]::new()
+  $listed = [System.Collections.Generic.List[int]]::new()
   $listed.Add(0); $listed.Add(3)
   $out = @{
     place = @($place)
     found = [string]$found.Text
     same_place_other_tree = [bool]($found -ne $inner)
-    gone = ($null -eq $atPlace.Invoke($null, [object[]]@($short, $listed)))
-    outside = ($null -eq $placeOf.Invoke($null, [object[]]@($one, $outside)))
-    root = ($null -eq $placeOf.Invoke($null, [object[]]@($one, $one)))
+    gone = ($null -eq $atPlace.Invoke($null, [object[]]@($short.psobject.BaseObject, $listed.psobject.BaseObject)))
+    outside = ($null -eq $placeOf.Invoke($null, [object[]]@($one.psobject.BaseObject, $outside.psobject.BaseObject)))
+    root = ($null -eq $placeOf.Invoke($null, [object[]]@($one.psobject.BaseObject, $one.psobject.BaseObject)))
   }
   $out | ConvertTo-Json -Compress
 } catch {
