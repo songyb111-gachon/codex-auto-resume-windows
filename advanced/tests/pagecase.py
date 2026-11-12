@@ -548,13 +548,19 @@ LAYOUT_MODULES = 5
 LAYOUT_WORKERS = 4
 CANARY_MODULE = LAYOUT_MODULES
 
-# What one audit of a language took on GitHub's runners, in seconds - read off the layout modules' times in
-# tests/data/durations.json and dev run 39198984813 (2026-10-19, before v0.6.17 remembered WrapLabel's measurements):
-# Japanese, Chinese and, less, Korean are measured in glyphs the window's face borrows from a linked one, and every
-# other language took about ten. What the deal weighs audits by; only their order matters, and that held after
-# v0.6.17 too (the remembered answers cut every language's measuring, CJK's most).
-AUDIT_COST = {"ja": 1270, "zh-TW": 420, "zh-CN": 320, "ko": 50}
-OTHER_AUDIT_COST = 10
+# What one audit of a language costs, in seconds, read off the five layout modules' times in tests/data/durations.json
+# (advanced lane, CI run 43010359934, 22 languages: 1345.6, 916.6, 777.0, 10.3 and 12.1 s for modules 1-5) and what each
+# module audits (layout_deal). The audits do not run side by side in any real way: 71 audits that take about ten seconds
+# alone (module 4's one Thai audit, 10.3 s with its set-up) took 777 s in module 3, so a module's time is about the SUM of
+# its audits, and a cost is what an audit adds to it: Japanese 336 (module 1's four, 1345.6 s), Chinese and Korean a
+# little, every other language about ten and a half. Summed over the five modules the measured run dealt (4 Japanese; 33
+# of the CJK and the first Latin languages; 71 of the rest; 1; 1) they give 1344, 910, 775, 10.5 and 21 s against the
+# measured 1346, 917, 777, 10 and 12. They set the order the deal fills the modules in and the floor of audit_timeout; they
+# were 1270, 420, 320, 50 and 10 until v0.6.23, before v0.6.17's remembered WrapLabel answers cut CJK's measuring most.
+# The deal fills each module to the time of its longest audit (layout_deal), so with these costs it puts 4 Japanese into
+# module 1 and nearly all the rest into module 2: about 1344, 1328, 42, 42 and 304 s, the same longest module as before.
+AUDIT_COST = {"ja": 336, "zh-TW": 30, "zh-CN": 40, "ko": 15}
+OTHER_AUDIT_COST = 10.5
 
 
 def audit_cost(locale: str) -> float:
