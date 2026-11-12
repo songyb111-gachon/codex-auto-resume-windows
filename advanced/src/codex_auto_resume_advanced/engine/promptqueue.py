@@ -250,8 +250,12 @@ class PromptQueue:
         due = row["due_at"] if row["due_at"] is not None else now
         if now < due:
             return None
-        if self._held_for_turn(handle, row) or self._images_held(row):
-            if row["trigger"] != PromptTrigger.RECURRING and now - due >= DUE_FOR:
+        turn = self._held_for_turn(handle, row)
+        if turn or self._images_held(row):
+            # v0.6.23 (M1): one whose pictures cannot go is used as expired a day on, a series too - it goes on to its
+            # next occurrence, never holding its conversation's queue for good. A series a running turn holds is caught
+            # up once that turn ends, as before.
+            if (not turn or row["trigger"] != PromptTrigger.RECURRING) and now - due >= DUE_FOR:
                 return self._expired(handle, row, now)
             return None
         if row["trigger"] == PromptTrigger.RECURRING:
