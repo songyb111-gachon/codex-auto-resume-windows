@@ -332,8 +332,28 @@ class PythonWalkTests(unittest.TestCase):
 # ----------------------------------------------------------------------- install.ps1
 GATE = block(INSTALL, "$script:HostAppSource = @'", "$outsideSwitches = @(")
 
+# What a run outside is given (Get-OutsideVariables' CODEX_AUTO_RESUME_RELAY_* lines) written back as the call it
+# makes, its chosen variables first: the stand-in launchers below print it, so a test reads what would run outside.
+SHOW_CALL = r"""
+function global:Show-OutsideCall {
+    param([string[]]$Variables)
+    $given = @{}
+    foreach ($entry in $Variables) {
+        $at = $entry.IndexOf('=')
+        $given[$entry.Substring(24, $at - 24)] = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($entry.Substring($at + 1)))
+    }
+    $quote = { param($text) "'" + ([string]$text -replace "'", "''") + "'" }
+    $call = '& ' + (& $quote $given['SCRIPT'])
+    for ($i = 0; $i -lt [int]$given['SWITCHES']; $i++) { $call += ' -' + $given['SWITCH_' + $i] }
+    for ($i = 0; $i -lt [int]$given['VALUES']; $i++) { $call += ' -' + $given['VALUE_NAME_' + $i] + ' ' + (& $quote $given['VALUE_' + $i]) }
+    for ($i = 0; $i -lt [int]$given['ARGUMENTS']; $i++) { $call += ' ' + (& $quote $given['ARGUMENT_' + $i]) }
+    for ($i = [int]$given['VARIABLES'] - 1; $i -ge 0; $i--) { $call = '$env:' + $given['VARIABLE_NAME_' + $i] + ' = ' + (& $quote $given['VARIABLE_' + $i]) + ' | ' + $call }
+    return $call
+}
+"""
+
 # A table builder and a launcher of the test's own, defined after the script's so they are the ones called.
-STUBS = r"""
+STUBS = SHOW_CALL + r"""
 $script:launched = 0
 function Get-ProcessTable {
     param([int]$Self)
@@ -344,9 +364,9 @@ function Get-ProcessTable {
     return $table
 }
 function Invoke-Outside {
-    param([string]$Source, [string]$Log, [string]$CodeFile)
+    param([string]$Source, [string[]]$Variables, [string]$Log, [string]$CodeFile)
     $script:launched++
-    Write-Host ('SOURCE ' + ($Source -replace "`r`n", ' | '))
+    Write-Host ('SOURCE ' + (Show-OutsideCall $Variables) + ' | ' + ($Source -replace "`r`n", ' | '))
     if ($env:CAR_LAUNCH -eq 'fail') { return $null }
     return 7
 }
@@ -430,7 +450,7 @@ class InstallerGateTests(unittest.TestCase):
         self.assertIn("& 'C:\\x\\install.ps1' -Silent -SkipStartup -MarketplaceName 'it''s' -PluginName 'codex-auto-resume'",
                       source)
         self.assertIn("*>&1", source)
-        self.assertIn("exit $code", source)
+        self.assertIn("exit $relayCode", source)
         self.assertNotIn("[!]", done.stdout, "a relaunch that worked says nothing of its own")
 
     def test_outside_it_carries_on_and_starts_nothing(self):
@@ -501,6 +521,11 @@ function Invoke-CimMethod {
     $info = New-Object System.Diagnostics.ProcessStartInfo($line.Substring(1, $close - 1), $line.Substring($close + 2))
     $info.UseShellExecute = $false
     $info.CreateNoWindow = $true
+    $info.EnvironmentVariables.Clear()
+    foreach ($entry in @($script:startupSeen.EnvironmentVariables)) {
+        $at = $entry.IndexOf('=')
+        if ($at -gt 0) { $info.EnvironmentVariables[$entry.Substring(0, $at)] = $entry.Substring($at + 1) }
+    }
     $process = [System.Diagnostics.Process]::Start($info)
     return [pscustomobject]@{ ReturnValue = 0; ProcessId = $process.Id }
 }
@@ -509,8 +534,8 @@ $log = Join-Path $folder 'output.txt'
 $codeFile = Join-Path $folder 'code.txt'
 $env:CAR_LOG = $log
 $env:CAR_PROBE_VAR = 'present'
-$source = Get-OutsideSource -Script $env:CAR_STAND_IN -Switches @('Silent') -Log $log -CodeFile $codeFile
-$code = Invoke-Outside -Source $source -Log $log -CodeFile $codeFile
+$variables = Get-OutsideVariables -Script $env:CAR_STAND_IN -Switches @('Silent') -Log $log -CodeFile $codeFile
+$code = Invoke-Outside -Source (Get-OutsideSource) -Variables $variables -Log $log -CodeFile $codeFile
 'CODE ' + $code
 'ENV ' + (@($script:startupSeen.EnvironmentVariables) -join '|')
 'SHOW ' + $script:startupSeen.ShowWindow
@@ -519,6 +544,7 @@ $code = Invoke-Outside -Source $source -Log $log -CodeFile $codeFile
 STAND_IN = """param([switch]$Silent)
 Write-Host ('first line, silent ' + $Silent)
 Write-Host 'Korean: 한국어'
+Write-Host ('relay variables left ' + @(Get-ChildItem Env: | Where-Object { $_.Name -like 'CODEX_AUTO_RESUME_RELAY_*' }).Count)
 [IO.File]::AppendAllText($env:CAR_LOG, 'last line without an end', (New-Object System.Text.UTF8Encoding $false))
 exit 7
 """
@@ -556,7 +582,7 @@ class RelayTests(unittest.TestCase):
     def test_what_the_run_outside_prints_is_passed_on_line_by_line_with_the_last_unended_line(self):
         printed = self.done.stdout.splitlines()
         self.assertEqual(self.done.returncode, 0, self.done.stdout + self.done.stderr)
-        for line in ("first line, silent True", "Korean: 한국어", "last line without an end"):
+        for line in ("first line, silent True", "Korean: 한국어", "relay variables left 0", "last line without an end"):
             with self.subTest(line):
                 self.assertIn(line, printed)
         self.assertLess(printed.index("first line, silent True"), printed.index("last line without an end"))
@@ -571,6 +597,7 @@ class RelayTests(unittest.TestCase):
         self.assertEqual([entry for entry in environment if entry.startswith("CODEX_AUTO_RESUME_OUTSIDE=")],
                          ["CODEX_AUTO_RESUME_OUTSIDE=1"])
         self.assertEqual(self.lines("SHOW "), ["0"])
+        self.assertIn("CODEX_AUTO_RESUME_RELAY_SWITCHES=MQ==", environment, "what it is to do travels in the block")
 
 
 # ----------------------------------------------------------------------- bootstrap.ps1's repair branch
@@ -608,7 +635,7 @@ static class FakePython
 # Aliases are found before functions, so these stand in for the script's own Get-ProcessTable and Invoke-Outside
 # while the whole script runs: a process table with or without a packaged parent, and a launcher that writes down
 # what it would run outside and answers 7, or fails.
-ALIASED = r"""
+ALIASED = SHOW_CALL + r"""
 function global:Fake-ProcessTable {
     param([int]$Self)
     $table = @{}
@@ -617,8 +644,8 @@ function global:Fake-ProcessTable {
     return $table
 }
 function global:Fake-Outside {
-    param([string]$Source, [string]$Log, [string]$CodeFile)
-    Write-Host ('SOURCE ' + ($Source -replace "`r`n", ' | '))
+    param([string]$Source, [string[]]$Variables, [string]$Log, [string]$CodeFile)
+    Write-Host ('SOURCE ' + (Show-OutsideCall $Variables) + ' | ' + ($Source -replace "`r`n", ' | '))
     if ($env:CAR_LAUNCH -eq 'fail') { return $null }
     if ($env:CAR_OUTSIDE_CODE) { return [int]$env:CAR_OUTSIDE_CODE }
     return 7
@@ -738,9 +765,9 @@ class BootstrapRepairTests(unittest.TestCase):
     # (Start-CurrentWatcher) write the registry too, so they go through the gate as the repair branch does. Each is
     # lifted out of the script with the gate and run alone, with the process table and launcher stubbed and the
     # stand-in python writing down that it ran here.
-    LIFTED = ("Find-PackagedAncestor", "Get-OutsideSource", "Resolve-OutsideRun", "Invoke-InstalledSetup",
+    LIFTED = ("Find-PackagedAncestor", "Get-OutsideSource", "Get-OutsideVariables", "Resolve-OutsideRun", "Invoke-InstalledSetup",
               "Remove-EntryBeforeOlder", "Start-CurrentWatcher", "Get-VersionParts", "Compare-ProductVersion")
-    CALLS = r"""
+    CALLS = SHOW_CALL + r"""
 $EntryFrom = '0.6.16'
 $script:sources = @()
 $script:warned = @()
@@ -752,8 +779,8 @@ function Get-ProcessTable {
     return $table
 }
 function Invoke-Outside {
-    param([string]$Source, [string]$Log, [string]$CodeFile)
-    $script:sources += ,($Source -replace "`r`n", ' | ')
+    param([string]$Source, [string[]]$Variables, [string]$Log, [string]$CodeFile)
+    $script:sources += ,((Show-OutsideCall $Variables) + ' | ' + ($Source -replace "`r`n", ' | '))
     if ($env:CAR_LAUNCH -eq 'fail') { return $null }
     return 0
 }

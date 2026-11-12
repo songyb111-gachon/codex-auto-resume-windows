@@ -466,38 +466,78 @@ function Get-ProcessTable {
 
 function Get-OutsideSource {
     <#
-        What the run outside executes: $Script - a script or a program - by its full path with this run's switches
-        and values, then $Arguments as they are, everything it prints appended line by line to $Log as it prints it,
-        and its exit code written to $CodeFile last.
+        What the run outside executes: the same text on every run, whatever it is asked to do - no value is ever part
+        of it (STANDARDS D8). What it is to do comes in its environment as the CODEX_AUTO_RESUME_RELAY_* variables
+        Get-OutsideVariables writes, each value UTF-8 in base64, and it takes them out of its environment before
+        anything else runs. It then runs the script or program by its full path with the switches and the named
+        values, then the arguments as they are, with the chosen variables set, everything it prints appended line by
+        line to the log as it prints it, and its exit code written to the code file last.
+    #>
+    return @(
+        '$ErrorActionPreference = ''Continue'''
+        '$relayText = New-Object System.Text.UTF8Encoding $false'
+        '$relay = @{}'
+        'foreach ($relayName in @([Environment]::GetEnvironmentVariables().Keys | ForEach-Object { [string]$_ })) {'
+        '    if (-not $relayName.StartsWith(''CODEX_AUTO_RESUME_RELAY_'', [StringComparison]::OrdinalIgnoreCase)) { continue }'
+        '    try { $relay[$relayName.Substring(24)] = $relayText.GetString([Convert]::FromBase64String([string][Environment]::GetEnvironmentVariable($relayName))) } catch { }'
+        '    [Environment]::SetEnvironmentVariable($relayName, $null)'
+        '}'
+        '$relayLog = [string]$relay[''LOG'']'
+        '$relayCode = 1'
+        'try {'
+        '    $relayNamed = @{}'
+        '    for ($relayIndex = 0; $relayIndex -lt [int]$relay[''SWITCHES'']; $relayIndex++) { $relayNamed[[string]$relay[''SWITCH_'' + $relayIndex]] = $true }'
+        '    for ($relayIndex = 0; $relayIndex -lt [int]$relay[''VALUES'']; $relayIndex++) { $relayNamed[[string]$relay[''VALUE_NAME_'' + $relayIndex]] = [string]$relay[''VALUE_'' + $relayIndex] }'
+        '    $relayRest = @(for ($relayIndex = 0; $relayIndex -lt [int]$relay[''ARGUMENTS'']; $relayIndex++) { [string]$relay[''ARGUMENT_'' + $relayIndex] })'
+        '    for ($relayIndex = 0; $relayIndex -lt [int]$relay[''VARIABLES'']; $relayIndex++) { [Environment]::SetEnvironmentVariable([string]$relay[''VARIABLE_NAME_'' + $relayIndex], [string]$relay[''VARIABLE_'' + $relayIndex]) }'
+        '    & ([string]$relay[''SCRIPT'']) @relayNamed @relayRest *>&1 | ForEach-Object { [IO.File]::AppendAllText($relayLog, [string]$_ + "`r`n", $relayText) }'
+        '    $relayCode = $LASTEXITCODE'
+        '    if ($null -eq $relayCode) { $relayCode = 0 }'
+        '} catch { [IO.File]::AppendAllText($relayLog, [string]$_ + "`r`n", $relayText) }'
+        '[IO.File]::WriteAllText([string]$relay[''CODE''], [string]$relayCode)'
+        'exit $relayCode'
+    ) -join "`r`n"
+}
+
+function Get-OutsideVariables {
+    <#
+        What the run outside is to do, as "NAME=value" lines for its environment block - the CODEX_AUTO_RESUME_RELAY_*
+        variables Get-OutsideSource reads, each value UTF-8 in base64, so no character of one is read as anything but
+        itself: $Script - a script or a program - by its full path with $Switches and $Values, then $Arguments as they
+        are, with $Environment's variables set (this process's own reach it anyway), what it prints appended to $Log
+        and its exit code written to $CodeFile.
     #>
     param([string]$Script, [string[]]$Switches, [hashtable]$Values, [string[]]$Arguments, [string]$Log, [string]$CodeFile,
           [hashtable]$Environment)
-    # Every character PowerShell ends a single-quoted string at - the ASCII one and U+2018, U+2019, U+201A, U+201B -
-    # doubled: with the ASCII one alone, a path holding a curly quote broke the script, and a folder name made for it
-    # ran code here (v0.6.18 security review, M3).
-    $quotes = '[' + "'" + [char]0x2018 + [char]0x2019 + [char]0x201A + [char]0x201B + ']'
-    $literal = { param($text) "'" + (([string]$text) -replace $quotes, '$0$0') + "'" }
-    $call = '& ' + (& $literal $Script)
-    foreach ($name in $Switches) { $call += ' -' + $name }
-    if ($Values) { foreach ($name in @($Values.Keys | Sort-Object)) { $call += ' -' + $name + ' ' + (& $literal $Values[$name]) } }
-    foreach ($argument in $Arguments) { $call += ' ' + (& $literal $argument) }
-    # Variables the run outside has to see (this process's own do not reach it): one line each, before the call.
-    $variables = @()
-    if ($Environment) { foreach ($name in @($Environment.Keys | Sort-Object)) { $variables += '$env:' + $name + ' = ' + (& $literal $Environment[$name]) } }
-    return @(
-        '$ErrorActionPreference = ''Continue'''
-        '$log = ' + (& $literal $Log)
-        '$utf8 = New-Object System.Text.UTF8Encoding $false'
-        '$code = 1'
-        $variables
-        'try {'
-        '    ' + $call + ' *>&1 | ForEach-Object { [IO.File]::AppendAllText($log, [string]$_ + "`r`n", $utf8) }'
-        '    $code = $LASTEXITCODE'
-        '    if ($null -eq $code) { $code = 0 }'
-        '} catch { [IO.File]::AppendAllText($log, [string]$_ + "`r`n", $utf8) }'
-        '[IO.File]::WriteAllText(' + (& $literal $CodeFile) + ', [string]$code)'
-        'exit $code'
-    ) -join "`r`n"
+    $given = [ordered]@{ SCRIPT = $Script; LOG = $Log; CODE = $CodeFile }
+    $count = 0
+    foreach ($name in $Switches) { $given['SWITCH_' + $count] = $name; $count++ }
+    $given['SWITCHES'] = $count
+    $count = 0
+    if ($Values) {
+        foreach ($name in @($Values.Keys | Sort-Object)) {
+            $given['VALUE_NAME_' + $count] = $name
+            $given['VALUE_' + $count] = $Values[$name]
+            $count++
+        }
+    }
+    $given['VALUES'] = $count
+    $count = 0
+    foreach ($argument in $Arguments) { $given['ARGUMENT_' + $count] = $argument; $count++ }
+    $given['ARGUMENTS'] = $count
+    $count = 0
+    if ($Environment) {
+        foreach ($name in @($Environment.Keys | Sort-Object)) {
+            $given['VARIABLE_NAME_' + $count] = $name
+            $given['VARIABLE_' + $count] = $Environment[$name]
+            $count++
+        }
+    }
+    $given['VARIABLES'] = $count
+    $utf8 = New-Object System.Text.UTF8Encoding $false
+    return [string[]]@(foreach ($key in $given.Keys) {
+        'CODEX_AUTO_RESUME_RELAY_' + $key + '=' + [Convert]::ToBase64String($utf8.GetBytes([string]$given[$key]))
+    })
 }
 
 function Send-OutsideLines {
@@ -532,17 +572,22 @@ function Send-OutsideLines {
 function Invoke-Outside {
     <#
         Runs $Source in Windows PowerShell outside every app's private view: created by WMI's Win32_Process.Create,
-        with this run's environment and CODEX_AUTO_RESUME_OUTSIDE=1, its console hidden (SW_HIDE: WMI refuses
-        CREATE_NO_WINDOW), in this run's folder. Passes on what it writes to $Log as it writes it, and returns its
-        exit code once it has ended - or $null where it could not be started.
+        with this run's environment, $Variables (Get-OutsideVariables) and CODEX_AUTO_RESUME_OUTSIDE=1, its console
+        hidden (SW_HIDE: WMI refuses CREATE_NO_WINDOW), in this run's folder. Passes on what it writes to $Log as it
+        writes it, and returns its exit code once it has ended - or $null where it could not be started.
     #>
-    param([string]$Source, [string]$Log, [string]$CodeFile)
+    param([string]$Source, [string[]]$Variables, [string]$Log, [string]$CodeFile)
     $powershell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
     $encoded = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($Source))
     $line = '"' + $powershell + '" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ' + $encoded
+    # This run's own CODEX_AUTO_RESUME_RELAY_* variables, if it has any, are not the run outside's: $Variables are.
     $environment = @(foreach ($variable in [Environment]::GetEnvironmentVariables().GetEnumerator()) {
-        if ([string]$variable.Key -ne 'CODEX_AUTO_RESUME_OUTSIDE') { [string]$variable.Key + '=' + [string]$variable.Value }
-    }) + 'CODEX_AUTO_RESUME_OUTSIDE=1'
+        $name = [string]$variable.Key
+        if ($name -ne 'CODEX_AUTO_RESUME_OUTSIDE' -and
+            -not $name.StartsWith('CODEX_AUTO_RESUME_RELAY_', [StringComparison]::OrdinalIgnoreCase)) {
+            $name + '=' + [string]$variable.Value
+        }
+    }) + 'CODEX_AUTO_RESUME_OUTSIDE=1' + @(foreach ($entry in $Variables) { [string]$entry })
     $startup = New-CimInstance -ClassName Win32_ProcessStartup -ClientOnly -Property @{
         ShowWindow = [uint16]0; EnvironmentVariables = [string[]]$environment }
     $created = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -ErrorAction Stop -Arguments @{
@@ -586,9 +631,9 @@ function Resolve-OutsideRun {
         $null = New-Item -ItemType Directory -Path $folder -ErrorAction Stop
         $log = Join-Path $folder 'output.txt'
         $codeFile = Join-Path $folder 'code.txt'
-        $source = Get-OutsideSource -Script $Script -Switches $Switches -Values $Values -Arguments $Arguments `
-                                    -Log $log -CodeFile $codeFile -Environment $Environment
-        $code = Invoke-Outside -Source $source -Log $log -CodeFile $codeFile
+        $variables = Get-OutsideVariables -Script $Script -Switches $Switches -Values $Values -Arguments $Arguments `
+                                          -Log $log -CodeFile $codeFile -Environment $Environment
+        $code = Invoke-Outside -Source (Get-OutsideSource) -Variables $variables -Log $log -CodeFile $codeFile
     } catch {
         $code = $null
     } finally {
