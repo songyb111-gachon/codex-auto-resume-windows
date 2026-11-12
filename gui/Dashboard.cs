@@ -531,6 +531,26 @@ namespace CodexAutoResume
             base.Dispose(disposing);
         }
 
+        /// v0.6.23 (the second round's F6): a tab in the strip is as wide as its name is in the wider of the strip's two weights -
+        /// the chosen page's name is set in nav_current, every other in nav (ShowPage) - whichever it is set in now. Choosing a
+        /// page changes only the weight drawn: no tab in the strip moves, and the tab pressed stays under the pointer. A section
+        /// in Settings' column (Vertical) is sized by its column.
+        public override Size GetPreferredSize(Size proposedSize)
+        {
+            Size size = base.GetPreferredSize(proposedSize);
+            if (Vertical || string.IsNullOrEmpty(Text)) return size;
+            int now = NameWidth(Font);
+            int widest = Math.Max(NameWidth(Soft.RoleFont("nav")), NameWidth(Soft.RoleFont("nav_current")));
+            if (widest > now) size.Width += widest - now;
+            return size;
+        }
+
+        // The name's width in `font`, on one line (remembered: Soft.Measure).
+        private int NameWidth(Font font)
+        {
+            return Soft.Measure(Text, font, int.MaxValue, TextFormatFlags.SingleLine).Width;
+        }
+
         /// v0.6.20: the arrow keys along a mirrored strip of tabs go the way it reads - Left to the next tab, which stands
         /// left of this one, and Right back to the one before - as they go the way it reads left to right (Mirror).
         protected override bool ProcessDialogKey(Keys keyData)
