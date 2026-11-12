@@ -15,8 +15,10 @@ whole under its own named lock; a list for another nonce - a spent or replaced a
 
 A task's end is followed as the follow-through view follows a delivered message (control/follow.py), ids and statuses
 only: the turn's status in Codex's history (codex/turns.status, read-only); core's interruption of that turn, if one -
-still waiting or on its way is running, recovered goes on to its recovery turn, ended otherwise is the task ended as its
-turn's status says (interrupted, else failed); with none, the turn's own status. Anything that cannot be read is
+still waiting or on its way is running, recovered goes on to its recovery turn, given way to the person's own message
+(superseded_by_user, superseded) goes on to the conversation's newest turn after it - the person's continuation is the
+task's real end, waited for as a recovery turn is (v0.6.23) - ended otherwise is the task ended as its turn's status says
+(interrupted, else failed); with none, the turn's own status. Anything that cannot be read is
 UNKNOWN, on which core waits. Nothing here sends anything, or writes anything but the list.
 """
 from __future__ import annotations
@@ -42,6 +44,9 @@ LOCK_SECONDS = 5.0
 RUNNING, COMPLETED, FAILED, INTERRUPTED, UNKNOWN = "running", "completed", "failed", "interrupted", "unknown"
 ENDS = (RUNNING, COMPLETED, FAILED, INTERRUPTED, UNKNOWN)
 _KEYS = {"format", "nonce", "armed_at", "failed", "interrupted", "tasks"}
+# A cut-off core gave up because the person (or a newer cut-off) continued the conversation: the task goes on in the
+# conversation's newest turn, never ends where it was cut off (v0.6.23 final, audit M7).
+CONTINUED = frozenset({"superseded_by_user", "superseded"})
 
 
 def path_of(paths) -> Path:
@@ -142,9 +147,11 @@ def _status_end(status) -> str:
             "interrupted": INTERRUPTED}.get(status, UNKNOWN)
 
 
-def end_of(task, records, status_of) -> str:
+def end_of(task, records, status_of, latest_of=None) -> str:
     """How the task `task` stands (ENDS): `records` core's interruptions of its conversation, `status_of(thread, turn)`
-    a turn's status (None for no such turn; raising for unreadable). Pure but for `status_of`."""
+    a turn's status (None for no such turn; raising for unreadable), `latest_of(thread)` the conversation's newest turn
+    (codex/turns.Turn, None for none; raising for unreadable) - followed where the person continued the conversation
+    themselves (CONTINUED). Pure but for `status_of` and `latest_of`."""
     thread, turn, parent, seen = task["thread_id"], task["turn_id"], None, set()
     try:
         for _ in range(STEPS):
@@ -164,6 +171,12 @@ def end_of(task, records, status_of) -> str:
                     return RUNNING
                 turn, parent = following, key
                 continue
+            if state in CONTINUED and latest_of is not None:
+                newest = latest_of(thread)
+                following = getattr(newest, "turn_id", None)
+                if ids.is_uuid(following) and following != turn:
+                    turn, parent = following, key   # the person's own turn after it is the task's continuation
+                    continue
             return INTERRUPTED if status_of(thread, turn) == "interrupted" else FAILED
     except Exception:
         return UNKNOWN
@@ -219,7 +232,7 @@ class PowerAfterTasks:
         found = []
         for task in document["tasks"]:
             own = [record for record in records if record.get("thread_id") == task["thread_id"]]
-            found.append((task, end_of(task, own, turns.status)))
+            found.append((task, end_of(task, own, turns.status, getattr(turns, "latest", None))))
         return found
 
     def power(self, facts):

@@ -129,6 +129,29 @@ class EndTests(unittest.TestCase):
         stopped = [record(1, "stopped_by_user")]
         self.assertEqual(self.end(stopped, {TURN: "interrupted"}), "interrupted")
 
+    def test_a_task_the_person_continues_themselves_is_waited_for_in_their_turn(self):
+        """v0.6.23 final (audit M7): a cut-off core gave up for the person's own message is no end - the
+        conversation's newest turn after it is the task's continuation, followed as a recovery turn is."""
+        task = {"thread_id": THREAD, "turn_id": TURN}
+        for state in ("superseded_by_user", "superseded"):
+            with self.subTest(state):
+                cut = [record(1, state)]
+                running = Statuses({TURN: "interrupted", RECOVERY: "inProgress"}, latest={THREAD: (RECOVERY, "inProgress")})
+                self.assertEqual(powertasks.end_of(task, cut, running.status, running.latest), "running")
+                done = Statuses({TURN: "interrupted", RECOVERY: "completed"}, latest={THREAD: (RECOVERY, "completed")})
+                self.assertEqual(powertasks.end_of(task, cut, done.status, done.latest), "completed")
+                again = cut + [record(2, "waiting_reset", RECOVERY)]
+                self.assertEqual(powertasks.end_of(task, again, done.status, done.latest), "running",
+                                 "the person's turn cut off in its turn waits for its recovery")
+                none_yet = Statuses({TURN: "interrupted"}, latest={THREAD: (TURN, "interrupted")})
+                self.assertEqual(powertasks.end_of(task, cut, none_yet.status, none_yet.latest), "interrupted",
+                                 "no newer turn: it ended where it was cut off, as before")
+
+    def test_the_answer_follows_the_persons_own_continuation(self):
+        statuses = Statuses({TURN: "interrupted", RECOVERY: "inProgress"}, latest={THREAD: (RECOVERY, "inProgress")})
+        code = powertasks.PowerAfterTasks(None, records=lambda: [record(1, "superseded_by_user")], turns=statuses)
+        self.assertEqual(code.stand({"tasks": [{"thread_id": THREAD, "turn_id": TURN}]})[0][1], "running")
+
     def test_unreadable_is_unknown(self):
         task = {"thread_id": THREAD, "turn_id": TURN}
         self.assertEqual(powertasks.end_of(task, [], Statuses(broken=True).status), "unknown")
