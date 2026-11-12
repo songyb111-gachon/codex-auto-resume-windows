@@ -34,10 +34,10 @@ person's own desktop conversation - one `LocalSource.latest` reads: not archived
 predicate detection uses (A15) - else it waits (identity, not_user_conversation); nothing is ever written
 into a child. A CONTINUATION goes only while the turn it follows is still the conversation's latest, final
 and with nothing after it; else it is SUPERSEDED, told once and never sent (A17 for it). Both are asked
-again in the last look. In flight, a queue item Codex said it took that a person edited is HANDED_OVER -
-theirs, never deleted and never unproven - and one a person cancelled, or every one while recovery is
-paused or its conversation off, is taken back out of Codex's queue (WITHDRAWN), as core takes its own back
-(H4, H6); one Codex will not give back is WITHDRAW_REFUSED, left there and watched, and never sent twice.
+again in the last look. In flight, a queue item Codex said it took that a person edited is HANDED_OVER - theirs,
+never deleted and never unproven - and one a person cancelled, or every one while recovery is paused (but one marked
+`pause_keeps`, v0.6.23) or its conversation off, is taken back out of Codex's queue (WITHDRAWN), as core takes its own
+back (H4, H6); one Codex will not give back is WITHDRAW_REFUSED, left there and watched, and never sent twice.
 
 Every move is told at P14 (RecordMove), and every wait with its gate and the gate's reason: the plug
 keeps its own record, and learns what became of it from core, as it learns of core's own records.
@@ -154,8 +154,8 @@ class PlugRecordsMixin:
 
     def paused_records(self):
         """While recovery is paused, the plug's records core watched in flight, each looked at as its watch looks -
-        delivered, handed over, or taken back out of Codex's queue (H4) - with the plug asked nothing (K5) and told
-        each move (P14). One that raises costs only itself."""
+        delivered, handed over, or taken back out of Codex's queue (H4) but for one marked `pause_keeps` - with the plug
+        asked nothing (K5) and told each move (P14). One that raises costs only itself."""
         for record in list(self._flying().values()):
             try:
                 self._watch_record(record)
@@ -324,12 +324,13 @@ class PlugRecordsMixin:
 
     def _take_back(self, record) -> bool:
         """A record still in Codex's queue a person cancelled - or any while recovery is paused or its conversation off
-        (the owner's answer of 2026-10-09) - taken back out of the queue, as core takes back its own (H4, H6): told
-        WITHDRAWN once Codex says it deleted it and its marker is nowhere in the history; told WITHDRAW_REFUSED where
-        Codex would not, and left there - never sent a second time. True where it was asked for back."""
+        (the owner's answer of 2026-10-09), but at a Pause none marked `pause_keeps` (v0.6.23, the chat's) - taken
+        back out of the queue, as core takes back its own (H4, H6): told WITHDRAWN once Codex says it deleted it and its
+        marker is nowhere in the history; told WITHDRAW_REFUSED where Codex would not, and left there - never sent a
+        second time. True where it was asked for back."""
         thread = record["thread_id"]
         settings = self.store.settings()
-        paused = not settings["enabled"] or bool(self.managed.disable_auto_resume)
+        paused = bool(not settings["enabled"] or self.managed.disable_auto_resume) and not record.get("pause_keeps")
         if not (record["withdraw"] or paused or not self.store.thread_enabled(thread)):
             return False
         refused = self.__dict__.setdefault("_back_refused", set())

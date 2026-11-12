@@ -34,8 +34,10 @@ def workers(answer) -> int:
 # What one of them is, exactly: no more keys and no fewer.
 BASE_RECORD_KEYS = frozenset({"record_id", "thread_id", "marker", "state", "words", "sent_at"})
 # v0.6.15-beta: and what the words are (RecordPurpose), the turn a continuation follows, the queue item Codex said it
-# took and whether a person asked for it back - each optional, a record without it being what one was before.
-RECORD_KEYS = BASE_RECORD_KEYS | {"purpose", "ordinal", "queue_id", "withdraw"}
+# took and whether a person asked for it back - each optional, a record without it being what one was before. v0.6.23:
+# and whether a Pause leaves it in Codex's queue (`pause_keeps`, the in-app chat's: its statement departs from H4),
+# taken back then only where the plug asks for it back or its conversation is off.
+RECORD_KEYS = BASE_RECORD_KEYS | {"purpose", "ordinal", "queue_id", "withdraw", "pause_keeps"}
 # How long the words of one may be, at most: what core's one send carries, less the blank line and the
 # marker it ends with (continuation.validate_prompt checks them again, as text). 30,000: continuation.PROMPT_SEND_LIMIT,
 # written again because this layer is below it (the owner, 2026-11-10; a test holds the two equal).
@@ -253,6 +255,9 @@ def _record(found):
     # Codex said, and no one asking for it back.
     purpose, ordinal = found.get("purpose", RecordPurpose.MESSAGE), found.get("ordinal")
     queue_id, withdraw = found.get("queue_id"), found.get("withdraw", False)
+    keeps = found.get("pause_keeps", False)
+    if type(keeps) is not bool:
+        return None
     if (type(key) is not str or not ids.is_interruption_id(key) or ids.uuid_problem(thread) is not None
             or found["marker"] != ids.short_marker(key) or purpose not in tuple(RecordPurpose)):
         return None
@@ -273,7 +278,7 @@ def _record(found):
         return None
     return {"record_id": key, "thread_id": thread, "marker": str(found["marker"]), "state": state,
             "words": words, "sent_at": None if sent is None else float(sent), "purpose": str(purpose),
-            "ordinal": ordinal, "queue_id": queue_id, "withdraw": withdraw}
+            "ordinal": ordinal, "queue_id": queue_id, "withdraw": withdraw, "pause_keeps": keeps}
 
 
 def records_of(answer) -> tuple:
