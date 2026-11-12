@@ -397,12 +397,15 @@ namespace CodexAutoResume
         }
 
         /// From each snapshot: OpenAI's status as the status feed last read it (surfaces.feed_view), one fact of Right now
-        /// while it says degraded service or an outage, and hidden otherwise.
+        /// while it says degraded service or an outage, or (v0.6.23 final) that its last reading could not reach the page
+        /// ("reached" false: never an old outage under a fresh time), and hidden otherwise.
         private void FeedApplied(Dictionary<string, object> reply)
         {
             Dictionary<string, object> feed = Map(Map(Map(reply, "status"), "advanced"), "feed");
             string word = Str(feed, "word"), codex = Str(feed, "codex_word");
-            string shown = word == "outage" || codex == "outage" ? Word("page.feed.outage", "OpenAI reports an outage")
+            bool unreached = feed != null && Equals(Get(feed, "reached"), false);
+            string shown = unreached ? Word("page.accounts.unread", "could not be read")
+                         : word == "outage" || codex == "outage" ? Word("page.feed.outage", "OpenAI reports an outage")
                          : word == "degraded" || codex == "degraded" ? Word("page.feed.degraded", "OpenAI reports degraded service")
                          : null;
             if (shown == null)

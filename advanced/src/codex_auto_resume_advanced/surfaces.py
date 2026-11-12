@@ -654,9 +654,11 @@ def courier(runtime, command, argument):
 
 def feed_view(runtime) -> dict:
     """What OpenAI's status page last said (v0.6.20, status_feed), for the Overview: {"feed": {"word", "codex_word",
-    "incidents", "checked_at"}} while status_feed stands on and the page said degraded or an outage - of the service or
-    of Codex in it - and {} otherwise: nothing is shown while it is operational or unknown. Closed words and numbers; a
-    word to show, never read by anything that decides."""
+    "incidents", "checked_at", "reached"}} while status_feed stands on and the page said degraded or an outage - of the
+    service or of Codex in it - at `checked_at`, the time it was read; or (v0.6.23 final, audit M9) the last reading
+    could not reach the page, `reached` False with no words and `checked_at` when it was tried, so an old degraded or
+    outage is never shown under a fresh time; and {} otherwise: nothing is shown while it is operational or unknown.
+    Closed words and numbers; a word to show, never read by anything that decides."""
     from .courier import feed
     try:
         if runtime.registry.get(feed.CAPABILITY) is None or runtime.states().get(feed.CAPABILITY) != ArmingState.ARMED:
@@ -664,10 +666,13 @@ def feed_view(runtime) -> dict:
         row = feed.read(runtime.state)
     except Exception:
         return {}
+    if feed.unreached(row):
+        return {"feed": {"word": None, "codex_word": None, "incidents": None, "checked_at": row["checked_at"],
+                         "reached": False}}
     if not row or not {row.get("word"), row.get("codex_word")} & {"degraded", "outage"}:
         return {}
     return {"feed": {"word": row["word"], "codex_word": row["codex_word"], "incidents": row["incidents"],
-                     "checked_at": row["checked_at"]}}
+                     "checked_at": row["checked_at"], "reached": True}}
 
 
 def fleet_view(runtime) -> dict:

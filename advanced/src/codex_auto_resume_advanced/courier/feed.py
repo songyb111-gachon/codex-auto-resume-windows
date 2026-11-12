@@ -11,8 +11,9 @@ One GET of SUMMARY_URL - a constant, checked in a test - at most http.MAX_REPLY 
 
 Nothing else of the reply is kept, and what is kept is a word for the Overview and Why it is waiting to show - never
 the input of a gate or of any decision (a test greps the dispatch, the gates and every plug answer for it). A reply that
-cannot be read, an unexpected shape or a page that is too long is unknown; a page that cannot be reached leaves the
-words it had, its time moved on. Only `refresh` loads http: the watcher reads the kept row through `read` without it.
+cannot be read, an unexpected shape or a page that is too long is unknown; a page that cannot be reached leaves no
+words (v0.6.23 final, audit M9: an old degraded or outage is never shown again under the time of a read that failed),
+its time moved on as the time it was tried, which spaces the next reading. Only `refresh` loads http: the watcher reads the kept row through `read` without it.
 """
 from __future__ import annotations
 
@@ -67,10 +68,18 @@ def save(state, found, now) -> None:
 
 
 def touch(state, now) -> None:
-    """The time moved on, the words kept: a read that could not reach the page."""
+    """A read that could not reach the page: the time moved on (when it was tried), and no words - what the page said
+    before is not what it says now, so nothing shows it as now (`unreached`)."""
     with state._transaction() as connection:
         connection.execute("INSERT INTO feed (singleton, checked_at) VALUES (1, ?) ON CONFLICT(singleton) DO UPDATE "
-                           "SET checked_at = excluded.checked_at", (float(now),))
+                           "SET checked_at = excluded.checked_at, word = NULL, codex_word = NULL, incidents = NULL",
+                           (float(now),))
+
+
+def unreached(row) -> bool:
+    """Whether the kept row `row` is a read that could not reach the page (`touch`): a time and no words."""
+    return (isinstance(row, dict) and isinstance(row.get("checked_at"), (int, float))
+            and row.get("word") is None and row.get("codex_word") is None)
 
 
 def read(state):
