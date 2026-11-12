@@ -305,6 +305,9 @@ class Hands:
             return self.restarting()
         return self.restarting
 
+    def bundled(self, _paths):
+        return "3.14.10"
+
 
 def inline(job):
     job()
@@ -622,6 +625,34 @@ class ReturnTests(Case):
         self.assertIsNone(self.record())
         self.assertEqual(hands.log, ["restart"])
         self.assertEqual(self.outcome()["word"], pythons.BACK_DONE)
+
+    def test_back_says_back_only_where_the_restart_came_up(self):
+        """M2 of the second round. Fails with the outcome reverted: "Back on the bundled version" above an in-use line that
+        says the watcher still runs on the chosen one."""
+        for came in (pythons.STILL_RUNNING, pythons.NOT_RUNNING, "exited", "unconfirmed"):
+            with self.subTest(came=came):
+                self.forget()
+                self.give_record()
+                self.assertTrue(pythons.back(self.runtime, start=inline, hands=Hands(restart=came))["done"])
+                self.assertIsNone(self.record())
+                self.assertEqual(self.outcome(), {"word": pythons.NEXT_START, "step": None, "version": "3.14.10"},
+                                 "the bundled version, taken when the watcher next starts")
+
+    def test_a_watcher_that_did_not_stop_keeps_its_runtime(self):
+        self.give_record()
+        pythons.back(self.runtime, start=inline, hands=Hands(restart=pythons.STILL_RUNNING))
+        self.assertTrue(chosen.complete(self.home, VERSION), "not swept from under the watcher still on it")
+        self.forget()
+        self.give_record()
+        pythons.back(self.runtime, start=inline, hands=Hands(restart=pythons.RUNNING))
+        self.assertFalse(self.folder().exists(), "swept once the watcher came up on the bundled runtime")
+
+    def test_with_the_bundled_version_unknown_no_done_line_is_made_up(self):
+        self.give_record()
+        hands = Hands(restart=pythons.STILL_RUNNING)
+        hands.bundled = lambda _paths: None
+        pythons.back(self.runtime, start=inline, hands=hands)
+        self.assertIsNone(self.outcome())
 
     def test_the_record_goes_before_the_restart(self):
         self.give_record()

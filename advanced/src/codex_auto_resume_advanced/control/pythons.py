@@ -143,6 +143,10 @@ class Hands:
     def restart(paths):
         return restart_watcher(paths)
 
+    @staticmethod
+    def bundled(paths):
+        return bundled_version(paths)
+
 
 class PythonChoice:
     """The action's object: nothing is asked of it at any point. Its card and buttons are `view`, `check`, `use`, `back`."""
@@ -349,13 +353,29 @@ def back(runtime, *, start=None, hands=Hands) -> dict:
     def work():
         _forget(home)
         _clear_returned(home)
-        hands.restart(runtime.paths)
+        came = hands.restart(runtime.paths)
         _count(runtime, "back")
-        _sweep(home, None)
-        _end(home, {"word": BACK_DONE, "step": None, "version": None})
+        _end(home, _back_outcome(runtime, home, came, hands))
     if not _run(home, work, start, "python-back"):
         return _refused(Refusal.STATE_UNAVAILABLE)
     return {"done": True, "refusal": None}
+
+
+def _back_outcome(runtime, home, came, hands):
+    """What the card says Back came to (v0.6.23 final, M2 of the second round's advanced audit): "Back on the bundled
+    version" only where the restart came up, on the bundled runtime the record no longer names; otherwise its words for a
+    version the watcher takes when it next starts, of the bundled one - a watcher that did not stop is still on the chosen
+    one, and one that did not come up, or none running, starts on the bundled one next. Swept only where nothing runs from
+    the chosen runtime any more, as `_switched` does."""
+    if came in (RUNNING, NOT_RUNNING):
+        _sweep(home, None)
+    if came == RUNNING:
+        return {"word": BACK_DONE, "step": None, "version": None}
+    try:
+        version = hands.bundled(runtime.paths)
+    except Exception:
+        version = None
+    return {"word": NEXT_START, "step": None, "version": version} if chosen_runtime.shaped(version) else None
 
 
 def back_when_off(runtime, *, restart=True, start=None, hands=Hands) -> None:
