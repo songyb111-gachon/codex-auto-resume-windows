@@ -73,6 +73,7 @@
   "check.home_other": "Ein weiteres Codex-Verzeichnis ({n})",
   "check.home_row": "{home}: Zustand zuletzt geschrieben {state}, Verlauf zuletzt geschrieben {history}{current}",
   "check.home_unreadable": "{home}: kann nicht gelesen werden",
+  "check.settings_unreadable": "Die Einstellungsdatei kann nicht gelesen werden ({reason}). Der Watcher behält die Einstellungen, die er hatte, und tut nichts nach den Standardwerten; kein Speichern überschreibt die Datei. Korrigieren Sie sie, oder nutzen Sie „Standardwerte wiederherstellen“ in den Einstellungen: Die Datei wird daneben aufbewahrt, und es beginnt neu mit den Standardwerten.",
   "check.homes_title": "Codex-Verzeichnisse, die der Watcher kennt",
   "check.in_hours": "in {n} Std.",
   "check.in_minutes": "in {n} Min.",

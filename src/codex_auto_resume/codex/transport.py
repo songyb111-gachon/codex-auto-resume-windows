@@ -25,14 +25,10 @@ from .errors import AdapterError
 from .usage import parse_usage
 
 # The longest command line Windows starts a process with, in UTF-16 code units, less its end (the measurement of
-# 2026-11-10, plans/measure-20261110-limits-result.md).
-COMMAND_LINE_UNITS = 32766
-
-
-def command_line_units(argv) -> int:
-    """How long `argv` is as Windows will see it: the line subprocess makes of it - a quote and the backslashes before
-    it cost more than themselves - in UTF-16 code units, so a character past the BMP (an emoji) counts as two."""
-    return len(S.list2cmdline(argv).encode("utf-16-le", "surrogatepass")) // 2
+# 2026-11-10, plans/measure-20261110-limits-result.md) - continuation's, which counts a person's message by the same
+# measure as it is written (v0.6.23, audit K2), so this check is only the last guard.
+COMMAND_LINE_UNITS = continuation.COMMAND_LINE_UNITS
+command_line_units = continuation.command_line_units
 
 
 # A Codex update bumps the version string, which alone must not disable auto-resume.

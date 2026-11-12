@@ -9,6 +9,10 @@ applied after the settings are read, never written into the file.
 """
 from __future__ import annotations
 
+import os
+from pathlib import Path
+import time
+
 from .. import config, homefind, homes, managed, notice_kinds, settings
 from ..store import StoreError
 from ..win import folderid, policykeys, userenv
@@ -169,7 +173,15 @@ class SettingsMixin:
         try:
             # The Codex homes are where to watch, not a preference: Restore defaults keeps them, and with them
             # every recovery waiting there (removing a home cancels those, homes.py) - never through a read that failed.
-            kept = {homes.FIELD: settings.kept(self.settings_path())[homes.FIELD]}
+            try:
+                kept = {homes.FIELD: settings.kept(self.settings_path())[homes.FIELD]}
+            except settings.Unreadable as exc:
+                if exc.transient:
+                    raise
+                # v0.6.23: a file it cannot read at all (no JSON, too large) is the one way out of a save it refuses -
+                # kept beside it first (settings.set_aside), never written over; the defaults are what was asked for.
+                set_aside(self.settings_path())
+                kept = {}
             saved = settings.save(self.settings_path(), dict(settings.defaults(), **kept))
         except settings.SettingsError as exc:
             # Generic for the same reason as `update_settings` above.
@@ -207,3 +219,29 @@ class SettingsMixin:
                          if entry["name"] in decided else entry
                          for entry in described]
         return described
+
+
+# Where Restore defaults keeps a settings file the product cannot read before it writes the defaults (v0.6.23, audit
+# K1): beside it, never over another; an uninstall that purges the settings takes it too (config.owned_state_files).
+SET_ASIDE_PREFIX = "settings.unreadable-"
+SET_ASIDE_GLOB = SET_ASIDE_PREFIX + "*.json"
+
+
+def set_aside(path) -> Path | None:
+    """Rename the settings file at `path` to settings.unreadable-<UTC time>.json beside it: its new path, or None when
+    there is no file (a link is never followed). Raises SettingsError when it cannot be kept, and nothing is written."""
+    target = Path(path)
+    if not target.is_file() or target.is_symlink():
+        return None
+    stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+    for number in range(100):
+        aside = target.with_name("%s%s%s.json" % (SET_ASIDE_PREFIX, stamp, "-%d" % number if number else ""))
+        try:
+            if not aside.exists():
+                os.rename(target, aside)            # never replaces on Windows: a name taken meanwhile tries the next
+                return aside
+        except FileExistsError:
+            continue
+        except OSError as exc:
+            raise settings.SettingsError("the settings file could not be set aside; nothing was written") from exc
+    raise settings.SettingsError("the settings file could not be set aside; nothing was written")

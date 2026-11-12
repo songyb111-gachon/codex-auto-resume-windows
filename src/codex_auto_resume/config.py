@@ -235,7 +235,7 @@ class Paths:
         files = [self.state_dir / name for name in names]
         for pattern in ("settings.*.tmp", "compatibility.*.tmp", "compat-cache.*.tmp", "failure-seen.*.tmp",
                         "status.*.tmp", "power-action.*.tmp", "split-chains.*.tmp", "once-words.*.tmp",
-                        "edition-left.*.tmp"):
+                        "edition-left.*.tmp", "settings.unreadable-*.json"):
             files += [p for p in sorted(self.state_dir.glob(pattern))
                       if not is_link(p) and self.confined(p)]
         return files + self.owned_advanced_files() + [self.state_dir / OWNER_MARKER]

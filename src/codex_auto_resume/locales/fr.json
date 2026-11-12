@@ -73,6 +73,7 @@
   "check.home_other": "Un autre dossier Codex ({n})",
   "check.home_row": "{home} : état écrit {state}, historique écrit {history}{current}",
   "check.home_unreadable": "{home} : illisible",
+  "check.settings_unreadable": "Le fichier des paramètres est illisible ({reason}). Le surveillant garde les paramètres qu’il avait et n’agit pas selon les valeurs par défaut, et aucun enregistrement n’écrit par-dessus le fichier. Corrigez-le, ou utilisez Restaurer les valeurs par défaut dans les Paramètres : le fichier est gardé à côté et les valeurs par défaut repartent de zéro.",
   "check.homes_title": "Dossiers Codex connus du surveillant",
   "check.in_hours": "dans {n} h",
   "check.in_minutes": "dans {n} min",

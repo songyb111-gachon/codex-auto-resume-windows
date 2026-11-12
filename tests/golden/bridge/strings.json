@@ -1152,6 +1152,7 @@
           "check.home_row": "{home}: its state written {state}, its history written {history}{current}",
           "check.home_current": " - the app writes to this one now",
           "check.home_unreadable": "{home}: cannot be read",
+          "check.settings_unreadable": "The settings file cannot be read ({reason}). The watcher keeps the settings it had and does nothing on the defaults, and no save writes over the file. Correct it, or use Restore defaults in Settings: the file is kept beside it and the defaults start again.",
           "check.cloud": "Cloud tasks the app knows: {count}. They run on OpenAI's servers, so none of them can be recovered yet.",
           "check.cloud_none": "Cloud tasks the app knows: none.",
           "check.usage": "Last usage reading {when}: 5-hour {five}%, weekly {weekly}%, next reset {reset}.",

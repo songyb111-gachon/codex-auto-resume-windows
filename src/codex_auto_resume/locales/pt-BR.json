@@ -73,6 +73,7 @@
   "check.home_other": "Outra pasta do Codex ({n})",
   "check.home_row": "{home}: estado gravado {state}, histórico gravado {history}{current}",
   "check.home_unreadable": "{home}: não pode ser lida",
+  "check.settings_unreadable": "O arquivo de configurações não pode ser lido ({reason}). O monitor mantém as configurações que tinha e não age pelos padrões, e nenhum salvamento grava por cima do arquivo. Corrija-o ou use Restaurar padrões em Configurações: o arquivo é guardado ao lado e os padrões começam de novo.",
   "check.homes_title": "Pastas do Codex que o monitor conhece",
   "check.in_hours": "em {n} h",
   "check.in_minutes": "em {n} min",

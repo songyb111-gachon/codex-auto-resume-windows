@@ -73,6 +73,7 @@
   "check.home_other": "Másik Codex-kezdőmappa ({n})",
   "check.home_row": "{home}: állapot írva: {state}, előzmények írva: {history}{current}",
   "check.home_unreadable": "{home}: nem olvasható",
+  "check.settings_unreadable": "A beállításfájl nem olvasható ({reason}). A figyelő megtartja a korábbi beállításait, és az alapértékek szerint nem tesz semmit; egy mentés sem írja felül a fájlt. Javítsa ki, vagy használja a Beállításokban az Alapértékek visszaállítása gombot: a fájl megmarad mellette, és az alapértékekkel indul újra.",
   "check.homes_title": "A figyelő által ismert Codex-kezdőmappák",
   "check.in_hours": "{n} óra múlva",
   "check.in_minutes": "{n} perc múlva",

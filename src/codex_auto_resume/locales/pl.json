@@ -73,6 +73,7 @@
   "check.home_other": "Inny folder Codex ({n})",
   "check.home_row": "{home}: stan zapisany {state}, historia zapisana {history}{current}",
   "check.home_unreadable": "{home}: nie można odczytać",
+  "check.settings_unreadable": "Nie można odczytać pliku ustawień ({reason}). Monitor zachowuje ustawienia, które miał, i nie działa według domyślnych, a żaden zapis nie nadpisze pliku. Popraw go albo użyj opcji Przywróć domyślne w Ustawieniach: plik zostanie zachowany obok, a ustawienia domyślne zaczną się od nowa.",
   "check.homes_title": "Foldery Codex znane monitorowi",
   "check.in_hours": "za {n} godz.",
   "check.in_minutes": "za {n} min",

@@ -73,6 +73,7 @@
   "check.home_other": "Một thư mục Codex khác ({n})",
   "check.home_row": "{home}: trạng thái được ghi {state}, lịch sử được ghi {history}{current}",
   "check.home_unreadable": "{home}: không đọc được",
+  "check.settings_unreadable": "Không đọc được tệp cài đặt ({reason}). Bộ theo dõi giữ nguyên cài đặt đang có và không làm gì theo mặc định, và không lần lưu nào ghi đè lên tệp. Hãy sửa tệp, hoặc dùng Khôi phục mặc định trong Cài đặt: tệp được giữ lại bên cạnh và bắt đầu lại với mặc định.",
   "check.homes_title": "Các thư mục Codex mà bộ theo dõi biết",
   "check.in_hours": "sau {n} giờ",
   "check.in_minutes": "sau {n} phút",

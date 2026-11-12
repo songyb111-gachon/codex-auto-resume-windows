@@ -73,6 +73,7 @@
   "check.home_other": "另一個 Codex 主目錄（{n}）",
   "check.home_row": "{home}：狀態寫入於 {state}，歷程記錄寫入於 {history}{current}",
   "check.home_unreadable": "{home}：無法讀取",
+  "check.settings_unreadable": "無法讀取設定檔（{reason}）。監看程式會保留原有的設定，不會依預設值做任何事，任何儲存也不會覆寫該檔案。請修正它，或在「設定」中使用「還原預設值」：該檔案會保留在旁邊，並從預設值重新開始。",
   "check.homes_title": "監看程式已知的 Codex 主目錄",
   "check.in_hours": "{n} 小時後",
   "check.in_minutes": "{n} 分鐘後",

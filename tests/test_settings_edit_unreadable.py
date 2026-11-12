@@ -129,14 +129,16 @@ class ProjectRuleTests(Case):
 
 
 class StoredSettingsTests(Case):
-    def test_a_file_that_holds_no_json_is_still_repaired_by_the_edit(self):
-        """Only a read that failed just now is refused: a file with no settings in it is what a save repairs, as
-        settings.kept has always said."""
+    def test_a_file_that_holds_no_json_is_refused_too_and_kept(self):
+        """v0.6.23 (audit K1): a file with no settings in it is no longer repaired by an edit with the defaults over the
+        person's choices; the edit is refused and the file kept, and Restore defaults sets it aside first."""
         path = self.control.settings_path()
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("{ not json", encoding="utf-8")
-        answer = self.control.set_conversation_message(A, "keep going on A")
-        self.assertEqual(answer["count"], 1)
+        with self.assertRaises(ControlError) as raised:
+            self.control.set_conversation_message(A, "keep going on A")
+        self.assertEqual(raised.exception.code, "request_failed")
+        self.assertEqual(path.read_text(encoding="utf-8"), "{ not json")
 
     def test_the_view_still_shows_the_defaults_for_a_held_file(self):
         """get_settings is what a surface shows: the defaults for a file held just now, as before."""
