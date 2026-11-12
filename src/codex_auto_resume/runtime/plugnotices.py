@@ -48,7 +48,7 @@ class PlugNotices:
 
 
 # How many notice keys a watcher remembers per part. The plug repeats a notice in every snapshot while it holds (the
-# meter's for 15 minutes, usage.NOTICE_FOR), so a key only has to be remembered while it is still being sent: each
+# meter's for the 15 minutes after its warning), so a key only has to be remembered while it is still being sent: each
 # sighting moves it to the newest end, and past this many the OLDEST is forgotten, never a new one refused (v0.6.23:
 # the old bound refused every key after the 65th, and a watcher alive for a week or two never warned again). The bound
 # is there so a plug's keys cannot grow the watcher's memory for its whole life; 64 is many times the few notices a plug

@@ -38,13 +38,15 @@ from .seen import SEEN_LIMIT, SEEN_SKEW, _replace_seen, unseen_failure, unseen_u
 from .records import _REASON_UNCHANGED, describe_record  # noqa: F401
 from .actions import CANCEL_RETRY_SECONDS  # noqa: F401
 from .codexstart import CODEX_START_LOG_LINES, _context_words, _note_line, ends_with_job  # noqa: F401
-from .watcher import (TICK_STALE_SECONDS,
+from .watcher import (CHOSEN_START_TIMEOUT,
+                      TICK_STALE_SECONDS,
                       WATCHER_START_INTERVAL,
                       WATCHER_START_TIMEOUT,
                       WATCHER_STOP_INTERVAL,
                       WATCHER_STOP_TIMEOUT,
                       _version,
                       await_stopped,
-                      await_watcher)  # noqa: F401
+                      await_watcher,
+                      start_timeout)  # noqa: F401
 from .poweraction import DISARM_ACTORS, IGNORED, STOP_ACTORS, STOPPED  # noqa: F401
 from .layer import Control  # noqa: F401

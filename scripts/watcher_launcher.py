@@ -364,19 +364,23 @@ def _again_under_bundled(here: Path, home: Path):
         _complain(here, "could not start again under the bundled runtime: %s" % exc)
         return None
     _note(here, "started again under the bundled runtime")
-    _came_up(home, process)
+    _came_up(home, process, asks_first=True)
     return 0
 
 
-def _came_up(home: Path, child) -> bool:
+def _came_up(home: Path, child, asks_first=False) -> bool:
     """Whether the watcher started as `child` under the chosen Python took its mutex within WATCHER_WAIT - with the one
-    more look setup gives one that took it just as the wait ended (plugin_setup.looked_again)."""
+    more look setup gives one that took it just as the wait ended (plugin_setup.looked_again). With `asks_first`, `child`
+    is this launcher again, which asks its question before it starts the watcher's child: the question's time comes on
+    top (control.start_timeout, v0.6.23), or this process would end at 45 s while the other still asks, and whoever
+    started it would read that end as a start that failed."""
     try:
         from codex_auto_resume import config
-        from codex_auto_resume.control.watcher import await_watcher
+        from codex_auto_resume.control.watcher import await_watcher, start_timeout
         from codex_auto_resume.runtime.app import App
         probe = App(config.Paths(home), console=False, enable_logging=False).watcher_running
-        state = await_watcher(probe, child, timeout=WATCHER_WAIT)["state"]
+        wait = start_timeout(home, WATCHER_WAIT) if asks_first else WATCHER_WAIT
+        state = await_watcher(probe, child, timeout=wait)["state"]
         return state == "running" or (state == "unconfirmed" and probe() is True)
     except Exception:                               # noqa: BLE001 - not known to be up is not up
         return False
