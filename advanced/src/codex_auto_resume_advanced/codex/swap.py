@@ -556,6 +556,32 @@ def _recover(paths, store, codex_home, *, read_real=None, restart=None) -> str |
             store.end()
 
 
+def unwind(store, codex_home) -> bool:
+    """Before Delete all (v0.6.23 second round R2): whether nothing a switch left waits on the saved accounts any more -
+    no intent; or one whose copy is not in Codex's place (nothing of it to undo: the file in place stays); or one whose
+    previous sign-in this has just put back, Codex not running (`_put_back` without a restart), the intent then ended.
+    False where the switch's copy is in place and Codex runs, or the put-back failed: deleting then would take the only
+    copy of the sign-in that worked. An intent that cannot be read, or a Codex home that cannot be told, stops nothing,
+    as before."""
+    from ..profiles import ProfileError
+    intent = store.intent()
+    if intent is None or intent.get("damaged") or codex_home is None:
+        return True
+    put_in = intent.get("put_in")
+    try:
+        if put_in is None and isinstance(intent.get("to"), str):
+            put_in = store.get(intent["to"])["auth"]
+        previous = _previous(store, intent) if put_in is not None else None
+    except (ProfileError, KeyError, TypeError):
+        return True                                          # nothing kept to put back: deleting loses nothing more
+    if previous is None or not _is_in_place(codex_home, put_in):
+        return True
+    if _put_back(codex_home, put_in, previous, None):
+        store.end()
+        return True
+    return False
+
+
 def _previous(store, intent) -> bytes:
     """The copy a put-back puts in: the intent's own (A-R5), else the previous profile's. ProfileError where neither is."""
     import base64
