@@ -183,7 +183,7 @@ class WindowTests(unittest.TestCase):
         window._renderer.draw = recording
         window.hover = target
         window._invalidate()
-        self.pump(0.02)
+        window.render()
         self.assertIn(target, window._faces, "the pointer starts a glide")
         self.assertEqual(window._faces[target][2], TRANSITION)
         self.assertEqual(window._frame_ms, motion.GLIDE_FRAME_MS)
@@ -192,9 +192,12 @@ class WindowTests(unittest.TestCase):
         amounts = [faces[target][1] for faces in drawn if target in faces]
         self.assertGreaterEqual(len(amounts), 4, "drawn frame by frame")
         self.assertEqual(amounts, sorted(amounts))
+        # The press is drawn here and now, as its WM_PAINT would draw it: what is asked is the face it starts.
+        states = dict(window._face_states or {})
         window.pressed = target
         window._invalidate()
-        self.pump(0.02)
+        window.render()
+        self.assertIn(target, window._faces, ("a press starts a glide", states, window._face_states, window.hover))
         self.assertEqual(window._faces[target][2], PRESS, "a press takes the press time")
         self.pump(0.3)
         self.assertEqual(window._faces, {})

@@ -246,12 +246,15 @@ class PopupMessages(PopupHidden):
             self._end_opening()
             return
         rise = max(1, int(round(brand.SPACING["xs"] * self.dpi / 96.0)))
-        self._opening = (time.monotonic() * 1000.0, rise)
+        self._opening = (None, rise)             # its clock starts at its first frame, once the first picture is up
         self._stand(rise)
 
     def _opening_step(self):
         """A frame of the opening: how opaque, and how far below its place; at the end, whole and in place."""
         started, rise = self._opening
+        if started is None:
+            started = time.monotonic() * 1000.0
+            self._opening = (started, rise)
         alpha, below, done = opening(time.monotonic() * 1000.0 - started, rise)
         if done:
             self._end_opening()

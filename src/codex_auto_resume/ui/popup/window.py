@@ -523,6 +523,9 @@ class Popup(PopupMessages):
 
     def _sync_frames(self):
         user32 = _dll("user32")
+        if self._holds() and (self._opening is not None or self._faces):
+            self._end_opening()                  # held while it opens or glides: simply where it is going (v0.6.23)
+            self._faces = {}
         quick = bool(self._faces) or self._opening is not None     # a one-shot glide: the card's quicker frames
         wanted = (self.visible and self._vm is not None
                   and (bool(self._glides) or quick

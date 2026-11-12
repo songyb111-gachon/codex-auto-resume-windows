@@ -482,7 +482,7 @@ class Menu:
         self._stop_fade()
         moves = bool(self.hwnd) and not (self.contrast or look.reduced_motion())
         rise = max(1, int(round(brand.SPACING["xs"] * self._plan["scale"]))) if moves else 0
-        self._alpha, self._below, self._fade = (0, rise, ("in", _now_ms(), rise)) if moves else (255, 0, None)
+        self._alpha, self._below, self._fade = (0, rise, ("in", None, rise)) if moves else (255, 0, None)
         if moves:
             _dll("user32").SetTimer(self.hwnd, FADE_TIMER, GLIDE_FRAME_MS, None)
 
@@ -502,6 +502,8 @@ class Menu:
         if self._fade is None or not self.hwnd:
             return
         way, started, value = self._fade
+        if started is None:                      # the clock starts at the first frame, the first picture made and up
+            self._fade = (way, (started := _now_ms()), value)
         if way == "in":
             self._alpha, self._below, done = opening(_now_ms() - started, value)
         else:
