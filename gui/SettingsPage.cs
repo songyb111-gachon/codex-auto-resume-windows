@@ -1544,9 +1544,11 @@ namespace CodexAutoResume
             // Off the UI thread, because the wait is now real.
             //
             // The bridge call blocks until the engine answers, and the engine waits up to
-            // 45 seconds for the watcher to become visible (control.WATCHER_START_TIMEOUT;
-            // the advanced edition's takes 12 to 20). Run on the click handler, that is
-            // 45 seconds in which this window pumps no messages: Windows paints a grey ghost copy and retitles it
+            // 45 seconds for the watcher to become visible (control.WATCHER_START_TIMEOUT), or up to
+            // 108 where a choice of Python is recorded (control.start_timeout: the launcher's question
+            // and the interpreters' starts on top; the advanced edition's takes 12 to 20). Run on the
+            // click handler, that is up to 108 seconds in which this window pumps no messages: Windows
+            // paints a grey ghost copy and retitles it
             // "Not Responding" after five. The "Starting the watcher..." headline set
             // just above would never even appear, because the WM_PAINT it queues is not
             // dispatched until the call returns.
