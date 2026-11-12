@@ -812,9 +812,9 @@ namespace CodexAutoResume
     {
         private readonly Bitmap face;
         private readonly GroundShot ground = new GroundShot();
-        private readonly Transition time;
+        private readonly Timer timer = new Timer();
+        private readonly System.Diagnostics.Stopwatch clock = new System.Diagnostics.Stopwatch();
         private readonly bool entering;
-        private bool over;
 
         /// How many are on the screen (for the tests).
         internal static int Live;
@@ -827,12 +827,31 @@ namespace CodexAutoResume
             TabStop = false;
             AccessibleRole = AccessibleRole.None;
             Bounds = bounds;
-            time = new Transition(this, 0.0);
             parent.Controls.Add(this);
             BringToFront();
             Live++;
             Transition.Moving++;
-            time.To(1.0, true);
+            timer.Interval = Motion.Interval;
+            timer.Tick += delegate { Tick(); };
+            clock.Start();
+            timer.Start();
+        }
+
+        // A frame: the part a step further in, or out; at the end of brand's transition the cover takes itself away.
+        private void Tick()
+        {
+            if (clock.Elapsed.TotalMilliseconds >= Motion.Duration || !Soft.Shown(this) || !Visible) Finish();
+            else Invalidate();
+        }
+
+        // How far through it is, eased: 0 to 1.
+        private double Progress
+        {
+            get
+            {
+                double t = clock.Elapsed.TotalMilliseconds / Math.Max(1, Motion.Duration);
+                return t >= 1.0 ? 1.0 : Motion.Ease(t);
+            }
         }
 
         /// Whether `part` may fade now: shown on screen (Motion.Allowed), in a parent, with a size.
@@ -884,25 +903,18 @@ namespace CodexAutoResume
         }
 
         /// How opaque the part is drawn now, 0 to 1 (for the tests).
-        internal double Opacity { get { return entering ? time.Value : 1.0 - time.Value; } }
-
-        /// Whether it is on its way; its timer runs only then (for the tests).
-        internal bool Running { get { return time.Running; } }
+        internal double Opacity { get { return entering ? Progress : 1.0 - Progress; } }
 
         protected override void OnPaint(PaintEventArgs e)
         {
             Graphics g = e.Graphics;
             ground.Paint(this, g, ClientRectangle);
             Soft.Faded(g, face, ClientRectangle, Opacity);
-            if (!time.Running && !over)
-            {
-                over = true;
-                BeginInvoke((MethodInvoker)delegate { Finish(); });
-            }
         }
 
         private void Finish()
         {
+            timer.Stop();
             if (IsDisposed) return;
             Control parent = Parent;
             if (parent != null) parent.Controls.Remove(this);
@@ -915,7 +927,8 @@ namespace CodexAutoResume
             {
                 Live--;
                 Transition.Moving--;
-                time.Dispose();
+                timer.Stop();
+                timer.Dispose();
                 ground.Dispose();
                 face.Dispose();
             }
