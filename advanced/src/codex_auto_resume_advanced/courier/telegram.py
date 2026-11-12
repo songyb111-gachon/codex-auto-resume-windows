@@ -24,8 +24,11 @@ message reaches a conversation. Answers are in the person's language, closed wor
 the paired chat by sendMessage - the bot's token only ever in the request's path, never in a log or the journal.
 
 The offset is kept before a message is acted on: a command is carried out at most once, and one lost to a crash is one the
-person sends again. A read asks for at most UPDATES messages, so what strangers send the bot can never make a reply
-longer than http.MAX_REPLY, which could not be parsed and would stop the offset moving. Recovery paused changes nothing
+person sends again. A read asks for at most UPDATES messages. What strangers send can still make a reply longer than
+http.MAX_REPLY (a long message that quotes another long one, its characters escaped six bytes each), and a reply cut
+there cannot be parsed: then the poller waits AFTER_FAILURE and asks for one message alone, and where that one is still
+too long to read, it is passed over by its update_id - so nothing anyone sends can make the poll spin or hold the
+paired chat's commands behind it. Recovery paused changes nothing
 here: asking how things stand is what a paused PC is asked; it is the one way this feature sends while paused, and only
 in answer to the paired chat.
 
@@ -34,6 +37,7 @@ in answer to the paired chat.
 from __future__ import annotations
 
 import json
+import re
 import time
 
 from . import http
@@ -57,6 +61,12 @@ FRESH = 300                        # seconds a message may be old and still be o
 # minutes is one Windows' time service would have put right - and a date further ahead is still ignored.
 AHEAD = FRESH
 UPDATES = 2                        # messages one read may bring: each at most 4,096 characters
+# A reply cut at http.MAX_REPLY or not Telegram's JSON (R2, the second advanced review of v0.6.23: it kept the offset
+# still and the poller read it again at once, forever). Of the reports' three ways out, this one keeps every message that
+# can be read: after such a reply the next read asks for one message alone, and one that alone is still too long to read
+# is passed over by the first update_id in what was read - an update's own key, never a message's text, where every
+# quote is escaped.
+UPDATE_ID = re.compile(rb'[{,]\s*"update_id"\s*:\s*([0-9]{1,19})')
 IGNORED_EVERY = 3600               # seconds between two journal lines for what other chats sent: one an hour at most
 MAX_TEXT = 64                      # characters of a message read; a longer one is no command
 LISTED = 20                        # rows of one /list answer: a Telegram message has a limit, and task N stays right
@@ -105,6 +115,7 @@ class Poller:
         self.offered = None              # the snapshot of a list being answered, until its answer is sent
         self.ignored_at = None           # when what other chats sent was last journalled
         self.name = None                 # this bot's own name, lower case, once getMe answered it
+        self.alone = False               # the last reply could not be read: the next read asks for one message alone
 
     @property
     def secrets(self):
@@ -159,7 +170,8 @@ class Poller:
             return IDLE
         token, chat = kept
         offset = self._offset()
-        url = "%s%s/getUpdates?timeout=%d&offset=%d&limit=%d" % (TELEGRAM_API, token, POLL, offset, UPDATES)
+        alone, self.alone = self.alone, False
+        url = "%s%s/getUpdates?timeout=%d&offset=%d&limit=%d" % (TELEGRAM_API, token, POLL, offset, 1 if alone else UPDATES)
         try:
             reply = http.get(url, timeout=POLL + http.TIMEOUT, opener=self._opener)
         except http.Failed as exc:
@@ -168,7 +180,16 @@ class Poller:
             return AFTER_REFUSAL if exc.word in ("4xx", "tls") else AFTER_FAILURE
         if stop is not None and stop.is_set():
             return 0                     # turned off while the read was held open: nothing it brought is obeyed
-        found = updates(reply)
+        found = readable(reply)
+        if found is None:                # cut, or not Telegram's: never read again at once
+            if alone:
+                first = UPDATE_ID.search(reply) if isinstance(reply, bytes) else None
+                if first is not None and int(first.group(1)) >= offset:
+                    self._keep_offset(int(first.group(1)) + 1)   # one message too long to read alone: passed over
+            else:
+                self.alone = True
+            return AFTER_FAILURE
+        start = offset
         for update in found:
             number = update.get("update_id")
             if type(number) is int and number >= offset:
@@ -199,7 +220,7 @@ class Poller:
             # One line an hour, however much strangers send: a flood must not wear the journal every capability shares.
             self.ignored_at = now
             self.runtime.state.counted(TELEGRAM, "ignored")
-        return 0
+        return AFTER_FAILURE if found and offset == start else 0   # updates that moved nothing: never read again at once
 
     def own_name(self, token):
         """This bot's name (getMe), lower case - asked once and kept - or None where it cannot be read."""
@@ -314,14 +335,20 @@ class Poller:
         return said if isinstance(said, str) and said and said != "code." + code else code
 
 
-def updates(reply) -> list:
-    """The updates of a getUpdates reply: a list of dicts, or empty for anything else."""
+def readable(reply):
+    """The updates of a getUpdates reply, a list of dicts - or None for a reply that cannot be read as one (cut, or not
+    Telegram's JSON)."""
     try:
         found = json.loads(reply.decode("utf-8"))
     except (ValueError, UnicodeDecodeError, AttributeError):
-        return []
+        return None
     result = found.get("result") if isinstance(found, dict) and found.get("ok") is True else None
-    return [entry for entry in result if isinstance(entry, dict)] if isinstance(result, list) else []
+    return [entry for entry in result if isinstance(entry, dict)] if isinstance(result, list) else None
+
+
+def updates(reply) -> list:
+    """The updates of a getUpdates reply: a list of dicts, or empty for anything else."""
+    return readable(reply) or []
 
 
 def run(runtime, stop, **seams) -> None:
