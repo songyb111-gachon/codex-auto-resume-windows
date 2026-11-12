@@ -162,6 +162,16 @@ try {
   Call 'ApplySnapshot' $script:form @($snapshot) | Out-Null
   $out.busy = @($held[0], $held[1], (Text (Field 'rowDialogOpened')), (Text (Field 'rowAsked')))
 
+  # The person moved to another page before the read came: nothing opens over it, and the request waits for Pending.
+  SetField 'rowDialogOpened' $null
+  Call 'AskRowDialog' $script:form @([string]$cases.good) | Out-Null
+  Call 'ShowPage' $script:form @('history') | Out-Null
+  Call 'ApplySnapshot' $script:form @($snapshot) | Out-Null
+  $away = @((Text (Field 'rowDialogOpened')), (Text (Field 'rowAsked')))
+  Call 'ShowPage' $script:form @('pending') | Out-Null
+  Call 'ApplySnapshot' $script:form @($snapshot) | Out-Null
+  $out.away = @($away[0], $away[1], (Text (Field 'rowDialogOpened')), (Text (Field 'rowAsked')))
+
   $out | ConvertTo-Json -Depth 8 -Compress
 } catch {
   $thrown = $_.Exception
@@ -273,6 +283,10 @@ class RowDialogTests(unittest.TestCase):
     def test_an_action_on_its_way_holds_it_for_the_next_read(self):
         self.assertEqual(self.answer["busy"], ["<null>", GOOD, "once_words:" + ROW[1][0], "<null>"])
 
+    def test_another_page_on_screen_holds_it_for_pendings_next_write(self):
+        """Fails with the page check reverted: the dialog opens over History from rows Pending was last written with."""
+        self.assertEqual(self.answer["away"], ["<null>", GOOD, "once_words:" + ROW[1][0], "<null>"])
+
 
 class SourceTests(unittest.TestCase):
     def test_the_start_and_the_open_request_reach_the_same_request(self):
@@ -290,7 +304,8 @@ class SourceTests(unittest.TestCase):
         self.assertLess(take.index("if (auditing || !IsHandleCreated) return;"), take.index("BeginInvoke("))
         self.assertIn('if (dialog == "once_words") EditOnceWords(row);', take)
         self.assertIn("else EditConversationMessage(row);", take)
-        self.assertIn("TakeRowAsked();", guiscan.member_body("SettingsForm", "ApplySnapshot"))
+        self.assertIn("if (pending) TakeRowAsked();", guiscan.member_body("SettingsForm", "ApplySnapshot"))
+        self.assertIn('if (currentPage != "pending" && writingPage != "pending") return;', take)
 
 
 if __name__ == "__main__":
