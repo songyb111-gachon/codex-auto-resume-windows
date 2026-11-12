@@ -9,12 +9,16 @@ No request here reaches the network: every one goes to a fake opener.
 """
 from __future__ import annotations
 
+import http.client as httpclient
 import io
 from pathlib import Path
 import socket
 import ssl
 import sys
+import threading
+import time
 import unittest
+from unittest.mock import patch
 import urllib.error
 import urllib.request
 
@@ -160,6 +164,105 @@ class RequestTests(unittest.TestCase):
         self.assertEqual((context.verify_mode, context.check_hostname), (ssl.CERT_REQUIRED, True))
         self.assertGreaterEqual(context.minimum_version, ssl.TLSVersion.TLSv1_2)
         self.assertIsNone(http._NoRedirect().redirect_request(None, None, 302, "Found", {}, "https://x.example.com"))
+
+
+
+CRLF = bytes((13, 10))
+
+
+class _Plain(http._WholeConnection, httpclient.HTTPConnection):
+    """The courier's connection over plain HTTP: only so a loopback service in this test can answer it."""
+
+
+class _PlainHandler(urllib.request.HTTPHandler):
+    def http_open(self, req):
+        return self.do_open(_Plain, req)
+
+
+class TrickleTests(unittest.TestCase):
+    """S1 of the second security review of v0.6.23: a service that sends a byte just inside each read's timeout. A real
+    socket on 127.0.0.1 and a port the system picks, the courier's own connection over plain HTTP, the address check
+    let through for this one service - no other host is reached."""
+
+    SECONDS = 0.6                      # each read's timeout here
+    MORE = 0.6                         # WHOLE_MORE here
+
+    def setUp(self):
+        for name, value in (("WHOLE_MORE", self.MORE), ("checked_url", lambda url: url)):
+            patcher = patch.object(http, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        self.listener = socket.socket()
+        self.listener.bind(("127.0.0.1", 0))
+        self.listener.listen(1)
+        self.addCleanup(self.listener.close)
+        self.stop = threading.Event()
+        self.addCleanup(self.stop.set)
+        self.url = "http://127.0.0.1:%d/getUpdates" % self.listener.getsockname()[1]
+
+    def serve(self, head_slowly):
+        """One connection answered a byte at a time, every SECONDS / 3 - inside each read's timeout - for 8 s at most."""
+        def run():
+            try:
+                peer, _ = self.listener.accept()
+            except OSError:
+                return
+            with peer:
+                peer.settimeout(5)
+                try:
+                    peer.recv(4096)
+                    head = b"HTTP/1.0 200 OK" + CRLF + b"Content-Length: 100000" + CRLF + CRLF
+                    if not head_slowly:
+                        peer.sendall(head)
+                    ends = time.monotonic() + 8
+                    for byte in (head if head_slowly else b"") + b"x" * 100000:
+                        if self.stop.is_set() or time.monotonic() > ends:
+                            return
+                        peer.sendall(bytes([byte]))
+                        time.sleep(self.SECONDS / 3)
+                except OSError:
+                    return
+        thread = threading.Thread(target=run, daemon=True)
+        thread.start()
+        self.addCleanup(thread.join, 10)
+
+    def ask(self):
+        opener = urllib.request.build_opener(_PlainHandler(), http._NoRedirect())
+        began = time.monotonic()
+        with self.assertRaises(http.Failed) as raised:
+            http.request(self.url, method="GET", timeout=self.SECONDS, opener=opener)
+        self.assertEqual(raised.exception.word, "timeout")
+        return time.monotonic() - began
+
+    def test_a_reply_that_trickles_its_body_is_cut_at_its_time_in_all(self):
+        """Fails with the time in all reverted: every byte comes inside the read's timeout, so the read goes on for the
+        whole 8 s and hands over a cut reply as if it were whole."""
+        self.serve(head_slowly=False)
+        self.assertLess(self.ask(), self.SECONDS + self.MORE + 1.5)
+
+    def test_a_reply_that_trickles_its_headers_is_cut_at_its_time_in_all(self):
+        self.serve(head_slowly=True)
+        self.assertLess(self.ask(), self.SECONDS + self.MORE + 1.5)
+
+    def test_a_reply_in_time_is_read_whole_and_its_clock_stopped(self):
+        def run():
+            peer, _ = self.listener.accept()
+            with peer:
+                peer.recv(4096)
+                peer.sendall(b"HTTP/1.0 200 OK" + CRLF + b"Content-Length: 2" + CRLF + CRLF + b"ok")
+        thread = threading.Thread(target=run, daemon=True)
+        thread.start()
+        self.addCleanup(thread.join, 10)
+        opener = urllib.request.build_opener(_PlainHandler(), http._NoRedirect())
+        self.assertEqual(http.request(self.url, method="GET", timeout=self.SECONDS, opener=opener), b"ok")
+        time.sleep(self.SECONDS + self.MORE + 0.3)          # the clock, had it run on, would have shut a closed socket
+
+    def test_the_real_opener_makes_the_courier_s_connection_and_stream_urllib_s_own(self):
+        handler = next(each for each in http.make_opener().handlers if isinstance(each, urllib.request.HTTPSHandler))
+        self.assertIs(handler._connection, http._WholeHTTPS)
+        handler = next(each for each in http.make_opener(whole=False).handlers
+                       if isinstance(each, urllib.request.HTTPSHandler))
+        self.assertIs(handler._connection, httpclient.HTTPSConnection)
 
 
 if __name__ == "__main__":

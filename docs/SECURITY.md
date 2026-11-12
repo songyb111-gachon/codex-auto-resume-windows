@@ -742,12 +742,14 @@ stopped; a mutex of its own, so it never holds a notice back; windowless, in the
 watcher. It holds the one listening socket of this product (a test fails if a second shipped file can listen,
 `tests/test_privacy_claims.py`), bound to 127.0.0.1 alone, with exclusive use of its port - or to every network only
 while *Open the status server to your local network* is on too, where Windows asks about its firewall and the product
-changes no rule. Each request, in this order: closed for five minutes after ten wrong tokens in a minute (503); exactly
+changes no rule. Each request, in this order: closed for five minutes to the program or device that sent ten wrong tokens
+in a minute (503) - each address counted on its own and this PC's own loopback as one, so a device on the network can
+never close it to this PC's programs or to another device; exactly
 one Host header, naming 127.0.0.1 or localhost with the port - or, open to the network, an IPv4 address with the port -
 or 421, which is what stops a web page rebinding a name to it; an unknown path 404, another method 405; a Bearer token kept
 in Windows Credential Manager and compared in constant time, or 401; an action while actions are off 403; a body over 1 KiB
 413. No answer carries a CORS header, a cookie or a server's version; a query string is never read, and nothing is logged:
-no request, no address, no failure. At most eight requests at once; each has ten seconds in all, from its connection to its answer, and then its connection is shut, so clients that send a byte at a time cannot hold every slot. What it serves is the status file's
+no request, no address, no failure. At most eight requests at once; each has ten seconds in all, from its connection to its answer, and then its connection is shut, and after its answer one second more in all to read what the client still sends, so clients that send a byte at a time cannot hold every slot. What it serves is the status file's
 closed keys and the waiting recoveries as `task N` with their public codes, never an id, a label or a path. What it does is
 core's own pause and cancel, by the list the caller read or 409: it reduces, and has no route that sends, chats, changes a
 setting, turns a feature on, sends now or gives attempts back (a test holds the routes to the design's table). Only the
