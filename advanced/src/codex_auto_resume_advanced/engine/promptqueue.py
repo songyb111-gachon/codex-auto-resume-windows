@@ -16,7 +16,10 @@ At P2, each conversation's prompts in their order (`position`), the first still 
   (dependency_failed) for the person to say go on or cancel;
 * due, its occurrence is made - a record with an id of its own - and handed core with its words;
 * a series' occurrences that fell while nothing ran are caught up once, the latest alone, the earlier counted as used
-  (`missed`); an occurrence not sent a day after it fell due is used as expired, and the series goes on;
+  (`missed`); an occurrence not sent a day after it could go is used as expired, and the series goes on - a day from
+  when it fell due, or from later where the product's own pace held it: the end of the prompt before it in its
+  conversation, or the last time the claim's pace (five a day, fifteen minutes, one in flight, the ceilings) held it
+  (v0.6.23, `waiting_since`), so every message within the waiting limits is sent, once, in order, at that pace;
 * (v0.6.19, #50) one that waits while a turn runs (`while_running` "wait") is not handed while its conversation's
   latest turn is in progress (read-only, codex/turns.py) - its reason turn_running - nor while that cannot be read, and
   is handed once the turn is final; one that goes into Codex's queue ("queue", what every prompt did before) is
@@ -70,6 +73,17 @@ def handed(row) -> dict | None:
     if row["record_state"] == RecordState.WAITING and row["words"]:
         return dict(own, state="waiting", words=row["words"], sent_at=None, queue_id=None, withdraw=False)
     return None
+
+
+def could_go(row, queue) -> float:
+    """When a ready occurrence could first go (v0.6.23, finding B2), which its day before it expires counts from: when it
+    fell due, or later where only the product's own pace kept it - the end of the last prompt before it in its
+    conversation (only the first still to go is handed), or the last time the claim's pace held it (its record's
+    `waiting_since`, state/resets.paced_wait). Anything else that keeps it - the PC off, Codex not running, the
+    conversation not open - moves none of these, so it still expires a day after it fell due."""
+    ended = [other["finished_at"] for other in queue
+             if other["position"] < row["position"] and other.get("finished_at") is not None]
+    return max([row["due_at"], row.get("waiting_since") or row["due_at"]] + ended)
 
 
 def turn_in_progress(paths, thread_id):
@@ -219,7 +233,7 @@ class PromptQueue:
                           finished_at=now)
             return None
         if row["state"] == PromptState.READY:
-            if row["due_at"] is not None and now - row["due_at"] >= DUE_FOR:
+            if row["due_at"] is not None and now - could_go(row, queue) >= DUE_FOR:
                 return self._expired(handle, row, now)
             if self._held_for_turn(handle, row) or self._images_held(row):
                 return None

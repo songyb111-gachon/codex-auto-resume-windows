@@ -21,7 +21,7 @@ from ..vocabulary import PromptEvery, PromptReason, PromptState, PromptTrigger, 
 
 PROMPT_QUEUE = "prompt_queue"
 from .choices import Refused
-from .resets import _gate_word
+from .resets import _gate_word, paced_wait
 from .schema import PROMPT_SPAN, WORDS_MOST
 from .session import StateError, _key, _thread, _timestamp, _word
 
@@ -163,8 +163,9 @@ class PromptsMixin:
             if connection is None:
                 return []
             rows = connection.execute(
-                "SELECT p.*, c.state AS record_state, c.queue_id AS queue_id, c.withdraw AS withdraw FROM prompts p "
-                "LEFT JOIN records c ON c.record_id = p.record_id%s ORDER BY p.thread_id, p.position"
+                "SELECT p.*, c.state AS record_state, c.queue_id AS queue_id, c.withdraw AS withdraw, "
+                "c.created_at AS waiting_since FROM prompts p LEFT JOIN records c ON c.record_id = p.record_id%s "
+                "ORDER BY p.thread_id, p.position"
                 % (" WHERE " + " AND ".join(clauses) if clauses else ""), values).fetchall()
         return [_prompt(row) for row in rows]
 
@@ -173,8 +174,9 @@ class PromptsMixin:
             raise StateError("invalid prompt id")
         with self._read() as connection:
             row = None if connection is None else connection.execute(
-                "SELECT p.*, c.state AS record_state, c.queue_id AS queue_id, c.withdraw AS withdraw FROM prompts p "
-                "LEFT JOIN records c ON c.record_id = p.record_id WHERE p.prompt_id=?", (prompt_id,)).fetchone()
+                "SELECT p.*, c.state AS record_state, c.queue_id AS queue_id, c.withdraw AS withdraw, "
+                "c.created_at AS waiting_since FROM prompts p LEFT JOIN records c ON c.record_id = p.record_id "
+                "WHERE p.prompt_id=?", (prompt_id,)).fetchone()
         return None if row is None else _prompt(row)
 
     def change_prompt(self, prompt_id, **changes) -> None:
@@ -372,6 +374,7 @@ class PromptMovesMixin:
                                                                                      prompt))
                 connection.execute("UPDATE records SET withdraw=0 WHERE record_id=?", (record_id,))
             elif move == "waiting":
+                paced_wait(connection, record_id, gate, reason, now)
                 gate, reason = _gate_word(gate), _gate_word(reason)
                 if (row["gate"], row["gate_reason"]) != (gate, reason):
                     connection.execute("UPDATE prompts SET gate=?, gate_reason=? WHERE prompt_id=?", (gate, reason,
@@ -419,8 +422,9 @@ class PromptsHandle:
             return written
 
         def occur(prompt_id, key, thread_id, due_at):
-            """A due prompt's occurrence: its record waiting, and the prompt ready with it."""
-            if state.add_record(key, capability, thread_id):
+            """A due prompt's occurrence: its record waiting since the occurrence fell due (v0.6.23: `waiting_since`,
+            which a hold by the pace moves on), and the prompt ready with it."""
+            if state.add_record(key, capability, thread_id, at=due_at):
                 state.change_prompt(prompt_id, state=PromptState.READY, record_id=key, due_at=due_at)
                 return True
             return False
