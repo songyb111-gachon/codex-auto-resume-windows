@@ -61,7 +61,8 @@ SETUP_STEPS = 7
 # check of Codex) - and then the child imports the engine again and takes its mutex, 12 to 20 seconds in all.
 # 45 seconds is more than twice the slowest of those, for a cold disk or a scan of fresh files. The wait ends the
 # moment the mutex is held, or the process ends (control.await_watcher): only a watcher that is alive and not yet
-# seen takes the whole of it.
+# seen takes the whole of it. Where a choice of Python is recorded, the launcher asks first: control.start_timeout adds
+# that question's time (v0.6.23).
 WATCHER_WAIT = control.WATCHER_START_TIMEOUT
 
 
@@ -227,7 +228,9 @@ def start_watcher(home: Path) -> str:
     process = subprocess.Popen([str(interpreter), *startup.NO_REMOTE_DEBUG, str(home / LAUNCHER_NAME), "run"],
                                cwd=str(home), close_fds=True, creationflags=flags, env=environment,
                                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    return control.await_watcher(app.watcher_running, process, timeout=WATCHER_WAIT)["state"]
+    # v0.6.23: counted as the Dashboard's Start counts it - where a choice of Python is recorded, the launcher's question
+    # before its child comes on top (control.start_timeout), so a healthy start under that Python is not reported unconfirmed.
+    return control.await_watcher(app.watcher_running, process, timeout=control.start_timeout(home, WATCHER_WAIT))["state"]
 
 
 def watcher_seen(home: Path):

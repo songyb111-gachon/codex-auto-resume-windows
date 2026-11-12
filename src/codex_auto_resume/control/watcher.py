@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 import time
 
-from .. import config, edition, homes, machine, managed, settings, startup, windows
+from .. import chosen_runtime, config, edition, homes, machine, managed, settings, startup, windows
 from ..domain.plug import DEFER, EXTRA, Surface
 from ..domain.vocabulary import WatcherEnd
 from ..store import TERMINAL, LegacyStore, Store, StoreError
@@ -34,6 +34,22 @@ from .errors import ControlError
 # pipe answers in (Dashboard.cs, 30 s): the window asks through its one-shot bridge (SettingsPage.cs).
 WATCHER_START_TIMEOUT = 45.0
 WATCHER_START_INTERVAL = 0.1
+# v0.6.23: where the person chose another Python (a record in chosen_runtime's folder), the launcher first asks the
+# edition's plug, on the bundled runtime, which Python to run the watcher under, and only then starts the child that takes
+# the mutex - and gives that child its own WATCHER_START_TIMEOUT, counted from the child's start. That question took 41 and
+# 48 s on the owner's PC on 2026-11-11, before children that came up (CHOSEN_ASK_SECONDS, the longest seen). So a start
+# there is waited for, from its launch, by the question, the launcher's whole wait for its child, and the interpreters'
+# starts before the launcher's clock begins (INTERPRETER_STARTS_SECONDS: 2.7 to 5.9 s each, measured offline 2026-11-12;
+# two where a program on the chosen Python starts it and the launcher starts again under the bundled runtime, with room):
+# 45 + 48 + 15 = 108 s (CHOSEN_START_TIMEOUT), within the window's one-shot call (SettingsApp.cs, 180 s) with an
+# interpreter's start on top. Not the longer wait the advanced edition's restart of a choice has, which also covers the
+# launcher's going on under the bundled runtime after a child that did not come up: that wait takes the choice back if it
+# ends; this one only reports, and a watcher seen later is seen by the next look (plugin_setup.looked_again, the window's
+# next status). With no record the launcher asks nothing first and the wait stays 45 s; a real failure is nearly always a
+# process that ends, which ends the wait at once, whatever the bound.
+CHOSEN_ASK_SECONDS = 48.0
+INTERPRETER_STARTS_SECONDS = 15.0
+CHOSEN_START_TIMEOUT = WATCHER_START_TIMEOUT + CHOSEN_ASK_SECONDS + INTERPRETER_STARTS_SECONDS
 # How long to wait for a signalled watcher to let the single-instance mutex go, and how
 # often to look. A stop is a request and never a kill: the watcher finishes the tick it is
 # in first, and a tick that is submitting a continuation must not be cut short, because a
@@ -75,6 +91,19 @@ def how_it_ended(status, running, sign_in, booted_at):
     same = (isinstance(sign_in, str) and status.get("sign_in") == sign_in
             and isinstance(then, float) and isinstance(now, float) and abs(then - now) <= BOOT_SLACK_SECONDS)
     return (WatcherEnd.UNEXPECTED.value, status.get("last_tick_at")) if same else (None, None)
+
+
+def start_timeout(home, wait=None) -> float:
+    """How long a start of the watcher of the installation at `home` is waited for, from its launch: `wait` (by default
+    WATCHER_START_TIMEOUT), and where a choice of Python is recorded, the launcher's question before its child and the
+    interpreters' starts on top (CHOSEN_ASK_SECONDS, INTERPRETER_STARTS_SECONDS) - the launcher's own wait counts from
+    its child's start, and so does this one. A record that cannot be looked at is no record."""
+    wait = WATCHER_START_TIMEOUT if wait is None else wait
+    try:
+        recorded = (chosen_runtime.root(home) / chosen_runtime.RECORD).is_file()
+    except (OSError, TypeError, ValueError):
+        recorded = False
+    return wait + CHOSEN_ASK_SECONDS + INTERPRETER_STARTS_SECONDS if recorded else wait
 
 
 def await_watcher(probe, process, *, timeout=None, interval=None) -> dict:
@@ -320,7 +349,7 @@ class WatcherMixin:
 
 
     def _confirm_watcher(self, process) -> dict:
-        return await_watcher(self.watcher_running, process)
+        return await_watcher(self.watcher_running, process, timeout=start_timeout(self.paths.home))
 
     def stop_watcher(self) -> dict:
         """Ask a running watcher to stop, and report only what the probe can prove.
