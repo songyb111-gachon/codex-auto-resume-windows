@@ -14,6 +14,7 @@ from .elevation import lift_coverage, recipe_shadows, shadow_step, tile_ground, 
 from .fonts import _Fonts
 from .gdiplus import _Canvas, _Painter, _ShadowImage, _gdiplus_acquire, _gdiplus_release
 from .layout import layout as plan, mirror   # the method below shares its name
+from .motion import face_state, mixed
 from .theme import SYSTEM_COLOURS, contrast_colour, system_rgb
 from .win32 import (DT_CALCRECT,
                     DT_CENTER,
@@ -130,12 +131,15 @@ class Renderer:
         laid = plan(vm, scale, self.measure)
         return mirror(laid) if l10n.right_to_left(locale) else laid
 
-    def draw(self, vm, plan, *, frame=None, hover=None, pressed=None, focus=None, glides=None, scene_ms=0.0):
+    def draw(self, vm, plan, *, frame=None, hover=None, pressed=None, focus=None, glides=None, scene_ms=0.0, faces=None):
         """One whole frame into the canvas. Returns the canvas.
 
         `glides` is {switch target: how far on, 0 to 1} for the switches part way through a
         glide: those are left out of the cached ground and drawn over it where they are now.
+        `faces` (v0.6.23) is {button target: ((fill, edge) it left from, how far toward its state's)} for the
+        buttons part way through a change of face.
         """
+        faces = faces or {}
         width, height = plan["size"]
         scale = plan["scale"]
         canvas = self.canvas
@@ -146,7 +150,7 @@ class Renderer:
         with _Painter(canvas) as paint:
             for item in plan["items"]:
                 if item["kind"] == "button":
-                    self._button(paint, item, scale, hover, pressed)
+                    self._button(paint, item, scale, hover, pressed, faces.get(item["target"]))
                 elif item["kind"] == "switch" and item["target"] in glides:
                     self._switch(paint, item, scale, on=glides[item["target"]])
             self._scene(paint, plan, scene_ms)
@@ -560,23 +564,32 @@ class Renderer:
             colour = _pack(tuple(int(round(a + (b - a) * amount)) for a, b in zip(start, end)), faded)
         paint.fill_circle(knob_left + knob / 2.0, (top + bottom) / 2.0, knob / 2.0, colour)
 
-    def _button(self, paint, item, scale, hover, pressed):
-        """A button's face. Its lift is in the ground; pressed, it sinks into a well instead."""
-        rect, target, primary = item["rect"], item["target"], item["primary"]
-        radius = self._control_radius(scale)
-        sunk = not item["busy"] and pressed == target
-        if item["busy"]:
+    def face_colours(self, item, state) -> tuple:
+        """((fill), (edge)) as (red, green, blue): what a button looks like in `state` (motion.face_state)."""
+        primary = item["primary"]
+        if state == "busy":
             fill, edge = "surface", "line"
-        elif sunk:
+        elif state == "pressed":
             fill, edge = ("accent_pressed", "accent") if primary else ("inset", "line")
-        elif hover == target:
+        elif state == "hover":
             fill, edge = ("accent_hover", "accent_hover") if primary else ("surface", "line")
         else:
             fill, edge = ("accent", "accent") if primary else ("raised", "line")
-        paint.fill_round(rect, radius, self._argb(fill))
-        if sunk:
+        return self._rgb(fill), self._rgb(edge)
+
+    def _button(self, paint, item, scale, hover, pressed, face=None):
+        """A button's face. Its lift is in the ground; pressed, it sinks into a well instead. Part way through a change
+        (`face`), its colours are that far from those it left toward its state's."""
+        rect, state = item["rect"], face_state(item, hover, pressed)
+        radius = self._control_radius(scale)
+        fill, edge = self.face_colours(item, state)
+        if face is not None:
+            (left_fill, left_edge), amount = face
+            fill, edge = mixed(left_fill, fill, amount), mixed(left_edge, edge, amount)
+        paint.fill_round(rect, radius, _pack(fill))
+        if state == "pressed":
             self._well(paint, rect, radius, scale)
-        paint.stroke_round(rect, radius, self._argb(edge), max(1.0, round(scale)))
+        paint.stroke_round(rect, radius, _pack(edge), max(1.0, round(scale)))
 
     # ------------------------------------------------------------------ the status light
     def _keep_halo_band(self, plan):

@@ -1273,18 +1273,39 @@ namespace CodexAutoResume
             fit(this, EventArgs.Empty);
             FontChanged += fit;
             dayLook = Palette.AccentBar ? null : DayArt.Today();
-            if (dayLook != null)
+            if (dayLook != null) JoinDayScene();
+        }
+
+        private bool dayJoined;
+
+        /// The day's scene on the header, placed again whenever the words or the card move: once, the first day it has a look.
+        private void JoinDayScene()
+        {
+            if (dayJoined) return;
+            dayJoined = true;
+            header.Controls.Add(dayScene);
+            dayScene.BringToFront();
+            EventHandler place = delegate { PlaceDayScene(); };
+            hero.SizeChanged += place;
+            headline.TextChanged += place;
+            detail.TextChanged += place;
+            startButton.VisibleChanged += place;
+            Resize += place;
+            Shown += place;
+        }
+
+        /// A window left open past midnight (the window's clock, every second): the scene of the new day, or none, as the
+        /// taskbar and title-bar icons follow the date (TaskbarMark.FollowTheDay).
+        private void FollowDayScene()
+        {
+            if (!dayScene.Follow(ref dayLook)) return;
+            if (dayLook == null)
             {
-                header.Controls.Add(dayScene);
-                dayScene.BringToFront();
-                EventHandler place = delegate { PlaceDayScene(); };
-                hero.SizeChanged += place;
-                headline.TextChanged += place;
-                detail.TextChanged += place;
-                startButton.VisibleChanged += place;
-                Resize += place;
-                Shown += place;
+                dayScene.Place(false, null, 0, 0, 0, 0, 0, 0);
+                return;
             }
+            JoinDayScene();
+            PlaceDayScene();
         }
 
         private int WordsEnd(Label label, bool mirrored, int width)

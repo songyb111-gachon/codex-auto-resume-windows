@@ -961,6 +961,8 @@ namespace CodexAutoResume
 
         private void UpdateCountdowns()
         {
+            // The day's scene follows the date, and starts again within a second of Reduce motion turned off (Sync).
+            FollowDayScene();
             dayScene.Sync();
             if (snapshot == null) return;
             double now = Now();

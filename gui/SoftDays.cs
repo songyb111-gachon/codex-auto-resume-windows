@@ -257,20 +257,25 @@ namespace CodexAutoResume
     }
 
     /// The day's scene on the Dashboard's status card: its own control over the card, in what the words leave at its outer side.
-    /// A timer only while it can be seen and motion is allowed; a frame repaints this control and nothing is laid out.
+    /// A timer only while it can be seen and motion is allowed; a frame repaints this control and nothing is laid out. While
+    /// battery saver or a locked session holds what moves by itself (Motion.Ambient, standard H13) it stands where it was and
+    /// asks once a second whether that is over, as the status light does (HaloDot.Beat).
     internal sealed class SoftDayScene : Control
     {
+        // A frame of the scene, and how often it asks while it is held still.
+        private const int FrameBeat = 33, StillBeat = 1000;
         private readonly Timer timer = new Timer();
         private readonly System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
         private string look;
         private double unit;
         private int fade;
+        private DateTime day;                    // the date its look was last chosen for (Follow)
 
         internal SoftDayScene()
         {
             SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
             TabStop = false;
-            timer.Interval = 33;
+            timer.Interval = FrameBeat;
             timer.Tick += delegate { Beat(); };
             Visible = false;
         }
@@ -278,6 +283,9 @@ namespace CodexAutoResume
         internal string Look { get { return look; } }
         internal bool Moving { get { return timer.Enabled; } }
         internal double Unit { get { return unit; } }
+
+        /// Whether it is held still for battery saver or a locked session: a beat a second, its clock stopped, nothing painted (for the tests).
+        internal bool Stilled { get { return timer.Enabled && timer.Interval == StillBeat; } }
 
         private void Beat()
         {
@@ -288,7 +296,31 @@ namespace CodexAutoResume
                 Invalidate();
                 return;
             }
+            bool still = Motion.Ambient;
+            if (still != (timer.Interval == StillBeat)) Hold(still);
+            else if (!still) Invalidate();
+        }
+
+        // Held still (Motion.Ambient) or let go: the clock stops where the scene stands and goes on from there, so nothing jumps.
+        private void Hold(bool still)
+        {
+            timer.Interval = still ? StillBeat : FrameBeat;
+            if (still) clock.Stop();
+            else clock.Start();
             Invalidate();
+        }
+
+        /// Asked every second by the window's clock: the look of the date, chosen again once the date has changed since it
+        /// was last asked (a window left open past midnight). True when it is another look than `current`, which it then is.
+        internal bool Follow(ref string current)
+        {
+            DateTime today = DayArt.Clock().Date;
+            if (today == day) return false;
+            day = today;
+            string now = Palette.AccentBar ? null : DayArt.Today();
+            if (now == current) return false;
+            current = now;
+            return true;
         }
 
         private void clockAtRest() { clock.Reset(); }
@@ -349,7 +381,10 @@ namespace CodexAutoResume
             bool wanted = look != null && Motion.Allowed(this);
             if (wanted && !timer.Enabled)
             {
-                clock.Start();
+                bool still = Motion.Ambient;
+                timer.Interval = still ? StillBeat : FrameBeat;
+                if (still) clock.Stop();
+                else clock.Start();
                 timer.Start();
             }
             else if (!wanted && timer.Enabled) timer.Stop();
