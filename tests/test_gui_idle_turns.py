@@ -1,12 +1,16 @@
 r"""What the window does on its idle turns waits for its glides and its person, and survives a step that throws (v0.6.23).
 
-The second round's audit (design and motion F2):
+The second round's audit (design and motion F2; windows G6):
 
 * F2 - in the first seconds after the window opened, its idle turns made the pages ready ahead (PrepareNext) and built the
   Settings editors (BuildEditorsLater), a step a turn. A step taken between two frames of a glide held the glide for the
   step's length, and the editors' steps did not wait for the mouse or the keyboard at all. Both handlers now take no step
   while a glide is on its way (Transition.Moving) or within PrepareAfterInputMilliseconds of a key or the mouse, on one
   clock (IdleStepWaits, PrepareInput, HearInput).
+* G6 - a step of making a page ready that threw was taken again on every idle turn, several exceptions a second, until
+  UiFaults ended the window; and a page shown kept the page host held from laying itself out when something threw while it
+  was held. A step that throws is now written to errors.log once and its page given up (PrepareFailed); ShowPage lets go
+  of what it holds in its finally.
 
 The live probe: the real window, standard edition, shown far off the screen in a frame that is never activated, answered
 from the pictures' pinned scratch installation as the render mode is; its idle turns raised one at a time.
@@ -45,6 +49,10 @@ class SourceTests(unittest.TestCase):
         for handler in (later, guiscan.member_body("SettingsForm", "PreparePagesLater")):
             self.assertIn("HearInput(true);", handler)
             self.assertIn("HearInput(false);", handler)
+        # The page host's holds are let go in ShowPage's finally.
+        show = guiscan.member_body("SettingsForm", "ShowPage")
+        final = show[show.index("finally"):]
+        self.assertIn("if (hostHeld) pageHost.ResumeLayout(false);", final)
 
 
 PROBE = r"""
@@ -199,6 +207,58 @@ namespace CodexAutoResume
             frame.Close();
             frame.Dispose();
 
+            // G6: a step of making History ready that throws, every time, while History is being made ready.
+            frame = new IdleTurnsFrame();
+            form = IdleWindow(frame);
+            IdlePump(30000, delegate { return form.settingsRead && form.snapshot != null; });
+            SettingsForm shown = form;
+            Control history = form.PageFor("history");
+            int[] thrower = Throwing(history, delegate { return shown.preparing == "history"; });
+            int thrownOut = 0, thrownElsewhere = 0;
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            while (clock.ElapsedMilliseconds < 60000 && thrownOut < 30)
+            {
+                try { Application.DoEvents(); }
+                catch (InvalidOperationException) { thrownElsewhere++; }
+                try { Application.RaiseIdle(EventArgs.Empty); }
+                catch (InvalidOperationException) { thrownOut++; }
+                if (form.snapshot != null && form.settingsRead && !form.buildQueued && !form.prepareQueued && form.bridge.InFlight == 0) break;
+                System.Threading.Thread.Sleep(2);
+            }
+            outMap["thrower_threw"] = (double)thrower[0];
+            outMap["thrown_out"] = (double)thrownOut;
+            outMap["thrown_elsewhere"] = (double)thrownElsewhere;
+            string logged = File.Exists(errors) ? File.ReadAllText(errors, new UTF8Encoding(false)) : "";
+            int entries = 0;
+            for (int i = logged.IndexOf("] the window\n", StringComparison.Ordinal); i >= 0; i = logged.IndexOf("] the window\n", i + 1, StringComparison.Ordinal)) entries++;
+            outMap["logged"] = (double)entries;
+            outMap["logged_the_throw"] = logged.Contains("the idle-turns probe: a layout that throws");
+            outMap["prepared"] = new List<object>(form.preparedPages.ToArray());
+            outMap["still_queued"] = form.prepareQueued;
+            frame.Close();
+            frame.Dispose();
+
+            // G6: a page shown that throws while it is held lets go of the page host all the same.
+            frame = new IdleTurnsFrame();
+            form = IdleWindow(frame);
+            IdlePump(30000, delegate { return form.settingsRead && form.snapshot != null && form.bridge.InFlight == 0; });
+            history = form.PageFor("history");
+            form.WriteIfStale("history");
+            bool armed = true;
+            int[] shower = Throwing(history, delegate { return armed; });
+            bool threw = false;
+            try { form.navButtons["history"].PerformClick(); }
+            catch (InvalidOperationException) { threw = true; }
+            armed = false;
+            outMap["show_threw"] = threw && shower[0] > 0;
+            outMap["host_held_after_throw"] = Held(form.pageHost);
+            outMap["page_held_after_throw"] = Held(history);
+            form.navButtons["overview"].PerformClick();
+            outMap["host_held_after_next"] = Held(form.pageHost);
+            outMap["overview_shown"] = form.currentPage == "overview" && Soft.OwnVisible(form.pages["overview"]);
+            frame.Close();
+            frame.Dispose();
+
             lock (RenderMisses) outMap["misses"] = new List<object>(RenderMisses.ToArray());
             File.WriteAllText(outPath, Json.Write(outMap), new UTF8Encoding(false));
             return 0;
@@ -262,6 +322,22 @@ class IdleTurnTests(unittest.TestCase):
     def test_the_pages_made_ready_ahead_wait_while_a_glide_is_on_its_way(self):
         self.assertIsNotNone(self.answer["preparing"])
         self.assertFalse(self.answer["pages_changed_while_moving"], "a page was made ready in a glide's frames")
+
+    def test_a_step_that_throws_is_written_once_and_its_page_given_up(self):
+        self.assertGreater(self.answer["thrower_threw"], 0, "the stand-in bug was reached")
+        self.assertEqual(self.answer["thrown_out"], 0, "thrown out of the idle turn: %r" % self.answer)
+        self.assertEqual(self.answer["logged"], 1)
+        self.assertTrue(self.answer["logged_the_throw"])
+        self.assertFalse(self.answer["still_queued"], "the pages after it were made ready all the same")
+        for page in ("pending", "history", "statistics", "diagnostics", "settings"):
+            self.assertIn(page, self.answer["prepared"])
+
+    def test_a_page_that_throws_as_it_shows_lets_go_of_the_page_host(self):
+        self.assertTrue(self.answer["show_threw"], "the stand-in bug was reached")
+        self.assertEqual(self.answer["host_held_after_throw"], 0, "the page host left held")
+        self.assertEqual(self.answer["page_held_after_throw"], 0, "the page left held")
+        self.assertEqual(self.answer["host_held_after_next"], 0)
+        self.assertTrue(self.answer["overview_shown"])
 
 
 

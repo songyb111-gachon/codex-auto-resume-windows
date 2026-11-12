@@ -122,7 +122,7 @@ class SourceTests(unittest.TestCase):
 
     def test_a_page_shown_lets_what_it_holds_lay_out_innermost_first(self):
         show = guiscan.member_body("SettingsForm", "ShowPage")
-        self.assertLess(show.index("List<Control> inner = HoldWithin(page);"), show.index("page.Visible = true;"))
+        self.assertLess(show.index("inner = HoldWithin(page);"), show.index("page.Visible = true;"))
         self.assertLess(show.index("page.Visible = true;"), show.index("LetGoWithin(inner);"))
         self.assertLess(show.index("LetGoWithin(inner);"), show.index("page.ResumeLayout(true);"))
         self.assertIn("for (int i = held.Count - 1; i >= 0; i--) held[i].ResumeLayout(true);",

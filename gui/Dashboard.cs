@@ -1432,6 +1432,12 @@ namespace CodexAutoResume
             // Painting stops while one page is hidden and the next shown, so the page is painted
             // once, finished (see Redraw).
             bool paused = Redraw(pageHost, false);
+            // v0.6.23 (G6): what is held from laying itself out until it is let go, so that a throw on the way lets it go
+            // too (the finally): held, the page host laid nothing out again under a window UiFaults keeps open.
+            bool hostHeld = false;
+            Control pageHeld = null;
+            TableLayoutPanel sectionHeld = null;
+            List<Control> inner = null;
             try
             {
                 Control page = PageFor(name);
@@ -1441,6 +1447,7 @@ namespace CodexAutoResume
                 // page off and putting the next on moved every native control in it to Windows'
                 // parking window and back.
                 pageHost.SuspendLayout();
+                hostHeld = true;
                 foreach (Control other in pageHost.Controls)
                     if (other != page) other.Visible = false;
                 // Held while it becomes visible and laid out once after, as ShowSection holds a
@@ -1449,19 +1456,25 @@ namespace CodexAutoResume
                 // once its sections kept one width, and takes 58 held (measured, 150%).
                 TableLayoutPanel section = settings && sections.ContainsKey(currentSection) ? sections[currentSection] : null;
                 page.SuspendLayout();
+                pageHeld = page;
                 if (section != null) section.SuspendLayout();
+                sectionHeld = section;
                 // Coming back to the Overview: its Waiting lines, which the clock writes only while it is in front
                 // (UpdateCountdowns), written before it shows and so laid out with it.
                 if (name == "overview" && snapshot != null) UpdateCountdowns();
                 // v0.6.23: and everything in it that lays others out. Shown, each card, grid and row of the page asked for a
                 // layout of its own, outermost first, and each one's layout asked the one around it again: Diagnostics took
                 // 130-320 ms on every switch to it (measured 2026-11-11). Let go innermost first, each lays itself out once.
-                List<Control> inner = HoldWithin(page);
+                inner = HoldWithin(page);
                 page.Visible = true;
                 LetGoWithin(inner);
+                inner = null;
                 if (section != null) section.ResumeLayout(true);
+                sectionHeld = null;
                 page.ResumeLayout(true);
+                pageHeld = null;
                 pageHost.ResumeLayout(false);
+                hostHeld = false;
                 pageHost.PerformLayout();
                 foreach (var pair in navButtons)
                 {
@@ -1475,6 +1488,14 @@ namespace CodexAutoResume
             }
             finally
             {
+                // Only after a throw is anything still held: let go without a layout, which may be what threw - the
+                // next page shown, or the next change, lays them out.
+                if (inner != null)
+                    for (int i = inner.Count - 1; i >= 0; i--)
+                        if (!inner[i].IsDisposed) inner[i].ResumeLayout(false);
+                if (sectionHeld != null && !sectionHeld.IsDisposed) sectionHeld.ResumeLayout(false);
+                if (pageHeld != null && !pageHeld.IsDisposed) pageHeld.ResumeLayout(false);
+                if (hostHeld) pageHost.ResumeLayout(false);
                 if (paused) Redraw(pageHost, true);
             }
             // Coming back to Pending: the countdowns the clock did not write while it was hidden.
@@ -1608,7 +1629,14 @@ namespace CodexAutoResume
             EventHandler idle = null;
             idle = delegate
             {
-                if (IsDisposed || !PrepareNext())
+                bool more;
+                try { more = !IsDisposed && PrepareNext(); }
+                catch (Exception error)
+                {
+                    PrepareFailed(error);
+                    more = true;
+                }
+                if (!more)
                 {
                     Application.Idle -= idle;
                     HearInput(false);
@@ -1644,6 +1672,22 @@ namespace CodexAutoResume
         private bool IdleStepWaits()
         {
             return Transition.Moving > 0 || (prepareInput != null && prepareInput.Since < PrepareAfterInputMilliseconds);
+        }
+
+        /// v0.6.23 (G6): a step of making a page ready that threw. Written to errors.log once, and that page given up:
+        /// what it held let go without a layout (which may be what threw; it is laid out when it is shown, as a page never
+        /// made ready is), its build begun ahead dropped (a click builds it whole), so the next turn goes on with the next
+        /// page. Retried on every idle turn, one exception became several a second, and UiFaults ended the window.
+        private void PrepareFailed(Exception error)
+        {
+            UiFaults.Note(error);
+            List<Control> held = prepareHeld;
+            prepareHeld = null;
+            if (held != null)
+                for (int i = held.Count - 1; i >= 0; i--)
+                    if (!held[i].IsDisposed) held[i].ResumeLayout(false);
+            if (preparing != null) pageBuilds.Remove(preparing);
+            Prepared();
         }
 
         /// One step of making a page ready; false when there is nothing left to make ready for now.
