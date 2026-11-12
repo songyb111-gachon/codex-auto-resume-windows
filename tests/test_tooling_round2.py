@@ -10,6 +10,9 @@
   current commit or a later one containing it, and dates main by its push, not its commit.
 * MaintainerToolConsoleTests (M2) - every console child the build tools and scripts start gets
   CREATE_NO_WINDOW (edition_audit, legacy_bootstraps, measure_window, the community_* scripts).
+* ProfileTachyonHomeTests (M3) - profile_tachyon refuses the real installation however it is spelled or
+  reached (default home, CODEX_AUTO_RESUME_PLUGIN_HOME, links), a folder holding it or inside it, and a
+  folder with an installation's state that an earlier run of the tool did not make.
 """
 from __future__ import annotations
 
@@ -504,6 +507,95 @@ class MaintainerToolConsoleTests(unittest.TestCase):
                  and node.func.attr in self.SPAWNERS
                  and not any(keyword.arg in ("creationflags", None) for keyword in node.keywords)]
         self.assertEqual(plain, [2])
+
+
+class ProfileTachyonHomeTests(unittest.TestCase):
+    """build/profile_tachyon.py never starts a target on the person's real installation. A temporary folder
+    stands in for the profile (USERPROFILE and HOME are overridden for the test), so the real one is never read
+    or written, and nothing is started: the only interpreter check is patched, and a start fails the test."""
+
+    def setUp(self):
+        self._scratch = tempfile.TemporaryDirectory()
+        self.addCleanup(self._scratch.cleanup)
+        self.base = Path(os.path.realpath(self._scratch.name))
+        self.profile = self.base / "profile"
+        self.real = self.profile / ".codex-auto-resume"
+        self.real.mkdir(parents=True)
+        (self.real / "runtime.json").write_text("{}", encoding="utf-8")
+        environment = mock.patch.dict(os.environ, {"USERPROFILE": str(self.profile), "HOME": str(self.profile)})
+        environment.start()
+        self.addCleanup(environment.stop)
+        os.environ.pop("CODEX_AUTO_RESUME_PLUGIN_HOME", None)
+        self.tachyon = _load("profile_tachyon_round2", ROOT / "build" / "profile_tachyon.py")
+
+    def _link(self, target: Path, name: str):
+        """A junction (no privilege needed) or else a symbolic link to `target`, or a skip."""
+        link = self.base / name
+        made = subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(target)], capture_output=True,
+                              creationflags=NO_WINDOW).returncode == 0 if os.name == "nt" else False
+        if not made:
+            try:
+                os.symlink(target, link, target_is_directory=True)
+            except (OSError, NotImplementedError):
+                self.skipTest("no junction and no symbolic link can be made here")
+        return link
+
+    def _main(self, home: Path):
+        """main() as the command line runs it, with the interpreter check passing and every start refused."""
+        with mock.patch.object(self.tachyon, "is_315", return_value=True), \
+                mock.patch.object(self.tachyon.subprocess, "run", side_effect=AssertionError("started a child")):
+            with self.assertRaises(SystemExit) as ended, contextlib.redirect_stderr(io.StringIO()) as said:
+                self.tachyon.main(["bridge", "--home", str(home)])
+        self.assertEqual(ended.exception.code, 2)
+        return said.getvalue()
+
+    def _nothing_written(self):
+        self.assertEqual(sorted(path.name for path in self.real.iterdir()), ["runtime.json"])
+
+    def test_the_default_spelling_is_refused(self):
+        self.assertIn("real installation", self._main(self.real))
+        self._nothing_written()
+
+    def test_another_spelling_of_it_is_refused(self):
+        spellings = [self.profile / "sub" / ".." / ".codex-auto-resume",
+                     Path(str(self.real).upper()) if os.name == "nt" else self.real]
+        for spelling in spellings:
+            with self.subTest(str(spelling)):
+                self.assertIn("real installation", self._main(spelling))
+        self._nothing_written()
+
+    def test_a_link_that_leads_to_it_is_refused(self):
+        (self.profile / "sub").mkdir()
+        self.assertIn("real installation", self._main(self._link(self.real, "via-link")))
+        self._nothing_written()
+
+    def test_an_installation_moved_with_the_environment_is_refused_too(self):
+        moved = self.base / "moved"
+        moved.mkdir()
+        (moved / ".owned-by-codex-auto-resume").write_text("", encoding="utf-8")
+        with mock.patch.dict(os.environ, {"CODEX_AUTO_RESUME_PLUGIN_HOME": str(moved)}):
+            self.assertIn("real installation", self._main(moved))
+            self.assertIn("real installation", self._main(self._link(moved, "to-moved")))
+        self.assertEqual(sorted(path.name for path in moved.iterdir()), [".owned-by-codex-auto-resume"])
+
+    def test_the_profile_that_holds_it_and_a_folder_inside_it_are_refused(self):
+        self.assertIn("holds the real installation", self._main(self.profile))
+        self.assertIn("inside the real installation", self._main(self.real / "scratch"))
+        self._nothing_written()
+
+    def test_a_folder_holding_an_installations_state_is_refused_unless_this_tool_made_it(self):
+        elsewhere = self.base / "elsewhere"
+        elsewhere.mkdir()
+        (elsewhere / "runtime.json").write_text("{}", encoding="utf-8")
+        self.assertIn("holds an installation's state", self._main(elsewhere))
+        (elsewhere / self.tachyon.OUR_SCRIPT).write_text("", encoding="utf-8")
+        self.assertIsNone(self.tachyon.refusal(elsewhere))
+
+    def test_an_empty_or_new_scratch_folder_is_accepted(self):
+        (self.base / "empty").mkdir()
+        for home in (self.base / "empty", self.base / "not-yet-made", self.base / "deeper" / "still-not"):
+            with self.subTest(home.name):
+                self.assertIsNone(self.tachyon.refusal(home))
 
 
 if __name__ == "__main__":

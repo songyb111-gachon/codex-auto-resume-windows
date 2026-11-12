@@ -26,8 +26,54 @@ TARGETS = {"bridge": ("codex_auto_resume.controlcli", ("status",)), "watcher": (
 FORMATS = ("pstats", "collapsed", "flamegraph", "gecko", "heatmap")
 
 
+# What an installation, or a home a watcher has run in, holds; and the script starter() writes into a scratch folder this
+# tool made, which is how a folder of an earlier run is known again.
+STATE_MARKERS = (".owned-by-codex-auto-resume", "runtime.json")
+OUR_SCRIPT = "profile_target.py"
+
+
+def real_homes() -> list:
+    """Every folder that is, or may be, the person's real installation: the default one in their profile, and the one an
+    installation moved with CODEX_AUTO_RESUME_PLUGIN_HOME lives in."""
+    homes = [Path.home() / ".codex-auto-resume"]
+    moved = os.environ.get("CODEX_AUTO_RESUME_PLUGIN_HOME", "").strip()
+    if moved:
+        homes.append(Path(moved))
+    return homes
+
+
 def real_home() -> Path:
-    return Path.home() / ".codex-auto-resume"
+    return real_homes()[0]
+
+
+def _resolved(path: Path) -> Path:
+    """The folder a path leads to, through links and junctions and however it is spelled."""
+    return Path(os.path.normcase(os.path.realpath(path)))
+
+
+def same_folder(first: Path, second: Path) -> bool:
+    try:
+        if os.path.samefile(first, second):
+            return True
+    except OSError:
+        pass            # one of them is not there yet: compare the places they lead to
+    return _resolved(first) == _resolved(second)
+
+
+def refusal(home: Path):
+    """Why `home` cannot be this tool's scratch folder, or None. Not the real installation, however it is spelled or reached;
+    not a folder that holds it (the profile) or sits inside it; and not a folder holding an installation's or a used home's
+    state that an earlier run of this tool did not make."""
+    for real in real_homes():
+        if same_folder(home, real):
+            return "that is the real installation (%s): --home has to be a scratch folder" % real
+        if _resolved(real) in _resolved(home).parents:
+            return "that is inside the real installation (%s): --home has to be a scratch folder" % real
+        if _resolved(home) in _resolved(real).parents:
+            return "that folder holds the real installation (%s): --home has to be a scratch folder" % real
+    if not (home / OUR_SCRIPT).exists() and any((home / name).exists() for name in STATE_MARKERS):
+        return "that folder holds an installation's state and no earlier run of this tool made it: --home has to be a scratch folder"
+    return None
 
 
 def scratch_world(home: Path) -> dict:
@@ -45,7 +91,7 @@ def scratch_world(home: Path) -> dict:
 def starter(home: Path, module: str) -> Path:
     """A script in the scratch folder that runs the target's module from src/: a script and not `run -m`, because the embeddable
     Python, the one a maintainer has beside the bundled one, ignores PYTHONPATH."""
-    script = home / "profile_target.py"
+    script = home / OUR_SCRIPT
     script.write_text('import runpy, sys\nsys.path.insert(0, %r)\nrunpy.run_module(%r, run_name="__main__", alter_sys=True)\n'
                       % (str(ROOT / "src"), module), encoding="utf-8")
     return script
@@ -91,6 +137,11 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     if bool(args.target) == bool(args.pid):
         parser.error("give a target (bridge, watcher) or --pid, one of them")
+    if args.home is not None:
+        # Before anything starts, this tool's own interpreter check included.
+        why = refusal(args.home.resolve())
+        if why:
+            parser.error(why)
     if not is_315(args.python):
         parser.error("%s is older than Python 3.15, which is where the profiler is" % args.python)
     if args.pid:
@@ -99,8 +150,6 @@ def main(argv=None) -> int:
     if args.home is None:
         parser.error("a target needs --home, a scratch folder")
     home = args.home.resolve()
-    if home == real_home().resolve():
-        parser.error("that is the real installation: --home has to be a scratch folder")
     home.mkdir(parents=True, exist_ok=True)
     module, arguments = TARGETS[args.target]
     return subprocess.run(command(args.python, profiler_options(args), starter(home, module), home, arguments), env=scratch_world(home),
