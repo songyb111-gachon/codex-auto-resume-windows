@@ -77,6 +77,8 @@ PHASES = frozenset({PHASE_RUNTIME, PHASE_RUNTIME_FAILED})
 WHY_START, WHY_LINE, WHY_OFF = "start", "line", "off"
 RETURNED = "returned.json"
 INCOMING = ".incoming-"
+# A runtime renamed aside to be deleted (`_retire`): never a version's name, so no start can take what is left of it.
+GONE = ".gone-"
 NOTICE = "python_returned"
 MEMBER = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_+-]*(?:\.[A-Za-z0-9_+-]+)+", re.ASCII)
 RESERVED = frozenset({"con", "prn", "aux", "nul"} | {"com%d" % n for n in range(1, 10)} | {"lpt%d" % n for n in range(1, 10)})
@@ -388,6 +390,14 @@ def supervised(runtime, facts):
         return DEFER
     if phase != PHASE_RUNTIME:
         return DEFER
+    answer = _runtime_answer(runtime, home, named)
+    # The start is the one moment no watcher runs from a runtime: what an earlier sweep left whole goes now, before the
+    # child starts, but never the runtime it is about to run on.
+    _sweep(home, named if answer is USE_CHOSEN else None)
+    return answer
+
+
+def _runtime_answer(runtime, home, named):
     if chosen_runtime.line_of(named) not in LINES:
         _taken_back(runtime, named, WHY_LINE)
         return DEFER
@@ -601,11 +611,11 @@ def _switched(runtime, version, target, hands, failed) -> dict:
     try:
         _write(chosen_runtime.root(home) / chosen_runtime.RECORD, {"version": version})
     except OSError:
-        _remove(target)
+        _retire(target)
         return failed(START)
     came = hands.restart(runtime.paths)
     if chosen_runtime.recorded(home) != version:
-        _remove(target)
+        _retire(target)
         return failed(START)
     if came in (RUNNING, NOT_RUNNING):
         _sweep(home, version)
@@ -617,7 +627,7 @@ def _switched(runtime, version, target, hands, failed) -> dict:
     # Neither up nor refused by the launcher in time: taken back here, and started on the bundled runtime.
     _forget(home)
     hands.restart(runtime.paths)
-    _remove(target)
+    _retire(target)
     return failed(START)
 
 
@@ -661,7 +671,7 @@ def _ready(root) -> None:
 
 def _prepared(incoming, target) -> None:
     _unlink(incoming)
-    _remove(target)
+    _retire(target)
     if target.exists() or incoming.exists():
         raise _Failed(UNPACK)
 
@@ -682,8 +692,49 @@ def _remove(folder) -> None:
         pass
 
 
+def _in_use(folder) -> bool:
+    """Whether a running program runs from `folder`: one of its program files (SIGNED_KINDS) that Windows will not open for
+    writing is mapped by a process - the interpreter it runs as, its library, an extension module it loaded. Measured on
+    2026-11-13: a pythonw.exe running from a copied runtime refuses its own image, python3XX.dll, python3.dll, vcruntime140.dll
+    and the .pyd it imported, and every file opens again once it has ended. Opened, never written. A folder that cannot be
+    listed is taken as in use."""
+    try:
+        entries = [entry for entry in folder.iterdir() if entry.suffix.lower() in SIGNED_KINDS]
+    except OSError:
+        return True
+    for entry in entries:
+        try:
+            with open(entry, "r+b"):
+                pass
+        except OSError:
+            return True
+    return False
+
+
+def _retire(folder) -> None:
+    """A runtime folder taken away whole, or left whole (v0.6.23 final, M1 of the second round's advanced audit). Deleted
+    file by file, one a program still ran from lost every file not held open - its ._pth and the modules not loaded yet -
+    under the Dashboard's bridges, Codex's MCP server or the watcher. Now one in use stays as it is, for a later sweep; one
+    that is not is renamed aside first (GONE), so no half of it is ever left under a version's name for a start to take, and
+    what cannot be deleted of it now goes at the next sweep."""
+    try:
+        if folder.is_symlink() or folder.is_junction() or not folder.is_dir():
+            return
+    except OSError:
+        return
+    if _in_use(folder):
+        return
+    aside = folder.with_name("%s%s.%d" % (GONE, folder.name, os.getpid()))
+    try:
+        os.rename(folder, aside)
+    except OSError:
+        return
+    _remove(aside)
+
+
 def _sweep(home, keep) -> None:
-    """Every runtime but `keep` and whatever was left half done. One a running program has open stays until it has ended."""
+    """Every runtime but `keep` and whatever was left half done. One a running program runs from stays, whole, until it has
+    ended (`_retire`)."""
     root = chosen_runtime.root(home)
     try:
         if root.is_symlink() or root.is_junction() or not root.is_dir():
@@ -694,8 +745,10 @@ def _sweep(home, keep) -> None:
     for entry in entries:
         if entry.name.startswith(INCOMING):
             _unlink(entry)
-        elif chosen_runtime.shaped(entry.name) and entry.name != keep:
+        elif entry.name.startswith(GONE):
             _remove(entry)
+        elif chosen_runtime.shaped(entry.name) and entry.name != keep:
+            _retire(entry)
 
 
 def _write(path, payload) -> None:
