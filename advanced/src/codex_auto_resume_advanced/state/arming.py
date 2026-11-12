@@ -103,6 +103,15 @@ class ArmingMixin:
                                             send_again=keep_on and str(KeepOn.SEND_AGAIN) in words)
         return found
 
+    def ever_moved(self, capability) -> bool:
+        """Whether `capability` has a stored row at all - held by this registry or not, as `arming` never shows one it
+        does not hold: it was moved here once, so it may have left something behind when it was hidden again since
+        (v0.6.23 final, audit M10). Every way off turns every row off, so its state cannot tell. False with no file."""
+        with self._read() as connection:
+            if connection is None:
+                return False
+            return connection.execute("SELECT 1 FROM arming WHERE capability=?", (capability,)).fetchone() is not None
+
     def move(self, capability, state, *, actor, reason=None, revision=None, engine_version=None,
              warnings=None, generation=None, at=None) -> tuple:
         """Put one capability in `state`. (moved, generation after).

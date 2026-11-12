@@ -173,6 +173,32 @@ class FollowsTheCapabilityTests(ac.AdvancedCase):
                 off()
                 self.assertFalse(hookplugin.present(self.paths, self.codex_home))
 
+    def test_hidden_again_after_it_was_on_its_declaration_goes_at_every_way_off(self):
+        """v0.6.23 final (audit M10): a later build hides the capability (its measurement voided) while it stood on - the
+        registry no longer has it, so nothing could turn it off. Its declaration is removed at every way off, and never
+        written back while it is hidden; a registry that never had it on touches nothing."""
+        for off in (lambda runtime: runtime.arming.all_off(actor=Actor.DASHBOARD),
+                    lambda runtime: runtime.arming.edition_entered(),
+                    lambda runtime: runtime.arming.disarm("test_wake", actor=Actor.DASHBOARD)):
+            with self.subTest(off):
+                self.turn_on()
+                self.runtime.state.close()
+                hidden = super().runtime(ac.definition())             # the later build: no stop_hook_continuation
+                self.assertIsNone(hidden.registry.get(CAPABILITY))
+                self.arm(hidden)
+                self.assertTrue(hookplugin.present(self.paths, self.codex_home), "turning another on leaves it")
+                off(hidden)
+                self.assertFalse(hookplugin.present(self.paths, self.codex_home))
+                hidden.state.close()
+                self.runtime = super().runtime(STOP_HOOK)
+
+    def test_a_hidden_capability_never_turned_on_touches_nothing(self):
+        hidden = super().runtime(ac.definition())
+        with patch.object(hookplugin, "REMOVER", side_effect=AssertionError("nothing to remove")):
+            self.arm(hidden)
+            hidden.arming.all_off(actor=Actor.DASHBOARD)
+        self.assertEqual(snapshot(self.codex_home), self.before)
+
     def test_watching_writes_nothing(self):
         runtime = self.runtime
         result = runtime.arming.arm(CAPABILITY, state="shadow", revision=STOP_HOOK.revision,
