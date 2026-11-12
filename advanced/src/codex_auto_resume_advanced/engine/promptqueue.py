@@ -344,7 +344,10 @@ class PromptQueue:
         return latest
 
     def _expired(self, handle, row, now):
-        """An occurrence not sent a day after it fell due: used, as expired - a series waits for its next."""
+        """An occurrence not sent a day after it fell due: used, as expired - a series waits for its next - and its record,
+        which no move of core's will end now, dropped (v0.6.23, M3: a waiting record is never pruned)."""
+        if row["record_id"] is not None:
+            handle.drop(row["record_id"])
         period = PERIODS.get(row["every"]) if row["trigger"] == PromptTrigger.RECURRING else None
         used = row["sent_count"] + 1
         following = None if period is None else row["due_at"] + period

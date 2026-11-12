@@ -49,6 +49,18 @@ class LooseEndTests(images_case.ImagesCase):
         self.assertEqual(row["due_at"], first + DAY, "on to its next occurrence")
         self.assertEqual(self.calls, [], "never sent without its pictures")
 
+    def test_m3_an_expired_occurrence_drops_its_record(self):
+        """Fails with `_expired` leaving the record: it would stay waiting, never pruned."""
+        plug = self.on()
+        self.h.backend.loaded_map[T1] = "notLoaded"
+        self.assertTrue(self.add(plug, trigger="at_time", at=self.h.now + 60)["done"])
+        for _ in range(26):
+            self.h.tick(advance=3600)
+        row = self.prompts(plug)[0]
+        self.assertEqual((row["state"], row["reason"]), (PromptState.DONE, PromptReason.EXPIRED))
+        records = plug.runtime.state.records_on(T1)
+        self.assertEqual([record["state"] for record in records], [RecordState.CANCELLED])
+
 
 if __name__ == "__main__":
     unittest.main()
