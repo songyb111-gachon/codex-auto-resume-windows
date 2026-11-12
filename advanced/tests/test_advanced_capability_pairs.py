@@ -27,7 +27,7 @@ from test_advanced_goal import GoalCase  # noqa: E402
 from test_advanced_usage import Session, UsageCase, reply  # noqa: E402
 from codex_auto_resume.domain.plug import Alternative, Point  # noqa: E402
 from codex_auto_resume import machine  # noqa: E402
-from codex_auto_resume_advanced import runtime, statement  # noqa: E402
+from codex_auto_resume_advanced import statement  # noqa: E402
 from codex_auto_resume_advanced.codex.turns import Turns  # noqa: E402
 from codex_auto_resume_advanced.engine import foropen  # noqa: E402
 from codex_auto_resume_advanced.registry import (COMPACT_CONTINUE, GOAL_CONTINUATION, HEADLESS_RUN,  # noqa: E402
@@ -158,7 +158,6 @@ class GoalBesideQueueForOpenTests(GoalCase):
             plug, _fake = self.both()
         self.assert_one_continuation(plug, "qfo.goal_unmeasured")
 
-    @unittest.skipUnless(hasattr(Measurement, "MQG"), "Measurement.MQG arrives with v0617-queue")
     def test_mqg_passed_by_its_own_id_and_both_apply(self):
         self.assertIs(foropen.MQG, Measurement.MQG)
         self.measured[Measurement.MQG] = (Verdict.PASS, ENGINE)
@@ -172,7 +171,7 @@ class GoalBesideOtherSessionsTests(GoalCase):
     ordinary way (core's engine/foropen._not_for_open), so a channel named there left the record waiting "held by
     another session" for ever. Settled by the runtime's rule for answers core cannot carry together (runtime.CONFLICTS,
     v0.6.17 #42, branch v0617-queue): the goal's channel stands aside for that send, `overruled` in its journal - goal.py
-    is unchanged. Until that rule is merged the session test is skipped; it fails on a runtime without it."""
+    is unchanged. The session test fails on a runtime without that rule."""
     registry = (GOAL_CONTINUATION, OTHER_SESSIONS)
 
     def fresh(self, **kwargs):
@@ -189,7 +188,6 @@ class GoalBesideOtherSessionsTests(GoalCase):
                  warnings=[str(word) for word in plug.runtime.arming.warnings(definition)])
         return plug, fake
 
-    @unittest.skipUnless(hasattr(runtime, "CONFLICTS"), "runtime.CONFLICTS (v0617-queue, #42) settles P-3: not merged")
     def test_a_conversation_another_session_holds_is_sent_for_it_to_take(self):
         plug, fake = self.both(loaded=False)
         self.h.backend.loaded_map[T1] = "elsewhere"          # a terminal's or VS Code's session holds it

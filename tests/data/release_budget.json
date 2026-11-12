@@ -1,5 +1,5 @@
 {
-  "about": "What the release's app payload may weigh, packed as the archive packs it (each staged file deflated at level 9, in MiB; the bundled runtime is not counted). tests/test_release_size.py holds it and prints the bytes per group when it is over. Raise a number when a feature earns it. Measured for v0.6.23's tree, 22 languages: standard 2.28, advanced adds 1.85.",
+  "about": "What the release's app payload may weigh, packed as the archive packs it (each staged file deflated at level 9, in MiB; the bundled runtime is not counted). tests/test_release_size.py holds it and prints the bytes per group when it is over. Raise a number when a feature earns it. Margin rule (one place, for both budgets): the budget is the next 0.1 MiB above what the test measures plus one more language catalog (standard about 0.03 MiB, advanced about 0.05 MiB). Measured by tests/test_release_size.py on v0.6.23's tree, 22 languages: standard 2.296 (rule: 2.4), advanced adds 1.851 (rule: 2.0; the 2.1 kept from c40b47cf6 leaves 0.25).",
   "standard_app_mib": 2.4,
   "advanced_extra_mib": 2.1
 }
