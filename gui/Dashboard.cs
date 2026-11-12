@@ -991,8 +991,9 @@ namespace CodexAutoResume
             int labelWidth = LabelWidth();
             int track = Track(labelWidth);
             // v0.6.22 (the owner's mock A, 2026-11-08): in the Soft design each bar is a pill raised off the card with the
-            // control's lift, as a raised button is; in a design without depth, and in High Contrast, it is the flat bar
-            // it always was. Every lift is stamped before any body, so one bar's shadow never lies over its neighbour.
+            // control's lift, as a raised button is. Every lift is stamped before any body, so one bar's shadow never lies over
+            // its neighbour. v0.6.23 (the second round's F10): a pill in every design and in High Contrast, as their switch
+            // tracks, meters and scroll thumbs are round-ended - a design changes depth, not shape; the lift alone is Soft's.
             Rectangle[] faces = Faces();
             if (Palette.Depth)
                 foreach (var face in faces)
@@ -1002,8 +1003,7 @@ namespace CodexAutoResume
                 Bar bar = Bars[index];
                 Rectangle face = faces[index];
                 Color fill = ColorOf(bar.Group);
-                if (Palette.Depth) Soft.Body(e.Graphics, face, face.Height / 2f, fill, fill, null);
-                else using (var flat = new SolidBrush(fill)) e.Graphics.FillRectangle(flat, face);
+                Soft.Body(e.Graphics, face, face.Height / 2f, fill, fill, null);
                 string number = bar.Value.ToString(CultureInfo.CurrentCulture);
                 int length = Length(index, max, track);
                 if (mirrored)
