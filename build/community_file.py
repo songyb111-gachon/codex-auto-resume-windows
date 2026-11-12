@@ -76,6 +76,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import community_check as check  # noqa: E402
 import community_report as reader  # noqa: E402
 
+NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)     # no console window under a parent with none
 DAY = 86400
 MAX_LOOKED = 8                  # pull requests read closer, and so filed, per run
 MAX_CLOSED = 10                 # closed without a closer look per run: extra and stale ones
@@ -297,7 +298,8 @@ class Repo(check.Git):
         done = subprocess.run(["git", "-C", self.root, "-c", "core.hooksPath=" + os.devnull, "--no-pager",
                                *arguments], input=data if data is not None else b"",
                               stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, shell=False, timeout=timeout,
-                              env=dict(clean_env, **self.ENV, **(env or {})), check=False)
+                              env=dict(clean_env, **self.ENV, **(env or {})), check=False,
+                              creationflags=NO_WINDOW)
         return done.returncode, done.stdout
 
     def must(self, *arguments, data=None, env=None, timeout=FETCH_TIMEOUT) -> str:
@@ -543,7 +545,7 @@ def run_fixed_tests(tree: Path) -> bool:
     try:
         done = subprocess.run([sys.executable, "-m", "unittest", *FIXED_MODULES], cwd=str(tree), env=environment,
                               stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                              shell=False, timeout=TEST_TIMEOUT, check=False)
+                              shell=False, timeout=TEST_TIMEOUT, check=False, creationflags=NO_WINDOW)
     except subprocess.TimeoutExpired:
         return False
     return done.returncode == 0

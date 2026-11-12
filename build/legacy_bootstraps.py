@@ -47,6 +47,7 @@ if _HERE not in sys.path:
 
 import make_release  # noqa: E402
 
+NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)     # no console window under a parent with none
 # The first release whose bootstrap fetched an archive: v0.5.0 and v0.5.1 have no
 # scripts/bootstrap.ps1 at all.
 FIRST = (0, 5, 2)
@@ -159,7 +160,8 @@ def order(version: str) -> tuple:
 
 
 def _git(root: Path, *arguments: str) -> bytes:
-    done = subprocess.run(["git", "-C", str(root), *arguments], capture_output=True, timeout=120)
+    done = subprocess.run(["git", "-C", str(root), *arguments], capture_output=True, timeout=120,
+                          creationflags=NO_WINDOW)
     if done.returncode != 0:
         raise SystemExit("git %s failed: %s" % (" ".join(arguments),
                                                done.stderr.decode("utf-8", "replace").strip()))
@@ -215,7 +217,7 @@ def check(bootstraps, version: str, standard: Path, advanced: Path | None = None
         (Path(work) / "cases.json").write_text(json.dumps(cases), encoding="utf-8")
         done = subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-Command", PROBE],
                               capture_output=True, text=True, encoding="utf-8", errors="replace",
-                              timeout=900, env=dict(os.environ, CAR_CASES=str(Path(work) / "cases.json")))
+                              timeout=900, creationflags=NO_WINDOW, env=dict(os.environ, CAR_CASES=str(Path(work) / "cases.json")))
     if done.returncode != 0 or not done.stdout.strip():
         raise SystemExit("the published bootstraps could not be run:\n%s"
                          % (done.stderr or done.stdout)[-2000:])
@@ -260,7 +262,7 @@ def readers(bootstraps, version: str) -> dict:
         (Path(work) / "cases.json").write_text(json.dumps(cases), encoding="utf-8")
         done = subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-Command", READS],
                               capture_output=True, text=True, encoding="utf-8", errors="replace",
-                              timeout=900, env=dict(os.environ, CAR_CASES=str(Path(work) / "cases.json")))
+                              timeout=900, creationflags=NO_WINDOW, env=dict(os.environ, CAR_CASES=str(Path(work) / "cases.json")))
     if done.returncode != 0 or not done.stdout.strip():
         raise SystemExit("the published bootstraps could not be run:\n%s" % (done.stderr or done.stdout)[-2000:])
     answers = json.loads(done.stdout)

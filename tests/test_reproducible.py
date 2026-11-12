@@ -29,6 +29,7 @@ if _HERE not in sys.path:
 sys.path.insert(0, str(ROOT / "build"))
 
 import guiscan  # noqa: E402
+import gui_stamp  # noqa: E402
 import normalize_pe  # noqa: E402
 
 CSC = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Microsoft.NET" / "Framework64" / "v4.0.30319" / "csc.exe"
@@ -317,6 +318,16 @@ class VersionResourceTests(unittest.TestCase):
             "CodexAutoResumeSettings.exe": "Codex Auto Resume settings (Standard edition)",
             "codex-auto-resume-mcp.exe": "Codex Auto Resume MCP launcher",
         })
+
+    def test_each_executable_is_stamped_for_this_tree(self):
+        """What make_release.collect_gui asks of every executable it packs: a stamp beside it that
+        build/gui_stamp.py gives this tree. Read from the real script's own output."""
+        for name, kind in (("CodexAutoResumeSettings.exe", "window"), ("codex-auto-resume-mcp.exe", "launcher")):
+            with self.subTest(name):
+                self.assertTrue(gui_stamp.stamp_path(self.folder / name).is_file(), name + " has no stamp")
+                gui_stamp.check(self.folder / name, ROOT, "standard", kind)
+                self.assertEqual(json.loads(gui_stamp.stamp_path(self.folder / name).read_text(encoding="utf-8")),
+                                 gui_stamp.describe(ROOT, "standard", kind))
 
     def test_nothing_reports_the_zero_version_that_made_this_worth_doing(self):
         for name, found in sorted(self.fields.items()):

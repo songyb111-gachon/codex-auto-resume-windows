@@ -51,6 +51,9 @@ Write-Host ('compiler ' + $csc + ' ' + $cscVersion)
 $python = (Get-Command python -ErrorAction SilentlyContinue).Source
 if (-not $python) { throw 'Python is needed to make the build reproducible (build/normalize_pe.py).' }
 $normalizer = Join-Path $Root 'build\normalize_pe.py'
+# Every executable is stamped beside itself with the version and a digest of what it was built from
+# (build/gui_stamp.py), and build/make_release.py refuses to pack one whose stamp is not this tree's.
+$stamper = Join-Path $Root 'build\gui_stamp.py'
 
 # A version resource, generated from the manifest. Without one both executables said
 # 0.0.0.0 with no product or publisher in Explorer's Properties and in SmartScreen and
@@ -106,9 +109,13 @@ function Build {
         [string]$Target,
         [string[]]$References,
         [string]$Description,
+        [string]$Kind,
         [switch]$WithManifest
     )
     $exe = Join-Path $Out $Name
+    # A stamp from an earlier build never stands beside an executable that is being replaced: if
+    # this build stops half way, the executable has no stamp and is not packed.
+    Remove-Item -LiteralPath ($exe + '.stamp') -Force -ErrorAction SilentlyContinue
     $versionInfo = Join-Path $Out ($Name + '.VersionInfo.cs')
     [IO.File]::WriteAllText($versionInfo, (Get-VersionInfoSource $Description), (New-Object Text.UTF8Encoding $false))
     $Sources = @($Sources) + @($versionInfo)
@@ -127,6 +134,8 @@ function Build {
     # produces the same bytes and anyone can rebuild a release and compare digests.
     & $python $normalizer $exe | Out-Null
     if ($LASTEXITCODE -ne 0) { throw ($Name + ' could not be made reproducible.') }
+    & $python -B $stamper write --root $Root --edition $Edition --kind $Kind $exe
+    if ($LASTEXITCODE -ne 0) { throw ($Name + ' could not be stamped.') }
     # .NET rather than Get-FileHash. This script is run three ways - by a contributor in
     # an ordinary Windows PowerShell session, by the release workflow under pwsh 7, and by
     # `tests/test_reproducible.py` - and in the third the runner's own PSModulePath leaves
@@ -176,7 +185,7 @@ if ($Edition -eq 'advanced') {
 # The window says which edition it is in its version resource, where Explorer's Properties and
 # the SmartScreen prompt read what a file is; the Dashboard says it where it shows the version.
 $EditionWord = @{ standard = 'Standard'; advanced = 'Advanced' }[$Edition]
-Build -Name 'CodexAutoResumeSettings.exe' -Target 'winexe' -WithManifest `
+Build -Name 'CodexAutoResumeSettings.exe' -Target 'winexe' -Kind 'window' -WithManifest `
       -Description ('Codex Auto Resume settings (' + $EditionWord + ' edition)') `
       -Sources $WindowSources `
       -References @('System.dll', 'System.Drawing.dll', 'System.Windows.Forms.dll')
@@ -187,7 +196,7 @@ Build -Name 'CodexAutoResumeSettings.exe' -Target 'winexe' -WithManifest `
 # One file in both editions, byte for byte, so it names neither and only the standard run
 # builds it: the advanced archive takes it from build/ like the standard one does.
 if ($Edition -eq 'standard') {
-    Build -Name 'codex-auto-resume-mcp.exe' -Target 'exe' `
+    Build -Name 'codex-auto-resume-mcp.exe' -Target 'exe' -Kind 'launcher' `
           -Description 'Codex Auto Resume MCP launcher' `
           -Sources @((Join-Path $Root 'gui\McpLauncher.cs'), (Join-Path $Root 'gui\RuntimeChoice.cs')) `
           -References @('System.dll')

@@ -213,15 +213,21 @@ jobs:
 
       - name: CLI smoke test in an isolated home
         # Once per lane, in its first part.
+        #
+        # Every command's exit code counts. Under pwsh a native program's non-zero exit is not an
+        # error: the step's result would be the last command's alone (the wrapper ends with
+        # `exit $LASTEXITCODE`), and a failed install followed by the closing uninstall, which a
+        # second time is not an error, passed. So each command is followed by its own check.
         if: matrix.part == 1
         env:
           PYTHONPATH: src
+        shell: pwsh
         run: |
-          python src\auto_resume.py --home "${{ runner.temp }}\ar-home" --quiet install
-          python src\auto_resume.py --home "${{ runner.temp }}\ar-home" --quiet status
-          python src\auto_resume.py --home "${{ runner.temp }}\ar-home" --quiet install
-          python src\auto_resume.py --home "${{ runner.temp }}\ar-home" --quiet uninstall
-          python src\auto_resume.py --home "${{ runner.temp }}\ar-home" --quiet uninstall
+          $home_dir = "${{ runner.temp }}\ar-home"
+          foreach ($verb in 'install', 'status', 'install', 'uninstall', 'uninstall') {
+            python src\auto_resume.py --home $home_dir --quiet $verb
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
 
   main-tree:
     # The release lane on the tree main will hold: dev's, with every Korean source taken off.

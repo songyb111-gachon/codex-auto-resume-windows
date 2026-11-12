@@ -30,6 +30,7 @@ import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
+NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)     # no console window under a parent with none
 CSC = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Microsoft.NET" / "Framework64" / "v4.0.30319" / "csc.exe"
 POWERSHELL = (Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
               / "WindowsPowerShell" / "v1.0" / "powershell.exe")
@@ -99,7 +100,7 @@ def measure(tree: Path) -> dict:
                     "/reference:System.dll", "/reference:System.Drawing.dll",
                     "/reference:System.Windows.Forms.dll"]
                    + [str(tree / name) for name in window_sources(tree)],
-                   check=True, capture_output=True, timeout=600)
+                   check=True, capture_output=True, timeout=600, creationflags=NO_WINDOW)
     current = dict(settings.defaults(), continuation_style="custom", custom_message_mode="per_reason")
     (work / "schema.json").write_text(json.dumps(settings.describe(), ensure_ascii=False), encoding="utf-8")
     (work / "settings.json").write_text(json.dumps(current, ensure_ascii=False), encoding="utf-8")
@@ -113,7 +114,7 @@ def measure(tree: Path) -> dict:
 
     done = subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
                            "-Command", PROBE], capture_output=True, encoding="locale", errors="replace", timeout=1800,
-                          env=dict(os.environ, CAR_EXE=str(exe), CAR_WORK=str(work),
+                          creationflags=NO_WINDOW, env=dict(os.environ, CAR_EXE=str(exe), CAR_WORK=str(work),
                                    CAR_LOCALES=json.dumps(list(LOCALES)),
                                    CAR_SCALES=json.dumps(list(SCALES)), CAR_ROUNDS=str(ROUNDS)))
     if done.returncode != 0:
