@@ -1,18 +1,19 @@
 """A line the setup step writes to stderr does not stop install.ps1 when it runs outside another app.
 
 Inside an MSIX app (the Codex plugin's bootstrap, an agent in Codex or Claude) install.ps1 runs itself again outside,
-through the wrapper Get-OutsideSource writes: `& install.ps1 ... *>&1 | ForEach-Object { ... }`. With the script's
+through the wrapper Get-OutsideSource holds: `& <script> @named @rest *>&1 | ForEach-Object { ... }`. With the script's
 streams merged so, Windows PowerShell 5.1 turns each stderr line of a native program the script runs into a
 NativeCommandError, and install.ps1's `$ErrorActionPreference = 'Stop'` made it terminating: setup's `error: ...` line
 (a failed `install` step, a doctor warning) killed the setup child half way and failed the install past its own
 "Setup did not complete" message (the v0.6.18 installer audit, R1). Setup's exit code decides, not its stderr.
 
-Invoke-Setup and Get-OutsideSource are lifted out of install.ps1 and run as the outside run runs them, under
-Set-StrictMode 2.0 as the bootstrap runs the installer; the setup step is a scratch script, run by this Python.
+Invoke-Setup, Get-OutsideSource and Get-OutsideVariables are lifted out of install.ps1 and run as the outside run runs
+them, under Set-StrictMode 2.0 as the bootstrap runs the installer; the setup step is a scratch script, run by this Python.
 Nothing of the product runs and nothing is registered.
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -68,18 +69,27 @@ class SetupStderrOutsideTests(unittest.TestCase):
             encoding="utf-8-sig")
         log = self.folder / "output.txt"
         code_file = self.folder / "code.txt"
-        # What Resolve-OutsideRun hands the run outside: Get-OutsideSource's text, the same function.
-        maker = (function_text("Get-OutsideSource") + "\n"
-                 "Get-OutsideSource -Script %s -Switches @() -Values @{} -Arguments @() -Log %s -CodeFile %s"
-                 % (ps_literal(inner), ps_literal(log), ps_literal(code_file)))
+        # What Resolve-OutsideRun hands the run outside: Get-OutsideSource's text and Get-OutsideVariables' lines for
+        # its environment, the same functions.
+        outer = self.folder / "outer.ps1"
+        variables = self.folder / "variables.txt"
+        maker = (function_text("Get-OutsideSource") + "\n" + function_text("Get-OutsideVariables") + "\n"
+                 "$variables = Get-OutsideVariables -Script %s -Switches @() -Values @{} -Arguments @() -Log %s -CodeFile %s\n"
+                 "[IO.File]::WriteAllText(%s, (Get-OutsideSource), (New-Object Text.UTF8Encoding $true))\n"
+                 "[IO.File]::WriteAllLines(%s, $variables)\n"
+                 % (ps_literal(inner), ps_literal(log), ps_literal(code_file), ps_literal(outer), ps_literal(variables)))
         made = subprocess.run([POWERSHELL, "-NoProfile", "-NonInteractive", "-Command", maker],
                               capture_output=True, encoding="locale", errors="replace", timeout=120, creationflags=NO_WINDOW)
         self.assertEqual(made.returncode, 0, made.stderr)
-        outer = self.folder / "outer.ps1"
-        outer.write_text(made.stdout, encoding="utf-8-sig")
+        environment = {name: value for name, value in os.environ.items()
+                       if not name.upper().startswith("CODEX_AUTO_RESUME_RELAY_")}
+        for entry in variables.read_text(encoding="utf-8-sig").splitlines():
+            name, _, value = entry.partition("=")
+            environment[name] = value
         done = subprocess.run([POWERSHELL, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
                                "-File", str(outer)],
-                              capture_output=True, encoding="locale", errors="replace", timeout=180, creationflags=NO_WINDOW)
+                              capture_output=True, encoding="locale", errors="replace", timeout=180, env=environment,
+                              creationflags=NO_WINDOW)
         said = log.read_text(encoding="utf-8", errors="replace") if log.exists() else ""
         code = code_file.read_text(encoding="utf-8").strip() if code_file.exists() else ""
         return said, code, done

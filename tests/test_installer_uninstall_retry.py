@@ -13,6 +13,7 @@ real registration, process or installation is asked or changed.
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -40,11 +41,15 @@ def ps_literal(value) -> str:
 
 
 def run_probe(folder: Path, source: str) -> subprocess.CompletedProcess:
+    """The probe, with a LOCALAPPDATA of its own (`folder`\\local): a purge takes the watchers' lock files there
+    (Remove-HomeLocks), and the real one is never a test's to touch."""
     path = folder / "probe.ps1"
     path.write_text(source, encoding="utf-8-sig")
+    local = folder / "local"
+    local.mkdir(exist_ok=True)
     return subprocess.run([POWERSHELL, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", str(path)],
                           capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180,
-                          creationflags=NO_WINDOW)
+                          env=dict(os.environ, LOCALAPPDATA=str(local)), creationflags=NO_WINDOW)
 
 
 @unittest.skipUnless(sys.platform == "win32", "the installer is Windows PowerShell")
