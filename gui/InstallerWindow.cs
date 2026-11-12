@@ -345,7 +345,14 @@ namespace CodexAutoResume
         private void Build(string name)
         {
             sheet.SuspendLayout();
+            // v0.6.23 (the second round's G4): what the last step made for itself is let go of - its words, links, choices and
+            // callouts - once the event that changed the step is over; the log, the notes and the bar are the window's own
+            // and stay.
+            var made = new List<Control>();
+            foreach (Control control in sheet.Controls)
+                if (control != logArea && control != notesArea && control != bar) made.Add(control);
             sheet.Controls.Clear();
+            LetGo(made);
             rows.Clear();
             stepLabel = null;
             busyNote = null;
@@ -363,6 +370,15 @@ namespace CodexAutoResume
             }
             foreach (KeyValuePair<Control, int> row in rows) sheet.Controls.Add(row.Key);
             sheet.ResumeLayout(false);
+        }
+
+        /// Disposes `made`, after the event in hand: a click on one of them may be what changed the step.
+        private void LetGo(List<Control> made)
+        {
+            if (made.Count == 0) return;
+            MethodInvoker dispose = delegate { foreach (Control control in made) control.Dispose(); };
+            if (IsHandleCreated && !IsDisposed) BeginInvoke(dispose);
+            else dispose();
         }
 
         private void Row(Control control, int gap)

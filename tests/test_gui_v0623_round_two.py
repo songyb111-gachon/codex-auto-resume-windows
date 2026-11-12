@@ -7,6 +7,9 @@ has a motion, smooth, through the shared pieces; lists stay flat hairline rows. 
 * F7  - Pending's Auto-resume switch comes up under the pointer, widens its knob while held and fades halfway into its row
         while its call is awaited past BusyHold's moment (ListSwitchFeel); its knob still moves only on the reply.
 * F8  - a tooltip fades out on a window of its own, as a closed menu does (SoftTipWindow.Close, SoftLayerFade).
+* F12, F13 - a callout or a card shown in a page on screen, and the installer's log shown or hidden, fade over their ground
+        (SoftReveal: one picture of the ground, one of the part); a page or a step that changes is still one finished frame.
+* G4  - a step of the installer lets go of what the step before it made for itself.
 
 The real compiled window is loaded and its controls are made in a window of the probe's own, far off the screen and shown
 without taking activation, as tests/test_gui_v0623_motion.py does (its head, tail and helpers are this module's). Nothing
@@ -150,6 +153,76 @@ Reduce $false
 $tip8.Dispose()
 """
 
+PROBE_REVEAL = r"""
+# ------------------------------------------------------------------ F12, F13: a part coming and going
+$ground13 = Make 'SoftStack'; Place $ground13 20 20 400 300; Pump 30
+$part = New-Object Windows.Forms.Panel; $part.BackColor = [Drawing.Color]::FromArgb(255, 10, 120, 200)
+$part.Location = New-Object Drawing.Point 20, 20; $part.Size = New-Object Drawing.Size 120, 40
+$ground13.Controls.Add($part); Pump 30
+$live = [int](SF 'SoftReveal' 'Live'); $moving = [int](SF 'Transition' 'Moving'); $made = [int](SF 'GroundShot' 'Made')
+$entered = [bool](S 'SoftReveal' 'Entered' @($part))
+$cover = @($ground13.Controls | Where-Object { $_.GetType().Name -eq 'SoftReveal' })[0]
+$out.reveal = @{ entered = $entered; live = ([int](SF 'SoftReveal' 'Live') - $live); moving = ([int](SF 'Transition' 'Moving') - $moving)
+                 start = [double](P $cover 'Opacity'); onTop = ($ground13.Controls.GetChildIndex($cover) -eq 0); bounds = @($cover.Left, $cover.Top, $cover.Width, $cover.Height) }
+Pump 60
+$out.reveal.part = [double](P $cover 'Opacity')
+Pump 400
+$out.reveal.after = @(([int](SF 'SoftReveal' 'Live') - $live), ([int](SF 'Transition' 'Moving') - $moving), [bool]$cover.IsDisposed)
+$out.reveal.pictures = ([int](SF 'GroundShot' 'Made') - $made)
+$script:hidden = 0
+$null = S 'SoftReveal' 'Leaving' @($part, [Action]{ try { $part.Visible = $false; $script:hidden++ } catch { exit 3 } })
+$out.reveal.leaving = @([int]$script:hidden, [bool]$part.Visible, ([int](SF 'SoftReveal' 'Live') - $live))
+$leaving = @($ground13.Controls | Where-Object { $_.GetType().Name -eq 'SoftReveal' })[0]
+$out.reveal.leavingStart = [double](P $leaving 'Opacity')
+Pump 400
+$out.reveal.left = ([int](SF 'SoftReveal' 'Live') - $live)
+$part.Visible = $true; Pump 30
+Reduce $true
+$out.reveal.reduced = @([bool](S 'SoftReveal' 'Entered' @($part)), ([int](SF 'SoftReveal' 'Live') - $live))
+$null = S 'SoftReveal' 'Leaving' @($part, [Action]{ try { $part.Visible = $false } catch { exit 3 } })
+$out.reveal.reducedLeaving = @([bool]$part.Visible, ([int](SF 'SoftReveal' 'Live') - $live))
+Reduce $false
+# A callout and a card shown by their own Visible in a page on screen fade in once laid out; built shown, they are simply there.
+$callout = MakeWith 'SoftCallout' @('A notice'); $callout.Location = New-Object Drawing.Point 20, 100; $callout.Width = 300
+$ground13.Controls.Add($callout); Pump 60
+$out.reveal.calloutBuilt = ([int](SF 'SoftReveal' 'Live') - $live)
+$callout.Visible = $false; Pump 30
+$callout.Visible = $true; Pump 20
+$out.reveal.calloutShown = ([int](SF 'SoftReveal' 'Live') - $live)
+Pump 400
+$card = Make 'SoftCard'; $card.Location = New-Object Drawing.Point 20, 180; $card.Size = New-Object Drawing.Size 200, 60
+$ground13.Controls.Add($card); Pump 60
+$out.reveal.cardBuilt = ([int](SF 'SoftReveal' 'Live') - $live)
+$card.Visible = $false; Pump 30
+$card.Visible = $true; Pump 20
+$out.reveal.cardShown = ([int](SF 'SoftReveal' 'Live') - $live)
+$card.Visible = $true; Pump 20
+$out.reveal.cardAgain = ([int](SF 'SoftReveal' 'Live') - $live)
+Pump 400
+$ground13.Visible = $false; $card.Visible = $false; $card.Visible = $true; Pump 20
+$out.reveal.outOfSight = ([int](SF 'SoftReveal' 'Live') - $live)
+$ground13.Visible = $true; Pump 400
+
+# ------------------------------------------------------------------ G4: a step's sheet made again
+$catalog = S 'Json' 'Parse' @('{}')
+$words = MakeWith 'InstallerWords' @($catalog, 'en')
+$flowType = T 'InstallerFlow'
+$flow = $flowType.GetConstructors($instance)[0].Invoke([object[]]@('install', 'C:\nowhere-at-all', 'standard', $null, '9.9.9'))
+$installer = (T 'InstallerWindow').GetConstructors($instance)[0].Invoke([object[]]@($flow, $words, $null, $null, $null, $null))
+$sheet = P $installer 'Body'
+$null = Call $installer 'ShowPage' @([string]$flowType.GetField('Welcome', $static).GetValue($null))
+$before = @($sheet.Controls | ForEach-Object { $_ })
+$null = Call $installer 'ShowPage' @([string]$flowType.GetField('Progress', $static).GetValue($null))
+$kept = @($sheet.Controls | ForEach-Object { $_ })
+$null = Call $installer 'ShowPage' @([string]$flowType.GetField('Finish', $static).GetValue($null))
+Pump 30
+$log = F $installer 'logArea'
+$out.sheet = @{ welcome = $before.Count; welcomeGone = @($before | Where-Object { $_.IsDisposed }).Count
+                progressGone = @($kept | Where-Object { $_.IsDisposed }).Count; progress = $kept.Count
+                logKept = (-not $log.IsDisposed); barKept = (-not (F $installer 'bar').IsDisposed); logOn = $sheet.Controls.Contains($log) }
+$installer.Dispose()
+"""
+
 
 class TabStripTests(first.Probed):
     """F6: the strip laid out with no page chosen and then with each page chosen in turn."""
@@ -255,6 +328,69 @@ class TooltipLeavingTests(first.Probed):
         close = guiscan.member_body("SoftTipWindow", "Close")
         self.assertIn("new SoftLayerFade(memory, dib, previous,", close)
         self.assertIn("card.Close(fade);", guiscan.member_body("SoftTip", "Close"))
+
+
+class RevealTests(first.Probed):
+    """F12, F13 and G4: SoftReveal over a part in the probe's window, a callout and a card shown, and the installer's sheet
+    made again (never shown)."""
+
+    sections = (first.PROBE_HELPERS, PROBE_REVEAL)
+
+    def test_a_part_shown_fades_in_over_its_place_and_the_cover_goes(self):
+        reveal = self.answer["reveal"]
+        self.assertTrue(reveal["entered"])
+        self.assertEqual(reveal["live"], 1)
+        self.assertEqual(reveal["moving"], 1, "no picture is taken while it is up")
+        self.assertEqual(reveal["start"], 0.0)
+        self.assertTrue(reveal["onTop"])
+        self.assertEqual(reveal["bounds"], [20, 20, 120, 40], "over the part's own place: nothing moves")
+        self.assertGreater(reveal["part"], 0.0)
+        self.assertLess(reveal["part"], 1.0)
+        self.assertEqual(reveal["after"], [0, 0, True])
+        self.assertEqual(reveal["pictures"], 1, "one picture of the ground for the whole fade")
+
+    def test_a_part_hidden_is_hidden_at_once_and_its_picture_fades_out(self):
+        reveal = self.answer["reveal"]
+        self.assertEqual(reveal["leaving"], [1, False, 1])
+        self.assertEqual(reveal["leavingStart"], 1.0)
+        self.assertEqual(reveal["left"], 0)
+
+    def test_with_motion_reduced_nothing_is_covered(self):
+        reveal = self.answer["reveal"]
+        self.assertEqual(reveal["reduced"], [False, 0])
+        self.assertEqual(reveal["reducedLeaving"], [False, 0])
+
+    def test_a_callout_or_a_card_shown_on_screen_fades_in_and_one_built_is_simply_there(self):
+        reveal = self.answer["reveal"]
+        self.assertEqual(reveal["calloutBuilt"], 0)
+        self.assertEqual(reveal["calloutShown"], 1)
+        self.assertEqual(reveal["cardBuilt"], 0)
+        self.assertEqual(reveal["cardShown"], 1)
+        self.assertEqual(reveal["cardAgain"], 1, "shown again while shown starts nothing")
+        self.assertEqual(reveal["outOfSight"], 0, "on a page out of sight it is simply there")
+
+    def test_a_step_lets_go_of_what_the_last_one_made_and_keeps_the_window_s_own(self):
+        sheet = self.answer["sheet"]
+        self.assertGreater(sheet["welcome"], 0)
+        self.assertEqual(sheet["welcomeGone"], sheet["welcome"], "Welcome's words and links are let go of")
+        self.assertGreater(sheet["progress"], 0)
+        self.assertEqual(sheet["progressGone"], sheet["progress"] - 2, "all but the bar and the log")
+        self.assertTrue(sheet["logKept"])
+        self.assertTrue(sheet["barKept"])
+        self.assertTrue(sheet["logOn"])
+
+    def test_the_log_toggle_fades_and_a_step_is_still_one_frame(self):
+        toggle = guiscan.member_body("InstallerWindow", "LogToggle")
+        self.assertIn("SoftReveal.Entered(logArea);", toggle)
+        self.assertIn("SoftReveal.Leaving(logArea, delegate", toggle)
+        build = guiscan.member_body("InstallerWindow", "Build")
+        self.assertIn("LetGo(made);", build)
+        self.assertNotIn("SoftReveal", build)
+        self.assertNotIn("SoftReveal", guiscan.member_body("InstallerWindow", "ShowPage"))
+        self.assertNotIn("SoftReveal", guiscan.member_body("SettingsForm", "ShowPage"))
+        self.assertIn("SoftReveal.EnterSoon(callout);", guiscan.member_body("SettingsForm", "SetCallouts"))
+        for frame in ("OnPaint",):
+            self.assertNotIn("new Bitmap", guiscan.member_body("SoftReveal", frame))
 
 
 if __name__ == "__main__":
