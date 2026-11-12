@@ -742,6 +742,7 @@ namespace CodexAutoResume
         ///   {"do": "type", "into": login|word, "text": ...}  text typed into one of the report's boxes, whole
         ///   {"do": "poll"}                                    the running report job read, as the page's clock reads it
         ///   {"do": "poll_account"}                            the account card read again, as its timer reads it (v0.6.20)
+        ///   {"do": "tick_python"}                             the Python version card's timer ticks once (v0.6.23)
         ///   {"do": "save_to", "path": ...}                    the file the save dialog would answer with
         ///   {"do": "hourly", "value": n}                      the hourly limit chosen, and the pause after it over
         ///   {"do": "set_option", "key": ..., "value": n}      a choice made in that choice's drop-down
@@ -1269,6 +1270,7 @@ namespace CodexAutoResume
                     }
                     else if (what == "poll") form.PollReport();
                     else if (what == "poll_python") form.ReadPython(null);    // v0.6.23: the Python version card reads itself.
+                    else if (what == "tick_python") form.PollPython();     // and its timer's tick, which reads only on screen
                     else if (what == "poll_account") form.ReadAccount(null);    // v0.6.20: the account card read again
                     else if (what == "save_to") form.advancedSaveTo = Str(step, "path");
                     else if (what == "reply")
