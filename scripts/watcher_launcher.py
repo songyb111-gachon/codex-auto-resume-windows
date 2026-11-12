@@ -241,12 +241,20 @@ def main(argv=None) -> int:
         command = ["run"]
     asks = command == ["run"] and not child
     held = None
+    # The start question, asked once in this process whichever Python the watcher runs under (v0.6.23: a watcher under the
+    # chosen one was started with it never asked, so crash restart, which answers an end only where it was, never saw one).
+    started = []
+
+    def start_answer():
+        if not started:
+            started.append(_start_answer(here, home))
+        return started[0]
     if asks:
-        code = _on_chosen(here, home)
+        code = _on_chosen(here, home, start_answer)
         if code is not None:
             return code
     if asks:
-        answer, held = _start_answer(here, home)
+        answer, held = start_answer()
         if answer == SUPERVISE:
             code = _supervised(here, home)
             if code is not None:
@@ -264,6 +272,7 @@ def main(argv=None) -> int:
         if (_supervise(home, {"phase": PHASE_START}) == SUPERVISE
                 and _supervise(home, {"phase": PHASE_ENDED, "exit_code": code}) == RESTART):
             _note(here, "the watcher that ran without crash restart stopped unexpectedly (exit %s); starting it supervised" % code)
+            _unsupervised(home, None)
             restarted = _supervised(here, home)
             return code if restarted is None else restarted
     elif asks:
@@ -315,9 +324,15 @@ def _why_held(home: Path):
     return word if isinstance(word, str) and word.replace("_", "").isalpha() else None
 
 
-def _on_chosen(here: Path, home: Path):
+def _on_chosen(here: Path, home: Path, start_answer=None):
     """The watcher under the Python the person chose, with this process on the bundled one to see it come up (v0.6.23).
     What to return, or None to go on as ever in this process: nothing chosen, or a choice that did not come up.
+
+    Supervised as the bundled one is: the start question (`start_answer`, main's, so it is asked once in this process
+    whichever Python the watcher ends up under) is asked before its child starts, with its second asking and its
+    unsupervised.txt where it names no supervisor, and the child's end is judged by it - RESTART where crash restart
+    says so, the restart counted against its cap. Without that question crash restart never restarted a watcher under
+    the chosen Python (X1 of the owner's logs of 2026-11-13: nine supervised starts, not one restart row).
 
     A launcher started by a program that itself runs under a chosen Python - the Dashboard's Start - starts again under
     the bundled runtime first, so whichever way the watcher is started, the process that can take a bad choice back is
@@ -344,7 +359,8 @@ def _on_chosen(here: Path, home: Path):
             return None
     except Exception:                               # noqa: BLE001 - the bundled runtime is always there to go on with
         return None
-    return _supervised(here, home, interpreter)
+    _answer, held = (start_answer or (lambda: _start_answer(here, home)))()
+    return _supervised(here, home, interpreter, held)
 
 
 def _again_under_bundled(here: Path, home: Path):
@@ -394,13 +410,19 @@ def _not_up(here: Path, home: Path, child) -> None:
     _supervise(home, {"phase": PHASE_RUNTIME_FAILED})
 
 
-def _supervised(here: Path, home: Path, chosen=None):
+def _supervised(here: Path, home: Path, chosen=None, held=None):
     """SUPERVISE (v0.6.19): run the watcher as a child and wait for it; once it ended, ask P13 again, and start it once
     more only where the answer is RESTART. What to return: the child's last exit code - or None where no child could be
     started at all, and the watcher is then run in this process, as with no supervisor.
 
     With `chosen` (v0.6.23), the pythonw.exe the person chose runs that child, and each start of it is held to coming up
-    (`_came_up`); one that does not leaves None, and the watcher is run in this process, on the bundled runtime.
+    (`_came_up`); one that does not leaves None, and the watcher is run in this process, on the bundled runtime. `held`
+    is why the start question named no supervisor for it (`_start_answer`): once that child ended, the question is asked
+    again - the one later moment a supervisor can be had, as main asks it of a watcher it ran itself - and the end is
+    judged under it.
+
+    Every end that is not followed by another start says so in the launcher's log, with its exit code (v0.6.23: an end
+    crash restart passed over left no line at all, and a crash could not be told from a kill).
 
     The child is this file again, under the pythonw.exe beside the interpreter that runs it (as `_relaunch_once` finds
     it), with CREATE_NO_WINDOW and nothing to read or write; its arguments are constants. A child that ended because the
@@ -434,8 +456,14 @@ def _supervised(here: Path, home: Path, chosen=None):
             _note(here, "the watcher came up under the chosen Python (%s since the launcher started)" % _since())
         code = child.wait()
         if code == EXIT_SCHEMA_NEWER:
+            _note(here, "the supervised watcher ended (exit %s): the state is newer than its code, and it started the "
+                        "installed copy itself; not starting it again here" % code)
             return code
+        if held is not None and _supervise(home, {"phase": PHASE_START}) == SUPERVISE:
+            held = None
+            _unsupervised(home, None)
         if _supervise(home, {"phase": PHASE_ENDED, "exit_code": code}) != RESTART:
+            _note(here, "the supervised watcher (pid %d) ended (exit %s); not starting it again" % (child.pid, code))
             return code
         _note(here, "the watcher stopped unexpectedly (exit %s); starting it again" % code)
 

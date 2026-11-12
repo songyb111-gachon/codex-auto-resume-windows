@@ -233,6 +233,10 @@ class LauncherTests(unittest.TestCase):
             patcher = patch.object(self.launcher, name, lambda *_a: None)
             patcher.start()
             self.addCleanup(patcher.stop)
+        self.held = None
+        patcher = patch.object(self.launcher, "_why_held", lambda _home: self.held)
+        patcher.start()
+        self.addCleanup(patcher.stop)
         patcher = patch("codex_auto_resume.runtime.app.App")
         self.app = patcher.start()
         self.addCleanup(patcher.stop)
@@ -240,7 +244,10 @@ class LauncherTests(unittest.TestCase):
 
     def supervise(self, _home, facts):
         self.asked.append(facts["phase"])
-        return self.answers.get(facts["phase"], DEFER)
+        answer = self.answers.get(facts["phase"], DEFER)
+        if isinstance(answer, list):                # one answer per asking, in turn, then DEFER
+            return answer.pop(0) if answer else DEFER
+        return answer
 
     def child(self, code=0):
         process = MagicMock()
@@ -295,7 +302,7 @@ class LauncherTests(unittest.TestCase):
         with patch("subprocess.Popen", return_value=made), patch.object(self.launcher, "_came_up", return_value=False):
             self.assertIsNone(self.launcher._on_chosen(self.home, self.home), "the watcher goes on here, on the bundled runtime")
         made.kill.assert_called_once()
-        self.assertEqual(self.asked, [self.launcher.PHASE_RUNTIME, self.launcher.PHASE_RUNTIME_FAILED])
+        self.assertEqual(self.asked, [self.launcher.PHASE_RUNTIME, self.launcher.PHASE_START, self.launcher.PHASE_RUNTIME_FAILED])
 
     def test_one_windows_refuses_to_start_is_taken_back(self):
         with patch("subprocess.Popen", side_effect=OSError("no")):
@@ -350,6 +357,73 @@ class LauncherTests(unittest.TestCase):
         with patch("subprocess.Popen", side_effect=started), patch.object(self.launcher, "_came_up", side_effect=waited):
             self.launcher._on_chosen(self.home, self.home)
         self.assertEqual(order, ["child", "wait"])
+
+    def test_a_watcher_under_the_chosen_python_that_crashes_is_started_again(self):
+        """X1 of the owner's logs of 2026-11-13. Fails with the start question reverted: crash restart, asked only about the
+        runtime, answers the end DEFER and the watcher stays down, with nothing in the log."""
+        self.answers = {self.launcher.PHASE_RUNTIME: self.launcher.SUPERVISE, self.launcher.PHASE_START: self.launcher.SUPERVISE,
+                        self.launcher.PHASE_ENDED: [self.launcher.RESTART]}
+        said = []
+        with patch.object(self.launcher, "_note", lambda _here, text: said.append(text)), \
+                patch("subprocess.Popen", side_effect=[self.child(1), self.child(1)]) as started, \
+                patch.object(self.launcher, "_came_up", return_value=True):
+            self.assertEqual(self.launcher._on_chosen(self.home, self.home), 1)
+        self.assertEqual(started.call_count, 2, "started again once crash restart said RESTART")
+        for call in started.call_args_list:
+            self.assertEqual(call[0][0][0], str(self.home / "runtimes" / VERSION / "pythonw.exe"), "again under the chosen Python")
+        self.assertEqual(self.asked, [self.launcher.PHASE_RUNTIME, self.launcher.PHASE_START,
+                                      self.launcher.PHASE_ENDED, self.launcher.PHASE_ENDED])
+        self.assertTrue(any("stopped unexpectedly (exit 1); starting it again" in line for line in said), said)
+        self.assertIn("the supervised watcher (pid 4242) ended (exit 1); not starting it again", said)
+
+    def test_the_start_question_is_asked_once_before_the_child_starts(self):
+        """main's question, handed in: whichever Python the watcher ends under, the start is asked once in a launcher."""
+        order, asked = [], []
+
+        def start_answer():
+            asked.append(1)
+            order.append("start")
+            return self.launcher.SUPERVISE, None
+
+        def started(*_a, **_k):
+            order.append("child")
+            return self.child(0)
+        with patch("subprocess.Popen", side_effect=started), patch.object(self.launcher, "_came_up", return_value=True):
+            self.assertEqual(self.launcher._on_chosen(self.home, self.home, start_answer), 0)
+        self.assertEqual((order, len(asked)), (["start", "child"], 1))
+        self.assertNotIn(self.launcher.PHASE_START, self.asked, "asked through main's question, not again")
+
+    def test_with_no_supervisor_named_it_says_so_and_asks_again_once_the_child_ended(self):
+        """As the bundled path: asked once more a few seconds later, unsupervised.txt for the Dashboard while it runs without
+        one, and at its end the one later moment a supervisor can be had."""
+        (self.home / "logs").mkdir()
+        self.held = "unreadable"
+        self.answers = {self.launcher.PHASE_RUNTIME: self.launcher.SUPERVISE,
+                        self.launcher.PHASE_START: [DEFER, DEFER, self.launcher.SUPERVISE],
+                        self.launcher.PHASE_ENDED: [self.launcher.RESTART]}
+        seen = []
+
+        def started(*_a, **_k):
+            path = self.home / "logs" / self.launcher.UNSUPERVISED_FILE
+            seen.append(path.read_text(encoding="utf-8") if path.is_file() else "")
+            return self.child(1)
+        with patch.object(self.launcher.time, "sleep") as slept, patch("subprocess.Popen", side_effect=started), \
+                patch.object(self.launcher, "_came_up", return_value=True):
+            self.assertEqual(self.launcher._on_chosen(self.home, self.home), 1)
+        self.assertEqual([call.args for call in slept.call_args_list], [(self.launcher.ASK_AGAIN_SECONDS,)])
+        self.assertEqual(seen, ["%d unreadable\n" % os.getpid(), ""], "said while unsupervised, taken away once supervised")
+        self.assertEqual(self.asked, [self.launcher.PHASE_RUNTIME, self.launcher.PHASE_START, self.launcher.PHASE_START,
+                                      self.launcher.PHASE_START, self.launcher.PHASE_ENDED, self.launcher.PHASE_ENDED])
+
+    def test_crash_restart_off_the_chosen_watcher_ends_once_and_says_so(self):
+        """No supervisor asked for: one child, its end in the log, nothing started again."""
+        said = []
+        with patch.object(self.launcher, "_note", lambda _here, text: said.append(text)), \
+                patch("subprocess.Popen", return_value=self.child(1)) as started, \
+                patch.object(self.launcher, "_came_up", return_value=True):
+            self.assertEqual(self.launcher._on_chosen(self.home, self.home), 1)
+        self.assertEqual(started.call_count, 1)
+        self.assertIn("the supervised watcher (pid 4242) ended (exit 1); not starting it again", said)
 
     def test_came_up_is_the_mutex_within_the_wait_and_one_more_look(self):
         probe = self.app.return_value.watcher_running

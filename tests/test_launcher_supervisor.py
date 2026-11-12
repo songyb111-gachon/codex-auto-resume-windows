@@ -226,6 +226,40 @@ class SuperviseTests(SupervisorCase):
         self.assertEqual((returned, runs), (self.launcher.EXIT_ERROR, []))
 
 
+class ChosenTests(SupervisorCase):
+    """v0.6.23 (X1 of the owner's logs of 2026-11-13): a watcher under a chosen Python is supervised as the bundled one is."""
+
+    def setUp(self):
+        super().setUp()
+        from codex_auto_resume import chosen_runtime
+        where = self.home / "runtimes" / "3.15.2"
+        where.mkdir(parents=True)
+        for name in chosen_runtime.required("3.15.2"):
+            (where / name).write_bytes(b"")
+        (self.home / "runtimes" / "chosen.json").write_text(json.dumps({"version": "3.15.2", "at": 1}), encoding="utf-8")
+        app = patch("codex_auto_resume.runtime.app.App")
+        app.start().return_value.watcher_running.return_value = False
+        self.addCleanup(app.stop)
+
+    def test_one_that_does_not_come_up_goes_on_supervised_and_the_start_is_asked_once(self):
+        """Fails with the start question asked twice: once for the chosen Python and again for the bundled one."""
+        plug = Asked(supervise=lambda facts: Alternative.SUPERVISE if facts["phase"] in ("runtime", "start") else DEFER)
+        with patch.object(self.launcher, "_came_up", return_value=False):
+            returned, runs, _ = self.launch([], plug, codes=[0, 0])
+        self.assertEqual((returned, runs), (0, []))
+        self.assertEqual([child.argv[0] for child in Child.started],
+                         [str(self.home / "runtimes" / "3.15.2" / "pythonw.exe"), str((self.bin / "pythonw.exe").resolve())])
+        self.assertEqual([facts["phase"] for _, (facts,) in plug.asked], ["runtime", "start", "runtime_failed", "ended"])
+
+    def test_a_crash_under_the_chosen_python_is_restarted_there(self):
+        plug = Asked(supervise=lambda facts: {"runtime": Alternative.SUPERVISE, "start": Alternative.SUPERVISE}.get(
+            facts["phase"], Alternative.RESTART if len(Child.started) < 2 else DEFER))
+        with patch.object(self.launcher, "_came_up", return_value=True):
+            returned, runs, _ = self.launch([], plug, codes=[1, 1])
+        self.assertEqual((returned, runs, len(Child.started)), (1, [], 2))
+        self.assertIn("ended (exit 1); not starting it again", (self.home / "logs" / "launcher.log").read_text(encoding="utf-8"))
+
+
 class ChildTests(SupervisorCase):
     def test_a_child_runs_the_watcher_here_and_asks_nothing(self):
         """No grandchildren: the child's own launcher never supervises, whatever the plug would say."""
