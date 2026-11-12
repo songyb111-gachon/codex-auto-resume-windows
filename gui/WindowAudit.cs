@@ -1004,6 +1004,13 @@ namespace CodexAutoResume
                     if (child.Left < room.Left || child.Right > room.Right)
                         findings.Add(place + " :: reaches past the side of its page, " + child.Bounds + " in " + room);
                 }
+                // v0.6.23 (the second round's F9): and every field on a card, as Settings' are and every dialog's (FieldOffCard).
+                if (child is SoftTextArea || child is SoftCombo || child is SoftNumber)
+                {
+                    AuditedFields++;
+                    string off = FieldOffCard(child);
+                    if (off != null) findings.Add(place + " :: a field not on a card: " + off);
+                }
                 var combo = child as SoftCombo;
                 if (combo != null && combo.Height != SoftCombo.FieldHeight)
                     findings.Add(place + " :: is " + combo.Height + " high, not a field's " + SoftCombo.FieldHeight);
@@ -1118,6 +1125,21 @@ namespace CodexAutoResume
                 if (each.GetType() == typeof(Panel)) return "a plain Panel stands between its card and the dialog";
             return null;
         }
+
+        /// Why `field` - a text well, a drop-down or a number - stands on no card, or null where it does (v0.6.23, the second
+        /// round's F9): a SoftCard is somewhere between it and its form, as for every field of Settings and every dialog's
+        /// (DialogBodyCard, and SearchOnCard for a list's search).
+        internal static string FieldOffCard(Control field)
+        {
+            if (field == null) return "there is no field";
+            for (Control each = field.Parent; each != null && !(each is Form); each = each.Parent)
+                if (each is SoftCard) return null;
+            return "nothing between it and its window is a SoftCard";
+        }
+
+        /// How many fields the audits have held to a card since the window started (Walk), so that a quiet report is known to
+        /// have looked at them.
+        internal static int AuditedFields;
 
         /// How many lists the last LayoutAudit held to their width (AuditLists, AuditTimeline), so that a quiet report is
         /// known to have looked at them.

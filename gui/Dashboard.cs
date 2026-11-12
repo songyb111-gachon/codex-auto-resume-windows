@@ -2324,6 +2324,29 @@ namespace CodexAutoResume
             return ground;
         }
 
+        /// What a dialog searches its list with (`row`: a search box and what goes with it), moved onto the list's own card above
+        /// the list (v0.6.23, the second round's F9): a field stands on a card wherever it is, as every other dialog's do
+        /// (DialogBodyCard). `ground` is what DialogListCard made; the row keeps its own layout, on the card's ground, with
+        /// the card's room above the list under it.
+        private void SearchOnCard(Control ground, Control row)
+        {
+            var card = ground.Controls.Count > 0 ? ground.Controls[0] as SoftCard : null;
+            if (card == null || card.Controls.Count == 0) return;
+            Control host = card.Controls[0];
+            card.SuspendLayout();
+            card.RowStyles.Clear();
+            card.RowCount = 2;
+            card.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            card.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+            card.SetCellPosition(host, new TableLayoutPanelCellPosition(0, 1));
+            row.Dock = DockStyle.Fill;
+            row.BackColor = Palette.Card;
+            row.Padding = Pad(0, 0, 0, 8);
+            row.Margin = new Padding(0);
+            card.Controls.Add(row, 0, 0);
+            card.ResumeLayout(false);
+        }
+
         /// A dialog's fields on a card, as the same fields stand on the Settings page (v0.6.23, the design audit's D2): `body` -
         /// a text well, or the column a dialog stacks its words and fields in - laid on a SoftCard, on a ground with the room
         /// the card's lift reaches into. The one place a dialog's body goes on a card: every dialog holding a field or a well

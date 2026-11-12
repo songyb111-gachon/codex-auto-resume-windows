@@ -98,17 +98,19 @@ try {
   $form = $assembly.GetType('CodexAutoResume.SettingsForm', $true)
   $audit = $form.GetMethod('LayoutAuditAt', $static)
   $cards = $form.GetField('AuditedCards', $static)
+  $fields = $form.GetField('AuditedFields', $static)
   $utf8 = New-Object Text.UTF8Encoding $false
   $work = [string]$env:CAR_WORK
   $schema = [IO.File]::ReadAllText((Join-Path $work 'schema.json'), $utf8)
   $current = [IO.File]::ReadAllText((Join-Path $work 'settings.json'), $utf8)
   $snapshot = [IO.File]::ReadAllText((Join-Path $work 'snapshot.json'), $utf8)
   $catalog = [IO.File]::ReadAllText((Join-Path $work 'strings-en.json'), $utf8)
-  $out = @{ audit = @{}; cards = @{} }
+  $out = @{ audit = @{}; cards = @{}; fields = @{} }
   foreach ($scale in (ConvertFrom-Json $env:CAR_SCALES)) {
     $key = ([double]$scale).ToString('0.00', [Globalization.CultureInfo]::InvariantCulture)
     $out.audit[$key] = [string]$audit.Invoke($null, [object[]]@($schema, $current, $catalog, $snapshot, [double]$scale, [double]1.0))
     $out.cards[$key] = [string]$cards.GetValue($null)
+    $out.fields[$key] = [int]$fields.GetValue($null)
   }
   [IO.File]::WriteAllText((Join-Path $work 'result.json'), ($out | ConvertTo-Json -Depth 5 -Compress), $utf8)
 } catch {
@@ -149,6 +151,20 @@ class BuiltDialogTests(unittest.TestCase):
                 seen = self.answer["cards"][key].split(";")
                 for place in ("timeline", "logs", "versions", "pending", "history"):
                     self.assertIn(place, seen, "the audit looked at %s's list" % place)
+
+    def test_every_field_the_audit_walks_stands_on_a_card(self):
+        """v0.6.23 (the second round's F9): a text well, a drop-down or a number on no card - the log's search and
+        Statistics' period stood on the canvas - is a finding of the audit's walk (FieldOffCard), held to the empty report
+        below; here, that it looked at some."""
+        for scale in SCALES:
+            key = "%.2f" % scale
+            with self.subTest(scale=scale):
+                self.assertNotIn("a field not on a card", self.answer["audit"][key])
+                self.assertGreater(self.answer["fields"][key], 0, "the audit walked no field")
+        off = guiscan.member_body(TYPE, "FieldOffCard")
+        self.assertIn("each is SoftCard", off)
+        walk = guiscan.member_body(TYPE, "Walk")
+        self.assertIn("FieldOffCard(child)", walk)
 
     def test_nothing_is_cut_off_with_the_card_round_the_lists(self):
         for scale in SCALES:

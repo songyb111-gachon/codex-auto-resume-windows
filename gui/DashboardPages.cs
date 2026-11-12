@@ -614,11 +614,15 @@ namespace CodexAutoResume
         private Control BuildStatistics()
         {
             Panel page = Page();
-            // A ground, so the lift of the cards under it is not covered where it runs up into it.
+            // v0.6.23 (the second round's F9): the period on a card of its own, as every field in the window stands on one - the
+            // row inside it as it was - on a ground, so the lift of the cards under it is not covered where it runs up into it.
             var top = new SoftFlow();
-            top.Dock = DockStyle.Top;
             top.AutoSize = true;
-            top.Padding = Pad(0, 0, 0, 12);
+            top.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            top.WrapContents = false;
+            top.BackColor = Card;
+            top.Margin = new Padding(0);
+            top.Padding = new Padding(0);
             var label = GroundText(S("stats.period", "Period"));
             // On the drop-down's centre line: half of what the field is taller than a line of the
             // window's text. Measured in the window's font - the label has no parent yet, and would
@@ -670,8 +674,25 @@ namespace CodexAutoResume
 
             grid.Controls.Add(numbers, 0, 0);
             grid.Controls.Add(outcomes, 1, 0);
+            var periodCard = new SoftCard();
+            periodCard.Dock = DockStyle.Fill;
+            periodCard.ColumnCount = 1;
+            periodCard.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            periodCard.AutoSize = true;
+            periodCard.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            periodCard.Margin = new Padding(0);
+            periodCard.Padding = Pad(Brand.CardPadLeft, 12, Brand.CardPadRight, 12);
+            periodCard.Controls.Add(top);
+            var periodGround = new SoftStack();
+            periodGround.Dock = DockStyle.Top;
+            periodGround.AutoSize = true;
+            periodGround.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            periodGround.ColumnCount = 1;
+            periodGround.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            periodGround.Padding = Pad(0, 0, 0, Brand.PageGap);
+            periodGround.Controls.Add(periodCard);
             page.Controls.Add(grid);
-            page.Controls.Add(top);
+            page.Controls.Add(periodGround);
             return page;
         }
 
