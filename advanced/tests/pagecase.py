@@ -543,22 +543,23 @@ def fullest_prompts(shot, generation) -> dict:
 
 
 # The modules the layout audit is dealt over (test_advanced_page_layout_1 to _5), each running its audits in
-# LAYOUT_WORKERS processes side by side; the last also audits the canary. Each audit is one language at one scaling.
+# LAYOUT_WORKERS processes (which share one desktop and take about the sum of their audits); the last also audits the canary. Each audit is one language at one scaling.
 LAYOUT_MODULES = 5
 LAYOUT_WORKERS = 4
 CANARY_MODULE = LAYOUT_MODULES
 
-# What one audit of a language costs, in seconds, read off the five layout modules' times in tests/data/durations.json
-# (advanced lane, CI run 43010359934, 22 languages: 1345.6, 916.6, 777.0, 10.3 and 12.1 s for modules 1-5) and what each
-# module audits (layout_deal). The audits do not run side by side in any real way: 71 audits that take about ten seconds
-# alone (module 4's one Thai audit, 10.3 s with its set-up) took 777 s in module 3, so a module's time is about the SUM of
-# its audits, and a cost is what an audit adds to it: Japanese 336 (module 1's four, 1345.6 s), Chinese and Korean a
-# little, every other language about ten and a half. Summed over the five modules the measured run dealt (4 Japanese; 33
-# of the CJK and the first Latin languages; 71 of the rest; 1; 1) they give 1344, 910, 775, 10.5 and 21 s against the
-# measured 1346, 917, 777, 10 and 12. They set the order the deal fills the modules in and the floor of audit_timeout; they
-# were 1270, 420, 320, 50 and 10 until v0.6.23, before v0.6.17's remembered WrapLabel answers cut CJK's measuring most.
-# The deal fills each module to the time of its longest audit (layout_deal), so with these costs it puts 4 Japanese into
-# module 1 and nearly all the rest into module 2: about 1344, 1328, 42, 42 and 304 s, the same longest module as before.
+# How long the layout audits take, and what the deal weighs them by. A module's time is about the SUM of its audits, not
+# the share of its slowest process: tests/data/durations.json (advanced lane, CI run 43010359934, 22 languages) has the
+# five modules of the old deal (4 Japanese; 33 of the CJK and the first Latin languages; 71 of the rest; 1; 1) at 1345.6,
+# 916.6, 777.0, 10.3 and 12.1 s, and 71 audits that take about ten seconds alone (module 4's one Thai audit, 10.3 s with its
+# set-up) took 777 s in module 3, so the four processes of a module do not run side by side in any real way. A cost is
+# what an audit adds to a module: Japanese 336 (module 1's four, 1345.6 s), Chinese and Korean a little, every other
+# language about ten and a half. Summed over those five modules the costs give 1344, 910, 775, 10.5 and 21 s against the
+# measured 1346, 917, 777, 10 and 12. They were 1270, 420, 320, 50 and 10 until v0.6.23, before v0.6.17's remembered
+# WrapLabel answers cut CJK's measuring most. The costs set the order of the deal (layout_deal) and the floor of
+# audit_timeout. The deal balances the modules' summed costs: the 5 Japanese go to a module each, and with these costs the
+# five modules' sums are 620.5, 610, 610, 610 and 610 s (the canary's 10.5 s is counted in module 5 from the start), where
+# the old fill-to-the-longest-audit deal gave about 1344, 1328, 42, 42 and 304.
 AUDIT_COST = {"ja": 336, "zh-TW": 30, "zh-CN": 40, "ko": 15}
 OTHER_AUDIT_COST = 10.5
 
@@ -570,36 +571,25 @@ def audit_cost(locale: str) -> float:
 
 @functools.lru_cache(maxsize=None)
 def layout_deal() -> tuple:
-    """Every language at every scaling, dealt over the LAYOUT_MODULES modules by what each audit costs (v0.6.17;
-    until then the languages were dealt round, and the module with Japanese took 43 minutes while another took one).
+    """Every language at every scaling, dealt over the LAYOUT_MODULES modules by what each audit costs, so that the
+    modules' summed costs are about equal (v0.6.17 dealt by the slowest process's share; the measured times, see
+    AUDIT_COST, say a module takes about the sum of its audits, and v0.6.23 changed the deal to match).
 
-    A module takes as long as the slowest of its LAYOUT_WORKERS processes, and that is at least its longest audit; so
-    module by module, the longest audit left sets the module's time and the module is filled - longest first, each to
-    its least loaded process - with every audit that fits in that time, keeping one for each module still to come.
-    The last module takes what is left, beside the canary. Each (language, scaling) is in exactly one module.
-    Deterministic: a tuple per module of (locale, scale), in l10n.LOCALES and SCALES order."""
+    Longest audit first (cost, then l10n.LOCALES order, then SCALES order), each to the module with the least summed cost
+    so far, the lowest-numbered on a tie; the canary's OTHER_AUDIT_COST counts in CANARY_MODULE from the start. Each
+    (language, scaling) is in exactly one module, every module audits something (110 audits over 5 modules), and the
+    deal is deterministic: a tuple per module of (locale, scale), in l10n.LOCALES and SCALES order."""
     locales = [str(locale) for locale in l10n.LOCALES]
     left = sorted(((locale, scale) for locale in locales for scale in SCALES),
                   key=lambda job: (-audit_cost(job[0]), locales.index(job[0]), SCALES.index(job[1])))
-    modules = []
-    for module in range(1, LAYOUT_MODULES + 1):
-        loads = [0.0] * LAYOUT_WORKERS
-        if module == CANARY_MODULE:
-            loads[-1] += OTHER_AUDIT_COST
-        last = module == LAYOUT_MODULES
-        later = LAYOUT_MODULES - module
-        wall = max([audit_cost(left[0][0])] + loads) if left else max(loads)
-        taken = []
-        for job in list(left):
-            if len(left) <= later:
-                break
-            least = min(range(LAYOUT_WORKERS), key=lambda share: (loads[share], share))
-            if last or loads[least] + audit_cost(job[0]) <= wall:
-                loads[least] += audit_cost(job[0])
-                taken.append(job)
-                left.remove(job)
-        modules.append(tuple(sorted(taken, key=lambda job: (locales.index(job[0]), SCALES.index(job[1])))))
-    return tuple(modules)
+    sums = [0.0] * LAYOUT_MODULES
+    sums[CANARY_MODULE - 1] += OTHER_AUDIT_COST
+    modules = [[] for _ in range(LAYOUT_MODULES)]
+    for job in left:
+        least = min(range(LAYOUT_MODULES), key=lambda module: (sums[module], module))
+        sums[least] += audit_cost(job[0])
+        modules[least].append(job)
+    return tuple(tuple(sorted(taken, key=lambda job: (locales.index(job[0]), SCALES.index(job[1])))) for taken in modules)
 
 
 def layout_jobs(module: int) -> tuple:
