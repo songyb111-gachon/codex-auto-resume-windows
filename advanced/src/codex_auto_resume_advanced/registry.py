@@ -1562,7 +1562,9 @@ LONG_RESET_MESSAGE = CapabilityDef(
     id="long_reset_message",
     kind=CapabilityKind.ACTION,
     points=frozenset(),
-    # Revision 2 (v0.6.15-beta): "Longer messages" - a queued prompt's too (engine/promptqueue.py).
+    # Revision 2 (v0.6.15-beta): "Longer messages" - a queued prompt's too (engine/promptqueue.py). v0.6.23 (audit K2) adds
+    # to `does` that plain text has the whole 29,962 and many quotes or emoji fewer, refused when written: no new revision -
+    # what it lets a person do is the same, the sentence only says the command line's limit the send always had.
     revision=2,
     departs_from=("A27",),
     compat=None,
