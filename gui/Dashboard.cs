@@ -538,17 +538,36 @@ namespace CodexAutoResume
         public override Size GetPreferredSize(Size proposedSize)
         {
             Size size = base.GetPreferredSize(proposedSize);
-            if (Vertical || string.IsNullOrEmpty(Text)) return size;
-            int now = NameWidth(Font);
-            int widest = Math.Max(NameWidth(Soft.RoleFont("nav")), NameWidth(Soft.RoleFont("nav_current")));
-            if (widest > now) size.Width += widest - now;
+            if (measuring || Vertical || string.IsNullOrEmpty(Text)) return size;
+            int widest = Math.Max(WidthIn(Soft.RoleFont("nav"), proposedSize), WidthIn(Soft.RoleFont("nav_current"), proposedSize));
+            if (widest > size.Width) size.Width = widest;
             return size;
         }
 
-        // The name's width in `font`, on one line (remembered: Soft.Measure).
-        private int NameWidth(Font font)
+        // Each weight is measured exactly as Button measures it - by a tab of its own, never shown, set in that weight - since
+        // Button's own measure of the words is not TextRenderer's to the pixel; remembered by the words, the font and the room.
+        private static NavButton measurer;
+        private static readonly Dictionary<string, int> widths = new Dictionary<string, int>();
+        private bool measuring;
+
+        private int WidthIn(Font font, Size proposedSize)
         {
-            return Soft.Measure(Text, font, int.MaxValue, TextFormatFlags.SingleLine).Width;
+            if (ReferenceEquals(font, Font)) return base.GetPreferredSize(proposedSize).Width;
+            string key = System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(font).ToString(CultureInfo.InvariantCulture) + "|" +
+                         Padding + "|" + proposedSize + "|" + Text;
+            int width;
+            if (widths.TryGetValue(key, out width)) return width;
+            if (measurer == null)
+            {
+                measurer = new NavButton();
+                measurer.measuring = true;
+            }
+            measurer.Padding = Padding;
+            measurer.Font = font;
+            measurer.Text = Text;
+            width = measurer.GetPreferredSize(proposedSize).Width;
+            widths[key] = width;
+            return width;
         }
 
         /// v0.6.20: the arrow keys along a mirrored strip of tabs go the way it reads - Left to the next tab, which stands
