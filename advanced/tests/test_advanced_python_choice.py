@@ -780,6 +780,20 @@ class ReturnTests(Case):
         self.assertIsNone(self.record())
         self.assertEqual(hands.log, [])
 
+    def test_the_statement_says_what_turning_it_off_from_codex_does(self):
+        """M3 of the second round. The Codex tool's process never restarts the watcher (whatever it started, Codex would end
+        with it), so the watcher moves to the bundled Python at its next start; the stop statement said it restarted. Fails
+        with the sentence taken out of any catalog."""
+        english = json.loads((PACKAGE_DIR / "locales" / "en.json").read_text(encoding="utf-8"))["statement.python_choice.stop"]
+        self.assertIn("Turned off from Codex instead, the watcher moves to the bundled Python when it next starts.", english)
+        for path in sorted((PACKAGE_DIR / "locales").glob("*.json")):
+            with self.subTest(path.stem):
+                said = json.loads(path.read_text(encoding="utf-8"))["statement.python_choice.stop"]
+                self.assertIn("Codex", said, "the Codex path named")
+        text = (PACKAGE_DIR / "surfaces.py").read_text(encoding="utf-8")
+        self.assertEqual(text.count("actor=Actor.MCP), restart=False)"), 2,
+                         "the tool's two ways off leave the restart to the next start")
+
     def test_turning_something_else_off_changes_nothing(self):
         self.give_record()
         hands = Hands()

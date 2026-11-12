@@ -1192,7 +1192,7 @@
   "statement.python_choice.instead": "标准版只运行安装时附带的 Python，由它的发布版固定，它唯一的下载是来自 GitHub 的自身安装程序。",
   "statement.python_choice.departs": "B14（第二个 Python 运行时）、C1 和 C2（本程序的代码访问 python.org）、F3（程序自己获取的程序文件）、F6（启动所选的 python.exe）和 I10（本程序没有任何发布版固定过的 Python）。",
   "statement.python_choice.risks": "本程序在自带的 Python 上测试得最多，因此换一个版本可能表现不同；在这里 3.15 是预览版。如果无法访问 python.org，或某项检查失败，它会停在那一步，删除已解压的内容，说明是哪一步，并且不动正在使用的 Python。如果监视程序在所选版本上 45 秒内没有启动，它会自行回到自带的 Python，并告诉你一次。所选版本约占 30 MB，不会替你更新：要找更新的发布版，请按“检查 python.org”。",
-  "statement.python_choice.stop": "在本卡片上按“返回自带版本”，即使所选版本已损坏也能用；或者在这里关闭它，或一次关闭所有高级功能：监视程序会在自带的 Python 上重启。只保留所选版本，它的文件夹在没有任何程序从中运行后被删除。更新时，只要它所属的系列仍在提供，就会保留你的选择，否则会回到自带的 Python 并告知你。卸载时，该文件夹会随程序的其余部分一起删除。",
+  "statement.python_choice.stop": "在本卡片上按“返回自带版本”，即使所选版本已损坏也能用；或者在这里关闭它，或一次关闭所有高级功能：监视程序会在自带的 Python 上重启。如果从 Codex 关闭，监视程序会在下次启动时改用自带的 Python。只保留所选版本，它的文件夹在没有任何程序从中运行后被删除。更新时，只要它所属的系列仍在提供，就会保留你的选择，否则会回到自带的 Python 并告知你。卸载时，该文件夹会随程序的其余部分一起删除。",
   "page.python.title": "Python 版本",
   "page.python.help": "在你按下按钮之前，不会从网络读取任何内容。“检查 python.org”列出每个版本中 python.org 随 Windows 嵌入式包一起发布的最新发布版；“使用此版本”从 www.python.org 下载它，并在运行之前检查它。",
   "page.python.in_use": "监视程序正在 Python {version} 上运行。",
