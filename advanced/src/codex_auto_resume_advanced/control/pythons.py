@@ -93,6 +93,8 @@ WATCHER_WAIT = 45.0                         # scripts/watcher_launcher.WATCHER_W
 LAUNCHER_ASKS_SEEN = 48.0
 RESTART_SECONDS = 2 * (LAUNCHER_ASKS_SEEN + WATCHER_WAIT)
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+# What tells the launcher it was started to follow a stop (scripts/watcher_launcher.AFTER_STOP_MARK, kept there as this name).
+AFTER_STOP_MARK = "CODEX_AUTO_RESUME_AFTER_STOP"
 CODES = ("checked", "check_failed", "asked", "chosen", "next_start", "refused", "returned", "back")
 
 _LOCK = threading.Lock()
@@ -621,21 +623,28 @@ def _switched(runtime, version, target, hands, failed) -> dict:
 
 def restart_watcher(paths) -> str:
     """Stop the watcher and start it again through its launcher, on the bundled runtime, which is where the launcher does
-    its own check. NOT_RUNNING where none runs: it takes the choice at its next start, and nothing is started for it."""
+    its own check. NOT_RUNNING where none runs: it takes the choice at its next start, and nothing is started for it.
+
+    The new launcher is started first, detached, and the stop asked after it (v0.6.23 final, R10 of the second round's
+    limits audit): this runs on a daemon thread of the Dashboard's bridge process, which ends with the window, and a window
+    closed between the stop and the start left the watcher stopped with none started. The launcher, told so by
+    AFTER_STOP_MARK, waits for the watcher it follows to end and then starts it as ever, whatever became of this process; a
+    watcher that does not stop is left running, and it takes the choice at its next start."""
     from codex_auto_resume import startup
     from codex_auto_resume.control import Control, await_watcher
     layer = Control(paths)
     if layer.watcher_running() is not True:
         return NOT_RUNNING
-    if layer.stop_watcher().get("stopped") is not True:
-        return STILL_RUNNING
     home = Path(paths.home)
     flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
     interpreter = home / chosen_runtime.BUNDLED / "pythonw.exe"
     script = home / "watcher-launcher.py"
     process = subprocess.Popen([str(interpreter), *startup.NO_REMOTE_DEBUG, str(script), "run"],
                                cwd=str(home), close_fds=True, creationflags=flags, stdin=subprocess.DEVNULL,
-                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                               env=dict(os.environ, **{AFTER_STOP_MARK: "1"}))
+    if layer.stop_watcher().get("stopped") is not True:
+        return STILL_RUNNING
     return await_watcher(layer.watcher_running, process, timeout=RESTART_SECONDS)["state"]
 
 

@@ -49,6 +49,16 @@ EXIT_SCHEMA_NEWER = 4
 # stopped stays stopped until a person starts it. The standard edition has no supervisor (F8).
 EXIT_MEMORY_GUARD = 5
 RELAUNCH_MARK = "CODEX_AUTO_RESUME_RELAUNCHED"
+# v0.6.23 final (R10 of the second round's limits audit): a launcher started to follow a stop another process is about to
+# ask - the Python choice's restart of the watcher (advanced control/pythons.restart_watcher, its own copy of this name). It
+# is started before that stop, so a window closed mid-restart cannot leave the watcher stopped and none started: it waits
+# for the watcher it follows to let go of its mutex, at most AFTER_STOP_WAIT, and starts the watcher as ever; one that is
+# still running then is left alone, and this launcher ends. Three times control.WATCHER_STOP_TIMEOUT, the 10 s the asking
+# process waits for the stop, since this one may be up before the stop is even asked. Read once and taken out of this
+# process's environment, so nothing it starts inherits it.
+AFTER_STOP_MARK = "CODEX_AUTO_RESUME_AFTER_STOP"
+AFTER_STOP_WAIT = 30.0
+AFTER_STOP_POLL = 0.25
 # The marketplace names this product is published under. See resolve_plugin_root.
 OUR_MARKETPLACES = frozenset({"codex-auto-resume-windows"})
 EXIT_ERROR = 1
@@ -231,6 +241,8 @@ def main(argv=None) -> int:
         _complain(home, "no installed codex-auto-resume engine found; not starting")
         return EXIT_ERROR
     sys.path.insert(0, str(root / "src"))
+    if os.environ.pop(AFTER_STOP_MARK, None) and not _after_stop(here, home):
+        return 0
     # Arguments select the command, defaulting to the watcher. The notification button
     # registers `activate` through this same stable path, so a plugin update cannot leave
     # the button pointing at a version directory that no longer exists.
@@ -278,6 +290,33 @@ def main(argv=None) -> int:
     elif asks:
         _supervise(home, {"phase": PHASE_ENDED, "exit_code": code})
     return code
+
+
+def _after_stop(here: Path, home: Path) -> bool:
+    """Whether to go on once the watcher this launcher was started to follow has let go of its mutex (AFTER_STOP_MARK):
+    True once it has, or where that cannot be told at the end - the mutex settles a race, and a second watcher exits busy;
+    False where it still runs after AFTER_STOP_WAIT, and nothing is started."""
+    _note(here, "started to follow a stop of the watcher; waiting up to %d s for it to end" % AFTER_STOP_WAIT)
+    try:
+        from codex_auto_resume import config
+        from codex_auto_resume.runtime.app import App
+        probe = App(config.Paths(home), console=False, enable_logging=False).watcher_running
+    except Exception:                               # noqa: BLE001 - not known is not a reason to start nothing
+        return True
+    ends = time.monotonic() + AFTER_STOP_WAIT
+    while True:
+        try:
+            running = probe()
+        except Exception:                           # noqa: BLE001 - not known yet
+            running = None
+        if running is False:
+            return True
+        if time.monotonic() >= ends:
+            if running is True:
+                _note(here, "the watcher it followed still runs after %d s; not starting another" % AFTER_STOP_WAIT)
+                return False
+            return True
+        time.sleep(AFTER_STOP_POLL)
 
 
 def _unsupervised(home: Path, word) -> None:
