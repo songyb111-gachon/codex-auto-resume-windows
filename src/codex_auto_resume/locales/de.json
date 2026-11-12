@@ -897,7 +897,7 @@
   "overview.due": "Jetzt zur Prüfung fällig",
   "overview.engine": "Codex-Engine",
   "overview.last_check": "Letzte Prüfung",
-  "overview.managed": "{state} · von Ihrem Administrator verwaltet",
+  "overview.managed": "{state} · per Richtlinie",
   "overview.next": "Nächste Prüfung in {time}",
   "overview.none_waiting": "Nichts wartet auf Wiederherstellung",
   "overview.not_enough": "noch nicht genug Daten",
