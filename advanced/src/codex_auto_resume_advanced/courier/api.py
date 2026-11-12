@@ -24,8 +24,9 @@ offered and wrong counts towards the lock, so a request with none, which any web
 local_api_actions does not stand on is 403; a body over MAX_BODY is 413. No answer carries a CORS header, a cookie or a
 server's version, and a query string is never read: the token never travels in an address. Requests are served by at
 most THREADS threads at a time; each read waits TIMEOUT seconds at most, and each request, from its connection to its
-answer, has DEADLINE seconds in all - then its connection is shut - so a few clients that trickle a byte at a time cannot
-hold every slot. Nothing is logged: not a request, not an address, not a failure.
+answer, has DEADLINE seconds in all - then its connection is shut - and after its answer LINGER_SECONDS more in all, so a
+few clients that trickle a byte at a time cannot hold every slot, before the answer or after it. Nothing is logged: not a
+request, not an address, not a failure.
 """
 from __future__ import annotations
 
@@ -48,8 +49,8 @@ MAX_BODY = 1024
 THREADS = 8
 TIMEOUT = 10                       # seconds one read may wait
 DEADLINE = 10                      # seconds one request may take in all, its connection to its answer
-LINGER_SECONDS = 1.0               # after its answer, how long a connection waits for what the client still sends
-LINGER_BYTES = 64 * 1024           # and how much of that it reads and drops
+LINGER_SECONDS = 1.0               # after its answer, how long in all a connection waits for what the client still sends
+LINGER_BYTES = 64 * 1024           # and how much of that it reads and drops, at most
 LOCK_AFTER, LOCK_WINDOW, LOCK_SECONDS = 10, 60, 300
 # Every route, with the methods it takes and whether it changes anything (an action, local_api_actions'). A test holds
 # this table to the design's: reads and reduce-actions, nothing else.
@@ -204,12 +205,18 @@ class Handler(BaseHTTPRequestHandler):
         """The answer ends here, and what the client sent that was not read is read and dropped before the socket is
         closed. A refusal (401, 404, 405, 413) answers on the headers alone, and a body that is unread or still on its way
         to a socket already closed resets the connection: a client that has not read the answer yet loses it. Bounded
-        both ways, so a client that neither sends nor closes holds its slot for a moment only."""
+        both ways, and in all from the answer: LINGER_SECONDS of waiting in total, not for each read (S1, the second
+        security review of v0.6.23: one byte a second kept a slot for hours), and LINGER_BYTES - so a client holds its
+        slot past its answer for a moment only, whatever it sends."""
         try:
             self.connection.shutdown(socket.SHUT_WR)
-            self.connection.settimeout(LINGER_SECONDS)
+            end = time.monotonic() + LINGER_SECONDS
             left = LINGER_BYTES
             while left > 0:
+                wait = end - time.monotonic()
+                if wait <= 0:
+                    break
+                self.connection.settimeout(wait)
                 got = self.connection.recv(min(left, 4096))
                 if not got:
                     break

@@ -395,6 +395,62 @@ class SlowClientTests(ServerCase):
             self.assertEqual(self.status("/status.json"), 200)
         stop.set()
 
+    def test_clients_that_trickle_after_their_answer_hold_no_slot_past_the_linger(self):
+        """S1 (the second security review of v0.6.23): fails with _linger's deadline counted for each read again - a
+        client answered at once (421, no token needed) that then sends a byte every quarter second keeps reading in the
+        linger for hours, and eight of them close everyone else unanswered, the right token too."""
+        import threading
+        stop = threading.Event()
+        self.addCleanup(stop.set)
+        answered = []
+        for _ in range(api.THREADS):
+            raw = socket.create_connection(("127.0.0.1", self.port), timeout=10)
+            self.addCleanup(raw.close)
+            raw.sendall(b"GET /nope HTTP/1.0\r\nHost: evil.example\r\n\r\n")
+            answered.append(raw)
+        for raw in answered:
+            self.assertIn(b"421", raw.recv(4096).split(b"\r\n")[0])
+
+        def trickle(raw):
+            while not stop.is_set():
+                try:
+                    raw.sendall(b"a")
+                except OSError:
+                    return
+                time.sleep(0.25)
+        for raw in answered:
+            threading.Thread(target=trickle, args=(raw,), daemon=True).start()
+        time.sleep(api.LINGER_SECONDS + 1.5)
+
+        def legit():
+            try:
+                return self.status("/status.json")
+            except (OSError, http.client.HTTPException):
+                return "closed unanswered"
+        with patch.object(remote, "status_document", lambda layer, now: {"format": "x"}):
+            self.assertEqual(legit(), 200)
+            self.assertEqual(self.status("/status.json", token="wrong"), 401, "and the statement's refusals stand")
+        stop.set()
+
+    def test_a_client_that_trickles_into_the_linger_has_it_cut_at_its_time_in_all(self):
+        """The linger alone, timed: a byte every quarter second never lets one read wait LINGER_SECONDS, and still
+        the connection is closed within LINGER_SECONDS of the answer, not when the bytes stop. The server shuts its
+        sending side at the answer, so the close shows as the first byte refused (the reset of a closed socket)."""
+        with socket.create_connection(("127.0.0.1", self.port), timeout=10) as raw:
+            raw.sendall(b"GET /nope HTTP/1.0\r\nHost: evil.example\r\n\r\n")
+            self.assertIn(b"421", raw.recv(4096).split(b"\r\n")[0])
+            began = time.monotonic()
+            refused = None
+            while time.monotonic() - began < api.LINGER_SECONDS + 5:
+                try:
+                    raw.sendall(b"a")
+                except OSError:
+                    refused = time.monotonic() - began
+                    break
+                time.sleep(0.25)
+        self.assertIsNotNone(refused, "still read %.0f s after the answer" % (api.LINGER_SECONDS + 5))
+        self.assertLess(refused, api.LINGER_SECONDS + 1.5)
+
 
 class HeaderTests(ServerCase):
     def test_no_answer_carries_cors_a_cookie_or_a_version(self):
