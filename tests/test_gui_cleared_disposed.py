@@ -101,9 +101,13 @@ try {
   $out.cleared = Left $before
   $out.recent_after = $grid.Controls.Count
 
-  # The Codex homes' rows, rebuilt when what they show changed.
-  Call 'ShowPage' $script:form @('settings') | Out-Null
-  Call 'Materialise' $null @($script:form) | Out-Null
+  # The Codex homes' rows, rebuilt when what they show changed: their card built as the Settings page builds it
+  # (BuildHomes), into a stack of its own on the window, since the page's editors wait for the settings read.
+  # Made by the constructor, not New-Object: New-Object's output is a PSObject, which Invoke cannot pass as a TableLayoutPanel.
+  $stack = [Windows.Forms.TableLayoutPanel]::new()
+  $script:form.Controls.Add($stack)
+  $null = $stack.Handle
+  Call 'BuildHomes' $script:form @(,$stack) | Out-Null
   $rows = Field 'homesRows'
   if ($null -eq $rows) { throw 'no homesRows' }
   $null = $rows.Handle
