@@ -32,6 +32,16 @@ def _client(client_id) -> str:
     return client_id
 
 
+class SteerRefused(StateError):
+    """A steer `add_steer` did not write because its bounds, counted inside its own transaction, refuse it: `reason`
+    is BEING_SENT (one still waits in that conversation) or QUEUE_FULL (the caps)."""
+    BEING_SENT, QUEUE_FULL = "being_sent", "queue_full"
+
+    def __init__(self, reason):
+        super().__init__(reason)
+        self.reason = reason
+
+
 class SteersMixin:
     def steers(self, since=0.0) -> list:
         """Every steer asked at `since` or later, oldest first, with its words."""
@@ -53,13 +63,27 @@ class SteersMixin:
                 "SELECT %s FROM steers WHERE state IN (?, ?) ORDER BY created_at, steer_id" % COLUMNS,
                 WAITING).fetchall()]
 
-    def add_steer(self, thread_id, words, client_id, at=None) -> int:
-        """A steer asked for, `requested`; its id."""
+    def add_steer(self, thread_id, words, client_id, at=None, *, bounds=None) -> int:
+        """A steer asked for, `requested`; its id. `bounds` (day seconds, most in all, most in one conversation), where
+        given, are counted over the steers asked in the last day inside this same write transaction (v0.6.23 final,
+        audit M11) - one still waiting in that conversation, or a cap reached, raises SteerRefused and writes nothing -
+        so two requests at once can never both pass the checks and both be written."""
         _thread(thread_id)
         if not isinstance(words, str) or not words.strip() or len(words) > STEER_WORDS:
             raise StateError("invalid words")
         now = self._now(at)
         with self._transaction() as connection:
+            if bounds is not None:
+                day, per_day, per_conversation = bounds
+                since = max(0.0, now - day)
+                if connection.execute("SELECT 1 FROM steers WHERE created_at >= ? AND thread_id = ? AND state IN (?, ?)",
+                                      (since, thread_id) + tuple(WAITING)).fetchone() is not None:
+                    raise SteerRefused(SteerRefused.BEING_SENT)
+                total, mine = connection.execute(
+                    "SELECT count(*), coalesce(sum(thread_id = ?), 0) FROM steers WHERE created_at >= ?",
+                    (thread_id, since)).fetchone()
+                if total >= per_day or mine >= per_conversation:
+                    raise SteerRefused(SteerRefused.QUEUE_FULL)
             return connection.execute(
                 "INSERT INTO steers (thread_id, words, client_id, state, created_at) VALUES (?,?,?,?,?)",
                 (thread_id, words, _client(client_id), SteerState.REQUESTED, now)).lastrowid
