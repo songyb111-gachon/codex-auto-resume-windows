@@ -542,20 +542,37 @@ $check.Checked = $true
 $out.check.windows = @([double](P $check 'Progress'), [bool](P $check 'Moving'))
 $check.Checked = $false
 $animates.SetValue($null, [Said]::Answer($true))
+# Where a glide stands is read off the clock, so each read is bracketed by the clock too: the glide began after
+# `$clock` started and before `$set` was taken, so at a read it had run at least (before - $set) and at most
+# `after` milliseconds. A pump that stalls moves the read along the curve; it never moves the curve.
+function Glide($c, $sw, [double]$set) {
+    $e0 = $sw.Elapsed.TotalMilliseconds
+    $read = @([double](P $c 'Progress'), [bool](P $c 'Moving'))
+    $e1 = $sw.Elapsed.TotalMilliseconds
+    return @{ read = $read
+              atLeast = [double](S 'Motion' 'Ease' @([double](($e0 - $set) / $out.duration)))
+              atMost = [double](S 'Motion' 'Ease' @([double]($e1 / $out.duration)))
+              over = [bool](($e0 - $set) -ge $out.duration) }
+}
 $clock = [Diagnostics.Stopwatch]::StartNew()
 $check.Checked = $true
+$set = $clock.Elapsed.TotalMilliseconds
 $out.check.started = @([double](P $check 'Progress'), [bool](P $check 'Moving'))
 $out.check.startedAtMost = [double](S 'Motion' 'Ease' @([double]($clock.Elapsed.TotalMilliseconds / $out.duration)))
 Pump 60
-$out.check.middle = @([double](P $check 'Progress'), [bool](P $check 'Moving'))
+$out.check.middleRead = Glide $check $clock $set
+$out.check.middle = $out.check.middleRead.read
 $check.Checked = $false
 $out.check.reversed = @([double](P $check 'Progress'), [bool](P $check 'Moving'))
 Pump 400
 $out.check.settled = @([double](P $check 'Progress'), [bool](P $check 'Moving'))
 $check.GetType().GetProperty('Box', $instance).SetValue($check, $true, $null)
+$clock = [Diagnostics.Stopwatch]::StartNew()
 $check.Checked = $true
+$set = $clock.Elapsed.TotalMilliseconds
 Pump 60
-$out.check.box = @([double](P $check 'Progress'), [bool](P $check 'Moving'))
+$out.check.boxRead = Glide $check $clock $set
+$out.check.box = $out.check.boxRead.read
 Pump 400
 $out.check.boxSettled = @([double](P $check 'Progress'), [bool](P $check 'Moving'))
 $form.Close(); $form.Dispose()
@@ -1121,6 +1138,18 @@ class ControlsTests(unittest.TestCase):
         self.assertEqual(tracks[-1], channels(colours["accent"])[1:], "on, the accent")
         self.assertEqual(boxes[-1], channels(colours["accent"])[1:], "checked, the accent")
 
+    def glide_is_on_the_curve(self, read, what):
+        """A glide read some time after it began: between off and on and still moving while its time is not
+        up, never behind where the curve stands for the least time it has run nor ahead of where it stands for
+        the most; once its whole time has surely gone, on. One that does not move fails both ways."""
+        progress, moving = read["read"]
+        self.assertLessEqual(progress, read["atMost"] + 1e-6, what + " is ahead of its curve")
+        self.assertGreaterEqual(progress, read["atLeast"] - 1e-6, what + " is behind its curve")
+        if read["over"]:
+            self.assertEqual(progress, 1.0, what + ": its time is over, so it has arrived")
+        else:
+            self.assertTrue(0.0 < progress < 1.0 and moving, what + " is between off and on, on its way")
+
     def test_a_real_switch_glides_then_stops_and_is_immediate_when_it_cannot_be_seen_or_motion_is_reduced(self):
         check = self.answer["check"]
         self.assertEqual(check["unshown"], [1.0, False], "not on screen: at once")
@@ -1136,12 +1165,11 @@ class ControlsTests(unittest.TestCase):
         # be at or before where the curve stands for all the time the change and the read took.
         self.assertLessEqual(progress, check["startedAtMost"] + 1e-6)
         middle, moving = check["middle"]
-        self.assertTrue(0.0 < middle < 1.0 and moving, "between off and on, on its way")
+        self.glide_is_on_the_curve(check["middleRead"], "a switch")
         reversed_, moving = check["reversed"]
         self.assertAlmostEqual(reversed_, middle, delta=0.35, msg="turned back, it goes back from where it was")
         self.assertTrue(moving)
-        progress, moving = check["box"]
-        self.assertTrue(0.0 < progress < 1.0 and moving, "a check box fades too")
+        self.glide_is_on_the_curve(check["boxRead"], "a check box")
 
     # ---------------------------------------------------------------- a list's bar across its bottom
 
