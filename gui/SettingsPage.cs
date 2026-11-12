@@ -445,6 +445,8 @@ namespace CodexAutoResume
             columns.SuspendLayout();
             foreach (TableLayoutPanel stack in sections.Values)
             {
+                // v0.6.23 (G4): what is taken off is disposed once the editors that replace it are built (the last step).
+                foreach (Control removed in stack.Controls) retiredEditors.Add(removed);
                 stack.Controls.Clear();
                 stack.RowStyles.Clear();
             }
@@ -758,7 +760,16 @@ namespace CodexAutoResume
             // Not read yet: until a status read says what Windows holds (ApplyStatus), Save leaves the entry alone.
             startupKnown = false;
             if (!auditing) RefreshStatusAsync(null);
+            // v0.6.23 (G4): the editors this build replaced - Restore defaults, or the settings read again - disposed now
+            // that each has its successor. Clear only took them off: each kept its window handle, and everything it
+            // holds, for the life of the process.
+            List<Control> retired = retiredEditors;
+            retiredEditors = new List<Control>();
+            foreach (Control old in retired) old.Dispose();
         }
+
+        // v0.6.23 (G4): what the builds of the editors under way took off the page, disposed at the end of the build.
+        private List<Control> retiredEditors = new List<Control>();
 
         private IEnumerator<bool> ContinuationSteps(Dictionary<string, Dictionary<string, object>> fields,
                                                     Dictionary<string, object> current, TableLayoutPanel words,

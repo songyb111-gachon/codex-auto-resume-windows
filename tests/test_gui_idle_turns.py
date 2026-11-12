@@ -1,6 +1,6 @@
 r"""What the window does on its idle turns waits for its glides and its person, and survives a step that throws (v0.6.23).
 
-The second round's audit (design and motion F2; windows G6):
+The second round's audit (design and motion F2; windows G6 and G4):
 
 * F2 - in the first seconds after the window opened, its idle turns made the pages ready ahead (PrepareNext) and built the
   Settings editors (BuildEditorsLater), a step a turn. A step taken between two frames of a glide held the glide for the
@@ -11,6 +11,9 @@ The second round's audit (design and motion F2; windows G6):
   UiFaults ended the window; and a page shown kept the page host held from laying itself out when something threw while it
   was held. A step that throws is now written to errors.log once and its page given up (PrepareFailed); ShowPage lets go
   of what it holds in its finally.
+* G4 - the Settings editors built again (Restore defaults, the settings read again) took the old ones off the page
+  without disposing them, so each kept its window handle for the life of the process. They are disposed once the new
+  ones are built.
 
 The live probe: the real window, standard edition, shown far off the screen in a frame that is never activated, answered
 from the pictures' pinned scratch installation as the render mode is; its idle turns raised one at a time.
@@ -259,6 +262,26 @@ namespace CodexAutoResume
             frame.Close();
             frame.Dispose();
 
+            // G4: the editors built again (the settings read again, on Settings, as Restore defaults reads them) dispose
+            // the ones they replace.
+            frame = new IdleTurnsFrame();
+            form = IdleWindow(frame);
+            IdlePump(30000, delegate { return form.settingsRead && form.snapshot != null && form.bridge.InFlight == 0; });
+            form.navButtons["settings"].PerformClick();
+            var old = new List<Control>();
+            foreach (TableLayoutPanel stack in form.sections.Values) foreach (Control control in stack.Controls) old.Add(control);
+            Control oldCombo = form.interfaceCombo;
+            form.Reload();
+            IdlePump(30000, delegate { return form.interfaceCombo != oldCombo && !form.buildQueued && form.pendingSchema == null && form.editorSteps == null; });
+            int disposed = 0;
+            foreach (Control control in old) if (control.IsDisposed) disposed++;
+            outMap["rebuilt"] = form.interfaceCombo != oldCombo;
+            outMap["removed"] = (double)old.Count;
+            outMap["removed_disposed"] = (double)disposed;
+            outMap["new_ones_alive"] = !form.interfaceCombo.IsDisposed && form.interfaceCombo.Parent != null;
+            frame.Close();
+            frame.Dispose();
+
             lock (RenderMisses) outMap["misses"] = new List<object>(RenderMisses.ToArray());
             File.WriteAllText(outPath, Json.Write(outMap), new UTF8Encoding(false));
             return 0;
@@ -339,6 +362,11 @@ class IdleTurnTests(unittest.TestCase):
         self.assertEqual(self.answer["host_held_after_next"], 0)
         self.assertTrue(self.answer["overview_shown"])
 
+    def test_the_editors_built_again_dispose_the_ones_they_replace(self):
+        self.assertTrue(self.answer["rebuilt"])
+        self.assertGreater(self.answer["removed"], 5)
+        self.assertEqual(self.answer["removed_disposed"], self.answer["removed"], "an old editor kept its handle")
+        self.assertTrue(self.answer["new_ones_alive"])
 
 
 if __name__ == "__main__":
