@@ -80,6 +80,11 @@ SHIPPED_ASSETS = ("codex-auto-resume.ico", "icon.png", "logo.png", "logo-dark.pn
                   "screenshot-settings.png")
 SHIPPED_SCRIPTS = ("bootstrap.ps1", "plugin_setup.py", "release.json", "watcher_launcher.py")
 LISTED_TREES = {"assets": SHIPPED_ASSETS, "scripts": SHIPPED_SCRIPTS}
+# Files inside the trees that ship whole that no program of an installation imports or opens. They stay in the repository
+# (the tests read them from the tree) and stay out of both archives; tests/test_release_unread_modules.py holds the list
+# against the shipped code's import graph, so a module that someone starts to import is not left out by mistake.
+# control/wire.py: the reply shapes written as types, held to the golden copies by tests/test_wire_types.py.
+NOT_SHIPPED = ("src/codex_auto_resume/control/wire.py",)
 # Data files inside those trees that the product reads at run time. The trees are copied by
 # walking them, so nothing would notice one going missing until a user's machine did: the
 # bundled Compatibility Registry baseline would silently become "missing", and every
@@ -194,6 +199,8 @@ def fetch_runtime() -> Path:
 
 
 def _wanted(path: Path) -> bool:
+    if path.as_posix() in NOT_SHIPPED:
+        return False
     if path.name in EXCLUDE_NAMES or path.suffix.lower() in EXCLUDE_SUFFIXES:
         return False
     if any(part in EXCLUDE_ANYWHERE for part in path.parts):

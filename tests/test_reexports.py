@@ -159,13 +159,31 @@ def attributes_of(tree, names: set):
             yield node.attr
 
 
+_PARSED: dict = {}
+
+
+def parsed(path: Path):
+    """`path`'s tree, parsed once for as long as the file stays as it is.
+
+    Every front reads every file above, and parsing them is most of what this module costs, so the tree is kept under
+    (path, mtime_ns, size): a file edited between two rules is parsed again, and a rule still sees the file as it is."""
+    stat = path.stat()
+    key = (str(path), stat.st_mtime_ns, stat.st_size)
+    tree = _PARSED.get(key)
+    if tree is None:
+        for old in [each for each in _PARSED if each[0] == key[0]]:
+            del _PARSED[old]
+        tree = _PARSED[key] = ast.parse(path.read_text(encoding="utf-8"))
+    return tree
+
+
 def reads(front: str) -> dict:
     """{name: [the files that read `front`.name]}, over every file above."""
     found: dict[str, list[str]] = {}
     for path in readers():
         if path.name == "test_reexports.py":
             continue                                  # its own prose names them
-        tree = ast.parse(path.read_text(encoding="utf-8"))
+        tree = parsed(path)
         names = bound_to(tree, front, one_dot(path))
         if not names:
             continue
@@ -219,6 +237,20 @@ class ReExportTests(unittest.TestCase):
         self.assertEqual(names, {"tray"})
         self.assertEqual(sorted(attributes_of(tree, names)), ["Tray"])
 
+    def test_a_file_that_changes_is_parsed_again_and_one_that_does_not_is_not(self):
+        """What `parsed` keeps is a tree for as long as the file is as it was: edited, the next rule reads the edit."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "front.py"
+            path.write_text("from codex_auto_resume import tray\nx = tray.Old\n", encoding="utf-8")
+            first = parsed(path)
+            self.assertIs(parsed(path), first, "an unchanged file is parsed once")
+            self.assertEqual(sorted(attributes_of(first, {"tray"})), ["Old"])
+            path.write_text("from codex_auto_resume import tray\nx = tray.Newer\n", encoding="utf-8")
+            again = parsed(path)
+            self.assertIsNot(again, first)
+            self.assertEqual(sorted(attributes_of(again, {"tray"})), ["Newer"])
+
     def test_a_front_holds_no_code_of_its_own(self):
         """It is a name other programs hold and a list of re-exports. Anything else in it is
         code that escaped the package it was supposed to move into."""
@@ -248,7 +280,7 @@ def product_reads(front: str) -> dict:
     for path in list(srcscan.package_files()) + sorted((ROOT / "build").glob("*.py")):
         if own in path.as_posix():
             continue                                   # the package's own files
-        tree = ast.parse(path.read_text(encoding="utf-8"))
+        tree = parsed(path)
         names = bound_to(tree, front, one_dot(path))
         if not names:
             continue
@@ -284,7 +316,7 @@ class PatchPointTests(unittest.TestCase):
         for path in sorted((ROOT / "tests").glob("*.py")):
             if path.name == "test_reexports.py":
                 continue
-            tree = ast.parse(path.read_text(encoding="utf-8"))
+            tree = parsed(path)
             for front in FRONTS:
                 names = bound_to(tree, front)
                 if not names:
