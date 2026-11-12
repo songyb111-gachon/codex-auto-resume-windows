@@ -140,12 +140,60 @@ def credit_resets(scoped, rows) -> dict:
 def _switched_at(paths):
     """When account_auto_switch last put another Codex account in, or None (v0.6.23 audit A-R4): a window the meter read
     before that is the old account's, so the pause holds nothing on it - or every recovery the switch was made for would
-    wait for the old account's reset through the switch's early window. Read only where a window is held."""
+    wait for the old account's reset through the switch's early window."""
     try:
         from ..profiles import Profiles
         return Profiles(paths.home).last_switch_at()
     except Exception:
         return None
+
+
+# The capabilities that change the Codex account in use, and the stamps each keeps of when (changed_at), with how long
+# before the stamp the change is known to have been made: a switch is stamped once it is made, so a reading in that
+# very second may be the old account's; account_switch's watch stamps the change once it has seen it, so the change was
+# made before that second, and a reading made in it is the new account's (the meter reads at once after a change).
+AUTO_SWITCH, ACCOUNT_SWITCH = "account_auto_switch", "account_switch"
+CHANGE_STAMPS = ((AUTO_SWITCH, OptionKey.AUTO_SWITCHED_AT, 0), (ACCOUNT_SWITCH, OptionKey.ACCOUNT_CHANGED_AT, 1))
+
+
+def changed_at(paths, stamped_of=None, *, profiles=True):
+    """When the Codex account in use last changed, as far as this edition can tell, or None (v0.6.23 second round B1):
+    the newest of account_auto_switch's last switch (profiles' switch.last, which a person's Switch to this account
+    writes too; `profiles` False leaves that sealed file unread, for a caller that asks often), its stamp of it, and
+    the second before account_switch's watch saw another account signed in. `stamped_of` is the scoped handle's or the
+    state's reader of another capability's stamp, (capability, key) -> int or None. What cannot be read counts as no
+    change."""
+    found = [_switched_at(paths)] if profiles else []
+    for capability, key, before in CHANGE_STAMPS if stamped_of is not None else ():
+        try:
+            at = stamped_of(capability, key)
+        except Exception:
+            continue
+        if isinstance(at, (int, float)) and not isinstance(at, bool):
+            found.append(at - before)
+    found = [at for at in found if isinstance(at, (int, float)) and not isinstance(at, bool)]
+    return max(found) if found else None
+
+
+def before_change(row, changed) -> bool:
+    """Whether the meter read `row` at or before the change of account at `changed`: it is the old account's."""
+    return changed is not None and changed >= (row["read_at"] or 0)
+
+
+def of_account(rows, paths, stamped_of=None) -> list:
+    """The five-hour and weekly windows of `rows` (the meter's) that a stage may act on: those read after the Codex
+    account in use last changed (v0.6.23 second round B1). A reading made at or before an automatic switch, a person's
+    Switch to this account or another sign-in is the old account's - acting on it would tell the turns the switch freed,
+    on an account with room, to wrap up or stop, or hold them for the old account's reset. The one reader of the meter's
+    rows for every stage that acts on a window - the warning, the wrap-up, the forced stop and its pause - so the next
+    one cannot miss the rule (test_advanced_usage_switch)."""
+    changed = changed_at(paths, stamped_of)
+    return [row for row in windows(rows) if not before_change(row, changed)]
+
+
+def _stamped_of(scoped):
+    """The scoped handle's reader of another capability's stamp, or None where it has none."""
+    return getattr(scoped, "stamped_of", None)
 
 
 def stale(row, resets) -> bool:
@@ -219,9 +267,16 @@ class UsageMeter:
         except Exception:
             return DEFER
         last = max([*read, self._looked or 0]) if (read or self._looked) else None
-        if last is not None and 0 <= now - last < spacing:
+        if last is not None and 0 <= now - last < spacing and not self._changed_since(last):
             return DEFER
         return _Errand(self)
+
+    def _changed_since(self, last) -> bool:
+        """Whether the Codex account changed after the meter last read or looked (v0.6.23 second round B1): every row it
+        keeps is then the old account's, so it reads again at once rather than at its spacing. The stamps alone, read
+        every tick; the sealed switch.last is read where the rows are acted on (of_account)."""
+        changed = changed_at(self.paths, _stamped_of(self._scoped), profiles=False)
+        return changed is not None and changed > last
 
     def _running(self) -> bool:
         """Whether the Codex app runs now: the meter reads only then (core's pairing, through the backend)."""
@@ -264,7 +319,7 @@ class UsageMeter:
         self._sample(found)
         options = scoped.options()
         on = acting(options)
-        for row in windows(handle.rows()):
+        for row in of_account(handle.rows(), self.paths, _stamped_of(scoped)):
             if row["minutes"] not in on:
                 continue                                   # (e) a window switched off for it: shown, never warned of
             if reached(row, percent(options, METER, row["minutes"]), now) and row["warned_reset_at"] != row["reset_at"]:
@@ -344,7 +399,7 @@ class UsageWrapUp:
             return
         options = scoped.options()
         on = _acting(scoped)
-        due = [row for row in windows(scoped.meter.rows()) if row["minutes"] in on
+        due = [row for row in of_account(scoped.meter.rows(), self.paths, _stamped_of(scoped)) if row["minutes"] in on
                and now - row["read_at"] <= FRESH and reached(row, percent(options, WRAP_UP, row["minutes"]), now)]
         if not due:
             return
@@ -544,12 +599,20 @@ class UsagePause:
             on = _acting(scoped)
             rows = windows(handle.rows())
             resets = credit_resets(scoped, rows)
+            # (v0.6.23 second round B1) a reading from before the account changed is the old account's: nothing is held
+            # or stopped on it, and a hold it made lets go. Asked only where a window is over or held - this runs every
+            # tick, and the switch's own record is a sealed file.
+            current = set()
+            if any(row["paused_reset_at"] is not None or reached(row, percent(options, PAUSE, row["minutes"]), now)
+                   for row in rows):
+                current = {(row["bucket"], row["minutes"]) for row in of_account(handle.rows(), self.paths,
+                                                                                 _stamped_of(scoped))}
             for row in rows:
                 # (e) a window switched off is never held, and one held lets go when it is switched off.
                 acted = row["minutes"] in on
                 # (v0.6.17, P-8) a reading from before a reset credit of this window says nothing of it now:
                 # the window was emptied after it, so nothing is held on it and nothing newly held by it.
-                fresh = not stale(row, resets)
+                fresh = not stale(row, resets) and (row["bucket"], row["minutes"]) in current
                 over = acted and fresh and reached(row, percent(options, PAUSE, row["minutes"]), now)
                 held = row["paused_reset_at"]
                 if over and held != row["reset_at"]:
@@ -582,9 +645,9 @@ class UsagePause:
         if not held:
             return False
         resets = credit_resets(scoped, held)
-        switched = _switched_at(self.paths)
-        return any(not stale(row, resets) and not (switched is not None and switched >= (row["read_at"] or 0))
-                   for row in held)
+        # A-R4, and from the second round's B1 through the one rule every stage asks (of_account).
+        return any(not stale(row, resets) for row in of_account({(row["bucket"], row["minutes"]): row for row in held},
+                                                               self.paths, _stamped_of(scoped)))
 
     def gate(self, name, record, facts):
         """P3: HOLD a record of core's while a window holds; nothing for anything else."""
