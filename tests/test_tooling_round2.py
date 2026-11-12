@@ -8,10 +8,14 @@
   build and names the executable and the command that rebuilds it.
 * KoWatchLogicTests (M1) - ko-watch.yml counts ko as caught up only on a sync that was for main's
   current commit or a later one containing it, and dates main by its push, not its commit.
+* MaintainerToolConsoleTests (M2) - every console child the build tools and scripts start gets
+  CREATE_NO_WINDOW (edition_audit, legacy_bootstraps, measure_window, the community_* scripts).
 """
 from __future__ import annotations
 
+import contextlib
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -21,6 +25,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "build"))
@@ -147,6 +152,13 @@ class SmokeStepExitCodeTests(unittest.TestCase):
                             self.assertIn("LASTEXITCODE", following,
                                           "%s: a native command in a multi-line pwsh step is not "
                                           "followed by a check of its exit code" % workflow)
+
+
+def _load(name: str, path: Path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def _load_make_release():
@@ -436,6 +448,62 @@ class KoWatchLogicTests(unittest.TestCase):
             self.assertTrue(call.startswith("api "), call)
             for write in (" -X ", " --method", " -f ", " -F ", " --input"):
                 self.assertNotIn(write, call + " ")
+
+
+class MaintainerToolConsoleTests(unittest.TestCase):
+    """Every console child the build and release tools and the repository's scripts start gets
+    CREATE_NO_WINDOW, as the product's own do (tests/test_no_console_windows.py reads what the
+    release ships; these run on the owner's PC whenever a candidate is audited or measured, often
+    detached under a parent with no console, and each plain start would flash a window)."""
+
+    SPAWNERS = {"run", "Popen", "call", "check_call", "check_output"}
+    # Programs that are windows themselves, not console programs: Edge makes the README's pictures.
+    GUI_CHILDREN = {"build/make_screenshots.py": "starts Microsoft Edge, a GUI program"}
+    # The community scripts are found by their prefix: naming them here would make test_community_file's
+    # list of modules that read the filer's files ask for this one.
+    NAMED = ("build/edition_audit.py", "build/legacy_bootstraps.py", "build/measure_window.py",
+             "build/profile_tachyon.py", "build/make_release.py") + tuple(
+        "build/" + path.name for path in sorted((ROOT / "build").glob("community_*.py")))
+
+    def _starts_without_the_flag(self, relative: str) -> list:
+        import ast
+        tree = ast.parse((ROOT / relative).read_text(encoding="utf-8-sig"))
+        found = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module == "subprocess":
+                found.append((node.lineno, "from subprocess import: starts cannot be read by name"))
+            if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                    and node.func.attr in self.SPAWNERS and isinstance(node.func.value, ast.Name)
+                    and node.func.value.id == "subprocess"
+                    and not any(keyword.arg in ("creationflags", None) for keyword in node.keywords)):
+                found.append((node.lineno, "subprocess.%s without creationflags" % node.func.attr))
+        return found
+
+    def test_the_named_tools_start_every_child_without_a_window(self):
+        for relative in self.NAMED:
+            with self.subTest(relative):
+                self.assertEqual(self._starts_without_the_flag(relative), [])
+
+    def test_no_build_tool_or_script_starts_a_console_child_plainly(self):
+        files = sorted(str(path.relative_to(ROOT)).replace("\\", "/")
+                       for folder in ("build", "scripts") for path in (ROOT / folder).glob("*.py"))
+        self.assertTrue(set(self.NAMED) <= set(files))
+        for relative in files:
+            if relative in self.GUI_CHILDREN:
+                continue
+            with self.subTest(relative):
+                self.assertEqual(self._starts_without_the_flag(relative), [])
+
+    def test_the_scanner_finds_a_plain_start(self):
+        """A scanner that finds nothing proves nothing: the files it was added for, as they were."""
+        import ast
+        sample = ast.parse("import subprocess\nsubprocess.run(['git'], capture_output=True)\n"
+                           "subprocess.run(['git'], creationflags=0)\nsubprocess.Popen(['x'], **options)\n")
+        plain = [node.lineno for node in ast.walk(sample)
+                 if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                 and node.func.attr in self.SPAWNERS
+                 and not any(keyword.arg in ("creationflags", None) for keyword in node.keywords)]
+        self.assertEqual(plain, [2])
 
 
 if __name__ == "__main__":

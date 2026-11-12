@@ -65,6 +65,7 @@ if _HERE not in sys.path:
 import make_release  # noqa: E402
 import make_setup  # noqa: E402
 
+NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)     # no console window under a parent with none
 PACKAGE = make_release.ADVANCED_PACKAGE
 SKILL = make_release.ADVANCED_SKILL
 # What every shipped file under advanced/ says in its first lines (tests/editions.py, SENTINEL).
@@ -309,7 +310,8 @@ def identifiers(kind: str | None, content: str) -> set:
 
 
 def _git(root: Path, *arguments: str) -> bytes:
-    done = subprocess.run(["git", "-C", str(root), *arguments], capture_output=True, timeout=300)
+    done = subprocess.run(["git", "-C", str(root), *arguments], capture_output=True, timeout=300,
+                          creationflags=NO_WINDOW)
     if done.returncode != 0:
         raise SystemExit("git %s failed: %s" % (arguments[0], done.stderr.decode("utf-8", "replace").strip()))
     return done.stdout
@@ -637,7 +639,7 @@ def rebuild_standard(root: Path, work: Path) -> Path:
                                   "--edition", "standard", "--output", str(work / "dist")]))
     for step, command in steps:
         done = subprocess.run(command, capture_output=True, text=True, encoding="utf-8",
-                              errors="replace", timeout=1800)
+                              errors="replace", timeout=1800, creationflags=NO_WINDOW)
         if done.returncode != 0:
             raise SystemExit("(e) the rebuild's %s failed:\n%s"
                              % (step, (done.stderr or done.stdout)[-2000:]))
