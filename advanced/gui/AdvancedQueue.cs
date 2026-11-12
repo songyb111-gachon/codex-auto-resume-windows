@@ -71,7 +71,7 @@ namespace CodexAutoResume
             if (trigger == "at_time") return Word("page.queue.at", "at {time}", "time", time);
             string every = Str(row, "every") == "week" ? Word("page.queue.when.weekly", "Every week")
                                                        : Word("page.queue.when.daily", "Every day");
-            return Word("page.queue.series", "{every} at {time}, {sent} of {n}", "every", every).Replace("{time}", time)
+            return Word("page.queue.series", "{every} at {time}, {sent} of {n}", "time", time).Replace("{every}", every)
                    .Replace("{sent}", Mirror.Embed(Whole(Get(row, "sent_count")).ToString(CultureInfo.CurrentCulture)))
                    .Replace("{n}", Mirror.Embed(Whole(Get(row, "occurrences")).ToString(CultureInfo.CurrentCulture)));
         }

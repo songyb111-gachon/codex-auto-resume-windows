@@ -441,11 +441,14 @@ namespace CodexAutoResume
 
         /// The row's dialog asked for, once Pending's rows are read: the row chosen in the list and its dialog opened -
         /// after the read is written, and never in a window nobody sees, which only says what it would open. Asked
-        /// once: whatever the rows say, the request is spent, except while Pending is not built or an action is on its way.
+        /// once: whatever the rows say, the request is spent, except while Pending is not built, an action is on its way or
+        /// Pending is not the page these rows were written for: the person moved to another page before the read came, and
+        /// the request waits for the write of Pending that comes when they are back - never a dialog over another page.
         private void TakeRowAsked()
         {
             string asked = rowAsked;
             if (asked == null || pendingList == null || busy > 0) return;
+            if (currentPage != "pending" && writingPage != "pending") return;
             rowAsked = null;
             rowDialogOpened = null;
             var rows = new List<Dictionary<string, object>>();

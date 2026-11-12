@@ -364,7 +364,7 @@ namespace CodexAutoResume
                 if (AdvancedDone(result))
                 {
                     courierResults.Remove(channel);
-                    ResetNote(Word("page.done.courier_forgotten", "Forgotten."));
+                    ResetNote(Word("page.done.courier_forgotten", "Forgotten. Its address and secret are gone from Windows Credential Manager."));
                 }
                 ReadCourier(null);
                 if (!AdvancedDone(result)) TellAdvanced(CourierRefusal(Str(result, "refusal")));

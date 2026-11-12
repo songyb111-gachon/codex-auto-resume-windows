@@ -304,6 +304,17 @@ namespace CodexAutoResume
 
         private const int RecentRows = 4;
 
+        /// `parent`'s controls removed and disposed. ControlCollection.Clear removes and does not dispose: a removed control
+        /// whose handle was made keeps it, parked, for the life of the process (the windows audit's G4) - so each rebuild
+        /// collects, clears, then disposes, as the Advanced page's cards and the compatibility card do.
+        internal static void ClearDisposing(Control parent)
+        {
+            var old = new List<Control>();
+            foreach (Control control in parent.Controls) old.Add(control);
+            parent.Controls.Clear();
+            foreach (Control control in old) control.Dispose();
+        }
+
         private void FillRecent(List<object> history)
         {
             // Rebuilt only when what it shows changed: every five seconds the same rows
@@ -325,7 +336,7 @@ namespace CodexAutoResume
             if (key != recentShown)
             {
                 recentShown = key;
-                recentGrid.Controls.Clear();
+                ClearDisposing(recentGrid);
                 foreach (var row in rows)
                 {
                     // One line each, whatever the names are (see LineLabel).
@@ -361,7 +372,7 @@ namespace CodexAutoResume
         private void ClearRecent(string reason)
         {
             recentShown = null;
-            recentGrid.Controls.Clear();
+            ClearDisposing(recentGrid);
             recentEmpty.Text = reason;
             recentEmpty.Visible = true;
         }

@@ -57,7 +57,7 @@ namespace CodexAutoResume
             // #58's follow-up: whether a server of the Codex app's was matched, the one local check shown by itself: every
             // part below can read as compatible while none can be.
             compatServer = Fact(facts, S("compat.server", "Codex app's server"));
-            compatChecked = Fact(facts, S("compat.checked", "Checked"));
+            compatChecked = Fact(facts, S("compat.checked", "Evaluated"));
             compatData = Fact(facts, S("compat.data", "Data in force"));
             // What the view cannot vouch for - no report, one too old, an engine that changed, a watcher still acting on
             // what it found when it started, refreshed data that expired - each notice a callout of its own, as the
@@ -573,7 +573,7 @@ namespace CodexAutoResume
                 return S("diag.compat_refused", "The downloaded data was refused ({code}): {reason}. The data in force before still applies.")
                        .Replace("{code}", Mirror.Embed(reason ?? "?")).Replace("{reason}", RefusedBecause(reason));
             if (outcome == "unavailable")
-                return S("diag.compat_unavailable", "GitHub could not be reached, so nothing was changed.");
+                return S("diag.compat_unavailable", "The compatibility data could not be fetched, so nothing was changed.");
             if (outcome == "incomplete")
                 return S("diag.compat_incomplete",
                          "Files this installation is made of are missing, so the data could not be refreshed. Install it again from the release archive.");

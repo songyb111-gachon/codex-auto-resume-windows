@@ -219,7 +219,8 @@ def task_item(row, strings, now, keep=None) -> dict:
         # v0.6.11: what its row menu is drawn from - whether it still waits, whether it waits for a
         # person, and its conversation's own tier (None: Settings').
         "waiting": is_waiting(row) and not row.get("cancel_requested"),
-        "held": row.get("hold") is not None and not row.get("terminal"),
+        # Let it continue, by the Dashboard's rule (gui/DashboardData.cs CanRelease): held, not ended, and not cancelled.
+        "held": row.get("hold") is not None and not row.get("terminal") and not row.get("cancel_requested"),
         "tier": row.get("tier"),
         # And whether a person postponed it to a time still ahead, which Don't postpone takes away.
         "postponed": (row.get("postponed_until") or 0) > now,

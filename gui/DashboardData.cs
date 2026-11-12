@@ -611,7 +611,7 @@ namespace CodexAutoResume
                         if (versionsButton != null) versionsButton.Enabled = busy == 0 && !updatesManaged;
                         if (updatesManaged) diagUpdate.Text = S("diag.update_managed", "turned off by your administrator");
                         diagStartup.Text = Equals(Get(status, "startup_enabled"), true) ? S("diag.yes", "yes") : S("diag.no", "no");
-                        diagUpgrade.Text = upgrade ? S("diag.upgrade_pending", "An older watcher still owns the state") : "";
+                        diagUpgrade.Text = upgrade ? S("diag.upgrade_pending", "An older watcher still owns the state; finish by restarting the watcher") : "";
                     }
                 }
                 UpdateToggle();
@@ -678,8 +678,9 @@ namespace CodexAutoResume
                 if (pending) UpdatePendingButtons();
                 if (history) UpdateHistoryButtons();
                 SnapshotApplied(reply);
-                // v0.6.23: a row's dialog the popup asked for, against the rows just read (TakeRowAsked).
-                TakeRowAsked();
+                // v0.6.23: a row's dialog the popup asked for, against the rows just read (TakeRowAsked) - only when this
+                // read was written into Pending; otherwise the request waits for the write that is.
+                if (pending) TakeRowAsked();
             }
             finally { LayOutHeld(held); }
         }
@@ -764,7 +765,7 @@ namespace CodexAutoResume
         private string UnreadableReason(Dictionary<string, object> status)
         {
             return Equals(Get(status, "upgrade_pending"), true)
-                 ? S("diag.upgrade_pending", "An older watcher still owns the state")
+                 ? S("diag.upgrade_pending", "An older watcher still owns the state; finish by restarting the watcher")
                  : S("pending.unavailable", "This cannot be read right now");
         }
 
@@ -790,7 +791,7 @@ namespace CodexAutoResume
             string[] cells = pending
                 ? new[] { Labelled(row), CodeLabel(row), KindLabel(row), null, Attempts(row), "" }
                 : new[] { Labelled(row), CodeLabel(row), KindLabel(row),
-                          When(Number(row, "detected_at")), When(Number(row, "outcome_at")) };
+                          Mirror.Embed(When(Number(row, "detected_at"))), Mirror.Embed(When(Number(row, "outcome_at"))) };
             CellsWritten(row, pending, cells);
             return cells;
         }

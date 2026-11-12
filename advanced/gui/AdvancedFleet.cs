@@ -177,9 +177,9 @@ namespace CodexAutoResume
                              : seen == "quiet" ? Word("page.fleet.state.last_heard", "last heard {time}", "time", ClockTime(written))
                              : FleetState(peer));
             row.SubItems.Add(old ? "" : Whole(Get(peer, "pending")).ToString(CultureInfo.CurrentCulture));
-            row.SubItems.Add(due > 0 ? ClockTime(due) : "");
+            row.SubItems.Add(due > 0 ? Mirror.Embed(ClockTime(due)) : "");
             row.SubItems.Add(seen == "clock" ? Word("page.fleet.state.clock", "its clock differs from this PC's")
-                             : old ? When(written) : ClockTime(written));
+                             : old ? Mirror.Embed(When(written)) : Mirror.Embed(ClockTime(written)));
             // A row whose PC has not been seen for a week: its words quiet and its state a grey chip, as a refused row (DrawCell).
             if (old) row.Tag = new Dictionary<string, object> { { "code", PickUnavailable } };
             return row;

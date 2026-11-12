@@ -1028,6 +1028,8 @@ namespace CodexAutoResume
             advancedShown = shown;
             bool focused = advancedStack.ContainsFocus;
             string reportFocus = focused ? ReportFocus() : null, resetFocus = focused ? ResetFocus() : null;
+            // v0.6.23: the Python version card, rebuilt with each read of a running download, keeps the keyboard's place.
+            List<int> pythonPlace = focused && advancedOpen == PythonId ? PlaceOf(advancedStack, FocusedControl()) : null;
             advancedStack.SuspendLayout();
             var old = new List<Control>();
             foreach (Control control in advancedStack.Controls) old.Add(control);
@@ -1066,8 +1068,10 @@ namespace CodexAutoResume
             if (advancedScroll != null) advancedScroll.PerformLayout();
             UpdateAdvancedButtons();
             // A limit that was being chosen is gone with the cards it was on: the keyboard goes back to the list - or,
-            // in the report's card or a reset form, to the box or button it was on, where that is still there to take it.
-            if (focused && !FocusReport(reportFocus) && !FocusResets(resetFocus) && advancedList != null && advancedList.CanFocus)
+            // in the report's card or a reset form, to the box or button it was on, where that is still there to take it;
+            // on the Python version card, to the control in the same place of the cards as built again.
+            if (focused && !FocusReport(reportFocus) && !FocusResets(resetFocus) && !FocusPlace(pythonPlace) &&
+                advancedList != null && advancedList.CanFocus)
                 advancedList.Focus();
         }
 

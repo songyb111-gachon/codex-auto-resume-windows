@@ -881,7 +881,7 @@ namespace CodexAutoResume
             previewSource = HelpText("");
             preview.Controls.Add(previewSource);
             preview.Controls.Add(HelpText(S("preview.note",
-                "This is the text that will be sent. The watcher adds one line after it to recognise the exact turn it starts.")));
+                "This is the text that will be sent. The watcher adds one line after it to recognize the exact turn it starts.")));
             // v0.6.23 (F2): the Preview card, and what each choice above it follows, a step each (one of 90-100 ms).
             yield return true;
 

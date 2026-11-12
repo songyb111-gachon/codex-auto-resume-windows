@@ -120,6 +120,84 @@ class OfferedTests(unittest.TestCase):
         self.assertIn('RowDialogs = { "message", "once_words" };', guiscan.type_body("SettingsForm", "gui/WindowReopen.cs"))
 
 
+def dashboard_enabled(case, now=NOW):
+    """What FillRowMenu enables for `case` while nothing is on its way (idle), by its rules (CanPostpone, CanUnpostpone,
+    CanRelease, CanAddOnceWords, the tiers' `!terminal`), as EnablementTests pins their bodies - by top-level key, and
+    Don't postpone's."""
+    waiting = case.get("code") in ("waiting_reset", "waiting_usage", "waiting_thread", "scheduled", "failed_retryable")
+    postpone = waiting and case.get("cancel_requested") is not True
+    released = bool(case.get("hold")) and case.get("terminal") is not True and case.get("cancel_requested") is not True
+    tiers = case.get("terminal") is not True
+    enabled = {"menu.postpone": postpone, "action.continue": released, "menu.tier": tiers,
+               "menu.project_always": tiers, "menu.project_never": tiers, "menu.conversation_message": True,
+               "menu.once_words_change" if case.get("once_words") is True else "menu.once_words_add": postpone}
+    if case.get("once_words") is True:
+        enabled["menu.once_words_remove"] = True
+    return enabled, postpone and (case.get("postponed_until") or 0) > now
+
+
+# Rows as Pending lists them: one waiting for its reset and one already sent, each held, cancelled, ended, postponed or
+# with words, alone and together.
+WAITS = {"state": "waiting_reset", "code": "waiting_reset"}
+SENT = {"state": "submitted", "code": "submitted"}
+CASES = [dict(base, **flags) for base in (WAITS, SENT) for flags in (
+    {}, {"hold": "person"}, {"hold": "person", "cancel_requested": True}, {"cancel_requested": True},
+    {"hold": "person", "terminal": True}, {"postponed_until": NOW + 600}, {"postponed_until": NOW - 600},
+    {"postponed_until": NOW + 600, "cancel_requested": True}, {"once_words": True},
+    {"once_words": True, "cancel_requested": True})]
+
+
+class EnablementTests(unittest.TestCase):
+    """Not only the items and their order: which of them can be chosen, row by row, as the Dashboard's (the
+    reachability audit's M3). Two differences are the popup's on purpose: an action on its way greys the Dashboard's
+    whole menu (idle) where the popup holds that action alone (its own busy set), and a row that has ended is not
+    offered a tier there while the popup's tiers do not look at it - so an ended row's tiers are not compared."""
+
+    def test_each_item_is_enabled_by_the_dashboards_rules(self):
+        """Fails with the popup's Let it continue reverted: a held row whose cancel is pending is offered it."""
+        for case in CASES:
+            with self.subTest(case=case):
+                entries = menu(**case)
+                offered = {key: entry["enabled"] for key, entry in zip(keys(entries), entries) if entry is not None}
+                expected, unpostpone = dashboard_enabled(case)
+                if case.get("terminal") is True:
+                    for tier in ("menu.tier", "menu.project_always", "menu.project_never"):
+                        expected.pop(tier)
+                        offered.pop(tier)
+                self.assertEqual(offered, expected)
+                postponing = next(entry for entry in entries if entry and entry["text"] == EN["menu.postpone"])["items"]
+                undo = next(entry for entry in postponing if entry and entry["text"] == EN["menu.unpostpone"])
+                self.assertEqual(undo["enabled"], unpostpone, "Don't postpone, as CanUnpostpone")
+
+    def test_a_held_row_whose_cancel_is_pending_is_not_let_go(self):
+        def release(**extra):
+            return next(entry for entry in menu(**extra) if entry and entry["text"] == EN["action.continue"])
+        self.assertFalse(release(hold="person", cancel_requested=True)["enabled"])
+        self.assertTrue(release(hold="person")["enabled"])
+
+    def test_the_rules_compared_are_the_dashboards(self):
+        """The rules dashboard_enabled mirrors, as the window writes them: a change there fails here first."""
+        def code(name):
+            return re.sub(r"\s+", " ", guiscan.member_body("SettingsForm", name))
+        self.assertIn('bool waiting = code == "waiting_reset" || code == "waiting_usage" || code == "waiting_thread" || '
+                      'code == "scheduled" || code == "failed_retryable"; '
+                      'return waiting && !Equals(Get(row, "cancel_requested"), true);', code("CanPostpone"))
+        self.assertIn('if (string.IsNullOrEmpty(Str(row, "hold"))) return false; '
+                      'return !Equals(Get(row, "terminal"), true) && !Equals(Get(row, "cancel_requested"), true);',
+                      code("CanRelease"))
+        self.assertIn('return CanPostpone(row, idle) && !IsDemo(row) && Number(row, "postponed_until") > now;',
+                      code("CanUnpostpone"))
+        self.assertIn("return CanPostpone(row, idle) && !IsDemo(row);", code("CanAddOnceWords"))
+        fill = code("FillRowMenu")
+        for rule in ("postpone.Enabled = CanPostpone(row, idle);", "release.Enabled = CanRelease(row, idle);",
+                     'tiers.Enabled = idle && !Equals(Get(row, "terminal"), true);', "always.Enabled = tiers.Enabled;",
+                     "never.Enabled = tiers.Enabled;", "message.Enabled = idle;",
+                     "once.Enabled = CanAddOnceWords(row, idle);", "unsay.Enabled = idle;",
+                     "unpostpone.Enabled = CanUnpostpone(row, idle, Now());"):
+            with self.subTest(rule=rule):
+                self.assertIn(rule, fill)
+
+
 class RemoveTests(unittest.TestCase):
     def test_remove_is_the_dashboards_command_with_no_words_bound_to_the_row(self):
         calls = []

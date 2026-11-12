@@ -202,7 +202,7 @@ namespace CodexAutoResume
 
         private void AddFollow(double at, string what)
         {
-            var line = new ListViewItem(at > 0 ? When(at) : "");
+            var line = new ListViewItem(at > 0 ? Mirror.Embed(When(at)) : "");
             line.SubItems.Add(what);
             followList.Items.Add(line);
         }
