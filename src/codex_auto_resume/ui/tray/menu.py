@@ -92,7 +92,7 @@ def menu_items(snapshot, strings, now, pending=False, armed=None, popup=False) -
     # nothing is waiting is an item that teaches people not to use the menu.
     waiting = int(snapshot.get("waiting", 0) or 0) + int(snapshot.get("running", 0) or 0)
     if waiting and pending:
-        items.append(item(MENU_PENDING, strings.get("menu.pending", "Show what is waiting").replace("{n}", str(waiting))))
+        items.append(item(MENU_PENDING, strings.get("menu.pending", "Show what is waiting ({n})").replace("{n}", str(waiting))))
     paused = not snapshot.get("enabled", True)
     items.append(item(MENU_TOGGLE, strings.get("menu.resume", "Resume recovery") if paused
                       else strings.get("menu.pause", "Pause recovery")))
