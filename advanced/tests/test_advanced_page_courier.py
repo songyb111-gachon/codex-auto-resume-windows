@@ -71,7 +71,11 @@ class PageTests(PageCase):
         wrong = snapshot()
         wrong["status"]["advanced"]["feed"] = {"word": "operational", "codex_word": "outage", "incidents": 1,
                                                "checked_at": 1.0}
+        unreached = snapshot()
+        unreached["status"]["advanced"]["feed"] = {"word": None, "codex_word": None, "incidents": None,
+                                                   "checked_at": 2.0, "reached": False}
         steps = [{"do": "snapshot", "reply": wrong}, {"do": "page", "name": "overview"}, {"do": "look"},
+                 {"do": "snapshot", "reply": unreached}, {"do": "look"},
                  {"do": "snapshot", "reply": snapshot()}, {"do": "look"}]
         return "en", {"script": script, "steps": steps}, {"words": script["advanced-words"][0]["result"]["words"]}
 
@@ -114,8 +118,9 @@ class PageTests(PageCase):
     def test_the_overview_says_openai_s_status_only_while_something_is_wrong(self):
         result, expected = self.of("scenario_feed")
         words = expected["words"]
-        shown, gone = result["looks"]
+        shown, unreached, gone = result["looks"]
         self.assertEqual(shown["feed"], words["page.feed.outage"])
+        self.assertEqual(unreached["feed"], words["page.accounts.unread"], "v0.6.23 final: no old outage, it says so")
         self.assertIsNone(gone["feed"])
 
 

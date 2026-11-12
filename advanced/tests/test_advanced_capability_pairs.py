@@ -861,6 +861,7 @@ class ChatBesideCrashRestartTests(_ChatPair):
 from test_advanced_open_target import OpenCase  # noqa: E402
 from codex_auto_resume_advanced.registry import OPEN_TO_SEND  # noqa: E402,F401
 from codex_auto_resume_advanced.engine import opentarget  # noqa: E402
+OPEN_HOLDS = opentarget.app_holds                    # the real one, before OpenCase replaces it with the harness's
 
 
 class OpenToSendBesideQueueForOpenTests(OpenCase):
@@ -883,6 +884,40 @@ class OpenToSendBesideQueueForOpenTests(OpenCase):
         for _ in range(3):
             self.h.tick(advance=61)
         self.assertEqual(len(self.h.backend.send_calls), 1, "no second send")
+
+
+    def test_a_conversation_queued_for_open_that_the_app_holds_already_is_never_opened(self):
+        """v0.6.23 final (audit M12): the person opened it themselves and Codex did not deliver at once - the item stays
+        queued for open for core's delivery window, and open_to_send leaves it alone; unknown never opens either."""
+        self.armed()
+        self.ready_after_reset(loaded=False)
+        self.h.backend.loaded_map[T1] = "notLoaded"
+        self.h.backend.after_accept = "queue"
+        self.h.tick()
+        self.assertEqual(self.h.record()["state"], "queued")
+        for word in ("loaded", "unknown"):
+            with self.subTest(word):
+                self.h.backend.loaded_map[T1] = word
+                self.h.tick(advance=5)
+                self.assertEqual(self.opened, [], "the app holds it (or that cannot be told): no open")
+
+    def test_app_holds_reads_core_s_loaded_check_and_unknown_is_none(self):
+        class Backend:
+            def __init__(self, identity, word):
+                self.identity, self.word = identity, word
+
+            def app_identity(self):
+                return self.identity
+
+            def loaded(self, thread, identity):
+                return self.word
+        from codex_auto_resume_advanced.codex import inuse
+        app = {"server": {"pid": 1, "created": 1}}
+        for backend, held in ((Backend(app, "loaded"), True), (Backend(app, "notLoaded"), False),
+                              (Backend(app, "unknown"), None), (Backend(None, "unknown"), False)):
+            with self.subTest(held), patch.object(inuse, "backend", lambda paths, made=backend: made):
+                with patch.object(opentarget, "app_holds", OPEN_HOLDS):
+                    self.assertIs(opentarget.app_holds(None, T1), held)   # the backend is the stand-in
 
 
 class OpenToSendBesideOtherSessionsTests(OpenCase):

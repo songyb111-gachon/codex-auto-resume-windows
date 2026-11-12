@@ -264,6 +264,20 @@ class DrainTests(DrainCase):
         self.assertEqual(self.rows()[0]["state"], "dropped")
         self.assertEqual(self.codes(), ["push.dropped_ntfy"])
 
+    def test_notices_that_waited_while_it_was_off_are_dropped_when_it_is_turned_on_again(self):
+        """v0.6.23 final (audit M8): a notice raised before push_notices was last turned on is older than its use."""
+        self.enqueue(at=ac.NOW)
+        self.now = ac.NOW + 3 * 86400
+        self.assertTrue(self.rt.arming.disarm("push_notices", actor="dashboard")["done"])
+        self.now = ac.NOW + 4 * 86400
+        self.arm(self.rt, "push_notices", warnings=[str(w) for w in self.rt.arming.warnings(PUSH_NOTICES)])
+        self.enqueue(at=self.now + 1)
+        opener = Opener()
+        self.assertEqual(channels.drain(self.rt, self.secrets, opener=opener, now=self.now + 1), 1, "only the new one")
+        self.assertEqual(len(opener.requests), 1)
+        self.assertEqual([row["state"] for row in self.rows()], ["dropped", "sent"])
+        self.assertIn("push.dropped_ntfy", self.codes())
+
     def test_a_channel_switched_off_or_not_saved_drops_its_rows(self):
         self.enqueue("ntfy", "webhook")
         del self.secrets.kept["ntfy_url"]

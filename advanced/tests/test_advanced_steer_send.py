@@ -441,6 +441,43 @@ class RequestTests(SteerCase):
         self.assertEqual(self.ask(runtime)["refusal"], "queue_full")
 
 
+    def test_two_requests_at_once_cannot_both_pass_one_waiting_per_conversation(self):
+        """v0.6.23 final (audit M11): two bridge processes - two runtimes, two connections - ask together. Both pass the
+        early checks before either writes (held at Codex's history read); the bounds counted inside the insert's
+        transaction let one through, and the other is refused, nothing written twice."""
+        import threading
+        plug, runtime = self.on()
+        other = self.advanced().runtime
+        together = threading.Barrier(2, timeout=30)
+
+        def running(home, thread):
+            together.wait()
+            return "inProgress"
+        answers = []
+        with mock.patch.object(steer_control, "latest_status", running):
+            workers = [threading.Thread(target=lambda each=each: answers.append(self.ask(each)))
+                       for each in (runtime, other)]
+            for worker in workers:
+                worker.start()
+            for worker in workers:
+                worker.join(60)
+        self.assertEqual(sorted((answer["done"], answer["refusal"]) for answer in answers),
+                         [(False, "being_sent"), (True, None)])
+        self.assertEqual(len(self.rows(runtime)), 1)
+
+    def test_the_caps_are_counted_in_the_insert_itself(self):
+        plug, runtime = self.on()
+        for index in range(steer_engine.PER_CONVERSATION):
+            runtime.state.add_steer(T1, "line %d" % index, "00000000-0000-7000-8000-%012d" % index, at=self.h.now - 60)
+            runtime.state.settle_steer(index + 1, SteerState.REFUSED, SteerReason.NO_TURN, at=self.h.now - 59)
+        from codex_auto_resume_advanced.state.steers import SteerRefused
+        bounds = (steer_engine.DAY, steer_engine.PER_DAY, steer_engine.PER_CONVERSATION)
+        with self.assertRaises(SteerRefused) as raised:
+            runtime.state.add_steer(T1, WORDS, "00000000-0000-7000-8000-999999999999", bounds=bounds)
+        self.assertEqual(raised.exception.reason, "queue_full")
+        self.assertEqual(len(self.rows(runtime)), steer_engine.PER_CONVERSATION, "nothing written")
+
+
 class HistoryTests(SteerCase):
     def test_history_lists_each_steer_with_its_words_and_three_outcomes_never_folded(self):
         plug, runtime = self.on()

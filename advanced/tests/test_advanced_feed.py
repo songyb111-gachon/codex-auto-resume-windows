@@ -81,7 +81,7 @@ class View:
 
 
 class RefreshTests(FeedCase):
-    def test_a_reading_is_kept_and_counted_and_a_refusal_keeps_the_words(self):
+    def test_a_reading_is_kept_and_counted_and_a_refusal_keeps_no_words(self):
         self.on()
         self.assertEqual(feed.refresh(self.rt, opener=Opener(Reply(200, summary("minor"))), now=ac.NOW),
                          ("degraded", "operational", 0))
@@ -89,8 +89,10 @@ class RefreshTests(FeedCase):
                                                     "codex_word": "operational", "incidents": 0})
         failing = Opener(error=urllib.error.URLError(TimeoutError()))
         self.assertIsNone(feed.refresh(self.rt, opener=failing, now=ac.NOW + 600))
-        self.assertEqual(feed.read(self.rt.state)["word"], "degraded")
-        self.assertEqual(feed.read(self.rt.state)["checked_at"], ac.NOW + 600)
+        # v0.6.23 final (audit M9): the old degraded is not what the page says now; the time is when it was tried.
+        self.assertEqual(feed.read(self.rt.state), {"checked_at": ac.NOW + 600, "word": None, "codex_word": None,
+                                                    "incidents": None})
+        self.assertTrue(feed.unreached(feed.read(self.rt.state)))
         (request, _timeout), = failing.requests
         self.assertEqual((request.get_method(), request.full_url), ("GET", feed.SUMMARY_URL))
         codes = [entry["code"] for entry in self.rt.state.journal(capability="status_feed")]
@@ -139,6 +141,18 @@ class SurfaceTests(FeedCase):
             self.assertEqual(surfaces.feed_view(self.rt), {}, words)
         feed.save(self.rt.state, ("operational", "outage", 0), ac.NOW)
         self.assertEqual(surfaces.feed_view(self.rt)["feed"]["codex_word"], "outage")
+        self.assertIs(surfaces.feed_view(self.rt)["feed"]["reached"], True)
+
+    def test_a_page_that_cannot_be_reached_says_so_and_never_an_old_outage_under_a_fresh_time(self):
+        """v0.6.23 final (audit M9): the outage read at NOW, then a read at NOW + 600 that could not reach the page."""
+        self.on()
+        feed.save(self.rt.state, ("outage", "outage", 2), ac.NOW)
+        self.assertEqual(surfaces.feed_view(self.rt)["feed"]["checked_at"], ac.NOW, "the time it was read")
+        feed.touch(self.rt.state, ac.NOW + 600)
+        self.assertEqual(surfaces.feed_view(self.rt), {"feed": {"word": None, "codex_word": None, "incidents": None,
+                                                                "checked_at": ac.NOW + 600, "reached": False}})
+        feed.save(self.rt.state, ("operational", "operational", 0), ac.NOW + 1200)
+        self.assertEqual(surfaces.feed_view(self.rt), {}, "reached again and fine: no line")
 
 
 class NeverAGateTests(unittest.TestCase):

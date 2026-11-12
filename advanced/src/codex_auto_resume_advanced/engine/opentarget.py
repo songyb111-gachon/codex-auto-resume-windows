@@ -15,7 +15,9 @@ A candidate is
   gives; unknown or ambiguous never opens, E1), every other gate passed or not reached; with Also start Codex on, also
   one that fails it because the app is closed (nothing is loaded then);
 * or one queue_for_open already queued in Codex for when its conversation is opened (core's for_open): opening delivers
-  it - the open is the trigger, as M1 and MQO measured, and nothing is sent a second time (they compose);
+  it - the open is the trigger, as M1 and MQO measured, and nothing is sent a second time (they compose) - and only
+  where core's loaded check finds the app does not hold that conversation now (v0.6.23 final, audit M12: an item stays
+  for_open for core's delivery window after the person opened it themselves; held, or unknown, never opens);
 * or a message of the edition's own - a queued prompt or a reset message - whose record waits at core's
   thread_available gate for the same reasons (state/prompts, state/resets keep the gate core named), and not one held
   for a running turn.
@@ -88,6 +90,21 @@ def core_candidate(row, start_codex):
     return "waiting"
 
 
+def app_holds(paths, thread):
+    """Whether the Codex app holds `thread` now, by core's loaded check with the app paired by its identity: True, False
+    - also where no app runs, since then nothing holds it - or None where that cannot be told."""
+    from ..codex import inuse
+    try:
+        backend = inuse.backend(paths)
+        identity = backend.app_identity()
+        if not identity:
+            return False
+        word = backend.loaded(thread, identity)
+    except Exception:
+        return None
+    return {"loaded": True, "notLoaded": False}.get(word)
+
+
 def own_candidate(row, start_codex) -> bool:
     """Whether a message of the edition's own - a prompt's or a reset message's row, with its record's state - waits for
     its conversation to be opened alone."""
@@ -135,12 +152,13 @@ class _Errand:
 class OpenTarget:
     """open_to_send's code: its P8 errand. What it opened and has not settled yet is kept in memory (`_pending`, open id:
     [kind, identity, looks]); after a restart such an open stays `opened` and still counts toward every cap."""
-    __slots__ = ("paths", "_scoped", "_pending")
+    __slots__ = ("paths", "_scoped", "_pending", "_for_open")
 
     def __init__(self, paths):
         self.paths = paths
         self._scoped = None
         self._pending = {}
+        self._for_open = set()           # core's records the last `candidates` found queued for open ("for_open")
 
     def bind(self, scoped):
         self._scoped = scoped
@@ -180,6 +198,8 @@ class OpenTarget:
             if (sum(row["record_id"] == record for row in made) >= PER_RECORD
                     or any(row["thread_id"] == thread and now - row["at"] < PER_CONVERSATION for row in made)):
                 continue
+            if kind == "core" and identity in self._for_open and app_holds(self.paths, thread) is not False:
+                continue                     # queued for open, and the app holds it already (or that cannot be told)
             chosen = (kind, identity, thread, record)
             break
         if chosen is None:
@@ -205,11 +225,14 @@ class OpenTarget:
         """Every candidate now, oldest first: (kind, identity, thread) - core's records first, then the queued prompts and
         the reset messages."""
         found = []
+        self._for_open = set()
         try:
             for row in view.records_in(LOOKED_AT):
                 kind = core_candidate(row, start_codex)
                 if kind is not None:
                     found.append(("core", row["interruption_id"], row["thread_id"]))
+                    if kind == "for_open":
+                        self._for_open.add(row["interruption_id"])
         except Exception:
             pass
         scoped = self._scoped
