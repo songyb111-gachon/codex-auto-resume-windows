@@ -1305,6 +1305,46 @@ function Remove-OwnUninstallEntry {
     }
 }
 
+function Remove-HomeLocks {
+    <#
+        -Purge: the watchers' lock files, the one thing of ours outside the installation (src/codex_auto_resume/win/
+        homelock.py) - $Local\codex-auto-resume\homes\<sha256 of a Codex home's path>.lock and id-<volume>-<file
+        index>.lock, empty files every installation of this Windows user shares. Only files of those two names go,
+        never through a link, and each folder only once it is empty. A lock another installation's watcher holds is
+        open and cannot be deleted: it stays, with the folders above it, and the uninstall goes on. Says what became
+        of them in one line; nothing where there is no folder.
+    #>
+    param([string]$Local)
+    if (-not $Local) { return }
+    $top = Join-Path $Local 'codex-auto-resume'
+    $folder = Join-Path $top 'homes'
+    $topItem = Get-Item -LiteralPath $top -Force -ErrorAction SilentlyContinue
+    if (-not $topItem -or -not $topItem.PSIsContainer) { return }
+    if ($topItem.LinkType) { Step ('Left ' + $top + ': it is a link, not followed.'); return }
+    $held = 0
+    $folderItem = Get-Item -LiteralPath $folder -Force -ErrorAction SilentlyContinue
+    if ($folderItem -and $folderItem.PSIsContainer -and $folderItem.LinkType) {
+        Step ('Left ' + $folder + ': it is a link, not followed.')
+        return
+    }
+    if ($folderItem -and $folderItem.PSIsContainer) {
+        foreach ($file in @(Get-ChildItem -LiteralPath $folder -File -Force -ErrorAction SilentlyContinue)) {
+            if ($file.LinkType -or $file.Name -notmatch '^([0-9a-f]{64}|id-[0-9a-f]{8}-[0-9a-f]{16})\.lock$') { continue }
+            try { [IO.File]::Delete($file.FullName) } catch { $held++ }
+        }
+        if (@(Get-ChildItem -LiteralPath $folder -Force -ErrorAction SilentlyContinue).Count -eq 0) {
+            try { [IO.Directory]::Delete($folder) } catch { }
+        }
+    }
+    if (@(Get-ChildItem -LiteralPath $top -Force -ErrorAction SilentlyContinue).Count -eq 0) {
+        try { [IO.Directory]::Delete($top) } catch { }
+    }
+    if (-not (Test-Path -LiteralPath $folder)) { Step ('Removed the watchers'' lock files in ' + $folder + '.') }
+    elseif ($held -gt 0) {
+        Step ('Left ' + $held + ' lock file(s) in ' + $folder + ': in use by another installation''s watcher.')
+    } else { Step ('Left ' + $folder + ': it holds files that are not lock files.') }
+}
+
 function Write-CopyJournal {
     <#
         Write down what is about to be moved aside, before any of it moves.
@@ -1681,6 +1721,9 @@ if ($Uninstall) {
             @(Get-ChildItem -LiteralPath $OwnedHome -Force -ErrorAction SilentlyContinue).Count -eq 0) {
             try { [IO.Directory]::Delete($homeItem.FullName) } catch { }
         }
+        # And the watchers' lock files in %LOCALAPPDATA% (2026-11-12 standards audit, S5 - F3): one another installation
+        # holds stays, and never fails the uninstall.
+        Remove-HomeLocks -Local $env:LOCALAPPDATA
         Write-Host ''
         if ($kept.Count -gt 0) {
             Fail 'Removed, but some settings or recovery history could not be removed:'
