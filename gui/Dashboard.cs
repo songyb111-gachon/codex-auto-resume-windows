@@ -1432,6 +1432,12 @@ namespace CodexAutoResume
             // Painting stops while one page is hidden and the next shown, so the page is painted
             // once, finished (see Redraw).
             bool paused = Redraw(pageHost, false);
+            // v0.6.23 (G6): what is held from laying itself out until it is let go, so that a throw on the way lets it go
+            // too (the finally): held, the page host laid nothing out again under a window UiFaults keeps open.
+            bool hostHeld = false;
+            Control pageHeld = null;
+            TableLayoutPanel sectionHeld = null;
+            List<Control> inner = null;
             try
             {
                 Control page = PageFor(name);
@@ -1441,6 +1447,7 @@ namespace CodexAutoResume
                 // page off and putting the next on moved every native control in it to Windows'
                 // parking window and back.
                 pageHost.SuspendLayout();
+                hostHeld = true;
                 foreach (Control other in pageHost.Controls)
                     if (other != page) other.Visible = false;
                 // Held while it becomes visible and laid out once after, as ShowSection holds a
@@ -1449,19 +1456,25 @@ namespace CodexAutoResume
                 // once its sections kept one width, and takes 58 held (measured, 150%).
                 TableLayoutPanel section = settings && sections.ContainsKey(currentSection) ? sections[currentSection] : null;
                 page.SuspendLayout();
+                pageHeld = page;
                 if (section != null) section.SuspendLayout();
+                sectionHeld = section;
                 // Coming back to the Overview: its Waiting lines, which the clock writes only while it is in front
                 // (UpdateCountdowns), written before it shows and so laid out with it.
                 if (name == "overview" && snapshot != null) UpdateCountdowns();
                 // v0.6.23: and everything in it that lays others out. Shown, each card, grid and row of the page asked for a
                 // layout of its own, outermost first, and each one's layout asked the one around it again: Diagnostics took
                 // 130-320 ms on every switch to it (measured 2026-11-11). Let go innermost first, each lays itself out once.
-                List<Control> inner = HoldWithin(page);
+                inner = HoldWithin(page);
                 page.Visible = true;
                 LetGoWithin(inner);
+                inner = null;
                 if (section != null) section.ResumeLayout(true);
+                sectionHeld = null;
                 page.ResumeLayout(true);
+                pageHeld = null;
                 pageHost.ResumeLayout(false);
+                hostHeld = false;
                 pageHost.PerformLayout();
                 foreach (var pair in navButtons)
                 {
@@ -1475,6 +1488,14 @@ namespace CodexAutoResume
             }
             finally
             {
+                // Only after a throw is anything still held: let go without a layout, which may be what threw - the
+                // next page shown, or the next change, lays them out.
+                if (inner != null)
+                    for (int i = inner.Count - 1; i >= 0; i--)
+                        if (!inner[i].IsDisposed) inner[i].ResumeLayout(false);
+                if (sectionHeld != null && !sectionHeld.IsDisposed) sectionHeld.ResumeLayout(false);
+                if (pageHeld != null && !pageHeld.IsDisposed) pageHeld.ResumeLayout(false);
+                if (hostHeld) pageHost.ResumeLayout(false);
                 if (paused) Redraw(pageHost, true);
             }
             // Coming back to Pending: the countdowns the clock did not write while it was hidden.
@@ -1579,12 +1600,24 @@ namespace CodexAutoResume
         private int prepareStep;
         private bool prepareQueued;
 
-        // When this window last had a key or the mouse (PrepareInput), so no step is taken while a person uses it.
+        // When this window last had a key or the mouse (PrepareInput), so no step is taken while a person uses it: one clock
+        // for both of the window's idle handlers, the pages made ready ahead and the Settings editors (BuildEditorsLater),
+        // listened to while either runs (HearInput); and how many of the two are running.
         private PrepareInput prepareInput;
+        private int prepareInputUsers;
         // How long its mouse and keyboard must have been still before a step is taken, in milliseconds.
         private const int PrepareAfterInputMilliseconds = 250;
-        // How long one step makes native controls for before it leaves the rest to the next; and those still to be made.
-        private const int PrepareSliceMilliseconds = 40;
+        // How long one step makes native controls for, or lets what it holds lay itself out, before it leaves the rest to
+        // the next - the pages made ready ahead and the Settings editors alike; and the controls still to be made.
+        // v0.6.23 (F2, R8): one slice for both, 30 ms, from what a step comes to over it - a step ends on the first control
+        // or field past its slice, which takes 10-40 ms more. Measured 2026-11-13 (the idle probe: months of data, 40 ms per
+        // bridge read, 3 runs a build and edition, the PC shared with other test runs): at 40 the controls' steps took 43-58
+        // ms (median), at 30 they take 33-47; the editors' field steps, at 30 already, 30-50, and the editors' longest
+        // step 60-110 (the interface language's card, one part of the Custom card), up to 225 on a loaded run, where it
+        // was 80-290 before their long steps were split. Longer than a slice are only the steps one control or one
+        // container takes on its own: History's list made with its 200 rows (up to 450), a page's own last layout when
+        // let go (Settings up to 500, Diagnostics up to 360).
+        private const int PrepareSliceMilliseconds = 30;
         private Stack<Control> prepareMake;
 
         /// Starts making the pages not yet shown ready, on the window's idle turns, once it is on screen.
@@ -1592,19 +1625,69 @@ namespace CodexAutoResume
         {
             if (!shown || prepareQueued || auditing || IsDisposed) return;
             prepareQueued = true;
-            if (prepareInput == null) prepareInput = new PrepareInput();
-            Application.AddMessageFilter(prepareInput);
+            HearInput(true);
             EventHandler idle = null;
             idle = delegate
             {
-                if (IsDisposed || !PrepareNext())
+                bool more;
+                try { more = !IsDisposed && PrepareNext(); }
+                catch (Exception error)
+                {
+                    PrepareFailed(error);
+                    more = true;
+                }
+                if (!more)
                 {
                     Application.Idle -= idle;
-                    Application.RemoveMessageFilter(prepareInput);
+                    HearInput(false);
                     prepareQueued = false;
                 }
             };
             Application.Idle += idle;
+        }
+
+        /// v0.6.23 (F2): starts or stops listening for the window's keys and mouse (PrepareInput) for an idle handler; the
+        /// clock is listened to while either of the two runs, and started again when the first begins, so nothing is
+        /// built in the first PrepareAfterInputMilliseconds of either.
+        private void HearInput(bool on)
+        {
+            if (on)
+            {
+                if (prepareInput == null) prepareInput = new PrepareInput();
+                if (prepareInputUsers++ == 0)
+                {
+                    prepareInput.Restart();
+                    Application.AddMessageFilter(prepareInput);
+                }
+            }
+            else if (prepareInputUsers > 0 && --prepareInputUsers == 0) Application.RemoveMessageFilter(prepareInput);
+        }
+
+        /// v0.6.23 (F2): whether this idle turn takes no step, of the pages made ready ahead or of the Settings editors: a
+        /// glide is on its way on the window's thread (Transition.Moving - a button's or a tab's hover and press, the
+        /// light's colour, the Statistics bars, the seven-press sweep), or a key or the mouse came within
+        /// PrepareAfterInputMilliseconds. A step taken between two frames of a glide held the glide for the step's length:
+        /// a hover's 160 ms came in one jump to its end. The light's breath is no glide (its own timer, never still for
+        /// long): it is kept moving by steps that each end within about PrepareSliceMilliseconds.
+        private bool IdleStepWaits()
+        {
+            return Transition.Moving > 0 || (prepareInput != null && prepareInput.Since < PrepareAfterInputMilliseconds);
+        }
+
+        /// v0.6.23 (G6): a step of making a page ready that threw. Written to errors.log once, and that page given up:
+        /// what it held let go without a layout (which may be what threw; it is laid out when it is shown, as a page never
+        /// made ready is), its build begun ahead dropped (a click builds it whole), so the next turn goes on with the next
+        /// page. Retried on every idle turn, one exception became several a second, and UiFaults ended the window.
+        private void PrepareFailed(Exception error)
+        {
+            UiFaults.Note(error);
+            List<Control> held = prepareHeld;
+            prepareHeld = null;
+            if (held != null)
+                for (int i = held.Count - 1; i >= 0; i--)
+                    if (!held[i].IsDisposed) held[i].ResumeLayout(false);
+            if (preparing != null) pageBuilds.Remove(preparing);
+            Prepared();
         }
 
         /// One step of making a page ready; false when there is nothing left to make ready for now.
@@ -1613,7 +1696,7 @@ namespace CodexAutoResume
             // Not before the first snapshot and the Settings editors: a page is built with what it will show, and the
             // editors are built first on these turns (BuildEditorsLater).
             if (snapshot == null || !settingsRead || pendingSchema != null || buildQueued) return true;
-            if (busy > 0 || refreshing || prepareInput.Since < PrepareAfterInputMilliseconds) return true;
+            if (busy > 0 || refreshing || IdleStepWaits()) return true;
             if (preparing == null)
             {
                 preparing = NextToPrepare();
@@ -1763,6 +1846,9 @@ namespace CodexAutoResume
 
             /// Milliseconds since the last key or mouse message.
             internal long Since { get { return since.ElapsedMilliseconds; } }
+
+            /// Counts from now, as a key or the mouse would: no step in the first moments it is listened to.
+            internal void Restart() { since.Restart(); }
 
             public bool PreFilterMessage(ref Message m)
             {

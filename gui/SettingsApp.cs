@@ -1460,6 +1460,13 @@ namespace CodexAutoResume
             Environment.Exit(1);
         }
 
+        /// v0.6.23 (G6): an exception the window has dealt with itself (a page made ready ahead that it gave up), written
+        /// to errors.log as one caught here is, and not counted towards ending the window.
+        internal static void Note(Exception error)
+        {
+            Write(error);
+        }
+
         private static void Write(Exception error)
         {
             try

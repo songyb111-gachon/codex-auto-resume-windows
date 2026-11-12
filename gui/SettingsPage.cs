@@ -379,18 +379,26 @@ namespace CodexAutoResume
         ///
         /// v0.6.23 (the owner, 2026-11-11): a step a turn (EditorSteps), never all in one. Built in one turn they held
         /// the window - its light, a hover, a click - for 570-1080 ms after it opened (measured 2026-11-11), the longest
-        /// turn it took; in steps of about EditorSliceMilliseconds the same editors are built in the same order, each
+        /// turn it took; in steps of about PrepareSliceMilliseconds the same editors are built in the same order, each
         /// step letting whatever waits go first. Until the last step `buildQueued` stays set, so everything that waits
         /// for the editors (Settled, the pages made ready ahead) waits for all of them.
+        ///
+        /// v0.6.23 (F2): and no step while a glide is on its way or the window has just had a key or the mouse
+        /// (IdleStepWaits, the clock the pages made ready ahead wait on too): the steps ran on every idle turn, between a
+        /// hover's frames and ahead of a click, for the first seconds after the window opened.
         private void BuildEditorsLater()
         {
             if (pendingSchema == null || !shown || buildQueued || auditing) return;
             buildQueued = true;
+            HearInput(true);
             EventHandler idle = null;
             idle = delegate
             {
-                if (!IsDisposed && BuildEditorsStep()) return;
+                // Nothing left (a switch to Settings built it): done, whatever moves.
+                bool left = editorSteps != null || pendingSchema != null;
+                if (!IsDisposed && left && (IdleStepWaits() || BuildEditorsStep())) return;
                 Application.Idle -= idle;
+                HearInput(false);
                 buildQueued = false;
             };
             Application.Idle += idle;
@@ -413,9 +421,9 @@ namespace CodexAutoResume
             return false;
         }
 
-        // The build of the editors under way, a step at a time (EditorSteps), or null; and about how long a step takes.
+        // The build of the editors under way, a step at a time (EditorSteps), or null. A step through the schema's fields
+        // takes about PrepareSliceMilliseconds, the slice the pages made ready ahead take too (v0.6.23, R8).
         private IEnumerator<bool> editorSteps;
-        private const int EditorSliceMilliseconds = 30;
 
         private void BuildEditors(List<object> schema, Dictionary<string, object> current)
         {
@@ -425,7 +433,7 @@ namespace CodexAutoResume
         }
 
         /// The Settings editors built, in steps: each `yield` hands the window's thread back between two of them, after
-        /// the General cards and the groups, every EditorSliceMilliseconds through the schema's fields, before the
+        /// the General cards and the groups, every PrepareSliceMilliseconds through the schema's fields, before the
         /// Continuation cards and before the page is laid out. The order of everything built is the one a single build
         /// had; only when it is built changes.
         private IEnumerator<bool> EditorSteps(List<object> schema, Dictionary<string, object> current)
@@ -437,6 +445,8 @@ namespace CodexAutoResume
             columns.SuspendLayout();
             foreach (TableLayoutPanel stack in sections.Values)
             {
+                // v0.6.23 (G4): what is taken off is disposed once the editors that replace it are built (the last step).
+                foreach (Control removed in stack.Controls) retiredEditors.Add(removed);
                 stack.Controls.Clear();
                 stack.RowStyles.Clear();
             }
@@ -469,6 +479,9 @@ namespace CodexAutoResume
             language.Controls.Add(HelpText(S("help.interface_language",
                 "Used by the Dashboard, the notification-area popup, notifications and the panel in Codex.")));
             editors["interface_language"] = interfaceCombo;
+            // v0.6.23 (F2): the General cards a few to a step - built in one they were the longest step of all, 190-440
+            // ms on months of data with the PC busy (one run each, the idle probe), the light standing still all along.
+            yield return true;
             TableLayoutPanel windows = NewGroup(S("group.windows", "Windows"), sections["general"]);
             // First in its card, above the Windows preferences the schema adds.
             // A switch: it turns something that runs on or off (see IsListItem).
@@ -478,6 +491,7 @@ namespace CodexAutoResume
             TableLayoutPanel notifications = NewGroup(S("group.notifications", "Notifications"), sections["general"]);
             // v0.6.12: the power action after usage-limit recoveries, the last card - never an editor (SettingsPower.cs).
             BuildPower(sections["general"]);
+            yield return true;
 
             // Automatic recovery: which kinds of interruption may be recovered at all.
             TableLayoutPanel recovery = NewGroup(S("group.recovery", "Automatic recovery"), sections["recovery"]);
@@ -493,6 +507,7 @@ namespace CodexAutoResume
             TableLayoutPanel look = NewGroup(S("group.appearance", "Appearance"), sections["appearance"]);
             TableLayoutPanel limits = NewGroup(S("group.limits", "Limits"), sections["advanced"]);
             limits.Controls.Add(HelpText(S("help.limits", "Sets how hard recovery tries before it stops and leaves the task to you.")));
+            yield return true;
             // v0.6.15-beta: the Codex homes watched, after the limits - never an editor (SettingsHomes.cs).
             BuildHomes(sections["advanced"]);
             yield return true;
@@ -696,14 +711,18 @@ namespace CodexAutoResume
                         host.Controls.Add(HelpText(S("help.context_guard",
                             "Codex's own count, read when an interruption is detected, where Codex keeps one. Show them in Pending puts the count beside the task; a Hold choice also keeps a task whose conversation has used more waiting until you let it continue. Nothing is read while this is Off. For interruptions detected from then on.")));
                 }
-                if (slice.ElapsedMilliseconds >= EditorSliceMilliseconds)
+                if (slice.ElapsedMilliseconds >= PrepareSliceMilliseconds)
                 {
                     yield return true;
                     slice.Restart();
                 }
             }
+            // v0.6.23 (F2): the two lines the limits say, and what follows the notifications' switch, a step each (one
+            // step of 110-180 ms together).
             UpdateRetryPreview();
+            yield return true;
             UpdateHighLimits();
+            yield return true;
             if (master != null)
             {
                 // Progressive disclosure for notifications: the individual events only matter
@@ -732,14 +751,25 @@ namespace CodexAutoResume
             columns.ResumeLayout(true);
             yield return true;
             ShowSection(currentSection);
-            // What unsaved edits are measured from: the page as it was built.
+            yield return true;
+            // What unsaved edits are measured from: the page as it was built (nothing can change it in between: a switch to
+            // Settings builds what is left at once).
             baseline = EditorValues();
             CheckBox startupCheck = editors.ContainsKey("__startup") ? editors["__startup"] as CheckBox : null;
             startupBaseline = startupCheck != null && startupCheck.Checked;
             // Not read yet: until a status read says what Windows holds (ApplyStatus), Save leaves the entry alone.
             startupKnown = false;
             if (!auditing) RefreshStatusAsync(null);
+            // v0.6.23 (G4): the editors this build replaced - Restore defaults, or the settings read again - disposed now
+            // that each has its successor. Clear only took them off: each kept its window handle, and everything it
+            // holds, for the life of the process.
+            List<Control> retired = retiredEditors;
+            retiredEditors = new List<Control>();
+            foreach (Control old in retired) old.Dispose();
         }
+
+        // v0.6.23 (G4): what the builds of the editors under way took off the page, disposed at the end of the build.
+        private List<Control> retiredEditors = new List<Control>();
 
         private IEnumerator<bool> ContinuationSteps(Dictionary<string, Dictionary<string, object>> fields,
                                                     Dictionary<string, object> current, TableLayoutPanel words,
@@ -790,6 +820,8 @@ namespace CodexAutoResume
             customCard.Controls.Add(TextFooter(globalText, globalCount));
             SoftTextArea global = globalText;
             jsonValues["custom_message"] = delegate { return TextJson(global.Box.Text); };
+            // v0.6.23 (F2): the Custom card in three steps (one of 100-190 ms).
+            yield return true;
 
             // A ground in the card's colour: the Clear button in it is lifted on it (see Ground).
             perReasonPanel = new SoftStack();
@@ -820,6 +852,7 @@ namespace CodexAutoResume
             customCard.Controls.Add(perReasonPanel);
             perReasonCombo.SelectedIndexChanged += delegate { SwitchPerReason(); SchedulePreview(); };
             if (perReasonCombo.Items.Count > 0) perReasonCombo.SelectedIndex = 0;
+            yield return true;
 
             customRefusal = HelpText("");
             customRefusal.ForeColor = Palette.Danger;
@@ -849,6 +882,8 @@ namespace CodexAutoResume
             preview.Controls.Add(previewSource);
             preview.Controls.Add(HelpText(S("preview.note",
                 "This is the text that will be sent. The watcher adds one line after it to recognise the exact turn it starts.")));
+            // v0.6.23 (F2): the Preview card, and what each choice above it follows, a step each (one of 90-100 ms).
+            yield return true;
 
             interfaceCombo.SelectedIndexChanged += delegate { RelabelFollow(); SchedulePreview(); };
             continuationCombo.SelectedIndexChanged += delegate { SchedulePreview(); };
@@ -1509,9 +1544,11 @@ namespace CodexAutoResume
             // Off the UI thread, because the wait is now real.
             //
             // The bridge call blocks until the engine answers, and the engine waits up to
-            // 45 seconds for the watcher to become visible (control.WATCHER_START_TIMEOUT;
-            // the advanced edition's takes 12 to 20). Run on the click handler, that is
-            // 45 seconds in which this window pumps no messages: Windows paints a grey ghost copy and retitles it
+            // 45 seconds for the watcher to become visible (control.WATCHER_START_TIMEOUT), or up to
+            // 108 where a choice of Python is recorded (control.start_timeout: the launcher's question
+            // and the interpreters' starts on top; the advanced edition's takes 12 to 20). Run on the
+            // click handler, that is up to 108 seconds in which this window pumps no messages: Windows
+            // paints a grey ghost copy and retitles it
             // "Not Responding" after five. The "Starting the watcher..." headline set
             // just above would never even appear, because the WM_PAINT it queues is not
             // dispatched until the call returns.

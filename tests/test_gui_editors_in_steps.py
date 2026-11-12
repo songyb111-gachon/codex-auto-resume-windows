@@ -3,7 +3,7 @@ r"""The Settings editors are built a step a turn, never all in one (v0.6.23, the
 Built on the first idle turn after the window opened (BuildEditorsLater), the editors held the window's thread for
 570-1080 ms in one turn - the longest the window took after it opened: its light stood still, a hover or a click
 waited. They are now built by EditorSteps, an iterator that hands the thread back after the General cards and the
-groups, every EditorSliceMilliseconds through the schema's fields, before the Continuation cards and before the page
+groups, every PrepareSliceMilliseconds through the schema's fields, before the Continuation cards and before the page
 is laid out - the same editors in the same order, only built over several turns. `buildQueued` stays set until the last
 step, so whatever waits for the editors waits for all of them; a switch to Settings before then builds what is left at
 once (BuildPendingEditors), and settings read again during the build start it again.
@@ -40,7 +40,7 @@ class SourceTests(unittest.TestCase):
         page = guiscan.read("gui/SettingsPage.cs")
         # By its declaration: member_body takes `else BuildEditorsLater();` for one.
         later = guiscan._block(page, page.index("private void BuildEditorsLater()"))
-        self.assertIn("if (!IsDisposed && BuildEditorsStep()) return;", later)
+        self.assertIn("if (!IsDisposed && left && (IdleStepWaits() || BuildEditorsStep())) return;", later)
         self.assertLess(later.index("BuildEditorsStep()"), later.index("Application.Idle -= idle;"))
         self.assertLess(later.index("Application.Idle -= idle;"), later.index("buildQueued = false;"),
                         "set until the last step, so what waits for the editors waits for all of them")
@@ -50,12 +50,18 @@ class SourceTests(unittest.TestCase):
 
     def test_the_build_hands_the_thread_back_between_its_parts(self):
         steps = guiscan.member_body("SettingsForm", "EditorSteps")
-        self.assertGreaterEqual(steps.count("yield return true;"), 4)
-        self.assertLess(steps.index("BuildHomes(sections[\"advanced\"]);"), steps.index("yield return true;"))
-        self.assertIn("if (slice.ElapsedMilliseconds >= EditorSliceMilliseconds)", steps)
+        # v0.6.23 (F2): the General cards a few to a step, the fields' slice the one the pages made ready ahead take.
+        self.assertGreaterEqual(steps.count("yield return true;"), 10)
+        self.assertLess(steps.index("BuildHomes(sections[\"advanced\"]);"), steps.index("var slice = Stopwatch.StartNew();"))
+        self.assertLess(steps.index("yield return true;"), steps.index("BuildPower(sections[\"general\"]);"))
+        self.assertIn("if (slice.ElapsedMilliseconds >= PrepareSliceMilliseconds)", steps)
         # v0.6.23 (round 5): the page laid out a step before its section is shown, and the Continuation cards a card a step.
-        self.assertLess(steps.index("columns.ResumeLayout(true);"), steps.rindex("yield return true;"))
-        self.assertLess(steps.rindex("yield return true;"), steps.index("ShowSection(currentSection);"))
+        show = steps.index("ShowSection(currentSection);")
+        self.assertLess(steps.index("columns.ResumeLayout(true);"), steps.rindex("yield return true;", 0, show),
+                        "a step stands between the page's layout and its section shown")
+        # v0.6.23 (F2): and the baseline a step after the section is shown.
+        self.assertLess(show, steps.index("baseline = EditorValues();"))
+        self.assertIn("yield return true;", steps[show:steps.index("baseline = EditorValues();")])
         self.assertIn("while (continuation.MoveNext()) yield return true;", steps)
         self.assertGreaterEqual(guiscan.member_body("SettingsForm", "ContinuationSteps").count("yield return true;"), 2)
         self.assertIn("ForgetPins();", steps, "rows built again after Restore defaults leave nothing pinned behind")
@@ -145,8 +151,9 @@ namespace CodexAutoResume
             frame.Show();
             if (form.currentPage == null) form.OnLoad(EventArgs.Empty);
             if (!form.shown) form.OnShown(EventArgs.Empty);
-            // The settings read and the editors queued for the idle turns, none of which has come yet.
-            StepsPump(30000, delegate { return form.settingsRead && form.buildQueued; });
+            // The settings read and the editors queued for the idle turns, none of which has come yet - and nothing
+            // moving, the window's keys and mouse still for long enough, so the next idle turn takes a step (IdleStepWaits).
+            StepsPump(30000, delegate { return form.settingsRead && form.buildQueued && !form.IdleStepWaits(); });
             return form;
         }
 
