@@ -156,7 +156,9 @@ uses, or English where that version does not ship it - and *Same as the interfac
 - **Higher limits for what you write.** Fifty scheduled messages may wait, twenty to a conversation (it was twenty and five), and fifty
   messages for a reset (it was ten). A series runs as many times as you picked, up to 30, however long that takes - a weekly series
   of 30 was cut after about four. A message may be 30,000 characters (it was 8,192), and the send measures the command line Windows will
-  see. A failure only the advanced edition takes up is taken up within six hours, the standard edition's look-back, where a PC that slept
+  see; a message that would not fit that line - many double quotes, each two characters there, or many emoji, each two - is
+  refused when you write it, with the word a message too long always had, not at its time on every try (new since beta.2). A
+  failure only the advanced edition takes up is taken up within six hours, the standard edition's look-back, where a PC that slept
   longer than an hour left it to you. The continuation of *Longer messages* may carry 29,962 characters.
 - **Start the 5-hour window early tries again.** A usage read that failed once - a PC just woken, Codex restarting, the state busy -
   used up the occasion and left the idle window unstarted for 29 hours on one PC. A failure that passes now leaves the occasion
