@@ -327,22 +327,38 @@ class NoticeTests(unittest.TestCase):
                          "Nothing new in this turn for 20 minutes. Look at it in Codex.")
         self.assertEqual(self.build(needsyou.STALLED).chip, "Not moving")
 
+    # The longest line the 22 languages' kinds make today, in display columns (cs terminal_invalid, 2026-11-12), and the
+    # margin a catalog edit may add to it before this test says so: five columns, about one more word.
+    LONGEST_LINE_TODAY = 90
+    LINE_MARGIN = 5
+
+    @staticmethod
+    def columns(text):
+        """How wide `text` is on screen: East Asian wide and fullwidth characters take two columns, marks and
+        format characters (a joiner, a Thai vowel sign) none, every other character one."""
+        import unicodedata
+        return sum(0 if unicodedata.category(char) in ("Mn", "Me", "Cf")
+                   else 2 if unicodedata.east_asian_width(char) in ("W", "F") else 1 for char in text)
+
     def test_its_line_leaves_the_toast_room_for_the_conversation_id_in_every_language(self):
-        """Windows wraps the toast's text in four lines at most under its title, and the last line must
-        stay whole: it ends in the exact conversation id (D6). The kind and the next step keep to about
-        what the detection toast says in German, the longest of its lines."""
+        """Windows draws at most notify.MAX_TOAST_LINES (3) <text> lines under a toast, and the last must stay
+        whole: it ends in the exact conversation id (D6). The kind and the next step make the first of them; it
+        keeps to the longest line the 22 languages make today plus a margin (LONGEST_LINE_TODAY and LINE_MARGIN),
+        measured in display columns, not characters: a Japanese line of 52 characters is 89 columns wide."""
         from codex_auto_resume import l10n
+        self.assertEqual(notify.MAX_TOAST_LINES, 3)
+        self.assertEqual(len(l10n.LOCALES), 22)
+        self.assertEqual(self.columns("Aé漢字‌"), 1 + 1 + 2 + 2, "wide characters count two, a joiner none")
         # Every catalog, the held ones (l10n.HELD) as if offered: offering one later must not bring a
         # line that breaks the toast.
-        with patch.object(l10n, "OFFERED", l10n.LOCALES), \
-                patch.object(l10n, "CHOICES", (l10n.SYSTEM,) + l10n.LOCALES):
+        with patch.object(l10n, "OFFERED", l10n.LOCALES),                 patch.object(l10n, "CHOICES", (l10n.SYSTEM,) + l10n.LOCALES):
             for locale in l10n.LOCALES:
                 l10n.set_preference(locale)
                 self.assertEqual(l10n.current(), locale)
                 for kind in needsyou.NOTICE_KINDS:
                     with self.subTest(locale=locale, kind=kind):
                         line = self.build(kind, minutes=120).toast_content()["extra"][0]
-                        self.assertLessEqual(len(line), 90)
+                        self.assertLessEqual(self.columns(line), self.LONGEST_LINE_TODAY + self.LINE_MARGIN, line)
                         self.assertNotIn(chr(10), line)
 
     def test_the_sound_is_the_toasts_own_and_only_when_chosen(self):
