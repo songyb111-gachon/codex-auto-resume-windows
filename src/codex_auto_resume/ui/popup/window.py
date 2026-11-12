@@ -18,7 +18,7 @@ from .layout import WIDTH
 from .menuplan import menu_numbered
 from .messages import PopupMessages, REFRESH_TICKS  # noqa: F401
 from .model import PopupModel, select_action
-from .motion import animates, glide_amount, halo, next_glides, scene_ms
+from .motion import GLIDE_FRAME_MS, animates, glide_amount, halo, next_glides, scene_ms
 from .placement import focus_order, place
 from .renderer import Renderer
 from ...win import textsize
@@ -84,6 +84,9 @@ class Popup(PopupMessages):
     make_menu = _row_menu = None
     # Battery saver and a locked session (v0.6.23): nobody to ask, and nothing held, for a Popup made without __init__.
     held, _still = None, False
+    # Nothing on its way in, no face changing and no frame timer (v0.6.23), for a Popup made without __init__.
+    _opening = _faces = _frame_ms = _home = _face_states = None
+    _below, _layered = 0, False
 
     def __init__(self, *, control=None, source=None, strings=None, on_dashboard=None, log=None,
                  anchor=None, theme_menu=None, make_menu=None, days=False, held=None):
@@ -143,6 +146,11 @@ class Popup(PopupMessages):
         self._origin = None
         self._switches = None            # {target: checked} as last laid out while on screen
         self._glides = {}                # {target: (started_ms, from, to)}: switches on the move
+        # v0.6.23: buttons whose face is changing, {target: (started_ms, (fill, edge) it left from, length_ms)}, and the
+        # state each was last drawn in; the opening's (started_ms, rise) while it fades in; where it opens to, and how far
+        # below that it stands now; whether it is layered for the fade.
+        self._faces, self._face_states, self._opening = {}, None, None
+        self._home, self._below, self._layered = None, 0, False
         # v0.6.11: what a screen reader is handed (access.py), made the first time one asks and kept for as long
         # as this popup lives; and what it was last told is on screen, for the events a change raises.
         self._access = None
@@ -195,6 +203,7 @@ class Popup(PopupMessages):
                 user32.KillTimer(hwnd, timer)
             user32.DestroyWindow(hwnd)
         self._frame_running = False
+        self._opening, self._layered = None, False
         if self._renderer is not None:
             self._renderer.close()
             self._renderer = None
@@ -264,6 +273,8 @@ class Popup(PopupMessages):
             self.visible = False
             user32.ShowWindow(hwnd, SW_HIDE)
             self.hidden_at = time.monotonic()
+        self._end_opening()
+        self._faces, self._face_states = {}, None
         self.hover = self.pressed = self.focus = None
         self._painted_plan = None
         # A change made while it is closed is simply there when it opens again.
@@ -399,6 +410,7 @@ class Popup(PopupMessages):
             self.focus = order[0] if order else None
         self._move(plan, origin)
         self._frame_theme()
+        self._start_opening()
         self.visible = True
         user32.InvalidateRect(self.hwnd, None, False)
         user32.ShowWindow(self.hwnd, SW_SHOW if activate else SW_SHOWNOACTIVATE)
@@ -419,9 +431,10 @@ class Popup(PopupMessages):
             gap = int(round(brand.SPACING["m"] * self.dpi / 96.0))
             x, y, _ = place((width, height), screen["work"], screen["monitor"], screen["icon"],
                             screen["cursor"], gap=gap)
-        self._origin = origin
+        self._origin, self._home = origin, (x, y)
         with _PerMonitorDpi():
-            _dll("user32").SetWindowPos(self.hwnd, C.c_void_p(HWND_TOPMOST), x, y, width, height, SWP_NOACTIVATE)
+            _dll("user32").SetWindowPos(self.hwnd, C.c_void_p(HWND_TOPMOST), x, y + self._below, width, height,
+                                        SWP_NOACTIVATE)
         self._shape(width, height)
 
     def _rebuild(self, now):
@@ -510,16 +523,18 @@ class Popup(PopupMessages):
 
     def _sync_frames(self):
         user32 = _dll("user32")
+        quick = bool(self._faces) or self._opening is not None     # a one-shot glide: the card's quicker frames
         wanted = (self.visible and self._vm is not None
-                  and (bool(self._glides)
+                  and (bool(self._glides) or quick
                        or animates(self._vm["light"], self._since_state_ms(), reduced=self._holds())
                        or (bool(self._vm.get("scene")) and not self._holds()) or self.sweeping()))
-        if wanted and not self._frame_running:
-            user32.SetTimer(self.hwnd, TIMER_FRAME, FRAME_MS, None)
-            self._frame_running = True
+        interval = GLIDE_FRAME_MS if quick else FRAME_MS
+        if wanted and (not self._frame_running or interval != self._frame_ms):
+            user32.SetTimer(self.hwnd, TIMER_FRAME, interval, None)
+            self._frame_running, self._frame_ms = True, interval
         elif not wanted and self._frame_running:
             user32.KillTimer(self.hwnd, TIMER_FRAME)
-            self._frame_running = False
+            self._frame_running, self._frame_ms = False, None
 
     def frame(self):
         """The halo for this instant, its cycle starting with its state, as the window's does."""
@@ -537,16 +552,18 @@ class Popup(PopupMessages):
             # The halo band saved with the last whole frame is in the old colours.
             self._renderer.theme, self._renderer.design, self._renderer.contrast = look
             self._static_dirty = True
-        if self._glides:
+        if self._glides or self._faces:
             # A switch on the move is drawn over the ground every frame, and the frame after its
-            # glide ends draws it back into the ground where it has come to rest.
+            # glide ends draws it back into the ground where it has come to rest; a button's face likewise.
             self._static_dirty = True
+        faces = self._face_glides()
         self.step_hidden()
         if self._static_dirty or self._renderer.halo_plan is not self._plan:
             self._static_dirty = False
             return self._renderer.draw(self._vm, self._plan, frame=self.frame(), hover=self.hover,
                                        pressed=self.pressed, focus=self.focus if self.keyboard else None,
-                                       glides=self._glide_amounts(), scene_ms=scene_ms(self._holds(), self._scene_since))
+                                       glides=self._glide_amounts(), scene_ms=scene_ms(self._holds(), self._scene_since),
+                                       faces=faces)
         canvas = self._renderer.draw_halo(self._plan, self.frame())
         return self._renderer.draw_scene(self._plan, scene_ms(False, self._scene_since)) if self._vm.get("scene") and not self._holds() else canvas
 

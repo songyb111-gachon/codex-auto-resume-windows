@@ -38,6 +38,58 @@ def animates(state, since_entered_ms=0, *, reduced=False) -> bool:
 # control layer has confirmed it: the press only fades the switch while the answer is awaited, so
 # it never moves and snaps back. With motion reduced, in High Contrast, while the window is hidden
 # and on the frame that opens it, a change is simply drawn in its new place.
+# v0.6.23 (second round): what opens - the popup, the icon's menu, a row's menu - fades in over brand's transition and rises
+# into place from SPACING xs below it, on brand's curve, as the window's menu does (gui/SoftMenu.cs SoftMenuLayer.Tick); a menu
+# closed fades out from where it was in brand's press time (SoftLayerFade). With motion held each is simply there and gone.
+GLIDE_FRAME_MS = 16          # a one-shot glide's frames (an opening, a button's face): the card's own (notice_card.FRAME_MS)
+
+
+def opening(elapsed_ms, rise) -> tuple:
+    """(alpha 0 to 255, how far below its place, whether it has arrived) `elapsed_ms` into an opening `rise` px below."""
+    progress = max(0.0, float(elapsed_ms)) / float(brand.MOTION["transition_ms"])
+    if progress >= 1.0:
+        return 255, 0, True
+    eased = brand.ease(progress)
+    return int(round(255 * eased)), int(round(rise * (1.0 - eased))), False
+
+
+def closing(elapsed_ms, alpha) -> tuple:
+    """(alpha, whether it has gone) `elapsed_ms` into a fade-out from `alpha`, in brand's press time."""
+    progress = max(0.0, float(elapsed_ms)) / float(brand.MOTION["press_ms"])
+    if progress >= 1.0:
+        return 0, True
+    return int(round(alpha * (1.0 - brand.ease(progress)))), False
+
+
+# v0.6.23 (second round): a button's face glides between what its states look like - at rest, under the pointer, pressed, busy -
+# as the window's buttons do (gui/SoftFields.cs, SoftSurfaceGlide): a press and its release in brand's press time, the rest in
+# its transition, from whatever it showed, so a change that turns back half way leaves from where it is. A face is
+# (started_ms, (fill, edge) it left from, length_ms); its shadow swaps at once, as the window's does.
+def face_state(item, hover, pressed) -> str:
+    """What a laid-out button shows now: the renderer draws each state's colours (Renderer.face_colours)."""
+    target = item["target"]
+    return "busy" if item.get("busy") else "pressed" if pressed == target else "hover" if hover == target else "rest"
+
+
+def face_length(before, after) -> int:
+    """How long a face takes from `before` to `after`: a press or its release is brand's press, the rest its transition."""
+    return brand.MOTION["press_ms" if "pressed" in (before, after) else "transition_ms"]
+
+
+def face_amount(face, now_ms) -> tuple:
+    """(how far from the face it left toward the state's, eased, whether it is over) at `now_ms`."""
+    started, _, length = face
+    progress = (now_ms - started) / float(max(1, length))
+    if progress >= 1.0:
+        return 1.0, True
+    return brand.ease(max(0.0, progress)), False
+
+
+def mixed(one, other, amount) -> tuple:
+    """(red, green, blue) `amount` of the way from `one` to `other`."""
+    return tuple(int(round(a + (b - a) * amount)) for a, b in zip(one, other))
+
+
 def glide_amount(glide, now_ms) -> tuple:
     """(how far on the switch is, whether the glide is over) at `now_ms`, eased."""
     started, begin, end = glide

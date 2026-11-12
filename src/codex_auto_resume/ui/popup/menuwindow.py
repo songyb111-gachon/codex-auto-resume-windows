@@ -76,6 +76,7 @@ from .win32 import (DT_CENTER,
                     WM_SETTINGCHANGE,
                     WM_SYSCOLORCHANGE,
                     WM_TIMER,
+                    WS_EX_LAYERED,
                     WS_EX_TOOLWINDOW,
                     WS_EX_TOPMOST,
                     WS_POPUP,
@@ -87,7 +88,7 @@ from .win32 import (DT_CENTER,
 from .words import locale_of, say
 
 
-WS_EX_LAYERED, ULW_ALPHA, AC_SRC_ALPHA = 0x00080000, 0x2, 0x1
+ULW_ALPHA, AC_SRC_ALPHA = 0x2, 0x1
 WM_CANCELMODE, WM_ACTIVATEAPP, WM_CHAR = 0x001F, 0x001C, 0x0102
 WM_SYSKEYDOWN, WM_RBUTTONDOWN, WM_RBUTTONUP = 0x0104, 0x0204, 0x0205
 VK_MENU, VK_END, VK_HOME, VK_F10 = 0x12, 0x23, 0x24, 0x79

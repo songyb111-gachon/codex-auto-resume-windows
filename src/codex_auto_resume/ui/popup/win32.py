@@ -76,6 +76,10 @@ SW_HIDE, SW_SHOWNOACTIVATE, SW_SHOW = 0, 4, 5
 SWP_NOACTIVATE = 0x0010
 
 
+# v0.6.23: the opening's fade and rise - a layered window for as long as it takes, moved without being sized.
+SWP_NOSIZE, SWP_NOZORDER, GWL_EXSTYLE, WS_EX_LAYERED, LWA_ALPHA = 0x0001, 0x0004, -20, 0x00080000, 0x2
+
+
 HWND_TOPMOST = -1
 
 
@@ -202,6 +206,9 @@ def _declare():
         _signature(user32.DestroyWindow, W.BOOL, H)
         _signature(user32.ShowWindow, W.BOOL, H, I)
         _signature(user32.SetWindowPos, W.BOOL, H, H, I, I, I, I, U)
+        _signature(user32.GetWindowLongW, C.c_long, H, I)
+        _signature(user32.SetWindowLongW, C.c_long, H, I, C.c_long)
+        _signature(user32.SetLayeredWindowAttributes, W.BOOL, H, D, C.c_ubyte, D)
         _signature(user32.SetForegroundWindow, W.BOOL, H)
         _signature(user32.SetFocus, H, H)
         _signature(user32.InvalidateRect, W.BOOL, H, H, W.BOOL)
