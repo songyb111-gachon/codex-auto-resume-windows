@@ -1174,7 +1174,9 @@ USAGE_WRAP_UP = CapabilityDef(
 # reset). A person's own messages, a wrap-up and anything typed in Codex are untouched. It departs from A2 (a turn
 # started through the app's channel, not `codex queue`), B3 (Codex's state changed through that channel), C9 (it acts
 # on the meter's reading) and H6 (a running turn is stopped), stands on usage_probe and rests on MU. Its ceilings are
-# the schema's floor - one stop and one continuation a conversation a window. It requires the meter.
+# the schema's floor: its stops and continuations are IPC writes, not the ledger's sends, so no ceiling binds them
+# (`sends` False, the v0.6.23 second round's R3) - what does is one stop and one continuation a conversation a window,
+# which the Advanced page says in place of the day's numbers. It requires the meter.
 USAGE_PAUSE = CapabilityDef(
     id="usage_pause",
     points=frozenset({Point.GATES, Point.TICK}),
@@ -1182,6 +1184,7 @@ USAGE_PAUSE = CapabilityDef(
     departs_from=("A2", "B3", "C9", "H6"),
     compat="usage_probe",
     ceilings=Ceilings(per_day=1, per_conversation=1),
+    sends=False,
     journal_prefix="pause",
     make=make_pause,
     codes=("paused", "resumed", "stopped", "not_stopped", "stop_unconfirmed", "held", "resume_unproven", "continued",
