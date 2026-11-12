@@ -151,7 +151,7 @@ SEND_ARGV_ROOM = 600
 _SENT_AFTER = "\n\n" + ids.short_marker("0" * ids.INTERRUPTION_ID_LENGTH)
 
 
-def command_line(argv) -> str:
+def joined_command_line(argv) -> str:
     """The line Windows is given for `argv`, as subprocess.list2cmdline makes it (no process module here): an argument
     with a space or a tab, or none, in quotes; a quote escaped, with the backslashes before it doubled."""
     line = []
@@ -173,7 +173,7 @@ def command_line(argv) -> str:
 
 def command_line_units(argv) -> int:
     """How long `argv` is as Windows will see it, in UTF-16 code units: a character past the BMP (an emoji) is two."""
-    return len(command_line(argv).encode("utf-16-le", "surrogatepass")) // 2
+    return len(joined_command_line(argv).encode("utf-16-le", "surrogatepass")) // 2
 
 
 def fits_command_line(text) -> bool:

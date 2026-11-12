@@ -93,7 +93,7 @@ class SameMeasureTests(unittest.TestCase):
         cases += [["".join(chance.choice(pieces) for _ in range(chance.randrange(0, 12)))
                    for _ in range(chance.randrange(1, 5))] for _ in range(2000)]
         for argv in cases:
-            self.assertEqual(continuation.command_line(argv), subprocess.list2cmdline(argv), argv)
+            self.assertEqual(continuation.joined_command_line(argv), subprocess.list2cmdline(argv), argv)
 
     def test_the_send_counts_with_the_same_function(self):
         self.assertIs(transport.command_line_units, continuation.command_line_units)

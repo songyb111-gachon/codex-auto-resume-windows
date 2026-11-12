@@ -50,7 +50,7 @@ EXIT_SCHEMA_NEWER = 4
 EXIT_MEMORY_GUARD = 5
 RELAUNCH_MARK = "CODEX_AUTO_RESUME_RELAUNCHED"
 # v0.6.23 final (R10 of the second round's limits audit): a launcher started to follow a stop another process is about to
-# ask - the Python choice's restart of the watcher (advanced control/pythons.restart_watcher, its own copy of this name). It
+# ask - the Python choice's restart of the watcher (the advanced edition's, which keeps its own copy of this name). It
 # is started before that stop, so a window closed mid-restart cannot leave the watcher stopped and none started: it waits
 # for the watcher it follows to let go of its mutex, at most AFTER_STOP_WAIT, and starts the watcher as ever; one that is
 # still running then is left alone, and this launcher ends. Three times control.WATCHER_STOP_TIMEOUT, the 10 s the asking
