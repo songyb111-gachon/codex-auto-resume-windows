@@ -185,6 +185,16 @@ if os.name == "nt":
         _fields_ = [("cbSize", W.UINT), ("dwFlags", W.DWORD), ("lpszDefaultScheme", W.LPWSTR)]
 
 
+# The drawn menu's (menuwindow.py): its window's size and its blend, for UpdateLayeredWindow.
+class MENU_SIZE(C.Structure):
+    _fields_ = [("cx", C.c_long), ("cy", C.c_long)]
+
+
+class MENU_BLEND(C.Structure):
+    _fields_ = [("BlendOp", C.c_ubyte), ("BlendFlags", C.c_ubyte), ("SourceConstantAlpha", C.c_ubyte),
+                ("AlphaFormat", C.c_ubyte)]
+
+
 def _signature(function, result, *arguments):
     function.restype = result
     function.argtypes = list(arguments)
@@ -209,6 +219,9 @@ def _declare():
         _signature(user32.GetWindowLongW, C.c_long, H, I)
         _signature(user32.SetWindowLongW, C.c_long, H, I, C.c_long)
         _signature(user32.SetLayeredWindowAttributes, W.BOOL, H, D, C.c_ubyte, D)
+        _signature(user32.UpdateLayeredWindow, W.BOOL, H, H, C.POINTER(W.POINT), C.POINTER(MENU_SIZE), H,
+                   C.POINTER(W.POINT), D, C.POINTER(MENU_BLEND), D)
+        _signature(user32.GetForegroundWindow, H)
         _signature(user32.SetForegroundWindow, W.BOOL, H)
         _signature(user32.SetFocus, H, H)
         _signature(user32.InvalidateRect, W.BOOL, H, H, W.BOOL)
@@ -316,6 +329,32 @@ class _PerMonitorDpi:
         function = getattr(_dll("user32"), "SetThreadDpiAwarenessContext", None)
         if function is not None and self.previous:
             function(C.c_void_p(self.previous))
+
+
+def screen_at(at=None) -> dict:
+    """The pointer (or `at`, on the screen), the work area of the monitor it is on, and that monitor's scale, in physical
+    pixels: where the drawn menu opens (menuwindow.py; moved here in v0.6.23 to give that file room for its fade)."""
+    user32 = _dll("user32")
+    with _PerMonitorDpi():
+        point = W.POINT()
+        if at is None:
+            user32.GetCursorPos(C.byref(point))
+        else:
+            point.x, point.y = int(at[0]), int(at[1])
+        probe = W.RECT(point.x, point.y, point.x + 1, point.y + 1)
+        monitor = user32.MonitorFromRect(C.byref(probe), MONITOR_DEFAULTTONEAREST)
+        info = MONITORINFO()
+        info.cbSize = C.sizeof(MONITORINFO)
+        user32.GetMonitorInfoW(monitor, C.byref(info))
+        dpi = 0
+        try:
+            x, y = W.UINT(0), W.UINT(0)
+            if _dll("shcore").GetDpiForMonitor(C.c_void_p(monitor), 0, C.byref(x), C.byref(y)) == 0:
+                dpi = x.value
+        except Exception:
+            dpi = 0
+    work = info.rcWork
+    return {"cursor": (point.x, point.y), "dpi": dpi or 96, "work": (work.left, work.top, work.right, work.bottom)}
 
 
 def gui_resources() -> tuple:

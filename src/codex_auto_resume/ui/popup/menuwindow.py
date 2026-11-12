@@ -25,7 +25,7 @@ from __future__ import annotations
 from ctypes import wintypes as W
 import ctypes as C
 import os
-import threading
+import time
 
 from ... import brand, l10n
 from ...win import textsize
@@ -33,6 +33,7 @@ from ...win.dll import WNDCLASSW, WNDPROC
 from . import access
 from . import theme as look                # the questions below are asked through it, as the popup asks them
 from .gdiplus import PIXEL_FORMAT_32BPP_PARGB, _Painter
+from .motion import GLIDE_FRAME_MS, closing, opening
 from .menuplan import (menu_accessible_items,
                        menu_beside,
                        menu_end,
@@ -44,7 +45,10 @@ from .menuplan import (menu_accessible_items,
 from .placement import hit_test
 from .renderer import Renderer
 from .theme import design_setting, effective_theme, theme_setting
-from .win32 import (DT_CENTER,
+from .win32 import (GWL_EXSTYLE,
+                    MENU_BLEND,
+                    MENU_SIZE,
+                    DT_CENTER,
                     DT_END_ELLIPSIS,
                     DT_NOPREFIX,
                     DT_RIGHT,
@@ -53,8 +57,6 @@ from .win32 import (DT_CENTER,
                     DT_VCENTER,
                     HWND_TOPMOST,
                     IDC_ARROW,
-                    MONITORINFO,
-                    MONITOR_DEFAULTTONEAREST,
                     SWP_NOACTIVATE,
                     SW_HIDE,
                     SW_SHOW,
@@ -84,7 +86,8 @@ from .win32 import (DT_CENTER,
                     _declare,
                     _dll,
                     _pack,
-                    _signature)
+                    _signature,
+                    screen_at)
 from .words import locale_of, say
 
 
@@ -96,34 +99,14 @@ VK_LEFT, VK_RIGHT = 0x25, 0x27
 # A submenu's window is never activated: its parent keeps the keyboard and hears its keys.
 WS_EX_NOACTIVATE, WM_MOUSEACTIVATE, MA_NOACTIVATE = 0x08000000, 0x0021, 3
 SPI_GETMENUSHOWDELAY, HOVER_TIMER = 0x006A, 1
+# v0.6.23: its fade's frames; while it fades out nothing can touch it, and a click goes to what is under it.
+FADE_TIMER, WS_EX_TRANSPARENT = 2, 0x00000020
 # What Windows tells whoever listens as a menu opens and closes, as its own menus do.
 EVENT_SYSTEM_MENUPOPUPSTART, EVENT_SYSTEM_MENUPOPUPEND = 0x0006, 0x0007
 
 
-class MENU_SIZE(C.Structure):
-    _fields_ = [("cx", C.c_long), ("cy", C.c_long)]
-
-
-class MENU_BLEND(C.Structure):
-    _fields_ = [("BlendOp", C.c_ubyte), ("BlendFlags", C.c_ubyte), ("SourceConstantAlpha", C.c_ubyte),
-                ("AlphaFormat", C.c_ubyte)]
-
-
-_menu_lock = threading.Lock()
-_menu_declared = []
-
-
-def _declare_menu():
-    """The few calls the popup itself never makes, declared once on the popup's handles."""
-    _declare()
-    with _menu_lock:
-        if _menu_declared:
-            return
-        user32 = _dll("user32")
-        _signature(user32.UpdateLayeredWindow, W.BOOL, C.c_void_p, C.c_void_p, C.POINTER(W.POINT),
-                   C.POINTER(MENU_SIZE), C.c_void_p, C.POINTER(W.POINT), W.DWORD, C.POINTER(MENU_BLEND), W.DWORD)
-        _signature(user32.GetForegroundWindow, C.c_void_p)
-        _menu_declared.append(True)
+def _now_ms():
+    return time.monotonic() * 1000.0
 
 
 # ------------------------------------------------------------------------------ the picture
@@ -243,10 +226,13 @@ class Menu:
         self._tracking = False
         self._access = None                      # what a screen reader is handed, made when one first asks
         self._spoken = []
+        # v0.6.23: how opaque it is and how far below its place it stands, and the fade on its way: ("in", started_ms,
+        # rise) or ("out", started_ms, the alpha it left from), or None.
+        self._alpha, self._below, self._fade = 255, 0, None
 
     # ------------------------------------------------------------------ life
     def create(self):
-        _declare_menu()
+        _declare()
         user32, kernel32 = _dll("user32"), _dll("kernel32")
         instance = kernel32.GetModuleHandleW(None)
         self._proc = WNDPROC(self._wndproc)
@@ -315,12 +301,13 @@ class Menu:
             plan = self._renderer.menu_layout(self.entries, scale * fit, self.locale, work[2] - work[0])
         self._plan, self._work = plan, work
         self._origin = menu_place(plan, screen["cursor"], work)
+        self._appear()
         self._push()
         user32 = _dll("user32")
         width, height = plan["size"]
         with _PerMonitorDpi():
-            user32.SetWindowPos(self.hwnd, C.c_void_p(HWND_TOPMOST), self._origin[0], self._origin[1], width, height,
-                                SWP_NOACTIVATE)
+            user32.SetWindowPos(self.hwnd, C.c_void_p(HWND_TOPMOST), self._origin[0], self._origin[1] + self._below,
+                                width, height, SWP_NOACTIVATE)
         user32.ShowWindow(self.hwnd, SW_SHOW)
         self.visible = True
         user32.SetForegroundWindow(self.hwnd)
@@ -345,7 +332,7 @@ class Menu:
         self.selected = None
         self._tracking = False
         if self.hwnd:
-            _dll("user32").ShowWindow(self.hwnd, SW_HIDE)
+            self._leave_screen(quietly)
         if not quietly:
             self._tell(EVENT_SYSTEM_MENUPOPUPEND)
         self._spoken = []
@@ -407,11 +394,12 @@ class Menu:
         card, (x, y) = parent._plan["card"], parent._origin
         self._origin = menu_beside(self._plan, (x + card[0], y + rect[1], x + card[2], y + rect[3]), work)
         self.selected = menu_end(self.entries) if first else None
+        self._appear()
         self._push()
         user32, (width, height) = _dll("user32"), self._plan["size"]
         with _PerMonitorDpi():
-            user32.SetWindowPos(self.hwnd, C.c_void_p(HWND_TOPMOST), self._origin[0], self._origin[1], width, height,
-                                SWP_NOACTIVATE)
+            user32.SetWindowPos(self.hwnd, C.c_void_p(HWND_TOPMOST), self._origin[0], self._origin[1] + self._below,
+                                width, height, SWP_NOACTIVATE)
         user32.ShowWindow(self.hwnd, SW_SHOWNOACTIVATE)
         self.visible = True
         self._spoken = self.accessible_items()
@@ -461,29 +449,8 @@ class Menu:
         self._design = design_setting()
 
     def _screen_now(self, at=None):
-        """The pointer (or `at`), the work area of the monitor it is on, and that monitor's scale, in physical pixels."""
-        user32 = _dll("user32")
-        with _PerMonitorDpi():
-            point = W.POINT()
-            if at is None:
-                user32.GetCursorPos(C.byref(point))
-            else:
-                point.x, point.y = int(at[0]), int(at[1])
-            probe = W.RECT(point.x, point.y, point.x + 1, point.y + 1)
-            monitor = user32.MonitorFromRect(C.byref(probe), MONITOR_DEFAULTTONEAREST)
-            info = MONITORINFO()
-            info.cbSize = C.sizeof(MONITORINFO)
-            user32.GetMonitorInfoW(monitor, C.byref(info))
-            dpi = 0
-            try:
-                x, y = W.UINT(0), W.UINT(0)
-                if _dll("shcore").GetDpiForMonitor(C.c_void_p(monitor), 0, C.byref(x), C.byref(y)) == 0:
-                    dpi = x.value
-            except Exception:
-                dpi = 0
-        work = info.rcWork
-        return {"cursor": (point.x, point.y), "dpi": dpi or 96,
-                "work": (work.left, work.top, work.right, work.bottom)}
+        """The pointer (or `at`), the work area of the monitor it is on, and that monitor's scale (win32.screen_at)."""
+        return screen_at(at)
 
     def render(self):
         """The window's picture as it is now (the tests read it back)."""
@@ -492,15 +459,72 @@ class Menu:
         return renderer.draw_menu(self._plan, self.selected)
 
     def _push(self):
-        canvas = self.render()
+        self.render()
+        self._blit()
+
+    def _blit(self):
+        """The picture drawn last, laid on the screen as opaque and as far below its place as its fade has it: a frame
+        of the fade draws nothing (v0.6.23)."""
         width, height = self._plan["size"]
-        blend = MENU_BLEND(0, 0, 255, AC_SRC_ALPHA)
+        blend = MENU_BLEND(0, 0, self._alpha, AC_SRC_ALPHA)
+        where = W.POINT(self._origin[0], self._origin[1] + self._below)
         with _PerMonitorDpi():
-            ok = _dll("user32").UpdateLayeredWindow(self.hwnd, None, C.byref(W.POINT(*self._origin)),
-                                                    C.byref(MENU_SIZE(width, height)), canvas.dc,
+            ok = _dll("user32").UpdateLayeredWindow(self.hwnd, None, C.byref(where),
+                                                    C.byref(MENU_SIZE(width, height)), self._renderer.canvas.dc,
                                                     C.byref(W.POINT(0, 0)), 0, C.byref(blend), ULW_ALPHA)
         if not ok:
             raise OSError("UpdateLayeredWindow")
+
+    # ------------------------------------------------------------------ its motion (v0.6.23)
+    def _appear(self):
+        """It fades in over brand's transition and rises into place from SPACING xs below it (motion.opening), as the
+        window's menu does - not with motion reduced, nor in High Contrast (the window's SoftMenuLayer is off there too)."""
+        self._stop_fade()
+        moves = bool(self.hwnd) and not (self.contrast or look.reduced_motion())
+        rise = max(1, int(round(brand.SPACING["xs"] * self._plan["scale"]))) if moves else 0
+        self._alpha, self._below, self._fade = (0, rise, ("in", _now_ms(), rise)) if moves else (255, 0, None)
+        if moves:
+            _dll("user32").SetTimer(self.hwnd, FADE_TIMER, GLIDE_FRAME_MS, None)
+
+    def _leave_screen(self, quietly):
+        """Closed: it fades out from where it is in brand's press time, a window nothing can touch, then hides - at once
+        when its opening was refused (`quietly`), when motion is reduced or in High Contrast, or before it showed at all."""
+        user32, alpha = _dll("user32"), self._alpha
+        self._stop_fade()
+        if quietly or self.contrast or look.reduced_motion() or alpha <= 0:
+            return self._hide()
+        self._alpha, self._fade = alpha, ("out", _now_ms(), alpha)
+        user32.SetWindowLongW(self.hwnd, GWL_EXSTYLE, user32.GetWindowLongW(self.hwnd, GWL_EXSTYLE) | WS_EX_TRANSPARENT)
+        user32.SetTimer(self.hwnd, FADE_TIMER, GLIDE_FRAME_MS, None)
+
+    def _fade_step(self):
+        """A frame of the fade: its picture laid down again, nothing drawn; the timer stops on arrival."""
+        if self._fade is None or not self.hwnd:
+            return
+        way, started, value = self._fade
+        if way == "in":
+            self._alpha, self._below, done = opening(_now_ms() - started, value)
+        else:
+            self._alpha, done = closing(_now_ms() - started, value)
+        if done:
+            self._stop_fade()
+            if way == "out":
+                return self._hide()
+        self._blit()
+
+    def _hide(self):
+        _dll("user32").ShowWindow(self.hwnd, SW_HIDE)
+        self._alpha, self._below = 255, 0
+
+    def _stop_fade(self):
+        """No fade on its way, and a window that can be touched again."""
+        self._fade = None
+        if self.hwnd:
+            user32 = _dll("user32")
+            user32.KillTimer(self.hwnd, FADE_TIMER)
+            style = user32.GetWindowLongW(self.hwnd, GWL_EXSTYLE)
+            if style & WS_EX_TRANSPARENT:
+                user32.SetWindowLongW(self.hwnd, GWL_EXSTYLE, style & ~WS_EX_TRANSPARENT)
 
     def _select(self, index):
         """Put `index` in hand (None: nothing), draw it, and tell a screen reader."""
@@ -522,13 +546,7 @@ class Menu:
             access.announce(self, before, items)
 
     def _tell(self, event):
-        if not self.hwnd:
-            return
-        try:
-            access._declare_msaa()
-            access._com("user32").NotifyWinEvent(event, self.hwnd, access.OBJID_CLIENT, access.CHILDID_SELF)
-        except Exception:
-            pass
+        access.tell(self.hwnd, event)
 
     # ------------------------------------------------------------------ messages
     def _wndproc(self, hwnd, message, wparam, lparam):
@@ -546,11 +564,14 @@ class Menu:
 
     def _handle(self, message, wparam, lparam):
         if message == access.WM_GETOBJECT:
-            return access.answer(self, wparam, lparam, MenuAccessible)
+            return access.answer(self, wparam, lparam, access.MenuAccessible)
         if message == WM_MOUSEACTIVATE and self.parent is not None:
             return MA_NOACTIVATE                 # a click on a submenu leaves the keyboard with its parent
         if message == WM_TIMER and wparam == HOVER_TIMER:
             self._rested()
+            return 0
+        if message == WM_TIMER and wparam == FADE_TIMER:
+            self._fade_step()
             return 0
         if message == WM_ACTIVATE:
             if (wparam & 0xFFFF) == WA_INACTIVE:
@@ -674,25 +695,3 @@ class Menu:
         else:
             return None
         return 0
-
-
-class MenuAccessible(access.PopupAccessible):
-    """The menu's client object for MSAA: the popup's, answering for a menu - a menu popup whose children are its items
-    and lines, by menuplan's menu_accessible_items, named with the product's name."""
-
-    def items(self):
-        return self.popup.accessible_items()
-
-    def _name(self, this, *arguments):
-        return self._string(arguments, lambda item: say(self.popup.strings, "tray.title") if item is None
-                            else item["name"])
-
-    def _description(self, this, *arguments):
-        return self._string(arguments, lambda item: None if item is None else item["description"])
-
-    def _role(self, this, *arguments):
-        *variant, out = arguments
-        child, item = self._item(variant)
-        if child is None:
-            return access.E_INVALIDARG
-        return self._number(out, access.A11Y_ROLES["menu" if item is None else item["role"]])
