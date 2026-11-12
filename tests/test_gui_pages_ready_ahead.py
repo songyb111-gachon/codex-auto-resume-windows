@@ -49,8 +49,12 @@ class SourceTests(unittest.TestCase):
         later = guiscan.member_body("SettingsForm", "PreparePagesLater")
         self.assertIn("if (!shown || prepareQueued || auditing || IsDisposed) return;", later)
         self.assertIn("Application.Idle += idle;", later)
-        self.assertIn("Application.AddMessageFilter(prepareInput);", later)
-        self.assertIn("Application.RemoveMessageFilter(prepareInput);", later)
+        # v0.6.23 (F2): the input clock both idle handlers wait on (HearInput), listened to while either runs.
+        self.assertIn("HearInput(true);", later)
+        self.assertIn("HearInput(false);", later)
+        hear = guiscan.member_body("SettingsForm", "HearInput")
+        self.assertIn("Application.AddMessageFilter(prepareInput);", hear)
+        self.assertIn("Application.RemoveMessageFilter(prepareInput);", hear)
         settings = guiscan.read("gui/SettingsApp.cs")
         shown = settings[settings.index("Shown += delegate"):settings.index("FormClosed += delegate")]
         self.assertLess(shown.index("BuildEditorsLater();"), shown.index("PreparePagesLater();"))
@@ -59,7 +63,8 @@ class SourceTests(unittest.TestCase):
         step = guiscan.member_body("SettingsForm", "PrepareNext")
         # After the first snapshot and the Settings editors, never while an action runs or the window has just had input.
         self.assertIn("if (snapshot == null || !settingsRead || pendingSchema != null || buildQueued) return true;", step)
-        self.assertIn("prepareInput.Since < PrepareAfterInputMilliseconds", step)
+        self.assertIn("if (busy > 0 || refreshing || IdleStepWaits()) return true;", step)
+        self.assertIn("prepareInput.Since < PrepareAfterInputMilliseconds", guiscan.member_body("SettingsForm", "IdleStepWaits"))
         # v0.6.23 (the live acceptance): built, then written (WriteIfStale), then its controls made a slice at a time
         # (MakeSome, in Materialise's order), each a turn of its own.
         for part in ("page.Bounds = pageHost.DisplayRectangle;", "WriteIfStale(preparing);", "if (MakeSome(page)) prepareStep = 3;",

@@ -382,15 +382,23 @@ namespace CodexAutoResume
         /// turn it took; in steps of about EditorSliceMilliseconds the same editors are built in the same order, each
         /// step letting whatever waits go first. Until the last step `buildQueued` stays set, so everything that waits
         /// for the editors (Settled, the pages made ready ahead) waits for all of them.
+        ///
+        /// v0.6.23 (F2): and no step while a glide is on its way or the window has just had a key or the mouse
+        /// (IdleStepWaits, the clock the pages made ready ahead wait on too): the steps ran on every idle turn, between a
+        /// hover's frames and ahead of a click, for the first seconds after the window opened.
         private void BuildEditorsLater()
         {
             if (pendingSchema == null || !shown || buildQueued || auditing) return;
             buildQueued = true;
+            HearInput(true);
             EventHandler idle = null;
             idle = delegate
             {
-                if (!IsDisposed && BuildEditorsStep()) return;
+                // Nothing left (a switch to Settings built it): done, whatever moves.
+                bool left = editorSteps != null || pendingSchema != null;
+                if (!IsDisposed && left && (IdleStepWaits() || BuildEditorsStep())) return;
                 Application.Idle -= idle;
+                HearInput(false);
                 buildQueued = false;
             };
             Application.Idle += idle;
@@ -469,6 +477,9 @@ namespace CodexAutoResume
             language.Controls.Add(HelpText(S("help.interface_language",
                 "Used by the Dashboard, the notification-area popup, notifications and the panel in Codex.")));
             editors["interface_language"] = interfaceCombo;
+            // v0.6.23 (F2): the General cards a few to a step - built in one they were the longest step of all, 190-440
+            // ms on months of data with the PC busy (one run each, the idle probe), the light standing still all along.
+            yield return true;
             TableLayoutPanel windows = NewGroup(S("group.windows", "Windows"), sections["general"]);
             // First in its card, above the Windows preferences the schema adds.
             // A switch: it turns something that runs on or off (see IsListItem).
@@ -478,6 +489,7 @@ namespace CodexAutoResume
             TableLayoutPanel notifications = NewGroup(S("group.notifications", "Notifications"), sections["general"]);
             // v0.6.12: the power action after usage-limit recoveries, the last card - never an editor (SettingsPower.cs).
             BuildPower(sections["general"]);
+            yield return true;
 
             // Automatic recovery: which kinds of interruption may be recovered at all.
             TableLayoutPanel recovery = NewGroup(S("group.recovery", "Automatic recovery"), sections["recovery"]);
@@ -493,6 +505,7 @@ namespace CodexAutoResume
             TableLayoutPanel look = NewGroup(S("group.appearance", "Appearance"), sections["appearance"]);
             TableLayoutPanel limits = NewGroup(S("group.limits", "Limits"), sections["advanced"]);
             limits.Controls.Add(HelpText(S("help.limits", "Sets how hard recovery tries before it stops and leaves the task to you.")));
+            yield return true;
             // v0.6.15-beta: the Codex homes watched, after the limits - never an editor (SettingsHomes.cs).
             BuildHomes(sections["advanced"]);
             yield return true;
@@ -702,8 +715,12 @@ namespace CodexAutoResume
                     slice.Restart();
                 }
             }
+            // v0.6.23 (F2): the two lines the limits say, and what follows the notifications' switch, a step each (one
+            // step of 110-180 ms together).
             UpdateRetryPreview();
+            yield return true;
             UpdateHighLimits();
+            yield return true;
             if (master != null)
             {
                 // Progressive disclosure for notifications: the individual events only matter
@@ -732,7 +749,9 @@ namespace CodexAutoResume
             columns.ResumeLayout(true);
             yield return true;
             ShowSection(currentSection);
-            // What unsaved edits are measured from: the page as it was built.
+            yield return true;
+            // What unsaved edits are measured from: the page as it was built (nothing can change it in between: a switch to
+            // Settings builds what is left at once).
             baseline = EditorValues();
             CheckBox startupCheck = editors.ContainsKey("__startup") ? editors["__startup"] as CheckBox : null;
             startupBaseline = startupCheck != null && startupCheck.Checked;
@@ -790,6 +809,8 @@ namespace CodexAutoResume
             customCard.Controls.Add(TextFooter(globalText, globalCount));
             SoftTextArea global = globalText;
             jsonValues["custom_message"] = delegate { return TextJson(global.Box.Text); };
+            // v0.6.23 (F2): the Custom card in three steps (one of 100-190 ms).
+            yield return true;
 
             // A ground in the card's colour: the Clear button in it is lifted on it (see Ground).
             perReasonPanel = new SoftStack();
@@ -820,6 +841,7 @@ namespace CodexAutoResume
             customCard.Controls.Add(perReasonPanel);
             perReasonCombo.SelectedIndexChanged += delegate { SwitchPerReason(); SchedulePreview(); };
             if (perReasonCombo.Items.Count > 0) perReasonCombo.SelectedIndex = 0;
+            yield return true;
 
             customRefusal = HelpText("");
             customRefusal.ForeColor = Palette.Danger;
@@ -849,6 +871,8 @@ namespace CodexAutoResume
             preview.Controls.Add(previewSource);
             preview.Controls.Add(HelpText(S("preview.note",
                 "This is the text that will be sent. The watcher adds one line after it to recognise the exact turn it starts.")));
+            // v0.6.23 (F2): the Preview card, and what each choice above it follows, a step each (one of 90-100 ms).
+            yield return true;
 
             interfaceCombo.SelectedIndexChanged += delegate { RelabelFollow(); SchedulePreview(); };
             continuationCombo.SelectedIndexChanged += delegate { SchedulePreview(); };

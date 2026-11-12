@@ -1579,8 +1579,11 @@ namespace CodexAutoResume
         private int prepareStep;
         private bool prepareQueued;
 
-        // When this window last had a key or the mouse (PrepareInput), so no step is taken while a person uses it.
+        // When this window last had a key or the mouse (PrepareInput), so no step is taken while a person uses it: one clock
+        // for both of the window's idle handlers, the pages made ready ahead and the Settings editors (BuildEditorsLater),
+        // listened to while either runs (HearInput); and how many of the two are running.
         private PrepareInput prepareInput;
+        private int prepareInputUsers;
         // How long its mouse and keyboard must have been still before a step is taken, in milliseconds.
         private const int PrepareAfterInputMilliseconds = 250;
         // How long one step makes native controls for before it leaves the rest to the next; and those still to be made.
@@ -1592,19 +1595,46 @@ namespace CodexAutoResume
         {
             if (!shown || prepareQueued || auditing || IsDisposed) return;
             prepareQueued = true;
-            if (prepareInput == null) prepareInput = new PrepareInput();
-            Application.AddMessageFilter(prepareInput);
+            HearInput(true);
             EventHandler idle = null;
             idle = delegate
             {
                 if (IsDisposed || !PrepareNext())
                 {
                     Application.Idle -= idle;
-                    Application.RemoveMessageFilter(prepareInput);
+                    HearInput(false);
                     prepareQueued = false;
                 }
             };
             Application.Idle += idle;
+        }
+
+        /// v0.6.23 (F2): starts or stops listening for the window's keys and mouse (PrepareInput) for an idle handler; the
+        /// clock is listened to while either of the two runs, and started again when the first begins, so nothing is
+        /// built in the first PrepareAfterInputMilliseconds of either.
+        private void HearInput(bool on)
+        {
+            if (on)
+            {
+                if (prepareInput == null) prepareInput = new PrepareInput();
+                if (prepareInputUsers++ == 0)
+                {
+                    prepareInput.Restart();
+                    Application.AddMessageFilter(prepareInput);
+                }
+            }
+            else if (prepareInputUsers > 0 && --prepareInputUsers == 0) Application.RemoveMessageFilter(prepareInput);
+        }
+
+        /// v0.6.23 (F2): whether this idle turn takes no step, of the pages made ready ahead or of the Settings editors: a
+        /// glide is on its way on the window's thread (Transition.Moving - a button's or a tab's hover and press, the
+        /// light's colour, the Statistics bars, the seven-press sweep), or a key or the mouse came within
+        /// PrepareAfterInputMilliseconds. A step taken between two frames of a glide held the glide for the step's length:
+        /// a hover's 160 ms came in one jump to its end. The light's breath is no glide (its own timer, never still for
+        /// long): it is kept moving by steps that each end within about PrepareSliceMilliseconds.
+        private bool IdleStepWaits()
+        {
+            return Transition.Moving > 0 || (prepareInput != null && prepareInput.Since < PrepareAfterInputMilliseconds);
         }
 
         /// One step of making a page ready; false when there is nothing left to make ready for now.
@@ -1613,7 +1643,7 @@ namespace CodexAutoResume
             // Not before the first snapshot and the Settings editors: a page is built with what it will show, and the
             // editors are built first on these turns (BuildEditorsLater).
             if (snapshot == null || !settingsRead || pendingSchema != null || buildQueued) return true;
-            if (busy > 0 || refreshing || prepareInput.Since < PrepareAfterInputMilliseconds) return true;
+            if (busy > 0 || refreshing || IdleStepWaits()) return true;
             if (preparing == null)
             {
                 preparing = NextToPrepare();
@@ -1763,6 +1793,9 @@ namespace CodexAutoResume
 
             /// Milliseconds since the last key or mouse message.
             internal long Since { get { return since.ElapsedMilliseconds; } }
+
+            /// Counts from now, as a key or the mouse would: no step in the first moments it is listened to.
+            internal void Restart() { since.Restart(); }
 
             public bool PreFilterMessage(ref Message m)
             {
