@@ -247,8 +247,8 @@ namespace CodexAutoResume
                     : eligible > Now() + 1
                     ? S("retry.postponed", "It waits until a later time you chose; Retry now does not shorten that and reads no usage.")
                     : Equals(Get(result, "woke"), true)
-                    ? S("retry.checking", "Checking now. Every safety check still applies.")
-                    : S("retry.next_poll", "The watcher checks at its next poll. Every safety check still applies.");
+                    ? S("retry.checking", "Checking now. Every safety check still applies; nothing is sent unless they all pass.")
+                    : S("retry.next_poll", "The watcher looks at its next check. Every safety check still applies.");
                 // The advanced edition: with early_reset on, this reading counts as one of its two (AdvancedEarly.cs).
                 if (check == "asked")
                 {
@@ -1194,7 +1194,7 @@ namespace CodexAutoResume
             bool handled = false;
             ClearHistoryPressed(ref handled);
             if (handled) return;
-            if (!Confirm(S("confirm.clear", "Hide finished recoveries from the history?"),
+            if (!Confirm(S("confirm.clear", "Hide finished recoveries from the history? Nothing is deleted, and recoveries that may still change stay visible."),
                          S("action.clear_history", "Clear history"))) return;
             Send("clear-history", null);
         }

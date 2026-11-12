@@ -375,8 +375,8 @@ namespace CodexAutoResume
                    Scene(Says(f => f.ExampleField("steer_send", "instead"))),
                    // With its warning: the line reaches the turn and cannot be taken back; the Codex app shows it as the person's own message.
                    Scene(Says(f => f.Word("page.pending.kind.steer", "Steer") + " · " + f.Word("page.steer.state.accepted", "accepted")),
-                         Says(f => f.Word("page.steer.note.accepted", "The Codex app took it into the running turn.")),
-                         Says(f => f.Word("page.editor.steer.warning", "The Codex app shows the line in that turn as your own message.")))),
+                         Says(f => f.Word("page.steer.note.accepted", "The Codex app took it into the running turn, where it shows as your own message. Whether it was seen there is not checked here.")),
+                         Says(f => f.Word("page.editor.steer.warning", "A steer goes into the turn running now, through the Codex app's own connection, and cannot be taken back. The Codex app shows the line in that turn as your own message; History here records what was sent too.")))),
                 // v0.6.20 (Discussion #57): the tasks a person picked, and the power action waiting for them.
                 Ex("power_after_tasks",
                    Scene(Says(f => f.ExampleField("power_after_tasks", "instead"))),

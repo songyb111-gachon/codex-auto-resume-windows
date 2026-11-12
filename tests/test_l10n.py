@@ -391,6 +391,40 @@ class OneNameTests(unittest.TestCase):
                               ("panel", "panel.readonly"), ("panel", "panel.compat_refresh"),
                               ("python", "menu.open")}, found)
 
+    # A call of the window's with a literal key and a literal fallback: S, Say and Named read core's catalog, Word and
+    # ImageWord the advanced edition's (AdvancedPage.cs Word, statement.words) - each also as `f.` or `form.` reaches it.
+    WINDOW_CALL = (r'(?<![\w.@])(?:(?:f|form)\.)?(S|Say|Word|ImageWord|Named)\(\s*"([\w.\-]+)"\s*,\s*'
+                   r'((?:%s)(?:\s*\+\s*(?:%s))*)\s*(?=[,)])')
+    CS_LITERAL = r'"(?:[^"\\\r\n]|\\.)*"'
+
+    def test_every_window_fallback_is_the_english_catalogs_sentence(self):
+        """The reachability audit's M1 (v0.6.23): nineteen of the window's English fallbacks had drifted from the
+        catalog - older, shorter wordings, and three that said something else (the steers' limits as 30 and 60 where
+        they are 60 and 120, "Checked" for "Evaluated"). A fallback is what the window says before the bridge's words
+        have come, so every literal-key S/Say/Word/ImageWord/Named call in gui/ and advanced/gui/ says exactly the
+        English catalog's sentence for its key, or nothing."""
+        import ast
+        core = l10n._read(l10n.DEFAULT)
+        advanced = json.loads((ROOT / "advanced" / "src" / "codex_auto_resume_advanced" / "locales" / "en.json")
+                              .read_text(encoding="utf-8"))
+        call = re.compile(self.WINDOW_CALL % (self.CS_LITERAL, self.CS_LITERAL))
+        sources = sorted(list((ROOT / "gui").glob("*.cs")) + list((ROOT / "advanced" / "gui").glob("*.cs")))
+        seen, drifted = 0, []
+        for path in sources:
+            text = path.read_text(encoding="utf-8")
+            for match in call.finditer(text):
+                function, key, literals = match.groups()
+                said = "".join(ast.literal_eval(literal) for literal in re.findall(self.CS_LITERAL, literals))
+                table = advanced if function in ("Word", "ImageWord") else core
+                seen += 1
+                if said and table.get(key) != said:
+                    drifted.append("%s:%d %s(%r): %r, the catalog %r" % (
+                        path.relative_to(ROOT).as_posix(), text.count("\n", 0, match.start()) + 1, function, key, said,
+                        table.get(key)))
+        self.assertEqual(drifted, [])
+        # The scan reads the calls it was written for, so it cannot pass by matching nothing.
+        self.assertGreater(seen, 1500)
+
 
 class EditionWordOnceTests(unittest.TestCase):
     """The edition-switch page's sentence names the editions by the catalog's own words (edition.advanced and

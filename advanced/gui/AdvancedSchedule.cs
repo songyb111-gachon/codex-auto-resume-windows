@@ -278,7 +278,7 @@ namespace CodexAutoResume
             string code = state == "held" ? "exhausted" : Equals(Get(rule, "being_sent"), true) ? "submitted" : "scheduled";
             string thread = Str(rule, "thread_id");
             string stands = RuleStateWord(rule), what = RuleWhat(rule);
-            var cells = new[] { thread != null ? ConversationOf(thread) : Word("name.reset_credit", "Reset credit"), RuleStateShort(rule),
+            var cells = new[] { thread != null ? ConversationOf(thread) : Word("name.reset_credit", "Use a reset credit at the limit you pick"), RuleStateShort(rule),
                                 Word("page.pending.kind.rule", "Reset rule"), RuleWhen(rule), "", "" };
             return Joined(KindRule, "rule " + Whole(Get(rule, "rule_id")).ToString(CultureInfo.InvariantCulture), code, rule,
                           cells, stands + " · " + what);

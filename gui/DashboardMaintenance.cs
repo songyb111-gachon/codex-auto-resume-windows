@@ -40,7 +40,7 @@ namespace CodexAutoResume
             CallAsync("diagnostics", "{\"path\":" + Json.Escape(target) + "}", delegate(Dictionary<string, object> reply)
             {
                 if (Ok(reply))
-                    Tell(S("diag.export_done", "Diagnostics saved."));
+                    Tell(S("diag.export_done", "Diagnostics saved. Ids are aliases and paths are removed; read the file before sharing it."));
                 else Report(reply);
             });
         }
@@ -60,7 +60,7 @@ namespace CodexAutoResume
                 string text = state == "stopped" ? S("diag.stop_stopped", "The watcher stopped.")
                             : state == "still-finishing" ? S("diag.stop_finishing", "The watcher is finishing the check it is in, and stops when that is done.")
                             : state == "not-running" ? S("diag.stop_not_running", "The watcher was not running.")
-                            : S("diag.stop_unknown", "Whether the watcher stopped could not be told.");
+                            : S("diag.stop_unknown", "Whether the watcher stopped could not be confirmed.");
                 Tell(text);
                 RefreshAfterChange();
             });
@@ -93,7 +93,7 @@ namespace CodexAutoResume
         private void Repair()
         {
             if (RefusedInside()) return;
-            if (!Confirm(S("confirm.repair", "Run setup again to repair the Windows registrations?"),
+            if (!Confirm(S("confirm.repair", "Run setup again to repair the Windows registrations, and start the watcher if it is stopped? Settings, pending recoveries, a pause and the sign-in choice are all kept."),
                          S("action.repair", "Repair installation"))) return;
             string root = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
             string python = Path.Combine(root, "runtime", "python.exe");
@@ -273,7 +273,7 @@ namespace CodexAutoResume
         private void OfferUpdate(string root, string script, string current, string latest)
         {
             if (!Confirm(S("confirm.update",
-                           "Version {latest} has been published. Download and install it? Your settings, your pause and everything waiting are kept.",
+                           "Version {latest} has been published. Download and install it? The archive is checked against its published checksum before anything runs, and your settings, your pause, everything waiting and the sign-in choice are all kept.",
                            "latest", latest).Replace("{current}", Mirror.Embed(current ?? "")),
                          S("action.install", "Install")))
             {
@@ -445,7 +445,7 @@ namespace CodexAutoResume
                             ? S("diag.update_watcher_restarted", "The watcher was restarted and is running the new version.")
                          : handover == "same"
                             ? S("diag.update_watcher_same", "The watcher that is running is still the one from before the update, so it is running the old code. Stop it and start it again from this page.")
-                            : S("diag.update_watcher_unknown", "Whether the watcher restarted could not be told."));
+                            : S("diag.update_watcher_unknown", "Whether the watcher restarted could not be confirmed."));
                 text += Environment.NewLine + Environment.NewLine +
                         S("diag.update_reopen", "Close this window and open it again so it runs the new version.");
                 Tell(text);

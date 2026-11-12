@@ -848,7 +848,7 @@ namespace CodexAutoResume
             previewSource = HelpText("");
             preview.Controls.Add(previewSource);
             preview.Controls.Add(HelpText(S("preview.note",
-                "This is the text that will be sent. The watcher adds one line after it to recognise the exact turn it starts.")));
+                "This is the text that will be sent. The watcher adds one line after it to recognize the exact turn it starts.")));
 
             interfaceCombo.SelectedIndexChanged += delegate { RelabelFollow(); SchedulePreview(); };
             continuationCombo.SelectedIndexChanged += delegate { SchedulePreview(); };

@@ -799,7 +799,7 @@ namespace CodexAutoResume
             if (refusal == "being_sent")
                 return Word("page.refused.steer_waiting", "A steer for that conversation still waits to go. Wait until History shows what came of it.");
             if (refusal == "queue_full")
-                return Word("page.refused.steer_full", "As many steers were asked for as may: 30 in a conversation and 60 in all in a day.");
+                return Word("page.refused.steer_full", "As many steers were asked for as may: 60 in a conversation and 120 in all in a day.");
             return PromptRefusal(refusal);
         }
     }
