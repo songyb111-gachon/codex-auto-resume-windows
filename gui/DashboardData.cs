@@ -791,7 +791,7 @@ namespace CodexAutoResume
             string[] cells = pending
                 ? new[] { Labelled(row), CodeLabel(row), KindLabel(row), null, Attempts(row), "" }
                 : new[] { Labelled(row), CodeLabel(row), KindLabel(row),
-                          When(Number(row, "detected_at")), When(Number(row, "outcome_at")) };
+                          Mirror.Embed(When(Number(row, "detected_at"))), Mirror.Embed(When(Number(row, "outcome_at"))) };
             CellsWritten(row, pending, cells);
             return cells;
         }

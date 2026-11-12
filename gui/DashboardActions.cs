@@ -1373,7 +1373,7 @@ namespace CodexAutoResume
                         var item = entry as Dictionary<string, object>;
                         if (item == null) continue;
                         string code = Str(item, "code") ?? "other";
-                        var line = new ListViewItem(When(Number(item, "at")));
+                        var line = new ListViewItem(Mirror.Embed(When(Number(item, "at"))));
                         line.SubItems.Add(S("event." + code, code));
                         // The state it moved to, in the words the lists use. The engine's reason
                         // codes are not shown: they are a closed vocabulary for logs and tools,
@@ -1391,7 +1391,7 @@ namespace CodexAutoResume
                         var receipt = entry as Dictionary<string, object>;
                         string kind = Str(receipt, "kind");
                         if (kind != "seen" && kind != "uncertain" && kind != "queued") continue;
-                        var line = new ListViewItem(When(Number(receipt, "at")));
+                        var line = new ListViewItem(Mirror.Embed(When(Number(receipt, "at"))));
                         line.SubItems.Add(S("receipt." + kind, kind));
                         line.SubItems.Add("");
                         lines.Add(line);

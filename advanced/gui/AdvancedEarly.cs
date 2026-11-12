@@ -56,7 +56,7 @@ namespace CodexAutoResume
                     return Word("page.early.lifted", "Early reset check at {time}: usage available twice. The waiting recoveries went on through every other check.", "time", time);
                 string confirm = Get(shown, "confirm_at") is double ? ClockTime(Number(shown, "confirm_at")) : time;
                 return Word("page.early.available_first", "Early reset check at {time}: usage available. A second reading from {confirm} confirms it; nothing was continued yet.", "time", time)
-                    .Replace("{confirm}", confirm);
+                    .Replace("{confirm}", Mirror.Embed(confirm));
             }
             if (read == "still_limited")
                 return Word("page.early.limited", "Early reset check at {time}: still limited. Nothing was continued.", "time", time);
