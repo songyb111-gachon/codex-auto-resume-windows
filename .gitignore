@@ -34,6 +34,8 @@ build/dist/
 build/*.exe
 # Their version resources, generated from the manifest by the same script.
 build/*.VersionInfo.cs
+# The stamp make_gui.ps1 leaves beside each executable: its version and a digest of what it was built from.
+build/*.stamp
 # The advanced edition's settings window and its version resource (make_gui.ps1 -Edition advanced).
 build/advanced/
 

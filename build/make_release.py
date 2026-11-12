@@ -443,6 +443,22 @@ def check_courier_starts(stage: Path, timeout: float = 120) -> None:
         raise SystemExit("the courier check left bytecode in the stage: %s" % ", ".join(left[:5]))
 
 
+def check_built_for_this_tree(executable: Path, edition: str, kind: str) -> None:
+    """Stop, naming the executable and the command that rebuilds it, unless build/make_gui.ps1 built it
+    from this tree: its stamp beside it (build/gui_stamp.py) must hold this tree's version and the
+    digest of the sources, manifest, icon and build scripts as they are now. A local candidate whose
+    window was not rebuilt would otherwise ship the previous window inside an archive named for the
+    new version. Imported here, like make_setup, so loading this module by path needs nothing beside it."""
+    here = str(Path(__file__).resolve().parent)
+    if here not in sys.path:
+        sys.path.insert(0, here)
+    import gui_stamp
+    try:
+        gui_stamp.check(executable, ROOT, edition, kind)
+    except gui_stamp.StaleBuild as exc:
+        raise SystemExit(str(exc))
+
+
 def collect_gui(stage: Path, edition: str = "standard") -> int:
     r"""Place the settings window beside the runtime it drives.
 
@@ -459,6 +475,7 @@ def collect_gui(stage: Path, edition: str = "standard") -> int:
     if not source.is_file():
         raise SystemExit("missing %s - run build/make_gui.ps1 -Edition %s first"
                          % (source, edition))
+    check_built_for_this_tree(source, edition, "window")
     shutil.copyfile(source, stage / "payload" / GUI_EXE)
     # Required, not optional. The bootstrap's archive check names both files at the payload
     # root and refuses an archive carrying either a missing one or an extra one, so building
@@ -472,6 +489,7 @@ def collect_gui(stage: Path, edition: str = "standard") -> int:
     launcher = BUILT / MCP_EXE
     if not launcher.is_file():
         raise SystemExit("missing %s - run build/make_gui.ps1 first" % MCP_EXE)
+    check_built_for_this_tree(launcher, edition, "launcher")
     destination = stage / "payload" / "app" / "mcp" / MCP_EXE
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(launcher, destination)

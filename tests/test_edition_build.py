@@ -47,6 +47,7 @@ if _BUILD not in sys.path:
 
 import editions  # noqa: E402
 import edition_audit  # noqa: E402
+import gui_stamp  # noqa: E402
 from codex_auto_resume import edition  # noqa: E402
 
 BOOTSTRAP = ROOT / "scripts" / "bootstrap.ps1"
@@ -84,6 +85,12 @@ def stand_in(builder, work: Path, root: Path = ROOT) -> None:
     (built / builder.GUI_EXE).write_bytes(STANDARD_WINDOW)
     (built / "advanced" / builder.GUI_EXE).write_bytes(ADVANCED_WINDOW)
     (built / builder.MCP_EXE).write_bytes(LAUNCHER)
+    # make_gui.ps1 stamps what it builds, and the build refuses an executable without its tree's stamp:
+    # the stand-ins are stamped for `root`, as a build of it would have left them.
+    gui_stamp.write(built / builder.GUI_EXE, root, "standard", "window")
+    gui_stamp.write(built / builder.MCP_EXE, root, "standard", "launcher")
+    if (root / "advanced" / "gui" / "window.sources").is_file():
+        gui_stamp.write(built / "advanced" / builder.GUI_EXE, root, "advanced", "window")
     builder.ROOT = root
     builder.CACHE = cache
     builder.BUILT = built
@@ -123,6 +130,10 @@ def standard_sources(target: Path) -> Path:
         (target / source).parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(ROOT / source, target / source)
     shutil.copytree(ROOT / "build" / "install", target / "build" / "install")
+    # What the window's stamp is made of (build/gui_stamp.py): the standard sources and the two scripts.
+    shutil.copytree(ROOT / "gui", target / "gui", ignore=skip)
+    for name in gui_stamp.BUILD_SCRIPTS:
+        shutil.copyfile(ROOT / name, target / name)
     return target
 
 

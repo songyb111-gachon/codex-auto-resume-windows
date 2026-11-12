@@ -3,9 +3,14 @@
 * SmokeStepExitCodeTests (R1) - test.yml's CLI smoke test fails when ANY of its commands exits
   non-zero, not only the last; and no other multi-command pwsh step of any workflow leaves a native
   program's exit code unread.
+* StampedBuildTests (R2) - make_release packs a settings window or launcher only when the stamp
+  make_gui.ps1 left beside it is this tree's (version and sources); a stale or missing one stops the
+  build and names the executable and the command that rebuilds it.
 """
 from __future__ import annotations
 
+import importlib.util
+import json
 import os
 from pathlib import Path
 import re
@@ -16,6 +21,8 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "build"))
+import gui_stamp  # noqa: E402
 WORKFLOWS = ROOT / ".github" / "workflows"
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
@@ -138,6 +145,140 @@ class SmokeStepExitCodeTests(unittest.TestCase):
                             self.assertIn("LASTEXITCODE", following,
                                           "%s: a native command in a multi-line pwsh step is not "
                                           "followed by a check of its exit code" % workflow)
+
+
+def _load_make_release():
+    spec = importlib.util.spec_from_file_location("make_release_round2", ROOT / "build" / "make_release.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+class StampedBuildTests(unittest.TestCase):
+    """A small tree of its own (the real sources are not needed to know what the stamp is made of),
+    stand-in executables, and the real collect_gui."""
+
+    def setUp(self):
+        self._scratch = tempfile.TemporaryDirectory()
+        self.addCleanup(self._scratch.cleanup)
+        self.tree = Path(self._scratch.name) / "tree"
+        files = {
+            ".codex-plugin/plugin.json": json.dumps({"version": "9.9.9", "author": {"name": "Someone"},
+                                                     "interface": {"displayName": "Example"}}),
+            "gui/window.sources": "# the window\n[window]\ngui/A.cs  # first\n\ngui/B.cs\n",
+            "advanced/gui/window.sources": "advanced/gui/Overlay.cs\n",
+            "gui/A.cs": "class A {}", "gui/B.cs": "class B {}", "advanced/gui/Overlay.cs": "class O {}",
+            "gui/app.manifest": "<manifest/>", "gui/McpLauncher.cs": "class L {}",
+            "gui/RuntimeChoice.cs": "class R {}", "assets/codex-auto-resume.ico": "icon",
+            "build/make_gui.ps1": "script", "build/normalize_pe.py": "normalize",
+        }
+        for name, text in files.items():
+            (self.tree / name).parent.mkdir(parents=True, exist_ok=True)
+            (self.tree / name).write_text(text, encoding="utf-8")
+        self.built = Path(self._scratch.name) / "built"
+        (self.built / "advanced").mkdir(parents=True)
+        self.release = _load_make_release()
+        self.release.ROOT = self.tree
+        self.release.BUILT = self.built
+        self.window = self.built / self.release.GUI_EXE
+        self.advanced_window = self.built / "advanced" / self.release.GUI_EXE
+        self.launcher = self.built / self.release.MCP_EXE
+        for exe in (self.window, self.advanced_window, self.launcher):
+            exe.write_bytes(b"MZ " + exe.name.encode("ascii"))
+
+    def _stamp_all(self):
+        gui_stamp.write(self.window, self.tree, "standard", "window")
+        gui_stamp.write(self.advanced_window, self.tree, "advanced", "window")
+        gui_stamp.write(self.launcher, self.tree, "standard", "launcher")
+
+    def _collect(self, edition: str):
+        stage = Path(self._scratch.name) / ("stage-" + edition)
+        (stage / "payload").mkdir(parents=True)
+        return self.release.collect_gui(stage, edition), stage
+
+    def test_a_stamped_build_of_this_tree_is_packed(self):
+        self._stamp_all()
+        for edition, exe in (("standard", self.window), ("advanced", self.advanced_window)):
+            with self.subTest(edition):
+                count, stage = self._collect(edition)
+                self.assertEqual(count, 3)
+                self.assertEqual((stage / "payload" / self.release.GUI_EXE).read_bytes(), exe.read_bytes())
+                self.assertEqual((stage / "payload" / "app" / "mcp" / self.release.MCP_EXE).read_bytes(),
+                                 self.launcher.read_bytes())
+
+    def test_an_executable_with_no_stamp_is_refused_by_name(self):
+        self._stamp_all()
+        gui_stamp.stamp_path(self.advanced_window).unlink()
+        with self.assertRaises(SystemExit) as refused:
+            self._collect("advanced")
+        message = str(refused.exception)
+        self.assertIn(str(self.advanced_window), message)
+        self.assertIn("make_gui.ps1 -Edition advanced", message)
+
+    def test_a_window_built_for_another_version_is_refused(self):
+        """The audit's case: build/advanced/ held the previous release's window."""
+        self._stamp_all()
+        manifest = self.tree / ".codex-plugin" / "plugin.json"
+        manifest.write_text(manifest.read_text(encoding="utf-8").replace("9.9.9", "9.9.10"), encoding="utf-8")
+        with self.assertRaises(SystemExit) as refused:
+            self._collect("standard")
+        message = str(refused.exception)
+        self.assertIn(str(self.window), message)
+        self.assertIn("built for 9.9.9", message)
+        self.assertIn("9.9.10", message)
+        self.assertIn("make_gui.ps1", message)
+
+    def test_a_window_built_from_other_sources_of_the_same_version_is_refused(self):
+        self._stamp_all()
+        (self.tree / "gui" / "B.cs").write_text("class B { int changed; }", encoding="utf-8")
+        with self.assertRaises(SystemExit) as refused:
+            self._collect("standard")
+        self.assertIn("changed after it was built", str(refused.exception))
+        self.assertIn(str(self.window), str(refused.exception))
+
+    def test_the_advanced_window_is_stale_when_only_the_overlay_changed(self):
+        self._stamp_all()
+        (self.tree / "advanced" / "gui" / "Overlay.cs").write_text("class O { int changed; }", encoding="utf-8")
+        self._collect("standard")      # the standard window does not read the overlay
+        with self.assertRaises(SystemExit):
+            self._collect("advanced")
+
+    def test_a_launcher_built_before_its_source_changed_is_refused(self):
+        self._stamp_all()
+        (self.tree / "gui" / "RuntimeChoice.cs").write_text("class R { int changed; }", encoding="utf-8")
+        with self.assertRaises(SystemExit) as refused:
+            self._collect("standard")
+        # The window reads neither launcher source, so it is the launcher that is named.
+        self.assertIn(str(self.launcher), str(refused.exception))
+
+    def test_a_stamp_that_is_not_readable_is_refused_not_trusted(self):
+        self._stamp_all()
+        gui_stamp.stamp_path(self.window).write_text("not json", encoding="utf-8")
+        with self.assertRaises(SystemExit) as refused:
+            self._collect("standard")
+        self.assertIn("cannot be read", str(refused.exception))
+
+    def test_make_gui_stamps_each_executable_it_builds_after_normalising_it(self):
+        script = (ROOT / "build" / "make_gui.ps1").read_text(encoding="utf-8")
+        self.assertIn("gui_stamp.py", script)
+        self.assertEqual(script.count(" -Kind '"), 2)
+        self.assertIn("-Kind 'window'", script)
+        self.assertIn("-Kind 'launcher'", script)
+        build = script[script.index("function Build {"):script.index("$WindowSources = ")]
+        self.assertLess(build.index("normalizer $exe"), build.index("$stamper"))
+        self.assertLess(build.index("Remove-Item -LiteralPath ($exe + '.stamp')"), build.index("& $csc"))
+
+    def test_the_release_workflow_builds_both_editions_before_packing(self):
+        """CI makes the stamps itself: make_gui.ps1 for both editions in the build job, ahead of the
+        steps that run make_release, and a stamp is not an executable for the reproducibility step."""
+        release = (WORKFLOWS / "release.yml").read_text(encoding="utf-8")
+        built = release.index("./build/make_gui.ps1 -Edition advanced")
+        for packing in ("make_release.py --edition standard", "make_release.py --edition advanced"):
+            self.assertLess(built, release.index(packing))
+        self.assertIn("Get-ChildItem build -Filter *.exe", release)
+
+    def test_the_stamps_are_not_committed(self):
+        self.assertIn("build/*.stamp", (ROOT / ".gitignore").read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":
