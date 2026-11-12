@@ -1,13 +1,16 @@
 """The window's messages: everything Windows says to the popup, and what each one decides.
 
 Moved out of window.py (v0.6.10) by line range, as a mixin the window is made of - so no call site
-changed and the window keeps the life of one popup to itself. Each handler reads and changes the
+changed and the window keeps the life of one popup to itself; in v0.6.23 the calls it makes too (`work`: each runs on a
+thread of its own and comes back as WM_POPUP_RESULT), to give the window room for its opening. Each handler reads and changes the
 window's own state and calls the window's own methods; nothing here keeps state of its own.
 """
 from __future__ import annotations
 
 import ctypes as C
+import threading
 import time
+from .model import perform
 from .placement import focus_order, hit_test, next_focus
 from . import access
 from .hidden import PopupHidden
@@ -75,6 +78,7 @@ class PopupMessages(PopupHidden):
                 user32.InvalidateRect(hwnd, None, False)
             elif wparam == TIMER_TICK:
                 self._ticks += 1
+                self._still = self._ask_still()      # battery saver or a lock, within a second of it (_sync_frames)
                 if self._ticks % REFRESH_TICKS == 0:
                     self._request_read()
                 self._update()
@@ -212,3 +216,54 @@ class PopupMessages(PopupHidden):
             self._activate(self.focus)
             return 0
         return None
+
+    # ---------------------------------------------------------------------- work
+    def _request_read(self):
+        if self.control is None:
+            return
+        if self._reading:
+            self._read_again = True
+            return
+        self._reading = True
+        self._run(("read",))
+
+    def _run(self, action):
+        number = next(self._sequence)
+        control, source, dashboard = self.control, self.source, self.on_dashboard
+
+        def work():
+            outcome = perform(action, control, source=source, dashboard=dashboard)
+            with self._lock:
+                self._results[number] = (action, outcome)
+            hwnd = self.hwnd
+            if hwnd:
+                _dll("user32").PostMessageW(hwnd, WM_POPUP_RESULT, number, 0)
+
+        threading.Thread(target=work, name="tray-popup-call", daemon=True).start()
+
+    def _finished(self, number):
+        with self._lock:
+            action, outcome = self._results.pop(number, (None, None))
+        if action is None:
+            return
+        if outcome[0] == "failed":
+            self.log("tray popup %s failed (%s)" % (action[0], outcome[1]))
+        self.model.apply_outcome(action, outcome, time.time())
+        if action[0] == "read" and outcome[0] == "ok":
+            # get_status carries the stored settings; nothing more is asked of the control layer.
+            self.follow_settings((outcome[1].get("status") or {}).get("settings"))
+        showing = self.visible or self._pending_show is not None
+        if action[0] == "read":
+            self._reading = False
+            if self._read_again:
+                self._read_again = False
+                self.model.wants_read = True
+        if self.model.wants_read:
+            self.model.wants_read = False
+            # A hidden window reads nothing; the next opening reads anyway.
+            if showing:
+                self._request_read()
+        if self._pending_show is not None and action[0] == "read":
+            self._present(*self._pending_show)
+        elif self.visible:
+            self._update()

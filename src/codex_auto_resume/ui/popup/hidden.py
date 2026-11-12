@@ -40,7 +40,7 @@ class PopupHidden:
         if not self._presses.press(now_ms):
             return
         numbers = brand.SWEEP
-        moves = not self._reduced and not self._contrast
+        moves = not self._holds() and not self._contrast
         self._sweep_since = now_ms if moves else None
         self._aside_from = now_ms + (numbers["aside_after_ms"] if moves else 0)
         self._sync_frames()
@@ -67,7 +67,7 @@ class PopupHidden:
         if self._sweep_since is not None:
             elapsed = time.monotonic() * 1000.0 - self._sweep_since
             numbers = brand.SWEEP
-            if elapsed >= numbers["second_ring_ms"] + numbers["ring_ms"] or self._reduced or not self.visible:
+            if elapsed >= numbers["second_ring_ms"] + numbers["ring_ms"] or self._holds() or not self.visible:
                 self._sweep_since = None
                 renderer.sweep_ms = None
             else:
