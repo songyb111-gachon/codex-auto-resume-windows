@@ -257,6 +257,8 @@ class AutoSwitch:
             self._count(settled)
             if settled in NOT_FINISHED and isinstance(intent, dict):
                 self._not_finished(intent.get("to"))
+        if store.intent() is not None:
+            return None                                  # a switch not settled yet (a put-back, an account not read): no other
         rows = self.waiting(view, now)
         if self._why_not(view, rows) is not None:
             return None

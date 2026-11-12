@@ -23,10 +23,15 @@ account at once (two reads would each refresh its tokens, and one of them would 
    where the file is no longer the one read at the start, the account is read again first, and another account than
    the one being saved back (a person signed in meanwhile) stops it there: nothing saved, nothing swapped, CHANGED;
 4. the app is started again through its own codex: link, and the account read afresh on a session of its own;
-5. the target's account signed in is SWITCHED; anything else puts the previous file back - with the app closed again
-   and started, once, and only over the target's copy it put in - marks the target as needing a sign-in, and is
-   NOT_SIGNED_IN. Where that put-back did not happen (the app would not close, the rename was refused), the intent
-   stays - NOT_PUT_BACK - and each later look tries again (`recover`) until the file is the previous one.
+5. the target's account signed in is SWITCHED; a definite other answer - signed out, or another account - puts the
+   previous file back - with the app closed again and started, once, and only over the target's copy it put in - marks
+   the target as needing a sign-in, and is NOT_SIGNED_IN. Where that put-back did not happen (the app would not close,
+   the rename was refused), the intent stays - NOT_PUT_BACK - and each later look tries again (`recover`) until the
+   file is the previous one. A read that gives no answer (v0.6.23 second round R1: a timeout while the app starts, a
+   codex.exe that cannot be spawned, a broken session) is never "not signed in": it is read again, AFTER_TRIES reads
+   AFTER_PAUSE seconds apart, and still unknown it is UNVERIFIED - nothing set aside, nothing put back, the target's
+   copy left in, and the intent kept at its step "verify" with what a put-back needs, so each later look reads again
+   (`recover`) and settles it only on a definite answer.
 
 Each hand is a seam: `session_for` (a Codex home -> a session context manager), `restart` (codex/restart.restart's
 shape, given `between`) and `read_real` (the account read on the real home). A test fills them all.
@@ -61,8 +66,17 @@ NOT_STARTED = "not_started"
 # Another Codex engine that may use this home still ran once the app was gone, or that could not be told: nothing was
 # written - a surviving TUI, IDE or exec-server engine could write its old account's tokens after the swap.
 ENGINE_ALIVE = "engine_alive"
+# The target's copy is in, but who is signed in could not be read (R1): nothing undone, read again at the next look.
+UNVERIFIED = "unverified"
 OUTCOMES = (SWITCHED, NOT_SIGNED_IN, NOT_USABLE, NOT_CLOSED, FAILED, LEFT, NOT_PUT_BACK, CHANGED, LOCKED, NOT_STARTED,
-            ENGINE_ALIVE, HELD)
+            ENGINE_ALIVE, HELD, UNVERIFIED)
+# The intent's steps: the swap under way, only the previous file's return left, or the swap made and its account not
+# read yet (R1).
+SWAP, BACK, VERIFY = "swap", "back", "verify"
+# How many reads of the account after the swap before it counts as unknown, and the seconds between them: the app is
+# starting, and its first answers may not come.
+AFTER_TRIES = 3
+AFTER_PAUSE = 10.0
 # The most restarts later looks make to put the previous file back; after them they wait for Codex to be closed.
 BACK_TRIES = 3
 # Seconds the switch, once the app's main is gone, gives its children to end before it says another engine runs, and
@@ -396,18 +410,25 @@ def _switch(paths, store, codex_home, target_id, *, restart=None, read_real=None
             return ENGINE_ALIVE
         if not done["swapped"]:
             return FAILED
-        after = read_real()
+        after = read_answer(read_real)
         if identity(after) is not None and identity(after) == (target.get("email") or "").lower():
             store.update(target_id, used_at=stamp, seen_at=stamp)
             store.mark_switched(target["email"])
             # The app that did not come back is said as such: nothing is released early into a closed app.
             return NOT_STARTED if outcome == restarts.NOT_STARTED else SWITCHED
+        if not known(after):
+            # R1: no answer is not "not signed in" - the target is not set aside and the swap is not undone on it; the
+            # intent keeps what a put-back needs, and the next look reads again.
+            store.begin(source_id, target_id, step=VERIFY, put_in=target["auth"], previous=store.get(source_id)["auth"],
+                        to_email=target.get("email"))
+            done["kept"] = True
+            return UNVERIFIED
         # Not the target: the previous file back, Codex started on it once more, and the target set aside. The intent
         # stays until the file in place is the previous one, so a put-back that did not happen is tried again.
         store.update(target_id, failed_at=stamp)
         if _put_back(codex_home, target["auth"], store.get(source_id)["auth"], restart):
             return NOT_SIGNED_IN
-        store.begin(source_id, target_id, step="back", put_in=target["auth"], previous=store.get(source_id)["auth"],
+        store.begin(source_id, target_id, step=BACK, put_in=target["auth"], previous=store.get(source_id)["auth"],
                     to_email=target.get("email"))
         done["kept"] = True
         return NOT_PUT_BACK
@@ -421,6 +442,24 @@ def _switch(paths, store, codex_home, target_id, *, restart=None, read_real=None
 def _read_real(paths) -> dict:
     from .account import read
     return read(paths)
+
+
+def known(found) -> bool:
+    """Whether an account read is a definite answer (R1): signed out, or an account told apart. A read that broke
+    answers {present: None} (codex/account.parse, E1), and an account that cannot be told apart is no answer either."""
+    return isinstance(found, dict) and (found.get("present") is False or identity(found) is not None)
+
+
+def read_answer(read_real, tries=AFTER_TRIES) -> dict:
+    """The account read until it gives a definite answer, `tries` reads at most, AFTER_PAUSE seconds apart: the last
+    read (R1)."""
+    found = read_real()
+    for _again in range(max(0, tries - 1)):
+        if known(found):
+            break
+        _sleep(AFTER_PAUSE)
+        found = read_real()
+    return found
 
 
 def _put_back(codex_home, put_in, previous, restart) -> bool:
@@ -463,9 +502,12 @@ def _recover(paths, store, codex_home, *, read_real=None, restart=None) -> str |
     byte for byte, the target's copy this switch put in - and Codex does not run - the previous profile's copy goes back,
     NOT_SIGNED_IN; a file it did not put there (the switch never got that far, Codex refreshed it, or a person signed in
     since, the capability off meanwhile) is left exactly as it is, LEFT. Nothing writes the sign-in file unless it knows
-    what is there now. Where the previous copy cannot go back yet - Codex runs and may not be restarted now (`restart`
-    None, or answering None), or the rename is refused - the intent stays, NOT_PUT_BACK, and the next look tries again;
-    at most BACK_TRIES restarts, then only once Codex is closed. None where no switch was under way."""
+    what is there now - nor on a read that gives no answer (R1): but for a put-back already decided (step "back"), a
+    read that answers nothing leaves the intent as it is, UNVERIFIED, and the next look - one read a look - asks again;
+    a switch whose account was not read yet (step "verify") answered "not the target" sets the target aside as the
+    switch itself would. Where the previous copy cannot go back yet - Codex runs and may not be restarted now
+    (`restart` None, or answering None), or the rename is refused - the intent stays, NOT_PUT_BACK, and the next look
+    tries again; at most BACK_TRIES restarts, then only once Codex is closed. None where no switch was under way."""
     from ..profiles import ProfileError
     intent = store.intent()
     if intent is None:
@@ -479,12 +521,19 @@ def _recover(paths, store, codex_home, *, read_real=None, restart=None) -> str |
             target = None                                    # deleted since: the intent's own record serves (A-R5)
         to_email = target.get("email") if target is not None else intent.get("to_email")
         put_in = target["auth"] if target is not None else intent.get("put_in")
-        now = identity(read_real())
+        step = intent.get("step")
+        found = read_real()
+        now = identity(found)
         if isinstance(to_email, str) and now is not None and now == to_email.lower():
             store.mark_switched(to_email)
             return SWITCHED
+        if step != BACK and not known(found) and put_in is not None and isinstance(intent.get("from"), str):
+            kept = True                                      # R1: no answer, nothing undone - read again next look
+            return UNVERIFIED
         if put_in is None or not isinstance(intent.get("from"), str) or not _is_in_place(codex_home, put_in):
             return LEFT
+        if step == VERIFY and target is not None:
+            store.update(intent["to"], failed_at=int(store._clock()))   # a definite "not the target", as _switch says
         previous = _previous(store, intent)
         tries = intent.get("tries") if isinstance(intent.get("tries"), int) else 0
         made = []
@@ -496,7 +545,7 @@ def _recover(paths, store, codex_home, *, read_real=None, restart=None) -> str |
         hand = counted if restart is not None and tries < BACK_TRIES else None
         if _put_back(codex_home, put_in, previous, hand):
             return NOT_SIGNED_IN
-        store.begin(intent["from"], intent["to"], step="back", tries=tries + len(made), put_in=put_in, previous=previous,
+        store.begin(intent["from"], intent["to"], step=BACK, tries=tries + len(made), put_in=put_in, previous=previous,
                     to_email=to_email)
         kept = True
         return NOT_PUT_BACK

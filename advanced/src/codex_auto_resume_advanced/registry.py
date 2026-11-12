@@ -1755,6 +1755,8 @@ ACCOUNT_AUTO_SWITCH = CapabilityDef(
     codes=("switched", "not_signed_in", "not_usable", "not_closed", "failed", "all_exhausted", "ceiling", "left",
            "not_put_back", "sweep_failed", "changed_under",
            "locked", "not_started", "engine_alive", "held",
+           # v0.6.23 second round R1: the target's copy in, but who is signed in could not be read yet (swap.UNVERIFIED).
+           "unverified",
            # v0.6.22 final: a person's own Switch to this account (engine/autoswitch.MANUAL_*, control/autoswitch.switch).
            "manual_switched", "manual_not_finished", "manual_not_done"),
     measurements=(Measurement.MPROFILE, Measurement.MSWAP),
