@@ -38,7 +38,7 @@ EN = l10n.catalog("en")
 NOW = 1000.0
 # A row of the shapes the product makes, for the opener, which checks them.
 REAL_KEY = "ab" * 32
-REAL_THREAD = "01234567-89ab-7cde-8f01-23456789abcd"
+REAL_THREAD = "12345678-89ab-7cde-8f01-23456789abcd"
 
 
 def row(**extra):

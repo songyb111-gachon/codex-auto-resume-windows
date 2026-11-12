@@ -46,7 +46,7 @@ def status():
 
 
 def waiting_row():
-    return {"interruption_id": "ab" * 32, "thread_id": "01234567-89ab-7cde-8f01-23456789abcd", "state": "waiting_reset",
+    return {"interruption_id": "ab" * 32, "thread_id": "12345678-89ab-7cde-8f01-23456789abcd", "state": "waiting_reset",
             "code": "waiting_reset", "category": "network_transient", "eligible_at": NOW + 3725, "overlays": [],
             "thread_enabled": True, "hold": None, "tier": None}
 
@@ -96,7 +96,7 @@ class NoticeTests(unittest.TestCase):
                 l10n.set_preference(locale)
                 at = time.strftime("%H:%M", time.localtime(LATER_TODAY))
                 self.assertIn(kept(at), notify.objection_message(LATER_TODAY))
-                usage = notify.scheduled_content("01234567-89ab-7cde-8f01-23456789abcd", "ab" * 32, LATER_TODAY)
+                usage = notify.scheduled_content("12345678-89ab-7cde-8f01-23456789abcd", "ab" * 32, LATER_TODAY)
                 self.assertIn(kept(at), " ".join(usage.get("extra") or []))
                 near = notify.near_limit_content(300, 76, int(LATER_TODAY))
                 self.assertIn(kept(at), near["body"])

@@ -53,7 +53,7 @@ GOOD = asked("once_words", 1)
 MALFORMED = [
     "", "once_words", "once_words:" + ROW[1][0], "settings:%s:%s" % ROW[1], "Once_words:%s:%s" % ROW[1],
     "once_words:%s:%s" % ("AB" * 32, ROW[1][1]), "once_words:%s:%s" % (ROW[1][0][:-1], ROW[1][1]),
-    "once_words:%s0:%s" % ROW[1], "once_words:%s:%s" % (ROW[1][0], "0000000A-0000-7000-8000-00000000000B"),
+    "once_words:%s0:%s" % ROW[1], "once_words:%s:%s" % (ROW[1][0], "aaaaaaaa-0000-7000-8000-00000000000b"),
     "once_words:%s:{%s}" % ROW[1], "once_words:%s:%s:x" % ROW[1], "once_words:%s:%s " % ROW[1],
     "once_words:%s:%s" % (ROW[1][0], ROW[1][1].replace("-", "")), "message:%s:%s\n--page=x" % ROW[1],
 ]
