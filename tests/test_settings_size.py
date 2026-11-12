@@ -15,6 +15,7 @@ Scratch settings files only; the policy keys are a stand-in that holds nothing.
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 import re
 import sys
@@ -167,7 +168,7 @@ class BoundTests(unittest.TestCase):
         source = (Path(_HERE).parent / "gui" / "SoftTheme.cs").read_text(encoding="utf-8")
         found = re.search(r"const int MaxSettingsBytes = ([0-9 *]+);", source)
         self.assertIsNotNone(found)
-        self.assertEqual(eval(found.group(1), {"__builtins__": {}}), settings.MAX_SETTINGS_BYTES)  # noqa: S307
+        self.assertEqual(math.prod(int(factor) for factor in found.group(1).split("*")), settings.MAX_SETTINGS_BYTES)
 
     def test_a_codex_path_past_the_longest_windows_takes_is_refused(self):
         with self.assertRaises(settings.SettingsError):
