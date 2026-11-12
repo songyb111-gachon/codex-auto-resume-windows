@@ -328,7 +328,7 @@ The repository's landing page on GitHub is tidied in the same stage, while paths
 anyway, so that fewer files sit at its root.
 
 Bugs discovered during this refactor will be fixed with regression tests, but the alpha is
-**not intended to be the full repository-wide bug hunt**; v0.6.23 is. It is the modularization and
+**not intended to be the full repository-wide bug hunt**; v0.6.23 is, in two rounds, and v0.6.24 checks it once more. It is the modularization and
 nothing else: no feature, and no change anybody could see.
 
 What it carries: the modules that were over their ceiling are packages in the plan's layout -
@@ -1225,14 +1225,15 @@ account never used on this PC shows.
 
 ---
 
-## v0.6.23 — The first round of the Python audit, both editions, with the code ready for Python 3.15
+## v0.6.23 — The Python audit in two rounds, both editions, with the code ready for Python 3.15
 
-v0.6.23 is the first of two rounds of audits over the whole repository, both editions, before the Rust migration. It comes after v0.6.16,
+v0.6.23 is two rounds of audits over the whole repository, both editions, before the Rust migration. It comes after v0.6.16,
 v0.6.18, v0.6.19, v0.6.20, v0.6.21 and v0.6.22 so that the last features written in Python - the rest of the advanced edition - are audited
-with the rest. On 2026-11-11 the owner chose to release it as it is and to do the second round in the next version: that is v0.6.24, the last
+with the rest. On 2026-11-11 the owner chose to release it as it was and to do the second round in the next version; on 2026-11-12 he decided
+that v0.6.23 carries the whole second round, and that v0.6.24 is a third round of audits that checks everything again - the last
 Python release and the Python reference implementation the Rust migration reproduces.
 
-v0.6.23 is the first comprehensive audit of the Python implementation, in both editions.
+v0.6.23 is the first comprehensive audit of the Python implementation, in both editions, and the second round over its finished code.
 
 The switch of the bundled Python to 3.15 is no longer in it. The owner moved it out on 2026-11-10, to a later version once CPython
 3.15.3 is out - to v0.6.24 if it is out by then (the owner, 2026-11-11); the code's preparation for 3.15 stays here (below), and the bundled Python stays 3.14.10 in v0.6.23.
@@ -1268,7 +1269,7 @@ Expected areas include:
 
 Confirmed bugs should receive regression tests.
 
-The resulting behavior, with the second round's, becomes the:
+The resulting behavior, with the second round's and the third's, becomes the:
 
 > **final Python reference implementation**
 
@@ -1313,22 +1314,23 @@ is idle; and the setup program's Finish page keeps a shortcut that is already on
 The final of the line, in both editions: the notification-area icon's menu gains *Open the popup*, right after *Open Dashboard*, which opens the popup as a left click on the icon does;
 and the popup's menu for a waiting task offers what the Dashboard's Pending menu offers - *Message for this conversation...*, *Add words for this time...* or *Change words for this time...*
 and *Remove words for this time*, the writing ones opening the Dashboard on its Pending page with that task's own dialog. On 2026-11-11 the owner decided to release v0.6.23 at that point and to do the second
-round of audits in the next version, so the numbers after it moved on: the second round is v0.6.24, the Rust core v0.6.25 and its audit v0.6.26.
+round of audits in the next version, so the numbers after it moved on: the Rust core is v0.6.25 and its audit v0.6.26. On 2026-11-12 he decided that v0.6.23 carries the whole
+second round of audits, over the finished code of both editions, and that v0.6.24 is a third round that checks everything again; the numbers after it stand.
 
 ---
 
-## v0.6.24 — The second round: every audit again over the finished code
+## v0.6.24 — The third round: every audit once more over the finished code
 
-On 2026-11-11 the owner chose to release v0.6.23 once the tray's *Open the popup* and the popup's task menu were done, and to do the second round of audits in the next version. v0.6.24 is that
-round, over the finished code of both editions, and the last Python release: what it settles is the Python reference implementation the Rust core reproduces.
+On 2026-11-11 the owner chose to release v0.6.23 once the tray's *Open the popup* and the popup's task menu were done, and to do the second round of audits in the next version; on 2026-11-12 he decided
+that v0.6.23 carries the whole second round and that v0.6.24 is a third round that checks everything again, over the finished code of both editions. It is the last Python release: what it settles is the Python reference implementation the Rust core reproduces.
 
 Expected areas include:
 
-- every kind of audit again: all code, security, reachability, design and motion, limits, size and tests,
+- every kind of audit once more: all code, security, reachability, design and motion, limits, size and tests, checking that the second round's fixes hold and that nothing new broke,
 - every document, in both languages, read against the code as it is,
 - all twenty-two translations,
 - then cleanup, fixes and refactoring, with a regression test for each confirmed bug,
-- the review of which advanced capabilities the standard edition could take (planned for v0.6.23, not started),
+- the review of which advanced capabilities the standard edition could take (not started),
 - the switch of the bundled Python to 3.15, if CPython 3.15.3 is out by then (moved out of v0.6.23 on 2026-11-10).
 
 Right after the final v0.6.24 is published and verified, the last Python version is kept as a repository of its own, as above.
@@ -1353,7 +1355,7 @@ The rule is:
 
 > **Replace the implementation, not the behavior.**
 
-The Rust implementation should reproduce the final v0.6.23 as closely as practical.
+The Rust implementation should reproduce the final v0.6.24 as closely as practical.
 
 Goals include:
 
@@ -1635,12 +1637,12 @@ The second pre-release: four more languages (Persian, Czech, Hungarian, Thai) an
         ↓
 
 v0.6.23  🚧 In development
-The final: the first round of the Python audit, both editions, with the code ready for Python 3.15 (the switch to it comes later), and the tray's and the popup's menus
+The final: the Python audit in two rounds, both editions, with the code ready for Python 3.15 (the switch to it comes later), and the tray's and the popup's menus
 
         ↓
 
 v0.6.24
-The second round: every audit again over the finished code, then cleanup, fixes and refactoring; the review of the advanced capabilities the standard edition could take; the switch to Python 3.15 if 3.15.3 is out
+The third round: every audit once more over the finished code, then cleanup, fixes and refactoring; the review of the advanced capabilities the standard edition could take; the switch to Python 3.15 if 3.15.3 is out
 → freeze Python reference behavior
 
         ↓
@@ -1680,4 +1682,4 @@ recovery waits, in both. v0.6.18 is a final on v0.6.17 with no pre-release of it
 pre-release, v0.6.19-beta: the owner moved stage 5 out of v0.6.16 on 2026-10-16, so that the v0.6.16 final came
 sooner, made v0.6.17 a final on v0.6.16 on 2026-10-19, and on 2026-10-21 put the simple parts of stage 5 into v0.6.18 and the rest into v0.6.19, and on 2026-10-26 released
 v0.6.19 with what was built and moved the rest to v0.6.20, every later release one on, and on 2026-10-31 moved the loopback API,
-remote control and the view of other PCs out of v0.6.20 into a v0.6.21 of their own, with the switch to Python 3.15, every later release one on again, and on 2026-11-04 made a hotfix final v0.6.21 of the fix for #58 and moved what had been planned as v0.6.21 on to v0.6.22, every later release one on once more.
+remote control and the view of other PCs out of v0.6.20 into a v0.6.21 of their own, with the switch to Python 3.15, every later release one on again, and on 2026-11-04 made a hotfix final v0.6.21 of the fix for #58 and moved what had been planned as v0.6.21 on to v0.6.22, every later release one on once more. v0.6.23-beta and v0.6.23-beta.2 are out; on 2026-11-10 the owner moved the switch to Python 3.15 out of v0.6.23, to v0.6.24 if CPython 3.15.3 is out by then; on 2026-11-11 he moved the second round of audits out of v0.6.23 into a v0.6.24 and the Rust core on to v0.6.25, and on 2026-11-12 he decided that v0.6.23 carries the whole second round and that v0.6.24 is a third round of audits that checks everything again.
