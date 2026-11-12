@@ -7,8 +7,8 @@
 **From v0.6.22, an ordinary update.** It is the latest release, for both editions, so v0.6.22's *Check for updates* offers it in
 the edition you have, an installation of v0.6.23-beta or v0.6.23-beta.2 is offered it the same way, and the plugin in Codex
 installs it too. It follows two pre-releases - v0.6.23-beta and -beta.2 - and this entry tells everything they carried, in the form
-it has now: where beta.2 changed something beta announced, only the final state is told, and what came after beta.2 is marked
-"(new since beta.2)". Both editions change in the first group; the second is the advanced edition's alone, and what it adds is off
+it has now: where beta.2 changed something beta announced, only the final state is told, and what came after beta.2 - among it the fixes of the second round of audits over the finished code, which this release carries
+whole - is marked "(new since beta.2)". Both editions change in the first group; the second is the advanced edition's alone, and what it adds is off
 until you turn it on, except the higher limits, which only widen what a capability you turned on may hold.
 
 **The bundled Python stays 3.14.10.** The code is ready for Python 3.15 - it was tried against 3.15.2 - but the switch itself is not in
@@ -56,6 +56,8 @@ uses, or English where that version does not ship it - and *Same as the interfac
   under the trimmed runtime, or when one of its imports was never read. What is left is python.org's own interpreter and DLLs,
   unchanged. A size budget, in a file the maintainer edits, is held by a test, and the changelog inside the archive is the entry of its
   own version with a line saying where the whole one is.
+  Since beta.2 neither archive carries one module that nothing imports at run time, nor three messages that no code reads (new since
+  beta.2); the sizes above are beta's, measured before.
 - **The controls glide between their states.** Buttons, switches, check boxes, drop-downs, tabs, choices and fields now move from
   rest to hover, to press and to disabled instead of jumping, a press has a shorter time of its own, and a button waits 150 ms before it
   looks disabled while a call is in flight, so a quick call does not make it flicker. List rows take a flat tint under the pointer, the
@@ -74,6 +76,9 @@ uses, or English where that version does not ship it - and *Same as the interfac
 - **The Dashboard's Start watcher waits 45 seconds** instead of 6, the wait setup's Finish page already used. It said *not confirmed
   running yet* beside a watcher that was only slow to be seen - the advanced edition's start takes 12 to 20 seconds. The wait ends the
   moment the watcher is seen, so an ordinary start returns as fast as before.
+  Where the advanced edition's choice of another Python is recorded, the launcher first asks which Python to use - it took 41 and 48
+  seconds on one PC - so Start and the setup program's Finish page wait up to 108 seconds there, 45 plus the question and the
+  interpreters' starts, and still end the moment the watcher is seen (new since beta.2).
 - **The watcher waits 300 seconds to see a continuation delivered** instead of 180. The longest delivery measured on 2026-11-10 was
   144 seconds, 80 % of the old limit; the median was under 9 seconds.
 - **Retry now and the watcher stop for the same four reasons.** Recovery paused (by you or by an administrator), the conversation's
@@ -113,15 +118,30 @@ uses, or English where that version does not ship it - and *Same as the interfac
   *Let it continue*, *How this conversation resumes* and the project items, it now has *Message for this conversation...*, *Add words
   for this time...* (*Change words for this time...* where words are already set) and *Remove words for this time*. The ones that write
   open the Dashboard on its Pending page with that task's own dialog.
+  A dialog asked from the popup opens only once Pending is the page on screen: if you moved to another page before the answer came, it
+  waits until you are back instead of opening over the page you are on, and *Let it continue* is greyed in the popup's menu, as in the
+  Dashboard's, while that task's cancel is still pending.
 - **Every translation was read again** (new since beta.2). All twenty-two languages, both editions, were read against English and
   mended where they had drifted: in some languages the words a queued message sends were said to be deleted from this PC where they
   leave it, the status page's token was said to need no separate sending where the address keeps it from the server, a digest made
   with a key was called encrypted, and a few safety statements said reset or resume where they mean recovery. Each language now uses
   one word for the watcher, recovery, the Dashboard and a turn throughout.
+  Labels that had grown in translation were shortened to fit their buttons again - Pending's conversation switch in several languages and
+  *Cancel all* in Hungarian - and a label that opens a dialog ends in three dots in German, French, Chinese, Polish, Russian and Arabic,
+  as it does in English.
 - **Right to left, a date keeps its order** (new since beta.2). In Arabic, Hebrew and Persian a date, a time or a version inside a
   sentence of the popup or a notice reads in its own order; the popup's two reset dates no longer read one of them backwards.
-- **A refresh rewrites only the page on screen** (new since beta.2). Pages out of sight are brought up to date as they are shown, and a
+  The same holds for a date with its time in the window's own cells and sentences: History's *Detected* and *Finished* and the timeline
+  dialog no longer read 21:49 2026-11-12 for 2026-11-12 21:49, and the advanced pages' rows and sentences keep theirs too.
+- **A refresh rewrites only the page on screen, and the pages made ready ahead are built in short steps** (new since beta.2). Pages out of sight are brought up to date as they are shown, and a
   tab pressed while the window is still making pages ready is built at once.
+  A click never waits behind that preparation. Each page is made a part at a time - Pending, Diagnostics and the Settings editors in
+  particular - in slices of about 30 milliseconds, and what a page lays out is held until its last steps, so on an installation that had
+  run for months (200 rows of History, 60 tasks waiting) the steps that held the window for 0.2 to 0.6 seconds in one turn are cut to a
+  tenth of a second or less, apart from a few single controls such as History's list of 200 rows. The steps also wait while a control
+  glides and for a quarter of a second after a key or the mouse, so the status light and the glides run without them, and a page whose
+  step fails is given up once and written to `errors.log` once, instead of failing again on every idle turn until the window ended. The
+  numbers are one PC's: read them as "about".
 - **A settings file the product cannot read is never taken as the defaults** (new since beta.2). The settings are written as UTF-8
   with each character as it is, not as a six-byte escape, and the file may hold up to 4 MB - everything the limits allow, twice over.
   Until now 28 messages of your own for single conversations, 2,000 Korean characters each, passed the old 256 KB, and the file was
@@ -129,6 +149,32 @@ uses, or English where that version does not ship it - and *Same as the interfac
   is too large or holds no JSON is now left as it is: the watcher keeps the settings it had (with none yet, it sends nothing), a save
   is refused and says why, the Diagnostics check names it, and *Restore defaults* keeps the file beside it before it starts again. A
   Codex path you name may be up to 32,767 characters, the longest Windows takes.
+- **The popup and the drawn menus move as the window does** (new since beta.2). The popup fades in and rises into place when it opens, its
+  buttons' faces glide between their states as the Dashboard's do, and the icon's menu and the popup's row menus fade and rise in and fade
+  out as the window's menu does. Reduce motion, High Contrast, battery saver and a locked session hold all of it still, and each then
+  changes at once.
+- **More of the window moves between its states** (new since beta.2). A tab is as wide as its name in its heavier weight, so choosing a
+  page moves no tab in the strip, not even by a pixel; a tooltip fades out as a closed menu does; a callout or a card that appears in the
+  page on screen, and Diagnostics' new notices, fade in over their ground; the installer's log fades in and out where it stands; Pending's
+  *Auto-resume* switch comes up under the pointer, widens its knob while held and fades while its answer is awaited; the Statistics bars
+  are round-ended in every design, only their lift staying the Soft design's; and the log's search and Statistics' period stand on a card,
+  as every other field does.
+- **The window lets go of what it replaced** (new since beta.2). Recently finished, the Codex homes' rows and the Settings editors
+  disposed nothing when they were built again, so every old label, button and editor kept its window handle for as long as the program
+  ran; they now dispose what they take away, and a step of the installer lets go of the controls the step before it made. A page that is
+  shown lets go of what it held even when a step of its own fails, so the page host never stays unable to lay anything out again. The
+  English words the window writes before the bridge's have come - nineteen had drifted from the catalog, among them the icon menu's *Show
+  what is waiting* without its count - are now the catalog's own sentences.
+- **Uninstall -Purge takes the watchers' lock files too** (new since beta.2). The lock file each watcher keeps for its Codex home, in
+  `AppData\Local\codex-auto-resume\homes`, outlived every uninstall; *Uninstall -Purge* now deletes them and the two folders once empty,
+  except one that another installation's watcher holds open, which stays with a line saying so. A plain uninstall leaves them. The script
+  the installer runs outside a packaged app's view is now the same text on every run: its paths, switches and values travel in the
+  environment of that run, not spliced into its command line.
+- **The documents were read a second time** (new since beta.2). The guide, the contributing, live-acceptance, brand, editions, comparison,
+  development and verification pages, and PRIVACY and SECURITY now say what the code does today - SECURITY the loopback API's one second
+  after an answer and its wrong tokens counted for each client, PRIVACY the watchers' lock files and that *Uninstall -Purge* takes them -
+  and the feature matrix says which version is the newest final, counts fifty-one capabilities on an installation and has rows for twelve
+  capabilities it lacked, among them the Python choice and the queued messages' pictures.
 - **The roadmap says where the second and third rounds of audits go, and moves the Rust core to v0.6.25 and its audit to v0.6.26** (new
   since beta.2). This release carries the whole second round of audits over the finished code. v0.6.24 is a third round that checks
   everything again, with the review of which advanced capabilities the standard edition could take and the switch of the bundled Python
@@ -143,10 +189,8 @@ uses, or English where that version does not ship it - and *Same as the interfac
   offered as its last such release). *Check python.org* reads python.org's list of releases and
   SHA-256 digests, so a new patch needs no update of this program; *Use this version* asks first, then downloads that version's Windows
   embeddable package from `www.python.org` alone. Before it runs, the whole file must match the published SHA-256, it must unpack into a
-  folder of its own inside the installation, `python.exe`, `pythonw.exe` and the Python library must each carry a valid Authenticode
-  signature of the Python Software Foundation, and every part of the program must import under it. The watcher then uses it after a
-  restart the card asks for, and the Dashboard and the Codex tools the next time they start. If the watcher cannot start under it within
-  45 seconds, it goes back to the bundled Python by itself and says so once; a step that fails deletes what it unpacked and leaves the
+  folder of its own inside the installation, every program file in it (`.exe`, `.dll` and `.pyd`) must carry a valid Authenticode signature of the Python Software Foundation, Microsoft's being taken on its two Visual C++ runtime DLLs only, and every part of the program must import under it. The watcher then uses it after a
+  restart the card asks for, and the Dashboard and the Codex tools the next time they start. If the watcher cannot start under it - the launcher gives it 45 seconds from its own start, after the question of which Python to use that comes first - it goes back to the bundled Python by itself and says so once; a step that fails deletes what it unpacked and leaves the
   Python in use alone. *Back to the bundled version* works even when the chosen one is broken, and so does turning it off. It takes about
   30 MB, is not updated for you, and an update or a repair keeps the choice while its line is still allowed. Only an installed copy offers
   it. It sends nothing to Codex, and its statement names the standards it departs from.
@@ -161,11 +205,15 @@ uses, or English where that version does not ship it - and *Same as the interfac
   refused when you write it, with the word a message too long always had, not at its time on every try (new since beta.2). A
   failure only the advanced edition takes up is taken up within six hours, the standard edition's look-back, where a PC that slept
   longer than an hour left it to you. The continuation of *Longer messages* may carry 29,962 characters.
+  The statement for reset messages says that twenty of the fifty are sent in a day and the rest on the days after, and the refusal for a
+  full queue says that five of one conversation's are sent in a day (new since beta.2).
 - **Start the 5-hour window early tries again.** A usage read that failed once - a PC just woken, Codex restarting, the state busy -
   used up the occasion and left the idle window unstarted for 29 hours on one PC. A failure that passes now leaves the occasion
   open and looks again every five minutes, for the time's grace if you picked a time and for five hours after a reset it saw, and ends
   in one journal line only when that is over. A reset under a full weekly window, at the ceiling, or whose request could not be started stays
   open until the weekly window's own reset, or for a day. The capability's card says so in two lines.
+  Under a full weekly window it now looks once, a little past that window's reset, instead of every five minutes, which had opened up to
+  about 2,000 Codex sessions in a week, and the card no longer says it tries again every five minutes through the wait (new since beta.2).
 - **Restart the watcher if it stops unexpectedly says when it has not started.** A watcher that started without its launcher's
   supervisor ran for 23 hours with no crash restart and no word. The launcher now asks again five seconds later; if the answer is still
   missing it says so in its log, in `errors.log` and on the Advanced page, and if that watcher ends unexpectedly it starts one under
@@ -184,6 +232,60 @@ uses, or English where that version does not ship it - and *Same as the interfac
   offered as its last such release, and a version with none is named on the card. A start under a chosen Python that is slow but
   healthy is no longer taken back: the Dashboard's wait is counted as the launcher's own is. Its card's limits line says its own
   sentence; it and four other cards had shown another capability's.
+- **A chosen Python is looked after more carefully** (new since beta.2). Every program file of the downloaded package must carry the
+  Python Software Foundation's signature before the import step runs any: until now only three did, and the rest rested on a digest read
+  from the same host as the package. *Check python.org* ends after two minutes in all and a download after ten, where a service sending a
+  piece a minute could hold either for ever. A restart the card asks for starts the new launcher first, which waits for the old watcher to
+  let go, so closing the Dashboard in the middle of it can no longer leave no watcher running. A runtime that anything still uses is left
+  whole for a later sweep, and a free one is set aside and then deleted, so no half-deleted runtime ever sits under a version's name;
+  *Back to the bundled version* says it is back only where the restart came up there, and otherwise tells in the card's words that the
+  watcher takes the bundled version when it next starts. A watcher under a chosen Python that crashes is restarted as the bundled one is,
+  every end that is not restarted says so in the launcher's log with its exit code, and a starting watcher logs how the one before it
+  ended. The launcher's log also gives the seconds of each step of a start, and the sign-in's Run entry always names the bundled
+  `pythonw.exe`, so *Back* or another version no longer leaves a sign-in that starts nothing while its switch reads On. The statement says
+  that a choice turned off from Codex moves the watcher to the bundled Python when it next starts, and the card reads itself only while
+  the Advanced page is shown with it open, keeping the keyboard where you left it during a download.
+- **Queued and reset messages are kept for their pace, their pictures and their records** (new since beta.2). A message that the product's
+  own pace holds - five a day, fifteen minutes, one in flight, the ceilings - is sent once that pace lets it go and is never expired for
+  it: the day after which an unsent message expires counts from when it could first go. A message added or edited with pictures is held
+  until its pictures are placed, where a watcher tick between the write and the pictures could send the words alone, or an edit's new
+  words with the old pictures. A recurring message whose pictures cannot go moves to its next occurrence a day after it fell due, instead
+  of holding its conversation's queue behind it for good, and an occurrence that expires no longer leaves a waiting record behind.
+- **Chat with a conversation in the Dashboard keeps a message Codex already holds through a Pause** (new since beta.2), as its statement
+  says; the chat's three-minute take-back and a conversation switched off still take it back. With the loopback API and Telegram both on,
+  one start launches one resident and counts one start, where both answered in the same moment and each launched one.
+- **Account switching acts only on what it has read** (new since beta.2). After an automatic switch the meter's last reading was still the
+  old account's, and the wrap-up told the turns the switch freed to wrap up and stop; no stage now acts on a reading made before a switch,
+  the wrap-up, the meter's warning, the forced stop and the pause among them, and the meter reads again at once. An account read that
+  answers nothing after a switch - a timeout while the app starts - no longer sets a good saved account aside or undoes the switch: only a
+  definite answer does, no answer is read again three times ten seconds apart, and one still unknown leaves the switch unverified to be
+  settled on a definite answer, which the saved accounts card now says in a line of its own. *Delete all* never deletes the only copy of
+  the sign-in that a waiting put-back is to restore: it finishes the put-back first where Codex is not running, and refuses where it is.
+  The ten-a-day ceiling counts as reached when the switch times cannot be read, where a damaged file had read as no switch made. A switch
+  left waiting is journalled once, not at every look, which had come to as many as 1,440 rows a day of the journal's 5,000.
+- **Stop near a limit says what holds it** (new since beta.2). Its card showed the day's send numbers, which never bind it, and now says
+  what does: each time a window reaches its stop percentage, one stop of each conversation's running turn and one continuation after the
+  reset.
+- **The loopback API and the Telegram control cannot be held by a slow client or a long reply** (new since beta.2). After it has answered,
+  the API waits one second in all to read the rest of a request, not one second for each byte a client trickles, which eight such clients
+  could use to refuse everyone; wrong tokens are counted for each client, so ten in a minute close the server for five minutes to that
+  client alone, where one device on the network could keep it closed to every other; every request the courier sends has its timeout plus
+  ten seconds in all, so a service that trickles bytes cannot hold the Telegram poll; a Telegram reply too long to read - two long
+  messages that quote long ones - makes the poller wait and ask for one message alone, where it had read the same reply again at once for
+  ever and never reached the paired chat's commands behind it; and a Telegram command dated up to five minutes ahead of this PC's clock is
+  obeyed, where a PC a second behind Telegram's clock ignored every command and answered none.
+- **Smaller fixes of the advanced capabilities** (new since beta.2). *Open a waiting conversation in Codex* never opens one the app
+  already holds; *Steer the running turn* counts its daily cap and its one waiting per conversation inside the write itself, so two
+  requests at once cannot both be written; *Continue inside the turn* removes the declaration it left in Codex's configuration at every
+  way off, even once a later version hides the capability; notices that waited while *Send notices to your phone or inbox* was off are
+  dropped when it is turned on again, not sent days later; *Sleep or shut down after tasks you pick* waits for a turn you continue
+  yourself instead of counting the task ended where it was cut off; and *Show OpenAI's service status* says it could not be read when the
+  status page cannot be reached, never an old outage under a fresh time.
+- **A watcher that runs for weeks keeps showing the advanced edition's notices** (new since beta.2). It remembered the notices it had
+  shown in a set that refused every key past the 64th, so a watcher alive for a week or two never showed a near-limit, account or update
+  notice again; it now forgets the oldest past 64.
+- **The advanced pages move and read as the rest do** (new since beta.2). The saved accounts' usage meters glide from what they showed to
+  a new reading, as the Statistics bars do, and *Find a conversation*'s search stands on a card.
 
 ## v0.6.23-beta.2 — Four more languages: Persian, Czech, Hungarian and Thai, pages that open quickly the first time, and a Finish page that keeps the shortcut you already have
 
