@@ -993,7 +993,9 @@ namespace CodexAutoResume
         {
             if (id == "long_reset_message")
                 return Word("page.long_limits",
-                    "It sends nothing itself. While it is on, a message at a reset may be as long as one continuation can be, not only {n} characters.",
+                    "It sends nothing itself. While it is on, a message at a reset may be as long as one continuation can be, " +
+                    "not only {n} characters. Many double quotes or emoji make it a little less, and a message that does not " +
+                    "fit is refused when you write it.",
                     "n", 2000);
             if (id == PythonId)
                 return Word("page.python.limits",

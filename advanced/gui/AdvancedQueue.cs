@@ -155,7 +155,8 @@ namespace CodexAutoResume
             if (refusal == "prompt_refused")
                 return Word("page.refused.prompt_refused", "That message cannot be queued: it is empty or too long, holds a marker of this product's, or is one of its own continuations.");
             if (refusal == "queue_full")
-                return Word("page.refused.queue_full", "As many messages are queued as may: twenty for a conversation, fifty in all. Cancel one to queue another.");
+                return Word("page.refused.queue_full", "As many messages are queued as may: twenty for a conversation, " +
+                    "fifty in all. Five of one conversation's are sent in a day. Cancel one to queue another.");
             if (refusal == "dependency_unknown")
                 return Word("page.refused.dependency_unknown", "No message is queued before it in that conversation, so it cannot wait for one.");
             // v0.6.20 (#50 item 1): a picture of the message.
