@@ -670,8 +670,19 @@ namespace CodexAutoResume
             {
                 logShown = !logShown;
                 toggle.Text = logShown ? words.Say("installer.log.hide", "Hide the log") : words.Say("installer.log.show", "Show the log");
-                logArea.Visible = logShown;
-                Arrange(Inner(ClientSize.Width));
+                // v0.6.23 (the design audit's second round, F12): it fades in, and out, where it stands - its room is kept, so
+                // nothing else moves (SoftReveal). A step of its own is still one finished frame.
+                if (logShown)
+                {
+                    logArea.Visible = true;
+                    Arrange(Inner(ClientSize.Width));
+                    SoftReveal.Entered(logArea);
+                }
+                else SoftReveal.Leaving(logArea, delegate
+                {
+                    logArea.Visible = false;
+                    Arrange(Inner(ClientSize.Width));
+                });
             };
             return toggle;
         }
