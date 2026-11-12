@@ -94,6 +94,16 @@ namespace CodexAutoResume
             return null;
         }
 
+        /// v0.6.23 (the design audit's second round, F13): shown by its own Visible in a page already on screen - the Settings
+        /// warning that high limits raise - it fades in over its ground once laid out (SoftReveal). Built with its page, it
+        /// is simply there with it.
+        protected override void SetVisibleCore(bool value)
+        {
+            bool appearing = value && !Soft.OwnVisible(this) && IsHandleCreated && Parent != null && Motion.Allowed(Parent);
+            base.SetVisibleCore(value);
+            if (appearing) SoftReveal.EnterSoon(this);
+        }
+
         protected override void OnFontChanged(EventArgs e)
         {
             base.OnFontChanged(e);

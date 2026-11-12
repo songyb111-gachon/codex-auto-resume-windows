@@ -800,6 +800,129 @@ namespace CodexAutoResume
         }
     }
 
+    /// A part that comes into view in a page already on screen, or leaves it (v0.6.23, the design audit's second round, F12 and
+    /// F13): a callout or a card shown, the installer's log shown or hidden. It is laid out as it always was, at once - nothing
+    /// moves for it - and for brand's transition a cover over its place lays down one picture of the ground behind it
+    /// (GroundShot) and over that one picture of the part (DrawToBitmap), the part's fading in, or out, on brand's curve. Two
+    /// bitmaps for the whole fade, none for a frame; the cover takes itself away when it is over, and while it is there the
+    /// window counts it as moving (Transition.Moving), so no picture is taken of it. A shadow cannot fade: the part's lift is
+    /// there, or gone, at once. With motion reduced, in High Contrast, or out of sight (Motion.Allowed), nothing is covered.
+    /// A page that changes - the Dashboard's, a Settings section, a step of the installer - is still one finished frame.
+    internal sealed class SoftReveal : Control
+    {
+        private readonly Bitmap face;
+        private readonly GroundShot ground = new GroundShot();
+        private readonly Transition time;
+        private readonly bool entering;
+        private bool over;
+
+        /// How many are on the screen (for the tests).
+        internal static int Live;
+
+        private SoftReveal(Control parent, Rectangle bounds, Bitmap face, bool entering)
+        {
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
+            this.face = face;
+            this.entering = entering;
+            TabStop = false;
+            AccessibleRole = AccessibleRole.None;
+            Bounds = bounds;
+            time = new Transition(this, 0.0);
+            parent.Controls.Add(this);
+            BringToFront();
+            Live++;
+            Transition.Moving++;
+            time.To(1.0, true);
+        }
+
+        /// Whether `part` may fade now: shown on screen (Motion.Allowed), in a parent, with a size.
+        private static bool May(Control part)
+        {
+            return part != null && !part.IsDisposed && part.Parent != null && part.Width > 0 && part.Height > 0 && Motion.Allowed(part);
+        }
+
+        private static Bitmap Picture(Control part)
+        {
+            var picture = new Bitmap(part.Width, part.Height, PixelFormat.Format32bppPArgb);
+            try { part.DrawToBitmap(picture, new Rectangle(Point.Empty, part.Size)); }
+            catch (Exception) { picture.Dispose(); return null; }
+            return picture;
+        }
+
+        /// `part` has just been shown and laid out: it fades in over the ground behind it. False where nothing fades.
+        internal static bool Entered(Control part)
+        {
+            if (!May(part)) return false;
+            Bitmap picture = Picture(part);
+            if (picture == null) return false;
+            new SoftReveal(part.Parent, part.Bounds, picture, true);
+            return true;
+        }
+
+        /// The same once the layout its showing asks for is done: a part shown by its own Visible, whose parent lays it out
+        /// after. The cover is up before the part is first painted.
+        internal static void EnterSoon(Control part)
+        {
+            if (part == null || !part.IsHandleCreated || part.IsDisposed) return;
+            part.BeginInvoke((MethodInvoker)delegate { Entered(part); });
+        }
+
+        /// `part` is to leave: `hide` takes it away, as it always did, and its last picture fades out over the ground.
+        internal static void Leaving(Control part, Action hide)
+        {
+            Bitmap picture = May(part) ? Picture(part) : null;
+            Control parent = part == null ? null : part.Parent;
+            Rectangle bounds = part == null ? Rectangle.Empty : part.Bounds;
+            hide();
+            if (picture == null) return;
+            if (parent == null || parent.IsDisposed || !parent.IsHandleCreated)
+            {
+                picture.Dispose();
+                return;
+            }
+            new SoftReveal(parent, bounds, picture, false);
+        }
+
+        /// How opaque the part is drawn now, 0 to 1 (for the tests).
+        internal double Opacity { get { return entering ? time.Value : 1.0 - time.Value; } }
+
+        /// Whether it is on its way; its timer runs only then (for the tests).
+        internal bool Running { get { return time.Running; } }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            Graphics g = e.Graphics;
+            ground.Paint(this, g, ClientRectangle);
+            Soft.Faded(g, face, ClientRectangle, Opacity);
+            if (!time.Running && !over)
+            {
+                over = true;
+                BeginInvoke((MethodInvoker)delegate { Finish(); });
+            }
+        }
+
+        private void Finish()
+        {
+            if (IsDisposed) return;
+            Control parent = Parent;
+            if (parent != null) parent.Controls.Remove(this);
+            Dispose();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && !IsDisposed)
+            {
+                Live--;
+                Transition.Moving--;
+                time.Dispose();
+                ground.Dispose();
+                face.Dispose();
+            }
+            base.Dispose(disposing);
+        }
+    }
+
     /// Keeps the ground behind a lifted control in step with it: where its shadow was, and
     /// where it is now, are repainted when it moves, resizes, shows, hides or changes state.
     internal sealed class LiftTracker
