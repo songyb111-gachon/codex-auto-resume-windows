@@ -165,13 +165,40 @@ namespace CodexAutoResume
             if (!form.shown) form.OnShown(EventArgs.Empty);
             // The idle turns raised one at a time, counted by the page made ready and its step on each.
             var turns = new Dictionary<string, object>();
+            // Settings' controls whose windows are made while it is made ready, counted by the turn they are made on; each
+            // given 5 ms more to be made (a sleep on its HandleCreated), so that what a turn can make before its slice is
+            // spent is the same on a fast PC and a slow one: a fast one made every control of a small window in two turns
+            // or one, a slice's worth or less (GitHub's runners, 2026-11-13), and the count said nothing of the slicing.
+            var made = new Dictionary<string, object>();
+            string makingAt = null;
+            bool settingsWatched = false;
+            Action<Control> watchMade = null;
+            watchMade = delegate(Control control)
+            {
+                if (!control.IsHandleCreated)
+                    control.HandleCreated += delegate
+                    {
+                        if (makingAt == null || !makingAt.StartsWith("settings:", StringComparison.Ordinal)) return;
+                        object seen;
+                        made[makingAt] = (made.TryGetValue(makingAt, out seen) ? (double)seen : 0.0) + 1.0;
+                        System.Threading.Thread.Sleep(5);
+                    };
+                foreach (Control child in control.Controls) watchMade(child);
+            };
             var clock = System.Diagnostics.Stopwatch.StartNew();
             while (clock.ElapsedMilliseconds < 90000 && !(form.snapshot != null && form.settingsRead && !form.buildQueued &&
                                                            !form.prepareQueued && form.bridge.InFlight == 0))
             {
                 Application.DoEvents();
                 string at = form.preparing == null ? null : form.preparing + ":" + form.prepareStep;
+                if (form.preparing == "settings" && !settingsWatched)
+                {
+                    settingsWatched = true;
+                    watchMade(form.columns);
+                }
+                makingAt = at;
                 Application.RaiseIdle(EventArgs.Empty);
+                makingAt = null;
                 if (at != null)
                 {
                     object seen;
@@ -182,6 +209,7 @@ namespace CodexAutoResume
             var outMap = new Dictionary<string, object>();
             outMap["opened_on"] = form.currentPage;
             outMap["turns"] = turns;
+            outMap["made"] = made;
             outMap["built"] = new List<object>(new List<string>(form.pages.Keys).ToArray());
             outMap["history_rows"] = (double)form.historyList.Items.Count;
             outMap["pending_rows"] = (double)form.pendingList.Items.Count;
@@ -272,9 +300,13 @@ class RefreshTests(unittest.TestCase):
 
     def test_making_a_page_s_controls_takes_turns_of_its_own_budget(self):
         """Settings' controls - its combo boxes, every editor - took 860 ms in one turn on months of data; made a slice at
-        a time (MakeSome, PrepareSliceMilliseconds), they take several turns. Counted, not timed."""
-        turns = self.answer["turns"]
-        self.assertGreaterEqual(turns.get("settings:2", 0), 3, "Settings' controls made in one turn again: %r" % turns)
+        a time (MakeSome, PrepareSliceMilliseconds), they take several turns. Counted, not timed: each control is given
+        5 ms more to be made, so a slice holds a few of them on any PC (GitHub's runners made them all in one or two
+        turns, without it)."""
+        turns, made = self.answer["turns"], self.answer["made"]
+        self.assertGreaterEqual(made.get("settings:2", 0), 30, "Settings' controls were made on its own turns: %r" % made)
+        # At least 5 ms each, at most PrepareSliceMilliseconds and one control a turn: 30 of them take 5 turns or more.
+        self.assertGreaterEqual(turns.get("settings:2", 0), 3, "Settings' controls made in one turn again: %r %r" % (turns, made))
         self.assertGreaterEqual(turns.get("pending:1", 0), 1, "Pending written on a turn of its own: %r" % turns)
         # v0.6.23 (round 5): Pending and Diagnostics built a part a turn (PendingSteps, DiagnosticsSteps).
         self.assertGreaterEqual(turns.get("pending:0", 0), 5, "Pending built in one turn again: %r" % turns)
