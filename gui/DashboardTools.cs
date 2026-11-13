@@ -524,8 +524,10 @@ namespace CodexAutoResume
             var view = List(S("logs.title", "Log"),
                             Col(S("logs.col_time", "Time"), 150),
                             Col(S("logs.col_entry", "Entry"), 560));
-            // On History's card, on the soft scroll bar, as the lists in the window are (DialogListCard).
+            // On History's card, on the soft scroll bar, as the lists in the window are (DialogListCard) - and the search above
+            // it on the same card (v0.6.23, SearchOnCard).
             Control listGround = DialogListCard(view);
+            SearchOnCard(listGround, top);
 
             var footer = new SoftStack();
             footer.Dock = DockStyle.Bottom;
@@ -549,7 +551,6 @@ namespace CodexAutoResume
             buttons.Controls.Add(close);
 
             dialog.Controls.Add(listGround);
-            dialog.Controls.Add(top);
             dialog.Controls.Add(footer);
             dialog.Controls.Add(buttons);
             dialog.AcceptButton = search;

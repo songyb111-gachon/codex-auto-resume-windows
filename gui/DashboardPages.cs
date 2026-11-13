@@ -449,14 +449,33 @@ namespace CodexAutoResume
                 ListViewHitTestInfo hit = list.HitTest(e.Location);
                 if (hit.Item == null || hit.SubItem == null) return;
                 if (hit.Item.SubItems.IndexOf(hit.SubItem) != ResumeColumn) return;
+                // A list may hold the button's release back for its own drag (ListView): let go here at the latest.
+                if (resumeFeel != null) resumeFeel.Held(null);
                 ToggleAutoResume(hit.Item.Tag as Dictionary<string, object>);
             };
             list.KeyDown += delegate(object sender, KeyEventArgs e)
             {
                 if (e.KeyCode != Keys.Space) return;
-                ToggleAutoResume(Selected(list));
+                // Held while Space is (ListSwitchFeel), as a SoftCheck is.
+                var held = Selected(list);
+                if (resumeFeel != null && held != null && !EditionRow(held)) resumeFeel.Held(Str(held, "interruption_id"));
+                ToggleAutoResume(held);
                 e.Handled = true;
             };
+            // v0.6.23 (the second round's F7): the switch answers the pointer and its call as every other switch does
+            // (ListSwitchFeel): up while the pointer is on its cell, its knob wider while it is held, halfway into its row
+            // while the change is awaited. It still moves only once the answer has been read (FollowResumeSwitches).
+            resumeFeel = new ListSwitchFeel(list, ResumeCell, delegate { return busy > 0; });
+            list.Disposed += delegate { resumeFeel.Dispose(); };
+            list.MouseMove += delegate(object sender, MouseEventArgs e) { resumeFeel.Over(ResumeAt(list, e.Location)); };
+            list.MouseLeave += delegate { resumeFeel.Over(null); resumeFeel.Held(null); };
+            list.MouseDown += delegate(object sender, MouseEventArgs e)
+            {
+                if (e.Button == MouseButtons.Left) resumeFeel.Held(ResumeAt(list, e.Location));
+            };
+            list.MouseUp += delegate { resumeFeel.Held(null); };
+            list.KeyUp += delegate(object sender, KeyEventArgs e) { if (e.KeyCode == Keys.Space) resumeFeel.Held(null); };
+            list.LostFocus += delegate { resumeFeel.Held(null); };
             // v0.6.11: the row's own menu - postpone it, let a held one continue, how its conversation
             // resumes - on a right click, Shift+F10 or the menu key, and (v0.6.19, the owner's word of 2026-10-23) a
             // double left-click on a row. Nothing on the page moves for it, and each item acts on the row the menu was
@@ -606,11 +625,15 @@ namespace CodexAutoResume
         private Control BuildStatistics()
         {
             Panel page = Page();
-            // A ground, so the lift of the cards under it is not covered where it runs up into it.
+            // v0.6.23 (the second round's F9): the period on a card of its own, as every field in the window stands on one - the
+            // row inside it as it was - on a ground, so the lift of the cards under it is not covered where it runs up into it.
             var top = new SoftFlow();
-            top.Dock = DockStyle.Top;
             top.AutoSize = true;
-            top.Padding = Pad(0, 0, 0, 12);
+            top.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            top.WrapContents = false;
+            top.BackColor = Card;
+            top.Margin = new Padding(0);
+            top.Padding = new Padding(0);
             var label = GroundText(S("stats.period", "Period"));
             // On the drop-down's centre line: half of what the field is taller than a line of the
             // window's text. Measured in the window's font - the label has no parent yet, and would
@@ -662,8 +685,25 @@ namespace CodexAutoResume
 
             grid.Controls.Add(numbers, 0, 0);
             grid.Controls.Add(outcomes, 1, 0);
+            var periodCard = new SoftCard();
+            periodCard.Dock = DockStyle.Fill;
+            periodCard.ColumnCount = 1;
+            periodCard.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            periodCard.AutoSize = true;
+            periodCard.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            periodCard.Margin = new Padding(0);
+            periodCard.Padding = Pad(Brand.CardPadLeft, 12, Brand.CardPadRight, 12);
+            periodCard.Controls.Add(top);
+            var periodGround = new SoftStack();
+            periodGround.Dock = DockStyle.Top;
+            periodGround.AutoSize = true;
+            periodGround.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            periodGround.ColumnCount = 1;
+            periodGround.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            periodGround.Padding = Pad(0, 0, 0, Brand.PageGap);
+            periodGround.Controls.Add(periodCard);
             page.Controls.Add(grid);
-            page.Controls.Add(top);
+            page.Controls.Add(periodGround);
             return page;
         }
 

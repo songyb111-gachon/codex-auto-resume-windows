@@ -344,6 +344,8 @@ namespace CodexAutoResume
         {
             var said = new List<string>();
             foreach (Control callout in stack.Controls) said.Add(callout.AccessibleName ?? "");
+            // v0.6.23 (the design audit's second round, F13): notices that come while the page is on screen fade in (SoftReveal).
+            var made = new List<Control>();
             if (string.Join("\n", said.ToArray()) != string.Join("\n", notices.ToArray()))
             {
                 stack.SuspendLayout();
@@ -360,12 +362,14 @@ namespace CodexAutoResume
                     callout.Margin = new Padding(0, row == 0 ? 0 : Px(Brand.SpaceM), 0, 0);
                     stack.RowStyles.Add(new RowStyle(SizeType.AutoSize));
                     stack.Controls.Add(callout, 0, row);
+                    made.Add(callout);
                 }
                 stack.ResumeLayout();
                 if (stack.Parent != null) stack.Parent.PerformLayout();
             }
             bool any = notices.Count > 0;
             if (Soft.OwnVisible(stack) != any) stack.Visible = any;
+            foreach (Control callout in made) SoftReveal.EnterSoon(callout);
         }
 
         /// Lines of text in a label that says nothing, and takes no room, while it has none. Its own visibility, not

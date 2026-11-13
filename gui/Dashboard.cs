@@ -531,6 +531,45 @@ namespace CodexAutoResume
             base.Dispose(disposing);
         }
 
+        /// v0.6.23 (the second round's F6): a tab in the strip is as wide as its name is in the wider of the strip's two weights -
+        /// the chosen page's name is set in nav_current, every other in nav (ShowPage) - whichever it is set in now. Choosing a
+        /// page changes only the weight drawn: no tab in the strip moves, and the tab pressed stays under the pointer. A section
+        /// in Settings' column (Vertical) is sized by its column.
+        public override Size GetPreferredSize(Size proposedSize)
+        {
+            Size size = base.GetPreferredSize(proposedSize);
+            if (measuring || Vertical || string.IsNullOrEmpty(Text)) return size;
+            int widest = Math.Max(WidthIn(Soft.RoleFont("nav"), proposedSize), WidthIn(Soft.RoleFont("nav_current"), proposedSize));
+            if (widest > size.Width) size.Width = widest;
+            return size;
+        }
+
+        // Each weight is measured exactly as Button measures it - by a tab of its own, never shown, set in that weight - since
+        // Button's own measure of the words is not TextRenderer's to the pixel; remembered by the words, the font and the room.
+        private static NavButton measurer;
+        private static readonly Dictionary<string, int> widths = new Dictionary<string, int>();
+        private bool measuring;
+
+        private int WidthIn(Font font, Size proposedSize)
+        {
+            if (ReferenceEquals(font, Font)) return base.GetPreferredSize(proposedSize).Width;
+            string key = System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(font).ToString(CultureInfo.InvariantCulture) + "|" +
+                         Padding + "|" + proposedSize + "|" + Text;
+            int width;
+            if (widths.TryGetValue(key, out width)) return width;
+            if (measurer == null)
+            {
+                measurer = new NavButton();
+                measurer.measuring = true;
+            }
+            measurer.Padding = Padding;
+            measurer.Font = font;
+            measurer.Text = Text;
+            width = measurer.GetPreferredSize(proposedSize).Width;
+            widths[key] = width;
+            return width;
+        }
+
         /// v0.6.20: the arrow keys along a mirrored strip of tabs go the way it reads - Left to the next tab, which stands
         /// left of this one, and Right back to the one before - as they go the way it reads left to right (Mirror).
         protected override bool ProcessDialogKey(Keys keyData)
@@ -775,6 +814,8 @@ namespace CodexAutoResume
         private void Close()
         {
             popDown.Stop();
+            // v0.6.23 (the second round's F8): it fades out as it faded in, as the menu and the drop-down leave (SoftTipWindow.Close).
+            bool fade = over != null && Motion.Allowed(over);
             if (over != null)
             {
                 over.MouseLeave -= left;
@@ -782,7 +823,7 @@ namespace CodexAutoResume
                 over.Disposed -= left;
                 over = null;
             }
-            if (card != null) card.Dispose();
+            if (card != null) card.Close(fade);
             card = null;
         }
 
@@ -969,8 +1010,9 @@ namespace CodexAutoResume
             int labelWidth = LabelWidth();
             int track = Track(labelWidth);
             // v0.6.22 (the owner's mock A, 2026-11-08): in the Soft design each bar is a pill raised off the card with the
-            // control's lift, as a raised button is; in a design without depth, and in High Contrast, it is the flat bar
-            // it always was. Every lift is stamped before any body, so one bar's shadow never lies over its neighbour.
+            // control's lift, as a raised button is. Every lift is stamped before any body, so one bar's shadow never lies over
+            // its neighbour. v0.6.23 (the second round's F10): a pill in every design and in High Contrast, as their switch
+            // tracks, meters and scroll thumbs are round-ended - a design changes depth, not shape; the lift alone is Soft's.
             Rectangle[] faces = Faces();
             if (Palette.Depth)
                 foreach (var face in faces)
@@ -980,8 +1022,7 @@ namespace CodexAutoResume
                 Bar bar = Bars[index];
                 Rectangle face = faces[index];
                 Color fill = ColorOf(bar.Group);
-                if (Palette.Depth) Soft.Body(e.Graphics, face, face.Height / 2f, fill, fill, null);
-                else using (var flat = new SolidBrush(fill)) e.Graphics.FillRectangle(flat, face);
+                Soft.Body(e.Graphics, face, face.Height / 2f, fill, fill, null);
                 string number = bar.Value.ToString(CultureInfo.CurrentCulture);
                 int length = Length(index, max, track);
                 if (mirrored)
@@ -2388,6 +2429,29 @@ namespace CodexAutoResume
             return ground;
         }
 
+        /// What a dialog searches its list with (`row`: a search box and what goes with it), moved onto the list's own card above
+        /// the list (v0.6.23, the second round's F9): a field stands on a card wherever it is, as every other dialog's do
+        /// (DialogBodyCard). `ground` is what DialogListCard made; the row keeps its own layout, on the card's ground, with
+        /// the card's room above the list under it.
+        private void SearchOnCard(Control ground, Control row)
+        {
+            var card = ground.Controls.Count > 0 ? ground.Controls[0] as SoftCard : null;
+            if (card == null || card.Controls.Count == 0) return;
+            Control host = card.Controls[0];
+            card.SuspendLayout();
+            card.RowStyles.Clear();
+            card.RowCount = 2;
+            card.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            card.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+            card.SetCellPosition(host, new TableLayoutPanelCellPosition(0, 1));
+            row.Dock = DockStyle.Fill;
+            row.BackColor = Palette.Card;
+            row.Padding = Pad(0, 0, 0, 8);
+            row.Margin = new Padding(0);
+            card.Controls.Add(row, 0, 0);
+            card.ResumeLayout(false);
+        }
+
         /// A dialog's fields on a card, as the same fields stand on the Settings page (v0.6.23, the design audit's D2): `body` -
         /// a text well, or the column a dialog stacks its words and fields in - laid on a SoftCard, on a ground with the room
         /// the card's lift reaches into. The one place a dialog's body goes on a card: every dialog holding a field or a well
@@ -2522,7 +2586,12 @@ namespace CodexAutoResume
             Transition glide;
             string id = Str(row, "interruption_id");
             if (id != null && resumeGlides.TryGetValue(id, out glide) && glide.Running) on = glide.Value;
-            if (mirrored) Soft.SwitchSide(g, track, on, true, ground, true);
+            // v0.6.23 (the second round's F7): up under the pointer, its knob wider while it is held, and halfway into the row
+            // while the change it sent is awaited, as every other switch and the popup's (ListSwitchFeel). At rest, as it was.
+            double hover = resumeFeel == null ? 0.0 : resumeFeel.Hover(id), press = resumeFeel == null ? 0.0 : resumeFeel.Press(id);
+            double live = resumeFeel == null ? 1.0 : resumeFeel.Live(id);
+            if (hover > 0.0 || press > 0.0 || live < 1.0) Soft.SwitchLive(g, track, on, live, hover, press, ground, mirrored);
+            else if (mirrored) Soft.SwitchSide(g, track, on, true, ground, true);
             else Soft.SwitchAt(g, track, on, true, ground);
         }
 
@@ -2530,6 +2599,8 @@ namespace CodexAutoResume
         // each that has moved.
         private readonly Dictionary<string, bool> resumeShown = new Dictionary<string, bool>();
         private readonly Dictionary<string, Transition> resumeGlides = new Dictionary<string, Transition>();
+        // And how each answers the pointer and its call (v0.6.23, ListSwitchFeel; made with the list, PendingSteps).
+        private ListSwitchFeel resumeFeel;
 
         /// Every Auto-resume switch in Pending, after its rows were written (v0.6.5). The switch never moves when it is
         /// pressed: the press sends the change, and the list is read again once the control layer has answered
@@ -2568,6 +2639,7 @@ namespace CodexAutoResume
             {
                 if (present.Contains(id)) continue;
                 resumeShown.Remove(id);
+                if (resumeFeel != null) resumeFeel.Forget(id);
                 Transition glide;
                 if (resumeGlides.TryGetValue(id, out glide))
                 {
@@ -2586,6 +2658,15 @@ namespace CodexAutoResume
                 if (Str(item.Tag as Dictionary<string, object>, "interruption_id") == id && item.SubItems.Count > ResumeColumn)
                     return item.SubItems[ResumeColumn].Bounds;
             return Rectangle.Empty;
+        }
+
+        /// The id of the record whose Auto-resume switch is at `point` in Pending's list, or null where none is.
+        private string ResumeAt(ListView list, Point point)
+        {
+            ListViewHitTestInfo hit = list.HitTest(point);
+            if (hit.Item == null || hit.SubItem == null || hit.Item.SubItems.IndexOf(hit.SubItem) != ResumeColumn) return null;
+            var row = hit.Item.Tag as Dictionary<string, object>;
+            return row == null || EditionRow(row) ? null : Str(row, "interruption_id");
         }
 
         /// The colour a record's state word is drawn in. Always beside the word itself.
