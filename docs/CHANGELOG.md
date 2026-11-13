@@ -49,6 +49,11 @@ uses, or English where that version does not ship it - and *Same as the interfac
 - **The setup program's Finish page keeps the shortcut you already have.** Where the installation's shortcut is already on the desktop,
   its box reads *Keep the shortcut on the desktop* and is ticked; unticking it removes the shortcut, as before. Where there is none, it
   reads *Add a shortcut to the desktop* and is off, as before.
+- **The setup program says when it updates, and when it left the watcher stopped** (new since beta.2). Run over an older
+  installation of the same edition, the setup window's progress page reads *Updating* and its Finish page *Codex Auto Resume is
+  updated.*, as the Dashboard's own update does; it said *Installing* and *installed*. A watcher that was not running before an update
+  or a repair is still left stopped, as since v0.6.16, but the setup log's last lines and the Finish page now say so and how to start
+  it - Start watcher on the Dashboard, or in the Start menu - instead of *Nothing else to do*.
 - **The archives are more than a quarter smaller.** The standard edition's archive went from 17,569,476 to 12,440,014 bytes, the advanced
   edition's from 19,395,460 to 14,265,998 - 5,129,462 bytes less in each. The release no longer carries the pictures only the README
   shows or the development tools, and its copy of Python is trimmed to the 351 of its 563 library members that the product can reach,
