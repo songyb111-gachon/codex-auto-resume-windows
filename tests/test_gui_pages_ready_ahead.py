@@ -63,7 +63,8 @@ class SourceTests(unittest.TestCase):
         step = guiscan.member_body("SettingsForm", "PrepareNext")
         # After the first snapshot and the Settings editors, never while an action runs or the window has just had input.
         self.assertIn("if (snapshot == null || !settingsRead || pendingSchema != null || buildQueued) return true;", step)
-        self.assertIn("if (busy > 0 || refreshing || IdleStepWaits()) return true;", step)
+        # v0.6.23 (perffix): but for the step a pressed page takes to be made ready first (FinishFirst, prepareUrgent).
+        self.assertIn("if (busy > 0 || (!prepareUrgent && (refreshing || IdleStepWaits()))) return true;", step)
         self.assertIn("prepareInput.Since < PrepareAfterInputMilliseconds", guiscan.member_body("SettingsForm", "IdleStepWaits"))
         # v0.6.23 (the live acceptance): built, then written (WriteIfStale), then its controls made a slice at a time
         # (MakeSome, in Materialise's order), each a turn of its own.

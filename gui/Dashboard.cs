@@ -1953,6 +1953,11 @@ namespace CodexAutoResume
                 prepareStep = 0;
                 if (preparing == null) return false;
             }
+            // v0.6.23 (perffix): Settings, made ready first now, begun only once no read is on its way - as every page made
+            // ready after Diagnostics was, whose own reads it waited for - so that no answer changes a card of it while its
+            // holds are let go, which laid a Notifications card out at a height it did not keep (test_gui_long_steps). A
+            // press does not wait for that (prepareUrgent).
+            if (preparing == "settings" && prepareStep == 0 && !prepareUrgent && bridge.InFlight > 0) return true;
             // Built on the first step as a click builds it, the snapshot not yet written into it - it is out of sight, so
             // PageFor leaves it marked (Writes) - and written on the next (WriteIfStale), each a turn of its own: built and
             // written in one, Pending and Diagnostics held the window 550-750 ms on an installation that had run for
