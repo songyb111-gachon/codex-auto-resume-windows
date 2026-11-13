@@ -164,7 +164,8 @@ class WindowTests(unittest.TestCase):
         self.assertEqual(on_the_way[0][1:3], (0, rise))
         for elapsed, alpha, below, _ in on_the_way:
             self.assertLess(elapsed, TRANSITION, "on its way only while its time is not up")
-            self.assertLess(alpha, 255)
+            # Where the curve stands at the clock it was read at (its last steps round to 255 just before the end).
+            self.assertEqual(alpha, int(round(255 * brand.ease(elapsed / TRANSITION))))
         self.assertTrue(seen[-1][3], "and it arrived")
         self.assertGreaterEqual(seen[-1][0], TRANSITION, "no sooner than brand's transition, by the clock")
         alphas = [step[1] for step in seen]
