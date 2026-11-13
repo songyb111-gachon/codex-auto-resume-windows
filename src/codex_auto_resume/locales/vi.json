@@ -664,6 +664,7 @@
   "installer.done.failed": "Chưa hoàn tất (mã thoát {code}).",
   "installer.done.installed": "Codex Auto Resume đã được cài đặt.",
   "installer.done.installed_version": "Đã cài đặt v{version}",
+  "installer.done.left_stopped": "Bộ theo dõi không chạy trước đó nên vẫn được để dừng, và hiện chưa có gì được theo dõi. Hãy khởi động nó bằng Chạy bộ theo dõi trong Bảng điều khiển, hoặc mở Codex Auto Resume từ menu Start và khởi động nó ở đó.",
   "installer.done.not_started": "Không thể khởi động trình cài đặt.",
   "installer.done.open": "Mở Bảng điều khiển",
   "installer.done.previous_running": "Bộ theo dõi trước đó vẫn đang hoàn tất việc nó đang làm. Khi nó dừng, hãy khởi động bộ theo dõi từ Bảng điều khiển.",

@@ -664,6 +664,7 @@
   "installer.done.failed": "Nem fejeződött be (kilépési kód: {code}).",
   "installer.done.installed": "A Codex Auto Resume telepítve van.",
   "installer.done.installed_version": "Telepítve: v{version}",
+  "installer.done.left_stopped": "A figyelő korábban nem futott, ezért leállítva maradt, és még semmi sincs figyelve. Indítsa el a Figyelő indítása gombbal az Irányítópulton, vagy nyissa meg a Codex Auto Resume alkalmazást a Start menüből, és ott indítsa el.",
   "installer.done.not_started": "A telepítőt nem lehetett elindítani.",
   "installer.done.open": "Az Irányítópult megnyitása",
   "installer.done.previous_running": "Az előző figyelő még befejezi, amit csinált. Ha leállt, indítsa el a figyelőt az Irányítópultról.",

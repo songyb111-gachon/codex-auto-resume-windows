@@ -664,6 +664,7 @@
   "installer.done.failed": "הפעולה לא הסתיימה (קוד יציאה {code}).",
   "installer.done.installed": "Codex Auto Resume הותקן.",
   "installer.done.installed_version": "הותקנה v{version}",
+  "installer.done.left_stopped": "תהליך הניטור לא פעל קודם, ולכן נשאר עצור ועדיין שום דבר לא מנוטר. יש להפעיל אותו באמצעות \"הפעלת תהליך הניטור\" בלוח המחוונים, או לפתוח את Codex Auto Resume מתפריט \"התחל\" ולהפעיל אותו משם.",
   "installer.done.not_started": "לא ניתן היה להפעיל את תוכנית ההתקנה.",
   "installer.done.open": "פתיחת לוח המחוונים",
   "installer.done.previous_running": "תהליך הניטור הקודם עדיין מסיים את מה שעשה. אחרי שייעצר, יש להפעיל את תהליך הניטור מלוח המחוונים.",

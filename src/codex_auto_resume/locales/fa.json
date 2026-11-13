@@ -646,6 +646,7 @@
   "installer.done.failed": "کامل نشد (کد خروج {code}).",
   "installer.done.installed": "Codex Auto Resume نصب شد.",
   "installer.done.installed_version": "نسخهٔ v{version} نصب شد",
+  "installer.done.left_stopped": "ناظر پیش از این اجرا نمی‌شد، پس متوقف ماند و هنوز چیزی پایش نمی‌شود. با دکمهٔ شروع ناظر در داشبورد شروعش کنید، یا Codex Auto Resume را از منوی شروع باز کنید و از همان‌جا شروعش کنید.",
   "installer.done.not_started": "شروع نصب‌کننده ممکن نشد.",
   "installer.done.open": "باز کردن داشبورد",
   "installer.done.previous_running": "ناظر قبلی هنوز در حال تکمیل کارش است. پس از توقف آن، ناظر را از داشبورد شروع کنید.",

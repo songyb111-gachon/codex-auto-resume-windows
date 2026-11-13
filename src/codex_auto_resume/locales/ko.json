@@ -664,6 +664,7 @@
   "installer.done.failed": "완료되지 않았습니다(종료 코드 {code}).",
   "installer.done.installed": "Codex Auto Resume이 설치되었습니다.",
   "installer.done.installed_version": "v{version} 버전이 설치되었습니다",
+  "installer.done.left_stopped": "워처가 이전에 실행 중이 아니었으므로 멈춘 채로 두었으며, 아직 아무것도 감시하지 않고 있습니다. 대시보드의 워처 시작으로 시작하거나, 시작 메뉴에서 Codex Auto Resume을 열어 거기서 시작하세요.",
   "installer.done.not_started": "설치 프로그램을 시작할 수 없습니다.",
   "installer.done.open": "대시보드 열기",
   "installer.done.previous_running": "이전 워처가 하던 작업을 아직 마무리하는 중입니다. 워처가 멈추면 대시보드에서 워처를 시작하세요.",

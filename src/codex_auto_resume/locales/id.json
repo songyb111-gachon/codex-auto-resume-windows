@@ -664,6 +664,7 @@
   "installer.done.failed": "Tidak selesai (kode keluar {code}).",
   "installer.done.installed": "Codex Auto Resume sudah terinstal.",
   "installer.done.installed_version": "v{version} terinstal",
+  "installer.done.left_stopped": "Pemantau tidak berjalan sebelumnya, jadi tetap dihentikan dan belum ada yang dipantau. Mulai dengan Mulai pemantau di Dasbor, atau buka Codex Auto Resume dari menu Start dan mulai dari sana.",
   "installer.done.not_started": "Penginstal tidak dapat dimulai.",
   "installer.done.open": "Buka Dasbor",
   "installer.done.previous_running": "Pemantau sebelumnya masih menyelesaikan pekerjaannya. Setelah berhenti, mulai pemantau dari Dasbor.",

@@ -664,6 +664,7 @@
   "installer.done.failed": "ไม่เสร็จสิ้น (รหัสออก {code})",
   "installer.done.installed": "ติดตั้ง Codex Auto Resume แล้ว",
   "installer.done.installed_version": "ติดตั้ง v{version} แล้ว",
+  "installer.done.left_stopped": "ตัวเฝ้าดูไม่ได้ทำงานมาก่อน จึงถูกปล่อยให้หยุดอยู่ และยังไม่มีสิ่งใดถูกเฝ้าดู เริ่มด้วย เริ่มตัวเฝ้าดู ในแดชบอร์ด หรือเปิด Codex Auto Resume จากเมนูเริ่มแล้วเริ่มที่นั่น",
   "installer.done.not_started": "เริ่มตัวติดตั้งไม่ได้",
   "installer.done.open": "เปิดแดชบอร์ด",
   "installer.done.previous_running": "ตัวเฝ้าดูตัวก่อนหน้ายังทำสิ่งที่ทำอยู่ไม่เสร็จ เมื่อหยุดแล้ว ให้เริ่มตัวเฝ้าดูจากแดชบอร์ด",

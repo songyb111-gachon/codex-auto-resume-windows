@@ -664,6 +664,7 @@
   "installer.done.failed": "未能完成（退出代码 {code}）。",
   "installer.done.installed": "Codex Auto Resume 已安装。",
   "installer.done.installed_version": "已安装 v{version}",
+  "installer.done.left_stopped": "监视程序之前没有运行，因此保持停止状态，目前没有任何内容在受监视。请在仪表板中用“启动监视程序”启动它，或从“开始”菜单打开 Codex Auto Resume 并在其中启动它。",
   "installer.done.not_started": "无法启动安装程序。",
   "installer.done.open": "打开仪表板",
   "installer.done.previous_running": "之前的监视程序仍在处理手头的工作。待其停止后，请在仪表板中启动监视程序。",

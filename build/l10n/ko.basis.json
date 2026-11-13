@@ -646,6 +646,7 @@
   "installer.done.failed": "46c4fa701af97415",
   "installer.done.installed": "cea0a5c336382640",
   "installer.done.installed_version": "7b91d5fb19189fd3",
+  "installer.done.left_stopped": "9763cf03d108d80a",
   "installer.done.not_started": "9f782053d1ac515a",
   "installer.done.open": "afdc8ee93d49d270",
   "installer.done.previous_running": "c4e6085926b97c2d",

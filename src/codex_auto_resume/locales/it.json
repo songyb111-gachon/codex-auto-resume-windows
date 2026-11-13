@@ -664,6 +664,7 @@
   "installer.done.failed": "L'operazione non è terminata (codice di uscita {code}).",
   "installer.done.installed": "Codex Auto Resume è installato.",
   "installer.done.installed_version": "Installata la v{version}",
+  "installer.done.left_stopped": "Il monitor non era in esecuzione prima, quindi è rimasto fermo e per ora non viene controllato nulla. Avvialo con Avvia il monitor nella Dashboard, oppure apri Codex Auto Resume dal menu Start e avvialo da lì.",
   "installer.done.not_started": "Non è stato possibile avviare il programma di installazione.",
   "installer.done.open": "Apri la Dashboard",
   "installer.done.previous_running": "Il monitor precedente sta ancora finendo ciò che stava facendo. Quando si è fermato, avvia il monitor dalla Dashboard.",

@@ -664,6 +664,7 @@
   "installer.done.failed": "Tamamlanamadı (çıkış kodu {code}).",
   "installer.done.installed": "Codex Auto Resume kuruldu.",
   "installer.done.installed_version": "v{version} yüklendi",
+  "installer.done.left_stopped": "İzleyici daha önce çalışmıyordu, bu yüzden durdurulmuş olarak bırakıldı ve henüz hiçbir şey izlenmiyor. Gösterge Paneli'ndeki “İzleyiciyi başlat” ile başlatın ya da Başlat menüsünden Codex Auto Resume uygulamasını açıp orada başlatın.",
   "installer.done.not_started": "Yükleyici başlatılamadı.",
   "installer.done.open": "Gösterge Paneli'ni aç",
   "installer.done.previous_running": "Önceki izleyici yaptığı işi hâlâ bitiriyor. Durduğunda izleyiciyi Gösterge Paneli'nden başlatın.",

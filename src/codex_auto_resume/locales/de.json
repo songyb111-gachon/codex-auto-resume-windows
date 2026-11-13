@@ -664,6 +664,7 @@
   "installer.done.failed": "Der Vorgang wurde nicht abgeschlossen (Exitcode {code}).",
   "installer.done.installed": "Codex Auto Resume ist installiert.",
   "installer.done.installed_version": "v{version} installiert",
+  "installer.done.left_stopped": "Der Watcher lief vorher nicht und bleibt daher gestoppt; es wird noch nichts überwacht. Starten Sie ihn mit „Watcher starten“ im Dashboard, oder öffnen Sie „Codex Auto Resume“ über das Startmenü und starten Sie ihn dort.",
   "installer.done.not_started": "Das Installationsprogramm konnte nicht gestartet werden.",
   "installer.done.open": "Dashboard öffnen",
   "installer.done.previous_running": "Der bisherige Watcher beendet noch, was er gerade tat. Sobald er angehalten hat, starten Sie den Watcher im Dashboard.",

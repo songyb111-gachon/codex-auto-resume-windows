@@ -664,6 +664,7 @@
   "installer.done.failed": "لم يكتمل (رمز الخروج {code}).",
   "installer.done.installed": "تم تثبيت Codex Auto Resume.",
   "installer.done.installed_version": "تم تثبيت v{version}",
+  "installer.done.left_stopped": "لم يكن المراقِب يعمل من قبل، لذا تُرك متوقفًا ولا شيء قيد المراقبة بعد. شغّله بزر «بدء المراقِب» في لوحة المعلومات، أو افتح Codex Auto Resume من قائمة «ابدأ» وشغّله من هناك.",
   "installer.done.not_started": "تعذّر تشغيل برنامج التثبيت.",
   "installer.done.open": "فتح لوحة المعلومات",
   "installer.done.previous_running": "ما زال المراقِب السابق يُنهي ما كان يفعله. بعد أن يتوقف، شغّل المراقِب من لوحة المعلومات.",
