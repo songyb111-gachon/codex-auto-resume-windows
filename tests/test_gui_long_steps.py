@@ -10,9 +10,15 @@ ran:
   shown, has them all back first.
 * A page's own last layout as it was made ready ahead: Settings up to 500 ms, Diagnostics up to 360. What the page held
   was let go innermost first, each card and table laying itself out at the size it was built at, and the page's own
-  layout, last, gave each its real size and laid the whole page out again in that one step. It is now let go outermost
-  first (LetGoSome), the page first of all, so no card lays itself out before the page around it has, and on Settings
-  each card lays itself out only at the size it keeps; the steps are a slice each.
+  layout, last, gave each its real size and laid the whole page out again in that one step. Now each is first laid out
+  at its size and held again, outermost first, the page first of all, and only then let go innermost first (LetGoSome):
+  no card lays itself out before the page around it has, and on Settings each card lays itself out only at the size it
+  keeps; the steps are a slice each.
+* Pending's and Diagnostics' build steps: every control added to the page, a card or a grid asked it for a layout at the
+  size it had before the page had a room - and the page's place in the page host brought the window's font, which laid
+  the whole of Diagnostics out again in its last step (40-140 ms). Built ahead, the page, its cards, grids and button
+  rows are held from laying themselves out as they are made (Held) until the page is in the page host (PageFor,
+  LetGoBuilt), and they lay themselves out once, when the page is.
 
 The live probe: the real window, standard edition, shown far off the screen in a frame that is never activated, answered
 from the pictures' pinned scratch installation as the render mode is, its History grown to 200 rows and Pending to 60;
@@ -65,6 +71,22 @@ class SourceTests(unittest.TestCase):
         self.assertIn("if (preparing == name) PutBackAllRows();", guiscan.member_body("SettingsForm", "ShowPage"))
         self.assertIn("PutBackAllRows();", guiscan.member_body("SettingsForm", "Prepared"))
         self.assertIn("PutBackAllRows();", guiscan.member_body("SettingsForm", "PrepareFailed"))
+
+    def test_a_page_built_ahead_is_held_until_it_is_in_the_page_host(self):
+        some = guiscan.member_body("SettingsForm", "BuildSome")
+        self.assertIn("buildHolding = build;", some)
+        self.assertIn("finally { buildHolding = before; }", some)
+        built = guiscan.member_body("SettingsForm", "PageFor")
+        self.assertLess(built.index("pageHost.Controls.Add(page);"), built.index("if (begun != null) LetGoBuilt(begun);"))
+        held = guiscan.member_body("SettingsForm", "LetGoBuilt")
+        self.assertIn("held[i].ResumeLayout(false);", held)
+        # The page, its cards, facts, grids and button rows are held as they are made - only while built ahead.
+        for maker in ("Page", "Facts", "Grid", "ButtonRow", "MakeCard"):
+            with self.subTest(maker=maker):
+                self.assertIn("Held(new Soft", guiscan.member_body("SettingsForm", maker))
+        dashboard = guiscan.read("gui/Dashboard.cs")
+        hold = guiscan._block(dashboard, dashboard.index("private T Held<T>(T control) where T : Control"))
+        self.assertIn("if (buildHolding == null) return control;", hold)
 
 
 PROBE = r"""
@@ -288,6 +310,46 @@ namespace CodexAutoResume
             frame.Close();
             frame.Dispose();
 
+            // Pending and Diagnostics built ahead a step a turn: how many times the page, and each card on it, lays itself
+            // out while it is being built and put in the page host.
+            frame = new LongStepsFrame();
+            form = LongWindow(frame);
+            foreach (string name in new[] { "pending", "diagnostics" })
+            {
+                SettingsForm here = form;
+                string page = name;
+                var laid = new int[2];
+                var watched = new HashSet<Control>();
+                Action<Control> watch = null;
+                watch = delegate(Control control)
+                {
+                    if (!watched.Add(control)) return;
+                    bool root = control is SoftPage && control.Parent == null;
+                    if (root || control is SoftCard)
+                        control.Layout += delegate
+                        {
+                            if (here.preparing != page || here.prepareStep != 0) return;
+                            laid[root ? 0 : 1]++;
+                        };
+                    control.ControlAdded += delegate(object sender, ControlEventArgs e) { watch(e.Control); };
+                    foreach (Control child in control.Controls) watch(child);
+                };
+                int steps = 0;
+                Turns(form, delegate
+                {
+                    PageBuild begun;
+                    if (here.pageBuilds.TryGetValue(page, out begun) && begun.Page != null) watch(begun.Page);
+                    if (here.preparing == page && here.prepareStep == 0) steps++;
+                    return here.preparedPages.Contains(page) || (here.preparing == page && here.prepareStep > 0);
+                });
+                outMap[name + "_build_turns"] = (double)steps;
+                outMap[name + "_page_layouts_while_built"] = (double)laid[0];
+                outMap[name + "_card_layouts_while_built"] = (double)laid[1];
+                outMap[name + "_watched"] = (double)watched.Count;
+            }
+            frame.Close();
+            frame.Dispose();
+
             lock (RenderMisses) outMap["misses"] = new List<object>(RenderMisses.ToArray());
             File.WriteAllText(outPath, Json.Write(outMap), new UTF8Encoding(false));
             return 0;
@@ -385,6 +447,16 @@ class LongStepTests(unittest.TestCase):
                                  "a card laid itself out before the page around it had: innermost first")
         self.assertEqual(self.answer["settings_layouts_at_another_size"], 0,
                          "a Settings card laid itself out at a size it does not keep, to be laid out again")
+
+    def test_a_page_built_ahead_lays_nothing_out_while_it_is_built(self):
+        for name in ("pending", "diagnostics"):
+            with self.subTest(page=name):
+                self.assertGreater(self.answer[name + "_build_turns"], 2, "built a step a turn")
+                self.assertGreater(self.answer[name + "_watched"], 10)
+                self.assertEqual(self.answer[name + "_page_layouts_while_built"], 0,
+                                 "the page laid itself out while it was built")
+        self.assertEqual(self.answer["diagnostics_card_layouts_while_built"], 0,
+                         "a Diagnostics card laid itself out while it was built")
 
     def test_history_shown_while_its_rows_are_held_shows_every_row(self):
         self.assertTrue(self.answer["held_before_click"], "the click came while the rows were held aside")

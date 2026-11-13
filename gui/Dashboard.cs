@@ -1568,7 +1568,15 @@ namespace CodexAutoResume
             if (pageBuilds.TryGetValue(name, out begun))
             {
                 pageBuilds.Remove(name);
-                while (begun.Steps.MoveNext()) { }
+                PageBuild before = buildHolding;
+                buildHolding = begun;
+                try { while (begun.Steps.MoveNext()) { } }
+                catch (Exception)
+                {
+                    LetGoBuilt(begun);
+                    throw;
+                }
+                finally { buildHolding = before; }
                 page = begun.Page;
             }
             else
@@ -1580,6 +1588,10 @@ namespace CodexAutoResume
             page.Visible = false;
             pages[name] = page;
             pageHost.Controls.Add(page);
+            // v0.6.23 (idlefix2): what a build begun ahead held, let go only now that the page has its place - and with it
+            // the window's font, which its controls had not until then: each one told of it asked for a layout, at the
+            // size it was built at, and the whole of Diagnostics was laid out and measured again in that one step.
+            if (begun != null) LetGoBuilt(begun);
             // v0.6.23: a page built out of sight - made ready ahead - is only marked, and written when it is (Writes,
             // WriteIfStale): a whole snapshot written for it cost 100-300 ms on an installation that had run for months.
             if (snapshot != null && !Writes(name)) return page;
@@ -1593,6 +1605,39 @@ namespace CodexAutoResume
         {
             internal Control Page;
             internal IEnumerator<bool> Steps;
+            // v0.6.23 (idlefix2): built ahead (BuildSome), what its steps made that lays others out, held from laying
+            // itself out as it was made (Held) until the build is finished (LetGoBuilt).
+            internal List<Control> Held;
+        }
+
+        // The build begun ahead whose step is being taken now (BuildSome, PageFor); null otherwise.
+        private PageBuild buildHolding;
+
+        /// v0.6.23 (the second round, idlefix2): `control`, held from laying itself out while a page is built ahead a step
+        /// at a time (BuildSome) - a page, its cards, their facts and grids, its button rows. Each control added to one of
+        /// them asked it for a layout, at the size it had before the page had a size of its own, and each of those
+        /// asked the one around it again: Diagnostics' last step took 40-140 ms laying out its whole page at that size,
+        /// Pending's 20-170 its buttons, all of it laid out again once the page had its room. Built on a click, nothing
+        /// is held.
+        private T Held<T>(T control) where T : Control
+        {
+            if (buildHolding == null) return control;
+            if (buildHolding.Held == null) buildHolding.Held = new List<Control>();
+            control.SuspendLayout();
+            buildHolding.Held.Add(control);
+            return control;
+        }
+
+        /// Lets go of what a build begun ahead held, without a layout, once its page is in the page host (PageFor), or
+        /// the build is given up: each lays itself out when the page is laid out - made ready (PrepareNext) or shown
+        /// (ShowPage) - as each asked to be.
+        private static void LetGoBuilt(PageBuild build)
+        {
+            List<Control> held = build.Held;
+            build.Held = null;
+            if (held == null) return;
+            for (int i = held.Count - 1; i >= 0; i--)
+                if (!held[i].IsDisposed) held[i].ResumeLayout(false);
         }
 
         // The builds begun ahead of their page's first visit (BuildSome), by page, until PageFor finishes one.
@@ -1622,7 +1667,15 @@ namespace CodexAutoResume
                 build.Steps = steps(build);
                 pageBuilds[name] = build;
             }
-            return build.Steps.MoveNext();
+            PageBuild before = buildHolding;
+            buildHolding = build;
+            try { return build.Steps.MoveNext(); }
+            catch (Exception)
+            {
+                LetGoBuilt(build);
+                throw;
+            }
+            finally { buildHolding = before; }
         }
 
         // ------------------------------------------------------------ pages made ready ahead (v0.6.23)
@@ -1731,7 +1784,13 @@ namespace CodexAutoResume
             if (held != null)
                 for (int i = held.Count - 1; i >= 0; i--)
                     if (!held[i].IsDisposed) held[i].ResumeLayout(false);
-            if (preparing != null) pageBuilds.Remove(preparing);
+            PageBuild begun;
+            if (preparing != null && pageBuilds.TryGetValue(preparing, out begun))
+            {
+                pageBuilds.Remove(preparing);
+                try { LetGoBuilt(begun); }
+                catch (Exception) { /* its controls are left for the collector: a click builds the page anew */ }
+            }
             Prepared();
         }
 
@@ -2078,7 +2137,7 @@ namespace CodexAutoResume
 
         private Panel Page()
         {
-            var page = new SoftPage();
+            var page = Held(new SoftPage());
             page.Dock = DockStyle.Fill;
             // A page may scroll, and while it does it is the edge of the shadows on it (see Ground):
             // the cards' lift is kept inside its padding.
@@ -2131,7 +2190,7 @@ namespace CodexAutoResume
 
         private TableLayoutPanel Facts(TableLayoutPanel card)
         {
-            var grid = new SoftStack();
+            var grid = Held(new SoftStack());
             grid.ColumnCount = 2;
             grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
@@ -2169,7 +2228,7 @@ namespace CodexAutoResume
 
         private TableLayoutPanel Grid(int columnCount)
         {
-            var grid = new SoftStack();
+            var grid = Held(new SoftStack());
             grid.Dock = DockStyle.Top;
             grid.AutoSize = true;
             grid.AutoSizeMode = AutoSizeMode.GrowAndShrink;
@@ -2197,7 +2256,7 @@ namespace CodexAutoResume
 
         private FlowLayoutPanel ButtonRow()
         {
-            var row = new SoftFlow();
+            var row = Held(new SoftFlow());
             row.Dock = DockStyle.Bottom;
             row.AutoSize = true;
             row.AutoSizeMode = AutoSizeMode.GrowAndShrink;
