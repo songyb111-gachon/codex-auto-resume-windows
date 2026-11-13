@@ -59,6 +59,24 @@ class SourceTests(unittest.TestCase):
         dashboard = guiscan.read("gui/Dashboard.cs")
         self.assertIn('PrepareOrder = { "settings", "overview", "pending", "history", "statistics", "diagnostics" };', dashboard)
 
+    @unittest.skipUnless(ADVANCED_PAGE.is_file(), "the advanced edition's sources are not in this tree")
+    def test_the_advanced_features_page_is_made_ready_ahead_in_steps(self):
+        page = ADVANCED_PAGE.read_text(encoding="utf-8")
+        self.assertIn("private static readonly bool AdvancedReadyAhead = true;", page)
+        steps = guiscan._block(page, page.index("private IEnumerator<bool> AdvancedSteps(PageBuild build)"))
+        self.assertEqual(steps.count("yield return true;"), 2, "its frame, its list and its cards each a step")
+        self.assertLess(steps.index("AdvancedFrame()"), steps.index("FillAdvancedList();"))
+        self.assertLess(steps.index("FillAdvancedList();"), steps.index("ShowAdvancedDetail();"))
+        built = guiscan._block(page, page.index("private Control AdvancedPageBuilt()"))
+        self.assertIn("pageBuilds.TryGetValue(AdvancedPageName, out begun)", built)
+        self.assertIn("LetGoBuilt(begun);", built)
+        shown = guiscan._block(page, page.index("private void ShowAdvanced()"))
+        self.assertLess(shown.index("if (FinishFirst(AdvancedPageName, ShowAdvanced)) return;"), shown.index("AdvancedPageBuilt()"))
+        self.assertLess(shown.index("LetGoAll();"), shown.index("AdvancedPageBuilt()"))
+        frame = guiscan._block(page, page.index("private Control AdvancedFrame()"))
+        for held in ("HeldAsBuilt(new SoftStack())", "HeldAsBuilt(new SoftPage())"):
+            self.assertIn(held, frame)
+
 
 PROBE = r"""
 using System;

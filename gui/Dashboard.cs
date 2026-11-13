@@ -1336,6 +1336,8 @@ namespace CodexAutoResume
         // built as its tab's first press builds it.
         partial void EditionPageNamed(List<string> prepared, ref string name);
         partial void EditionPageFor(string name, ref Control page);
+        // v0.6.23 (perffix): the steps that page is built ahead in (BuildSome), where it has them.
+        partial void EditionPageSteps(string name, ref Func<PageBuild, IEnumerator<bool>> steps);
         // A snapshot has been shown (ApplySnapshot), or there is none and the pages say so
         // (MarkUnavailable, with null). A page of the advanced edition follows the same read.
         partial void SnapshotApplied(Dictionary<string, object> reply);
@@ -1663,7 +1665,11 @@ namespace CodexAutoResume
             if (pages.ContainsKey(name)) return false;
             Func<PageBuild, IEnumerator<bool>> steps = name == "pending" ? (Func<PageBuild, IEnumerator<bool>>)PendingSteps
                                                      : name == "diagnostics" ? (Func<PageBuild, IEnumerator<bool>>)DiagnosticsSteps : null;
-            if (steps == null) return false;
+            // v0.6.23 (perffix): the edition's page, where it builds in steps (the Advanced features page).
+            Func<PageBuild, IEnumerator<bool>> edition = null;
+            EditionPageSteps(name, ref edition);
+            if (steps == null) steps = edition;
+            if (steps == null && !pageBuilds.ContainsKey(name)) return false;
             PageBuild build;
             if (!pageBuilds.TryGetValue(name, out build))
             {
