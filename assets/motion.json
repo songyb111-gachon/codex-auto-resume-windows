@@ -110,7 +110,7 @@
       "passed": true,
       "worst": 0
     },
-    "window": "b73d5790f429a23229e74eb285891748d1c8e1019dbe8b2e9219d112aab4bd7d"
+    "window": "ada8ffcf0db5134c0b7a2a304d51ac9231c86eec12877b7d87a810be6f51ce3c"
   },
   "images": {
     "assets/logo-motion-dark.png": {
@@ -164,61 +164,61 @@
       "size": "776x540"
     },
     "docs/images/readme-motion-ko.png": {
-      "bytes": 6692258,
+      "bytes": 6648579,
       "frames": 1641,
       "ms": 45697,
       "scenes": {
-        "S0": 108878,
-        "S1": 205910,
+        "S0": 108568,
+        "S1": 204372,
         "S10": 172904,
-        "S11": 609271,
+        "S11": 608880,
         "S12": 40288,
-        "S12b": 715989,
-        "S13": 69842,
+        "S12b": 703204,
+        "S13": 69915,
         "S14": 20660,
-        "S15": 282810,
-        "S15b": 241994,
+        "S15": 281190,
+        "S15b": 231391,
         "S16": 75916,
         "S1m": 437746,
         "S2a": 255816,
         "S2b": 617212,
-        "S2c": 761045,
-        "S5": 240588,
-        "S6": 151380,
-        "S7": 194552,
-        "S8": 197224,
+        "S2c": 758922,
+        "S5": 236769,
+        "S6": 152026,
+        "S7": 187943,
+        "S8": 192624,
         "S9": 1292130
       },
-      "sha256": "ed11eabd1793105b8177e1027f0293f036be9cedf4ae7e8c00dc21d773663863",
+      "sha256": "b57801332b916e47f376c5198676a48fb32750922b86c50fc10225ff11322616",
       "size": "1500x1041"
     },
     "docs/images/readme-motion.png": {
-      "bytes": 7255600,
+      "bytes": 7218848,
       "frames": 1647,
       "ms": 45917,
       "scenes": {
-        "S0": 114453,
-        "S1": 239734,
-        "S10": 201178,
-        "S11": 659694,
+        "S0": 114128,
+        "S1": 237510,
+        "S10": 202238,
+        "S11": 656295,
         "S12": 47807,
-        "S12b": 855800,
-        "S13": 58103,
+        "S12b": 848742,
+        "S13": 58256,
         "S14": 19806,
-        "S15": 240719,
-        "S15b": 191749,
+        "S15": 243471,
+        "S15b": 197107,
         "S16": 70206,
-        "S1m": 503310,
-        "S2a": 279913,
-        "S2b": 683670,
-        "S2c": 827807,
-        "S5": 274284,
-        "S6": 177366,
-        "S7": 226054,
-        "S8": 249944,
-        "S9": 1333900
+        "S1m": 499009,
+        "S2a": 279722,
+        "S2b": 683803,
+        "S2c": 821063,
+        "S5": 271242,
+        "S6": 175346,
+        "S7": 226563,
+        "S8": 237693,
+        "S9": 1328738
       },
-      "sha256": "8db3d6e31194ebcf2b564f2bb1c23c1734fb582e0d4a62ef38c3fbcbc52a64fa",
+      "sha256": "6f5ac99648666ef14d342744e499c9975c965067620e7e42504bc4a800345c2f",
       "size": "1500x1041"
     },
     "docs/images/tray-popup-motion-ko.png": {
@@ -253,13 +253,13 @@
     }
   },
   "inputs": {
-    "<motion:card-en>": "4aefd50cadcc8847deeab56529dc127632297e1ab14577764475347526cd6369",
-    "<motion:card-ko>": "7c6bb7c86de87e517146f25dddecad871b8b6e01a33db3c6367988a46c3c0caf",
+    "<motion:card-en>": "2291477eece4eb4532ce77fe298270dceb8902cefa242f42d1c983953bce4f4d",
+    "<motion:card-ko>": "43d6d7d6d66451fd95b8ad7251bbe36b9a356556c84e4857d4cfcdefc833082e",
     "<motion:logo-dark>": "5aeb49f26d268159d57646004912d7c23bb07f35262d41592979663117cb7b47",
     "<motion:logo-light>": "415252d0f16fb2bbb73d57919364cc76ba3a112be9454d7d64dac19781314a9e",
-    "<motion:popup-en>": "03a730db47c801d925060d517439b670e3f4744f4cc53f090bf9594c4e69c99b",
-    "<motion:popup-ko>": "a8ec78389390034faa8626b45f70d0d42d3128989f57637129dadcfa6913d9d9",
-    "<motion:readme-en>": "55a46efc2479718a848013862b91ca13c868c32e599f3d0753addf90aeddf1d3",
-    "<motion:readme-ko>": "6aa68a0eb4e40e845edde5cee518260061ebadaaaf0ae2e856ba067527d17185"
+    "<motion:popup-en>": "1212a4b422f92a533b8fa3de4afb807331f1ff962dc2c7347584c0ea747df7c4",
+    "<motion:popup-ko>": "817d8a32d224558257cbc8792fc2bf3e24eb800bccf5dbe3cb32dd8127be1b51",
+    "<motion:readme-en>": "7240eaa0fba9cb3d83d00392b953960f4b9fbadf1f8c5d4f716bdfd9971ab3dc",
+    "<motion:readme-ko>": "0187e1b9a6dd146dedd88ef717ce237ebe97448d852262a339409a38b01ea0e0"
   }
 }
