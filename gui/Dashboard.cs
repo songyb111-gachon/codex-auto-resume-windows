@@ -1770,8 +1770,8 @@ namespace CodexAutoResume
             {
                 // Built (PreparedPage), and the room the page host will give it once shown, so it is never laid out
                 // narrower first. Everything in it that lays others out held from now (round 5), so that its room, what
-                // is written into it and what its reads add lay nothing out; let go a few at a time, innermost first, at
-                // the end (LetGoSome) - as ShowPage lets a page go when it shows. Settings' room took 140-290 ms in one
+                // is written into it and what its reads add lay nothing out; let go a few at a time, outermost first, at
+                // the end (LetGoSome). Settings' room took 140-290 ms in one
                 // turn, Diagnostics' compatibility answer 300-500, at that size.
                 prepareHeld = HoldWithin(page);
                 page.SuspendLayout();
@@ -1871,22 +1871,28 @@ namespace CodexAutoResume
             if (lists != null) foreach (SoftList list in lists) list.PutBackRows();
         }
 
-        /// Lets what the page being made ready holds lay itself out, innermost first, until PrepareSliceMilliseconds have
-        /// gone; the page itself last, on a turn of its own. True once all are let go.
+        /// Lets what the page being made ready holds lay itself out, outermost first - the page itself first of all -
+        /// until PrepareSliceMilliseconds have gone. True once all are let go.
+        ///
+        /// v0.6.23 (the second round, idlefix2): outermost first, each control is given its size by the one around it
+        /// before it lays out what it holds, so each lays itself out once, at the size it keeps; whatever it holds is
+        /// given theirs the same way on the turns after. Let go innermost first, every card and table laid itself out at
+        /// the size it was built at, and the page's own last layout gave each its real size and laid the whole page out
+        /// again in that one step: Settings 82-500 ms, Diagnostics 35-360 (the idle probe, months of data). The page
+        /// shown is the same page either way (the render-mode pixel proof); ShowPage, which lays a page out in one go,
+        /// still lets go innermost first (LetGoWithin).
         private bool LetGoSome()
         {
             if (prepareHeld == null) return true;
             var slice = Stopwatch.StartNew();
-            int let = 0;
-            while (prepareHeld.Count > 1 && slice.ElapsedMilliseconds < PrepareSliceMilliseconds)
+            while (prepareHeld.Count > 0 && slice.ElapsedMilliseconds < PrepareSliceMilliseconds)
             {
-                Control last = prepareHeld[prepareHeld.Count - 1];
-                prepareHeld.RemoveAt(prepareHeld.Count - 1);
-                if (!last.IsDisposed) last.ResumeLayout(true);
-                let++;
+                Control first = prepareHeld[0];
+                prepareHeld.RemoveAt(0);
+                if (!first.IsDisposed) first.ResumeLayout(true);
             }
-            if (let > 0) return false;
-            LetGoAll();
+            if (prepareHeld.Count > 0) return false;
+            prepareHeld = null;
             return true;
         }
 

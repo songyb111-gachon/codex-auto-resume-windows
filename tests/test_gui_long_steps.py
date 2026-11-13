@@ -8,6 +8,11 @@ ran:
   rows of a list made ready ahead are now held aside while its window is made and put back a slice a turn
   (SoftList.HoldRows, PutBackRows; PrepareNext's steps 2 and 3); anything that reads the rows meanwhile, and the page
   shown, has them all back first.
+* A page's own last layout as it was made ready ahead: Settings up to 500 ms, Diagnostics up to 360. What the page held
+  was let go innermost first, each card and table laying itself out at the size it was built at, and the page's own
+  layout, last, gave each its real size and laid the whole page out again in that one step. It is now let go outermost
+  first (LetGoSome), the page first of all, so no card lays itself out before the page around it has, and on Settings
+  each card lays itself out only at the size it keeps; the steps are a slice each.
 
 The live probe: the real window, standard edition, shown far off the screen in a frame that is never activated, answered
 from the pictures' pinned scratch installation as the render mode is, its History grown to 200 rows and Pending to 60;
@@ -233,6 +238,56 @@ namespace CodexAutoResume
             frame.Close();
             frame.Dispose();
 
+            // Settings and Diagnostics made ready ahead: from the turn their holds begin to be let go, every size each card on
+            // them lays itself out at, against the size it keeps.
+            frame = new LongStepsFrame();
+            form = LongWindow(frame);
+            foreach (string name in new[] { "diagnostics", "settings" })
+            {
+                SettingsForm here = form;
+                string page = name;
+                Turns(form, delegate { return (here.preparing == page && here.prepareStep == 6) || here.preparedPages.Contains(page); });
+                outMap[name + "_reached"] = form.preparing == page && form.prepareStep == 6;
+                Control root = name == "settings" ? (Control)form.columns : form.pages[name];
+                var sizes = new Dictionary<Control, List<Size>>();
+                // Whether the page itself has laid itself out since its holds began to be let go, and the card layouts before.
+                var pageFirst = new int[2];
+                root.Layout += delegate { if (here.preparing == page) pageFirst[0] = 1; };
+                var next = new Stack<Control>();
+                next.Push(root);
+                while (next.Count > 0)
+                {
+                    Control control = next.Pop();
+                    if (control is SoftCard)
+                    {
+                        Control card = control;
+                        var seen = new List<Size>();
+                        sizes[card] = seen;
+                        card.Layout += delegate
+                        {
+                            if (here.preparing != page) return;
+                            seen.Add(card.Size);
+                            if (pageFirst[0] == 0) pageFirst[1]++;
+                        };
+                    }
+                    foreach (Control child in control.Controls) next.Push(child);
+                }
+                Turns(form, delegate { return here.preparedPages.Contains(page); });
+                int layouts = 0, elsewhere = 0;
+                foreach (var pair in sizes)
+                    foreach (Size size in pair.Value)
+                    {
+                        layouts++;
+                        if (size != pair.Key.Size) elsewhere++;
+                    }
+                outMap[name + "_cards"] = (double)sizes.Count;
+                outMap[name + "_layouts"] = (double)layouts;
+                outMap[name + "_layouts_at_another_size"] = (double)elsewhere;
+                outMap[name + "_layouts_before_the_page"] = (double)pageFirst[1];
+            }
+            frame.Close();
+            frame.Dispose();
+
             lock (RenderMisses) outMap["misses"] = new List<object>(RenderMisses.ToArray());
             File.WriteAllText(outPath, Json.Write(outMap), new UTF8Encoding(false));
             return 0;
@@ -319,6 +374,17 @@ class LongStepTests(unittest.TestCase):
                 self.assertEqual(sum(1 for row in rows if row.rstrip("^").endswith("*")), 1)
         self.assertTrue(self.answer["history_handle"])
         self.assertEqual(self.answer["history_native_rows"], HISTORY_ROWS, "every row in the list's window")
+
+    def test_a_page_made_ready_lays_itself_out_before_its_cards(self):
+        for name in ("diagnostics", "settings"):
+            with self.subTest(page=name):
+                self.assertTrue(self.answer[name + "_reached"], "the probe saw the page's holds before they were let go")
+                self.assertGreater(self.answer[name + "_cards"], 0)
+                self.assertGreater(self.answer[name + "_layouts"], 0, "its cards were laid out as they were let go")
+                self.assertEqual(self.answer[name + "_layouts_before_the_page"], 0,
+                                 "a card laid itself out before the page around it had: innermost first")
+        self.assertEqual(self.answer["settings_layouts_at_another_size"], 0,
+                         "a Settings card laid itself out at a size it does not keep, to be laid out again")
 
     def test_history_shown_while_its_rows_are_held_shows_every_row(self):
         self.assertTrue(self.answer["held_before_click"], "the click came while the rows were held aside")
