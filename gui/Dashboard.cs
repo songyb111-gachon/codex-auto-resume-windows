@@ -1465,6 +1465,8 @@ namespace CodexAutoResume
         {
             if (Array.IndexOf(PageOrder, name) < 0) name = "overview";
             // v0.6.23 (round 5): what making it ready ahead holds of it let go first, innermost first, as it would be.
+            // v0.6.23 (idlefix2): and every row of its lists held aside while their windows were made, back at once.
+            if (preparing == name) PutBackAllRows();
             if (preparing == name) LetGoAll();
             currentPage = name;
             bool settings = name == "settings";
@@ -1722,6 +1724,8 @@ namespace CodexAutoResume
         private void PrepareFailed(Exception error)
         {
             UiFaults.Note(error);
+            try { PutBackAllRows(); }
+            catch (Exception) { /* the rows go back as they are read (SoftList.PutBackRows), or not at all */ }
             List<Control> held = prepareHeld;
             prepareHeld = null;
             if (held != null)
@@ -1783,11 +1787,14 @@ namespace CodexAutoResume
             else if (prepareStep == 2)
             {
                 // Its native controls, made as showing it would make them while it stays hidden: in Materialise's order,
-                // for PrepareSliceMilliseconds a turn (Settings' took 860 ms in one on that installation).
+                // for PrepareSliceMilliseconds a turn (Settings' took 860 ms in one on that installation). A list's rows
+                // held aside first (HoldRows), so its window is made empty and they go back a slice a turn after.
+                if (prepareMake == null) HoldRows(page);
                 if (MakeSome(page)) prepareStep = 3;
             }
             else if (prepareStep == 3)
             {
+                if (!PutBackSomeRows()) return true;
                 // What it reads on each visit that the snapshot does not hold, read once now, so its first visit finds it
                 // there as every later visit does; the visit reads it again (ShowPage).
                 bool reads = preparing == "statistics" || preparing == "diagnostics";
@@ -1819,6 +1826,50 @@ namespace CodexAutoResume
         // What the page being made ready holds from laying itself out, outermost first, the page itself first of all
         // (PrepareNext); null when nothing is held.
         private List<Control> prepareHeld;
+
+        // v0.6.23 (the second round, idlefix2): the lists of the page being made ready whose rows are held aside while
+        // their windows are made (SoftList.HoldRows); null when none are.
+        private List<SoftList> prepareRows;
+
+        /// Holds aside the rows of every list in `page` whose window is not yet made (SoftList.HoldRows).
+        private void HoldRows(Control page)
+        {
+            var lists = new List<SoftList>();
+            var next = new Stack<Control>();
+            next.Push(page);
+            while (next.Count > 0)
+            {
+                Control control = next.Pop();
+                var list = control as SoftList;
+                if (list != null && list.HoldRows()) lists.Add(list);
+                foreach (Control child in control.Controls) next.Push(child);
+            }
+            if (lists.Count > 0) prepareRows = lists;
+        }
+
+        /// Puts held rows back until PrepareSliceMilliseconds have gone; true once every list has them all.
+        private bool PutBackSomeRows()
+        {
+            if (prepareRows == null) return true;
+            var slice = Stopwatch.StartNew();
+            while (prepareRows.Count > 0)
+            {
+                long left = PrepareSliceMilliseconds - slice.ElapsedMilliseconds;
+                if (left <= 0) return false;
+                if (!prepareRows[0].PutBackRows((int)left)) return false;
+                prepareRows.RemoveAt(0);
+            }
+            prepareRows = null;
+            return true;
+        }
+
+        /// Puts every held row back at once: the page is shown, given up or finished.
+        private void PutBackAllRows()
+        {
+            List<SoftList> lists = prepareRows;
+            prepareRows = null;
+            if (lists != null) foreach (SoftList list in lists) list.PutBackRows();
+        }
 
         /// Lets what the page being made ready holds lay itself out, innermost first, until PrepareSliceMilliseconds have
         /// gone; the page itself last, on a turn of its own. True once all are let go.
@@ -1873,6 +1924,7 @@ namespace CodexAutoResume
 
         private void Prepared()
         {
+            PutBackAllRows();
             LetGoAll();
             if (preparing != null && !preparedPages.Contains(preparing)) preparedPages.Add(preparing);
             preparing = null;

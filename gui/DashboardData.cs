@@ -700,6 +700,7 @@ namespace CodexAutoResume
 
         private static void ShowUnreadable(ListView list, Label empty, string reason)
         {
+            AllRows(list);
             list.Items.Clear();
             empty.Text = reason;
             empty.Visible = true;
@@ -779,6 +780,7 @@ namespace CodexAutoResume
 
         private static bool Contains(ListView list, string interruptionId)
         {
+            AllRows(list);
             foreach (ListViewItem item in list.Items)
                 if (Str(item.Tag as Dictionary<string, object>, "interruption_id") == interruptionId) return true;
             return false;
@@ -840,6 +842,7 @@ namespace CodexAutoResume
 
         private void FillList(ListView list, List<object> rows, bool pending)
         {
+            AllRows(list);
             var fresh = new List<Dictionary<string, object>>();
             if (rows != null)
                 foreach (object entry in rows)
@@ -1057,8 +1060,16 @@ namespace CodexAutoResume
 
         private static Dictionary<string, object> Selected(ListView list)
         {
+            AllRows(list);
             if (list == null || list.SelectedItems.Count == 0) return null;
             return list.SelectedItems[0].Tag as Dictionary<string, object>;
+        }
+
+        /// v0.6.23 (idlefix2): every row of `list` there, when some are held aside while it is made ready (SoftList.HoldRows).
+        private static void AllRows(ListView list)
+        {
+            var soft = list as SoftList;
+            if (soft != null && soft.HoldsRows) soft.PutBackRows();
         }
 
         // The note says what the last Retry now did, and it says it without naming the

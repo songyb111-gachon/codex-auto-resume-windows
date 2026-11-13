@@ -752,6 +752,103 @@ namespace CodexAutoResume
         /// The row under the pointer (DrawCell).
         internal readonly RowGlow Glow;
 
+        // ---------------------------------------------------------------- rows held while the window is made
+        // v0.6.23 (the second round, idlefix2): a list made ready ahead (SettingsForm.PrepareNext) has its rows before
+        // its window, and making the window inserted every one of them in that one step: History's list with its 200
+        // rows held the window's thread for up to 450 ms, and the header's light and every glide with it (measured
+        // 2026-11-13, months of data). So its rows are taken out just before its window is made (HoldRows) and put
+        // back a slice at a time after (PutBackRows), its painting held from the first slice to the last - the same
+        // rows, in the same order, chosen and focused as they were. Anything that reads or writes the rows meanwhile
+        // has them all put back first (SettingsForm.Selected, FillList, ShowUnreadable, ShowPage).
+        private ListViewItem[] heldRows;
+        private bool[] heldChosen, heldFocused;
+        private int heldBack;
+        private bool redrawHeld, puttingBack;
+        private const int WM_SETREDRAW = 0x000B;
+
+        /// Whether rows are held aside (HoldRows) and not yet all put back.
+        internal bool HoldsRows
+        {
+            get { return heldRows != null; }
+        }
+
+        /// Takes the rows out of a list whose window is not yet made, to be put back once it is; false, and nothing
+        /// taken, when the window is made or there are no rows to hold.
+        internal bool HoldRows()
+        {
+            if (heldRows != null || IsHandleCreated || IsDisposed || Items.Count == 0) return false;
+            heldRows = new ListViewItem[Items.Count];
+            Items.CopyTo(heldRows, 0);
+            heldChosen = new bool[heldRows.Length];
+            heldFocused = new bool[heldRows.Length];
+            for (int i = 0; i < heldRows.Length; i++)
+            {
+                heldChosen[i] = heldRows[i].Selected;
+                heldFocused[i] = heldRows[i].Focused;
+            }
+            heldBack = 0;
+            Items.Clear();
+            return true;
+        }
+
+        /// Puts held rows back, in their order, until `milliseconds` have gone (at least a few rows each time); true
+        /// once all are back. Painting is held from the first row put back to the last by the window's own switch
+        /// (WM_SETREDRAW): ListView's BeginUpdate keeps every row added under it until EndUpdate and inserts them all
+        /// there, in one step again.
+        internal bool PutBackRows(int milliseconds)
+        {
+            if (heldRows == null) return true;
+            // Asked again from inside a slice - a row chosen again tells the list's SelectedIndexChanged, whose handler
+            // reads the rows (SettingsForm.Selected): the slice under way goes on, and the rows it has put back are read.
+            if (puttingBack) return false;
+            if (IsDisposed)
+            {
+                heldRows = null;
+                return true;
+            }
+            puttingBack = true;
+            try
+            {
+                if (heldBack == 0 && IsHandleCreated && Soft.OwnVisible(this))
+                {
+                    SendHeaderMessage(Handle, WM_SETREDRAW, IntPtr.Zero, IntPtr.Zero);
+                    redrawHeld = true;
+                }
+                var slice = System.Diagnostics.Stopwatch.StartNew();
+                do
+                {
+                    int from = heldBack, count = Math.Min(heldRows.Length - from, 8);
+                    var some = new ListViewItem[count];
+                    Array.Copy(heldRows, from, some, 0, count);
+                    heldBack = from + count;
+                    Items.AddRange(some);
+                    for (int i = from; i < from + count; i++)
+                    {
+                        if (heldRows[i].Selected != heldChosen[i]) heldRows[i].Selected = heldChosen[i];
+                        if (heldFocused[i] && !heldRows[i].Focused) heldRows[i].Focused = true;
+                    }
+                }
+                while (heldBack < heldRows.Length && slice.ElapsedMilliseconds < milliseconds);
+                if (heldBack < heldRows.Length) return false;
+                heldRows = null;
+                heldChosen = heldFocused = null;
+                if (redrawHeld && IsHandleCreated)
+                {
+                    SendHeaderMessage(Handle, WM_SETREDRAW, (IntPtr)1, IntPtr.Zero);
+                    Invalidate();
+                }
+                redrawHeld = false;
+                return true;
+            }
+            finally { puttingBack = false; }
+        }
+
+        /// Puts every held row back at once.
+        internal void PutBackRows()
+        {
+            PutBackRows(int.MaxValue);
+        }
+
         protected override void OnHandleCreated(EventArgs e)
         {
             base.OnHandleCreated(e);
