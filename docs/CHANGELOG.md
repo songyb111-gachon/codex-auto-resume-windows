@@ -175,6 +175,11 @@ uses, or English where that version does not ship it - and *Same as the interfac
   after an answer and its wrong tokens counted for each client, PRIVACY the watchers' lock files and that *Uninstall -Purge* takes them -
   and the feature matrix says which version is the newest final, counts fifty-one capabilities on an installation and has rows for twelve
   capabilities it lacked, among them the Python choice and the queued messages' pictures.
+  Four of *docs/STANDARDS.md*'s rules now say what the standard edition does, the owner's amendment of 2026-11-13: B13 the windows it
+  looks at to find its own and the Explorer or WMI start it asks for inside another app's view, F6 that route for the Dashboard and the
+  installer, B16 the two registry values it only reads - Windows' text size and an administrator's policy - and F3 the lock files' folder.
+  The README inside each archive links its pictures at GitHub, at this release's tag, where it pointed at a folder the archive does not
+  carry.
 - **The roadmap says where the second and third rounds of audits go, and moves the Rust core to v0.6.25 and its audit to v0.6.26** (new
   since beta.2). This release carries the whole second round of audits over the finished code. v0.6.24 is a third round that checks
   everything again, with the review of which advanced capabilities the standard edition could take and the switch of the bundled Python
