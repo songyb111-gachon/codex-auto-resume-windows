@@ -154,8 +154,7 @@ class WindowTests(unittest.TestCase):
             window.show(activate=False, origin=(-32000, -32000))
             deadline = time.monotonic() + 5                # its opening first, by the clock, however busy the runner
             while window._opening is not None and time.monotonic() < deadline:
-                self.pump(0.02)                            # and a frame as its timer delivers one: a busy runner may
-                user32.SendMessageW(window.hwnd, tray_popup.WM_TIMER, tray_popup.TIMER_FRAME, 0)   # hold WM_TIMER back
+                self.pump(0.02)
             self.assertIsNone(window._opening)
             self.assertTrue(window._frame_running, "the light breathes")
             self.assertEqual(window._frame_ms, tray_popup.FRAME_MS, "on the light's own frames")

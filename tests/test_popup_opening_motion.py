@@ -97,13 +97,6 @@ class FaceDrawnTests(unittest.TestCase):
         self.assertEqual(self.pixel(hover=target, faces={target: (rest, 1.0)}), hover[0])
 
 
-def frame_now(window):
-    """One frame of the popup, delivered as its frame timer delivers it."""
-    user32 = ctypes.WinDLL("user32")
-    user32.SendMessageW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t, ctypes.c_ssize_t]
-    user32.SendMessageW(window.hwnd, tray_popup.WM_TIMER, tray_popup.TIMER_FRAME, 0)
-
-
 class WindowTests(unittest.TestCase):
     """A real popup far off every screen. Nothing here counts on this machine's speed or display: Windows' animation
     setting is the test's own (GitHub's runners have it off, which holds every motion), a window off the screen is never
@@ -119,15 +112,11 @@ class WindowTests(unittest.TestCase):
         from test_tray_popup import WindowsTests
         WindowsTests.pump(self, seconds)
 
-    def until(self, done, seconds=5.0, step=0.016, each=None, window=None):
-        """Pump until `done()` or the time is up: a bound by the clock, never by a count of frames. With `window`, a frame
-        is also delivered each turn as its timer would deliver it: a busy machine was seen holding back a thread's
-        WM_TIMER for seconds (2026-11-13), and where a step stands is read off the clock either way."""
+    def until(self, done, seconds=5.0, step=0.016, each=None):
+        """Pump until `done()` or the time is up: a bound by the clock, never by a count of frames."""
         deadline = time.monotonic() + seconds
         while not done() and time.monotonic() < deadline:
             self.pump(step)
-            if window is not None and window.hwnd:
-                frame_now(window)
             if each is not None:
                 each()
         return done()
@@ -167,7 +156,7 @@ class WindowTests(unittest.TestCase):
         rise = window._below
         self.assertGreater(rise, 0, "below its place")
         self.assertEqual(window._frame_ms, motion.GLIDE_FRAME_MS)
-        self.assertTrue(self.until(lambda: window._opening is None, window=window), "it arrives")
+        self.assertTrue(self.until(lambda: window._opening is None), "it arrives")
         self.assertFalse(self.layered(window), "an ordinary window once it has arrived")
         self.assertEqual(window._below, 0)
         on_the_way = [step for step in seen if not step[3]]
@@ -249,7 +238,7 @@ class WindowTests(unittest.TestCase):
     def test_a_button_s_face_glides_to_the_pointer_and_to_a_press(self):
         window = self.make()
         window.show(activate=False, origin=(-32000, -32000))
-        self.assertTrue(self.until(lambda: window._opening is None, window=window))
+        self.assertTrue(self.until(lambda: window._opening is None))
         target = next(item["target"] for item in window._plan["items"] if item["kind"] == "button")
         window.render()                              # the face at rest, drawn once, as the first paint draws it
         self.glide(window, target, lambda: setattr(window, "hover", target), TRANSITION)
