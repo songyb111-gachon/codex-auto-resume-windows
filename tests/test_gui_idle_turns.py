@@ -191,9 +191,21 @@ namespace CodexAutoResume
             // A mouse move on the window, heard as the message loop takes it.
             IdleTurnsProbe.PostMessage(form.Handle, 0x0200, IntPtr.Zero, (IntPtr)((40 << 16) | 40));
             Application.DoEvents();
+            // Only turns raised while the mouse is still recent count: the clock read before each, so a runner that stalls
+            // past PrepareAfterInputMilliseconds between two turns (GitHub's, 2026-11-13) stops raising them, and the turns
+            // it did raise are held to what they must do. A step taken on any of them fails, as before.
             built = Count(form.columns);
-            for (int i = 0; i < 20; i++) Application.RaiseIdle(EventArgs.Empty);
-            outMap["editors_changed_after_input"] = Count(form.columns) != built || !form.buildQueued;
+            int recentTurns = 0;
+            bool changedAfterInput = false;
+            for (int i = 0; i < 20; i++)
+            {
+                if (form.prepareInput.Since >= PrepareAfterInputMilliseconds - 20) break;
+                Application.RaiseIdle(EventArgs.Empty);
+                recentTurns++;
+                if (Count(form.columns) != built || !form.buildQueued) changedAfterInput = true;
+            }
+            outMap["turns_after_input"] = (double)recentTurns;
+            outMap["editors_changed_after_input"] = changedAfterInput;
             System.Threading.Thread.Sleep(PrepareAfterInputMilliseconds + 50);
             for (int i = 0; i < 500 && form.buildQueued; i++) Application.RaiseIdle(EventArgs.Empty);
             outMap["editors_built"] = !form.buildQueued && form.editors.Count > 20;
@@ -339,6 +351,7 @@ class IdleTurnTests(unittest.TestCase):
         self.assertFalse(self.answer["editors_changed_while_moving"], "a step of the editors was taken in a glide's frames")
         self.assertEqual(self.answer["moving_after"], 0)
         self.assertTrue(self.answer["editors_changed_once_still"], "nothing moving: the next turn takes a step")
+        self.assertGreater(self.answer["turns_after_input"], 0, "an idle turn was raised while the mouse was recent")
         self.assertFalse(self.answer["editors_changed_after_input"], "a step of the editors was taken just after the mouse")
         self.assertTrue(self.answer["editors_built"], "built all the same once the mouse was still")
 
