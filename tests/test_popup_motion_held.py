@@ -131,6 +131,13 @@ class IconReadingTests(unittest.TestCase):
 
 
 class WindowTests(unittest.TestCase):
+    """Windows' animation setting is the test's own: GitHub's runners have it off, which holds every motion anyway."""
+
+    def setUp(self):
+        patcher = mock.patch.object(tray_popup.theme, "reduced_motion", lambda: False)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def pump(self, seconds):
         from test_tray_popup import WindowsTests
         WindowsTests.pump(self, seconds)
@@ -145,8 +152,12 @@ class WindowTests(unittest.TestCase):
         try:
             window.model.apply_outcome(("read",), tray_popup.perform(("read",), window.control), time.time())
             window.show(activate=False, origin=(-32000, -32000))
-            self.pump(0.2)
+            deadline = time.monotonic() + 5                # its opening first, by the clock, however busy the runner
+            while window._opening is not None and time.monotonic() < deadline:
+                self.pump(0.02)
+            self.assertIsNone(window._opening)
             self.assertTrue(window._frame_running, "the light breathes")
+            self.assertEqual(window._frame_ms, tray_popup.FRAME_MS, "on the light's own frames")
             flag["held"] = True
             user32.SendMessageW(window.hwnd, tray_popup.WM_TIMER, tray_popup.TIMER_TICK, 0)
             self.assertTrue(window._still)
@@ -157,6 +168,7 @@ class WindowTests(unittest.TestCase):
             window.hide()
             flag["held"] = True
             window.show(activate=False, origin=(-32000, -32000))
+            self.assertIsNone(window._opening, "opened while held, it is simply there")
             self.pump(0.1)
             self.assertFalse(window._frame_running, "opened while held, it starts still")
         finally:

@@ -98,9 +98,28 @@ class FaceDrawnTests(unittest.TestCase):
 
 
 class WindowTests(unittest.TestCase):
+    """A real popup far off every screen. Nothing here counts on this machine's speed or display: Windows' animation
+    setting is the test's own (GitHub's runners have it off, which holds every motion), a window off the screen is never
+    painted so each frame of a face is drawn by hand as WM_PAINT would draw it, and where a motion stands is checked
+    against the clock read around it - a stalled runner moves a read along the curve, never the curve."""
+
+    def setUp(self):
+        patcher = mock.patch.object(tray_popup.theme, "reduced_motion", lambda: False)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def pump(self, seconds):
         from test_tray_popup import WindowsTests
         WindowsTests.pump(self, seconds)
+
+    def until(self, done, seconds=5.0, step=0.016, each=None):
+        """Pump until `done()` or the time is up: a bound by the clock, never by a count of frames."""
+        deadline = time.monotonic() + seconds
+        while not done() and time.monotonic() < deadline:
+            self.pump(step)
+            if each is not None:
+                each()
+        return done()
 
     def make(self, **extra):
         from test_tray_popup import EN, FakeControl, WindowsTests
@@ -121,7 +140,7 @@ class WindowTests(unittest.TestCase):
 
         def recorded(elapsed, rise):
             answer = real(elapsed, rise)
-            seen.append(answer)
+            seen.append((elapsed,) + answer)
             return answer
         patcher = mock.patch.object(popup_messages, "opening", recorded)
         patcher.start()
@@ -134,16 +153,22 @@ class WindowTests(unittest.TestCase):
         window.show(activate=False, origin=(-32000, -32000))
         self.assertIsNotNone(window._opening, "on its way in")
         self.assertTrue(self.layered(window))
-        self.assertGreater(window._below, 0, "below its place")
+        rise = window._below
+        self.assertGreater(rise, 0, "below its place")
         self.assertEqual(window._frame_ms, motion.GLIDE_FRAME_MS)
-        self.pump(0.45)
-        self.assertIsNone(window._opening)
+        self.assertTrue(self.until(lambda: window._opening is None), "it arrives")
         self.assertFalse(self.layered(window), "an ordinary window once it has arrived")
         self.assertEqual(window._below, 0)
-        alphas = [step[0] for step in seen]
-        self.assertGreaterEqual(len([alpha for alpha in alphas if 0 < alpha < 255]), 3, "several steps of alpha")
+        on_the_way = [step for step in seen if not step[3]]
+        self.assertTrue(on_the_way, "its first frame is faded out and below its place, whatever the runner's speed")
+        self.assertEqual(on_the_way[0][1:3], (0, rise))
+        for elapsed, alpha, below, _ in on_the_way:
+            self.assertLess(elapsed, TRANSITION, "on its way only while its time is not up")
+            self.assertLess(alpha, 255)
+        self.assertTrue(seen[-1][3], "and it arrived")
+        self.assertGreaterEqual(seen[-1][0], TRANSITION, "no sooner than brand's transition, by the clock")
+        alphas = [step[1] for step in seen]
         self.assertEqual(alphas, sorted(alphas), "only ever more opaque")
-        self.assertTrue(seen[-1][2], "and it arrived")
         self.assertEqual(window._frame_ms, tray_popup.FRAME_MS, "the light's own frames again")
 
     def test_held_or_reduced_it_is_simply_there(self):
@@ -163,54 +188,78 @@ class WindowTests(unittest.TestCase):
     def test_closed_while_it_opens_it_leaves_nothing_behind(self):
         window = self.make()
         window.show(activate=False, origin=(-32000, -32000))
+        self.assertIsNotNone(window._opening)
         window.hide()
         self.assertIsNone(window._opening)
         self.assertFalse(self.layered(window))
         self.assertEqual(window._below, 0)
         self.assertFalse(window._frame_running)
 
-    def test_a_button_s_face_glides_to_the_pointer_and_to_a_press(self):
-        window = self.make()
-        window.show(activate=False, origin=(-32000, -32000))
-        self.pump(0.45)
-        target = next(item["target"] for item in window._plan["items"] if item["kind"] == "button")
-        drawn = []
+    def glide(self, window, target, change, length):
+        """Make `change`, draw each frame by hand until the face is let go, and check every frame against the clock."""
+        reads = []
         real = window._renderer.draw
 
         def recording(*args, **kwargs):
-            drawn.append(dict(kwargs.get("faces") or {}))
+            reads.append((kwargs.get("faces") or {}).get(target))
             return real(*args, **kwargs)
         window._renderer.draw = recording
-        window.hover = target
+        self.addCleanup(setattr, window._renderer, "draw", real)
+        change()
         window._invalidate()
         window.render()
-        self.assertIn(target, window._faces, "the pointer starts a glide")
-        self.assertEqual(window._faces[target][2], TRANSITION)
-        self.assertEqual(window._frame_ms, motion.GLIDE_FRAME_MS)
-        self.pump(0.35)
-        self.assertEqual(window._faces, {}, "let go on arrival")
-        amounts = [faces[target][1] for faces in drawn if target in faces]
-        self.assertGreaterEqual(len(amounts), 4, "drawn frame by frame")
-        self.assertEqual(amounts, sorted(amounts))
-        # The press is drawn here and now, as its WM_PAINT would draw it: what is asked is the face it starts.
-        states = dict(window._face_states or {})
-        window.pressed = target
-        window._invalidate()
-        window.render()
-        self.assertIn(target, window._faces, ("a press starts a glide", states, window._face_states, window.hover))
-        self.assertEqual(window._faces[target][2], PRESS, "a press takes the press time")
-        self.pump(0.3)
-        self.assertEqual(window._faces, {})
+        self.assertIn(target, window._faces, "the change starts a glide")
+        started, _, took = window._faces[target]
+        self.assertEqual(took, length)
+        self.assertEqual(window._frame_ms, motion.GLIDE_FRAME_MS, "on the quicker frames")
+        bracketed = []
+
+        def frame():
+            before = time.monotonic() * 1000.0
+            reads.clear()
+            window._static_dirty = True
+            window.render()
+            after = time.monotonic() * 1000.0
+            if reads:
+                bracketed.append((before - started, after - started, reads[-1]))
+        self.assertTrue(self.until(lambda: target not in window._faces, each=frame), "let go once its time is up")
+        window._renderer.draw = real
+        self.assertTrue(bracketed)
+        for least, most, read in bracketed:
+            if read is None:
+                self.assertGreaterEqual(most, length, "let go only once its time is up")
+                continue
+            amount = read[1]
+            self.assertLessEqual(amount, brand.ease(min(1.0, most / length)) + 1e-6, "ahead of its curve")
+            self.assertGreaterEqual(amount, brand.ease(max(0.0, least / length)) - 1e-6, "behind its curve")
+            self.assertLess(least, length, "still on its way while its time is not up")
+
+    def test_a_button_s_face_glides_to_the_pointer_and_to_a_press(self):
+        window = self.make()
+        window.show(activate=False, origin=(-32000, -32000))
+        self.assertTrue(self.until(lambda: window._opening is None))
+        target = next(item["target"] for item in window._plan["items"] if item["kind"] == "button")
+        window.render()                              # the face at rest, drawn once, as the first paint draws it
+        self.glide(window, target, lambda: setattr(window, "hover", target), TRANSITION)
+        self.glide(window, target, lambda: setattr(window, "pressed", target), PRESS)
+
+    def test_a_popup_is_kept_alive_while_its_window_exists(self):
+        from codex_auto_resume.ui.popup import window as popup_window
+        window = self.make()
+        self.assertIn(window, popup_window._LIVING, "Windows may still call its window procedure")
+        window.destroy()
+        self.assertNotIn(window, popup_window._LIVING, "and let go with its window")
 
     def test_held_a_face_changes_at_once(self):
         window = self.make(held=lambda: True)
         window.show(activate=False, origin=(-32000, -32000))
-        self.pump(0.05)
         target = next(item["target"] for item in window._plan["items"] if item["kind"] == "button")
+        window.render()
         window.hover = target
         window._invalidate()
-        self.pump(0.05)
-        self.assertEqual(window._faces, {})
+        window.render()
+        self.assertEqual(window._face_states.get(target), "hover", "the change was drawn")
+        self.assertEqual(window._faces, {}, "and simply there")
         self.assertFalse(window._frame_running)
 
 

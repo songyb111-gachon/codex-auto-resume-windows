@@ -65,6 +65,9 @@ from .words import locale_of, say, vocabulary
 
 FRAME_MS = 33                # about thirty frames a second, and only while something moves
 FIRST_READ_WAIT_MS = 300     # the first opening waits this long for real numbers at most
+# Every popup whose window exists: its window procedure is a callback of this object, which may not be collected
+# while Windows can still call it - a popup dropped without destroy() would fault the next message (v0.6.23).
+_LIVING = set()
 
 
 # ------------------------------------------------------------------------------ the window
@@ -162,6 +165,7 @@ class Popup(PopupMessages):
         user32, kernel32 = _dll("user32"), _dll("kernel32")
         instance = kernel32.GetModuleHandleW(None)
         self._proc = WNDPROC(self._wndproc)
+        _LIVING.add(self)
         klass = WNDCLASSW()
         klass.style = CS_DROPSHADOW
         klass.lpfnWndProc = self._proc
@@ -197,6 +201,7 @@ class Popup(PopupMessages):
                 self.log("tray popup menu cleanup failed (%s)" % type(exc).__name__)
         access.disconnect(self)
         hwnd, self.hwnd = self.hwnd, None
+        _LIVING.discard(self)
         self.visible = False
         if hwnd:
             for timer in (TIMER_TICK, TIMER_FRAME, TIMER_FIRST):

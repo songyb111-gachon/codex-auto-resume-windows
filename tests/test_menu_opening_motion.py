@@ -155,9 +155,31 @@ class ContrastFadeTests(ReducedFadeTests):
 
 
 class WindowTests(unittest.TestCase):
+    """The real menu window far off every screen, never activated. Its fade runs on its own timer, so each step is checked
+    against the clock it was read at - a busy runner may draw fewer steps, never steps off the curve or a fade that ends
+    early - and every wait is bounded by the clock, not by a count of frames."""
+
     def pump(self, seconds):
         from test_tray_popup import WindowsTests
         WindowsTests.pump(self, seconds)
+
+    def until(self, done, seconds=5.0):
+        deadline = time.monotonic() + seconds
+        while not done() and time.monotonic() < deadline:
+            self.pump(0.016)
+        return done()
+
+    def recorded(self, name):
+        seen, real = [], getattr(menuwindow, name)
+
+        def recording(elapsed, value):
+            answer = real(elapsed, value)
+            seen.append((elapsed,) + tuple(answer))
+            return answer
+        patcher = mock.patch.object(menuwindow, name, recording)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        return seen
 
     def test_the_real_menu_fades_in_on_its_timer_and_fades_out_and_hides(self):
         user32 = ctypes.WinDLL("user32")
@@ -168,28 +190,26 @@ class WindowTests(unittest.TestCase):
         menu.entries, menu.strings = entries(), dict(EN)
         menu._plan = menu._renderer.menu_layout(menu.entries, 1.0, "en")
         menu._origin = (-32000, -32000)
-        alphas = []
-        real = menu._blit
-
-        def blit():
-            alphas.append(menu._alpha)
-            real()
-        menu._blit = blit
+        ins, outs = self.recorded("opening"), self.recorded("closing")
         with mock.patch.object(menuwindow.look, "reduced_motion", return_value=False):
             menu._appear()
             menu._push()
             user32.ShowWindow(menu.hwnd, 4)                   # SW_SHOWNOACTIVATE, off every screen
             menu.visible = True
-            self.pump(0.45)
-            self.assertIsNone(menu._fade)
-            self.assertGreaterEqual(len([alpha for alpha in alphas if 0 < alpha < 255]), 3, alphas)
-            self.assertEqual(alphas[-1], 255)
-            alphas.clear()
+            self.assertEqual((menu._alpha, menu._fade[0]), (0, "in"), "it opens faded out")
+            self.assertTrue(self.until(lambda: menu._fade is None), "it arrives")
+            self.assertEqual((menu._alpha, menu._below), (255, 0))
+            self.assertTrue(ins and not ins[0][3] and ins[0][1] == 0, "its first frame is faded out, whatever the speed")
+            for elapsed, alpha, below, done in ins:
+                self.assertEqual(done, elapsed >= TRANSITION, "on its way exactly while its time is not up")
+            self.assertTrue(ins[-1][3])
+            self.assertEqual([step[1] for step in ins], sorted(step[1] for step in ins), "only ever more opaque")
             menu.close()
             self.assertTrue(user32.IsWindowVisible(menu.hwnd), "fading out")
-            self.pump(0.3)
-            self.assertFalse(user32.IsWindowVisible(menu.hwnd), "and gone")
-            self.assertEqual(alphas, sorted(alphas, reverse=True))
+            self.assertTrue(self.until(lambda: not user32.IsWindowVisible(menu.hwnd)), "and gone")
+            self.assertTrue(outs and outs[-1][2], "gone once its fade is over")
+            self.assertGreaterEqual(outs[-1][0], PRESS, "no sooner than brand's press time, by the clock")
+            self.assertEqual([step[1] for step in outs], sorted((step[1] for step in outs), reverse=True))
             self.assertIsNone(menu._fade)
 
 
