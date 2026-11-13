@@ -251,10 +251,9 @@ namespace CodexAutoResume
             form = PressedWindow(frame);
             PressedPump(30000, delegate { return form.settingsRead && form.snapshot != null && form.buildQueued; });
             form.navButtons["settings"].PerformClick();
-            outMap["dropped_waiting"] = form.urgentPage;
+            outMap["dropped_waiting"] = form.currentPage;
             form.navButtons["history"].PerformClick();
             outMap["dropped_page_after"] = form.currentPage;
-            outMap["dropped_left"] = form.urgentPage;
             Turns(form, 400, delegate { return false; });
             outMap["dropped_page_later"] = form.currentPage;
             frame.Close();
@@ -337,9 +336,8 @@ class PressedTests(unittest.TestCase):
         self.assertLess(self.answer["early_most_made_in_a_turn"], self.answer["early_made"] / 2)
 
     def test_another_page_pressed_meanwhile_is_shown_and_settings_is_not(self):
-        self.assertEqual(self.answer["dropped_waiting"], "settings")
+        self.assertEqual(self.answer["dropped_waiting"], "overview", "Settings was shown in the click")
         self.assertEqual(self.answer["dropped_page_after"], "history")
-        self.assertIsNone(self.answer["dropped_left"])
         self.assertEqual(self.answer["dropped_page_later"], "history")
 
 

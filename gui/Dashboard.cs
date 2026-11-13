@@ -1837,9 +1837,9 @@ namespace CodexAutoResume
         private bool UrgentWanted(string name)
         {
             if (reopening) return false;
-            // Its own read is what is busy while the settings are read (CallAsync); any other action is waited for as it was.
+            // A read or an action on its way (busy, which a read of the settings is too) is waited for by the steps
+            // themselves (PrepareNext), as making a page ready ahead waits for it.
             if (name == "settings" && !settingsRead) return settingsReloading;
-            if (busy > 0) return false;
             if (name == "settings")
             {
                 if (pendingSchema != null || editorSteps != null) return true;
