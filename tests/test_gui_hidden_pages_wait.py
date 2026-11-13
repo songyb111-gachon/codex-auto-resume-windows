@@ -70,15 +70,18 @@ class SourceTests(unittest.TestCase):
         self.assertIn("if (auditing || page == currentPage || page == writingPage) return true;", writes)
         self.assertIn("stalePages.Add(page);", writes)
 
-    def test_a_page_made_ready_is_held_and_let_go_outermost_first(self):
+    def test_a_page_made_ready_is_held_given_its_sizes_and_let_go_innermost_first(self):
         step = guiscan.member_body("SettingsForm", "PrepareNext")
         self.assertLess(step.index("prepareHeld = HoldWithin(page);"), step.index("page.Bounds = pageHost.DisplayRectangle;"))
         self.assertIn("if (LetGoSome()) prepareStep = 7;", step)
         let = guiscan.member_body("SettingsForm", "LetGoSome")
-        # v0.6.23 (idlefix2): outermost first, the page first of all, so each control lays itself out once, at its size;
-        # innermost first, the page's own last layout laid the whole page out again in one step (Settings up to 500 ms).
-        self.assertIn("Control first = prepareHeld[0];", let, "outermost first")
-        self.assertIn("prepareHeld.RemoveAt(0);", let)
+        # v0.6.23 (idlefix2): first, outermost first, each laid out at its size and held again, so what it holds has its
+        # size before it lays itself out; then let go innermost first. Let go innermost first alone, the page's own last
+        # layout laid the whole page out again in one step (Settings up to 500 ms).
+        sized = let.index("Control first = prepareHeld[prepareSized++];")
+        self.assertLess(sized, let.index("first.ResumeLayout(true);"))
+        self.assertLess(let.index("first.ResumeLayout(true);"), let.index("first.SuspendLayout();"))
+        self.assertLess(sized, let.index("Control last = prepareHeld[prepareHeld.Count - 1];"), "then innermost first")
         self.assertIn("if (preparing == name) LetGoAll();", guiscan.member_body("SettingsForm", "ShowPage"),
                       "a page shown before it is let go is let go at once, as it would be")
         self.assertIn("LetGoAll();", guiscan.member_body("SettingsForm", "Prepared"))

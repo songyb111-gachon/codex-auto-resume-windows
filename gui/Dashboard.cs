@@ -1774,6 +1774,7 @@ namespace CodexAutoResume
                 // the end (LetGoSome). Settings' room took 140-290 ms in one
                 // turn, Diagnostics' compatibility answer 300-500, at that size.
                 prepareHeld = HoldWithin(page);
+                prepareSized = 0;
                 page.SuspendLayout();
                 prepareHeld.Insert(0, page);
                 page.Bounds = pageHost.DisplayRectangle;
@@ -1826,6 +1827,8 @@ namespace CodexAutoResume
         // What the page being made ready holds from laying itself out, outermost first, the page itself first of all
         // (PrepareNext); null when nothing is held.
         private List<Control> prepareHeld;
+        // How many of them, outermost first, have been laid out at their size and held again (LetGoSome).
+        private int prepareSized;
 
         // v0.6.23 (the second round, idlefix2): the lists of the page being made ready whose rows are held aside while
         // their windows are made (SoftList.HoldRows); null when none are.
@@ -1871,25 +1874,35 @@ namespace CodexAutoResume
             if (lists != null) foreach (SoftList list in lists) list.PutBackRows();
         }
 
-        /// Lets what the page being made ready holds lay itself out, outermost first - the page itself first of all -
-        /// until PrepareSliceMilliseconds have gone. True once all are let go.
+        /// Lets what the page being made ready holds lay itself out until PrepareSliceMilliseconds have gone: first each
+        /// laid out at its size and held again, outermost first - the page itself first of all - then each let go,
+        /// innermost first. True once all are let go.
         ///
-        /// v0.6.23 (the second round, idlefix2): outermost first, each control is given its size by the one around it
-        /// before it lays out what it holds, so each lays itself out once, at the size it keeps; whatever it holds is
-        /// given theirs the same way on the turns after. Let go innermost first, every card and table laid itself out at
-        /// the size it was built at, and the page's own last layout gave each its real size and laid the whole page out
-        /// again in that one step: Settings 82-500 ms, Diagnostics 35-360 (the idle probe, months of data). The page
-        /// shown is the same page either way (the render-mode pixel proof); ShowPage, which lays a page out in one go,
-        /// still lets go innermost first (LetGoWithin).
+        /// v0.6.23 (the second round, idlefix2): laid out outermost first, each control is given its size by the one
+        /// around it before it lays out what it holds, so what it holds is laid out at the size it keeps; held again, a
+        /// table that sizes itself does not lay the one around it out again with every child it lays out (let go
+        /// outermost first, each child of Diagnostics' cards laid the whole page out again, 60-220 ms a step). Let go
+        /// innermost first alone, every card and table laid itself out at the size it was built at, and the page's own
+        /// last layout gave each its real size and laid the whole page out again in that one step: Settings 82-500 ms,
+        /// Diagnostics 35-360 (the idle probe, months of data). The page shown is the same page either way (the
+        /// render-mode pixel proof); ShowPage, which lays a page out in one go, lets go innermost first (LetGoWithin).
         private bool LetGoSome()
         {
             if (prepareHeld == null) return true;
             var slice = Stopwatch.StartNew();
+            while (prepareSized < prepareHeld.Count && slice.ElapsedMilliseconds < PrepareSliceMilliseconds)
+            {
+                Control first = prepareHeld[prepareSized++];
+                if (first.IsDisposed) continue;
+                first.ResumeLayout(true);
+                first.SuspendLayout();
+            }
+            if (prepareSized < prepareHeld.Count) return false;
             while (prepareHeld.Count > 0 && slice.ElapsedMilliseconds < PrepareSliceMilliseconds)
             {
-                Control first = prepareHeld[0];
-                prepareHeld.RemoveAt(0);
-                if (!first.IsDisposed) first.ResumeLayout(true);
+                Control last = prepareHeld[prepareHeld.Count - 1];
+                prepareHeld.RemoveAt(prepareHeld.Count - 1);
+                if (!last.IsDisposed) last.ResumeLayout(true);
             }
             if (prepareHeld.Count > 0) return false;
             prepareHeld = null;
