@@ -186,7 +186,7 @@ def copy_window(target: Path) -> Path:
     """What build/make_gui.ps1 reads to build the window, copied as it is."""
     shutil.copytree(ROOT / "gui", target / "gui")
     for name in (".codex-plugin/plugin.json", "assets/codex-auto-resume.ico", "build/make_gui.ps1",
-                 "build/normalize_pe.py", "advanced/gui/window.sources"):
+                 "build/normalize_pe.py", "build/gui_stamp.py", "advanced/gui/window.sources"):
         (target / name).parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(ROOT / name, target / name)
     return target
@@ -296,7 +296,7 @@ class WindowTests(unittest.TestCase):
     def test_the_advanced_run_builds_its_window_alone_in_its_own_folder(self):
         """The launcher is one file in both editions, built once, by the standard run."""
         self.assertEqual(sorted(path.name for path in self.advanced_folder.iterdir()),
-                         [WINDOW, WINDOW + ".VersionInfo.cs"])
+                         [WINDOW, WINDOW + ".VersionInfo.cs", WINDOW + ".stamp"])
 
     def test_both_windows_come_out_normalised(self):
         for data in (self.standard, self.advanced):

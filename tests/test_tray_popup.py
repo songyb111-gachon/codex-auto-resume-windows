@@ -1712,6 +1712,14 @@ class WindowsTests(unittest.TestCase):
         window.create()
         window.model.apply_outcome(("read",), popup.perform(("read",), window.control), time.time())
         window.show(activate=False, origin=(-32000, -32000))
+        # Closed by the test, or here if a check below fails: a window left behind with its frame timer and its window
+        # procedure collected faults the next test that pumps messages (CI, 2026-11-13: access violations writing 0x113).
+        self.addCleanup(window.destroy)
+        # v0.6.23: it opens with a fade and a rise, which is motion of its own; "still" is once that has arrived - by the
+        # clock, however long a busy runner takes to draw its frames.
+        deadline = time.monotonic() + 5
+        while window._opening is not None and time.monotonic() < deadline:
+            self.pump(0.02)
         self.pump(0.2)
         if window._contrast:                      # High Contrast still holds everything still
             window.destroy()

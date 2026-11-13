@@ -113,9 +113,9 @@ class SmokeStepExitCodeTests(unittest.TestCase):
             env = dict(os.environ, PYTHONPATH="src")
             env["PATH"] = str(Path(sys.executable).parent) + os.pathsep + env.get("PATH", "")
             done = subprocess.run([shell, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "step.ps1"],
-                                  cwd=work, env=env, capture_output=True, text=True,
-                                  creationflags=NO_WINDOW, timeout=120)
-            calls = int((work / "calls.txt").read_text()) if (work / "calls.txt").exists() else 0
+                                  cwd=work, env=env, capture_output=True, text=True, encoding="utf-8",
+                                  errors="replace", creationflags=NO_WINDOW, timeout=120)
+            calls = int((work / "calls.txt").read_text(encoding="utf-8")) if (work / "calls.txt").exists() else 0
             return done.returncode, calls
 
     def test_a_first_command_that_fails_fails_the_step(self):
@@ -394,7 +394,8 @@ class KoWatchLogicTests(unittest.TestCase):
                    FAKE_GH_SCENARIO=str(self.work / "scenario.json"), FAKE_GH_LOG=str(self.work / "gh.log"))
         env["PATH"] = str(self.work) + os.pathsep + env.get("PATH", "")
         return subprocess.run([self.bash, "-c", "set -eo pipefail\n" + self.script], env=env, capture_output=True,
-                              text=True, creationflags=NO_WINDOW, timeout=120)
+                              text=True, encoding="utf-8", errors="replace", creationflags=NO_WINDOW,
+                              timeout=120)
 
     def test_ko_built_from_mains_head_is_caught_up(self):
         done = self._run(ko_message="Generate ko from main@" + self.MAIN + "\n")
