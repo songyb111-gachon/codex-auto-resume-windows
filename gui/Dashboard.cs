@@ -1465,6 +1465,8 @@ namespace CodexAutoResume
         {
             if (Array.IndexOf(PageOrder, name) < 0) name = "overview";
             // v0.6.23 (round 5): what making it ready ahead holds of it let go first, innermost first, as it would be.
+            // v0.6.23 (idlefix2): and every row of its lists held aside while their windows were made, back at once.
+            if (preparing == name) PutBackAllRows();
             if (preparing == name) LetGoAll();
             currentPage = name;
             bool settings = name == "settings";
@@ -1566,7 +1568,15 @@ namespace CodexAutoResume
             if (pageBuilds.TryGetValue(name, out begun))
             {
                 pageBuilds.Remove(name);
-                while (begun.Steps.MoveNext()) { }
+                PageBuild before = buildHolding;
+                buildHolding = begun;
+                try { while (begun.Steps.MoveNext()) { } }
+                catch (Exception)
+                {
+                    LetGoBuilt(begun);
+                    throw;
+                }
+                finally { buildHolding = before; }
                 page = begun.Page;
             }
             else
@@ -1578,6 +1588,10 @@ namespace CodexAutoResume
             page.Visible = false;
             pages[name] = page;
             pageHost.Controls.Add(page);
+            // v0.6.23 (idlefix2): what a build begun ahead held, let go only now that the page has its place - and with it
+            // the window's font, which its controls had not until then: each one told of it asked for a layout, at the
+            // size it was built at, and the whole of Diagnostics was laid out and measured again in that one step.
+            if (begun != null) LetGoBuilt(begun);
             // v0.6.23: a page built out of sight - made ready ahead - is only marked, and written when it is (Writes,
             // WriteIfStale): a whole snapshot written for it cost 100-300 ms on an installation that had run for months.
             if (snapshot != null && !Writes(name)) return page;
@@ -1591,6 +1605,39 @@ namespace CodexAutoResume
         {
             internal Control Page;
             internal IEnumerator<bool> Steps;
+            // v0.6.23 (idlefix2): built ahead (BuildSome), what its steps made that lays others out, held from laying
+            // itself out as it was made (HeldAsBuilt) until the build is finished (LetGoBuilt).
+            internal List<Control> Held;
+        }
+
+        // The build begun ahead whose step is being taken now (BuildSome, PageFor); null otherwise.
+        private PageBuild buildHolding;
+
+        /// v0.6.23 (the second round, idlefix2): `control`, held from laying itself out while a page is built ahead a step
+        /// at a time (BuildSome) - a page, its cards, their facts and grids, its button rows. Each control added to one of
+        /// them asked it for a layout, at the size it had before the page had a size of its own, and each of those
+        /// asked the one around it again: Diagnostics' last step took 40-140 ms laying out its whole page at that size,
+        /// Pending's 20-170 its buttons, all of it laid out again once the page had its room. Built on a click, nothing
+        /// is held.
+        private T HeldAsBuilt<T>(T control) where T : Control
+        {
+            if (buildHolding == null) return control;
+            if (buildHolding.Held == null) buildHolding.Held = new List<Control>();
+            control.SuspendLayout();
+            buildHolding.Held.Add(control);
+            return control;
+        }
+
+        /// Lets go of what a build begun ahead held, without a layout, once its page is in the page host (PageFor), or
+        /// the build is given up: each lays itself out when the page is laid out - made ready (PrepareNext) or shown
+        /// (ShowPage) - as each asked to be.
+        private static void LetGoBuilt(PageBuild build)
+        {
+            List<Control> held = build.Held;
+            build.Held = null;
+            if (held == null) return;
+            for (int i = held.Count - 1; i >= 0; i--)
+                if (!held[i].IsDisposed) held[i].ResumeLayout(false);
         }
 
         // The builds begun ahead of their page's first visit (BuildSome), by page, until PageFor finishes one.
@@ -1620,7 +1667,15 @@ namespace CodexAutoResume
                 build.Steps = steps(build);
                 pageBuilds[name] = build;
             }
-            return build.Steps.MoveNext();
+            PageBuild before = buildHolding;
+            buildHolding = build;
+            try { return build.Steps.MoveNext(); }
+            catch (Exception)
+            {
+                LetGoBuilt(build);
+                throw;
+            }
+            finally { buildHolding = before; }
         }
 
         // ------------------------------------------------------------ pages made ready ahead (v0.6.23)
@@ -1655,9 +1710,12 @@ namespace CodexAutoResume
         // bridge read, 3 runs a build and edition, the PC shared with other test runs): at 40 the controls' steps took 43-58
         // ms (median), at 30 they take 33-47; the editors' field steps, at 30 already, 30-50, and the editors' longest
         // step 60-110 (the interface language's card, one part of the Custom card), up to 225 on a loaded run, where it
-        // was 80-290 before their long steps were split. Longer than a slice are only the steps one control or one
-        // container takes on its own: History's list made with its 200 rows (up to 450), a page's own last layout when
-        // let go (Settings up to 500, Diagnostics up to 360).
+        // was 80-290 before their long steps were split. Longer than a slice were the steps one control or one container
+        // took on its own: History's list made with its 200 rows (up to 450), a page's own last layout when let go
+        // (Settings up to 500, Diagnostics up to 360). v0.6.23 (idlefix2): a list's rows now go back a slice a turn
+        // (HoldRows), a page is laid out at its sizes before it is let go (LetGoSome) and built ahead with nothing laid
+        // out (HeldAsBuilt); what is left longer than a slice is one layout of a whole page - Diagnostics', which measures every
+        // card, 40-90 ms on a quiet PC.
         private const int PrepareSliceMilliseconds = 30;
         private Stack<Control> prepareMake;
 
@@ -1722,12 +1780,20 @@ namespace CodexAutoResume
         private void PrepareFailed(Exception error)
         {
             UiFaults.Note(error);
+            try { PutBackAllRows(); }
+            catch (Exception) { /* the rows go back as they are read (SoftList.PutBackRows), or not at all */ }
             List<Control> held = prepareHeld;
             prepareHeld = null;
             if (held != null)
                 for (int i = held.Count - 1; i >= 0; i--)
                     if (!held[i].IsDisposed) held[i].ResumeLayout(false);
-            if (preparing != null) pageBuilds.Remove(preparing);
+            PageBuild begun;
+            if (preparing != null && pageBuilds.TryGetValue(preparing, out begun))
+            {
+                pageBuilds.Remove(preparing);
+                try { LetGoBuilt(begun); }
+                catch (Exception) { /* its controls are left for the collector: a click builds the page anew */ }
+            }
             Prepared();
         }
 
@@ -1766,10 +1832,11 @@ namespace CodexAutoResume
             {
                 // Built (PreparedPage), and the room the page host will give it once shown, so it is never laid out
                 // narrower first. Everything in it that lays others out held from now (round 5), so that its room, what
-                // is written into it and what its reads add lay nothing out; let go a few at a time, innermost first, at
-                // the end (LetGoSome) - as ShowPage lets a page go when it shows. Settings' room took 140-290 ms in one
+                // is written into it and what its reads add lay nothing out; let go a few at a time, outermost first, at
+                // the end (LetGoSome). Settings' room took 140-290 ms in one
                 // turn, Diagnostics' compatibility answer 300-500, at that size.
                 prepareHeld = HoldWithin(page);
+                prepareSized = 0;
                 page.SuspendLayout();
                 prepareHeld.Insert(0, page);
                 page.Bounds = pageHost.DisplayRectangle;
@@ -1783,11 +1850,14 @@ namespace CodexAutoResume
             else if (prepareStep == 2)
             {
                 // Its native controls, made as showing it would make them while it stays hidden: in Materialise's order,
-                // for PrepareSliceMilliseconds a turn (Settings' took 860 ms in one on that installation).
+                // for PrepareSliceMilliseconds a turn (Settings' took 860 ms in one on that installation). A list's rows
+                // held aside first (HoldRows), so its window is made empty and they go back a slice a turn after.
+                if (prepareMake == null) HoldRows(page);
                 if (MakeSome(page)) prepareStep = 3;
             }
             else if (prepareStep == 3)
             {
+                if (!PutBackSomeRows()) return true;
                 // What it reads on each visit that the snapshot does not hold, read once now, so its first visit finds it
                 // there as every later visit does; the visit reads it again (ShowPage).
                 bool reads = preparing == "statistics" || preparing == "diagnostics";
@@ -1819,23 +1889,85 @@ namespace CodexAutoResume
         // What the page being made ready holds from laying itself out, outermost first, the page itself first of all
         // (PrepareNext); null when nothing is held.
         private List<Control> prepareHeld;
+        // How many of them, outermost first, have been laid out at their size and held again (LetGoSome).
+        private int prepareSized;
 
-        /// Lets what the page being made ready holds lay itself out, innermost first, until PrepareSliceMilliseconds have
-        /// gone; the page itself last, on a turn of its own. True once all are let go.
+        // v0.6.23 (the second round, idlefix2): the lists of the page being made ready whose rows are held aside while
+        // their windows are made (SoftList.HoldRows); null when none are.
+        private List<SoftList> prepareRows;
+
+        /// Holds aside the rows of every list in `page` whose window is not yet made (SoftList.HoldRows).
+        private void HoldRows(Control page)
+        {
+            var lists = new List<SoftList>();
+            var next = new Stack<Control>();
+            next.Push(page);
+            while (next.Count > 0)
+            {
+                Control control = next.Pop();
+                var list = control as SoftList;
+                if (list != null && list.HoldRows()) lists.Add(list);
+                foreach (Control child in control.Controls) next.Push(child);
+            }
+            if (lists.Count > 0) prepareRows = lists;
+        }
+
+        /// Puts held rows back until PrepareSliceMilliseconds have gone; true once every list has them all.
+        private bool PutBackSomeRows()
+        {
+            if (prepareRows == null) return true;
+            var slice = Stopwatch.StartNew();
+            while (prepareRows.Count > 0)
+            {
+                long left = PrepareSliceMilliseconds - slice.ElapsedMilliseconds;
+                if (left <= 0) return false;
+                if (!prepareRows[0].PutBackRows((int)left)) return false;
+                prepareRows.RemoveAt(0);
+            }
+            prepareRows = null;
+            return true;
+        }
+
+        /// Puts every held row back at once: the page is shown, given up or finished.
+        private void PutBackAllRows()
+        {
+            List<SoftList> lists = prepareRows;
+            prepareRows = null;
+            if (lists != null) foreach (SoftList list in lists) list.PutBackRows();
+        }
+
+        /// Lets what the page being made ready holds lay itself out until PrepareSliceMilliseconds have gone: first each
+        /// laid out at its size and held again, outermost first - the page itself first of all - then each let go,
+        /// innermost first. True once all are let go.
+        ///
+        /// v0.6.23 (the second round, idlefix2): laid out outermost first, each control is given its size by the one
+        /// around it before it lays out what it holds, so what it holds is laid out at the size it keeps; held again, a
+        /// table that sizes itself does not lay the one around it out again with every child it lays out (let go
+        /// outermost first, each child of Diagnostics' cards laid the whole page out again, 60-220 ms a step). Let go
+        /// innermost first alone, every card and table laid itself out at the size it was built at, and the page's own
+        /// last layout gave each its real size and laid the whole page out again in that one step: Settings 82-500 ms,
+        /// Diagnostics 35-360 (the idle probe, months of data). The page shown is the same page either way (the
+        /// render-mode pixel proof); ShowPage, which lays a page out in one go, lets go innermost first (LetGoWithin).
         private bool LetGoSome()
         {
             if (prepareHeld == null) return true;
             var slice = Stopwatch.StartNew();
-            int let = 0;
-            while (prepareHeld.Count > 1 && slice.ElapsedMilliseconds < PrepareSliceMilliseconds)
+            while (prepareSized < prepareHeld.Count && slice.ElapsedMilliseconds < PrepareSliceMilliseconds)
+            {
+                Control first = prepareHeld[prepareSized++];
+                if (first.IsDisposed) continue;
+                first.ResumeLayout(true);
+                first.SuspendLayout();
+            }
+            if (prepareSized < prepareHeld.Count) return false;
+            while (prepareHeld.Count > 0 && slice.ElapsedMilliseconds < PrepareSliceMilliseconds)
             {
                 Control last = prepareHeld[prepareHeld.Count - 1];
                 prepareHeld.RemoveAt(prepareHeld.Count - 1);
                 if (!last.IsDisposed) last.ResumeLayout(true);
-                let++;
             }
-            if (let > 0) return false;
-            LetGoAll();
+            if (prepareHeld.Count > 0) return false;
+            prepareHeld = null;
             return true;
         }
 
@@ -1873,6 +2005,7 @@ namespace CodexAutoResume
 
         private void Prepared()
         {
+            PutBackAllRows();
             LetGoAll();
             if (preparing != null && !preparedPages.Contains(preparing)) preparedPages.Add(preparing);
             preparing = null;
@@ -2008,6 +2141,7 @@ namespace CodexAutoResume
         private Panel Page()
         {
             var page = new SoftPage();
+            HeldAsBuilt(page);
             page.Dock = DockStyle.Fill;
             // A page may scroll, and while it does it is the edge of the shadows on it (see Ground):
             // the cards' lift is kept inside its padding.
@@ -2061,6 +2195,7 @@ namespace CodexAutoResume
         private TableLayoutPanel Facts(TableLayoutPanel card)
         {
             var grid = new SoftStack();
+            HeldAsBuilt(grid);
             grid.ColumnCount = 2;
             grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
@@ -2099,6 +2234,7 @@ namespace CodexAutoResume
         private TableLayoutPanel Grid(int columnCount)
         {
             var grid = new SoftStack();
+            HeldAsBuilt(grid);
             grid.Dock = DockStyle.Top;
             grid.AutoSize = true;
             grid.AutoSizeMode = AutoSizeMode.GrowAndShrink;
@@ -2127,6 +2263,7 @@ namespace CodexAutoResume
         private FlowLayoutPanel ButtonRow()
         {
             var row = new SoftFlow();
+            HeldAsBuilt(row);
             row.Dock = DockStyle.Bottom;
             row.AutoSize = true;
             row.AutoSizeMode = AutoSizeMode.GrowAndShrink;
