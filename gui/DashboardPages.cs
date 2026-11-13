@@ -525,7 +525,7 @@ namespace CodexAutoResume
             gateList.Dock = DockStyle.Top;
             gateList.Font = Font;
             gateList.AccessibleName = S("explain.title", "Why it is waiting");
-            var gates = Held(new SoftPage());
+            var gates = HeldAsBuilt(new SoftPage());
             gates.BackColor = Card;
             gates.Dock = DockStyle.Fill;
             gates.Margin = new Padding(0);
@@ -544,7 +544,7 @@ namespace CodexAutoResume
             // table rather than two docked cards: docking ignores margins, and the gap is one. The
             // explanation is a little narrower than it was, so the list keeps its columns in a
             // window of v0.6.2's width.
-            var split = Held(new SoftStack());
+            var split = HeldAsBuilt(new SoftStack());
             split.Dock = DockStyle.Fill;
             split.ColumnCount = 2;
             split.RowCount = 1;

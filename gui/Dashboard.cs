@@ -1606,7 +1606,7 @@ namespace CodexAutoResume
             internal Control Page;
             internal IEnumerator<bool> Steps;
             // v0.6.23 (idlefix2): built ahead (BuildSome), what its steps made that lays others out, held from laying
-            // itself out as it was made (Held) until the build is finished (LetGoBuilt).
+            // itself out as it was made (HeldAsBuilt) until the build is finished (LetGoBuilt).
             internal List<Control> Held;
         }
 
@@ -1619,7 +1619,7 @@ namespace CodexAutoResume
         /// asked the one around it again: Diagnostics' last step took 40-140 ms laying out its whole page at that size,
         /// Pending's 20-170 its buttons, all of it laid out again once the page had its room. Built on a click, nothing
         /// is held.
-        private T Held<T>(T control) where T : Control
+        private T HeldAsBuilt<T>(T control) where T : Control
         {
             if (buildHolding == null) return control;
             if (buildHolding.Held == null) buildHolding.Held = new List<Control>();
@@ -1714,7 +1714,7 @@ namespace CodexAutoResume
         // took on its own: History's list made with its 200 rows (up to 450), a page's own last layout when let go
         // (Settings up to 500, Diagnostics up to 360). v0.6.23 (idlefix2): a list's rows now go back a slice a turn
         // (HoldRows), a page is laid out at its sizes before it is let go (LetGoSome) and built ahead with nothing laid
-        // out (Held); what is left longer than a slice is one layout of a whole page - Diagnostics', which measures every
+        // out (HeldAsBuilt); what is left longer than a slice is one layout of a whole page - Diagnostics', which measures every
         // card, 40-90 ms on a quiet PC.
         private const int PrepareSliceMilliseconds = 30;
         private Stack<Control> prepareMake;
@@ -2140,7 +2140,7 @@ namespace CodexAutoResume
 
         private Panel Page()
         {
-            var page = Held(new SoftPage());
+            var page = HeldAsBuilt(new SoftPage());
             page.Dock = DockStyle.Fill;
             // A page may scroll, and while it does it is the edge of the shadows on it (see Ground):
             // the cards' lift is kept inside its padding.
@@ -2193,7 +2193,7 @@ namespace CodexAutoResume
 
         private TableLayoutPanel Facts(TableLayoutPanel card)
         {
-            var grid = Held(new SoftStack());
+            var grid = HeldAsBuilt(new SoftStack());
             grid.ColumnCount = 2;
             grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
@@ -2231,7 +2231,7 @@ namespace CodexAutoResume
 
         private TableLayoutPanel Grid(int columnCount)
         {
-            var grid = Held(new SoftStack());
+            var grid = HeldAsBuilt(new SoftStack());
             grid.Dock = DockStyle.Top;
             grid.AutoSize = true;
             grid.AutoSizeMode = AutoSizeMode.GrowAndShrink;
@@ -2259,7 +2259,7 @@ namespace CodexAutoResume
 
         private FlowLayoutPanel ButtonRow()
         {
-            var row = Held(new SoftFlow());
+            var row = HeldAsBuilt(new SoftFlow());
             row.Dock = DockStyle.Bottom;
             row.AutoSize = true;
             row.AutoSizeMode = AutoSizeMode.GrowAndShrink;

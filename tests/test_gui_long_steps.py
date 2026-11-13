@@ -17,7 +17,7 @@ ran:
 * Pending's and Diagnostics' build steps: every control added to the page, a card or a grid asked it for a layout at the
   size it had before the page had a room - and the page's place in the page host brought the window's font, which laid
   the whole of Diagnostics out again in its last step (40-140 ms). Built ahead, the page, its cards, grids and button
-  rows are held from laying themselves out as they are made (Held) until the page is in the page host (PageFor,
+  rows are held from laying themselves out as they are made (HeldAsBuilt) until the page is in the page host (PageFor,
   LetGoBuilt), and they lay themselves out once, when the page is.
 
 The live probe: the real window, standard edition, shown far off the screen in a frame that is never activated, answered
@@ -83,9 +83,9 @@ class SourceTests(unittest.TestCase):
         # The page, its cards, facts, grids and button rows are held as they are made - only while built ahead.
         for maker in ("Page", "Facts", "Grid", "ButtonRow", "MakeCard"):
             with self.subTest(maker=maker):
-                self.assertIn("Held(new Soft", guiscan.member_body("SettingsForm", maker))
+                self.assertIn("HeldAsBuilt(new Soft", guiscan.member_body("SettingsForm", maker))
         dashboard = guiscan.read("gui/Dashboard.cs")
-        hold = guiscan._block(dashboard, dashboard.index("private T Held<T>(T control) where T : Control"))
+        hold = guiscan._block(dashboard, dashboard.index("private T HeldAsBuilt<T>(T control) where T : Control"))
         self.assertIn("if (buildHolding == null) return control;", hold)
 
 

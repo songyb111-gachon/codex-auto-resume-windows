@@ -838,6 +838,15 @@ namespace CodexAutoResume
                     Invalidate();
                 }
                 redrawHeld = false;
+                // Laid out once more with every row in it (WM_SIZE, as a resize lays the list out), as making its window
+                // with its rows laid it out: its header, which a picture pinned at another scale is told the height of
+                // (PinnedHeader), stood 2 px taller over rows put back into a list made empty, and the soft scroll bar of
+                // the list's host (SoftListHost, told by ScrollChanged) kept the thumb of the empty list.
+                if (IsHandleCreated)
+                {
+                    Size client = ClientSize;
+                    SendHeaderMessage(Handle, WM_SIZE, IntPtr.Zero, (IntPtr)(((client.Height & 0xFFFF) << 16) | (client.Width & 0xFFFF)));
+                }
                 return true;
             }
             finally { puttingBack = false; }

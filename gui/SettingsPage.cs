@@ -162,7 +162,7 @@ namespace CodexAutoResume
             //
             // Its body is the whole control; the ground it stands on draws its lift (see
             // SoftCard). The panel's card padding, and the panel's gap below it.
-            var card = Held(new SoftCard());
+            var card = HeldAsBuilt(new SoftCard());
             card.Dock = DockStyle.Fill;
             card.ColumnCount = 1;
             card.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
