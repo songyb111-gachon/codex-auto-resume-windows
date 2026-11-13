@@ -1717,9 +1717,16 @@ class WindowsTests(unittest.TestCase):
         self.addCleanup(window.destroy)
         # v0.6.23: it opens with a fade and a rise, which is motion of its own; "still" is once that has arrived - by the
         # clock, however long a busy runner takes to draw its frames.
+        # A frame is also delivered each turn as the frame timer delivers it: a busy machine was seen holding a thread's
+        # WM_TIMER back for seconds (2026-11-13); each step of the opening is read off the clock either way.
+        import ctypes
+        user32 = ctypes.WinDLL("user32")
+        user32.SendMessageW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t, ctypes.c_ssize_t]
         deadline = time.monotonic() + 5
         while window._opening is not None and time.monotonic() < deadline:
             self.pump(0.02)
+            user32.SendMessageW(window.hwnd, popup.WM_TIMER, popup.TIMER_FRAME, 0)
+        self.assertIsNone(window._opening, "its opening arrived")
         self.pump(0.2)
         if window._contrast:                      # High Contrast still holds everything still
             window.destroy()

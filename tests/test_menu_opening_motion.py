@@ -157,16 +157,24 @@ class ContrastFadeTests(ReducedFadeTests):
 class WindowTests(unittest.TestCase):
     """The real menu window far off every screen, never activated. Its fade runs on its own timer, so each step is checked
     against the clock it was read at - a busy runner may draw fewer steps, never steps off the curve or a fade that ends
-    early - and every wait is bounded by the clock, not by a count of frames."""
+    early - and every wait is bounded by the clock, not by a count of frames. A busy machine was seen holding back every
+    WM_TIMER of the thread for seconds while other messages kept the queue full (here, 2026-11-13, half the cores spinning):
+    where its timer has not come for longer than a few frames, the test delivers the frame itself, as WM_TIMER would."""
+
+    STALE = 0.05                                       # seconds without a frame before the test delivers one
 
     def pump(self, seconds):
         from test_tray_popup import WindowsTests
         WindowsTests.pump(self, seconds)
 
-    def until(self, done, seconds=5.0):
+    def until(self, done, menu, seconds=5.0):
+        user32 = ctypes.WinDLL("user32")
+        user32.SendMessageW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t, ctypes.c_ssize_t]
         deadline = time.monotonic() + seconds
         while not done() and time.monotonic() < deadline:
             self.pump(0.016)
+            if menu._fade is not None and time.monotonic() - self.last[0] > self.STALE:
+                user32.SendMessageW(menu.hwnd, menuwindow.WM_TIMER, menuwindow.FADE_TIMER, 0)
         return done()
 
     def recorded(self, name):
@@ -175,6 +183,7 @@ class WindowTests(unittest.TestCase):
         def recording(elapsed, value):
             answer = real(elapsed, value)
             seen.append((elapsed,) + tuple(answer))
+            self.last[0] = time.monotonic()
             return answer
         patcher = mock.patch.object(menuwindow, name, recording)
         patcher.start()
@@ -184,7 +193,8 @@ class WindowTests(unittest.TestCase):
     def test_the_real_menu_fades_in_on_its_timer_and_fades_out_and_hides(self):
         user32 = ctypes.WinDLL("user32")
         user32.IsWindowVisible.argtypes = [ctypes.c_void_p]
-        menu = popup.Menu()
+        logged, self.last = [], [time.monotonic()]
+        menu = popup.Menu(log=logged.append)
         menu.create()
         self.addCleanup(menu.destroy)
         menu.entries, menu.strings = entries(), dict(EN)
@@ -196,8 +206,9 @@ class WindowTests(unittest.TestCase):
             menu._push()
             user32.ShowWindow(menu.hwnd, 4)                   # SW_SHOWNOACTIVATE, off every screen
             menu.visible = True
+            self.last[0] = time.monotonic()
             self.assertEqual((menu._alpha, menu._fade[0]), (0, "in"), "it opens faded out")
-            self.assertTrue(self.until(lambda: menu._fade is None), "it arrives")
+            self.assertTrue(self.until(lambda: menu._fade is None, menu), ("it arrives", menu._fade, ins[-3:], logged))
             self.assertEqual((menu._alpha, menu._below), (255, 0))
             self.assertTrue(ins and not ins[0][3] and ins[0][1] == 0, "its first frame is faded out, whatever the speed")
             for elapsed, alpha, below, done in ins:
@@ -205,12 +216,14 @@ class WindowTests(unittest.TestCase):
             self.assertTrue(ins[-1][3])
             self.assertEqual([step[1] for step in ins], sorted(step[1] for step in ins), "only ever more opaque")
             menu.close()
+            self.last[0] = time.monotonic()
             self.assertTrue(user32.IsWindowVisible(menu.hwnd), "fading out")
-            self.assertTrue(self.until(lambda: not user32.IsWindowVisible(menu.hwnd)), "and gone")
+            self.assertTrue(self.until(lambda: not user32.IsWindowVisible(menu.hwnd), menu), ("and gone", outs[-3:], logged))
             self.assertTrue(outs and outs[-1][2], "gone once its fade is over")
             self.assertGreaterEqual(outs[-1][0], PRESS, "no sooner than brand's press time, by the clock")
             self.assertEqual([step[1] for step in outs], sorted((step[1] for step in outs), reverse=True))
             self.assertIsNone(menu._fade)
+            self.assertEqual(logged, [], "and nothing went wrong on the way")
 
 
 if __name__ == "__main__":
