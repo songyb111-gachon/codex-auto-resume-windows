@@ -44,7 +44,8 @@ class SourceTests(unittest.TestCase):
         waits = guiscan.member_body("SettingsForm", "IdleStepWaits")
         self.assertIn("Transition.Moving > 0", waits)
         self.assertIn("prepareInput.Since < PrepareAfterInputMilliseconds", waits)
-        self.assertIn("if (busy > 0 || refreshing || IdleStepWaits()) return true;",
+        # v0.6.23 (perffix): but for the step a pressed page takes to be made ready first (FinishFirst, prepareUrgent).
+        self.assertIn("if (busy > 0 || (!prepareUrgent && (refreshing || IdleStepWaits()))) return true;",
                       guiscan.member_body("SettingsForm", "PrepareNext"))
         page = guiscan.read("gui/SettingsPage.cs")
         later = guiscan._block(page, page.index("private void BuildEditorsLater()"))
