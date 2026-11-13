@@ -2140,7 +2140,8 @@ namespace CodexAutoResume
 
         private Panel Page()
         {
-            var page = HeldAsBuilt(new SoftPage());
+            var page = new SoftPage();
+            HeldAsBuilt(page);
             page.Dock = DockStyle.Fill;
             // A page may scroll, and while it does it is the edge of the shadows on it (see Ground):
             // the cards' lift is kept inside its padding.
@@ -2193,7 +2194,8 @@ namespace CodexAutoResume
 
         private TableLayoutPanel Facts(TableLayoutPanel card)
         {
-            var grid = HeldAsBuilt(new SoftStack());
+            var grid = new SoftStack();
+            HeldAsBuilt(grid);
             grid.ColumnCount = 2;
             grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
@@ -2231,7 +2233,8 @@ namespace CodexAutoResume
 
         private TableLayoutPanel Grid(int columnCount)
         {
-            var grid = HeldAsBuilt(new SoftStack());
+            var grid = new SoftStack();
+            HeldAsBuilt(grid);
             grid.Dock = DockStyle.Top;
             grid.AutoSize = true;
             grid.AutoSizeMode = AutoSizeMode.GrowAndShrink;
@@ -2259,7 +2262,8 @@ namespace CodexAutoResume
 
         private FlowLayoutPanel ButtonRow()
         {
-            var row = HeldAsBuilt(new SoftFlow());
+            var row = new SoftFlow();
+            HeldAsBuilt(row);
             row.Dock = DockStyle.Bottom;
             row.AutoSize = true;
             row.AutoSizeMode = AutoSizeMode.GrowAndShrink;

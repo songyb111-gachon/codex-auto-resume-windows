@@ -81,9 +81,9 @@ class SourceTests(unittest.TestCase):
         held = guiscan.member_body("SettingsForm", "LetGoBuilt")
         self.assertIn("held[i].ResumeLayout(false);", held)
         # The page, its cards, facts, grids and button rows are held as they are made - only while built ahead.
-        for maker in ("Page", "Facts", "Grid", "ButtonRow", "MakeCard"):
+        for maker, made in (("Page", "page"), ("Facts", "grid"), ("Grid", "grid"), ("ButtonRow", "row"), ("MakeCard", "card")):
             with self.subTest(maker=maker):
-                self.assertIn("HeldAsBuilt(new Soft", guiscan.member_body("SettingsForm", maker))
+                self.assertIn("HeldAsBuilt(%s);" % made, guiscan.member_body("SettingsForm", maker))
         dashboard = guiscan.read("gui/Dashboard.cs")
         hold = guiscan._block(dashboard, dashboard.index("private T HeldAsBuilt<T>(T control) where T : Control"))
         self.assertIn("if (buildHolding == null) return control;", hold)
