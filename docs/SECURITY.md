@@ -643,8 +643,10 @@ edition - and the setup window says so first; it offers a box, off unless ticked
 **What each does, once it is on.**
 
 - **Start with Codex, through WMI.** It departs from C4 (nothing happens on its own, and nothing at
-  start) and F6 (the processes the product starts are a fixed list, and a route through WMI is not
-  on it). When Codex starts the plugin's MCP server, and recovery is not paused, no watcher runs, no
+  start) and F6 (the processes the product starts are a fixed list: here the server starts the
+  watcher on its own, which the standard edition never does; WMI is not what departs, since the
+  standard edition's installer and Dashboard use it too, to run outside another app's private
+  view). When Codex starts the plugin's MCP server, and recovery is not paused, no watcher runs, no
   installation is in progress and this installation's launcher is there, the server starts the
   watcher. Where Codex's job would end what the server starts, it asks WMI to
   (`Win32_Process.Create`): one constant PowerShell script, run by PowerShell's full System32 path
