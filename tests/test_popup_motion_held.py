@@ -25,6 +25,9 @@ from codex_auto_resume.ui import popup as tray_popup  # noqa: E402
 from codex_auto_resume.ui.popup import window as popup_window  # noqa: E402
 from codex_auto_resume.ui.tray import clicks as tray_clicks  # noqa: E402
 from codex_auto_resume.ui.tray.animation import AnimationMixin  # noqa: E402
+# Imported here, not first inside a frame's wait: under load its first import took seconds in the middle of a fade, and
+# no timer of the window could come while it ran (2026-11-13, half the cores spinning). The module, not its classes.
+import test_tray_popup  # noqa: E402,F401
 
 
 class FakeUser32:

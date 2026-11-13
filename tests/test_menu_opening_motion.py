@@ -26,6 +26,9 @@ from codex_auto_resume import brand  # noqa: E402
 from codex_auto_resume.ui import popup  # noqa: E402
 from codex_auto_resume.ui.popup import menuwindow, motion  # noqa: E402
 from test_tray_menu_drawn import EN, entries, measure  # noqa: E402
+# Imported here, not first inside a frame's wait: under load its first import took seconds in the middle of a fade, and
+# no timer of the window could come while it ran (2026-11-13, half the cores spinning). The module, not its classes.
+import test_tray_popup  # noqa: E402,F401
 
 TRANSITION, PRESS = brand.MOTION["transition_ms"], brand.MOTION["press_ms"]
 
