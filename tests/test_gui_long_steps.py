@@ -296,15 +296,24 @@ namespace CodexAutoResume
                 }
                 Turns(form, delegate { return here.preparedPages.Contains(page); });
                 int layouts = 0, elsewhere = 0;
+                // Which card, at which sizes against the one it keeps and under which parent's size: a failure on one of
+                // GitHub's runners only (2026-11-14) said no more than the count.
+                var where = new List<object>();
                 foreach (var pair in sizes)
                     foreach (Size size in pair.Value)
                     {
                         layouts++;
-                        if (size != pair.Key.Size) elsewhere++;
+                        if (size == pair.Key.Size) continue;
+                        elsewhere++;
+                        where.Add(string.Format("{0} #{1} at {2}x{3}, keeps {4}x{5} in {6}x{7}", pair.Key.Name,
+                            pair.Key.Parent == null ? -1 : pair.Key.Parent.Controls.IndexOf(pair.Key), size.Width, size.Height,
+                            pair.Key.Width, pair.Key.Height, pair.Key.Parent == null ? 0 : pair.Key.Parent.ClientSize.Width,
+                            pair.Key.Parent == null ? 0 : pair.Key.Parent.ClientSize.Height));
                     }
                 outMap[name + "_cards"] = (double)sizes.Count;
                 outMap[name + "_layouts"] = (double)layouts;
                 outMap[name + "_layouts_at_another_size"] = (double)elsewhere;
+                outMap[name + "_layouts_at_another_size_where"] = where;
                 outMap[name + "_layouts_before_the_page"] = (double)pageFirst[1];
             }
             frame.Close();
@@ -446,7 +455,8 @@ class LongStepTests(unittest.TestCase):
                 self.assertEqual(self.answer[name + "_layouts_before_the_page"], 0,
                                  "a card laid itself out before the page around it had: innermost first")
         self.assertEqual(self.answer["settings_layouts_at_another_size"], 0,
-                         "a Settings card laid itself out at a size it does not keep, to be laid out again")
+                         "a Settings card laid itself out at a size it does not keep, to be laid out again: %r"
+                         % self.answer.get("settings_layouts_at_another_size_where"))
 
     def test_a_page_built_ahead_lays_nothing_out_while_it_is_built(self):
         for name in ("pending", "diagnostics"):

@@ -170,6 +170,11 @@ namespace CodexAutoResume
             // spent is the same on a fast PC and a slow one: a fast one made every control of a small window in two turns
             // or one, a slice's worth or less (GitHub's runners, 2026-11-13), and the count said nothing of the slicing.
             var made = new Dictionary<string, object>();
+            // The same for letting Settings go (LetGoSome, step 6): each of its controls laid out on the way is given 2 ms
+            // more (a sleep on its Layout), so that a slice lets go a bounded number of them on any PC. Laid out at their
+            // sizes ahead (idlefix2), every control of it was let go within one 30 ms slice on some of GitHub's runners
+            // (2026-11-14), and the count said nothing of the slicing.
+            var laid = new Dictionary<string, object>();
             string makingAt = null;
             bool settingsWatched = false;
             Action<Control> watchMade = null;
@@ -183,6 +188,13 @@ namespace CodexAutoResume
                         made[makingAt] = (made.TryGetValue(makingAt, out seen) ? (double)seen : 0.0) + 1.0;
                         System.Threading.Thread.Sleep(5);
                     };
+                control.Layout += delegate
+                {
+                    if (makingAt != "settings:6") return;
+                    object seen;
+                    laid[makingAt] = (laid.TryGetValue(makingAt, out seen) ? (double)seen : 0.0) + 1.0;
+                    System.Threading.Thread.Sleep(2);
+                };
                 foreach (Control child in control.Controls) watchMade(child);
             };
             var clock = System.Diagnostics.Stopwatch.StartNew();
@@ -210,6 +222,7 @@ namespace CodexAutoResume
             outMap["opened_on"] = form.currentPage;
             outMap["turns"] = turns;
             outMap["made"] = made;
+            outMap["laid"] = laid;
             outMap["built"] = new List<object>(new List<string>(form.pages.Keys).ToArray());
             outMap["history_rows"] = (double)form.historyList.Items.Count;
             outMap["pending_rows"] = (double)form.pendingList.Items.Count;
@@ -312,8 +325,11 @@ class RefreshTests(unittest.TestCase):
         self.assertGreaterEqual(turns.get("pending:0", 0), 5, "Pending built in one turn again: %r" % turns)
         self.assertGreaterEqual(turns.get("diagnostics:0", 0), 4, "Diagnostics built in one turn again: %r" % turns)
         # v0.6.23 (round 5): a page made ready is held from laying itself out from its room on (so its room, its writes
-        # and its reads' answers lay nothing out) and let go a few at a time, the page itself on a turn of its own.
-        self.assertGreaterEqual(turns.get("settings:6", 0), 2, "Settings let go in one turn again: %r" % turns)
+        # and its reads' answers lay nothing out) and let go a few at a time. Counted, not timed: each control laid out
+        # while it is let go is given 2 ms more, so 20 of them or more do not fit in one 30 ms slice on any PC.
+        laid = self.answer["laid"]
+        self.assertGreaterEqual(laid.get("settings:6", 0), 20, "Settings' controls laid out as it was let go: %r" % laid)
+        self.assertGreaterEqual(turns.get("settings:6", 0), 2, "Settings let go in one turn again: %r %r" % (turns, laid))
 
     def test_a_refresh_on_the_overview_fills_no_hidden_list(self):
         self.assertEqual(self.answer["fills_on_refresh"], 0, "a hidden list was written by a refresh")
