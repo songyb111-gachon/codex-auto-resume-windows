@@ -664,6 +664,7 @@
   "installer.done.failed": "完了しませんでした (終了コード {code})。",
   "installer.done.installed": "Codex Auto Resume をインストールしました。",
   "installer.done.installed_version": "v{version} をインストールしました",
+  "installer.done.left_stopped": "監視プロセスは以前から動いていなかったため、停止したままにしています。まだ何も監視していません。ダッシュボードの [監視プロセスを開始] で開始するか、スタート メニューから Codex Auto Resume を開いてそこで開始してください。",
   "installer.done.not_started": "インストーラーを起動できませんでした。",
   "installer.done.open": "ダッシュボードを開く",
   "installer.done.previous_running": "以前の監視プロセスがまだ処理を終えようとしています。停止したら、ダッシュボードから監視プロセスを開始してください。",

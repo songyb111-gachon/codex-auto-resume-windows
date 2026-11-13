@@ -664,6 +664,7 @@
   "installer.done.failed": "Nebylo dokončeno (ukončovací kód {code}).",
   "installer.done.installed": "Codex Auto Resume je nainstalovaný.",
   "installer.done.installed_version": "Nainstalováno v{version}",
+  "installer.done.left_stopped": "Hlídač předtím neběžel, proto zůstal zastavený a zatím se nic nesleduje. Spusťte ho tlačítkem Spustit hlídač v okně Dashboard, nebo otevřete Codex Auto Resume z nabídky Start a spusťte ho tam.",
   "installer.done.not_started": "Instalační program nebylo možné spustit.",
   "installer.done.open": "Otevřít Dashboard",
   "installer.done.previous_running": "Předchozí hlídač ještě dokončuje, co dělal. Jakmile se zastaví, spusťte hlídač z okna Dashboard.",

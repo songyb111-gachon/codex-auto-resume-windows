@@ -28,6 +28,7 @@ ENV_RUNTIME_HOME = "CODEX_AUTO_RESUME_PLUGIN_HOME"
 # the INSTALLED plugin_setup.py), and an older one rejects an argument it does not know - so `setup` would not run
 # at all - while it ignores a variable it does not read.
 ENV_WILL_LOOK_AGAIN = "CODEX_AUTO_RESUME_SETUP_WILL_LOOK_AGAIN"   # "1": the caller looks at the watcher again after setup
+ENV_SAYS_LEFT_STOPPED = "CODEX_AUTO_RESUME_SETUP_SAYS_LEFT_STOPPED"  # "1": the caller reads EXIT_LEFT_STOPPED (v0.6.23)
 ENV_ENGLISH = "CODEX_AUTO_RESUME_SETUP_ENGLISH"                   # "1": the caller's log is English: say watcher-running so
 RUNTIME_DIR_NAME = ".codex-auto-resume"
 # The directory names the installer creates under the root - and therefore the ones
@@ -44,6 +45,12 @@ EXIT_DESKTOP_TAKEN = 3
 # an installer that treats it as failure rolls back a good install, and one that
 # treats it as success says "Installed and running." about a watcher nobody saw.
 EXIT_UNCONFIRMED = 2
+# Everything asked for was done, and the watcher, which was not running before this update, was left stopped
+# (--watcher-was-stopped, where it would not run at the next sign-in either). A success, and a different one: the
+# installer's last word and the setup window's Finish page say that nothing is being watched until it is started
+# (v0.6.23 acceptance G1: both said "Nothing else to do"). Only for a caller that asks for it (ENV_SAYS_LEFT_STOPPED):
+# every other caller - an older install.ps1, the bootstrap's own calls - hears EXIT_OK, as it always has.
+EXIT_LEFT_STOPPED = 4
 
 sys.path.insert(0, str(PLUGIN_ROOT / "src"))
 from codex_auto_resume import addremove, config, control, edition, l10n, shortcut, startup # noqa: E402
@@ -368,7 +375,11 @@ def cmd_setup(args) -> int:
     print("state: %s" % home)
     if incomplete:
         return EXIT_ERROR
-    return EXIT_OK if confirmed or left_stopped else EXIT_UNCONFIRMED
+    if confirmed:
+        return EXIT_OK
+    if left_stopped:
+        return EXIT_LEFT_STOPPED if os.environ.get(ENV_SAYS_LEFT_STOPPED) == "1" else EXIT_OK
+    return EXIT_UNCONFIRMED
 
 
 def cmd_enable(args) -> int:

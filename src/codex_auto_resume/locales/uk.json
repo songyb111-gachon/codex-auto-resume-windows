@@ -664,6 +664,7 @@
   "installer.done.failed": "Не завершилося (код виходу {code}).",
   "installer.done.installed": "Codex Auto Resume встановлено.",
   "installer.done.installed_version": "Встановлено v{version}",
+  "installer.done.left_stopped": "Монітор не працював до цього, тому його залишено зупиненим, і поки що нічого не відстежується. Запустіть його кнопкою «Запустити монітор» у Dashboard або відкрийте Codex Auto Resume з меню «Пуск» і запустіть його там.",
   "installer.done.not_started": "Не вдалося запустити інсталятор.",
   "installer.done.open": "Відкрити Dashboard",
   "installer.done.previous_running": "Попередній монітор ще завершує розпочате. Коли він зупиниться, запустіть монітор у Dashboard.",

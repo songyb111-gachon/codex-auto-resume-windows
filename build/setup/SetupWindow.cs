@@ -312,7 +312,8 @@ namespace CodexAutoResume
                             window.Finished(ended, ended == 0
                                 ? "The watcher could not be confirmed running, so nothing is being watched yet.\n" +
                                   "The previous version of the watcher was asked to stop and is still finishing\n" +
-                                  DesktopShortcut.FailedLine + "\n" + DesktopShortcut.TakenLine
+                                  DesktopShortcut.FailedLine + "\n" + DesktopShortcut.TakenLine + "\n" +
+                                  InstallerFlow.LeftStoppedLine + "update, so it was left stopped; nothing is being watched yet."
                                 : "  [x]  Something did not work.");
                             Check(window, where, findings);
                         }

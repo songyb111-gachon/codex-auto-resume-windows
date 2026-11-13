@@ -664,6 +664,7 @@
   "installer.done.failed": "Операция не завершилась (код выхода {code}).",
   "installer.done.installed": "Codex Auto Resume установлен.",
   "installer.done.installed_version": "Установлена v{version}",
+  "installer.done.left_stopped": "Монитор не работал до этого, поэтому он остался остановленным, и пока ничто не отслеживается. Запустите его кнопкой «Запустить монитор» в Дашборде или откройте Codex Auto Resume из меню «Пуск» и запустите его там.",
   "installer.done.not_started": "Не удалось запустить установщик.",
   "installer.done.open": "Открыть Дашборд",
   "installer.done.previous_running": "Прежний монитор ещё завершает начатое. Когда он остановится, запустите монитор из Дашборда.",
