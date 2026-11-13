@@ -189,7 +189,7 @@ K군은 2026-09-28에 더했다. 2026-11-11에 소유자의 말에 따라 문서
 **B15** 호환성 확인은 스키마의 테이블과 열 이름, 폴더가 있는지만 읽고, 행은 읽지 않는다.  
 *코드*
 
-**B16** Windows에는 내용이 없는 질문만 한다. AppsUseLightTheme, TrayNotify, 알림 영역 아이콘 자체의 설정(NotifyIconSettings)은 읽기만 하고 쓰지 않는다. 그 가운데서 자기 아이콘을 찾으려고 제품은 모든 항목의 아이콘 번호와 GUID를, 자기 것일 수 있는 항목에서는 프로그램 경로를 읽으며, 어느 것도 남기지 않는다. 전원 동작은 질문 네 가지를 더 한다. 이 계정이 SeShutdownPrivilege를 지녔는지와 이 PC가 어떤 절전 상태를 제공하는지는 대시보드가 전원 동작의 카드를 보여 줄 때와 그것을 켤 때, 그리고 켜져 있는 동안 묻는다. 마지막 입력이 얼마나 전에 있었는지(시간이며 무엇이었는지는 묻지 않고, 후크도 없다)와 다른 세션이 몇 개 로그인해 있는지(개수이며 사용자 이름은 묻지 않는다)는 켜져 있는 동안에만 묻는다. 이 PC의 Codex가 쓰지만 워처가 아직 감시하지 않는 Codex 홈을 제안하려고, 설치된 사본의 대시보드는 *설정 > 고급*을 보여 줄 때 제안 스위치가 켜져 있으면 계정의 CODEX_HOME 값(HKEY_CURRENT_USER\Environment)도 읽기만 하고 쓰지 않는다(2026-10-22 코드에 맞게 바로잡음, 2026-10-22 소유자가 요청한 Codex 홈 제안을 위해 넓힘, 2026-11-11 코드에 맞게 바로잡음)  
+**B16** Windows에는 내용이 없는 질문만 한다. AppsUseLightTheme, TrayNotify, 알림 영역 아이콘 자체의 설정(NotifyIconSettings)은 읽기만 하고 쓰지 않는다. 그 가운데서 자기 아이콘을 찾으려고 제품은 모든 항목의 아이콘 번호와 GUID를, 자기 것일 수 있는 항목에서는 프로그램 경로를 읽으며, 어느 것도 남기지 않는다. 전원 동작은 질문 네 가지를 더 한다. 이 계정이 SeShutdownPrivilege를 지녔는지와 이 PC가 어떤 절전 상태를 제공하는지는 대시보드가 전원 동작의 카드를 보여 줄 때와 그것을 켤 때, 그리고 켜져 있는 동안 묻는다. 마지막 입력이 얼마나 전에 있었는지(시간이며 무엇이었는지는 묻지 않고, 후크도 없다)와 다른 세션이 몇 개 로그인해 있는지(개수이며 사용자 이름은 묻지 않는다)는 켜져 있는 동안에만 묻는다. 이 PC의 Codex가 쓰지만 워처가 아직 감시하지 않는 Codex 홈을 제안하려고, 설치된 사본의 대시보드는 *설정 > 고급*을 보여 줄 때 제안 스위치가 켜져 있으면 계정의 CODEX_HOME 값(HKEY_CURRENT_USER\Environment)도 읽기만 하고 쓰지 않는다. Windows의 글자 크기(TextScaleFactor, HKEY_CURRENT_USER\Software\Microsoft\Accessibility)와 관리자의 정책 값(HKEY_LOCAL_MACHINE과 HKEY_CURRENT_USER의 Software\Policies\CodexAutoResume 아래)도 읽기만 하고 쓰지 않는다(2026-10-22 코드에 맞게 바로잡음, 2026-10-22 소유자가 요청한 Codex 홈 제안을 위해 넓힘, 2026-11-11 코드에 맞게 바로잡음, 2026-11-13 소유자가 고침)  
 *일부 테스트*: `test_power_action_windows.py`
 
 **B17** 계층은 정해져 있다. 엔진은 sqlite3, ctypes, subprocess를 import하지 않고 주입받은 어댑터로만 Codex에 닿는다. UI와 MCP는 Codex 읽기 모듈을 import하지 않는다. 도메인 계층은 순수한 표준 라이브러리다. subprocess는 목록에 있는 모듈만 import한다.  
@@ -329,7 +329,7 @@ K군은 2026-09-28에 더했다. 2026-11-11에 소유자의 말에 따라 문서
 **F2** 레지스트리 쓰기는 모두 HKCU 아래다. 쓰는 것은 Run 값(고른 경우에만 쓰고, 우리 것일 때만 지움), Software\Classes\codex-auto-resume, Software\Classes\AppUserModelId\CodexAutoResume.Watcher, 그리고 설치를 설정 > 앱 목록에 올리는 Software\Microsoft\Windows\CurrentVersion\Uninstall 아래 키 하나다. 그 키는 표준판이 CodexAutoResume, 고급판이 CodexAutoResumeAdvanced이며 둘이 함께 있는 일은 없다. 설치 프로그램이 가리킬 제거 프로그램을 보관해 둔 경우에만 쓰고, 이 설치를 가리킬 때만 바꾸거나 지운다(2026-10-16 소유자가 고침).  
 *키마다 테스트; 다른 키를 쓰지 않는 것은 코드*: `test_cli.py`, `test_notify.py`, `test_plugin.py`, `test_add_remove.py`
 
-**F3** 제품 자신의 파일은 출처 표시가 있는 config/와 logs/, 홈(%USERPROFILE%\.codex-auto-resume, AppData가 아님)의 프로그램 파일, 시작 메뉴 바로 가기, 사람이 요청한 경우에만 만드는 바탕 화면 바로 가기, 그리고 요청한 경우에만 쓰는 진단이다(2026-11-05 소유자가 고침).  
+**F3** 제품 자신의 파일은 출처 표시가 있는 config/와 logs/, 홈(%USERPROFILE%\.codex-auto-resume, AppData가 아님)의 프로그램 파일, 시작 메뉴 바로 가기, 사람이 요청한 경우에만 만드는 바탕 화면 바로 가기, 그리고 요청한 경우에만 쓰는 진단이다. 설치 폴더 밖의 유일한 자리는 %LOCALAPPDATA%\codex-auto-resume\homes\로, 감시하는 Codex 홈마다 하나씩 있는 빈 잠금 파일이며 경로의 해시로 이름을 짓는다(폴더 고유 식별자로 이름 지은 것도 하나 있다). Uninstall -Purge는 다른 설치본이 잡고 있는 것을 뺀 나머지를 지운다(2026-11-05, 2026-11-13 소유자가 고침).  
 *테스트*: `test_plugin.py`
 
 **F4** 경로는 가둔다: 링크이거나 홈 바깥으로 풀리는(NTFS 정션 포함) 소유 디렉터리는 거부한다.  
