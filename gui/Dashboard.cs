@@ -1843,12 +1843,16 @@ namespace CodexAutoResume
             if (name == "settings")
             {
                 if (pendingSchema != null || editorSteps != null) return true;
-                if (preparedPages.Contains(name) || columns.IsHandleCreated) return false;
-                return preparing == null || preparing == name;
+                // Its controls' windows are made as it is made ready, the page's own first: made, and not being made ready.
+                return !preparedPages.Contains(name) && (!columns.IsHandleCreated || preparing == name);
             }
             if (preparedPages.Contains(name) || snapshot == null || !settingsRead) return false;
             if (preparing == name) return true;
-            return preparing == null && pendingSchema == null && editorSteps == null && NextToPrepare() == name;
+            // The page another being made ready now is followed by, once this one is asked for (NextToPrepare).
+            string asked = urgentPage;
+            urgentPage = name;
+            try { return NextToPrepare() == name; }
+            finally { urgentPage = asked; }
         }
 
         /// One step of making the pressed page ready, on an idle turn; the page shown once it is ready - or once nothing
@@ -2179,15 +2183,17 @@ namespace CodexAutoResume
         private string NextToPrepare()
         {
             // v0.6.23 (perffix): Settings first, right after its editors - of every page the one whose making took longest
-            // on a click (1.5 s at 7 s on the owner's installation, the live acceptance's R4) - then the others in order.
+            // on a click (1.5 s at 7 s on the owner's installation, the live acceptance's R4) - then the others in order;
+            // and the edition's page before them all while it is the page pressed and waited for (FinishFirst).
+            string edition = null;
+            EditionPageNamed(preparedPages, ref edition);
+            if (edition != null && edition == urgentPage) return edition;
             foreach (string name in PrepareOrder)
             {
                 // Shown once already, or made ready: its controls are made.
                 Control built = name == "settings" ? columns : pages.ContainsKey(name) ? pages[name] : null;
                 if (name != currentPage && !preparedPages.Contains(name) && (built == null || !built.IsHandleCreated)) return name;
             }
-            string edition = null;
-            EditionPageNamed(preparedPages, ref edition);
             return edition;
         }
 
