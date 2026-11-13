@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import os
 from pathlib import Path
 import stat
 import subprocess
@@ -731,8 +732,11 @@ class ReturnTests(Case):
         said, order, popen = self.restart(True)
         self.assertEqual((said, order), (pythons.RUNNING, ["launcher", "stop"]))
         self.assertEqual(popen.call_args[1]["env"].get(pythons.AFTER_STOP_MARK), "1")
-        self.assertEqual(popen.call_args[0][0][-2:], [str(self.home / "watcher-launcher.py"), "run"], "the installed copy")
-        self.assertEqual(popen.call_args[0][0][0], str(self.home / "runtime" / "pythonw.exe"))
+        # Compared as real paths: on a runner whose TEMP is an 8.3 name (RUNNER~1) the product names the long one.
+        argv = popen.call_args[0][0]
+        same = lambda path: os.path.normcase(os.path.realpath(str(path)))  # noqa: E731
+        self.assertEqual([same(argv[-2]), argv[-1]], [same(self.home / "watcher-launcher.py"), "run"], "the installed copy")
+        self.assertEqual(same(argv[0]), same(self.home / "runtime" / "pythonw.exe"))
         launcher = (ROOT / "scripts" / "watcher_launcher.py").read_text(encoding="utf-8")
         self.assertIn('AFTER_STOP_MARK = "%s"' % pythons.AFTER_STOP_MARK, launcher)
 

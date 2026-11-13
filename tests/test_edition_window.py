@@ -186,7 +186,7 @@ def copy_window(target: Path) -> Path:
     """What build/make_gui.ps1 reads to build the window, copied as it is."""
     shutil.copytree(ROOT / "gui", target / "gui")
     for name in (".codex-plugin/plugin.json", "assets/codex-auto-resume.ico", "build/make_gui.ps1",
-                 "build/normalize_pe.py", "advanced/gui/window.sources"):
+                 "build/normalize_pe.py", "build/gui_stamp.py", "advanced/gui/window.sources"):
         (target / name).parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(ROOT / name, target / name)
     return target
