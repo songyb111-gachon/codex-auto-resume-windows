@@ -43,6 +43,8 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import posixpath
+import re
 import shutil
 import subprocess
 import sys
@@ -121,6 +123,13 @@ APP_SOURCES = {".mcp.json": "build/plugin-mcp.json"}
 # build/release_notes.py reads that one.
 CHANGELOG = "docs/CHANGELOG.md"
 CHANGELOG_PAGE = "https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/CHANGELOG.md"
+# The README in the archive is a copy: a relative link or picture of the repository's README whose target the archive does
+# not carry (the guide, the pictures under docs/images/) would lead nowhere on a person's PC, so absolute_links makes it
+# the address of that file on GitHub at this release's tag. The repository's own README.md stays as it is.
+REPOSITORY_URL = "https://github.com/songyb111-gachon/codex-auto-resume-windows"
+PICTURE_SUFFIXES = (".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".ico")
+# Where a README names a path: a Markdown link or picture's (...), an HTML src= or href=, a reference definition.
+README_LINK = re.compile(r"""(\]\(\s*<?|\b(?:src|href)\s*=\s*["']|^\[[^\]\n]+\]:[ \t]*)([^)\s"'>]+)""", re.MULTILINE)
 # What stays of the bundled runtime: see trim_runtime.
 RUNTIME_KEEP = "build/runtime_keep.json"
 LAUNCHER_FILES = ("Install.cmd", "Uninstall.cmd", "README.txt", "install.ps1")
@@ -229,6 +238,24 @@ def newest_changelog(text: str, release: str) -> str:
         entry.pop()
     page = "This file holds this release's entry only. The whole changelog is at %s" % CHANGELOG_PAGE
     return newline.join(title + ["", page, ""] + entry + [""])
+
+
+def absolute_links(text: str, release: str, carried) -> str:
+    """`text`, a README at the repository's root, with each relative link or picture whose target is not in `carried` (the
+    paths the archive holds, relative to its root) made absolute: a document is .../blob/v<release>/<path>, a picture
+    .../raw/v<release>/<path>, both at the release's tag. What the archive carries, an address with a scheme and a link
+    inside the page (#...) stay as written; so does a fragment or query after a path that is rewritten."""
+    def each(match):
+        target = match.group(2)
+        if not target or target.startswith(("#", "/")) or re.match(r"[A-Za-z][A-Za-z0-9+.-]*:", target):
+            return match.group(0)
+        path, mark, rest = re.match(r"([^#?]*)([#?]?)(.*)", target).groups()
+        path = posixpath.normpath(path) if path else ""
+        if not path or path.startswith("..") or path in carried:
+            return match.group(0)
+        kind = "raw" if path.lower().endswith(PICTURE_SUFFIXES) else "blob"
+        return "%s%s/%s/v%s/%s%s%s" % (match.group(1), REPOSITORY_URL, kind, release, path, mark, rest)
+    return README_LINK.sub(each, text)
 
 
 def collect_runtime(stage: Path, archive: Path) -> int:
@@ -355,6 +382,11 @@ def collect_app(stage: Path) -> int:
             else:
                 shutil.copyfile(source, app / name)
             copied += 1
+    # After every file is in, so "what the archive carries" is what it holds. Both editions go through here.
+    readme = app / "README.md"
+    if readme.is_file():
+        carried = {path.relative_to(app).as_posix() for path in app.rglob("*") if path.is_file()}
+        readme.write_bytes(absolute_links(readme.read_bytes().decode("utf-8"), version(), carried).encode("utf-8"))
     return copied
 
 
