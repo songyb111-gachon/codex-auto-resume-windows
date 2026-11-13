@@ -29,6 +29,7 @@ METER = pagecase.ROOT / "advanced" / "gui" / "AdvancedMeter.cs"
 
 PROBE_METER = r"""
 # ------------------------------------------------------------------ F11: a meter made again with a new reading
+# `before`: what the meter before it showed, -1 for no reading; below -1, no meter before it at all.
 function Meter([double]$used, [double]$before) {
     $meter = Make 'AccountMeter'
     $meter.GetType().GetProperty('Used', $instance).SetValue($meter, $used, $null)
@@ -36,22 +37,24 @@ function Meter([double]$used, [double]$before) {
     Place $meter 20 20 120 8
     return $meter
 }
+# A frame drawn by hand, as Windows draws it on the screen: a window off the screen is never painted.
+function Paint($meter) { Frames $meter (New-Object Drawing.Rectangle 0, 0, 120, 8) 1 }
 $m = Meter 80 20
-$m.Refresh()
+Paint $m
 $out.meter = @{ starts = @([bool](P $m 'Growing'), [double](P $m 'Drawn')) }
 Pump 400
 $out.meter.arrives = @([bool](P $m 'Growing'), [double](P $m 'Drawn'))
 $m.Dispose()
-$same = Meter 50 50; $same.Refresh()
+$same = Meter 50 50; Paint $same
 $out.meter.same = @([bool](P $same 'Growing'), [double](P $same 'Drawn')); $same.Dispose()
-$none = Meter -1 40; $none.Refresh()
+$none = Meter -1 40; Paint $none
 $out.meter.none = [bool](P $none 'Growing'); $none.Dispose()
-$fresh = Meter 30 -5; $fresh.Refresh()
+$fresh = Meter 30 -1; Paint $fresh
 $out.meter.unreadBefore = @([bool](P $fresh 'Growing'), [double](P $fresh 'Drawn')); $fresh.Dispose()
-$new = Meter 30 -9; $new.Refresh()
+$new = Meter 30 -9; Paint $new
 $out.meter.firstTime = [bool](P $new 'Growing'); $new.Dispose()
 Reduce $true
-$r = Meter 90 10; $r.Refresh()
+$r = Meter 90 10; Paint $r
 $out.meter.reduced = @([bool](P $r 'Growing'), [double](P $r 'Drawn')); $r.Dispose()
 Reduce $false
 """
