@@ -1710,9 +1710,12 @@ namespace CodexAutoResume
         // bridge read, 3 runs a build and edition, the PC shared with other test runs): at 40 the controls' steps took 43-58
         // ms (median), at 30 they take 33-47; the editors' field steps, at 30 already, 30-50, and the editors' longest
         // step 60-110 (the interface language's card, one part of the Custom card), up to 225 on a loaded run, where it
-        // was 80-290 before their long steps were split. Longer than a slice are only the steps one control or one
-        // container takes on its own: History's list made with its 200 rows (up to 450), a page's own last layout when
-        // let go (Settings up to 500, Diagnostics up to 360).
+        // was 80-290 before their long steps were split. Longer than a slice were the steps one control or one container
+        // took on its own: History's list made with its 200 rows (up to 450), a page's own last layout when let go
+        // (Settings up to 500, Diagnostics up to 360). v0.6.23 (idlefix2): a list's rows now go back a slice a turn
+        // (HoldRows), a page is laid out at its sizes before it is let go (LetGoSome) and built ahead with nothing laid
+        // out (Held); what is left longer than a slice is one layout of a whole page - Diagnostics', which measures every
+        // card, 40-90 ms on a quiet PC.
         private const int PrepareSliceMilliseconds = 30;
         private Stack<Control> prepareMake;
 
