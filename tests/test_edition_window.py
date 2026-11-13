@@ -296,7 +296,7 @@ class WindowTests(unittest.TestCase):
     def test_the_advanced_run_builds_its_window_alone_in_its_own_folder(self):
         """The launcher is one file in both editions, built once, by the standard run."""
         self.assertEqual(sorted(path.name for path in self.advanced_folder.iterdir()),
-                         [WINDOW, WINDOW + ".VersionInfo.cs"])
+                         [WINDOW, WINDOW + ".VersionInfo.cs", WINDOW + ".stamp"])
 
     def test_both_windows_come_out_normalised(self):
         for data in (self.standard, self.advanced):
