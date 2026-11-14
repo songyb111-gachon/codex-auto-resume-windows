@@ -129,18 +129,15 @@ namespace CodexAutoResume
             top.Controls.Add(findSearch);
             findSaid = Value("");
             findSaid.ForeColor = Secondary;
-            // As wide as the list's card holds it (v0.6.23, SearchOnCard): the ground's room and the card's either side.
-            findSaid.MaximumSize = new Size(Px(across - 49), 0);
+            findSaid.MaximumSize = new Size(Px(across - 32), 0);
             findSaid.Visible = false;
             top.Controls.Add(findSaid);
 
             // Flat hairline rows, owner-drawn as every list here is (DrawCell): one column, the conversation's name.
             string column = Word("page.resets.field.conversation", "Conversation");
             findList = List(Word("page.find.title", "Find a conversation"), Col(column, across - 32));
-            // On History's card, on the soft scroll bar, as the lists in the window are (DialogListCard) - and the search above
-            // it on the same card (v0.6.23, SearchOnCard).
+            // On History's card, on the soft scroll bar, as the lists in the window are (DialogListCard).
             Control listGround = DialogListCard(findList);
-            SearchOnCard(listGround, top);
 
             FlowLayoutPanel buttons = ButtonRow();
             buttons.FlowDirection = FlowDirection.RightToLeft;
@@ -152,6 +149,7 @@ namespace CodexAutoResume
             buttons.Controls.Add(findCancel);
 
             dialog.Controls.Add(listGround);
+            dialog.Controls.Add(top);
             dialog.Controls.Add(buttons);
             dialog.AcceptButton = findUse;
             dialog.CancelButton = findCancel;

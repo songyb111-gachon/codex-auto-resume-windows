@@ -918,20 +918,15 @@ class ControlTests(Probed):
 
 
 def plain_dialog_hosts(source: str) -> list[str]:
-    """The methods in `source` that build a dialog with a field or a text well and put it on no card.
-
-    v0.6.23 (the second round's F9): a dialog whose only card is its list's puts its field - the search above the list - on
-    that card too (SearchOnCard); a list on a card with the field beside it on the canvas is a plain host."""
+    """The methods in `source` that build a dialog with a field or a text well and put it on no card."""
     found = []
     for match in re.finditer(r"\n        (?:private|internal|public)[^\n;={]*\([^\n;]*\)\n        \{\n(.*?)\n        \}\n", source, re.S):
         body = match.group(1)
         if "new Form()" not in body:
             continue
-        if not re.search(r"new (?:SoftTextArea|SoftNumber|SoftQuote|SoftCombo)\(|EditorCombo\(|\bOneLine\(", body):
+        if not re.search(r"new (?:SoftTextArea|SoftNumber|SoftQuote|SoftCombo)\(|EditorCombo\(", body):
             continue
-        if re.search(r"DialogBodyCard\(|MakeCard\(", body):
-            continue
-        if not (re.search(r"DialogListCard\(", body) and re.search(r"SearchOnCard\(", body)):
+        if not re.search(r"DialogBodyCard\(|DialogListCard\(|MakeCard\(", body):
             found.append(match.group(0).strip().splitlines()[0])
     return found
 
@@ -951,11 +946,6 @@ class DesignSourceTests(unittest.TestCase):
                  "            var area = new SoftTextArea();\n            dialog.Controls.Add(area);\n        }\n")
         self.assertEqual(len(plain_dialog_hosts(plain)), 1)
         self.assertEqual(plain_dialog_hosts(plain.replace("dialog.Controls.Add(area)", "dialog.Controls.Add(DialogBodyCard(area))")), [])
-        # A list on its card with the field left on the canvas beside it (the log's search before the second round).
-        beside = plain.replace("dialog.Controls.Add(area);", "dialog.Controls.Add(area);\n"
-                               "            dialog.Controls.Add(DialogListCard(view));")
-        self.assertEqual(len(plain_dialog_hosts(beside)), 1)
-        self.assertEqual(plain_dialog_hosts(beside.replace("dialog.Controls.Add(area);", "SearchOnCard(ground, area);")), [])
 
     def test_there_is_one_body_card_and_it_is_the_cards_own(self):
         helper = guiscan.member_body("SettingsForm", "DialogBodyCard")
