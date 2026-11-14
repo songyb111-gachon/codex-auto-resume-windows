@@ -1336,6 +1336,8 @@ namespace CodexAutoResume
         // built as its tab's first press builds it.
         partial void EditionPageNamed(List<string> prepared, ref string name);
         partial void EditionPageFor(string name, ref Control page);
+        // v0.6.23 (perffix): the steps that page is built ahead in (BuildSome), where it has them.
+        partial void EditionPageSteps(string name, ref Func<PageBuild, IEnumerator<bool>> steps);
         // A snapshot has been shown (ApplySnapshot), or there is none and the pages say so
         // (MarkUnavailable, with null). A page of the advanced edition follows the same read.
         partial void SnapshotApplied(Dictionary<string, object> reply);
@@ -1464,6 +1466,10 @@ namespace CodexAutoResume
         private void ShowPage(string name)
         {
             if (Array.IndexOf(PageOrder, name) < 0) name = "overview";
+            // v0.6.23 (perffix): Settings pressed before it is ready is made ready first, a step a turn, and shown then
+            // (FinishFirst); any other page pressed meanwhile is shown as it always was, and Settings is not.
+            if (name == "settings" && FinishFirst(name, delegate { ShowPage("settings"); })) return;
+            if (urgentPage != null) StopUrgent();
             // v0.6.23 (round 5): what making it ready ahead holds of it let go first, innermost first, as it would be.
             // v0.6.23 (idlefix2): and every row of its lists held aside while their windows were made, back at once.
             if (preparing == name) PutBackAllRows();
@@ -1659,7 +1665,11 @@ namespace CodexAutoResume
             if (pages.ContainsKey(name)) return false;
             Func<PageBuild, IEnumerator<bool>> steps = name == "pending" ? (Func<PageBuild, IEnumerator<bool>>)PendingSteps
                                                      : name == "diagnostics" ? (Func<PageBuild, IEnumerator<bool>>)DiagnosticsSteps : null;
-            if (steps == null) return false;
+            // v0.6.23 (perffix): the edition's page, where it builds in steps (the Advanced features page).
+            Func<PageBuild, IEnumerator<bool>> edition = null;
+            EditionPageSteps(name, ref edition);
+            if (steps == null) steps = edition;
+            if (steps == null && !pageBuilds.ContainsKey(name)) return false;
             PageBuild build;
             if (!pageBuilds.TryGetValue(name, out build))
             {
@@ -1770,7 +1780,140 @@ namespace CodexAutoResume
         /// long): it is kept moving by steps that each end within about PrepareSliceMilliseconds.
         private bool IdleStepWaits()
         {
-            return Transition.Moving > 0 || (prepareInput != null && prepareInput.Since < PrepareAfterInputMilliseconds);
+            // v0.6.23 (perffix): and none of theirs while a pressed page is made ready first: its own handler takes the steps.
+            return urgentPage != null || Transition.Moving > 0 ||
+                   (prepareInput != null && prepareInput.Since < PrepareAfterInputMilliseconds);
+        }
+
+        // ------------------------------------------------------------ a page pressed before it is ready (v0.6.23, perffix)
+        // The live acceptance (2026-11-14, R4 and the tracer's runs on the owner's installation): Settings pressed while it
+        // was still being made ready - its editors not all built, its native controls not made - was finished in the
+        // click, in one turn: 1.5 s on a quiet PC (show settings, mostly its drop-downs' windows made), 4.1 s under load,
+        // and 2.7-3.2 s on months of scratch data with a real bridge, where its settings had not even been read when it
+        // was pressed (built at once as they came). The window's light stood still and nothing answered for all of it.
+        // Now such a press makes it ready first, in the same steps making it ready ahead takes, one a turn with whatever
+        // waits going first (a paint, the light, a key), and shows it once it is: the same page, built and laid out as
+        // ahead, shown as a page made ready is. Until then the page that was on screen stays, as it is. Its settings not
+        // yet read, it waits for them; a read that failed shows the page at once, as before, and whatever has not become
+        // ready within UrgentMostMilliseconds is shown then as it always was. A press of any other page meanwhile is shown
+        // at once, and the pending one is dropped.
+        private static readonly string[] PrepareOrder = { "settings", "overview", "pending", "history", "statistics", "diagnostics" };
+        private const int UrgentMostMilliseconds = 10000;
+        // The page pressed and being made ready first, the page on screen when it was, and what shows it; null when none.
+        private string urgentPage, urgentFrom;
+        private MethodInvoker urgentShow;
+        private EventHandler urgentIdle;
+        private readonly Stopwatch urgentSince = new Stopwatch();
+        // While its step is taken: PrepareNext's wait for a still mouse, a glide, a read in flight is not waited.
+        private bool prepareUrgent;
+        // While the page made ready is being shown: FinishFirst does not take it up again.
+        private bool urgentShowing;
+
+        /// Whether `name`, pressed now, is made ready first (and `show` shows it then) rather than built in the click. True
+        /// while it is on its way already.
+        private bool FinishFirst(string name, MethodInvoker show)
+        {
+            if (urgentShowing) return false;
+            if (urgentPage != null)
+            {
+                if (urgentPage == name) return true;
+                StopUrgent();
+            }
+            if (!shown || auditing || rendering || Soft.StillReady != null || IsDisposed || name == currentPage || !UrgentWanted(name))
+                return false;
+            urgentPage = name;
+            urgentFrom = currentPage;
+            urgentShow = show;
+            urgentSince.Restart();
+            urgentIdle = delegate { UrgentStep(); };
+            Application.Idle += urgentIdle;
+            Nudge();
+            return true;
+        }
+
+        /// Whether `name` is still being made ready, and making it ready can go on now: Settings with its settings being
+        /// read or its editors left, or not yet made ready itself; another page that is the one being made ready, or the
+        /// next to be.
+        private bool UrgentWanted(string name)
+        {
+            if (reopening) return false;
+            // A read or an action on its way (busy, which a read of the settings is too) is waited for by the steps
+            // themselves (PrepareNext), as making a page ready ahead waits for it.
+            if (name == "settings" && !settingsRead) return settingsReloading;
+            if (name == "settings")
+            {
+                if (pendingSchema != null || editorSteps != null) return true;
+                // Its controls' windows are made as it is made ready, the page's own first: made, and not being made ready.
+                return !preparedPages.Contains(name) && (!columns.IsHandleCreated || preparing == name);
+            }
+            if (preparedPages.Contains(name) || snapshot == null || !settingsRead) return false;
+            if (preparing == name) return true;
+            // The page another being made ready now is followed by, once this one is asked for (NextToPrepare).
+            string asked = urgentPage;
+            urgentPage = name;
+            try { return NextToPrepare() == name; }
+            finally { urgentPage = asked; }
+        }
+
+        /// One step of making the pressed page ready, on an idle turn; the page shown once it is ready - or once nothing
+        /// is left to make, its read failed or was waited for too long, or a step threw (each shown as it always was).
+        private void UrgentStep()
+        {
+            if (urgentPage == null) return;
+            if (IsDisposed || currentPage != urgentFrom)
+            {
+                StopUrgent();
+                return;
+            }
+            bool ready;
+            try
+            {
+                if (urgentSince.ElapsedMilliseconds >= UrgentMostMilliseconds) ready = true;
+                else if (!settingsRead) ready = !settingsReloading;
+                else if (pendingSchema != null || editorSteps != null)
+                {
+                    BuildEditorsStep();
+                    ready = false;
+                }
+                else if (preparedPages.Contains(urgentPage) || (urgentPage == "settings" && columns.IsHandleCreated && preparing != "settings"))
+                    ready = true;
+                else
+                {
+                    prepareUrgent = true;
+                    try { ready = !PrepareNext(); }
+                    finally { prepareUrgent = false; }
+                }
+            }
+            catch (Exception error)
+            {
+                PrepareFailed(error);
+                ready = true;
+            }
+            if (!ready)
+            {
+                Nudge();
+                return;
+            }
+            MethodInvoker showIt = urgentShow;
+            StopUrgent();
+            urgentShowing = true;
+            try { showIt(); }
+            finally { urgentShowing = false; }
+        }
+
+        private void StopUrgent()
+        {
+            if (urgentIdle != null) Application.Idle -= urgentIdle;
+            urgentIdle = null;
+            urgentPage = urgentFrom = null;
+            urgentShow = null;
+        }
+
+        /// A message of no consequence posted to the window, so that one more idle turn comes after whatever waits.
+        private void Nudge()
+        {
+            try { if (IsHandleCreated && !IsDisposed) BeginInvoke(new MethodInvoker(delegate { })); }
+            catch (Exception) { /* the window is closing */ }
         }
 
         /// v0.6.23 (G6): a step of making a page ready that threw. Written to errors.log once, and that page given up:
@@ -1803,13 +1946,18 @@ namespace CodexAutoResume
             // Not before the first snapshot and the Settings editors: a page is built with what it will show, and the
             // editors are built first on these turns (BuildEditorsLater).
             if (snapshot == null || !settingsRead || pendingSchema != null || buildQueued) return true;
-            if (busy > 0 || refreshing || IdleStepWaits()) return true;
+            if (busy > 0 || (!prepareUrgent && (refreshing || IdleStepWaits()))) return true;
             if (preparing == null)
             {
                 preparing = NextToPrepare();
                 prepareStep = 0;
                 if (preparing == null) return false;
             }
+            // v0.6.23 (perffix): Settings, made ready first now, begun only once no read is on its way - as every page made
+            // ready after Diagnostics was, whose own reads it waited for - so that no answer changes a card of it while its
+            // holds are let go, which laid a Notifications card out at a height it did not keep (test_gui_long_steps). A
+            // press does not wait for that (prepareUrgent).
+            if (preparing == "settings" && prepareStep == 0 && !prepareUrgent && bridge.InFlight > 0) return true;
             // Built on the first step as a click builds it, the snapshot not yet written into it - it is out of sight, so
             // PageFor leaves it marked (Writes) - and written on the next (WriteIfStale), each a turn of its own: built and
             // written in one, Pending and Diagnostics held the window 550-750 ms on an installation that had run for
@@ -2039,14 +2187,18 @@ namespace CodexAutoResume
         /// advanced edition's.
         private string NextToPrepare()
         {
-            foreach (string name in PageOrder)
+            // v0.6.23 (perffix): Settings first, right after its editors - of every page the one whose making took longest
+            // on a click (1.5 s at 7 s on the owner's installation, the live acceptance's R4) - then the others in order;
+            // and the edition's page before them all while it is the page pressed and waited for (FinishFirst).
+            string edition = null;
+            EditionPageNamed(preparedPages, ref edition);
+            if (edition != null && edition == urgentPage) return edition;
+            foreach (string name in PrepareOrder)
             {
                 // Shown once already, or made ready: its controls are made.
                 Control built = name == "settings" ? columns : pages.ContainsKey(name) ? pages[name] : null;
                 if (name != currentPage && !preparedPages.Contains(name) && (built == null || !built.IsHandleCreated)) return name;
             }
-            string edition = null;
-            EditionPageNamed(preparedPages, ref edition);
             return edition;
         }
 

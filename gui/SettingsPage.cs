@@ -318,8 +318,13 @@ namespace CodexAutoResume
         }
 
         // ------------------------------------------------------------------ loading
+        // v0.6.23 (perffix): from a read of the settings (Reload) until it is answered or failed: Settings pressed meanwhile
+        // waits for the answer before it shows (FinishFirst).
+        private bool settingsReloading;
+
         private void Reload()
         {
+            settingsReloading = true;
             // Both reads on a worker, one after the other. The Dashboard's clock takes the
             // bridge lock from a pool thread every five seconds, so reading the schema on
             // this thread stops the window repainting until that read has finished too.
@@ -334,6 +339,7 @@ namespace CodexAutoResume
                     var schema = described["schema"] as List<object>;
                     var current = settings["settings"] as Dictionary<string, object>;
                     if (schema == null || current == null) { ReloadFailed(null); return; }
+                    settingsReloading = false;
                     // The first read since the window opened confirms the language and theme it opened
                     // in; a later one - after Restore defaults - may have changed them.
                     bool first = !settingsRead;
@@ -357,6 +363,7 @@ namespace CodexAutoResume
 
         private void ReloadFailed(Dictionary<string, object> reply)
         {
+            settingsReloading = false;
             heroHeld = true;                // until the next read (ApplyStatus), not the next second (Hero)
             headline.Text = S("settings.load_failed", "Could not read the local settings");
             detail.Text = Convert.ToString(Get(reply, "error"), CultureInfo.InvariantCulture);

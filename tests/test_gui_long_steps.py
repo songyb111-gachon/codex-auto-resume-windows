@@ -261,10 +261,11 @@ namespace CodexAutoResume
             frame.Dispose();
 
             // Settings and Diagnostics made ready ahead: from the turn their holds begin to be let go, every size each card on
-            // them lays itself out at, against the size it keeps.
+            // them lays itself out at, against the size it keeps. In the order they are made ready (v0.6.23, perffix:
+            // Settings first, PrepareOrder).
             frame = new LongStepsFrame();
             form = LongWindow(frame);
-            foreach (string name in new[] { "diagnostics", "settings" })
+            foreach (string name in new[] { "settings", "diagnostics" })
             {
                 SettingsForm here = form;
                 string page = name;

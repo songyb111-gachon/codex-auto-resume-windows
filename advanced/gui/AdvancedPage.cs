@@ -444,6 +444,16 @@ namespace CodexAutoResume
         private void ShowAdvanced()
         {
             if (advancedWords == null) return;
+            // v0.6.23 (perffix): pressed while it is being made ready ahead, made ready first and shown then, as Settings is
+            // (FinishFirst); built in the click only where it is not on its way.
+            if (FinishFirst(AdvancedPageName, ShowAdvanced)) return;
+            if (urgentPage != null) StopUrgent();
+            // What making it ready ahead holds of it let go first, as ShowPage lets go of a standard page's.
+            if (preparing == AdvancedPageName)
+            {
+                PutBackAllRows();
+                LetGoAll();
+            }
             currentPage = AdvancedPageName;
             // As ShowPage shows a page: painting held while one page is hidden and this one shown, every page staying
             // in the host once built.
@@ -488,8 +498,12 @@ namespace CodexAutoResume
 
         /// v0.6.23: the page made ready ahead of its first visit, once this edition has answered with its words, as the
         /// standard pages are (PrepareNext); never while it is the page on screen. Not while AdvancedReadyAhead is false:
-        /// built ahead, the open feature's cards came in one turn of 480-630 ms on an installation that had run for months
-        /// (the live acceptance, 2026-11-11), which no step of making a page ready may take; built on the click as before.
+        /// built ahead in one turn, the open feature's cards came in one turn of 480-630 ms on an installation that had run
+        /// for months (the live acceptance, 2026-11-11), which no step of making a page ready may take. v0.6.23 (perffix):
+        /// built ahead in three steps (AdvancedSteps) with what they make held from laying itself out (HeldAsBuilt), and
+        /// then made ready as every page is, its controls made and laid out a slice a turn. Built on the click instead, its
+        /// first press took 650-750 ms on the owner's installation (the tracer, 2026-11-14) and 560-1450 on months of
+        /// scratch data with a real bridge.
         partial void EditionPageNamed(List<string> prepared, ref string name)
         {
             if (!AdvancedReadyAhead) return;
@@ -498,17 +512,61 @@ namespace CodexAutoResume
                 name = AdvancedPageName;
         }
 
-        private static readonly bool AdvancedReadyAhead = false;
+        private static readonly bool AdvancedReadyAhead = true;
 
         partial void EditionPageFor(string name, ref Control page)
         {
             if (name == AdvancedPageName && advancedWords != null) page = AdvancedPageBuilt();
         }
 
-        /// The page, built the first time it is shown, as the standard pages are (PageFor).
+        /// v0.6.23 (perffix): the steps the page is built ahead in, before it has been built at all.
+        partial void EditionPageSteps(string name, ref Func<PageBuild, IEnumerator<bool>> steps)
+        {
+            if (name == AdvancedPageName && advancedWords != null && advancedPage == null) steps = AdvancedSteps;
+        }
+
+        /// The page built as AdvancedPageBuilt builds it, in the same order, a part a step: its frame (in the page host,
+        /// hidden), its list, the open feature's cards.
+        private IEnumerator<bool> AdvancedSteps(PageBuild build)
+        {
+            build.Page = AdvancedFrame();
+            yield return true;
+            FillAdvancedList();
+            yield return true;
+            ShowAdvancedDetail();
+        }
+
+        /// The page, built the first time it is shown, as the standard pages are (PageFor) - or, begun ahead (AdvancedSteps),
+        /// finished now, and what its steps held let go now that it is whole.
         private Control AdvancedPageBuilt()
         {
+            PageBuild begun;
+            if (pageBuilds.TryGetValue(AdvancedPageName, out begun))
+            {
+                pageBuilds.Remove(AdvancedPageName);
+                PageBuild before = buildHolding;
+                buildHolding = begun;
+                try { while (begun.Steps.MoveNext()) { } }
+                catch (Exception)
+                {
+                    LetGoBuilt(begun);
+                    throw;
+                }
+                finally { buildHolding = before; }
+                LetGoBuilt(begun);
+                return advancedPage;
+            }
             if (advancedPage != null) return advancedPage;
+            AdvancedFrame();
+            FillAdvancedList();
+            ShowAdvancedDetail();
+            return advancedPage;
+        }
+
+        /// The page's frame - the list's card, the column the open feature's cards go in, the buttons under them - put in
+        /// the page host, hidden, with the column fitted to its width: the page before its list is filled.
+        private Control AdvancedFrame()
+        {
             var page = (SoftPage)Page();
             // The list's card on the page, and the open capability's cards in a column that scrolls, which keeps the
             // room for their lift itself, as a Settings section does: so the page keeps it only where the list's card
@@ -537,7 +595,7 @@ namespace CodexAutoResume
             listCard.Margin = new Padding(0, room.Top, 0, 0);
             advancedListCard = listCard;
 
-            var stack = new SoftStack();
+            var stack = HeldAsBuilt(new SoftStack());
             // Not docked, and as wide as its column less a scroll bar whether or not one shows (FitAdvancedStack),
             // as a Settings section is (FitSections).
             stack.Location = Point.Empty;
@@ -550,7 +608,7 @@ namespace CodexAutoResume
             stack.Font = Font;
             stack.Padding = new Padding(room.Left, room.Top, room.Right, Math.Max(0, room.Bottom - Px(Brand.PageGap)));
             advancedStack = stack;
-            var scroll = new SoftPage();
+            var scroll = HeldAsBuilt(new SoftPage());
             scroll.Dock = DockStyle.Fill;
             scroll.Margin = new Padding(0);
             scroll.Controls.Add(stack);
@@ -558,7 +616,7 @@ namespace CodexAutoResume
             scroll.SizeChanged += delegate { FitAdvancedStack(); };
             advancedScroll = scroll;
 
-            var split = new SoftStack();
+            var split = HeldAsBuilt(new SoftStack());
             split.Dock = DockStyle.Fill;
             split.ColumnCount = 2;
             split.RowCount = 1;
@@ -592,8 +650,6 @@ namespace CodexAutoResume
             pageHost.Controls.Add(page);
             advancedPage = page;
             FitAdvancedStack();
-            FillAdvancedList();
-            ShowAdvancedDetail();
             return page;
         }
 
