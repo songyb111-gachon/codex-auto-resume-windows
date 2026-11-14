@@ -203,20 +203,33 @@ namespace CodexAutoResume
         // and native windows of Settings any one of them made.
         private static int[] Turns(SettingsForm form, int most, Func<bool> until)
         {
-            int turns = 0, mostMade = 0, mostWindows = 0;
+            return Turns(form, most, until, null);
+        }
+
+        // `making`, where given: each turn that made native windows, "<windows>@<ms>", and the windows the last turn made -
+        // the turn the wait ended in, the page shown - and those made on the turns before it, as [last, before].
+        private static int[] Turns(SettingsForm form, int most, Func<bool> until, List<object> making)
+        {
+            int turns = 0, mostMade = 0, mostWindows = 0, last = 0, ahead = 0;
             int[] before = Made(form.columns);
             while (turns < most && !until())
             {
                 Application.DoEvents();
+                var turn = System.Diagnostics.Stopwatch.StartNew();
                 Application.RaiseIdle(EventArgs.Empty);
+                long ms = turn.ElapsedMilliseconds;
                 turns++;
                 int[] now = Made(form.columns);
+                int windows = now[1] - before[1];
                 mostMade = Math.Max(mostMade, now[0] - before[0]);
-                mostWindows = Math.Max(mostWindows, now[1] - before[1]);
+                mostWindows = Math.Max(mostWindows, windows);
+                ahead += last;
+                last = windows;
+                if (making != null && windows > 0) making.Add(windows + "@" + ms);
                 before = now;
                 System.Threading.Thread.Sleep(1);
             }
-            return new[] { turns, mostMade, mostWindows };
+            return new[] { turns, mostMade, mostWindows, last, ahead };
         }
 
         internal static int PressedRun(string answersPath, string outPath)
@@ -248,8 +261,12 @@ namespace CodexAutoResume
             outMap["tab_accessible_selected"] =
                 (form.navButtons["settings"].AccessibilityObject.State & AccessibleStates.Selected) != 0 &&
                 (form.navButtons["overview"].AccessibilityObject.State & AccessibleStates.Selected) == 0;
-            int[] turns = Turns(form, 3000, delegate { return form.currentPage == "settings"; });
+            var making = new List<object>();
+            int[] turns = Turns(form, 3000, delegate { return form.currentPage == "settings"; }, making);
             outMap["turns"] = (double)turns[0];
+            outMap["windows_in_the_shown_turn"] = (double)turns[3];
+            outMap["windows_made_ahead"] = (double)turns[4];
+            outMap["windows_by_turn"] = making;
             outMap["most_made_in_a_turn"] = (double)turns[1];
             outMap["most_windows_in_a_turn"] = (double)turns[2];
             int[] whole = Made(form.columns);
@@ -306,19 +323,29 @@ namespace CodexAutoResume
             form = PressedWindow(frame, "settings");
             outMap["opened_page"] = form.currentPage;
             outMap["opened_read_at_open"] = form.settingsRead;
-            int openedTurns = 0, openedMost = 0, openedWindowsMost = 0, heldTurns = 0;
+            int openedTurns = 0, openedMost = 0, openedWindowsMost = 0, heldTurns = 0, answerWindows = -1, shownWindows = -1;
+            var openedMaking = new List<object>();
             bool heldAtEnd = true;
             int[] openedBefore = Made(form.columns);
             clock = System.Diagnostics.Stopwatch.StartNew();
             while (clock.ElapsedMilliseconds < 60000 &&
                    !(form.settingsRead && form.pendingSchema == null && form.editorSteps == null && !form.buildQueued))
             {
+                bool readBefore = form.settingsRead, shownBefore = Soft.OwnVisible(form.columns) && form.settingsRead;
+                var turn = System.Diagnostics.Stopwatch.StartNew();
                 Application.DoEvents();
                 Application.RaiseIdle(EventArgs.Empty);
+                long ms = turn.ElapsedMilliseconds;
                 openedTurns++;
                 int[] now = Made(form.columns);
+                int windows = now[1] - openedBefore[1];
                 openedMost = Math.Max(openedMost, now[0] - openedBefore[0]);
-                openedWindowsMost = Math.Max(openedWindowsMost, now[1] - openedBefore[1]);
+                openedWindowsMost = Math.Max(openedWindowsMost, windows);
+                if (!readBefore && form.settingsRead) answerWindows = windows;
+                // Shown: the page in sight again with its editors built (BuildOnScreen takes it out of sight meanwhile).
+                if (form.settingsRead && !shownBefore && Soft.OwnVisible(form.columns) && form.editorSteps == null &&
+                    form.pendingSchema == null) shownWindows = windows;
+                if (windows > 0) openedMaking.Add(windows + "@" + ms);
                 openedBefore = now;
                 if (form.settingsRead && (form.pendingSchema != null || form.editorSteps != null) && !Painting(form.pageHost)) heldTurns++;
                 System.Threading.Thread.Sleep(1);
@@ -328,6 +355,9 @@ namespace CodexAutoResume
             outMap["opened_turns"] = (double)openedTurns;
             outMap["opened_most_made_in_a_turn"] = (double)openedMost;
             outMap["opened_most_windows_in_a_turn"] = (double)openedWindowsMost;
+            outMap["opened_windows_in_the_answer_turn"] = (double)answerWindows;
+            outMap["opened_windows_in_the_shown_turn"] = (double)shownWindows;
+            outMap["opened_windows_by_turn"] = openedMaking;
             outMap["opened_made"] = (double)openedWhole[0];
             outMap["opened_windows"] = (double)openedWhole[1];
             outMap["opened_editors"] = (double)form.editors.Count;
@@ -473,7 +503,13 @@ class PressedTests(unittest.TestCase):
         self.assertGreater(self.answer["turns"], 5)
         # No turn made most of it: each took one step.
         self.assertLess(self.answer["most_made_in_a_turn"], self.answer["made"] / 2)
-        self.assertLess(self.answer["most_windows_in_a_turn"], self.answer["windows"] / 2)
+        # Native windows are made a slice of time a turn (MakeSome, PrepareSliceMilliseconds), so how many one turn makes
+        # follows how fast the machine makes them (GitHub's runners made 48-61 of about 80 in one 30 ms slice): held to
+        # which turns made them - the turns that make the page ready, not the click (above) and not the turn it is shown in.
+        by_turn = self.answer["windows_by_turn"]
+        self.assertGreaterEqual(self.answer["windows_made_ahead"], self.answer["windows"] / 2, by_turn)
+        self.assertLess(self.answer["windows_in_the_shown_turn"], self.answer["windows"] / 4,
+                        "the page's windows were made in the turn it was shown: %r" % by_turn)
 
     def test_pressed_before_its_settings_are_read_it_waits_for_them_and_builds_them_in_steps(self):
         self.assertFalse(self.answer["read_at_press"], "pressed before the settings were read")
@@ -494,7 +530,15 @@ class PressedTests(unittest.TestCase):
         self.assertGreater(self.answer["opened_turns"], 5)
         self.assertLess(self.answer["opened_most_made_in_a_turn"], self.answer["opened_made"] / 2,
                         "the editors were built all at once as the read came")
-        self.assertLess(self.answer["opened_most_windows_in_a_turn"], self.answer["opened_windows"] / 2)
+        # As above: not in the turn the read's answer came in, nor in the turn the page was shown (see
+        # test_it_is_made_ready_a_step_a_turn_and_then_shown on why not a share of one turn).
+        by_turn = self.answer["opened_windows_by_turn"]
+        self.assertGreaterEqual(self.answer["opened_windows_in_the_answer_turn"], 0, by_turn)
+        self.assertLess(self.answer["opened_windows_in_the_answer_turn"], self.answer["opened_windows"] / 4,
+                        "the editors' windows were made as the read came: %r" % by_turn)
+        self.assertGreaterEqual(self.answer["opened_windows_in_the_shown_turn"], 0, by_turn)
+        self.assertLess(self.answer["opened_windows_in_the_shown_turn"], self.answer["opened_windows"] / 4,
+                        "the page's windows were made in the turn it was shown: %r" % by_turn)
         self.assertGreater(self.answer["opened_held_turns"], 0, "the page host painted a half-built page")
         self.assertFalse(self.answer["opened_held_at_end"], "the page host's painting was not let go")
         self.assertTrue(self.answer["opened_visible"])
