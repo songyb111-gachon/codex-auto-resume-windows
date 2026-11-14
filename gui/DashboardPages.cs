@@ -98,6 +98,9 @@ namespace CodexAutoResume
             recentGrid = Facts(recent);
             recentEmpty = Value(S("history.empty", "No recoveries yet"));
             recentEmpty.ForeColor = Secondary;
+            // v0.6.23 (the final's live acceptance): before the first read nothing is known of what finished - Loading..., as
+            // Pending says it then (PendingSteps), until the snapshot fills the card (FillRecent).
+            if (snapshot == null) recentEmpty.Text = S("status.loading", "Loading...");
             recent.Controls.Add(recentEmpty);
             Lead(recent, MakeButton(S("nav.history", "History"), false, delegate { ShowPage("history"); }));
             recentGrid.SizeChanged += delegate { FitRecentNames(); };
@@ -601,6 +604,9 @@ namespace CodexAutoResume
             historyEmpty.ForeColor = Secondary;
             historyEmpty.Dock = DockStyle.Top;
             historyEmpty.Padding = Pad(8, 0, 0, 10);
+            // v0.6.23 (the final's live acceptance): "No recoveries yet" only once a read has said so - Loading... before it, as
+            // Pending says it (PendingSteps), until the snapshot is written (ApplySnapshot).
+            if (snapshot == null) historyEmpty.Text = S("status.loading", "Loading...");
 
             FlowLayoutPanel row = ButtonRow();
             historyTimeline = MakeButton(S("action.timeline", "Timeline"), false, delegate { ShowTimeline(historyList); });

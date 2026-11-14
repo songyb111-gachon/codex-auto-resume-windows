@@ -4,10 +4,11 @@ The Dashboard the setup program reopened after an update opened on Pending, and 
 Loading... over an empty list that said "Nothing is waiting" - while a recovery was waiting. The page is built before the
 first snapshot has answered (ShowPage at Load, ApplySnapshot after), and its empty line was made with the empty list's
 words. Until the snapshot is written it now says Loading..., the header's word for the same moment (status.loading); a
-snapshot with no rows says Nothing is waiting, one with rows hides the line, as before.
+snapshot with no rows says Nothing is waiting, one with rows hides the line, as before. History's empty line and the
+Overview's Recently finished card said "No recoveries yet" the same way before their first read; they say Loading... too.
 
 The real compiled window is built as LayoutAudit builds one - a bridge rooted where nothing is, nothing asked, nothing shown -
-and its Pending page built before any snapshot and after one.
+and its Pending, History and Overview pages built before any snapshot and after one.
 
     PYTHONPATH="src;tests" python -m unittest test_gui_pending_before_read      (a GUI module: gui_lock.sh)
 """
@@ -76,6 +77,24 @@ Invoke-Window $window 'ApplySnapshot' @((Read-Json 'empty.json'))
 $null = Invoke-Window $window 'ShowPage' @('pending')
 $out.builtAfter = Line $window
 $window.Dispose()
+# History's line and the Overview's Recently finished card, the same way: before the first read, then empty, then rows.
+function Other($window, [string]$labelName, [string]$rowsName) {
+    $label = Get-Field $window $labelName
+    $rows = Get-Field $window $rowsName
+    $count = if ($rows -is [Windows.Forms.ListView]) { [int]$rows.Items.Count } else { [int]$rows.Controls.Count }
+    return @{ text = [string]$label.Text; shown = [bool]$own.Invoke($null, [object[]]@($label)); rows = $count }
+}
+foreach ($pair in @(@('history', 'historyEmpty', 'historyList'), @('overview', 'recentEmpty', 'recentGrid'))) {
+    $window = New-Window
+    $null = Invoke-Window $window 'ShowPage' @($pair[0])
+    $seen = @{ before = (Other $window $pair[1] $pair[2]) }
+    Invoke-Window $window 'ApplySnapshot' @((Read-Json 'empty.json'))
+    $seen.empty = Other $window $pair[1] $pair[2]
+    Invoke-Window $window 'ApplySnapshot' @((Read-Json 'snapshot.json'))
+    $seen.rows = Other $window $pair[1] $pair[2]
+    $window.Dispose()
+    $out[$pair[0]] = $seen
+}
 [IO.File]::WriteAllText((Join-Path $work 'result.json'), (ConvertTo-Json $out -Compress -Depth 4), $utf8)
 """
 
@@ -119,6 +138,20 @@ class PendingBeforeReadTests(unittest.TestCase):
         rows = self.answer["rows"]
         self.assertGreater(rows["rows"], 0)
         self.assertFalse(rows["shown"])
+
+    def test_history_and_the_overview_say_no_recoveries_only_after_a_read(self):
+        for page in ("history", "overview"):
+            seen = self.answer[page]
+            with self.subTest(page, case="before"):
+                self.assertNotEqual(seen["before"]["text"], self.catalog["history.empty"],
+                                    "nothing has been read yet: recoveries may well have finished")
+                self.assertEqual((seen["before"]["text"], seen["before"]["shown"]),
+                                 (self.catalog["status.loading"], True))
+            with self.subTest(page, case="empty"):
+                self.assertEqual((seen["empty"]["text"], seen["empty"]["shown"]), (self.catalog["history.empty"], True))
+            with self.subTest(page, case="rows"):
+                self.assertGreater(seen["rows"]["rows"], 0)
+                self.assertFalse(seen["rows"]["shown"])
 
 
 if __name__ == "__main__":
