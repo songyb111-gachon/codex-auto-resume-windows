@@ -40,8 +40,8 @@ real Codex recovery. Read each citation and its limits separately.
   `visual_ui_scraping_used: false` recorded in
   [`docs/evidence/unloaded-thread-observation.json`](evidence/unloaded-thread-observation.json).
   That is a protocol observation, not somebody watching.
-- **The newest final is v0.6.22; this tree is v0.6.23, which is in development.** The rows below that
-  say PUBLISHED mean a published version - v0.6.0 through v0.6.22, all twenty-three of whose archives are published
+- **The newest final is v0.6.23, this tree's own version.** The rows below that
+  say PUBLISHED mean a published version - v0.6.0 through v0.6.23, all twenty-four of whose archives are published
   and whose digests are pinned on `main`; a pre-release such as v0.6.16-beta.4 is never pinned. A
   row says PUBLISHED only where the published bytes were driven again, so v0.6.6's, v0.6.7's,
   v0.6.8's, v0.6.9's, v0.6.10's, v0.6.11's, v0.6.12's, v0.6.13's, v0.6.14's, v0.6.15's, v0.6.16's, v0.6.17's and v0.6.18's own rows
