@@ -1407,8 +1407,8 @@ namespace CodexAutoResume
             row.SuspendLayout();
             closeButton = MakeButton(S("action.close", "Close"), false, delegate { Close(); });
             row.Controls.Add(closeButton);
-            // Only the Settings page has anything to save.
-            saveButton = MakeButton(S("action.save", "Save"), true, delegate { Save(); });
+            // Only the Settings page has anything to save. v0.6.23: in the accent only while there is (ShowSaveLook).
+            saveButton = MakeButton(S("action.save", "Save"), false, delegate { Save(); });
             restoreButton = MakeButton(S("action.restore", "Restore defaults"), false, delegate { RestoreDefaults(); });
             row.Controls.Add(saveButton);
             row.Controls.Add(restoreButton);

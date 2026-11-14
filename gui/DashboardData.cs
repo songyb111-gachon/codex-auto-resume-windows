@@ -42,6 +42,8 @@ namespace CodexAutoResume
                 // Every second too, so a usage reset that passes while a row stays selected
                 // makes Retry now available without waiting for the next read.
                 UpdatePendingButtons();
+                // v0.6.23: and Save's look, for an edit no editor's own event told (ShowSaveLook).
+                ShowSaveLook();
                 // The data every five seconds, the countdown every second. Nothing on the
                 // Settings page is refreshed under a person who is editing it.
                 if (ticks % 5 == 0 && currentPage != "settings")

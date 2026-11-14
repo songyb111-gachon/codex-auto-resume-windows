@@ -381,6 +381,7 @@ namespace CodexAutoResume
                 if (item == null || item.Value != stored) continue;
                 baseline["panel_theme"] = Json.Escape(stored);
                 if (combo.SelectedIndex != i) combo.SelectedIndex = i;
+                ShowSaveLook();
                 return;
             }
         }
@@ -468,6 +469,51 @@ namespace CodexAutoResume
             }
             var startup = editors.ContainsKey("__startup") ? editors["__startup"] as CheckBox : null;
             return startup != null && startup.Checked != startupBaseline;
+        }
+
+        /// v0.6.23 (the final's live acceptance): Save in the accent only while the page holds an unsaved edit (Dirty), and
+        /// raised as Close and Restore defaults are otherwise - as the panel's Save is quiet until there is something to
+        /// save (panel.js renderFooter). It was the accent whenever it could be pressed: a window opened on Settings showed
+        /// it grey while its reads were on their way (SetBusy) and blue a second later with nothing changed, which reads as
+        /// "there are changes to save". Told by every editor as its value moves (WatchEdits), by the builds and the saves
+        /// that set what an edit is measured from, and by the clock each second.
+        private void ShowSaveLook()
+        {
+            var save = saveButton as SoftButton;
+            if (save == null || save.IsDisposed) return;
+            // Not while the editors are being built (EditorSteps): what an edit is measured from is set as the build ends.
+            bool dirty = editorSteps == null && Dirty();
+            if (save.Primary != dirty) save.Primary = dirty;
+        }
+
+        // The controls WatchEdits has told to call ShowSaveLook, each once; one leaves as it is disposed.
+        private readonly HashSet<Control> watchedEdits = new HashSet<Control>();
+
+        /// Every control under `root` whose value an edit moves - a check box or switch, a drop-down, a number, a text, a
+        /// choice of cards - calls ShowSaveLook when it moves (v0.6.23). Each once, however often a build asks.
+        private void WatchEdits(Control root)
+        {
+            foreach (Control control in root.Controls)
+            {
+                if (!watchedEdits.Contains(control))
+                {
+                    EventHandler moved = delegate { ShowSaveLook(); };
+                    bool watched = true;
+                    if (control is CheckBox) ((CheckBox)control).CheckedChanged += moved;
+                    else if (control is ComboBox) ((ComboBox)control).SelectedIndexChanged += moved;
+                    else if (control is NumericUpDown) ((NumericUpDown)control).ValueChanged += moved;
+                    else if (control is TextBoxBase) control.TextChanged += moved;
+                    else if (control is ChoiceGroup) ((ChoiceGroup)control).ValueChanged += moved;
+                    else watched = false;
+                    if (watched)
+                    {
+                        watchedEdits.Add(control);
+                        Control gone = control;
+                        control.Disposed += delegate { watchedEdits.Remove(gone); };
+                    }
+                }
+                WatchEdits(control);
+            }
         }
 
         /// Every editor's value as the JSON a Save sends for it.

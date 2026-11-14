@@ -912,6 +912,9 @@ namespace CodexAutoResume
             startupBaseline = startupCheck != null && startupCheck.Checked;
             // Not read yet: until a status read says what Windows holds (ApplyStatus), Save leaves the entry alone.
             startupKnown = false;
+            // v0.6.23: Save in the accent only once something differs from this (ShowSaveLook).
+            WatchEdits(columns);
+            ShowSaveLook();
             if (!auditing) RefreshStatusAsync(null);
             // v0.6.23 (G4): the editors this build replaced - Restore defaults, or the settings read again - disposed now
             // that each has its successor. Clear only took them off: each kept its window handle, and everything it
@@ -1586,6 +1589,7 @@ namespace CodexAutoResume
             startupBaseline = (bool)registered;
             if (!moved) startup.Checked = startupBaseline;
             startupKnown = true;
+            ShowSaveLook();
         }
 
         private void ApplyStatus(Dictionary<string, object> status, CheckBox startup)
@@ -1807,6 +1811,7 @@ namespace CodexAutoResume
                 if (!Ok(updated)) { SaveFailed(updated); return; }
                 // What is on the page is what is saved, so nothing is left unsaved.
                 baseline = values;
+                ShowSaveLook();
                 var stored = Map(updated, "settings");
                 if (stored != null)
                 {
@@ -1834,6 +1839,7 @@ namespace CodexAutoResume
                 {
                     if (registered != null && !Ok(registered)) { SaveFailed(registered); return; }
                     if (registered != null) startupBaseline = startAtSignIn;
+                    ShowSaveLook();
                     // A new Interface language or theme: the window reopens in it, where it is.
                     reopenFocus = focus;
                     CheckReopen(false);
