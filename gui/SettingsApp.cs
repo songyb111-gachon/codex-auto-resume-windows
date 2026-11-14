@@ -110,6 +110,10 @@ namespace CodexAutoResume
         /// How many reopens in a row led to this window, 1 to 9: `--reopened=<n>`. 0 when a person
         /// opened it.
         internal int Generation;
+        /// v0.6.23 (the final's live acceptance): the window this one replaces opened in English because its words came
+        /// late (StringsWaitMilliseconds), and reopened for them: `--late-words` (SettingsForm.ReopenedForLateWords).
+        /// Words that come late to this one too are not reopened for again (TakeLateWords).
+        internal bool ForLateWords;
         /// How far the bounds reach past the frame one sees - the resize border Windows keeps invisible -
         /// as the window this one replaces measured it: `--frame=<left>,<top>,<right>,<bottom>`. Empty
         /// when not given.
@@ -388,6 +392,10 @@ namespace CodexAutoResume
         // once it comes, is lateReply until the window has taken it (TakeLateWords).
         private bool lateWords;
         private volatile Dictionary<string, object> lateReply;
+        // v0.6.23: the window opened in English because its words were not had in time, for its whole life - it never takes
+        // the late words in place, it reopens in them. The advanced edition's own words are asked in English here too
+        // (AdvancedPage.LocaleArgument), so the window is in one language until it does.
+        private bool openedLate;
         private long settingsStamp;
         // The language, theme and design a reopen on its way is for; and the three a new window was last started
         // for that never showed, which this window does not try again (CheckReopen, FinishReopen).
@@ -493,8 +501,16 @@ namespace CodexAutoResume
         /// The words that came after the window had opened in English, on its own thread: kept, as any reply is, for the
         /// next window to open in (StringsCache.Write, on the worker that had them), and the window opened again in
         /// them where it is - as a change of language reopens it, so never under unsaved edits (CheckReopen). English
-        /// words are this window's already; a window that a reopen opened stays as it is, so a bridge that is always
-        /// slower than the wait cannot reopen it over and over.
+        /// words are this window's already; a window that was itself reopened FOR late words (`--late-words`,
+        /// OpenRequest.ForLateWords) stays as it is, so a bridge that is always slower than the wait cannot reopen it
+        /// over and over.
+        ///
+        /// v0.6.23 (the final's live acceptance): this was `request.Generation != 0` - any reopened window - and the
+        /// window the setup program opens again after an update starts from the old window's reopen record, which
+        /// carries `--reopened=1`: the first bridge start after an update took 11 s, the window opened in English and
+        /// stayed in English for good. Only a reopen for late words is held back now; one for an update, a language,
+        /// a theme, a design or a monitor's scale was not caused by late words, and takes them as a window a person
+        /// opened does.
         private void TakeLateWords()
         {
             Dictionary<string, object> reply = lateReply;
@@ -508,7 +524,7 @@ namespace CodexAutoResume
                 openedLanguage = Get(reply, "preference") as string;
                 return;
             }
-            if (request.Generation != 0) return;
+            if (request.ForLateWords) return;
             openedLanguage = LateLanguage;
             if (settingsRead) CheckReopen(false);
         }
@@ -837,6 +853,7 @@ namespace CodexAutoResume
                 else
                 {
                     lateWords = true;
+                    openedLate = true;
                     asking.ContinueWith(delegate(System.Threading.Tasks.Task<Dictionary<string, object>> asked)
                     {
                         Dictionary<string, object> reply = asked.Result;

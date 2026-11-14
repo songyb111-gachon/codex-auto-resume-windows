@@ -52,6 +52,9 @@ namespace CodexAutoResume
         internal const int AdoptWhatWasRead = 3;
         /// How many reopens in a row may follow from what a window reads as it opens.
         internal const int MaxGeneration = 2;
+        /// v0.6.23: what a reopen adds when the window opened in English because its words came late (Reopen), so the
+        /// new window does not reopen for late words again (OpenRequest.ForLateWords, TakeLateWords).
+        internal const string ReopenedForLateWords = "--late-words";
 
         private const int WM_SETTINGCHANGE = 0x001A;
         private const int WM_DPICHANGED = 0x02E0;
@@ -162,6 +165,7 @@ namespace CodexAutoResume
                 {
                     if (value.Length == 1 && value[0] >= '1' && value[0] <= '9') request.Generation = value[0] - '0';
                 }
+                else if (argument == ReopenedForLateWords) request.ForLateWords = true;
                 else if ((value = After(argument, "--frame=")) != null)
                 {
                     Padding inset;
@@ -395,7 +399,7 @@ namespace CodexAutoResume
             string theme = Theme.Current(storedTheme);
             string design = Design.Drawn(theme, storedDesign);
             int decision = ReopenDecision(openedLanguage, openedTheme, openedDesign, storedLanguage, theme, design,
-                                          Dirty(), firstRead, request.Generation);
+                                          Dirty(), firstRead, DecidingGeneration());
             // Not again for the language, theme and design a new window was started for and never showed
             // (FinishReopen).
             if (decision != KeepWindow && storedLanguage == declinedLanguage && theme == declinedTheme &&
@@ -422,6 +426,22 @@ namespace CodexAutoResume
                 return;
             }
             Reopen(firstRead);
+        }
+
+        /// The generation CheckReopen decides with (ReopenDecision): this window's, except while it is in English because
+        /// its words came late (LateLanguage, TakeLateWords) - late words are no disagreement between two windows, and a
+        /// window reopened twice for its theme kept English for good (AdoptWhatWasRead). v0.6.23. It cannot repeat: the
+        /// window that reopen starts carries `--late-words` (MarkLateWords), and takes no late words of its own.
+        private int DecidingGeneration()
+        {
+            return openedLanguage == LateLanguage ? 0 : request.Generation;
+        }
+
+        /// `arguments` for a reopen, with `--late-words` (ReopenedForLateWords) where this window is in English because its
+        /// words came late: the new window reopens for late words no more (OpenRequest.ForLateWords). v0.6.23.
+        private string MarkLateWords(string arguments)
+        {
+            return openedLanguage == LateLanguage ? arguments + " " + ReopenedForLateWords : arguments;
         }
 
         private void ShowReopenNote(bool show)
@@ -933,6 +953,7 @@ namespace CodexAutoResume
                                                WindowState == FormWindowState.Maximized, storedTheme, storedDesign,
                                                NextGeneration(firstRead, request.Generation), invisibleFrame,
                                                reopenFocus ?? FocusName());
+            arguments = MarkLateWords(arguments);
             Process started;
             try
             {

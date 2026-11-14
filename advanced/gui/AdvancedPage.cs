@@ -2322,8 +2322,12 @@ namespace CodexAutoResume
         {
             var text = new StringBuilder("{");
             if (capability != null) text.Append("\"capability\":").Append(Json.Escape(capability));
-            if (!string.IsNullOrEmpty(openedLanguage))
-                text.Append(capability != null ? "," : "").Append("\"locale\":").Append(Json.Escape(openedLanguage));
+            // v0.6.23 (the final's live acceptance): a window that opened in English because its words came late
+            // (openedLate) asks this page's words in English too - it asked in the stored language, and the page's tab,
+            // its Chat tab and its Pending buttons were Korean on an English window - until it reopens in its own.
+            string locale = openedLate ? "en" : openedLanguage;
+            if (!string.IsNullOrEmpty(locale))
+                text.Append(capability != null ? "," : "").Append("\"locale\":").Append(Json.Escape(locale));
             return text.Append("}").ToString();
         }
 
