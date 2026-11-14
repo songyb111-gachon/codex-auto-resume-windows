@@ -1,578 +1,579 @@
-# The standards
+# 기준
 
-These are the rules the product keeps, by id. The **standard edition** keeps every rule in families 0
-and A to J. The **advanced edition** is the standard edition plus capabilities, each of which departs from
-at least one of those rules on purpose. Every capability names the rules it departs from, and each is off
-until a person turns it on in the Dashboard after reading what it does ([EDITIONS.md](EDITIONS.md)).
-Family K holds the advanced edition's own rules, which every capability keeps and none departs from.
+이 제품이 지키는 기준을 id별로 적는다. **표준판**은 0군과 A~J군의 기준을 모두 지킨다. **고급판**은
+표준판에 기능들을 더한 것이고, 각 기능은 그 기준 가운데 적어도 하나를 일부러 벗어난다. 기능마다 벗어나는 기준을
+밝히며, 사람이 설명을 읽고 대시보드에서 켜기 전까지는 모두 꺼져 있다([EDITIONS.md](EDITIONS.md)). K군은
+고급판 자체의 기준이며, 모든 기능이 지키고 어떤 기능도 벗어나지 않는다.
 
-Each rule says how it is held:
+기준마다 어떻게 지켜지는지 적었습니다.
 
-- **tested** - a test fails if the rule is broken; the tests are named.
-- **code** - the code holds it, but no test checks it yet.
-- **docs** - promised in these documents; nothing mechanical checks it.
-- **model** - an instruction to the model in the plugin's skill, which code cannot enforce.
-- **planned** - not built yet.
+- **테스트** - 기준이 깨지면 테스트가 실패합니다. 그 테스트 이름을 적었습니다.
+- **코드** - 코드가 지키지만, 아직 확인하는 테스트는 없습니다.
+- **문서** - 이 문서들에서 약속한 것이며, 기계적으로 확인하는 것은 없습니다.
+- **모델** - 플러그인 스킬이 모델에게 주는 지시로, 코드로는 강제할 수 없습니다.
+- **계획** - 아직 만들지 않았습니다.
 
-The ids do not change, because capability statements, the registry and the other documents cite them. A
-new rule takes the next number in its family, and a rule the owner changes says so, with the date. The
-list was reconciled on 2026-09-23, and family K was added on 2026-09-28. The whole page was reworded at the owner's word on 2026-11-11, and each rule kept its meaning; a rule whose old sentence did not match the code says so. Nothing reads this file at run
-time. `advanced/src/codex_auto_resume_advanced/standards.py` holds the ids as a count for each family, and
-`advanced/tests/test_advanced_registry.py` reads this file and fails when the two differ or when a test
-named here is not in the repository ([CONTRIBUTING.md](CONTRIBUTING.md) says how a rule is added or
-changed).
+기준의 id는 바뀌지 않는다. 기능의 설명, 레지스트리, 다른 문서가 이 id를 인용하기 때문이다. 새 기준은 그 군의
+다음 번호를 받고, 소유자가 바꾼 기준은 바뀐 날짜와 함께 그렇게 적는다. 목록은 2026-09-23에 정리했고,
+K군은 2026-09-28에 더했다. 2026-11-11에 소유자의 말에 따라 문서 전체를 다시 썼으며 각 규칙의 뜻은 그대로다. 옛 문장이 코드와 달랐던 규칙에는 그렇게 적었다. 실행 중에 이 파일을 읽는 것은 없다.
+`advanced/src/codex_auto_resume_advanced/standards.py`는 id를 군마다의 개수로 지니고,
+`advanced/tests/test_advanced_registry.py`가 이 파일을 읽어, 둘이 다르거나 여기 적은 테스트가 저장소에 없으면
+실패한다(기준을 더하거나 바꾸는 방법은
+[CONTRIBUTING.md](CONTRIBUTING.md)에 있다).
 
-## 0. The edition boundary
+코드, 명령, 테스트의 이름은 영어 그대로 둔다.
 
-**0.1** The standard edition is the product as it is, and everything added to it keeps every standard. The advanced capabilities' code is left out of its archive and its setup program, and every release build proves it (K1).  
-*tested*: `build/edition_audit.py`, `test_edition_audit.py`, `test_edition_build.py`, `test_edition.py`
+## 0. 두 판의 경계
 
-**0.2** Everything the product already does keeps its existing constraints. The default never changes: the product never sends again when the first continuation may already have been delivered.  
-*docs*
+**0.1** 표준판은 지금 있는 그대로의 제품이고, 거기에 더하는 것은 모두 모든 기준을 지킨다. 고급 기능의 코드는 표준판의 압축 파일과 설치 마법사에서 빠지며, 릴리스를 빌드할 때마다 그것을 증명한다(K1).  
+*테스트*: `build/edition_audit.py`, `test_edition_audit.py`, `test_edition_build.py`, `test_edition.py`
 
-**0.3** The standard edition holds nothing these standards forbid. In the advanced edition, each capability that does such a thing is off until a person turns it on after being told what it does (K3, K4).  
-*tested*: `test_advanced_arming.py`, `test_advanced_registry.py`
+**0.2** 제품이 이미 하는 일은 모두 기존의 제약을 지킨다. 기본값은 바뀌지 않는다. 첫 이어서 하기 메시지가 이미 전달되었을 수 있으면 제품은 다시 보내지 않는다.  
+*문서*
 
-**0.4** Each edition has its own archive, setup program and pinned digest, under one build attestation. An installation updates within its edition. Changing edition is a deliberate reinstall (K2).  
-*tested*: `test_edition_bootstrap.py`, `test_edition_installer.py`
+**0.3** 표준판에는 이 기준들이 금지하는 것이 없다. 고급판에서 그런 일을 하는 각 기능은 무엇을 하는지 들은 사람이 켜기 전까지 꺼져 있다(K3, K4).  
+*테스트*: `test_advanced_arming.py`, `test_advanced_registry.py`
 
-**0.5** The standard edition never retries unknown failures or sign-in failures, shares an app server, wakes an unloaded conversation through thread/resume, uses thread/inject_items, changes a goal's state, recovers subagents, replays model, provider or permission settings, dispatches several tasks at once, or recovers an empty response. The advanced edition offers some of these as capabilities that say they depart from 0.5.  
-*tested in part*: `test_recovery.py`, `test_failures.py`, `test_engine.py`, `test_control_continuation.py`, `test_compat.py`
+**0.4** 판마다 압축 파일, 설치 마법사, 고정된 다이제스트가 따로 있고, 빌드 출처 증명(attestation) 하나가 둘을 함께 다룬다. 설치본은 자기 판 안에서 업데이트된다. 판을 바꾸는 것은 일부러 하는 재설치다(K2).  
+*테스트*: `test_edition_bootstrap.py`, `test_edition_installer.py`
 
-**0.6** The deciding line is that the engine stays small, local, conservative and fail-closed. Complexity is spent on install and control.  
-*docs*
+**0.5** 표준판은 알 수 없는 실패나 로그인 실패를 재시도하지 않고, 앱 서버를 함께 쓰지 않고, 로드되지 않은 대화를 thread/resume으로 깨우지 않고, thread/inject_items를 쓰지 않고, 목표의 상태를 바꾸지 않고, 하위 에이전트를 복구하지 않고, 모델·제공자·권한 설정을 다시 적용하지 않고, 여러 작업을 한꺼번에 보내지 않고, 빈 응답을 복구하지 않는다. 고급판은 이 가운데 일부를, 0.5에서 벗어난다고 밝히는 기능으로 제공한다.  
+*일부 테스트*: `test_recovery.py`, `test_failures.py`, `test_engine.py`, `test_control_continuation.py`, `test_compat.py`
 
-**0.7** The Rust core (v0.6.25) replaces the implementation, not the behaviour. Exact-thread, fail-closed, the registry's semantics and both editions are kept (amended by the owner on 2026-10-21, 2026-10-26, 2026-10-31, 2026-11-04 and 2026-11-11).  
-*planned*
+**0.6** 판단의 기준선은 엔진이 작고, 로컬이고, 보수적이며, 실패하면 닫히는(fail-closed) 상태로 남는 것이다. 복잡함은 설치와 제어에 쓴다.  
+*문서*
 
-## A. What it may send to Codex, and when
+**0.7** Rust 코어(로드맵의 Rust 릴리스)는 동작이 아니라 구현을 바꾼다. 정확한 스레드 식별, 실패하면 닫히는 것, 레지스트리의 의미, 두 판이 모두 그대로 유지된다(2026-10-21, 2026-10-26, 2026-10-31, 2026-11-04, 2026-11-11 소유자가 고침).  
+*계획*
 
-**A1** Only the watcher sends. Every message the watcher sends is handed on by Engine.dispatch: to core's backend, or, in the advanced edition, to the channel a capability that is on puts in its place, asked for once through the plug. The control layer, bridge, MCP server, popup and card have no send path.  
-*tested*: `test_structural_invariants.py`, `test_control.py`, `test_mcp.py`, `test_tray_popup.py`, `test_notice_card.py`
+## A. Codex에 무엇을 언제 보내는가
 
-**A2** There is one send channel: the official `codex queue --thread <uuid> --message <text>` (with `--remote unix://` where Codex's managed daemon runs). One function, Backend.send in codex/transport.py, starts it, as an argument list with shell=False. The --help probe is the one other `queue` process, and the App Server delete is the one other call that touches the queue (amended by the owner on 2026-11-10).  
-*tested*: `test_structural_invariants.py`, `test_windows.py`
+**A1** 보내는 것은 워처다. 워처가 보내는 모든 메시지는 Engine.dispatch가 넘긴다. 넘기는 곳은 코어의 백엔드이거나, 고급판에서는 켜진 기능이 그 자리에 두는 채널이며, 그 채널은 플러그에 한 번 물어서 받는다. 제어 계층, 브리지, MCP 서버, 팝업, 카드에는 보내는 경로가 없다.  
+*테스트*: `test_structural_invariants.py`, `test_control.py`, `test_mcp.py`, `test_tray_popup.py`, `test_notice_card.py`
 
-**A3** A conversation is identified by its exact canonical UUID. The product never uses --last, a title, a project, a folder or recency to identify one.  
-*tested*: `test_structural_invariants.py`, `test_windows.py`, `test_mcp.py`
+**A2** 보내는 채널은 하나다: 공식 `codex queue --thread <uuid> --message <text>`(Codex의 관리 데몬이 돌 때는 `--remote unix://`를 덧붙인다). 한 함수, codex/transport.py의 Backend.send가 이것을 shell=False인 인수 목록으로 시작한다. `queue`를 쓰는 다른 프로세스는 --help 확인 하나이고, 큐를 건드리는 다른 호출은 앱 서버의 삭제 하나다(2026-11-10 소유자가 고침).  
+*테스트*: `test_structural_invariants.py`, `test_windows.py`
 
-**A4** Each interruption carries one marker `[codex-auto-resume:<16 hex>]`, and delivery counts only when that marker is in that thread. From v0.6.11 the marker holds the first 16 of the interruption id's 64 hex digits. A record made before keeps, and is still found by, the whole id's `<64 hex>`. `downgrade-state --to 3` writes every marker back to the whole id's. The advanced edition's opt-in marker-free sending is its own capability. The recovery turn is the marker row's turn, never "the latest turn". Two markers, a marker at or before the failed turn, or a client-id mismatch is ambiguous.  
-*tested*: `test_source.py`, `test_correlation.py`
+**A3** 대화는 정규 형식의 정확한 UUID로 식별한다. 제품은 대화를 식별하는 데 --last, 제목, 프로젝트, 폴더, 최근 순을 쓰지 않는다.  
+*테스트*: `test_structural_invariants.py`, `test_windows.py`, `test_mcp.py`
 
-**A5** The interruption is claimed durably (BEGIN IMMEDIATE, synchronous=FULL) before any process can accept the message. A crash after the claim never resends.  
-*tested*: `test_engine.py`
+**A4** 중단마다 마커 `[codex-auto-resume:<16 hex>]` 하나를 달고, 전달은 그 마커가 그 스레드에 있을 때만 인정한다. v0.6.10 다음 릴리스부터 마커는 중단 id의 64자리 16진수 가운데 앞 16자리를 담는다. 그 전에 만든 레코드는 id 전체의 `<64 hex>`를 그대로 두며 그것으로도 찾는다. `downgrade-state --to 3`은 모든 마커를 id 전체의 것으로 되돌려 쓴다. 고급판에서 사람이 켜야 쓰는 마커 없는 보내기는 따로 된 기능이다. 복구 턴은 마커가 있는 행의 턴이며, "가장 최근 턴"이 아니다. 마커가 둘이거나, 실패한 턴이나 그 앞에 마커가 있거나, 클라이언트 id가 맞지 않으면 모호한 것으로 본다.  
+*테스트*: `test_source.py`, `test_correlation.py`
 
-**A6** The product never resends when delivery is uncertain. Only a proven "process never started" may be retried. A non-zero exit, unmatched receipt, timeout or exception after spawn becomes submission_unknown, is watched for 24 h and is never sent again.  
-*tested*: `test_engine.py`, `test_windows.py`
+**A5** 중단은 어떤 프로세스든 메시지를 받을 수 있게 되기 전에 영속적으로 선점한다(BEGIN IMMEDIATE, synchronous=FULL). 선점 뒤에 프로세스가 비정상 종료되더라도 다시 보내지 않는다.  
+*테스트*: `test_engine.py`
 
-**A7** A withdrawal (thread/queue/delete) that cannot be confirmed becomes submission_unknown and is never re-sent, even though Codex may still deliver it.  
-*tested*: `test_engine.py`
+**A6** 전달이 불확실하면 제품은 다시 보내지 않는다. 재시도할 수 있는 것은 "프로세스가 아예 시작되지 않았다"가 증명된 경우다. 시작한 뒤의 0이 아닌 종료 코드, 맞지 않는 수신 확인, 시간 초과, 예외는 submission_unknown이 되고, 24시간 지켜보며, 다시 보내지 않는다.  
+*테스트*: `test_engine.py`, `test_windows.py`
 
-**A8** 13 gates run in a fixed order: consent, engine_compatible, single_owner, submission_safe, identity, known_failure, schedule, chain_budget, attempt_budget, no_progress_budget, thread_available, no_newer_user_work, usage. A gate never evaluated counts as a refusal. The store re-checks consent, submission_safe, schedule and budgets inside the claim transaction.  
-*tested*: `test_engine.py`
+**A7** 확인할 수 없는 회수(thread/queue/delete)는 submission_unknown이 되고 다시 보내지 않는다. Codex가 그것을 여전히 전달할 수 있더라도 그렇다.  
+*테스트*: `test_engine.py`
 
-**A9** A change between the claim and the send hands the claim back unsent. Such a change is a cancel, a pause, a conversation switched off, a superseded failure, history lag, someone's queued input, our marker already there, or a lost home lock. Attempts are returned, and the claim time is kept for the caps.  
-*tested*: `test_correlation.py`
+**A8** 관문 13개가 정해진 순서로 돈다: consent, engine_compatible, single_owner, submission_safe, identity, known_failure, schedule, chain_budget, attempt_budget, no_progress_budget, thread_available, no_newer_user_work, usage. 평가하지 않은 관문은 거절로 센다. 상태 데이터베이스는 선점 트랜잭션 안에서 consent, submission_safe, schedule, 예산을 다시 확인한다.  
+*테스트*: `test_engine.py`
 
-**A10** Inside the dispatch lock the watcher re-checks the app process identity, the loaded state and live usage (from a reading at most 30 s old).  
-*code*
+**A9** 선점과 전송 사이에 무언가 바뀌면 보내지 않고 선점을 돌려준다. 그런 변화는 취소, 일시 정지, 대화 끄기, 대체됨, 기록 지연, 누군가 큐에 넣은 입력, 이미 있는 우리 마커, 잃어버린 홈 잠금이다. 시도 횟수는 돌려주고, 선점 시각은 상한 계산을 위해 남긴다.  
+*테스트*: `test_correlation.py`
 
-**A11** The watcher sends only while the desktop app is running and the exact thread is loaded. notLoaded or unknown waits at waiting_for_loaded_thread, and nothing is queued on the off chance.  
-*tested*: `test_engine.py`
+**A10** 디스패치 잠금 안에서 워처는 앱 프로세스의 신원, 로드 상태, 실시간 사용량(30초 이내에 읽은 값)을 다시 확인한다.  
+*코드*
 
-**A12** The watcher never sends before the real reset time, and it re-checks live usage. The real reset is the newest one Codex reports, read when a recovery is due or when a person asks for it (Retry now). A reading that says the limit has not lifted, or cannot be told, or fails, changes nothing (amended by the owner on 2026-10-24).  
-*tested*: `test_engine.py`, `test_retry_now_usage.py`
+**A11** 워처는 데스크톱 앱이 실행 중이고 정확히 그 스레드가 로드되어 있을 때만 보낸다. notLoaded나 알 수 없음이면 waiting_for_loaded_thread에서 기다리며, 혹시나 해서 큐에 넣어 두는 일은 없다.  
+*테스트*: `test_engine.py`
 
-**A13** Only classified kinds are recovered: usage limit, connection failure, timeout (408/425), rate limit (429, including responseTooManyFailedAttempts carrying 429), 5xx, and stream disconnect. The structured code comes first. Message text is used only when there is no code, against a fixed phrase list.  
-*tested*: `test_failures.py`, `test_plug_points.py`
+**A12** 워처는 실제 재설정 시각 전에는 보내지 않으며, 실시간 사용량을 다시 확인한다. 실제 재설정 시각은 Codex가 알려 주는 가장 새로운 시각이며, 복구할 때가 되었을 때나 사람이 요청할 때(지금 다시 확인) 읽는다. 한도가 풀리지 않았다는 결과, 알 수 없는 결과, 실패한 조회는 아무것도 바꾸지 않는다(2026-10-24 소유자가 고침).  
+*테스트*: `test_engine.py`, `test_retry_now_usage.py`
 
-**A14** These are never retried: anything unclassified, user cancellation, permission, approval, content policy, invalid request, context length, 401/403, badRequest, sandboxError, and responseTooManyFailedAttempts without a 429.  
-*tested*: `test_recovery.py`, `test_failures.py`, `test_settings.py`, `test_plug_points.py`
+**A13** 분류된 종류만 복구한다: 사용량 한도, 연결 실패, 시간 초과(408/425), 요청 제한(429, 429를 담은 responseTooManyFailedAttempts 포함), 5xx, 스트림 끊김. 구조화된 코드를 먼저 본다. 메시지 글은 코드가 없을 때만 정해진 문구 목록과 맞춰 본다.  
+*테스트*: `test_failures.py`, `test_plug_points.py`
 
-**A15** Only desktop-app user conversations are detected. Codex's `thread_source` label is not required: a desktop conversation with no label, or with ChatGPT's handoff label, is the person's own. Subagent, archived and non-desktop threads are never detected. A thread an agent made is detected only when the person started its failed turn from the input box, which makes it theirs (clarified on 2026-10-15; amended by the owner on 2026-10-28, issue #54).  
-*tested*: `test_engine.py`, `test_source.py`
-<!-- A15 clarified, not changed, at the owner's word on 2026-10-15, after issue #27 (2026-10-13): the label is Codex's analytics classification, not a mark of whose a conversation is. -->
+**A14** 다음은 재시도하지 않는다: 분류되지 않은 모든 것, 사용자 취소, 권한, 승인, 콘텐츠 정책, 잘못된 요청, 컨텍스트 길이, 401/403, badRequest, sandboxError, 429가 없는 responseTooManyFailedAttempts.  
+*테스트*: `test_recovery.py`, `test_failures.py`, `test_settings.py`, `test_plug_points.py`
 
-**A16** A failure is eligible only while it is the thread's latest turn and completed after arming minus the look-back (default 6 h, at most 7 days).  
-*tested*: `test_engine.py`
+**A15** 데스크톱 앱의 사용자 대화만 감지한다. Codex의 `thread_source` 표시는 없어도 된다. 표시가 없는 데스크톱 대화나 ChatGPT가 넘긴 대화의 표시가 붙은 대화는 그 사람의 대화다. 하위 에이전트, 보관된 스레드, 데스크톱 밖의 스레드는 감지하지 않는다. 에이전트가 만든 스레드는 실패한 턴을 사람이 입력창에서 시작했을 때만 감지하며, 그 턴으로 그 사람의 것이 된다(2026-10-15에 분명히 함, 2026-10-28 소유자가 고침, 이슈 #54).  
+*테스트*: `test_engine.py`, `test_source.py`
+<!-- A15는 바꾼 것이 아니라 분명히 한 것입니다(이슈 #27(2026-10-13) 뒤, 2026-10-15 소유자의 말). 그 표시는 Codex의 통계용 분류일 뿐, 누구의 대화인지 나타내지 않습니다. -->
 
-**A17** Newer human work wins. A later turn supersedes the failure. Someone's queued input makes it wait. A turn or queued input after ours makes the watcher take ours back. A queued item the person edited becomes theirs and is not deleted.  
-*tested*: `test_engine.py`, `test_recovery.py`
+**A16** 실패는 그것이 스레드의 가장 최근 턴이고, 켠 시각에서 되돌아보기 기간(기본 6시간, 최대 7일)을 뺀 시각 뒤에 끝났을 때만 대상이 된다.  
+*테스트*: `test_engine.py`
 
-**A18** A history that has fallen behind its rollout blocks a new send. A missing projection table blocks as incompatible.  
-*tested*: `test_engine.py`
+**A17** 사람의 새 작업이 이긴다. 뒤에 온 턴은 실패를 대체한다. 누군가 큐에 넣은 입력이 있으면 기다린다. 우리 것 뒤에 턴이나 큐 입력이 생기면 워처는 우리 것을 거둬들인다. 사람이 고친 큐 항목은 그 사람의 것이 되어 지우지 않는다.  
+*테스트*: `test_engine.py`, `test_recovery.py`
 
-**A19** One continuation is in flight per conversation, dispatched in sequence under one lock. There is no bulk retry. Cancel all and Rescan and reconcile act on the waiting recoveries one exact record at a time, and neither sends. (corrected to match the code on 2026-11-11)  
-*tested for bulk actions; code for the in-flight gate*: `test_control_continuation.py`
+**A18** 롤아웃보다 뒤처진 기록은 새 전송을 막는다. 투영(projection) 테이블이 없으면 호환되지 않는 것으로 막는다.  
+*테스트*: `test_engine.py`
 
-**A20** Caps are engine constants, not settings. A conversation takes at most 5 claims in any 24 h, at least 15 min apart. There are at most 5 failed queue launches. A usage chain unavailable for 7 days expires, never before its reset plus a day.  
-*tested*: `test_engine.py`
+**A19** 대화 하나에 진행 중인 이어서 하기는 하나이며, 잠금 하나 아래에서 차례로 보낸다. 일괄 재시도는 없다. 모두 취소와 *다시 살펴보고 정리*는 기다리는 복구를 레코드 하나씩 정확히 짚어 다루며, 둘 다 보내지 않는다. (2026-11-11 코드에 맞게 바로잡음)  
+*일괄 동작은 테스트; 진행 중 관문은 코드*: `test_control_continuation.py`
 
-**A21** Budgets are settings with capped ranges: transient attempts 4 (1-20), recoveries in a row with no progress 3 (1-10), continuations per task chain 6 (1-10, never higher). A usage limit spends no attempt.  
-*tested*: `test_engine.py`, `test_recovery.py`
+**A20** 상한은 설정이 아니라 엔진 상수다. 대화 하나는 24시간 동안 선점을 최대 5번 받으며, 간격은 적어도 15분이다. 큐 실행 실패는 최대 5번이다. 7일 동안 쓸 수 없는 사용량 체인은 만료되지만, 재설정 시각에 하루를 더한 때보다 먼저 만료되지는 않는다.  
+*테스트*: `test_engine.py`
 
-**A22** Waits are bounded. A transient wait comes only from a preset ladder or from Custom's five waits, each picked from a closed list and never typed. A Retry-After or jitter only lengthens a wait. A rate limit's first wait is at least a minute.  
-*tested*: `test_recovery.py`, `test_ladder_and_guards.py`
+**A21** 예산은 범위가 제한된 설정이다: 일시적 실패 시도 4번(1~20), 진행 없이 이어진 복구 3번(1~10), 작업 체인당 이어서 하기 6번(1~10, 그보다 높게는 안 됨). 사용량 한도는 시도를 쓰지 않는다.  
+*테스트*: `test_engine.py`, `test_recovery.py`
 
-**A23** One failure is recovered once. The same Codex turn under a new identity is refused. A chain child inherits its counters. It is created already stopped if its parent was cancelled or out of budget, or handed over by a person who joined before the recovery turn made any progress (amended by the owner on 2026-10-22).  
-*tested*: `test_store.py`, `test_recovery.py`
+**A22** 대기는 한정된다. 일시적 실패의 대기는 미리 정한 단계표나, 저마다 정해진 목록에서 고르고 직접 입력하지 않는 직접 설정의 다섯 대기에서만 나온다. Retry-After나 흔들림(jitter)은 대기를 늘리기만 한다. 요청 제한의 첫 대기는 적어도 1분이다.  
+*테스트*: `test_recovery.py`, `test_ladder_and_guards.py`
 
-**A24** Attempts are given back only for exhausted records, at most 3 per task, and never for cancelled or possibly-sent ones. Giving them back sends nothing and never switches a conversation on.  
-*tested*: `test_store.py`
+**A23** 실패 하나는 한 번만 복구한다. 같은 Codex 턴이 새 신원으로 오면 거절한다. 체인의 자식은 카운터를 물려받는다. 부모가 취소되었거나 예산을 다 썼거나, 복구 턴이 진전을 내기 전에 사람이 끼어들어 넘겨졌으면 자식은 처음부터 멈춘 채로 만들어진다(2026-10-22 소유자가 고침).  
+*테스트*: `test_store.py`, `test_recovery.py`
 
-**A25** Retry now moves the schedule and, for a recovery waiting for a usage reset, asks for one usage reading (A12). It sends nothing, skips no gate and opens no usage window (amended by the owner on 2026-11-10).  
-*tested*: `test_mcp.py`, `test_store.py`
+**A24** 시도 횟수는 소진된 레코드에만, 작업당 최대 3번 되돌리며, 취소되었거나 보냈을 수 있는 레코드에는 되돌리지 않는다. 되돌려도 아무것도 보내지 않고, 대화를 켜지도 않는다.  
+*테스트*: `test_store.py`
 
-**A26** The continuation text has three sources: shipped templates, the Custom message, and the words a person added for one waiting interruption, which follow the text once. It is made only for a recoverable category and is decided before the claim. It cannot change what is recovered (amended by the owner on 2026-10-10).  
-*tested*: `test_continuation.py`, `test_once_words_engine.py`
-<!-- A26 amended at the owner's word, 2026-10-10: "대기 중인 메시지 중 하나를 골라서 이번 한번만 한도가 풀렸을 때 기존 재시도 메시지에 추가로 보내고 싶은 말을 보내고 싶은거야" - words for this time, added once to one waiting recovery's continuation. -->
+**A25** 지금 다시 확인은 일정을 옮기고, 사용량 재설정을 기다리는 복구에는 사용량을 한 번 읽어 달라고 요청한다(A12). 아무것도 보내지 않고, 관문을 건너뛰지 않으며, 사용량 창을 열지 않는다(2026-11-10 소유자가 고침).  
+*테스트*: `test_mcp.py`, `test_store.py`
 
-**A27** The Custom message, a conversation's own message, and the words a person added for one waiting interruption are written only in the Dashboard. MCP update_settings refuses them and the preview tool takes no text. Each is at most 2000 characters and is sent exactly as typed. Placeholders come from a whitelist ({reason},{category},{attempt},{max_attempts},{reset_time}), and dangerous ones are refused by name. The text is re-checked on read, and text that fails the check is treated as not set (amended by the owner on 2026-10-10).  
-*tested*: `test_continuation.py`, `test_mcp.py`, `test_conversation_message.py`, `test_once_words.py`
-<!-- A27 amended at the owner's word, 2026-10-10: the words for this time are a Custom message in every way, kept in config/once-words.json beside the state. -->
+**A26** 이어서 하기 메시지의 글은 출처가 셋이다: 기본 제공 템플릿, 직접 입력 메시지, 그리고 사람이 대기 중인 한 중단에 덧붙인 말이며, 덧붙인 말은 그 글 뒤에 한 번 붙는다. 이 글은 복구할 수 있는 종류에만 만들어지고 선점 전에 정해진다. 무엇을 복구할지는 그 글로 바꿀 수 없다(2026-10-10 소유자가 고침).  
+*테스트*: `test_continuation.py`, `test_once_words_engine.py`
+<!-- A26은 소유자의 말로 개정했습니다(2026-10-10, "대기 중인 메시지 중 하나를 골라서 이번 한번만 한도가 풀렸을 때 기존 재시도 메시지에 추가로 보내고 싶은 말을 보내고 싶은거야"): 대기 중인 복구 하나의 이어서 하기 메시지에 이번에만 덧붙일 말을 한 번 붙입니다. -->
 
-**A28** A notification or card button does one of three things: it cancels one exact interruption (an opaque 64-hex id), stops the power action for one batch (named by that batch's opaque 16-hex id, which every batch end replaces), or opens one page from a fixed list. Anything else is ignored and logged. A button never causes a send (amended by the owner on 2026-10-03).  
-*tested*: `test_notify.py`, `test_notice_card.py`, `test_cli.py`
-<!-- A28 amended at the owner's word, 2026-10-03: "예, 버튼 넣기" - a stop button for one batch, named by that batch's nonce, on the power action's notice and card. -->
+**A27** 직접 입력 메시지, 대화 하나에만 쓰는 메시지, 그리고 사람이 대기 중인 한 중단에 덧붙인 말은 대시보드에서만 쓴다. MCP update_settings는 이것들을 거부하고, 미리보기 도구는 글을 받지 않는다. 저마다 최대 2000자이며 입력한 그대로 보낸다. 자리표시자는 허용 목록({reason},{category},{attempt},{max_attempts},{reset_time})에서 오고, 위험한 것은 이름으로 거부한다. 읽을 때 다시 확인하며, 확인을 통과하지 못한 글은 설정되지 않은 것으로 본다(2026-10-10 소유자가 고침).  
+*테스트*: `test_continuation.py`, `test_mcp.py`, `test_conversation_message.py`, `test_once_words.py`
+<!-- A27은 소유자의 말로 개정했습니다(2026-10-10): 이번에만 덧붙일 말은 모든 면에서 직접 입력 메시지와 같으며, 상태 옆의 config/once-words.json에 둡니다. -->
 
-**A29** A switch click carries the exact interruption and conversation. A stale, finished or other-conversation click is refused and changes nothing. A switch sends nothing.  
-*tested*: `test_control_continuation.py`, `test_tray_popup.py`
+**A28** 알림이나 카드의 버튼이 하는 일은 셋 가운데 하나다: 정확히 한 중단(불투명한 64자리 16진수 id)을 취소하거나, 한 묶음에 한해 전원 동작을 멈추거나(그 묶음의 불투명한 16자리 16진수 id로 가리키며, 묶음이 끝날 때마다 새 id로 바뀐다), 정해진 목록의 페이지 하나를 연다. 그 밖의 것은 무시하고 기록한다. 버튼이 전송을 일으키는 일은 없다(2026-10-03 소유자가 고침).  
+*테스트*: `test_notify.py`, `test_notice_card.py`, `test_cli.py`
+<!-- A28은 소유자의 말로 개정했습니다(2026-10-03, "예, 버튼 넣기"): 전원 동작의 알림과 카드에 그 묶음 하나만 멈추는 단추를 두며, 묶음은 그 nonce로 가리킵니다. -->
 
-**A30** An engine is accepted only while `codex queue --help` still offers --thread and --message. Anything unproven is refused. There is no version pin.  
-*tested*: `test_windows.py`
+**A29** 스위치 클릭은 정확한 중단과 대화를 함께 싣는다. 오래되었거나, 끝났거나, 다른 대화의 클릭은 거절되어 아무것도 바꾸지 않는다. 스위치는 아무것도 보내지 않는다.  
+*테스트*: `test_control_continuation.py`, `test_tray_popup.py`
 
-## B. What it reads, and how
+**A30** 엔진은 `codex queue --help`가 여전히 --thread와 --message를 내놓을 때만 받아들인다. 증명되지 않은 것은 모두 거절한다. 버전 고정은 없다.  
+*테스트*: `test_windows.py`
 
-**B1** Codex SQLite is opened read-only: mode=ro, PRAGMA query_only=ON, trusted_schema=OFF.  
-*tested*: `test_source.py`
+## B. 무엇을 어떻게 읽는가
 
-**B2** No Codex database, rollout or config file is ever opened for writing. The WAL -shm update is disclosed.  
-*code*
+**B1** Codex SQLite는 읽기 전용으로 연다: mode=ro, PRAGMA query_only=ON, trusted_schema=OFF.  
+*테스트*: `test_source.py`
 
-**B3** Codex's state changes only through official interfaces: codex queue, thread/queue/delete, and the codex plugin CLI at install and uninstall.  
-*code*
+**B2** Codex의 데이터베이스, 롤아웃, 설정 파일은 어느 것도 쓰기로 열지 않는다. WAL의 -shm 갱신은 밝혀 둔다.  
+*코드*
 
-**B4** The App Server is a separate, short-lived stdio helper. The product sends it only initialize (plus initialized), account/rateLimits/read and thread/queue/delete. Requests from the server are refused. A wrong codexHome is refused.  
-*tested*: `test_windows.py`
+**B3** Codex의 상태는 공식 인터페이스로만 바뀐다: codex queue, thread/queue/delete, 그리고 설치와 제거 때의 codex plugin CLI.  
+*코드*
 
-**B5** Only the newest database generation is read, and only if every column it reads exists. Paths stay inside the Codex home.  
-*tested*: `test_source.py`
+**B4** 앱 서버는 따로 떨어진, 잠깐 쓰고 끝나는 stdio 도우미다. 제품이 보내는 것은 initialize(와 initialized), account/rateLimits/read, thread/queue/delete로 한정된다. 서버가 보내는 요청은 거절한다. 잘못된 codexHome은 거부한다.  
+*테스트*: `test_windows.py`
 
-**B6** Rollout files are read only under <home>\sessions. The product reads the first line (at most 256 KiB: id and origin). For a usage limit only, it reads up to 8 MiB before the failure, in memory, and keeps only the reset time and the limit id. Only when a person presses *Rescan and reconcile*, and only for a waiting recovery whose history has not caught up, it reads that conversation's rollout file from start to end, a line at a time, up to 32 MiB, and a larger file is not read. Each of those lines is parsed in memory and dropped, and the product keeps only whether a message of the person's that carries no marker of its own follows the failed turn's end. It also lists the file names under <home>\sessions, opening none, to follow a conversation Codex split across files. For a conversation an agent made, it reads the file's last 32 MiB at most, a line at a time, and keeps only how the failed turn was started (corrected to match the code on 2026-10-22; added for A15's amendment of 2026-10-28; amended by the owner on 2026-11-10).  
-*tested for the path; code for the byte caps*: `test_source.py`
+**B5** 가장 새로운 세대의 데이터베이스만, 그리고 읽는 열이 모두 있을 때만 읽는다. 경로는 Codex 홈 안에 머문다.  
+*테스트*: `test_source.py`
 
-**B7** Queries that return message content are bounded by instr(col, marker)>0. Other people's rows come back only as counts or booleans.  
-*tested*: `test_source.py`
+**B6** 롤아웃 파일은 <home>\sessions 아래 것만 읽는다. 제품은 첫 줄(최대 256 KiB: id와 출처)을 읽는다. 사용량 한도일 때만 실패 앞의 최대 8 MiB를 메모리에서 읽어 재설정 시각과 한도 id만 남긴다. 사람이 *다시 살펴보고 정리*를 누를 때만, 그리고 기록이 아직 따라오지 못한 기다리는 복구에 대해서만, 그 대화의 롤아웃 파일을 처음부터 끝까지 한 줄씩 최대 32 MiB까지 읽으며, 그보다 큰 파일은 읽지 않는다. 그 각 줄은 메모리에서 파싱한 뒤 버리고, 실패한 턴의 끝 뒤에 이 도구의 마커가 없는 사람의 메시지가 있는지만 남긴다. 또 Codex가 여러 파일로 나눈 대화를 따라가려고 <home>\sessions 아래 파일 이름을 나열하되 하나도 열지 않는다. 에이전트가 만든 대화는 파일의 마지막 최대 32 MiB를 한 줄씩 읽어, 실패한 턴이 어떻게 시작되었는지만 남긴다(2026-10-22 코드에 맞게 바로잡음, A15의 2026-10-28 수정에 따라 더함, 2026-11-10 소유자가 고침).  
+*경로는 테스트; 바이트 상한은 코드*: `test_source.py`
 
-**B8** The product never selects title, preview or first_user_message. Labels come only from threads.name, the project or the cwd basename, are one line of at most 72 chars, and never identify a thread.  
-*tested*: `test_failures.py`
+**B7** 메시지 내용을 돌려주는 쿼리는 instr(col, marker)>0으로 좁힌다. 다른 사람의 행은 개수나 참거짓으로만 돌아온다.  
+*테스트*: `test_source.py`
 
-**B9** The raw error is classified and dropped, and only the category continues. Progress comes from lifecycle columns, a fixed item-type list and whether a message carries our marker, and from no other content.  
-*tested*: `test_failures.py`, `test_recovery.py`
+**B8** 제품은 title, preview, first_user_message를 조회하지 않는다. 표시 이름은 threads.name, 프로젝트, cwd의 마지막 이름에서만 오며, 한 줄 최대 72자이고, 스레드를 식별하는 데 쓰지 않는다.  
+*테스트*: `test_failures.py`
 
-**B10** From the usage response the product keeps only numeric windows, reset times and the bucket name.  
-*tested*: `test_windows.py`
+**B9** 원래 오류는 분류한 뒤 버리고, 종류만 남긴다. 진행 여부는 수명 주기 열, 정해진 항목 종류 목록, 메시지에 우리 마커가 있는지 여부에서 판단하고, 그 밖의 내용에서는 판단하지 않는다.  
+*테스트*: `test_failures.py`, `test_recovery.py`
 
-**B11** The product never reads auth.json, tokens, cookies, authorization headers, credential storage or process memory.  
-*docs*
+**B10** 사용량 응답에서 제품은 숫자로 된 창, 재설정 시각, 버킷 이름만 남긴다.  
+*테스트*: `test_windows.py`
 
-**B12** Loaded state comes only from the Restart Manager inventory. There is no byte-lock API and the app's writer lock is never taken. Ambiguity, PID reuse or an unavailable API reads unknown.  
-*tested*: `test_windows.py`
+**B11** 제품은 auth.json, 토큰, 쿠키, 인증 헤더, 자격 증명 저장소, 프로세스 메모리를 읽지 않는다.  
+*문서*
 
-**B13** The product has no GUI automation, input simulation, UI Automation, OCR or screen capture, and nothing reads what another window shows or drives another window. About another window it asks Windows for facts: the class and program file name of the window in front, and the class of its focus, around a card being shown, and the class and visibility of the overflow flyout for the icon's motion. To find this program's own windows, opening one that is already open lists every top-level window's class, visibility, owner and program file, keeps none of it, and messages only this program's own windows. The run outside another app's private view (F6) asks Explorer's desktop shell (ShellExecute) or WMI to start this product's own program. The popup answers screen readers about itself. The one PrintWindow is in a build-only tool. (corrected to match the code on 2026-11-11; amended by the owner on 2026-11-13)  
-*tested*: `test_surface_properties.py`
+**B12** 로드 상태는 Restart Manager 목록에서만 온다. 바이트 잠금 API는 없고 앱의 쓰기 잠금은 잡지 않는다. 모호함, PID 재사용, 쓸 수 없는 API는 알 수 없음으로 읽는다.  
+*테스트*: `test_windows.py`
 
-**B14** The product has no web stack: no browser control, WebView, listening socket, localhost server or second runtime. The window compiles against System, System.Drawing and System.Windows.Forms only.  
-*tested*: `test_surface_properties.py`
+**B13** 제품에는 GUI 자동화, 입력 흉내, UI Automation, OCR, 화면 캡처가 없고, 다른 창이 보여 주는 것을 읽거나 다른 창을 움직이는 것도 없다. 다른 창에 대해서는 Windows에 사실만 묻는다: 카드를 보여 줄 때 맨 앞 창의 클래스와 프로그램 파일 이름, 그 포커스의 클래스, 그리고 아이콘의 움직임을 위해 넘침 플라이아웃의 클래스와 표시 여부다. 이 프로그램 자신의 창을 찾으려고, 이미 열려 있는 창을 다시 열 때는 맨 위 단계의 모든 창의 클래스, 표시 여부, 소유 창, 프로그램 파일을 나열하고, 그 어느 것도 남기지 않으며, 메시지는 이 프로그램 자신의 창에만 보낸다. 다른 앱의 비공개 보기 밖에서 다시 실행할 때(F6)는 탐색기의 바탕 화면 셸(ShellExecute)이나 WMI에 이 제품 자신의 프로그램을 시작해 달라고 요청한다. 팝업은 화면 낭독기에게 자기 자신에 대해 답한다. 하나 있는 PrintWindow는 빌드 전용 도구에 있다. (2026-11-11 코드에 맞게 바로잡음, 2026-11-13 소유자가 고침)  
+*테스트*: `test_surface_properties.py`
 
-**B15** Compatibility probes read only the schema's table and column names and whether folders exist, never a row.  
-*code*
+**B14** 제품에는 웹 스택이 없다: 브라우저 제어, WebView, 연결을 기다리는 소켓, localhost 서버, 두 번째 런타임이 없다. 창은 System, System.Drawing, System.Windows.Forms만으로 컴파일한다.  
+*테스트*: `test_surface_properties.py`
 
-**B16** Windows is asked only content-free questions. AppsUseLightTheme, TrayNotify and the notification-area icons' own settings (NotifyIconSettings) are read, never written. To find its own icon among them the product reads every entry's icon number and GUID and, for an entry that could be its own, the program path, and it keeps none of it. The power action asks four more questions. Whether this account holds SeShutdownPrivilege and which sleep states the PC offers are asked when the Dashboard shows the power action's card or turns it on, and while it is armed. How long ago the last input came (a time, never what it was, with no hook) and how many other sessions are signed in (a count, never a user name) are asked only while it is armed. To suggest a Codex home this PC's Codex uses and the watcher does not yet watch, an installed copy's Dashboard also reads the account's CODEX_HOME value (HKEY_CURRENT_USER\Environment), read-only and never written, when it shows Settings > Advanced and its suggestion switch is on. Windows' text size (TextScaleFactor, HKEY_CURRENT_USER\Software\Microsoft\Accessibility) and the administrator's policy values under Software\Policies\CodexAutoResume (HKEY_LOCAL_MACHINE and HKEY_CURRENT_USER) are read, never written (corrected to match the code on 2026-10-22; extended on 2026-10-22 for the Codex homes suggestion the owner asked for; corrected to match the code on 2026-11-11; amended by the owner on 2026-11-13)  
-*tested partly*: `test_power_action_windows.py`
+**B15** 호환성 확인은 스키마의 테이블과 열 이름, 폴더가 있는지만 읽고, 행은 읽지 않는다.  
+*코드*
 
-**B17** The layers are fixed. The engine imports no sqlite3, ctypes or subprocess and reaches Codex only through its injected adapters. The UI and MCP never import Codex's readers. The domain layer is pure standard library. Only listed modules import subprocess.  
-*tested*: `test_layers.py`, `test_structural_invariants.py`
+**B16** Windows에는 내용이 없는 질문만 한다. AppsUseLightTheme, TrayNotify, 알림 영역 아이콘 자체의 설정(NotifyIconSettings)은 읽기만 하고 쓰지 않는다. 그 가운데서 자기 아이콘을 찾으려고 제품은 모든 항목의 아이콘 번호와 GUID를, 자기 것일 수 있는 항목에서는 프로그램 경로를 읽으며, 어느 것도 남기지 않는다. 전원 동작은 질문 네 가지를 더 한다. 이 계정이 SeShutdownPrivilege를 지녔는지와 이 PC가 어떤 절전 상태를 제공하는지는 대시보드가 전원 동작의 카드를 보여 줄 때와 그것을 켤 때, 그리고 켜져 있는 동안 묻는다. 마지막 입력이 얼마나 전에 있었는지(시간이며 무엇이었는지는 묻지 않고, 후크도 없다)와 다른 세션이 몇 개 로그인해 있는지(개수이며 사용자 이름은 묻지 않는다)는 켜져 있는 동안에만 묻는다. 이 PC의 Codex가 쓰지만 워처가 아직 감시하지 않는 Codex 홈을 제안하려고, 설치된 사본의 대시보드는 *설정 > 고급*을 보여 줄 때 제안 스위치가 켜져 있으면 계정의 CODEX_HOME 값(HKEY_CURRENT_USER\Environment)도 읽기만 하고 쓰지 않는다. Windows의 글자 크기(TextScaleFactor, HKEY_CURRENT_USER\Software\Microsoft\Accessibility)와 관리자의 정책 값(HKEY_LOCAL_MACHINE과 HKEY_CURRENT_USER의 Software\Policies\CodexAutoResume 아래)도 읽기만 하고 쓰지 않는다(2026-10-22 코드에 맞게 바로잡음, 2026-10-22 소유자가 요청한 Codex 홈 제안을 위해 넓힘, 2026-11-11 코드에 맞게 바로잡음, 2026-11-13 소유자가 고침)  
+*일부 테스트*: `test_power_action_windows.py`
 
-## C. Network
+**B17** 계층은 정해져 있다. 엔진은 sqlite3, ctypes, subprocess를 import하지 않고 주입받은 어댑터로만 Codex에 닿는다. UI와 MCP는 Codex 읽기 모듈을 import하지 않는다. 도메인 계층은 순수한 표준 라이브러리다. subprocess는 목록에 있는 모듈만 import한다.  
+*테스트*: `test_layers.py`, `test_structural_invariants.py`
 
-**C1** The standard edition has no network code at all: no file under src/ and no scripts/*.py imports a networking module. The advanced edition's network code does not run unless a person turns on the capability it belongs to (amended by the owner on 2026-11-10).  
-*tested*: `test_privacy_claims.py`, `test_advanced_network_off.py`
+## C. 네트워크
 
-**C2** Of the files the standard edition ships, scripts/bootstrap.ps1 is the one that reaches the network. build/ downloads the pinned Python while a release is built. What ships from build/, the install scripts and the setup program, reaches nothing. (corrected to match the code on 2026-11-11)  
-*tested*: `test_privacy_claims.py`, `test_setup.py`
+**C1** 표준판에는 네트워크 코드가 전혀 없다: src/와 scripts/*.py의 어떤 파일도 네트워크 모듈을 불러오지 않는다. 고급판의 네트워크 코드는 사람이 해당 기능을 켜지 않는 한 작동하지 않는다(2026-11-10 소유자가 고침).  
+*테스트*: `test_privacy_claims.py`, `test_advanced_network_off.py`
 
-**C3** The product has no telemetry, analytics or crash reporting, and shipped files name no unexpected host. api.github.com is named for two addresses, both this repository's list of releases: the update check's ten newest, and the version picker's pages of thirty (amended by the owner on 2026-10-03).  
-*tested*: `test_privacy_claims.py`
+**C2** 표준판이 배포하는 파일 가운데 네트워크에 닿는 것은 scripts/bootstrap.ps1이다. build/는 릴리스를 빌드하는 동안 고정된 Python을 내려받는다. build/에서 배포되는 것, 곧 설치 스크립트와 설치 마법사는 어디에도 닿지 않는다. (2026-11-11 코드에 맞게 바로잡음)  
+*테스트*: `test_privacy_claims.py`, `test_setup.py`
 
-**C4** No network request happens on its own: there is no update polling, no schedule, nothing at start and no automatic compatibility refresh. (corrected to match the code on 2026-11-11)  
-*tested*: `test_convergence.py`, `test_gui_update.py`
+**C3** 제품에는 텔레메트리, 분석, 충돌 보고가 없으며, 배포 파일은 예상하지 않은 호스트를 적지 않는다. api.github.com은 주소 두 개에 적으며, 둘 다 이 저장소의 릴리스 목록이다. 업데이트 확인이 읽는 최신 열 개와, 버전 고르기가 읽는 30개씩의 쪽이다(2026-10-03 소유자가 고침).  
+*테스트*: `test_privacy_claims.py`
 
-**C5** The update check runs only when a person presses the button. It sends one HEAD to a constant releases/latest URL and reads the version from the redirect under this exact repository, rebuilt from its integers. It also reads this repository's list of releases to find a newer pre-release, which it offers with a question and installs only on a yes. Once github.com has answered, it also refreshes the compatibility data as C7 says. The version picker (*Install another version...*) reads this repository's whole list of releases, paged, only when a person opens it and again when they confirm. It installs the version and edition they picked, a release or a pre-release, older or newer, only after that confirmation, which is the yes (amended by the owner on 2026-09-28 and 2026-10-03; corrected to match the code on 2026-10-22).  
-*tested*: `test_update_check.py`, `test_convergence.py`, `test_prerelease_offer.py`, `test_version_picker.py`, `test_gui_versions.py`
+**C4** 네트워크 요청은 저절로 일어나지 않는다: 업데이트 폴링도, 일정도, 시작할 때 하는 일도, 자동 호환성 새로 고침도 없다. (2026-11-11 코드에 맞게 바로잡음)  
+*테스트*: `test_convergence.py`, `test_gui_update.py`
 
-**C6** The setup download uses HTTPS and at most 5 redirects. Its URL is built from constants and the manifest version, or from a version in the list of releases, rebuilt from its integers. Its host is one of three GitHub hosts. Each redirect is checked against them before it is followed, and where the .NET request cannot be made the final host is checked after the download, which is disclosed. It fetches at most the archive and its .sha256 (amended by the owner on 2026-10-03; corrected to match the code on 2026-11-11)  
-*tested*: `test_convergence.py`, `test_update_check.py`, `test_version_picker.py`
+**C5** 업데이트 확인은 사람이 버튼을 누를 때만 돈다. 고정된 releases/latest URL에 HEAD 요청 하나를 보내고, 정확히 이 저장소 아래로 온 리디렉션에서 버전을 읽어 그 정수들로 다시 만든다. 더 새로운 사전 릴리스를 찾으려고 이 저장소의 릴리스 목록도 읽으며, 찾으면 질문으로 권하고 '예'라고 답할 때만 설치한다. github.com이 답한 뒤에는 C7이 말하는 대로 호환성 데이터도 새로 받아 온다. 버전 고르기(*다른 버전 설치...*)는 사람이 열 때와 확인할 때만 이 저장소의 릴리스 목록 전체를 쪽마다 읽는다. 고른 버전과 판은, 릴리스든 사전 릴리스든, 더 오래된 것이든 더 새로운 것이든, '예'에 해당하는 그 확인 뒤에만 설치한다(2026-09-28과 2026-10-03 소유자가 고침, 2026-10-22 코드에 맞게 바로잡음).  
+*테스트*: `test_update_check.py`, `test_convergence.py`, `test_prerelease_offer.py`, `test_version_picker.py`, `test_gui_versions.py`
 
-**C7** Compatibility refresh runs only on request. It is one GET to a constant raw.githubusercontent.com URL with no query, at most 256 KiB. PowerShell never parses or runs the answer, and the watcher and MCP tools never start the refresh.  
-*tested*: `test_compat_bootstrap.py`, `test_compat_surfaces.py`
+**C6** 설치 다운로드는 HTTPS를 쓰고 리디렉션은 최대 5번이다. URL은 상수와 매니페스트 버전으로, 또는 릴리스 목록의 버전을 그 정수들로 다시 만들어 짓는다. 호스트는 GitHub 호스트 세 곳 가운데 하나다. 리디렉션은 따라가기 전에 하나하나 이 세 곳과 비교하며, .NET 요청을 만들 수 없는 곳에서는 내려받은 뒤에 마지막 호스트를 확인하고, 이 점은 밝혀 둔다. 받는 것은 많아야 압축 파일과 그 .sha256이다(2026-10-03 소유자가 고침, 2026-11-11 코드에 맞게 바로잡음)  
+*테스트*: `test_convergence.py`, `test_update_check.py`, `test_version_picker.py`
 
-**C8** Requests carry no product-invented identifier. GitHub sees the IP, the time and PowerShell's User-Agent, which is disclosed.  
-*tested for the constant URLs; no custom header exists in bootstrap.ps1*: `test_update_check.py`
+**C7** 호환성 새로 고침은 요청할 때만 돈다. 쿼리 없는 고정된 raw.githubusercontent.com URL에 GET 하나이며, 최대 256 KiB다. PowerShell은 그 답을 해석하거나 실행하지 않고, 워처와 MCP 도구는 새로 고침을 시작하지 않는다.  
+*테스트*: `test_compat_bootstrap.py`, `test_compat_surfaces.py`
 
-**C9** OpenAI is reached only through official Codex: a usage read when a recovery is due or when a person asks (Retry now, Rescan), reused for 30 s, identified as codex_auto_resume with the real version (amended by the owner on 2026-11-10).  
-*code*
+**C8** 요청에는 제품이 만든 식별자가 없다. GitHub는 IP, 시각, PowerShell의 User-Agent를 보며, 이 점은 밝혀 둔다.  
+*고정 URL은 테스트; bootstrap.ps1에는 사용자 지정 헤더가 없음*: `test_update_check.py`
 
-**C10** Every `codex queue` send, App Server helper and codex plugin command the product starts runs with OTEL_SDK_DISABLED, analytics off, OTel exporters none, log_user_prompt=false and chatgpt_base_url pinned. The --version and queue --help probes run with OTEL_SDK_DISABLED. (corrected to match the code on 2026-11-11)  
-*tested*: `test_privacy_claims.py`, `test_windows.py`
+**C9** OpenAI에는 공식 Codex를 통해서만 닿는다: 복구할 때가 되었거나 사람이 요청했을 때(지금 다시 확인, 다시 살펴보기) 하는 사용량 조회이며, 30초 동안 다시 쓰고, codex_auto_resume과 실제 버전으로 자신을 밝힌다(2026-11-10 소유자가 고침).  
+*코드*
 
-**C11** The installer refreshes only this product's marketplace, by name.  
-*code*
+**C10** 제품이 시작하는 모든 `codex queue` 전송, 앱 서버 도우미, codex plugin 명령은 OTEL_SDK_DISABLED, 분석 끔, OTel 내보내기 none, log_user_prompt=false, 고정된 chatgpt_base_url로 돈다. --version과 queue --help 확인은 OTEL_SDK_DISABLED로 돈다. (2026-11-11 코드에 맞게 바로잡음)  
+*테스트*: `test_privacy_claims.py`, `test_windows.py`
 
-**C12** Translations, the panel and the window fetch nothing. The MCP manifest declares no environment or network.  
-*tested*: `test_l10n.py`, `test_mcp.py`, `test_plugin.py`
+**C11** 설치 프로그램은 이 제품의 마켓플레이스만, 이름으로 새로 고친다.  
+*코드*
 
-**C13** Whatever the tools and commands return becomes part of the Codex conversation and goes to OpenAI, and this is disclosed.  
-*docs*
+**C12** 번역, 패널, 창은 아무것도 가져오지 않는다. MCP 매니페스트는 환경도 네트워크도 선언하지 않는다.  
+*테스트*: `test_l10n.py`, `test_mcp.py`, `test_plugin.py`
 
-## D. Privacy and the data it keeps
+**C13** 도구와 명령이 돌려주는 것은 Codex 대화의 일부가 되어 OpenAI로 가며, 이 점은 밝혀 둔다.  
+*문서*
 
-**D1** Nothing goes to the developer: no prompts, replies, files, ids, credentials, raw errors, titles, paths or statistics.  
-*docs*
+## D. 개인정보와 보관하는 데이터
 
-**D2** State holds ids, enums, counters and times, and its text is bounded and free of control characters. State holds no prompt, reply or error text. Notifications show the conversation title, which is disclosed. (corrected to match the code on 2026-11-11)  
-*tested*: `test_store.py`, `test_engine.py`
+**D1** 개발자에게는 아무것도 가지 않는다: 프롬프트, 답변, 파일, id, 자격 증명, 원래 오류, 제목, 경로, 통계 모두.  
+*문서*
 
-**D3** Logs are written from a fixed message table. Untrusted values that are not hex or digits are masked. The main log keeps exception class names and no more of an error, and tracebacks go to errors.log. The state directory path and the engine version appear in the logs, which is disclosed.  
-*tested*: `test_engine.py`
+**D2** 상태에는 id, 열거값, 카운터, 시각을 두며, 글은 길이가 제한되고 제어 문자가 없다. 상태에는 프롬프트, 답변, 오류 글이 없다. 알림은 대화 제목을 보여 주며, 이 점은 밝혀 둔다. (2026-11-11 코드에 맞게 바로잡음)  
+*테스트*: `test_store.py`, `test_engine.py`
 
-**D4** The journal holds closed-vocabulary codes and integer flags only. It is bounded to 5,000 entries and 90 days, and it is never read to decide anything.  
-*tested*: `test_store.py`, `test_surface_properties.py`
+**D3** 로그는 정해진 메시지 표로 쓴다. 믿을 수 없는 값 가운데 16진수나 숫자가 아닌 것은 가린다. 주 로그는 오류에서 예외 클래스 이름까지만 남기고, 추적 정보는 errors.log로 간다. 상태 폴더 경로와 엔진 버전은 로그에 나오며, 이 점은 밝혀 둔다.  
+*테스트*: `test_engine.py`
 
-**D5** Diagnostics are exported only on request, to a chosen path, never overwriting, and nothing sends the export. Ids become per-file aliases. Paths, the user name and e-mail addresses are redacted. A Custom message is recorded as set, never quoted.  
-*tested*: `test_diagnostics.py`
+**D4** 기록부(journal)는 정해진 어휘의 코드와 정수 플래그만 담는다. 최대 5,000개와 90일로 제한되며, 무엇을 정하는 데 읽지 않는다.  
+*테스트*: `test_store.py`, `test_surface_properties.py`
 
-**D6** A notification holds up to 2 one-line labels of at most 72 chars plus the UUID, and no error or account text. It has at most 3 lines and is XML-escaped. The card shows what the toast shows.  
-*tested*: `test_notify.py`
+**D5** 진단은 요청할 때만, 고른 경로에, 덮어쓰지 않고 내보내며, 내보낸 것을 보내는 것은 없다. id는 파일마다의 별칭이 된다. 경로, 사용자 이름, 이메일 주소는 가린다. 직접 입력 메시지는 설정되었다는 것만 적고 인용하지 않는다.  
+*테스트*: `test_diagnostics.py`
 
-**D7** get_status carries the compatibility summary as codes only and no install path. It does return the settings, including the Custom text and whether a codex_exe path is set (never the path), read-only, which is disclosed (amended by the owner on 2026-10-22).  
-*tested*: `test_mcp.py`, `test_compat_surfaces.py`
+**D6** 알림에는 최대 72자인 한 줄 표시 이름 최대 2개와 UUID를 담으며, 오류나 계정 글은 담지 않는다. 알림은 최대 3줄이고 XML 이스케이프한다. 카드는 토스트가 보여 주는 것을 보여 준다.  
+*테스트*: `test_notify.py`
 
-**D8** Values that reach PowerShell travel as environment variables to constant scripts. PowerShell is run by its full System32 path.  
-*tested*: `test_pwsh.py`, `test_gui_update.py`
+**D7** get_status는 호환성 요약을 코드로만 싣고, 설치 경로는 싣지 않는다. 설정은 돌려주며 직접 입력 글과 codex_exe 경로가 지정되어 있는지(경로 자체는 아님)도 읽기 전용으로 들어 있는데, 이 점은 밝혀 둔다(2026-10-22 소유자가 고침).  
+*테스트*: `test_mcp.py`, `test_compat_surfaces.py`
 
-**D9** Errors that reach a front end are static codes, and every refusal carries a code from one closed set.  
-*tested*: `test_control.py`, `test_mcp.py`
+**D8** PowerShell에 닿는 값은 환경 변수로 고정된 스크립트에 간다. PowerShell은 System32 전체 경로로 실행한다.  
+*테스트*: `test_pwsh.py`, `test_gui_update.py`
 
-**D10** Uninstall keeps settings and pending state by default. Purging is opt-in.  
-*tested*: `test_installer.py`
+**D9** 화면에 닿는 오류는 정적인 코드이며, 모든 거절은 닫힌 집합 하나의 코드를 단다.  
+*테스트*: `test_control.py`, `test_mcp.py`
 
-**D11** The repository and its evidence use synthetic UUIDs and placeholder homes only, and live evidence is content-free.  
-*tested*: `test_repo_hygiene.py`, `test_screenshots.py`, `test_live_evidence.py`
+**D10** 제거는 기본적으로 설정과 대기 중인 상태를 남긴다. 모두 지우는 것은 골라야 한다.  
+*테스트*: `test_installer.py`
 
-**D12** The language is never inferred from the IP, time zone, user name, country or keyboard layout. Only the first Windows UI language counts.  
-*code*
+**D11** 저장소와 증거는 합성한 UUID와 자리표시자 홈만 쓰고, 라이브 인수의 증거에는 내용이 없다.  
+*테스트*: `test_repo_hygiene.py`, `test_screenshots.py`, `test_live_evidence.py`
 
-**D13** Users are told never to paste credentials, conversations or unredacted logs into public issues.  
-*docs*
+**D12** 언어는 IP, 시간대, 사용자 이름, 국가, 키보드 배열로 추측하지 않는다. Windows UI 언어의 첫 번째만 센다.  
+*코드*
 
-## E. Failure behaviour
+**D13** 사용자에게 공개 이슈에 자격 증명, 대화, 가리지 않은 로그를 붙여넣지 말라고 안내한다.  
+*문서*
 
-**E1** The product fails closed: unknown loaded state, unknown usage, an unavailable probe, a missing projection table, corrupted state or a compatibility evaluation that could not run all mean waiting or refusing, never sending.  
-*tested*: `test_engine.py`, `test_compat_io.py`
+## E. 실패했을 때의 동작
 
-**E2** The product would rather miss a resume than resume twice.  
-*docs*
+**E1** 제품은 실패하면 닫힌다: 알 수 없는 로드 상태, 알 수 없는 사용량, 쓸 수 없는 확인, 없는 투영 테이블, 손상된 상태, 돌리지 못한 호환성 평가는 모두 기다리거나 거절하는 것이지, 보내는 것이 아니다.  
+*테스트*: `test_engine.py`, `test_compat_io.py`
 
-**E3** A corrupt, empty, symlinked or malformed state, a newer schema or an unknown record state fails closed and is never reset. Migration runs only under the watcher mutex, after a forensic copy, in one transaction.  
-*tested*: `test_store.py`
+**E2** 제품은 두 번 이어 가느니 한 번 놓친다.  
+*문서*
 
-**E4** While an older watcher still owns an older schema, only actions that reduce automation work.  
-*tested*: `test_control_v3.py`
+**E3** 손상되었거나 비었거나 심볼릭 링크이거나 형식이 틀린 상태, 더 새로운 스키마, 알 수 없는 레코드 상태는 닫힌 채 실패하며 초기화하지 않는다. 마이그레이션은 워처 뮤텍스 아래에서, 포렌식 사본을 만든 뒤, 트랜잭션 하나로만 한다.  
+*테스트*: `test_store.py`
 
-**E5** A malformed or oversized settings file reads as defaults. A wrong type is refused on write. A gate vector that does not decode reads UNKNOWN.  
-*tested*: `test_settings.py`, `test_control.py`
+**E4** 더 오래된 워처가 더 오래된 스키마를 여전히 쥐고 있는 동안에는 자동화를 줄이는 동작만 된다.  
+*테스트*: `test_control_v3.py`
 
-**E6** A turn that never finishes and produced nothing is outcome_unverified, never a success. One that produced progress before Codex closed or the PC restarted is recovered, as a failed one with progress is. Unreadable history never becomes "no progress".  
-*tested*: `test_outcomes.py`, `test_cut_off_turns.py`
+**E5** 형식이 틀렸거나 너무 큰 설정 파일은 기본값으로 읽는다. 틀린 형식은 쓸 때 거부한다. 풀 수 없는 관문 벡터는 UNKNOWN으로 읽는다.  
+*테스트*: `test_settings.py`, `test_control.py`
 
-**E7** Uninstall stops before removing anything, registrations included, unless the watcher is definitely not running. A process whose path cannot be read is skipped, never killed.  
-*tested*: `test_cli.py`
+**E6** 끝나지 않고 아무것도 해내지 못한 턴은 outcome_unverified이며 성공이 아니다. Codex가 닫히거나 PC가 다시 시작되기 전에 진행을 낸 턴은, 진행을 낸 뒤 실패한 턴처럼 복구됨이다. 읽을 수 없는 기록은 "진행 없음"이 되지 않는다.  
+*테스트*: `test_outcomes.py`, `test_cut_off_turns.py`
 
-**E8** Stopping the watcher is always a request. An upgrade waits up to a minute and never kills. Force ends this plugin's own MCP launchers (by path), its own short-lived Codex helpers, and a child the product itself started that overran its bound or did not bring the watcher up. (corrected to match the code on 2026-11-11)  
-*tested*: `test_control.py`, `test_installer.py`, `test_upgrade_handover.py`
+**E7** 제거는 워처가 확실히 돌고 있지 않은 것이 아니면, 등록을 포함해 무엇이든 지우기 전에 멈춘다. 경로를 읽을 수 없는 프로세스는 건너뛰고 끝내지 않는다.  
+*테스트*: `test_cli.py`
 
-**E9** Bootstrap runs nothing from the archive until every check passes, and any failure deletes the download. For an older version the state is converted only after the archive passed every check, while nothing from the archive has run yet (amended by the owner on 2026-10-03).  
-*tested*: `test_convergence.py`, `test_version_picker.py`
+**E8** 워처를 멈추는 것은 언제나 요청이다. 업그레이드는 최대 1분 기다리며 강제로 끝내지 않는다. 강제로 끝나는 것은 이 플러그인 자신의 MCP 실행기(경로로 확인), 자신의 짧게 사는 Codex 도우미, 그리고 제품이 직접 시작한 자식 가운데 제한 시간을 넘겼거나 워처를 띄우지 못한 것이다. (2026-11-11 코드에 맞게 바로잡음)  
+*테스트*: `test_control.py`, `test_installer.py`, `test_upgrade_handover.py`
 
-**E10** If the download fails, the skill stops. It uses no other source and no hand-assembled install.  
-*model*
+**E9** 부트스트랩은 모든 확인을 통과하기 전에는 압축 파일의 어떤 것도 실행하지 않으며, 어떤 실패든 내려받은 파일을 지운다. 오래된 버전을 위해 상태를 바꾸는 것은 압축 파일이 모든 확인을 통과한 뒤, 압축 파일의 어떤 것도 아직 실행하지 않았을 때로 한정된다(2026-10-03 소유자가 고침).  
+*테스트*: `test_convergence.py`, `test_version_picker.py`
 
-**E11** Notifications, the tray and the failure-seen file never decide or delay a recovery. The card falls back to the toast when unsure. Turning notifications off changes nothing.  
-*tested*: `test_notice_card.py`
+**E10** 다운로드가 실패하면 스킬은 멈춘다. 다른 출처도, 손으로 맞춘 설치도 쓰지 않는다.  
+*모델*
 
-**E12** A mutex, stop event or wake event planted by a lower-integrity process is refused. Taking over a running watcher's mutex is not covered, which is disclosed.  
-*tested*: `test_named_objects.py`
+**E11** 알림, 알림 영역 아이콘, 실패 확인 파일은 복구를 결정하거나 늦추지 않는다. 카드는 확실하지 않을 때 토스트로 물러선다. 알림을 꺼도 바뀌는 것은 없다.  
+*테스트*: `test_notice_card.py`
 
-**E13** An update check that could not ask never reads as "up to date". The check has four answers and four exit codes.  
-*tested*: `test_gui_update.py`
+**E12** 무결성이 더 낮은 프로세스가 심어 둔 뮤텍스, 멈춤 이벤트, 깨우기 이벤트는 거부한다. 실행 중인 워처의 뮤텍스를 가로채는 것은 다루지 않으며, 이 점은 밝혀 둔다.  
+*테스트*: `test_named_objects.py`
 
-**E14** A transient adapter, store or probe failure at logon defers the tick and never ends the watcher.  
-*tested*: `test_cli.py`
+**E13** 물어보지 못한 업데이트 확인은 "최신"으로 읽히지 않는다. 확인에는 답 네 가지와 종료 코드 네 가지가 있다.  
+*테스트*: `test_gui_update.py`
 
-## F. Footprint on the machine
+**E14** 로그온 때 어댑터, 상태 데이터베이스, 확인이 잠시 실패하면 그 틱을 미룰 뿐 워처를 끝내지 않는다.  
+*테스트*: `test_cli.py`
 
-**F1** The product needs no administrator rights and installs per user only. It adds no service, no scheduled task and nothing machine-wide.  
-*tested*: `test_installer.py`
+## F. 컴퓨터에 남기는 흔적
 
-**F2** Every registry write is under HKCU. The writes are the Run value (only if chosen, removed only while it is ours), Software\Classes\codex-auto-resume, Software\Classes\AppUserModelId\CodexAutoResume.Watcher, and the one Software\Microsoft\Windows\CurrentVersion\Uninstall key that lists the installation in Add or remove programs. That key is CodexAutoResume, or CodexAutoResumeAdvanced for the advanced edition, never both. It is written only where the installer has kept an uninstaller for it to name, and replaced or removed only while it names this installation (amended by the owner on 2026-10-16).  
-*tested per key; code that no other key is written*: `test_cli.py`, `test_notify.py`, `test_plugin.py`, `test_add_remove.py`
+**F1** 제품은 관리자 권한이 필요 없고, 사용자 단위로만 설치한다. 서비스도 예약 작업도 컴퓨터 전체에 걸친 것도 더하지 않는다.  
+*테스트*: `test_installer.py`
 
-**F3** The product's own files are config/ and logs/ with a provenance marker, program files in the home (%USERPROFILE%\.codex-auto-resume, never AppData), a Start Menu shortcut, a Desktop shortcut only where a person asks for one, and diagnostics only where asked. The one place outside the installation directory is %LOCALAPPDATA%\codex-auto-resume\homes\: empty lock files, one per watched Codex home, named by a hash of its path (and one by the folder's identity). Uninstall -Purge removes them, except those another installation holds (amended by the owner on 2026-11-05 and 2026-11-13).  
-*tested*: `test_plugin.py`
+**F2** 레지스트리 쓰기는 모두 HKCU 아래다. 쓰는 것은 Run 값(고른 경우에만 쓰고, 우리 것일 때만 지움), Software\Classes\codex-auto-resume, Software\Classes\AppUserModelId\CodexAutoResume.Watcher, 그리고 설치를 설정 > 앱 목록에 올리는 Software\Microsoft\Windows\CurrentVersion\Uninstall 아래 키 하나다. 그 키는 표준판이 CodexAutoResume, 고급판이 CodexAutoResumeAdvanced이며 둘이 함께 있는 일은 없다. 설치 프로그램이 가리킬 제거 프로그램을 보관해 둔 경우에만 쓰고, 이 설치를 가리킬 때만 바꾸거나 지운다(2026-10-16 소유자가 고침).  
+*키마다 테스트; 다른 키를 쓰지 않는 것은 코드*: `test_cli.py`, `test_notify.py`, `test_plugin.py`, `test_add_remove.py`
 
-**F4** Paths are confined: an owned directory that is a link or resolves outside the home (NTFS junctions included) is refused.  
-*tested*: `test_cli.py`, `test_installer_ownership.py`
+**F3** 제품 자신의 파일은 출처 표시가 있는 config/와 logs/, 홈(%USERPROFILE%\.codex-auto-resume, AppData가 아님)의 프로그램 파일, 시작 메뉴 바로 가기, 사람이 요청한 경우에만 만드는 바탕 화면 바로 가기, 그리고 요청한 경우에만 쓰는 진단이다. 설치 폴더 밖의 유일한 자리는 %LOCALAPPDATA%\codex-auto-resume\homes\로, 감시하는 Codex 홈마다 하나씩 있는 빈 잠금 파일이며 경로의 해시로 이름을 짓는다(폴더 고유 식별자로 이름 지은 것도 하나 있다). Uninstall -Purge는 다른 설치본이 잡고 있는 것을 뺀 나머지를 지운다(2026-11-05, 2026-11-13 소유자가 고침).  
+*테스트*: `test_plugin.py`
 
-**F5** Nothing is destroyed without proven ownership. Per-user singletons are replaced by name and the marketplace is repointed without that proof, and both are disclosed.  
-*tested*: `test_installer_ownership.py`
+**F4** 경로는 가둔다: 링크이거나 홈 바깥으로 풀리는(NTFS 정션 포함) 소유 디렉터리는 거부한다.  
+*테스트*: `test_cli.py`, `test_installer_ownership.py`
 
-**F6** The processes the product starts are its own (the watcher, the settings window and the bundled Python behind them); codex app-server --stdio, codex queue, and the --version and queue --help probes; the codex plugin commands when it installs and uninstalls; and PowerShell by its full path with constant scripts. The Python code starts each as an argument list, and the C# programs give each one quoted command line. On a person's click the product also starts explorer.exe to show the logs folder, hands the guide link to the default browser, and starts a copy of its own setup program from a temporary folder to remove the installation. Inside another app's private view (the Codex app, Claude desktop), the Dashboard opens again through Explorer's ShellExecute, or through WMI's Win32_Process.Create where Explorer does not answer, and the installer the setup programs run and bootstrap's repair branch run again through WMI's Win32_Process.Create (since v0.6.17); what runs again is this product's own program (corrected to match the code on 2026-10-22; corrected to match the code on 2026-11-11; amended by the owner on 2026-11-13)  
-*tested*: `test_structural_invariants.py`, `test_pwsh.py`
+**F5** 소유가 증명되지 않은 것은 지우지 않는다. 사용자 단위의 단일 항목은 이름으로 바꾸고 마켓플레이스는 다시 가리키게 하는데, 이 둘은 그 증명 없이 하며 밝혀 둔다.  
+*테스트*: `test_installer_ownership.py`
 
-**F7** One instance runs, held by a per-user, per-state-directory mutex, a stop event and a per-Codex-home lock. A second watcher exits, the send gate requires the lock, and a second installation is refused.  
-*tested*: `test_engine.py`, `test_surface_properties.py`, `test_plugin.py`
+**F6** 제품이 시작하는 프로세스는 자기 것(워처, 설정 창, 그 뒤에서 도는 함께 들어 있는 Python), codex app-server --stdio, codex queue, --version과 queue --help 확인, 설치하고 제거할 때의 codex plugin 명령, 그리고 고정된 스크립트를 전체 경로로 실행하는 PowerShell이다. Python 코드는 각각을 인수 목록으로 시작하고, C# 프로그램은 각각에 따옴표로 묶은 명령줄 하나를 준다. 사람이 클릭하면 제품은 로그 폴더를 보여 주려고 explorer.exe를, 안내서 링크를 열려고 기본 브라우저를, 설치를 제거하려고 임시 폴더에 둔 자기 설치 마법사 사본을 시작하기도 한다. 다른 앱(Codex 앱, Claude 데스크톱)의 비공개 보기 안에서는 대시보드가 탐색기의 ShellExecute로 다시 열리고(탐색기가 답하지 않으면 WMI의 Win32_Process.Create로), 설치 마법사가 실행하는 설치 프로그램과 부트스트랩의 복구 갈래는 WMI의 Win32_Process.Create로 다시 실행된다. 다시 실행되는 것은 이 제품 자신의 프로그램이다(2026-10-22 코드에 맞게 바로잡음, 2026-11-11 코드에 맞게 바로잡음, 2026-11-13 소유자가 고침)  
+*테스트*: `test_structural_invariants.py`, `test_pwsh.py`
 
-**F8** The product has no resident helpers: one watcher process hosts the icon, popup and card, with no tray process, supervisor, service, web UI or second engine. Codex helpers are short-lived.  
-*tested partly*: `test_tray_popup.py`
+**F7** 인스턴스는 하나만 돈다. 사용자와 상태 디렉터리마다의 뮤텍스, 멈춤 이벤트, Codex 홈마다의 잠금이 이를 지킨다. 두 번째 워처는 끝나고, 전송 관문은 그 잠금을 요구하며, 두 번째 설치는 거부한다.  
+*테스트*: `test_engine.py`, `test_surface_properties.py`, `test_plugin.py`
 
-**F9** An upgrade or repair never switches recovery back on and never re-adds a removed sign-in entry (--keep-state). An older plugin never replaces a newer install without -Force.  
-*tested*: `test_installer.py`, `test_plugin.py`, `test_update_check.py`
+**F8** 제품에는 상주하는 도우미가 없다: 워처 프로세스 하나가 아이콘, 팝업, 카드를 모두 담고, 알림 영역 프로세스·감독 프로세스·서비스·웹 UI·두 번째 엔진이 없다. Codex 도우미는 짧게 산다.  
+*일부 테스트*: `test_tray_popup.py`
 
-**F10** The sign-in launcher starts this installation, this product's marketplace copy or the recorded copy. When it finds none of them, it starts nothing.  
-*tested*: `test_plugin.py`, `test_upgrade_handover.py`
+**F9** 업그레이드나 복구 설치는 복구를 다시 켜지 않고, 지운 로그인 항목을 다시 넣지 않는다(--keep-state). 더 오래된 플러그인은 -Force 없이 더 새로운 설치를 대체하지 않는다.  
+*테스트*: `test_installer.py`, `test_plugin.py`, `test_update_check.py`
 
-**F11** The skill runs bootstrap.ps1 only by its absolute path, after checking the manifest names this product.  
-*model*
+**F10** 로그인 실행기는 이 설치본, 이 제품의 마켓플레이스 사본, 또는 기록된 사본을 시작한다. 그 가운데 아무것도 찾지 못하면 아무것도 시작하지 않는다.  
+*테스트*: `test_plugin.py`, `test_upgrade_handover.py`
 
-**F12** An install is held by a named installer lock (including the bootstrap repair branch), a move-aside journal before the first move, rollback on failure, and the root claimed before the first write. State directories are never replaced.  
-*tested*: `test_installer.py`, `test_convergence.py`, `test_installer_ownership.py`
+**F11** 스킬은 매니페스트가 이 제품을 가리키는지 확인한 뒤, 절대 경로로만 bootstrap.ps1을 실행한다.  
+*모델*
 
-**F13** The product uses the standard library only, on the bundled Python. A system Python never sets up a second installation.  
-*tested partly*: `test_installer.py`, `test_layers.py`
+**F12** 설치는 이름 있는 설치 잠금(부트스트랩의 복구 분기 포함), 첫 이동 전에 쓰는 옮김 기록, 실패하면 되돌리기, 첫 쓰기 전에 루트를 차지하기로 지킨다. 상태 디렉터리는 바꾸지 않는다.  
+*테스트*: `test_installer.py`, `test_convergence.py`, `test_installer_ownership.py`
 
-**F14** The standard edition does not offer starting the watcher when Codex starts. A watcher started from inside Codex ends when Codex closes (measured on Codex 26.915), so the setting exists and is not offered. The advanced edition's start-with-Codex does it outside Codex's job, through WMI.  
-*tested*: `test_start_with_codex.py`, `test_settings.py`
+**F13** 제품은 함께 들어 있는 Python에서 표준 라이브러리만 쓴다. 시스템 Python으로는 두 번째 설치를 만들지 않는다.  
+*일부 테스트*: `test_installer.py`, `test_layers.py`
 
-**F15** The power action is the watcher's own call of SetSuspendState or ExitWindowsEx(EWX_POWEROFF) with no force flag, after enabling SeShutdownPrivilege on its own token. It offers no action to an account that does not hold that privilege. It starts no process, task or service, needs no administrator, changes no Windows setting and never shuts down while another person is signed in.  
-*tested*: `test_power_action_windows.py`
+**F14** 표준판은 Codex가 시작할 때 워처를 시작하는 것을 제공하지 않는다. Codex 안에서 시작한 워처는 Codex가 닫힐 때 끝나므로(Codex 26.915에서 측정), 설정은 있지만 제공하지 않는다. 고급판의 Codex와 함께 시작은 WMI를 통해 Codex의 작업 개체 바깥에서 이 일을 한다.  
+*테스트*: `test_start_with_codex.py`, `test_settings.py`
 
-## G. The Compatibility Registry's authority
+**F15** 전원 동작은 워처가 자기 토큰에서 SeShutdownPrivilege를 켠 뒤 직접 부르는 SetSuspendState 또는 강제 플래그 없는 ExitWindowsEx(EWX_POWEROFF)다. 그 권한이 없는 계정에는 어떤 동작도 제공하지 않는다. 프로세스, 작업, 서비스를 시작하지 않고, 관리자 권한이 필요 없으며, Windows 설정을 바꾸지 않고, 다른 사람이 로그인해 있는 동안에는 절대 시스템을 종료하지 않는다.  
+*테스트*: `test_power_action_windows.py`
 
-**G1** Data can only restrict. A failed local check always wins (INCOMPATIBLE, or FAILED_HERE where the data vouched for the version), and both block every send.  
-*tested*: `test_compat.py`, `test_compat_io.py`
+## G. 호환성 레지스트리의 권한
 
-**G2** Data may raise only a local PASS, only for an exact version, only to CHECKED or VERIFIED. That changes the word, not what is sent. Ranges only restrict.  
-*tested*: `test_compat.py`
+**G1** 데이터는 제한만 할 수 있다. 로컬 확인이 실패하면 언제나 그것이 이기며(INCOMPATIBLE, 또는 데이터가 그 버전을 보증했다면 FAILED_HERE), 둘 다 모든 전송을 막는다.  
+*테스트*: `test_compat.py`, `test_compat_io.py`
 
-**G3** The gate sends on verified, checked or structurally_compatible. failed_here and incompatible block. Anything else is UNKNOWN, which sends nothing, and a failing evaluation fails closed.  
-*tested*: `test_compat_io.py`
+**G2** 데이터가 올릴 수 있는 것은 로컬 PASS로 한정되고, 정확한 버전에만, CHECKED나 VERIFIED로만 올린다. 그것은 보내는 것이 아니라 표시되는 낱말을 바꾼다. 범위는 제한만 한다.  
+*테스트*: `test_compat.py`
 
-**G4** VERIFIED needs a cited evidence file recorded on that exact version from a real recovery that exercised the capability. CHECKED also needs evidence. URL citations are not accepted. The build refuses data the validator would refuse.  
-*tested*: `test_compat.py`
+**G3** 관문은 verified, checked, structurally_compatible이면 보낸다. failed_here와 incompatible은 막는다. 그 밖의 것은 UNKNOWN으로 아무것도 보내지 않으며, 실패한 평가는 닫힌 채 실패한다.  
+*테스트*: `test_compat_io.py`
 
-**G5** Every write of compat-cache.json goes through the validator (controlcli compat-import). The validator refuses the whole document for an unknown format, malformed content, over 256 KiB (checked before parsing), a duplicate key, a non-finite number, excessive depth, a trust-granting range, requires_signature, rollback, a date more than 1 day ahead, or a newer product. A refusal leaves the cache untouched.  
-*tested*: `test_compat.py`, `test_compat_io.py`
+**G4** VERIFIED에는 바로 그 버전에서, 그 기능을 실제로 거친 실제 복구로 기록한 증거 파일의 인용이 필요하다. CHECKED에도 증거가 필요하다. URL 인용은 받지 않는다. 빌드는 검증기가 거부할 데이터를 거부한다.  
+*테스트*: `test_compat.py`
 
-**G6** The cache is validated on every read. Expired or future-dated data keeps its restrictions and loses its trust. No clock lifts a restriction. A bad cache is ignored, never deleted.  
-*tested*: `test_compat.py`, `test_compat_io.py`
+**G5** compat-cache.json의 모든 쓰기는 검증기(controlcli compat-import)를 거친다. 검증기는 알 수 없는 형식, 형식이 틀린 내용, 256 KiB 초과(해석 전에 확인), 중복 키, 유한하지 않은 수, 지나친 깊이, 신뢰를 주는 범위, requires_signature, 되돌림, 하루보다 더 앞선 날짜, 더 새로운 제품이면 문서 전체를 거부한다. 거부하면 캐시는 그대로다.  
+*테스트*: `test_compat.py`, `test_compat_io.py`
 
-**G7** The watcher's report is bound to the executable (path digest, size, mtime). Readers refuse one that is damaged, stale or about a changed binary.  
-*tested*: `test_compat_io.py`
+**G6** 캐시는 읽을 때마다 검증한다. 만료되었거나 미래 날짜인 데이터는 제한은 그대로 두고 신뢰만 잃는다. 어떤 시계도 제한을 풀지 않는다. 잘못된 캐시는 무시할 뿐 지우지 않는다.  
+*테스트*: `test_compat.py`, `test_compat_io.py`
 
-**G8** Everything shown to a person or model is a closed-list code, never document text. MCP reads codes only and cannot refresh or import.  
-*tested*: `test_compat.py`, `test_compat_surfaces.py`
+**G7** 워처의 보고서는 실행 파일(경로 다이제스트, 크기, 수정 시각)에 묶인다. 읽는 쪽은 손상되었거나, 오래되었거나, 바뀐 바이너리에 대한 보고서를 거부한다.  
+*테스트*: `test_compat_io.py`
 
-**G9** Every installed release takes the newest data on main whole. Behaviour tests read a frozen copy.  
-*tested*: `frozen_registry.py`
+**G8** 사람이나 모델에게 보여 주는 것은 모두 닫힌 목록의 코드이며 문서의 글이 아니다. MCP는 코드만 읽고, 새로 고치거나 가져올 수 없다.  
+*테스트*: `test_compat.py`, `test_compat_surfaces.py`
 
-**G10** With the bundled data, the gate decides what it decided before the registry existed.  
-*tested*: `test_compat_characterization.py`
+**G9** 설치된 모든 릴리스는 main의 가장 새로운 데이터를 통째로 쓴다. 동작 테스트는 얼려 둔 사본을 읽는다.  
+*테스트*: `frozen_registry.py`
 
-**G11** The data is unsigned. The signature slot is reserved and requires_signature is refused. The bounded worst case is recovery stopping for one build.  
-*docs for the residual risk; tested for the refusal*: `test_compat.py`, `test_compat_io.py`
+**G10** 함께 들어 있는 데이터로는, 관문이 레지스트리가 생기기 전에 정하던 대로 정한다.  
+*테스트*: `test_compat_characterization.py`
 
-**G12** Capabilities without checks (empty-response, notLoaded, Goal, subagent) stay tier 'unsupported'.  
-*tested*: `test_compat.py`
+**G11** 데이터에는 서명이 없다. 서명 자리는 비워 두었고 requires_signature는 거부한다. 한정된 최악의 경우는 빌드 하나 동안 복구가 멈추는 것이다.  
+*남는 위험은 문서; 거부는 테스트*: `test_compat.py`, `test_compat_io.py`
 
-**G13** Reports from others are shown apart, never raise a version to Verified or Checked, and change nothing the product does. The standard edition sends nothing for them.  
-*tested*: `test_community_report.py`, `test_compat.py`, `test_compat_surfaces.py`
+**G12** 확인할 방법이 없는 기능(빈 응답, notLoaded, 목표, 하위 에이전트)은 'unsupported' 등급에 머문다.  
+*테스트*: `test_compat.py`
 
-## H. User control
+**G13** 다른 사람의 보고는 따로 보여 주고, 어떤 버전도 검증됨이나 점검됨으로 올리지 않으며, 제품이 하는 일을 아무것도 바꾸지 않는다. 표준판은 그것 때문에 아무것도 보내지 않는다.  
+*테스트*: `test_community_report.py`, `test_compat.py`, `test_compat_surfaces.py`
 
-**H1** The defaults are recovery on, every recoverable category ticked, notifications, card and icon on, the Standard message in the interface language, and sign-in start unless -NoStartup. A fresh state starts disabled until setup enables it.  
-*tested*: `test_settings.py`
+## H. 사용자의 제어
 
-**H2** Settings are policy only. No setting can retry unknown failures, resolve by title, resend an uncertain submission, force a send, skip revalidation or move an engine constant. Writes are strict: a bad value is refused, never clamped.  
-*tested*: `test_engine.py`, `test_settings.py`
+**H1** 기본값은 복구 켜짐, 복구할 수 있는 종류 모두 선택, 알림·카드·아이콘 켜짐, 화면 언어의 기본 메시지, -NoStartup이 없으면 로그인 때 시작이다. 새 상태는 설치가 켤 때까지 꺼진 채 시작한다.  
+*테스트*: `test_settings.py`
 
-**H3** Three surfaces write one settings file through one validator, and only the Dashboard writes the Custom text. update_settings does not offer the engine path, look-back, tray icon, Reduce motion, card, Design or Custom text, and refuses them even if the schema is ignored.  
-*tested*: `test_mcp.py`
+**H2** 설정은 정책에 한정된다. 어떤 설정도 알 수 없는 실패를 재시도하거나, 제목으로 찾거나, 불확실한 전송을 다시 보내거나, 전송을 강제하거나, 재확인을 건너뛰거나, 엔진 상수를 움직일 수 없다. 쓰기는 엄격해서, 범위 밖 값은 잘라 맞추지 않고 거부한다.  
+*테스트*: `test_engine.py`, `test_settings.py`
 
-**H4** Global pause is an immediate kill switch that keeps pending records. It withdraws a queued continuation. A confirmed withdrawal returns the record to waiting with its attempt back. A pause over an uncertain submission ends it final.  
-*tested*: `test_engine.py`, `test_pause_unknown.py`
+**H3** 세 화면이 검증기 하나를 거쳐 설정 파일 하나에 쓰며, 직접 입력 글은 대시보드만 쓴다. update_settings는 엔진 경로, 되돌아보기 기간, 알림 영역 아이콘, 움직임 줄이기, 카드, 디자인, 직접 입력 글을 제공하지 않으며, 스키마를 무시하고 보내도 거부한다.  
+*테스트*: `test_mcp.py`
 
-**H5** Switching a conversation off cancels what waits there, and a cancel is final. Re-enabling does not revive it, and budget restore refuses it.  
-*tested*: `test_engine.py`, `test_store.py`
+**H4** 전체 일시 정지는 곧바로 듣는 차단 스위치이며, 대기 중인 레코드는 남긴다. 큐에 들어간 이어서 하기는 회수한다. 회수가 확인되면 레코드는 시도를 돌려받고 대기로 돌아간다. 불확실한 전송 위에서 일시 정지하면 그 레코드는 최종으로 끝난다.  
+*테스트*: `test_engine.py`, `test_pause_unknown.py`
 
-**H6** Cancel always works, covers the whole chain, withdraws a still-queued item and never stops a running turn.  
-*tested*: `test_store.py`
+**H5** 대화를 끄면 거기서 기다리던 것이 취소되고, 취소는 최종이다. 다시 켜도 되살아나지 않고, 예산 되돌리기도 거부한다.  
+*테스트*: `test_engine.py`, `test_store.py`
 
-**H7** Doing nothing resumes a recovery. A setting can hold a recovery for the person in these cases: a conversation set to Ask me first or Only notify me; a project that Projects that may resume does not allow, or, under either list, one whose project cannot be read; a task the task-changed guard finds changed, set to Hold it for me; a conversation past the context-cost guard's Hold above; and what fell due during a sleep longer than Ask me after a sleep longer than. While Observe only is on, nothing is sent. Don't resume / Don't retry only cancels.  
-*tested*: `test_notify.py`, `test_postpone_and_tiers.py`, `test_observe_and_admission.py`, `test_ladder_and_guards.py`, `test_power.py`
+**H6** 취소는 언제나 되며, 체인 전체를 다루고, 아직 큐에 있는 항목을 회수하며, 진행 중인 턴을 멈추지는 않는다.  
+*테스트*: `test_store.py`
 
-**H8** MCP tools that add automation or cannot be undone carry destructiveHint (resume, enable_conversation, update_settings, restore_default_settings, cancel_recovery, reset_recovery_budget, start_watcher, release_hold, clear_recovery_history). pause, conversation-off, retry_now, postpone and turn_off_power_action are unmarked. This is a request, not a lock.  
-*tested*: `test_mcp.py`, `test_mcp_v3.py`, `test_postpone_and_tiers.py`
+**H7** 아무것도 하지 않으면 복구가 이어진다. 설정은 다음 경우에 복구를 사람에게 맡겨 둔다: '먼저 묻기'나 '알림만'으로 둔 대화, '이어 가도 되는 프로젝트'가 허용하지 않는 프로젝트나 목록 방식에서 프로젝트를 읽을 수 없는 작업, 작업 변경 보호를 '보류'로 두었을 때 바뀌었다고 본 작업, 컨텍스트 비용 보호의 '넘으면 보류' 기준을 넘은 대화, '이보다 오래 절전한 뒤에는 먼저 묻기'보다 긴 절전 동안 예정 시각이 된 것. '지켜보기만'이 켜져 있는 동안에는 아무것도 보내지 않는다. '재개하지 않음' / '다시 시도하지 않음'은 취소만 한다.  
+*테스트*: `test_notify.py`, `test_postpone_and_tiers.py`, `test_observe_and_admission.py`, `test_ladder_and_guards.py`, `test_power.py`
 
-**H9** If a marked tool is declined, the model does not run the matching command, never "forces" a resume, and does not work around a missing safety setting.  
-*model*
+**H8** 자동화를 더하거나 되돌릴 수 없는 MCP 도구에는 destructiveHint가 붙는다(resume, enable_conversation, update_settings, restore_default_settings, cancel_recovery, reset_recovery_budget, start_watcher, release_hold, clear_recovery_history). pause, 대화 끄기, retry_now, postpone, turn_off_power_action에는 붙지 않는다. 이것은 잠금이 아니라 요청이다.  
+*테스트*: `test_mcp.py`, `test_mcp_v3.py`, `test_postpone_and_tiers.py`
 
-**H10** Clear history only hides rows. Hidden rows count for every cap and duplicate check, and anything that may still change is never hidden.  
-*tested*: `test_store.py`
+**H9** 표시된 도구가 거절되면 모델은 그에 맞는 명령을 실행하지 않고, 재개를 "강제"하지 않으며, 없는 안전 설정을 우회하지 않는다.  
+*모델*
 
-**H11** Switch commands accept only real JSON booleans, so the string "false" never turns automation or the Run value on.  
-*tested*: `test_control.py`
+**H10** 기록 지우기는 행을 숨기기만 한다. 숨긴 행도 모든 상한과 중복 확인에 세며, 아직 바뀔 수 있는 것은 숨기지 않는다.  
+*테스트*: `test_store.py`
 
-**H12** Each recoverable category has its own switch, and a switched-off category is never recorded.  
-*tested*: `test_engine.py`
+**H11** 스위치 명령은 진짜 JSON 불리언만 받으므로, 문자열 "false"가 자동화나 Run 값을 켜는 일은 없다.  
+*테스트*: `test_control.py`
 
-**H13** An explicit interface-language choice wins over Windows and CODEX_AUTO_RESUME_LANG and survives restarts, repairs and updates. Motion stops under Reduce motion, Windows' animation setting, High Contrast, battery saver, a locked session and a closed overflow flyout (amended by the owner on 2026-10-22).  
-*tested*: `test_locale.py`, `test_tray_icon_motion.py`
+**H12** 복구할 수 있는 종류마다 스위치가 따로 있고, 꺼진 종류는 기록하지도 않는다.  
+*테스트*: `test_engine.py`
 
-**H14** The power action after usage-limit recoveries is off by default and armed only in the Dashboard, once or always. MCP, the icon and a notice may only turn it off or stop it for its batch, and a stop is honoured before anything else is looked at. It acts only when every usage-limit recovery of its batch has ended as the person chose, no recovery is open or followed, Codex's history has caught up, no Codex turn runs, no input is queued, nobody has used the PC for two minutes and a notice's countdown has run out. Anything it cannot read means it does nothing, and it sends nothing.  
-*tested*: `test_power_action.py`, `test_power_action_watcher.py`, `test_power_action_control.py`, `test_cli.py`
+**H13** 사람이 직접 고른 화면 언어는 Windows와 CODEX_AUTO_RESUME_LANG보다 우선하며, 다시 시작, 복구 설치, 업데이트 뒤에도 남는다. 움직임은 움직임 줄이기, Windows의 애니메이션 설정, 고대비, 배터리 절약, 잠긴 세션, 닫힌 넘침 플라이아웃에서 멈춘다(2026-10-22 소유자가 고침).  
+*테스트*: `test_locale.py`, `test_tray_icon_motion.py`
 
-## I. Release and supply chain
+**H14** 사용량 한도 복구 뒤의 전원 동작은 기본으로 꺼져 있고, 대시보드에서만 한 번 또는 항상으로 켠다. MCP, 아이콘, 알림은 그것을 끄거나 그 묶음에 한해 멈추는 것만 할 수 있으며, 멈춤은 다른 무엇을 보기 전에 먼저 따른다. 그 묶음의 모든 사용량 한도 복구가 사람이 고른 대로 끝났고, 열려 있거나 지켜보는 복구가 없고, Codex의 기록이 따라잡았고, Codex 턴이 돌지 않고, 대기 중인 입력이 없고, 2분 동안 아무도 PC를 쓰지 않았고, 알림의 카운트다운이 다 지났을 때만 동작한다. 읽을 수 없는 것이 하나라도 있으면 아무것도 하지 않으며, 아무것도 보내지 않는다.  
+*테스트*: `test_power_action.py`, `test_power_action_watcher.py`, `test_power_action_control.py`, `test_cli.py`
 
-**I1** Releases are built by Actions from the tagged commit, after the full suite. The tag equals the manifest's version. A pre-release tag (-alpha or -beta, then numbered: -alpha.2, -beta.2 and so on) publishes a GitHub pre-release that is never the latest release.  
-*tested*: `test_workflow_privilege.py`, `test_plugin.py`, `test_version_rule.py`
+## I. 릴리스와 공급망
 
-**I2** Two jobs are split by privilege. build has contents: read, does not persist its token, and runs repo code. publish runs no repo code and runs only on a tag push. A dispatch is a dry run. No expression is spliced into a run script.  
-*tested*: `test_workflow_privilege.py`, `test_convergence.py`
+**I1** 릴리스는 전체 테스트를 통과한 뒤, 태그가 달린 커밋에서 Actions가 빌드한다. 태그는 매니페스트의 버전과 같다. 사전 릴리스 태그(-alpha나 -beta, 그 뒤로 번호: -alpha.2, -beta.2 등)는 최신 릴리스가 되지 않는 GitHub 사전 릴리스로 공개한다.  
+*테스트*: `test_workflow_privilege.py`, `test_plugin.py`, `test_version_rule.py`
 
-**I3** Every Action is pinned to a full SHA, and Dependabot proposes but never auto-merges.  
-*tested*: `test_workflow_pins.py`
+**I2** 작업 둘을 권한에 따라 나눈다. build는 contents: read이고 토큰을 남겨 두지 않으며 저장소 코드를 실행한다. publish는 저장소 코드를 실행하지 않고 태그 push 때만 돈다. 수동 실행은 시험 실행이다. 실행 스크립트에 식을 끼워 넣지 않는다.  
+*테스트*: `test_workflow_privilege.py`, `test_convergence.py`
 
-**I4** A published version is never replaced. This is the workflow's rule, not GitHub immutability, which is disclosed.  
-*tested*: `test_convergence.py`
+**I3** 모든 Action은 전체 SHA로 고정하며, Dependabot은 제안만 하고 자동 병합하지 않는다.  
+*테스트*: `test_workflow_pins.py`
 
-**I5** Each released version's digest is pinned in scripts/release.json on main from the published file.  
-*tested*: `test_convergence.py`
+**I4** 공개한 버전은 바꾸지 않는다. 이것은 GitHub의 불변성이 아니라 워크플로의 규칙이며, 이 점은 밝혀 둔다.  
+*테스트*: `test_convergence.py`
 
-**I6** Bootstrap checks the SHA-256 against the pin, or against the sidecar where there is no pin, and says which. An unpinned -ArchivePath says "NOT checked". Before anything runs, it checks that the archive is this product at this version with no escaping entry. It never announces an unverified archive as verified.  
-*tested*: `test_convergence.py`
+**I5** 공개된 버전마다 그 다이제스트를, 공개된 파일에서 구해 main의 scripts/release.json에 고정한다.  
+*테스트*: `test_convergence.py`
 
-**I7** Every archive from v0.5.4 on has a build provenance attestation, and users are told how to verify it. The product itself never checks it.  
-*code*
+**I6** 부트스트랩은 SHA-256을 고정값과, 고정값이 없으면 옆에 놓인 파일과 비교하고 어느 쪽인지 말한다. 고정값 없는 -ArchivePath에는 "NOT checked"라고 말한다. 무엇이든 실행하기 전에 압축 파일이 이 버전의 이 제품이고 바깥으로 빠져나가는 항목이 없는지 확인한다. 확인하지 않은 압축 파일을 확인했다고 알리지 않는다.  
+*테스트*: `test_convergence.py`
 
-**I8** Executables are reproducible (normalised PE timestamp and MVID, built twice with a refusal if they differ). The archive is deterministic (listed files, sorted, fixed timestamps; build/, tests/, config/, logs/ and state excluded).  
-*tested*: `test_reproducible.py`, `test_surface_properties.py`
+**I7** v0.5.4 이후의 모든 압축 파일에는 빌드 출처 증명(attestation)이 있고, 사용자에게 확인하는 법을 알려 준다. 제품 자체는 그것을 확인하지 않는다.  
+*코드*
 
-**I9** Archive entries are checked in build, and the checksum again in publish. The required-entry list equals what installed bootstraps need.  
-*tested*: `test_convergence.py`, `test_installer.py`
+**I8** 실행 파일은 재현 가능하다(정규화한 PE 타임스탬프와 MVID, 두 번 빌드해 다르면 거부). 압축 파일은 결정적이다(목록에 있는 파일, 정렬, 고정 타임스탬프; build/, tests/, config/, logs/, 상태는 들어가지 않음).  
+*테스트*: `test_reproducible.py`, `test_surface_properties.py`
 
-**I10** The bundled Python is pinned by version and SHA-256.  
-*tested for the version; code for the SHA-256*: `test_python_support.py`
+**I9** 압축 파일의 항목은 build에서 확인하고, publish에서 체크섬을 다시 확인한다. 필수 항목 목록은 설치된 부트스트랩들이 필요로 하는 것과 같다.  
+*테스트*: `test_convergence.py`, `test_installer.py`
 
-**I11** The repository manifest declares only skills. The MCP server is added at build time beside its runtime.  
-*tested*: `test_plugin.py`
+**I10** 함께 들어 있는 Python은 버전과 SHA-256으로 고정한다.  
+*버전은 테스트; SHA-256은 코드*: `test_python_support.py`
 
-**I12** Updates never go to an older version without -Force, go only to a version resolved under this exact repository, and install with --keep-state. A pre-release the update check offers is installed only when the person says yes to that offer, and the check never offers one older than what is installed. A version a person picks by name with *Install another version...* and confirms, a pre-release too, older or newer, follows the first sentence: older only with -Force, the confirmation being the yes. A pre-release is checked against its published .sha256 (amended by the owner on 2026-09-28 and 2026-10-03).  
-*tested*: `test_update_check.py`, `test_prerelease_offer.py`
+**I11** 저장소의 매니페스트는 스킬만 선언한다. MCP 서버는 빌드 때 그 런타임 옆에 더한다.  
+*테스트*: `test_plugin.py`
 
-**I13** Nothing is Authenticode-signed, which is disclosed. Users are never asked to disable SmartScreen or Smart App Control.  
-*docs*
+**I12** 업데이트는 -Force 없이 더 오래된 버전으로 가지 않고, 정확히 이 저장소 아래에서 찾은 버전으로만 가며, --keep-state로 설치한다. 업데이트 확인이 권하는 사전 릴리스는 사람이 그 권유에 '예'라고 답해야 설치하며, 업데이트 확인은 설치된 것보다 오래된 사전 릴리스를 권하지 않는다. 사람이 *다른 버전 설치...*에서 이름으로 골라 확인한 버전은, 사전 릴리스든, 더 오래된 것이든 더 새로운 것이든, 첫 문장을 따른다. 더 오래된 것은 -Force로만 설치하며, 그 확인이 '예'다. 사전 릴리스는 공개된 .sha256과 비교해 확인한다(2026-09-28과 2026-10-03 소유자가 고침).  
+*테스트*: `test_update_check.py`, `test_prerelease_offer.py`
 
-**I14** A person runs the live acceptance before each release, and a release needs both halves.  
-*docs; not met for every release*
+**I13** 어떤 것도 Authenticode 서명이 없으며 이 점은 밝혀 둔다. 사용자에게 SmartScreen이나 스마트 앱 컨트롤을 끄라고 하지 않는다.  
+*문서*
 
-**I15** Safety scans read the whole package through one scanner, imports point down or sideways, and module size ceilings only shrink.  
-*tested*: `srcscan.py`, `test_layers.py`, `test_sizes.py`
+**I14** 릴리스 전마다 사람이 라이브 인수를 하며, 릴리스에는 두 절반이 모두 있어야 한다.  
+*문서; 모든 릴리스에서 지켜지지는 않았음*
 
-**I16** English text changes reach every catalog or are marked reviewed. The Korean docs claim nothing the English do not. Every release keeps its changelog section.  
-*tested*: `test_korean.py`, `test_privacy_claims.py`
+**I15** 안전 검사는 스캐너 하나로 패키지 전체를 읽고, import는 아래나 옆으로만 향하며, 모듈 크기 상한은 줄어들기만 한다.  
+*테스트*: `srcscan.py`, `test_layers.py`, `test_sizes.py`
 
-**I17** A user-visible fix ships with its regression test, and a safety change with a test that fails without it. The repository's history is not rewritten. It was rewritten once, on 2026-09-27, to remove personal data from every commit.  
-*docs*
+**I16** 영어 글이 바뀌면 모든 카탈로그에 반영하거나 검토했다고 표시한다. 한국어 문서는 영어 문서가 말하지 않는 것을 주장하지 않는다. 모든 릴리스는 변경 이력의 자기 절을 유지한다.  
+*테스트*: `test_korean.py`, `test_privacy_claims.py`
 
-## J. Presentation rules that are promises
+**I17** 사용자가 보는 수정에는 회귀 테스트가, 안전에 관한 변경에는 그것이 없으면 실패하는 테스트가 함께 간다. 저장소의 역사는 다시 쓰지 않는다. 2026-09-27에 모든 커밋에서 개인정보를 지우려고 한 번 다시 썼다.  
+*문서*
 
-**J1** Evidence levels are claimed only as earned. They form a closed set, every cited test exists, no row reads REAL CODEX VISUALLY TESTED, and PUBLISHED appears only where the published bytes were driven again.  
-*tested for form only; the truth and the PUBLISHED rule are docs*: `test_feature_matrix.py`
+## J. 약속이 되는 표현 규칙
 
-**J2** Screenshots come from a generator and synthetic data, are never edited by hand, are not evidence of a recovery, and are regenerated when their inputs change.  
-*tested*: `test_screenshots.py`
+**J1** 증거 등급은 얻은 만큼만 주장한다. 등급은 닫힌 집합이고, 인용한 테스트는 모두 존재하며, REAL CODEX VISUALLY TESTED 행은 없고, PUBLISHED는 공개된 바이트를 다시 돌려 본 곳에만 쓴다.  
+*형식만 테스트; 내용의 참과 PUBLISHED 규칙은 문서*: `test_feature_matrix.py`
 
-**J3** No network claim stands without a qualifier. PRIVACY names GitHub and its third parties. The README privacy row admits the download.  
-*tested*: `test_privacy_claims.py`
+**J2** 스크린샷은 생성기와 합성 데이터로 만들고, 손으로 고치지 않으며, 복구의 증거가 아니고, 입력이 바뀌면 다시 만든다.  
+*테스트*: `test_screenshots.py`
 
-**J4** The roadmap is a direction, not a promise. Limitations are stated up front: the conversation has to be loaded, and the real-world evidence is one run.  
-*docs*
+**J3** 네트워크에 관한 주장은 한정어 없이 두지 않는다. PRIVACY는 GitHub와 그 제3자를 밝힌다. README의 개인정보 행은 내려받기를 인정한다.  
+*테스트*: `test_privacy_claims.py`
 
-**J5** In live acceptance an empty directory is not a pass, a usage limit is never faked and state is never edited, every click is a person's, and the validator checks shape, not truth.  
-*tested for shape only*: `test_live_evidence.py`
+**J4** 로드맵은 약속이 아니라 방향이다. 한계는 먼저 밝힌다: 대화가 로드되어 있어야 하고, 실제 환경의 증거는 실행 한 번이다.  
+*문서*
 
-**J6** Approval prompts are never claimed.  
-*docs*
+**J5** 라이브 인수에서 빈 디렉터리는 통과가 아니고, 사용량 한도를 꾸며 내거나 상태를 고치지 않으며, 모든 클릭은 사람이 하고, 검증기는 참이 아니라 형태를 확인한다.  
+*형식만 테스트*: `test_live_evidence.py`
 
-**J7** States are never overstated. A public status is a pure function of the record, never of a setting. failed is final, never "retrying". Overlays apply only to unsent records. unknown never reads as running. outcome_unverified is not a success. "recovered" is used only when our own turn produced progress.  
-*tested; the SKILL.md parts are model*: `test_labels_v3.py`, `test_outcomes.py`, `test_control.py`, `test_engine.py`
+**J6** 승인 프롬프트가 뜬다고 주장하지 않는다.  
+*문서*
 
-**J8** Statistics count one final outcome per record, include hidden rows, and show no success rate below five outcomes.  
-*tested*: `test_store.py`
+**J7** 상태를 부풀려 말하지 않는다. 공개 상태는 설정이 아니라 레코드의 순수 함수다. failed는 최종이며 "재시도 중"이 아니다. 덧씌우는 표시는 보내지 않은 레코드에만 쓴다. 알 수 없음은 실행 중으로 읽히지 않는다. outcome_unverified는 성공이 아니다. "복구됨"은 우리 턴이 진행을 만들었을 때만 쓴다.  
+*테스트; SKILL.md 부분은 모델*: `test_labels_v3.py`, `test_outcomes.py`, `test_control.py`, `test_engine.py`
 
-**J9** An uncertain submission is reported as uncertain, each notification is raised once, and a record born stopped is announced as stopped.  
-*tested*: `test_engine.py`, `test_notice_card.py`
+**J8** 통계는 레코드마다 최종 결과 하나를 세고, 숨긴 행을 포함하며, 결과가 다섯 개 미만이면 성공률을 보이지 않는다.  
+*테스트*: `test_store.py`
 
-**J10** The countdown only means the watcher looks again. Retry now and budget restore replies keep the "every check still applies" caveat.  
-*tested*: `test_tray_popup.py`, `test_control.py`, `test_mcp.py`
+**J9** 불확실한 전송은 불확실하다고 알리고, 알림은 하나마다 한 번 띄우며, 멈춘 채 만들어진 레코드는 멈췄다고 알린다.  
+*테스트*: `test_engine.py`, `test_notice_card.py`
 
-**J11** The model reports only what the command printed, never states a digest itself, and says "removed completely" only after all four steps.  
-*model*
+**J10** 카운트다운은 워처가 다시 본다는 뜻으로 한정된다. 지금 다시 확인과 예산 되돌리기의 답에는 "모든 확인은 그대로 적용된다"는 단서가 남는다.  
+*테스트*: `test_tray_popup.py`, `test_control.py`, `test_mcp.py`
 
-**J12** No colour appears without a word. Contrast is 7:1 for text, 4.5:1 for secondary text and accent, and 3:1 for the focus ring.  
-*tested for contrast; docs for the rest*: `test_brand.py`, `test_focus_rings.py`
+**J11** 모델은 명령이 출력한 것만 전하고, 다이제스트를 스스로 말하지 않으며, 네 단계를 모두 마친 뒤에만 "완전히 제거했다"고 말한다.  
+*모델*
 
-**J13** The compatibility words verified, checked and compatible send alike. Failed here and incompatible block. Unknown is never shown as compatible. Every surface says the gate's word.  
-*tested*: `test_compat_surfaces.py`
+**J12** 낱말 없이 색만 쓰지 않는다. 대비는 글자 7:1, 보조 글자와 강조색 4.5:1, 포커스 테두리 3:1이다.  
+*대비는 테스트; 나머지는 문서*: `test_brand.py`, `test_focus_rings.py`
 
-**J14** The icon stays red until the failure is seen. It goes red only for a certain, unhidden, unseen failure after which nothing started: a failed recovery, one whose attempts ran out, or one handed over to the person. The seen time only moves forward. A sending whose arrival or outcome cannot be confirmed asks for attention instead (amended by the owner on 2026-10-29).
-*tested*: `test_failure_seen.py`
+**J13** 호환성 낱말 검증됨, 점검됨, 호환됨은 똑같이 보낸다. 이 PC에서 실패와 호환되지 않음은 막는다. 알 수 없음은 호환됨으로 보이지 않는다. 모든 화면이 관문의 낱말을 쓴다.  
+*테스트*: `test_compat_surfaces.py`
 
-## K. The advanced edition's own rules
+**J14** 아이콘은 실패를 볼 때까지 빨갛다. 확실하고, 숨기지 않았고, 아직 보지 않은 실패로 그 뒤에 아무것도 시작하지 않았을 때만 빨갛게 되며, 그 실패는 실패한 복구, 시도가 다 떨어진 복구, 사람에게 넘긴 복구다. 본 시각은 앞으로만 움직인다. 도착이나 결과를 확인할 수 없는 보내기는 대신 확인이 필요하다고 알린다(2026-10-29 소유자가 고침).
+*테스트*: `test_failure_seen.py`
 
-**K1** The standard edition's archive and setup program hold no advanced code. The archive is built from trees that do not name advanced/. build/edition_audit.py proves it from the two archives' and the two setup programs' bytes in every release build, before anything is kept. No advanced path, file, name or marker is in any entry, a text file, a binary or a zip inside the zip. The standard archive built again from `git archive` with advanced/ deleted is the same file. Every standard entry is in the advanced archive unchanged, with two differences: the settings window, which each edition builds for itself, and the manifest's display name. The publish job checks the listings again.  
-*tested*: `build/edition_audit.py`, `test_edition_audit.py`, `test_edition_build.py`, `test_edition.py`
+## K. 고급판 자체의 기준
 
-**K2** Updates stay within an edition. An update, and a pre-release the update check offers, fetch the installed edition's archive and check it against the digest the installed copy pins for that edition and version where it has one, and otherwise against the .sha256 published beside it (today every pre-release and every advanced archive). A bootstrap or installer that meets the other edition refuses before anything moves unless the change was asked for and confirmed, and says it first. A change of edition is a reinstall that keeps settings and pending recoveries and starts every advanced capability off. Installing the same edition again over the state an uninstall kept is not a change of edition: like an update, it keeps what is on, what is kept on and every choice. After an uninstall that kept the data, the same edition installed again keeps the advanced edition's choices. Two events turn every capability off: entering the advanced edition from the standard edition, and installing it over advanced state that no uninstall of the advanced edition left (amended by the owner on 2026-10-18).  
-*tested*: `test_edition_bootstrap.py`, `test_edition_installer.py`, `test_prerelease_offer.py`
-<!-- K2 amended at the owner's word, 2026-10-18: "같은 판 재설치는 그대로 유지" -->
+**K1** 표준판의 압축 파일과 설치 마법사에는 고급판 코드가 없다. 압축 파일은 advanced/를 넣지 않은 트리들로 만든다. build/edition_audit.py가 릴리스를 빌드할 때마다, 무엇이든 남기기 전에 두 압축 파일과 두 설치 마법사의 바이트로 이를 증명한다. 어떤 항목, 글 파일, 바이너리, zip 안의 zip에도 고급판의 경로, 파일, 이름, 표시가 없다. advanced/를 지운 `git archive`로 다시 만든 표준판 압축 파일은 같은 파일이다. 표준판의 모든 항목은 고급판 압축 파일에 바뀌지 않은 채 들어 있으며, 차이는 둘이다: 판마다 따로 빌드하는 설정 창과 매니페스트의 표시 이름. publish 작업은 목록을 다시 확인한다.  
+*테스트*: `build/edition_audit.py`, `test_edition_audit.py`, `test_edition_build.py`, `test_edition.py`
 
-**K3** Arming happens only in the Dashboard. Arming.arm accepts the Dashboard as its actor and refuses every other. It takes one capability at a time, or one together with the capabilities it requires that are not on, in the same confirmation, with every statement involved shown and each confirmed as a single capability is, and a policy on any of them refuses the whole. It needs the statement revision, the generation, the warnings and, for on, the Codex version the Dashboard showed, each still holding. Turning a required capability off turns off first what requires it, and a capability whose requirement is not on is off. Every other surface (MCP, the icon, a card) may only turn capabilities off. No MCP tool arms, whatever a client sends, and the one-shot bridge never reaches the plug. A capability that needs another turns it on in the same confirmation, and turning the needed one off turns off what needs it, named first (amended by the owner on 2026-10-15).  
-*tested*: `test_advanced_arming.py`, `test_advanced_surfaces.py`
-<!-- K3 amended at the owner's word, 2026-10-15: "다른 기능도 같이 켜져야 하거나 켜지게 하는 경우 있으면 둘 다 켜지게" -->
+**K2** 업데이트는 판 안에 머문다. 업데이트와 업데이트 확인이 권하는 사전 릴리스는 설치된 판의 압축 파일을 가져와, 설치본이 그 판과 그 버전에 고정한 다이제스트가 있으면 그것과, 없으면 옆에 공개된 .sha256과 비교한다(지금은 모든 사전 릴리스와 모든 고급판 압축 파일이 그렇다). 다른 판을 만난 부트스트랩이나 설치 프로그램은, 그 전환을 요청하고 확인한 것이 아니면 무엇이든 옮기기 전에 거부하고, 먼저 그렇다고 말한다. 판을 바꾸는 것은 설정과 대기 중인 복구를 그대로 두고 모든 고급 기능을 끈 채 시작하는 재설치다. 제거할 때 남겨 둔 상태 위에 같은 판을 다시 설치하는 것은 판을 바꾸는 것이 아니다. 업데이트처럼 켜 둔 기능, 켜 둔 채로 두기, 모든 선택을 그대로 둔다. 데이터를 남기고 제거한 뒤 같은 판을 다시 설치하면 고급판의 선택이 그대로 남는다. 모든 기능을 끄는 일은 둘이다: 표준판에서 고급판으로 들어오는 것과, 고급판의 제거가 남긴 것이 아닌 고급 상태 위에 설치하는 것 (2026-10-18 소유자가 고침).  
+*테스트*: `test_edition_bootstrap.py`, `test_edition_installer.py`, `test_prerelease_offer.py`
+<!-- K2는 소유자의 말로 개정했습니다(2026-10-18): "같은 판 재설치는 그대로 유지" -->
 
-**K4** A capability is off by default, and it is advanced because it departs. Every capability starts off, entering the edition turns every one off, and a watched one never promotes itself. departs_from is never empty, and every id in it is a standard the standard edition keeps (0.1-0.7, A-J), so a capability that keeps every standard belongs in the standard edition.  
-*tested*: `test_advanced_arming.py`, `test_advanced_registry.py`
+**K3** 켜는 것은 대시보드에서만 한다. Arming.arm은 대시보드를 주체로 받고 다른 모든 주체를 거부한다. 기능을 한 번에 하나씩, 또는 한 기능과 그 기능이 필요로 하는데 꺼져 있는 기능들을 같은 확인 한 번으로 받으며, 이때 관련된 설명을 모두 보여 주고 각 기능을 하나만 켤 때처럼 확인하고, 그중 하나라도 정책이 거부하면 전체를 거부한다. 설명의 개정 번호, 세대, 경고, 그리고 켤 때는 대시보드가 보여 준 Codex 버전이 필요하고, 그 하나하나가 여전히 맞아야 한다. 필요로 하는 기능을 끄면 그것을 필요로 하는 기능이 먼저 꺼지고, 필요로 하는 기능이 켜져 있지 않은 기능은 꺼진 것이다. 다른 모든 화면(MCP, 아이콘, 카드)은 기능을 끄는 것만 할 수 있다. 클라이언트가 무엇을 보내든 켜는 MCP 도구는 없으며, 한 번 쓰고 끝나는 브리지는 플러그에 닿지 않는다. 다른 기능이 필요한 기능은 같은 확인 한 번으로 그 기능도 켜고, 필요한 기능을 끄면 그것을 필요로 하는 기능을 먼저 이름을 밝혀 끈다 (2026-10-15 소유자가 고침).  
+*테스트*: `test_advanced_arming.py`, `test_advanced_surfaces.py`
+<!-- K3은 소유자의 말로 개정했습니다(2026-10-15): "다른 기능도 같이 켜져야 하거나 켜지게 하는 경우 있으면 둘 다 켜지게" -->
 
-**K5** Pause and consent precede every send. While paused no capability sends to Codex or starts Codex; answering what a person asks or directly tells it is not a send. Core puts a send to the plug only after the consent gate. A conversation switched off or a cancelled record is never put to it. A pause that commits after the pre-send look stops a route or channel at the launch guard. A pause stops start-with-Codex before any WMI create and a compatibility report before it asks GitHub anything. Every gate, the durable claim and the pre-send look stay core's (amended by the owner on 2026-11-10).  
-*tested*: `test_plug_points.py`, `test_paused_residents.py`, `test_advanced_start_with_codex.py`, `test_advanced_marker_free.py`, `test_advanced_goal.py`, `test_advanced_report.py`
+**K4** 기능은 기본으로 꺼져 있고, 벗어나기 때문에 고급판이다. 모든 기능은 꺼진 채 시작하고, 이 판으로 들어오면 모두 꺼지며, 지켜보는 기능이 스스로 켜짐으로 올라가지 않는다. departs_from은 비어 있지 않고, 거기 적힌 id는 모두 표준판이 지키는 기준(0.1-0.7, A-J)이므로, 모든 기준을 지키는 기능은 표준판에 속한다.  
+*테스트*: `test_advanced_arming.py`, `test_advanced_registry.py`
 
-**K6** A failed measurement is a warning the person confirms, and only policy keys refuse. A measurement a route rests on that failed or has no pass for the Codex in force, a grade of FAILED_HERE, INCOMPATIBLE or UNKNOWN, or no Codex version known is shown in the statement and confirmed by arming, never a refusal. What refuses is ForbidAdvanced, AllowedCapabilities and ForceShadow (for on) under Software\Policies\CodexAutoResume, HKLM and HKCU, read and never written. Together they read as the stricter, and as the strictest where unreadable (the owner, 2026-09-26, replacing decision C7).  
-*tested*: `test_advanced_arming.py`, `test_advanced_goal.py`, `test_advanced_marker_free.py`
+**K5** 일시 정지와 동의가 모든 전송보다 먼저다. 멈춘 동안 어떤 기능도 Codex로 보내거나 Codex를 시작하지 않는다. 사람이 물어보거나 직접 시킨 것에 답하는 것은 전송이 아니다. 코어는 동의 관문을 지난 뒤에만 플러그에 전송을 맡긴다. 꺼진 대화나 취소된 레코드는 넘기지 않는다. 전송 직전 확인 뒤에 확정된 일시 정지는 실행 보호 장치(launch guard)에서 경로나 채널을 멈춘다. 일시 정지는 WMI로 무엇을 만들기 전에 Codex와 함께 시작을 멈추고, GitHub에 무엇이든 묻기 전에 호환성 보고서를 멈춘다. 모든 관문, 영속하는 선점, 전송 직전 확인은 코어의 것으로 남는다(2026-11-10 소유자가 고침).  
+*테스트*: `test_plug_points.py`, `test_paused_residents.py`, `test_advanced_start_with_codex.py`, `test_advanced_marker_free.py`, `test_advanced_goal.py`, `test_advanced_report.py`
 
-**K7** Tripwires switch a capability off, and re-arming is always possible. Five events turn one off: a new statement revision; a warning the person did not confirm that says what it stands on went wrong (failed here, a local check failed, incompatible, a measurement failed); one of its hooks raising; a send it paid for gone submission_unknown; and, for one that is on, a new Codex version. Whatever turned it off, the Dashboard can turn it on again with the statement as it then reads. A capability kept on (K8) is not turned off by these five. A resent continuation found twice turns off what sent it again: the once-more capability, or Keep on's Send again (amended by the owner on 2026-10-03).  
-*tested*: `test_advanced_arming.py`, `test_advanced_goal.py`, `test_advanced_marker_free.py`, `test_advanced_keep_on.py`, `test_advanced_once_more.py`
+**K6** 실패한 측정은 사람이 확인하는 경고이며, 거부는 정책 키가 한다. 경로가 기대는 측정이 실패했거나 지금의 Codex에서 통과한 적이 없는 것, FAILED_HERE, INCOMPATIBLE, UNKNOWN 등급, 알 수 없는 Codex 버전은 설명에 보이고 켜면서 확인하는 것이지, 거부가 아니다. 거부하는 것은 HKLM과 HKCU의 Software\Policies\CodexAutoResume 아래 ForbidAdvanced, AllowedCapabilities, ForceShadow(켜기에 대해)이며, 읽기만 하고 쓰지 않는다. 둘을 합치면 더 엄격한 쪽이고, 읽을 수 없으면 가장 엄격하게 본다(2026-09-26 소유자가 결정 C7을 대신해 정함).  
+*테스트*: `test_advanced_arming.py`, `test_advanced_goal.py`, `test_advanced_marker_free.py`
 
-**K8** Keep on is set per capability and is off by default. It is set only in the Dashboard, for a capability that is on or watched, after its warning. Send again is set only with it, after its own warning. Kept on, K7's five are shown and do not turn the capability off: a new revision, an unconfirmed warning and a new Codex version are noted; a hook that raises costs that one record; a paid send gone submission_unknown is held as core holds one, or with Send again is sent once more under the once-more rules. A Codex version or a grade that cannot be read still holds it back (E1). Each is noted once, the most serious kept, until the person confirms again. The person's off, from any surface, always works and clears Keep on. The ceilings stay. ForbidAdvanced, AllowedCapabilities and ForceShadow read Keep on down first, and Send again applies only where AllowedCapabilities also admits the once-more capability (the owner, 2026-10-03).  
-*tested*: `test_advanced_keep_on.py`
+**K7** 안전선(tripwire)은 기능을 끄며, 다시 켜는 것은 언제나 된다. 기능을 끄는 일은 다섯 가지다: 설명의 새 개정, 사람이 확인하지 않은 경고 가운데 기능이 기대는 것이 잘못되었다고 말하는 것(이 PC에서 실패, 로컬 확인 실패, 호환되지 않음, 측정 실패), 기능의 훅이 예외를 내는 것, 기능이 맡아 보낸 전송이 submission_unknown이 되는 것, 그리고 켜진 기능이라면 새 Codex 버전. 무엇이 껐든, 대시보드는 그때 읽히는 설명으로 기능을 다시 켤 수 있다. 켜 둔 채로 두는 기능(K8)은 이 다섯 가지로 꺼지지 않는다. 다시 보낸 이어서 하기 메시지가 두 번 발견되면 그것을 다시 보낸 쪽이 꺼진다. 한 번 더 보내기 기능이거나, 켜 둔 채로 두기의 다시 보내기다 (2026-10-03 소유자가 고침).  
+*테스트*: `test_advanced_arming.py`, `test_advanced_goal.py`, `test_advanced_marker_free.py`, `test_advanced_keep_on.py`, `test_advanced_once_more.py`
+
+**K8** 켜 둔 채로 두기는 기능마다 따로이며 기본은 꺼져 있다. 켜져 있거나 지켜보는 중인 기능에 대해 그 경고를 본 뒤 대시보드에서만 설정한다. 다시 보내기는 이 설정과 함께일 때만, 그 자체의 경고를 본 뒤 설정한다. 켜 둔 채로 두면 K7의 다섯 가지는 보이기만 하고 기능을 끄지 않는다. 새 개정, 확인하지 않은 경고, 새 Codex 버전은 기록되고, 예외를 내는 훅은 그 기록 하나만 건너뛰게 하며, 기능이 맡아 보낸 전송이 submission_unknown이 되면 코어가 그런 전송을 붙들어 두듯 붙들어 두거나, 다시 보내기가 켜져 있으면 한 번 더 보내기의 규칙에 따라 한 번 더 보낸다. 읽을 수 없는 Codex 버전이나 등급은 여전히 기능을 멈춰 둔다(E1). 각각은 한 번 기록되고 가장 심각한 것이 남으며, 사람이 다시 확인할 때까지 그대로다. 어느 화면에서든 사람이 끄면 언제나 꺼지고 이 설정도 지워진다. 상한은 그대로다. ForbidAdvanced, AllowedCapabilities, ForceShadow가 먼저 이 설정을 낮춰 읽고, 다시 보내기는 AllowedCapabilities가 한 번 더 보내기 기능도 허용할 때만 된다(2026-10-03 소유자).  
+*테스트*: `test_advanced_keep_on.py`
