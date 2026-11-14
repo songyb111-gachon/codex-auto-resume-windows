@@ -240,6 +240,11 @@ namespace CodexAutoResume
             outMap["click_made"] = (double)(after[0] - before[0]);
             outMap["click_windows"] = (double)(after[1] - before[1]);
             outMap["page_after_click"] = form.currentPage;
+            // The owner (2026-11-14): the pressed tab chosen in the click's own turn, the one left not.
+            outMap["tab_chosen_in_click"] = form.navButtons["settings"].Current && !form.navButtons["overview"].Current;
+            outMap["tab_accessible_selected"] =
+                (form.navButtons["settings"].AccessibilityObject.State & AccessibleStates.Selected) != 0 &&
+                (form.navButtons["overview"].AccessibilityObject.State & AccessibleStates.Selected) == 0;
             int[] turns = Turns(form, 3000, delegate { return form.currentPage == "settings"; });
             outMap["turns"] = (double)turns[0];
             outMap["most_made_in_a_turn"] = (double)turns[1];
@@ -286,6 +291,7 @@ namespace CodexAutoResume
             outMap["dropped_waiting"] = form.currentPage;
             form.navButtons["history"].PerformClick();
             outMap["dropped_page_after"] = form.currentPage;
+            outMap["dropped_tab"] = form.navButtons["history"].Current && !form.navButtons["settings"].Current;
             Turns(form, 400, delegate { return false; });
             outMap["dropped_page_later"] = form.currentPage;
             frame.Close();
@@ -413,6 +419,10 @@ class PressedTests(unittest.TestCase):
         self.assertEqual(self.answer["click_windows"], 0, "native windows made in the click")
         self.assertEqual(self.answer["page_after_click"], "overview")
 
+    def test_the_pressed_tab_is_chosen_in_the_click_and_said_so(self):
+        self.assertTrue(self.answer["tab_chosen_in_click"], "the old tab stayed chosen until the page was ready")
+        self.assertTrue(self.answer["tab_accessible_selected"], "a screen reader was not told the pressed tab is selected")
+
     def test_it_is_made_ready_a_step_a_turn_and_then_shown(self):
         self.assertEqual(self.answer["shown"], "settings")
         self.assertTrue(self.answer["visible"])
@@ -454,6 +464,7 @@ class PressedTests(unittest.TestCase):
     def test_another_page_pressed_meanwhile_is_shown_and_settings_is_not(self):
         self.assertEqual(self.answer["dropped_waiting"], "overview", "Settings was shown in the click")
         self.assertEqual(self.answer["dropped_page_after"], "history")
+        self.assertTrue(self.answer["dropped_tab"], "the tab pressed meanwhile did not take the selection")
         self.assertEqual(self.answer["dropped_page_later"], "history")
 
 

@@ -1525,13 +1525,7 @@ namespace CodexAutoResume
                 pageHost.ResumeLayout(false);
                 hostHeld = false;
                 pageHost.PerformLayout();
-                foreach (var pair in navButtons)
-                {
-                    pair.Value.ForeColor = pair.Key == name ? Ink : Secondary;
-                    // Cached: a switch used to create a font for every tab.
-                    pair.Value.Font = Soft.RoleFont(pair.Key == name ? "nav_current" : "nav");
-                    pair.Value.Current = pair.Key == name;
-                }
+                MarkTab(name);
                 if (saveButton != null) saveButton.Visible = settings;
                 if (restoreButton != null) restoreButton.Visible = settings;
             }
@@ -1827,6 +1821,9 @@ namespace CodexAutoResume
             urgentSince.Restart();
             urgentIdle = delegate { UrgentStep(); };
             Application.Idle += urgentIdle;
+            // v0.6.23 (perffix, the owner): the pressed tab shown chosen at once, as a click chooses it; the page follows once
+            // it is ready. Another tab pressed meanwhile is chosen by its own show (ShowPage, ShowAdvanced).
+            MarkTab(name);
             Nudge();
             return true;
         }
@@ -1899,6 +1896,19 @@ namespace CodexAutoResume
             urgentShowing = true;
             try { showIt(); }
             finally { urgentShowing = false; }
+        }
+
+        /// The tab of `name` shown chosen, every other not: its colour, its weight (nav_current) and Current, which is also
+        /// what a screen reader is told (NavAccessible: Selected, with a selection event).
+        private void MarkTab(string name)
+        {
+            foreach (var pair in navButtons)
+            {
+                pair.Value.ForeColor = pair.Key == name ? Ink : Secondary;
+                // Cached: a switch used to create a font for every tab.
+                pair.Value.Font = Soft.RoleFont(pair.Key == name ? "nav_current" : "nav");
+                pair.Value.Current = pair.Key == name;
+            }
         }
 
         private void StopUrgent()
