@@ -247,7 +247,9 @@ class TabStripTests(first.Probed):
         self.assertLess(light, heavy, "a section in its column is measured in the weight it has, as Button measures")
 
     def test_show_page_still_sets_the_chosen_name_in_the_heavier_weight(self):
-        show = guiscan.member_body("SettingsForm", "ShowPage")
+        # v0.6.23 (perffix): through MarkTab, which a page pressed before it is ready calls at once too (FinishFirst).
+        self.assertIn("MarkTab(name);", guiscan.member_body("SettingsForm", "ShowPage"))
+        show = guiscan.member_body("SettingsForm", "MarkTab")
         self.assertIn('pair.Value.Font = Soft.RoleFont(pair.Key == name ? "nav_current" : "nav");', show)
         size = guiscan.member_body("NavButton", "GetPreferredSize")
         self.assertIn('Soft.RoleFont("nav")', size)

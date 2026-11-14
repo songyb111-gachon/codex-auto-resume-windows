@@ -123,6 +123,34 @@ namespace CodexAutoResume
             }
         }
 
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern int GetWindowLong(IntPtr window, int index);
+
+        // Whether `control` paints: WM_SETREDRAW off clears WS_VISIBLE from its style while it stays Visible to .NET.
+        private static bool Painting(Control control)
+        {
+            return (GetWindowLong(control.Handle, -16) & 0x10000000) != 0;
+        }
+
+        private static readonly System.Reflection.FieldInfo SuspendCount =
+            typeof(Control).GetField("layoutSuspendCount", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+        // Every control under `parent`, in order: its kind, place, size, whether it shows and its words.
+        private static string Shape(Control parent)
+        {
+            var text = new StringBuilder();
+            var next = new Stack<Control>();
+            next.Push(parent);
+            while (next.Count > 0)
+            {
+                Control control = next.Pop();
+                text.Append(control.GetType().Name).Append(' ').Append(control.Bounds.ToString()).Append(' ')
+                    .Append(Soft.OwnVisible(control) ? "shown" : "hidden").Append(' ').Append(control.Text).Append('\n');
+                for (int i = control.Controls.Count - 1; i >= 0; i--) next.Push(control.Controls[i]);
+            }
+            return text.ToString();
+        }
+
         // Controls under `parent`, and how many of them have a native window.
         private static int[] Made(Control parent)
         {
@@ -142,6 +170,12 @@ namespace CodexAutoResume
         // the moment it is asked (FinishFirst never waits there).
         private static SettingsForm PressedWindow(PressedFrame frame)
         {
+            return PressedWindow(frame, null);
+        }
+
+        // `page`: the page it opens on, as a window reopened after a language save opens on Settings (--page=settings).
+        private static SettingsForm PressedWindow(PressedFrame frame, string page)
+        {
             frame.FormBorderStyle = FormBorderStyle.None;
             frame.ShowInTaskbar = false;
             frame.StartPosition = FormStartPosition.Manual;
@@ -149,6 +183,7 @@ namespace CodexAutoResume
             string nowhere = Path.Combine(Path.GetTempPath(), "car-pressed-nowhere");
             var form = new SettingsForm(new PersistentBridge(nowhere, new Bridge(nowhere)), RenderAnswer("strings", null), null);
             form.rendering = true;
+            if (page != null) form.firstPage = page;
             Size opened = form.ClientSize;
             form.TopLevel = false;
             form.FormBorderStyle = FormBorderStyle.None;
@@ -208,6 +243,11 @@ namespace CodexAutoResume
             outMap["click_made"] = (double)(after[0] - before[0]);
             outMap["click_windows"] = (double)(after[1] - before[1]);
             outMap["page_after_click"] = form.currentPage;
+            // The owner (2026-11-14): the pressed tab chosen in the click's own turn, the one left not.
+            outMap["tab_chosen_in_click"] = form.navButtons["settings"].Current && !form.navButtons["overview"].Current;
+            outMap["tab_accessible_selected"] =
+                (form.navButtons["settings"].AccessibilityObject.State & AccessibleStates.Selected) != 0 &&
+                (form.navButtons["overview"].AccessibilityObject.State & AccessibleStates.Selected) == 0;
             int[] turns = Turns(form, 3000, delegate { return form.currentPage == "settings"; });
             outMap["turns"] = (double)turns[0];
             outMap["most_made_in_a_turn"] = (double)turns[1];
@@ -254,8 +294,113 @@ namespace CodexAutoResume
             outMap["dropped_waiting"] = form.currentPage;
             form.navButtons["history"].PerformClick();
             outMap["dropped_page_after"] = form.currentPage;
+            outMap["dropped_tab"] = form.navButtons["history"].Current && !form.navButtons["settings"].Current;
             Turns(form, 400, delegate { return false; });
             outMap["dropped_page_later"] = form.currentPage;
+            frame.Close();
+            frame.Dispose();
+
+            // 4. Opened on Settings, as after a language save: the editors are built a step a turn when the read comes, the
+            // page host's painting held until they are all built.
+            frame = new PressedFrame();
+            form = PressedWindow(frame, "settings");
+            outMap["opened_page"] = form.currentPage;
+            outMap["opened_read_at_open"] = form.settingsRead;
+            int openedTurns = 0, openedMost = 0, openedWindowsMost = 0, heldTurns = 0;
+            bool heldAtEnd = true;
+            int[] openedBefore = Made(form.columns);
+            clock = System.Diagnostics.Stopwatch.StartNew();
+            while (clock.ElapsedMilliseconds < 60000 &&
+                   !(form.settingsRead && form.pendingSchema == null && form.editorSteps == null && !form.buildQueued))
+            {
+                Application.DoEvents();
+                Application.RaiseIdle(EventArgs.Empty);
+                openedTurns++;
+                int[] now = Made(form.columns);
+                openedMost = Math.Max(openedMost, now[0] - openedBefore[0]);
+                openedWindowsMost = Math.Max(openedWindowsMost, now[1] - openedBefore[1]);
+                openedBefore = now;
+                if (form.settingsRead && (form.pendingSchema != null || form.editorSteps != null) && !Painting(form.pageHost)) heldTurns++;
+                System.Threading.Thread.Sleep(1);
+            }
+            heldAtEnd = !Painting(form.pageHost);
+            int[] openedWhole = Made(form.columns);
+            outMap["opened_turns"] = (double)openedTurns;
+            outMap["opened_most_made_in_a_turn"] = (double)openedMost;
+            outMap["opened_most_windows_in_a_turn"] = (double)openedWindowsMost;
+            outMap["opened_made"] = (double)openedWhole[0];
+            outMap["opened_windows"] = (double)openedWhole[1];
+            outMap["opened_editors"] = (double)form.editors.Count;
+            outMap["opened_held_turns"] = (double)heldTurns;
+            outMap["opened_held_at_end"] = heldAtEnd;
+            outMap["opened_shown"] = form.currentPage;
+            outMap["opened_visible"] = Soft.OwnVisible(form.columns) && form.columns.IsHandleCreated;
+            SettingsForm settled = form;
+            PressedPump(15000, delegate { return settled.Settled() && settled.bridge.InFlight == 0 && settled.previewSource != null && settled.previewSource.Text.Length > 0 && !settled.previewTimer.Enabled; });
+            PressedPump(300, null);
+            // The sections as a person sees them, shown each in turn (ShowSection lays out the one it shows), then the first;
+            // not Advanced, whose homes card asks a read of its own when shown.
+            foreach (string section in new[] { "recovery", "continuation", "appearance", "general" }) form.ShowSection(section);
+            string builtInSteps = Shape(form.columns);
+            frame.Close();
+            frame.Dispose();
+
+            // 5. The same, built at once as before (a window in the render mode builds them so): the same page.
+            frame = new PressedFrame();
+            form = PressedWindow(frame, "settings");
+            form.rendering = true;
+            PressedPump(60000, delegate { return form.settingsRead && form.pendingSchema == null && form.editorSteps == null && !form.buildQueued; });
+            SettingsForm atOnce = form;
+            PressedPump(15000, delegate { return atOnce.Settled() && atOnce.bridge.InFlight == 0 && atOnce.previewSource != null && atOnce.previewSource.Text.Length > 0 && !atOnce.previewTimer.Enabled; });
+            PressedPump(300, null);
+            // The sections as a person sees them, shown each in turn (ShowSection lays out the one it shows), then the first;
+            // not Advanced, whose homes card asks a read of its own when shown.
+            foreach (string section in new[] { "recovery", "continuation", "appearance", "general" }) form.ShowSection(section);
+            string builtAtOnce = Shape(form.columns);
+            outMap["shape_same"] = builtInSteps == builtAtOnce;
+            outMap["shape_controls"] = (double)(builtAtOnce.Split('\n').Length);
+            if (builtInSteps != builtAtOnce)
+            {
+                string[] a = builtInSteps.Split('\n'), b = builtAtOnce.Split('\n');
+                var differ = new List<object>();
+                for (int i = 0; i < Math.Min(a.Length, b.Length); i++)
+                    if (a[i] != b[i]) differ.Add(a[i] + " | " + b[i]);
+                outMap["shape_first_difference"] = differ.Count + " differ, lengths " + a.Length + "/" + b.Length + ": " +
+                                                   string.Join(" || ", differ.GetRange(0, Math.Min(6, differ.Count)).ConvertAll(x => (string)x).ToArray());
+            }
+            frame.Close();
+            frame.Dispose();
+
+            // 6. A page built whole (PageFor, as the Overview before the first paint and a page on its first click are):
+            // what it made is held from laying itself out until it has its place - counted as it is put in the page host.
+            frame = new PressedFrame();
+            form = PressedWindow(frame);
+            int heldPage = -1, cards = 0, heldCards = 0;
+            ControlEventHandler added = delegate(object sender, ControlEventArgs e)
+            {
+                heldPage = Convert.ToInt32(SuspendCount.GetValue(e.Control));
+                var next = new Stack<Control>();
+                next.Push(e.Control);
+                while (next.Count > 0)
+                {
+                    Control control = next.Pop();
+                    if (control is SoftCard)
+                    {
+                        cards++;
+                        if (Convert.ToInt32(SuspendCount.GetValue(control)) > 0) heldCards++;
+                    }
+                    foreach (Control child in control.Controls) next.Push(child);
+                }
+            };
+            form.pageHost.ControlAdded += added;
+            bool built = !form.pages.ContainsKey("diagnostics");
+            form.PageFor("diagnostics");
+            form.pageHost.ControlAdded -= added;
+            outMap["whole_built_here"] = built;
+            outMap["whole_page_held"] = (double)heldPage;
+            outMap["whole_cards"] = (double)cards;
+            outMap["whole_cards_held"] = (double)heldCards;
+            outMap["whole_page_let_go"] = Convert.ToInt32(SuspendCount.GetValue(form.pages["diagnostics"])) == 0;
             frame.Close();
             frame.Dispose();
 
@@ -316,6 +461,10 @@ class PressedTests(unittest.TestCase):
         self.assertEqual(self.answer["click_windows"], 0, "native windows made in the click")
         self.assertEqual(self.answer["page_after_click"], "overview")
 
+    def test_the_pressed_tab_is_chosen_in_the_click_and_said_so(self):
+        self.assertTrue(self.answer["tab_chosen_in_click"], "the old tab stayed chosen until the page was ready")
+        self.assertTrue(self.answer["tab_accessible_selected"], "a screen reader was not told the pressed tab is selected")
+
     def test_it_is_made_ready_a_step_a_turn_and_then_shown(self):
         self.assertEqual(self.answer["shown"], "settings")
         self.assertTrue(self.answer["visible"])
@@ -335,9 +484,38 @@ class PressedTests(unittest.TestCase):
         self.assertEqual(self.answer["early_shown"], "settings")
         self.assertLess(self.answer["early_most_made_in_a_turn"], self.answer["early_made"] / 2)
 
+    def test_opened_on_settings_its_editors_are_built_a_step_a_turn_behind_the_page_as_it_stands(self):
+        """A window reopened after a language save opens on Settings: its editors were built all in the turn the read came
+        in (1.8-2.9 s on months of scratch data), the header standing still."""
+        self.assertEqual(self.answer["opened_page"], "settings")
+        self.assertFalse(self.answer["opened_read_at_open"])
+        self.assertEqual(self.answer["opened_shown"], "settings")
+        self.assertGreater(self.answer["opened_editors"], 20)
+        self.assertGreater(self.answer["opened_turns"], 5)
+        self.assertLess(self.answer["opened_most_made_in_a_turn"], self.answer["opened_made"] / 2,
+                        "the editors were built all at once as the read came")
+        self.assertLess(self.answer["opened_most_windows_in_a_turn"], self.answer["opened_windows"] / 2)
+        self.assertGreater(self.answer["opened_held_turns"], 0, "the page host painted a half-built page")
+        self.assertFalse(self.answer["opened_held_at_end"], "the page host's painting was not let go")
+        self.assertTrue(self.answer["opened_visible"])
+
+    def test_opened_on_settings_the_page_built_in_steps_is_the_page_built_at_once(self):
+        self.assertGreater(self.answer["shape_controls"], 50)
+        self.assertTrue(self.answer["shape_same"], self.answer.get("shape_first_difference"))
+
+    def test_a_page_built_whole_lays_nothing_out_before_it_has_its_place(self):
+        """The Overview before the first paint, and a page on its first click, laid each card, grid and row out again as
+        each was added (10,640 measures of the Overview's labels before the first paint on scratch, 5,760 now)."""
+        self.assertTrue(self.answer["whole_built_here"])
+        self.assertGreater(self.answer["whole_page_held"], 0, "the page laid itself out as it was built")
+        self.assertGreater(self.answer["whole_cards"], 0)
+        self.assertEqual(self.answer["whole_cards_held"], self.answer["whole_cards"], "a card laid itself out as it was built")
+        self.assertTrue(self.answer["whole_page_let_go"], "the page was left held")
+
     def test_another_page_pressed_meanwhile_is_shown_and_settings_is_not(self):
         self.assertEqual(self.answer["dropped_waiting"], "overview", "Settings was shown in the click")
         self.assertEqual(self.answer["dropped_page_after"], "history")
+        self.assertTrue(self.answer["dropped_tab"], "the tab pressed meanwhile did not take the selection")
         self.assertEqual(self.answer["dropped_page_later"], "history")
 
 

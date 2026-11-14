@@ -352,6 +352,9 @@ namespace CodexAutoResume
                         AdoptSettings(current);
                         pendingSchema = schema;
                         pendingSettings = current;
+                        // v0.6.23 (perffix): the first read with Settings on screen - a window opened on it, as one reopened
+                        // after a language save is - is built a step a turn behind the page as it stands (BuildOnScreen).
+                        if (currentPage == "settings" && first && BuildOnScreen()) return;
                         if (currentPage == "settings") BuildPendingEditors();
                         else BuildEditorsLater();
                         // The keyboard where the window this one replaces had it, now that it is there.
@@ -410,6 +413,148 @@ namespace CodexAutoResume
                 buildQueued = false;
             };
             Application.Idle += idle;
+        }
+
+        // v0.6.23 (perffix): the editors being built a step a turn with Settings on screen (BuildOnScreen): the idle handler
+        // that takes the steps, whether the page host's painting is held for it, and how far it has got - 0 the editors,
+        // 1 the page held from laying itself out, 2 its controls' windows made, 3 laid out, 4 shown.
+        private EventHandler screenBuildIdle;
+        private bool screenBuildHeld;
+        private int screenBuildPhase;
+
+        /// v0.6.23 (perffix): the editors built a step a turn while Settings is the page on screen, its first read come.
+        /// A window opened on Settings - which a window reopened after a language save is - built them all in the turn the
+        /// read came in: 1.5-3.8 s on months of scratch data with a real bridge (the tracer, 2026-11-14), the header's light
+        /// and its Loading... standing still all along, and the header filled only after it (from the status read the
+        /// build ends with).
+        ///
+        /// Now what the person sees until it is ready is the page as it stood when the read came - the page host's painting
+        /// held, as ShowPage holds it while one page is hidden and the next shown - and then the whole page, at once, as the
+        /// old build ended: never a page half built. Behind it the page is taken out of sight and made ready as a page is
+        /// made ready ahead: its editors built in the steps BuildEditorsLater takes, held from laying itself out, its
+        /// controls' windows made and laid out a slice at a time (MakeSome, LetGoSome), one step an idle turn, whatever
+        /// waits going first (the header, a snapshot, a key); then shown as a page made ready is. Its status is read at
+        /// the start, so the header fills as soon as it comes. Another page shown meanwhile lets the painting go (ShowPage)
+        /// and the rest of the editors are built out of sight; the page is made ready later as any other. False where it is
+        /// not done this way: a window not yet on screen, the render mode, an audit or a capture, a page being made ready
+        /// already - which build them at once as before.
+        private bool BuildOnScreen()
+        {
+            if (!shown || auditing || rendering || Soft.StillReady != null || IsDisposed || screenBuildIdle != null) return false;
+            if (preparing != null || prepareMake != null || prepareHeld != null || !Soft.OwnVisible(columns)) return false;
+            if (!Redraw(pageHost, false)) return false;
+            screenBuildHeld = true;
+            screenBuildPhase = 0;
+            columns.Visible = false;
+            buildQueued = true;
+            screenBuildIdle = delegate { BuildOnScreenStep(); };
+            Application.Idle += screenBuildIdle;
+            RefreshStatusAsync(null);
+            Nudge();
+            return true;
+        }
+
+        private void BuildOnScreenStep()
+        {
+            if (screenBuildIdle == null) return;
+            if (IsDisposed)
+            {
+                StopBuildOnScreen();
+                return;
+            }
+            try
+            {
+                if (currentPage != "settings")
+                {
+                    // Another page shown meanwhile: ShowPage has let the page host's painting go. What was held of the page is
+                    // let go without a layout (it is laid out when it is made ready or shown), and the editors left are
+                    // built out of sight.
+                    screenBuildHeld = false;
+                    ReleaseScreenHolds();
+                    if (BuildEditorsStep()) { Nudge(); return; }
+                    StopBuildOnScreen();
+                    return;
+                }
+                if (screenBuildPhase == 0)
+                {
+                    if (!BuildEditorsStep()) screenBuildPhase = 1;
+                }
+                else if (screenBuildPhase == 1)
+                {
+                    // As PrepareNext's first step: everything in it that lays others out held, the page first.
+                    prepareHeld = HoldWithin(columns);
+                    prepareSized = 0;
+                    columns.SuspendLayout();
+                    prepareHeld.Insert(0, columns);
+                    screenBuildPhase = 2;
+                }
+                else if (screenBuildPhase == 2)
+                {
+                    if (MakeSome(columns)) screenBuildPhase = 3;
+                }
+                else if (screenBuildPhase == 3)
+                {
+                    if (LetGoSome()) screenBuildPhase = 4;
+                }
+                else
+                {
+                    columns.PerformLayout();
+                    if (!preparedPages.Contains("settings")) preparedPages.Add("settings");
+                    ShowBuiltOnScreen();
+                    StopBuildOnScreen();
+                    FocusPending();
+                    return;
+                }
+            }
+            catch (Exception)
+            {
+                ReleaseScreenHolds();
+                if (!IsDisposed && currentPage == "settings") columns.Visible = true;
+                StopBuildOnScreen();
+                throw;
+            }
+            Nudge();
+        }
+
+        /// The page made ready behind the held painting, shown as ShowPage shows a page: held while it becomes visible, what
+        /// lays others out in it let go innermost first, laid out once.
+        private void ShowBuiltOnScreen()
+        {
+            List<Control> inner = HoldWithin(columns);
+            columns.SuspendLayout();
+            try
+            {
+                columns.Visible = true;
+                LetGoWithin(inner);
+                inner = null;
+            }
+            finally
+            {
+                if (inner != null)
+                    for (int i = inner.Count - 1; i >= 0; i--)
+                        if (!inner[i].IsDisposed) inner[i].ResumeLayout(false);
+                columns.ResumeLayout(true);
+            }
+            pageHost.PerformLayout();
+        }
+
+        private void ReleaseScreenHolds()
+        {
+            List<Control> held = prepareHeld;
+            prepareHeld = null;
+            prepareMake = null;
+            if (held != null)
+                for (int i = held.Count - 1; i >= 0; i--)
+                    if (!held[i].IsDisposed) held[i].ResumeLayout(false);
+        }
+
+        private void StopBuildOnScreen()
+        {
+            if (screenBuildIdle != null) Application.Idle -= screenBuildIdle;
+            screenBuildIdle = null;
+            buildQueued = false;
+            if (screenBuildHeld && !IsDisposed) Redraw(pageHost, true);
+            screenBuildHeld = false;
         }
 
         /// Builds what is left of the editors, all of it, now: the settings read, a Save or a switch to Settings.
