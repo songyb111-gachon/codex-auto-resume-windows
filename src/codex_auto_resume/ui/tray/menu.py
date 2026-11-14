@@ -55,6 +55,9 @@ MENU_STATUS = 0
 MENU_POWER_OFF = 5
 POWER_OFF_WORDS = {"sleep": "Don't sleep after recoveries", "hibernate": "Don't hibernate after recoveries",
                    "shut_down": "Don't shut down after recoveries"}
+# v0.6.23 (the owner, 2026-11-11): Open the popup, right after Open Dashboard - the popup a left click on the icon opens,
+# offered only where the icon has one to open (a control layer, and a popup that has not broken).
+MENU_POPUP = 6
 
 # How the menu looks. Windows draws a popup menu itself, and draws it light unless the process has
 # asked for dark through uxtheme's preferred app mode - a call Windows exports by ordinal only, with
@@ -68,12 +71,13 @@ DARK_MENU_BUILD = 18362
 
 
 
-def menu_items(snapshot, strings, now, pending=False, armed=None) -> list:
+def menu_items(snapshot, strings, now, pending=False, armed=None, popup=False) -> list:
     """What the menu offers, in order, as both of its ways of being shown take it (v0.6.20): a dict per item - `id`
     (the command it carries; MENU_STATUS for the first line), `text`, `enabled`, `checked` - and None for a line
     between groups. `pending` says the icon can show what is waiting, `armed` is the armed power action's word or
-    None. A pure function of what the icon shows: the status line, Open Dashboard, Show what is waiting while
-    anything waits or runs, Pause or Resume, the power action turned off while one is armed, and Stop the watcher."""
+    None, `popup` says the icon has a popup to open (v0.6.23). A pure function of what the icon shows: the status
+    line, Open Dashboard, Open the popup where there is one, Show what is waiting while anything waits or runs, Pause
+    or Resume, the power action turned off while one is armed, and Stop the watcher."""
     strings = strings or {}
 
     def item(identifier, text, enabled=True):
@@ -82,11 +86,13 @@ def menu_items(snapshot, strings, now, pending=False, armed=None) -> list:
     status = tooltip(snapshot, strings, now).split("\n", 1)[-1]
     items = [item(MENU_STATUS, status, enabled=False), None,
              item(MENU_OPEN, strings.get("menu.open", "Open Dashboard"))]
+    if popup:
+        items.append(item(MENU_POPUP, strings.get("menu.open_popup", "Open the popup")))
     # Only while there is something to look at. An item that opens a page saying
     # nothing is waiting is an item that teaches people not to use the menu.
     waiting = int(snapshot.get("waiting", 0) or 0) + int(snapshot.get("running", 0) or 0)
     if waiting and pending:
-        items.append(item(MENU_PENDING, strings.get("menu.pending", "Show what is waiting").replace("{n}", str(waiting))))
+        items.append(item(MENU_PENDING, strings.get("menu.pending", "Show what is waiting ({n})").replace("{n}", str(waiting))))
     paused = not snapshot.get("enabled", True)
     items.append(item(MENU_TOGGLE, strings.get("menu.resume", "Resume recovery") if paused
                       else strings.get("menu.pause", "Pause recovery")))
@@ -126,7 +132,8 @@ class MenuMixin:
         self._theme_menu()                      # and Windows' own is drawn in the theme the popup is
         snapshot = self._shown()
         paused = not snapshot.get("enabled", True)
-        items = menu_items(snapshot, self.strings, time.time(), bool(self.on_pending), self._power_armed())
+        items = menu_items(snapshot, self.strings, time.time(), bool(self.on_pending), self._power_armed(),
+                           self._popup_can_open())
         if self._draw_menu(items, paused):
             return
         self._act(self._native_menu(items), paused)
@@ -192,6 +199,8 @@ class MenuMixin:
                 self.on_toggle(paused)          # paused -> resume; running -> pause
             elif chosen == MENU_POWER_OFF and self.control is not None:
                 self.control.disarm_power_action(actor="tray")
+            elif chosen == MENU_POPUP:
+                self._open_popup()
             elif action:
                 action()
         except Exception as exc:

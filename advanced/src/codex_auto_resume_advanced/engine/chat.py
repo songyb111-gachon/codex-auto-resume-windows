@@ -15,7 +15,8 @@ messages and Codex's replies, read only while the page asks (codex/conversation.
 * Its pace is its own (A20): one in flight in a conversation across both stores, thirty a conversation and sixty a
   day, never core's five a day or fifteen minutes (state/records.claim_record).
 * Its words leave the disk the moment its send begins (state/chat.py); a message Codex did not take within three
-  minutes is taken back and never sent again by itself; turned off, every message still waiting is cancelled.
+  minutes is taken back and never sent again by itself; turned off, every message still waiting is cancelled. A Pause
+  takes back none Codex holds (v0.6.23, `pause_keeps`): its statement's H4 and H6.
 
 Approvals are still answered in Codex: what MC2 measured shows a turn in progress and finished, never a wait for one.
 """
@@ -32,12 +33,13 @@ WORDS = 2000
 
 
 def handed(row) -> dict | None:
-    """What core is handed of one message (P2: plughands.records_of), or None for one not to hand."""
+    """What core is handed of one message (P2: plughands.records_of), or None for one not to hand. Each is marked
+    `pause_keeps` (v0.6.23): a Pause leaves one Codex holds in its queue, as the statement says (H4 departed)."""
     key = row.get("record_id")
     if not (isinstance(key, str) and len(key) == 64):
         return None
     own = {"record_id": key, "thread_id": row["thread_id"], "marker": ids.short_marker(key), "purpose": "message",
-           "ordinal": None}
+           "ordinal": None, "pause_keeps": True}
     if row["state"] == ChatState.IN_FLIGHT:
         return dict(own, state="in_flight", words=None, sent_at=row.get("sent_at"), queue_id=None, withdraw=False)
     if row["state"] == ChatState.WAITING and row.get("words"):

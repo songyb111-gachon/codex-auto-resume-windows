@@ -1033,6 +1033,20 @@ namespace CodexAutoResume
             if (Handle != IntPtr.Zero) LayerBits.Lay(Handle, memory, at.X, at.Y, image.Width, image.Height, alpha);
         }
 
+        /// It leaves the screen (v0.6.23, the second round's F8): its picture fades out from where it is on a window of its own for
+        /// brand's press time, as a closed menu's does (SoftLayerFade) - or, `animate` false, it is simply gone. Let go either way.
+        internal void Close(bool animate)
+        {
+            timer.Stop();
+            if (animate && Handle != IntPtr.Zero && memory != IntPtr.Zero && image != null && alpha > 0)
+            {
+                var ghost = new SoftLayerFade(memory, dib, previous, new Rectangle(at, image.Size), alpha);
+                memory = dib = previous = IntPtr.Zero;
+                ghost.Start();
+            }
+            Dispose();
+        }
+
         public void Dispose()
         {
             timer.Stop();

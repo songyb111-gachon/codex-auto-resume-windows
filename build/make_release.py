@@ -43,6 +43,8 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import posixpath
+import re
 import shutil
 import subprocess
 import sys
@@ -80,6 +82,11 @@ SHIPPED_ASSETS = ("codex-auto-resume.ico", "icon.png", "logo.png", "logo-dark.pn
                   "screenshot-settings.png")
 SHIPPED_SCRIPTS = ("bootstrap.ps1", "plugin_setup.py", "release.json", "watcher_launcher.py")
 LISTED_TREES = {"assets": SHIPPED_ASSETS, "scripts": SHIPPED_SCRIPTS}
+# Files inside the trees that ship whole that no program of an installation imports or opens. They stay in the repository
+# (the tests read them from the tree) and stay out of both archives; tests/test_release_unread_modules.py holds the list
+# against the shipped code's import graph, so a module that someone starts to import is not left out by mistake.
+# control/wire.py: the reply shapes written as types, held to the golden copies by tests/test_wire_types.py.
+NOT_SHIPPED = ("src/codex_auto_resume/control/wire.py",)
 # Data files inside those trees that the product reads at run time. The trees are copied by
 # walking them, so nothing would notice one going missing until a user's machine did: the
 # bundled Compatibility Registry baseline would silently become "missing", and every
@@ -116,6 +123,13 @@ APP_SOURCES = {".mcp.json": "build/plugin-mcp.json"}
 # build/release_notes.py reads that one.
 CHANGELOG = "docs/CHANGELOG.md"
 CHANGELOG_PAGE = "https://github.com/songyb111-gachon/codex-auto-resume-windows/blob/main/docs/CHANGELOG.md"
+# The README in the archive is a copy: a relative link or picture of the repository's README whose target the archive does
+# not carry (the guide, the pictures under docs/images/) would lead nowhere on a person's PC, so absolute_links makes it
+# the address of that file on GitHub at this release's tag. The repository's own README.md stays as it is.
+REPOSITORY_URL = "https://github.com/songyb111-gachon/codex-auto-resume-windows"
+PICTURE_SUFFIXES = (".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".ico")
+# Where a README names a path: a Markdown link or picture's (...), an HTML src= or href=, a reference definition.
+README_LINK = re.compile(r"""(\]\(\s*<?|\b(?:src|href)\s*=\s*["']|^\[[^\]\n]+\]:[ \t]*)([^)\s"'>]+)""", re.MULTILINE)
 # What stays of the bundled runtime: see trim_runtime.
 RUNTIME_KEEP = "build/runtime_keep.json"
 LAUNCHER_FILES = ("Install.cmd", "Uninstall.cmd", "README.txt", "install.ps1")
@@ -194,6 +208,8 @@ def fetch_runtime() -> Path:
 
 
 def _wanted(path: Path) -> bool:
+    if path.as_posix() in NOT_SHIPPED:
+        return False
     if path.name in EXCLUDE_NAMES or path.suffix.lower() in EXCLUDE_SUFFIXES:
         return False
     if any(part in EXCLUDE_ANYWHERE for part in path.parts):
@@ -222,6 +238,24 @@ def newest_changelog(text: str, release: str) -> str:
         entry.pop()
     page = "This file holds this release's entry only. The whole changelog is at %s" % CHANGELOG_PAGE
     return newline.join(title + ["", page, ""] + entry + [""])
+
+
+def absolute_links(text: str, release: str, carried) -> str:
+    """`text`, a README at the repository's root, with each relative link or picture whose target is not in `carried` (the
+    paths the archive holds, relative to its root) made absolute: a document is .../blob/v<release>/<path>, a picture
+    .../raw/v<release>/<path>, both at the release's tag. What the archive carries, an address with a scheme and a link
+    inside the page (#...) stay as written; so does a fragment or query after a path that is rewritten."""
+    def each(match):
+        target = match.group(2)
+        if not target or target.startswith(("#", "/")) or re.match(r"[A-Za-z][A-Za-z0-9+.-]*:", target):
+            return match.group(0)
+        path, mark, rest = re.match(r"([^#?]*)([#?]?)(.*)", target).groups()
+        path = posixpath.normpath(path) if path else ""
+        if not path or path.startswith("..") or path in carried:
+            return match.group(0)
+        kind = "raw" if path.lower().endswith(PICTURE_SUFFIXES) else "blob"
+        return "%s%s/%s/v%s/%s%s%s" % (match.group(1), REPOSITORY_URL, kind, release, path, mark, rest)
+    return README_LINK.sub(each, text)
 
 
 def collect_runtime(stage: Path, archive: Path) -> int:
@@ -348,6 +382,11 @@ def collect_app(stage: Path) -> int:
             else:
                 shutil.copyfile(source, app / name)
             copied += 1
+    # After every file is in, so "what the archive carries" is what it holds. Both editions go through here.
+    readme = app / "README.md"
+    if readme.is_file():
+        carried = {path.relative_to(app).as_posix() for path in app.rglob("*") if path.is_file()}
+        readme.write_bytes(absolute_links(readme.read_bytes().decode("utf-8"), version(), carried).encode("utf-8"))
     return copied
 
 
@@ -443,6 +482,22 @@ def check_courier_starts(stage: Path, timeout: float = 120) -> None:
         raise SystemExit("the courier check left bytecode in the stage: %s" % ", ".join(left[:5]))
 
 
+def check_built_for_this_tree(executable: Path, edition: str, kind: str) -> None:
+    """Stop, naming the executable and the command that rebuilds it, unless build/make_gui.ps1 built it
+    from this tree: its stamp beside it (build/gui_stamp.py) must hold this tree's version and the
+    digest of the sources, manifest, icon and build scripts as they are now. A local candidate whose
+    window was not rebuilt would otherwise ship the previous window inside an archive named for the
+    new version. Imported here, like make_setup, so loading this module by path needs nothing beside it."""
+    here = str(Path(__file__).resolve().parent)
+    if here not in sys.path:
+        sys.path.insert(0, here)
+    import gui_stamp
+    try:
+        gui_stamp.check(executable, ROOT, edition, kind)
+    except gui_stamp.StaleBuild as exc:
+        raise SystemExit(str(exc))
+
+
 def collect_gui(stage: Path, edition: str = "standard") -> int:
     r"""Place the settings window beside the runtime it drives.
 
@@ -459,6 +514,7 @@ def collect_gui(stage: Path, edition: str = "standard") -> int:
     if not source.is_file():
         raise SystemExit("missing %s - run build/make_gui.ps1 -Edition %s first"
                          % (source, edition))
+    check_built_for_this_tree(source, edition, "window")
     shutil.copyfile(source, stage / "payload" / GUI_EXE)
     # Required, not optional. The bootstrap's archive check names both files at the payload
     # root and refuses an archive carrying either a missing one or an extra one, so building
@@ -472,6 +528,7 @@ def collect_gui(stage: Path, edition: str = "standard") -> int:
     launcher = BUILT / MCP_EXE
     if not launcher.is_file():
         raise SystemExit("missing %s - run build/make_gui.ps1 first" % MCP_EXE)
+    check_built_for_this_tree(launcher, edition, "launcher")
     destination = stage / "payload" / "app" / "mcp" / MCP_EXE
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(launcher, destination)

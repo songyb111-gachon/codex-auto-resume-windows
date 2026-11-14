@@ -75,7 +75,7 @@ STORED = {
     # Saved in the Korean ANSI code page rather than UTF-8.
     "not_utf8": b'{"theme": "dark", "custom_message": "\xb0\xe8\xbc\xd3"}',
     "trailing": b'{"theme": "dark"} {"theme": "light"}',
-    "too_large": b'{"theme": "dark", "custom_message": "' + b"a" * (256 * 1024) + b'"}',
+    "too_large": b'{"theme": "dark", "custom_message": "' + b"a" * settings.MAX_SETTINGS_BYTES + b'"}',  # past the bound (4 MB from v0.6.23)
     # v0.6.10: the Design, read in the same parse as the theme, exactly as the settings layer reads it.
     "design": b'{"theme": "dark", "design": "classic"}',
     "design_only": b'{"design": "plain"}',

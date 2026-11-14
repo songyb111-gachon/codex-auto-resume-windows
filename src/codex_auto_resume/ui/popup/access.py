@@ -527,6 +527,18 @@ _COINIT_APARTMENTTHREADED = 0x2
 _RPC_E_CHANGED_MODE = -2147417850
 
 
+def tell(hwnd, event):
+    """Tell whoever listens that `event` happened to the window `hwnd` (a menu opening or closing), as Windows' menus
+    do; nothing where it cannot be said."""
+    if not hwnd:
+        return
+    try:
+        _declare_msaa()
+        _com("user32").NotifyWinEvent(event, hwnd, OBJID_CLIENT, CHILDID_SELF)
+    except Exception:
+        pass
+
+
 def answer(popup, wparam, lparam, make=None):
     """WM_GETOBJECT for the popup: its client object when that is what is asked for, else None - and
     Windows answers for the window itself. COM comes up single-threaded on the popup's thread the first
@@ -565,3 +577,26 @@ def announce(popup, before, after):
     _declare_msaa()
     for event, child in changes(before, after):
         _com("user32").NotifyWinEvent(event, popup.hwnd, OBJID_CLIENT, child)
+
+
+class MenuAccessible(PopupAccessible):
+    """The menu's client object for MSAA: the popup's, answering for a menu - a menu popup whose children are its items
+    and lines, by menuplan's menu_accessible_items, named with the product's name. Here beside the popup's since
+    v0.6.23, which gave menuwindow.py's room to the menu's motion."""
+
+    def items(self):
+        return self.popup.accessible_items()
+
+    def _name(self, this, *arguments):
+        return self._string(arguments, lambda item: say(self.popup.strings, "tray.title") if item is None
+                            else item["name"])
+
+    def _description(self, this, *arguments):
+        return self._string(arguments, lambda item: None if item is None else item["description"])
+
+    def _role(self, this, *arguments):
+        *variant, out = arguments
+        child, item = self._item(variant)
+        if child is None:
+            return E_INVALIDARG
+        return self._number(out, A11Y_ROLES["menu" if item is None else item["role"]])

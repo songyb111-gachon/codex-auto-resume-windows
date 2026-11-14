@@ -142,6 +142,9 @@ NOT_SCENARIOS = {
     "test_progress_then_user_joined": "drives a recovery turn a person joined after it made progress (v0.6.18, the "
                                       "owner's amendment of A23) - v0.6.10's engine handed it over, so its calls "
                                       "cannot be the tag's",
+    "test_plug_record_pause_keeps": "drives the engine over codexsim homes with a plug that marks a record "
+                                    "pause_keeps (v0.6.23, the in-app chat's) - a Pause v0.6.10's engine always "
+                                    "took back, so its calls cannot be the tag's",
 }
 # The module whose scenarios simulate days of ticks, handed out first (run_all).
 FIRST = ("test_outcomes",)

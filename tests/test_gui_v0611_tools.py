@@ -376,7 +376,7 @@ class SourceTests(unittest.TestCase):
         self.assertIn("IsDemo(row)", menu, "nothing is offered on a made-up row")
 
     def test_diagnostics_adds_its_tools_after_the_five_and_its_fact_after_the_memory(self):
-        page = guiscan.member_body("SettingsForm", "BuildDiagnostics")
+        page = guiscan.member_body("SettingsForm", "DiagnosticsSteps")
         shown = page[page.index("foreach (Button button in new[] {"):]
         # v0.6.12: Install another version... after them (tests/test_gui_versions.py), and v0.6.16-beta.3's check of
         # why a failure was not taken up last.

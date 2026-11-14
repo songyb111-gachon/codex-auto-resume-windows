@@ -23,6 +23,8 @@ rows (ledger.py); its words are here, never there.
 """
 from __future__ import annotations
 
+from codex_auto_resume import machine
+
 from ..vocabulary import Refusal, RecordState, RuleReason, RuleState, SpendOutcome
 from .choices import Refused
 from .schema import BUCKETS, RESET_CAPABILITIES, WORDS_MOST
@@ -49,6 +51,22 @@ READING = frozenset({"read_at", "asked_at", "applied_at", "signal_at", "credits"
                      "nearest_expiry"})
 # A message claimed this long ago whose launch never began is handed back (`release_unlaunched`).
 UNLAUNCHED_AFTER = 600
+# What core tells a record of this edition's whose claim the ledger held (store/plugclaims.reserve_record) - every other
+# gate of core's passed: the product's own pace, one in flight in a conversation, five a day and fifteen minutes apart
+# (A20) and the capability's ceilings (ledger.py).
+PACED = ("submission_safe", machine.HELD)
+
+
+def paced_wait(connection, record_id, gate, reason, now) -> None:
+    """v0.6.23 (finding B2): a waiting record the pace held, its `created_at` - when it began to wait as it waits now,
+    read as `waiting_since` - moved to now, in the caller's transaction. The day after which a message not sent expires
+    counts from there (engine/promptqueue.py, engine/resetmessage.py): a message the pace alone keeps past its due time
+    is sent once the pace lets it go, and one kept by anything else - the PC off, Codex not running, the conversation
+    not open - still expires a day after it fell due."""
+    if (gate, reason) == PACED:
+        connection.execute("UPDATE records SET created_at=? WHERE record_id=? AND state=?",
+                           (now, record_id, RecordState.WAITING))
+
 
 
 def _family(bucket, minutes):
@@ -141,7 +159,7 @@ class ResetsMixin:
             if connection is None:
                 return []
             rows = connection.execute("SELECT r.*, c.thread_id AS thread_id, c.state AS record_state, "
-                                      "c.queue_id AS queue_id, c.withdraw AS withdraw "
+                                      "c.queue_id AS queue_id, c.withdraw AS withdraw, c.created_at AS waiting_since "
                                       "FROM reset_rules r LEFT JOIN records c ON c.record_id = r.record_id%s "
                                       "ORDER BY r.rule_id" % ((" WHERE " + " AND ".join("r." + w for w in where))
                                                               if where else ""), arguments).fetchall()
@@ -154,7 +172,8 @@ class ResetsMixin:
             if connection is None:
                 return None
             row = connection.execute("SELECT r.*, c.thread_id AS thread_id, c.state AS record_state, "
-                                     "c.queue_id AS queue_id, c.withdraw AS withdraw FROM reset_rules r "
+                                     "c.queue_id AS queue_id, c.withdraw AS withdraw, c.created_at AS waiting_since "
+                                     "FROM reset_rules r "
                                      "LEFT JOIN records c ON c.record_id = r.record_id WHERE r.rule_id=?",
                                      (rule_id,)).fetchone()
         return _rule(row) if row is not None else None
@@ -326,6 +345,7 @@ class ResetsMixin:
                 return None
             rule = row["rule_id"]
             if move == "waiting":
+                paced_wait(connection, record_id, gate, reason, now)
                 gate, reason = _gate_word(gate), _gate_word(reason)
                 if (row["gate"], row["gate_reason"]) != (gate, reason):
                     connection.execute("UPDATE reset_rules SET gate=?, gate_reason=? WHERE rule_id=?",

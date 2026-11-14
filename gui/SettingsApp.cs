@@ -110,12 +110,19 @@ namespace CodexAutoResume
         /// How many reopens in a row led to this window, 1 to 9: `--reopened=<n>`. 0 when a person
         /// opened it.
         internal int Generation;
+        /// v0.6.23 (the final's live acceptance): the window this one replaces opened in English because its words came
+        /// late (StringsWaitMilliseconds), and reopened for them: `--late-words` (SettingsForm.ReopenedForLateWords).
+        /// Words that come late to this one too are not reopened for again (TakeLateWords).
+        internal bool ForLateWords;
         /// How far the bounds reach past the frame one sees - the resize border Windows keeps invisible -
         /// as the window this one replaces measured it: `--frame=<left>,<top>,<right>,<bottom>`. Empty
         /// when not given.
         internal Padding Frame;
         /// Where the keyboard was in the window this one replaces (SettingsForm.FocusName): `--focus=<name>`.
         internal string Focus;
+        /// v0.6.23: a row of Pending and one of its own dialogs to open for it, from the popup's row menu:
+        /// `--dialog=<dialog>:<interruption id>:<thread id>` (SettingsForm.RowDialogRequest), which opens Pending.
+        internal string RowDialog;
     }
 
     /// A drop-down entry whose stored value and displayed label differ.
@@ -385,6 +392,10 @@ namespace CodexAutoResume
         // once it comes, is lateReply until the window has taken it (TakeLateWords).
         private bool lateWords;
         private volatile Dictionary<string, object> lateReply;
+        // v0.6.23: the window opened in English because its words were not had in time, for its whole life - it never takes
+        // the late words in place, it reopens in them. The advanced edition's own words are asked in English here too
+        // (AdvancedPage.LocaleArgument), so the window is in one language until it does.
+        private bool openedLate;
         private long settingsStamp;
         // The language, theme and design a reopen on its way is for; and the three a new window was last started
         // for that never showed, which this window does not try again (CheckReopen, FinishReopen).
@@ -490,8 +501,16 @@ namespace CodexAutoResume
         /// The words that came after the window had opened in English, on its own thread: kept, as any reply is, for the
         /// next window to open in (StringsCache.Write, on the worker that had them), and the window opened again in
         /// them where it is - as a change of language reopens it, so never under unsaved edits (CheckReopen). English
-        /// words are this window's already; a window that a reopen opened stays as it is, so a bridge that is always
-        /// slower than the wait cannot reopen it over and over.
+        /// words are this window's already; a window that was itself reopened FOR late words (`--late-words`,
+        /// OpenRequest.ForLateWords) stays as it is, so a bridge that is always slower than the wait cannot reopen it
+        /// over and over.
+        ///
+        /// v0.6.23 (the final's live acceptance): this was `request.Generation != 0` - any reopened window - and the
+        /// window the setup program opens again after an update starts from the old window's reopen record, which
+        /// carries `--reopened=1`: the first bridge start after an update took 11 s, the window opened in English and
+        /// stayed in English for good. Only a reopen for late words is held back now; one for an update, a language,
+        /// a theme, a design or a monitor's scale was not caused by late words, and takes them as a window a person
+        /// opened does.
         private void TakeLateWords()
         {
             Dictionary<string, object> reply = lateReply;
@@ -505,7 +524,7 @@ namespace CodexAutoResume
                 openedLanguage = Get(reply, "preference") as string;
                 return;
             }
-            if (request.Generation != 0) return;
+            if (request.ForLateWords) return;
             openedLanguage = LateLanguage;
             if (settingsRead) CheckReopen(false);
         }
@@ -834,6 +853,7 @@ namespace CodexAutoResume
                 else
                 {
                     lateWords = true;
+                    openedLate = true;
                     asking.ContinueWith(delegate(System.Threading.Tasks.Task<Dictionary<string, object>> asked)
                     {
                         Dictionary<string, object> reply = asked.Result;
@@ -1015,6 +1035,8 @@ namespace CodexAutoResume
             list.Margin = Pad(0, 10, 2, 0);
             list.AccessibleRole = AccessibleRole.PageTabList;
             list.AccessibleName = S("nav.settings", "Settings");
+            // v0.6.23 (perffix): laid out once its sections' buttons are all in it (the strip of tabs says why).
+            list.SuspendLayout();
             foreach (string name in SectionOrder)
             {
                 var button = new NavButton();
@@ -1051,6 +1073,7 @@ namespace CodexAutoResume
                 sections[name] = stack;
                 sectionScroll.Controls.Add(stack);
             }
+            list.ResumeLayout(true);
 
             sectionScroll.Dock = DockStyle.Fill;
             // On the soft scroll bar (see SoftPage), which keeps the section's own cards' material.
@@ -1270,18 +1293,39 @@ namespace CodexAutoResume
             fit(this, EventArgs.Empty);
             FontChanged += fit;
             dayLook = Palette.AccentBar ? null : DayArt.Today();
-            if (dayLook != null)
+            if (dayLook != null) JoinDayScene();
+        }
+
+        private bool dayJoined;
+
+        /// The day's scene on the header, placed again whenever the words or the card move: once, the first day it has a look.
+        private void JoinDayScene()
+        {
+            if (dayJoined) return;
+            dayJoined = true;
+            header.Controls.Add(dayScene);
+            dayScene.BringToFront();
+            EventHandler place = delegate { PlaceDayScene(); };
+            hero.SizeChanged += place;
+            headline.TextChanged += place;
+            detail.TextChanged += place;
+            startButton.VisibleChanged += place;
+            Resize += place;
+            Shown += place;
+        }
+
+        /// A window left open past midnight (the window's clock, every second): the scene of the new day, or none, as the
+        /// taskbar and title-bar icons follow the date (TaskbarMark.FollowTheDay).
+        private void FollowDayScene()
+        {
+            if (!dayScene.Follow(ref dayLook)) return;
+            if (dayLook == null)
             {
-                header.Controls.Add(dayScene);
-                dayScene.BringToFront();
-                EventHandler place = delegate { PlaceDayScene(); };
-                hero.SizeChanged += place;
-                headline.TextChanged += place;
-                detail.TextChanged += place;
-                startButton.VisibleChanged += place;
-                Resize += place;
-                Shown += place;
+                dayScene.Place(false, null, 0, 0, 0, 0, 0, 0);
+                return;
             }
+            JoinDayScene();
+            PlaceDayScene();
         }
 
         private int WordsEnd(Label label, bool mirrored, int width)
@@ -1359,13 +1403,16 @@ namespace CodexAutoResume
             // measurement plus a constant, the row needed six more than the arithmetic
             // allowed for, and every button lost the last two rows of its own border.
             row.Margin = new Padding(0);
+            // v0.6.23 (perffix): laid out once its buttons are all in it (the strip of tabs says why).
+            row.SuspendLayout();
             closeButton = MakeButton(S("action.close", "Close"), false, delegate { Close(); });
             row.Controls.Add(closeButton);
-            // Only the Settings page has anything to save.
-            saveButton = MakeButton(S("action.save", "Save"), true, delegate { Save(); });
+            // Only the Settings page has anything to save. v0.6.23: in the accent only while there is (ShowSaveLook).
+            saveButton = MakeButton(S("action.save", "Save"), false, delegate { Save(); });
             restoreButton = MakeButton(S("action.restore", "Restore defaults"), false, delegate { RestoreDefaults(); });
             row.Controls.Add(saveButton);
             row.Controls.Add(restoreButton);
+            row.ResumeLayout(true);
 
             versionText.Margin = new Padding(0);
             // Each press, not Click: a quick second press is a double click and raises no Click.
@@ -1455,6 +1502,13 @@ namespace CodexAutoResume
             try { if (bridge != null) bridge.Stop(); }
             catch (Exception) { /* it ends with this process's pipes all the same */ }
             Environment.Exit(1);
+        }
+
+        /// v0.6.23 (G6): an exception the window has dealt with itself (a page made ready ahead that it gave up), written
+        /// to errors.log as one caught here is, and not counted towards ending the window.
+        internal static void Note(Exception error)
+        {
+            Write(error);
         }
 
         private static void Write(Exception error)

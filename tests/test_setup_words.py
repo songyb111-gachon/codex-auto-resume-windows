@@ -247,22 +247,35 @@ class OlderInstalledSetupTests(unittest.TestCase):
             self.assertEqual(stopped.exception.code, 2)
 
     def test_the_variables_reach_the_run_outside_another_app_s_view(self):
-        """Get-OutsideSource, lifted from bootstrap.ps1: the variables a call is given are lines of the source the
-        run outside executes, before the call; none given, none added."""
+        """Get-OutsideVariables, lifted from bootstrap.ps1: the variables a call is given travel among what the run
+        outside is to do, in its environment, and it sets them before the call; none given, none added. The
+        script it runs is the same either way."""
+        import base64
         from test_installer import block
         text = BOOTSTRAP.read_text(encoding="utf-8")
         function = block(text, "function Get-OutsideSource {", "function Send-OutsideLines {")
-        script = (function + "$with = Get-OutsideSource -Script 'C:\\python.exe' -Arguments @('x') -Log 'l' -CodeFile 'c' "
+        script = (function + "$with = Get-OutsideVariables -Script 'C:\\python.exe' -Arguments @('x') -Log 'l' -CodeFile 'c' "
                   "-Environment @{ CODEX_AUTO_RESUME_SETUP_WILL_LOOK_AGAIN = '1' }\n"
-                  "$without = Get-OutsideSource -Script 'C:\\python.exe' -Arguments @('x') -Log 'l' -CodeFile 'c'\n"
-                  "Write-Host ('WITH ' + (($with -split \"`r`n\") -join '|'))\n"
-                  "Write-Host ('WITHOUT ' + (($without -split \"`r`n\") -join '|'))\n")
+                  "$without = Get-OutsideVariables -Script 'C:\\python.exe' -Arguments @('x') -Log 'l' -CodeFile 'c'\n"
+                  "Write-Host ('WITH ' + ($with -join '|'))\n"
+                  "Write-Host ('WITHOUT ' + ($without -join '|'))\n"
+                  "Write-Host ('SOURCE ' + ((Get-OutsideSource) -split \"`r`n\" -join '|'))\n")
         said = run_powershell(script)
-        with_line = next(line for line in said.splitlines() if line.startswith("WITH "))
-        without_line = next(line for line in said.splitlines() if line.startswith("WITHOUT "))
-        self.assertIn("|$env:CODEX_AUTO_RESUME_SETUP_WILL_LOOK_AGAIN = '1'|try {", with_line)
-        self.assertNotIn("$env:", without_line)
-        self.assertIn("|$code = 1|try {", without_line)
+
+        def given(prefix):
+            line = next(line for line in said.splitlines() if line.startswith(prefix))[len(prefix):]
+            pairs = (entry.partition("=") for entry in line.split("|"))
+            return {name[len("CODEX_AUTO_RESUME_RELAY_"):]: base64.b64decode(value).decode("utf-8")
+                    for name, _, value in pairs}
+        with_given, without_given = given("WITH "), given("WITHOUT ")
+        self.assertEqual((with_given["VARIABLES"], with_given["VARIABLE_NAME_0"], with_given["VARIABLE_0"]),
+                         ("1", "CODEX_AUTO_RESUME_SETUP_WILL_LOOK_AGAIN", "1"))
+        self.assertEqual(without_given["VARIABLES"], "0")
+        self.assertNotIn("VARIABLE_NAME_0", without_given)
+        source = next(line for line in said.splitlines() if line.startswith("SOURCE "))
+        self.assertNotIn("LOOK_AGAIN", source)
+        self.assertLess(source.index("[Environment]::SetEnvironmentVariable([string]$relay['VARIABLE_NAME_'"),
+                        source.index("& ([string]$relay['SCRIPT'])"), "the variables are set before the call")
 
 
 class EnglishLookTests(ScratchSetup):

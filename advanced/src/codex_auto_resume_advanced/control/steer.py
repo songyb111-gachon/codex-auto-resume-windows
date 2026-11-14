@@ -24,7 +24,7 @@ from codex_auto_resume import continuation
 from codex_auto_resume.domain import ids
 
 from ..engine.steer import CAPABILITY, DAY, PER_CONVERSATION, PER_DAY, RUNNING, latest_status
-from ..state.steers import WAITING
+from ..state.steers import WAITING, SteerRefused
 from ..vocabulary import Refusal
 from .resets import _on, _refused, _stale, switched_off
 
@@ -85,7 +85,13 @@ def request(runtime, argument) -> dict:
     if latest_status(inuse.home(runtime.paths), thread) != RUNNING:
         return _refused(Refusal.NO_TURN_RUNNING, runtime)
     try:
-        steer = runtime.state.add_steer(thread, words, str(uuid.uuid4()), at=now)
+        # v0.6.23 final (audit M11): the same bounds again inside the insert's transaction - the checks above only
+        # answer early; two requests at once cannot both pass these.
+        steer = runtime.state.add_steer(thread, words, str(uuid.uuid4()), at=now,
+                                        bounds=(DAY, PER_DAY, PER_CONVERSATION))
+    except SteerRefused as refused:
+        return _refused(Refusal.BEING_SENT if refused.reason == SteerRefused.BEING_SENT else Refusal.QUEUE_FULL,
+                        runtime)
     except Exception:
         return _refused(Refusal.STATE_UNAVAILABLE, runtime)
     try:

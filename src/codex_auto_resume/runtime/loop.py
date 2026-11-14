@@ -83,12 +83,12 @@ class WatchLoop:
                 break
             except AdapterError as exc:
                 if str(exc) != "mutex_busy":
-                    self.logger.info("single-instance mutex unavailable (%s); refusing to run", exc)
+                    self.logger.info("single-instance mutex unavailable (%s); refusing to run (pid %d)", exc, os.getpid())
                     return EXIT_ERROR
                 if attempt == 0:
                     time.sleep(MUTEX_RETRY_SECONDS)
                     continue
-                self.logger.info("another watcher already holds the single-instance mutex; exiting")
+                self.logger.info("another watcher already holds the single-instance mutex; exiting (pid %d)", os.getpid())
                 return EXIT_BUSY
         try:
             try:
@@ -96,7 +96,7 @@ class WatchLoop:
             except AdapterError as exc:
                 # A stop event planted by a lower-integrity process would let that process
                 # stop the watcher at will; refuse to run on it rather than obey it.
-                self.logger.info("stop event unavailable (%s); refusing to run", exc)
+                self.logger.info("stop event unavailable (%s); refusing to run (pid %d)", exc, os.getpid())
                 return EXIT_ERROR
             try:
                 wake = None
@@ -110,7 +110,7 @@ class WatchLoop:
                         self._home_lock = self.home_lock().__enter__()
                     except AdapterError as exc:
                         self.logger.info("another engine or process holds this Codex home (%s); "
-                                         "refusing to run", exc)
+                                         "refusing to run (pid %d)", exc, os.getpid())
                         return EXIT_BUSY
                     try:
                         return self._loop(mutex, stop, wake, once=once, poll=poll)
@@ -174,6 +174,21 @@ class WatchLoop:
                             homes=homes.heartbeat() if homes is not None else None)
         except Exception:
             pass    # the heartbeat reports health; it must never be the thing that fails
+
+    def _predecessor(self, store, health) -> None:
+        """One line for the watcher before this one where it ended without stopping, in this sign-in of this start of
+        Windows (control/watcher.how_it_ended, the Dashboard's own reading): its pid and when it was last seen. Read
+        before this watcher's first heartbeat writes over its row (v0.6.23, M1 of the owner's logs of 2026-11-13: two
+        such ends on one day, and nothing left to say when or under which pid). A reading that fails costs the line."""
+        try:
+            from ..control.watcher import how_it_ended
+            status = store.watcher_status()
+            ended, seen = how_it_ended(status, False, getattr(health, "sign_in", None), getattr(health, "booted_at", None))
+            if ended == WatcherEnd.UNEXPECTED.value:
+                self.logger.info("the watcher before this one (pid %s, last seen %s) ended without stopping, in this "
+                                 "start of Windows", status.get("pid"), time.strftime("%H:%M:%S", time.localtime(seen)))
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------ its own health (v0.6.11)
     def _new_health(self):
@@ -331,6 +346,7 @@ class WatchLoop:
         # v0.6.11: how this watcher ends, once it chooses to (WatcherEnd); None for any other end.
         end = None
         health = self._new_health()
+        self._predecessor(store, health)
         if not once:
             self._failure_baseline()
             sweep_set_aside(self.paths, self.logger.info)

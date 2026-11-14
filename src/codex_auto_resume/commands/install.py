@@ -35,7 +35,8 @@ def cmd_install(args) -> int:
         # Always register the home actually in effect. Passing it only when it came from
         # --home would let CODEX_AUTO_RESUME_HOME silently drop out at login, pointing the
         # autostarted watcher at a different state DB *and* a different single-instance mutex.
-        command = startup.command_line(app.paths.entry_script, app.paths.home)
+        command = startup.command_line(app.paths.entry_script, app.paths.home,
+                                       launcher=startup.watcher_python(app.paths.home))
         changed = startup.install(command)
         app.logger.info("login autostart %s", "registered" if changed else "already registered")
         _print("login autostart       : %s" % ("registered" if changed else "already registered (unchanged)"))
@@ -61,7 +62,8 @@ def cmd_install(args) -> int:
         # Without this the notification's "Don't resume" button has no handler. It is a
         # per-user class registration only, and uninstall removes it again.
         try:
-            command = startup.protocol_command_line(app.paths.entry_script, app.paths.home)
+            command = startup.protocol_command_line(app.paths.entry_script, app.paths.home,
+                                                    launcher=startup.watcher_python(app.paths.home))
             changed = startup.install_protocol(command)
             _print("notification action   : %s" % ("registered" if changed else "already registered (unchanged)"))
         except startup.StartupError as exc:

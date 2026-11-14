@@ -52,6 +52,9 @@ namespace CodexAutoResume
         internal const int AdoptWhatWasRead = 3;
         /// How many reopens in a row may follow from what a window reads as it opens.
         internal const int MaxGeneration = 2;
+        /// v0.6.23: what a reopen adds when the window opened in English because its words came late (Reopen), so the
+        /// new window does not reopen for late words again (OpenRequest.ForLateWords, TakeLateWords).
+        internal const string ReopenedForLateWords = "--late-words";
 
         private const int WM_SETTINGCHANGE = 0x001A;
         private const int WM_DPICHANGED = 0x02E0;
@@ -119,7 +122,8 @@ namespace CodexAutoResume
         /// a page, a section, a Theme or a Design there is; `--bounds=` is four whole numbers, a position in the virtual
         /// screen's range and a size from 1 to 32767; `--frame=` is four whole numbers from 0 to MaxFrame;
         /// `--focus=` is a name IsFocusName accepts; `--reopened=` is one digit from 1 to 9;
-        /// `--maximized` and `--settings` are flags. Anything else, including a value that fails its
+        /// `--maximized` and `--settings` are flags. v0.6.23: `--dialog=` is a row and a dialog RowDialogRequest
+        /// accepts, and opens Pending. Anything else, including a value that fails its
         /// check, is ignored, as an unknown argument always was.
         internal static OpenRequest ParseArguments(string[] arguments)
         {
@@ -161,6 +165,7 @@ namespace CodexAutoResume
                 {
                     if (value.Length == 1 && value[0] >= '1' && value[0] <= '9') request.Generation = value[0] - '0';
                 }
+                else if (argument == ReopenedForLateWords) request.ForLateWords = true;
                 else if ((value = After(argument, "--frame=")) != null)
                 {
                     Padding inset;
@@ -170,9 +175,48 @@ namespace CodexAutoResume
                 {
                     if (IsFocusName(value)) request.Focus = value;
                 }
+                else if ((value = After(argument, "--dialog=")) != null)
+                {
+                    if (RowDialogRequest(value) != null) request.RowDialog = value;
+                }
                 ArgumentParsed(argument, request);
             }
+            // A row's dialog is on Pending, whatever page was named beside it.
+            if (request.RowDialog != null) request.Page = "pending";
             return request;
+        }
+
+        // ------------------------------------------------------------- a row's dialog, asked from the popup (v0.6.23)
+        /// The dialogs of a Pending row the popup's row menu opens the window on (the owner, 2026-11-11: "대시보드 창
+        /// 띄우기"): Message for this conversation... and Add (or Change) words for this time... - ui/tray/dashboard.py
+        /// ROW_DIALOGS. The window's own dialog opens, for that row; the popup has no copy of either.
+        internal static readonly string[] RowDialogs = { "message", "once_words" };
+
+        /// `text` when it is `<dialog>:<interruption id>:<thread id>` exactly - a dialog of RowDialogs, an interruption id
+        /// as the product makes one (64 lowercase hex digits) and a conversation's UUID in its canonical text (lowercase,
+        /// hyphens at 8, 13, 18 and 23) - and null for anything else. Pure; the shape alone, since the record is checked
+        /// when the dialog is to open (RowForDialog).
+        internal static string RowDialogRequest(string text)
+        {
+            if (text == null || text.Length > 128) return null;
+            string[] parts = text.Split(':');
+            if (parts.Length != 3 || Array.IndexOf(RowDialogs, parts[0]) < 0) return null;
+            if (parts[1].Length != 64) return null;
+            foreach (char c in parts[1])
+                if (!LowerHex(c)) return null;
+            string thread = parts[2];
+            if (thread.Length != 36) return null;
+            for (int i = 0; i < thread.Length; i++)
+            {
+                bool hyphen = i == 8 || i == 13 || i == 18 || i == 23;
+                if (hyphen ? thread[i] != '-' : !LowerHex(thread[i])) return null;
+            }
+            return text;
+        }
+
+        private static bool LowerHex(char c)
+        {
+            return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
         }
 
         /// Four whole numbers from 0 to MaxFrame, one or two digits each: an invisible resize border.
@@ -337,6 +381,7 @@ namespace CodexAutoResume
                 if (item == null || item.Value != stored) continue;
                 baseline["panel_theme"] = Json.Escape(stored);
                 if (combo.SelectedIndex != i) combo.SelectedIndex = i;
+                ShowSaveLook();
                 return;
             }
         }
@@ -355,7 +400,7 @@ namespace CodexAutoResume
             string theme = Theme.Current(storedTheme);
             string design = Design.Drawn(theme, storedDesign);
             int decision = ReopenDecision(openedLanguage, openedTheme, openedDesign, storedLanguage, theme, design,
-                                          Dirty(), firstRead, request.Generation);
+                                          Dirty(), firstRead, DecidingGeneration());
             // Not again for the language, theme and design a new window was started for and never showed
             // (FinishReopen).
             if (decision != KeepWindow && storedLanguage == declinedLanguage && theme == declinedTheme &&
@@ -384,6 +429,22 @@ namespace CodexAutoResume
             Reopen(firstRead);
         }
 
+        /// The generation CheckReopen decides with (ReopenDecision): this window's, except while it is in English because
+        /// its words came late (LateLanguage, TakeLateWords) - late words are no disagreement between two windows, and a
+        /// window reopened twice for its theme kept English for good (AdoptWhatWasRead). v0.6.23. It cannot repeat: the
+        /// window that reopen starts carries `--late-words` (MarkLateWords), and takes no late words of its own.
+        private int DecidingGeneration()
+        {
+            return openedLanguage == LateLanguage ? 0 : request.Generation;
+        }
+
+        /// `arguments` for a reopen, with `--late-words` (ReopenedForLateWords) where this window is in English because its
+        /// words came late: the new window reopens for late words no more (OpenRequest.ForLateWords). v0.6.23.
+        private string MarkLateWords(string arguments)
+        {
+            return openedLanguage == LateLanguage ? arguments + " " + ReopenedForLateWords : arguments;
+        }
+
         private void ShowReopenNote(bool show)
         {
             if (reopenNote == null) return;
@@ -408,6 +469,51 @@ namespace CodexAutoResume
             }
             var startup = editors.ContainsKey("__startup") ? editors["__startup"] as CheckBox : null;
             return startup != null && startup.Checked != startupBaseline;
+        }
+
+        /// v0.6.23 (the final's live acceptance): Save in the accent only while the page holds an unsaved edit (Dirty), and
+        /// raised as Close and Restore defaults are otherwise - as the panel's Save is quiet until there is something to
+        /// save (panel.js renderFooter). It was the accent whenever it could be pressed: a window opened on Settings showed
+        /// it grey while its reads were on their way (SetBusy) and blue a second later with nothing changed, which reads as
+        /// "there are changes to save". Told by every editor as its value moves (WatchEdits), by the builds and the saves
+        /// that set what an edit is measured from, and by the clock each second.
+        private void ShowSaveLook()
+        {
+            var save = saveButton as SoftButton;
+            if (save == null || save.IsDisposed) return;
+            // Not while the editors are being built (EditorSteps): what an edit is measured from is set as the build ends.
+            bool dirty = editorSteps == null && Dirty();
+            if (save.Primary != dirty) save.Primary = dirty;
+        }
+
+        // The controls WatchEdits has told to call ShowSaveLook, each once; one leaves as it is disposed.
+        private readonly HashSet<Control> watchedEdits = new HashSet<Control>();
+
+        /// Every control under `root` whose value an edit moves - a check box or switch, a drop-down, a number, a text, a
+        /// choice of cards - calls ShowSaveLook when it moves (v0.6.23). Each once, however often a build asks.
+        private void WatchEdits(Control root)
+        {
+            foreach (Control control in root.Controls)
+            {
+                if (!watchedEdits.Contains(control))
+                {
+                    EventHandler moved = delegate { ShowSaveLook(); };
+                    bool watched = true;
+                    if (control is CheckBox) ((CheckBox)control).CheckedChanged += moved;
+                    else if (control is ComboBox) ((ComboBox)control).SelectedIndexChanged += moved;
+                    else if (control is NumericUpDown) ((NumericUpDown)control).ValueChanged += moved;
+                    else if (control is TextBoxBase) control.TextChanged += moved;
+                    else if (control is ChoiceGroup) ((ChoiceGroup)control).ValueChanged += moved;
+                    else watched = false;
+                    if (watched)
+                    {
+                        watchedEdits.Add(control);
+                        Control gone = control;
+                        control.Disposed += delegate { watchedEdits.Remove(gone); };
+                    }
+                }
+                WatchEdits(control);
+            }
         }
 
         /// Every editor's value as the JSON a Save sends for it.
@@ -560,12 +666,27 @@ namespace CodexAutoResume
         private static extern bool ChangeWindowMessageFilterEx(IntPtr window, int message, int action, IntPtr status);
 
         /// The page an open request's text asks for: "" to come forward where it is, a page of PageOrder, or null when
-        /// it is neither, which this window does not take. Pure, so the rule can be checked without a window.
+        /// it is neither, which this window does not take. Pure, so the rule can be checked without a window. v0.6.23: or
+        /// "pending" and, on a second line, a row's dialog RowDialogRequest accepts (OpenRequestRow) - the popup's row menu.
         internal static string OpenRequestPage(string text)
         {
             if (text == null || text.Length == 0) return text;
+            if (text.IndexOf('\n') >= 0) return OpenRequestRow(text) != null ? "pending" : null;
             return Array.IndexOf(PageOrder, text) >= 0 ? text : null;
         }
+
+        /// The row's dialog an open request asks for (v0.6.23): its second line, after "pending", when RowDialogRequest
+        /// accepts it; null for a request without one, or with anything else.
+        internal static string OpenRequestRow(string text)
+        {
+            if (text == null) return null;
+            int line = text.IndexOf('\n');
+            if (line < 0 || text.Substring(0, line) != "pending") return null;
+            return RowDialogRequest(text.Substring(line + 1));
+        }
+
+        /// The longest open request's text, in bytes: a page alone is at most 64, a page and a row's dialog 240.
+        private const int OpenRequestBytes = 512;
 
         private bool TakeOpenRequest(ref Message m)
         {
@@ -577,25 +698,29 @@ namespace CodexAutoResume
             if (auditing || !shown || IsDisposed || Disposing) return false;
             string text = null;
             if (copy.Size == 0) text = "";
-            else if (copy.Size > 0 && copy.Size <= 64 && copy.Size % 2 == 0 && copy.Bytes != IntPtr.Zero)
+            else if (copy.Size > 0 && copy.Size <= OpenRequestBytes && copy.Size % 2 == 0 && copy.Bytes != IntPtr.Zero)
             {
                 try { text = Marshal.PtrToStringUni(copy.Bytes, copy.Size / 2); }
                 catch (Exception) { text = null; }
             }
             string page = OpenRequestPage(text);
             if (page == null) return false;
+            string row = OpenRequestRow(text);
             m.Result = (IntPtr)OpenRequestTaken;
             // Answered first, so the watcher waits on nothing a page takes to show.
-            BeginInvoke(new MethodInvoker(delegate { ComeForwardOn(page); }));
+            BeginInvoke(new MethodInvoker(delegate { ComeForwardOn(page, row); }));
             return true;
         }
 
         /// On `page` ("" where it is) and in front. The page is left as it is under a dialog, which comes forward with it.
-        private void ComeForwardOn(string page)
+        /// v0.6.23: with `row`, that row's dialog is asked for once it is read again (AskRowDialog) - never under a dialog.
+        private void ComeForwardOn(string page, string row)
         {
             if (IsDisposed) return;
             try { if (page.Length > 0 && page != currentPage && IsWindowEnabled(Handle)) ShowPage(page); }
             catch (Exception) { /* it comes forward on the page it shows */ }
+            try { if (row != null && IsWindowEnabled(Handle)) AskRowDialog(row); }
+            catch (Exception) { /* it comes forward on Pending */ }
             // Restored if minimized, then activated - which brings it to the front, as the watcher allowed it to.
             try
             {
@@ -673,6 +798,7 @@ namespace CodexAutoResume
         /// Whether a start with `arguments` asks a window that is open to take it: one a person made - the Start menu's
         /// shortcut, the program itself, the setup's Finish - whose command line names at most a page (`--page=`, the older
         /// `--settings`), opened again outside another app's view (HostApp.Outside) or not, and not a capture's. Pure.
+        /// v0.6.23: and a row's dialog (`--dialog=`, RowDialogRequest), which the request carries on its second line.
         internal static bool HandsOverOnStart(string[] arguments, bool capture)
         {
             if (capture) return false;
@@ -682,15 +808,20 @@ namespace CodexAutoResume
                 if (string.IsNullOrEmpty(argument) || argument == HostApp.Outside || argument == "--settings") continue;
                 if (argument.StartsWith("--page=", StringComparison.Ordinal) &&
                     Array.IndexOf(PageOrder, argument.Substring("--page=".Length)) >= 0) continue;
+                if (argument.StartsWith("--dialog=", StringComparison.Ordinal) &&
+                    RowDialogRequest(argument.Substring("--dialog=".Length)) != null) continue;
                 return false;
             }
             return true;
         }
 
         /// The page a start that hands over asks for: the one its command line names, or "" - come forward where it is.
+        /// v0.6.23: with a row's dialog, "pending" and that on a second line, as win/handover.py request_text writes it.
         internal static string HandOverPage(string[] arguments)
         {
-            string page = ParseArguments(HostApp.Without(arguments)).Page;
+            OpenRequest request = ParseArguments(HostApp.Without(arguments));
+            if (request.RowDialog != null) return "pending\n" + request.RowDialog;
+            string page = request.Page;
             return page != null && Array.IndexOf(PageOrder, page) >= 0 ? page : "";
         }
 
@@ -868,6 +999,7 @@ namespace CodexAutoResume
                                                WindowState == FormWindowState.Maximized, storedTheme, storedDesign,
                                                NextGeneration(firstRead, request.Generation), invisibleFrame,
                                                reopenFocus ?? FocusName());
+            arguments = MarkLateWords(arguments);
             Process started;
             try
             {

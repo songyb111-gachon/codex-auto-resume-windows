@@ -8,7 +8,8 @@ here reads the real installation, the real Software\\Policies keys or a real Cod
 Held here: a message at a reset and a reset credit's rules are added from their forms, which offer the
 windows, which reset, and the snapshot's conversations, asking first, and are cancelled, let go on counting
 and used now, each request one the real bridge takes; Pending shows each rule still to act with Cancel,
-read when the status's counts change; Longer reset messages says what it lets a message be.
+read when the status's counts change; Longer reset messages says what it lets a message be, and Run on another
+Python version, another action, says its own limits, not that sentence (v0.6.23).
 
 GUI test module: compiles real executables, so it runs on its own.
 
@@ -156,6 +157,23 @@ class PageTests(PageCase):
                  {"do": "look"}]
         return "en", {"script": script, "steps": steps}, {"words": script["advanced-words"][0]["result"]["words"]}
 
+    @classmethod
+    def scenario_python_limits(cls, bridge):
+        """Run on another Python version, an action offered only on an installation: the bridge's registry here has it, as
+        an installation's does (registry.on_an_installation), and its Limits card is opened."""
+        from codex_auto_resume import control
+        from codex_auto_resume_advanced import plug as advanced, registry
+        made = registry.Registry(registry.REGISTRY.definitions + registry.INSTALLED_ONLY)
+        bridge.plug = advanced.AdvancedPlug(bridge.paths, registry=made, clock=lambda: ac.NOW, policy=lambda: bridge.policy,
+                                            view=lambda: bridge.view, measured=lambda: bridge.measured)
+        bridge.control = control.Control(bridge.paths, plug=bridge.plug)
+        script = cls.opening(bridge, "en")
+        script["advanced-statement python_choice"] = [bridge("advanced-statement", {"capability": "python_choice",
+                                                                                     "locale": "en"})]
+        steps = [{"do": "snapshot", "reply": snapshot()}, {"do": "show"}, {"do": "choose", "id": "python_choice"},
+                 {"do": "look"}]
+        return "en", {"script": script, "steps": steps}, {"words": script["advanced-words"][0]["result"]["words"]}
+
     # ---------------------------------------------------------------- the reset actions
     def test_a_message_at_a_reset_is_added_from_the_form_asking_first_and_cancelled_at_once(self):
         result, expected = self.of("scenario_reset_message")
@@ -281,6 +299,18 @@ class PageTests(PageCase):
         self.assertIn(words["page.long_limits"].replace("{n}", "2000"), limits)
         self.assertNotIn(words["page.action_limits"], limits)
         self.assertNotIn(words["page.report.title"], [card[0] for card in look["cards"]])
+
+    def test_run_on_another_python_version_states_its_own_limits(self):
+        """Fails with v0.6.23-beta.2's page, which wrote Longer reset messages' sentence for every action but the report
+        (the live acceptance of 2026-11-11, P1)."""
+        result, expected = self.of("scenario_python_limits")
+        words = expected["words"]
+        (look,) = result["looks"]
+        self.assertEqual(look["open"], "python_choice")
+        limits = next(card for card in look["cards"] if card[0] == words["page.limits"])
+        self.assertIn(words["page.python.limits"], limits)
+        self.assertNotIn(words["page.long_limits"].replace("{n}", "2000"), limits)
+        self.assertNotIn(words["page.action_limits"], limits)
 
 
 if __name__ == "__main__":

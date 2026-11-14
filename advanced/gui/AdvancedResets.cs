@@ -466,8 +466,8 @@ namespace CodexAutoResume
             string text = !(count is double)
                 ? Word("page.resets.reading.unknown", "How many reset credits you have has not been read yet.")
                 : soonest is double
-                    ? Word("page.resets.reading", "Reset credits: {n} · the soonest expires {time}", "n", Whole(count))
-                          .Replace("{time}", When((double)soonest))
+                    ? Word("page.resets.reading", "Reset credits: {n} · the soonest expires {time}", "time", When((double)soonest))
+                          .Replace("{n}", Mirror.Embed(Whole(count).ToString(CultureInfo.CurrentCulture)))
                     : Word("page.resets.reading.no_expiry", "Reset credits: {n}", "n", Whole(count));
             Dictionary<string, object> last = Map(advancedResets, "last_spend");
             object at = Get(last, "at");

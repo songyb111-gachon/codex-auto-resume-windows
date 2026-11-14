@@ -149,8 +149,11 @@ class OpenCase(TakingCase):
         self.running = True
         self.opened = []
         self.loads = True
+        # v0.6.23 final: core's loaded check, as the harness's own backend answers it - never this PC's Codex.
+        holds = lambda paths, thread: {"loaded": True, "notLoaded": False}.get(self.h.backend.loaded_map.get(thread))
         for name, value in (("idle_seconds", lambda: self.idle), ("handler_registered", lambda: self.handler),
-                            ("app_running", lambda: self.running), ("open_link", self.open_link)):
+                            ("app_running", lambda: self.running), ("open_link", self.open_link),
+                            ("app_holds", holds)):
             patcher = mock.patch.object(opentarget, name, value)
             patcher.start()
             self.addCleanup(patcher.stop)

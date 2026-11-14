@@ -18,7 +18,7 @@ later version of it:
 
 The vectors were computed from the code as it was before v0.6.5 gathered the identifiers into
 `domain/ids.py`, and they are literal: a change that moves any byte of any of them fails here.
-The Rust core of v0.6.24 has to reproduce every one.
+The Rust core of v0.6.25 has to reproduce every one.
 
 The acceptance tables pin the other half: call site by call site, which spellings each reader
 of an identifier takes and how it refuses the rest. They do not agree - the control layer reads
@@ -30,7 +30,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 from pathlib import Path
 import re
 import sys
@@ -311,20 +310,21 @@ class SettingsFileTests(unittest.TestCase):
         return written
 
     def test_the_defaults_are_written_as_these_bytes(self):
-        # Sorted keys, two spaces, no final newline; the lines end as a text file does here.
-        self.assertEqual(self.saved(settings.defaults()),
-                         DEFAULT_FILE.replace("\n", os.linesep).encode("ascii"))
+        # Sorted keys, two spaces, no final newline. From v0.6.23 the file is written as UTF-8 bytes with its lines
+        # ending in "\n" (until then as a text file, "\r\n" here); every version reads either.
+        self.assertEqual(self.saved(settings.defaults()), DEFAULT_FILE.encode("ascii"))
 
-    def test_the_users_own_words_are_kept_as_escapes(self):
+    def test_the_users_own_words_are_written_as_themselves(self):
+        # v0.6.23: each character as itself, in UTF-8, where it was a six-byte escape (a file of many long messages of
+        # the person's own passed the old 256 KB bound and was read as the defaults).
         written = self.saved(dict(settings.defaults(), custom_message=KOREAN,
                                   custom_message_usage_limit=KOREAN_USAGE, theme="dark"))
         expected = (DEFAULT_FILE
-                    .replace('"custom_message": null', '"custom_message": "\\uc5ec\\uae30\\uc11c '
-                             '\\uc774\\uc5b4\\uc11c \\uacc4\\uc18d\\ud574 \\uc8fc\\uc138\\uc694. {reason}"')
-                    .replace('"custom_message_usage_limit": null', '"custom_message_usage_limit": '
-                             '"\\ud55c\\ub3c4\\uac00 \\ud480\\ub838\\uc5b4\\uc694 \\u2014 \\uacc4\\uc18d!"')
+                    .replace('"custom_message": null', '"custom_message": ' + json.dumps(KOREAN, ensure_ascii=False))
+                    .replace('"custom_message_usage_limit": null',
+                             '"custom_message_usage_limit": ' + json.dumps(KOREAN_USAGE, ensure_ascii=False))
                     .replace('"theme": "system"', '"theme": "dark"'))
-        self.assertEqual(written, expected.replace("\n", os.linesep).encode("ascii"))
+        self.assertEqual(written, expected.encode("utf-8"))
 
 
 # -------------------------------------------------------------------- who takes what

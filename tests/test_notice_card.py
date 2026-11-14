@@ -1537,6 +1537,10 @@ class WindowsTests(unittest.TestCase):
     def setUpClass(cls):
         from codex_auto_resume import notice_window
         cls.window = notice_window
+        # GDI+ is held for the whole class: starting and stopping it for every test makes its background
+        # thread and hidden window each time, and under load those land in the middle of a leak test's reads.
+        tray_popup._gdiplus_acquire()
+        cls.addClassCleanup(tray_popup._gdiplus_release)
 
     def setUp(self):
         self.now = 0.0
@@ -2055,7 +2059,9 @@ class WindowsTests(unittest.TestCase):
         self.now = 100_000.0
         stack._tick()
         del warm
-        before = (tray_popup.gui_resources(), tray_popup.gdiplus_objects(), notice_window.gdiplus_objects())
+        self.pump(0.02)
+        process_before = tray_popup.gui_resources()
+        own_before = (tray_popup.gdiplus_objects(), notice_window.gdiplus_objects())
         for round_ in range(25):
             self.now = round_ * 1_000_000.0
             for index in range(3):
@@ -2066,8 +2072,17 @@ class WindowsTests(unittest.TestCase):
             self.now += 1_000_000.0
             stack._tick()
             self.assertEqual(stack.cards, [])
-        after = (tray_popup.gui_resources(), tray_popup.gdiplus_objects(), notice_window.gdiplus_objects())
-        self.assertEqual(after, before)
+        self.pump(0.05)
+        process_after = tray_popup.gui_resources()
+        own_after = (tray_popup.gdiplus_objects(), notice_window.gdiplus_objects())
+        # What the cards drew and made is counted exactly, by the module's own counters. The process-wide
+        # pair also counts whatever else lives in this interpreter (a thread an earlier test left, GDI+'s
+        # own), so it may move by two, as the tray popup's leak test allows; 75 leaked cards would be 75.
+        self.assertEqual(own_after, own_before)
+        self.assertLessEqual(process_after[0] - process_before[0], 2,
+                             "GDI objects grew from %d to %d" % (process_before[0], process_after[0]))
+        self.assertLessEqual(process_after[1] - process_before[1], 2,
+                             "USER objects grew from %d to %d" % (process_before[1], process_after[1]))
 
 
 # ============================================================================ v0.6.10: the design

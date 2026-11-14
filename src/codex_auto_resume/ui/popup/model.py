@@ -9,7 +9,7 @@ from __future__ import annotations
 from ... import machine
 from ... import reasons
 from ..words import countdown, usage_line
-from .words import one_line, say
+from .words import kept, one_line, say
 
 
 MAX_TASKS = 3
@@ -30,14 +30,20 @@ KEY_REPEAT_SECONDS = 0.3     # Enter on the icon arrives twice
 # The whole of what this window may ask of the control layer. v0.6.11 adds a task row's own menu:
 # postpone it - or take a postponement of the person's away - let a held one continue, how its
 # conversation resumes, and Always or Never for its project.
+# v0.6.23 adds taking a task's words for this time away (set_once_words, never with words: Remove words for this time).
 CONTROL_CALLS = ("list_pending", "get_status", "set_enabled", "set_interruption_recovery",
-                 "postpone", "unpostpone", "release_hold", "set_thread_tier", "set_project_rule")
+                 "postpone", "unpostpone", "release_hold", "set_thread_tier", "set_project_rule", "set_once_words")
 
 # The row menu's choices (v0.6.11), in the order it offers them: the times a task can be postponed
 # by (quiet.PRESETS), and how much a conversation asks before it resumes, least first
 # (machine.IMPORTANCE_TIERS) - after "as in Settings", which is no tier of its own.
 POSTPONE_PRESETS = ("30_minutes", "1_hour", "3_hours", "tomorrow_morning")
 TIERS = tuple(machine.IMPORTANCE_TIERS)
+
+# v0.6.23 (the owner, 2026-11-11: "대시보드 창 띄우기"): the row menu's writing items open the Dashboard on Pending with
+# that row and its own dialog there - one dialog, none in the popup. The dialogs it can be asked for, by the names its
+# start argument and its open request take (ui/tray/dashboard.py ROW_DIALOGS, gui/WindowReopen.cs RowDialogs).
+ROW_DIALOGS = ("message", "once_words")
 
 
 # The refusals that mean "the row you clicked is no longer the record it was drawn from".
@@ -161,8 +167,10 @@ def snapshot_activity(snapshot, now, *, attention=False) -> str:
     return "monitoring"
 
 
-def task_item(row, strings, now) -> dict:
-    """One pending recovery as the window shows it, with the identities its switch acts on."""
+def task_item(row, strings, now, keep=None) -> dict:
+    """One pending recovery as the window shows it, with the identities its switch acts on. `keep` keeps its time one
+    run in a right-to-left sentence (words.kept, v0.6.23); the strings' own when not given."""
+    keep = keep or kept(strings)
     category = row.get("category") or "unknown"
     usage = reasons.has_reset_time(category)
     at = row.get("eligible_at")
@@ -179,7 +187,7 @@ def task_item(row, strings, now) -> dict:
         # v0.6.11: Wait for an internet connection - Windows reports none, so usage is not read yet.
         if row.get("reason") == "offline":
             key = "popup.offline"
-        status = say(strings, key, time=countdown(seconds))
+        status = say(strings, key, time=keep(countdown(seconds)))
     overlays = set(row.get("overlays") or ())
     enabled = bool(row.get("thread_enabled", True))
     if "held" in overlays and is_waiting(row):
@@ -211,10 +219,14 @@ def task_item(row, strings, now) -> dict:
         # v0.6.11: what its row menu is drawn from - whether it still waits, whether it waits for a
         # person, and its conversation's own tier (None: Settings').
         "waiting": is_waiting(row) and not row.get("cancel_requested"),
-        "held": row.get("hold") is not None and not row.get("terminal"),
+        # Let it continue, by the Dashboard's rule (gui/DashboardData.cs CanRelease): held, not ended, and not cancelled.
+        "held": row.get("hold") is not None and not row.get("terminal") and not row.get("cancel_requested"),
         "tier": row.get("tier"),
         # And whether a person postponed it to a time still ahead, which Don't postpone takes away.
         "postponed": (row.get("postponed_until") or 0) > now,
+        # v0.6.23: whether it has words for this time, as the listing says - that it has some, never what they say -
+        # which picks Add or Change words and offers Remove.
+        "once_words": row.get("once_words") is True,
     }
 
 
@@ -222,7 +234,13 @@ def row_menu(task, strings, default_tier) -> list:
     """A task row's own menu, as data (v0.6.11): the entries in order, each ``{"text", "action",
     "enabled", "checked", "items"}`` or ``None`` for a separator. An action names the row's own
     interruption and conversation, as the switch does, and the control layer refuses it if the row
-    no longer is that record. Pure, so what is offered can be read without a window."""
+    no longer is that record. Pure, so what is offered can be read without a window.
+
+    v0.6.23 (the owner, 2026-11-11): what the Dashboard's Pending row menu offers (gui/DashboardActions.cs FillRowMenu),
+    in its order and by its rules - after a line, Message for this conversation..., Add words for this time... (Change
+    words for this time... when it has some; offered while it waits, as Postpone is) and, only when it has some, Remove
+    words for this time. The two that write open the Dashboard's own dialog for this row (a "dashboard_row" action);
+    Remove takes the words away at once, as the Dashboard's item does, without asking."""
     key, thread = task.get("interruption_id"), task.get("thread_id")
     if not key or not thread:
         return []
@@ -235,6 +253,16 @@ def row_menu(task, strings, default_tier) -> list:
                         "enabled": waiting and bool(task.get("postponed")), "checked": False, "items": None}]
     default = default_tier if default_tier in TIERS else TIERS[0]
     own = task.get("tier")
+    worded = task.get("once_words") is True
+    writing = [None,
+               {"text": say(strings, "menu.conversation_message"), "action": ("dashboard_row", "message", key, thread),
+                "enabled": True, "checked": False, "items": None},
+               {"text": say(strings, "menu.once_words_change" if worded else "menu.once_words_add"),
+                "action": ("dashboard_row", "once_words", key, thread), "enabled": waiting, "checked": False,
+                "items": None}]
+    if worded:
+        writing.append({"text": say(strings, "menu.once_words_remove"), "action": ("unsay", key, thread),
+                        "enabled": True, "checked": False, "items": None})
     tiers = [{"text": say(strings, "choice.tier_default", tier=say(strings, "choice." + default)),
               "action": ("tier", key, thread, None), "enabled": True, "checked": own is None, "items": None}]
     tiers += [{"text": say(strings, "choice." + tier), "action": ("tier", key, thread, tier),
@@ -253,7 +281,7 @@ def row_menu(task, strings, default_tier) -> list:
          "enabled": True, "checked": False, "items": None},
         {"text": say(strings, "menu.project_never"), "action": ("project", key, thread, False),
          "enabled": True, "checked": False, "items": None},
-    ]
+    ] + writing
 
 
 def view_model(rows, status, strings, now, *, notice=None, error=None) -> dict:
@@ -264,7 +292,8 @@ def view_model(rows, status, strings, now, *, notice=None, error=None) -> dict:
     due = [row["eligible_at"] for row in waiting if row.get("eligible_at") is not None]
     dash = "—"
     state = activity(status, ordered if known else None, now)
-    tasks = [task_item(row, strings, now) for row in ordered[:MAX_TASKS]]
+    keep = kept(strings)
+    tasks = [task_item(row, strings, now, keep) for row in ordered[:MAX_TASKS]]
     more = len(ordered) - len(tasks)
     # What the header says and what the toggle offers are one reading: recovery not known to be on is paused.
     paused = None if status is None else status.get("enabled") is not True
@@ -293,7 +322,7 @@ def view_model(rows, status, strings, now, *, notice=None, error=None) -> dict:
         "observe_note": (say(strings, "popup.observe_only")
                          if status is not None and status.get("observe_only") is True and not paused else None),
         # v0.6.11: Codex's usage as the watcher last read it, and how long ago - None until it has.
-        "usage_note": usage_line(newest_reading(status), lambda key, **fields: say(strings, key, **fields), now),
+        "usage_note": usage_line(newest_reading(status), lambda key, **fields: say(strings, key, **fields), now, keep),
     }
 
 
@@ -330,8 +359,9 @@ def busy_key(action):
     return None
 
 
-# What a row menu's items ask for (v0.6.11): each is one control call, bound to its row.
-ROW_ACTIONS = ("postpone", "unpostpone", "release", "tier", "project")
+# What a row menu's items ask for (v0.6.11): each is one control call, bound to its row. v0.6.23: and "unsay", Remove
+# words for this time. Its "dashboard_row" items are no control call: they open the Dashboard (perform).
+ROW_ACTIONS = ("postpone", "unpostpone", "release", "tier", "project", "unsay")
 
 
 def perform(action, control, *, source=None, dashboard=None):
@@ -365,8 +395,21 @@ def perform(action, control, *, source=None, dashboard=None):
             _, interruption_id, thread_id, always = action
             return ("ok", dict(control.set_project_rule(interruption_id, thread_id, bool(always),
                                                         source=source)))
+        if kind == "unsay":
+            # The words taken away, never written: the popup has no way to give a task words (A27's dialog is the
+            # Dashboard's alone).
+            _, interruption_id, thread_id = action
+            return ("ok", dict(control.set_once_words(interruption_id, thread_id, None)))
         if kind == "dashboard":
             return ("ok", {"opened": bool(dashboard()) if dashboard else False})
+        if kind == "dashboard_row":
+            # The Dashboard on Pending with this row and its own dialog for it (v0.6.23), the row's identities checked
+            # there against the record as every row action is.
+            _, dialog, interruption_id, thread_id = action
+            if dialog not in ROW_DIALOGS:
+                return ("failed", "unknown_action")
+            opened = dashboard(row=(dialog, interruption_id, thread_id)) if dashboard else False
+            return ("ok", {"opened": bool(opened)})
     except Exception as exc:                  # a front end reports; it never raises into the loop
         code = getattr(exc, "code", None)
         if isinstance(code, str) and code:
@@ -454,7 +497,7 @@ class PopupModel:
             else:
                 self.read_failed = True
             return
-        if kind == "dashboard":
+        if kind in ("dashboard", "dashboard_row"):
             return
         if verdict == "ok":
             # The control layer's own answer, for the conversation the click named.

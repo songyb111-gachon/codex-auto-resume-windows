@@ -923,6 +923,16 @@ namespace CodexAutoResume
             get { return Mirror.Display(this, base.DisplayRectangle); }
         }
 
+        /// v0.6.23 (the design audit's second round, F13): a card shown by its own Visible in a page already on screen - Settings'
+        /// Custom card when Custom is chosen - fades in over its ground once laid out (SoftReveal); its lift is there at once.
+        /// Built with its page, or on a page out of sight, it is simply there.
+        protected override void SetVisibleCore(bool value)
+        {
+            bool appearing = value && !Soft.OwnVisible(this) && IsHandleCreated && Parent != null && Motion.Allowed(Parent);
+            base.SetVisibleCore(value);
+            if (appearing) SoftReveal.EnterSoon(this);
+        }
+
         /// Zero. A card keeps no band inside itself for its shadow any more - the ground around
         /// it draws the shadow - so nothing needs to add one to its padding.
         internal static int Room { get { return 0; } }

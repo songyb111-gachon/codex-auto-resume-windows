@@ -253,7 +253,7 @@ namespace CodexAutoResume
             if (id != WrapUpId || advancedWordings == null) return;
             // (a) What is sent, exactly, for each window - whatever the wording.
             Dictionary<string, object> previews = Map(advancedWordings, "previews");
-            card.Controls.Add(Caption(Word("page.preview.title", "What is sent")));
+            card.Controls.Add(Caption(Word("page.preview.title", "What is sent, exactly")));
             foreach (string minutes in PreviewWindows)
             {
                 string words = Str(previews, minutes);

@@ -237,6 +237,20 @@ class PairedChatTests(TelegramCase):
         self.assertEqual((bot.answers, self.layer.calls), ([], []))
         self.assertEqual(self.said("/pause"), ["Recovery is paused."], "at its age it is")
 
+    def test_a_command_dated_ahead_of_this_pc_s_clock_is_obeyed(self):
+        """R1 (the second advanced review of v0.6.23): fails with no room ahead - Telegram's `date` is its own clock, and
+        on a PC a second or two behind it every command looked newer than now and was ignored, with no answer."""
+        for ahead in (1, 2, 60, telegram.AHEAD):
+            with self.subTest(ahead=ahead):
+                bot = Bot([self.message("/status", age=-ahead)])
+                self.poller(bot).once()
+                self.assertEqual(len(bot.answers), 1, "a clock %d s behind Telegram's" % ahead)
+
+    def test_a_command_dated_further_ahead_than_that_is_still_ignored(self):
+        bot = Bot([self.message("/pause", age=-(telegram.AHEAD + 1))])
+        self.poller(bot).once()
+        self.assertEqual((bot.answers, self.layer.calls), ([], []))
+
     def test_with_no_bot_or_no_chat_kept_nothing_is_asked(self):
         for kept in ({}, {"telegram_token": BOT_INK}, {"telegram_chat": str(CHAT)},
                      {"telegram_token": "not a token", "telegram_chat": str(CHAT)},
@@ -371,8 +385,8 @@ class CommandTests(TelegramCase):
         self.assertEqual((bot.answers, self.layer.calls), ([], []))
 
     def test_a_read_asks_for_few_so_no_reply_outgrows_what_is_read(self):
-        """Fails with `limit` dropped: a stranger's long messages make a reply past http.MAX_REPLY that never parses, and
-        the offset never moves: a bot stuck for good."""
+        """Fails with `limit` dropped: plain messages of a stranger's make a reply past http.MAX_REPLY at once. Messages
+        that quote others can still pass it, and BigReplyTests holds what happens then."""
         bot = Bot()
         self.poller(bot).once()
         self.assertIn("&limit=%d" % telegram.UPDATES, bot.reads[0])
@@ -407,6 +421,78 @@ class CommandTests(TelegramCase):
             table = statement.CATALOGS.own(locale)
             with self.subTest(locale):
                 self.assertEqual([key for key in keys if not isinstance(table.get(key), str)], [])
+
+
+class Telegram:
+    """Telegram's getUpdates as it truly answers: the updates from `offset` on, at most `limit`, in JSON with every
+    character past ASCII escaped (six bytes each) - and each sendMessage noted."""
+
+    def __init__(self, updates):
+        self.updates, self.reads, self.answers = list(updates), [], []
+
+    def open(self, request, timeout=None):
+        if request.full_url.endswith("/getMe"):
+            return Reply(b'{"ok":true,"result":{"id":1,"is_bot":true,"username":"My_Bot"}}')
+        if request.full_url.endswith("/sendMessage"):
+            self.answers.append(json.loads(request.data.decode("utf-8")))
+            return Reply(b'{"ok":true}')
+        asked = dict(part.split("=", 1) for part in request.full_url.split("?", 1)[1].split("&"))
+        self.reads.append((int(asked["offset"]), int(asked["limit"])))
+        found = [each for each in self.updates if each["update_id"] >= int(asked["offset"])][:int(asked["limit"])]
+        return Reply(json.dumps({"ok": True, "result": found}, ensure_ascii=True).encode())
+
+
+class BigReplyTests(TelegramCase):
+    """R2 (the second advanced review of v0.6.23): updates too long to read in one reply."""
+
+    def setUp(self):
+        super().setUp()
+        self.on("push_notices", "telegram_remote")
+
+    def long(self, characters=4096):
+        """A stranger's longest message, quoting another as long: what reply_to_message repeats."""
+        self.update += 1
+        text = "é" * characters
+        return {"update_id": self.update, "message": {"chat": {"id": OTHER}, "text": text, "date": int(self.now - 1),
+                                                      "reply_to_message": {"chat": {"id": OTHER}, "text": text}}}
+
+    def run_until_answered(self, bot, most=8):
+        poller = self.poller(bot)
+        waits = []
+        while not bot.answers and len(waits) < most:
+            waits.append(poller.once())
+        return waits
+
+    def test_the_paired_chat_s_command_behind_two_long_updates_is_read_with_waits(self):
+        """Fails with the reply's cut unhandled: two such updates come to about 98 KB, every read is cut at 64 KiB and
+        cannot be parsed, the offset stays, and the poller reads the same 64 KiB again with no wait ([0, 0, 0, ...])
+        while the paired chat's /pause behind them is never read."""
+        updates = [self.long(), self.long(), self.message("/pause")]
+        self.assertGreater(len(json.dumps({"ok": True, "result": updates[:2]})), channels.http.MAX_REPLY)
+        bot = Telegram(updates)
+        waits = self.run_until_answered(bot)
+        self.assertEqual(self.layer.calls, [("set_enabled", False)], "the paired chat's command is obeyed")
+        self.assertEqual(waits[0], telegram.AFTER_FAILURE, "a cut reply is never read again at once")
+        self.assertEqual(bot.reads[:2], [(0, telegram.UPDATES), (0, 1)], "then one message alone is asked for")
+        self.assertLessEqual(len(waits), 3)
+
+    def test_one_update_too_long_to_read_alone_is_passed_over(self):
+        updates = [self.long(12000), self.message("/pause")]
+        bot = Telegram(updates)
+        waits = self.run_until_answered(bot)
+        self.assertEqual(self.layer.calls, [("set_enabled", False)])
+        self.assertEqual(waits[:2], [telegram.AFTER_FAILURE, telegram.AFTER_FAILURE])
+        self.assertEqual(bot.reads, [(0, telegram.UPDATES), (0, 1), (updates[1]["update_id"], telegram.UPDATES)],
+                         "the one too long to read alone is passed over by its update_id")
+
+    def test_a_reply_that_is_not_telegram_s_is_never_read_again_at_once(self):
+        for body in (b"", b"not json", b'{"ok":true,"result":5}', b'{"ok":true,"result":[{"message":{}}]}'):
+            with self.subTest(body):
+                poller = self.poller(type("Odd", (), {"open": lambda self_, request, timeout=None: Reply(body)})())
+                self.assertEqual(poller.once(), telegram.AFTER_FAILURE)
+
+    def test_an_empty_reply_is_a_long_poll_that_ended_and_is_asked_again_at_once(self):
+        self.assertEqual(self.poller(Bot([])).once(), 0)
 
 
 class ContinueTests(TelegramCase):

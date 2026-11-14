@@ -492,6 +492,10 @@ namespace CodexAutoResume
                 return Word("page.accounts.switch_not_put_back",
                     "The switch to {account} did not finish. The account signed in before is put back as soon as Codex can be restarted.",
                     "account", account);
+            if (state == "unverified")
+                return Word("page.accounts.switch_unverified",
+                    "Switched to {account}, but who is signed in could not be read yet. It is read again in a minute, and the switch is undone only if that account is not signed in.",
+                    "account", account);
             if (state == "not_closed" || state == "held" || state == "locked" || state == "not_usable")
                 return Word("page.accounts.switch_not_done",
                     "Nothing was switched: Codex could not be closed just now, or the saved accounts were in use. Try again in a moment.");

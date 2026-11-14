@@ -227,8 +227,10 @@ class KoreanRegisterTests(unittest.TestCase):
     def test_the_two_accounts_help_lines_speak_to_the_person_alike(self):
         words = json.loads((ROOT / "advanced" / "src" / "codex_auto_resume_advanced" / "locales" / "ko.json")
                            .read_text(encoding="utf-8"))
-        self.assertTrue(words["page.accounts.help"].startswith("\ub2f9\uc2e0\uc758 "))
-        self.assertTrue(words["page.accounts.help_switch"].startswith("\ub2f9\uc2e0\uc758 "))
+        # The language review of v0.6.23 wrote both with \ubcf8\uc778\uc758 ("your own") where they had \ub2f9\uc2e0\uc758;
+        # what is held is that they start alike.
+        self.assertEqual(words["page.accounts.help"].split()[0], "\ubcf8\uc778\uc758")
+        self.assertEqual(words["page.accounts.help_switch"].split()[0], words["page.accounts.help"].split()[0])
 
 
 if __name__ == "__main__":

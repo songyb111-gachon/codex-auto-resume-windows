@@ -656,7 +656,9 @@ class WindowCompositionTests(unittest.TestCase):
         self.assertIn("if (snapshot != null) ApplySnapshot(snapshot);", self.method(self.dashboard, "private Control PageFor("))
 
     def test_fonts_are_not_made_on_every_switch(self):
-        for source, signature in ((self.dashboard, "private void ShowPage("),
+        # v0.6.23 (perffix): ShowPage chooses its tab through MarkTab, which a page pressed before it is ready calls too.
+        self.assertIn("MarkTab(name);", self.method(self.dashboard, "private void ShowPage("))
+        for source, signature in ((self.dashboard, "private void MarkTab("),
                                   (self.window, "private void ShowSection(")):
             with self.subTest(signature):
                 body = self.method(source, signature)
@@ -706,12 +708,13 @@ class WindowCompositionTests(unittest.TestCase):
         self.assertIn("Soft.PassWheel(sender as Control, e.Delta);", wheel, "and the page must still scroll over it")
 
     def test_why_it_is_waiting_scrolls_inside_its_card_and_never_the_page(self):
-        pending = self.method(self.dashboard, "private Control BuildPending(")
+        # v0.6.23: Pending is built in steps (PendingSteps); its checks list is the local gateList until the last.
+        pending = self.method(self.dashboard, "private IEnumerator<bool> PendingSteps(")
         explain = pending[pending.index('MakeCard(S("explain.title"'):pending.index("var split = new SoftStack();")]
         self.assertIn("explain.Dock = DockStyle.Fill;", explain, "as tall as the list's card in the same row")
         self.assertIn("explain.AutoSize = false;", explain)
         self.assertIn("gates.Scrolls = true;", explain)
-        self.assertIn("explainList.Dock = DockStyle.Top;", explain, "the checks are as tall as they are, inside the scroller")
+        self.assertIn("gateList.Dock = DockStyle.Top;", explain, "the checks are as tall as they are, inside the scroller")
         self.assertIn("explain.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));", explain,
                       "the scroller takes what the heading and the time leave")
         controls = guiscan.controls()

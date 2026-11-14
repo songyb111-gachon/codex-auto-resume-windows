@@ -8,7 +8,9 @@ an id, an address or a word of a conversation: no column could hold one.
 
 Bounds, all channels together: at most HOURLY rows raised in any hour - a notice past it is not written (the
 PLAN-v0.6.12 limit); TRIES tries each, the next not before AFTER[tries] seconds from when it was raised; dropped after
-the last, or at MAX_AGE however many it had (a paused PC's notices wait, then go). The journal's pass prunes the table
+the last, or at MAX_AGE however many it had (a paused PC's notices wait, then go). A notice raised before push_notices
+was last turned on is older than its use (v0.6.23 final, audit M8): dropped unsent at the next pass (`stale`), as an
+arming's own `since` dates what belongs to it elsewhere - never sent days later because it was turned on again. The journal's pass prunes the table
 to 7 days and 500 rows besides (state/journal.py).
 
 The journal says what came of each try in push_notices' own codes (`codes`): `sent_<channel>`,
@@ -109,6 +111,20 @@ def expire(state, now) -> list:
     with state._transaction() as connection:
         rows = connection.execute("SELECT item_id, channel FROM outbox WHERE state = ? AND at <= ?",
                                   (str(OutboxState.WAITING), now - MAX_AGE)).fetchall()
+        for row in rows:
+            connection.execute("UPDATE outbox SET state = ?, finished_at = ? WHERE item_id = ?",
+                               (str(OutboxState.DROPPED), float(now), row["item_id"]))
+    return [row["channel"] for row in rows]
+
+
+def stale(state, since, now) -> list:
+    """Every row waiting that was raised before `since` - when push_notices was last turned on - dropped; their
+    channels, one for each. Nothing where `since` is not a time."""
+    if type(since) not in (int, float):
+        return []
+    with state._transaction() as connection:
+        rows = connection.execute("SELECT item_id, channel FROM outbox WHERE state = ? AND at < ?",
+                                  (str(OutboxState.WAITING), float(since))).fetchall()
         for row in rows:
             connection.execute("UPDATE outbox SET state = ?, finished_at = ? WHERE item_id = ?",
                                (str(OutboxState.DROPPED), float(now), row["item_id"]))

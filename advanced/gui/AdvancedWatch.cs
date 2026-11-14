@@ -95,7 +95,7 @@ namespace CodexAutoResume
                 string text = WatchAnswer(Str(answer, "answer")) +
                               " · " + Word("page.watchlog.times", "Times") + ": " +
                               Whole(Get(answer, "count")).ToString(CultureInfo.CurrentCulture) +
-                              " · " + Word("page.watchlog.last", "Last") + ": " + (last is double ? When((double)last) : "-");
+                              " · " + Word("page.watchlog.last", "Last") + ": " + (last is double ? Mirror.Embed(When((double)last)) : "-");
                 Label line = HelpText(text);
                 line.ForeColor = Ink;
                 line.Margin = Pad(0, 2, 0, 4);

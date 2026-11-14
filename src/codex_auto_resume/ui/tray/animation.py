@@ -112,6 +112,12 @@ class AnimationMixin:
                 allowed = not self._overflowed() and tray_popup.icon_rect(self._hwnd, 1) is not None
         self._motion_allowed = allowed
 
+    def _popup_held(self) -> bool:
+        """Whether battery saver or a locked or disconnected session holds the popup's motion (v0.6.23, standard H13): the
+        icon's own reading of both (icon_motion_allowed), which the popup adds to its Reduce motion and High Contrast."""
+        return not icon_motion_allowed(battery_saver=battery_saver(),
+                                       locked=bool(getattr(self, "_session_locked", False) or getattr(self, "_session_away", False)))
+
     def _overflowed(self) -> bool:
         """Whether Windows says the icon is in the overflow flyout, where nobody would see it move. Its own setting
         for the icon, because Windows 11 gives an icon there the overflow button's rectangle and `icon_rect` cannot

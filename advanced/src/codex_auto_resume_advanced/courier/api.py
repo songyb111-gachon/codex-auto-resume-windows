@@ -15,8 +15,9 @@ Windows asks about its firewall then, and nothing here touches a firewall rule. 
                        on - refused 409 "list_again" where the list has changed (local_api_actions)
 
 Nothing else: no route sends, chats, changes a setting, turns a feature on or off, sends now or gives attempts back
-(a test holds ROUTES to the design's table). Each request, in this order: closed for five minutes after LOCK_AFTER
-wrong tokens in LOCK_WINDOW seconds (503); exactly one Host header, 127.0.0.1:<port> or localhost:<port> - or, open to
+(a test holds ROUTES to the design's table). Each request, in this order: closed for five minutes to a client after
+LOCK_AFTER wrong tokens from it in LOCK_WINDOW seconds (503) - a client is its address, every loopback address one
+client, so no device on the network can close the server to this PC's own programs or to another device; exactly one Host header, 127.0.0.1:<port> or localhost:<port> - or, open to
 the network, an IPv4 address with the port - so a web page served under another name (DNS rebinding) is refused 421;
 an unknown path is 404 and a method a route does not take 405; every route but `/` needs `Authorization: Bearer
 <token>` (local_api's token in Windows Credential Manager, compared in constant time) or is 401 - and only a Bearer token
@@ -24,8 +25,9 @@ offered and wrong counts towards the lock, so a request with none, which any web
 local_api_actions does not stand on is 403; a body over MAX_BODY is 413. No answer carries a CORS header, a cookie or a
 server's version, and a query string is never read: the token never travels in an address. Requests are served by at
 most THREADS threads at a time; each read waits TIMEOUT seconds at most, and each request, from its connection to its
-answer, has DEADLINE seconds in all - then its connection is shut - so a few clients that trickle a byte at a time cannot
-hold every slot. Nothing is logged: not a request, not an address, not a failure.
+answer, has DEADLINE seconds in all - then its connection is shut - and after its answer LINGER_SECONDS more in all, so a
+few clients that trickle a byte at a time cannot hold every slot, before the answer or after it. Nothing is logged: not a
+request, not an address, not a failure.
 """
 from __future__ import annotations
 
@@ -48,9 +50,13 @@ MAX_BODY = 1024
 THREADS = 8
 TIMEOUT = 10                       # seconds one read may wait
 DEADLINE = 10                      # seconds one request may take in all, its connection to its answer
-LINGER_SECONDS = 1.0               # after its answer, how long a connection waits for what the client still sends
-LINGER_BYTES = 64 * 1024           # and how much of that it reads and drops
+LINGER_SECONDS = 1.0               # after its answer, how long in all a connection waits for what the client still sends
+LINGER_BYTES = 64 * 1024           # and how much of that it reads and drops, at most
 LOCK_AFTER, LOCK_WINDOW, LOCK_SECONDS = 10, 60, 300
+# Clients whose wrong tokens are kept, at most: past it the one heard from longest ago is forgotten, one not closed first.
+# Room for every device of a home or office network - and a table that cannot grow without limit, whoever sends.
+CLIENTS = 256
+LOOPBACK_CLIENT = "loopback"       # every 127.x.x.x and ::1: this PC's own programs, one client
 # Every route, with the methods it takes and whether it changes anything (an action, local_api_actions'). A test holds
 # this table to the design's: reads and reduce-actions, nothing else.
 ROUTES = {"/": ("GET", False), "/status.json": ("GET", False), "/metrics": ("GET", False),
@@ -126,26 +132,53 @@ class Service:
         self.runtime.state.counted(API, "locked")
 
 
+def client_of(address) -> str:
+    """The client a request counts against: LOOPBACK_CLIENT for this PC's own loopback, else its address as written."""
+    try:
+        found = ipaddress.ip_address(address)
+    except (ValueError, TypeError):
+        return str(address)
+    if isinstance(found, ipaddress.IPv6Address) and found.ipv4_mapped is not None:
+        found = found.ipv4_mapped
+    return LOOPBACK_CLIENT if found.is_loopback else str(found)
+
+
 class Gate:
-    """The wrong tokens counted, and the five minutes closed after LOCK_AFTER of them in LOCK_WINDOW seconds."""
+    """The wrong tokens counted for each client (client_of), and that client closed for LOCK_SECONDS after LOCK_AFTER
+    of them in LOCK_WINDOW seconds (S2, the second security review of v0.6.23: one count for every caller let a device on
+    the network keep the server closed to everyone). At most CLIENTS are kept."""
 
     def __init__(self, clock):
         self.clock = clock
-        self._wrong, self._until = [], 0.0
+        self._clients = {}                 # client -> [its wrong tokens' times, closed until]; oldest first
         self._lock = threading.Lock()
 
-    def closed(self) -> bool:
-        return self.clock() < self._until
+    def closed(self, client=LOOPBACK_CLIENT) -> bool:
+        with self._lock:
+            found = self._clients.get(client)
+            return found is not None and self.clock() < found[1]
 
-    def wrong(self) -> bool:
-        """One wrong token counted; whether that closed it."""
+    def wrong(self, client=LOOPBACK_CLIENT) -> bool:
+        """One wrong token counted for `client`; whether that closed it to it."""
         now = self.clock()
         with self._lock:
-            self._wrong = [at for at in self._wrong if 0 <= now - at < LOCK_WINDOW] + [now]
-            if len(self._wrong) >= LOCK_AFTER:
-                self._wrong, self._until = [], now + LOCK_SECONDS
-                return True
-        return False
+            found = self._clients.pop(client, None) or [[], 0.0]
+            self._clients[client] = found              # heard from last: the newest
+            found[0] = [at for at in found[0] if 0 <= now - at < LOCK_WINDOW] + [now]
+            closing = len(found[0]) >= LOCK_AFTER
+            if closing:
+                found[0], found[1] = [], now + LOCK_SECONDS
+            while len(self._clients) > CLIENTS:
+                self._forget(now)
+        return closing
+
+    def _forget(self, now) -> None:
+        """The client heard from longest ago forgotten - one that is not closed, where there is one."""
+        for client, (_times, until) in self._clients.items():
+            if not now < until:
+                del self._clients[client]
+                return
+        del self._clients[next(iter(self._clients))]
 
 
 def host_allowed(header, port, lan) -> bool:
@@ -204,12 +237,18 @@ class Handler(BaseHTTPRequestHandler):
         """The answer ends here, and what the client sent that was not read is read and dropped before the socket is
         closed. A refusal (401, 404, 405, 413) answers on the headers alone, and a body that is unread or still on its way
         to a socket already closed resets the connection: a client that has not read the answer yet loses it. Bounded
-        both ways, so a client that neither sends nor closes holds its slot for a moment only."""
+        both ways, and in all from the answer: LINGER_SECONDS of waiting in total, not for each read (S1, the second
+        security review of v0.6.23: one byte a second kept a slot for hours), and LINGER_BYTES - so a client holds its
+        slot past its answer for a moment only, whatever it sends."""
         try:
             self.connection.shutdown(socket.SHUT_WR)
-            self.connection.settimeout(LINGER_SECONDS)
+            end = time.monotonic() + LINGER_SECONDS
             left = LINGER_BYTES
             while left > 0:
+                wait = end - time.monotonic()
+                if wait <= 0:
+                    break
+                self.connection.settimeout(wait)
                 got = self.connection.recv(min(left, 4096))
                 if not got:
                     break
@@ -263,7 +302,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def _handle(self):
         service, gate = self.server.service, self.server.gate
-        if gate.closed():
+        client = client_of(self.client_address[0])
+        if gate.closed(client):
             return self._refuse(503, "locked", {"Retry-After": str(LOCK_SECONDS)})
         hosts = self.headers.get_all("Host") or []
         if len(hosts) != 1 or not host_allowed(hosts[0], service.port, service.lan):
@@ -282,7 +322,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._refuse(503, "unavailable")
             return self._answer(200, page, "text/html; charset=utf-8", {"Content-Security-Policy": CSP})
         if not self._authorized(service):
-            if self._offered() and gate.wrong():
+            if self._offered() and gate.wrong(client):
                 service.locked()
             return self._refuse(401, "unauthorized", {"WWW-Authenticate": "Bearer"})
         body = b""

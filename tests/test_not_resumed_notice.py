@@ -25,7 +25,7 @@ from codex_auto_resume import l10n, notifier, notify, reasons  # noqa: E402
 THREAD = "0a1b2c3d-0001-7000-8000-000000000001"
 IDENTITY = {"name": "ExampleUser's task"}
 WORDS = {
-    "parent_handed_over": {"ko": "직접 이어가고 계신 대화라 자동으로 재개하지 않습니다.",
+    "parent_handed_over": {"ko": "직접 이어 가고 계신 대화라 자동으로 재개하지 않습니다.",
                            "en": "You are continuing this conversation yourself, so it will not be resumed "
                                  "automatically."},
     "parent_cancelled": {"ko": "자동 복구를 취소한 작업이라 자동으로 재개하지 않습니다.",

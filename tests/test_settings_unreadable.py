@@ -77,11 +77,16 @@ class ReadTests(unittest.TestCase):
             settings.update(self.path, {"notifications": False})
         self.assertEqual(self.path.read_bytes(), before, "the person's file is left as it was")
 
-    def test_a_save_still_repairs_a_file_that_holds_no_settings(self):
+    def test_a_save_never_writes_over_a_file_that_holds_no_settings(self):
+        """v0.6.23 (audit K1): until then a save repaired such a file with the defaults, and whatever the person had
+        chosen in it was gone with nothing to say so. Now the save is refused in words that say how to go on, and
+        Restore defaults sets the file aside first (tests/test_settings_size.py)."""
         self.path.write_text("{not json", encoding="utf-8")
-        saved = settings.update(self.path, {"observe_only": True})
-        self.assertIs(saved["observe_only"], True)
-        self.assertIs(settings.read(self.path)["observe_only"], True)
+        with self.assertRaises(settings.Unreadable) as raised:
+            settings.update(self.path, {"observe_only": True})
+        self.assertFalse(raised.exception.transient)
+        self.assertIn("Restore defaults", str(raised.exception))
+        self.assertEqual(self.path.read_text(encoding="utf-8"), "{not json")
 
 
 class WatcherTests(unittest.TestCase):

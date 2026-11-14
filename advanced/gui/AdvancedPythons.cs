@@ -68,11 +68,52 @@ namespace CodexAutoResume
             pythonTimer.Start();
         }
 
+        /// The timer's read: only while the card is on screen - the Advanced page shown and this capability open. Off
+        /// screen the clock goes on ticking and asks nothing; the first tick after the person is back reads it again, as the
+        /// window's reads read the Advanced page only while it is on screen.
         private void PollPython()
         {
-            if (pythonPolling || advancedOpen != PythonId) return;
+            if (pythonPolling || advancedOpen != PythonId || currentPage != AdvancedPageName) return;
             pythonPolling = true;
             ReadPython(delegate { pythonPolling = false; });
+        }
+
+        /// Where `inner` is inside `root`, as the index of each control on the way down (null when it is not inside): the
+        /// place the keyboard was on before a rebuild, found again in the cards built in its place (ShowAdvancedDetail).
+        /// Pure: it reads the controls' order only.
+        internal static List<int> PlaceOf(Control root, Control inner)
+        {
+            if (root == null || inner == null) return null;
+            var place = new List<int>();
+            for (Control control = inner; control != root; control = control.Parent)
+            {
+                if (control == null || control.Parent == null) return null;
+                place.Insert(0, control.Parent.Controls.GetChildIndex(control));
+            }
+            return place.Count == 0 ? null : place;
+        }
+
+        /// The control at `place` inside `root` (PlaceOf), or null when the cards as built again have nothing there.
+        internal static Control AtPlace(Control root, List<int> place)
+        {
+            if (root == null || place == null || place.Count == 0) return null;
+            Control control = root;
+            foreach (int index in place)
+            {
+                if (index < 0 || index >= control.Controls.Count) return null;
+                control = control.Controls[index];
+            }
+            return control;
+        }
+
+        /// The keyboard back where it was on the Python version card: its read every 0.7 s during a download rebuilds the
+        /// cards, and the person reading them with the keyboard or a screen reader stays on the control they were on.
+        private bool FocusPlace(List<int> place)
+        {
+            Control target = AtPlace(advancedStack, place);
+            if (target == null || !target.CanFocus) return false;
+            target.Focus();
+            return true;
         }
 
         /// What the card is built from, for ShowAdvancedDetail to build it again only when it changed.
@@ -182,7 +223,7 @@ namespace CodexAutoResume
         private void BuildPythonOffers(TableLayoutPanel card, string chosen)
         {
             card.Controls.Add(HelpText(Word("page.python.help",
-                "Nothing is read from the network until you press a button. Check python.org lists the newest release of each version; Use this version downloads it from www.python.org and checks it before it runs.")));
+                "Nothing is read from the network until you press a button. Check python.org lists, for each version, the newest release that python.org publishes with a Windows embeddable package; Use this version downloads it from www.python.org and checks it before it runs.")));
             pythonCheck = CardButton(card, Word("page.python.check", "Check python.org"), delegate { PythonAsk(); });
             pythonCheck.Margin = Pad(0, 8, 0, 4);
             if (!Equals(Get(advancedPython, "checked"), true)) return;
@@ -206,6 +247,16 @@ namespace CodexAutoResume
                 Button use = CardButton(card, Word("page.python.use", "Use this version"), delegate { PythonPut(pressed); });
                 use.Margin = Pad(0, 2, 0, 6);
                 pythonUse.Add(use);
+            }
+            // A line python.org has no Windows package of (v0.6.23 final): said in one sentence, never offered. With nothing
+            // offered at all, the sentence above says it for every line.
+            if (offers.Count == 0) return;
+            foreach (object line in Items(advancedPython, "missing") ?? new List<object>())
+            {
+                string named = line as string;
+                if (named != null)
+                    card.Controls.Add(HelpText(Word("page.python.no_package",
+                        "python.org has no Windows package of Python {line}, so it cannot be chosen now.", "line", named)));
             }
         }
 

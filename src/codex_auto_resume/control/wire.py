@@ -7,8 +7,8 @@ Rust port declares as structs, and what `tests/test_wire_types.py` holds to the 
 directions - every key the wire carries is declared here, every key declared here is on the
 wire, and every value seen fits its declared type.
 
-Nothing imports this at run time; a reply is still a dict built where it always was. It changes
-what can be said about a reply, not what a reply is.
+Nothing imports this at run time, so the release archives leave it out (build/make_release.py, NOT_SHIPPED);
+a reply is still a dict built where it always was. It changes what can be said about a reply, not what a reply is.
 
 Three things the types keep that a port would be tempted to lose:
 

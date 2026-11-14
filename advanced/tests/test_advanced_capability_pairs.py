@@ -27,7 +27,7 @@ from test_advanced_goal import GoalCase  # noqa: E402
 from test_advanced_usage import Session, UsageCase, reply  # noqa: E402
 from codex_auto_resume.domain.plug import Alternative, Point  # noqa: E402
 from codex_auto_resume import machine  # noqa: E402
-from codex_auto_resume_advanced import runtime, statement  # noqa: E402
+from codex_auto_resume_advanced import statement  # noqa: E402
 from codex_auto_resume_advanced.codex.turns import Turns  # noqa: E402
 from codex_auto_resume_advanced.engine import foropen  # noqa: E402
 from codex_auto_resume_advanced.registry import (COMPACT_CONTINUE, GOAL_CONTINUATION, HEADLESS_RUN,  # noqa: E402
@@ -158,7 +158,6 @@ class GoalBesideQueueForOpenTests(GoalCase):
             plug, _fake = self.both()
         self.assert_one_continuation(plug, "qfo.goal_unmeasured")
 
-    @unittest.skipUnless(hasattr(Measurement, "MQG"), "Measurement.MQG arrives with v0617-queue")
     def test_mqg_passed_by_its_own_id_and_both_apply(self):
         self.assertIs(foropen.MQG, Measurement.MQG)
         self.measured[Measurement.MQG] = (Verdict.PASS, ENGINE)
@@ -172,7 +171,7 @@ class GoalBesideOtherSessionsTests(GoalCase):
     ordinary way (core's engine/foropen._not_for_open), so a channel named there left the record waiting "held by
     another session" for ever. Settled by the runtime's rule for answers core cannot carry together (runtime.CONFLICTS,
     v0.6.17 #42, branch v0617-queue): the goal's channel stands aside for that send, `overruled` in its journal - goal.py
-    is unchanged. Until that rule is merged the session test is skipped; it fails on a runtime without it."""
+    is unchanged. The session test fails on a runtime without that rule."""
     registry = (GOAL_CONTINUATION, OTHER_SESSIONS)
 
     def fresh(self, **kwargs):
@@ -189,7 +188,6 @@ class GoalBesideOtherSessionsTests(GoalCase):
                  warnings=[str(word) for word in plug.runtime.arming.warnings(definition)])
         return plug, fake
 
-    @unittest.skipUnless(hasattr(runtime, "CONFLICTS"), "runtime.CONFLICTS (v0617-queue, #42) settles P-3: not merged")
     def test_a_conversation_another_session_holds_is_sent_for_it_to_take(self):
         plug, fake = self.both(loaded=False)
         self.h.backend.loaded_map[T1] = "elsewhere"          # a terminal's or VS Code's session holds it
@@ -861,6 +859,7 @@ class ChatBesideCrashRestartTests(_ChatPair):
 from test_advanced_open_target import OpenCase  # noqa: E402
 from codex_auto_resume_advanced.registry import OPEN_TO_SEND  # noqa: E402,F401
 from codex_auto_resume_advanced.engine import opentarget  # noqa: E402
+OPEN_HOLDS = opentarget.app_holds                    # the real one, before OpenCase replaces it with the harness's
 
 
 class OpenToSendBesideQueueForOpenTests(OpenCase):
@@ -883,6 +882,40 @@ class OpenToSendBesideQueueForOpenTests(OpenCase):
         for _ in range(3):
             self.h.tick(advance=61)
         self.assertEqual(len(self.h.backend.send_calls), 1, "no second send")
+
+
+    def test_a_conversation_queued_for_open_that_the_app_holds_already_is_never_opened(self):
+        """v0.6.23 final (audit M12): the person opened it themselves and Codex did not deliver at once - the item stays
+        queued for open for core's delivery window, and open_to_send leaves it alone; unknown never opens either."""
+        self.armed()
+        self.ready_after_reset(loaded=False)
+        self.h.backend.loaded_map[T1] = "notLoaded"
+        self.h.backend.after_accept = "queue"
+        self.h.tick()
+        self.assertEqual(self.h.record()["state"], "queued")
+        for word in ("loaded", "unknown"):
+            with self.subTest(word):
+                self.h.backend.loaded_map[T1] = word
+                self.h.tick(advance=5)
+                self.assertEqual(self.opened, [], "the app holds it (or that cannot be told): no open")
+
+    def test_app_holds_reads_core_s_loaded_check_and_unknown_is_none(self):
+        class Backend:
+            def __init__(self, identity, word):
+                self.identity, self.word = identity, word
+
+            def app_identity(self):
+                return self.identity
+
+            def loaded(self, thread, identity):
+                return self.word
+        from codex_auto_resume_advanced.codex import inuse
+        app = {"server": {"pid": 1, "created": 1}}
+        for backend, held in ((Backend(app, "loaded"), True), (Backend(app, "notLoaded"), False),
+                              (Backend(app, "unknown"), None), (Backend(None, "unknown"), False)):
+            with self.subTest(held), patch.object(inuse, "backend", lambda paths, made=backend: made):
+                with patch.object(opentarget, "app_holds", OPEN_HOLDS):
+                    self.assertIs(opentarget.app_holds(None, T1), held)   # the backend is the stand-in
 
 
 class OpenToSendBesideOtherSessionsTests(OpenCase):

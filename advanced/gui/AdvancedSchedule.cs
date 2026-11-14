@@ -278,7 +278,7 @@ namespace CodexAutoResume
             string code = state == "held" ? "exhausted" : Equals(Get(rule, "being_sent"), true) ? "submitted" : "scheduled";
             string thread = Str(rule, "thread_id");
             string stands = RuleStateWord(rule), what = RuleWhat(rule);
-            var cells = new[] { thread != null ? ConversationOf(thread) : Word("name.reset_credit", "Reset credit"), RuleStateShort(rule),
+            var cells = new[] { thread != null ? ConversationOf(thread) : Word("name.reset_credit", "Use a reset credit at the limit you pick"), RuleStateShort(rule),
                                 Word("page.pending.kind.rule", "Reset rule"), RuleWhen(rule), "", "" };
             return Joined(KindRule, "rule " + Whole(Get(rule, "rule_id")).ToString(CultureInfo.InvariantCulture), code, rule,
                           cells, stands + " · " + what);
@@ -339,7 +339,7 @@ namespace CodexAutoResume
                 : Word("page.scheduled.state.delivered", "delivered");
             // Its times as a recovery's are written in History (When): when it was due, when it finished.
             var cells = new[] { ConversationOf(Str(row, "thread_id")), outcome, Word("page.pending.kind.message", "Scheduled message"),
-                                When(Number(row, "due_at")), When(Number(row, "finished_at")) };
+                                Mirror.Embed(When(Number(row, "due_at"))), Mirror.Embed(When(Number(row, "finished_at"))) };
             return Joined(KindDone, "done " + Whole(Get(row, "prompt_id")).ToString(CultureInfo.InvariantCulture), "recovered",
                           row, cells, outcome);
         }
@@ -362,7 +362,7 @@ namespace CodexAutoResume
             string stands = SteerState(state);
             double finished = Number(row, "finished_at");
             var cells = new[] { ConversationOf(Str(row, "thread_id")), stands, Word("page.pending.kind.steer", "Steer"),
-                                When(Number(row, "created_at")), finished > 0 ? When(finished) : "" };
+                                Mirror.Embed(When(Number(row, "created_at"))), finished > 0 ? Mirror.Embed(When(finished)) : "" };
             return Joined(KindSteer, "steer " + Whole(Get(row, "steer_id")).ToString(CultureInfo.InvariantCulture), code,
                           row, cells, SteerNote(row));
         }

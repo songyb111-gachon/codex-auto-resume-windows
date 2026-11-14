@@ -102,10 +102,40 @@ def credit_world(root) -> World:
 
 
 class CreditCase(unittest.TestCase):
+    """One scratch world per test, copied from one built once for the class (git runs a dozen times to build it).
+
+    Most tests then file the same one credited report from User7 and plan it: that plan (a clone, a fetch and the
+    planner's own commits: most of the time a test takes) is made once for the class, the first time a test asks, and
+    each of those tests starts from a copy of it (`planned_world`), as tests/test_community_file.py's WriteStepTests do.
+    A test that changes GitHub's side before it plans, or files another report, plans its own."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.folder = tempfile.TemporaryDirectory()
+        cls.template = credit_world(Path(cls.folder.name) / "template")
+        cls.planned = None
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.folder.cleanup()
+
     def setUp(self):
         folder = tempfile.TemporaryDirectory()
         self.addCleanup(folder.cleanup)
-        self.world = credit_world(Path(folder.name) / "world")
+        self.world = self.template.copy_to(Path(folder.name) / "world")
+
+    def planned_world(self):
+        """A copy of the world after one credited report from User7 (pull request 7) was planned, in a folder of its
+        own; it takes the place of `self.world`'s own `pr(7, credited())` and `plan()`."""
+        cls = type(self)
+        if cls.planned is None:
+            cls.planned = self.template.copy_to(Path(cls.folder.name) / "planned")
+            cls.planned.pr(7, credited())
+            cls.planned.plan()
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.world = cls.planned.copy_to(Path(folder.name) / "world")
+        return self.world
 
     def tip(self, name):
         chain = self.world.chain()
@@ -127,8 +157,7 @@ class FilingCreditTests(CreditCase):
         self.assertNotIn(filer.KO_BRANCH, self.changed())
 
     def test_a_chosen_credit_names_the_author_once_in_the_fixed_sentence(self):
-        self.world.pr(7, credited())
-        self.world.plan()
+        self.planned_world()
         self.assertEqual(self.changed(), sorted([reader.canonical_path("User7", VERSION), filer.INDEX, filer.README,
                                                  filer.COUNTS, filer.CONTRIBUTORS, "README.md", filer.KO_BRANCH]))
         contributors = self.tip(filer.CONTRIBUTORS)
@@ -212,8 +241,7 @@ class FilingCreditTests(CreditCase):
         self.assertTrue(any("Korean documents" in line for line in planner.summary), planner.summary)
 
     def test_dev_takes_the_credit_in_its_korean_documents(self):
-        self.world.pr(7, credited())
-        self.world.plan()
+        self.planned_world()
         merge = (self.world.out / "dev").read_text(encoding="utf-8").split()[1]
         korean = self.world.show(merge, filer.CONTRIBUTORS_KO).decode("utf-8")
         self.assertIn("- [@User7](https://github.com/User7) 님은 Codex %s에서 호환성을 보고해 주셨습니다." % VERSION, korean)
@@ -226,8 +254,7 @@ class FilingCreditTests(CreditCase):
 @unittest.skipUnless(base.git_bash(), "no bash to run the workflow's step with")
 class WriteStepCreditTests(CreditCase):
     def test_the_write_step_files_a_credit_and_brings_it_to_dev(self):
-        self.world.pr(7, credited())
-        self.world.plan()
+        self.planned_world()
         code, said = self.world.write()
         self.assertEqual(code, 0, said)
         main = self.world.main()
@@ -239,8 +266,11 @@ class WriteStepCreditTests(CreditCase):
 
     def tampered(self, files, report=None):
         """A plan whose one commit is the filer's for `report` (a credited one by default) but for `files` set over it."""
-        self.world.pr(7, report if report is not None else credited())
-        self.world.plan()
+        if report is None:
+            self.planned_world()
+        else:
+            self.world.pr(7, report)
+            self.world.plan()
         planned = self.world.chain()[-1]
         main = git(self.world.checkout, "rev-parse", "refs/remotes/origin/main")
         names = git(self.world.checkout, "diff", "--name-only", main, planned).splitlines()
@@ -296,11 +326,16 @@ class WriteStepCreditTests(CreditCase):
         git(world.checkout, "bundle", "create", str(world.out / "plan.bundle"), "refs/plan/main", "refs/plan/dev",
             "^" + main, "^" + dev_base)
 
-    def forged_dev(self, files, login="User7"):
-        """The planner's own plan for a credited report from `login`, but dev's merge with `files` set over it."""
-        world = self.world
-        world.pr(7, credited(login=login), login=login)
-        world.plan()
+    def forged_dev(self, files, login="User7", shared=False):
+        """The planner's own plan for a credited report from `login`, but dev's merge with `files` set over it.
+
+        `shared`: GitHub's side is as the class made it, so the plan the class made once will do."""
+        if shared:
+            world = self.planned_world()
+        else:
+            world = self.world
+            world.pr(7, credited(login=login), login=login)
+            world.plan()
         dev_base, merge = (world.out / "dev").read_text(encoding="utf-8").split()
         tip = world.chain()[-1]
         with tempfile.TemporaryDirectory() as folder:
@@ -322,12 +357,12 @@ class WriteStepCreditTests(CreditCase):
 
     def test_a_korean_thanks_link_whose_text_is_not_its_address_is_refused(self):
         evil = THANKS_KO.replace(" 님 등)", ", [@User7](https://github.com/User7), [@Mallory](https://github.com/evil-site) 님 등)")
-        self.forged_dev({filer.THANKS_KO: evil.encode("utf-8")})
+        self.forged_dev({filer.THANKS_KO: evil.encode("utf-8")}, shared=True)
         self.assertDevRefused("dev's credit is not the filer's thanks")
 
     def test_a_korean_thanks_for_someone_this_run_did_not_credit_is_refused(self):
         evil = THANKS_KO.replace(" 님 등)", ", [@User7](https://github.com/User7), [@cervinho2](https://github.com/cervinho2) 님 등)")
-        self.forged_dev({filer.THANKS_KO: evil.encode("utf-8")})
+        self.forged_dev({filer.THANKS_KO: evil.encode("utf-8")}, shared=True)
         self.assertDevRefused("dev's credit names no one this run credited")
 
     def test_a_korean_contributors_line_for_someone_this_run_did_not_credit_is_refused(self):
@@ -376,7 +411,7 @@ class WriteStepCreditTests(CreditCase):
                                                              "[@Songyb111-Gachon](https://github.com/Songyb111-Gachon) 님 등)"))):
             with self.subTest(name):
                 self.setUp()
-                self.forged_dev({name: data.encode("utf-8")})
+                self.forged_dev({name: data.encode("utf-8")}, shared=True)
                 self.assertDevRefused("dev's credit names the owner or a bot")
 
     def test_a_language_map_change_beyond_a_digest_is_refused(self):

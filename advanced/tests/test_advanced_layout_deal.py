@@ -1,16 +1,20 @@
-"""v0.6.17: the Advanced page's layout audits dealt over the five layout modules by what each costs (pagecase.layout_deal).
+"""The Advanced page's layout audits dealt over the five layout modules by what each costs (pagecase.layout_deal).
 
 Until v0.6.17 the languages were dealt round: the module that drew Japanese took 43 minutes on GitHub's runners, the one
-that drew English under one, and two of Japan's five audits shared one of its four processes. Now every (language,
-scaling) is one audit with a cost (pagecase.audit_cost, what it took there), the modules are filled longest first under
-the time their longest audit sets, and each module's processes take its audits longest first (pagecase.deal_out). This
+that drew English under one. v0.6.17 filled each module to the time of its longest audit, on the model that a module's
+four processes run side by side. tests/data/durations.json (advanced lane, 22 languages) measured otherwise: 71 audits
+of about ten seconds took 777 s in one module while one such audit alone takes 10 s, so a module takes about the SUM of
+its audits. The deal now balances the sums: longest audit first, each to the module with the least summed cost so far
+(the canary's cost counted in its module from the start). The costs (pagecase.AUDIT_COST) make the five modules' sums
+620.5, 610, 610, 610 and 610 seconds, where the fill-to-the-longest deal gave about 1344, 1328, 42, 42 and 304. This
 holds the deal to its rules without compiling anything:
 
 * every language at every scaling is audited exactly once over the five modules, each module audits something, and each
   module runs exactly its share (LayoutTests.JOBS); the canary is in one module, the one CANARY_MODULE names;
-* no module takes longer than the costliest single audit, and the modules together take less than the round deal did;
-* deal_out gives the longest first to the share with the least, equal costs round as before, and probe() shares its jobs
-  out that way.
+* no module's summed cost is over the mean of the modules' sums plus the costliest single audit, and the longest module
+  is under 0.8 times the longest module of the round deal (the languages dealt round, as before v0.6.17);
+* inside a module deal_out gives the longest first to the share with the least, equal costs round as before, and probe()
+  shares its jobs out that way; no Japanese audit shares a process with another.
 
 Not a GUI test: it reads the deal and the five modules' classes, and runs no window (probe's processes are stood in for).
 """
@@ -31,9 +35,9 @@ from codex_auto_resume import l10n  # noqa: E402
 
 
 def wall(costs: list) -> float:
-    """How long a module of audits of these costs takes: its slowest process's share (deal_out)."""
-    shares = pagecase.deal_out(costs, pagecase.LAYOUT_WORKERS)
-    return max(sum(costs[index] for index in share) for share in shares)
+    """How long a module of audits of these costs takes when its processes share one desktop: the sum of its audits
+    (the measured model; see pagecase.AUDIT_COST)."""
+    return sum(costs)
 
 
 def module_costs(module: int) -> list:
@@ -70,25 +74,33 @@ class DealTests(unittest.TestCase):
         pagecase.layout_deal.cache_clear()
         self.assertEqual(pagecase.layout_deal(), before)
 
-    def test_no_module_takes_longer_than_the_costliest_audit(self):
+    def test_no_module_sums_more_than_the_mean_plus_the_costliest_audit(self):
+        """A module takes about the sum of its audits (measured: 71 audits of ~10 s took 777 s in one module), so no
+        module's summed cost is over the mean module sum plus the costliest audit - the most an uneven last audit can add."""
+        sums = [wall(module_costs(module)) for module in range(1, pagecase.LAYOUT_MODULES + 1)]
         costliest = max(pagecase.audit_cost(locale) for locale in l10n.LOCALES)
-        for module in range(1, pagecase.LAYOUT_MODULES + 1):
+        for module, total in enumerate(sums, 1):
             with self.subTest(module=module):
-                self.assertLessEqual(wall(module_costs(module)), costliest)
+                self.assertLessEqual(total, sum(sums) / len(sums) + costliest)
 
-    def test_the_modules_together_take_less_than_the_round_deal(self):
-        dealt = sum(wall(module_costs(module)) for module in range(1, pagecase.LAYOUT_MODULES + 1))
-        # The deal until v0.6.17: the languages round, each at every scaling, the canary in the last; its processes
-        # took their audits round too.
+    def test_the_longest_module_is_under_four_fifths_of_the_round_deals_longest(self):
+        """The longest module's summed cost is under 0.8 times the longest module's sum of the deal until v0.6.17: the
+        languages round, each at every scaling, the canary in the last (measured: a module takes about the sum of its
+        audits, tests/data/durations.json, advanced lane)."""
+        dealt = max(wall(module_costs(module)) for module in range(1, pagecase.LAYOUT_MODULES + 1))
         locales = [str(locale) for locale in l10n.LOCALES]
-        round_deal = 0.0
+        round_deal = []
         for module in range(1, pagecase.LAYOUT_MODULES + 1):
             costs = [pagecase.audit_cost(locale) for locale in locales[module - 1::pagecase.LAYOUT_MODULES]
                      for _ in pagecase.SCALES]
             if module == pagecase.LAYOUT_MODULES:
                 costs.append(pagecase.OTHER_AUDIT_COST)
-            round_deal += max(sum(costs[index::pagecase.LAYOUT_WORKERS]) for index in range(pagecase.LAYOUT_WORKERS))
-        self.assertLess(dealt, round_deal * 0.8)
+            round_deal.append(wall(costs))
+        self.assertLess(dealt, max(round_deal) * 0.8)
+
+    def test_the_modules_sums_are_the_ones_written_down(self):
+        sums = [wall(module_costs(module)) for module in range(1, pagecase.LAYOUT_MODULES + 1)]
+        self.assertEqual(sums, [620.5, 610.0, 610.0, 610.0, 610.0])
 
     def test_japanese_is_never_two_audits_in_one_process(self):
         for module in range(1, pagecase.LAYOUT_MODULES + 1):

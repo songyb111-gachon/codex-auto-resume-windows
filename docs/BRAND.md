@@ -631,8 +631,9 @@ the ring rather than floating beside it.
   check below everything they did not come for.
 - **No colour without a word.** A state is a word on a chip tinted with its own colour, and the
   dot always has its word beside it. `active` never carries text, which is why the popup keeps
-  separate tables for a dot's fill and its word's ink. The Statistics chart draws every bar in the
-  one accent colour, and the outcome's word beside each bar is what tells them apart.
+  separate tables for a dot's fill and its word's ink. The Statistics chart draws a recovery in the
+  accent colour, an outcome the success rate counts as failed in `warning` and one it leaves out in `paused`, and
+  the outcome's word beside each bar still names it.
 - **Reported beside the version, never a state.** Since v0.6.10 the Dashboard's Codex
   compatibility card says what other people report about the Codex version in one line directly
   under *Codex version*: *Reported by others*, then *worked 3 · failed 1 · neither 1*, the words

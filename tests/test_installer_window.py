@@ -539,7 +539,8 @@ class FlowTests(unittest.TestCase):
             "confirm": "idle", "removed": "idle", "unconfirmed": "idle", "refused": "idle", "unstarted": "idle",
             "updated": "monitoring", "repaired": "monitoring"})
         shown = guiscan.member_body("InstallerWindow", "ShowPage")
-        self.assertIn("light.State = InstallerFlow.Light(flow.Mode, name, code, unconfirmed, previousRunning);", shown)
+        # v0.6.23 (acceptance G1): a watcher left stopped is not known to run either, so it lights as one not confirmed.
+        self.assertIn("light.State = InstallerFlow.Light(flow.Mode, name, code, unconfirmed || leftStopped, previousRunning);", shown)
         self.assertEqual(len(re.findall(r"\blight\.State\s*=", WINDOW)), 1, "the light is set in one place")
 
     def test_the_bar_follows_the_scripts_lines_forward_only(self):

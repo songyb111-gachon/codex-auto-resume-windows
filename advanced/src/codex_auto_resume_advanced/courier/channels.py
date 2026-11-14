@@ -176,13 +176,19 @@ def test(runtime, channel, secrets, *, opener=None, smtp=None) -> int:
 
 
 def drain(runtime, secrets, *, opener=None, smtp=None, now=None) -> int:
-    """One pass over the outbox: rows too old dropped; each row due sent on its channel - dropped where its channel is
+    """One pass over the outbox: rows too old, or raised before push_notices was last turned on, dropped; each row due sent on its channel - dropped where its channel is
     switched off or not saved; on a failure, tried again later or dropped at its last try; and a channel whose refusals
     today reach outbox.TRIPWIRE switched off. How many went."""
     from ..vocabulary import Actor, OptionKey
     state = runtime.state
     now = runtime.clock() if now is None else now
     for channel in outbox.expire(state, now):
+        state.counted(CAPABILITY, "dropped_%s" % channel)
+    try:
+        since = (state.arming().get(CAPABILITY) or {}).get("since")
+    except Exception:
+        since = None                                     # unread: the rows wait for a pass that reads it
+    for channel in outbox.stale(state, since, now):
         state.counted(CAPABILITY, "dropped_%s" % channel)
     sent = 0
     for row in outbox.due(state, now):

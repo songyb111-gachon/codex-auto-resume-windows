@@ -49,6 +49,16 @@ EXIT_SCHEMA_NEWER = 4
 # stopped stays stopped until a person starts it. The standard edition has no supervisor (F8).
 EXIT_MEMORY_GUARD = 5
 RELAUNCH_MARK = "CODEX_AUTO_RESUME_RELAUNCHED"
+# v0.6.23 final (R10 of the second round's limits audit): a launcher started to follow a stop another process is about to
+# ask - the Python choice's restart of the watcher (the advanced edition's, which keeps its own copy of this name). It
+# is started before that stop, so a window closed mid-restart cannot leave the watcher stopped and none started: it waits
+# for the watcher it follows to let go of its mutex, at most AFTER_STOP_WAIT, and starts the watcher as ever; one that is
+# still running then is left alone, and this launcher ends. Three times control.WATCHER_STOP_TIMEOUT, the 10 s the asking
+# process waits for the stop, since this one may be up before the stop is even asked. Read once and taken out of this
+# process's environment, so nothing it starts inherits it.
+AFTER_STOP_MARK = "CODEX_AUTO_RESUME_AFTER_STOP"
+AFTER_STOP_WAIT = 30.0
+AFTER_STOP_POLL = 0.25
 # The marketplace names this product is published under. See resolve_plugin_root.
 OUR_MARKETPLACES = frozenset({"codex-auto-resume-windows"})
 EXIT_ERROR = 1
@@ -61,8 +71,14 @@ SUPERVISE, RESTART = "supervise", "restart"
 # that a watcher started under the chosen Python did not come up. Asked only where a record of a choice exists.
 PHASE_RUNTIME, PHASE_RUNTIME_FAILED = "runtime", "runtime_failed"
 # How long a watcher started under the chosen Python has to take its mutex: plugin_setup's WATCHER_WAIT, kept here as
-# NO_REMOTE_DEBUG is, since this file runs before any engine is found.
+# NO_REMOTE_DEBUG is, since this file runs before any engine is found. Counted from that child's start, never from this
+# launcher's: what comes before it - the plug's question, on the bundled runtime - is no part of the chosen Python's start
+# (41 and 48 s on the owner's PC on 2026-11-11, before a child that then came up). The Dashboard's own wait for a
+# restart it asked for, the advanced edition's own, is longer than both together.
 WATCHER_WAIT = 45.0
+# When this process started, on the clock a wait is measured by: the launcher's log says how long each step of a start
+# under the chosen Python took after it (`_since`).
+BEGAN = time.monotonic()
 # The argument, after `run`, that starts the watcher as a supervised child: the launcher's own, in this process, and
 # never a supervisor of its own - no grandchildren.
 CHILD_ARGUMENT = "--supervised-child"
@@ -203,6 +219,11 @@ def _note(home: Path, text: str) -> None:
         pass
 
 
+def _since() -> str:
+    """Seconds since this launcher started, for its log."""
+    return "%.1f s" % (time.monotonic() - BEGAN)
+
+
 def main(argv=None) -> int:
     here = Path(__file__).resolve().parent
     _note(here, "launcher started (pid %d)" % os.getpid())
@@ -220,6 +241,8 @@ def main(argv=None) -> int:
         _complain(home, "no installed codex-auto-resume engine found; not starting")
         return EXIT_ERROR
     sys.path.insert(0, str(root / "src"))
+    if os.environ.pop(AFTER_STOP_MARK, None) and not _after_stop(here, home):
+        return 0
     # Arguments select the command, defaulting to the watcher. The notification button
     # registers `activate` through this same stable path, so a plugin update cannot leave
     # the button pointing at a version directory that no longer exists.
@@ -230,12 +253,20 @@ def main(argv=None) -> int:
         command = ["run"]
     asks = command == ["run"] and not child
     held = None
+    # The start question, asked once in this process whichever Python the watcher runs under (v0.6.23: a watcher under the
+    # chosen one was started with it never asked, so crash restart, which answers an end only where it was, never saw one).
+    started = []
+
+    def start_answer():
+        if not started:
+            started.append(_start_answer(here, home))
+        return started[0]
     if asks:
-        code = _on_chosen(here, home)
+        code = _on_chosen(here, home, start_answer)
         if code is not None:
             return code
     if asks:
-        answer, held = _start_answer(here, home)
+        answer, held = start_answer()
         if answer == SUPERVISE:
             code = _supervised(here, home)
             if code is not None:
@@ -253,11 +284,39 @@ def main(argv=None) -> int:
         if (_supervise(home, {"phase": PHASE_START}) == SUPERVISE
                 and _supervise(home, {"phase": PHASE_ENDED, "exit_code": code}) == RESTART):
             _note(here, "the watcher that ran without crash restart stopped unexpectedly (exit %s); starting it supervised" % code)
+            _unsupervised(home, None)
             restarted = _supervised(here, home)
             return code if restarted is None else restarted
     elif asks:
         _supervise(home, {"phase": PHASE_ENDED, "exit_code": code})
     return code
+
+
+def _after_stop(here: Path, home: Path) -> bool:
+    """Whether to go on once the watcher this launcher was started to follow has let go of its mutex (AFTER_STOP_MARK):
+    True once it has, or where that cannot be told at the end - the mutex settles a race, and a second watcher exits busy;
+    False where it still runs after AFTER_STOP_WAIT, and nothing is started."""
+    _note(here, "started to follow a stop of the watcher; waiting up to %d s for it to end" % AFTER_STOP_WAIT)
+    try:
+        from codex_auto_resume import config
+        from codex_auto_resume.runtime.app import App
+        probe = App(config.Paths(home), console=False, enable_logging=False).watcher_running
+    except Exception:                               # noqa: BLE001 - not known is not a reason to start nothing
+        return True
+    ends = time.monotonic() + AFTER_STOP_WAIT
+    while True:
+        try:
+            running = probe()
+        except Exception:                           # noqa: BLE001 - not known yet
+            running = None
+        if running is False:
+            return True
+        if time.monotonic() >= ends:
+            if running is True:
+                _note(here, "the watcher it followed still runs after %d s; not starting another" % AFTER_STOP_WAIT)
+                return False
+            return True
+        time.sleep(AFTER_STOP_POLL)
 
 
 def _unsupervised(home: Path, word) -> None:
@@ -304,9 +363,15 @@ def _why_held(home: Path):
     return word if isinstance(word, str) and word.replace("_", "").isalpha() else None
 
 
-def _on_chosen(here: Path, home: Path):
+def _on_chosen(here: Path, home: Path, start_answer=None):
     """The watcher under the Python the person chose, with this process on the bundled one to see it come up (v0.6.23).
     What to return, or None to go on as ever in this process: nothing chosen, or a choice that did not come up.
+
+    Supervised as the bundled one is: the start question (`start_answer`, main's, so it is asked once in this process
+    whichever Python the watcher ends up under) is asked before its child starts, with its second asking and its
+    unsupervised.txt where it names no supervisor, and the child's end is judged by it - RESTART where crash restart
+    says so, the restart counted against its cap. Without that question crash restart never restarted a watcher under
+    the chosen Python (X1 of the owner's logs of 2026-11-13: nine supervised starts, not one restart row).
 
     A launcher started by a program that itself runs under a chosen Python - the Dashboard's Start - starts again under
     the bundled runtime first, so whichever way the watcher is started, the process that can take a bad choice back is
@@ -317,7 +382,13 @@ def _on_chosen(here: Path, home: Path):
     except OSError:
         return None
     # No record, no question: the launcher of an installation that chose nothing is the launcher it always was.
-    if not (home / "runtimes" / "chosen.json").is_file() or _supervise(home, {"phase": PHASE_RUNTIME}) != SUPERVISE:
+    if not (home / "runtimes" / "chosen.json").is_file():
+        return None
+    answer = _supervise(home, {"phase": PHASE_RUNTIME})
+    # How long the question took, in the log: the one step of a start under the chosen Python this process makes before
+    # its child starts (2026-11-11: 41 and 48 s from this launcher to its child on the owner's PC, 7 s the same evening).
+    _note(here, "asked which Python to run the watcher under (%s since the launcher started)" % _since())
+    if answer != SUPERVISE:
         return None
     try:
         from codex_auto_resume import chosen_runtime, config
@@ -327,7 +398,8 @@ def _on_chosen(here: Path, home: Path):
             return None
     except Exception:                               # noqa: BLE001 - the bundled runtime is always there to go on with
         return None
-    return _supervised(here, home, interpreter)
+    _answer, held = (start_answer or (lambda: _start_answer(here, home)))()
+    return _supervised(here, home, interpreter, held)
 
 
 def _again_under_bundled(here: Path, home: Path):
@@ -347,19 +419,23 @@ def _again_under_bundled(here: Path, home: Path):
         _complain(here, "could not start again under the bundled runtime: %s" % exc)
         return None
     _note(here, "started again under the bundled runtime")
-    _came_up(home, process)
+    _came_up(home, process, asks_first=True)
     return 0
 
 
-def _came_up(home: Path, child) -> bool:
+def _came_up(home: Path, child, asks_first=False) -> bool:
     """Whether the watcher started as `child` under the chosen Python took its mutex within WATCHER_WAIT - with the one
-    more look setup gives one that took it just as the wait ended (plugin_setup.looked_again)."""
+    more look setup gives one that took it just as the wait ended (plugin_setup.looked_again). With `asks_first`, `child`
+    is this launcher again, which asks its question before it starts the watcher's child: the question's time comes on
+    top (control.start_timeout, v0.6.23), or this process would end at 45 s while the other still asks, and whoever
+    started it would read that end as a start that failed."""
     try:
         from codex_auto_resume import config
-        from codex_auto_resume.control.watcher import await_watcher
+        from codex_auto_resume.control.watcher import await_watcher, start_timeout
         from codex_auto_resume.runtime.app import App
         probe = App(config.Paths(home), console=False, enable_logging=False).watcher_running
-        state = await_watcher(probe, child, timeout=WATCHER_WAIT)["state"]
+        wait = start_timeout(home, WATCHER_WAIT) if asks_first else WATCHER_WAIT
+        state = await_watcher(probe, child, timeout=wait)["state"]
         return state == "running" or (state == "unconfirmed" and probe() is True)
     except Exception:                               # noqa: BLE001 - not known to be up is not up
         return False
@@ -377,13 +453,19 @@ def _not_up(here: Path, home: Path, child) -> None:
     _supervise(home, {"phase": PHASE_RUNTIME_FAILED})
 
 
-def _supervised(here: Path, home: Path, chosen=None):
+def _supervised(here: Path, home: Path, chosen=None, held=None):
     """SUPERVISE (v0.6.19): run the watcher as a child and wait for it; once it ended, ask P13 again, and start it once
     more only where the answer is RESTART. What to return: the child's last exit code - or None where no child could be
     started at all, and the watcher is then run in this process, as with no supervisor.
 
     With `chosen` (v0.6.23), the pythonw.exe the person chose runs that child, and each start of it is held to coming up
-    (`_came_up`); one that does not leaves None, and the watcher is run in this process, on the bundled runtime.
+    (`_came_up`); one that does not leaves None, and the watcher is run in this process, on the bundled runtime. `held`
+    is why the start question named no supervisor for it (`_start_answer`): once that child ended, the question is asked
+    again - the one later moment a supervisor can be had, as main asks it of a watcher it ran itself - and the end is
+    judged under it.
+
+    Every end that is not followed by another start says so in the launcher's log, with its exit code (v0.6.23: an end
+    crash restart passed over left no line at all, and a crash could not be told from a kill).
 
     The child is this file again, under the pythonw.exe beside the interpreter that runs it (as `_relaunch_once` finds
     it), with CREATE_NO_WINDOW and nothing to read or write; its arguments are constants. A child that ended because the
@@ -408,14 +490,23 @@ def _supervised(here: Path, home: Path, chosen=None):
                 return None
             return EXIT_ERROR if started else None
         started = True
-        _note(here, "watcher started as a supervised child (pid %d)" % child.pid)
-        if chosen is not None and not _came_up(home, child):
-            _not_up(here, home, child)
-            return None
+        _note(here, "watcher started as a supervised child (pid %d)" % child.pid
+              + ("" if chosen is None else " under the chosen Python, %s since the launcher started" % _since()))
+        if chosen is not None:
+            if not _came_up(home, child):
+                _not_up(here, home, child)
+                return None
+            _note(here, "the watcher came up under the chosen Python (%s since the launcher started)" % _since())
         code = child.wait()
         if code == EXIT_SCHEMA_NEWER:
+            _note(here, "the supervised watcher ended (exit %s): the state is newer than its code, and it started the "
+                        "installed copy itself; not starting it again here" % code)
             return code
+        if held is not None and _supervise(home, {"phase": PHASE_START}) == SUPERVISE:
+            held = None
+            _unsupervised(home, None)
         if _supervise(home, {"phase": PHASE_ENDED, "exit_code": code}) != RESTART:
+            _note(here, "the supervised watcher (pid %d) ended (exit %s); not starting it again" % (child.pid, code))
             return code
         _note(here, "the watcher stopped unexpectedly (exit %s); starting it again" % code)
 

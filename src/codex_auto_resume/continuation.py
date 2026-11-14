@@ -25,6 +25,7 @@ make an unknown failure recoverable, and it is never asked to build text for one
 """
 from __future__ import annotations
 
+import os
 import re
 import time
 
@@ -139,6 +140,46 @@ def validate_custom(text) -> str:
 # line (plans/measure-20261110-limits-result.md), which codex/transport.py measures as well before each send.
 PROMPT_SEND_LIMIT = 30000
 PROMPT_LIMIT = PROMPT_SEND_LIMIT - len("\n\n" + ids.short_marker("0" * ids.INTERRUPTION_ID_LENGTH))
+# v0.6.23 (audit K2): the longest command line Windows starts a process with, in UTF-16 code units less its end (the
+# measurement of 2026-11-10), counted here once for the send (codex/transport.py) and for a person's message when it is
+# written (validate_prompt) - a message the send would refuse at its time, every time, is refused as it is written.
+COMMAND_LINE_UNITS = 32766
+# The most the send puts on that line beside the message: the Codex program at MAX_PATH, quoted, the -c overrides,
+# `queue --thread <id>` and `--remote unix://` come to 537 (tests/test_prompt_command_line.py measures the send's own
+# argv). A program past MAX_PATH is the send's own check to refuse, the last guard.
+SEND_ARGV_ROOM = 600
+_SENT_AFTER = "\n\n" + ids.short_marker("0" * ids.INTERRUPTION_ID_LENGTH)
+
+
+def joined_command_line(argv) -> str:
+    """The line Windows is given for `argv`, as subprocess.list2cmdline makes it (no process module here): an argument
+    with a space or a tab, or none, in quotes; a quote escaped, with the backslashes before it doubled."""
+    line = []
+    for argument in map(os.fsdecode, argv):
+        if line:
+            line.append(" ")
+        quoted = " " in argument or "\t" in argument or not argument
+        line.append('"' if quoted else "")
+        slashes = 0
+        for character in argument:
+            if character == "\\":
+                slashes += 1
+                continue
+            line.append("\\" * (slashes * 2 + 1) + '"' if character == '"' else "\\" * slashes + character)
+            slashes = 0
+        line.append("\\" * (slashes * 2 if quoted else slashes) + ('"' if quoted else ""))
+    return "".join(line)
+
+
+def command_line_units(argv) -> int:
+    """How long `argv` is as Windows will see it, in UTF-16 code units: a character past the BMP (an emoji) is two."""
+    return len(joined_command_line(argv).encode("utf-16-le", "surrogatepass")) // 2
+
+
+def fits_command_line(text) -> bool:
+    """Whether `text`, sent as a person's message with its blank line and marker, fits Windows' command line beside the
+    most the send puts there (SEND_ARGV_ROOM)."""
+    return SEND_ARGV_ROOM + 1 + command_line_units(["--message=" + text + _SENT_AFTER]) <= COMMAND_LINE_UNITS
 # The control characters a message may hold: a tab and the two ends of a line.
 _PROMPT_CONTROLS = frozenset("\t\r\n")
 
@@ -181,7 +222,8 @@ _PRODUCT_TEXTS = None
 
 def validate_prompt(text) -> str:
     """A message a person wrote, for the edition's plug to have core send at a time they chose (P2,
-    v0.6.14): the text unchanged, or a PromptError. Text of 1 to PROMPT_LIMIT characters that is not
+    v0.6.14): the text unchanged, or a PromptError. Text of 1 to PROMPT_LIMIT characters that fits the
+    command line the send starts Codex with (fits_command_line, v0.6.23: a quote or an emoji takes two), is not
     whitespace alone, holds no control character but a tab and the ends of a line, no marker of this
     product's, and is not - stripped and casefolded - one of the product's own continuations in any
     language (product_texts): so empty or product-made words are never sent in a person's name, nor
@@ -190,7 +232,7 @@ def validate_prompt(text) -> str:
         raise PromptError("not_text")
     if not text.strip():
         raise PromptError("empty")
-    if len(text) > PROMPT_LIMIT:
+    if len(text) > PROMPT_LIMIT or not fits_command_line(text):
         raise PromptError("too_long")
     if any(ord(character) < 32 and character not in _PROMPT_CONTROLS for character in text) or "\x7f" in text:
         raise PromptError("control")

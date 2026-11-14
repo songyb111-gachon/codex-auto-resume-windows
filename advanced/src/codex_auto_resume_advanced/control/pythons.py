@@ -1,8 +1,11 @@
 # ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.
 """Run this installation on another official Python (python_choice, v0.6.23): the card, its work, and how it is taken back.
 
-What it offers: the newest final release of each line in LINES, read live from python.org (courier/pythonorg.py) when a
-person presses Check, and the bundled runtime, always. Nothing of a version but its line is pinned here.
+What it offers: the newest final release of each line in LINES that has a Windows embeddable package, read live from
+python.org (courier/pythonorg.offered) when a person presses Check, and the bundled runtime, always. A line in its
+security-only phase publishes source alone, so the release before its newest is offered (3.13.17 beside 3.13.18 on
+2026-11-11); a line with no such release at all is named on the card as one that cannot be chosen (`missing`). Nothing of a
+version but its line is pinned here.
 
 What `use` does, on a thread of the Dashboard's process, after the window asked first. Each step that fails deletes what
 it unpacked, leaves the runtime in use alone and says which step it was (STEPS):
@@ -10,8 +13,9 @@ it unpacked, leaves the runtime in use alone and says which step it was (STEPS):
   download   the Windows embeddable package from the one exact address, its size bounded;
   digest     SHA-256 of the bytes kept on disk against what python.org published;
   unpack     into a new folder of its own, <home>\\runtimes\\<version>: flat, plain files of plain names, size bounded;
-  signature  python.exe, pythonw.exe and python3XX.dll signed by the Python Software Foundation, as Windows judges
-             (core's win/authenticode.py, the check #58 made for OpenAI's engine);
+  signature  every *.exe, *.dll and *.pyd unpacked - python.exe, pythonw.exe and python3XX.dll among them - signed by
+             the Python Software Foundation (Microsoft only on the Visual C++ runtime), as Windows judges (core's
+             win/authenticode.py, the check #58 made for OpenAI's engine);
   import     for the first time, it runs: every shipped module imported under it, leaving no bytecode (pythoncheck.py);
   start      the record is written (chosen_runtime.py), and the watcher restarted; the launcher takes the record away by
              itself if it does not come up under that Python (scripts/watcher_launcher.py, `supervised` below).
@@ -51,6 +55,13 @@ LINES = ("3.13", "3.14", "3.15")
 # Shown as a preview: the bundled runtime moves to it only in a later version.
 PREVIEW = frozenset({"3.15"})
 PYTHON_SIGNER = "Python Software Foundation"
+# What must be signed before anything runs: every program file of the package (`_signed`). The Visual C++ runtime the
+# package ships beside the interpreter is Microsoft's own: measured on 2026-11-13 on a python.org 3.13 installation, its
+# vcruntime140.dll and vcruntime140_1.dll carry "Microsoft Windows Software Compatibility Publisher" and its 43 other
+# *.exe, *.dll and *.pyd the Foundation's. Microsoft's names are taken for those files alone, the Foundation's as well.
+SIGNED_KINDS = (".exe", ".dll", ".pyd")
+VC_RUNTIME = re.compile(r"vcruntime140(?:_[0-9])?\.dll", re.IGNORECASE)
+SIGNERS_OF_VC_RUNTIME = (PYTHON_SIGNER, "Microsoft Corporation", "Microsoft Windows Software Compatibility Publisher")
 # The steps a person is told of, in the order they run.
 LIST, SOURCE, DOWNLOAD, DIGEST, UNPACK, SIGNATURE, IMPORT, START = (
     "list", "source", "download", "digest", "unpack", "signature", "import", "start")
@@ -66,6 +77,8 @@ PHASES = frozenset({PHASE_RUNTIME, PHASE_RUNTIME_FAILED})
 WHY_START, WHY_LINE, WHY_OFF = "start", "line", "off"
 RETURNED = "returned.json"
 INCOMING = ".incoming-"
+# A runtime renamed aside to be deleted (`_retire`): never a version's name, so no start can take what is left of it.
+GONE = ".gone-"
 NOTICE = "python_returned"
 MEMBER = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_+-]*(?:\.[A-Za-z0-9_+-]+)+", re.ASCII)
 RESERVED = frozenset({"con", "prn", "aux", "nul"} | {"com%d" % n for n in range(1, 10)} | {"lpt%d" % n for n in range(1, 10)})
@@ -73,9 +86,17 @@ UNPACKED_MOST = 256 * 1024 * 1024           # bytes unpacked at most (2026-11-10
 MEMBERS_MOST = 512
 IMPORT_SECONDS = 180
 VERSION_SECONDS = 15
-# The launcher waits WATCHER_WAIT for the chosen Python, and starts the bundled one after that: longer than both.
-RESTART_SECONDS = 90.0
+# How long the Dashboard waits for the restart it asked for, before it takes the choice back itself. The launcher is the one
+# that judges the chosen Python: it waits WATCHER_WAIT from its child's start, after its own question, and starts the bundled
+# runtime after that. Its question took 41 and 48 s on the owner's PC on 2026-11-11 (LAUNCHER_ASKS_SEEN), before children
+# that came up; with 90 s here, a child that came up after 43 of its 45 s would still have been taken back from here - a
+# healthy start undone by the wrong clock. Twice the longest question seen and the whole wait: room for a bundled start too.
+WATCHER_WAIT = 45.0                         # scripts/watcher_launcher.WATCHER_WAIT, control.WATCHER_START_TIMEOUT
+LAUNCHER_ASKS_SEEN = 48.0
+RESTART_SECONDS = 2 * (LAUNCHER_ASKS_SEEN + WATCHER_WAIT)
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+# What tells the launcher it was started to follow a stop (scripts/watcher_launcher.AFTER_STOP_MARK, kept there as this name).
+AFTER_STOP_MARK = "CODEX_AUTO_RESUME_AFTER_STOP"
 CODES = ("checked", "check_failed", "asked", "chosen", "next_start", "refused", "returned", "back")
 
 _LOCK = threading.Lock()
@@ -98,7 +119,7 @@ class Hands:
     @staticmethod
     def newest(lines):
         from ..courier import pythonorg
-        return pythonorg.newest(lines)
+        return pythonorg.offered(lines)
 
     @staticmethod
     def embeddable(release, version):
@@ -121,6 +142,10 @@ class Hands:
     @staticmethod
     def restart(paths):
         return restart_watcher(paths)
+
+    @staticmethod
+    def bundled(paths):
+        return bundled_version(paths)
 
 
 class PythonChoice:
@@ -216,8 +241,9 @@ def _returned(home) -> dict | None:
 
 
 def view(runtime) -> dict:
-    """advanced-python: {bundled, chosen, in_use, button, checked, offers, job, outcome, returned}. Reads this PC alone;
-    python.org is asked only by `check`, after a person pressed it. NOT_ON while the capability is off."""
+    """advanced-python: {bundled, chosen, in_use, button, checked, offers, missing, job, outcome, returned}. Reads this PC
+    alone; python.org is asked only by `check`, after a person pressed it. `missing`: after a Check, the lines python.org
+    has no release with a Windows embeddable package of. NOT_ON while the capability is off."""
     if not _standing(runtime, CAPABILITY):
         return _refused(Refusal.NOT_ON)
     paths, home = runtime.paths, _home(runtime)
@@ -232,6 +258,7 @@ def view(runtime) -> dict:
             "button": offered(runtime), "checked": offers is not None,
             "offers": [{"version": each["version"], "line": each["line"], "preview": each["line"] in PREVIEW}
                        for each in offers or ()],
+            "missing": [] if offers is None else [line for line in LINES if line not in {each["line"] for each in offers}],
             "job": job, "outcome": dict(outcome) if outcome else None, "returned": _returned(home)}
 
 
@@ -266,7 +293,8 @@ def _run(home, target, start, name) -> bool:
 
 
 def check(runtime, *, start=None, hands=Hands) -> dict:
-    """advanced-python-check: python.org's newest final release of each line, on a thread of its own."""
+    """advanced-python-check: python.org's newest final release of each line that has a Windows embeddable package, on a
+    thread of its own."""
     if not offered(runtime):
         return _refused(Refusal.NOT_ON)
     home = _home(runtime)
@@ -325,13 +353,29 @@ def back(runtime, *, start=None, hands=Hands) -> dict:
     def work():
         _forget(home)
         _clear_returned(home)
-        hands.restart(runtime.paths)
+        came = hands.restart(runtime.paths)
         _count(runtime, "back")
-        _sweep(home, None)
-        _end(home, {"word": BACK_DONE, "step": None, "version": None})
+        _end(home, _back_outcome(runtime, home, came, hands))
     if not _run(home, work, start, "python-back"):
         return _refused(Refusal.STATE_UNAVAILABLE)
     return {"done": True, "refusal": None}
+
+
+def _back_outcome(runtime, home, came, hands):
+    """What the card says Back came to (v0.6.23 final, M2 of the second round's advanced audit): "Back on the bundled
+    version" only where the restart came up, on the bundled runtime the record no longer names; otherwise its words for a
+    version the watcher takes when it next starts, of the bundled one - a watcher that did not stop is still on the chosen
+    one, and one that did not come up, or none running, starts on the bundled one next. Swept only where nothing runs from
+    the chosen runtime any more, as `_switched` does."""
+    if came in (RUNNING, NOT_RUNNING):
+        _sweep(home, None)
+    if came == RUNNING:
+        return {"word": BACK_DONE, "step": None, "version": None}
+    try:
+        version = hands.bundled(runtime.paths)
+    except Exception:
+        version = None
+    return {"word": NEXT_START, "step": None, "version": version} if chosen_runtime.shaped(version) else None
 
 
 def back_when_off(runtime, *, restart=True, start=None, hands=Hands) -> None:
@@ -366,6 +410,14 @@ def supervised(runtime, facts):
         return DEFER
     if phase != PHASE_RUNTIME:
         return DEFER
+    answer = _runtime_answer(runtime, home, named)
+    # The start is the one moment no watcher runs from a runtime: what an earlier sweep left whole goes now, before the
+    # child starts, but never the runtime it is about to run on.
+    _sweep(home, named if answer is USE_CHOSEN else None)
+    return answer
+
+
+def _runtime_answer(runtime, home, named):
     if chosen_runtime.line_of(named) not in LINES:
         _taken_back(runtime, named, WHY_LINE)
         return DEFER
@@ -525,10 +577,23 @@ def _members_allowed(members, version) -> None:
 
 
 def _signed(target, version, hands) -> None:
+    """Every program file unpacked - each *.exe, *.dll and *.pyd - signed by the Python Software Foundation, as Windows
+    judges it, before the import step runs any of them; Microsoft is allowed only on the Visual C++ runtime the package
+    ships (VC_RUNTIME). The interpreters and the library are among them, and must be there.
+
+    v0.6.23 final (S3 of the second round's security audit): only those three were checked, and every extension module
+    and other DLL the import step then loads rested on a SHA-256 read from the same host as the package."""
     stem = "python3" + version.split(".")[1]
-    for name in ("python.exe", "pythonw.exe", stem + ".dll"):
+    try:
+        names = sorted(entry.name for entry in target.iterdir() if entry.suffix.lower() in SIGNED_KINDS)
+    except OSError:
+        raise _Failed(SIGNATURE) from None
+    if not {"python.exe", "pythonw.exe", stem + ".dll"} <= {name.lower() for name in names}:
+        raise _Failed(SIGNATURE)
+    for name in names:
+        allowed = SIGNERS_OF_VC_RUNTIME if VC_RUNTIME.fullmatch(name) else (PYTHON_SIGNER,)
         try:
-            if hands.signer(target / name) != PYTHON_SIGNER:
+            if hands.signer(target / name) not in allowed:
                 raise _Failed(SIGNATURE)
         except AdapterError:
             raise _Failed(SIGNATURE) from None
@@ -566,11 +631,11 @@ def _switched(runtime, version, target, hands, failed) -> dict:
     try:
         _write(chosen_runtime.root(home) / chosen_runtime.RECORD, {"version": version})
     except OSError:
-        _remove(target)
+        _retire(target)
         return failed(START)
     came = hands.restart(runtime.paths)
     if chosen_runtime.recorded(home) != version:
-        _remove(target)
+        _retire(target)
         return failed(START)
     if came in (RUNNING, NOT_RUNNING):
         _sweep(home, version)
@@ -582,27 +647,34 @@ def _switched(runtime, version, target, hands, failed) -> dict:
     # Neither up nor refused by the launcher in time: taken back here, and started on the bundled runtime.
     _forget(home)
     hands.restart(runtime.paths)
-    _remove(target)
+    _retire(target)
     return failed(START)
 
 
 def restart_watcher(paths) -> str:
     """Stop the watcher and start it again through its launcher, on the bundled runtime, which is where the launcher does
-    its own check. NOT_RUNNING where none runs: it takes the choice at its next start, and nothing is started for it."""
+    its own check. NOT_RUNNING where none runs: it takes the choice at its next start, and nothing is started for it.
+
+    The new launcher is started first, detached, and the stop asked after it (v0.6.23 final, R10 of the second round's
+    limits audit): this runs on a daemon thread of the Dashboard's bridge process, which ends with the window, and a window
+    closed between the stop and the start left the watcher stopped with none started. The launcher, told so by
+    AFTER_STOP_MARK, waits for the watcher it follows to end and then starts it as ever, whatever became of this process; a
+    watcher that does not stop is left running, and it takes the choice at its next start."""
     from codex_auto_resume import startup
     from codex_auto_resume.control import Control, await_watcher
     layer = Control(paths)
     if layer.watcher_running() is not True:
         return NOT_RUNNING
-    if layer.stop_watcher().get("stopped") is not True:
-        return STILL_RUNNING
     home = Path(paths.home)
     flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
     interpreter = home / chosen_runtime.BUNDLED / "pythonw.exe"
     script = home / "watcher-launcher.py"
     process = subprocess.Popen([str(interpreter), *startup.NO_REMOTE_DEBUG, str(script), "run"],
                                cwd=str(home), close_fds=True, creationflags=flags, stdin=subprocess.DEVNULL,
-                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                               env=dict(os.environ, **{AFTER_STOP_MARK: "1"}))
+    if layer.stop_watcher().get("stopped") is not True:
+        return STILL_RUNNING
     return await_watcher(layer.watcher_running, process, timeout=RESTART_SECONDS)["state"]
 
 
@@ -619,7 +691,7 @@ def _ready(root) -> None:
 
 def _prepared(incoming, target) -> None:
     _unlink(incoming)
-    _remove(target)
+    _retire(target)
     if target.exists() or incoming.exists():
         raise _Failed(UNPACK)
 
@@ -640,8 +712,49 @@ def _remove(folder) -> None:
         pass
 
 
+def _in_use(folder) -> bool:
+    """Whether a running program runs from `folder`: one of its program files (SIGNED_KINDS) that Windows will not open for
+    writing is mapped by a process - the interpreter it runs as, its library, an extension module it loaded. Measured on
+    2026-11-13: a pythonw.exe running from a copied runtime refuses its own image, python3XX.dll, python3.dll, vcruntime140.dll
+    and the .pyd it imported, and every file opens again once it has ended. Opened, never written. A folder that cannot be
+    listed is taken as in use."""
+    try:
+        entries = [entry for entry in folder.iterdir() if entry.suffix.lower() in SIGNED_KINDS]
+    except OSError:
+        return True
+    for entry in entries:
+        try:
+            with open(entry, "r+b"):
+                pass
+        except OSError:
+            return True
+    return False
+
+
+def _retire(folder) -> None:
+    """A runtime folder taken away whole, or left whole (v0.6.23 final, M1 of the second round's advanced audit). Deleted
+    file by file, one a program still ran from lost every file not held open - its ._pth and the modules not loaded yet -
+    under the Dashboard's bridges, Codex's MCP server or the watcher. Now one in use stays as it is, for a later sweep; one
+    that is not is renamed aside first (GONE), so no half of it is ever left under a version's name for a start to take, and
+    what cannot be deleted of it now goes at the next sweep."""
+    try:
+        if folder.is_symlink() or folder.is_junction() or not folder.is_dir():
+            return
+    except OSError:
+        return
+    if _in_use(folder):
+        return
+    aside = folder.with_name("%s%s.%d" % (GONE, folder.name, os.getpid()))
+    try:
+        os.rename(folder, aside)
+    except OSError:
+        return
+    _remove(aside)
+
+
 def _sweep(home, keep) -> None:
-    """Every runtime but `keep` and whatever was left half done. One a running program has open stays until it has ended."""
+    """Every runtime but `keep` and whatever was left half done. One a running program runs from stays, whole, until it has
+    ended (`_retire`)."""
     root = chosen_runtime.root(home)
     try:
         if root.is_symlink() or root.is_junction() or not root.is_dir():
@@ -652,8 +765,10 @@ def _sweep(home, keep) -> None:
     for entry in entries:
         if entry.name.startswith(INCOMING):
             _unlink(entry)
-        elif chosen_runtime.shaped(entry.name) and entry.name != keep:
+        elif entry.name.startswith(GONE):
             _remove(entry)
+        elif chosen_runtime.shaped(entry.name) and entry.name != keep:
+            _retire(entry)
 
 
 def _write(path, payload) -> None:

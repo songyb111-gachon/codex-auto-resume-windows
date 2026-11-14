@@ -24,7 +24,8 @@ class ClicksMixin:
                                            log=self.log,
                                            anchor=lambda: tray_popup.icon_rect(self._hwnd, 1),
                                            theme_menu=self._theme_menu,
-                                           make_menu=lambda: tray_popup.Menu(log=self.log), days=self.days)
+                                           make_menu=lambda: tray_popup.Menu(log=self.log), days=self.days,
+                                           held=self._popup_held)
         return self._popup
 
     def _popup_broke(self, exc):
@@ -44,6 +45,27 @@ class ClicksMixin:
             return
         try:
             popup.on_select(keyboard=keyboard)
+        except Exception as exc:
+            self._popup_broke(exc)
+            return
+        self._failure_seen()
+
+    def _popup_can_open(self) -> bool:
+        """Whether the icon has a popup to open: what the menu's Open the popup is offered by (v0.6.23). The left click's
+        own condition (_popup_for_click): a control layer, and a popup that has not broken."""
+        return self.control is not None and not self._popup_failed
+
+    def _open_popup(self):
+        """The menu's Open the popup (v0.6.23, the owner, 2026-11-11): the popup a left click opens, made and placed the
+        way the click makes and places it, and what it shows marked seen as the click marks it. The right click that
+        opened the menu closed the popup (icon.py), so here it opens - never the click's toggle, whose closing would
+        undo the choice; one already open, or about to be, is shown and brought forward."""
+        self._adopt_settings()
+        popup = self._popup_for_click()
+        if popup is None:
+            return
+        try:
+            popup.show()
         except Exception as exc:
             self._popup_broke(exc)
             return

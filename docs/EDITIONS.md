@@ -991,7 +991,9 @@ there, the statement carries it as a warning.
 
 **What it does.** An action: it sends nothing and answers at no point of a recovery. While it is on, a
 message you schedule for a reset, and from v0.6.16-beta (revision 2) a message you queue, may be up to
-29,962 characters - the most one continuation can carry - instead of 2,000. Turned off, every waiting
+29,962 characters - the most one continuation can carry - instead of 2,000. That holds for plain words; it
+goes on Windows' command line, where a double quote takes two characters and an emoji two, so a long message
+with many of them is refused when you write it. Turned off, every waiting
 message longer than 2,000 characters is cancelled.
 
 **When it helps.** When what you want a conversation to do after a reset takes more than 2,000
@@ -1741,10 +1743,13 @@ saved account and back, each with no sign-in page and no other Codex engine runn
 ### Run on another Python version
 
 **What it does.** Lets this program run on another official Python from python.org instead of the one it came
-with: the newest release of 3.13, 3.14 or 3.15 (3.15 is a preview: the bundled version moves to it only in a later
-version). Its card says which Python the watcher runs on. Nothing is read from the network until you press a
-button. **Check python.org** reads python.org's public list of releases, and only the lines this version of the
-program allows are offered, so a new patch needs no update of this program. **Use this version** asks first, then
+with: the newest release of 3.13, 3.14 or 3.15 that has a Windows embeddable package (3.15 is a preview: the bundled
+version moves to it only in a later version). Its card says which Python the watcher runs on. Nothing is read from the
+network until you press a button. **Check python.org** reads python.org's public list of releases, and only the lines
+this version of the program allows are offered, so a new patch needs no update of this program. A line in its
+security-only phase publishes source alone, so its newest release that has the package is offered instead (3.13.17
+while 3.13.18 is source only); a line with no such release is named on the card as one that cannot be chosen now.
+**Use this version** asks first, then
 downloads that version's Windows embeddable package from `www.python.org`, and no other address, showing the
 bytes truly written. Before any of it runs: the whole file must match the SHA-256 python.org published, computed on
 the bytes on disk; it must unpack safely into a new folder of its own, `runtimes\<version>` inside this program's
@@ -1757,8 +1762,9 @@ asks for, and for the Dashboard and the Codex tools the next time they start. On
 
 **What it risks.** This program is tested most on the Python it comes with, so another version can behave
 differently, and 3.15 is a preview here. A step that fails deletes what it unpacked, says which step it was and
-leaves the Python in use alone. If the watcher does not start on the chosen version within 45 seconds, it goes back
-to the bundled Python by itself and tells you once. A chosen version takes about 30 MB and is not updated for you.
+leaves the Python in use alone. If the watcher does not start on the chosen version within 45 seconds of being
+started on it, it goes back to the bundled Python by itself and tells you once; what comes before that start is not
+counted. A chosen version takes about 30 MB and is not updated for you.
 Its folder can be opened by you, administrators and Windows, like the rest of this program's folder. Nothing
 about you is sent to python.org beyond what any download shows, and nothing here touches Codex or sends anything to it.
 

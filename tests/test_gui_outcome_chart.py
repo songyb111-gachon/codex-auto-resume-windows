@@ -1,13 +1,15 @@
-r"""The Statistics page's outcome chart: raised pills in the Soft design, the flat bars in Classic (v0.6.22 final).
+r"""The Statistics page's outcome chart: raised pills in the Soft design, flat pills in Classic and Plain (v0.6.22 final;
+v0.6.23, the design audit's second round, F10: round-ended in every design).
 
 The owner chose the look from a mock on 2026-11-08 ("A"): each outcome's bar is a pill - its corners half its height -
 raised off the card with the control's lift, the shadows a raised button has, in the colour of its part in the success
-rate. Classic keeps the flat bars it always had, in the same colours: a design changes paint, never where anything is.
+rate. Classic and Plain draw the same pills flat, in the same colours, with no lift: a design changes depth, not shape -
+their switch tracks, meters and scroll thumbs are round-ended too - and never where anything is.
 
 The real compiled chart is made in the probe's own process, never shown, given three bars - a success, a failure and an
 outcome the rate leaves out - and drawn to a bitmap in each design and theme. Its own Faces() says where each bar's body
-is, and the pixels are read there: the fill at the middle, the card at a pill's corner (Soft) or the fill there (Classic),
-and below the bar the lift's shadow (Soft) or the card alone (Classic).
+is, and the pixels are read there: the fill at the middle, the card at a pill's corner in every design, and below the bar
+the lift's shadow (Soft) or the card alone (Classic, Plain).
 
     python -m unittest tests.test_gui_outcome_chart       (a GUI module: gui_lock.sh)
 """
@@ -25,7 +27,7 @@ import guiscan
 CSC = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Microsoft.NET" / "Framework64" / "v4.0.30319" / "csc.exe"
 POWERSHELL = (Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
               / "WindowsPowerShell" / "v1.0" / "powershell.exe")
-LOOKS = [(design, theme) for design in ("soft", "classic") for theme in ("light", "dark")]
+LOOKS = [(design, theme) for design in ("soft", "classic", "plain") for theme in ("light", "dark")]
 BARS = [("Recovered", 9, "success"), ("No progress", 6, "failure"), ("Cancelled", 3, "other")]
 
 PROBE = r"""
@@ -129,14 +131,20 @@ class OutcomeChartLookTests(unittest.TestCase):
                     self.assertNotEqual(bar["corner"], found["colours"][index], "a pill's corner is round")
                     self.assertNotEqual(bar["below"], found["card"], "the bar is raised: its shadow lies under it")
 
-    def test_classic_keeps_its_flat_bars(self):
-        for theme in ("light", "dark"):
-            found = self.answer["classic-" + theme]
-            self.assertFalse(found["depth"])
-            for index, bar in enumerate(found["bars"]):
-                with self.subTest(theme=theme, bar=index):
-                    self.assertEqual(bar["corner"], found["colours"][index], "a square corner")
-                    self.assertEqual(bar["below"], found["card"], "no shadow under a flat bar")
+    def test_classic_and_plain_draw_flat_pills(self):
+        for design in ("classic", "plain"):
+            for theme in ("light", "dark"):
+                found = self.answer[design + "-" + theme]
+                self.assertFalse(found["depth"])
+                for index, bar in enumerate(found["bars"]):
+                    with self.subTest(design=design, theme=theme, bar=index):
+                        self.assertNotEqual(bar["corner"], found["colours"][index], "a round end, as Soft's")
+                        self.assertEqual(bar["below"], found["card"], "no shadow under a flat pill")
+
+    def test_only_the_lift_is_the_soft_design_s(self):
+        body = guiscan.type_body("OutcomeChart")
+        self.assertNotIn("FillRectangle(flat, face)", body, "no square bar in any design")
+        self.assertIn("Elevation.StampOuter", body.split("if (Palette.Depth)", 1)[1].split(";", 1)[0], "the lift alone")
 
 
 class SourceTests(unittest.TestCase):

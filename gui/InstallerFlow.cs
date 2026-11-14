@@ -180,6 +180,20 @@ namespace CodexAutoResume
         /// Whether this run repairs the installation: the Maintain page's Repair.
         internal bool Repair { get { return Maintaining && Mode == Install; } }
 
+        /// Whether a setup program's run updates the installation that is here (v0.6.23 acceptance G1): the same edition,
+        /// another version than the one installed (From, or one that cannot be read), and not the Maintain page's Repair.
+        /// Its progress title and Finish headline then say updating and updated, as the Options page's Update button
+        /// already did, not installing and installed. An edition change is not one: it installs the other edition, and
+        /// says so. The Dashboard's own update is Mode Update, and Install another version... names itself (Another).
+        internal bool UpdatesInstalled
+        {
+            get { return Mode == Install && Upgrade && !EditionChange && !Repair && From != Version; }
+        }
+
+        /// The start of install.ps1's line for a watcher that was not running before an update or a repair and was left
+        /// stopped (plugin_setup.py's EXIT_LEFT_STOPPED, v0.6.23 acceptance G1): the Finish page then says so.
+        internal const string LeftStoppedLine = "The watcher was not running before this ";
+
         /// The status light for each phase the window shows, in one place (the owner, 2026-10-20: the light is the state
         /// that is true there, in every phase). Only the Dashboard's own states, by its rule (DashboardActions.HeaderLight):
         /// grey "idle" for a watcher not known to be running, a lit state only for one that is.
@@ -189,7 +203,7 @@ namespace CodexAutoResume
         ///     working light, "checking";
         ///   - an uninstall that finished: the product is gone and nothing watches - idle;
         ///   - a run that failed or could not start: what runs now is not known - idle, as the Dashboard has it;
-        ///   - an install, update or repair whose watcher was not confirmed running - idle;
+        ///   - an install, update or repair whose watcher was not confirmed running, or was left stopped - idle;
         ///   - an update whose previous watcher is still finishing and the new one waits to be started: a watcher runs
         ///     and wants the person - "attention";
         ///   - an install, update or repair whose watcher was confirmed running - "monitoring".

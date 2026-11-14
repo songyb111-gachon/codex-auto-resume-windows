@@ -132,7 +132,7 @@ class HostAppLinesTests(unittest.TestCase):
 
 class HostAppPlacementTests(unittest.TestCase):
     def test_the_row_comes_last_so_no_row_before_it_moves(self):
-        page = guiscan.member_body("SettingsForm", "BuildDiagnostics")
+        page = guiscan.member_body("SettingsForm", "DiagnosticsSteps")
         self.assertLess(page.index('"diag.while_waiting"'), page.index('"diag.host_app"'))
         self.assertLess(page.index("health.Controls.Add(diagStateNote)"), page.index("health.Controls.Add(diagHostNote)"))
 

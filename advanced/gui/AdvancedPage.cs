@@ -444,6 +444,16 @@ namespace CodexAutoResume
         private void ShowAdvanced()
         {
             if (advancedWords == null) return;
+            // v0.6.23 (perffix): pressed while it is being made ready ahead, made ready first and shown then, as Settings is
+            // (FinishFirst); built in the click only where it is not on its way.
+            if (FinishFirst(AdvancedPageName, ShowAdvanced)) return;
+            if (urgentPage != null) StopUrgent();
+            // What making it ready ahead holds of it let go first, as ShowPage lets go of a standard page's.
+            if (preparing == AdvancedPageName)
+            {
+                PutBackAllRows();
+                LetGoAll();
+            }
             currentPage = AdvancedPageName;
             // As ShowPage shows a page: painting held while one page is hidden and this one shown, every page staying
             // in the host once built.
@@ -487,23 +497,76 @@ namespace CodexAutoResume
         }
 
         /// v0.6.23: the page made ready ahead of its first visit, once this edition has answered with its words, as the
-        /// standard pages are (PrepareNext); never while it is the page on screen.
+        /// standard pages are (PrepareNext); never while it is the page on screen. Not while AdvancedReadyAhead is false:
+        /// built ahead in one turn, the open feature's cards came in one turn of 480-630 ms on an installation that had run
+        /// for months (the live acceptance, 2026-11-11), which no step of making a page ready may take. v0.6.23 (perffix):
+        /// built ahead in three steps (AdvancedSteps) with what they make held from laying itself out (HeldAsBuilt), and
+        /// then made ready as every page is, its controls made and laid out a slice a turn. Built on the click instead, its
+        /// first press took 650-750 ms on the owner's installation (the tracer, 2026-11-14) and 560-1450 on months of
+        /// scratch data with a real bridge.
         partial void EditionPageNamed(List<string> prepared, ref string name)
         {
+            if (!AdvancedReadyAhead) return;
             if (name == null && advancedWords != null && currentPage != AdvancedPageName && !prepared.Contains(AdvancedPageName) &&
                 (advancedPage == null || !advancedPage.IsHandleCreated))
                 name = AdvancedPageName;
         }
+
+        private static readonly bool AdvancedReadyAhead = true;
 
         partial void EditionPageFor(string name, ref Control page)
         {
             if (name == AdvancedPageName && advancedWords != null) page = AdvancedPageBuilt();
         }
 
-        /// The page, built the first time it is shown, as the standard pages are (PageFor).
+        /// v0.6.23 (perffix): the steps the page is built ahead in, before it has been built at all.
+        partial void EditionPageSteps(string name, ref Func<PageBuild, IEnumerator<bool>> steps)
+        {
+            if (name == AdvancedPageName && advancedWords != null && advancedPage == null) steps = AdvancedSteps;
+        }
+
+        /// The page built as AdvancedPageBuilt builds it, in the same order, a part a step: its frame (in the page host,
+        /// hidden), its list, the open feature's cards.
+        private IEnumerator<bool> AdvancedSteps(PageBuild build)
+        {
+            build.Page = AdvancedFrame();
+            yield return true;
+            FillAdvancedList();
+            yield return true;
+            ShowAdvancedDetail();
+        }
+
+        /// The page, built the first time it is shown, as the standard pages are (PageFor) - or, begun ahead (AdvancedSteps),
+        /// finished now, and what its steps held let go now that it is whole.
         private Control AdvancedPageBuilt()
         {
+            PageBuild begun;
+            if (pageBuilds.TryGetValue(AdvancedPageName, out begun))
+            {
+                pageBuilds.Remove(AdvancedPageName);
+                PageBuild before = buildHolding;
+                buildHolding = begun;
+                try { while (begun.Steps.MoveNext()) { } }
+                catch (Exception)
+                {
+                    LetGoBuilt(begun);
+                    throw;
+                }
+                finally { buildHolding = before; }
+                LetGoBuilt(begun);
+                return advancedPage;
+            }
             if (advancedPage != null) return advancedPage;
+            AdvancedFrame();
+            FillAdvancedList();
+            ShowAdvancedDetail();
+            return advancedPage;
+        }
+
+        /// The page's frame - the list's card, the column the open feature's cards go in, the buttons under them - put in
+        /// the page host, hidden, with the column fitted to its width: the page before its list is filled.
+        private Control AdvancedFrame()
+        {
             var page = (SoftPage)Page();
             // The list's card on the page, and the open capability's cards in a column that scrolls, which keeps the
             // room for their lift itself, as a Settings section does: so the page keeps it only where the list's card
@@ -532,7 +595,7 @@ namespace CodexAutoResume
             listCard.Margin = new Padding(0, room.Top, 0, 0);
             advancedListCard = listCard;
 
-            var stack = new SoftStack();
+            var stack = HeldAsBuilt(new SoftStack());
             // Not docked, and as wide as its column less a scroll bar whether or not one shows (FitAdvancedStack),
             // as a Settings section is (FitSections).
             stack.Location = Point.Empty;
@@ -545,7 +608,7 @@ namespace CodexAutoResume
             stack.Font = Font;
             stack.Padding = new Padding(room.Left, room.Top, room.Right, Math.Max(0, room.Bottom - Px(Brand.PageGap)));
             advancedStack = stack;
-            var scroll = new SoftPage();
+            var scroll = HeldAsBuilt(new SoftPage());
             scroll.Dock = DockStyle.Fill;
             scroll.Margin = new Padding(0);
             scroll.Controls.Add(stack);
@@ -553,7 +616,7 @@ namespace CodexAutoResume
             scroll.SizeChanged += delegate { FitAdvancedStack(); };
             advancedScroll = scroll;
 
-            var split = new SoftStack();
+            var split = HeldAsBuilt(new SoftStack());
             split.Dock = DockStyle.Fill;
             split.ColumnCount = 2;
             split.RowCount = 1;
@@ -587,8 +650,6 @@ namespace CodexAutoResume
             pageHost.Controls.Add(page);
             advancedPage = page;
             FitAdvancedStack();
-            FillAdvancedList();
-            ShowAdvancedDetail();
             return page;
         }
 
@@ -982,6 +1043,22 @@ namespace CodexAutoResume
         }
 
         // ---------------------------------------------------------------- the open capability
+        /// What bounds an action other than the report, in its Limits card: each its own sentence, or null where it has
+        /// none to state. (Until v0.6.23 every action showed Longer reset messages' sentence, python_choice's included.)
+        private string ActionLimits(string id)
+        {
+            if (id == "long_reset_message")
+                return Word("page.long_limits",
+                    "It sends nothing itself. While it is on, a message at a reset may be as long as one continuation can be, " +
+                    "not only {n} characters. Many double quotes or emoji make it a little less, and a message that does not " +
+                    "fit is refused when you write it.",
+                    "n", 2000);
+            if (id == PythonId)
+                return Word("page.python.limits",
+                    "It sends nothing to Codex, so it has no sending limits. It reads python.org only when you press a button, and keeps at most one chosen Python beside the bundled one.");
+            return null;
+        }
+
         /// The open capability's cards, built again only when what they show changed.
         private void ShowAdvancedDetail()
         {
@@ -1009,6 +1086,8 @@ namespace CodexAutoResume
             advancedShown = shown;
             bool focused = advancedStack.ContainsFocus;
             string reportFocus = focused ? ReportFocus() : null, resetFocus = focused ? ResetFocus() : null;
+            // v0.6.23: the Python version card, rebuilt with each read of a running download, keeps the keyboard's place.
+            List<int> pythonPlace = focused && advancedOpen == PythonId ? PlaceOf(advancedStack, FocusedControl()) : null;
             advancedStack.SuspendLayout();
             var old = new List<Control>();
             foreach (Control control in advancedStack.Controls) old.Add(control);
@@ -1047,8 +1126,10 @@ namespace CodexAutoResume
             if (advancedScroll != null) advancedScroll.PerformLayout();
             UpdateAdvancedButtons();
             // A limit that was being chosen is gone with the cards it was on: the keyboard goes back to the list - or,
-            // in the report's card or a reset form, to the box or button it was on, where that is still there to take it.
-            if (focused && !FocusReport(reportFocus) && !FocusResets(resetFocus) && advancedList != null && advancedList.CanFocus)
+            // in the report's card or a reset form, to the box or button it was on, where that is still there to take it;
+            // on the Python version card, to the control in the same place of the cards as built again.
+            if (focused && !FocusReport(reportFocus) && !FocusResets(resetFocus) && !FocusPlace(pythonPlace) &&
+                advancedList != null && advancedList.CanFocus)
                 advancedList.Focus();
         }
 
@@ -1166,15 +1247,22 @@ namespace CodexAutoResume
             if (IsReport(item)) BuildReportCard(item);
 
             // Its limits, and the one a person may set for every capability together: lower, never above the registry's.
-            // An action has no ceilings of its own: it sends nothing to Codex, and says what bounds it instead.
+            // An action has no ceilings of its own: it sends nothing to Codex, and says what bounds it instead, each in its
+            // own words (ActionLimits).
             TableLayoutPanel limits = NewGroup(Word("page.limits", "Limits"), advancedStack);
             if (IsReport(item))
                 limits.Controls.Add(HelpText(Word("page.action_limits",
                     "It sends nothing to Codex. A report goes to GitHub only when you type send, and the project takes one report per GitHub login for each Codex version.")));
             else if (IsAction(item))
-                limits.Controls.Add(HelpText(Word("page.long_limits",
-                    "It sends nothing itself. While it is on, a message at a reset may be as long as one continuation can be, not only {n} characters.",
-                    "n", 2000)));
+            {
+                string bounds = ActionLimits(Str(item, "id"));
+                if (bounds != null) limits.Controls.Add(HelpText(bounds));
+            }
+            else if (Str(item, "id") == "usage_pause")
+                // v0.6.23 second round R3: its stops and continuations are not the ledger's sends, so the day's numbers
+                // never bind them; what does is said instead.
+                limits.Controls.Add(HelpText(Word("page.pause_limits",
+                    "It has no daily send limits. Each time a window reaches its stop percentage, it stops each conversation's running turn once, and continues that conversation once after the reset.")));
             else
             {
                 TableLayoutPanel numbers = Facts(limits);
@@ -2234,8 +2322,12 @@ namespace CodexAutoResume
         {
             var text = new StringBuilder("{");
             if (capability != null) text.Append("\"capability\":").Append(Json.Escape(capability));
-            if (!string.IsNullOrEmpty(openedLanguage))
-                text.Append(capability != null ? "," : "").Append("\"locale\":").Append(Json.Escape(openedLanguage));
+            // v0.6.23 (the final's live acceptance): a window that opened in English because its words came late
+            // (openedLate) asks this page's words in English too - it asked in the stored language, and the page's tab,
+            // its Chat tab and its Pending buttons were Korean on an English window - until it reopens in its own.
+            string locale = openedLate ? "en" : openedLanguage;
+            if (!string.IsNullOrEmpty(locale))
+                text.Append(capability != null ? "," : "").Append("\"locale\":").Append(Json.Escape(locale));
             return text.Append("}").ToString();
         }
 

@@ -156,7 +156,8 @@ them `thread/goal/set`, `thread/queue/add` with words this product wrote, and `t
   last two, a resident one that listens on 127.0.0.1 or reads the paired Telegram bot (*The courier*, under
   [The advanced edition](#the-advanced-edition)). The advanced edition's compatibility report reaches GitHub only by starting gh, the
   GitHub CLI the person installed, when they ask in the Dashboard (*The compatibility report*, under
-  [The advanced edition](#the-advanced-edition)). The traffic we know the product causes comes from elsewhere:
+  [The advanced edition](#the-advanced-edition)). *Run on another Python version* also reaches `www.python.org`, from a file of the
+  same package, but only when a button on its card is pressed (below). The traffic we know the product causes comes from elsewhere:
   - The Codex processes it starts ask OpenAI for your current usage (`account/rateLimits/read`)
     while a recovery is due. Codex identifies this tool to OpenAI by the client name and version
     the tool gives it: `codex_auto_resume` and `0.1` in v0.5.7; from v0.6.0, `codex_auto_resume`
@@ -642,8 +643,10 @@ edition - and the setup window says so first; it offers a box, off unless ticked
 **What each does, once it is on.**
 
 - **Start with Codex, through WMI.** It departs from C4 (nothing happens on its own, and nothing at
-  start) and F6 (the processes the product starts are a fixed list, and a route through WMI is not
-  on it). When Codex starts the plugin's MCP server, and recovery is not paused, no watcher runs, no
+  start) and F6 (the processes the product starts are a fixed list: here the server starts the
+  watcher on its own, which the standard edition never does; WMI is not what departs, since the
+  standard edition's installer and Dashboard use it too, to run outside another app's private
+  view). When Codex starts the plugin's MCP server, and recovery is not paused, no watcher runs, no
   installation is in progress and this installation's launcher is there, the server starts the
   watcher. Where Codex's job would end what the server starts, it asks WMI to
   (`Win32_Process.Create`): one constant PowerShell script, run by PowerShell's full System32 path
@@ -742,12 +745,14 @@ stopped; a mutex of its own, so it never holds a notice back; windowless, in the
 watcher. It holds the one listening socket of this product (a test fails if a second shipped file can listen,
 `tests/test_privacy_claims.py`), bound to 127.0.0.1 alone, with exclusive use of its port - or to every network only
 while *Open the status server to your local network* is on too, where Windows asks about its firewall and the product
-changes no rule. Each request, in this order: closed for five minutes after ten wrong tokens in a minute (503); exactly
+changes no rule. Each request, in this order: closed for five minutes to the program or device that sent ten wrong tokens
+in a minute (503) - each address counted on its own and this PC's own loopback as one, so a device on the network can
+never close it to this PC's programs or to another device; exactly
 one Host header, naming 127.0.0.1 or localhost with the port - or, open to the network, an IPv4 address with the port -
 or 421, which is what stops a web page rebinding a name to it; an unknown path 404, another method 405; a Bearer token kept
 in Windows Credential Manager and compared in constant time, or 401; an action while actions are off 403; a body over 1 KiB
 413. No answer carries a CORS header, a cookie or a server's version; a query string is never read, and nothing is logged:
-no request, no address, no failure. At most eight requests at once; each has ten seconds in all, from its connection to its answer, and then its connection is shut, so clients that send a byte at a time cannot hold every slot. What it serves is the status file's
+no request, no address, no failure. At most eight requests at once; each has ten seconds in all, from its connection to its answer, and then its connection is shut, and after its answer one second more in all to read what the client still sends, so clients that send a byte at a time cannot hold every slot. What it serves is the status file's
 closed keys and the waiting recoveries as `task N` with their public codes, never an id, a label or a path. What it does is
 core's own pause and cancel, by the list the caller read or 409: it reduces, and has no route that sends, chats, changes a
 setting, turns a feature on, sends now or gives attempts back (a test holds the routes to the design's table). Only the

@@ -28,6 +28,7 @@ ENV_RUNTIME_HOME = "CODEX_AUTO_RESUME_PLUGIN_HOME"
 # the INSTALLED plugin_setup.py), and an older one rejects an argument it does not know - so `setup` would not run
 # at all - while it ignores a variable it does not read.
 ENV_WILL_LOOK_AGAIN = "CODEX_AUTO_RESUME_SETUP_WILL_LOOK_AGAIN"   # "1": the caller looks at the watcher again after setup
+ENV_SAYS_LEFT_STOPPED = "CODEX_AUTO_RESUME_SETUP_SAYS_LEFT_STOPPED"  # "1": the caller reads EXIT_LEFT_STOPPED (v0.6.23)
 ENV_ENGLISH = "CODEX_AUTO_RESUME_SETUP_ENGLISH"                   # "1": the caller's log is English: say watcher-running so
 RUNTIME_DIR_NAME = ".codex-auto-resume"
 # The directory names the installer creates under the root - and therefore the ones
@@ -44,6 +45,12 @@ EXIT_DESKTOP_TAKEN = 3
 # an installer that treats it as failure rolls back a good install, and one that
 # treats it as success says "Installed and running." about a watcher nobody saw.
 EXIT_UNCONFIRMED = 2
+# Everything asked for was done, and the watcher, which was not running before this update, was left stopped
+# (--watcher-was-stopped, where it would not run at the next sign-in either). A success, and a different one: the
+# installer's last word and the setup window's Finish page say that nothing is being watched until it is started
+# (v0.6.23 acceptance G1: both said "Nothing else to do"). Only for a caller that asks for it (ENV_SAYS_LEFT_STOPPED):
+# every other caller - an older install.ps1, the bootstrap's own calls - hears EXIT_OK, as it always has.
+EXIT_LEFT_STOPPED = 4
 
 sys.path.insert(0, str(PLUGIN_ROOT / "src"))
 from codex_auto_resume import addremove, config, control, edition, l10n, shortcut, startup # noqa: E402
@@ -61,7 +68,8 @@ SETUP_STEPS = 7
 # check of Codex) - and then the child imports the engine again and takes its mutex, 12 to 20 seconds in all.
 # 45 seconds is more than twice the slowest of those, for a cold disk or a scan of fresh files. The wait ends the
 # moment the mutex is held, or the process ends (control.await_watcher): only a watcher that is alive and not yet
-# seen takes the whole of it.
+# seen takes the whole of it. Where a choice of Python is recorded, the launcher asks first: control.start_timeout adds
+# that question's time (v0.6.23).
 WATCHER_WAIT = control.WATCHER_START_TIMEOUT
 
 
@@ -134,9 +142,9 @@ def installed(home: Path) -> bool:
 def python_for_watcher(home: Path | None = None) -> Path:
     """pythonw.exe: the bundled one, or for a home with no runtime, the one beside this
     interpreter. Raises startup.StartupError where there is none: python.exe is never the
-    answer (startup.python_launcher)."""
-    launcher = bundled_python(home) if home is not None else None
-    return launcher if launcher is not None else startup.python_launcher()
+    answer (startup.python_launcher). startup.watcher_python's answer, which the Dashboard's
+    Start at sign-in writes too, so the two writers of the Run value cannot disagree."""
+    return startup.watcher_python(home)
 
 
 def _cli(home: Path, argv: list[str]) -> int:
@@ -227,7 +235,9 @@ def start_watcher(home: Path) -> str:
     process = subprocess.Popen([str(interpreter), *startup.NO_REMOTE_DEBUG, str(home / LAUNCHER_NAME), "run"],
                                cwd=str(home), close_fds=True, creationflags=flags, env=environment,
                                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    return control.await_watcher(app.watcher_running, process, timeout=WATCHER_WAIT)["state"]
+    # v0.6.23: counted as the Dashboard's Start counts it - where a choice of Python is recorded, the launcher's question
+    # before its child comes on top (control.start_timeout), so a healthy start under that Python is not reported unconfirmed.
+    return control.await_watcher(app.watcher_running, process, timeout=control.start_timeout(home, WATCHER_WAIT))["state"]
 
 
 def watcher_seen(home: Path):
@@ -365,7 +375,11 @@ def cmd_setup(args) -> int:
     print("state: %s" % home)
     if incomplete:
         return EXIT_ERROR
-    return EXIT_OK if confirmed or left_stopped else EXIT_UNCONFIRMED
+    if confirmed:
+        return EXIT_OK
+    if left_stopped:
+        return EXIT_LEFT_STOPPED if os.environ.get(ENV_SAYS_LEFT_STOPPED) == "1" else EXIT_OK
+    return EXIT_UNCONFIRMED
 
 
 def cmd_enable(args) -> int:

@@ -17,8 +17,8 @@ from ...win.dll import WNDCLASSW, WNDPROC
 from .layout import WIDTH
 from .menuplan import menu_numbered
 from .messages import PopupMessages, REFRESH_TICKS  # noqa: F401
-from .model import PopupModel, perform, select_action
-from .motion import animates, glide_amount, halo, next_glides, scene_ms
+from .model import PopupModel, select_action
+from .motion import GLIDE_FRAME_MS, animates, glide_amount, halo, next_glides, scene_ms
 from .placement import focus_order, place
 from .renderer import Renderer
 from ...win import textsize
@@ -64,9 +64,10 @@ from .words import locale_of, say, vocabulary
 
 
 FRAME_MS = 33                # about thirty frames a second, and only while something moves
-
-
 FIRST_READ_WAIT_MS = 300     # the first opening waits this long for real numbers at most
+# Every popup whose window exists: its window procedure is a callback of this object, which may not be collected
+# while Windows can still call it - a popup dropped without destroy() would fault the next message (v0.6.23).
+_LIVING = set()
 
 
 # ------------------------------------------------------------------------------ the window
@@ -84,9 +85,14 @@ class Popup(PopupMessages):
     _fit = None
     # The drawn row menu's maker and the menu (v0.6.20): none - Windows' own menu - for a Popup made without __init__.
     make_menu = _row_menu = None
+    # Battery saver and a locked session (v0.6.23): nobody to ask, and nothing held, for a Popup made without __init__.
+    held, _still = None, False
+    # Nothing on its way in, no face changing and no frame timer (v0.6.23), for a Popup made without __init__.
+    _opening = _faces = _frame_ms = _home = _face_states = None
+    _below, _layered = 0, False
 
     def __init__(self, *, control=None, source=None, strings=None, on_dashboard=None, log=None,
-                 anchor=None, theme_menu=None, make_menu=None, days=False):
+                 anchor=None, theme_menu=None, make_menu=None, days=False, held=None):
         self.days, self.model = days, PopupModel(strings)
         self.locale = locale_of(strings)
         self.control = control
@@ -101,6 +107,9 @@ class Popup(PopupMessages):
         # none, and then - and once the drawn one broke (False) - a row's menu is Windows' own.
         self.make_menu = make_menu
         self._row_menu = None
+        # v0.6.23 (standard H13): what else holds its motion - battery saver, a locked or disconnected session - as the icon
+        # reads it for itself (ui/tray/motion.py icon_motion_allowed); nothing where nobody says.
+        self.held = held
         self.hwnd = None
         self.visible = False
         self._proc = None
@@ -140,6 +149,11 @@ class Popup(PopupMessages):
         self._origin = None
         self._switches = None            # {target: checked} as last laid out while on screen
         self._glides = {}                # {target: (started_ms, from, to)}: switches on the move
+        # v0.6.23: buttons whose face is changing, {target: (started_ms, (fill, edge) it left from, length_ms)}, and the
+        # state each was last drawn in; the opening's (started_ms, rise) while it fades in; where it opens to, and how far
+        # below that it stands now; whether it is layered for the fade.
+        self._faces, self._face_states, self._opening = {}, None, None
+        self._home, self._below, self._layered = None, 0, False
         # v0.6.11: what a screen reader is handed (access.py), made the first time one asks and kept for as long
         # as this popup lives; and what it was last told is on screen, for the events a change raises.
         self._access = None
@@ -151,6 +165,7 @@ class Popup(PopupMessages):
         user32, kernel32 = _dll("user32"), _dll("kernel32")
         instance = kernel32.GetModuleHandleW(None)
         self._proc = WNDPROC(self._wndproc)
+        _LIVING.add(self)
         klass = WNDCLASSW()
         klass.style = CS_DROPSHADOW
         klass.lpfnWndProc = self._proc
@@ -186,12 +201,14 @@ class Popup(PopupMessages):
                 self.log("tray popup menu cleanup failed (%s)" % type(exc).__name__)
         access.disconnect(self)
         hwnd, self.hwnd = self.hwnd, None
+        _LIVING.discard(self)
         self.visible = False
         if hwnd:
             for timer in (TIMER_TICK, TIMER_FRAME, TIMER_FIRST):
                 user32.KillTimer(hwnd, timer)
             user32.DestroyWindow(hwnd)
         self._frame_running = False
+        self._opening, self._layered = None, False
         if self._renderer is not None:
             self._renderer.close()
             self._renderer = None
@@ -261,6 +278,8 @@ class Popup(PopupMessages):
             self.visible = False
             user32.ShowWindow(hwnd, SW_HIDE)
             self.hidden_at = time.monotonic()
+        self._end_opening()
+        self._faces, self._face_states = {}, None
         self.hover = self.pressed = self.focus = None
         self._painted_plan = None
         # A change made while it is closed is simply there when it opens again.
@@ -285,8 +304,21 @@ class Popup(PopupMessages):
         self._contrast = look.high_contrast()
         self._apps_light = look.apps_use_light_theme()
         self._reduced = look.reduced_motion() or self._contrast
+        self._still = self._ask_still()
         self._theme = effective_theme(theme_setting(), self._apps_light)
         self._design = design_setting()
+
+    def _ask_still(self) -> bool:
+        """Whether battery saver or a locked session holds what moves (`held`): asked on each opening and once a second
+        while it is open (the one-second tick), never per frame - the window's light asks as often (Motion.Ambient)."""
+        try:
+            return bool(self.held()) if self.held is not None else False
+        except Exception:
+            return False
+
+    def _holds(self) -> bool:
+        """Whether nothing may move now: a stopper (`_reduced`) or battery saver or a locked session (`_still`)."""
+        return self._reduced or self._still
 
     def _follow_theme(self):
         """The theme (the setting, the app mode last read) and the stored design; a change redraws it all."""
@@ -383,6 +415,7 @@ class Popup(PopupMessages):
             self.focus = order[0] if order else None
         self._move(plan, origin)
         self._frame_theme()
+        self._start_opening()
         self.visible = True
         user32.InvalidateRect(self.hwnd, None, False)
         user32.ShowWindow(self.hwnd, SW_SHOW if activate else SW_SHOWNOACTIVATE)
@@ -403,9 +436,10 @@ class Popup(PopupMessages):
             gap = int(round(brand.SPACING["m"] * self.dpi / 96.0))
             x, y, _ = place((width, height), screen["work"], screen["monitor"], screen["icon"],
                             screen["cursor"], gap=gap)
-        self._origin = origin
+        self._origin, self._home = origin, (x, y)
         with _PerMonitorDpi():
-            _dll("user32").SetWindowPos(self.hwnd, C.c_void_p(HWND_TOPMOST), x, y, width, height, SWP_NOACTIVATE)
+            _dll("user32").SetWindowPos(self.hwnd, C.c_void_p(HWND_TOPMOST), x, y + self._below, width, height,
+                                        SWP_NOACTIVATE)
         self._shape(width, height)
 
     def _rebuild(self, now):
@@ -449,7 +483,7 @@ class Popup(PopupMessages):
         seen = {item["target"]: bool(item["checked"]) for item in plan["items"] if item["kind"] == "switch"}
         previous = self._switches if self.visible else None
         self._glides = next_glides(seen, previous, self._glides, time.monotonic() * 1000.0,
-                                   animate=self.visible and not self._reduced)
+                                   animate=self.visible and not self._holds())
         self._switches = seen if self.visible else None
 
     def _glide_amounts(self):
@@ -494,23 +528,28 @@ class Popup(PopupMessages):
 
     def _sync_frames(self):
         user32 = _dll("user32")
+        if self._holds() and (self._opening is not None or self._faces):
+            self._end_opening()                  # held while it opens or glides: simply where it is going (v0.6.23)
+            self._faces = {}
+        quick = bool(self._faces) or self._opening is not None     # a one-shot glide: the card's quicker frames
         wanted = (self.visible and self._vm is not None
-                  and (bool(self._glides)
-                       or animates(self._vm["light"], self._since_state_ms(), reduced=self._reduced)
-                       or (bool(self._vm.get("scene")) and not self._reduced) or self.sweeping()))
-        if wanted and not self._frame_running:
-            user32.SetTimer(self.hwnd, TIMER_FRAME, FRAME_MS, None)
-            self._frame_running = True
+                  and (bool(self._glides) or quick
+                       or animates(self._vm["light"], self._since_state_ms(), reduced=self._holds())
+                       or (bool(self._vm.get("scene")) and not self._holds()) or self.sweeping()))
+        interval = GLIDE_FRAME_MS if quick else FRAME_MS
+        if wanted and (not self._frame_running or interval != self._frame_ms):
+            user32.SetTimer(self.hwnd, TIMER_FRAME, interval, None)
+            self._frame_running, self._frame_ms = True, interval
         elif not wanted and self._frame_running:
             user32.KillTimer(self.hwnd, TIMER_FRAME)
-            self._frame_running = False
+            self._frame_running, self._frame_ms = False, None
 
     def frame(self):
         """The halo for this instant, its cycle starting with its state, as the window's does."""
         if self._vm is None:
             return None
         since = self._since_state_ms()
-        return halo(self._vm["light"], since, since, reduced=self._reduced, design=self._design)
+        return halo(self._vm["light"], since, since, reduced=self._holds(), design=self._design)
 
     def render(self):
         """Draw the current view into the canvas and return it (the tests read it back)."""
@@ -521,75 +560,26 @@ class Popup(PopupMessages):
             # The halo band saved with the last whole frame is in the old colours.
             self._renderer.theme, self._renderer.design, self._renderer.contrast = look
             self._static_dirty = True
-        if self._glides:
+        if self._glides or self._faces:
             # A switch on the move is drawn over the ground every frame, and the frame after its
-            # glide ends draws it back into the ground where it has come to rest.
+            # glide ends draws it back into the ground where it has come to rest; a button's face likewise.
             self._static_dirty = True
+        faces = self._face_glides()
         self.step_hidden()
         if self._static_dirty or self._renderer.halo_plan is not self._plan:
             self._static_dirty = False
             return self._renderer.draw(self._vm, self._plan, frame=self.frame(), hover=self.hover,
                                        pressed=self.pressed, focus=self.focus if self.keyboard else None,
-                                       glides=self._glide_amounts(), scene_ms=scene_ms(self._reduced, self._scene_since))
+                                       glides=self._glide_amounts(), scene_ms=scene_ms(self._holds(), self._scene_since),
+                                       faces=faces)
         canvas = self._renderer.draw_halo(self._plan, self.frame())
-        return self._renderer.draw_scene(self._plan, scene_ms(False, self._scene_since)) if self._vm.get("scene") and not self._reduced else canvas
+        return self._renderer.draw_scene(self._plan, scene_ms(False, self._scene_since)) if self._vm.get("scene") and not self._holds() else canvas
 
     def _invalidate(self):
         """Something other than the halo changed: the next frame is drawn whole."""
         self._static_dirty = True
         if self.hwnd:
             _dll("user32").InvalidateRect(self.hwnd, None, False)
-
-    # ---------------------------------------------------------------------- work
-    def _request_read(self):
-        if self.control is None:
-            return
-        if self._reading:
-            self._read_again = True
-            return
-        self._reading = True
-        self._run(("read",))
-
-    def _run(self, action):
-        number = next(self._sequence)
-        control, source, dashboard = self.control, self.source, self.on_dashboard
-
-        def work():
-            outcome = perform(action, control, source=source, dashboard=dashboard)
-            with self._lock:
-                self._results[number] = (action, outcome)
-            hwnd = self.hwnd
-            if hwnd:
-                _dll("user32").PostMessageW(hwnd, WM_POPUP_RESULT, number, 0)
-
-        threading.Thread(target=work, name="tray-popup-call", daemon=True).start()
-
-    def _finished(self, number):
-        with self._lock:
-            action, outcome = self._results.pop(number, (None, None))
-        if action is None:
-            return
-        if outcome[0] == "failed":
-            self.log("tray popup %s failed (%s)" % (action[0], outcome[1]))
-        self.model.apply_outcome(action, outcome, time.time())
-        if action[0] == "read" and outcome[0] == "ok":
-            # get_status carries the stored settings; nothing more is asked of the control layer.
-            self.follow_settings((outcome[1].get("status") or {}).get("settings"))
-        showing = self.visible or self._pending_show is not None
-        if action[0] == "read":
-            self._reading = False
-            if self._read_again:
-                self._read_again = False
-                self.model.wants_read = True
-        if self.model.wants_read:
-            self.model.wants_read = False
-            # A hidden window reads nothing; the next opening reads anyway.
-            if showing:
-                self._request_read()
-        if self._pending_show is not None and action[0] == "read":
-            self._present(*self._pending_show)
-        elif self.visible:
-            self._update()
 
     # ------------------------------------------------------------ a row's own menu (v0.6.11)
     def _context_menu(self, lparam):
@@ -625,6 +615,8 @@ class Popup(PopupMessages):
             action = actions.get(command)
             if action is None or not self.model.begin(action):
                 return
+            if action[0] == "dashboard_row":     # v0.6.23: the Dashboard's own dialog for the row; the popup closes
+                self.hide()
             self._run(action)
             self._update()
         if self._draw_row_menu(numbered, run, (point.x, point.y)):

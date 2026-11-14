@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import os
 from pathlib import Path
 import stat
 import subprocess
@@ -111,6 +112,83 @@ class ListTests(unittest.TestCase):
         for body in (b"not json", b"{}"):
             with self.subTest(body), self.assertRaises(pythonorg.Refused):
                 pythonorg.newest(pythons.LINES, opener=Opener({pythonorg.RELEASES: body}))
+
+
+class OfferTests(unittest.TestCase):
+    """What a Check offers of each line (v0.6.23 final): its newest release whose files include the Windows embeddable
+    package. python.org's answers here are fixtures of the shape its API gives; nothing reaches the network."""
+
+    LIST = [release("Python 3.13.16", 101), release("Python 3.13.17", 102), release("Python 3.13.18", 103),
+            release("Python 3.14.10", 201), release("Python 3.15.2", 301)]
+
+    def opener(self, files, rows=None):
+        table = {pythonorg.RELEASES: json.dumps(self.LIST if rows is None else rows).encode()}
+        table.update({pythonorg.FILES % number: json.dumps(found).encode() for number, found in files.items()})
+        return Opener(table)
+
+    @staticmethod
+    def source_only(version):
+        return [{"name": "Gzipped source tarball", "url": "https://www.python.org/ftp/python/%s/Python-%s.tgz" % (version, version)},
+                {"name": "XZ compressed source tarball",
+                 "url": "https://www.python.org/ftp/python/%s/Python-%s.tar.xz" % (version, version)}]
+
+    @staticmethod
+    def with_package(version):
+        return OfferTests.source_only(version) + [file_row(url=pythonorg.PACKAGE % (version, version))]
+
+    def test_a_line_whose_newest_release_is_source_only_offers_the_release_before(self):
+        """3.13.18 on 2026-11-11: source alone, so 3.13.17 is offered. Fails with the newest release offered as it was."""
+        opener = self.opener({103: self.source_only("3.13.18"), 102: self.with_package("3.13.17"),
+                              101: self.with_package("3.13.16"), 201: self.with_package("3.14.10"),
+                              301: self.with_package("3.15.2")})
+        self.assertEqual(pythonorg.offered(pythons.LINES, opener=opener),
+                         {"3.13": {"version": "3.13.17", "release": 102}, "3.14": {"version": "3.14.10", "release": 201},
+                          "3.15": {"version": "3.15.2", "release": 301}})
+        self.assertNotIn(pythonorg.FILES % 101, opener.asked, "asked newest first, and no further than the first with one")
+        self.assertEqual(opener.asked.index(pythonorg.FILES % 103) + 1, opener.asked.index(pythonorg.FILES % 102))
+
+    def test_a_line_with_no_package_at_all_is_left_out(self):
+        opener = self.opener({103: self.source_only("3.13.18"), 102: self.source_only("3.13.17"),
+                              101: self.source_only("3.13.16"), 201: self.with_package("3.14.10"),
+                              301: self.with_package("3.15.2")})
+        self.assertEqual(set(pythonorg.offered(pythons.LINES, opener=opener)), {"3.14", "3.15"})
+
+    def test_a_32_bit_or_another_package_is_not_the_embeddable(self):
+        opener = self.opener({103: [file_row(name="Windows embeddable package (32-bit)", url="x"),
+                                    file_row(name="Windows installer (64-bit)", url="y")],
+                              102: self.with_package("3.13.17"), 201: [], 301: self.with_package("3.15.2")},
+                             rows=self.LIST[1:])
+        found = pythonorg.offered(pythons.LINES, opener=opener)
+        self.assertEqual(found["3.13"]["version"], "3.13.17")
+        self.assertNotIn("3.14", found)
+
+    def test_a_files_list_that_cannot_be_read_fails_the_check(self):
+        """As the list's own failure: a release that could not be asked is not passed over as one with no package."""
+        opener = self.opener({103: self.source_only("3.13.18"), 201: self.with_package("3.14.10"),
+                              301: self.with_package("3.15.2")})
+        opener.table[pythonorg.FILES % 102] = b"not json"
+        with self.assertRaises(pythonorg.Refused) as refused:
+            pythonorg.offered(pythons.LINES, opener=opener)
+        self.assertEqual(refused.exception.step, pythonorg.LIST)
+
+    def test_a_line_s_releases_are_asked_at_most_so_far(self):
+        patches = range(pythonorg.RELEASES_MOST + 5)
+        rows = [release("Python 3.13.%d" % patch, 1000 + patch) for patch in patches]
+        opener = self.opener({1000 + patch: self.source_only("3.13.%d" % patch) for patch in patches}, rows=rows)
+        self.assertEqual(pythonorg.offered(pythons.LINES, opener=opener), {})
+        self.assertEqual(len([url for url in opener.asked if url != pythonorg.RELEASES]), pythonorg.RELEASES_MOST)
+
+    def test_only_python_org_is_asked(self):
+        opener = self.opener({103: self.with_package("3.13.18"), 201: self.with_package("3.14.10"),
+                              301: self.with_package("3.15.2")})
+        pythonorg.offered(pythons.LINES, opener=opener)
+        self.assertEqual({url.split("/")[2] for url in opener.asked}, {"www.python.org"})
+
+    def test_the_check_asks_for_releases_with_a_package(self):
+        """Fails with the check asking for the newest release alone (v0.6.23-beta.2)."""
+        with patch.object(pythonorg, "offered", return_value={"3.14": {"version": "3.14.10", "release": 201}}) as asked:
+            self.assertEqual(pythons.Hands.newest(pythons.LINES), {"3.14": {"version": "3.14.10", "release": 201}})
+        asked.assert_called_once_with(pythons.LINES)
 
 
 class SourceTests(unittest.TestCase):
@@ -227,6 +305,9 @@ class Hands:
         if callable(self.restarting):
             return self.restarting()
         return self.restarting
+
+    def bundled(self, _paths):
+        return "3.14.10"
 
 
 def inline(job):
@@ -361,6 +442,50 @@ class VerifyTests(Case):
                     hands = Hands(signers={name: said})
                     self.assert_refused(hands, pythons.SIGNATURE)
                     self.assertNotIn("imports", hands.log)
+
+    # A package as python.org ships it: extension modules, the stable ABI's DLL, other DLLs and the Visual C++ runtime.
+    PROGRAMS = ("_socket.pyd", "_ssl.pyd", "python3.dll", "libcrypto-3.dll", "sqlite3.dll", "vcruntime140.dll",
+                "vcruntime140_1.dll")
+    MICROSOFT = {"vcruntime140.dll": "Microsoft Windows Software Compatibility Publisher",
+                 "vcruntime140_1.dll": "Microsoft Corporation"}
+
+    def test_the_genuine_set_is_signed_file_by_file_and_passes(self):
+        """S3 of the second round: every *.exe, *.dll and *.pyd asked, the Visual C++ runtime as Microsoft's; the stdlib
+        zip, the ._pth and other files are not programs and are not asked."""
+        hands = Hands(archive=good_zip(extra=self.PROGRAMS + ("LICENSE.txt",)), signers=dict(self.MICROSOFT))
+        self.assertTrue(self.chosen_now(hands)["done"])
+        self.assertEqual(self.outcome(), {"word": pythons.CHOSEN_DONE, "step": None, "version": VERSION})
+        self.assertEqual(hands.log.count("signer"), 3 + len(self.PROGRAMS))
+        self.assertLess(hands.log.index("signer"), hands.log.index("imports"))
+        self.assertEqual(hands.log[-2:], ["imports", "restart"])
+
+    def test_one_program_file_not_signed_by_the_foundation_refuses_the_version(self):
+        """Fails with S3 reverted: a _socket.pyd of anyone's would have been loaded by the import step, and then at every start."""
+        for name in ("_socket.pyd", "libcrypto-3.dll", "python3.dll"):
+            for said in (AdapterError("unsigned"), AdapterError("signature_invalid"), "Microsoft Corporation",
+                         "Microsoft Windows Software Compatibility Publisher", "Someone Else", "python software foundation"):
+                with self.subTest(name=name, said=str(said)):
+                    self.forget()
+                    signers = dict(self.MICROSOFT, **{name: said})
+                    hands = Hands(archive=good_zip(extra=self.PROGRAMS), signers=signers)
+                    self.assert_refused(hands, pythons.SIGNATURE)
+                    self.assertNotIn("imports", hands.log)
+
+    def test_the_visual_c_runtime_is_still_held_to_a_valid_signature(self):
+        for said in (AdapterError("unsigned"), "Someone Else", "microsoft corporation"):
+            with self.subTest(said=str(said)):
+                self.forget()
+                signers = dict(self.MICROSOFT, **{"vcruntime140.dll": said})
+                self.assert_refused(Hands(archive=good_zip(extra=self.PROGRAMS), signers=signers), pythons.SIGNATURE)
+
+    def test_a_program_whose_name_is_spelt_in_capitals_is_asked_too(self):
+        hands = Hands(archive=good_zip(extra=("_EVIL.PYD",)), signers={"_EVIL.PYD": AdapterError("unsigned")})
+        self.assert_refused(hands, pythons.SIGNATURE)
+
+    def test_a_refused_signature_reaches_the_card_in_the_existing_words(self):
+        """The refusal is the signature step's, whose words already say "a program in the package"."""
+        words = json.loads((PACKAGE_DIR / "locales" / "en.json").read_text(encoding="utf-8"))
+        self.assertIn("program in the package", words["page.python.failed.signature"])
 
     def test_the_signature_check_is_core_s_shared_one(self):
         text = (PACKAGE_DIR / "control" / "pythons.py").read_text(encoding="utf-8")
@@ -502,6 +627,34 @@ class ReturnTests(Case):
         self.assertEqual(hands.log, ["restart"])
         self.assertEqual(self.outcome()["word"], pythons.BACK_DONE)
 
+    def test_back_says_back_only_where_the_restart_came_up(self):
+        """M2 of the second round. Fails with the outcome reverted: "Back on the bundled version" above an in-use line that
+        says the watcher still runs on the chosen one."""
+        for came in (pythons.STILL_RUNNING, pythons.NOT_RUNNING, "exited", "unconfirmed"):
+            with self.subTest(came=came):
+                self.forget()
+                self.give_record()
+                self.assertTrue(pythons.back(self.runtime, start=inline, hands=Hands(restart=came))["done"])
+                self.assertIsNone(self.record())
+                self.assertEqual(self.outcome(), {"word": pythons.NEXT_START, "step": None, "version": "3.14.10"},
+                                 "the bundled version, taken when the watcher next starts")
+
+    def test_a_watcher_that_did_not_stop_keeps_its_runtime(self):
+        self.give_record()
+        pythons.back(self.runtime, start=inline, hands=Hands(restart=pythons.STILL_RUNNING))
+        self.assertTrue(chosen.complete(self.home, VERSION), "not swept from under the watcher still on it")
+        self.forget()
+        self.give_record()
+        pythons.back(self.runtime, start=inline, hands=Hands(restart=pythons.RUNNING))
+        self.assertFalse(self.folder().exists(), "swept once the watcher came up on the bundled runtime")
+
+    def test_with_the_bundled_version_unknown_no_done_line_is_made_up(self):
+        self.give_record()
+        hands = Hands(restart=pythons.STILL_RUNNING)
+        hands.bundled = lambda _paths: None
+        pythons.back(self.runtime, start=inline, hands=hands)
+        self.assertIsNone(self.outcome())
+
     def test_the_record_goes_before_the_restart(self):
         self.give_record()
         seen = []
@@ -525,6 +678,86 @@ class ReturnTests(Case):
         self.assertEqual(self.outcome()["step"], pythons.START)
         self.assertIsNone(self.record())
         self.assertEqual(hands.log.count("restart"), 2, "once more, on the bundled runtime")
+
+    def test_the_dashboard_waits_past_the_launcher_s_slowest_healthy_start(self):
+        """Fails with v0.6.23-beta.2's 90 s: the launcher's question took 48 s on the owner's PC before its child, which then
+        has 45 s of its own, so a healthy start could be taken back from here by the wrong clock."""
+        launcher = (ROOT / "scripts" / "watcher_launcher.py").read_text(encoding="utf-8")
+        self.assertIn("WATCHER_WAIT = %r" % pythons.WATCHER_WAIT, launcher)
+        from codex_auto_resume import control
+        self.assertEqual(pythons.WATCHER_WAIT, control.WATCHER_START_TIMEOUT)
+        self.assertGreaterEqual(pythons.LAUNCHER_ASKS_SEEN, 48.0)
+        self.assertGreater(pythons.RESTART_SECONDS, pythons.LAUNCHER_ASKS_SEEN + pythons.WATCHER_WAIT + 30.0,
+                           "room for a start on the bundled runtime after the launcher took a choice back")
+
+    def test_the_restart_is_waited_for_that_long(self):
+        from codex_auto_resume import control
+        layer = control.Control
+        with patch.object(layer, "watcher_running", return_value=True), \
+                patch.object(layer, "stop_watcher", return_value={"stopped": True}), \
+                patch.object(pythons.subprocess, "Popen") as started, \
+                patch("codex_auto_resume.control.await_watcher", return_value={"state": "running"}) as waited:
+            from codex_auto_resume import config
+            self.assertEqual(pythons.restart_watcher(config.Paths(self.home)), pythons.RUNNING)
+        self.assertEqual(waited.call_args[1]["timeout"], pythons.RESTART_SECONDS)
+        self.assertTrue(started.call_args[1]["creationflags"] & getattr(subprocess, "DETACHED_PROCESS", 0))
+
+    def restart(self, stopped):
+        """restart_watcher with a watcher that runs, a stop that answers with `stopped` (or raises it), and every step in order."""
+        from codex_auto_resume import config, control
+        order = []
+
+        def stop(_layer):
+            order.append("stop")
+            if isinstance(stopped, BaseException):
+                raise stopped
+            return {"stopped": stopped}
+
+        def started(*_a, **_k):
+            order.append("launcher")
+            return object()
+        with patch.object(control.Control, "watcher_running", return_value=True), \
+                patch.object(control.Control, "stop_watcher", stop), \
+                patch.object(pythons.subprocess, "Popen", side_effect=started) as popen, \
+                patch("codex_auto_resume.control.await_watcher", return_value={"state": "running"}):
+            try:
+                said = pythons.restart_watcher(config.Paths(self.home))
+            except BaseException as exc:                       # noqa: BLE001 - the asking thread ended mid-restart
+                said = exc
+        return said, order, popen
+
+    def test_the_new_launcher_is_started_before_the_stop_and_follows_it(self):
+        """R10 of the second round. Fails with the old order: stop, then start - a window closed between the two left the
+        watcher stopped and none started."""
+        said, order, popen = self.restart(True)
+        self.assertEqual((said, order), (pythons.RUNNING, ["launcher", "stop"]))
+        self.assertEqual(popen.call_args[1]["env"].get(pythons.AFTER_STOP_MARK), "1")
+        # Compared as real paths: on a runner whose TEMP is an 8.3 name (RUNNER~1) the product names the long one.
+        argv = popen.call_args[0][0]
+        same = lambda path: os.path.normcase(os.path.realpath(str(path)))  # noqa: E731
+        self.assertEqual([same(argv[-2]), argv[-1]], [same(self.home / "watcher-launcher.py"), "run"], "the installed copy")
+        self.assertEqual(same(argv[0]), same(self.home / "runtime" / "pythonw.exe"))
+        launcher = (ROOT / "scripts" / "watcher_launcher.py").read_text(encoding="utf-8")
+        self.assertIn('AFTER_STOP_MARK = "%s"' % pythons.AFTER_STOP_MARK, launcher)
+
+    def test_the_start_does_not_need_the_asking_process_once_the_stop_is_asked(self):
+        """The thread that asked ends as the stop is asked - its window closed: the detached launcher is already there."""
+        said, order, popen = self.restart(SystemExit(0))
+        self.assertIsInstance(said, SystemExit)
+        self.assertEqual(order, ["launcher", "stop"])
+        flags = popen.call_args[1]["creationflags"]
+        self.assertTrue(flags & getattr(subprocess, "DETACHED_PROCESS", 0) and flags & getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+
+    def test_a_watcher_that_will_not_stop_is_still_running_and_its_follower_gives_up_alone(self):
+        said, order, _popen = self.restart(False)
+        self.assertEqual((said, order), (pythons.STILL_RUNNING, ["launcher", "stop"]))
+
+    def test_with_no_watcher_running_nothing_is_started(self):
+        from codex_auto_resume import config, control
+        with patch.object(control.Control, "watcher_running", return_value=False), \
+                patch.object(pythons.subprocess, "Popen") as popen:
+            self.assertEqual(pythons.restart_watcher(config.Paths(self.home)), pythons.NOT_RUNNING)
+        popen.assert_not_called()
 
     def test_with_no_watcher_it_waits_for_the_next_start(self):
         self.chosen_now(Hands(restart=pythons.NOT_RUNNING))
@@ -551,6 +784,20 @@ class ReturnTests(Case):
         self.assertIsNone(self.record())
         self.assertEqual(hands.log, [])
 
+    def test_the_statement_says_what_turning_it_off_from_codex_does(self):
+        """M3 of the second round. The Codex tool's process never restarts the watcher (whatever it started, Codex would end
+        with it), so the watcher moves to the bundled Python at its next start; the stop statement said it restarted. Fails
+        with the sentence taken out of any catalog."""
+        english = json.loads((PACKAGE_DIR / "locales" / "en.json").read_text(encoding="utf-8"))["statement.python_choice.stop"]
+        self.assertIn("Turned off from Codex instead, the watcher moves to the bundled Python when it next starts.", english)
+        for path in sorted((PACKAGE_DIR / "locales").glob("*.json")):
+            with self.subTest(path.stem):
+                said = json.loads(path.read_text(encoding="utf-8"))["statement.python_choice.stop"]
+                self.assertIn("Codex", said, "the Codex path named")
+        text = (PACKAGE_DIR / "surfaces.py").read_text(encoding="utf-8")
+        self.assertEqual(text.count("actor=Actor.MCP), restart=False)"), 2,
+                         "the tool's two ways off leave the restart to the next start")
+
     def test_turning_something_else_off_changes_nothing(self):
         self.give_record()
         hands = Hands()
@@ -575,7 +822,8 @@ class CardTests(Case):
     def test_its_fields(self):
         found = pythons.view(self.runtime)
         self.assertEqual(found, {"done": True, "refusal": None, "bundled": "3.14.10", "chosen": None, "in_use": "3.14.10",
-                                 "button": True, "checked": False, "offers": [], "job": None, "outcome": None, "returned": None})
+                                 "button": True, "checked": False, "offers": [], "missing": [], "job": None, "outcome": None,
+                                 "returned": None})
 
     def test_reading_the_card_asks_python_org_nothing(self):
         with patch.object(pythonorg, "newest", side_effect=AssertionError), patch.object(pythonorg.http, "request", side_effect=AssertionError):
@@ -587,6 +835,23 @@ class CardTests(Case):
         self.assertTrue(found["checked"])
         self.assertEqual(found["offers"], [{"version": "3.13.18", "line": "3.13", "preview": False},
                                            {"version": VERSION, "line": "3.15", "preview": True}])
+
+    def test_a_line_with_no_package_is_named_after_a_check(self):
+        """Fails with the card not saying which line python.org has no Windows package of (v0.6.23-beta.2)."""
+        self.checked(Hands())
+        self.assertEqual(pythons.view(self.runtime)["missing"], ["3.14"])
+        hands = Hands()
+        hands.newest = lambda _lines: {}
+        self.checked(hands)
+        self.assertEqual(pythons.view(self.runtime)["missing"], list(pythons.LINES))
+
+    def test_the_card_says_so_in_its_own_sentence(self):
+        text = (ROOT / "advanced" / "gui" / "AdvancedPythons.cs").read_text(encoding="utf-8")
+        self.assertIn('Items(advancedPython, "missing")', text)
+        self.assertIn('Word("page.python.no_package"', text)
+        for locale in l10n.LOCALES:
+            with self.subTest(locale):
+                self.assertIn("{line}", statement.CATALOGS.words(locale)["page.python.no_package"])
 
     def test_a_list_that_failed_says_so(self):
         hands = Hands()

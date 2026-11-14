@@ -308,18 +308,26 @@ def meter_view(runtime) -> dict:
     shown, notices = [], []
     # v0.6.16 final: each stage by the windows its own switches leave on.
     on = {capability: usage.acting(values) for capability, values in options.items()}
+    # v0.6.23 second round B1: a window read before the account changed is the old account's - shown as read, but in no
+    # stage's band and with no warning: nothing acts on it (usage.of_account, the one rule every stage asks).
+    try:
+        current = {(row["bucket"], row["minutes"])
+                   for row in usage.of_account(rows, runtime.paths, runtime.state.stamped)}
+    except Exception:
+        current = set(rows)
     for (bucket, minutes), row in sorted(rows.items()):
         band = "none"
+        acts = (bucket, minutes) in current
         for capability, word in ((usage.PAUSE, "pause"), (usage.WRAP_UP, "wrap_up"), (usage.METER, "warn")):
-            if (minutes in on[capability] and states.get(capability) == ArmingState.ARMED
+            if (acts and minutes in on[capability] and states.get(capability) == ArmingState.ARMED
                     and usage.reached(row, usage.percent(options[capability], capability, minutes), now)):
                 band = word
                 break
         shown.append({"bucket": bucket, "window_minutes": minutes, "used_percent": row["used_percent"],
                       "reset_at": row["reset_at"], "band": band})
         warned = row["warned_at"]
-        if (warned is not None and 0 <= now - warned < usage.NOTICE_FOR and row["warned_reset_at"] == row["reset_at"]
-                and row["reset_at"] is not None):
+        if (acts and warned is not None and 0 <= now - warned < usage.NOTICE_FOR
+                and row["warned_reset_at"] == row["reset_at"] and row["reset_at"] is not None):
             notices.append({"key": "%s:%d:%d" % (bucket, minutes, row["reset_at"]), "window_minutes": minutes,
                             "used_percent": row["used_percent"], "reset_at": row["reset_at"], "kind": "warn"})
     # v0.6.16-beta.4 (h): what the forced stop has to say - a turn it could not stop, a queue to Resume in Codex, a
@@ -654,9 +662,11 @@ def courier(runtime, command, argument):
 
 def feed_view(runtime) -> dict:
     """What OpenAI's status page last said (v0.6.20, status_feed), for the Overview: {"feed": {"word", "codex_word",
-    "incidents", "checked_at"}} while status_feed stands on and the page said degraded or an outage - of the service or
-    of Codex in it - and {} otherwise: nothing is shown while it is operational or unknown. Closed words and numbers; a
-    word to show, never read by anything that decides."""
+    "incidents", "checked_at", "reached"}} while status_feed stands on and the page said degraded or an outage - of the
+    service or of Codex in it - at `checked_at`, the time it was read; or (v0.6.23 final, audit M9) the last reading
+    could not reach the page, `reached` False with no words and `checked_at` when it was tried, so an old degraded or
+    outage is never shown under a fresh time; and {} otherwise: nothing is shown while it is operational or unknown.
+    Closed words and numbers; a word to show, never read by anything that decides."""
     from .courier import feed
     try:
         if runtime.registry.get(feed.CAPABILITY) is None or runtime.states().get(feed.CAPABILITY) != ArmingState.ARMED:
@@ -664,10 +674,13 @@ def feed_view(runtime) -> dict:
         row = feed.read(runtime.state)
     except Exception:
         return {}
+    if feed.unreached(row):
+        return {"feed": {"word": None, "codex_word": None, "incidents": None, "checked_at": row["checked_at"],
+                         "reached": False}}
     if not row or not {row.get("word"), row.get("codex_word")} & {"degraded", "outage"}:
         return {}
     return {"feed": {"word": row["word"], "codex_word": row["codex_word"], "incidents": row["incidents"],
-                     "checked_at": row["checked_at"]}}
+                     "checked_at": row["checked_at"], "reached": True}}
 
 
 def fleet_view(runtime) -> dict:

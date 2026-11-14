@@ -226,6 +226,99 @@ class SuperviseTests(SupervisorCase):
         self.assertEqual((returned, runs), (self.launcher.EXIT_ERROR, []))
 
 
+class ChosenTests(SupervisorCase):
+    """v0.6.23 (X1 of the owner's logs of 2026-11-13): a watcher under a chosen Python is supervised as the bundled one is."""
+
+    def setUp(self):
+        super().setUp()
+        from codex_auto_resume import chosen_runtime
+        where = self.home / "runtimes" / "3.15.2"
+        where.mkdir(parents=True)
+        for name in chosen_runtime.required("3.15.2"):
+            (where / name).write_bytes(b"")
+        (self.home / "runtimes" / "chosen.json").write_text(json.dumps({"version": "3.15.2", "at": 1}), encoding="utf-8")
+        app = patch("codex_auto_resume.runtime.app.App")
+        app.start().return_value.watcher_running.return_value = False
+        self.addCleanup(app.stop)
+
+    def test_one_that_does_not_come_up_goes_on_supervised_and_the_start_is_asked_once(self):
+        """Fails with the start question asked twice: once for the chosen Python and again for the bundled one."""
+        plug = Asked(supervise=lambda facts: Alternative.SUPERVISE if facts["phase"] in ("runtime", "start") else DEFER)
+        with patch.object(self.launcher, "_came_up", return_value=False):
+            returned, runs, _ = self.launch([], plug, codes=[0, 0])
+        self.assertEqual((returned, runs), (0, []))
+        self.assertEqual([child.argv[0] for child in Child.started],
+                         [str(self.home / "runtimes" / "3.15.2" / "pythonw.exe"), str((self.bin / "pythonw.exe").resolve())])
+        self.assertEqual([facts["phase"] for _, (facts,) in plug.asked], ["runtime", "start", "runtime_failed", "ended"])
+
+    def test_a_crash_under_the_chosen_python_is_restarted_there(self):
+        plug = Asked(supervise=lambda facts: {"runtime": Alternative.SUPERVISE, "start": Alternative.SUPERVISE}.get(
+            facts["phase"], Alternative.RESTART if len(Child.started) < 2 else DEFER))
+        with patch.object(self.launcher, "_came_up", return_value=True):
+            returned, runs, _ = self.launch([], plug, codes=[1, 1])
+        self.assertEqual((returned, runs, len(Child.started)), (1, [], 2))
+        self.assertIn("ended (exit 1); not starting it again", (self.home / "logs" / "launcher.log").read_text(encoding="utf-8"))
+
+
+class AfterStopTests(SupervisorCase):
+    """v0.6.23 final (R10): a launcher started before the stop it follows starts the watcher on its own once that stop is
+    done, so the process that asked for the restart may be gone by then."""
+
+    def follow(self, running, plug=None):
+        """main with AFTER_STOP_MARK set and the old watcher's mutex answering `running` in turn (the last one for ever)."""
+        os.environ[self.launcher.AFTER_STOP_MARK] = "1"
+        answers = list(running)
+        clock = [0.0]
+
+        def probe():
+            return answers.pop(0) if len(answers) > 1 else answers[0]
+
+        def slept(seconds):
+            clock[0] += seconds
+        app = patch("codex_auto_resume.runtime.app.App")
+        made = app.start()
+        self.addCleanup(app.stop)
+        made.return_value.watcher_running.side_effect = probe
+        seen = {}
+        original = Child.__init__
+
+        def child(instance, argv, **options):
+            seen["mark"] = os.environ.get(self.launcher.AFTER_STOP_MARK)
+            original(instance, argv, **options)
+        with patch.object(self.launcher.time, "sleep", slept), \
+                patch.object(self.launcher.time, "monotonic", lambda: clock[0]), patch.object(Child, "__init__", child):
+            returned, runs, _ = self.launch([], plug or self.answering(), codes=[0])
+        return returned, runs, seen, clock[0]
+
+    def test_it_waits_for_the_watcher_it_follows_to_end_and_starts_it_alone(self):
+        """Fails with R10 reverted: nothing of the asking process is needed once the stop is done."""
+        returned, runs, seen, waited = self.follow([True, True, True, False])
+        self.assertEqual((returned, runs, len(Child.started)), (0, [], 1))
+        self.assertEqual(seen, {"mark": None}, "taken out of the environment: the child it starts never waits")
+        self.assertEqual(waited, 3 * self.launcher.AFTER_STOP_POLL)
+        self.assertNotIn(self.launcher.AFTER_STOP_MARK, os.environ)
+
+    def test_one_that_never_stops_is_left_running_and_nothing_is_started(self):
+        returned, runs, _seen, waited = self.follow([True])
+        self.assertEqual((returned, runs, Child.started), (0, [], []))
+        self.assertGreaterEqual(waited, self.launcher.AFTER_STOP_WAIT)
+        self.assertLess(waited, self.launcher.AFTER_STOP_WAIT + 1)
+        self.assertIn("still runs after 30 s; not starting another",
+                      (self.home / "logs" / "launcher.log").read_text(encoding="utf-8"))
+
+    def test_without_the_mark_nothing_waits(self):
+        Child.codes = [0]
+        app = patch("codex_auto_resume.runtime.app.App")
+        app.start().return_value.watcher_running.return_value = True
+        self.addCleanup(app.stop)
+        returned, _runs, _ = self.launch([], self.answering(), codes=[0])
+        self.assertEqual((returned, len(Child.started)), (0, 1))
+
+    def test_its_wait_is_the_stop_s_with_room(self):
+        from codex_auto_resume import control
+        self.assertEqual(self.launcher.AFTER_STOP_WAIT, 3 * control.WATCHER_STOP_TIMEOUT)
+
+
 class ChildTests(SupervisorCase):
     def test_a_child_runs_the_watcher_here_and_asks_nothing(self):
         """No grandchildren: the child's own launcher never supervises, whatever the plug would say."""

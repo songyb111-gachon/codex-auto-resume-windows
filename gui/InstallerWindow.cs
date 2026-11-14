@@ -60,6 +60,8 @@ namespace CodexAutoResume
 
         private string page;
         private bool running, logShown, unconfirmed, previousRunning, closingAsked;
+        // The watcher was not running before this update or repair and was left stopped (InstallerFlow.LeftStoppedLine).
+        private bool leftStopped;
         // What the Finish page says of the shortcut on the Desktop: what install.ps1 said of it (-DesktopShortcut given on
         // the command line), and what became of the Finish page's own box.
         private bool desktopFailed, desktopTaken;
@@ -337,7 +339,7 @@ namespace CodexAutoResume
                                                             ? words.Say("installer.update", "Update")
                                                             : words.Say("action.install", "Install"))
                          : words.Say("installer.next", "Next");
-            light.State = InstallerFlow.Light(flow.Mode, name, code, unconfirmed, previousRunning);
+            light.State = InstallerFlow.Light(flow.Mode, name, code, unconfirmed || leftStopped, previousRunning);
             PerformLayout();
             if (forwardShown && forward.Enabled) ActiveControl = forward;
         }
@@ -345,7 +347,14 @@ namespace CodexAutoResume
         private void Build(string name)
         {
             sheet.SuspendLayout();
+            // v0.6.23 (the second round's G4): what the last step made for itself is let go of - its words, links, choices and
+            // callouts - once the event that changed the step is over; the log, the notes and the bar are the window's own
+            // and stay.
+            var made = new List<Control>();
+            foreach (Control control in sheet.Controls)
+                if (control != logArea && control != notesArea && control != bar) made.Add(control);
             sheet.Controls.Clear();
+            LetGo(made);
             rows.Clear();
             stepLabel = null;
             busyNote = null;
@@ -363,6 +372,15 @@ namespace CodexAutoResume
             }
             foreach (KeyValuePair<Control, int> row in rows) sheet.Controls.Add(row.Key);
             sheet.ResumeLayout(false);
+        }
+
+        /// Disposes `made`, after the event in hand: a click on one of them may be what changed the step.
+        private void LetGo(List<Control> made)
+        {
+            if (made.Count == 0) return;
+            MethodInvoker dispose = delegate { foreach (Control control in made) control.Dispose(); };
+            if (IsHandleCreated && !IsDisposed) BeginInvoke(dispose);
+            else dispose();
         }
 
         private void Row(Control control, int gap)
@@ -556,7 +574,7 @@ namespace CodexAutoResume
             string heading = flow.Mode == InstallerFlow.Uninstall ? words.Say("installer.progress.removing", "Removing")
                            : flow.Repair ? words.Say("installer.progress.repairing", "Repairing")
                            : flow.Another ? words.Say("installer.progress.another", "Installing another version")
-                           : flow.Mode == InstallerFlow.Update ? words.Say("installer.progress.updating", "Updating")
+                           : flow.Mode == InstallerFlow.Update || flow.UpdatesInstalled ? words.Say("installer.progress.updating", "Updating")
                            : words.Say("installer.progress.installing", "Installing");
             Row(Words(heading, "title", Palette.Ink), 0);
             stepLabel = Words(words.Step(step), null, Palette.Ink);
@@ -626,6 +644,7 @@ namespace CodexAutoResume
                       : flow.Mode == InstallerFlow.Update && code == 0
                       ? words.Say("installer.done.updated_to", "Updated to v{version}", "version", flow.Version)
                       : flow.Repair && code == 0 ? words.Say("installer.done.repaired", "Codex Auto Resume is repaired.")
+                      : flow.UpdatesInstalled && code == 0 ? words.Say("installer.done.updated", "Codex Auto Resume is updated.")
                       : words.Outcome(flow.Mode, code), "title", Palette.Ink), 0);
             // The exit code, as the changelog promises it: a failure's headline says it already (Outcome), so it is a
             // line of its own after a success. The window's own codes - not started, still running - are none.
@@ -636,6 +655,8 @@ namespace CodexAutoResume
             if (more != null) Row(Words(more, null, Palette.Ink), 8);
             if (code == 0 && unconfirmed)
                 Row(new SoftCallout(words.Say("installer.done.unconfirmed", "The watcher could not be confirmed running, so nothing is being watched yet. Start it from the Dashboard.")), 12);
+            if (code == 0 && leftStopped)
+                Row(new SoftCallout(words.Say("installer.done.left_stopped", "The watcher was not running before, so it was left stopped and nothing is being watched yet. Start it with Start watcher on the Dashboard, or open Codex Auto Resume from the Start menu and start it there.")), 12);
             if (code == 0 && previousRunning)
                 Row(new SoftCallout(words.Say("installer.done.previous_running", "The previous watcher is still finishing what it was doing. Once it has stopped, start the watcher from the Dashboard.")), 12);
             if (code == 0 && desktopFailed)
@@ -670,8 +691,19 @@ namespace CodexAutoResume
             {
                 logShown = !logShown;
                 toggle.Text = logShown ? words.Say("installer.log.hide", "Hide the log") : words.Say("installer.log.show", "Show the log");
-                logArea.Visible = logShown;
-                Arrange(Inner(ClientSize.Width));
+                // v0.6.23 (the design audit's second round, F12): it fades in, and out, where it stands - its room is kept, so
+                // nothing else moves (SoftReveal). A step of its own is still one finished frame.
+                if (logShown)
+                {
+                    logArea.Visible = true;
+                    Arrange(Inner(ClientSize.Width));
+                    SoftReveal.Entered(logArea);
+                }
+                else SoftReveal.Leaving(logArea, delegate
+                {
+                    logArea.Visible = false;
+                    Arrange(Inner(ClientSize.Width));
+                });
             };
             return toggle;
         }
@@ -799,6 +831,7 @@ namespace CodexAutoResume
             string said = (line ?? "").Trim();
             if (said.StartsWith("The watcher could not be confirmed running", StringComparison.Ordinal)) unconfirmed = true;
             if (said.StartsWith("The previous version of the watcher was asked to stop", StringComparison.Ordinal)) previousRunning = true;
+            if (said.StartsWith(InstallerFlow.LeftStoppedLine, StringComparison.Ordinal)) leftStopped = true;
             if (said.StartsWith("[ok] The Dashboard was opened again on the new version", StringComparison.Ordinal)) reopened = true;
             if (said.StartsWith(DesktopShortcut.FailedLine, StringComparison.Ordinal)) desktopFailed = true;
             if (said.StartsWith(DesktopShortcut.TakenLine, StringComparison.Ordinal)) desktopTaken = true;

@@ -42,6 +42,8 @@ namespace CodexAutoResume
                 // Every second too, so a usage reset that passes while a row stays selected
                 // makes Retry now available without waiting for the next read.
                 UpdatePendingButtons();
+                // v0.6.23: and Save's look, for an edit no editor's own event told (ShowSaveLook).
+                ShowSaveLook();
                 // The data every five seconds, the countdown every second. Nothing on the
                 // Settings page is refreshed under a person who is editing it.
                 if (ticks % 5 == 0 && currentPage != "settings")
@@ -408,12 +410,18 @@ namespace CodexAutoResume
         /// tooltip - and whole on Diagnostics, "-" there when there is none.
         private void ShowWaitingLine(string whole)
         {
-            if (usageLine != null)
+            ShowWaitingLine(whole, true, true);
+        }
+
+        /// v0.6.23: the line on the Overview (`overview`) and on Diagnostics (`diagnostics`), either or both.
+        private void ShowWaitingLine(string whole, bool overview, bool diagnostics)
+        {
+            if (usageLine != null && overview)
             {
                 usageLine.Text = whole;
                 if (lineTip != null) lineTip.SetToolTip(usageLine, whole.Length > 0 ? whole : null);
             }
-            if (diagWaiting != null) diagWaiting.Text = whole.Length > 0 ? whole : "-";
+            if (diagWaiting != null && diagnostics) diagWaiting.Text = whole.Length > 0 ? whole : "-";
         }
 
         /// A weekly window the last reading found used up, with the day and time it resets - what a usage limit then waits
@@ -579,15 +587,16 @@ namespace CodexAutoResume
                     double last = Number(watcher, "last_tick_at");
                     // v0.6.11: under what is waiting, the last usage reading - and before it that the watcher keeps this PC
                     // awake while a task waits - in one line, whole in its tooltip and on Diagnostics (WaitingLine).
-                    ShowWaitingLine(WaitingLine(watcher, running));
-                    if (nowRecovery != null)
+                    ShowWaitingLine(WaitingLine(watcher, running), usageLine != null && Writes("overview"),
+                                    diagWaiting != null && Writes("diagnostics"));
+                    if (nowRecovery != null && Writes("overview"))
                     {
                         nowRecovery.Text = recovery;
                         nowWatcher.Text = watcherText;
                         nowEngine.Text = engineText;
                         nowLastCheck.Text = Ago(last);
                     }
-                    if (diagVersion != null)
+                    if (diagVersion != null && Writes("diagnostics"))
                     {
                         ShowVersion(diagVersion, status);
                         diagWatcher.Text = watcherFull;
@@ -604,7 +613,7 @@ namespace CodexAutoResume
                         if (versionsButton != null) versionsButton.Enabled = busy == 0 && !updatesManaged;
                         if (updatesManaged) diagUpdate.Text = S("diag.update_managed", "turned off by your administrator");
                         diagStartup.Text = Equals(Get(status, "startup_enabled"), true) ? S("diag.yes", "yes") : S("diag.no", "no");
-                        diagUpgrade.Text = upgrade ? S("diag.upgrade_pending", "An older watcher still owns the state") : "";
+                        diagUpgrade.Text = upgrade ? S("diag.upgrade_pending", "An older watcher still owns the state; finish by restarting the watcher") : "";
                     }
                 }
                 UpdateToggle();
@@ -615,7 +624,7 @@ namespace CodexAutoResume
                 // be sending them.
                 string unreadable = UnreadableReason(status);
                 var week = Map(reply, "week");
-                if (weekDetected != null)
+                if (weekDetected != null && Writes("overview"))
                 {
                     if (week != null)
                     {
@@ -630,7 +639,8 @@ namespace CodexAutoResume
                         weekDetected.Text = weekSent.Text = weekRecovered.Text = weekSuccess.Text = "-";
                     }
                 }
-                if (pendingList != null)
+                bool pending = pendingList != null && Writes("pending");
+                if (pending)
                 {
                     if (Unreadable(reply, "pending")) ShowUnreadableList(pendingList, pendingEmpty, unreadable);
                     else
@@ -641,7 +651,8 @@ namespace CodexAutoResume
                     }
                 }
                 bool historyUnreadable = Unreadable(reply, "history");
-                if (historyList != null)
+                bool history = historyList != null && Writes("history");
+                if (history)
                 {
                     if (historyUnreadable) ShowUnreadableList(historyList, historyEmpty, unreadable);
                     else
@@ -651,21 +662,27 @@ namespace CodexAutoResume
                         historyEmpty.Visible = historyList.Items.Count == 0;
                     }
                 }
-                if (recentGrid != null)
+                if (recentGrid != null && Writes("overview"))
                 {
                     if (historyUnreadable) ClearRecent(unreadable);
                     else FillRecent(Items(reply, "history"));
                 }
                 // A Retry now note belongs to one record; once that record has left Pending -
                 // sent, finished or cancelled - the note no longer describes anything on screen.
-                if (pendingNoteFor != null && pendingNoteFor != BulkNote && pendingList != null && !Contains(pendingList, pendingNoteFor))
-                    pendingNoteFor = null;
-                ShowPendingNote();
-                ShowExplain();
+                if (pending)
+                {
+                    if (pendingNoteFor != null && pendingNoteFor != BulkNote && !Contains(pendingList, pendingNoteFor))
+                        pendingNoteFor = null;
+                    ShowPendingNote();
+                    ShowExplain();
+                }
                 UpdateCountdowns();
-                UpdatePendingButtons();
-                UpdateHistoryButtons();
+                if (pending) UpdatePendingButtons();
+                if (history) UpdateHistoryButtons();
                 SnapshotApplied(reply);
+                // v0.6.23: a row's dialog the popup asked for, against the rows just read (TakeRowAsked) - only when this
+                // read was written into Pending; otherwise the request waits for the write that is.
+                if (pending) TakeRowAsked();
             }
             finally { LayOutHeld(held); }
         }
@@ -685,6 +702,7 @@ namespace CodexAutoResume
 
         private static void ShowUnreadable(ListView list, Label empty, string reason)
         {
+            AllRows(list);
             list.Items.Clear();
             empty.Text = reason;
             empty.Visible = true;
@@ -750,7 +768,7 @@ namespace CodexAutoResume
         private string UnreadableReason(Dictionary<string, object> status)
         {
             return Equals(Get(status, "upgrade_pending"), true)
-                 ? S("diag.upgrade_pending", "An older watcher still owns the state")
+                 ? S("diag.upgrade_pending", "An older watcher still owns the state; finish by restarting the watcher")
                  : S("pending.unavailable", "This cannot be read right now");
         }
 
@@ -764,6 +782,7 @@ namespace CodexAutoResume
 
         private static bool Contains(ListView list, string interruptionId)
         {
+            AllRows(list);
             foreach (ListViewItem item in list.Items)
                 if (Str(item.Tag as Dictionary<string, object>, "interruption_id") == interruptionId) return true;
             return false;
@@ -776,7 +795,7 @@ namespace CodexAutoResume
             string[] cells = pending
                 ? new[] { Labelled(row), CodeLabel(row), KindLabel(row), null, Attempts(row), "" }
                 : new[] { Labelled(row), CodeLabel(row), KindLabel(row),
-                          When(Number(row, "detected_at")), When(Number(row, "outcome_at")) };
+                          Mirror.Embed(When(Number(row, "detected_at"))), Mirror.Embed(When(Number(row, "outcome_at"))) };
             CellsWritten(row, pending, cells);
             return cells;
         }
@@ -825,6 +844,7 @@ namespace CodexAutoResume
 
         private void FillList(ListView list, List<object> rows, bool pending)
         {
+            AllRows(list);
             var fresh = new List<Dictionary<string, object>>();
             if (rows != null)
                 foreach (object entry in rows)
@@ -946,6 +966,8 @@ namespace CodexAutoResume
 
         private void UpdateCountdowns()
         {
+            // The day's scene follows the date, and starts again within a second of Reduce motion turned off (Sync).
+            FollowDayScene();
             dayScene.Sync();
             if (snapshot == null) return;
             double now = Now();
@@ -1040,8 +1062,16 @@ namespace CodexAutoResume
 
         private static Dictionary<string, object> Selected(ListView list)
         {
+            AllRows(list);
             if (list == null || list.SelectedItems.Count == 0) return null;
             return list.SelectedItems[0].Tag as Dictionary<string, object>;
+        }
+
+        /// v0.6.23 (idlefix2): every row of `list` there, when some are held aside while it is made ready (SoftList.HoldRows).
+        private static void AllRows(ListView list)
+        {
+            var soft = list as SoftList;
+            if (soft != null && soft.HoldsRows) soft.PutBackRows();
         }
 
         // The note says what the last Retry now did, and it says it without naming the

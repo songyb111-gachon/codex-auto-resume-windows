@@ -42,7 +42,7 @@ class StandardWindowTests(unittest.TestCase):
         shutil.copytree(ROOT / "gui", root / "gui")
         shutil.copytree(ROOT / "advanced" / "gui", root / "advanced" / "gui")
         for name in (".codex-plugin/plugin.json", "assets/codex-auto-resume.ico", "build/make_gui.ps1",
-                     "build/normalize_pe.py"):
+                     "build/normalize_pe.py", "build/gui_stamp.py"):
             (root / name).parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(ROOT / name, root / name)
         cls.runs = [subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
@@ -82,7 +82,7 @@ class StandardWindowTests(unittest.TestCase):
         shutil.copytree(self.root, bare, ignore=shutil.ignore_patterns("build"))
         shutil.rmtree(bare / "advanced")
         (bare / "build").mkdir()
-        for name in ("make_gui.ps1", "normalize_pe.py"):
+        for name in ("make_gui.ps1", "normalize_pe.py", "gui_stamp.py"):
             shutil.copyfile(self.root / "build" / name, bare / "build" / name)
         run = subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
                               "-File", str(bare / "build" / "make_gui.ps1"), "-Root", str(bare)],

@@ -163,6 +163,7 @@ namespace CodexAutoResume
             // Its body is the whole control; the ground it stands on draws its lift (see
             // SoftCard). The panel's card padding, and the panel's gap below it.
             var card = new SoftCard();
+            HeldAsBuilt(card);
             card.Dock = DockStyle.Fill;
             card.ColumnCount = 1;
             card.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
@@ -317,8 +318,13 @@ namespace CodexAutoResume
         }
 
         // ------------------------------------------------------------------ loading
+        // v0.6.23 (perffix): from a read of the settings (Reload) until it is answered or failed: Settings pressed meanwhile
+        // waits for the answer before it shows (FinishFirst).
+        private bool settingsReloading;
+
         private void Reload()
         {
+            settingsReloading = true;
             // Both reads on a worker, one after the other. The Dashboard's clock takes the
             // bridge lock from a pool thread every five seconds, so reading the schema on
             // this thread stops the window repainting until that read has finished too.
@@ -333,6 +339,7 @@ namespace CodexAutoResume
                     var schema = described["schema"] as List<object>;
                     var current = settings["settings"] as Dictionary<string, object>;
                     if (schema == null || current == null) { ReloadFailed(null); return; }
+                    settingsReloading = false;
                     // The first read since the window opened confirms the language and theme it opened
                     // in; a later one - after Restore defaults - may have changed them.
                     bool first = !settingsRead;
@@ -345,6 +352,9 @@ namespace CodexAutoResume
                         AdoptSettings(current);
                         pendingSchema = schema;
                         pendingSettings = current;
+                        // v0.6.23 (perffix): the first read with Settings on screen - a window opened on it, as one reopened
+                        // after a language save is - is built a step a turn behind the page as it stands (BuildOnScreen).
+                        if (currentPage == "settings" && first && BuildOnScreen()) return;
                         if (currentPage == "settings") BuildPendingEditors();
                         else BuildEditorsLater();
                         // The keyboard where the window this one replaces had it, now that it is there.
@@ -356,6 +366,7 @@ namespace CodexAutoResume
 
         private void ReloadFailed(Dictionary<string, object> reply)
         {
+            settingsReloading = false;
             heroHeld = true;                // until the next read (ApplyStatus), not the next second (Hero)
             headline.Text = S("settings.load_failed", "Could not read the local settings");
             detail.Text = Convert.ToString(Get(reply, "error"), CultureInfo.InvariantCulture);
@@ -379,21 +390,171 @@ namespace CodexAutoResume
         ///
         /// v0.6.23 (the owner, 2026-11-11): a step a turn (EditorSteps), never all in one. Built in one turn they held
         /// the window - its light, a hover, a click - for 570-1080 ms after it opened (measured 2026-11-11), the longest
-        /// turn it took; in steps of about EditorSliceMilliseconds the same editors are built in the same order, each
+        /// turn it took; in steps of about PrepareSliceMilliseconds the same editors are built in the same order, each
         /// step letting whatever waits go first. Until the last step `buildQueued` stays set, so everything that waits
         /// for the editors (Settled, the pages made ready ahead) waits for all of them.
+        ///
+        /// v0.6.23 (F2): and no step while a glide is on its way or the window has just had a key or the mouse
+        /// (IdleStepWaits, the clock the pages made ready ahead wait on too): the steps ran on every idle turn, between a
+        /// hover's frames and ahead of a click, for the first seconds after the window opened.
         private void BuildEditorsLater()
         {
             if (pendingSchema == null || !shown || buildQueued || auditing) return;
             buildQueued = true;
+            HearInput(true);
             EventHandler idle = null;
             idle = delegate
             {
-                if (!IsDisposed && BuildEditorsStep()) return;
+                // Nothing left (a switch to Settings built it): done, whatever moves.
+                bool left = editorSteps != null || pendingSchema != null;
+                if (!IsDisposed && left && (IdleStepWaits() || BuildEditorsStep())) return;
                 Application.Idle -= idle;
+                HearInput(false);
                 buildQueued = false;
             };
             Application.Idle += idle;
+        }
+
+        // v0.6.23 (perffix): the editors being built a step a turn with Settings on screen (BuildOnScreen): the idle handler
+        // that takes the steps, whether the page host's painting is held for it, and how far it has got - 0 the editors,
+        // 1 the page held from laying itself out, 2 its controls' windows made, 3 laid out, 4 shown.
+        private EventHandler screenBuildIdle;
+        private bool screenBuildHeld;
+        private int screenBuildPhase;
+
+        /// v0.6.23 (perffix): the editors built a step a turn while Settings is the page on screen, its first read come.
+        /// A window opened on Settings - which a window reopened after a language save is - built them all in the turn the
+        /// read came in: 1.5-3.8 s on months of scratch data with a real bridge (the tracer, 2026-11-14), the header's light
+        /// and its Loading... standing still all along, and the header filled only after it (from the status read the
+        /// build ends with).
+        ///
+        /// Now what the person sees until it is ready is the page as it stood when the read came - the page host's painting
+        /// held, as ShowPage holds it while one page is hidden and the next shown - and then the whole page, at once, as the
+        /// old build ended: never a page half built. Behind it the page is taken out of sight and made ready as a page is
+        /// made ready ahead: its editors built in the steps BuildEditorsLater takes, held from laying itself out, its
+        /// controls' windows made and laid out a slice at a time (MakeSome, LetGoSome), one step an idle turn, whatever
+        /// waits going first (the header, a snapshot, a key); then shown as a page made ready is. Its status is read at
+        /// the start, so the header fills as soon as it comes. Another page shown meanwhile lets the painting go (ShowPage)
+        /// and the rest of the editors are built out of sight; the page is made ready later as any other. False where it is
+        /// not done this way: a window not yet on screen, the render mode, an audit or a capture, a page being made ready
+        /// already - which build them at once as before.
+        private bool BuildOnScreen()
+        {
+            if (!shown || auditing || rendering || Soft.StillReady != null || IsDisposed || screenBuildIdle != null) return false;
+            if (preparing != null || prepareMake != null || prepareHeld != null || !Soft.OwnVisible(columns)) return false;
+            if (!Redraw(pageHost, false)) return false;
+            screenBuildHeld = true;
+            screenBuildPhase = 0;
+            columns.Visible = false;
+            buildQueued = true;
+            screenBuildIdle = delegate { BuildOnScreenStep(); };
+            Application.Idle += screenBuildIdle;
+            RefreshStatusAsync(null);
+            Nudge();
+            return true;
+        }
+
+        private void BuildOnScreenStep()
+        {
+            if (screenBuildIdle == null) return;
+            if (IsDisposed)
+            {
+                StopBuildOnScreen();
+                return;
+            }
+            try
+            {
+                if (currentPage != "settings")
+                {
+                    // Another page shown meanwhile: ShowPage has let the page host's painting go. What was held of the page is
+                    // let go without a layout (it is laid out when it is made ready or shown), and the editors left are
+                    // built out of sight.
+                    screenBuildHeld = false;
+                    ReleaseScreenHolds();
+                    if (BuildEditorsStep()) { Nudge(); return; }
+                    StopBuildOnScreen();
+                    return;
+                }
+                if (screenBuildPhase == 0)
+                {
+                    if (!BuildEditorsStep()) screenBuildPhase = 1;
+                }
+                else if (screenBuildPhase == 1)
+                {
+                    // As PrepareNext's first step: everything in it that lays others out held, the page first.
+                    prepareHeld = HoldWithin(columns);
+                    prepareSized = 0;
+                    columns.SuspendLayout();
+                    prepareHeld.Insert(0, columns);
+                    screenBuildPhase = 2;
+                }
+                else if (screenBuildPhase == 2)
+                {
+                    if (MakeSome(columns)) screenBuildPhase = 3;
+                }
+                else if (screenBuildPhase == 3)
+                {
+                    if (LetGoSome()) screenBuildPhase = 4;
+                }
+                else
+                {
+                    columns.PerformLayout();
+                    if (!preparedPages.Contains("settings")) preparedPages.Add("settings");
+                    ShowBuiltOnScreen();
+                    StopBuildOnScreen();
+                    FocusPending();
+                    return;
+                }
+            }
+            catch (Exception)
+            {
+                ReleaseScreenHolds();
+                if (!IsDisposed && currentPage == "settings") columns.Visible = true;
+                StopBuildOnScreen();
+                throw;
+            }
+            Nudge();
+        }
+
+        /// The page made ready behind the held painting, shown as ShowPage shows a page: held while it becomes visible, what
+        /// lays others out in it let go innermost first, laid out once.
+        private void ShowBuiltOnScreen()
+        {
+            List<Control> inner = HoldWithin(columns);
+            columns.SuspendLayout();
+            try
+            {
+                columns.Visible = true;
+                LetGoWithin(inner);
+                inner = null;
+            }
+            finally
+            {
+                if (inner != null)
+                    for (int i = inner.Count - 1; i >= 0; i--)
+                        if (!inner[i].IsDisposed) inner[i].ResumeLayout(false);
+                columns.ResumeLayout(true);
+            }
+            pageHost.PerformLayout();
+        }
+
+        private void ReleaseScreenHolds()
+        {
+            List<Control> held = prepareHeld;
+            prepareHeld = null;
+            prepareMake = null;
+            if (held != null)
+                for (int i = held.Count - 1; i >= 0; i--)
+                    if (!held[i].IsDisposed) held[i].ResumeLayout(false);
+        }
+
+        private void StopBuildOnScreen()
+        {
+            if (screenBuildIdle != null) Application.Idle -= screenBuildIdle;
+            screenBuildIdle = null;
+            buildQueued = false;
+            if (screenBuildHeld && !IsDisposed) Redraw(pageHost, true);
+            screenBuildHeld = false;
         }
 
         /// Builds what is left of the editors, all of it, now: the settings read, a Save or a switch to Settings.
@@ -413,9 +574,9 @@ namespace CodexAutoResume
             return false;
         }
 
-        // The build of the editors under way, a step at a time (EditorSteps), or null; and about how long a step takes.
+        // The build of the editors under way, a step at a time (EditorSteps), or null. A step through the schema's fields
+        // takes about PrepareSliceMilliseconds, the slice the pages made ready ahead take too (v0.6.23, R8).
         private IEnumerator<bool> editorSteps;
-        private const int EditorSliceMilliseconds = 30;
 
         private void BuildEditors(List<object> schema, Dictionary<string, object> current)
         {
@@ -425,7 +586,7 @@ namespace CodexAutoResume
         }
 
         /// The Settings editors built, in steps: each `yield` hands the window's thread back between two of them, after
-        /// the General cards and the groups, every EditorSliceMilliseconds through the schema's fields, before the
+        /// the General cards and the groups, every PrepareSliceMilliseconds through the schema's fields, before the
         /// Continuation cards and before the page is laid out. The order of everything built is the one a single build
         /// had; only when it is built changes.
         private IEnumerator<bool> EditorSteps(List<object> schema, Dictionary<string, object> current)
@@ -437,6 +598,8 @@ namespace CodexAutoResume
             columns.SuspendLayout();
             foreach (TableLayoutPanel stack in sections.Values)
             {
+                // v0.6.23 (G4): what is taken off is disposed once the editors that replace it are built (the last step).
+                foreach (Control removed in stack.Controls) retiredEditors.Add(removed);
                 stack.Controls.Clear();
                 stack.RowStyles.Clear();
             }
@@ -469,6 +632,9 @@ namespace CodexAutoResume
             language.Controls.Add(HelpText(S("help.interface_language",
                 "Used by the Dashboard, the notification-area popup, notifications and the panel in Codex.")));
             editors["interface_language"] = interfaceCombo;
+            // v0.6.23 (F2): the General cards a few to a step - built in one they were the longest step of all, 190-440
+            // ms on months of data with the PC busy (one run each, the idle probe), the light standing still all along.
+            yield return true;
             TableLayoutPanel windows = NewGroup(S("group.windows", "Windows"), sections["general"]);
             // First in its card, above the Windows preferences the schema adds.
             // A switch: it turns something that runs on or off (see IsListItem).
@@ -478,6 +644,7 @@ namespace CodexAutoResume
             TableLayoutPanel notifications = NewGroup(S("group.notifications", "Notifications"), sections["general"]);
             // v0.6.12: the power action after usage-limit recoveries, the last card - never an editor (SettingsPower.cs).
             BuildPower(sections["general"]);
+            yield return true;
 
             // Automatic recovery: which kinds of interruption may be recovered at all.
             TableLayoutPanel recovery = NewGroup(S("group.recovery", "Automatic recovery"), sections["recovery"]);
@@ -493,6 +660,7 @@ namespace CodexAutoResume
             TableLayoutPanel look = NewGroup(S("group.appearance", "Appearance"), sections["appearance"]);
             TableLayoutPanel limits = NewGroup(S("group.limits", "Limits"), sections["advanced"]);
             limits.Controls.Add(HelpText(S("help.limits", "Sets how hard recovery tries before it stops and leaves the task to you.")));
+            yield return true;
             // v0.6.15-beta: the Codex homes watched, after the limits - never an editor (SettingsHomes.cs).
             BuildHomes(sections["advanced"]);
             yield return true;
@@ -696,14 +864,18 @@ namespace CodexAutoResume
                         host.Controls.Add(HelpText(S("help.context_guard",
                             "Codex's own count, read when an interruption is detected, where Codex keeps one. Show them in Pending puts the count beside the task; a Hold choice also keeps a task whose conversation has used more waiting until you let it continue. Nothing is read while this is Off. For interruptions detected from then on.")));
                 }
-                if (slice.ElapsedMilliseconds >= EditorSliceMilliseconds)
+                if (slice.ElapsedMilliseconds >= PrepareSliceMilliseconds)
                 {
                     yield return true;
                     slice.Restart();
                 }
             }
+            // v0.6.23 (F2): the two lines the limits say, and what follows the notifications' switch, a step each (one
+            // step of 110-180 ms together).
             UpdateRetryPreview();
+            yield return true;
             UpdateHighLimits();
+            yield return true;
             if (master != null)
             {
                 // Progressive disclosure for notifications: the individual events only matter
@@ -723,23 +895,41 @@ namespace CodexAutoResume
             }
             yield return true;
 
-            BuildContinuation(fields, current, words, preview);
+            // v0.6.23 (round 5): the Continuation cards a card a step, and the page laid out a step before its section is
+            // shown - each of the two was one step of 130-310 ms on an installation that had run for months.
+            IEnumerator<bool> continuation = ContinuationSteps(fields, current, words, preview);
+            while (continuation.MoveNext()) yield return true;
             yield return true;
 
             columns.ResumeLayout(true);
+            yield return true;
             ShowSection(currentSection);
-            // What unsaved edits are measured from: the page as it was built.
+            yield return true;
+            // What unsaved edits are measured from: the page as it was built (nothing can change it in between: a switch to
+            // Settings builds what is left at once).
             baseline = EditorValues();
             CheckBox startupCheck = editors.ContainsKey("__startup") ? editors["__startup"] as CheckBox : null;
             startupBaseline = startupCheck != null && startupCheck.Checked;
             // Not read yet: until a status read says what Windows holds (ApplyStatus), Save leaves the entry alone.
             startupKnown = false;
+            // v0.6.23: Save in the accent only once something differs from this (ShowSaveLook).
+            WatchEdits(columns);
+            ShowSaveLook();
             if (!auditing) RefreshStatusAsync(null);
+            // v0.6.23 (G4): the editors this build replaced - Restore defaults, or the settings read again - disposed now
+            // that each has its successor. Clear only took them off: each kept its window handle, and everything it
+            // holds, for the life of the process.
+            List<Control> retired = retiredEditors;
+            retiredEditors = new List<Control>();
+            foreach (Control old in retired) old.Dispose();
         }
 
-        private void BuildContinuation(Dictionary<string, Dictionary<string, object>> fields,
-                                       Dictionary<string, object> current, TableLayoutPanel words,
-                                       TableLayoutPanel preview)
+        // v0.6.23 (G4): what the builds of the editors under way took off the page, disposed at the end of the build.
+        private List<Control> retiredEditors = new List<Control>();
+
+        private IEnumerator<bool> ContinuationSteps(Dictionary<string, Dictionary<string, object>> fields,
+                                                    Dictionary<string, object> current, TableLayoutPanel words,
+                                                    TableLayoutPanel preview)
         {
             continuationCombo = LanguageCombo(fields, "continuation_language", current);
             words.Controls.Add(NewRow(S("field.continuation_language", "Continuation language"), continuationCombo));
@@ -767,6 +957,7 @@ namespace CodexAutoResume
             ChoiceGroup chosenStyle = styleGroup;
             jsonValues["continuation_style"] = delegate { return Json.Escape(chosenStyle.Value ?? "standard"); };
 
+            yield return true;
             // Custom: shown only while Custom is the style. Its text is sent exactly as it is
             // typed; the only change made is the one the text box makes itself - Windows line
             // breaks are stored as plain ones.
@@ -785,6 +976,8 @@ namespace CodexAutoResume
             customCard.Controls.Add(TextFooter(globalText, globalCount));
             SoftTextArea global = globalText;
             jsonValues["custom_message"] = delegate { return TextJson(global.Box.Text); };
+            // v0.6.23 (F2): the Custom card in three steps (one of 100-190 ms).
+            yield return true;
 
             // A ground in the card's colour: the Clear button in it is lifted on it (see Ground).
             perReasonPanel = new SoftStack();
@@ -815,6 +1008,7 @@ namespace CodexAutoResume
             customCard.Controls.Add(perReasonPanel);
             perReasonCombo.SelectedIndexChanged += delegate { SwitchPerReason(); SchedulePreview(); };
             if (perReasonCombo.Items.Count > 0) perReasonCombo.SelectedIndex = 0;
+            yield return true;
 
             customRefusal = HelpText("");
             customRefusal.ForeColor = Palette.Danger;
@@ -825,6 +1019,7 @@ namespace CodexAutoResume
             customCard.Controls.Add(HelpText(S("custom.fallback",
                 "An empty message falls back to the message for every interruption, and then to the Standard message.")));
 
+            yield return true;
             // Preview: the exact text, from the same function the watcher sends with.
             previewReason = new SoftCombo();
             previewReason.Width = Px(260);
@@ -842,7 +1037,9 @@ namespace CodexAutoResume
             previewSource = HelpText("");
             preview.Controls.Add(previewSource);
             preview.Controls.Add(HelpText(S("preview.note",
-                "This is the text that will be sent. The watcher adds one line after it to recognise the exact turn it starts.")));
+                "This is the text that will be sent. The watcher adds one line after it to recognize the exact turn it starts.")));
+            // v0.6.23 (F2): the Preview card, and what each choice above it follows, a step each (one of 90-100 ms).
+            yield return true;
 
             interfaceCombo.SelectedIndexChanged += delegate { RelabelFollow(); SchedulePreview(); };
             continuationCombo.SelectedIndexChanged += delegate { SchedulePreview(); };
@@ -1392,6 +1589,7 @@ namespace CodexAutoResume
             startupBaseline = (bool)registered;
             if (!moved) startup.Checked = startupBaseline;
             startupKnown = true;
+            ShowSaveLook();
         }
 
         private void ApplyStatus(Dictionary<string, object> status, CheckBox startup)
@@ -1503,9 +1701,11 @@ namespace CodexAutoResume
             // Off the UI thread, because the wait is now real.
             //
             // The bridge call blocks until the engine answers, and the engine waits up to
-            // 45 seconds for the watcher to become visible (control.WATCHER_START_TIMEOUT;
-            // the advanced edition's takes 12 to 20). Run on the click handler, that is
-            // 45 seconds in which this window pumps no messages: Windows paints a grey ghost copy and retitles it
+            // 45 seconds for the watcher to become visible (control.WATCHER_START_TIMEOUT), or up to
+            // 108 where a choice of Python is recorded (control.start_timeout: the launcher's question
+            // and the interpreters' starts on top; the advanced edition's takes 12 to 20). Run on the
+            // click handler, that is up to 108 seconds in which this window pumps no messages: Windows
+            // paints a grey ghost copy and retitles it
             // "Not Responding" after five. The "Starting the watcher..." headline set
             // just above would never even appear, because the WM_PAINT it queues is not
             // dispatched until the call returns.
@@ -1611,6 +1811,7 @@ namespace CodexAutoResume
                 if (!Ok(updated)) { SaveFailed(updated); return; }
                 // What is on the page is what is saved, so nothing is left unsaved.
                 baseline = values;
+                ShowSaveLook();
                 var stored = Map(updated, "settings");
                 if (stored != null)
                 {
@@ -1638,6 +1839,7 @@ namespace CodexAutoResume
                 {
                     if (registered != null && !Ok(registered)) { SaveFailed(registered); return; }
                     if (registered != null) startupBaseline = startAtSignIn;
+                    ShowSaveLook();
                     // A new Interface language or theme: the window reopens in it, where it is.
                     reopenFocus = focus;
                     CheckReopen(false);

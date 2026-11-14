@@ -557,6 +557,180 @@ namespace CodexAutoResume
         }
     }
 
+    /// The feel of the switches a list draws in a column of its own (v0.6.23, the second round's F7: Pending's Auto-resume),
+    /// as every SoftCheck switch has it and as the popup's switch for the same conversation does: the well comes up while the
+    /// pointer is on the switch's cell, the knob widens while it is held down there (or Space is held on its row), and while
+    /// the change it sent is awaited the switch fades halfway into its row - only once BusyHold's moment is over with the call
+    /// still running, as a button turned off for a call does, so a call answered in time shows nothing. The knob itself moves
+    /// only when the reply has been read (the caller's glide, FollowResumeSwitches). Each row is the caller's key - a record's
+    /// id - and where its switch is now the caller's `cell`, asked each frame, so a list that scrolls is followed. Paint only:
+    /// no layout, no bitmap, a timer only while something moves; with motion reduced or the list out of sight, at once.
+    internal sealed class ListSwitchFeel : IBusyFace, IDisposable
+    {
+        private readonly Control list;
+        private readonly Func<string, Rectangle> cell;
+        private readonly Func<bool> stillWaiting;
+        private readonly Transition hot, down;
+        private readonly Dictionary<string, Transition> awaited = new Dictionary<string, Transition>();
+        private readonly HashSet<string> holding = new HashSet<string>();
+        private string hotKey, hotLeft, downKey;
+
+        /// `stillWaiting` answers whether a call is still running when BusyHold's moment ends: the moment also ends when the
+        /// last call is over, and then nothing fades.
+        internal ListSwitchFeel(Control list, Func<string, Rectangle> cell, Func<bool> stillWaiting)
+        {
+            this.list = list;
+            this.cell = cell;
+            this.stillWaiting = stillWaiting;
+            hot = new Transition(list, 1.0);
+            hot.Where = delegate { return Both(Cell(hotKey), Cell(hotLeft)); };
+            down = new Transition(list, 0.0);
+            down.Where = delegate { return Cell(downKey); };
+        }
+
+        private Rectangle Cell(string key)
+        {
+            return key == null || list.IsDisposed ? Rectangle.Empty : cell(key);
+        }
+
+        private static Rectangle Both(Rectangle one, Rectangle other)
+        {
+            if (one.IsEmpty) return other;
+            return other.IsEmpty ? one : Rectangle.Union(one, other);
+        }
+
+        /// The switch whose cell the pointer is on, or null.
+        internal string Hot { get { return hotKey; } }
+
+        /// Whether anything of it is on its way; a timer runs only then (for the tests).
+        internal bool Running
+        {
+            get
+            {
+                if (hot.Running || down.Running) return true;
+                foreach (Transition fade in awaited.Values) if (fade.Running) return true;
+                return false;
+            }
+        }
+
+        /// How far the switch of `key` has come up under the pointer, 0 to 1.
+        internal double Hover(string key)
+        {
+            if (key == null) return 0.0;
+            if (key == hotKey) return hot.Value;
+            return key == hotLeft ? 1.0 - hot.Value : 0.0;
+        }
+
+        /// How far it is held down, 0 to 1.
+        internal double Press(string key)
+        {
+            return key != null && key == downKey ? down.Value : 0.0;
+        }
+
+        /// How live it is drawn, 1 at rest and 0 halfway into its row while its change is awaited.
+        internal double Live(string key)
+        {
+            Transition fade;
+            return key != null && awaited.TryGetValue(key, out fade) ? fade.Value : 1.0;
+        }
+
+        /// The pointer is on the switch of `key` now, or on none (null).
+        internal void Over(string key)
+        {
+            if (key == hotKey) return;
+            // Off its cell a switch held down is let go, as a SoftCheck is when the pointer leaves it.
+            if (downKey != null && key != downKey) Held(null);
+            Rectangle gone = hot.Running ? Cell(hotLeft) : Rectangle.Empty;
+            hotLeft = hotKey;
+            hotKey = key;
+            hot.Jump(0.0);
+            hot.To(1.0, Motion.Allowed(list));
+            if (!gone.IsEmpty) list.Invalidate(gone);
+        }
+
+        /// The switch of `key` is held down now, or none is (null).
+        internal void Held(string key)
+        {
+            if (key == null)
+            {
+                if (downKey != null) down.To(0.0, Motion.Allowed(list), Motion.Press);
+                return;
+            }
+            if (key != downKey)
+            {
+                Rectangle was = Cell(downKey);
+                downKey = key;
+                down.Jump(0.0);
+                if (!was.IsEmpty) list.Invalidate(was);
+            }
+            down.To(1.0, Motion.Allowed(list), Motion.Press);
+        }
+
+        /// The change the switch of `key` sent is awaited (`on`), or its answer has come.
+        internal void Awaiting(string key, bool on)
+        {
+            if (key == null) return;
+            if (!on)
+            {
+                holding.Remove(key);
+                Fade(key, 1.0);
+                return;
+            }
+            // For BusyHold's moment it looks as it did; a call over by then has shown nothing.
+            if (BusyHold.Join(this))
+            {
+                holding.Add(key);
+                return;
+            }
+            Fade(key, 0.0);
+        }
+
+        void IBusyFace.HoldEnded()
+        {
+            var keys = new List<string>(holding);
+            holding.Clear();
+            if (stillWaiting != null && !stillWaiting()) return;
+            foreach (string key in keys) Fade(key, 0.0);
+        }
+
+        private void Fade(string key, double to)
+        {
+            Transition fade;
+            if (!awaited.TryGetValue(key, out fade))
+            {
+                if (to >= 1.0) return;
+                fade = new Transition(list, 1.0);
+                string row = key;
+                fade.Where = delegate { return Cell(row); };
+                awaited[key] = fade;
+            }
+            fade.To(to, Motion.Allowed(list));
+        }
+
+        /// The row of `key` has left the list.
+        internal void Forget(string key)
+        {
+            Transition fade;
+            if (key != null && awaited.TryGetValue(key, out fade))
+            {
+                fade.Dispose();
+                awaited.Remove(key);
+            }
+            holding.Remove(key ?? "");
+            if (key == hotKey) hotKey = null;
+            if (key == hotLeft) hotLeft = null;
+            if (key == downKey) downKey = null;
+        }
+
+        public void Dispose()
+        {
+            hot.Dispose();
+            down.Dispose();
+            foreach (Transition fade in awaited.Values) fade.Dispose();
+            awaited.Clear();
+        }
+    }
+
     internal sealed class SoftList : ListView
     {
         private const int WM_SIZE = 0x0005;
@@ -577,6 +751,112 @@ namespace CodexAutoResume
 
         /// The row under the pointer (DrawCell).
         internal readonly RowGlow Glow;
+
+        // ---------------------------------------------------------------- rows held while the window is made
+        // v0.6.23 (the second round, idlefix2): a list made ready ahead (SettingsForm.PrepareNext) has its rows before
+        // its window, and making the window inserted every one of them in that one step: History's list with its 200
+        // rows held the window's thread for up to 450 ms, and the header's light and every glide with it (measured
+        // 2026-11-13, months of data). So its rows are taken out just before its window is made (HoldRows) and put
+        // back a slice at a time after (PutBackRows), its painting held from the first slice to the last - the same
+        // rows, in the same order, chosen and focused as they were. Anything that reads or writes the rows meanwhile
+        // has them all put back first (SettingsForm.Selected, FillList, ShowUnreadable, ShowPage).
+        private ListViewItem[] heldRows;
+        private bool[] heldChosen, heldFocused;
+        private int heldBack;
+        private bool redrawHeld, puttingBack;
+        private const int WM_SETREDRAW = 0x000B;
+
+        /// Whether rows are held aside (HoldRows) and not yet all put back.
+        internal bool HoldsRows
+        {
+            get { return heldRows != null; }
+        }
+
+        /// Takes the rows out of a list whose window is not yet made, to be put back once it is; false, and nothing
+        /// taken, when the window is made or there are no rows to hold.
+        internal bool HoldRows()
+        {
+            if (heldRows != null || IsHandleCreated || IsDisposed || Items.Count == 0) return false;
+            heldRows = new ListViewItem[Items.Count];
+            Items.CopyTo(heldRows, 0);
+            heldChosen = new bool[heldRows.Length];
+            heldFocused = new bool[heldRows.Length];
+            for (int i = 0; i < heldRows.Length; i++)
+            {
+                heldChosen[i] = heldRows[i].Selected;
+                heldFocused[i] = heldRows[i].Focused;
+            }
+            heldBack = 0;
+            Items.Clear();
+            return true;
+        }
+
+        /// Puts held rows back, in their order, until `milliseconds` have gone (at least a few rows each time); true
+        /// once all are back. Painting is held from the first row put back to the last by the window's own switch
+        /// (WM_SETREDRAW): ListView's BeginUpdate keeps every row added under it until EndUpdate and inserts them all
+        /// there, in one step again.
+        internal bool PutBackRows(int milliseconds)
+        {
+            if (heldRows == null) return true;
+            // Asked again from inside a slice - a row chosen again tells the list's SelectedIndexChanged, whose handler
+            // reads the rows (SettingsForm.Selected): the slice under way goes on, and the rows it has put back are read.
+            if (puttingBack) return false;
+            if (IsDisposed)
+            {
+                heldRows = null;
+                return true;
+            }
+            puttingBack = true;
+            try
+            {
+                if (heldBack == 0 && IsHandleCreated && Soft.OwnVisible(this))
+                {
+                    SendHeaderMessage(Handle, WM_SETREDRAW, IntPtr.Zero, IntPtr.Zero);
+                    redrawHeld = true;
+                }
+                var slice = System.Diagnostics.Stopwatch.StartNew();
+                do
+                {
+                    int from = heldBack, count = Math.Min(heldRows.Length - from, 8);
+                    var some = new ListViewItem[count];
+                    Array.Copy(heldRows, from, some, 0, count);
+                    heldBack = from + count;
+                    Items.AddRange(some);
+                    for (int i = from; i < from + count; i++)
+                    {
+                        if (heldRows[i].Selected != heldChosen[i]) heldRows[i].Selected = heldChosen[i];
+                        if (heldFocused[i] && !heldRows[i].Focused) heldRows[i].Focused = true;
+                    }
+                }
+                while (heldBack < heldRows.Length && slice.ElapsedMilliseconds < milliseconds);
+                if (heldBack < heldRows.Length) return false;
+                heldRows = null;
+                heldChosen = heldFocused = null;
+                if (redrawHeld && IsHandleCreated)
+                {
+                    SendHeaderMessage(Handle, WM_SETREDRAW, (IntPtr)1, IntPtr.Zero);
+                    Invalidate();
+                }
+                redrawHeld = false;
+                // Laid out once more with every row in it (WM_SIZE, as a resize lays the list out), as making its window
+                // with its rows laid it out: its header, which a picture pinned at another scale is told the height of
+                // (PinnedHeader), stood 2 px taller over rows put back into a list made empty, and the soft scroll bar of
+                // the list's host (SoftListHost, told by ScrollChanged) kept the thumb of the empty list.
+                if (IsHandleCreated)
+                {
+                    Size client = ClientSize;
+                    SendHeaderMessage(Handle, WM_SIZE, IntPtr.Zero, (IntPtr)(((client.Height & 0xFFFF) << 16) | (client.Width & 0xFFFF)));
+                }
+                return true;
+            }
+            finally { puttingBack = false; }
+        }
+
+        /// Puts every held row back at once.
+        internal void PutBackRows()
+        {
+            PutBackRows(int.MaxValue);
+        }
 
         protected override void OnHandleCreated(EventArgs e)
         {

@@ -105,9 +105,10 @@ class ServerCase(ac.AdvancedCase):
         self.addCleanup(self.running.close)
         self.port = self.running.port
 
-    def ask(self, path, method="GET", *, token=BEARER_INK, host=None, body=None, headers=None):
-        """One request as a client sends it: (status, headers, body)."""
-        connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+    def ask(self, path, method="GET", *, token=BEARER_INK, host=None, body=None, headers=None, source=None):
+        """One request as a client sends it: (status, headers, body). `source`, a loopback address it is sent from."""
+        connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10,
+                                                source_address=(source, 0) if source else None)
         try:
             connection.putrequest(method, path, skip_host=True, skip_accept_encoding=True)
             for name in ([] if host is False else host if isinstance(host, list) else
@@ -252,8 +253,9 @@ class LockTests(ServerCase):
         for _ in range(times):
             self.assertEqual(self.status("/status.json", token="wrong"), 401)
 
-    def test_ten_wrong_in_a_minute_close_it_for_five_minutes_for_everyone(self):
-        """Fails with the gate reverted: the eleventh is another 401 and the right token reads."""
+    def test_ten_wrong_in_a_minute_close_it_for_five_minutes_to_this_pc_s_programs(self):
+        """Fails with the gate reverted: the eleventh is another 401 and the right token reads. Every loopback address is
+        one client, so a program here cannot dodge the count by sending from 127.0.0.2."""
         self.wrong(10)
         for path, token in (("/status.json", BEARER_INK), ("/status.json", "wrong"), ("/", None), ("/nothing", BEARER_INK)):
             status, headers, _body = self.ask(path, token=token)
@@ -274,6 +276,25 @@ class LockTests(ServerCase):
             self.assertEqual(self.status("/status.json", token=None, headers={"Authorization": "Bearer "}), 401)
         self.assertEqual(self.status("/status.json"), 200)
         self.assertNotIn("api.locked", [line["code"] for line in self.rt.state.journal(capability="local_api")])
+
+    def test_loopback_addresses_are_one_client(self):
+        self.wrong(10)
+        self.assertEqual(self.status("/status.json", source="127.0.0.2"), 503)
+
+    def test_a_device_s_wrong_tokens_close_it_to_that_device_alone(self):
+        """S2 (the second security review of v0.6.23): fails with one count for every caller - ten wrong Bearer tokens a
+        device on the network sends close the server to this PC's own programs and to every other device. Here two
+        loopback sources stand for two devices: 127.0.0.2 for 192.168.1.50, 127.0.0.3 for 192.168.1.51."""
+        real = api.client_of
+        devices = {"127.0.0.2": "192.168.1.50", "127.0.0.3": "192.168.1.51"}
+        with patch.object(api, "client_of", lambda address: devices.get(address) or real(address)),                 patch.object(remote, "status_document", lambda layer, now: {"format": "x"}):
+            for _ in range(api.LOCK_AFTER):
+                self.assertEqual(self.status("/status.json", token="wrong", source="127.0.0.2"), 401)
+            self.assertEqual(self.status("/status.json", source="127.0.0.2"), 503, "the device that sent them is closed")
+            self.assertEqual(self.status("/status.json"), 200, "this PC's own programs are not")
+            self.assertEqual(self.status("/status.json", source="127.0.0.3"), 200, "nor is another device")
+            self.now += api.LOCK_SECONDS
+            self.assertEqual(self.status("/status.json", source="127.0.0.2"), 200, "and after five minutes, nor is it")
 
     def test_nine_do_not(self):
         self.wrong(9)
@@ -301,6 +322,29 @@ class LockTests(ServerCase):
             self.assertEqual(self.status("/status.json", token="wrong", host="evil.example"), 421)
             self.assertEqual(self.status("/nothing", token="wrong"), 404)
         self.assertEqual(self.status("/status.json"), 200)
+
+
+class GateTests(unittest.TestCase):
+    def test_a_client_is_its_address_and_every_loopback_one_client(self):
+        for address in ("127.0.0.1", "127.0.0.2", "127.255.255.254", "::1", "::ffff:127.0.0.1"):
+            self.assertEqual(api.client_of(address), api.LOOPBACK_CLIENT, address)
+        self.assertEqual(api.client_of("192.168.1.50"), "192.168.1.50")
+        self.assertEqual(api.client_of("::ffff:192.168.1.50"), "192.168.1.50")
+        self.assertEqual(api.client_of("fe80::1"), "fe80::1")
+
+    def test_the_table_is_bounded_and_forgets_one_not_closed_first(self):
+        """Fails with no bound: a device that sends from ever new addresses grows the table without limit."""
+        now = [1000.0]
+        gate = api.Gate(lambda: now[0])
+        for _ in range(api.LOCK_AFTER):
+            gate.wrong("10.0.0.1")
+        self.assertTrue(gate.closed("10.0.0.1"))
+        for number in range(api.CLIENTS * 2):
+            gate.wrong("10.1.%d.%d" % divmod(number, 256))
+            now[0] += 0.001
+        self.assertLessEqual(len(gate._clients), api.CLIENTS)
+        self.assertTrue(gate.closed("10.0.0.1"), "a closed client is the last forgotten")
+        self.assertFalse(gate.closed(api.LOOPBACK_CLIENT))
 
 
 class MethodTests(ServerCase):
@@ -394,6 +438,62 @@ class SlowClientTests(ServerCase):
         with patch.object(remote, "status_document", lambda layer, now: {"format": "x"}):
             self.assertEqual(self.status("/status.json"), 200)
         stop.set()
+
+    def test_clients_that_trickle_after_their_answer_hold_no_slot_past_the_linger(self):
+        """S1 (the second security review of v0.6.23): fails with _linger's deadline counted for each read again - a
+        client answered at once (421, no token needed) that then sends a byte every quarter second keeps reading in the
+        linger for hours, and eight of them close everyone else unanswered, the right token too."""
+        import threading
+        stop = threading.Event()
+        self.addCleanup(stop.set)
+        answered = []
+        for _ in range(api.THREADS):
+            raw = socket.create_connection(("127.0.0.1", self.port), timeout=10)
+            self.addCleanup(raw.close)
+            raw.sendall(b"GET /nope HTTP/1.0\r\nHost: evil.example\r\n\r\n")
+            answered.append(raw)
+        for raw in answered:
+            self.assertIn(b"421", raw.recv(4096).split(b"\r\n")[0])
+
+        def trickle(raw):
+            while not stop.is_set():
+                try:
+                    raw.sendall(b"a")
+                except OSError:
+                    return
+                time.sleep(0.25)
+        for raw in answered:
+            threading.Thread(target=trickle, args=(raw,), daemon=True).start()
+        time.sleep(api.LINGER_SECONDS + 1.5)
+
+        def legit():
+            try:
+                return self.status("/status.json")
+            except (OSError, http.client.HTTPException):
+                return "closed unanswered"
+        with patch.object(remote, "status_document", lambda layer, now: {"format": "x"}):
+            self.assertEqual(legit(), 200)
+            self.assertEqual(self.status("/status.json", token="wrong"), 401, "and the statement's refusals stand")
+        stop.set()
+
+    def test_a_client_that_trickles_into_the_linger_has_it_cut_at_its_time_in_all(self):
+        """The linger alone, timed: a byte every quarter second never lets one read wait LINGER_SECONDS, and still
+        the connection is closed within LINGER_SECONDS of the answer, not when the bytes stop. The server shuts its
+        sending side at the answer, so the close shows as the first byte refused (the reset of a closed socket)."""
+        with socket.create_connection(("127.0.0.1", self.port), timeout=10) as raw:
+            raw.sendall(b"GET /nope HTTP/1.0\r\nHost: evil.example\r\n\r\n")
+            self.assertIn(b"421", raw.recv(4096).split(b"\r\n")[0])
+            began = time.monotonic()
+            refused = None
+            while time.monotonic() - began < api.LINGER_SECONDS + 5:
+                try:
+                    raw.sendall(b"a")
+                except OSError:
+                    refused = time.monotonic() - began
+                    break
+                time.sleep(0.25)
+        self.assertIsNotNone(refused, "still read %.0f s after the answer" % (api.LINGER_SECONDS + 5))
+        self.assertLess(refused, api.LINGER_SECONDS + 1.5)
 
 
 class HeaderTests(ServerCase):

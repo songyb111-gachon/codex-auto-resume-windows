@@ -61,6 +61,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import community_report as reader  # noqa: E402
 
+NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)     # no console window under a parent with none
 ROOT = Path(__file__).resolve().parents[1]
 PREFIX = reader.COMMUNITY + "/"
 SHA = re.compile(r"[0-9a-f]{40}")
@@ -97,7 +98,7 @@ class Git:
     def run(self, *arguments):
         done = subprocess.run(["git", "-C", self.root, "--no-pager", *arguments], stdin=subprocess.DEVNULL,
                               stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, shell=False, timeout=120,
-                              env=dict(os.environ, **GIT_ENV), check=False)
+                              env=dict(os.environ, **GIT_ENV), check=False, creationflags=NO_WINDOW)
         return done.returncode, done.stdout
 
     def text(self, *arguments):

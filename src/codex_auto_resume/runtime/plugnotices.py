@@ -47,14 +47,30 @@ class PlugNotices:
                 "used_percent"), "reset_at": notice.get("reset_at"), "kind": notice.get("kind")})
 
 
+# How many notice keys a watcher remembers per part. The plug repeats a notice in every snapshot while it holds (the
+# meter's for the 15 minutes after its warning), so a key only has to be remembered while it is still being sent: each
+# sighting moves it to the newest end, and past this many the OLDEST is forgotten, never a new one refused (v0.6.23:
+# the old bound refused every key after the 65th, and a watcher alive for a week or two never warned again). The bound
+# is there so a plug's keys cannot grow the watcher's memory for its whole life; 64 is many times the few notices a plug
+# holds at once (a meter's two or three windows, one update offer, an account change).
+SHOWN_KEYS = 64
+
+
 def _unshown(owner, added, part, shown_name=None):
     """The notices under `part` of what the edition's plug added to the icon's snapshot that the watcher `owner` has
-    not shown in its life, by their keys (at most 64), each marked shown as it is given."""
+    not shown yet, by their keys, each marked shown as it is given. The keys are remembered newest last, a key still
+    being sent kept newest, and only the SHOWN_KEYS most recent are kept: a notice is shown once per what it says
+    however long the watcher runs."""
     found = added.get(part) if isinstance(added, dict) else None
     notices = found.get("notices") if isinstance(found, dict) else None
-    shown = owner.__dict__.setdefault(shown_name or "_%s_shown" % part, set())
+    shown = owner.__dict__.setdefault(shown_name or "_%s_shown" % part, {})
     for notice in notices if isinstance(notices, list) else ():
         key = notice.get("key") if isinstance(notice, dict) else None
-        if isinstance(key, str) and key not in shown and len(shown) <= 64:
-            shown.add(key)
+        if not isinstance(key, str):
+            continue
+        new = shown.pop(key, None) is None
+        shown[key] = True
+        while len(shown) > SHOWN_KEYS:
+            del shown[next(iter(shown))]
+        if new:
             yield notice
