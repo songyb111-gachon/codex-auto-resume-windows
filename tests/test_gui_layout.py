@@ -656,7 +656,9 @@ class WindowCompositionTests(unittest.TestCase):
         self.assertIn("if (snapshot != null) ApplySnapshot(snapshot);", self.method(self.dashboard, "private Control PageFor("))
 
     def test_fonts_are_not_made_on_every_switch(self):
-        for source, signature in ((self.dashboard, "private void ShowPage("),
+        # v0.6.23 (perffix): ShowPage chooses its tab through MarkTab, which a page pressed before it is ready calls too.
+        self.assertIn("MarkTab(name);", self.method(self.dashboard, "private void ShowPage("))
+        for source, signature in ((self.dashboard, "private void MarkTab("),
                                   (self.window, "private void ShowSection(")):
             with self.subTest(signature):
                 body = self.method(source, signature)

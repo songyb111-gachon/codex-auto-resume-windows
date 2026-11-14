@@ -336,7 +336,7 @@ namespace CodexAutoResume
             outMap["opened_shown"] = form.currentPage;
             outMap["opened_visible"] = Soft.OwnVisible(form.columns) && form.columns.IsHandleCreated;
             SettingsForm settled = form;
-            PressedPump(15000, delegate { return settled.Settled(); });
+            PressedPump(15000, delegate { return settled.Settled() && settled.bridge.InFlight == 0 && settled.previewSource != null && settled.previewSource.Text.Length > 0 && !settled.previewTimer.Enabled; });
             PressedPump(300, null);
             string builtInSteps = Shape(form.columns);
             frame.Close();
@@ -348,7 +348,7 @@ namespace CodexAutoResume
             form.rendering = true;
             PressedPump(60000, delegate { return form.settingsRead && form.pendingSchema == null && form.editorSteps == null && !form.buildQueued; });
             SettingsForm atOnce = form;
-            PressedPump(15000, delegate { return atOnce.Settled(); });
+            PressedPump(15000, delegate { return atOnce.Settled() && atOnce.bridge.InFlight == 0 && atOnce.previewSource != null && atOnce.previewSource.Text.Length > 0 && !atOnce.previewTimer.Enabled; });
             PressedPump(300, null);
             string builtAtOnce = Shape(form.columns);
             outMap["shape_same"] = builtInSteps == builtAtOnce;
