@@ -1403,6 +1403,10 @@ namespace CodexAutoResume
             strip.WrapContents = false;
             strip.Margin = new Padding(0);
             strip.AccessibleRole = AccessibleRole.PageTabList;
+            // v0.6.23 (perffix): laid out once its tabs are all in it, not once for each tab and each of its settings - before
+            // the first paint (the strip, the Settings sections' list and the save bar's row: 33 layouts, 45-70 ms on
+            // scratch, the tracer 2026-11-14).
+            strip.SuspendLayout();
             string[] fallbacks = { "Overview", "Pending", "History", "Statistics", "Diagnostics", "Settings" };
             for (int i = 0; i < PageOrder.Length; i++)
             {
@@ -1425,6 +1429,7 @@ namespace CodexAutoResume
                 navButtons[name] = button;
                 strip.Controls.Add(button);
             }
+            strip.ResumeLayout(true);
             nav.Controls.Add(strip);
             // As tall as the tabs, measured, and again whenever the window's font changes - with the room the chosen
             // tab's heavier words take (ShowPage sets it in nav_current): in Microsoft YaHei UI the bold is a face of
@@ -1580,11 +1585,32 @@ namespace CodexAutoResume
                 page = begun.Page;
             }
             else
-                page = name == "pending" ? BuildPending()
-                     : name == "history" ? BuildHistory()
-                     : name == "statistics" ? BuildStatistics()
-                     : name == "diagnostics" ? BuildDiagnostics()
-                     : BuildOverview();
+            {
+                // v0.6.23 (perffix): built whole now - the Overview before the window's first paint, a page on its first
+                // click - with what it makes held from laying itself out as it is made (HeldAsBuilt), as a build begun
+                // ahead is, and let go below once the page has its place: each card, grid and row added to an unheld one
+                // laid it out again, at the size it had before the page had its own, and measured everything in it each
+                // time - before the first paint, 10,640 measures of the Overview's labels (months of scratch data, the
+                // tracer, 2026-11-14) for one page laid out once. The page laid out is the same page (the render-mode
+                // pixel proof).
+                begun = new PageBuild();
+                PageBuild before = buildHolding;
+                buildHolding = begun;
+                try
+                {
+                    page = name == "pending" ? BuildPending()
+                         : name == "history" ? BuildHistory()
+                         : name == "statistics" ? BuildStatistics()
+                         : name == "diagnostics" ? BuildDiagnostics()
+                         : BuildOverview();
+                }
+                catch (Exception)
+                {
+                    LetGoBuilt(begun);
+                    throw;
+                }
+                finally { buildHolding = before; }
+            }
             page.Visible = false;
             pages[name] = page;
             pageHost.Controls.Add(page);

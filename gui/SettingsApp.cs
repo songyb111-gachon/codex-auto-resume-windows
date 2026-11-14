@@ -1018,6 +1018,8 @@ namespace CodexAutoResume
             list.Margin = Pad(0, 10, 2, 0);
             list.AccessibleRole = AccessibleRole.PageTabList;
             list.AccessibleName = S("nav.settings", "Settings");
+            // v0.6.23 (perffix): laid out once its sections' buttons are all in it (the strip of tabs says why).
+            list.SuspendLayout();
             foreach (string name in SectionOrder)
             {
                 var button = new NavButton();
@@ -1054,6 +1056,7 @@ namespace CodexAutoResume
                 sections[name] = stack;
                 sectionScroll.Controls.Add(stack);
             }
+            list.ResumeLayout(true);
 
             sectionScroll.Dock = DockStyle.Fill;
             // On the soft scroll bar (see SoftPage), which keeps the section's own cards' material.
@@ -1383,6 +1386,8 @@ namespace CodexAutoResume
             // measurement plus a constant, the row needed six more than the arithmetic
             // allowed for, and every button lost the last two rows of its own border.
             row.Margin = new Padding(0);
+            // v0.6.23 (perffix): laid out once its buttons are all in it (the strip of tabs says why).
+            row.SuspendLayout();
             closeButton = MakeButton(S("action.close", "Close"), false, delegate { Close(); });
             row.Controls.Add(closeButton);
             // Only the Settings page has anything to save.
@@ -1390,6 +1395,7 @@ namespace CodexAutoResume
             restoreButton = MakeButton(S("action.restore", "Restore defaults"), false, delegate { RestoreDefaults(); });
             row.Controls.Add(saveButton);
             row.Controls.Add(restoreButton);
+            row.ResumeLayout(true);
 
             versionText.Margin = new Padding(0);
             // Each press, not Click: a quick second press is a double click and raises no Click.

@@ -132,6 +132,9 @@ namespace CodexAutoResume
             return (GetWindowLong(control.Handle, -16) & 0x10000000) != 0;
         }
 
+        private static readonly System.Reflection.FieldInfo SuspendCount =
+            typeof(Control).GetField("layoutSuspendCount", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
         // Every control under `parent`, in order: its kind, place, size, whether it shows and its words.
         private static string Shape(Control parent)
         {
@@ -362,6 +365,39 @@ namespace CodexAutoResume
             frame.Close();
             frame.Dispose();
 
+            // 6. A page built whole (PageFor, as the Overview before the first paint and a page on its first click are):
+            // what it made is held from laying itself out until it has its place - counted as it is put in the page host.
+            frame = new PressedFrame();
+            form = PressedWindow(frame);
+            int heldPage = -1, cards = 0, heldCards = 0;
+            ControlEventHandler added = delegate(object sender, ControlEventArgs e)
+            {
+                heldPage = Convert.ToInt32(SuspendCount.GetValue(e.Control));
+                var next = new Stack<Control>();
+                next.Push(e.Control);
+                while (next.Count > 0)
+                {
+                    Control control = next.Pop();
+                    if (control is SoftCard)
+                    {
+                        cards++;
+                        if (Convert.ToInt32(SuspendCount.GetValue(control)) > 0) heldCards++;
+                    }
+                    foreach (Control child in control.Controls) next.Push(child);
+                }
+            };
+            form.pageHost.ControlAdded += added;
+            bool built = !form.pages.ContainsKey("diagnostics");
+            form.PageFor("diagnostics");
+            form.pageHost.ControlAdded -= added;
+            outMap["whole_built_here"] = built;
+            outMap["whole_page_held"] = (double)heldPage;
+            outMap["whole_cards"] = (double)cards;
+            outMap["whole_cards_held"] = (double)heldCards;
+            outMap["whole_page_let_go"] = Convert.ToInt32(SuspendCount.GetValue(form.pages["diagnostics"])) == 0;
+            frame.Close();
+            frame.Dispose();
+
             lock (RenderMisses) outMap["misses"] = new List<object>(RenderMisses.ToArray());
             File.WriteAllText(outPath, Json.Write(outMap), new UTF8Encoding(false));
             return 0;
@@ -460,6 +496,15 @@ class PressedTests(unittest.TestCase):
     def test_opened_on_settings_the_page_built_in_steps_is_the_page_built_at_once(self):
         self.assertGreater(self.answer["shape_controls"], 50)
         self.assertTrue(self.answer["shape_same"], self.answer.get("shape_first_difference"))
+
+    def test_a_page_built_whole_lays_nothing_out_before_it_has_its_place(self):
+        """The Overview before the first paint, and a page on its first click, laid each card, grid and row out again as
+        each was added (10,640 measures of the Overview's labels before the first paint on scratch, 5,760 now)."""
+        self.assertTrue(self.answer["whole_built_here"])
+        self.assertGreater(self.answer["whole_page_held"], 0, "the page laid itself out as it was built")
+        self.assertGreater(self.answer["whole_cards"], 0)
+        self.assertEqual(self.answer["whole_cards_held"], self.answer["whole_cards"], "a card laid itself out as it was built")
+        self.assertTrue(self.answer["whole_page_let_go"], "the page was left held")
 
     def test_another_page_pressed_meanwhile_is_shown_and_settings_is_not(self):
         self.assertEqual(self.answer["dropped_waiting"], "overview", "Settings was shown in the click")
