@@ -150,6 +150,12 @@ uses, or English where that version does not ship it - and *Same as the interfac
   glides and for a quarter of a second after a key or the mouse, so the status light and the glides run without them, and a page whose
   step fails is given up once and written to `errors.log` once, instead of failing again on every idle turn until the window ended. The
   numbers are one PC's: read them as "about".
+- **The words a page shows before its first read, and Save at rest** (new since beta.2). A Dashboard the setup program opens again
+  after an update opens in your language once its words come, where the first start after an update took longer than the window
+  waits for them; it stayed in English until it was closed. Pending, History and the Overview's *Recently finished* say *Loading...*
+  until their first read has answered, instead of *Nothing is waiting* or *No recoveries yet*. Save on Settings now stands like
+  *Restore defaults* and *Close* and turns blue only while something on the page differs from what was saved, as the panel's Save
+  does; it turned blue a second after the page showed, with nothing changed.
 - **A settings file the product cannot read is never taken as the defaults** (new since beta.2). The settings are written as UTF-8
   with each character as it is, not as a six-byte escape, and the file may hold up to 4 MB - everything the limits allow, twice over.
   Until now 28 messages of your own for single conversations, 2,000 Korean characters each, passed the old 256 KB, and the file was
