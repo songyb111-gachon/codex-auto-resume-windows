@@ -338,6 +338,9 @@ namespace CodexAutoResume
             SettingsForm settled = form;
             PressedPump(15000, delegate { return settled.Settled() && settled.bridge.InFlight == 0 && settled.previewSource != null && settled.previewSource.Text.Length > 0 && !settled.previewTimer.Enabled; });
             PressedPump(300, null);
+            // The sections as a person sees them, shown each in turn (ShowSection lays out the one it shows), then the first;
+            // not Advanced, whose homes card asks a read of its own when shown.
+            foreach (string section in new[] { "recovery", "continuation", "appearance", "general" }) form.ShowSection(section);
             string builtInSteps = Shape(form.columns);
             frame.Close();
             frame.Dispose();
@@ -350,6 +353,9 @@ namespace CodexAutoResume
             SettingsForm atOnce = form;
             PressedPump(15000, delegate { return atOnce.Settled() && atOnce.bridge.InFlight == 0 && atOnce.previewSource != null && atOnce.previewSource.Text.Length > 0 && !atOnce.previewTimer.Enabled; });
             PressedPump(300, null);
+            // The sections as a person sees them, shown each in turn (ShowSection lays out the one it shows), then the first;
+            // not Advanced, whose homes card asks a read of its own when shown.
+            foreach (string section in new[] { "recovery", "continuation", "appearance", "general" }) form.ShowSection(section);
             string builtAtOnce = Shape(form.columns);
             outMap["shape_same"] = builtInSteps == builtAtOnce;
             outMap["shape_controls"] = (double)(builtAtOnce.Split('\n').Length);
