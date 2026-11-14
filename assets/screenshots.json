@@ -30,7 +30,7 @@
   "window_drawn": "offscreen",
   "inputs": {
     ".codex-plugin/plugin.json": "18fc5758c14399a6db57b7cbac0dacb267a20be1c0b4b41e40df88d1038eb37c",
-    "<window sources>": "592aba5bcfec7002393ccbffb9718a53c1dcb96afaa67c70bf183416269cfb32",
+    "<window sources>": "5ce4cfef7a3fd932abc91e7bd8dd954b2e04f46db5ae00211f51f09f6d74489f",
     "gui/app.manifest": "db5f16dcf2448fdd7e3812dfdaa6d2da893b92c27a982721d3f04cdc05559870",
     "assets/codex-auto-resume.ico": "45c3f3a0d02d78f9be0b80532eedc2f524cd7ebe1056007dacdb286ca743bd52",
     "build/capture_window.ps1": "15b5897082d9d6a24056ff5780d8b24909a1b48738730dfa3387c59e7abd382c",
