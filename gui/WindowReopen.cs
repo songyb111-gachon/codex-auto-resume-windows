@@ -52,6 +52,9 @@ namespace CodexAutoResume
         internal const int AdoptWhatWasRead = 3;
         /// How many reopens in a row may follow from what a window reads as it opens.
         internal const int MaxGeneration = 2;
+        /// v0.6.23: what a reopen adds when the window opened in English because its words came late (Reopen), so the
+        /// new window does not reopen for late words again (OpenRequest.ForLateWords, TakeLateWords).
+        internal const string ReopenedForLateWords = "--late-words";
 
         private const int WM_SETTINGCHANGE = 0x001A;
         private const int WM_DPICHANGED = 0x02E0;
@@ -162,6 +165,7 @@ namespace CodexAutoResume
                 {
                     if (value.Length == 1 && value[0] >= '1' && value[0] <= '9') request.Generation = value[0] - '0';
                 }
+                else if (argument == ReopenedForLateWords) request.ForLateWords = true;
                 else if ((value = After(argument, "--frame=")) != null)
                 {
                     Padding inset;
@@ -377,6 +381,7 @@ namespace CodexAutoResume
                 if (item == null || item.Value != stored) continue;
                 baseline["panel_theme"] = Json.Escape(stored);
                 if (combo.SelectedIndex != i) combo.SelectedIndex = i;
+                ShowSaveLook();
                 return;
             }
         }
@@ -395,7 +400,7 @@ namespace CodexAutoResume
             string theme = Theme.Current(storedTheme);
             string design = Design.Drawn(theme, storedDesign);
             int decision = ReopenDecision(openedLanguage, openedTheme, openedDesign, storedLanguage, theme, design,
-                                          Dirty(), firstRead, request.Generation);
+                                          Dirty(), firstRead, DecidingGeneration());
             // Not again for the language, theme and design a new window was started for and never showed
             // (FinishReopen).
             if (decision != KeepWindow && storedLanguage == declinedLanguage && theme == declinedTheme &&
@@ -424,6 +429,22 @@ namespace CodexAutoResume
             Reopen(firstRead);
         }
 
+        /// The generation CheckReopen decides with (ReopenDecision): this window's, except while it is in English because
+        /// its words came late (LateLanguage, TakeLateWords) - late words are no disagreement between two windows, and a
+        /// window reopened twice for its theme kept English for good (AdoptWhatWasRead). v0.6.23. It cannot repeat: the
+        /// window that reopen starts carries `--late-words` (MarkLateWords), and takes no late words of its own.
+        private int DecidingGeneration()
+        {
+            return openedLanguage == LateLanguage ? 0 : request.Generation;
+        }
+
+        /// `arguments` for a reopen, with `--late-words` (ReopenedForLateWords) where this window is in English because its
+        /// words came late: the new window reopens for late words no more (OpenRequest.ForLateWords). v0.6.23.
+        private string MarkLateWords(string arguments)
+        {
+            return openedLanguage == LateLanguage ? arguments + " " + ReopenedForLateWords : arguments;
+        }
+
         private void ShowReopenNote(bool show)
         {
             if (reopenNote == null) return;
@@ -448,6 +469,51 @@ namespace CodexAutoResume
             }
             var startup = editors.ContainsKey("__startup") ? editors["__startup"] as CheckBox : null;
             return startup != null && startup.Checked != startupBaseline;
+        }
+
+        /// v0.6.23 (the final's live acceptance): Save in the accent only while the page holds an unsaved edit (Dirty), and
+        /// raised as Close and Restore defaults are otherwise - as the panel's Save is quiet until there is something to
+        /// save (panel.js renderFooter). It was the accent whenever it could be pressed: a window opened on Settings showed
+        /// it grey while its reads were on their way (SetBusy) and blue a second later with nothing changed, which reads as
+        /// "there are changes to save". Told by every editor as its value moves (WatchEdits), by the builds and the saves
+        /// that set what an edit is measured from, and by the clock each second.
+        private void ShowSaveLook()
+        {
+            var save = saveButton as SoftButton;
+            if (save == null || save.IsDisposed) return;
+            // Not while the editors are being built (EditorSteps): what an edit is measured from is set as the build ends.
+            bool dirty = editorSteps == null && Dirty();
+            if (save.Primary != dirty) save.Primary = dirty;
+        }
+
+        // The controls WatchEdits has told to call ShowSaveLook, each once; one leaves as it is disposed.
+        private readonly HashSet<Control> watchedEdits = new HashSet<Control>();
+
+        /// Every control under `root` whose value an edit moves - a check box or switch, a drop-down, a number, a text, a
+        /// choice of cards - calls ShowSaveLook when it moves (v0.6.23). Each once, however often a build asks.
+        private void WatchEdits(Control root)
+        {
+            foreach (Control control in root.Controls)
+            {
+                if (!watchedEdits.Contains(control))
+                {
+                    EventHandler moved = delegate { ShowSaveLook(); };
+                    bool watched = true;
+                    if (control is CheckBox) ((CheckBox)control).CheckedChanged += moved;
+                    else if (control is ComboBox) ((ComboBox)control).SelectedIndexChanged += moved;
+                    else if (control is NumericUpDown) ((NumericUpDown)control).ValueChanged += moved;
+                    else if (control is TextBoxBase) control.TextChanged += moved;
+                    else if (control is ChoiceGroup) ((ChoiceGroup)control).ValueChanged += moved;
+                    else watched = false;
+                    if (watched)
+                    {
+                        watchedEdits.Add(control);
+                        Control gone = control;
+                        control.Disposed += delegate { watchedEdits.Remove(gone); };
+                    }
+                }
+                WatchEdits(control);
+            }
         }
 
         /// Every editor's value as the JSON a Save sends for it.
@@ -933,6 +999,7 @@ namespace CodexAutoResume
                                                WindowState == FormWindowState.Maximized, storedTheme, storedDesign,
                                                NextGeneration(firstRead, request.Generation), invisibleFrame,
                                                reopenFocus ?? FocusName());
+            arguments = MarkLateWords(arguments);
             Process started;
             try
             {
