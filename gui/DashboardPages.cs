@@ -402,6 +402,10 @@ namespace CodexAutoResume
             pendingEmpty.ForeColor = Secondary;
             pendingEmpty.Dock = DockStyle.Top;
             pendingEmpty.Padding = Pad(8, 0, 0, 10);
+            // v0.6.23 (the final's live acceptance): until the first read has answered, nothing is known of what waits -
+            // "Nothing is waiting" over the empty list was said in the first second of a window reopened after an update,
+            // a recovery waiting. Loading..., as the header says it then, until the snapshot is written (ApplySnapshot).
+            if (snapshot == null) pendingEmpty.Text = S("status.loading", "Loading...");
             yield return true;
 
             FlowLayoutPanel row = ButtonRow();
