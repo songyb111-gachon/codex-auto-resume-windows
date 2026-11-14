@@ -138,9 +138,12 @@ uses, or English where that version does not ship it - and *Same as the interfac
   sentence of the popup or a notice reads in its own order; the popup's two reset dates no longer read one of them backwards.
   The same holds for a date with its time in the window's own cells and sentences: History's *Detected* and *Finished* and the timeline
   dialog no longer read 21:49 2026-11-12 for 2026-11-12 21:49, and the advanced pages' rows and sentences keep theirs too.
-- **A refresh rewrites only the page on screen, and the pages made ready ahead are built in short steps** (new since beta.2). Pages out of sight are brought up to date as they are shown, and a
-  tab pressed while the window is still making pages ready is built at once.
-  A click never waits behind that preparation. Each page is made a part at a time - Pending, Diagnostics and the Settings editors in
+- **A refresh rewrites only the page on screen, and the pages made ready ahead are built in short steps** (new since beta.2). Pages out of sight are brought up to date as they are shown. A
+  tab pressed while the window is still making pages ready is shown chosen at once, and its page follows as soon as it is ready:
+  Settings, and in the advanced edition the Advanced features page, are made ready first in steps, so the window keeps answering
+  meanwhile. A window that reopens on Settings after a language is saved builds that page out of sight and shows it whole, never half
+  built: its longest wait went from about 3 seconds to under a fifth of a second. The first Overview lays itself out once before the
+  window shows, instead of once for each card it adds. A click never waits behind that preparation. Each page is made a part at a time - Pending, Diagnostics and the Settings editors in
   particular - in slices of about 30 milliseconds, and what a page lays out is held until its last steps, so on an installation that had
   run for months (200 rows of History, 60 tasks waiting) the steps that held the window for 0.2 to 0.6 seconds in one turn are cut to a
   tenth of a second or less, apart from a few single controls such as History's list of 200 rows. The steps also wait while a control
@@ -161,9 +164,8 @@ uses, or English where that version does not ship it - and *Same as the interfac
 - **More of the window moves between its states** (new since beta.2). A tab is as wide as its name in its heavier weight, so choosing a
   page moves no tab in the strip, not even by a pixel; a tooltip fades out as a closed menu does; a callout or a card that appears in the
   page on screen, and Diagnostics' new notices, fade in over their ground; the installer's log fades in and out where it stands; Pending's
-  *Auto-resume* switch comes up under the pointer, widens its knob while held and fades while its answer is awaited; the Statistics bars
-  are round-ended in every design, only their lift staying the Soft design's; and the log's search and Statistics' period stand on a card,
-  as every other field does.
+  *Auto-resume* switch comes up under the pointer, widens its knob while held and fades while its answer is awaited; and the Statistics bars
+  are round-ended in every design, only their lift staying the Soft design's.
 - **The window lets go of what it replaced** (new since beta.2). Recently finished, the Codex homes' rows and the Settings editors
   disposed nothing when they were built again, so every old label, button and editor kept its window handle for as long as the program
   ran; they now dispose what they take away, and a step of the installer lets go of the controls the step before it made. A page that is
@@ -294,8 +296,8 @@ uses, or English where that version does not ship it - and *Same as the interfac
 - **A watcher that runs for weeks keeps showing the advanced edition's notices** (new since beta.2). It remembered the notices it had
   shown in a set that refused every key past the 64th, so a watcher alive for a week or two never showed a near-limit, account or update
   notice again; it now forgets the oldest past 64.
-- **The advanced pages move and read as the rest do** (new since beta.2). The saved accounts' usage meters glide from what they showed to
-  a new reading, as the Statistics bars do, and *Find a conversation*'s search stands on a card.
+- **The advanced pages move as the rest do** (new since beta.2). The saved accounts' usage meters glide from what they showed to
+  a new reading, as the Statistics bars do.
 
 ## v0.6.23-beta.2 — Four more languages: Persian, Czech, Hungarian and Thai, pages that open quickly the first time, and a Finish page that keeps the shortcut you already have
 
