@@ -47,6 +47,8 @@ enum Failure {
     Syntax,
     /// Python's RecursionError.
     TooDeep,
+    /// The ValueError of an integer literal past Python's digit limit (not a JSONDecodeError).
+    IntTooLong,
     /// A hook refused: `duplicate_key` or `not_finite`.
     Code(&'static str),
 }
@@ -177,7 +179,7 @@ impl Scanner<'_> {
             return Ok((Value::Float(value), i));
         }
         if literal.trim_start_matches('-').len() > MAX_INT_DIGITS {
-            return Err(Failure::Syntax);
+            return Err(Failure::IntTooLong);
         }
         Ok((Value::Int(Int::parse(&literal).ok_or(Failure::Syntax)?), i))
     }
@@ -347,15 +349,18 @@ pub fn decode(raw: &[u8], limit: usize) -> Result<Value, DocumentError> {
         Ok(value) => Ok(value),
         Err(Failure::Code(code)) => Err(DocumentError::new(code)),
         Err(Failure::TooDeep) => Err(DocumentError::new("too_deep")),
-        Err(Failure::Syntax) => Err(DocumentError::new("not_json")),
+        Err(Failure::Syntax | Failure::IntTooLong) => Err(DocumentError::new("not_json")),
     }
 }
 
 /// Why `json.loads` refused a text: the ValueError of a bad one, or the RecursionError of a deep one.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LoadsError {
+    /// A `JSONDecodeError`.
     Value,
     Recursion,
+    /// The plain ValueError of an integer literal of more than 4300 digits (S2.2: the settings file names the class).
+    IntTooLong,
 }
 
 /// `json.loads(text)` as Python reads it with no hooks: `NaN` and `Infinity` are numbers, a number too big for a float
@@ -371,6 +376,7 @@ pub fn loads(text: &str) -> Result<Value, LoadsError> {
     {
         Ok(value) => Ok(value),
         Err(Failure::TooDeep) => Err(LoadsError::Recursion),
+        Err(Failure::IntTooLong) => Err(LoadsError::IntTooLong),
         Err(_) => Err(LoadsError::Value),
     }
 }

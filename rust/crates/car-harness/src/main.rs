@@ -65,7 +65,13 @@ fn serve() -> i32 {
         if line.is_empty() {
             continue;
         }
+        // S2.2's calls read the line as Python's json.loads does (NaN, lone surrogates), which serde refuses.
+        let loose = line
+            .contains("\"policy.batch\"")
+            .then(|| car_harness::policy::answer(line))
+            .flatten();
         let (id, reply) = match serde_json::from_str::<serde_json::Value>(line) {
+            _ if loose.is_some() => loose.unwrap_or((Value::Null, Value::Null)),
             Ok(request) if request.is_object() => {
                 let id = request
                     .get("id")
@@ -83,7 +89,9 @@ fn serve() -> i32 {
             ),
         };
         let envelope = object([("id", id), ("reply", reply)]);
+        // A text holding half of a pair cannot be written as itself: it goes as its escape, as ensure_ascii writes it.
         let text = to_string(&envelope, &Options::wire())
+            .or_else(|_| to_string(&envelope, &Options::new()))
             .unwrap_or_else(|_| "{\"id\": null, \"reply\": {\"ok\": false}}".into());
         if writeln!(stdout, "{text}")
             .and_then(|_| stdout.flush())
