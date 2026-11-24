@@ -48,7 +48,9 @@ from rustdiff.diffs import RECORD, Base, encode
 
 ROOT = core.ROOT
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-VOCAB = ROOT / "rust" / "crates" / "car-store" / "src" / "seam" / "vocab.rs"
+# S2.1 moved the store seam's policy lists to car-policy, whose vocabulary is generated from the tag (gen_policy.py).
+VOCAB = ROOT / "rust" / "crates" / "car-policy" / "src" / "classify" / "vocab_gen.rs"
+SEAM = ROOT / "rust" / "crates" / "car-store" / "src" / "seam"
 
 THREAD, OTHER = released.THREAD, released.OTHER
 THIRD = "0a1b2c3d-0001-7000-8000-000000000003"
@@ -356,7 +358,9 @@ ORDERED = {"GATES", "WATCHER_ENDS", "EARLY_STATES"}
 MACHINE_OWNED = {"STATES", "WAITING", "CLAIMED", "IN_FLIGHT", "OBSERVING", "OUTCOMES", "EXHAUSTED", "TERMINAL",
                  "V2_STATES", "WATCHED", "EVENT_CODES", "REASONS", "ACTORS", "TURN_STATUSES", "WITHDRAW_REASONS",
                  "RELEASABLE_WITHDRAWALS", "HOLDS", "IMPORTANCE_TIERS", "HOME_STATES", "ENGINE_STATES",
-                 "USAGE_BUCKETS", "USAGE_SLOTS", "USAGE_KEYS", "PLAIN_MOVES"}
+                 "USAGE_BUCKETS", "USAGE_SLOTS", "USAGE_KEYS", "PLAIN_MOVES",
+                 # car-machine's WatcherEnd enum (S2.1: car-store reads it as words through machine.rs).
+                 "WATCHER_ENDS"}
 VOCAB_SOURCES = r'''
 import json
 from codex_auto_resume import failures, ladder, machine, needsyou
@@ -386,15 +390,18 @@ class SeamVocabularyDiff(Base):
                 for name, body in re.findall(r"pub const (\w+): &\[&str\] =\s*&\[(.*?)\];", source, re.S)}
         for name, values in theirs.items():
             if name in MACHINE_OWNED:
-                self.assertNotIn(name, mine, "%s is car-machine's now, not a copy in the seam" % name)
+                # car-machine's: no copy in the store (the seam is gone but python.rs), held by diffs_leaves_machine.
                 continue
             self.assertIn(name, mine, name)
             if name in ORDERED:
                 self.assertEqual(mine[name], [str(value) for value in values], name)
             else:
                 self.assertEqual(sorted(mine[name]), sorted(str(value) for value in values), name)
-        RECORD.append("store seam: the policy's %d closed lists equal to %s's; %d lists are car-machine's"
-                      % (len(theirs) - len(MACHINE_OWNED), reference.TAG, len(MACHINE_OWNED) - 1))
+        self.assertEqual(sorted(path.name for path in SEAM.iterdir()), ["mod.rs", "python.rs"],
+                         "car-store's seam holds only CPython's readings now; the policy is car-policy's")
+        RECORD.append("store seam: gone but python.rs; the policy's %d closed lists car-policy's, equal to %s's; "
+                      "%d lists are car-machine's" % (len(theirs) - len(MACHINE_OWNED), reference.TAG,
+                                                      len(MACHINE_OWNED) - 1))
 
 
 class FreshStateDiff(StoreBase):

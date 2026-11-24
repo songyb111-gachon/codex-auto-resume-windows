@@ -3,9 +3,9 @@
 //!
 //! Nothing here is a rule: each function builds the arguments car-machine's function takes (a `Value`, the record as
 //! a dict), calls it, and turns the Python exception it names into the store's [`Error::Python`]. The lists come
-//! from car-machine's generated vocabularies, held to the reference's by `diffs_leaves_machine.py`. What still waits
-//! for car-policy (S2.1) - the failure categories, the gates, `is_recoverable`, `reset_verified`,
-//! `postponement_problem` - is in [`crate::seam`].
+//! from car-machine's generated vocabularies, held to the reference's by `diffs_leaves_machine.py`. What the store
+//! reads of car-policy (S2.1) - the failure categories, the gates, `is_recoverable`, `postponement_problem` and the
+//! constants - is [`policy`], car-policy's own items.
 
 use car_machine::domain::{ids as domain_ids, public, states, usage as domain_usage};
 use car_machine::json::Value;
@@ -27,7 +27,36 @@ pub mod vocab {
         BUCKETS as USAGE_BUCKETS, KEYS as USAGE_KEYS, SLOTS as USAGE_SLOTS,
     };
 
-    pub use crate::seam::vocab::{CATEGORIES, NOTICE_KINDS, WATCHER_ENDS};
+    pub use car_machine::vocab_gen::domain_vocabulary::WatcherEnd;
+    pub use car_policy::classify::failures::CATEGORIES;
+    pub use car_policy::classify::needsyou::NOTICE_KINDS;
+
+    /// `WatcherEnd`, in order (`domain/vocabulary.py`): car-machine's enum, as words.
+    pub const WATCHER_ENDS: &[&str] = &[
+        WatcherEnd::Running.as_str(),
+        WatcherEnd::Clean.as_str(),
+        WatcherEnd::MemoryGuard.as_str(),
+        WatcherEnd::Unexpected.as_str(),
+    ];
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn the_watcher_ends_are_the_enum() {
+            let words: Vec<&str> = WatcherEnd::ALL.iter().map(|end| end.as_str()).collect();
+            assert_eq!(WATCHER_ENDS, words.as_slice());
+        }
+    }
+}
+
+/// What the store reads of car-policy (S2.1): car-policy's own items, by the names the store's Python reads them.
+pub mod policy {
+    pub use car_policy::classify::failures::{USAGE_LIMIT, is_recoverable};
+    pub use car_policy::classify::gates;
+    pub use car_policy::classify::needsyou::KEEP_SECONDS;
+    pub use car_policy::classify::quiet::postponement_problem;
 }
 
 /// `value in words`.

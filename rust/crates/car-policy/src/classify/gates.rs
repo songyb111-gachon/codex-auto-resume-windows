@@ -1,27 +1,30 @@
-//! domain/gates.py, the parts the store's claim and registration run: the gates, the stored vector, the
-//! chain's counters and the stop a record is born in.
+//! `domain/gates.py`: the gates a record passes before anything is sent, and the vector they are stored as.
 //!
-//! SEAM, TO BE REPLACED by car-policy's gates (S2.1).
+//! Evaluated in order, and the first that does not pass is the reason shown. The vector is written down with the
+//! record so what was decided can be read back afterwards, and anything unexpected in a stored one becomes UNKNOWN
+//! rather than a pass. Moved here from car-store's seam (S1.2 had ported the parts the store runs).
+//!
+//! The functions take a stored record ([`Row`]) with the store's column types - numbers, words, `None` - as every
+//! caller hands one (the store validates each write); a record of other types is not one they are asked about.
 
+use car_machine::domain::ids;
 use car_machine::json::{Map, Options, Str, Value, to_string};
+use car_machine::vocab_gen::domain_states::WAITING;
 
-use super::vocab::{GATE_REASONS, GATE_RESULTS, GATES, RESENDABLE};
-use crate::machine::vocab::WAITING;
-use crate::machine::{has, ids};
-use crate::value::{Row, arithmetic, get, int, number, or_zero, text, text_of, truthy};
+use super::has;
+use super::value::{Row, arithmetic, get, int, number, or_zero, text, text_of, truthy};
+pub use super::vocab_gen::domain_gates::{
+    CHAIN_FIELDS, FORCEABLE, GATE_REASONS, GATE_RESULTS, GATES, HELD, NOT_CHECKED, PLUGGED, RESEND,
+    RESENDABLE, SEND_NOW, SESSION,
+};
 
 pub const PASS: &str = "PASS";
 pub const WAIT: &str = "WAIT";
 pub const BLOCK: &str = "BLOCK";
 pub const UNKNOWN: &str = "UNKNOWN";
-pub const NOT_CHECKED: &str = "not_checked";
-pub const HELD: &str = "held";
-pub const PLUGGED: &str = "plugged";
 pub const POSTPONED: &str = "postponed";
 pub const QUIET_HOURS: &str = "quiet_hours";
 pub const OBSERVE_ONLY: &str = "observe_only";
-pub const RESEND: &str = "resend";
-pub const SEND_NOW: &str = "send_now";
 
 /// One gate's answer: (result, reason).
 pub type Gate = (String, String);
@@ -233,16 +236,6 @@ pub fn over_ceiling(record: &Row, limits: &Limits, usage_category: bool) -> bool
             .is_some_and(|ceiling| chain_span(record) >= ceiling)
 }
 
-/// The fields a new record takes from its parent (`CHAIN_FIELDS`).
-pub const CHAIN_FIELDS: &[&str] = &[
-    "chain_origin_id",
-    "chain_first_detected_at",
-    "chain_continuations",
-    "recovery_attempts",
-    "usage_unavailable_seconds",
-    "budget_resets",
-];
-
 /// `inherited(parent, failed_turn_progress, legacy_carry)`: what a new record of a task starts with.
 pub fn inherited(
     parent: Option<&Row>,
@@ -403,7 +396,7 @@ pub fn decode_gates(stored: &Value) -> Vector {
     let raw = match stored {
         Value::Str(stored) if stored.code_points().count() <= 4000 => stored
             .as_str()
-            .and_then(|stored| super::python::loads(stored).ok())
+            .and_then(|stored| super::pyjson::loads(stored).ok())
             .unwrap_or(Value::Null),
         _ => Value::Null,
     };
@@ -432,4 +425,46 @@ pub fn decode_gates(stored: &Value) -> Vector {
         );
     }
     result
+}
+
+/// `usage_read_stopped(enabled=, conversation_on=, observing=, quiet=)`: what stops usage being read for a recovery a
+/// person asked about, in the store's NOT_CHECKED words, or None.
+pub fn usage_read_stopped(
+    enabled: bool,
+    conversation_on: bool,
+    observing: bool,
+    quiet: bool,
+) -> Option<&'static str> {
+    if !enabled {
+        Some("paused")
+    } else if !conversation_on {
+        Some("conversation_off")
+    } else if observing {
+        Some(OBSERVE_ONLY)
+    } else if quiet {
+        Some(QUIET_HOURS)
+    } else {
+        None
+    }
+}
+
+/// `would_send_at(record)`: Observe only - when a waiting record last passed every gate but consent, which only
+/// observe-only refused, or None.
+pub fn would_send_at(record: &Row) -> Value {
+    let waiting = text_of(record, "state").is_some_and(|state| has(WAITING, state));
+    if !waiting || !truthy(get(record, "gate_eval")) {
+        return Value::Null;
+    }
+    let vector = decode_gates(get(record, "gate_eval"));
+    if vector.or_unknown("consent") != (BLOCK.to_string(), OBSERVE_ONLY.to_string()) {
+        return Value::Null;
+    }
+    if GATES
+        .iter()
+        .filter(|name| **name != "consent")
+        .any(|name| vector.or_unknown(name).0 != PASS)
+    {
+        return Value::Null;
+    }
+    get(record, "gate_eval_at").clone()
 }

@@ -5,9 +5,9 @@ use car_machine::json::{Map, Options, Str, Value, from_str, to_string};
 
 use crate::errors::{Error, Result};
 use crate::journal::finite_value;
+use crate::machine::policy::KEEP_SECONDS;
 use crate::machine::vocab::{ENGINE_STATES, HOME_STATES, STATES, TERMINAL, WATCHER_ENDS};
 use crate::machine::{epoch_store, has, usage};
-use crate::seam::KEEP_SECONDS;
 use crate::session::Store;
 use crate::validate::{is_home_key, now as check_now, short_text, validated_notice};
 use crate::value::{
@@ -307,7 +307,7 @@ impl Store {
         row.insert(key("seen_at"), Value::Null);
         let row = validated_notice(row)?;
         self.transaction(|connection| {
-            execute(connection, "DELETE FROM notices WHERE raised_at<?", &[Value::Float(now - KEEP_SECONDS)])?;
+            execute(connection, "DELETE FROM notices WHERE raised_at<?", &[Value::Float(now - KEEP_SECONDS as f64)])?;
             let inserted = execute(
                 connection,
                 "INSERT OR IGNORE INTO notices (interruption_id, thread_id, category, raised_at, seen_at) VALUES (?,?,?,?,NULL)",
