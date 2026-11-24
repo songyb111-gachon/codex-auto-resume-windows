@@ -11,8 +11,8 @@ use std::io::{BufRead, Write};
 use std::path::Path;
 use std::time::Duration;
 
+use car_machine::vocab_gen::domain_vocabulary::StateAccess;
 use car_platform::registry::{Call, FakeRegistry, Root, Typed, Value};
-use car_platform::seams::StateAccess;
 use car_platform::spawn::{Spawn, SpawnError, Starter, Stream, SystemStarter};
 use car_platform::{
     acl, addremove, authenticode, cmdline, handover, homelock, inventory, kernel, names, network,
@@ -639,7 +639,7 @@ fn handle(request: &Json) -> Result<Json, String> {
         )),
         "signer" => match authenticode::signer(Path::new(text(request, "path"))) {
             Ok(name) => json!({"ok": name}),
-            Err(error) => json!({"error": error.code()}),
+            Err(error) => json!({"error": error.0}),
         },
         // typeface
         "letters" => json!(typeface::letters(&strings(request, "texts"))),
@@ -732,7 +732,7 @@ fn handle(request: &Json) -> Result<Json, String> {
                 Ok(found) => {
                     json!({"pid": found.pid, "path": found.path, "created": found.created})
                 }
-                Err(error) => json!({"error": error.code()}),
+                Err(error) => json!({"error": error.0}),
             }
         }
         "processes_named" => {
@@ -742,7 +742,7 @@ fn handle(request: &Json) -> Result<Json, String> {
             let fam: Vec<&str> = families.iter().map(String::as_str).collect();
             match kernel::processes_named(&borrowed, &fam) {
                 Ok(found) => json!(found.iter().map(|p| json!({"pid": p.pid, "parent": p.parent, "path": p.path, "created": p.created, "family": p.family})).collect::<Vec<_>>()),
-                Err(error) => json!({"error": error.code()}),
+                Err(error) => json!({"error": error.0}),
             }
         }
         "running_images" => json!(kernel::running_images().map(|mut images| {
@@ -764,7 +764,7 @@ fn handle(request: &Json) -> Result<Json, String> {
                         .map(|h| json!({"pid": h.pid, "created": h.created}))
                         .collect::<Vec<_>>()
                 ),
-                Err(error) => json!({"error": error.code()}),
+                Err(error) => json!({"error": error.0}),
             }
         }
         "windows_of" => json!(handover::windows_of(text(request, "exe"))),

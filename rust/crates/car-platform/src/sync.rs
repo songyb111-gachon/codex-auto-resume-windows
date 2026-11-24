@@ -20,7 +20,7 @@ use windows::core::PCWSTR;
 use crate::kernel::{ERROR_ALREADY_EXISTS, refuse_if_squatted};
 use crate::names;
 use crate::paths::{home_identity, wide};
-use crate::seams::AdapterError;
+use car_machine::domain::errors::AdapterError;
 
 const EVENT_MODIFY_STATE: u32 = 0x0002;
 

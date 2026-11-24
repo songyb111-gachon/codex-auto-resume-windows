@@ -11,7 +11,7 @@ use windows::Win32::System::RestartManager::{
 use windows::core::{PCWSTR, PWSTR};
 
 use crate::paths::wide;
-use crate::seams::AdapterError;
+use car_machine::domain::errors::AdapterError;
 
 /// A process that holds a resource: its id and creation FILETIME. Only these leave; names and content are not kept.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

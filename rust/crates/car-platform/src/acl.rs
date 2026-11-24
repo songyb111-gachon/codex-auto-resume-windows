@@ -25,7 +25,7 @@ use windows::core::{PCWSTR, PWSTR};
 
 use crate::kernel::{sid_text, user_sid};
 use crate::paths::{from_wide, wide_os};
-use crate::seams::StateAccess;
+use car_machine::vocab_gen::domain_vocabulary::StateAccess;
 
 const ACCESS_ALLOWED_ACE_TYPE: u8 = 0;
 const ACCESS_DENIED_ACE_TYPE: u8 = 1;

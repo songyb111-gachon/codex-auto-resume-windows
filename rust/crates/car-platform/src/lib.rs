@@ -33,7 +33,6 @@ pub mod powerdown;
 pub mod pwsh;
 pub mod registry;
 pub mod registry_reads;
-pub mod seams;
 pub mod shortcut;
 pub mod spawn;
 pub mod startup;

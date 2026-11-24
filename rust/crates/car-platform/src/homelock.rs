@@ -26,7 +26,7 @@ use windows::core::{HRESULT, PCWSTR};
 
 use crate::names::{INSTALL_LOCK, identity_lock_path};
 use crate::paths::wide;
-use crate::seams::AdapterError;
+use car_machine::domain::errors::AdapterError;
 
 const SYNCHRONIZE: u32 = 0x0010_0000;
 

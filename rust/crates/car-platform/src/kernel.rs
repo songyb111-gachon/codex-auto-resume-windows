@@ -33,7 +33,7 @@ use windows::Win32::System::Threading::{
 };
 use windows::core::{PCWSTR, PWSTR};
 
-use crate::seams::AdapterError;
+use car_machine::domain::errors::AdapterError;
 
 pub use crate::spawn::{CREATE_BREAKAWAY_FROM_JOB, CREATE_NO_WINDOW as NO_WINDOW};
 

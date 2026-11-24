@@ -18,7 +18,7 @@ use windows::Win32::Security::WinTrust::{
 use windows::core::PCWSTR;
 
 use crate::paths::{from_wide, wide_os};
-use crate::seams::AdapterError;
+use car_machine::domain::errors::AdapterError;
 
 // Two helpers of wintrust.dll the `windows` crate carries no declaration for (its metadata lists the others of the
 // family, these two not): declared here, the only raw declarations of the crate.

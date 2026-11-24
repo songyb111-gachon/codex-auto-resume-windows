@@ -6,8 +6,8 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::time::Duration;
 
+use car_machine::vocab_gen::domain_vocabulary::StateAccess;
 use car_platform::registry::{Call, FakeRegistry, Root, Value};
-use car_platform::seams::StateAccess;
 use car_platform::spawn::{
     CREATE_NO_WINDOW, Spawn, SpawnError, Starter, Stream, SystemStarter, last_started_flags,
 };
