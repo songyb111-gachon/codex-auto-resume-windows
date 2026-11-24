@@ -13,7 +13,7 @@ use std::time::Duration;
 
 use car_platform::registry::{Call, FakeRegistry, Root, Typed, Value};
 use car_platform::seams::StateAccess;
-use car_platform::spawn::{Spawn, SpawnError, Starter};
+use car_platform::spawn::{Spawn, SpawnError, Starter, Stream, SystemStarter};
 use car_platform::{
     acl, addremove, authenticode, cmdline, handover, homelock, inventory, kernel, names, network,
     ownprocess, paths, power, powerdown, pwsh, registry_reads, shortcut, startup, sync, typeface,
@@ -701,6 +701,22 @@ fn handle(request: &Json) -> Result<Json, String> {
                 "context": {"in_job": context.in_job, "kill_on_close": context.kill_on_close, "breakaway_ok": context.breakaway_ok, "silent_breakaway_ok": context.silent_breakaway_ok, "packaged": context.packaged},
                 "act_refused": !powerdown::act("sleep") && !powerdown::act("shut_down"),
                 "booted_at": ownprocess::booted_at(),
+            })
+        }
+        // Start a program through the one starter, with its output piped back: what the child saw, and the creation
+        // flags the starter applied.
+        "echo" => {
+            let spawn = Spawn::new(strings(request, "argv")).with_streams(
+                Stream::Null,
+                Stream::Piped,
+                Stream::Null,
+            );
+            let child = SystemStarter.start(&spawn).map_err(|e| e.to_string())?;
+            let output = child.wait_with_output().map_err(|e| e.to_string())?;
+            json!({
+                "stdout": String::from_utf8_lossy(&output.stdout),
+                "code": output.status.code(),
+                "flags": car_platform::spawn::last_started_flags(),
             })
         }
         "pid" => json!(std::process::id()),
