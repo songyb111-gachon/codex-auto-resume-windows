@@ -27,7 +27,7 @@ path = "src/bin/car-core-stub.rs"
 # D5: JSON is written by car-machine's Python-compatible writer.
 car-machine = { path = "../car-machine" }
 # The differential harness's Rust side (PLAN.md 1.2 row 17, section 4): dev only, never shipped.
-# D4: SQLite bundled into the binary, one version on every PC.
-rusqlite = { version = "0.43", features = ["bundled"] }
+# The state store (S1.2): every store call, and the bundled SQLite (D4) through it.
+car-store = { path = "../car-store" }
 # D5: serde to read (the harness's requests).
 serde_json = "1"

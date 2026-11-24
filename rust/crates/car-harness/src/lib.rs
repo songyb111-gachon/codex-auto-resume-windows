@@ -1,10 +1,10 @@
 //! car-harness: the Rust side of the differential harness (PLAN.md section 4). Dev only, never shipped.
 //!
-//! Today it holds S0.4's skeleton and proof only: the bridge's `defaults` and one state read, writing JSON
+//! It holds S0.4's skeleton (the bridge's `defaults`) and car-store's calls (S1.2, `store`), writing JSON
 //! through car-machine's Python-compatible writer. Every later port seat adds its calls to `serve` and moves the real code into its own crate.
 
 pub mod defaults;
-pub mod state;
+pub mod store;
 
 use car_machine::json::{Map, Value};
 
