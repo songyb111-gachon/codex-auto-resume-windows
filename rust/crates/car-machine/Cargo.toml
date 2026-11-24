@@ -1,0 +1,16 @@
+[package]
+name = "car-machine"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.100"
+license = "MIT"
+publish = false
+description = "The domain's states, ids, errors and vocabularies, and the Python-compatible JSON writer."
+
+# No [workspace] table: alone this crate builds with `--manifest-path`, and inside the
+# standard workspace (rust/Cargo.toml) it is one member among the others.
+
+[dependencies]
+# D5: serde_json reads (keys in their order, numbers as written); the writer is our own.
+indexmap = "2"
+serde_json = { version = "1", default-features = false, features = ["std", "preserve_order", "arbitrary_precision"] }
