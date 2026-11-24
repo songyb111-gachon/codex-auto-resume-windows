@@ -136,7 +136,7 @@ claim race: 6 rounds of each pairing (python+python, rust+rust, python+rust, rus
   the other refused submission_safe/possibly_sent
 busy: a read under another's write lock did not wait; a claim waited for a 2 s lock and got it; behind a 13 s lock
   both gave up after the 10 s timeout with StoreError 'State transaction failed'
-store seam: 34 closed lists and PLAIN_MOVES equal to v0.6.26-beta.2's
+store seam: the policy's 11 closed lists equal to v0.6.26-beta.2's; 23 lists are car-machine's
 ```
 
 The diff catches a difference: `max(0, ...)` turned to `max(1, ...)` in car-store's claim refund made ScriptDiff fail
