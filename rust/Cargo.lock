@@ -67,7 +67,10 @@ dependencies = [
 name = "car-harness"
 version = "0.0.0"
 dependencies = [
+ "car-brand",
+ "car-config",
  "car-machine",
+ "car-words",
  "rusqlite",
  "serde_json",
 ]
@@ -158,6 +161,7 @@ name = "car-words"
 version = "0.0.0"
 dependencies = [
  "car-machine",
+ "indexmap",
 ]
 
 [[package]]

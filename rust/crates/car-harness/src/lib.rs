@@ -4,6 +4,7 @@
 //! through car-machine's Python-compatible writer. Every later port seat adds its calls to `serve` and moves the real code into its own crate.
 
 pub mod defaults;
+pub mod leaves;
 pub mod state;
 
 use car_machine::json::{Map, Value};

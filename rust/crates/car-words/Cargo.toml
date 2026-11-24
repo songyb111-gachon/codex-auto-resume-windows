@@ -10,3 +10,5 @@ workspace = true
 
 [dependencies]
 car-machine = { path = "../car-machine" }
+# The catalogs keep the order their files give (a dict's order); the same crate and version car-machine reads JSON with.
+indexmap = "2"
