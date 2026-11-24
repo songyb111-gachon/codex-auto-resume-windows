@@ -13,14 +13,14 @@
 //!
 //! # How the advanced edition plugs in (D2)
 //!
-//! The standard workspace (`rust/`) never names the advanced crate; the advanced workspace (`advanced/rust/`) depends
-//! on car-policy by path, never the other way round. car-adv implements this trait on its own type
-//! (`impl car_policy::plug::Plug for AdvancedPlug`), overriding only the hooks its capabilities use - every other hook
-//! keeps the trait's default, which is NULL's answer - and writes `const PLUG_API: i64 = car_policy::plug::PLUG_API;`
-//! beside it. The advanced binaries (car-adv-bin, car-adv-host) build their `Guarded` with
-//! [`Guarded::new`]`(Box::new(AdvancedPlug::create(paths)?))`, or [`edition::load`] with car-adv's factory, which turns a
-//! factory that fails into a [`DamagedPlug`] ("Advanced - not loaded"). The standard binaries call
-//! [`Guarded::null`] and link no advanced code at all, so their bytes are the same with `advanced/` deleted.
+//! This workspace never names the advanced edition's crate or folder (check_groundwork.py holds it to that); the
+//! advanced workspace depends on car-policy by path, never the other way round (PLAN 1.1, 1.4). The advanced edition's
+//! one library crate implements this trait on its own type (`impl car_policy::plug::Plug for AdvancedPlug`),
+//! overriding only the hooks its capabilities use - every other hook keeps the trait's default, which is NULL's answer -
+//! and hands [`edition::load`] an [`edition::Factory`] with the PLUG_API it was written for and the function that makes
+//! its plug; a factory that fails, or makes no advanced plug, becomes a [`DamagedPlug`] ("Advanced - not loaded"). The
+//! advanced binaries pass that factory; the standard binaries pass none (or call [`Guarded::null`]) and link no
+//! advanced code at all, so their bytes are the same with the advanced folder deleted.
 //!
 //! What a hook is handed that core owns and car-policy cannot name - the engine's view of its store (P2, P8, P22),
 //! the claim's connection (P11) - is a trait object of this module ([`View`], [`Ledger`]), which car-engine and

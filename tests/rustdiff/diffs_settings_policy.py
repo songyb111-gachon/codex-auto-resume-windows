@@ -78,7 +78,8 @@ for seed, deny_keys, deny_values in [
         ([["HKLM", policykeys.KEY, {"QuietHours": ["22:00-07:00", sz], "MaxRecoveryAttempts": [9, dword]}]], [],
          [["HKLM", policykeys.KEY, "QuietHours"], ["HKLM", policykeys.KEY, "MaxRecoveryAttempts"]]),
         ([["HKCU", "Software\\Policies", {}]], [], []),
-        ([["HKCU", policykeys.KEY, {"MaxRecoveryAttempts": [21, dword], "QuietHours": ["22:00-22:00", sz]}]], [], [])]:
+        ([["HKCU", policykeys.KEY, {"MaxRecoveryAttempts": [21, dword], "QuietHours": ["22:00-22:00", sz]}]], [], []),
+        ([["HKCU", policykeys.KEY, {"DisableAutoResume": [1, 11], "MaxRecoveryAttempts": [2, 11]}]], [], [])]:
     cases.append(["managed.registry", {"seed": seed, "deny_keys": deny_keys, "deny_values": deny_values}])
 def registry(request):
     fake = Winreg(request)

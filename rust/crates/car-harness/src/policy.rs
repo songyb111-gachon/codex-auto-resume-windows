@@ -211,14 +211,16 @@ fn registry_places(request: &Value) -> Value {
         if let Some(Value::Object(named)) = parts.get(2) {
             for (name, pair) in named {
                 let Value::Array(pair) = pair else { continue };
-                let data = match &pair[0] {
-                    Value::Str(found) => Reg::Str(found.as_str().unwrap_or_default().to_owned()),
-                    Value::Int(found) => Reg::Int(found.as_u64().unwrap_or(0) as u32),
-                    _ => Reg::Bytes(Vec::new()),
-                };
                 let kind = match &pair[1] {
                     Value::Int(found) => found.as_u64().unwrap_or(1) as u32,
                     _ => 1,
+                };
+                let data = match &pair[0] {
+                    Value::Str(found) => Reg::Str(found.as_str().unwrap_or_default().to_owned()),
+                    // A REG_QWORD is read back as the 64-bit number it is (car-platform's real reader does the same).
+                    Value::Int(found) if kind == 11 => Reg::Qword(found.as_u64().unwrap_or(0)),
+                    Value::Int(found) => Reg::Int(found.as_u64().unwrap_or(0) as u32),
+                    _ => Reg::Bytes(Vec::new()),
                 };
                 values.push((name.as_str().unwrap_or_default().to_owned(), data, kind));
             }
@@ -245,6 +247,9 @@ fn registry_places(request: &Value) -> Value {
                 for (name, found) in place {
                     let pair = match found {
                         PolicyValue::Data((Reg::Str(data), kind)) => {
+                            vec![Value::from(data), Value::from(kind)]
+                        }
+                        PolicyValue::Data((Reg::Qword(data), kind)) => {
                             vec![Value::from(data), Value::from(kind)]
                         }
                         PolicyValue::Data((Reg::Int(data), kind)) => {

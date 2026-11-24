@@ -21,7 +21,7 @@ use windows::Win32::Foundation::{
 };
 use windows::Win32::System::Registry::{
     HKEY, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, REG_DWORD, REG_EXPAND_SZ, REG_OPTION_NON_VOLATILE,
-    REG_SAM_FLAGS, REG_SZ, REG_VALUE_TYPE, RegCloseKey, RegCreateKeyExW, RegDeleteKeyW,
+    REG_QWORD, REG_SAM_FLAGS, REG_SZ, REG_VALUE_TYPE, RegCloseKey, RegCreateKeyExW, RegDeleteKeyW,
     RegDeleteValueW, RegOpenKeyExW, RegQueryValueExW, RegSetValueExW,
 };
 use windows::core::PCWSTR;
@@ -52,10 +52,12 @@ impl Root {
 }
 
 /// A value as `winreg.QueryValueEx` hands it back: text, a number, or the bytes of a type nothing here reads.
+/// A REG_QWORD is a number too (winreg gives an int), which the administrator's policy keys honour (S2.2).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Value {
     Str(String),
     Int(u32),
+    Qword(u64),
     Bytes(Vec<u8>),
 }
 
@@ -523,6 +525,9 @@ impl Registry for WinRegistry {
             REG_DWORD if data.len() >= 4 => {
                 Value::Int(u32::from_le_bytes([data[0], data[1], data[2], data[3]]))
             }
+            REG_QWORD if data.len() >= 8 => Value::Qword(u64::from_le_bytes([
+                data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7],
+            ])),
             _ => Value::Bytes(data),
         };
         Ok((value, kind.0))
@@ -540,6 +545,7 @@ impl Registry for WinRegistry {
                     .collect(),
             ),
             Value::Int(number) => (REG_DWORD, number.to_le_bytes().to_vec()),
+            Value::Qword(number) => (REG_QWORD, number.to_le_bytes().to_vec()),
             Value::Bytes(bytes) => (REG_VALUE_TYPE(3), bytes.clone()),
         };
         // SAFETY: `name` and `data` outlive the call.

@@ -141,17 +141,36 @@ def names_advanced(line: str, strong: tuple[str, ...], rust: "re.Pattern[str]") 
     return found.group(0) if found else None
 
 
+def allowed_names() -> dict:
+    """The lines of the standard workspace that have to spell an advanced name, keyed by the file and the name, as
+    `build/edition_audit.py` ALLOWED keys its own: an allowance for one is no allowance for another, and one nothing uses
+    fails. The one entry is car-policy's edition look (S2.2), which tells an installation's edition by whether the
+    package's folder is there, as `edition.py` does - the line edition_audit allows `edition.py` itself. A standard
+    binary that links it holds the package's name, so the audit's (d) will need the same allowance for the Rust core's
+    executables (S8.1)."""
+    strong, _rust = advanced_names()
+    return {("rust/crates/car-policy/src/plug/edition.rs", strong[0]):
+            "the one module of core that looks for the package, by its name (edition.py's allowance)"}
+
+
 def check_standard_never_names_advanced(root: Path = STD) -> None:
     strong, rust = advanced_names()
+    allowed, used = allowed_names(), set()
     for path in sorted(root.rglob("*")):
         if not path.is_file() or "target" in path.relative_to(root).parts:
             continue
         if path.suffix not in (".toml", ".rs", ".sh", ".lock"):
             continue
+        where = path.relative_to(root.parent).as_posix()
         for number, line in enumerate(read(path).splitlines(), 1):
             name = names_advanced(line, strong, rust)
-            if name:
-                fail("%s:%d names advanced (%s): %s" % (path.relative_to(root.parent).as_posix(), number, name, line.strip()))
+            if name and (where, name) in allowed:
+                used.add((where, name))
+            elif name:
+                fail("%s:%d names advanced (%s): %s" % (where, number, name, line.strip()))
+    for where, name in sorted(set(allowed) - used):
+        if root == STD:
+            fail("%s: an allowance for %s that nothing uses" % (where, name))
 
 
 def metadata(root: Path) -> dict:

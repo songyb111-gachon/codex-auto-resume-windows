@@ -169,3 +169,24 @@ USERPROFILE, so their names are not the real watcher's. Power is never acted on 
 
 Platform seat dependencies: `windows` 0.62 (and its `windows-*` support crates), `serde_json` for the manifest's display
 name. No other crate; SHA-256 is Windows' own (`BCryptHash`).
+
+## Settings and the plug (S2.2, car-policy `settings/` and `plug/`)
+
+Six modules named `diffs_settings_*.py`, over one helper, `settingsdiff.py` (a family of cases made in the tag and
+answered by both, like `leaves.py`; not loaded by `run.py` on its own). They go to `car-harness serve` as `policy.batch`
+calls (`car-harness/src/policy.rs`), which read the request line as Python's `json.loads` reads it - a NaN, an int of any
+size and half of a surrogate pair reach the settings exactly as in Python, because settings files hold all three - and a
+reply holding half a pair is written with its escape.
+
+| Module | Holds equal to the tag |
+|---|---|
+| `diffs_settings_values.py` | `coerce`, `validate_update` (accept, refuse, the sentence), `_migrate` over every field's choices, own spellings, bounds and wrong types, and random mixtures with unknown and reserved keys; `defaults()`, `describe()`, `RANGES`, `field_type`, the readers of a settings dict and the bytes `save` writes; ownvalues; the homes' checks; the kinds of notice, registrations included; the memory guard |
+| `diffs_settings_files.py` | `read`/`load`/`save`/`update` and config.py's three settings functions on files: what 14 tags wrote, BOM, UTF-16, Latin-1, no JSON, 4 MiB and one byte more, nested past the reader, a folder in the file's place, a file held with no sharing, a read-only file - the answer, the bytes left and every other name in the folder; the status file's writer and remover; `homes.problem`/`strict` and the edition's look over a tree with a junction |
+| `diffs_settings_policy.py` | the policy keys: `managed.parse`/`clamp`/`admit`/`quiet_sources` over generated places, and end to end through a registry stand-in (the reference's `policykeys.read()` on `platform_registry_diffs.FAKE`, Rust's `read_policies` on `FakeRegistry`; HKCU is never opened); the power action's rules; the status file's content; the demo; `public.self_check` |
+| `diffs_settings_plug.py` | PLUG_API and every table of `domain/plug.py`; what NULL answers at all 21 hooks and what `Guarded(NULL)` gives core; `consult`'s closed set at each decision point for every word and for a hook that raises; `records_of`, `workers`, `fields`, `kinds_of`, `widening_of`, `Guarded.power`; the vocabularies of the 12 modules; car-policy's generated files |
+
+Alone: `python -X utf8 tests/rustdiff/run.py --build -k Settings -k OwnValues -k HomesKinds -k StatusTree -k Managed -k PowerStatus -k Plug`.
+
+**The final re-diff, one command:** when v0.6.26 is tagged, `python -X utf8 tests/rustdiff/gen_policy.py --check --ref v0.6.26 && python -X utf8 tests/rustdiff/run.py --build --reference v0.6.26 -k Settings -k OwnValues -k HomesKinds -k StatusTree -k Managed -k PowerStatus -k Plug`
+(`gen_policy.py` regenerates the vocabularies and Python's casefold and isalnum tables and says which file is stale; the
+diffs then say which answer moved). dev changed none of the seat's modules after v0.6.26-beta.2 when it was ported.

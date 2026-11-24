@@ -53,6 +53,7 @@ fn value_json(value: &Value) -> Json {
     match value {
         Value::Str(text) => json!(text),
         Value::Int(number) => json!(number),
+        Value::Qword(number) => json!(number),
         Value::Bytes(bytes) => json!(bytes),
     }
 }
