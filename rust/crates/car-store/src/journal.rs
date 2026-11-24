@@ -4,8 +4,8 @@ use car_machine::json::Value;
 use rusqlite::Connection;
 
 use crate::errors::Result;
-use crate::seam::vocab::{STATES, TERMINAL};
-use crate::seam::{actor_code, event_code, has, reason_code};
+use crate::machine::vocab::{STATES, TERMINAL};
+use crate::machine::{actor_code, event_code, has, reason_code};
 use crate::session::Store;
 use crate::value::{
     Row, float_or_null, get, int, integer, marks, number, optional, rows, string, text, words_but,
@@ -78,11 +78,11 @@ pub fn event(connection: &Connection, at: f64, code: &str, entry: Event<'_>) -> 
         entry
             .record
             .map_or(Value::Null, |record| get(record, "chain_origin_id").clone()),
-        string(event_code(code)),
+        string(&event_code(code)),
         state(entry.from_state),
         state(entry.to_state),
         optional(reason_code(&entry.reason).as_deref()),
-        string(actor_code(entry.actor)),
+        string(&actor_code(entry.actor)),
         optional(
             entry
                 .turn_ref
@@ -167,7 +167,7 @@ fn coerced(row: &Row) -> Row {
     );
     put(
         "interruption_id",
-        if crate::seam::ids::is_interruption_id(key, true) {
+        if crate::machine::ids::is_interruption_id(key, true) {
             key.clone()
         } else {
             Value::Null
@@ -175,9 +175,9 @@ fn coerced(row: &Row) -> Row {
     );
     put(
         "code",
-        string(match get(row, "code") {
+        string(&match get(row, "code") {
             Value::Str(code) => event_code(code.as_str().unwrap_or("")),
-            _ => "other",
+            _ => "other".to_owned(),
         }),
     );
     put("from_state", state("from_state"));
@@ -188,9 +188,9 @@ fn coerced(row: &Row) -> Row {
     );
     put(
         "actor",
-        string(match text(get(row, "actor")) {
+        string(&match text(get(row, "actor")) {
             Some(actor) => actor_code(actor),
-            None => "engine",
+            None => "engine".to_owned(),
         }),
     );
     put(

@@ -6,9 +6,10 @@ use rusqlite::Connection;
 use crate::columns::{MUTABLE, record_columns};
 use crate::errors::{Error, Result};
 use crate::journal::{Event, event, finite_value};
+use crate::machine::vocab::{STATES, TERMINAL, WAITING};
+use crate::machine::{has, ids, plain_move_allowed};
+use crate::seam::USAGE_LIMIT;
 use crate::seam::gates::{Limits, birth_stop, inherited, was_resent};
-use crate::seam::vocab::{STATES, TERMINAL, WAITING};
-use crate::seam::{USAGE_LIMIT, has, ids, plain_move_allowed};
 use crate::session::Store;
 use crate::validate::{is_usage, now as check_now, uuid_text, validated_record};
 use crate::value::{

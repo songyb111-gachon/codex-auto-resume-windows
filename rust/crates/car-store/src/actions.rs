@@ -5,8 +5,8 @@ use car_machine::json::Value;
 
 use crate::errors::{Error, Result};
 use crate::journal::{Event, event};
-use crate::seam::vocab::{EXHAUSTED, IN_FLIGHT, OBSERVING, REASONS, TERMINAL, WAITING};
-use crate::seam::{has, waiting_state};
+use crate::machine::vocab::{EXHAUSTED, IN_FLIGHT, OBSERVING, REASONS, TERMINAL, WAITING};
+use crate::machine::{has, waiting_state};
 use crate::session::Store;
 use crate::validate::{now as check_now, uuid_text};
 use crate::value::{
@@ -253,7 +253,7 @@ impl Store {
             if or_zero(get(&row, "budget_resets")) >= max_resets as f64 {
                 return Ok((false, string("reset_limit")));
             }
-            let target = waiting_state(&row, now);
+            let target = waiting_state(&row, now)?;
             execute(
                 connection,
                 "UPDATE interruptions SET state=?, recovery_attempts=0, no_progress_count=0, retry_count=0, chain_continuations=0, budget_resets=budget_resets+1, chain_first_detected_at=detected_at, last_error='budget_restored', next_retry_at=? WHERE interruption_id=?",

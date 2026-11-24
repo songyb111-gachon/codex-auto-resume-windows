@@ -1,8 +1,9 @@
 """The state store's diffs (seat S1.2, car-store): each runs the same calls through the reference tag's store
 (reference.py) and through car-store (`car-harness serve`, core.py) and holds the answers and the files equal.
 
-* SeamVocabularyDiff - the closed lists car-store's seam carries (rust/crates/car-store/src/seam/vocab.rs)
-  against the reference's own sets, member for member and, where order means something, in order.
+* SeamVocabularyDiff - the closed lists car-store's seam still carries (rust/crates/car-store/src/seam/vocab.rs: the
+  policy's) against the reference's own sets, member for member and, where order means something, in order. The
+  lists car-machine holds are car-machine's, held to the reference by diffs_leaves_machine.py.
 * FreshStateDiff - a fresh state, and a fresh state opened by the watcher (the mark written): equal dumps.
 * MigrationDiff - a state written by v0.3.2 (schema 1), v0.5.6 and v0.5.7 (schema 2), v0.6.10 (3) and
   v0.6.13 (4), each opened with migrate=True at a pinned clock: the same answer, the same dump, the same
@@ -350,8 +351,12 @@ def twin(source: Path, a: Path, b: Path):
 
 
 # ------------------------------------------------------------------------------------------ the diffs
-ORDERED = {"GATES", "IMPORTANCE_TIERS", "HOME_STATES", "WATCHER_ENDS", "USAGE_BUCKETS", "USAGE_SLOTS",
-           "USAGE_KEYS", "EARLY_STATES"}
+ORDERED = {"GATES", "WATCHER_ENDS", "EARLY_STATES"}
+# What moved to car-machine (S1.1): the store reads these through car_machine::vocab_gen, no copy of its own.
+MACHINE_OWNED = {"STATES", "WAITING", "CLAIMED", "IN_FLIGHT", "OBSERVING", "OUTCOMES", "EXHAUSTED", "TERMINAL",
+                 "V2_STATES", "WATCHED", "EVENT_CODES", "REASONS", "ACTORS", "TURN_STATUSES", "WITHDRAW_REASONS",
+                 "RELEASABLE_WITHDRAWALS", "HOLDS", "IMPORTANCE_TIERS", "HOME_STATES", "ENGINE_STATES",
+                 "USAGE_BUCKETS", "USAGE_SLOTS", "USAGE_KEYS", "PLAIN_MOVES"}
 VOCAB_SOURCES = r'''
 import json
 from codex_auto_resume import failures, ladder, machine, needsyou
@@ -379,18 +384,17 @@ class SeamVocabularyDiff(Base):
         source = VOCAB.read_text(encoding="utf-8")
         mine = {name: re.findall(r'"([^"]*)"', body)
                 for name, body in re.findall(r"pub const (\w+): &\[&str\] =\s*&\[(.*?)\];", source, re.S)}
-        moves = {name: re.findall(r'"([^"]*)"', body) for name, body in
-                 re.findall(r'\(\s*"([a-z_]+)",\s*&\[(.*?)\],?\s*\)', source.split("PLAIN_MOVES")[-1], re.S)}
         for name, values in theirs.items():
-            if name == "PLAIN_MOVES":
-                self.assertEqual({k: sorted(v) for k, v in moves.items()}, values, name)
+            if name in MACHINE_OWNED:
+                self.assertNotIn(name, mine, "%s is car-machine's now, not a copy in the seam" % name)
                 continue
             self.assertIn(name, mine, name)
             if name in ORDERED:
                 self.assertEqual(mine[name], [str(value) for value in values], name)
             else:
                 self.assertEqual(sorted(mine[name]), sorted(str(value) for value in values), name)
-        RECORD.append("store seam: %d closed lists and PLAIN_MOVES equal to %s's" % (len(theirs) - 1, reference.TAG))
+        RECORD.append("store seam: the policy's %d closed lists equal to %s's; %d lists are car-machine's"
+                      % (len(theirs) - len(MACHINE_OWNED), reference.TAG, len(MACHINE_OWNED) - 1))
 
 
 class FreshStateDiff(StoreBase):

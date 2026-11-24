@@ -12,9 +12,9 @@ use rusqlite::Connection;
 
 use crate::columns::{SCHEMA_4_COLUMNS, SCHEMA_5_COLUMNS, V2_COLUMNS};
 use crate::errors::{Error, Result};
+use crate::machine::ids;
+use crate::machine::vocab::{CLAIMED, IN_FLIGHT, OBSERVING, V2_STATES, WAITING, WATCHED};
 use crate::schema::{MARK, TABLES_V4, TABLES_V5, create_interruptions_named, table_set, tables};
-use crate::seam::ids;
-use crate::seam::vocab::{CLAIMED, IN_FLIGHT, OBSERVING, V2_STATES, WAITING, WATCHED};
 use crate::session::{connect, is_symlink, utc_stamp, wall_clock};
 use crate::validate::validated_record;
 use crate::value::{

@@ -10,8 +10,8 @@ use car_machine::json::Value;
 use rusqlite::Connection;
 
 use crate::errors::{Error, Result};
+use crate::machine::vocab::{STATES, TERMINAL, V2_STATES};
 use crate::schema::{TABLES_V2, TABLES_V3, TABLES_V4, table_set, tables};
-use crate::seam::vocab::{STATES, TERMINAL, V2_STATES};
 use crate::session::{begin, connect, is_symlink, read_settings};
 use crate::validate::{now as check_now, uuid_text};
 use crate::value::{Row, execute, first, int, integer, marks, string, tuples, words};

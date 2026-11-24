@@ -11,8 +11,8 @@ use crate::columns::{
 };
 use crate::errors::{Error, Result};
 use crate::journal::{Event, event};
+use crate::machine::vocab::{STATES, TERMINAL};
 use crate::schema::{TABLES_V2, TABLES_V3, TABLES_V4, column_set, table_set, tables};
-use crate::seam::vocab::{STATES, TERMINAL};
 use crate::value::{execute, integer, marks, words_but};
 
 fn columns_are(connection: &Connection, table: &str, columns: &[&str]) -> Result<bool> {

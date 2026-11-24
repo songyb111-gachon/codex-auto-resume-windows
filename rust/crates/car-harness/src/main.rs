@@ -47,7 +47,8 @@ fn answer(request: &serde_json::Value, line: &str) -> Value {
             rejected("home is required", "request_failed")
         }
         (Some("sqlite.version"), _) => ok("value", Value::from(car_store::sqlite_version())),
-        (Some("leaves.batch"), _) => match request.get("cases").and_then(|_| leaves::read(request)) {
+        (Some("leaves.batch"), _) => match request.get("cases").and_then(|_| leaves::read(request))
+        {
             Some(Value::Object(parsed)) => ok("value", leaves::batch(&parsed["cases"])),
             _ => rejected("cases are required", "request_failed"),
         },

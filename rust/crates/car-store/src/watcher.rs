@@ -5,8 +5,9 @@ use car_machine::json::{Map, Options, Str, Value, from_str, to_string};
 
 use crate::errors::{Error, Result};
 use crate::journal::finite_value;
-use crate::seam::vocab::{ENGINE_STATES, HOME_STATES, STATES, TERMINAL, WATCHER_ENDS};
-use crate::seam::{KEEP_SECONDS, epoch_store, has, usage};
+use crate::machine::vocab::{ENGINE_STATES, HOME_STATES, STATES, TERMINAL, WATCHER_ENDS};
+use crate::machine::{epoch_store, has, usage};
+use crate::seam::KEEP_SECONDS;
 use crate::session::Store;
 use crate::validate::{is_home_key, now as check_now, short_text, validated_notice};
 use crate::value::{
@@ -112,7 +113,7 @@ fn reading(found: &Option<(Value, Value)>) -> Result<Option<(f64, String)>> {
     let Some((at, windows)) = found else {
         return Ok(None);
     };
-    let Some(stored) = usage::encode(windows) else {
+    let Some(stored) = usage::encode(windows)? else {
         return Ok(None);
     };
     if !epoch_store(at)? {
@@ -209,7 +210,7 @@ impl Store {
         let Some(row) = found.into_iter().next() else {
             return Ok(None);
         };
-        let windows = usage::decode(get(&row, "usage"));
+        let windows = usage::decode(get(&row, "usage"))?;
         let at = finite_value(get(&row, "usage_at"), None);
         let end = get(&row, "end_mark");
         let mut status = Row::new();

@@ -16,14 +16,15 @@ use rusqlite::Connection;
 
 use crate::errors::{Error, Result};
 use crate::journal::{Event, event, finite_value};
+use crate::machine::vocab::{RELEASABLE_WITHDRAWALS, WAITING, WATCHED};
+use crate::machine::{has, ids, may_be_queued, turn_status};
 use crate::policy::thread_enabled;
 use crate::seam::gates::{
     BLOCK, HELD, Limits, PASS, RESEND, Vector, WAIT, counted_from, encode_gates, first_refusal,
     gate, gate_budgets, gate_consent, gate_schedule, gate_submission_safe, resend_candidate,
     was_resent,
 };
-use crate::seam::vocab::{RELEASABLE_WITHDRAWALS, WAITING, WATCHED};
-use crate::seam::{has, ids, is_recoverable, may_be_queued, turn_status};
+use crate::seam::is_recoverable;
 use crate::session::{Store, read_settings};
 use crate::validate::{claim_cost, is_usage, now as check_now, uuid, uuid_text, validated_record};
 use crate::value::{
@@ -94,14 +95,17 @@ pub const FLAG_USER_JOINED: i64 = 2;
 pub const FLAG_WITHDRAW_DELETED: i64 = 4;
 
 fn others_in_flight(connection: &Connection, thread_id: &Value, exclude: &str) -> Result<i64> {
-    Ok(tuples(
+    let mut count = 0;
+    for row in tuples(
         connection,
         "SELECT state, queue_id FROM interruptions WHERE thread_id=? AND interruption_id<>?",
         &[thread_id.clone(), string(exclude)],
-    )?
-    .iter()
-    .filter(|row| may_be_queued(&row[0], &row[1]))
-    .count() as i64)
+    )? {
+        if may_be_queued(&row[0], &row[1])? {
+            count += 1;
+        }
+    }
+    Ok(count)
 }
 
 fn consent(connection: &Connection, settings: &Row, row: &Row) -> Result<(String, String)> {

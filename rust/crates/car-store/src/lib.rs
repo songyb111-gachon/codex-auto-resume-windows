@@ -19,8 +19,8 @@
 //!
 //! Not ported here, and why: `store/ledger.py`'s plug ledger (P11) and `store/plugclaims.py` need the
 //! edition's `Plug` trait, which is car-policy's (S2.2); the claim here is the NULL plug's, the standard
-//! edition's. What the store reads of the domain and the policy before those crates exist is in [`seam`],
-//! marked for replacement.
+//! edition's. What the store reads of the domain is car-machine's, through [`machine`]; what it reads of the policy
+//! before car-policy exists is in [`seam`], marked for replacement.
 //!
 //! Values are Python's: a row is car-machine's [`Value`](car_machine::json::Value) map, so the store's checks
 //! keep their dynamic meaning (a REAL column holding text fails its check, `1 == 1.0`). Times passed in are
@@ -33,6 +33,7 @@ pub mod downgrade;
 pub mod errors;
 pub mod journal;
 pub mod legacy;
+pub mod machine;
 pub mod migrations;
 pub mod open;
 pub mod policy;

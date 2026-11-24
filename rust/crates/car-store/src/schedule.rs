@@ -8,8 +8,9 @@ use rusqlite::Connection;
 use crate::actions::{Answer, not_waiting};
 use crate::errors::Result;
 use crate::journal::{Event, event};
-use crate::seam::vocab::{TERMINAL, WAITING};
-use crate::seam::{has, ids, own_postponement, postponement_problem};
+use crate::machine::vocab::{TERMINAL, WAITING};
+use crate::machine::{has, ids, own_postponement};
+use crate::seam::postponement_problem;
 use crate::session::{Store, is_symlink};
 use crate::validate::{now as check_now, timestamp, uuid_text};
 use crate::value::{Row, execute, get, number, or_zero, string, text_of, truthy};
@@ -139,7 +140,7 @@ impl Store {
             if !has(WAITING, state) {
                 return Ok((false, string(not_waiting(state))));
             }
-            if own_postponement(&row, Some(now)).is_none() {
+            if own_postponement(&row, Some(now))?.is_none() {
                 return Ok((false, string("not_postponed")));
             }
             let window = get(&row, "objection_until");

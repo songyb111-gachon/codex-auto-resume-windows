@@ -5,8 +5,9 @@
 
 use car_machine::json::{Map, Options, Str, Value, to_string};
 
-use super::vocab::{GATE_REASONS, GATE_RESULTS, GATES, RESENDABLE, WAITING};
-use super::{has, ids};
+use super::vocab::{GATE_REASONS, GATE_RESULTS, GATES, RESENDABLE};
+use crate::machine::vocab::WAITING;
+use crate::machine::{has, ids};
 use crate::value::{Row, arithmetic, get, int, number, or_zero, text, text_of, truthy};
 
 pub const PASS: &str = "PASS";

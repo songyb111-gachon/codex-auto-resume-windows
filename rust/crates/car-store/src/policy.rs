@@ -6,8 +6,8 @@ use rusqlite::Connection;
 
 use crate::errors::{Error, Result};
 use crate::journal::{Event, event};
-use crate::seam::vocab::{HOLDS, WAITING};
-use crate::seam::{has, hold_for_tier, ids};
+use crate::machine::vocab::{HOLDS, WAITING};
+use crate::machine::{has, hold_for_tier, ids};
 use crate::session::{Store, read_settings};
 use crate::validate::{flag, now as check_now, uuid_text, validated_tier};
 use crate::value::{Row, execute, first, get, int, marks, string, text_of, tuples, words};
@@ -191,7 +191,7 @@ impl Store {
                     execute(
                         connection,
                         "UPDATE interruptions SET hold=? WHERE interruption_id=?",
-                        &[string(hold), get(&row, "interruption_id").clone()],
+                        &[string(&hold), get(&row, "interruption_id").clone()],
                     )?;
                     let state = text_of(&row, "state");
                     event(connection, now, "held", Event {
