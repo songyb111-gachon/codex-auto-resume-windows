@@ -13,3 +13,7 @@ car-config = { path = "../car-config" }
 car-machine = { path = "../car-machine" }
 car-platform = { path = "../car-platform" }
 car-policy = { path = "../car-policy" }
+# D4: Codex's own databases are read through the same bundled SQLite the store uses (one version on every PC).
+rusqlite = { version = "0.43", features = ["bundled"] }
+# A dict that keeps its insertion order (the reader's caches evict the oldest, as the Python's dicts do).
+indexmap = "2"

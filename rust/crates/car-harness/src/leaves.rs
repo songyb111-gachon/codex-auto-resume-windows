@@ -71,6 +71,7 @@ fn case(name: &str, args: &Args) -> Option<Py<Value>> {
         .or_else(|| config::case(name, args))
         .or_else(|| brand::case(name, args))
         .or_else(|| crate::classify::case(name, args))
+        .or_else(|| crate::codex::case(name, args))
 }
 
 /// `leaves.batch`: every case of `cases`, in order.
