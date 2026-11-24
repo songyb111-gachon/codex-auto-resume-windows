@@ -5,7 +5,7 @@
 //! bytes compared with ours. A refusal is compared too: which error, not only that there was one.
 //!
 //! `CAR_JSON_COUNT` (default 20000) and `CAR_JSON_SEED` (default `SEED`) choose the run;
-//! `CAR_JSON_PYTHON` the interpreter (default `python`). The done-check is a million:
+//! `CAR_JSON_PYTHON` the interpreter (default: the first of `python`, `python3`, `py` that runs). The done-check is a million:
 //!
 //! ```text
 //! CAR_JSON_COUNT=1000000 cargo test --release --locked --test json_reference -- --nocapture
@@ -496,6 +496,31 @@ fn setting(name: &str) -> Option<String> {
     std::env::var(name).ok().filter(|value| !value.is_empty())
 }
 
+/// The first of `python`, `python3`, `py` that runs. On a Windows PC the name `python` can find the
+/// Microsoft Store stub (a launcher that prints nothing and exits), which a plain `Command::new("python")`
+/// then starts; `CAR_JSON_PYTHON` names the interpreter when none of the three is right.
+fn default_python() -> String {
+    for name in ["python", "python3", "py"] {
+        let mut probe = Command::new(name);
+        probe.args([
+            "-I",
+            "-c",
+            "import json, sys; sys.stdout.write(json.dumps(1))",
+        ]);
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            probe.creation_flags(0x0800_0000);
+        }
+        if let Ok(out) = probe.output() {
+            if out.status.success() && out.stdout == b"1" {
+                return name.to_owned();
+            }
+        }
+    }
+    "python".to_owned()
+}
+
 #[test]
 fn the_writer_writes_what_python_writes() {
     let count: u64 =
@@ -504,7 +529,7 @@ fn the_writer_writes_what_python_writes() {
         let text = text.trim_start_matches("0x");
         u64::from_str_radix(text, 16).expect("CAR_JSON_SEED, in hex")
     });
-    let python = setting("CAR_JSON_PYTHON").unwrap_or_else(|| "python".to_owned());
+    let python = setting("CAR_JSON_PYTHON").unwrap_or_else(default_python);
     let configs = configs();
 
     let mut command = Command::new(&python);

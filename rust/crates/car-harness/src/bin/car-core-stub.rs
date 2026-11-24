@@ -10,15 +10,15 @@
 use std::io::Write;
 use std::path::PathBuf;
 
-use car_harness::pyjson::{Value, dumps};
-use car_harness::{NOT_PORTED, defaults, rejected};
+use car_harness::{NOT_PORTED, defaults, object, rejected};
+use car_machine::json::{Options, Str, Value, to_string};
 
 const NOT_PORTED_EXIT: i32 = 3;
 
 /// Write one reply line the way `controlcli._emit` does; exit 0 when the reply is ok, 1 otherwise.
 fn emit(reply: &Value) -> i32 {
-    let ok = matches!(reply, Value::Object(pairs) if pairs.iter().any(|(k, v)| k == "ok" && *v == Value::Bool(true)));
-    let line = dumps(reply).unwrap_or_else(|_| "{\"ok\": false}".into());
+    let ok = matches!(reply, Value::Object(pairs) if pairs.get(&Str::new("ok")) == Some(&Value::Bool(true)));
+    let line = to_string(reply, &Options::wire()).unwrap_or_else(|_| "{\"ok\": false}".into());
     let mut stdout = std::io::stdout().lock();
     if writeln!(stdout, "{line}")
         .and_then(|_| stdout.flush())
@@ -53,9 +53,9 @@ fn bridge(arguments: &[String]) -> i32 {
     }
     match (rest.as_slice(), home) {
         ([command], Some(home)) if command == "defaults" => match defaults::restore(&home) {
-            Ok(values) => emit(&Value::Object(vec![
-                ("ok".into(), Value::Bool(true)),
-                ("settings".into(), Value::Object(values)),
+            Ok(values) => emit(&object([
+                ("ok", Value::Bool(true)),
+                ("settings", Value::Object(values)),
             ])),
             // controlcli answers a save it cannot make with the generic request_failed refusal.
             Err(_) => emit(&rejected("cannot save settings", "request_failed")),

@@ -1,21 +1,29 @@
 //! car-harness: the Rust side of the differential harness (PLAN.md section 4). Dev only, never shipped.
 //!
-//! Today it holds S0.4's skeleton and proof only: the inline JSON writer, the bridge's `defaults`, and one
-//! state read. Every later port seat adds its calls to `serve` and moves the real code into its own crate.
+//! Today it holds S0.4's skeleton and proof only: the bridge's `defaults` and one state read, writing JSON
+//! through car-machine's Python-compatible writer. Every later port seat adds its calls to `serve` and moves the real code into its own crate.
 
 pub mod defaults;
-pub mod pyjson;
 pub mod state;
 
-use pyjson::Value;
+use car_machine::json::{Map, Value};
 
 /// The refusal shape the bridge uses (`controlcli._rejected`).
 pub fn rejected(message: &str, code: &str) -> Value {
-    Value::Object(vec![
-        ("ok".into(), Value::Bool(false)),
-        ("error".into(), Value::Str(message.into())),
-        ("error_code".into(), Value::Str(code.into())),
+    object([
+        ("ok", Value::Bool(false)),
+        ("error", message.into()),
+        ("error_code", code.into()),
     ])
+}
+
+/// An object whose keys keep the order given, as the Python builds its dicts.
+pub fn object<const N: usize>(pairs: [(&str, Value); N]) -> Value {
+    let mut map = Map::new();
+    for (key, value) in pairs {
+        map.insert(key.into(), value);
+    }
+    Value::Object(map)
 }
 
 /// What anything not yet ported answers, so a shim-lane failure says why.

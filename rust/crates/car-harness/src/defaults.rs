@@ -7,7 +7,7 @@
 
 use std::path::Path;
 
-use crate::pyjson::{Unwritable, Value, dumps_indented};
+use car_machine::json::{Error, Map, Options, Value, to_string};
 
 /// settings.py's CONFIG_VERSION, written beside the values in settings.json.
 pub const CONFIG_VERSION: i64 = 2;
@@ -99,32 +99,33 @@ const DEFAULTS: &[(&str, V)] = &[
 ];
 
 /// Every setting at its default, in the Python's order.
-pub fn defaults() -> Vec<(String, Value)> {
+pub fn defaults() -> Map {
     DEFAULTS
         .iter()
         .map(|(name, value)| {
             let value = match value {
                 V::Null => Value::Null,
                 V::Bool(flag) => Value::Bool(*flag),
-                V::Int(number) => Value::Int(*number),
+                V::Int(number) => Value::from(*number),
                 V::Float(number) => Value::Float(*number),
-                V::Str(text) => Value::Str((*text).to_string()),
-                V::EmptyList => Value::List(Vec::new()),
+                V::Str(text) => Value::from(*text),
+                V::EmptyList => Value::Array(Vec::new()),
             };
-            ((*name).to_string(), value)
+            ((*name).into(), value)
         })
         .collect()
 }
 
 /// settings.save's bytes: the values with config_version, indent 2, keys sorted, UTF-8.
-pub fn settings_file_bytes(values: &[(String, Value)]) -> Result<Vec<u8>, Unwritable> {
-    let mut payload = values.to_vec();
-    payload.push(("config_version".to_string(), Value::Int(CONFIG_VERSION)));
-    Ok(dumps_indented(&Value::Object(payload), 2, true)?.into_bytes())
+pub fn settings_file_bytes(values: &Map) -> Result<Vec<u8>, Error> {
+    let mut payload = values.clone();
+    payload.insert("config_version".into(), Value::from(CONFIG_VERSION));
+    let options = Options::wire().indent(2).sort_keys(true);
+    Ok(to_string(&Value::Object(payload), &options)?.into_bytes())
 }
 
 /// What `defaults` does to a fresh home: settings.json written, and the reply's settings returned.
-pub fn restore(home: &Path) -> std::io::Result<Vec<(String, Value)>> {
+pub fn restore(home: &Path) -> std::io::Result<Map> {
     let values = defaults();
     let data =
         settings_file_bytes(&values).map_err(|_| std::io::Error::other("unwritable settings"))?;

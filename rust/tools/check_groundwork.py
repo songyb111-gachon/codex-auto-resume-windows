@@ -51,7 +51,8 @@ STANDARD = {
     "car-bin": {"car-control", "car-watcher"},
     "car-host": {"car-control", "car-watcher"},
     "car-legacy": {"car-platform"},
-    "car-harness": set(),
+    # dev only: it writes its replies through car-machine's Python-compatible JSON writer (S0.2) instead of an inline copy
+    "car-harness": {"car-machine"},
 }
 # The advanced workspace: its three crates, and for car-adv every library of the standard one, the superset the
 # alpha's single advanced crate may reach through the plug; the S7 seats trim it to what is used.
