@@ -15,8 +15,8 @@ use car_machine::json::{Map, Str, Value};
 use car_machine::pyval::Py;
 use car_policy::plug::{self, Alternative, Answer, Guarded, HookFailed, Plug, Point, hands};
 use car_policy::settings::{
-    self, SettingsError, config, demo, homes, managed, memguard, notice_kinds, os, ownvalues,
-    poweraction, schema, selfcheck, statusfile,
+    self, SettingsError, config, demo, homefind, homes, managed, memguard, notice_kinds, os,
+    ownvalues, poweraction, schema, selfcheck, statusfile,
 };
 
 /// `Os` over car-platform: the one link probe, LCMapStringEx, GetFullPathNameW and `realpath`.
@@ -937,6 +937,11 @@ fn case(index: usize, name: &str, a: &Args) -> Value {
         // homes
         "homes.well_formed" => ok(Value::Bool(homes::well_formed(&OS, a.get(0)))),
         "homes.coerce" => ok(homes::coerce(&OS, a.get(0), &Value::Array(Vec::new()))),
+        "homefind.coerce_dismissed" => ok(homefind::coerce_dismissed(
+            &OS,
+            a.get(0),
+            &Value::Array(Vec::new()),
+        )),
         "homes.unmeasured" => ok(Value::Bool(homes::unmeasured(a.get(0)))),
         "homes.problem" => match a.get(0) {
             Value::Str(path) => ok(words(homes::problem(&OS, path))),

@@ -180,7 +180,7 @@ through `car-harness serve`'s `leaves.batch` (the harness's `src/classify.rs` an
 | Module | Proves |
 |---|---|
 | `diffs_classify_failures.py` | **the done-check**: every structured error the tag's own tests, codexsim and fixtures carry (read out of `git show TAG:tests/...`: every `error_json` row, every `codexErrorInfo`/`error` object, every literal handed to `classify`/`shape`/`transient_error`, every `code=`), read as `codex/values.normalize` reads a turn row, gets the same category, the same reason (`reasons.get`) and the same public code (`shape`, `unknown_code`, `takes`/`admits`/`readmits`); then generated errors in every form Codex writes one, and `self_check` |
-| `diffs_classify_policy.py` | the gates (moved from car-store's seam), guards, ladder, needs-you, power, projects, permits, quiet hours on six test zones (`ZONE`: an offset and summer time; car-harness's `Zone` is the same rules), and the `ownvalues` seam S2.2 replaces |
+| `diffs_classify_policy.py` | the gates (moved from car-store's seam), guards, ladder, needs-you, power, projects, permits, quiet hours on six test zones (`ZONE`: an offset and summer time; car-harness's `Zone` is the same rules), and `ownvalues` (S2.2's, which the classifier reads: `own.*`) |
 | `diffs_classify_continuation.py` | **the done-check**: `build()` in every one of the 22 languages for every category, style, Custom choice and metadata; the same text through `for_settings`/`source_for`/`with_once_words`; the checks of a person's words |
 | `diffs_classify_vocab.py` | the eleven modules' words equal to the tag's `vocab.json`; `str.lower()`, `str.casefold()` and `\w` of every code point equal to the reference interpreter's; the generated files current |
 
@@ -237,3 +237,27 @@ The diffs catch a broken rule (each broken alone, rebuilt, its diff run, restore
 after): `max_recovery_attempts` up to 21 (coerce, case 574); a REG_QWORD switch ignored (managed, case 15); NULL wanting
 every point (plug, case 1); the status file with LF line ends (tree, case 0); `handed_over_too` met with no recovery
 (power, case 4...); a settings file of exactly 4 MiB refused as too large (files, case 312).
+
+## S2.1 and S2.2 together (car-policy, Integration 3)
+
+The two seats met in `car-policy`: `classify/` (S2.1) and `settings/` and `plug/` (S2.2). Each had kept a copy of what the
+other owns, and both are gone: S2.1's `classify/seam.rs` (`ownvalues`'s `Own`, `amount`, `canonical`, `coerce`, `spell`, and the
+plug's `TAKE_UP`, `PACED_AS`, `Alternative`, `FailureForm`) and S2.2's `settings/seam.rs` (`continuation`, `ladder`, `quiet`,
+`guards`, `power`, `needsyou`, `projects`, `failures`, `reasons`: the choice lists, the defaults, the coercers). Each module now
+reads the other seat's own. Nothing in a diff was edited: `own.*` and `SeamParity` hold S2.2's `ownvalues` and plug words, and the
+settings diffs hold the classifier's lists and coercers through `settings.coerce`, `describe()` and the validators.
+
+`homefind.coerce_dismissed`, which neither seat's list named, is ported as the reference has it (`settings/homefind.rs`, with
+`SWITCH`, `DISMISSED` and `DISMISSED_MAX`) and has a diff of its own: `diffs_settings_homefind.py` (1,596 cases: 0 to 18
+folders, a relative path, a share, a lone surrogate, two spellings of one folder, non-text entries). The rest of `homefind.py`
+(looking for homes, `dismissed_with`) is the watcher's.
+
+`gen_policy.py` is one script for both seats (the first two of its five files are S2.1's, the last three S2.2's): `--check`
+says whether any of the five differs from what the tag gives. The two re-diffs at the v0.6.26 final:
+
+```
+python -X utf8 tests/rustdiff/rediff_classify.py --reference v0.6.26
+python -X utf8 tests/rustdiff/gen_policy.py --check --ref v0.6.26 && python -X utf8 tests/rustdiff/run.py --build --reference v0.6.26 -k Settings -k OwnValues -k HomesKinds -k StatusTree -k Managed -k PowerStatus -k Plug -k Homefind
+```
+
+The whole harness: 97 diffs (harness 4, S1.1 27, S1.2 15, S2.1 13 + the store's seam check, S2.2 11, S3.1 27).

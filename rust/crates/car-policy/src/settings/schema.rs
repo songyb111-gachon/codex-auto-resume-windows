@@ -5,9 +5,11 @@
 
 use car_machine::json::{Map, Str, Value};
 
+use crate::classify::{continuation, power};
+
 use super::{
     DASHBOARD_ONLY, FIELDS, NEEDS_YOU_FIELDS, NOT_YET_OFFERED, ROW_ACTION_FIELDS, field_type,
-    is_custom_text, memguard, notice_kinds, own, ownvalues, ranges, seam, statusfile,
+    is_custom_text, memguard, notice_kinds, own, ownvalues, ranges, statusfile,
 };
 
 const APPEARANCE: &[&str] = &["theme", "panel_theme", "design", "reduce_motion"];
@@ -15,8 +17,8 @@ const WINDOWS: &[&str] = &[
     "show_tray",
     "notification_card",
     "start_with_codex",
-    seam::KEEP_AWAKE_FIELD,
-    seam::AWAKE_CAP_FIELD,
+    power::KEEP_AWAKE_FIELD,
+    power::AWAKE_CAP_FIELD,
     memguard::GUARD_FIELD,
     memguard::LIMIT_FIELD,
     statusfile::FIELD,
@@ -42,8 +44,8 @@ const LIMITS: &[&str] = &[
     "chain_time_ceiling",
     "task_changed_guard",
     "context_guard",
-    seam::SLEEP_FIELD,
-    seam::NETWORK_FIELD,
+    power::SLEEP_FIELD,
+    power::NETWORK_FIELD,
 ];
 const CONTINUATION: &[&str] = &[
     "continuation_language",
@@ -130,7 +132,10 @@ pub fn describe(current: &dyn Fn() -> String) -> Vec<Value> {
         } else if is_custom_text(name) {
             put("group", Value::from("continuation"));
             put("multiline", Value::Bool(true));
-            put("max_length", Value::from(seam::MAX_CUSTOM_LENGTH as i64));
+            put(
+                "max_length",
+                Value::from(continuation::MAX_CUSTOM_LENGTH as i64),
+            );
             if name != "custom_message" {
                 put("category", Value::from(&name["custom_message_".len()..]));
             }

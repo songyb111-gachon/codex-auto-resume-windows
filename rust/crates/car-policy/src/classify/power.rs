@@ -14,7 +14,10 @@ pub const KEEP_AWAKE_FIELD: &str = "keep_awake";
 pub const AWAKE_CAP_FIELD: &str = "keep_awake_hours";
 pub const SLEEP_FIELD: &str = "ask_after_sleep_minutes";
 pub const NETWORK_FIELD: &str = "wait_for_network";
+/// `KEEP_AWAKE_MODES`, `AWAKE_CAPS` and `SLEEP_WAITS`: `tuple(KeepAwake)`, `tuple(AwakeCap)`, `tuple(SleepWait)`.
 pub const KEEP_AWAKE_MODES: &[&str] = &["off", "on_ac", "always"];
+pub const AWAKE_CAPS: &[&str] = &["h1", "h2", "h3", "h6", "h12", "h24", "unlimited"];
+pub const SLEEP_WAITS: &[&str] = &["off", "m30", "h1", "h2", "h3", "h6", "h12"];
 pub const DEFAULT_KEEP_AWAKE: &str = "off";
 pub const DEFAULT_AWAKE_CAP: &str = "h6";
 pub const DEFAULT_SLEEP: &str = "off";
@@ -124,4 +127,25 @@ pub fn wants_awake(mode: &Value, count: &Value, mains: &Value) -> Py<bool> {
         return Ok(false);
     }
     Ok(pyval::is(mode, "always") || matches!(mains, Value::Bool(true)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use car_machine::vocab_gen::domain_vocabulary as v;
+
+    fn words<T: Copy>(all: &[T], as_str: fn(T) -> &'static str) -> Vec<&'static str> {
+        all.iter().map(|each| as_str(*each)).collect()
+    }
+
+    /// The lists `power.py` takes of the vocabulary (`tuple(KeepAwake)` and the two more) are car-machine's words.
+    #[test]
+    fn the_modules_lists_are_the_vocabularys() {
+        assert_eq!(
+            KEEP_AWAKE_MODES,
+            words(v::KeepAwake::ALL, v::KeepAwake::as_str)
+        );
+        assert_eq!(AWAKE_CAPS, words(v::AwakeCap::ALL, v::AwakeCap::as_str));
+        assert_eq!(SLEEP_WAITS, words(v::SleepWait::ALL, v::SleepWait::as_str));
+    }
 }

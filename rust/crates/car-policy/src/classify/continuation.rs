@@ -324,8 +324,9 @@ pub fn coerce_by_thread(value: &Value, default: &Value) -> Value {
         if !ids::is_uuid(&Value::Str(thread.clone())) {
             continue;
         }
-        if let Ok(said) = validate_custom(said) {
-            kept.insert(thread.clone(), Value::from(said));
+        // The text as it was written, whole: a lone surrogate in it is kept, as Python keeps it.
+        if validate_custom(said).is_ok() {
+            kept.insert(thread.clone(), said.clone());
         }
     }
     if kept.is_empty() {

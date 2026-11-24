@@ -8,11 +8,12 @@
 //! Beside it, the modules the seat ports with it (each says which Python it replaces): `ownvalues`, `homes`,
 //! `notice_kinds`, `memguard`, `schema` (`settings_schema.py`), `config` (`config.py`'s three settings functions, cut
 //! C2), `managed`, `statusfile`, `poweraction`, `demo` and `selfcheck` (`domain/public.self_check`, cut C1). What the
-//! settings read of S2.1's modules is `seam`, marked for replacement. Paths are asked of [`os::Os`], handed in.
+//! settings read of S2.1's modules (`continuation`, `ladder`, `quiet`, `guards`, `power`, `needsyou`, `projects`, `failures`) is theirs, in `crate::classify`; `homefind` holds the one function of `homefind.py` they read. Paths are asked of [`os::Os`], handed in.
 //! Held to the reference by `tests/rustdiff/diffs_settings_*.py`.
 
 pub mod config;
 pub mod demo;
+pub mod homefind;
 pub mod homes;
 pub mod managed;
 pub mod memguard;
@@ -21,7 +22,6 @@ pub mod os;
 pub mod ownvalues;
 pub mod poweraction;
 pub mod schema;
-pub mod seam;
 pub mod selfcheck;
 pub mod statusfile;
 #[rustfmt::skip]
@@ -36,6 +36,8 @@ use car_machine::json::{self, Map, Options, Str, Value};
 use car_machine::pyval::{self, Num, Py};
 use car_words::l10n;
 
+use crate::classify::text::has_non_space;
+use crate::classify::{continuation, guards, ladder, needsyou, power, projects, quiet};
 use os::Os;
 use ownvalues::Own;
 use vocab_gen::settings as words;
@@ -131,7 +133,7 @@ pub static FIELDS: &[Field] = &[
     field("max_chain_continuations", D::Int(6), C::Int(1, 10)),
     field(
         "retry_timing",
-        D::Str(seam::DEFAULT_TIMING),
+        D::Str(ladder::DEFAULT_TIMING),
         C::Choice(words::RETRY_TIMINGS),
     ),
     field(
@@ -176,11 +178,11 @@ pub static FIELDS: &[Field] = &[
     field("notify_needs_you_auth", D::Bool(true), C::Boolean),
     field("notify_needs_you_failure", D::Bool(true), C::Boolean),
     field(
-        seam::STALL_FIELD,
-        D::Str(seam::DEFAULT_STALL),
-        C::Own(seam::STALL_WAITS, &seam::STALL_OWN),
+        needsyou::STALL_FIELD,
+        D::Str(needsyou::DEFAULT_STALL),
+        C::Own(needsyou::STALL_WAITS, &needsyou::OWN_STALL),
     ),
-    field(seam::SOUND_FIELD, D::Bool(false), C::Boolean),
+    field(needsyou::SOUND_FIELD, D::Bool(false), C::Boolean),
     field(
         "interface_language",
         D::Str(l10n::SYSTEM),
@@ -191,11 +193,15 @@ pub static FIELDS: &[Field] = &[
         D::Str(words::FOLLOW_INTERFACE),
         C::Choice(words::CONTINUATION_LANGUAGES),
     ),
-    field("continuation_style", D::Str(seam::DEFAULT_STYLE), C::Style),
+    field(
+        "continuation_style",
+        D::Str(continuation::DEFAULT_STYLE),
+        C::Style,
+    ),
     field(
         "custom_message_mode",
-        D::Str(seam::DEFAULT_CUSTOM_MODE),
-        C::Choice(seam::CUSTOM_MODES),
+        D::Str(continuation::DEFAULT_CUSTOM_MODE),
+        C::Choice(continuation::CUSTOM_MODES),
     ),
     field("custom_message", D::Null, C::Custom),
     field("custom_message_usage_limit", D::Null, C::Custom),
@@ -204,21 +210,21 @@ pub static FIELDS: &[Field] = &[
     field("custom_message_timeout", D::Null, C::Custom),
     field("custom_message_server_5xx", D::Null, C::Custom),
     field("custom_message_stream_interrupted", D::Null, C::Custom),
-    field(seam::BY_THREAD_FIELD, D::Null, C::ByThread),
+    field(continuation::BY_THREAD_FIELD, D::Null, C::ByThread),
     field(
         "quiet_hours_start",
-        D::Str(seam::QUIET_DEFAULT_START),
-        C::Own(seam::QUIET_STARTS, &seam::QUIET_CLOCK),
+        D::Str(quiet::DEFAULT_START),
+        C::Own(quiet::STARTS, &quiet::OWN_CLOCK),
     ),
     field(
         "quiet_hours_end",
-        D::Str(seam::QUIET_DEFAULT_END),
-        C::Own(seam::QUIET_TIMES, &seam::QUIET_CLOCK),
+        D::Str(quiet::DEFAULT_END),
+        C::Own(quiet::TIMES, &quiet::OWN_CLOCK),
     ),
     field(
         "quiet_hours_days",
-        D::Str(seam::QUIET_DEFAULT_DAYS),
-        C::Own(seam::QUIET_DAYS, &seam::QUIET_DAYS_OWN),
+        D::Str(quiet::DEFAULT_DAYS),
+        C::Own(quiet::DAY_CHOICES, &quiet::OWN_DAYS),
     ),
     field(
         "default_tier",
@@ -234,67 +240,67 @@ pub static FIELDS: &[Field] = &[
     ),
     field(
         "project_policy",
-        D::Str(seam::PROJECT_DEFAULT_POLICY),
+        D::Str(projects::DEFAULT_POLICY),
         C::Choice(words::PROJECT_POLICIES),
     ),
-    field(seam::PROJECT_ALWAYS, D::Str(""), C::Keys),
-    field(seam::PROJECT_NEVER, D::Str(""), C::Keys),
+    field(projects::ALWAYS, D::Str(""), C::Keys),
+    field(projects::NEVER, D::Str(""), C::Keys),
     field(
         "retry_wait_1",
         D::Str("s5"),
-        C::Own(seam::FIRST_WAITS, &seam::FIRST_STEP),
+        C::Own(ladder::FIRST_WAITS, &ladder::OWN_FIRST),
     ),
     field(
         "retry_wait_2",
         D::Str("m15"),
-        C::Own(seam::LATER_WAITS, &seam::LATER_STEP),
+        C::Own(ladder::LATER_WAITS, &ladder::OWN_LATER),
     ),
     field(
         "retry_wait_3",
         D::Str("m15"),
-        C::Own(seam::LATER_WAITS, &seam::LATER_STEP),
+        C::Own(ladder::LATER_WAITS, &ladder::OWN_LATER),
     ),
     field(
         "retry_wait_4",
         D::Str("m15"),
-        C::Own(seam::LATER_WAITS, &seam::LATER_STEP),
+        C::Own(ladder::LATER_WAITS, &ladder::OWN_LATER),
     ),
     field(
         "retry_wait_5",
         D::Str("m15"),
-        C::Own(seam::LATER_WAITS, &seam::LATER_STEP),
+        C::Own(ladder::LATER_WAITS, &ladder::OWN_LATER),
     ),
     field("retry_jitter", D::Bool(false), C::Boolean),
     field(
         "chain_time_ceiling",
-        D::Str(seam::DEFAULT_CEILING),
-        C::Own(seam::CEILINGS, &seam::CEILING_OWN),
+        D::Str(ladder::DEFAULT_CEILING),
+        C::Own(ladder::CEILINGS, &ladder::OWN_CEILING),
     ),
     field(
         "task_changed_guard",
-        D::Str(seam::DEFAULT_TASK_GUARD),
-        C::Choice(seam::TASK_GUARDS),
+        D::Str(guards::DEFAULT_TASK_GUARD),
+        C::Choice(guards::TASK_GUARDS),
     ),
     field(
         "context_guard",
-        D::Str(seam::DEFAULT_CONTEXT_GUARD),
-        C::Own(seam::CONTEXT_GUARDS, &seam::CONTEXT_OWN),
+        D::Str(guards::DEFAULT_CONTEXT_GUARD),
+        C::Own(guards::CONTEXT_GUARDS, &guards::OWN_CONTEXT),
     ),
     field(
-        seam::SLEEP_FIELD,
-        D::Str(seam::DEFAULT_SLEEP),
-        C::Own(seam::SLEEP_WAITS, &seam::SLEEP_OWN),
+        power::SLEEP_FIELD,
+        D::Str(power::DEFAULT_SLEEP),
+        C::Own(power::SLEEP_WAITS, &power::OWN_SLEEP),
     ),
-    field(seam::NETWORK_FIELD, D::Bool(false), C::Boolean),
+    field(power::NETWORK_FIELD, D::Bool(false), C::Boolean),
     field(
-        seam::KEEP_AWAKE_FIELD,
-        D::Str(seam::DEFAULT_KEEP_AWAKE),
-        C::Choice(seam::KEEP_AWAKE_MODES),
+        power::KEEP_AWAKE_FIELD,
+        D::Str(power::DEFAULT_KEEP_AWAKE),
+        C::Choice(power::KEEP_AWAKE_MODES),
     ),
     field(
-        seam::AWAKE_CAP_FIELD,
-        D::Str(seam::DEFAULT_AWAKE_CAP),
-        C::Own(seam::AWAKE_CAPS, &seam::AWAKE_OWN),
+        power::AWAKE_CAP_FIELD,
+        D::Str(power::DEFAULT_AWAKE_CAP),
+        C::Own(power::AWAKE_CAPS, &power::OWN_AWAKE_CAP),
     ),
     field(
         memguard::GUARD_FIELD,
@@ -308,8 +314,8 @@ pub static FIELDS: &[Field] = &[
     ),
     field(statusfile::FIELD, D::Bool(false), C::Boolean),
     field(homes::FIELD, D::EmptyList, C::Homes),
-    field(seam::HOMEFIND_SWITCH, D::Bool(true), C::Boolean),
-    field(seam::HOMEFIND_DISMISSED, D::EmptyList, C::Dismissed),
+    field(homefind::SWITCH, D::Bool(true), C::Boolean),
+    field(homefind::DISMISSED, D::EmptyList, C::Dismissed),
     field(
         "notice_click",
         D::Str("page"),
@@ -346,7 +352,7 @@ pub fn defaults() -> Map {
 
 /// `field_type(name)`: the JSON type a field's values have.
 pub fn field_type(name: &str) -> &'static str {
-    if name == seam::BY_THREAD_FIELD {
+    if name == continuation::BY_THREAD_FIELD {
         return "object";
     }
     match field_named(name).map(|field| field.default) {
@@ -356,6 +362,21 @@ pub fn field_type(name: &str) -> &'static str {
         Some(D::Float(_)) => "number",
         _ => "string",
     }
+}
+
+/// `ladder.previews()` as a surface is told it: each preset's waits, in the presets' order.
+fn previews() -> Value {
+    Value::Object(
+        ladder::previews()
+            .into_iter()
+            .map(|(name, waits)| {
+                (
+                    Str::from(name),
+                    Value::Array(waits.into_iter().map(Value::from).collect()),
+                )
+            })
+            .collect(),
+    )
 }
 
 /// `RANGES[name]`: what a surface is told of a field's range or choices.
@@ -380,17 +401,17 @@ pub fn ranges(name: &str) -> Option<Map> {
         }
         ("retry_timing", C::Choice(choices)) => {
             put("choices", list(choices));
-            put("waits", seam::previews());
+            put("waits", previews());
         }
         ("notice_click", _) => return None,
         (_, C::Choice(choices)) => put("choices", list(choices)),
-        (_, C::Style) => put("choices", list(seam::STYLES)),
+        (_, C::Style) => put("choices", list(continuation::STYLES)),
         (_, C::Own(choices, _)) => {
             put("choices", list(choices));
-            if seam::STEP_FIELDS.contains(&name) {
+            if ladder::STEP_FIELDS.contains(&name) {
                 let mut seconds = Map::new();
                 for choice in choices {
-                    let wait = seam::WAIT_SECONDS
+                    let wait = ladder::WAIT_SECONDS
                         .iter()
                         .find(|(each, _)| each == choice)
                         .map_or(0, |(_, s)| *s);
@@ -487,40 +508,6 @@ fn is_str_in(value: &Value, allowed: &[&str]) -> bool {
     matches!(value, Value::Str(text) if text.as_str().is_some_and(|text| allowed.contains(&text)))
 }
 
-/// `homefind.coerce_dismissed(value, default)` (seam): the folders set aside, each a local absolute path, none
-/// twice, at most DISMISSED_MAX - as they are, else the default.
-fn coerce_dismissed(os: &dyn Os, value: &Value, default: &Value) -> Value {
-    let Value::Array(paths) = value else {
-        return default.clone();
-    };
-    if paths.len() > seam::DISMISSED_MAX {
-        return default.clone();
-    }
-    let well = |path: &Value| {
-        let mut home = Map::new();
-        home.insert(Str::from("path"), path.clone());
-        home.insert(Str::from("alias"), Value::from("home"));
-        matches!(path, Value::Str(_))
-            && homes::well_formed(os, &Value::Array(vec![Value::Object(home)]))
-    };
-    if !paths.iter().all(well) {
-        return default.clone();
-    }
-    let mut written: Vec<Str> = paths
-        .iter()
-        .filter_map(|path| match path {
-            Value::Str(text) => Some(homes::as_written(os, text)),
-            _ => None,
-        })
-        .collect();
-    written.sort();
-    written.dedup();
-    if written.len() != paths.len() {
-        return default.clone();
-    }
-    value.clone()
-}
-
 /// The field's coercer: `coercer(raw, default)`, which always answers a valid value.
 pub fn coerce_field(os: &dyn Os, field: &Field, raw: &Value) -> Value {
     let default = field.default.value();
@@ -560,26 +547,29 @@ pub fn coerce_field(os: &dyn Os, field: &Field, raw: &Value) -> Value {
             }
         }
         C::Style => {
-            let folded = seam::fold_style(raw);
-            if is_str_in(&folded, seam::STYLES) {
+            let folded = continuation::fold_style(raw);
+            if is_str_in(&folded, continuation::STYLES) {
                 folded
             } else {
                 default
             }
         }
         C::OptionalText => match raw {
-            Value::Str(text) if !seam::blank(text) && text.len() <= CODEX_EXE_MAX => raw.clone(),
+            Value::Str(text) if has_non_space(text) && text.len() <= CODEX_EXE_MAX => raw.clone(),
             _ => default,
         },
         C::Custom => match raw {
             Value::Null => Value::Null,
-            _ => seam::validate_custom(raw).map_or(default, Value::Str),
+            _ => match continuation::validate_custom(raw) {
+                Ok(_) => raw.clone(),
+                Err(_) => default,
+            },
         },
-        C::ByThread => seam::coerce_by_thread(raw, &default),
+        C::ByThread => continuation::coerce_by_thread(raw, &default),
         C::Own(choices, spec) => ownvalues::coerce(raw, &default, choices, spec),
-        C::Keys => seam::coerce_keys(raw, &default),
+        C::Keys => projects::coerce_keys(raw, &default),
         C::Homes => homes::coerce(os, raw, &default),
-        C::Dismissed => coerce_dismissed(os, raw, &default),
+        C::Dismissed => homefind::coerce_dismissed(os, raw, &default),
         C::NoticeKinds => notice_kinds::coerce(raw, &default),
     }
 }
@@ -640,9 +630,9 @@ fn right_type(field: &Field, value: &Value) -> bool {
 /// `_refuse(name, value)`: the refusal for one field, in that field's own words where it has any.
 fn refuse(name: &str, value: &Value) -> SettingsError {
     if is_custom_text(name)
-        && name != seam::BY_THREAD_FIELD
+        && name != continuation::BY_THREAD_FIELD
         && !matches!(value, Value::Null)
-        && let Err(error) = seam::validate_custom(value)
+        && let Err(error) = continuation::validate_custom(value)
     {
         return SettingsError::refused(error.message);
     }
@@ -654,13 +644,13 @@ fn refuse(name: &str, value: &Value) -> SettingsError {
     }
     if name == "continuation_style"
         && let Value::Str(text) = value
-        && seam::FOLDED_STYLES
+        && continuation::FOLDED_STYLES
             .iter()
             .any(|(folded, _)| text.as_str() == Some(folded))
     {
         return SettingsError::refused(format!(
             "invalid value for continuation_style: expected one of {}",
-            seam::STYLES.join(", ")
+            continuation::STYLES.join(", ")
         ));
     }
     SettingsError::refused(format!("invalid value for {name}"))
@@ -822,7 +812,7 @@ fn fold(mut raw: Map) -> Map {
         raw.insert(Str::from("reduce_motion"), Value::Bool(true));
     }
     if let Some(Value::Str(style)) = raw.get("continuation_style")
-        && let Some((_, became)) = seam::FOLDED_STYLES
+        && let Some((_, became)) = continuation::FOLDED_STYLES
             .iter()
             .find(|(folded, _)| style.as_str() == Some(folded))
     {

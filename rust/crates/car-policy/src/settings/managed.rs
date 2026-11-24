@@ -10,8 +10,8 @@ use car_machine::json::{Map, Str, Value};
 use car_machine::pytext;
 use car_machine::pyval::{self, Num};
 
-use super::seam;
 use super::vocab_gen::managed as words;
+use crate::classify::quiet;
 
 pub const KEY: &str = words::KEY;
 pub const DISABLE_AUTO_RESUME: &str = words::DISABLE_AUTO_RESUME;
@@ -167,11 +167,11 @@ pub fn quiet_window(text: &Value) -> Option<Map> {
     } else if word_at != chars.len() {
         return None;
     }
-    let days = days.unwrap_or_else(|| seam::QUIET_DEFAULT_DAYS.to_owned());
-    if !seam::QUIET_TIMES.contains(&start.as_str())
-        || !seam::QUIET_TIMES.contains(&end.as_str())
+    let days = days.unwrap_or_else(|| quiet::DEFAULT_DAYS.to_owned());
+    if !quiet::TIMES.contains(&start.as_str())
+        || !quiet::TIMES.contains(&end.as_str())
         || start == end
-        || !seam::QUIET_DAYS.contains(&days.as_str())
+        || !quiet::DAY_CHOICES.contains(&days.as_str())
     {
         return None;
     }

@@ -9,7 +9,7 @@ use car_machine::pytext::to_float;
 use car_machine::pyval::{self, Py};
 use car_machine::vocab_gen::domain_public as table;
 
-use super::seam;
+use crate::classify::failures;
 
 /// `_VERSION.fullmatch(text)`: a letter or digit, then letters, digits, dots and hyphens, at most VERSION_MAX in all.
 fn version_shape(value: &Value) -> bool {
@@ -59,7 +59,7 @@ pub fn self_check(value: &Value, started_at: &Value) -> Py<Value> {
             let code = found
                 .get("code")
                 .and_then(pyval::text)
-                .filter(|code| seam::tag_shape(code));
+                .filter(|code| failures::tag_shape(code));
             let count = match found.get("count") {
                 Some(Value::Int(int)) => int
                     .as_i64()

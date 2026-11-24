@@ -9,8 +9,8 @@ use std::sync::Mutex;
 use car_machine::json::{Map, Str, Value};
 use car_words::l10n;
 
-use super::seam::blank;
 use super::vocab_gen::notice_kinds as words;
+use crate::classify::text::has_non_space;
 
 pub const FIELD: &str = words::FIELD;
 /// How many ids a stored value keeps.
@@ -138,9 +138,9 @@ pub fn register(kind_id: &Value, notices: &Value, said: &Value) -> Result<Kind, 
         && l10n::LOCALES
             .iter()
             .all(|locale| texts.contains_key(*locale))
-        && texts
-            .values()
-            .all(|text| matches!(text, Value::Str(text) if !blank(text) && text.len() <= 200));
+        && texts.values().all(
+            |text| matches!(text, Value::Str(text) if has_non_space(text) && text.len() <= 200),
+        );
     if !every {
         return Err("a kind has its words in every language".into());
     }
