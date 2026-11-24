@@ -2,7 +2,7 @@
 //!
 //! SEAM, TO BE REPLACED by car-machine's usage (S1.1).
 
-use car_machine::json::{Map, Options, Str, Value, from_str, to_string};
+use car_machine::json::{Map, Options, Str, Value, to_string};
 
 use super::vocab::{USAGE_BUCKETS, USAGE_KEYS, USAGE_SLOTS};
 use super::{EPOCH_USAGE, has};
@@ -87,5 +87,5 @@ pub fn decode(stored: &Value) -> Option<Vec<Value>> {
     if stored.is_empty() || stored.chars().count() > MAX_TEXT {
         return None;
     }
-    windows_of(&from_str(stored).ok()?)
+    windows_of(&super::python::loads(stored).ok()?)
 }

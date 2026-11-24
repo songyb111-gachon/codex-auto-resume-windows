@@ -41,15 +41,6 @@ fn float_repr(now: f64) -> String {
     to_string(&Value::Float(now), &Options::new()).unwrap_or_else(|_| now.to_string())
 }
 
-/// Python's `float(text)` of a stripped text (the forms a request file holds).
-fn python_float(text: &str) -> Option<f64> {
-    let text = text.trim();
-    if text.is_empty() {
-        return None;
-    }
-    text.parse::<f64>().ok()
-}
-
 /// A file's text read as ASCII, or None (an OSError or a UnicodeDecodeError).
 fn read_ascii(path: &std::path::Path) -> Option<String> {
     let bytes = std::fs::read(path).ok()?;
@@ -310,7 +301,11 @@ impl Store {
                 continue;
             }
             let at = read_ascii(&path)
-                .and_then(|said| said.split_whitespace().next().and_then(python_float))
+                .and_then(|said| {
+                    crate::seam::python::split(&said)
+                        .first()
+                        .and_then(|word| crate::seam::python::float(word))
+                })
                 .unwrap_or(0.0);
             found.insert(crate::value::key(&name), Value::Float(at));
         }
@@ -360,7 +355,12 @@ impl Store {
             return None;
         }
         let words: Vec<String> = read_ascii(&entry)
-            .map(|said| said.split_whitespace().map(str::to_string).collect())
+            .map(|said| {
+                crate::seam::python::split(&said)
+                    .into_iter()
+                    .map(str::to_string)
+                    .collect()
+            })
             .unwrap_or_default();
         match std::fs::remove_file(&entry) {
             Err(error) if error.kind() != std::io::ErrorKind::NotFound => return None,
@@ -401,7 +401,7 @@ impl Store {
         if !entry.is_file() || is_symlink(&entry) {
             return false;
         }
-        let Some(at) = read_ascii(&entry).and_then(|said| python_float(&said)) else {
+        let Some(at) = read_ascii(&entry).and_then(|said| crate::seam::python::float(&said)) else {
             return false;
         };
         if 0.0 <= now - at && now - at < EARLY_CHECK_LONGEST {

@@ -34,10 +34,10 @@ pub fn wall_clock() -> f64 {
         .map_or(0.0, |elapsed| elapsed.as_secs_f64())
 }
 
-/// Whether `path` is a symbolic link (`Path.is_symlink()`). Rust counts a junction as one too, where
-/// Python 3.12+ does not: a state folder that is a junction is refused here.
+/// Whether `path` is a symbolic link as Python's `Path.is_symlink()` says: a junction is not one
+/// (seam/links.rs).
 pub fn is_symlink(path: &Path) -> bool {
-    std::fs::symlink_metadata(path).is_ok_and(|metadata| metadata.file_type().is_symlink())
+    crate::seam::links::is_symlink(path)
 }
 
 /// Open a connection as Python's `sqlite3.connect(path, timeout=10, isolation_level=None)` does.

@@ -49,35 +49,7 @@ fn is_canonical_uuid(candidate: &str) -> bool {
 fn parses_as_uuid(candidate: &str) -> bool {
     let hex = candidate.replace("urn:", "").replace("uuid:", "");
     let hex = hex.trim_matches(|c| c == '{' || c == '}').replace('-', "");
-    hex.chars().count() == 32 && python_int_base16(&hex)
-}
-
-/// Whether `int(text, 16)` reads `text`: white space around it, a `+`, a `0x`, digits with single
-/// underscores between them. (Python also takes any Unicode decimal digit; this takes ASCII hex only.)
-fn python_int_base16(text: &str) -> bool {
-    let space = |c: char| c.is_whitespace() || ('\u{1c}'..='\u{1f}').contains(&c);
-    let body = text.trim_matches(space);
-    let body = body.strip_prefix('+').unwrap_or(body);
-    let (body, prefixed) = match body.get(..2) {
-        Some("0x" | "0X") => (&body[2..], true),
-        _ => (body, false),
-    };
-    let mut digits = 0;
-    let mut last_underscore = !prefixed;
-    for character in body.chars() {
-        if character == '_' {
-            if last_underscore {
-                return false;
-            }
-            last_underscore = true;
-        } else if character.is_ascii_hexdigit() {
-            digits += 1;
-            last_underscore = false;
-        } else {
-            return false;
-        }
-    }
-    digits > 0 && !body.ends_with('_')
+    hex.chars().count() == 32 && super::python::int_base16(&hex)
 }
 
 const HEX: &[u8] = b"0123456789abcdef";

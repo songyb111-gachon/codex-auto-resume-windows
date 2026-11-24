@@ -3,7 +3,7 @@
 //!
 //! SEAM, TO BE REPLACED by car-policy's gates (S2.1).
 
-use car_machine::json::{Map, Options, Str, Value, from_str, to_string};
+use car_machine::json::{Map, Options, Str, Value, to_string};
 
 use super::vocab::{GATE_REASONS, GATE_RESULTS, GATES, RESENDABLE, WAITING};
 use super::{has, ids};
@@ -402,7 +402,7 @@ pub fn decode_gates(stored: &Value) -> Vector {
     let raw = match stored {
         Value::Str(stored) if stored.code_points().count() <= 4000 => stored
             .as_str()
-            .and_then(|stored| from_str(stored).ok())
+            .and_then(|stored| super::python::loads(stored).ok())
             .unwrap_or(Value::Null),
         _ => Value::Null,
     };

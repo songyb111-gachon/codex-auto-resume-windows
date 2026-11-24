@@ -15,6 +15,8 @@
 
 pub mod gates;
 pub mod ids;
+pub mod links;
+pub mod python;
 pub mod usage;
 pub mod vocab;
 

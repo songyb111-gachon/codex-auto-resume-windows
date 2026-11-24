@@ -98,7 +98,7 @@ pub fn homes_read(stored: &Value) -> Value {
     let Some(stored) = text(stored).filter(|stored| stored.chars().count() <= 2000) else {
         return Value::Null;
     };
-    let Ok(value) = from_str(stored) else {
+    let Ok(value) = crate::seam::python::loads(stored) else {
         return Value::Null;
     };
     match homes_text(&value) {
