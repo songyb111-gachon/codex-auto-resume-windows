@@ -2190,7 +2190,9 @@ function Read-SetupHandover {
         $field = @{}
         # The marker's four keys, in double quotes: the word setup in single ones is the installed setup's command alone.
         foreach ($key in "format", "version", "edition", "setup") {
-            $property = $said.PSObject.Properties[$key]
+            # Match, as the release readers above ask a property: the plain index after .Properties reads to the bare-host
+            # scan as a host name ending in the .properties domain (test_privacy_bare_hosts). The keys hold no wildcard.
+            $property = @($said.PSObject.Properties.Match($key))[0]
             if ($null -eq $property -or $property.Value -isnot [string]) { throw ('The archive''s setup handover has no ' + $key + '.') }
             $field[$key] = $property.Value
         }

@@ -380,7 +380,8 @@ class HandoverRunTests(unittest.TestCase):
         (target / "setup.exe").write_bytes(self.gui)
         (unpacked / "payload").mkdir(parents=True)
         made = subprocess.run(["cmd.exe", "/d", "/c", "mklink", "/J", str(unpacked / "payload" / "app"),
-                               str(target.parent)], capture_output=True, text=True)
+                               str(target.parent)], capture_output=True, text=True, encoding="mbcs",
+                              errors="replace")
         if made.returncode != 0:
             self.skipTest("no junction could be made here: " + made.stdout + made.stderr)
         body = (r"try { Resolve-SetupProgram -Unpacked $env:CAR_UNPACKED -Setup 'payload/app/bin/setup.exe' } "
@@ -391,7 +392,10 @@ class HandoverRunTests(unittest.TestCase):
         (plain / "payload" / "app" / "bin").mkdir(parents=True)
         (plain / "payload" / "app" / "bin" / "setup.exe").write_bytes(self.gui)
         said = lifted(["Resolve-SetupProgram"], body, CAR_UNPACKED=str(plain))
-        self.assertEqual(said, str(plain / "payload" / "app" / "bin" / "setup.exe"))
+        # The script answers the program's long path; a runner's TEMP can be given in its 8.3 form (RUNNER~1), so both
+        # sides are compared as the file system names them.
+        self.assertEqual(os.path.normcase(os.path.realpath(said)),
+                         os.path.normcase(os.path.realpath(plain / "payload" / "app" / "bin" / "setup.exe")))
 
     # ------------------------------------------------------------------------- 5. and 6. no marker: as before
     def test_a_python_shaped_archive_without_the_marker_is_installed_as_before(self):
