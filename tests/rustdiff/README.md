@@ -11,7 +11,7 @@ of git by `tests/released.py` and run in a process of its own on scratch homes.
 | Rust | `rust/crates/car-harness` (PLAN 1.2 row 17, `publish = false`) | `car-harness serve`: JSON-lines calls, the framing `controlcli serve` uses; `car-core-stub`: the stand-in for `codex-auto-resume.exe` (`bridge`/`mcp`/`cli` + the Python entry point's argv) |
 | Rust, from Python | `core.py` | where the binaries are (`CODEX_AR_CORE_EXE`, `CODEX_AR_HARNESS_EXE`, `CARGO_TARGET_DIR`, else the crate's release build), `build()`, `stub()`, `Harness` |
 | shim | `shim.py` | `CODEX_AR_CORE=rust`: the entry points' `main` runs the Rust binary (below) |
-| diffs | `diffs.py` | the comparisons, as unittest cases. The folder has no `__init__.py` (a namespace package) and no `test*.py`, so the lanes' discovery never enters it: it imports nothing of it and runs none of it |
+| diffs | `diffs.py`, `diffs_*.py` (each seat's own: `diffs_store.py`, S1.2) | the comparisons, as unittest cases; run.py loads `diffs.py` and then every `diffs_*.py` in name order. The folder has no `__init__.py` (a namespace package) and no `test*.py`, so the lanes' discovery never enters it: it imports nothing of it and runs none of it |
 | ledger | `LEDGER` | tests that fail on Rust only for reading a Python internal, each with its reason; only shrinks; empty |
 | entry point | `run.py` | the one command CI and a person run |
 
@@ -89,8 +89,8 @@ have fewer settings, `test_defaults` fails "the reply line differs from the tag'
 
 The tag's own store writes a `state.sqlite` with one record in each state it knows and a conversation switched
 off (`released._WRITE_STATE`, as the released-tree tests write v0.6.10's), then opens it and answers each
-record's state and the schema version. `car-harness serve` opens the same file read only with rusqlite and
-answers `store.record_state` for every key (and one key in no record: `null`) and `store.schema_version`.
+record's state and the schema version. `car-harness serve` opens the same file with car-store (S1.2; until then
+a read-only rusqlite stand-in, `state.rs`, now gone) and answers `store.record_state` for every key (and one key in no record: `null`) and `store.schema_version`.
 Each reply line equals `json.dumps({"id": n, "reply": {"ok": true, "value": <the reference's value>}})`:
 27 records, schema 5, 29 values, identical.
 
@@ -105,8 +105,45 @@ floats by their JSON text. The tables are the tag's, written by `gen_brand.py --
 (the C runtime's `_hypot` differs from it in the last bit for about one pair in six), so car-brand carries CPython's
 algorithm (`pyfmt::hypot`); `math.erfc` is the C runtime's in both, called through one `extern "C"` declaration.
 
+### 3. The state store (S1.2, `diffs_store.py`, car-store)
+
+`car-harness serve` answers `store.script` (open a `Store` with `migrate`, `check` and a pinned `clock`, then a list
+of `{"method", "args", "kwargs"}` named as the Python's methods), `store.legacy`, `store.downgrade` and
+`store.open_state` (a Windows stand-in for the install lock and the watcher's mutex). The reference runs the same
+request through the tag's store (`_RUNNER`). Each answer line must equal the reference's value written as the wire
+writes it, and every state file is compared by a dump in a stable order: user_version, application_id, journal mode,
+page size, every sqlite_master object, every table's rows by rowid with each value's type, integrity, and the
+forensic copies with their time taken out of the name.
+
+Run 2026-11-25 (`run.py --build -v`, 17 tests, 219 s, all OK):
+
+```
+fresh state: created and marked by car-store, the same file as v0.6.26-beta.2's (schema 5, mark 0x43410505)
+migrations: v0.3.2 (schema 1, 16 records), v0.5.6 (schema 2, 21), v0.5.7 (schema 2, 21), v0.6.10 (schema 3, 27),
+  v0.6.13 (schema 4, 27) each upgraded to the same schema-5 file, the same forensic copy and the same 14 reads;
+  the same UpgradePending without migrate
+readable-from: a schema 6 marked readable from 5 opened and written alike; unmarked, marked from 6 or with schema 5's
+  mark, StateFromNewerVersion alike
+refusals: 8 broken states refused with the same class and sentence, check on and off
+script: 140 store calls (18 refused alike) gave equal answers and the same file; v0.6.26-beta.2's store read
+  car-store's file and car-store the reference's, 14 reads equal
+journal: 5,500 entries pruned by age and by count to the same 5123
+downgrade: a rich schema-5 state to 4, 3 and 2 gave the same report and file; refusals alike
+legacy store: v0.5.7, v0.6.10 and v0.6.13 states as LegacyStore, 18 calls each equal, the same file
+open_state: 43 policy and Windows combinations over a v0.6.10 state opened the same store, the same file
+connection: foreign_keys=1, synchronous=2, trusted_schema=0, journal_mode=delete, busy_timeout=10000, ...
+claim race: 6 rounds of each pairing (python+python, rust+rust, python+rust, rust+python): one claim every round,
+  the other refused submission_safe/possibly_sent
+busy: a read under another's write lock did not wait; a claim waited for a 2 s lock and got it; behind a 13 s lock
+  both gave up after the 10 s timeout with StoreError 'State transaction failed'
+store seam: 34 closed lists and PLAIN_MOVES equal to v0.6.26-beta.2's
+```
+
+The diff catches a difference: `max(0, ...)` turned to `max(1, ...)` in car-store's claim refund made ScriptDiff fail
+at the first record read after a release ("op 45 (get) differs").
+
 ## Dependencies (crates.io only)
 
-`rusqlite` 0.43 with `bundled` (D4; libsqlite3-sys 0.40, SQLite 3.54.1, above the bundled Python's), and
-`serde_json` 1 to read requests (D5), which brings `serde`. The JSON writer is our own, inline in
-`src/pyjson.rs` and marked to be replaced by S0.2's in car-machine.
+`rusqlite` 0.43 with `bundled` (D4; libsqlite3-sys 0.40, SQLite 3.54.1, above the bundled Python's 3.50.4), now a
+dependency of car-store, which the harness reaches it through; and `serde_json` 1 to read requests (D5), which brings
+`serde`. The JSON writer is car-machine's (S0.2).

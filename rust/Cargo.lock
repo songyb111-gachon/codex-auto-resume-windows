@@ -70,8 +70,8 @@ dependencies = [
  "car-brand",
  "car-config",
  "car-machine",
+ "car-store",
  "car-words",
- "rusqlite",
  "serde_json",
 ]
 
@@ -127,6 +127,7 @@ version = "0.0.0"
 dependencies = [
  "car-machine",
  "car-policy",
+ "rusqlite",
 ]
 
 [[package]]

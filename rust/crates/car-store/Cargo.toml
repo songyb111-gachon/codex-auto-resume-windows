@@ -4,10 +4,15 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
+description = "The state this product keeps: state.sqlite, its schema, migrations, downgrade and every write's rules."
 
 [lints]
 workspace = true
 
 [dependencies]
+# Rows, records and every answer are car-machine's Python-model values; the gates column is written by its writer (D5).
 car-machine = { path = "../car-machine" }
+# Declared by the groundwork (test_stack EDGES store -> policy); used once S2.1 ports the gates the seam stands in for.
 car-policy = { path = "../car-policy" }
+# D4: SQLite bundled into the binary, one version on every PC (3.54.1, above the bundled Python's 3.50.4).
+rusqlite = { version = "0.43", features = ["bundled"] }
