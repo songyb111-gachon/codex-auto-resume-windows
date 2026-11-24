@@ -4,12 +4,28 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
+description = "Dev-only differential harness: runs the Rust core's calls for tests/rustdiff"
 
 [lints]
 workspace = true
 
+[lib]
+path = "src/lib.rs"
+
+# `car-harness serve`: JSON lines on stdin, one reply line each on stdout (PLAN 4.2).
 [[bin]]
 name = "car-harness"
 path = "src/main.rs"
 
+# The stand-in for codex-auto-resume.exe that the CODEX_AR_CORE=rust shim starts: the same argv as the
+# Python entry points, after `bridge` / `mcp`. Only `bridge --home H defaults` is ported (S0.4's proof).
+[[bin]]
+name = "car-core-stub"
+path = "src/bin/car-core-stub.rs"
+
 [dependencies]
+# The differential harness's Rust side (PLAN.md 1.2 row 17, section 4): dev only, never shipped.
+# D4: SQLite bundled into the binary, one version on every PC.
+rusqlite = { version = "0.43", features = ["bundled"] }
+# D5: serde to read (the harness's requests); the writer is ours (src/pyjson.rs, until car-machine's replaces it).
+serde_json = "1"

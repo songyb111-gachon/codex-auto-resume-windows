@@ -1,0 +1,7 @@
+# The divergence ledger (PLAN.md 4.2): a test that fails on the Rust lane (CODEX_AR_CORE=rust) only because it
+# reads a Python internal - engine._x, a module constant, a module's loader - with the reason, one per line:
+#
+#     tests/test_x.py::Class.test_name    the reason, in one sentence
+#
+# It only shrinks, as tests/test_stack.py's exceptions do, and nothing behavioural may enter it: a different
+# answer, row, send, byte or exit code is a defect of the port, never an entry here. Empty at S0.4.

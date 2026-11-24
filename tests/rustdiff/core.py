@@ -1,0 +1,84 @@
+"""The Rust side: rust/crates/car-harness's two binaries, built and started.
+
+* `car-core-stub` stands in for codex-auto-resume.exe: `bridge|mcp|cli` and then the Python entry point's
+  own argv. The shim (shim.py) starts it; so does a diff that runs one command.
+* `car-harness serve` answers JSON-lines calls (`Harness`), the framing `controlcli serve` uses.
+
+CODEX_AR_CORE_EXE and CODEX_AR_HARNESS_EXE name other builds (a CI artifact, say); otherwise the release
+build beside the crate is used. Every process gets no console window and scratch homes (reference.py).
+"""
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+import subprocess
+
+ROOT = Path(__file__).resolve().parents[2]
+CRATE = ROOT / "rust" / "crates" / "car-harness"
+MANIFEST = CRATE / "Cargo.toml"
+NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
+
+def target_dir() -> Path:
+    """Where cargo puts the build: CARGO_TARGET_DIR when set, else beside the manifest (the crate builds
+    alone until S0.1's workspace lists it; then rust/target)."""
+    named = os.environ.get("CARGO_TARGET_DIR")
+    return Path(named) if named else CRATE / "target"
+
+
+def binary(name: str) -> Path:
+    variable = {"car-core-stub": "CODEX_AR_CORE_EXE", "car-harness": "CODEX_AR_HARNESS_EXE"}[name]
+    named = os.environ.get(variable)
+    return Path(named) if named else target_dir() / "release" / (name + ".exe")
+
+
+def build() -> None:
+    """`cargo build --release --locked` of the harness crate alone, four jobs unless CARGO_BUILD_JOBS says
+    otherwise. Raises CalledProcessError with cargo's own output on a failed build."""
+    environment = dict(os.environ)
+    environment.setdefault("CARGO_BUILD_JOBS", "4")
+    subprocess.run(["cargo", "build", "--release", "--locked", "--manifest-path", str(MANIFEST)],
+                   env=environment, check=True, creationflags=NO_WINDOW, timeout=1800)
+
+
+def missing() -> list[str]:
+    """The binaries not built yet."""
+    return [name for name in ("car-core-stub", "car-harness") if not binary(name).is_file()]
+
+
+def stub(*argv, environment: dict, stdin: bytes | None = None, cwd=None) -> subprocess.CompletedProcess:
+    """One run of car-core-stub with `argv` (its entry point first: "bridge", "mcp" or "cli")."""
+    return subprocess.run([str(binary("car-core-stub")), *map(str, argv)], input=stdin, capture_output=True,
+                          env=environment, cwd=cwd, creationflags=NO_WINDOW, timeout=300)
+
+
+class Harness:
+    """`car-harness serve` for the length of a `with`: `call(name, **fields)` returns the reply line's bytes."""
+
+    def __init__(self, environment: dict):
+        self.environment, self.process, self.next_id = environment, None, 0
+
+    def __enter__(self):
+        self.process = subprocess.Popen([str(binary("car-harness")), "serve"], stdin=subprocess.PIPE,
+                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=self.environment,
+                                        creationflags=NO_WINDOW)
+        return self
+
+    def call(self, call: str, **fields) -> tuple[int, bytes]:
+        """Send one request; answer (its id, the reply line as written, newline included)."""
+        self.next_id += 1
+        request = dict(fields, id=self.next_id, call=call)
+        self.process.stdin.write((json.dumps(request, ensure_ascii=False) + "\n").encode("utf-8"))
+        self.process.stdin.flush()
+        return self.next_id, self.process.stdout.readline()
+
+    def __exit__(self, *_exc):
+        try:
+            self.process.stdin.close()
+            self.process.wait(timeout=30)
+        finally:
+            if self.process.poll() is None:
+                self.process.kill()
+            self.process.stdout.close()
+            self.process.stderr.close()
