@@ -1,0 +1,30 @@
+# The differential harness's Rust side (PLAN.md 1.2 row 17, section 4): dev only, never shipped.
+#
+# Built alone with `cargo build --manifest-path rust/crates/car-harness/Cargo.toml` until S0.1's standard
+# workspace (rust/Cargo.toml) lists it; then that workspace's Cargo.lock replaces the one beside this file.
+[package]
+name = "car-harness"
+version = "0.0.0"
+edition = "2024"
+publish = false
+description = "Dev-only differential harness: runs the Rust core's calls for tests/rustdiff"
+
+[lib]
+path = "src/lib.rs"
+
+# `car-harness serve`: JSON lines on stdin, one reply line each on stdout (PLAN 4.2).
+[[bin]]
+name = "car-harness"
+path = "src/main.rs"
+
+# The stand-in for codex-auto-resume.exe that the CODEX_AR_CORE=rust shim starts: the same argv as the
+# Python entry points, after `bridge` / `mcp`. Only `bridge --home H defaults` is ported (S0.4's proof).
+[[bin]]
+name = "car-core-stub"
+path = "src/bin/car-core-stub.rs"
+
+[dependencies]
+# D4: SQLite bundled into the binary, one version on every PC.
+rusqlite = { version = "0.43", features = ["bundled"] }
+# D5: serde to read (the harness's requests); the writer is ours (src/pyjson.rs).
+serde_json = "1"
