@@ -7,7 +7,11 @@ It checks, and exits 1 with every finding if one fails:
 * the two workspaces' shared files agree (rust-toolchain.toml, .cargo/config.toml, deny.toml, tools/rustflags.sh, the
   [profile.*] tables), because a config file and a profile belong to the workspace root they sit in;
 * tools/rustflags.sh repeats every rustflag of the config (RUSTFLAGS replaces the config's list whole);
-* nothing under rust/ names advanced/ (D2: deleting advanced/ must change nothing the standard workspace reads);
+* nothing under rust/ names the advanced edition (D2: deleting advanced/ must change nothing the standard workspace
+  reads): the names the Python product's edition audit looks for (build/edition_audit.py: the advanced package, the skill
+  and the sentinel), a crate `car-adv*` and the path `advanced/`. The word "advanced" alone is not a name: the tier
+  "advanced" of the compatibility vocabulary, the logbook's sentences and gui/Brand.cs's comment hold it, as the Python
+  product's standard files do;
 * `cargo metadata` shows exactly the crates of PLAN.md 1.2 and exactly the edges of EXPECTED below, both ways, in
   each workspace (cargo itself refuses a cycle; this refuses an edge nobody decided);
 * the two Cargo.lock files give every crate they share the same version.
@@ -113,15 +117,41 @@ def check_rustflags() -> None:
             fail("tools/rustflags.sh lacks %s" % needle)
 
 
-def check_standard_never_names_advanced() -> None:
-    for path in sorted(STD.rglob("*")):
-        if not path.is_file() or "target" in path.relative_to(STD).parts:
+def advanced_names() -> tuple[tuple[str, ...], "re.Pattern[str]"]:
+    """What the standard workspace may not spell: the names `build/edition_audit.py` `check_names` looks for in the
+    standard archive - the advanced package's, the skill's and the sentinel's, as they are (one rule, read from the audit,
+    not copied) - and the two ways Rust names the advanced edition: a crate `car-adv*` (`car_adv*` in a path of code) and
+    the folder `advanced/` (a path dependency or a workspace member that reaches it)."""
+    sys.path.insert(0, str(ROOT / "build"))
+    try:
+        import edition_audit
+    finally:
+        sys.path.pop(0)
+    strong = (edition_audit.PACKAGE, edition_audit.SKILL, edition_audit.SENTINEL)
+    rust = re.compile(r"(?<![A-Za-z0-9_])car[-_]adv(?![a-z0-9])|(?<![A-Za-z0-9_])advanced[/\\]")
+    return strong, rust
+
+
+def names_advanced(line: str, strong: tuple[str, ...], rust: "re.Pattern[str]") -> str | None:
+    """The name of the advanced edition `line` spells, or None."""
+    for name in strong:
+        if name in line:
+            return name
+    found = rust.search(line)
+    return found.group(0) if found else None
+
+
+def check_standard_never_names_advanced(root: Path = STD) -> None:
+    strong, rust = advanced_names()
+    for path in sorted(root.rglob("*")):
+        if not path.is_file() or "target" in path.relative_to(root).parts:
             continue
         if path.suffix not in (".toml", ".rs", ".sh", ".lock"):
             continue
         for number, line in enumerate(read(path).splitlines(), 1):
-            if "advanced" in line.lower():
-                fail("%s:%d names advanced: %s" % (path.relative_to(ROOT).as_posix(), number, line.strip()))
+            name = names_advanced(line, strong, rust)
+            if name:
+                fail("%s:%d names advanced (%s): %s" % (path.relative_to(root.parent).as_posix(), number, name, line.strip()))
 
 
 def metadata(root: Path) -> dict:
