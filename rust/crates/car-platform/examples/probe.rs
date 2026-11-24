@@ -310,7 +310,7 @@ impl Starter for Recording {
             })
             .collect();
         let script = spawn.argv().get(4).cloned().unwrap_or_default();
-        let is_maker = script == shortcut::MAKER;
+        let is_maker = script == shortcut::maker();
         self.runs.borrow_mut().push(json!({
             "argv": spawn.argv(),
             "command_line": spawn.command_line(),
@@ -551,7 +551,7 @@ fn handle(request: &Json) -> Result<Json, String> {
             text(request, "shell"),
             text(request, "script")
         )),
-        "scripts" => json!({"maker": shortcut::MAKER, "reader": shortcut::READER}),
+        "scripts" => json!({"maker": shortcut::maker(), "reader": shortcut::READER}),
         "constants" => json!({
             "no_window": car_platform::spawn::CREATE_NO_WINDOW,
             "breakaway": car_platform::spawn::CREATE_BREAKAWAY_FROM_JOB,

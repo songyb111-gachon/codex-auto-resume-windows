@@ -225,7 +225,7 @@ class ObjectNames(Base):
 
     def test_text_rules_equal(self):
         """normcase, realpath and the hash, on texts Python spells in more than one way."""
-        texts = ["C:/Users/A/b", "c:\\users\\ÄÖÜ\\straße", "\\\\Server\\Share\\Dir\\..\\X", "İ\\ǅ\\Σ", "C:\\a\\.\\b\\..\\c", "",
+        texts = ["C:/Users/ExampleUser/b", "c:\\users\\ExampleUser\\ÄÖÜ\\straße", "\\\\Server\\Share\\Dir\\..\\X", "İ\\ǅ\\Σ", "C:\\a\\.\\b\\..\\c", "",
                  "relative\\path", "C:\\", "ΑΣ", "Ǆ", "ẞ", "K\u212a", "C:\\한국어\\😀"]
         script = ("import json,sys,os,hashlib\nfrom pathlib import Path\nt=json.load(sys.stdin)\n"
                   "json.dump([{'n':os.path.normcase(x),'h':hashlib.sha256(x.encode('utf-8')).hexdigest()} for x in t],"

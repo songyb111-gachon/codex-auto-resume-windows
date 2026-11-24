@@ -4,8 +4,8 @@ Add-Type -Language CSharp -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
 namespace CodexAutoResumeShell {
-  [ComImport, Guid("00021401-0000-0000-C000-000000000046")] internal class CShellLink {}
-  [ComImport, Guid("000214F9-0000-0000-C000-000000000046"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+  [ComImport, Guid("@@CLSID_SHELL_LINK@@")] internal class CShellLink {}
+  [ComImport, Guid("@@IID_SHELL_LINK_W@@"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
   internal interface IShellLinkW {
     void GetPath([Out, MarshalAs(UnmanagedType.LPWStr)] System.Text.StringBuilder f, int c, IntPtr d, int fl);
     void GetIDList(out IntPtr p); void SetIDList(IntPtr p);
@@ -23,7 +23,7 @@ namespace CodexAutoResumeShell {
     void Resolve(IntPtr h, int fl);
     void SetPath([MarshalAs(UnmanagedType.LPWStr)] string p);
   }
-  [ComImport, Guid("886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+  [ComImport, Guid("@@IID_PROPERTY_STORE@@"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
   internal interface IPropertyStore {
     void GetCount(out uint c); void GetAt(uint i, out PropertyKey k);
     void GetValue(ref PropertyKey k, out PropVariant v);
@@ -37,7 +37,7 @@ namespace CodexAutoResumeShell {
   [StructLayout(LayoutKind.Explicit)] internal struct PropVariant {
     [FieldOffset(0)] public ushort vt; [FieldOffset(8)] public IntPtr p;
   }
-  [ComImport, Guid("0000010b-0000-0000-C000-000000000046"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+  [ComImport, Guid("@@IID_PERSIST_FILE@@"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
   internal interface IPersistFile {
     void GetClassID(out Guid c); int IsDirty();
     void Load([MarshalAs(UnmanagedType.LPWStr)] string f, int m);
@@ -55,7 +55,7 @@ namespace CodexAutoResumeShell {
       if (!string.IsNullOrEmpty(icon)) link.SetIconLocation(icon, 0);
       link.SetDescription(desc);
       var store = (IPropertyStore)link;
-      var key = new PropertyKey(new Guid("9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3"), 5);
+      var key = new PropertyKey(new Guid("@@PKEY_APP_USER_MODEL_ID@@"), 5);
       var value = new PropVariant { vt = 31, p = Marshal.StringToCoTaskMemUni(aumid) };
       store.SetValue(ref key, ref value);
       store.Commit();

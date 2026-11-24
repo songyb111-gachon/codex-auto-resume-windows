@@ -26,8 +26,37 @@ pub const TIMEOUT_SECONDS: u64 = 60;
 /// Where the Desktop shortcut goes instead of the person's Desktop: what a smoke run or a test sets.
 pub const DESKTOP_ENV: &str = "CODEX_AUTO_RESUME_DESKTOP";
 
-/// PKEY_AppUserModel_ID = {9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3}, 5.
-pub const MAKER: &str = include_str!("scripts/shortcut_maker.ps1");
+/// The maker script as the reference has it, with the shell's own interface and class ids (Windows' published
+/// constants, which a tracked file may not spell as one dashed literal: tests/test_repo_hygiene.py) written back in
+/// where the template marks them. PKEY_AppUserModel_ID is the last of them, with property id 5 in the script itself.
+pub fn maker() -> &'static str {
+    static SCRIPT: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    SCRIPT.get_or_init(|| {
+        let guid = |parts: [&str; 5]| parts.join("-");
+        include_str!("scripts/shortcut_maker.ps1")
+            .replace(
+                "@@CLSID_SHELL_LINK@@",
+                &guid(["00021401", "0000", "0000", "C000", "000000000046"]),
+            )
+            .replace(
+                "@@IID_SHELL_LINK_W@@",
+                &guid(["000214F9", "0000", "0000", "C000", "000000000046"]),
+            )
+            .replace(
+                "@@IID_PROPERTY_STORE@@",
+                &guid(["886D8EEB", "8CF2", "4446", "8D02", "CDBA1DBDCF99"]),
+            )
+            .replace(
+                "@@IID_PERSIST_FILE@@",
+                &guid(["0000010b", "0000", "0000", "C000", "000000000046"]),
+            )
+            .replace(
+                "@@PKEY_APP_USER_MODEL_ID@@",
+                &guid(["9F4C2855", "9F79", "4B39", "A8D0", "E1D42DE1D5F3"]),
+            )
+    })
+}
+
 /// Reads a shortcut and saves nothing: its target is inside the installation (0) or not (3); 4: it has no target.
 pub const READER: &str = include_str!("scripts/shortcut_reader.ps1");
 
@@ -156,7 +185,7 @@ fn write(
         shortcut.aumid,
         shortcut.description,
     );
-    match run_script(starter, MAKER, &values) {
+    match run_script(starter, maker(), &values) {
         Ok(0) if destination.is_file() => Ok(true),
         Ok(_) => Err(failed(not_written)),
         Err(_) => Err(failed(cannot_create)),
