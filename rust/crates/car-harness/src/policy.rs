@@ -475,6 +475,21 @@ impl Plug for Answering {
     }
 }
 
+/// A plug that wants P21 and answers it with one value: `Guarded.power`'s check, end to end.
+struct Powered(Value);
+
+impl Plug for Powered {
+    fn edition(&self) -> plug::Edition {
+        plug::Edition::Advanced
+    }
+    fn wants(&self, point: Point) -> Result<bool, HookFailed> {
+        Ok(point == Point::Power)
+    }
+    fn power(&self, _: &Value) -> plug::Hook<Value> {
+        Ok(Answer::Is(self.0.clone()))
+    }
+}
+
 struct NoLedger;
 impl plug::Ledger for NoLedger {}
 struct NoView;
@@ -1097,7 +1112,15 @@ fn case(index: usize, name: &str, a: &Args) -> Value {
         "plug.fields" => ok(hands::fields(a.get(0)).unwrap_or_else(|| Value::from("DEFER"))),
         "plug.kinds_of" => ok(strings(hands::kinds_of(collection(a.get(0)).as_deref()))),
         "plug.widening_of" => ok(strings(hands::widening_of(collection(a.get(0)).as_deref()))),
-        "plug.power" => ok(hands::power_of(a.get(0)).unwrap_or(Value::Null)),
+        "plug.power" => {
+            let guarded = Guarded::new(Box::new(Powered(a.get(0).clone())));
+            let facts = Value::Object(Map::new());
+            ok(guarded.power(&facts).unwrap_or(Value::Null))
+        }
+        "policy.vocab" => ok(car_machine::vocab::export(&[
+            car_policy::settings::vocab_gen::MODULES,
+            car_policy::plug::vocab_gen::MODULES,
+        ])),
         "edition.name" => ok(Value::from(
             plug::edition::name(Path::new(text(a.get(0)))).as_str(),
         )),
