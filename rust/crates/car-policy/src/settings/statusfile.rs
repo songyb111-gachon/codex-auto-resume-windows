@@ -303,6 +303,10 @@ pub fn remove(os: &dyn Os, target: &Path) -> Py<bool> {
     if !ours(os, target)? {
         return Ok(false);
     }
+    // Python's unlink is DeleteFileW, which refuses a read-only file; std's remove_file deletes one anyway.
+    if std::fs::metadata(target).is_ok_and(|found| found.permissions().readonly()) {
+        return Ok(false);
+    }
     Ok(std::fs::remove_file(target).is_ok())
 }
 
