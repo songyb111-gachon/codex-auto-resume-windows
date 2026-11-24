@@ -68,7 +68,7 @@ name = "car-harness"
 version = "0.0.0"
 dependencies = [
  "car-machine",
- "rusqlite",
+ "car-store",
  "serde_json",
 ]
 

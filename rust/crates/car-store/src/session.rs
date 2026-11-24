@@ -293,6 +293,22 @@ impl Store {
         Ok(())
     }
 
+    /// One PRAGMA's value on this store's own connection (`store._connection.execute("PRAGMA name")`), read
+    /// only: how the differential harness holds the connection's settings to Python's.
+    pub fn pragma(&self, name: &str) -> Result<Value> {
+        if !name
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte == b'_')
+        {
+            return Err(Error::Python("ValueError", "not a PRAGMA name".into()));
+        }
+        Ok(crate::value::scalar(
+            self.open_connection()?,
+            &format!("PRAGMA {name}"),
+            &[],
+        )?)
+    }
+
     /// `schema_version()`: the schema on disk now.
     pub fn schema_version(&self) -> Result<i64> {
         self.read(|connection| Ok(integer(connection, "PRAGMA user_version", &[])?))

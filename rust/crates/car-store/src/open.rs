@@ -10,7 +10,7 @@ use std::path::Path;
 
 use crate::errors::{Error, Kind, Result};
 use crate::legacy::LegacyStore;
-use crate::session::{Options, Store};
+use crate::session::{Clock, Options, Store, wall_clock};
 
 /// `POLICIES`.
 pub const POLICIES: &[&str] = &["never", "if_reducing", "always"];
@@ -49,6 +49,9 @@ pub struct OpenState<'a> {
     pub hold_while_installing: bool,
     /// `superseded`: whether another version was installed under this process since it started.
     pub superseded: Option<&'a dyn Fn() -> bool>,
+    /// A fixed clock for the stores it opens, where Python's run at `time.time` (the differential harness pins
+    /// the time a migration journals); None is the wall clock.
+    pub clock: Option<f64>,
 }
 
 impl Default for OpenState<'_> {
@@ -60,6 +63,7 @@ impl Default for OpenState<'_> {
             upgrade_failed: None,
             hold_while_installing: false,
             superseded: None,
+            clock: None,
         }
     }
 }
@@ -76,11 +80,18 @@ pub fn open_state(
             format!("legacy must be one of {}", POLICIES.join(", ")),
         ));
     }
+    let clock = || -> Clock {
+        match options.clock {
+            Some(fixed) => Box::new(move || fixed),
+            None => Box::new(wall_clock),
+        }
+    };
     match Store::open_with(
         state_dir,
         Options {
+            migrate: false,
             check: options.check,
-            ..Options::default()
+            clock: clock(),
         },
     ) {
         Ok(store) => return Ok(Opened::Store(store)),
@@ -97,7 +108,7 @@ pub fn open_state(
                 Options {
                     migrate: true,
                     check: true,
-                    ..Options::default()
+                    clock: clock(),
                 },
             );
             drop(guard);

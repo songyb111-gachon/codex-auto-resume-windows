@@ -90,6 +90,25 @@ impl LegacyStore {
         begin(connection, "BEGIN IMMEDIATE", body)
     }
 
+    /// One PRAGMA's value on this store's connection, read only (as [`Store::pragma`](crate::Store::pragma)).
+    pub fn pragma(&self, name: &str) -> Result<Value> {
+        if !name
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte == b'_')
+        {
+            return Err(Error::Python("ValueError", "not a PRAGMA name".into()));
+        }
+        let connection = self
+            .connection
+            .as_ref()
+            .ok_or_else(|| Error::store("Store is closed"))?;
+        Ok(crate::value::scalar(
+            connection,
+            &format!("PRAGMA {name}"),
+            &[],
+        )?)
+    }
+
     /// `settings()`.
     pub fn settings(&self) -> Result<Row> {
         self.transaction(read_settings)
