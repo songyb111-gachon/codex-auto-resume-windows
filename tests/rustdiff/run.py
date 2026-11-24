@@ -39,10 +39,12 @@ def main(argv=None) -> int:
     import importlib
 
     from rustdiff import core, reference
-    # `diffs` (S0.4's proof) and every `diffs_*.py` beside it: each seat's cases are a module of their own
-    # (diffs_leaves_machine, diffs_leaves_domain, ...) with its own RECORD, and none edits another's.
+    # `diffs` (S0.4's proof), every `diffs_*.py` beside it (S1.1, S1.2: diffs_leaves_machine, diffs_store, ...) and every
+    # `*_diffs.py` (S3.1: platform_diffs, ...): each seat's cases are a module of their own with its own RECORD, and none
+    # edits another's.
     modules = [importlib.import_module("rustdiff." + name)
-               for name in ["diffs"] + sorted(path.stem for path in HERE.glob("diffs_*.py"))]
+               for name in ["diffs"] + sorted(path.stem for path in HERE.glob("diffs_*.py"))
+               + sorted(path.stem for path in HERE.glob("*_diffs.py"))]
 
     if args.build:
         core.build()
@@ -58,9 +60,12 @@ def main(argv=None) -> int:
         unittest.defaultTestLoader.testNamePatterns = ["*%s*" % each for each in args.pattern]
         suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromModule(module) for module in modules)
     result = unittest.TextTestRunner(verbosity=2 if args.verbose else 1).run(suite)
+    shown: set = set()
     for module in modules:
         for line in getattr(module, "RECORD", []):
-            print(line)
+            if line not in shown:  # the seats' modules may share one list
+                shown.add(line)
+                print(line)
     return 0 if result.wasSuccessful() else 1
 
 

@@ -147,3 +147,25 @@ at the first record read after a release ("op 45 (get) differs").
 `rusqlite` 0.43 with `bundled` (D4; libsqlite3-sys 0.40, SQLite 3.54.1, above the bundled Python's 3.50.4), now a
 dependency of car-store, which the harness reaches it through; and `serde_json` 1 to read requests (D5), which brings
 `serde`. The JSON writer is car-machine's (S0.2).
+
+## Platform diffs (S3.1, car-platform)
+
+Three modules named `*_diffs`, which `run.py` loads beside `diffs.py` (a seat adds its own; nothing of another seat's
+is edited). They do not use `car-harness`: car-platform has its own probe, `rust/crates/car-platform/examples/probe.rs`
+(an example, never shipped; built on demand with `cargo build -p car-platform --example probe`, two jobs, or named by
+`CODEX_AR_PLATFORM_PROBE`). Alone: `python -X utf8 tests/rustdiff/platform_diffs.py` (or `-m unittest
+rustdiff.platform_live_diffs`, `rustdiff.platform_registry_diffs`).
+
+| Module | Proves |
+|---|---|
+| `platform_diffs.py` | the mutex, stop, wake and demo names, the install lock and the home lock's files for 50 homes (Unicode, case, 8.3 names, a junction, `..`, homes that do not exist) x 3 state names; `subprocess.list2cmdline`, `startup.quote_argument` and `parse_command` over 4,000 generated argument lists; the child sees the arguments it was given |
+| `platform_registry_diffs.py` | every registry writer and reader behind a stand-in in both implementations (the calls recorded, in order, the results, the store left), and the shortcut writers behind a recording starter (command line, the values' environment variables, flags, timeout, refusals) |
+| `platform_live_diffs.py` | CREATE_NO_WINDOW on every process started (flags read back; no other `Command::new`); the pure rules (host walk, owner trust, access-list verdicts, SDDL descriptors, signature reasons, typeface); the read-only live questions put to both at once; a mutex, the three events and the home lock made by one implementation and met by the other |
+
+The registry is never the machine's: the reference runs with `winreg` replaced by a recorder, the probe on an in-memory
+`FakeRegistry`; the real Win32 writer is held to that stand-in on a private hive of a scratch file
+(`cargo test -p car-platform --test registry_hive`, `RegLoadAppKey`). Named objects are made under a scratch
+USERPROFILE, so their names are not the real watcher's. Power is never acted on (`act` refuses).
+
+Platform seat dependencies: `windows` 0.62 (and its `windows-*` support crates), `serde_json` for the manifest's display
+name. No other crate; SHA-256 is Windows' own (`BCryptHash`).
