@@ -42,11 +42,16 @@ def main(argv=None) -> int:
         print(changed.stderr.strip())
         return 2
     print("ported files changed from %s to %s:\n%s" % (BASE, tag, changed.stdout.strip() or "  none"))
+    # stdin given makes the children use this process's own output handles (STARTF_USESTDHANDLES): without it, a
+    # console child started with CREATE_NO_WINDOW writes to a hidden console of its own and its report is lost.
+    sys.stdout.flush()
     status = subprocess.run([sys.executable, "-X", "utf8", str(HERE / "gen_policy.py"), "--check", "--ref", tag],
-                            cwd=ROOT, creationflags=NO_WINDOW).returncode
+                            cwd=ROOT, stdin=subprocess.DEVNULL, creationflags=NO_WINDOW).returncode
     diffs = subprocess.run([sys.executable, "-X", "utf8", str(HERE / "run.py"), "--build", "--reference", tag,
                             "-k", "diffs_classify", "-k", "SeamVocabularyDiff"], cwd=ROOT,
-                           creationflags=NO_WINDOW).returncode
+                           stdin=subprocess.DEVNULL, creationflags=NO_WINDOW).returncode
+    print("rediff against %s: generated files %s, diffs %s" % (tag, "current" if status == 0 else "STALE",
+                                                               "equal" if diffs == 0 else "DIFFER"))
     return 0 if status == 0 and diffs == 0 else 1
 
 
