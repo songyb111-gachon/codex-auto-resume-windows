@@ -1,6 +1,6 @@
 //! The entry in Windows' list of installed programs ("Add or remove programs"), and nothing else (`addremove.py`).
 //!
-//! One key per edition under the current user's Uninstall key, by a fixed name (`CodexAutoResume`, and the advanced
+//! One key per edition under the current user's Uninstall key, by a fixed name (`CodexAutoResume`, and another
 //! edition's with its word added), only one of them at a time. What is removed is what can be proved ours: a key is
 //! this installation's only when its `InstallLocation` is this home and its uninstall command runs this home's
 //! kept uninstaller. Every registry call is `startup`'s, through a [`Registry`].
@@ -22,7 +22,6 @@ pub const KEPT_SCRIPT: &str = "install.ps1";
 pub const WINDOW: &str = "CodexAutoResumeSettings.exe";
 pub const WINDOW_SWITCH: &str = "--uninstall";
 pub const ICON: &str = "codex-auto-resume.ico";
-pub const EDITIONS: [&str; 2] = ["standard", "advanced"];
 pub const VALUE_NAMES: [&str; 9] = [
     "DisplayName",
     "DisplayVersion",
@@ -138,7 +137,7 @@ pub fn uninstall_command(home: &Path, silent: bool) -> String {
     quote_all(&argv)
 }
 
-/// The name the installed manifest gives this edition (the advanced edition's carries its word).
+/// The name the installed manifest gives this edition (another edition's carries its word).
 pub fn display_name(manifest_path: &Path) -> String {
     let read = || -> Option<String> {
         let bytes = std::fs::read(manifest_path).ok()?;
@@ -245,16 +244,18 @@ pub fn owned(values: Option<&[(String, Value)]>, home: &Path) -> bool {
 
 /// Write this edition's key for the installation at `home`, and take the other edition's away when it is this
 /// installation's. Nothing is written unless the kept uninstaller is there, and nothing over a key that is not
-/// this installation's. Returns what was done.
+/// this installation's. `editions` is every edition there is, the one registered among them (the editions are the
+/// caller's to name: this crate belongs to every edition and names none). Returns what was done.
 pub fn register(
     registry: &dyn Registry,
     home: &Path,
     edition: &str,
+    editions: &[&str],
     version: &str,
     name: Option<&str>,
 ) -> Result<Vec<String>, StartupError> {
     let mut done = Vec::new();
-    if !EDITIONS.contains(&edition)
+    if !editions.contains(&edition)
         || !kept_uninstaller_present(home)
         || version.is_empty()
         || version == "unknown"
@@ -278,7 +279,7 @@ pub fn register(
         startup::write_key(registry, &key_path(edition), &values)?;
         done.push(format!("wrote {}", key_name(edition)));
     }
-    for other in EDITIONS {
+    for &other in editions {
         if other != edition && remove_edition(registry, other, home)? {
             done.push(format!("removed {}", key_name(other)));
         }
@@ -299,10 +300,14 @@ pub fn remove_edition(
     startup::delete_key(registry, &key_path(edition))
 }
 
-/// Delete whichever edition's key is this installation's. The names of the keys removed.
-pub fn unregister(registry: &dyn Registry, home: &Path) -> Result<Vec<String>, StartupError> {
+/// Delete whichever of `editions`' keys is this installation's. The names of the keys removed.
+pub fn unregister(
+    registry: &dyn Registry,
+    home: &Path,
+    editions: &[&str],
+) -> Result<Vec<String>, StartupError> {
     let mut removed = Vec::new();
-    for edition in EDITIONS {
+    for &edition in editions {
         if remove_edition(registry, edition, home)? {
             removed.push(key_name(edition));
         }

@@ -233,6 +233,8 @@ PROTOCOL_COMMAND = PROTOCOL + r"\shell\open\command"
 AUMID = r"Software\Classes\AppUserModelId\CodexAutoResume.Watcher"
 UNINSTALL = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\CodexAutoResume"
 POLICY = r"Software\Policies\CodexAutoResume"
+# The editions the reference knows; the Rust side names none of its own, so it is told them.
+EDITIONS = ["standard", "advanced"]
 
 
 class Registries(Base):
@@ -306,10 +308,10 @@ class Registries(Base):
                  ["ar_read", "advanced"], ["ar_read", "standard"], ["ar_register", other, "advanced", "0.6.27", None],
                  ["ar_register", home, "standard", "unknown", None], ["ar_register", home, "other", "1", None],
                  ["ar_remove_edition", "advanced", home], ["ar_unregister", home], ["ar_unregister", home]]
-        self.both({"steps": steps})
+        self.both({"steps": steps, "editions": EDITIONS})
         foreign = {"InstallLocation": [other, 1], "UninstallString": ["cmd /c exit", 1]}
-        self.both({"seed": [["HKCU", UNINSTALL, foreign]], "steps": steps[:4] + [["ar_unregister", home], ["ar_unregister", other]]})
-        self.both({"deny_keys": [["HKCU", UNINSTALL]], "steps": steps[:3]})
+        self.both({"editions": EDITIONS, "seed": [["HKCU", UNINSTALL, foreign]], "steps": steps[:4] + [["ar_unregister", home], ["ar_unregister", other]]})
+        self.both({"editions": EDITIONS, "deny_keys": [["HKCU", UNINSTALL]], "steps": steps[:3]})
 
     def test_display_name(self):
         script = ("import json,sys\nfrom pathlib import Path\nfrom codex_auto_resume import addremove\n"

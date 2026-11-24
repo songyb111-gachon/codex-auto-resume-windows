@@ -45,10 +45,19 @@ def main(argv=None) -> int:
     built = core.binary("car-core-stub").parent
     shown = built.relative_to(ROOT).as_posix() if built.is_relative_to(ROOT) else built.name
     print("reference %s; rust %s" % (reference.TAG, shown), flush=True)
-    suite = unittest.defaultTestLoader.loadTestsFromModule(diffs)
+    # Every seat's diffs are a module of their own, named `*_diffs` (this folder's diffs.py is the harness's): each is run,
+    # and each prints what it saw (its RECORD).
+    import importlib
+
+    modules = [diffs] + [importlib.import_module("rustdiff." + path.stem) for path in sorted(HERE.glob("*_diffs.py"))]
+    suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromModule(module) for module in modules)
     result = unittest.TextTestRunner(verbosity=2 if args.verbose else 1).run(suite)
-    for line in diffs.RECORD:
-        print(line)
+    shown: set = set()
+    for module in modules:
+        for line in getattr(module, "RECORD", []):
+            if line not in shown:  # the seats' modules share one list
+                shown.add(line)
+                print(line)
     return 0 if result.wasSuccessful() else 1
 
 

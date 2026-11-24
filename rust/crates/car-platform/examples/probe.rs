@@ -158,7 +158,11 @@ fn registry_scenario(request: &Json) -> Json {
     }
     let mut results = Vec::new();
     for step in request["steps"].as_array().into_iter().flatten() {
-        results.push(registry_step(&registry, step));
+        results.push(registry_step(
+            &registry,
+            &strings(request, "editions"),
+            step,
+        ));
     }
     json!({"results": results, "calls": calls_json(&registry.calls()), "store": store_json(&registry)})
 }
@@ -173,7 +177,7 @@ fn startup_result<T>(
     }
 }
 
-fn registry_step(registry: &FakeRegistry, step: &Json) -> Json {
+fn registry_step(registry: &FakeRegistry, editions: &[String], step: &Json) -> Json {
     let op = step[0].as_str().unwrap_or("");
     let arg = |index: usize| step[index].as_str().unwrap_or("");
     match op {
@@ -226,15 +230,18 @@ fn registry_step(registry: &FakeRegistry, step: &Json) -> Json {
                 registry,
                 Path::new(arg(1)),
                 arg(2),
+                &editions.iter().map(String::as_str).collect::<Vec<_>>(),
                 arg(3),
                 step[4].as_str(),
             ),
             |done| json!(done),
         ),
         "ar_unregister" => {
-            startup_result(addremove::unregister(registry, Path::new(arg(1))), |done| {
-                json!(done)
-            })
+            let all: Vec<&str> = editions.iter().map(String::as_str).collect();
+            startup_result(
+                addremove::unregister(registry, Path::new(arg(1)), &all),
+                |done| json!(done),
+            )
         }
         "ar_remove_edition" => startup_result(
             addremove::remove_edition(registry, arg(1), Path::new(arg(2))),
