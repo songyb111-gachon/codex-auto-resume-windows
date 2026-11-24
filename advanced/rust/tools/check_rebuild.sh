@@ -19,7 +19,7 @@ git -C "$repo" archive "$ref" rust | tar -x -C "$work/without"
 test -d "$work/with/advanced/rust" && ! test -e "$work/without/advanced"
 
 build() {
-    (cd "$1" && . tools/rustflags.sh && cargo build --release --locked --jobs "${CARGO_BUILD_JOBS:-4}")
+    (cd "$1" && . tools/rustflags.sh release && cargo build --release --locked --jobs "${CARGO_BUILD_JOBS:-4}")
 }
 build "$work/with/rust"
 build "$work/with/advanced/rust"
@@ -32,11 +32,23 @@ for name in $names; do
     b="$(sha256sum "$work/without/rust/target/release/$name" | cut -d' ' -f1)"
     if [ "$a" = "$b" ]; then echo "same      $a  $name"; else echo "DIFFERENT $name: $a vs $b"; status=1; fi
 done
-user="$(basename "${USERPROFILE:-$HOME}")"
-for file in $(find "$work/with" "$work/without" -path '*/target/release/*' -type f \( -name '*.exe' -o -name '*.dll' -o -name '*.pdb' \)); do
-    hits=$(LC_ALL=C grep -c -a -i -e "$user" -e 'scratchpad' "$file" || true)
-    wide=$(LC_ALL=C grep -c -a -i -P "$(printf '%s' "$user" | sed 's/./&\x00/g')" "$file" || true)
-    if [ "$hits" != "0" ] || [ "$wide" != "0" ]; then echo "PROFILE PATH in $file ($hits narrow, $wide wide lines)"; status=1; fi
-done
+python - "$work" "$(basename "${USERPROFILE:-$HOME}")" <<'PY' || status=1
+import sys
+from pathlib import Path
+work, user = Path(sys.argv[1]), sys.argv[2]
+needles = {user, str(work), work.as_posix(), work.as_posix().replace("/", "\\"), "scratchpad"}
+needles |= {part for part in work.parts if len(part) > 8 and part != "/"}
+bad = 0
+for path in sorted(work.rglob("*")):
+    if path.suffix.lower() in (".exe", ".dll", ".pdb") and "target" in path.parts and "release" in path.parts:
+        data = path.read_bytes()
+        for needle in sorted(needles):
+            for form, blob in (("utf-8", needle.encode()), ("utf-16", needle.encode("utf-16-le"))):
+                if blob.lower() in data.lower():
+                    print("PROFILE PATH %r (%s) in %s" % (needle, form, path.relative_to(work)))
+                    bad = 1
+print("profile-path scan: %s" % ("FOUND" if bad else "none in any .exe, .dll or .pdb"))
+sys.exit(bad)
+PY
 echo "scratch: $work"
 exit $status
