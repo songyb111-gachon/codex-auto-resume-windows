@@ -961,3 +961,101 @@ class BusyDiff(StoreBase):
         RECORD.append("busy: a read under another's write lock did not wait; a claim waited %.1f s / %.1f s "
                       "(python / rust) for a 2 s lock and got it; behind a 13 s lock both gave up at %.1f s / %.1f s "
                       "with StoreError 'State transaction failed' (timeout=10)" % (found["short"] + found["long"]))
+
+
+def junction(link: Path, target: Path) -> None:
+    """`mklink /J link target`: a directory junction, which any user may make (a symbolic link needs a privilege)."""
+    target.mkdir(parents=True, exist_ok=True)
+    done = subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(target)], capture_output=True,
+                          creationflags=NO_WINDOW)
+    if done.returncode != 0:
+        raise AssertionError("mklink /J failed: %r" % done.stderr)
+
+
+class JunctionDiff(StoreBase):
+    """A state folder that is a junction - a moved profile, a folder linked elsewhere - is a folder to Python 3.12+
+    (`Path.is_symlink()` is False), and so to car-store (seam/links.rs): opened, written, downgraded, read as an older
+    watcher's, its usage-checks folder a junction too, all alike."""
+
+    def test_a_junction_is_a_folder(self):
+        ops = [op("set_enabled", True, N), op("register", record(0, "server_5xx"), N),
+               op("ask_usage_check", key(0), N + 1), op("usage_checks_asked", N + 1), op("usage_check_taken", key(0)),
+               op("ask_early_check", N + 2), op("early_check_asked", N + 3), op("all_records")]
+        self.ops = ops
+        homes = {}
+        for side in ("ref", "rust"):
+            target = self.scratch / ("target-" + side)
+            junction(self.scratch / ("home-" + side), target)
+            homes[side] = (self.scratch / ("home-" + side), target)
+        answer, _ = self.both("script", (homes["ref"][0], homes["rust"][0]), label="a junction home",
+                              open={"clock": CLOCK}, ops=ops)
+        self.assertIsNone(answer["open"], answer["open"])
+        self.same_files(homes["ref"][1], homes["rust"][1], "a junction home")
+        self.both("legacy", (homes["ref"][0], homes["rust"][0]), label="a junction home, legacy", ops=[op("settings")])
+        for target in (4, 2):
+            self.both("downgrade", (homes["ref"][0], homes["rust"][0]), label="a junction home, downgrade",
+                      target=target, now=N + 10)
+            self.same_files(homes["ref"][1], homes["rust"][1], "a junction home, downgraded to %d" % target)
+        # The usage-checks folder a junction, in an ordinary home.
+        theirs, mine = self.home("ref-checks"), self.home("rust-checks")
+        for home in (theirs, mine):
+            junction(home / "usage-checks", self.scratch / ("checks-of-" + home.name))
+        ops = [op("set_enabled", True, N), op("register", record(1), N), op("ask_usage_check", key(1), N + 1),
+               op("usage_checks_asked", N + 1), op("usage_check_taken", key(1)), op("ask_early_check", N + 2),
+               op("early_check_asked", N + 3), op("early_check_taken"), op("usage_checks_asked", N + 4)]
+        self.ops = ops
+        answer, _ = self.both("script", (theirs, mine), label="a junction usage-checks folder", open={"clock": CLOCK},
+                              ops=ops)
+        self.assertIs(answer["results"][2], True, answer["results"])
+        self.same_files(theirs, mine, "a junction usage-checks folder")
+        RECORD.append("junctions: a state folder that is a junction opened, written, read as legacy and downgraded to 4 "
+                      "and 2 alike; a usage-checks folder that is a junction asked, read and taken alike")
+
+
+ARABIC_THREAD = "\u0660" + THREAD[1:]
+# A lone surrogate as a JSON escape: six ASCII characters in the stored text.
+SURROGATE = chr(92) + "ud800"
+
+
+class PythonTextDiff(StoreBase):
+    """The readings car-store makes as CPython does (seam/python.rs): a UUID with a Unicode digit is a UUID written
+    another way; a request file's time read by float(), underscores and Unicode digits included, its words split as
+    str.split() splits; a stored gate vector or usage reading holding NaN, Infinity or a lone surrogate escape read as
+    json.loads reads it."""
+
+    def test_python_readings(self):
+        theirs, mine = self.home("ref"), self.home("rust")
+        for home in (theirs, mine):
+            reference_call("script", home, self.reference_profile, open={"clock": CLOCK}, ops=[
+                op("set_enabled", True, N), op("register", record(0, "server_5xx"), N),
+                op("register", record(1, "server_5xx"), N), op("register", record(2, "server_5xx"), N),
+                op("heartbeat", N, pid=1, session_id="s", started_at=N, ok=True, engine_state="verified",
+                   code_version="v")])
+            path = home / "state.sqlite"
+            edit(path,
+                 "UPDATE interruptions SET gate_eval='{\"consent\":[\"WAIT\",\"paused\"],\"x\":NaN}', gate_eval_at=%r "
+                 "WHERE interruption_id='%s'" % (N + 5, key(0)),
+                 "UPDATE interruptions SET gate_eval='{\"consent\":[\"WAIT\",\"paused\"],\"x\":\"" + SURROGATE + "\"}', "
+                 "gate_eval_at=%r WHERE interruption_id='%s'" % (N + 5, key(1)),
+                 "UPDATE interruptions SET gate_eval='{\"consent\":[\"WAIT\",-Infinity]}', gate_eval_at=%r "
+                 "WHERE interruption_id='%s'" % (N + 5, key(2)),
+                 ("UPDATE watcher_status SET usage_at=%r, usage='[{\"bucket\":\"codex\",\"window\":\"primary\","
+                  "\"used_percent\":1,\"window_minutes\":null,\"reset_at\":NaN}]', homes='[{\"key\":\"\","
+                  "\"state\":\"watched\"},{\"key\":\"" % N) + SURROGATE + "\",\"state\":\"watched\"}]'")
+            checks = home / "usage-checks"
+            checks.mkdir()
+            (checks / key(0)).write_text("1_700_000_148.5", encoding="ascii")
+            (checks / key(1)).write_text("1700000149.0\x1crescan", encoding="ascii")
+            (checks / key(2)).write_text("1__7", encoding="ascii")
+            (checks / "early").write_text(" 1_700_000_000.0\n", encoding="ascii")
+        ops = [op("set_thread_enabled", ARABIC_THREAD, False), op("thread_enabled", ARABIC_THREAD),
+               op("usage_checks_asked", N), op("early_check_asked", N), op("usage_check_taken", key(1)),
+               op("usage_check_taken", key(0)), op("watcher_status")]
+        ops += [op("reserve_detailed", key(index), N + 50, limits=LIMITS, gates=GATES) for index in range(3)]
+        ops += [op("get", key(index)) for index in range(3)]
+        self.ops = ops
+        answer, _ = self.both("script", (theirs, mine), label="python readings", open={"clock": CLOCK}, ops=ops)
+        self.same_files(theirs, mine, "python readings")
+        RECORD.append("python readings: %d calls over a UUID with an Arabic-Indic digit, request files with underscores "
+                      "and U+001C, and stored JSON with NaN, -Infinity and a lone surrogate: equal answers, the same file "
+                      "(the first refusal: %s)" % (len(ops), answer["results"][0]))
