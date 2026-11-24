@@ -7,6 +7,7 @@
 use car_machine::json::{Map, Str, Value, from_str};
 use car_machine::pyval::Py;
 
+mod brand;
 mod config;
 mod machine;
 mod words;
@@ -68,6 +69,7 @@ fn case(name: &str, args: &Args) -> Option<Py<Value>> {
     machine::case(name, args)
         .or_else(|| words::case(name, args))
         .or_else(|| config::case(name, args))
+        .or_else(|| brand::case(name, args))
 }
 
 /// `leaves.batch`: every case of `cases`, in order.

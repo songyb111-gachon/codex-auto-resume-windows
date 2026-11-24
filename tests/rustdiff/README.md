@@ -94,6 +94,17 @@ answers `store.record_state` for every key (and one key in no record: `null`) an
 Each reply line equals `json.dumps({"id": n, "reply": {"ok": true, "value": <the reference's value>}})`:
 27 records, schema 5, 29 values, identical.
 
+### car-brand (`diffs_leaves_brand.py`, S1.1)
+
+`python -X utf8 tests/rustdiff/run.py -k Brand -k CssDiff -k PaletteDiff -k LightDiff -k MarkDiff -k ShapeDiff -k DaysDiff
+-k TrayDiff` (8 tests, about 20 s). gui/Brand.cs from car-brand's `make_brand::render()` is the committed file (`git show
+HEAD:gui/Brand.cs`, LF) and the tag's own `build/make_brand.py` `render()`, byte for byte (149,471 bytes); every function
+of brand/css.py, and the brand functions the panel, the popup and the window read, over about 88,000 generated cases,
+floats by their JSON text. The tables are the tag's, written by `gen_brand.py --write` (`--check` says whether
+`car-brand/src/tables_gen.rs` is stale). Two of Python's `math` functions are not Rust's: `math.hypot` is CPython's own
+(the C runtime's `_hypot` differs from it in the last bit for about one pair in six), so car-brand carries CPython's
+algorithm (`pyfmt::hypot`); `math.erfc` is the C runtime's in both, called through one `extern "C"` declaration.
+
 ## Dependencies (crates.io only)
 
 `rusqlite` 0.43 with `bundled` (D4; libsqlite3-sys 0.40, SQLite 3.54.1, above the bundled Python's), and
