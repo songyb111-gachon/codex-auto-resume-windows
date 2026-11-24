@@ -4,9 +4,49 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
+description = "The Windows layer: object names, command lines, process starting, registry and shortcut writers, kernel facts."
 
 [lints]
 workspace = true
 
 [dependencies]
 car-machine = { path = "../car-machine" }
+# D3: the typed `windows` crate, every Windows call of the core inside this crate. Features are the namespaces the
+# modules use, nothing more (a feature is compile time; the code it brings in is what the linker keeps).
+windows = { version = "0.62", features = [
+    "Win32_Foundation",
+    "Win32_Globalization",
+    "Win32_Graphics_Gdi",
+    "Win32_Networking_NetworkListManager",
+    "Win32_Security",
+    "Win32_Security_Authorization",
+    "Win32_Security_Cryptography",
+    "Win32_Security_Cryptography_Catalog",
+    "Win32_Security_Cryptography_Sip",
+    "Win32_Security_WinTrust",
+    "Win32_Storage_FileSystem",
+    "Win32_Storage_Packaging_Appx",
+    "Win32_System_Com",
+    "Win32_System_DataExchange",
+    "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_Environment",
+    "Win32_System_IO",
+    "Win32_System_JobObjects",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Power",
+    "Win32_System_ProcessStatus",
+    "Win32_System_Registry",
+    "Win32_System_RemoteDesktop",
+    "Win32_System_RestartManager",
+    "Win32_System_Shutdown",
+    "Win32_System_SystemInformation",
+    "Win32_System_Threading",
+    "Win32_System_WindowsProgramming",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+# Reads the installed manifest's display name (`addremove::display_name`); the workspace already builds it for
+# car-machine and the harness.
+serde_json = { version = "1", default-features = false, features = ["std"] }
