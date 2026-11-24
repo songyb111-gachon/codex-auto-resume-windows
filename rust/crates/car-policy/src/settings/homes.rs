@@ -50,35 +50,6 @@ pub fn casefold(text: &Str) -> Str {
 
 const BACKSLASH: u16 = b'\\' as u16;
 const SLASH: u16 = b'/' as u16;
-const DOT: u16 = b'.' as u16;
-
-/// `ntpath.normpath(text)` of a path that starts with a drive letter, a colon and a separator (`_path_ok`'s).
-fn normpath_drive(text: &[u16]) -> Vec<u16> {
-    let units: Vec<u16> = text
-        .iter()
-        .map(|unit| if *unit == SLASH { BACKSLASH } else { *unit })
-        .collect();
-    let mut out: Vec<u16> = units[..2].to_vec();
-    out.push(BACKSLASH);
-    let mut parts: Vec<&[u16]> = Vec::new();
-    for part in units[3..].split(|unit| *unit == BACKSLASH) {
-        if part.is_empty() || part == [DOT] {
-            continue;
-        }
-        if part == [DOT, DOT] {
-            parts.pop();
-            continue;
-        }
-        parts.push(part);
-    }
-    for (index, part) in parts.iter().enumerate() {
-        if index > 0 {
-            out.push(BACKSLASH);
-        }
-        out.extend_from_slice(part);
-    }
-    out
-}
 
 /// `_text(value, low, high)`: text of that many characters, none of them a control character.
 fn text_ok(value: &Value, low: usize, high: usize) -> bool {
@@ -146,7 +117,7 @@ pub fn well_formed(os: &dyn Os, value: &Value) -> bool {
         let (Value::Str(path), Value::Str(alias)) = (path, alias) else {
             return false;
         };
-        paths.push(os.normcase(&normpath_drive(&wide(path))));
+        paths.push(os.normcase(&super::os::normpath(&wide(path))));
         aliases.push(casefold(alias));
     }
     paths.sort();
@@ -179,8 +150,8 @@ pub fn coerce(os: &dyn Os, value: &Value, default: &Value) -> Value {
 }
 
 /// `as_written(path)`: `normcase(abspath(path))`, which looks at no file.
-pub fn as_written(os: &dyn Os, path: &Str) -> Result<Str, &'static str> {
-    Ok(from_wide(&os.normcase(&os.abspath(&wide(path))?)))
+pub fn as_written(os: &dyn Os, path: &Str) -> Str {
+    from_wide(&os.normcase(&os.abspath(&wide(path))))
 }
 
 /// `key(path)`: the SHA-256 of `normcase(str(Path(path).resolve()))` as lowercase hex.

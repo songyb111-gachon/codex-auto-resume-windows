@@ -6,6 +6,7 @@
 pub mod defaults;
 pub mod leaves;
 pub mod links;
+pub mod policy;
 pub mod store;
 
 use car_machine::json::{Map, Value};

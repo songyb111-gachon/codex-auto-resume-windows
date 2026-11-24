@@ -509,7 +509,7 @@ fn coerce_dismissed(os: &dyn Os, value: &Value, default: &Value) -> Value {
     let mut written: Vec<Str> = paths
         .iter()
         .filter_map(|path| match path {
-            Value::Str(text) => homes::as_written(os, text).ok(),
+            Value::Str(text) => Some(homes::as_written(os, text)),
             _ => None,
         })
         .collect();

@@ -40,3 +40,4 @@ pub mod spawn;
 pub mod startup;
 pub mod sync;
 pub mod typeface;
+pub mod widepath;

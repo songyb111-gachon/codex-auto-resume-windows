@@ -35,5 +35,7 @@ car-brand = { path = "../car-brand" }
 car-store = { path = "../car-store" }
 # S3.1: the one link probe (`links::is_symlink`), which the harness wires into car-store's and car-config's `Links`.
 car-platform = { path = "../car-platform" }
+# S2.2: car-policy's settings and plug (src/policy.rs, `policy.batch`).
+car-policy = { path = "../car-policy" }
 # D5: serde to read (the harness's requests).
 serde_json = "1"
