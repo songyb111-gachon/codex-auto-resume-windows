@@ -512,10 +512,11 @@ fn default_python() -> String {
             use std::os::windows::process::CommandExt;
             probe.creation_flags(0x0800_0000);
         }
-        if let Ok(out) = probe.output() {
-            if out.status.success() && out.stdout == b"1" {
-                return name.to_owned();
-            }
+        if let Ok(out) = probe.output()
+            && out.status.success()
+            && out.stdout == b"1"
+        {
+            return name.to_owned();
         }
     }
     "python".to_owned()
