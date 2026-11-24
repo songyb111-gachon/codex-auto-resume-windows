@@ -7,13 +7,14 @@
 use car_machine::json::{Map, Str, Value};
 use car_machine::pyval::{self, Py};
 
-use super::seam::{Alternative, FailureForm, PACED_AS, TAKE_UP};
 use super::text;
 use super::value::{Row, dict_get, get, in_set, object, truthy};
 pub use super::vocab_gen::failures::{
     ADMISSIBLE, CATEGORIES, CONTEXT_FULL, DECISION_FRAGMENTS, RESERVED, TERMINAL, TRANSIENT,
     UNKNOWN, USAGE_LIMIT,
 };
+use crate::plug::vocab_gen::domain_plug::TAKE_UP;
+use crate::plug::{Alternative, FailureForm, paced_as};
 
 /// `CODES`: the `CodexErrorInfo` variants this engine build defines, and the category each is.
 pub const CODES: &[(&str, &str)] = &[
@@ -268,9 +269,9 @@ pub fn shape(info: &Value, message: &Value) -> Value {
     let (form, code) = if matches!(info, Value::Null) {
         (
             if has_message {
-                FailureForm::MESSAGE_ONLY
+                FailureForm::MessageOnly.as_str()
             } else {
-                FailureForm::ABSENT
+                FailureForm::Absent.as_str()
             },
             Value::Null,
         )
@@ -278,11 +279,11 @@ pub fn shape(info: &Value, message: &Value) -> Value {
         .as_ref()
         .filter(|tag| is_code(tag) || tag_shape_str(tag))
     {
-        (FailureForm::TAGGED, Value::Str(tag.clone()))
+        (FailureForm::Tagged.as_str(), Value::Str(tag.clone()))
     } else if tag.is_none() && status.is_some() {
-        (FailureForm::STATUS_ONLY, Value::Null)
+        (FailureForm::StatusOnly.as_str(), Value::Null)
     } else {
-        (FailureForm::UNRECOGNISED, Value::Null)
+        (FailureForm::Unrecognised.as_str(), Value::Null)
     };
     object([
         ("code", code),
@@ -306,7 +307,7 @@ pub fn unknown_code(entry: &Value) -> Py<Value> {
         return Ok(Value::Null);
     };
     if !pyval::is(dict_get(entry, "category")?, UNKNOWN)
-        || !pyval::is(get(facts, "form"), FailureForm::TAGGED)
+        || !pyval::is(get(facts, "form"), FailureForm::Tagged.as_str())
     {
         return Ok(Value::Null);
     }
@@ -325,7 +326,7 @@ fn status_between(status: &Value, low: i64, high: i64) -> Py<bool> {
 /// `_plain_code(facts)`: a code of Codex's this product does not know, naming no decision, and no 4xx beside it.
 fn plain_code(facts: &Value, status: &Value) -> Py<bool> {
     let code = dict_get(facts, "code")?;
-    if !pyval::is(dict_get(facts, "form")?, FailureForm::TAGGED) {
+    if !pyval::is(dict_get(facts, "form")?, FailureForm::Tagged.as_str()) {
         return Ok(false);
     }
     let Value::Str(code_text) = code else {
@@ -340,12 +341,7 @@ fn plain_code(facts: &Value, status: &Value) -> Py<bool> {
 /// `answer in PACED_AS`: a dict's key test, which hashes `answer`.
 fn paced(answer: &Value) -> Py<Option<&'static str>> {
     pyval::hashable(answer)?;
-    Ok(super::value::text(answer).and_then(|word| {
-        PACED_AS
-            .iter()
-            .find(|(each, _)| *each == word)
-            .map(|(_, kind)| *kind)
-    }))
+    Ok(super::value::text(answer).and_then(|word| Alternative::parse(word).and_then(paced_as)))
 }
 
 /// `admits(facts, answer)`: whether core would carry out `answer` for the failure `facts` describe (a category and
@@ -354,13 +350,13 @@ pub fn admits(facts: &Value, answer: &Value) -> Py<bool> {
     let category = dict_get(facts, "category")?;
     let code = dict_get(facts, "code")?;
     let status = dict_get(facts, "status")?;
-    if pyval::is(answer, Alternative::CAPACITY) {
+    if pyval::is(answer, Alternative::Capacity.as_str()) {
         return Ok(pyval::is(category, "server_5xx") && pyval::is(code, "serverOverloaded"));
     }
     if paced(answer)?.is_some() {
         return Ok(pyval::is(category, UNKNOWN) && plain_code(facts, status)?);
     }
-    if !pyval::is(answer, Alternative::ADMIT) {
+    if !pyval::is(answer, Alternative::Admit.as_str()) {
         return Ok(false);
     }
     if pyval::is(category, "terminal_invalid") {
@@ -384,13 +380,10 @@ pub fn admits(facts: &Value, answer: &Value) -> Py<bool> {
 
 /// `_FOLLOWS`: the kind whose switch in Settings each relaxation follows.
 fn follows(answer: &str) -> Option<&'static str> {
-    if answer == Alternative::CAPACITY {
+    if answer == Alternative::Capacity.as_str() {
         return Some("server_5xx");
     }
-    PACED_AS
-        .iter()
-        .find(|(each, _)| *each == answer)
-        .map(|(_, kind)| *kind)
+    Alternative::parse(answer).and_then(paced_as)
 }
 
 /// `takes(facts, recovers)`: the answers core would carry out for this failure now, sorted (a frozenset).
@@ -406,10 +399,10 @@ pub fn takes(facts: &Value, recovers: &dyn Fn(&str) -> bool) -> Py<Vec<&'static 
 
 /// `readmits(category, answer)`: whether known_failure (P3) takes `answer` for a record of `category` that P17 took up.
 pub fn readmits(category: &Value, answer: &Value) -> Py<bool> {
-    if pyval::is(answer, Alternative::ADMIT) {
+    if pyval::is(answer, Alternative::Admit.as_str()) {
         return in_set(category, ADMISSIBLE);
     }
-    if pyval::is(answer, Alternative::CAPACITY) {
+    if pyval::is(answer, Alternative::Capacity.as_str()) {
         return Ok(pyval::is(category, "server_5xx"));
     }
     Ok(paced(answer)?.is_some() && pyval::is(category, UNKNOWN))

@@ -11,9 +11,9 @@ use car_machine::pytext;
 use car_machine::pyval::{self, Py};
 
 use super::clock::LocalClock;
-use super::seam::{CLOCK, DAYS, Measured, Own, amount};
 use super::value::{dict_or_empty, get};
 pub use super::vocab_gen::quiet::{DAYS as DAY_CHOICES, MORNING, OFF, PRESETS, STARTS, TIMES};
+use crate::settings::ownvalues::{Measured, Own, OwnKind, amount};
 
 pub const DEFAULT_START: &str = OFF;
 pub const DEFAULT_END: &str = "07:00";
@@ -27,8 +27,9 @@ const AHEAD: &[(&str, i64)] = &[
     ("3_hours", 3 * 3600),
 ];
 
-const OWN_CLOCK: Own = Own::of(CLOCK);
-const OWN_DAYS: Own = Own::of(DAYS);
+/// `OWN_CLOCK` and `OWN_DAYS`: a time of the day and a set of weekdays, neither bounded.
+pub const OWN_CLOCK: Own = Own::new(OwnKind::Clock, 0, 0, &[]);
+pub const OWN_DAYS: Own = Own::new(OwnKind::Days, 0, 0, &[]);
 
 /// `window(values)`: (start, end, weekdays) in minutes of the day, or None.
 pub fn window(values: &Value) -> Option<(i64, i64, BTreeSet<i64>)> {
@@ -41,7 +42,7 @@ pub fn window(values: &Value) -> Option<(i64, i64, BTreeSet<i64>)> {
         .cloned()
         .unwrap_or_else(|| Value::from(DEFAULT_DAYS));
     let days = match amount(&OWN_DAYS, &days_value) {
-        Some(Measured::Days(days)) => days,
+        Some(found @ Measured::Days(_)) => found.days(),
         _ => BTreeSet::new(),
     };
     let (start, end) = (start?, end?);

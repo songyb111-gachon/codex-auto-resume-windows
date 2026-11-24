@@ -18,7 +18,7 @@
 //! | [`vocab_gen`] | every word list of the modules above, generated (`tests/rustdiff/gen_policy.py`) |
 //! | [`text`] | Python's `str.lower()` and `re`'s `\w`, over tables the same generator makes |
 //! | [`pyjson`] | `json.loads` where Python reads what serde refuses (NaN, a lone surrogate) |
-//! | [`seam`] | SEAM, TO BE REPLACED by S2.2: what these modules read of `ownvalues.py` and `domain/plug.py` |
+//! | `crate::settings::ownvalues`, `crate::plug` | what these modules read of `ownvalues.py` and `domain/plug.py` (S2.2's) |
 //!
 //! The rule of the port: the Python's answer, never stricter and never looser. Each function takes the values the
 //! Python takes - a record, a settings dict, a structured error, as car-machine's Python-model [`Value`] - and
@@ -41,7 +41,6 @@ pub mod projects;
 pub mod pyjson;
 pub mod quiet;
 pub mod reasons;
-pub mod seam;
 pub mod selfcheck;
 pub mod text;
 #[rustfmt::skip]

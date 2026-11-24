@@ -11,11 +11,12 @@ use car_machine::vocab;
 use car_policy::classify::clock::{LocalClock, Tm};
 use car_policy::classify::continuation::{self, Environ, Settings};
 use car_policy::classify::gates::{self, Limits, Vector};
-use car_policy::classify::seam::{self, Own};
 use car_policy::classify::{
     failures, guards, ladder, needsyou, permits, power, projects, quiet, reasons, selfcheck, text,
     vocab_gen,
 };
+use car_policy::plug::vocab_gen::domain_plug::{PACED_AS, TAKE_UP};
+use car_policy::settings::ownvalues::{self, Measured, Own, OwnKind};
 
 use crate::leaves::Args;
 
@@ -212,21 +213,27 @@ fn spec(value: &Value) -> Own {
             .collect(),
         _ => Vec::new(),
     };
-    Own {
-        kind: text(0),
-        low: number(1),
-        high: number(2),
-        units: Box::leak(units.into_boxed_slice()),
-        prefix: text(4),
-    }
+    let kind = match text(0) {
+        "duration" => OwnKind::Duration,
+        "clock" => OwnKind::Clock,
+        "days" => OwnKind::Days,
+        _ => OwnKind::Count,
+    };
+    Own::new(
+        kind,
+        number(1),
+        number(2),
+        Box::leak(units.into_boxed_slice()),
+    )
+    .prefix(text(4))
 }
 
-fn measured(found: Option<seam::Measured>) -> Value {
+fn measured(found: Option<Measured>) -> Value {
     match found {
         None => Value::Null,
-        Some(seam::Measured::Number(n)) => Value::from(n),
-        Some(seam::Measured::Days(days)) => {
-            Value::Array(days.into_iter().map(Value::from).collect())
+        Some(Measured::Number(n) | Measured::Minute(n)) => Value::from(n),
+        Some(days @ Measured::Days(_)) => {
+            Value::Array(days.days().into_iter().map(Value::from).collect())
         }
     }
 }
@@ -770,8 +777,8 @@ pub fn case(name: &str, a: &Args) -> Option<Py<Value>> {
                 Value::from(reason),
             ]))
         }
-        // ownvalues (the seam S2.2 replaces)
-        "own.amount" => Ok(measured(seam::amount(&spec(a.get(0)), a.get(1)))),
+        // ownvalues and the plug's words (S2.2's, which the classifier reads)
+        "own.amount" => Ok(measured(ownvalues::amount(&spec(a.get(0)), a.get(1)))),
         "own.canonical" => {
             let choices: Vec<&str> = match a.get(2) {
                 Value::Array(items) => items
@@ -780,16 +787,21 @@ pub fn case(name: &str, a: &Args) -> Option<Py<Value>> {
                     .collect(),
                 _ => Vec::new(),
             };
-            Ok(option(seam::canonical(&spec(a.get(0)), a.get(1), &choices)))
+            Ok(option(ownvalues::canonical(
+                Some(&spec(a.get(0))),
+                a.get(1),
+                &choices,
+            )))
         }
         "own.plug" => Ok(Value::Array(vec![
-            words(seam::TAKE_UP),
-            Value::Object(
-                seam::PACED_AS
+            words(TAKE_UP),
+            Value::Object(match &PACED_AS {
+                vocab::Node::Map(pairs) => pairs
                     .iter()
-                    .map(|(word, kind)| ((*word).into(), Value::from(*kind)))
+                    .filter_map(|(word, kind)| Some(((*word).into(), Value::from(kind.as_str()?))))
                     .collect(),
-            ),
+                _ => Map::new(),
+            }),
         ])),
         "text.tables_version" => Ok(Value::from(text::UNICODE)),
         _ => return None,

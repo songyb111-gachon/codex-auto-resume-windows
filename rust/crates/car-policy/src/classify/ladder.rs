@@ -5,12 +5,12 @@ use car_machine::json::Value;
 use car_machine::pytext;
 use car_machine::pyval::Py;
 
-use super::seam::{DURATION, Own, WEEK, amount};
 use super::value::{dict_or_empty, get, in_tuple, python_int, text};
 pub use super::vocab_gen::ladder::{
     CEILINGS, CUSTOM, DEFAULT_CEILING, DEFAULT_STEPS, DEFAULT_TIMING, EARLY_STATES, FIRST_WAITS,
     LATER_WAITS, STEP_FIELDS, TIMINGS, WAITS,
 };
+use crate::settings::ownvalues::{Own, OwnKind, WEEK, amount};
 
 /// `PRESETS`, v0.6.10's own.
 pub const PRESETS: &[(&str, [i64; 5])] = &[
@@ -65,9 +65,10 @@ pub const RESET_PER_DAY: i64 = 24;
 pub const EARLY_SPACING: i64 = 300;
 pub const EARLY_WINDOW: i64 = 30;
 
-const OWN_FIRST: Own = Own::bounded(DURATION, 5, 2 * 3600, &["s", "m", "h"]);
-const OWN_LATER: Own = Own::bounded(DURATION, SPACING, 6 * 3600, &["m", "h"]);
-const OWN_CEILING: Own = Own::bounded(DURATION, SPACING, WEEK, &["m", "h"]);
+/// `OWN[field]`'s three: the first wait, a later one and the chain's time ceiling.
+pub const OWN_FIRST: Own = Own::new(OwnKind::Duration, 5, 2 * 3600, &["s", "m", "h"]);
+pub const OWN_LATER: Own = Own::new(OwnKind::Duration, SPACING, 6 * 3600, &["m", "h"]);
+pub const OWN_CEILING: Own = Own::new(OwnKind::Duration, SPACING, WEEK, &["m", "h"]);
 
 /// `OWN[field]`.
 pub fn own(field: &str) -> Option<&'static Own> {

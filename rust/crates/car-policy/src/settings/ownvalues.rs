@@ -99,6 +99,24 @@ pub enum Measured {
     Days(u8),
 }
 
+impl Measured {
+    /// The number a duration, a count or a clock measures; None for a set of days.
+    pub fn number(self) -> Option<i64> {
+        match self {
+            Measured::Number(number) | Measured::Minute(number) => Some(number),
+            Measured::Days(_) => None,
+        }
+    }
+
+    /// The weekdays a set holds, as the numbers `time.struct_time.tm_wday` gives, Monday first.
+    pub fn days(self) -> std::collections::BTreeSet<i64> {
+        match self {
+            Measured::Days(mask) => (0..7).filter(|day| mask & (1 << day) != 0).collect(),
+            _ => std::collections::BTreeSet::new(),
+        }
+    }
+}
+
 fn unit_value(table: &[(&str, i64)], name: &str) -> Option<i64> {
     table
         .iter()

@@ -7,21 +7,17 @@ use car_machine::hash;
 use car_machine::json::Value;
 use car_machine::pyval::Py;
 
-use super::seam::{COUNT, Own, amount, coerce};
 use super::value::{dict_or_empty, get, in_tuple, text};
 pub use super::vocab_gen::guards::{
     CONTEXT_GUARDS, CONTEXT_HOLD, DEFAULT_CONTEXT_GUARD, DEFAULT_TASK_GUARD, TASK_GUARDS,
     TASK_HOLD, UNREADABLE,
 };
+use crate::settings::ownvalues::{Own, OwnKind, amount, coerce};
 
 /// `OWN["context_guard"]`: a count of the person's own, in whole thousands from 10,000 to 10,000,000.
-pub const OWN_CONTEXT: Own = Own {
-    kind: COUNT,
-    low: 10_000,
-    high: 10_000_000,
-    units: &["k", "m"],
-    prefix: "above_",
-};
+pub const OWN_CONTEXT: Own = Own::new(OwnKind::Count, 10_000, 10_000_000, &["k", "m"])
+    .prefix("above_")
+    .label("own.hold_above");
 /// `MAX_TOKENS`: the largest count kept.
 pub const MAX_TOKENS: i64 = 1 << 53;
 
@@ -43,7 +39,13 @@ pub fn watches_task(values: &Value) -> bool {
 /// `context_mode(values)`: off, show, a limit's choice or a limit of the person's own.
 pub fn context_mode(values: &Value) -> String {
     let chosen = get(dict_or_empty(values), "context_guard");
-    coerce(chosen, DEFAULT_CONTEXT_GUARD, CONTEXT_GUARDS, &OWN_CONTEXT)
+    let kept = coerce(
+        chosen,
+        &Value::from(DEFAULT_CONTEXT_GUARD),
+        CONTEXT_GUARDS,
+        &OWN_CONTEXT,
+    );
+    text(&kept).unwrap_or(DEFAULT_CONTEXT_GUARD).to_owned()
 }
 
 /// `counts_tokens(values)`.

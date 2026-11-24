@@ -6,9 +6,9 @@ use car_machine::json::{Str, Value};
 use car_machine::pytext;
 use car_machine::pyval::{self, Py};
 
-use super::seam::{DURATION, Own, WEEK, amount};
 use super::value::{dict_get, dict_or_empty, get, in_tuple, text, truthy};
 pub use super::vocab_gen::power::{HOLD, OFFLINE};
+use crate::settings::ownvalues::{Own, OwnKind, WEEK, amount};
 
 pub const KEEP_AWAKE_FIELD: &str = "keep_awake";
 pub const AWAKE_CAP_FIELD: &str = "keep_awake_hours";
@@ -20,8 +20,8 @@ pub const DEFAULT_AWAKE_CAP: &str = "h6";
 pub const DEFAULT_SLEEP: &str = "off";
 /// Less than this between the two clocks is no sleep.
 pub const MIN_SLEEP_SECONDS: f64 = 60.0;
-pub const OWN_SLEEP: Own = Own::bounded(DURATION, 5 * 60, WEEK, &["m", "h"]);
-pub const OWN_AWAKE_CAP: Own = Own::bounded(DURATION, 15 * 60, WEEK, &["m", "h"]);
+pub const OWN_SLEEP: Own = Own::new(OwnKind::Duration, 5 * 60, WEEK, &["m", "h"]);
+pub const OWN_AWAKE_CAP: Own = Own::new(OwnKind::Duration, 15 * 60, WEEK, &["m", "h"]);
 
 /// `keep_awake(values)`: off, on_ac or always.
 pub fn keep_awake(values: &Value) -> &'static str {

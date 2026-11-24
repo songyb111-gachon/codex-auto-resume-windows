@@ -4,19 +4,19 @@
 use car_machine::json::Value;
 use car_machine::pyval::Py;
 
-use super::seam::{DURATION, Own, WEEK, amount};
 use super::value::{get, python_int};
 pub use super::vocab_gen::needsyou::{
     DEFAULT_STALL, EVENT, EVENT_FIELD, KINDS, NOTICE_KINDS, SOUND_FIELD, STALL_FIELD, STALL_WAITS,
     STALLED,
 };
+use crate::settings::ownvalues::{Own, OwnKind, WEEK, amount};
 
 /// A failure or a stopped turn older than this is never told: a week.
 pub const WINDOW_SECONDS: i64 = WEEK;
 /// A notice kept past a day more than the window may be let go.
 pub const KEEP_SECONDS: i64 = WINDOW_SECONDS + 86400;
 /// `OWN[STALL_FIELD]`: a stall of the person's own, in whole minutes, from 5 of them to a week.
-pub const OWN_STALL: Own = Own::bounded(DURATION, 5 * 60, WINDOW_SECONDS, &["m", "h"]);
+pub const OWN_STALL: Own = Own::new(OwnKind::Duration, 5 * 60, WINDOW_SECONDS, &["m", "h"]);
 
 /// `KIND_FIELDS[kind]`: the setting that switches a kind.
 pub fn kind_field(kind: &str) -> Option<String> {
