@@ -40,6 +40,12 @@ needles = {user, str(work), work.as_posix(), work.as_posix().replace("/", "\\"),
 needles |= {part for part in work.parts if len(part) > 8 and part != "/"}
 bad = 0
 for path in sorted(work.rglob("*")):
+    # target/release/build/ holds the build scripts' own programs (build_script_build.exe), which run once on the
+    # builder's PC and ship nowhere; libsqlite3-sys's carries its CARGO_MANIFEST_DIR, which --remap-path-prefix does
+    # not reach. Every binary that can ship - target/release/*.exe|*.dll and their copies in deps/ - is still scanned.
+    parts = [part.lower() for part in path.parts]
+    if "release" in parts and parts[parts.index("release") + 1:parts.index("release") + 2] == ["build"]:
+        continue
     if path.suffix.lower() in (".exe", ".dll", ".pdb") and "target" in path.parts and "release" in path.parts:
         data = path.read_bytes()
         for needle in sorted(needles):
