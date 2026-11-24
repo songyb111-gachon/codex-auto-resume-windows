@@ -53,6 +53,12 @@ struct Search {
 }
 
 unsafe extern "system" fn each(window: HWND, lparam: LPARAM) -> BOOL {
+    // A callback Windows makes: a panic must not unwind into it (D15); a window that cannot be judged is skipped.
+    let _ = std::panic::catch_unwind(|| judge(window, lparam));
+    BOOL(1)
+}
+
+fn judge(window: HWND, lparam: LPARAM) {
     // SAFETY: the `Search` `windows_of` passed, alive for the whole enumeration.
     let search = unsafe { &mut *(lparam.0 as *mut Search) };
     // SAFETY: plain window queries.
@@ -60,17 +66,17 @@ unsafe extern "system" fn each(window: HWND, lparam: LPARAM) -> BOOL {
         if !IsWindowVisible(window).as_bool()
             || GetWindow(window, GW_OWNER).is_ok_and(|owner| !owner.0.is_null())
         {
-            return BOOL(1);
+            return;
         }
         let mut pid = 0u32;
         GetWindowThreadProcessId(window, Some(&mut pid));
         if pid == 0 {
-            return BOOL(1);
+            return;
         }
         let mut class = vec![0u16; 256];
         let length = GetClassNameW(window, &mut class);
         if length == 0 || !from_wide(&class).starts_with(FORMS_CLASS) {
-            return BOOL(1);
+            return;
         }
         let known = search.images.get(&pid).copied();
         let matches = match known {
@@ -88,7 +94,6 @@ unsafe extern "system" fn each(window: HWND, lparam: LPARAM) -> BOOL {
             search.found.push((window.0 as isize, pid));
         }
     }
-    BOOL(1)
 }
 
 /// `[(window, pid)]` for the top-level, visible, unowned Windows Forms windows of processes running `exe`. Sends
