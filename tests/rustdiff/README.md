@@ -169,3 +169,39 @@ USERPROFILE, so their names are not the real watcher's. Power is never acted on 
 
 Platform seat dependencies: `windows` 0.62 (and its `windows-*` support crates), `serde_json` for the manifest's display
 name. No other crate; SHA-256 is Windows' own (`BCryptHash`).
+
+## The classifier and its policy (S2.1, car-policy `src/classify/`)
+
+Four modules, `diffs_classify_*.py`, loaded by `run.py` with the rest (alone: `run.py --build -k diffs_classify`). They go
+through `car-harness serve`'s `leaves.batch` (the harness's `src/classify.rs` answers every `failures.*`, `reasons.*`,
+`gates.*`, `guards.*`, `ladder.*`, `quiet.*`, `projects.*`, `needsyou.*`, `power.*`, `permits.*`, `continuation.*`,
+`public.self_check` and `own.*` case with car-policy's own function) and each family script runs in the reference tag.
+
+| Module | Proves |
+|---|---|
+| `diffs_classify_failures.py` | **the done-check**: every structured error the tag's own tests, codexsim and fixtures carry (read out of `git show TAG:tests/...`: every `error_json` row, every `codexErrorInfo`/`error` object, every literal handed to `classify`/`shape`/`transient_error`, every `code=`), read as `codex/values.normalize` reads a turn row, gets the same category, the same reason (`reasons.get`) and the same public code (`shape`, `unknown_code`, `takes`/`admits`/`readmits`); then generated errors in every form Codex writes one, and `self_check` |
+| `diffs_classify_policy.py` | the gates (moved from car-store's seam), guards, ladder, needs-you, power, projects, permits, quiet hours on six test zones (`ZONE`: an offset and summer time; car-harness's `Zone` is the same rules), and the `ownvalues` seam S2.2 replaces |
+| `diffs_classify_continuation.py` | **the done-check**: `build()` in every one of the 22 languages for every category, style, Custom choice and metadata; the same text through `for_settings`/`source_for`/`with_once_words`; the checks of a person's words |
+| `diffs_classify_vocab.py` | the eleven modules' words equal to the tag's `vocab.json`; `str.lower()`, `str.casefold()` and `\w` of every code point equal to the reference interpreter's; the generated files current |
+
+Run 2026-11-25 (`run.py --build -v -k diffs_classify -k SeamVocabularyDiff`, reference v0.6.26-beta.2), all OK:
+
+```
+classify corpus: 106 errors from v0.6.26-beta.2's tests (586 files) and fixtures (86 files) - 14 error_json rows, 92 structured
+  infos - 2968 cases equal; categories {network_transient 2, rate_limit_transient 1, server_5xx 6, stream_interrupted 2,
+  terminal_auth 6, terminal_invalid 7, unknown 80, usage_limit 2}
+classify generated: 694880 cases equal          self_check: 1029 cases equal
+gates: 41367 cases equal                         policy: 59817 cases equal        quiet: 24243 cases equal
+continuation text: 103503 builds equal - 23 languages (22 and one it lacks) x 15 categories x 6 styles x 10 Custom x 5 metadata
+continuation settings: 40084 cases equal         continuation checks: 1630 cases (286 product texts) equal
+classify vocab: 11 modules, 72 constants          text tables: \w of 1,112,064 code points, 1433 lower(), 1530 casefold()
+store seam: gone but python.rs; the policy's closed lists car-policy's, equal to the tag's
+```
+
+**Re-diff at the final.** S2.1 was ported from v0.6.26-beta.2 while `failures.py` and others still moved on dev (PLAN 5.1).
+One command checks the port against a tag: `python -X utf8 tests/rustdiff/rediff_classify.py --reference v0.6.26`. It prints
+which ported Python files changed since beta.2, runs `gen_policy.py --check --ref TAG` (the generated vocabulary and tables) and
+`run.py --build --reference TAG -k diffs_classify -k SeamVocabularyDiff`, and exits 0 only when all are clean.
+
+The gates take a stored record and the clock as the store has them (numbers, words, `None`; `now` an f64), the types the
+store validates on every write; the other modules take any value, as the Python does, and answer its exception's class.
