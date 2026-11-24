@@ -8,8 +8,18 @@ use std::fmt::Write as _;
 /// least two digits with its sign (`1e-05`, `1.5e+300`).
 pub(crate) fn push_repr(out: &mut String, x: f64) {
     debug_assert!(x.is_finite());
-    // Rust's `{:e}` is the shortest round-trip form too, as `d.ddde-5` (`0e0` for zero).
-    let scientific = format!("{x:e}");
+    // Rust's `{:e}` finds how many digits the shortest round-trip form takes (`d.ddde-5`,
+    // `0e0` for zero), but where two forms of that length are equally near - x exactly half
+    // way, as 224335367548872.625 is - it takes the upper one, and Python's dtoa the even one.
+    // So those digits are only the length: the digits are x rounded to that many places,
+    // exactly and half to even, which is what `{:.*e}` does; a form of that length reads back
+    // as x, so the nearest one does too.
+    let shortest = format!("{x:e}");
+    let length = shortest.split_once('e').map_or(0, |(mantissa, _)| {
+        mantissa.bytes().filter(u8::is_ascii_digit).count()
+    });
+    let scientific = format!("{x:.*e}", length - 1);
+    debug_assert_eq!(scientific.parse::<f64>().ok(), Some(x));
     let (negative, rest) = match scientific.strip_prefix('-') {
         Some(rest) => (true, rest),
         None => (false, scientific.as_str()),
@@ -87,6 +97,9 @@ mod tests {
             (2f64.powi(53), "9007199254740992.0"),
             (0.3, "0.3"),
             (0.1 + 0.2, "0.30000000000000004"),
+            // 224335367548872.625 exactly, half way between two 17-digit forms: Python takes
+            // the even one (and clippy, offering `...872.63` for the literal, the other).
+            (f64::from_bits(0x42E9_8104_BC95_F914), "224335367548872.62"),
         ];
         for (x, want) in cases {
             assert_eq!(repr(*x), *want, "repr of {x:e}");
