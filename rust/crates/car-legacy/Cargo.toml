@@ -8,6 +8,10 @@ publish = false
 [lints]
 workspace = true
 
+[lib]
+name = "car_legacy"
+path = "src/lib.rs"
+
 [[bin]]
 name = "python"
 path = "src/bin/python.rs"

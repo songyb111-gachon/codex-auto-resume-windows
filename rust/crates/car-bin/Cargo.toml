@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
+build = "build.rs"
 
 [lints]
 workspace = true
@@ -15,6 +16,10 @@ path = "src/lib.rs"
 [[bin]]
 name = "codex-auto-resume"
 path = "src/main.rs"
+
+[[bin]]
+name = "codex-auto-resume-setup"
+path = "src/bin/setup.rs"
 
 [dependencies]
 car-control = { path = "../car-control" }
