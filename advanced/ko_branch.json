@@ -9,6 +9,7 @@
     "archive ships."
   ],
   "intentionally_english": {
-    "advanced/skills/codex-auto-resume-advanced/SKILL.md": "The advanced edition's instructions to Codex, for the same reason as the standard skill's: what Codex reads is not translated, so the two branches behave alike."
+    "advanced/skills/codex-auto-resume-advanced/SKILL.md": "The advanced edition's instructions to Codex, for the same reason as the standard skill's: what Codex reads is not translated, so the two branches behave alike.",
+    "rust/GROUNDWORK.md": "A working record of the Rust core port (commands run and their output), read by the people building it, and not shipped. Listed here, not in scripts/ko_branch.json, because that file ships in the standard archive and this change must not alter it."
   }
 }

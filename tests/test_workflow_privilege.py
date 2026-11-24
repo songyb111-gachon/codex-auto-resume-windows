@@ -34,7 +34,7 @@ ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = ROOT / ".github" / "workflows"
 # Every workflow, named: a new one is looked at here before anything else.
 KNOWN = ["community-file.yml", "community-report.yml", "durations.yml", "ko-watch.yml", "release.yml",
-         "rerun-once.yml", "sync-ko.yml", "test.yml"]
+         "rerun-once.yml", "rust.yml", "sync-ko.yml", "test.yml"]
 
 
 def text(name):
