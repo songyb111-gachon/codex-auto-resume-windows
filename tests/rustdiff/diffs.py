@@ -1,5 +1,6 @@
 """The diffs: each runs one input through the reference (reference.py) and through Rust (core.py) and holds
-the outputs equal byte for byte (D12). Run by run.py, never by the lanes' discovery (no test*.py name).
+the outputs equal byte for byte (D12). Run by run.py, never by the lanes' discovery: tests/rustdiff has no
+__init__.py, which unittest's discovery needs to enter a folder (README.md says what each file is).
 
 S0.4's proof, end to end:
 * DefaultsDiff - the bridge's `defaults` on a fresh scratch home: the reply line and settings.json from the

@@ -11,7 +11,7 @@ of git by `tests/released.py` and run in a process of its own on scratch homes.
 | Rust | `rust/crates/car-harness` (PLAN 1.2 row 17, `publish = false`) | `car-harness serve`: JSON-lines calls, the framing `controlcli serve` uses; `car-core-stub`: the stand-in for `codex-auto-resume.exe` (`bridge`/`mcp`/`cli` + the Python entry point's argv) |
 | Rust, from Python | `core.py` | where the binaries are (`CODEX_AR_CORE_EXE`, `CODEX_AR_HARNESS_EXE`, `CARGO_TARGET_DIR`, else the crate's release build), `build()`, `stub()`, `Harness` |
 | shim | `shim.py` | `CODEX_AR_CORE=rust`: the entry points' `main` runs the Rust binary (below) |
-| diffs | `diffs.py` | the comparisons, as unittest cases; no file here is named `test*.py`, so the lanes' discovery never collects them |
+| diffs | `diffs.py` | the comparisons, as unittest cases. The folder has no `__init__.py` (a namespace package) and no `test*.py`, so the lanes' discovery never enters it: it imports nothing of it and runs none of it |
 | ledger | `LEDGER` | tests that fail on Rust only for reading a Python internal, each with its reason; only shrinks; empty |
 | entry point | `run.py` | the one command CI and a person run |
 
