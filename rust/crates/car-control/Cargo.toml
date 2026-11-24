@@ -1,0 +1,20 @@
+[package]
+name = "car-control"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+car-brand = { path = "../car-brand" }
+car-codex = { path = "../car-codex" }
+car-config = { path = "../car-config" }
+car-machine = { path = "../car-machine" }
+car-platform = { path = "../car-platform" }
+car-policy = { path = "../car-policy" }
+car-store = { path = "../car-store" }
+car-surface = { path = "../car-surface" }
+car-words = { path = "../car-words" }

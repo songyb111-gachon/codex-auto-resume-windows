@@ -1,0 +1,30 @@
+# The advanced edition's Rust workspace (PLAN.md 1.1, D2, D19). Its members are the advanced crates; the standard
+# crates come in by path from ../../rust/crates and are not members. Nothing under rust/ names this directory.
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+license = "MIT"
+
+[workspace.lints.cargo]
+# The crate graph is declared ahead of the code (PLAN.md 1.3, so cargo refuses a cycle from day one): an edge the
+# empty crates do not yet use is not a mistake. A seat that fills a crate may turn this to "warn" for it.
+unused_dependencies = "allow"
+
+# Profiles live only in the workspace root, so both workspaces repeat them (tests/rust_groundwork checks they agree).
+[profile.dev]
+# D15: a panic unwinds, so every thread and DLL boundary can catch it. Reconsidered in v0.6.28.
+panic = "unwind"
+# No debug info in the checked builds keeps target/ small and the path scan short; a developer who wants it passes it.
+debug = "line-tables-only"
+
+[profile.release]
+# PLAN.md 6.6.
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = "symbols"
+panic = "unwind"

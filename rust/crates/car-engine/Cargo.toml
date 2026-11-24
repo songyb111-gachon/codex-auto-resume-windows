@@ -1,0 +1,16 @@
+[package]
+name = "car-engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+car-codex = { path = "../car-codex" }
+car-machine = { path = "../car-machine" }
+car-policy = { path = "../car-policy" }
+car-scheduler = { path = "../car-scheduler" }
+car-words = { path = "../car-words" }

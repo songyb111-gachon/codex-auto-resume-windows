@@ -1,0 +1,6 @@
+# The Rust the port is built with (PLAN.md 2): the stable release measured in toolchain-check.md.
+[toolchain]
+channel = "1.100.0"
+components = ["rustfmt", "clippy"]
+targets = ["x86_64-pc-windows-msvc"]
+profile = "minimal"

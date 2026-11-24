@@ -1,0 +1,103 @@
+name: rust
+
+# The Rust core's checks (v0.6.27, PLAN.md section 7). They run on the Rust work branches only, so dev and main keep
+# their own `tests` run exactly as it is until the Rust edition ships (D16). Nothing here publishes anything.
+on:
+  push:
+    branches: ["car-v0627-*", "wip/rust*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: never
+  CARGO_NET_RETRY: "5"
+  # The one cargo-deny every run uses (D7: blocking). Installed from crates.io with --locked, as D6 asks for every crate.
+  CARGO_DENY_VERSION: "0.22.0"
+
+jobs:
+  rust:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        # The two workspaces of PLAN.md 1.1. Each folder holds its own rust-toolchain.toml, .cargo/config.toml and deny.toml.
+        workspace: [rust, advanced/rust]
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ matrix.workspace }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install the pinned toolchain
+        # Reads rust-toolchain.toml: channel, components and target.
+        run: |
+          rustup toolchain install
+          rustc -Vv
+          cargo -V
+
+      - name: Cache the registry, the target folder and cargo-deny
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/bin/cargo-deny.exe
+            ${{ matrix.workspace }}/target
+          key: rust-${{ matrix.workspace }}-${{ hashFiles('rust/Cargo.lock', 'advanced/rust/Cargo.lock', 'rust/rust-toolchain.toml') }}-deny${{ env.CARGO_DENY_VERSION }}
+
+      - name: Install cargo-deny
+        run: |
+          if ! cargo deny --version 2>/dev/null | grep -q "$CARGO_DENY_VERSION"; then
+            cargo install --locked cargo-deny --version "$CARGO_DENY_VERSION"
+          fi
+          cargo deny --version
+
+      - name: Build flags (no profile path, reproducible)
+        # RUSTFLAGS replaces .cargo/config.toml's rustflags, so the script repeats them and adds the path remaps.
+        run: |
+          . tools/rustflags.sh
+          echo "RUSTFLAGS=$RUSTFLAGS" >> "$GITHUB_ENV"
+
+      - name: cargo fmt --check
+        run: cargo fmt --check
+
+      - name: cargo clippy
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+      - name: cargo test
+        run: cargo test --locked
+
+      - name: cargo deny
+        # Licences, bans, advisories and sources, blocking (D7). cargo-vet is advisory until v0.6.28 and is not run yet.
+        run: cargo deny --locked check
+
+      - name: The groundwork holds (shared files, flags, crate graph, locks)
+        if: matrix.workspace == 'rust'
+        working-directory: .
+        run: python rust/tools/check_groundwork.py
+
+  rebuild:
+    # The standard binaries do not depend on the advanced folder: build them from an archive with it and one without,
+    # in two different folders, and compare the bytes (PLAN.md 1.1, the edition audit's check (e)).
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the pinned toolchain
+        working-directory: rust
+        shell: bash
+        run: rustup toolchain install
+      - name: Rebuild with and without the advanced folder
+        shell: bash
+        run: bash advanced/rust/tools/check_rebuild.sh HEAD

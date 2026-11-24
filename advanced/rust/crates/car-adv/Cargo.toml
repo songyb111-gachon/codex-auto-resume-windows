@@ -1,0 +1,24 @@
+[package]
+name = "car-adv"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+car-brand = { path = "../../../../rust/crates/car-brand" }
+car-codex = { path = "../../../../rust/crates/car-codex" }
+car-config = { path = "../../../../rust/crates/car-config" }
+car-control = { path = "../../../../rust/crates/car-control" }
+car-engine = { path = "../../../../rust/crates/car-engine" }
+car-machine = { path = "../../../../rust/crates/car-machine" }
+car-platform = { path = "../../../../rust/crates/car-platform" }
+car-policy = { path = "../../../../rust/crates/car-policy" }
+car-scheduler = { path = "../../../../rust/crates/car-scheduler" }
+car-store = { path = "../../../../rust/crates/car-store" }
+car-surface = { path = "../../../../rust/crates/car-surface" }
+car-watcher = { path = "../../../../rust/crates/car-watcher" }
+car-words = { path = "../../../../rust/crates/car-words" }

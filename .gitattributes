@@ -13,3 +13,9 @@
 *.cmd text eol=crlf
 *.ps1 text eol=crlf
 *.txt text eol=crlf
+
+# The Rust workspaces are checked out with LF on every machine: rustfmt and cargo keep a file's own ending, a shell
+# script must be LF to run under bash, and a test that reads a golden file with include_str! must see the same bytes
+# on every runner. This does not change the release archive, which does not pack rust/.
+rust/** text eol=lf
+advanced/rust/** text eol=lf

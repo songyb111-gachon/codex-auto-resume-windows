@@ -1,0 +1,17 @@
+[package]
+name = "car-host"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[lib]
+name = "car_core"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+car-control = { path = "../car-control" }
+car-watcher = { path = "../car-watcher" }

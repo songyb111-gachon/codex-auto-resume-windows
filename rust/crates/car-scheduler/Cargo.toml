@@ -1,0 +1,13 @@
+[package]
+name = "car-scheduler"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+car-machine = { path = "../car-machine" }
+car-policy = { path = "../car-policy" }

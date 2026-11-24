@@ -1,0 +1,21 @@
+[package]
+name = "car-watcher"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+car-codex = { path = "../car-codex" }
+car-config = { path = "../car-config" }
+car-control = { path = "../car-control" }
+car-engine = { path = "../car-engine" }
+car-machine = { path = "../car-machine" }
+car-platform = { path = "../car-platform" }
+car-policy = { path = "../car-policy" }
+car-store = { path = "../car-store" }
+car-surface = { path = "../car-surface" }
+car-words = { path = "../car-words" }

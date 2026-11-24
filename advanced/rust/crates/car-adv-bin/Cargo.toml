@@ -1,0 +1,17 @@
+[package]
+name = "car-adv-bin"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "codex-auto-resume"
+path = "src/main.rs"
+
+[dependencies]
+car-adv = { path = "../car-adv" }
+car-bin = { path = "../../../../rust/crates/car-bin" }

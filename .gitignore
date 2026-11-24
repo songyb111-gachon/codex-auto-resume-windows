@@ -43,3 +43,7 @@ build/advanced/
 # `ko` branch the workflow force-adds it; anywhere else it is the residue of a local
 # run, and committing it would tell the test suite that main is a generated branch.
 .github/GENERATED-BRANCH.md
+
+# The Rust workspaces' build products (v0.6.27). Cargo.lock is committed (D6); target/ is not.
+rust/target/
+advanced/rust/target/

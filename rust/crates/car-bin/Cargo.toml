@@ -1,0 +1,21 @@
+[package]
+name = "car-bin"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[lib]
+name = "car_bin"
+path = "src/lib.rs"
+
+[[bin]]
+name = "codex-auto-resume"
+path = "src/main.rs"
+
+[dependencies]
+car-control = { path = "../car-control" }
+car-watcher = { path = "../car-watcher" }

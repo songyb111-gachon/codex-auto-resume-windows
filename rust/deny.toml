@@ -1,0 +1,54 @@
+# cargo-deny (D7: blocking from the first commit). PLAN.md section 3. Run from this folder:
+#     cargo deny --locked check
+# The other workspace keeps a copy of this very file (tools/check_groundwork.py holds the two to each other).
+#
+# cargo-vet is advisory until v0.6.28 (D7): there is no supply-chain/ folder and no blocking vet check yet. The
+# alpha's seats start it with `cargo vet init` when the first third-party crate is added, and the CI job that runs it
+# stays continue-on-error until then.
+
+[graph]
+targets = ["x86_64-pc-windows-msvc"]
+all-features = true
+
+[advisories]
+version = 2
+yanked = "deny"
+# An advisory is listed here only with the owner's reason beside it. None yet.
+ignore = []
+
+[licenses]
+version = 2
+# The product is MIT (LICENSE). Only licences an MIT project can ship as a binary, as PLAN.md section 3 lists them.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Zlib",
+]
+confidence-threshold = 0.93
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+# Our own crates name each other by path with no version.
+allow-wildcard-paths = true
+# PLAN.md section 3: no async runtime, no OpenSSL (Schannel and WinHTTP are the system's), no HTTP client crate, no Python bridge.
+deny = [
+    { name = "openssl" },
+    { name = "openssl-sys" },
+    { name = "openssl-src" },
+    { name = "openssl-probe" },
+    { name = "native-tls" },
+    { name = "tokio" },
+    { name = "reqwest" },
+    { name = "pyo3" },
+]
+
+[sources]
+# crates.io only (D6): no other registry, no git dependency.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

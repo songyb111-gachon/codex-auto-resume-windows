@@ -1,0 +1,16 @@
+# Flags for every build (PLAN.md 2, toolchain-check.md section 4), so that no build carries the Windows user name and
+# two builds of the same source are the same bytes.
+#
+#   /Brepro             no link timestamp in the PE header
+#   /PDBALTPATH:%_PDB%  the PDB's file name only, not the builder's path to it
+#
+# `--remap-path-prefix` (this checkout, CARGO_HOME, RUSTUP_HOME -> /build, /cargo, /rustup) needs absolute paths that a
+# config file cannot name, and `profile.trim-paths` is still nightly-only in cargo 1.100. tools/rustflags.sh builds the
+# whole RUSTFLAGS, these two flags included; CI and every checked build source it. RUSTFLAGS replaces this table, so
+# the two lists must agree: tools/check_groundwork.py holds them to each other.
+#
+# panic = "unwind" is the profile's (D15, Cargo.toml). Console or GUI subsystem is each binary's own
+# `#![windows_subsystem = "windows"]`, only where PLAN.md 1.7 says it has no console (crates/car-legacy's pythonw);
+# car-host is a DLL, which has none. The config never sets one for all.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "link-arg=/Brepro", "-C", "link-arg=/PDBALTPATH:%_PDB%"]

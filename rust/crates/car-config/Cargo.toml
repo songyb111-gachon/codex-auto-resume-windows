@@ -1,0 +1,12 @@
+[package]
+name = "car-config"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+car-machine = { path = "../car-machine" }

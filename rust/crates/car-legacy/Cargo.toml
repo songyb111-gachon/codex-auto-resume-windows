@@ -1,0 +1,20 @@
+[package]
+name = "car-legacy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "python"
+path = "src/bin/python.rs"
+
+[[bin]]
+name = "pythonw"
+path = "src/bin/pythonw.rs"
+
+[dependencies]
+car-platform = { path = "../car-platform" }
