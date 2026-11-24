@@ -292,10 +292,30 @@ def no_real_toast() -> bool:
     return installed
 
 
+def rust_core() -> bool:
+    """v0.6.27: with CODEX_AR_CORE=rust, the shim that starts the product's entry points as the Rust binary
+    (tests/rustdiff/shim.py), which tests/sitecustomize.py installs wherever tests/ is on the path - the lanes
+    put only src there, as for the guards above. Without the variable nothing is loaded: False, a no-op."""
+    if os.environ.get("CODEX_AR_CORE") != "rust":
+        return False
+    import importlib.util
+    shim = sys.modules.get("rustdiff_shim")
+    if shim is None:
+        path = ROOT / "tests" / "rustdiff" / "shim.py"
+        if not path.is_file():
+            raise SystemExit("CODEX_AR_CORE=rust, but %s is not in this tree" % path)
+        spec = importlib.util.spec_from_file_location("rustdiff_shim", path)
+        shim = importlib.util.module_from_spec(spec)
+        sys.modules["rustdiff_shim"] = shim
+        spec.loader.exec_module(shim)
+    return shim.install()
+
+
 def work(suite: str, names: list[str], report: str, verbose: bool) -> int:
     """What `python -m unittest discover -s <suite>` does - all of it when `names` is empty, else for
     `names` only - and the record of it."""
     no_real_toast()
+    rust_core()
     # `python -m` puts the working directory first on the path, where running this file put scripts/.
     sys.path[0] = os.getcwd()
     sys.argv = ["python -m unittest", "discover", "-s", suite] + (["-v"] if verbose else [])
