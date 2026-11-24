@@ -28,6 +28,8 @@ dependencies = [
  "car-machine",
  "car-platform",
  "car-policy",
+ "indexmap",
+ "rusqlite",
 ]
 
 [[package]]
@@ -68,6 +70,7 @@ name = "car-harness"
 version = "0.0.0"
 dependencies = [
  "car-brand",
+ "car-codex",
  "car-config",
  "car-machine",
  "car-platform",

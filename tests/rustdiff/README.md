@@ -261,3 +261,54 @@ python -X utf8 tests/rustdiff/gen_policy.py --check --ref v0.6.26 && python -X u
 ```
 
 The whole harness: 97 diffs (harness 4, S1.1 27, S1.2 15, S2.1 13 + the store's seam check, S2.2 11, S3.1 27).
+
+## Codex's readers (S3.2, car-codex)
+
+Four modules, `diffs_codex_*.py` (and `codexdiff.py`, `codexbattery.py`: what they share, not loaded by `run.py` on their
+own), alone: `python -X utf8 tests/rustdiff/run.py --build -k diffs_codex`. car-codex's readers never write, so one Codex
+home on disk is read by both implementations, where it is - the same path for both - and no path needs to be made
+canonical. A case is a home and a list of calls named as the reference's `LocalSource` methods; the reference runs them in a
+process of its own (`codexdiff.SCRIPT`, the tag's own package) and `car-harness serve` answers the same list as one
+`codex.script` call (`car-harness/src/codex.rs`). The module state of the reference (the split listing, the first lines,
+the triggers) is cleared before each case, as a fresh process starts; a case with a chain-memory file is run on the file
+for the reference and on a copy for Rust, and the two files are then the same bytes.
+
+| Module | Proves |
+|---|---|
+| `diffs_codex_homes.py` | **the done-check**: every codexsim home (`tests/codexsim.py`'s `CodexHome` in every shape its builders make: usage limits with and without a reset, transient failures of every code, in-progress and interrupted turns, queues with our marker, a foreign item, an edited item, a client id, dispatches with a steer, a first user item unset, stale and missing projections), the odd ones the audits hold (splits: one, two, one with the first file gone and a chain memory, one with a remembered chain, every guard failing, in subfolders, the same name twice; every kind of conversation: 490 combinations of a row's source, thread_source and the first line's originator; rollout files of 41 first-line kinds plus the size boundaries - BOM, no newline, CRLF, empty, Latin-1, not UTF-8, truncated, one byte over and under the 256 KiB limit, 400 KB, 3,000 and 20,000 brackets deep, a NaN, a repeated key, a lone surrogate; 19 forms of `rollout_path`, a BLOB where text belongs; 45 rollout bodies for the reset hint, Rescan's evidence and `turn_trigger`; the databases' files and generations, the schema with each required column gone, extra columns, the column types the guards read, the labels' columns; 240 random rows of the wrong type; the cloud-task file in 24 forms; git HEADs in 27 forms; the chain memory's file in 30 forms) asked every question the product asks of Codex (`codexbattery.battery`) |
+| `diffs_codex_pure.py` | each reader function over its own inputs, through `leaves.batch`: turn rows (`detect`, `normalize`, `judge`, `admissible`, `error_shape`: the usage-limit fixture and 6,000 generated rows), rate-limit snapshots (`_choose_reset`, `parse_usage`: 4,000 each), the words (`_label` with the `isprintable` of every one of the 1,114,112 code points, `taken_thread_source`, `_turn_status`, `epoch`, `_json`), `eligibility.*`, `_item_is_ours`, `_queue_has_marker`, `marker_row`, `later_turn`, `placed`, `taken`, `continued_id`, and the file readers on 44 files and folders |
+
+`gen_codex.py` makes `printable_gen.rs` (the code points `str.isprintable()` is true of, from the interpreter that runs the
+reference); `--check` says whether it is stale.
+
+**The final re-diff, one command:** `python -X utf8 tests/rustdiff/rediff_codex.py --reference v0.6.26`. dev changed none of
+the ported modules after v0.6.26-beta.2 when S3.2 was ported (`git log v0.6.26-beta.2..origin/dev -- <file>` was empty for each of
+`codex/{__init__,errors,paths,schema,history,values,labels,payload,rollout,chains,eligibility,workspace,usage}.py`); the command
+prints which of them (and of the domain, guards, projects, homes and failures modules they read) changed to the tag, checks
+the generated table, and runs every `diffs_codex_*` diff with the tag as the reference.
+
+What stays out of S3.2 (S3.3's, from the final tag): `codex/{appserver,transport,pairing,layout}.py`, `compat/*`, `compatio.py`.
+`windows.py` is a re-export front and has no Rust module. A BLOB (`bytes`) in a Codex column is carried as an empty list:
+the diffs write the reference's `bytes` as `[]`, and the one place where a list and `bytes` differ (`skips.kind` of a source) is
+read from the cell itself (`sql::Cell::kind`).
+
+Run 2026-11-25 (`rediff_codex.py`, the release build, reference v0.6.26-beta.2, rustc 1.100.0, SQLite 3.54.1 bundled; 28 tests, 1,040 s, all OK):
+
+```
+homes: 268 homes and chain-memory files, 101,440 calls equal - codexsim basic 1, codexsim queue/dispatch 6, projection 5,
+  splits 12, eligibility matrix 1 (490 conversations) and first lines 1 (25 kinds), rollout first lines 1 (41 variants and the 256 KiB boundary),
+  rollout paths 1 (19 forms and the BLOBs), reset hints 42, superseded and trigger 31 (+ 6 widened), schemas 62, database
+  files 32, odd rows 6 (+ 1 asked everything), items and markers 1, stalled and activity 1, cloud tasks 24, sessions
+  folder 3, workspace 1 (+ 196 facts), chain memory 30 files
+pure: 76,766 cases equal - turn rows 42,022 (+ the usage-limit fixture's detect, normalize and reset hint), reset and usage
+  8,000, eligibility functions 9,455, our messages 9,414, labels and words 3,497 (isprintable of all 1,114,112 code points),
+  file readers 3,095 (44 files and folders, every end offset, limit and turn), placed/taken/continued 1,231,
+  workspace digests 49
+every answer by an exception has the same class (an OSError of any kind is OSError; a SourceError has the same sentence)
+```
+
+The diffs catch a broken rule (each broken alone, the harness rebuilt, its diff run, the rule restored; every one failed):
+`agentMessage` gone from the progress kinds (codexsim queue: `turn_progress`), a label cut at 71 (labels), `SPAN` 2^41 (splits),
+a window exhausted past 100 instead of at 100 (usage), a first line allowed one byte more (rollout first lines: the line of
+`256 KiB + 1` bytes), `codex_work_desktop` no desktop originator (eligibility matrix), a rollback after the anchor no doubt
+(superseded and trigger).

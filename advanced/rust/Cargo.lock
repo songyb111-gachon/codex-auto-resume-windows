@@ -63,6 +63,8 @@ dependencies = [
  "car-machine",
  "car-platform",
  "car-policy",
+ "indexmap",
+ "rusqlite",
 ]
 
 [[package]]
