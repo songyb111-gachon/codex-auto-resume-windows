@@ -58,6 +58,8 @@ enum Frame {
 
 struct Scanner<'a> {
     chars: &'a [char],
+    /// `decode`'s hooks (no duplicate key, no NaN, no overflowing float) or plain `json.loads`.
+    strict: bool,
 }
 
 impl Scanner<'_> {
@@ -169,7 +171,7 @@ impl Scanner<'_> {
         let literal: String = self.chars[start..i].iter().collect();
         if real {
             let value: f64 = literal.parse().map_err(|_| Failure::Syntax)?;
-            if !value.is_finite() {
+            if self.strict && !value.is_finite() {
                 return Err(Failure::Code("not_finite"));
             }
             return Ok((Value::Float(value), i));
@@ -244,9 +246,27 @@ impl Scanner<'_> {
                     i += 5;
                     Value::Bool(false)
                 }
-                'N' if self.word(i, "NaN") => return Err(Failure::Code("not_finite")),
-                'I' if self.word(i, "Infinity") => return Err(Failure::Code("not_finite")),
-                '-' if self.word(i, "-Infinity") => return Err(Failure::Code("not_finite")),
+                'N' if self.word(i, "NaN") => {
+                    if self.strict {
+                        return Err(Failure::Code("not_finite"));
+                    }
+                    i += 3;
+                    Value::Float(f64::NAN)
+                }
+                'I' if self.word(i, "Infinity") => {
+                    if self.strict {
+                        return Err(Failure::Code("not_finite"));
+                    }
+                    i += 8;
+                    Value::Float(f64::INFINITY)
+                }
+                '-' if self.word(i, "-Infinity") => {
+                    if self.strict {
+                        return Err(Failure::Code("not_finite"));
+                    }
+                    i += 9;
+                    Value::Float(f64::NEG_INFINITY)
+                }
                 _ => {
                     let (value, after) = self.number(i)?;
                     i = after;
@@ -292,7 +312,7 @@ impl Scanner<'_> {
                                 i += 1;
                                 let mut map = Map::with_capacity(pairs.len());
                                 for (key, item) in std::mem::take(pairs) {
-                                    if map.insert(key, item).is_some() {
+                                    if map.insert(key, item).is_some() && self.strict {
                                         return Err(Failure::Code("duplicate_key"));
                                     }
                                 }
@@ -318,11 +338,40 @@ pub fn decode(raw: &[u8], limit: usize) -> Result<Value, DocumentError> {
         return Err(DocumentError::new("not_json"));
     };
     let chars: Vec<char> = text.chars().collect();
-    match (Scanner { chars: &chars }).parse() {
+    match (Scanner {
+        chars: &chars,
+        strict: true,
+    })
+    .parse()
+    {
         Ok(value) => Ok(value),
         Err(Failure::Code(code)) => Err(DocumentError::new(code)),
         Err(Failure::TooDeep) => Err(DocumentError::new("too_deep")),
         Err(Failure::Syntax) => Err(DocumentError::new("not_json")),
+    }
+}
+
+/// Why `json.loads` refused a text: the ValueError of a bad one, or the RecursionError of a deep one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LoadsError {
+    Value,
+    Recursion,
+}
+
+/// `json.loads(text)` as Python reads it with no hooks: `NaN` and `Infinity` are numbers, a number too big for a float
+/// is infinity, a repeated key keeps its first place and its last value; nesting past the interpreter's limit and an
+/// integer of more than 4300 digits are refused.
+pub fn loads(text: &str) -> Result<Value, LoadsError> {
+    let chars: Vec<char> = text.chars().collect();
+    match (Scanner {
+        chars: &chars,
+        strict: false,
+    })
+    .parse()
+    {
+        Ok(value) => Ok(value),
+        Err(Failure::TooDeep) => Err(LoadsError::Recursion),
+        Err(_) => Err(LoadsError::Value),
     }
 }
 
@@ -334,6 +383,14 @@ mod tests {
         decode(text.as_bytes(), MAX_DOCUMENT_BYTES)
             .unwrap_err()
             .code
+    }
+
+    #[test]
+    fn loads_is_pythons_loose_reader() {
+        assert!(loads("[NaN, Infinity, -Infinity, 1e999]").is_ok());
+        assert!(loads("{\"a\": 1, \"a\": 2}").is_ok());
+        assert_eq!(loads("[1,]"), Err(LoadsError::Value));
+        assert_eq!(loads(&"[".repeat(5000)), Err(LoadsError::Recursion));
     }
 
     #[test]

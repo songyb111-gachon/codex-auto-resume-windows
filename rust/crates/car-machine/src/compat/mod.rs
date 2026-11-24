@@ -3,4 +3,4 @@
 mod decode;
 pub mod model;
 
-pub use decode::{DocumentError, MAX_DOCUMENT_BYTES, MAX_NESTING, decode};
+pub use decode::{DocumentError, LoadsError, MAX_DOCUMENT_BYTES, MAX_NESTING, decode, loads};
