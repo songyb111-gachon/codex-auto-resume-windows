@@ -1,1 +1,4 @@
-//! car-words: placeholder from the S0.1 groundwork. No behaviour yet.
+//! car-words: the catalogs and the way they are read and filled. In progress (S1.1).
+
+#[rustfmt::skip]
+pub mod vocab_gen;

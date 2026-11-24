@@ -1,1 +1,4 @@
-//! car-config: placeholder from the S0.1 groundwork. No behaviour yet.
+//! car-config: paths and the log. In progress (S1.1).
+
+#[rustfmt::skip]
+pub mod vocab_gen;

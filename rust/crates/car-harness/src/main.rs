@@ -8,7 +8,7 @@
 use std::io::{BufRead, Write};
 use std::path::Path;
 
-use car_harness::{NOT_PORTED, object, rejected, state};
+use car_harness::{NOT_PORTED, leaves, object, rejected, state};
 use car_machine::json::{Options, Value, to_string};
 
 fn answer(request: &serde_json::Value) -> Value {
@@ -30,6 +30,10 @@ fn answer(request: &serde_json::Value) -> Value {
             None => rejected("home is required", "request_failed"),
         },
         Some("sqlite.version") => ok("value", Value::from(state::sqlite_version())),
+        Some("leaves.batch") => match request.get("cases").and_then(|_| leaves::read(request)) {
+            Some(Value::Object(parsed)) => ok("value", leaves::batch(&parsed["cases"])),
+            _ => rejected("cases are required", "request_failed"),
+        },
         _ => rejected("this call is not ported", NOT_PORTED),
     }
 }
