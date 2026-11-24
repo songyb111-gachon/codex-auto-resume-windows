@@ -8,12 +8,12 @@ use car_machine::json::Value;
 use crate::columns::{NEEDS_RECOVERY_TURN, NOTICE_COLUMNS, record_columns};
 use crate::errors::{Error, Kind, Result};
 use crate::machine::ids::{self, UuidProblem};
+use crate::machine::policy::USAGE_LIMIT;
 use crate::machine::vocab::{
     CATEGORIES, CLAIMED, HOLDS, IMPORTANCE_TIERS, IN_FLIGHT, NOTICE_KINDS, OBSERVING, STATES,
     TURN_STATUSES, WITHDRAW_REASONS,
 };
 use crate::machine::{epoch_store, has};
-use crate::seam::USAGE_LIMIT;
 use crate::value::{Row, get, is_in, set, text, text_of};
 
 /// `_uuid(value, name)`.

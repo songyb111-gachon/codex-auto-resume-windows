@@ -8,9 +8,9 @@ use rusqlite::Connection;
 use crate::actions::{Answer, not_waiting};
 use crate::errors::Result;
 use crate::journal::{Event, event};
+use crate::machine::policy::postponement_problem;
 use crate::machine::vocab::{TERMINAL, WAITING};
-use crate::machine::{has, ids, own_postponement};
-use crate::seam::postponement_problem;
+use crate::machine::{has, ids, own_postponement, raised};
 use crate::session::Store;
 use crate::validate::{now as check_now, timestamp, uuid_text};
 use crate::value::{Row, execute, get, number, or_zero, string, text_of, truthy};
@@ -94,7 +94,10 @@ impl Store {
             if !has(WAITING, state) {
                 return Ok((false, string(not_waiting(state))));
             }
-            if let Some(problem) = postponement_problem(until, now, get(&row, "not_before")) {
+            if let Some(problem) =
+                postponement_problem(until, &Value::Float(now), get(&row, "not_before"))
+                    .map_err(raised)?
+            {
                 return Ok((false, string(problem)));
             }
             let until = number(until).expect("a time");

@@ -16,11 +16,11 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use car_machine::json::{Map, Str, Value};
+use car_policy::classify::gates::{Limits, Vector};
 use car_store::claims::{Claim, Correlate, Withdrawn};
 use car_store::downgrade::downgrade_state_at;
 use car_store::open::{AdapterError, OpenState, Opened, Windows, open_state};
 use car_store::records::{Register, Update};
-use car_store::seam::gates::{Limits, Vector};
 use car_store::watcher::Beat;
 use car_store::{Error, LegacyStore, Options, Row, Store};
 

@@ -16,15 +16,15 @@ use rusqlite::Connection;
 
 use crate::errors::{Error, Result};
 use crate::journal::{Event, event, finite_value};
-use crate::machine::vocab::{RELEASABLE_WITHDRAWALS, WAITING, WATCHED};
-use crate::machine::{has, ids, may_be_queued, turn_status};
-use crate::policy::thread_enabled;
-use crate::seam::gates::{
+use crate::machine::policy::gates::{
     BLOCK, HELD, Limits, PASS, RESEND, Vector, WAIT, counted_from, encode_gates, first_refusal,
     gate, gate_budgets, gate_consent, gate_schedule, gate_submission_safe, resend_candidate,
     was_resent,
 };
-use crate::seam::is_recoverable;
+use crate::machine::policy::is_recoverable;
+use crate::machine::vocab::{RELEASABLE_WITHDRAWALS, WAITING, WATCHED};
+use crate::machine::{has, ids, may_be_queued, turn_status};
+use crate::policy::thread_enabled;
 use crate::session::{Store, read_settings};
 use crate::validate::{claim_cost, is_usage, now as check_now, uuid, uuid_text, validated_record};
 use crate::value::{

@@ -104,7 +104,32 @@ fn whole(int: &Int) -> Num {
 pub fn compare(a: Num, b: Num) -> Option<Ordering> {
     match (a, b) {
         (Num::Whole(x), Num::Whole(y)) => Some(x.cmp(&y)),
+        // Python compares an int with a float exactly (`2**53 + 1 == float(2**53 + 1)` is False), never by
+        // turning the int into a float.
+        (Num::Whole(x), Num::Real(y)) => whole_with_real(x, y),
+        (Num::Real(x), Num::Whole(y)) => whole_with_real(y, x).map(Ordering::reverse),
         _ => a.as_f64().partial_cmp(&b.as_f64()),
+    }
+}
+
+/// An int and a float compared exactly, as CPython's `float_richcompare` does.
+fn whole_with_real(x: i128, y: f64) -> Option<Ordering> {
+    if y.is_nan() {
+        return None;
+    }
+    // Every f64 at or past 2**127 in size is past every i128.
+    const LIMIT: f64 = 170_141_183_460_469_231_731_687_303_715_884_105_728.0;
+    if y >= LIMIT {
+        return Some(Ordering::Less);
+    }
+    if y < -LIMIT {
+        return Some(Ordering::Greater);
+    }
+    let whole = y.trunc();
+    // `whole` is an integer of at most 127 bits, so the cast is exact.
+    match x.cmp(&(whole as i128)) {
+        Ordering::Equal => 0.0_f64.partial_cmp(&(y - whole)),
+        other => Some(other),
     }
 }
 
@@ -219,5 +244,10 @@ mod tests {
         assert!(less(&one, &half).unwrap());
         assert!(less(&one, &Value::Null).is_err());
         assert_eq!(max(&[&half, &one]).unwrap(), &half);
+        let big = from_str("9007199254740993").unwrap();
+        let near = from_str("9007199254740992.0").unwrap();
+        assert!(!eq(&big, &near));
+        assert!(greater(&big, &near).unwrap());
+        assert!(less(&from_str("-1").unwrap(), &from_str("-0.5").unwrap()).unwrap());
     }
 }
