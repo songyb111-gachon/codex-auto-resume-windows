@@ -24,8 +24,8 @@ python -X utf8 tests/rustdiff/run.py --build
 From the repository root, on any PYTHONPATH. `--build` runs `cargo build --release --locked --manifest-path
 rust/crates/car-harness/Cargo.toml` (CARGO_BUILD_JOBS 4 unless set), then every diff. Exit 0 identical, 1 a
 difference or a failure, 2 binaries missing. `--reference TAG` names another reference; the tag must be in the
-checkout (CI fetches the tags; a missing one fails there, as in `tests/released.py`). The crate builds alone
-until S0.1's `rust/Cargo.toml` lists it; its `Cargo.lock` then gives way to the workspace's.
+checkout (CI fetches the tags; a missing one fails there, as in `tests/released.py`). The crate is a member of
+the `rust/` workspace: its build goes to `rust/target` and its lock is `rust/Cargo.lock`.
 
 ## The shim's seam
 
@@ -54,7 +54,7 @@ The whole harness (the build cached; from clean it took 1 min 46 s):
 
 ```
 $ CARGO_BUILD_JOBS=4 python -X utf8 tests/rustdiff/run.py --build -v
-reference v0.6.26-beta.2; rust rust/crates/car-harness/target/release
+reference v0.6.26-beta.2; rust rust/target/release
 test_defaults (rustdiff.diffs.DefaultsDiff.test_defaults) ... ok
 test_both_seams_reach_rust (rustdiff.diffs.ShimRoutes.test_both_seams_reach_rust) ... ok
 test_no_variable_no_shim (rustdiff.diffs.ShimRoutes.test_no_variable_no_shim) ... ok

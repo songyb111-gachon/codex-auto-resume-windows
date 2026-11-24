@@ -21,10 +21,10 @@ NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 
 def target_dir() -> Path:
-    """Where cargo puts the build: CARGO_TARGET_DIR when set, else beside the manifest (the crate builds
-    alone until S0.1's workspace lists it; then rust/target)."""
+    """Where cargo puts the build: CARGO_TARGET_DIR when set, else the standard workspace's rust/target (the
+    crate is one of its members, with its one Cargo.lock)."""
     named = os.environ.get("CARGO_TARGET_DIR")
-    return Path(named) if named else CRATE / "target"
+    return Path(named) if named else ROOT / "rust" / "target"
 
 
 def binary(name: str) -> Path:

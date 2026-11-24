@@ -44,7 +44,7 @@ def executable() -> Path:
     named = os.environ.get("CODEX_AR_CORE_EXE")
     if named:
         return Path(named)
-    target = Path(os.environ["CARGO_TARGET_DIR"]) if os.environ.get("CARGO_TARGET_DIR") else CRATE / "target"
+    target = Path(os.environ["CARGO_TARGET_DIR"]) if os.environ.get("CARGO_TARGET_DIR") else CRATE.parents[1] / "target"
     return target / "release" / "car-core-stub.exe"
 
 
