@@ -4,8 +4,12 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
+description = "The domain's states, ids, errors and vocabularies, and the Python-compatible JSON writer."
 
 [lints]
 workspace = true
 
 [dependencies]
+# D5: serde_json reads (keys in their order, numbers as written); the writer is our own.
+indexmap = "2"
+serde_json = { version = "1", default-features = false, features = ["std", "preserve_order", "arbitrary_precision"] }
