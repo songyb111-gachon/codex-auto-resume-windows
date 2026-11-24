@@ -34,6 +34,7 @@ def main(argv=None) -> int:
     for entry in (ROOT / "src", ROOT / "tests"):
         if str(entry) not in sys.path:
             sys.path.insert(0, str(entry))
+    import importlib
     from rustdiff import core, diffs, reference
 
     if args.build:
@@ -45,7 +46,10 @@ def main(argv=None) -> int:
     built = core.binary("car-core-stub").parent
     shown = built.relative_to(ROOT).as_posix() if built.is_relative_to(ROOT) else built.name
     print("reference %s; rust %s" % (reference.TAG, shown), flush=True)
-    suite = unittest.defaultTestLoader.loadTestsFromModule(diffs)
+    # diffs.py, then each seat's own module beside it (diffs_store.py, ...), in name order.
+    modules = [diffs] + [importlib.import_module("rustdiff." + path.stem)
+                         for path in sorted(HERE.glob("diffs_*.py"))]
+    suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromModule(module) for module in modules)
     result = unittest.TextTestRunner(verbosity=2 if args.verbose else 1).run(suite)
     for line in diffs.RECORD:
         print(line)
