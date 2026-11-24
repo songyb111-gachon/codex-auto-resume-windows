@@ -190,3 +190,14 @@ Alone: `python -X utf8 tests/rustdiff/run.py --build -k Settings -k OwnValues -k
 **The final re-diff, one command:** when v0.6.26 is tagged, `python -X utf8 tests/rustdiff/gen_policy.py --check --ref v0.6.26 && python -X utf8 tests/rustdiff/run.py --build --reference v0.6.26 -k Settings -k OwnValues -k HomesKinds -k StatusTree -k Managed -k PowerStatus -k Plug`
 (`gen_policy.py` regenerates the vocabularies and Python's casefold and isalnum tables and says which file is stale; the
 diffs then say which answer moved). dev changed none of the seat's modules after v0.6.26-beta.2 when it was ported.
+
+The run of 2026-11-25 (all diffs, `run.py --build`, rc=0): 48,130 coerce/validate/migrate cases (26,012 accepted, 22,118
+refused alike), 1,186 schema and reader cases, 4,102 own-value cases, 923 homes/kinds/memory cases, 367 file cases (28
+files from 14 tags; 94 answered by an exception with the same class, sentence and reason), 94 status/homes/edition
+cases on disk, 8,439 policy-key cases and 10 registry scenarios, 5,457 power-action, 621 status-content, 14 demo and 92
+self-check cases, and the plug's tables, NULL, 133 consult, 1,505 records_of and 65 other checks.
+
+The diffs catch a broken rule (each broken alone, rebuilt, its diff run, restored; every one failed, and all passed again
+after): `max_recovery_attempts` up to 21 (coerce, case 574); a REG_QWORD switch ignored (managed, case 15); NULL wanting
+every point (plug, case 1); the status file with LF line ends (tree, case 0); `handed_over_too` met with no recovery
+(power, case 4...); a settings file of exactly 4 MiB refused as too large (files, case 312).
