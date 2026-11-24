@@ -1,13 +1,15 @@
 //! car-store on its own, in scratch folders: the cases the differential harness (tests/rustdiff/diffs_store.py)
 //! runs against the reference, kept here as table tests so `cargo test` holds them without a Python.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use car_machine::json::{Map, Str, Value};
 use car_store::claims::Claim;
 use car_store::records::Register;
 use car_store::schema::{MARK_VALUE, SCHEMA_VERSION};
+use car_store::session::Links;
 use car_store::{Kind, Options, Store};
 
 const THREAD: &str = "0a1b2c3d-0001-7000-8000-000000000001";
@@ -49,11 +51,21 @@ fn record(index: u8, category: &str) -> Map {
     map
 }
 
+/// std's own reading of a link: car-platform's probe is the product's, and these folders hold no junction.
+struct StdLinks;
+
+impl Links for StdLinks {
+    fn is_symlink(&self, path: &Path) -> bool {
+        std::fs::symlink_metadata(path).is_ok_and(|found| found.file_type().is_symlink())
+    }
+}
+
 fn pinned(migrate: bool) -> Options {
     Options {
         migrate,
         check: true,
         clock: Box::new(|| NOW),
+        links: Arc::new(StdLinks),
     }
 }
 

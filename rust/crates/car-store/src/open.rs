@@ -7,10 +7,11 @@
 
 use std::any::Any;
 use std::path::Path;
+use std::sync::Arc;
 
 use crate::errors::{Error, Kind, Result};
 use crate::legacy::LegacyStore;
-use crate::session::{Clock, Options, Store, wall_clock};
+use crate::session::{Clock, Links, Options, Store, wall_clock};
 
 /// `POLICIES`.
 pub const POLICIES: &[&str] = &["never", "if_reducing", "always"];
@@ -31,6 +32,9 @@ pub trait Windows {
     /// `windows.Mutex(state_dir, timeout=0.0)` entered: a guard holding the watcher's single-instance mutex
     /// until it is dropped, or the AdapterError of a mutex another process holds.
     fn watcher_mutex(&self, state_dir: &Path) -> std::result::Result<Box<dyn Any>, AdapterError>;
+
+    /// `Path.is_symlink()` (car-platform's `links::is_symlink`): the store refuses a state folder that is one.
+    fn links(&self) -> Arc<dyn Links>;
 }
 
 /// What `open_state` gives: the store, or under an older watcher the older watcher's own.
@@ -92,6 +96,7 @@ pub fn open_state(
             migrate: false,
             check: options.check,
             clock: clock(),
+            links: windows.links(),
         },
     ) {
         Ok(store) => return Ok(Opened::Store(store)),
@@ -109,6 +114,7 @@ pub fn open_state(
                     migrate: true,
                     check: true,
                     clock: clock(),
+                    links: windows.links(),
                 },
             );
             drop(guard);
@@ -125,11 +131,11 @@ pub fn open_state(
         }
     }
     if options.legacy == "always" {
-        return LegacyStore::open(state_dir).map(Opened::Legacy);
+        return LegacyStore::open(state_dir, &*windows.links()).map(Opened::Legacy);
     }
     if options.legacy == "if_reducing"
         && options.reducing
-        && let Ok(legacy) = LegacyStore::open(state_dir)
+        && let Ok(legacy) = LegacyStore::open(state_dir, &*windows.links())
     {
         return Ok(Opened::Legacy(legacy));
     }

@@ -6,6 +6,7 @@
 //! SQLite's default (DELETE, never WAL), as Python leaves it. A write is `BEGIN IMMEDIATE`, a read `BEGIN`.
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use car_machine::json::Value;
@@ -34,10 +35,13 @@ pub fn wall_clock() -> f64 {
         .map_or(0.0, |elapsed| elapsed.as_secs_f64())
 }
 
-/// Whether `path` is a symbolic link as Python's `Path.is_symlink()` says: a junction is not one
-/// (seam/links.rs).
-pub fn is_symlink(path: &Path) -> bool {
-    crate::seam::links::is_symlink(path)
+/// The one question the store asks of Windows about a path (cut C3, as [`crate::open::Windows`]): whether it is a
+/// symbolic link as Python's `Path.is_symlink()` says. A junction is not one, so a junction redirecting the state
+/// folder is not refused, as the reference does not refuse it. car-platform has the one probe
+/// (`car_platform::links::is_symlink`); the harness and the entry points wire it in.
+pub trait Links: Send + Sync {
+    /// `Path(path).is_symlink()`.
+    fn is_symlink(&self, path: &Path) -> bool;
 }
 
 /// Open a connection as Python's `sqlite3.connect(path, timeout=10, isolation_level=None)` does.
@@ -57,14 +61,18 @@ pub struct Options {
     /// The full integrity check and every row validated at open.
     pub check: bool,
     pub clock: Clock,
+    /// `Path.is_symlink()`.
+    pub links: Arc<dyn Links>,
 }
 
-impl Default for Options {
-    fn default() -> Self {
+impl Options {
+    /// The defaults of `Store(state_dir)`: no migration, the full check, the wall clock.
+    pub fn new(links: Arc<dyn Links>) -> Self {
         Options {
             migrate: false,
             check: true,
             clock: Box::new(wall_clock),
+            links,
         }
     }
 }
@@ -74,6 +82,7 @@ pub struct Store {
     pub state_dir: PathBuf,
     pub path: PathBuf,
     pub(crate) clock: Clock,
+    pub(crate) links: Arc<dyn Links>,
     connection: Option<Connection>,
     /// The schema the open upgraded from, or None.
     pub migrated_from: Option<i64>,
@@ -83,8 +92,8 @@ pub struct Store {
 
 impl Store {
     /// `Store(state_dir, migrate=False, check=True)`.
-    pub fn open(state_dir: &Path) -> Result<Store> {
-        Store::open_with(state_dir, Options::default())
+    pub fn open(state_dir: &Path, links: Arc<dyn Links>) -> Result<Store> {
+        Store::open_with(state_dir, Options::new(links))
     }
 
     /// `Store(state_dir, migrate=..., check=..., clock=...)`.
@@ -93,6 +102,7 @@ impl Store {
             state_dir: state_dir.to_path_buf(),
             path: state_dir.join("state.sqlite"),
             clock: options.clock,
+            links: options.links,
             connection: None,
             migrated_from: None,
             record_sql: "SELECT * FROM interruptions".into(),
@@ -110,7 +120,7 @@ impl Store {
     }
 
     fn opening(&mut self, migrate_allowed: bool, check: bool) -> Result<()> {
-        if is_symlink(&self.state_dir) || is_symlink(&self.path) {
+        if self.links.is_symlink(&self.state_dir) || self.links.is_symlink(&self.path) {
             return Err(Error::store("State paths must not be symbolic links"));
         }
         if std::fs::create_dir_all(&self.state_dir).is_err() || !self.state_dir.is_dir() {

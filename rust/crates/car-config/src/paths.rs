@@ -9,6 +9,7 @@
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
+use std::sync::Arc;
 
 use car_machine::json::{Value, from_str};
 
@@ -40,16 +41,29 @@ impl std::error::Error for ConfigError {}
 pub struct Os {
     pub cwd: String,
     pub long_paths: bool,
+    /// The link probe: `Path.is_symlink()` (see [`Links`]).
+    pub links: Arc<dyn Links>,
+}
+
+/// The one question the config asks of Windows about a path that it cannot ask by itself: whether the path is a
+/// symbolic link as Python's `Path.is_symlink()` says (cut C3, as car-store's `Links`). A junction is not one, so a
+/// junction inside the home passes `ensure()`, `claim_home()` and `owns_home()`, as in the reference; the reference's
+/// own `config.is_link` - any reparse point at all - is [`is_link`], which needs no tag. car-platform has the one
+/// probe (`car_platform::links::is_symlink`); the harness and the entry points wire it in.
+pub trait Links: Send + Sync + std::fmt::Debug {
+    /// `Path(path).is_symlink()`.
+    fn is_symlink(&self, path: &Path) -> bool;
 }
 
 impl Os {
-    /// This process's working directory, and long paths as the caller says.
-    pub fn here(long_paths: bool) -> Os {
+    /// This process's working directory, and long paths and the link probe as the caller says.
+    pub fn here(long_paths: bool, links: Arc<dyn Links>) -> Os {
         Os {
             cwd: std::env::current_dir()
                 .map(|found| found.to_string_lossy().into_owned())
                 .unwrap_or_default(),
             long_paths,
+            links,
         }
     }
 
@@ -200,6 +214,11 @@ impl Paths {
         })
     }
 
+    /// `Path(path).is_symlink()`.
+    fn is_symlink(&self, path: &str) -> bool {
+        self.os.links.is_symlink(Path::new(path))
+    }
+
     fn resolved(&self, path: &str) -> Result<String, i32> {
         self.os.resolve(path)
     }
@@ -219,7 +238,7 @@ impl Paths {
     pub fn ensure(&self) -> Result<(), ConfigError> {
         for directory in [&self.state_dir, &self.logs_dir] {
             let exists = Path::new(directory).exists();
-            if is_link(directory) || (exists && !self.confined(directory)) {
+            if self.is_symlink(directory) || (exists && !self.confined(directory)) {
                 return Err(ConfigError(
                     "Owned directory is a link/junction escaping the home; refusing".into(),
                 ));
@@ -253,7 +272,7 @@ impl Paths {
 
     /// `claim_home()`: mark the installation root as ours. Called when the program files are put there.
     pub fn claim_home(&self) -> bool {
-        if is_link(&self.home) || !self.confined(&self.home) {
+        if self.is_symlink(&self.home) || !self.confined(&self.home) {
             return false;
         }
         if fs::create_dir_all(&self.home).is_err() {
@@ -266,14 +285,14 @@ impl Paths {
     /// `owns_home()`: whether this installation root is one we created: its marker, `config/`'s marker, or a
     /// `runtime.json` that names this very home.
     pub fn owns_home(&self) -> bool {
-        if is_link(&self.home) || !is_dir(&self.home) || !self.confined(&self.home) {
+        if self.is_symlink(&self.home) || !is_dir(&self.home) || !self.confined(&self.home) {
             return false;
         }
         if self.owns(&self.home) || self.owns(&self.state_dir) {
             return true;
         }
         let record = child(&self.home, "runtime.json");
-        if !is_file(&record) || is_link(&record) || !self.confined(&record) {
+        if !is_file(&record) || self.is_symlink(&record) || !self.confined(&record) {
             return false;
         }
         let Ok(raw) = fs::read(&record) else {
@@ -480,11 +499,21 @@ mod tests {
         (name == "USERPROFILE").then(|| "C:\\Users\\ExampleUser".to_owned())
     }
 
+    /// A probe that says nothing is a symbolic link; the real one is car-platform's.
+    #[derive(Debug)]
+    struct NoLinks;
+
+    impl Links for NoLinks {
+        fn is_symlink(&self, _path: &Path) -> bool {
+            false
+        }
+    }
+
     #[test]
     fn names_are_the_pythons() {
         let scratch = std::env::temp_dir().join("car-config-paths-test");
         let _ = std::fs::create_dir_all(&scratch);
-        let os = Os::here(false);
+        let os = Os::here(false, Arc::new(NoLinks));
         let paths = Paths::new(scratch.to_str(), "C:\\root", &env, os).unwrap();
         assert!(paths.settings_file.ends_with("config\\settings.json"));
         assert!(paths.log_file.ends_with("logs\\auto-resume.log"));

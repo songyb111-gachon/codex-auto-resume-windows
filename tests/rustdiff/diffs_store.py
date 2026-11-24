@@ -978,8 +978,8 @@ def junction(link: Path, target: Path) -> None:
 
 class JunctionDiff(StoreBase):
     """A state folder that is a junction - a moved profile, a folder linked elsewhere - is a folder to Python 3.12+
-    (`Path.is_symlink()` is False), and so to car-store (seam/links.rs): opened, written, downgraded, read as an older
-    watcher's, its usage-checks folder a junction too, all alike."""
+    (`Path.is_symlink()` is False), and so to car-store (`session::Links` over car-platform's `links.rs`): opened,
+    written, downgraded, read as an older watcher's, its usage-checks folder a junction too, all alike."""
 
     def test_a_junction_is_a_folder(self):
         ops = [op("set_enabled", True, N), op("register", record(0, "server_5xx"), N),

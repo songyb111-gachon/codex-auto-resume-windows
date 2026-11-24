@@ -15,7 +15,7 @@ use crate::errors::{Error, Result};
 use crate::machine::ids;
 use crate::machine::vocab::{CLAIMED, IN_FLIGHT, OBSERVING, V2_STATES, WAITING, WATCHED};
 use crate::schema::{MARK, TABLES_V4, TABLES_V5, create_interruptions_named, table_set, tables};
-use crate::session::{connect, is_symlink, utc_stamp, wall_clock};
+use crate::session::{Links, connect, utc_stamp, wall_clock};
 use crate::validate::validated_record;
 use crate::value::{
     Row, execute, get, int, integer, key, marks, number, rows, set, string, text, text_of, words,
@@ -57,19 +57,24 @@ fn observed(value: &Value) -> Option<&'static str> {
 }
 
 /// `downgrade_state(state_dir, target)`: a newer state rewritten as schema `target`; the report.
-pub fn downgrade_state(state_dir: &Path, target: i64) -> Result<Row> {
-    downgrade_state_at(state_dir, target, wall_clock())
+pub fn downgrade_state(state_dir: &Path, target: i64, links: &dyn Links) -> Result<Row> {
+    downgrade_state_at(state_dir, target, wall_clock(), links)
 }
 
 /// `downgrade_state` with `time.time()` given: `now` is what a record made final is stamped with.
-pub fn downgrade_state_at(state_dir: &Path, target: i64, now: f64) -> Result<Row> {
+pub fn downgrade_state_at(
+    state_dir: &Path,
+    target: i64,
+    now: f64,
+    links: &dyn Links,
+) -> Result<Row> {
     if !TARGETS.contains(&target) {
         return Err(Error::store(
             "A state can be downgraded to schema 4, 3 or 2 only",
         ));
     }
     let path = state_dir.join("state.sqlite");
-    if is_symlink(state_dir) || is_symlink(&path) || !path.is_file() {
+    if links.is_symlink(state_dir) || links.is_symlink(&path) || !path.is_file() {
         return Err(Error::store("Cannot open valid auto-resume state"));
     }
     let connection = connect(&path)?;
@@ -154,13 +159,13 @@ fn count(report: &Row, name: &str) -> i64 {
 }
 
 /// `downgrade_to_v3(state_dir)`.
-pub fn downgrade_to_v3(state_dir: &Path) -> Result<Row> {
-    downgrade_state(state_dir, 3)
+pub fn downgrade_to_v3(state_dir: &Path, links: &dyn Links) -> Result<Row> {
+    downgrade_state(state_dir, 3, links)
 }
 
 /// `downgrade_to_v2(state_dir)`.
-pub fn downgrade_to_v2(state_dir: &Path) -> Result<Row> {
-    downgrade_state(state_dir, 2)
+pub fn downgrade_to_v2(state_dir: &Path, links: &dyn Links) -> Result<Row> {
+    downgrade_state(state_dir, 2, links)
 }
 
 /// `_to_v4(connection, now)`: schema 5 as schema 4, inside the caller's transaction.

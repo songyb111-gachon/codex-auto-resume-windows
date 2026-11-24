@@ -9,14 +9,12 @@
 //! | [`vocab`] | the failure categories (`failures.py`), the notice kinds (`needsyou.py`), the gates' words (`domain/vocabulary.py`, `domain/gates.py`), `ladder.EARLY_STATES`, the watcher's ends | car-policy (S2.1) |
 //! | this module | `failures.py` (`is_recoverable`, `reset_verified`, `USAGE_LIMIT`), `quiet.py` (`postponement_problem`), `needsyou.py` (`KEEP_SECONDS`), `ladder.py` (`CAPACITY_MAX_SECONDS`) | car-policy (S2.1) |
 //! | [`gates`] | `domain/gates.py` | car-policy (S2.1) |
-//! | [`links`] | `Path.is_symlink()` on Windows: kernel32 declared by hand, the one Windows call in car-store | car-platform (S3.1) |
 //! | [`python`] | CPython's own readings of a text (`str.split`, `float()`, `json.loads`, `int(_, 16)`) | the store (not a seam: it holds what Rust's readers refuse) |
 //!
 //! `tests/rustdiff/diffs_store.py` holds the vocabularies to the reference tag's, and the store's own diffs
 //! exercise every function here through the store.
 
 pub mod gates;
-pub mod links;
 pub mod python;
 pub mod vocab;
 

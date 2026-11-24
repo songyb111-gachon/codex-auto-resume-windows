@@ -14,4 +14,4 @@ pub mod paths;
 pub mod vocab_gen;
 pub mod winpath;
 
-pub use paths::{ConfigError, Os, Paths};
+pub use paths::{ConfigError, Links, Os, Paths};

@@ -385,13 +385,15 @@ class OwnedDiff(ConfigBase):
         for home in ("empty", "marked", "only config", "unmarked", "full", "junction", "junction in", "record-ok", "record-other",
                      "record-list", "record-bad", "record-empty", "record-number", "record-case", "record-bytes", "record-bom", "missing"):
             template.append(["paths.report", "@/" + home, "@/root", ENV, "@/", False, extra])
-        for home in ("empty", "marked", "full"):
+        # `junction` has config/ a junction out of the home (ensure() refuses it, both ways) and `junction in` has config/ a
+        # junction to a folder inside the home: `Path.is_symlink()` is false for it, so the tag's ensure() lets it pass, and
+        # so does car-config's, whose link probe is car-platform's (the one reparse-tag reader, D3; the harness wires it in).
+        for home in ("empty", "marked", "full", "junction", "junction in"):
             template.append(["paths.mutate", "@/" + home, "@/root", ENV, "@/", False, extra])
         # a file of the home that the mutation made is then listed: so is what it did NOT make
         self.pair("owned", template, tree=tree)
-        # The one stricter answer: `ensure()` refuses any reparse point where the tag's `is_symlink()` (Python's, which is
-        # false for a junction) lets a junction that stays inside the home pass; std cannot tell the two kinds of reparse
-        # point apart, so Rust refuses both, which no home worth keeping has the other to need.
+        # The junction inside the home, on its own and spelled out: ensure() passes (None, not a ConfigError) in the tag's and in
+        # car-config's, and what it left behind is the same; the one probe is car-platform's `is_symlink`, a junction is not a link.
         ours, theirs = self.roots("junction-in")
         for root in (ours, theirs):
             tree(root)
@@ -399,8 +401,9 @@ class OwnedDiff(ConfigBase):
             _number, line = harness.call("leaves.batch", cases=[["paths.mutate", str(theirs / "junction in"), str(theirs / "root"),
                                                                  dict(ENV, USERPROFILE=str(theirs)), str(theirs), False, []]])
         answer = json.loads(line.decode("utf-8"))["reply"]["value"][0]["ok"]
-        self.assertEqual(answer["ensure"], {"config_error": "Owned directory is a link/junction escaping the home; refusing"})
+        self.assertIsNone(answer["ensure"], "a junction inside the home passes ensure() as the tag lets it")
+        self.assertTrue(answer["claim_home"])
         RECORD.append("Paths ownership: owns, owns_home (marker, config's marker, runtime.json of seven kinds), the owned state, advanced, "
                       "account and log files, the account folders by depth, confined (a junction out of the home, one inside it), and "
-                      "ensure() and claim_home() on %d scratch homes equal the tag's; one stricter answer, ensure() refuses a junction "
-                      "that stays inside the home, which the tag's is_symlink() lets pass" % (len(template) - 3))
+                      "ensure() and claim_home() on 5 scratch homes equal the tag's, a junction inside the home passing ensure() as the tag's "
+                      "Path.is_symlink() lets it (car-platform's one link probe)")

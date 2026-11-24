@@ -12,7 +12,7 @@ use std::sync::{Mutex, OnceLock};
 use car_machine::compat::loads;
 use car_machine::json::Value;
 
-use crate::paths::{ConfigError, ENV_CODEX_EXE, Os, is_link};
+use crate::paths::{ConfigError, ENV_CODEX_EXE, Os};
 use crate::winpath::{self, Env};
 
 /// The plugin manifest, relative to the installation it describes: the one place the product version is written.
@@ -180,10 +180,10 @@ pub fn candidate_codex_exes(env: Env, os: &Os) -> Result<Vec<String>, ConfigErro
             && name
                 .bytes()
                 .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b));
-        if Path::new(&child).is_dir() && !is_link(&child) && hex {
+        if Path::new(&child).is_dir() && !os.links.is_symlink(Path::new(&child)) && hex {
             let exe = winpath::path_str(&winpath::join(&child, "codex.exe"));
             if Path::new(&exe).is_file()
-                && !is_link(&exe)
+                && !os.links.is_symlink(Path::new(&exe))
                 && let Ok(real) = os.resolve(&exe)
             {
                 found.push(winpath::path_str(&real));

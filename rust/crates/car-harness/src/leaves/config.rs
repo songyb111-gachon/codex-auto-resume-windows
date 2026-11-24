@@ -63,6 +63,7 @@ fn os_of(cwd: &Value, long_paths: &Value) -> Os {
     Os {
         cwd: optional(cwd).unwrap_or("C:\\").to_owned(),
         long_paths: matches!(long_paths, Value::Bool(true)),
+        links: crate::links::for_config(),
     }
 }
 

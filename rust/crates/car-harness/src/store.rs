@@ -696,6 +696,7 @@ pub fn script(home: &Path, request: &Map) -> Value {
             Some(fixed) => Box::new(move || fixed),
             None => Box::new(car_store::session::wall_clock),
         },
+        links: crate::links::for_store(),
     };
     let mut out = Map::new();
     let store = match Store::open_with(home, options) {
@@ -730,7 +731,7 @@ pub fn script(home: &Path, request: &Map) -> Value {
 /// `store.legacy`: {open, results}.
 pub fn legacy(home: &Path, request: &Map) -> Value {
     let mut out = Map::new();
-    let store = match LegacyStore::open(home) {
+    let store = match LegacyStore::open(home, &crate::links::Probe) {
         Ok(store) => {
             out.insert(Str::new("open"), Value::Null);
             store
@@ -765,7 +766,7 @@ pub fn downgrade(home: &Path, request: &Map) -> Value {
         .get("now")
         .and_then(car_store::value::number)
         .unwrap_or_else(car_store::session::wall_clock);
-    settle(downgrade_state_at(home, target, now).map(Value::Object))
+    settle(downgrade_state_at(home, target, now, &crate::links::Probe).map(Value::Object))
 }
 
 /// The Windows stand-in `store.open_state` is given: what an install lock and the watcher's mutex say.
@@ -785,6 +786,10 @@ impl Windows for StandIn {
         } else {
             Err(AdapterError("held".into()))
         }
+    }
+
+    fn links(&self) -> std::sync::Arc<dyn car_store::session::Links> {
+        crate::links::for_store()
     }
 }
 
@@ -836,7 +841,7 @@ pub fn open(home: &Path, request: &Map) -> Value {
 
 /// `store.record_state`: the state of one record, opened by car-store (S0.4's call, kept).
 pub fn record_state(home: &Path, interruption_id: &str) -> Answer {
-    let store = Store::open(home)?;
+    let store = Store::open(home, crate::links::for_store())?;
     Ok(store.get(interruption_id)?.map_or(Value::Null, |row| {
         car_store::value::get(&row, "state").clone()
     }))
@@ -844,5 +849,7 @@ pub fn record_state(home: &Path, interruption_id: &str) -> Answer {
 
 /// `store.schema_version`.
 pub fn schema_version(home: &Path) -> Answer {
-    Ok(Value::from(Store::open(home)?.schema_version()?))
+    Ok(Value::from(
+        Store::open(home, crate::links::for_store())?.schema_version()?,
+    ))
 }

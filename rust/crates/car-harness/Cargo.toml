@@ -33,5 +33,7 @@ car-brand = { path = "../car-brand" }
 # The differential harness's Rust side (PLAN.md 1.2 row 17, section 4): dev only, never shipped.
 # The state store (S1.2): every store call, and the bundled SQLite (D4) through it.
 car-store = { path = "../car-store" }
+# S3.1: the one link probe (`links::is_symlink`), which the harness wires into car-store's and car-config's `Links`.
+car-platform = { path = "../car-platform" }
 # D5: serde to read (the harness's requests).
 serde_json = "1"

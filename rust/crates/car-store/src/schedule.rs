@@ -11,7 +11,7 @@ use crate::journal::{Event, event};
 use crate::machine::vocab::{TERMINAL, WAITING};
 use crate::machine::{has, ids, own_postponement};
 use crate::seam::postponement_problem;
-use crate::session::{Store, is_symlink};
+use crate::session::Store;
 use crate::validate::{now as check_now, timestamp, uuid_text};
 use crate::value::{Row, execute, get, number, or_zero, string, text_of, truthy};
 
@@ -250,7 +250,7 @@ impl Store {
     /// `_usage_checks()`: the folder, refused when it is a symbolic link.
     fn usage_checks(&self) -> std::io::Result<PathBuf> {
         let folder = self.state_dir.join(USAGE_CHECKS);
-        if is_symlink(&folder) {
+        if self.links.is_symlink(&folder) {
             return Err(std::io::Error::other(
                 "the usage checks' folder is a symbolic link",
             ));
@@ -298,7 +298,7 @@ impl Store {
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().into_owned();
             let path = entry.path();
-            if !ids::is_digest_text(&name) || is_symlink(&path) {
+            if !ids::is_digest_text(&name) || self.links.is_symlink(&path) {
                 continue;
             }
             let at = read_ascii(&path)
@@ -352,7 +352,7 @@ impl Store {
             return None;
         }
         let entry = self.usage_checks().ok()?.join(interruption_id);
-        if !entry.is_file() || is_symlink(&entry) {
+        if !entry.is_file() || self.links.is_symlink(&entry) {
             return None;
         }
         let words: Vec<String> = read_ascii(&entry)
@@ -399,7 +399,7 @@ impl Store {
             return false;
         };
         let entry = folder.join(EARLY_CHECK);
-        if !entry.is_file() || is_symlink(&entry) {
+        if !entry.is_file() || self.links.is_symlink(&entry) {
             return false;
         }
         let Some(at) = read_ascii(&entry).and_then(|said| crate::seam::python::float(&said)) else {

@@ -12,7 +12,7 @@ use rusqlite::Connection;
 use crate::errors::{Error, Result};
 use crate::machine::vocab::{STATES, TERMINAL, V2_STATES};
 use crate::schema::{TABLES_V2, TABLES_V3, TABLES_V4, table_set, tables};
-use crate::session::{begin, connect, is_symlink, read_settings};
+use crate::session::{Links, begin, connect, read_settings};
 use crate::validate::{now as check_now, uuid_text};
 use crate::value::{Row, execute, first, int, integer, marks, string, tuples, words};
 
@@ -28,10 +28,10 @@ pub struct LegacyStore {
 
 impl LegacyStore {
     /// `LegacyStore(state_dir)`.
-    pub fn open(state_dir: &Path) -> Result<LegacyStore> {
+    pub fn open(state_dir: &Path, links: &dyn Links) -> Result<LegacyStore> {
         let path = state_dir.join("state.sqlite");
         let unreadable = || Error::store("Cannot open valid auto-resume state");
-        if is_symlink(state_dir) || is_symlink(&path) || !path.is_file() {
+        if links.is_symlink(state_dir) || links.is_symlink(&path) || !path.is_file() {
             return Err(unreadable());
         }
         let opened =
