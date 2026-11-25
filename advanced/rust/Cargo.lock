@@ -47,8 +47,14 @@ dependencies = [
 name = "car-bin"
 version = "0.0.0"
 dependencies = [
+ "car-config",
  "car-control",
+ "car-machine",
+ "car-platform",
+ "car-policy",
+ "car-store",
  "car-watcher",
+ "car-words",
 ]
 
 [[package]]
