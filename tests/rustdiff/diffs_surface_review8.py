@@ -59,6 +59,10 @@ for elapsed in (float("-inf"), -0.0, 1e-300, 339.99999999999994):
 for radius in (0.5, 2.5, 5.25, 36, 60, 100.5, -1, -0.5, float("nan")):
     for smoothing in (None, 0.0, 2.0, -0.5, 0.999):
         cases.append(["card.corner", radius, smoothing])
+# a radius no card has (fix8, N2): infinity is OverflowError, a huge one OverflowError or MemoryError, never an abort
+for radius in (float("inf"), float("-inf"), 1e300, 1e19, 1e18):
+    for smoothing in (None, 0.0, 2.0):
+        cases.append(["card.corner", radius, smoothing])
 cases.append(["card.premultiply", "ab" * (4 * 30 * 10), 30, 40, 12, -5, None])
 cases.append(["card.premultiply", "ab" * (4 * 30 * 10), 30, 40, 12, 35, None])
 cases.append(["card.premultiply", "ab" * (4 * 30 * 10 + 1), 30, 40, 12, 0, None])

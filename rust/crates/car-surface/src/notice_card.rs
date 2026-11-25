@@ -983,6 +983,13 @@ pub fn corner_coverage(radius: f64, smoothing: Option<f64>) -> Py<Rows> {
         Some(value) => value,
         None => shape::design_smoothing(Some("soft"))?,
     };
+    // `int(math.ceil(radius))`: NaN is a ValueError and infinity an OverflowError, before anything is drawn.
+    if radius.is_nan() {
+        return Err("ValueError");
+    }
+    if radius.is_infinite() {
+        return Err("OverflowError");
+    }
     let key = (radius.to_bits(), smoothing.to_bits());
     let mut kept = CORNERS
         .lock()
@@ -992,9 +999,9 @@ pub fn corner_coverage(radius: f64, smoothing: Option<f64>) -> Py<Rows> {
     }
     let made = shape::profile(radius, smoothing, 1e9);
     let rows = if shape::smoothed(&made.corner) {
-        squircle_corner(&made)
+        squircle_corner(&made)?
     } else {
-        round_corner(radius)
+        round_corner(radius)?
     };
     if kept.len() >= 8 {
         kept.clear();
@@ -1003,8 +1010,25 @@ pub fn corner_coverage(radius: f64, smoothing: Option<f64>) -> Py<Rows> {
     Ok(rows)
 }
 
-fn round_corner(radius: f64) -> Rows {
-    let size = radius.ceil().max(0.0) as usize;
+/// `int(math.ceil(value))` as the length of a corner's rows: the reference's `bytearray(size)` raises OverflowError
+/// for a size past an index and MemoryError for one no machine has the rows for (a corner is a few dozen pixels:
+/// `brand.RADII["card"]` times the scale); 2**15 (about 1 GB of rows) stands for the second here, so a huge radius never allocates.
+fn cells(value: f64) -> Py<usize> {
+    if value.is_nan() {
+        return Err("ValueError");
+    }
+    let size = value.ceil().max(0.0);
+    if size >= 9.223_372_036_854_776e18 {
+        return Err("OverflowError");
+    }
+    if size > 32_768.0 {
+        return Err("MemoryError");
+    }
+    Ok(size as usize)
+}
+
+fn round_corner(radius: f64) -> Py<Rows> {
+    let size = cells(radius)?;
     let mut rows = Vec::with_capacity(size);
     for j in 0..size {
         let mut row = vec![0u8; size];
@@ -1018,11 +1042,11 @@ fn round_corner(radius: f64) -> Rows {
         }
         rows.push(row);
     }
-    rows
+    Ok(rows)
 }
 
-fn squircle_corner(made: &Profile) -> Rows {
-    let size = made.p.ceil().max(0.0) as usize;
+fn squircle_corner(made: &Profile) -> Py<Rows> {
+    let size = cells(made.p)?;
     let middle = made.middle;
     let mut half: Vec<Vec<u8>> = Vec::with_capacity(size);
     for i in 0..size {
@@ -1090,7 +1114,7 @@ fn squircle_corner(made: &Profile) -> Rows {
         };
         rows.push(row);
     }
-    rows
+    Ok(rows)
 }
 
 /// Python's `a // b` of two ints.
