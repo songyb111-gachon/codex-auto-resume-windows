@@ -52,7 +52,8 @@ STANDARD = {
     "car-watcher": {"car-codex", "car-config", "car-control", "car-engine", "car-machine", "car-platform",
                     "car-policy", "car-store", "car-surface", "car-words"},
     # the entry points sit above control and watcher (C5)
-    "car-bin": {"car-control", "car-watcher"},
+    # S8.2: the stub core's test-double forward and the setup program start their child through car-platform's starter
+    "car-bin": {"car-control", "car-platform", "car-watcher"},
     "car-host": {"car-control", "car-watcher"},
     "car-legacy": {"car-platform"},
     # dev only: it writes its replies through car-machine's Python-compatible JSON writer (S0.2) instead of an inline copy;

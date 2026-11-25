@@ -13,6 +13,7 @@ name = "car-bin"
 version = "0.0.0"
 dependencies = [
  "car-control",
+ "car-platform",
  "car-watcher",
 ]
 
