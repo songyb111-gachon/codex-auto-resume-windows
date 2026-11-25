@@ -50,5 +50,7 @@ car-engine = { path = "../car-engine" }
 car-scheduler = { path = "../car-scheduler" }
 # S5.1a: car-control's bridge (src/bridge.rs: `bridge.run`).
 car-control = { path = "../car-control" }
+# S6.0: car-surface's models, words and decisions (src/surface.rs: `surface.batch`), and car-brand's numbers they read.
+car-surface = { path = "../car-surface" }
 # D5: serde to read (the harness's requests).
 serde_json = "1"

@@ -59,11 +59,12 @@ STANDARD = {
     # S1.1: it calls the leaf crates it holds to the reference (src/leaves/), car-brand's edge added with car-brand's calls;
     # S1.2: it runs the store's calls through car-store, which replaced its state.rs stand-in;
     # Integration 2: it wires car-platform's link probe (the one `Path.is_symlink()`) into car-store's and car-config's `Links`;
-    # S3.2: it runs car-codex's readers (src/codex.rs: `codex.script` and the `codex.*` cases of `leaves.batch`)
+    # S3.2: it runs car-codex's readers (src/codex.rs: `codex.script` and the `codex.*` cases of `leaves.batch`);
     # S4.1: it drives car-engine's engine and car-scheduler's watch (src/engine.rs: `engine.open`, `engine.step`);
-    # S5.1a: it runs car-control's bridge over a scratch home (src/bridge.rs: `bridge.run`).
+    # S5.1a: it runs car-control's bridge over a scratch home (src/bridge.rs: `bridge.run`);
+    # S6.0: it runs car-surface's models and decisions (src/surface.rs: `surface.batch`)
     "car-harness": {"car-brand", "car-codex", "car-config", "car-control", "car-engine", "car-machine", "car-platform",
-                    "car-policy", "car-scheduler", "car-store", "car-words"},
+                    "car-policy", "car-scheduler", "car-store", "car-surface", "car-words"},
 }
 # The advanced workspace: its three crates, and for car-adv every library of the standard one, the superset the
 # alpha's single advanced crate may reach through the plug; the S7 seats trim it to what is used.

@@ -71,6 +71,15 @@ fn answer(request: &serde_json::Value, line: &str) -> Value {
         (Some(call), _) if call.starts_with("engine.") => {
             ok("value", car_harness::engine::answer(call, &whole()))
         }
+        (Some("surface.batch"), _) => {
+            match request.get("cases").and_then(|_| leaves::read(request)) {
+                Some(Value::Object(parsed)) => ok(
+                    "value",
+                    leaves::tag(car_harness::surface::batch(&parsed["cases"])),
+                ),
+                _ => rejected("cases are required", "request_failed"),
+            }
+        }
         (Some("codex.script"), _) => match request.get("cases").and_then(|_| leaves::read(request))
         {
             Some(Value::Object(parsed)) => ok(

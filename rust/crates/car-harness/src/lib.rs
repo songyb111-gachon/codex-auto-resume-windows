@@ -18,6 +18,7 @@ pub mod policy;
 pub mod proxy;
 pub mod registry;
 pub mod store;
+pub mod surface;
 
 use car_machine::json::{Map, Value};
 
