@@ -51,18 +51,18 @@ def tests_folder(tag: str | None = None) -> Path:
     return _TESTS[tag or advref.reference.TAG]
 
 
-def binary() -> Path:
-    named = os.environ.get("CODEX_AR_ADVREPORT_EXE")
+def binary(example: str = "advreport") -> Path:
+    named = os.environ.get("CODEX_AR_%s_EXE" % example.upper())
     if named:
         return Path(named)
-    return advref.target_dir() / "release" / "examples" / "advreport.exe"
+    return advref.target_dir() / "release" / "examples" / (example + ".exe")
 
 
-def build() -> None:
-    """`cargo build --release --locked -p car-adv --example advreport` in the advanced workspace."""
+def build(example: str = "advreport") -> None:
+    """`cargo build --release --locked -p car-adv --example <example>` in the advanced workspace."""
     environment = dict(os.environ)
     environment.setdefault("CARGO_BUILD_JOBS", "2")
-    subprocess.run(["cargo", "build", "--release", "--locked", "-p", "car-adv", "--example", "advreport"],
+    subprocess.run(["cargo", "build", "--release", "--locked", "-p", "car-adv", "--example", example],
                    cwd=str(WORKSPACE), env=environment, check=True, creationflags=NO_WINDOW, timeout=3600)
 
 
@@ -143,11 +143,13 @@ def snapshot(folder: Path) -> dict:
 class ReportDiff(unittest.TestCase):
     """A diff of car-adv's report or hook: `family(script)` runs the script in the tag and the same cases in `advreport`."""
 
+    EXAMPLE = "advreport"
+
     @classmethod
     def setUpClass(cls):
         # cargo's own check says whether it is current: a stale example (a merge since it was built) never answers.
-        if not os.environ.get("CODEX_AR_ADVREPORT_EXE"):
-            build()
+        if not os.environ.get("CODEX_AR_%s_EXE" % cls.EXAMPLE.upper()):
+            build(cls.EXAMPLE)
         cls.scratch = tempfile.mkdtemp(prefix="advreport-")
         cls.addClassCleanup(shutil.rmtree, cls.scratch, True)
 
@@ -167,7 +169,7 @@ class ReportDiff(unittest.TestCase):
         environment = advref.environment(folder / "profile")
         for start in range(0, len(cases), chunk):
             request = json.dumps({"cases": cases[start:start + chunk]}, ensure_ascii=False).encode("utf-8")
-            ran = subprocess.run([str(binary())], input=request, capture_output=True, env=environment,
+            ran = subprocess.run([str(binary(self.EXAMPLE))], input=request, capture_output=True, env=environment,
                                  cwd=str(folder / "profile"), creationflags=NO_WINDOW, timeout=900)
             if ran.returncode != 0:
                 raise AssertionError("advreport failed (%d): %s" % (ran.returncode,

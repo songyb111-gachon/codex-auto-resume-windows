@@ -1,4 +1,5 @@
 //! What every op reads its arguments with.
+#![allow(dead_code)]
 
 use car_machine::json::{Map, Value};
 
