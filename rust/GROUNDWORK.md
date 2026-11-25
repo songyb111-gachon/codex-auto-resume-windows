@@ -1740,3 +1740,33 @@ anything); a fresh install, uninstall keeping data, reinstall picking it up, pur
   place), taking the watcher mutex and stop event of `win/sync.py`; the setup program's window (BRIDGE 4 "show its own
   window", the Welcome question without -Handover); the setup window's `[ok] Bundled Python` milestone; and a host that
   stops when a v0.6.26 installer run by hand (not through our bootstrap) moves app\ aside under it, which v0.6.26 cannot see.
+
+## Integration 7 (branch `car-v0627-rust`, 2026-11-26)
+
+Six branches merged with `git merge --no-ff`, in this order, then the seams the merged code allows wired, each its own commit.
+
+| Merge | Branch | What came in |
+|---|---|---|
+| `749059124` | car-v0627-plugtrace `73906007e` | S4.2's scenario proxy (`engineproxy.py`, car-harness `proxy.rs`), S4.3's plug traces (`diffs_engine_plug.py`, `plugscript.rs`), review 6's engine fixes (`caught.rs`, the watch budget, `Options` as given, the launch inside the guard), car-store's claim `plugged`/`carried` branches |
+| `36ea19384` | car-v0627-bridge6 `acea87eb0` | S5.1a's review fixes (bridgefix) and S5.1b: all 51 bridge commands, the Host's file calls, `diffs_bridge_acting.py`, `actworld.py`, `diffs_review_bridge.py` |
+| `bcd236243` | car-v0627-fix7 `63dfc6375` | review 7: advanced.sqlite's lock shape (`open: AtomicBool`, `begin`'s rollback guard), `transport::Output`/`communicate`/`run_to_end`, `Backend::object_id` |
+| `678d51bdb` | car-v0627-fix8 `1078717d2` | S6.0 car-surface, its review fixes, `seam::caught`, `diffs_surface_*.py`, `rediff_surface.py` |
+| `99dc6a2da` | car-v0627-refpy `9700898df` | `run.py --reference-python` (the reference on the bundled 3.14.10), `refpython.py`, `reftwin.py` |
+| `fae915a9b` | car-v0627-package2 `461ef7b76` | S8.2: car-bin's install, migration and downgrade, `install_double.py`, `test_rust_install.py`, `rediff_package.py` |
+
+Conflicts, each resolved by keeping both sides:
+
+* `rust/GROUNDWORK.md`, `tests/rustdiff/README.md` (every seat appended a section; all kept, in merge order). fix8's README was CRLF
+  with a NUL byte again (git took it for binary): HEAD's LF text with fix8's car-surface section appended.
+* car-harness `lib.rs` (`proxy`, `registry`, `acting`, `appserver`, `surface`), `Cargo.toml`, `main.rs` (`codexapp.script`, `engine.*`,
+  `surface.batch` arms) and check_groundwork's car-harness edge list: the union.
+* car-control (`aside.rs`, `homefind.rs`, `oncewords.rs`, `seen.rs`, `status.rs`, `tools.rs`, `host.rs`), merge 2: Integration 6 called
+  car-platform's `files::replace`/`rename` and car-machine's `pyfile` directly; bridgefix routes every file call through the Host
+  (`read_file`, `open_file`, `create_file`, `replace`, `rename`, `file_id`). The Host's calls are kept, and `SystemHost` answers them
+  with Integration 6's: `pyfile::read`/`open`/`options` and car-platform `files::replace`/`rename` (bridgefix's std-only
+  `held_or_folder` and `python_options` are gone; a test host may still answer its own). `startup_value` reads through `startup_read`.
+  The review test host (`tests/review_bridge.rs`) answers `local_clock` (UTC), which Integration 6 made required.
+* car-codex `transport.rs`, merge 3: Integration 6's split `send` (`send_preflight`, `send_start`, `receipt`, `send_within`) is kept;
+  `receipt` reads the child with fix7's `Output` and `communicate` (one bound for the output and the exit), so both sends do.
+* car-surface and car-harness `surface.rs` (merge 4) named `car_policy::classify::clock::Crt`; it is car-platform's `localclock::Crt`
+  since Integration 6.
