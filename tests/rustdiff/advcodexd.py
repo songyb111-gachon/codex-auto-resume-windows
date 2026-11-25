@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import shutil
+import sqlite3
 import tempfile
 
 from rustdiff import advcodex, advref
@@ -191,6 +192,9 @@ OPS = {
     "wn.event_name": lambda state_dir: stopflag.event_name(types.SimpleNamespace(state_dir=Path(state_dir))),
 }
 
+from codex_auto_resume_advanced.codex import turns as turns_  # noqa: E402
+OPS["bt.booted_of"] = lambda state_dir: turns_.booted_of(types.SimpleNamespace(state_dir=Path(state_dir)))
+
 # The later families add themselves below this line (EXTRA).
 #EXTRA#
 
@@ -224,6 +228,30 @@ def ask_reference(request: dict, profile: Path) -> list:
     return json.loads(done.stdout.decode("utf-8"))["results"]
 
 
+def snapshot(folders) -> dict:
+    """S7.2c's snapshot, with a SQLite database that opens taken as its dump (schema and rows): two engines' pages
+    may differ in bytes the store never reads (the change counter, free pages) and car-store's own diffs compare
+    dumps too. A file that does not open as a database stays its bytes."""
+    found = advcodex.snapshot(folders)
+    for key in list(found):
+        if not key.endswith((".sqlite", ".db")):
+            continue
+        root, relative = key.split("|", 1)
+        for folder in folders:
+            path = Path(folder) / relative
+            if Path(folder).name != root or not path.is_file():
+                continue
+            try:
+                connection = sqlite3.connect("file:%s?mode=ro" % path.as_posix(), uri=True)
+                try:
+                    found[key] = {"dump": list(connection.iterdump())}
+                finally:
+                    connection.close()
+            except sqlite3.Error:
+                pass
+    return found
+
+
 class AdvCodexRestDiff(advcodex.AdvCodexDiff):
     """S7.2c's `AdvCodexDiff` with this module's reference script."""
 
@@ -237,3 +265,26 @@ class AdvCodexRestDiff(advcodex.AdvCodexDiff):
             got += advcodex.ask_rust(request, profile)
         self.compare(label, cases, want, got)
         return want
+
+    def scene(self, label: str, cases: list, setup, folders, *, world: dict | None = None, engines=(),
+              profile: Path | None = None) -> tuple:
+        """S7.2c's `scene` with this module's reference: the reference on the folders `setup()` made, then the probe
+        on them made again; the answers, the files left and what each engine was asked, equal."""
+        profile = profile or self.fresh(label)
+        request = {"world": world or {}, "cases": cases}
+        left = []
+        for ask in (ask_reference, advcodex.ask_rust):
+            for folder in folders:
+                shutil.rmtree(folder, ignore_errors=True)
+            for engine in engines:
+                engine.clear_log()
+            setup()
+            answers = ask(request, profile)
+            left.append((answers, snapshot(folders), [advcodex.engine_log(engine.folder) for engine in engines]))
+        (want, want_files, want_log), (got, got_files, got_log) = left
+        self.compare(label, cases, want, got)
+        self.assertEqual(sorted(want_files), sorted(got_files), "%s: the files left differ" % label)
+        for name in want_files:
+            self.assertEqual(want_files[name], got_files[name], "%s: %s differs" % (label, name))
+        self.assertEqual(want_log, got_log, "%s: the engine was asked differently" % label)
+        return want, want_files

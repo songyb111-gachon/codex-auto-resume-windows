@@ -9,8 +9,8 @@
 //! Anything that goes wrong is `TurnsUnavailable` ([`Failure::Unavailable`]), with the reference's own words; a class
 //! the reference does not catch is [`Failure::Raised`].
 //!
-//! `booted_of(paths)` (the watcher's heartbeat's boot time, read from core's store) is the caller's: [`Turns::running`]
-//! takes the boot time as a value.
+//! [`booted_of`] (the watcher's heartbeat's boot time, read from core's store as the reference reads it) is what a
+//! caller hands [`Turns::running`] (seat adv72d).
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -170,6 +170,21 @@ pub struct Turn {
     /// `{item_type: count}` in the order first met.
     pub kinds: Vec<(String, i64)>,
     pub started_at: Option<Value>,
+}
+
+/// `booted_of(paths)`: when Windows last started, as the watcher's heartbeat records it (`store.watcher_status()`'s
+/// `booted_at`, the time core's power action reads) - or None where it cannot be read (v0.6.20 final). The store is
+/// opened as the reference's `Store(paths.state_dir)` opens it (made and migrated where it is not there yet), with
+/// the one link probe the entry points use.
+pub fn booted_of(state_dir: &Path) -> Value {
+    let Ok(store) = car_store::session::Store::open(state_dir, Arc::new(car_control::host::Probe))
+    else {
+        return Value::Null;
+    };
+    match store.watcher_status() {
+        Ok(Some(status)) => status.get("booted_at").cloned().unwrap_or(Value::Null),
+        _ => Value::Null,
+    }
 }
 
 /// The turn history of the Codex home `home`.
