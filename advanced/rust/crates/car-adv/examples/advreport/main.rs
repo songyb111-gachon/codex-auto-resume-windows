@@ -6,6 +6,7 @@
 //! made; nothing here reads a real one, the registry, a process list or the network. No window is ever shown.
 
 mod ops_document;
+mod ops_flow;
 mod ops_github;
 mod ops_records;
 mod util;
@@ -23,6 +24,7 @@ fn dispatch(op: &str, args: &[Value]) -> Result<Value, Failure> {
         "records" | "evidence" | "reading" => ops_records::run(op, args),
         "document" => ops_document::run(op, args),
         "github" => ops_github::run(op, args),
+        "flow" => ops_flow::run(op, args),
         _ => Err(Failure::new("UnknownOp")),
     }
 }

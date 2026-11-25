@@ -6,7 +6,7 @@
 //! a call that differs - an argument, the environment, the standard input, the timeout, the flags - is the first
 //! difference the diff names.
 
-use std::sync::Mutex;
+use std::sync::{Arc, Condvar, Mutex};
 
 use car_adv::jsonx::object;
 use car_adv::report::github::{
@@ -22,10 +22,35 @@ struct Step {
     answer: Result<Answer, RunError>,
 }
 
-struct Scripted {
+/// A gate the first call waits at until the program releases it (the tests' way of holding a job in the middle of its
+/// work: one check or send at a time).
+pub type Gate = Arc<(Mutex<bool>, Condvar)>;
+
+pub struct Scripted {
     steps: Vec<Step>,
     next: Mutex<usize>,
-    calls: Mutex<Vec<Value>>,
+    pub calls: Mutex<Vec<Value>>,
+    gate: Option<Gate>,
+}
+
+impl Scripted {
+    pub fn new(script: &Value, gate: Option<Gate>) -> Result<Scripted, Failure> {
+        Ok(Scripted {
+            steps: script_of(script)?,
+            next: Mutex::new(0),
+            calls: Mutex::new(Vec::new()),
+            gate,
+        })
+    }
+}
+
+/// `gate.set()`.
+pub fn release(gate: &Gate) {
+    *gate
+        .0
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = true;
+    gate.1.notify_all();
 }
 
 fn digest(env: &[(String, String)]) -> String {
@@ -46,7 +71,7 @@ fn digest(env: &[(String, String)]) -> String {
     car_machine::hash::hex(&car_machine::hash::sha256(text.as_bytes()))
 }
 
-fn call_value(call: &Call) -> Value {
+pub fn call_value(call: &Call) -> Value {
     object([
         (
             "argv",
@@ -76,6 +101,15 @@ impl Runner for Scripted {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .push(call_value(call));
+        if let Some(gate) = &self.gate {
+            let held = gate
+                .0
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let _ = gate
+                .1
+                .wait_timeout_while(held, std::time::Duration::from_secs(60), |open| !*open);
+        }
         let mut next = self
             .next
             .lock()
@@ -263,11 +297,7 @@ pub fn run(op: &str, args: &[Value]) -> Out {
     match op {
         "github.run" => {
             let steps = list(arg(args, 0)?)?;
-            let runner = Scripted {
-                steps: script_of(arg(args, 1)?)?,
-                next: Mutex::new(0),
-                calls: Mutex::new(Vec::new()),
-            };
+            let runner = Scripted::new(arg(args, 1)?, None)?;
             let sleeps = Mutex::new(Vec::new());
             let results = program(steps, &runner, &sleeps)?;
             let calls = runner
