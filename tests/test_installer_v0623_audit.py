@@ -213,7 +213,8 @@ class N2InstallerThatThrows(Scratch):
             "$installHome = 'C:/scratch'; $installed = '0.6.20'; $converted = 'converted 5'; $pickSince = Get-Date\n"
             "$pickKeptCopy = 'C:/scratch/k.ps1'; $pickWatcherStopped = $true; $target = '0.6.10'; $targetEdition = 'standard'\n"
             "function Release-PickLockForRunOutside { param($Lock, [bool]$Held) return $Held }\n"
-            "$pickLock = $null; $pickHeld = $true\n" % ("true" if pick else "false", str(installer).replace("'", "''")) + region + "\n")
+            # v0.6.27 (review 9, S1): the 6.10 step's answer, read after the installer; here it stopped nothing.
+            "$pickLock = $null; $pickHeld = $true; $older = 'not-needed'\n" % ("true" if pick else "false", str(installer).replace("'", "''")) + region + "\n")
         path = self.root / "region.ps1"
         path.write_text(script, encoding="utf-8-sig")
         done = subprocess.run([str(POWERSHELL), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File",
