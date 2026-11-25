@@ -5,6 +5,8 @@
 //! "Class", "code": word?}]}`, written by car-machine's writer. Every home a case names is a scratch folder the reference
 //! made; nothing here reads a real one, the registry, a process list or the network. No window is ever shown.
 
+mod ops_claim;
+mod ops_handler;
 mod ops_plugin;
 mod util;
 
@@ -19,6 +21,8 @@ fn dispatch(op: &str, args: &[Value]) -> Result<Value, Failure> {
     let family = op.split('.').next().unwrap_or("");
     match family {
         "plugin" => ops_plugin::run(op, args),
+        "handler" => ops_handler::run(op, args),
+        "claim" => ops_claim::run(op, args),
         _ => Err(Failure::new("UnknownOp")),
     }
 }

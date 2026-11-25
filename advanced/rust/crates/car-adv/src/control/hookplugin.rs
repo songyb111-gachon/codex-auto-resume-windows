@@ -172,7 +172,7 @@ pub fn target(root: &Path, found: &HookFormat) -> Option<PathBuf> {
         .file
         .iter()
         .fold(root.to_path_buf(), |path, part| path.join(part));
-    let resolved_root = std::fs::canonicalize(root).ok()?;
+    let resolved_root = resolve_loose(root)?;
     // `path.resolve()` of a path that is not there yet: its folder's real place and the name.
     let resolved = resolve_loose(&path)?;
     if !car_config::winpath::is_relative_to(

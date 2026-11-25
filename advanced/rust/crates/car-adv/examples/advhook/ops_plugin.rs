@@ -21,7 +21,7 @@ impl car_config::Links for Links {
     }
 }
 
-fn paths_of(home: &str) -> Paths {
+pub fn paths_of(home: &str) -> Paths {
     let no_env = |_: &str| None;
     Paths::new(
         Some(home),
@@ -50,7 +50,8 @@ fn format_named(name: &str) -> Result<HookFormat, Failure> {
 }
 
 fn shown(path: &Path, base: &str) -> Value {
-    Value::from(path.to_string_lossy().replace(base, "<base>"))
+    let text = car_config::winpath::path_str(&path.to_string_lossy());
+    Value::from(text.replace(base, "<base>"))
 }
 
 fn dump(base: &Path) -> Value {
@@ -131,7 +132,11 @@ pub fn run(op: &str, args: &[Value]) -> Out {
                     .collect(),
             ),
             "target" => {
-                let root = Path::new(&base).join(text(arg(parts, 1)?)?);
+                let root = PathBuf::from(car_config::winpath::path_str(
+                    &Path::new(&base)
+                        .join(text(arg(parts, 1)?)?)
+                        .to_string_lossy(),
+                ));
                 hookplugin::target(&root, &format).map_or(Value::Null, |path| shown(&path, &base))
             }
             "command" => Value::from(hookplugin::command(&paths, &format).replace(&base, "<base>")),

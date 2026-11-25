@@ -1049,3 +1049,69 @@ keep - so three cases of exactly 4,096, 4,097 and 9,000 bytes were added, and it
   UTF-8; a reply or id holding half of a surrogate pair), after answering the lines before it.
 * **P6**: the set-aside sweep (`controlcli.sweep_soon`) is the watcher's (`setaside.py`); `serve` here does not start it.
 * The re-diff for the final: `python -X utf8 tests/rustdiff/rediff_control.py --reference v0.6.26`.
+
+## The advanced compatibility report and the Stop hook (seat S7.3c, branch `car-v0627-adv73c`, 2026-11-26)
+
+Reference: the v0.6.26 tag (`--reference v0.6.26`); nothing of the scope changed on dev after v0.6.26-beta.2 (`rediff_adv73c.py` lists it).
+
+### What is ported, and where
+
+| Python (advanced unless said) | car-adv |
+|---|---|
+| `report/records.py` | `report/records.rs` (`read`, `ledger`, `progress`; `Found::value()` is the reference's dict) |
+| core `ownreport/evidence.py`, `reading.py` (the parts `records.py` imports) | `report/evidence.rs`, `report/reading.rs` |
+| `report/document.py` + core `ownreport/document.py` (`check_parts`, shapes, `encode`) | `report/document.rs` |
+| `report/github.py` | `report/github.rs` (`inspect`, `publish`, `find_gh`, `environment`, `Runner`) |
+| `report/flow.py` | `report/flow.rs` (`Flow`, its jobs on threads) and `report/seam.rs` |
+| `hook/format.py`, `hook/handler.py` | `hook/format.rs`, `hook/handler.rs` |
+| `engine/hookclaims.py` (`claim`, `blocked_at`, `held`, `spent_on`) | `engine/hookclaims.rs`; `state/seam/hooks.rs::{held, spent_on}` stay as S7.1a wrote them and equal these (the ledger diff holds both) |
+| `control/hookplugin.py` | `control/hookplugin.rs` (`write`, `remove`, `present`, `roots`, `target`, `follow`, the `Files` seam = `WRITER`/`REMOVER`) |
+
+`lib.rs` carries the seat's lines only: `pub mod report; pub mod hook;`, `pub mod control { pub mod hookplugin; }` and `pub mod engine { pub mod hookclaims; }` (inline, so no `mod.rs` of another seat is touched; the integration replaces them with the real `engine/mod.rs` and `control/mod.rs`).
+
+**Not ported, and why.** `report/__init__.py::make` (the capability's factory, S7.2a's registry entry: `Flow::new` is what it calls); `StopHook` of `engine/hookclaims.py` (P3's `gate`, P8's `tick`: the plug trait is S7.2a's; what it calls is `hookclaims::blocked_at` and `hookplugin::follow_real`); `Hands.live` of the handler (S7.3d, over S7.2a's runtime); the hook's launcher binary (S6.2a's stub; `hook::handler::main` is what `codex-auto-resume.exe hook` calls); `github.run_process`'s job object (S7.3b's car-platform `job.rs`).
+
+### The seams (each named, none replaced here)
+
+* `report::reading::WatcherView` - `compatio.reader_view(paths, settings)` (S3.3 / `car-codex::compatio`). The diffs hand it as data.
+* `report::document::Facts` - `config.version()` and `sys.getwindowsversion()` (car-config / car-platform at the entry point).
+* `report::seam::Runtime` - `runtime.arming.policy()`, `.states(fresh=True)`, `.state.arming()`, `.arming.trip`, `.state.note` (S7.2a).
+* `report::seam::{HomeMutex, MakeMutex}` - `ReportMutex`: the named mutex per home, its handle kept for the process's life, abandonment told. car-platform's `sync::Mutex` closes the handle on exit and cannot try without waiting: S7.3d (or S3.1's owner) adds `try_take() -> Result<abandoned, Busy>` over the kept handle; `seam::mutex_name` is the name.
+* `report::seam::CodexHome` - `codex/inuse.home(paths)` (S7.2c).
+* `report::github::{Runner, Jobs}` - gh started in the job object: `ProcessRunner` over `Jobs` is written (suspended start, adopt, timeout, kill) and never run by a seat; `Jobs` is S7.3b's `job.rs`.
+* `hook::handler::Hands` - the capability's state (`Arming(AdvancedState).current()`), Codex's latest turn (`LocalSource.latest`), the settings, the claim.
+* `engine::hookclaims::World::managed` - `control/policy.managed_policy()` (car-control's `Host::managed`).
+* `Edges::hook_follow` (S7.1b): `control::hookplugin::follow_real(paths, codex_home, armed)`.
+* core's `ownreport/{evidence,reading,document}`: car-control has a port on `car-v0627-bridge6` (not in this tree; merging it conflicts in nine files). `report/{evidence,reading,document}.rs` are that port at `acea87eb0`, taken as the port of the same Python and widened to what the advanced reader asks and the Dashboard's report never does: the ledger's `paid` times in `another_route`/`by_route`, `ledger_reach`, `place`'s `elsewhere` count and `body`'s progress counts. The integration folds the two (car-control's `by_route(rows, reach)` is this one's with `paid` empty; its `body` is this one's with every `progress` None) and re-exports; nothing else in `report/` changes.
+
+### The proof (`tests/rustdiff/diffs_advreport_*.py`, `diffs_advhook_*.py`; examples `advreport`, `advhook`; helper `advreport.py`)
+
+Each family runs a script under the tag's own advanced edition (`advref.run`) - the homes made by the tag's `advanced/tests/reportfixtures.py` and `ghfake.py`, taken out of git beside its package - and the same cases through the Rust example; every answer must be equal as the wire writes it, the refusal's class and closed code included. The Rust side never writes a home it reads (a snapshot of every file, its time and its bytes before and after), starts no process (gh is a recorded script of the tag's own `FakeGh`), reads no real home, and shows no window.
+
+* goldens: the six homes of `reportfixtures.SCENARIOS` read by the Rust reader; the body (car-machine's writer, two-space indent) equal **as bytes** to `advanced/tests/golden/report/*.json`'s, `left_out`, the envelope's keys and fixed values; no golden regenerated.
+* records: the six scenarios asked 18 ways and under 13 watcher's reports, every refusal (no state, newer, older, damaged, a column gone, a ledger newer / damaged / marked readable-from, a junction in place of a folder, no engine, a bad version, 501 records), history absent / moved / the home gone / a file in its place; a state locked under `BEGIN EXCLUSIVE` (both give up after their three seconds); hand-edited rows of every wrong type and time, logs of every size, encoding and line break; the spend ledger in every shape; `ledger_reach` on a grid; `by_route`, `place`, `body`, `current_engine` over generated input; `check_login`, `assemble`, `check` over the six bodies and about 120 breakages.
+* gh: every check and every write over the recorded script (calls compared: argument list, environment digest, folder, stdin, timeout, flags), the Unicode case folding of a name, pages of every shape, a stop between any two writes, the pull request gh will not repeat; `find_gh` over PATHs of every kind.
+* hook declaration: 6 formats over 15 trees (complete, one root, none, junctions, ours / foreign / damaged / mixed declarations): every step and the whole tree equal, bytes included - **the tag writes the declaration in text mode, so with Windows line ends (`\r\n`)**; kept.
+* hook handler: `read_input` and `pick` over every shape of input, `stop_of`, `turn_key`, `continues`, `decide` over every failure kind, language and claim answer, `main` with its budget and its commit grace.
+* hook claim: the claim over real `state.sqlite` + `advanced.sqlite` twins: granted, answered, once a turn, not armed, paused, observe only, the thread's switch, the administrator's keys and quiet hours, core's record in flight / cancelled / held / postponed / over its budgets, the day's caps, this edition's ceilings, no file, no id, a lock not had; every answer and every table equal.
+* flow: ported and compiled; **its diff is not written** (see "Left undone").
+
+### Odd reference behaviour kept (also in AUDIT-v0628.md)
+
+* `document.check` lets `codex_version: null` pass (`canonical_version(None) != None` is False).
+* `hookplugin.write` writes the declaration in text mode: `\r\n` on Windows.
+* `gh api --paginate`'s pages are read with `raw_decode` (NaN and Infinity accepted, a recursion past the limit a `RecursionError` that goes on); `car_machine::compat::raw_decode` has the same grammar.
+* `github.spelling` uses `str.casefold()`: only `ſ K ß ẞ ﬀ ﬁ ﬂ ﬃ ﬄ ﬅ ﬆ` fold into a login's ASCII; every other non-ASCII character cannot, so `ascii_fold` is exact.
+
+### Left undone
+
+* `diffs_advreport_flow.py` (the flow's jobs against the tag over a scripted runtime, mutex and gh): `Flow` and the `flow.run` op of the `advreport` example are written and compile; no diff holds them yet. Its seams are named above.
+* A gate or a mutation check listed in the return as not run.
+
+### For later seats
+
+* S7.2a: implement `report::seam::Runtime` over the real `Arming` and `AdvancedState`; `Flow::new(paths, Config)` is `report.make(paths)`; `StopHook` calls `hookclaims::blocked_at` (P3) and `hookplugin::follow_real` (P8).
+* S7.3a: `surfaces.py` calls `Flow::answer(runtime, definition, command, argument)` and `Flow::job`.
+* S7.3b: `github::Jobs` (job object, `NtResumeProcess`).
+* S7.3d: `hook::handler::main` as the `hook` role; the live `Hands`; the `HomeMutex`.
+* Re-diff for the final: `python -X utf8 tests/rustdiff/rediff_adv73c.py --reference v0.6.26`.
