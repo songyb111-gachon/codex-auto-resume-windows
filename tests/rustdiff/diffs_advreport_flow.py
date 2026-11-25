@@ -145,6 +145,8 @@ def resolve(value, state, home_dir):
     if isinstance(value, str):
         if value == "$sha":
             return state["sha"]
+        if value == "$sha0":
+            return state["shas"][0]
         if value == "$writes":
             return state["writes"]
         return value.replace("$dir", home_dir)
@@ -176,7 +178,7 @@ def flow_case(program, runtime=None, mutex=None, gate=False, gh=None, exe=EXE, h
         return StubMutex(mutex, log)
     flow = flowmod.Flow(mine.paths, runner=recorder, find_gh=lambda: exe, mutex=make_mutex, sleep=sleeps.append, clock=clock_now,
                         product_version="0.6.14-beta", windows="10.0.26200", codex_home=mine.codex, view=mine.raw_view)
-    state, last, steps, kept = {"sha": None, "writes": None}, [None], [], []
+    state, last, steps, kept = {"sha": None, "writes": None, "shas": []}, [None], [], []
     for step in program:
         kind = step[0]
         if kind == "answer":
@@ -214,6 +216,7 @@ def flow_case(program, runtime=None, mutex=None, gate=False, gh=None, exe=EXE, h
         if isinstance(shown, dict):
             if shown.get("status") == "built":
                 state["sha"] = shown["sha256"]
+                state["shas"].append(shown["sha256"])
             if shown.get("status") == "checked":
                 state["writes"] = shown["writes"]
         steps.append(shown)
@@ -258,6 +261,8 @@ flow_case(BUILT, runtime={"note_raises": True})
 flow_case(BUILT, clock=(1790000000.0, 0.0))
 flow_case([step for number in range(6) for step in (ask(BUILD, login="a%d" % number), ["wait"])] + [ask(CHECK, sha256="$sha"), ["wait"]])
 flow_case([step for number in range(20) for step in (ask(BUILD, login="ExampleUser"), ["wait"])] + [["job", "last"]])
+for builds in (4, 5):
+    flow_case([step for number in range(builds) for step in (ask(BUILD, login="b%d" % number), ["wait"])] + [ask(CHECK, sha256="$sha0"), ["wait"]])
 # saving
 dest = "$dir\\saved.json"
 flow_case([ask(SAVE, sha256="x" * 64, path=dest)])
