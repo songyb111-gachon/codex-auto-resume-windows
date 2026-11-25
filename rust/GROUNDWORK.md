@@ -1133,3 +1133,40 @@ Mutation checks (each alone, release probe, its diff, restored): compatdata rule
 SANE_COUNT 49, `inuse.saw` comparing paths as written, `inuse.tell` keeping what was seen elsewhere, turns keeping a
 `completed_at` of 0: all caught. A sixth, a `recorded_at` equal to publication refused, survived; the diff now holds a record
 made the very minute of publication and catches it.
+
+## S7.2c remainder (seat adv72d, branch `car-v0627-adv72d`, 2026-11-26)
+
+From the **v0.6.26 final**'s `advanced/src/codex_auto_resume_advanced/` (reference `v0.6.26`, `tests/rustdiff/advref.py`):
+
+| Python | Rust |
+|---|---|
+| `win/waketimer.py` | car-adv `win::waketimer` (`WakeTimer`, `filetime`: half-even rounding, the c_longlong's low 64 bits) |
+| `win/stopflag.py` | car-adv `win::stopflag` (`StopFlag`, `event_name`: core's StopEvent name of the folder as pathlib writes it) |
+| their ctypes calls | car-platform `wake` (new, D3): `TimerKernel`, `PowerSettings`, `EventKernel` traits; `SystemTimer`, `SystemPower`, `SystemEvents` the real ones, built only by the product's entry points |
+| `codex/turns.booted_of` | car-adv `codex::turns::booted_of(state_dir)` (core's `Store::open` as `Store(paths.state_dir)` opens it, made and migrated where missing, car-control's link probe) |
+| `codex/tokens.py` | car-adv `codex::tokens` (`file_key`, `watched_homes`, `rollouts`, `unchanged`, `read` with the local day from a `LocalClock`: the product hands car-platform's `Crt`) |
+| `codex/wmi_escape.py` | car-adv `codex::wmi_escape` (`probe` over a `Chain` trait, `helper_argv`, `heartbeat_command_line`, `helper_plan`, `heartbeat_record`, the script and bootstrap constants). **Never run**: nothing implements `Chain` but the diff's stand-in |
+
+car-adv's `win::tests::car_adv_names_no_suspend_or_shutdown_call` holds P7-DESIGN 3.5's rule at the source: no
+`SetSuspendState`, `ExitWindowsEx`, `InitiateSystemShutdown*`, `SetSystemPowerState` and no `windows::Win32` anywhere in
+car-adv (src and examples); car-platform's `wake` test holds that it writes no power setting.
+
+### The diffs (`tests/rustdiff/advcodexd.py` + `diffs_advcodex_{win,booted,tokens,wmi}.py`)
+
+`advcodexd.py` is S7.2c's harness with its own reference script (the same `advcodex` probe; op families `wn.`, `bt.`,
+`tk.`, `wm.`); its `scene` compares a SQLite file by its dump. Nothing real is asked of Windows: the timer, the power
+settings, the stop event and the WMI chain are scripted stand-ins on both sides that log each call, compared in order.
+
+* `win`: 1,507 timer walks (create/set/cancel/close/allowed/on_battery, every call answering otherwise or raising), 160
+  `filetime` values (half-even ties, 2**80, inf, nan), 806 stop-flag walks and the event names of six folders.
+* `booted`: 11 state folders x 2 (none, empty, heartbeats with every boot time, damaged, a file), files left as dumps.
+* `tokens`: `read` over 220 generated rollouts x 11 `known` rows and budgets plus LOOK_BACK cases (2,447 reads and
+  `unchanged`), each under TZ unset, `JST-9` and `EST5EDT`; `rollouts` over 7 home lists x 6 clocks (nested folders, a
+  junction, `.JSONL`, a folder named `x.jsonl`, files older than `keep_days`); `file_key`; `watched_homes` told and not,
+  with 8 `codex_homes` settings.
+* `wmi`: the constants, 1,511 probe walks (no launcher, no job, the limit refused, the start raising, assign refused,
+  every heartbeat shape, alive or not, the helper's wait timing out), the helper's `pwsh.run` plan over 150 inputs, the
+  pwsh argument variables, the heartbeat record.
+
+Kept and recorded (AUDIT-v0628.md): `tokens.read` takes a `known` row whose `offset` is an integer (the analytics store's
+column); the reference would carry another type into its arithmetic.
