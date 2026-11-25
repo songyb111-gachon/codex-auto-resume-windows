@@ -68,7 +68,14 @@ def run(script: str, *arguments, profile: Path | None = None, tag: str | None = 
     """Run `script` under the tag's advanced edition with `arguments` as sys.argv[1:]; stdout and stderr as bytes."""
     with tempfile.TemporaryDirectory(prefix="advref-run-") as own:
         home = Path(profile) if profile is not None else Path(own)
-        return subprocess.run([sys.executable, "-X", "utf8", "-c", script, *map(str, arguments)], input=stdin,
+        # A long script (the arming scenarios') does not fit a command line: it goes in a file of the scratch folder.
+        if len(script) > 8000:
+            path = Path(own) / "advref-script.py"
+            path.write_text(script, encoding="utf-8")
+            command = [sys.executable, "-X", "utf8", str(path)]
+        else:
+            command = [sys.executable, "-X", "utf8", "-c", script]
+        return subprocess.run([*command, *map(str, arguments)], input=stdin,
                               capture_output=True, env=environment(home, tag), cwd=str(home),
                               creationflags=NO_WINDOW, timeout=900)
 

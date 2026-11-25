@@ -587,7 +587,7 @@ pub struct Arming<'a> {
     live_default: bool,
     measured_fn: Option<MeasuredFn>,
     clock: ClockFn,
-    why: RefCell<BTreeMap<String, String>>,
+    why: RefCell<Vec<(String, String)>>,
     owed: RefCell<BTreeMap<String, (f64, Option<f64>)>>,
 }
 
@@ -612,13 +612,13 @@ impl<'a> Arming<'a> {
             live_default,
             measured_fn: setup.measured,
             clock: setup.clock,
-            why: RefCell::new(BTreeMap::new()),
+            why: RefCell::new(Vec::new()),
             owed: RefCell::new(BTreeMap::new()),
         }
     }
 
     /// `why`: {capability: why it does not stand on now} as the last read that worked found it.
-    pub fn why(&self) -> BTreeMap<String, String> {
+    pub fn why(&self) -> Vec<(String, String)> {
         self.why.borrow().clone()
     }
 
@@ -836,7 +836,7 @@ impl<'a> Arming<'a> {
         let measured = self.table(view);
         let checked = self.checked(Some(view));
         let mut states = States::default();
-        let mut why: BTreeMap<String, String> = BTreeMap::new();
+        let mut why: Vec<(String, String)> = Vec::new();
         for definition in self.registry.iter() {
             let row = row_of(&rows, &definition.id);
             let found = standing(definition, row, policy, view, &measured, &checked);
@@ -856,7 +856,7 @@ impl<'a> Arming<'a> {
                 found.held,
                 policy,
             ) {
-                why.insert(definition.id.clone(), word);
+                why.push((definition.id.clone(), word));
             }
         }
         self.require_met(&mut states, &rows);

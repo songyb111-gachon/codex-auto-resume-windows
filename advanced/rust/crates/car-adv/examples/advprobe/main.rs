@@ -6,6 +6,7 @@
 
 mod defs;
 mod ops_arming;
+mod ops_pure;
 mod ops_registry;
 mod ops_statement;
 mod ops_words;
@@ -24,6 +25,7 @@ fn dispatch(op: &str, args: &[Value]) -> Result<Value, Failure> {
         "vocab" | "standards" | "measured" | "policy" => ops_words::run(op, args),
         "registry" => ops_registry::run(op, args),
         "statement" => ops_statement::run(op, args),
+        "arming" if op.starts_with("arming.pure.") => ops_pure::run(op, args),
         "arming" => ops_arming::run(op, args),
         _ => Err(Failure::new("UnknownOp")),
     }

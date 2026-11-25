@@ -72,6 +72,23 @@ def build_def(d):
 '''
 
 
+def first_difference(want, got, path="") -> str:
+    """Where two answers first differ: the path to the leaf and both leaves, short."""
+    if isinstance(want, dict) and isinstance(got, dict):
+        for key in want:
+            if key not in got:
+                return "%s/%s missing in rust" % (path, key)
+            if diffs.encode(want[key]) != diffs.encode(got[key]):
+                return first_difference(want[key], got[key], "%s/%s" % (path, key))
+        return "%s keys differ: %s vs %s" % (path, list(want), list(got))
+    if isinstance(want, list) and isinstance(got, list):
+        for index, (one, other) in enumerate(zip(want, got)):
+            if diffs.encode(one) != diffs.encode(other):
+                return first_difference(one, other, "%s[%d]" % (path, index))
+        return "%s lengths %d vs %d (extra: %s)" % (path, len(want), len(got), json.dumps((want[len(got):] or got[len(want):])[:2], ensure_ascii=False)[:400])
+    return "%s: reference %s, rust %s" % (path, json.dumps(want, ensure_ascii=False)[:300], json.dumps(got, ensure_ascii=False)[:300])
+
+
 class AdvDiff(unittest.TestCase):
     """A diff of car-adv: `family(script)` runs the script in the advanced reference and the same cases in the probe."""
 
@@ -97,7 +114,7 @@ class AdvDiff(unittest.TestCase):
         self.assertEqual(len(actual), len(expected))
         for index, (want, got) in enumerate(zip(expected, actual)):
             if diffs.encode(want) != diffs.encode(got):
-                self.fail("%s: case %d differs\n  case      %s\n  reference %s\n  rust      %s" % (
-                    label, index, json.dumps(cases[index], ensure_ascii=False)[:600],
-                    json.dumps(want, ensure_ascii=False)[:1200], json.dumps(got, ensure_ascii=False)[:1200]))
+                self.fail("%s: case %d differs at %s\n  case      %s\n  reference %s\n  rust      %s" % (
+                    label, index, first_difference(want, got), json.dumps(cases[index], ensure_ascii=False)[:300],
+                    json.dumps(want, ensure_ascii=False)[:300], json.dumps(got, ensure_ascii=False)[:300]))
         return {"cases": cases, "results": expected}
