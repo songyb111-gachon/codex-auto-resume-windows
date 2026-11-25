@@ -120,7 +120,7 @@ def a_row(defs, view, table, checked, cap):
             "engine_version": version if rng.random() < 0.75 else rng.choice([OTHER, None]),
             "warnings": warnings, "keep_on": keep, "send_again": keep and rng.random() < 0.4}
 
-def scenario():
+def scenario(forced=False):
     kind = "shipped" if rng.random() < 0.45 else "made"
     shipped_table = [] if rng.random() < 0.6 else (copy.deepcopy(ALL_PASS) if rng.random() < 0.5 else copy.deepcopy(MEASURED_ROWS))
     if kind == "shipped":
@@ -250,6 +250,23 @@ def scenario():
             return ["set_env", {key: change[key] for key in rng.sample(list(change), rng.randint(1, 3))}]
         raise AssertionError(kind)
     steps = [step() for _ in range(rng.randint(5, 22))]
+    if forced:
+        # Integration 5: a real-state scenario that gets somewhere - nothing forbids, the view and the table are good, a
+        # capability that offers Send again is armed and kept on with it, and the random steps follow.
+        env["policy"] = {"forbid": False, "force_shadow": False, "allowed": None}
+        env["view"] = env["default_view"] = {"status": "ok", "engine": {"found": True, "version": ENGINE},
+                                             "capabilities": {cid: {"state": "COMPATIBLE", "reason": "local_checks_passed"} for cid in compat}}
+        env["measured"] = env["table_for"] = copy.deepcopy(ALL_PASS)
+        env["checked"] = []
+        view_given, measured_given = True, True
+        sendable = set(SENDING_POINTS) - {"gates"}
+        cap = rng.choice([d for d in defs if d["kind"] == "route" and not d["resends"] and sendable & set(d["points"])])["id"]
+        again = rng.random() < 0.7
+        also = [{"capability": r, "revision": "@rev:%s" % r, "warnings": "@warn:%s" % r, "engine_version": "@ver"} for r in reg.requires(cap)]
+        steps = [["arm", {"capability": cap, "state": "armed", "revision": "@rev:%s" % cap, "generation": "@gen", "warnings": "@warn:%s" % cap,
+                          "acknowledged_version": "@ver", "keep_on": False, "also": also, "actor": "dashboard"}],
+                 ["keep", {"capability": cap, "keep_on": True, "send_again": again, "generation": "@gen",
+                           "confirmed": ["keep_on"] + (["send_again"] if again else []), "actor": "dashboard"}]] + steps
     if rng.random() < 0.1:
         steps.insert(rng.randint(0, len(steps)), ["constants"])
     return {"registry": kind, "shipped_table": shipped_table, "catalogs": "made" if kind == "made" else rng.choices(["real", "incomplete", "undecodable"], [88, 7, 5])[0],
@@ -265,8 +282,9 @@ for _ in range(count):
     sc["directory"] = scratch_dirs[sc["catalogs"]]
     cases.append(["arming.scenario", sc])
 for index in range(real_count):
-    # Integration 5: the same steps over the real AdvancedState (the tag's and car-adv's), each on a home of its own.
-    sc = scenario()
+    # Integration 5: the same steps over the real AdvancedState (the tag's and car-adv's), each on a home of its own;
+    # every other one is made to get somewhere (see `forced`).
+    sc = scenario(forced=index % 2 == 0)
     sc["directory"] = scratch_dirs[sc["catalogs"]]
     sc.update({"real": True, "home": str(scratch / "real-homes" / ("%d" % index)), "state": {}})
     cases.append(["arming.scenario", sc])
@@ -313,9 +331,15 @@ class ArmingScenarioDiff(AdvDiff):
         steps = sum(len(case[1]["steps"]) for case in done["cases"])
         moved = sum(1 for result in done["results"]
                     if any(row for row in result["ok"]["state"]["journal"]))
+        kept = sum(1 for case, result in zip(done["cases"], done["results"])
+                   for step, answer in zip(case[1]["steps"], result["ok"]["results"])
+                   if step[0] == "keep" and isinstance(answer.get("ok"), dict) and answer["ok"].get("done"))
+        again = sum(1 for case, result in zip(done["cases"], done["results"])
+                    for step, answer in zip(case[1]["steps"], result["ok"]["results"])
+                    if step[0] == "keep" and step[1].get("send_again") and isinstance(answer.get("ok"), dict) and answer["ok"].get("done"))
         RECORD.append("advpolicy arming over the real state: %d scenarios, %d steps, every answer and the state left (arming, "
-                      "meta, options, wordings, rules, journal, reading) equal; %d scenarios wrote the journal"
-                      % (len(done["cases"]), steps, moved))
+                      "meta, options, wordings, rules, journal, reading) equal; %d scenarios wrote the journal; Keep on done %d "
+                      "times, %d of them with Send again" % (len(done["cases"]), steps, moved, kept, again))
 
     def test_more_scenarios(self):
         scale = int(os.environ.get("CODEX_AR_ARMING_SCENARIOS", "360"))
