@@ -181,6 +181,20 @@ class LayoutTests(unittest.TestCase):
                 rust_release.stage_edition(Path(work) / "stage", "standard", VERSION, bins=given["bins"],
                                            legacy=given["legacy"], window=given["window"], launcher=given["launcher"])
 
+    def test_a_core_with_the_test_forward_that_is_not_the_stub_stops_the_build(self):
+        """Review 9, note 8: the installer proofs' forward (CODEX_AUTO_RESUME_TEST_CORE) never reaches a release."""
+        with tempfile.TemporaryDirectory(prefix="car-rust-release-") as work:
+            given = stand_ins(Path(work), "standard")
+            core = given["bins"] / "codex-auto-resume.exe"
+            core.write_bytes(core.read_bytes() + rust_release.TEST_HOOK)
+            with self.assertRaisesRegex(SystemExit, "carries the installer proofs' test forward"):
+                rust_release.stage_edition(Path(work) / "stage", "standard", VERSION, bins=given["bins"],
+                                           legacy=given["legacy"], window=given["window"], launcher=given["launcher"])
+            # The stub core may carry it: it is never a release.
+            core.write_bytes(core.read_bytes() + rust_release.STUB_CORE)
+            rust_release.stage_edition(Path(work) / "stage", "standard", VERSION, bins=given["bins"],
+                                       legacy=given["legacy"], window=given["window"], launcher=given["launcher"])
+
     def test_the_same_inputs_give_the_same_bytes_in_another_folder(self):
         with tempfile.TemporaryDirectory(prefix="car-rust-release-again-") as work:
             again = build(Path(work) / "elsewhere", "standard")
