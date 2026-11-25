@@ -11,6 +11,7 @@ from pathlib import Path
 
 from .. import compat, compatio, config, machine, startup
 from ..app import EXIT_ERROR, EXIT_OK
+from ..codex.errors import HistoryNotYet
 from ..codex.pairing import app_running_now
 from ..domain.plug import Surface
 from ..logbook import format_local
@@ -89,6 +90,9 @@ DOCTOR_CHECKS = 8
 # engine the app carries, when it opens - and the line that says so says it is not a problem.
 CLOSED_APP = "not running (not a problem: recoveries wait until it opens)"
 CLOSED_ENGINE = "not found while the ChatGPT app is closed (not a problem: it is looked for again when the app opens)"
+# v0.6.26 final: a fresh home's history - none yet, and no conversation in its state - is no failure: Codex makes it with
+# the first conversation it saves (codex/errors.py HistoryNotYet). A home with a conversation and no history still fails.
+HISTORY_NOT_YET = "not created yet (Codex makes it with the first saved conversation)"
 # The health check's last line where a check failed, which the installer's last word repeats (install.ps1).
 PROBLEM = "health check     : problem - "
 
@@ -209,6 +213,8 @@ def cmd_doctor(args) -> int:
     try:
         app.source().latest_failures(_now() - 60)
         _print("local history    : readable")
+    except HistoryNotYet:
+        _print("local history    : " + HISTORY_NOT_YET)
     except Exception as exc:
         fail("local history    : FAIL (%s)" % type(exc).__name__)
     progress("check", 7, DOCTOR_CHECKS)

@@ -26,7 +26,7 @@ import time
 from pathlib import Path
 
 from . import config, homes as homes_module, l10n, notice_presence, notify, settings as settings_module
-from .codex import LocalSource
+from .codex import HistoryNotYet, LocalSource
 from .codex.chains import memory as chain_memory
 from .diagnostics import Redactor, _compatibility
 from .domain import skips
@@ -137,6 +137,8 @@ def _conversations(control, sources, engine_for, now, redact):
             try:
                 read = source.passed_over(since, now - HOURS * 3600, every_status=True, newest=NEWEST,
                                           deadline=deadline)
+            except HistoryNotYet:
+                continue        # v0.6.26 final: a fresh home, read and holding nothing yet - its history written "never"
             except Exception:
                 home["readable"] = False
                 continue

@@ -16,8 +16,9 @@ from .cache import (_coerce, _columns, _newest)
 def source_checks(source) -> dict:
     """E6/E7 and the two directories, through the read-only source adapter's own connection.
 
-    Column names only. A database that is not there, or cannot be opened, is UNAVAILABLE;
-    one that opens but lacks a column the adapter reads is a FAIL - Codex's schema moved.
+    Column names only. A database that is not there, or cannot be opened, is UNAVAILABLE - but a history not made yet,
+    in a home whose state holds no conversation, is NOT_APPLICABLE (v0.6.26 final); one that opens but lacks a column
+    the adapter reads is a FAIL - Codex's schema moved.
     """
     checks = {name: compat.UNAVAILABLE for name in
               ("state_schema", "history_schema", "queue_schema", "projection_table",
@@ -28,13 +29,18 @@ def source_checks(source) -> dict:
             return checks
     except (AttributeError, TypeError, OSError, ValueError):
         return checks
-    threads = False
+    threads = None
     for kind, check in (("state", "state_schema"), ("history", "history_schema"),
                         ("queue", "queue_schema")):
         connection = None
         try:
             path, tables = _newest(home, kind)
             if path is None:
+                if kind == "history" and threads is False:
+                    # v0.6.26 final: Codex makes its history with the first conversation it saves, so a home whose
+                    # newest state database was read and holds none has no history yet - "not yet", as a lock folder
+                    # is. With a conversation it stays unavailable: there Codex moved, renamed or dropped it.
+                    checks["history_schema"] = checks["projection_table"] = compat.NOT_APPLICABLE
                 continue
             connection = source._connect(Path(path).resolve())
             missing = any(not required <= _columns(connection, table)
@@ -43,11 +49,11 @@ def source_checks(source) -> dict:
             if kind == "state" and not missing:
                 # Whether the newest state database holds a conversation - a home that has one has opened it, so its
                 # lock folder is expected (below). Only whether a row exists is read, never a column of one; a read
-                # that fails leaves it "none", the check as it always was.
+                # that fails leaves it unknown (None), the check as it always was.
                 try:
                     threads = connection.execute("SELECT 1 FROM threads LIMIT 1").fetchone() is not None
                 except Exception:
-                    threads = False
+                    threads = None
             if kind == "history":
                 found = connection.execute(
                     "SELECT 1 FROM sqlite_master WHERE type='table' "
