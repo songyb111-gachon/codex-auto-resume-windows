@@ -34,7 +34,7 @@ from rustdiff import bridgeworld as bw
 from rustdiff import core, reference
 from rustdiff.diffs import RECORD
 from rustdiff.diffs_bridge import TEMPLATES
-from rustdiff.diffs_bridge_acting import ActingBase, armed, first_difference, now, power_file, write_file
+from rustdiff.diffs_bridge_acting import ActingBase, first_difference, now, write_file
 
 ROOT = core.ROOT
 for entry in (ROOT / "tests", ROOT / "build", ROOT / "src"):
@@ -200,8 +200,19 @@ def golden_tune(case_name: str, tool: str):
                 store.set_thread_tier(wg.T1, "ask_first", now(), actor="gui")
         return held
     if tool == "turn_off_power_action" and case_name.startswith("armed"):
-        # The Dashboard's arming as power-action.json holds it, under a fixed nonce (S5.1b's helper).
-        return power_file(armed())
+        # The Dashboard's arming, made as wiregolden makes it - the worktree's control layer, the port offering every
+        # action - under a fixed nonce and the golden's clock, so both sides start from the same file.
+        def armed_by_dashboard(workspace):
+            import secrets
+            import time
+            from unittest.mock import patch
+
+            from codex_auto_resume import config, control
+            from codex_auto_resume.control import poweraction
+
+            with patch.object(poweraction.PowerActionMixin, "power_port", wg._PowerPort(())),                     patch.object(secrets, "token_hex", lambda count=32: ("0123456789abcdef" * 8)[:2 * count]),                     patch.object(time, "time", now):
+                control.Control(config.Paths(workspace / "home")).arm_power_action(dict(wg.SLEEP_ONCE))
+        return armed_by_dashboard
     if tool == "start_watcher" and not case_name.startswith("a watcher already"):
         # An installation whose stable launcher is there, as the golden's checkout has its entry script.
         return write_file("home/watcher-launcher.py", "# the stable launcher\n")

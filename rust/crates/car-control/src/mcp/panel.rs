@@ -55,7 +55,7 @@ pub fn tile_elevation(theme: &str, design: &str) -> Py<String> {
         return Ok("--elev-tile: none;".to_owned());
     }
     let mut parts = vec!["var(--elev-control)".to_owned()];
-    for shadow in car_brand::shadows("card", Some(theme), None)? {
+    for shadow in car_brand::shadows("card", Some(theme), Some("soft"))? {
         if shadow.inset {
             parts.push(css_shadow(&shadow));
         }
@@ -204,7 +204,7 @@ pub fn right_to_left_rules() -> Py<String> {
 fn variables(theme: &str) -> Py<String> {
     Ok(css::css_variables(&css::pairs(car_brand::palette(
         Some(theme),
-        None,
+        Some("soft"),
     )?)))
 }
 

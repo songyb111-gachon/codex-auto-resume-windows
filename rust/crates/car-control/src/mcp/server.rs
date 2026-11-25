@@ -48,7 +48,7 @@ pub const PATH_SETTINGS: &[&str] = &["codex_exe"];
 
 /// The deepest batch the reference's `_dispatch` takes before Python's RecursionError ends the loop (measured on the
 /// v0.6.26 final's Python as `codex-auto-resume.exe mcp` runs it: `tests/rustdiff/diffs_mcp.py` `EdgesDiff`).
-pub const BATCH_DEPTH_LIMIT: usize = 994;
+pub const BATCH_DEPTH_LIMIT: usize = 995;
 
 /// What `serve` ended with: 0 when the input closed; 1 where the reference's loop dies with a traceback.
 pub const SERVED: i32 = 0;
