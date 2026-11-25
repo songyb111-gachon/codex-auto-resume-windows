@@ -67,7 +67,9 @@ impl System for World {
                 let name = String::from_utf8_lossy(name.as_bytes()).to_lowercase();
                 if name == path.to_lowercase() {
                     return match value {
-                        Value::Str(text) => Ok(String::from_utf8_lossy(text.as_bytes()).into_owned()),
+                        Value::Str(text) => {
+                            Ok(String::from_utf8_lossy(text.as_bytes()).into_owned())
+                        }
                         _ => Err(None),
                     };
                 }

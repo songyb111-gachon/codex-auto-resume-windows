@@ -12,7 +12,14 @@ use rusqlite::types::ValueRef;
 
 use super::turns::{Failure, Read, SharedOs, connect, unavailable};
 
-pub const THREAD_COLUMNS: &[&str] = &["id", "name", "source", "thread_source", "archived", "history_mode"];
+pub const THREAD_COLUMNS: &[&str] = &[
+    "id",
+    "name",
+    "source",
+    "thread_source",
+    "archived",
+    "history_mode",
+];
 const SELECT: &str = "SELECT id, name, source, thread_source, archived, history_mode FROM threads WHERE archived=0 ORDER BY ";
 pub const SCAN: usize = 5000;
 
@@ -33,10 +40,9 @@ pub fn cell_of(value: ValueRef<'_>) -> rusqlite::Result<Cell> {
         ValueRef::Null => Cell::Null,
         ValueRef::Integer(number) => Cell::Int(number),
         ValueRef::Real(number) => Cell::Real(number),
-        ValueRef::Text(bytes) => Cell::Text(
-            String::from_utf8(bytes.to_vec())
-                .map_err(|_| rusqlite::Error::InvalidColumnType(0, "text".into(), rusqlite::types::Type::Text))?,
-        ),
+        ValueRef::Text(bytes) => Cell::Text(String::from_utf8(bytes.to_vec()).map_err(|_| {
+            rusqlite::Error::InvalidColumnType(0, "text".into(), rusqlite::types::Type::Text)
+        })?),
         ValueRef::Blob(bytes) => Cell::Blob(bytes.to_vec()),
     })
 }
@@ -50,7 +56,12 @@ pub struct Threads {
 impl Threads {
     /// `own(limit, skip)`: the person's own conversations, newest first, none in `skip` and at most `limit`.
     pub fn own(&self, limit: i64, skip: &BTreeSet<String>) -> Read<Vec<(String, String)>> {
-        let connection = connect(self.os.as_ref(), &self.home, "state", &[("threads", THREAD_COLUMNS)])?;
+        let connection = connect(
+            self.os.as_ref(),
+            &self.home,
+            "state",
+            &[("threads", THREAD_COLUMNS)],
+        )?;
         let failed = |_| unavailable("the conversations cannot be read");
         let columns = sql::columns(&connection, "threads").map_err(failed)?;
         let has = |name: &str| columns.iter().any(|each| each == name);
@@ -99,10 +110,11 @@ impl Threads {
                 thread_source: &cells[3],
                 history_mode: &cells[5],
             };
-            let problem = row_problem(&shaped, &empty, &empty, false).map_err(|class| match class {
-                "ValueError" => unavailable("the conversations cannot be read"),
-                other => Failure::Raised(other),
-            })?;
+            let problem =
+                row_problem(&shaped, &empty, &empty, false).map_err(|class| match class {
+                    "ValueError" => unavailable("the conversations cannot be read"),
+                    other => Failure::Raised(other),
+                })?;
             if problem.is_some() {
                 continue;
             }

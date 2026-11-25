@@ -19,6 +19,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use car_machine::json::Value;
 use car_policy::plug::Point;
 
+use crate::autocheck::{self, Results, Settled};
 use crate::jsonx::{int, maybe_int, maybe_text, object, text, texts};
 use crate::measured::Table;
 use crate::policy::{self, Policy};
@@ -28,7 +29,6 @@ use crate::seam::{
     Move, PAUSE, POWER_TASKS_CAPABILITY, PROMPT_QUEUE, RECENT_DAYS, RULES_LIMIT, STEER_SEND,
     StateFault, StatePort, StateResult, Unavailable, WRAP_UP,
 };
-use crate::autocheck::{self, Results, Settled};
 use crate::statement::{Catalogs, Undecodable};
 use crate::vocabulary::{
     Actor, ArmingState, ArmingWarning, AutoResult, CapabilityKind, ContinuationReason,

@@ -15,8 +15,8 @@
 pub mod arming;
 pub mod autocheck;
 pub mod codex;
-pub mod compatdata;
 pub mod compat_views;
+pub mod compatdata;
 pub mod images;
 pub mod jsonx;
 pub mod ledger;

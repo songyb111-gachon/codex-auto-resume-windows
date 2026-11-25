@@ -3,11 +3,11 @@
 use std::collections::BTreeMap;
 
 use car_adv::arming::{self, Standing};
+use car_adv::autocheck::{self, Results, Settled};
 use car_adv::jsonx::{int, maybe_text, text, texts};
 use car_adv::measured::Table;
 use car_adv::policy::Policy;
 use car_adv::seam::ArmRow;
-use car_adv::autocheck::{self, Results, Settled};
 use car_adv::vocabulary::{
     Actor, ArmingState, ArmingWarning, AutoResult, ClosedWord, Measurement, OffReason, Verdict,
     parse,

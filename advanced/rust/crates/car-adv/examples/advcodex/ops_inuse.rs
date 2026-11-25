@@ -59,9 +59,14 @@ pub fn run(context: &Context, op: &str, args: &[Value]) -> Out {
     match op {
         "iu.tell" => {
             let home = home.ok_or_else(crate::bad)?;
-            inuse::tell(home, &text(arg(args, 1))?, &text(arg(args, 2))?, &context.world.os)
-                .map(|()| Value::Null)
-                .map_err(|_| Failure::new("OSError"))
+            inuse::tell(
+                home,
+                &text(arg(args, 1))?,
+                &text(arg(args, 2))?,
+                &context.world.os,
+            )
+            .map(|()| Value::Null)
+            .map_err(|_| Failure::new("OSError"))
         }
         "iu.told" => Ok(match inuse::told(home) {
             Some((exe, where_)) => Value::Array(vec![Value::from(exe), Value::from(where_)]),
@@ -79,7 +84,9 @@ pub fn run(context: &Context, op: &str, args: &[Value]) -> Out {
         "iu.home" => inuse::home(home, &env, &context.world.os)
             .map(Value::from)
             .map_err(Failure::new),
-        "iu.pinned" => Ok(inuse::pinned(settings_file(home).as_deref()).map_or(Value::Null, Value::from)),
+        "iu.pinned" => {
+            Ok(inuse::pinned(settings_file(home).as_deref()).map_or(Value::Null, Value::from))
+        }
         "iu.backend" => {
             let discovery = Discovery {
                 system: Arc::clone(&context.world) as Arc<dyn System>,
@@ -91,7 +98,10 @@ pub fn run(context: &Context, op: &str, args: &[Value]) -> Out {
                 Ok(made) => Ok(object([
                     ("codex_exe", Value::from(made.codex_exe.as_str())),
                     ("codex_home", Value::from(made.codex_home.as_str())),
-                    ("engine_version", made.engine_version.clone().map_or(Value::Null, Value::from)),
+                    (
+                        "engine_version",
+                        made.engine_version.clone().map_or(Value::Null, Value::from),
+                    ),
                 ])),
                 Err(BackendError::Adapter(code)) | Err(BackendError::Check(code)) => {
                     Err(Failure::coded("AdapterError", &code))

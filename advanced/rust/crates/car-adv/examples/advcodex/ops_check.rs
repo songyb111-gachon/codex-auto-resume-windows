@@ -113,9 +113,13 @@ pub fn run(context: &Context, op: &str, args: &[Value]) -> Out {
                 Value::Str(engine) => engine.as_str().map(str::to_owned),
                 _ => None,
             };
-            let found = autocheck::results_for(Path::new(&folder), engine.as_deref()).map_err(raised)?;
+            let found =
+                autocheck::results_for(Path::new(&folder), engine.as_deref()).map_err(raised)?;
             // A mapping its readers look up; written in its keys' order, as the reference's is sorted for the diff.
-            let mut pairs: Vec<(&str, &str)> = found.iter().map(|(m, word)| (m.as_str(), word.as_str())).collect();
+            let mut pairs: Vec<(&str, &str)> = found
+                .iter()
+                .map(|(m, word)| (m.as_str(), word.as_str()))
+                .collect();
             pairs.sort_unstable();
             Ok(Value::Object(
                 pairs
@@ -155,18 +159,24 @@ pub fn run(context: &Context, op: &str, args: &[Value]) -> Out {
             .map(|found| found.unwrap_or(Value::Null))
             .map_err(raised),
         "ac.run_engine" => {
-            let scratch = autocheck::mkdtemp("car-autocheck-").map_err(|_| Failure::new("OSError"))?;
+            let scratch =
+                autocheck::mkdtemp("car-autocheck-").map_err(|_| Failure::new("OSError"))?;
             let done = autocheck::run_engine(&world(context), &text(arg(args, 0))?, &scratch);
             let _ = std::fs::remove_dir_all(&scratch);
             match done {
-                Ok(Some((version, found))) => Ok(Value::Array(vec![Value::from(version), answer(&found)])),
+                Ok(Some((version, found))) => {
+                    Ok(Value::Array(vec![Value::from(version), answer(&found)]))
+                }
                 Ok(None) => Ok(Value::Null),
                 Err(AskError::Adapter(code)) => Err(Failure::coded("AdapterError", &code)),
                 Err(AskError::Os) => Err(Failure::new("OSError")),
                 Err(AskError::Raised(class)) => Err(Failure::new(class)),
             }
         }
-        "ac.probe_engine" => Ok(autocheck::probe_engine(&world(context), &text(arg(args, 0))?)),
+        "ac.probe_engine" => Ok(autocheck::probe_engine(
+            &world(context),
+            &text(arg(args, 0))?,
+        )),
         "ac.tend" => {
             let home = text(arg(args, 0))?;
             let paths = paths(&home)?;
@@ -190,14 +200,24 @@ pub fn run(context: &Context, op: &str, args: &[Value]) -> Out {
                 Value::Int(n) => n.as_i64().ok_or_else(bad)?,
                 _ => return Err(bad()),
             };
-            Ok(autocheck::attempt(arg(args, 0), tries, float(arg(args, 2))?))
+            Ok(autocheck::attempt(
+                arg(args, 0),
+                tries,
+                float(arg(args, 2))?,
+            ))
         }
         "ac.settled_words" => Ok(object([
             ("here", Value::from(autocheck::Settled::Here.word())),
             ("failed", Value::from(autocheck::Settled::Failed.word())),
             ("gone", Value::from(autocheck::Settled::Gone.word())),
-            ("stands_in", Value::from(autocheck::Settled::StandsIn.word())),
-            ("unsettled", Value::from(autocheck::Settled::Unsettled.word())),
+            (
+                "stands_in",
+                Value::from(autocheck::Settled::StandsIn.word()),
+            ),
+            (
+                "unsettled",
+                Value::from(autocheck::Settled::Unsettled.word()),
+            ),
         ])),
         _ => Err(Failure::new("UnknownOp")),
     }

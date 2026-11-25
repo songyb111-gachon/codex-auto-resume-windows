@@ -106,19 +106,28 @@ pub fn run(context: &Context, op: &str, args: &[Value]) -> Out {
     match op {
         "cd.validate" => {
             let raw = hex(arg(args, 0))?;
-            Ok(match compatdata::validate(&raw, product(context, arg(args, 1))?) {
-                Ok(found) => document(Some(&found)),
-                Err(refused) => object([("refused", Value::from(refused.0))]),
-            })
+            Ok(
+                match compatdata::validate(&raw, product(context, arg(args, 1))?) {
+                    Ok(found) => document(Some(&found)),
+                    Err(refused) => object([("refused", Value::from(refused.0))]),
+                },
+            )
         }
         "cd.read" => {
             let at = path(arg(args, 0))?.ok_or_else(bad)?;
-            Ok(document(compatdata::read(&at, product(context, arg(args, 1))?).as_ref()))
+            Ok(document(
+                compatdata::read(&at, product(context, arg(args, 1))?).as_ref(),
+            ))
         }
         "cd.adopt" => {
             let folder = path(arg(args, 0))?.ok_or_else(bad)?;
             let bundled = path(arg(args, 1))?;
-            compatdata::adopt(&folder, bundled.as_deref(), float(arg(args, 2))?, product(context, arg(args, 3))?);
+            compatdata::adopt(
+                &folder,
+                bundled.as_deref(),
+                float(arg(args, 2))?,
+                product(context, arg(args, 3))?,
+            );
             Ok(Value::Null)
         }
         "cd.in_force" => {
@@ -142,7 +151,11 @@ pub fn run(context: &Context, op: &str, args: &[Value]) -> Out {
                 Value::Str(engine) => engine.as_str(),
                 _ => None,
             };
-            Ok(table_out(&compatdata::overlay(&table, found.as_ref(), engine)))
+            Ok(table_out(&compatdata::overlay(
+                &table,
+                found.as_ref(),
+                engine,
+            )))
         }
         "cd.table_for" => {
             let folder = path(arg(args, 0))?;
@@ -207,5 +220,10 @@ pub fn listing(folder: &Path) -> Value {
         })
         .unwrap_or_default();
     names.sort_by(|a, b| a.0.cmp(&b.0));
-    Value::Object(names.into_iter().map(|(name, value)| (name.into(), value)).collect())
+    Value::Object(
+        names
+            .into_iter()
+            .map(|(name, value)| (name.into(), value))
+            .collect(),
+    )
 }

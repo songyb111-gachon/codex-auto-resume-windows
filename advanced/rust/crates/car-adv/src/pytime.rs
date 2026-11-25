@@ -45,7 +45,11 @@ const fn r(low: char, high: char) -> Class {
 }
 
 const YEAR: &[&[Class]] = &[&[D, D, D, D]];
-const MONTH: &[&[Class]] = &[&[r('1', '1'), r('0', '2')], &[r('0', '0'), r('1', '9')], &[r('1', '9')]];
+const MONTH: &[&[Class]] = &[
+    &[r('1', '1'), r('0', '2')],
+    &[r('0', '0'), r('1', '9')],
+    &[r('1', '9')],
+];
 const DAY: &[&[Class]] = &[
     &[r('3', '3'), r('0', '1')],
     &[r('1', '2'), D],
@@ -100,14 +104,20 @@ fn value(field: &[char]) -> i64 {
 
 /// The fields of `text` by `form`, in the form's order, or none where the form's expression does not match it whole.
 fn matched(text: &[char], form: &[Part]) -> Option<Vec<(usize, i64)>> {
-    fn walk(text: &[char], at: usize, form: &[Part], index: usize, out: &mut Vec<(usize, i64)>) -> bool {
+    fn walk(
+        text: &[char],
+        at: usize,
+        form: &[Part],
+        index: usize,
+        out: &mut Vec<(usize, i64)>,
+    ) -> bool {
         let Some(part) = form.get(index) else {
             return at == text.len();
         };
         if let Part::Literal(want) = part {
-            let same = text
-                .get(at)
-                .is_some_and(|c| c == want || (want.is_ascii_alphabetic() && c.eq_ignore_ascii_case(want)));
+            let same = text.get(at).is_some_and(|c| {
+                c == want || (want.is_ascii_alphabetic() && c.eq_ignore_ascii_case(want))
+            });
             return same && walk(text, at + 1, form, index + 1, out);
         }
         for alternative in alternatives(*part) {
@@ -182,11 +192,23 @@ mod tests {
 
     #[test]
     fn the_forms_read_as_python_reads_them() {
-        assert_eq!(timegm("1970-01-01T00:00:00Z", "%Y-%m-%dT%H:%M:%SZ"), Some(0));
-        assert_eq!(timegm("2026-10-30T00:00Z", "%Y-%m-%dT%H:%MZ"), Some(1_761_782_400));
+        assert_eq!(
+            timegm("1970-01-01T00:00:00Z", "%Y-%m-%dT%H:%M:%SZ"),
+            Some(0)
+        );
+        assert_eq!(
+            timegm("2026-10-30T00:00Z", "%Y-%m-%dT%H:%MZ"),
+            Some(1_761_782_400)
+        );
         assert_eq!(timegm("2024-02-30T00:00:00Z", "%Y-%m-%dT%H:%M:%SZ"), None);
         assert_eq!(timegm("0000-01-01T00:00:00Z", "%Y-%m-%dT%H:%M:%SZ"), None);
-        assert_eq!(timegm("2026-1-2t3:4:5", "%Y-%m-%dT%H:%M:%S"), timegm("2026-01-02T03:04:05", "%Y-%m-%dT%H:%M:%S"));
-        assert_eq!(timegm("2026-01-01T00:00:61Z", "%Y-%m-%dT%H:%M:%SZ"), Some(1_767_225_661));
+        assert_eq!(
+            timegm("2026-1-2t3:4:5", "%Y-%m-%dT%H:%M:%S"),
+            timegm("2026-01-02T03:04:05", "%Y-%m-%dT%H:%M:%S")
+        );
+        assert_eq!(
+            timegm("2026-01-01T00:00:61Z", "%Y-%m-%dT%H:%M:%SZ"),
+            Some(1_767_225_661)
+        );
     }
 }

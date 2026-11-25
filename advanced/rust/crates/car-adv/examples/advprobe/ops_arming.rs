@@ -11,6 +11,7 @@ use std::sync::Arc;
 use car_adv::arming::{
     self, ArmRequest, Arming, CoreView, KeepRequest, Setup, States, engine_version,
 };
+use car_adv::autocheck::Results;
 use car_adv::jsonx::{int, text, texts};
 use car_adv::measured::Table;
 use car_adv::policy::Policy;
@@ -19,7 +20,6 @@ use car_adv::seam::{
     ArmRow, ContinuationRow, Edges, Meta, Move, OverrideRow, ResetRule, StateFault, StatePort,
     StateResult, Unavailable,
 };
-use car_adv::autocheck::Results;
 use car_adv::state::seam::Tokens;
 use car_adv::state::session::AdvancedState;
 use car_adv::statement::Catalogs;

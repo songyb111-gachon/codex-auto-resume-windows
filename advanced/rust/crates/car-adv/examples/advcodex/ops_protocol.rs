@@ -31,14 +31,25 @@ pub fn run(_context: &Context, op: &str, args: &[Value]) -> Out {
                 .collect();
             let declines: Map = protocol::DECLINED_REQUESTS
                 .iter()
-                .map(|method| ((*method).into(), protocol::decline_answer(method).unwrap_or(Value::Null)))
+                .map(|method| {
+                    (
+                        (*method).into(),
+                        protocol::decline_answer(method).unwrap_or(Value::Null),
+                    )
+                })
                 .collect();
             Ok(object([
                 ("measurement", Value::Object(measurements)),
                 ("capability", Value::Object(capabilities)),
-                ("forbidden", sorted(protocol::FORBIDDEN_METHODS.iter().copied())),
+                (
+                    "forbidden",
+                    sorted(protocol::FORBIDDEN_METHODS.iter().copied()),
+                ),
                 ("declines", Value::Object(declines)),
-                ("accepting", sorted(protocol::ACCEPTING_WORDS.iter().copied())),
+                (
+                    "accepting",
+                    sorted(protocol::ACCEPTING_WORDS.iter().copied()),
+                ),
                 ("measured", sorted(protocol::measured_methods())),
                 ("advanced", sorted(protocol::advanced_methods())),
                 ("rejection", Value::from(protocol::REJECTION)),
@@ -47,11 +58,13 @@ pub fn run(_context: &Context, op: &str, args: &[Value]) -> Out {
         "pr.reply_to" => Ok(protocol::reply_to(arg(args, 0))),
         "pr.grants_nothing" => Ok(Value::Bool(protocol::grants_nothing(arg(args, 0)))),
         "pr.methods_for" => {
-            let measurement =
-                parse::<Measurement>(&text(arg(args, 0))?).ok_or_else(|| Failure::new("ValueError"))?;
+            let measurement = parse::<Measurement>(&text(arg(args, 0))?)
+                .ok_or_else(|| Failure::new("ValueError"))?;
             Ok(sorted(protocol::methods_for(measurement)))
         }
-        "pr.methods_for_capability" => Ok(sorted(protocol::methods_for_capability(&text(arg(args, 0))?))),
+        "pr.methods_for_capability" => Ok(sorted(protocol::methods_for_capability(&text(arg(
+            args, 0,
+        ))?))),
         _ => Err(Failure::new("UnknownOp")),
     }
 }

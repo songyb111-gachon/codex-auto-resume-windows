@@ -64,7 +64,11 @@ fn main() {
         .unwrap_or_default();
     let line = format!(
         "{{\"args\": [{}], \"cwd\": {}, \"codex_home\": {}}}\n",
-        arguments.iter().map(|each| quote(each)).collect::<Vec<_>>().join(", "),
+        arguments
+            .iter()
+            .map(|each| quote(each))
+            .collect::<Vec<_>>()
+            .join(", "),
         quote(&cwd),
         quote(&std::env::var("CODEX_HOME").unwrap_or_default()),
     );

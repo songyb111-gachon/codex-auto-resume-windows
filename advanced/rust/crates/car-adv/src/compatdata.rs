@@ -33,9 +33,17 @@ pub const ADOPTED: &str = "compat-advanced.json";
 pub const MAX_BYTES: usize = 256 * 1024;
 pub const MAX_ENGINES: usize = 64;
 pub const MAX_MEASUREMENTS: usize = 128;
-pub const TOP_KEYS: [&str; 6] = ["format", "sequence", "published_at", "expires_at", "min_product", "engines"];
+pub const TOP_KEYS: [&str; 6] = [
+    "format",
+    "sequence",
+    "published_at",
+    "expires_at",
+    "min_product",
+    "engines",
+];
 pub const EDITION_KEY: &str = "_edition";
-pub const EDITION_MARK: &str = "ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.";
+pub const EDITION_MARK: &str =
+    "ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.";
 pub const ENGINE_KEYS: [&str; 2] = ["version", "measurements"];
 pub const ENTRY_KEYS: [&str; 3] = ["verdict", "recorded_at", "evidence"];
 pub const EVIDENCE: &str = "docs/evidence/advanced/%s/measurement-%s.json";
@@ -78,13 +86,21 @@ pub fn slug(version: &str) -> String {
 
 /// `evidence_path(version, measurement)`.
 pub fn evidence_path(version: &str, measurement: &str) -> String {
-    format!("docs/evidence/advanced/{}/measurement-{measurement}.json", slug(version))
+    format!(
+        "docs/evidence/advanced/{}/measurement-{measurement}.json",
+        slug(version)
+    )
 }
 
 /// `evidence_path` over a version that may hold half a surrogate pair (the document's own text, byte for byte).
 fn evidence_bytes(version: &Str, measurement: &str) -> Vec<u8> {
     let mut made = b"docs/evidence/advanced/".to_vec();
-    made.extend(version.as_bytes().iter().map(|byte| if *byte == b' ' { b'-' } else { *byte }));
+    made.extend(
+        version
+            .as_bytes()
+            .iter()
+            .map(|byte| if *byte == b' ' { b'-' } else { *byte }),
+    );
     made.extend_from_slice(b"/measurement-");
     made.extend_from_slice(measurement.as_bytes());
     made.extend_from_slice(b".json");
@@ -93,13 +109,20 @@ fn evidence_bytes(version: &Str, measurement: &str) -> Vec<u8> {
 
 /// `pattern.fullmatch(text)` of `\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ` (`seconds`) or `\d{4}-\d\d-\d\dT\d\d:\d\dZ`, `\d` a Unicode digit.
 fn shaped(text: &str, seconds: bool) -> bool {
-    let shape = if seconds { "dddd-dd-ddTdd:dd:ddZ" } else { "dddd-dd-ddTdd:ddZ" };
+    let shape = if seconds {
+        "dddd-dd-ddTdd:dd:ddZ"
+    } else {
+        "dddd-dd-ddTdd:ddZ"
+    };
     let chars: Vec<char> = text.chars().collect();
     chars.len() == shape.len()
-        && shape
-            .chars()
-            .zip(&chars)
-            .all(|(want, c)| if want == 'd' { decimal_value(*c).is_some() } else { *c == want })
+        && shape.chars().zip(&chars).all(|(want, c)| {
+            if want == 'd' {
+                decimal_value(*c).is_some()
+            } else {
+                *c == want
+            }
+        })
 }
 
 /// `_moment(text, pattern, form)`.
@@ -110,8 +133,14 @@ fn moment(value: &Value, seconds: bool) -> Result<f64, Refused> {
     let Some(text) = text.as_str().filter(|text| shaped(text, seconds)) else {
         return Err(Refused("invalid_time"));
     };
-    let form = if seconds { "%Y-%m-%dT%H:%M:%SZ" } else { "%Y-%m-%dT%H:%MZ" };
-    timegm(text, form).map(|at| at as f64).ok_or(Refused("invalid_time"))
+    let form = if seconds {
+        "%Y-%m-%dT%H:%M:%SZ"
+    } else {
+        "%Y-%m-%dT%H:%MZ"
+    };
+    timegm(text, form)
+        .map(|at| at as f64)
+        .ok_or(Refused("invalid_time"))
 }
 
 /// `PRODUCT.fullmatch(text)` of `(\d{1,6})\.(\d{1,6})\.(\d{1,6})` (where `_product`'s `match` reads the same groups).
@@ -122,9 +151,9 @@ fn product_of(text: &str) -> Option<Product> {
         if group.is_empty() || group.len() > 6 {
             return None;
         }
-        group
-            .iter()
-            .try_fold(0i64, |sum, c| decimal_value(*c).map(|digit| sum * 10 + i64::from(digit)))
+        group.iter().try_fold(0i64, |sum, c| {
+            decimal_value(*c).map(|digit| sum * 10 + i64::from(digit))
+        })
     };
     let found = (take()?, take()?, take()?);
     groups.next().is_none().then_some(found)
@@ -145,11 +174,9 @@ pub fn this_product(version: &str) -> Option<Product> {
         if at == start {
             return None;
         }
-        numbers.push(
-            chars[start..at]
-                .iter()
-                .fold(0i64, |sum, c| sum * 10 + i64::from(decimal_value(*c).unwrap_or(0))),
-        );
+        numbers.push(chars[start..at].iter().fold(0i64, |sum, c| {
+            sum * 10 + i64::from(decimal_value(*c).unwrap_or(0))
+        }));
         if group < 2 {
             if chars.get(at) != Some(&'.') {
                 return None;
@@ -170,7 +197,9 @@ fn is_id(name: &str) -> bool {
     let bytes = name.as_bytes();
     (2..=16).contains(&bytes.len())
         && bytes[0] == b'm'
-        && bytes[1..].iter().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
+        && bytes[1..]
+            .iter()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
 }
 
 /// `validate(raw, product=product)`: a document's bytes, judged whole. `product` is what the caller's `this_product()`
@@ -185,10 +214,13 @@ pub fn validate(raw: &[u8], product: Option<Product>) -> Result<Document, Refuse
     if others != TOP_KEYS.len() || !TOP_KEYS.iter().all(|key| document.contains_key(*key)) {
         return Err(Refused("keys"));
     }
-    if has_mark && !matches!(&document[EDITION_KEY], Value::Str(mark) if mark.as_bytes() == EDITION_MARK.as_bytes()) {
+    if has_mark
+        && !matches!(&document[EDITION_KEY], Value::Str(mark) if mark.as_bytes() == EDITION_MARK.as_bytes())
+    {
         return Err(Refused("keys"));
     }
-    if !matches!(&document["format"], Value::Str(format) if format.as_bytes() == FORMAT.as_bytes()) {
+    if !matches!(&document["format"], Value::Str(format) if format.as_bytes() == FORMAT.as_bytes())
+    {
         return Err(Refused("unknown_format"));
     }
     let sequence = match &document["sequence"] {
@@ -297,7 +329,9 @@ pub fn read(path: &Path, product: Option<Product>) -> Option<Document> {
 
 /// `_fresh(document, now)`.
 fn fresh(document: Option<&Document>, now: f64) -> bool {
-    document.is_some_and(|document| document.published_at <= now + 86_400.0 && now < document.expires_at)
+    document.is_some_and(|document| {
+        document.published_at <= now + 86_400.0 && now < document.expires_at
+    })
 }
 
 /// `adopt(state_dir, bundled=bundled, now=now, product=product)`: a download the bootstrap left, adopted (an atomic
@@ -309,15 +343,20 @@ pub fn adopt(state_dir: &Path, bundled: Option<&Path>, now: f64, product: Option
         return;
     }
     let found = read(&download, product);
-    let floor = [Some(state_dir.join(ADOPTED)), bundled.map(Path::to_path_buf)]
-        .iter()
-        .flatten()
-        .filter_map(|path| read(path, product))
-        .map(|document| document.sequence)
-        .max()
-        .unwrap_or(0);
+    let floor = [
+        Some(state_dir.join(ADOPTED)),
+        bundled.map(Path::to_path_buf),
+    ]
+    .iter()
+    .flatten()
+    .filter_map(|path| read(path, product))
+    .map(|document| document.sequence)
+    .max()
+    .unwrap_or(0);
     if fresh(found.as_ref(), now)
-        && found.as_ref().is_some_and(|document| document.sequence > floor)
+        && found
+            .as_ref()
+            .is_some_and(|document| document.sequence > floor)
         && car_machine::pyfile::replace(&download, state_dir.join(ADOPTED)).is_ok()
     {
         return;
@@ -327,7 +366,12 @@ pub fn adopt(state_dir: &Path, bundled: Option<&Path>, now: f64, product: Option
 
 /// `in_force(state_dir, bundled=bundled, now=now, product=product)`: the document in force now - the adopted one or the
 /// bundled one, whichever valid and unexpired one has the higher sequence - or none.
-pub fn in_force(state_dir: Option<&Path>, bundled: Option<&Path>, now: f64, product: Option<Product>) -> Option<Document> {
+pub fn in_force(
+    state_dir: Option<&Path>,
+    bundled: Option<&Path>,
+    now: f64,
+    product: Option<Product>,
+) -> Option<Document> {
     if let Some(folder) = state_dir {
         adopt(folder, bundled, now, product);
     }
@@ -344,7 +388,10 @@ pub fn in_force(state_dir: Option<&Path>, bundled: Option<&Path>, now: f64, prod
             continue;
         }
         // `max` keeps the first of equals.
-        if best.as_ref().is_none_or(|held| document.sequence > held.sequence) {
+        if best
+            .as_ref()
+            .is_none_or(|held| document.sequence > held.sequence)
+        {
             best = Some(document);
         }
     }
@@ -385,7 +432,11 @@ pub fn table_for(
     now: f64,
     product: Option<Product>,
 ) -> Table {
-    overlay(table, in_force(state_dir, None, now, product).as_ref(), engine)
+    overlay(
+        table,
+        in_force(state_dir, None, now, product).as_ref(),
+        engine,
+    )
 }
 
 /// `summary(document)`: what the Dashboard may say of the data in force.

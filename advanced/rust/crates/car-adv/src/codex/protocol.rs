@@ -15,13 +15,47 @@ use crate::vocabulary::Measurement;
 
 /// `MEASUREMENT_METHODS`: the methods each measurement may call beyond `initialize`, in the tag's order.
 pub const MEASUREMENT_METHODS: &[(Measurement, &[&str])] = &[
-    (Measurement::M1, &["thread/loaded/list", "thread/queue/list"]),
-    (Measurement::M2, &["thread/loaded/list", "thread/goal/get", "thread/goal/set"]),
-    (Measurement::M2b, &["thread/goal/get", "thread/goal/set", "thread/queue/add", "thread/queue/list"]),
+    (
+        Measurement::M1,
+        &["thread/loaded/list", "thread/queue/list"],
+    ),
+    (
+        Measurement::M2,
+        &["thread/loaded/list", "thread/goal/get", "thread/goal/set"],
+    ),
+    (
+        Measurement::M2b,
+        &[
+            "thread/goal/get",
+            "thread/goal/set",
+            "thread/queue/add",
+            "thread/queue/list",
+        ],
+    ),
     (Measurement::M3, &["thread/queue/add", "thread/queue/list"]),
-    (Measurement::M4, &["hooks/list", "thread/resume", "turn/start", "turn/interrupt", "thread/unsubscribe"]),
-    (Measurement::M5, &["thread/loaded/list", "thread/queue/list"]),
-    (Measurement::M6, &["thread/resume", "turn/start", "turn/interrupt", "thread/unsubscribe"]),
+    (
+        Measurement::M4,
+        &[
+            "hooks/list",
+            "thread/resume",
+            "turn/start",
+            "turn/interrupt",
+            "thread/unsubscribe",
+        ],
+    ),
+    (
+        Measurement::M5,
+        &["thread/loaded/list", "thread/queue/list"],
+    ),
+    (
+        Measurement::M6,
+        &[
+            "thread/resume",
+            "turn/start",
+            "turn/interrupt",
+            "thread/unsubscribe",
+        ],
+    ),
     (Measurement::M7, &["thread/queue/add", "thread/queue/list"]),
     (Measurement::Mh, &["thread/loaded/list"]),
     (Measurement::Ma, &["account/read"]),
@@ -30,8 +64,20 @@ pub const MEASUREMENT_METHODS: &[(Measurement, &[&str])] = &[
     (Measurement::Mp2, &[]),
     (Measurement::Mp3, &[]),
     (Measurement::Mu, &["account/rateLimits/read"]),
-    (Measurement::Mn, &["account/rateLimits/read", "account/rateLimitResetCredit/consume"]),
-    (Measurement::Mr, &["account/rateLimits/read", "account/rateLimitResetCredit/consume"]),
+    (
+        Measurement::Mn,
+        &[
+            "account/rateLimits/read",
+            "account/rateLimitResetCredit/consume",
+        ],
+    ),
+    (
+        Measurement::Mr,
+        &[
+            "account/rateLimits/read",
+            "account/rateLimitResetCredit/consume",
+        ],
+    ),
     (Measurement::Mq, &["thread/loaded/list"]),
     (Measurement::Me, &[]),
     (Measurement::Ms, &[]),
@@ -40,21 +86,59 @@ pub const MEASUREMENT_METHODS: &[(Measurement, &[&str])] = &[
     (Measurement::Mipc, &[]),
     (Measurement::Maws, &[]),
     (Measurement::Mcloud, &[]),
-    (Measurement::M6b, &["thread/resume", "turn/start", "turn/interrupt", "thread/unsubscribe"]),
+    (
+        Measurement::M6b,
+        &[
+            "thread/resume",
+            "turn/start",
+            "turn/interrupt",
+            "thread/unsubscribe",
+        ],
+    ),
     (Measurement::Mo, &[]),
-    (Measurement::Mx, &["thread/resume", "thread/compact/start", "thread/unsubscribe"]),
+    (
+        Measurement::Mx,
+        &[
+            "thread/resume",
+            "thread/compact/start",
+            "thread/unsubscribe",
+        ],
+    ),
     (Measurement::Mxa, &[]),
     (
         Measurement::Mf,
-        &["thread/resume", "model/list", "turn/start", "turn/interrupt", "thread/settings/update", "thread/unsubscribe"],
+        &[
+            "thread/resume",
+            "model/list",
+            "turn/start",
+            "turn/interrupt",
+            "thread/settings/update",
+            "thread/unsubscribe",
+        ],
     ),
-    (Measurement::M3b, &["thread/resume", "turn/start", "turn/interrupt", "thread/unsubscribe"]),
+    (
+        Measurement::M3b,
+        &[
+            "thread/resume",
+            "turn/start",
+            "turn/interrupt",
+            "thread/unsubscribe",
+        ],
+    ),
     (Measurement::Mb, &["config/read", "config/value/write"]),
     (Measurement::Mc1, &["thread/queue/add", "thread/queue/list"]),
     (Measurement::Mc2, &[]),
     (Measurement::Mqo, &["thread/queue/add", "thread/queue/list"]),
     (Measurement::Mqp, &["thread/queue/add", "thread/queue/list"]),
-    (Measurement::Mqg, &["thread/goal/get", "thread/goal/set", "thread/queue/add", "thread/queue/list"]),
+    (
+        Measurement::Mqg,
+        &[
+            "thread/goal/get",
+            "thread/goal/set",
+            "thread/queue/add",
+            "thread/queue/list",
+        ],
+    ),
     (Measurement::Mtok, &[]),
     (Measurement::Mopen, &[]),
     (Measurement::Mal, &["account/read"]),
@@ -63,7 +147,10 @@ pub const MEASUREMENT_METHODS: &[(Measurement, &[&str])] = &[
     (Measurement::Mhk, &[]),
     (Measurement::M4b, &["hooks/list"]),
     (Measurement::Manchor, &["account/rateLimits/read"]),
-    (Measurement::Mimg, &["thread/queue/add", "thread/queue/list"]),
+    (
+        Measurement::Mimg,
+        &["thread/queue/add", "thread/queue/list"],
+    ),
     (Measurement::Msteer, &["turn/steer"]),
     (Measurement::Msteer2, &[]),
     (Measurement::Mgave, &[]),
@@ -80,33 +167,75 @@ pub const MEASUREMENT_METHODS: &[(Measurement, &[&str])] = &[
             "thread/read",
         ],
     ),
-    (Measurement::Mprofile, &["account/read", "account/rateLimits/read"]),
-    (Measurement::Mswap, &["account/read", "account/rateLimits/read"]),
+    (
+        Measurement::Mprofile,
+        &["account/read", "account/rateLimits/read"],
+    ),
+    (
+        Measurement::Mswap,
+        &["account/read", "account/rateLimits/read"],
+    ),
     (Measurement::Mauto, &[]),
 ];
 
 /// `CAPABILITY_METHODS`: the methods a capability's own route may call beyond `initialize`.
 pub const CAPABILITY_METHODS: &[(&str, &[&str])] = &[
     ("marker_free_continuation", &["thread/queue/add"]),
-    ("goal_continuation", &["thread/goal/set", "thread/queue/add"]),
-    ("reset_credit", &["account/rateLimits/read", "account/rateLimitResetCredit/consume"]),
+    (
+        "goal_continuation",
+        &["thread/goal/set", "thread/queue/add"],
+    ),
+    (
+        "reset_credit",
+        &[
+            "account/rateLimits/read",
+            "account/rateLimitResetCredit/consume",
+        ],
+    ),
     ("reset_message", &["account/rateLimits/read"]),
-    ("headless_run", &["thread/resume", "turn/start", "turn/interrupt", "thread/unsubscribe"]),
+    (
+        "headless_run",
+        &[
+            "thread/resume",
+            "turn/start",
+            "turn/interrupt",
+            "thread/unsubscribe",
+        ],
+    ),
     (
         "compact_continue",
-        &["thread/resume", "thread/compact/start", "turn/start", "turn/interrupt", "thread/unsubscribe"],
+        &[
+            "thread/resume",
+            "thread/compact/start",
+            "turn/start",
+            "turn/interrupt",
+            "thread/unsubscribe",
+        ],
     ),
     (
         "model_fallback",
-        &["thread/resume", "model/list", "turn/start", "turn/interrupt", "thread/settings/update", "thread/unsubscribe"],
+        &[
+            "thread/resume",
+            "model/list",
+            "turn/start",
+            "turn/interrupt",
+            "thread/settings/update",
+            "thread/unsubscribe",
+        ],
     ),
     ("codex_chat", &["thread/queue/add"]),
     ("prompt_queue", &["thread/queue/add"]),
     ("usage_meter", &["account/rateLimits/read"]),
-    ("window_anchor", &["account/rateLimits/read", "account/read"]),
+    (
+        "window_anchor",
+        &["account/rateLimits/read", "account/read"],
+    ),
     ("account_switch", &["account/read"]),
     ("codex_retry_settings", &["config/read", "account/read"]),
-    ("account_auto_switch", &["account/read", "account/rateLimits/read"]),
+    (
+        "account_auto_switch",
+        &["account/read", "account/rateLimits/read"],
+    ),
 ];
 
 /// `FORBIDDEN_METHODS`: never asked, whatever an allow-list says.
@@ -151,7 +280,12 @@ pub const ACCEPTING_WORDS: &[&str] = &[
 ];
 
 fn object<const N: usize>(pairs: [(&str, Value); N]) -> Value {
-    Value::Object(pairs.into_iter().map(|(key, value)| (key.into(), value)).collect())
+    Value::Object(
+        pairs
+            .into_iter()
+            .map(|(key, value)| (key.into(), value))
+            .collect(),
+    )
 }
 
 /// `DECLINE_ANSWERS[method]`: the refusal Codex's own schema gives a request, or none for a method not listed.
@@ -201,13 +335,21 @@ pub fn grants_nothing(refusal: &Value) -> bool {
     };
     let mut found = Vec::new();
     words(refusal, &mut found);
-    if found.iter().any(|word| ACCEPTING_WORDS.contains(&word.as_str())) {
+    if found
+        .iter()
+        .any(|word| ACCEPTING_WORDS.contains(&word.as_str()))
+    {
         return false;
     }
-    let empty = |key: &str| map.get(key).is_none_or(|value| matches!(value, Value::Object(inner) if inner.is_empty()));
+    let empty = |key: &str| {
+        map.get(key)
+            .is_none_or(|value| matches!(value, Value::Object(inner) if inner.is_empty()))
+    };
     empty("permissions")
         && empty("answers")
-        && map.get("content").is_none_or(|value| matches!(value, Value::Null))
+        && map
+            .get("content")
+            .is_none_or(|value| matches!(value, Value::Null))
         && map
             .get("scope")
             .is_none_or(|value| matches!(value, Value::Str(word) if word.as_bytes() == b"turn"))
@@ -215,14 +357,20 @@ pub fn grants_nothing(refusal: &Value) -> bool {
 
 /// `_NOT_ANSWERED`.
 fn not_answered() -> Value {
-    object([("code", Value::from(-32601)), ("message", Value::from(REJECTION))])
+    object([
+        ("code", Value::from(-32601)),
+        ("message", Value::from(REJECTION)),
+    ])
 }
 
 /// `reply_to(request)`: the schema's own refusal for an approval, a permission, an input or an elicitation request, and
 /// an error for anything else. Only the method's name chooses between them.
 pub fn reply_to(request: &Value) -> Value {
     let (ident, method) = match request {
-        Value::Object(map) => (map.get("id").cloned().unwrap_or(Value::Null), map.get("method")),
+        Value::Object(map) => (
+            map.get("id").cloned().unwrap_or(Value::Null),
+            map.get("method"),
+        ),
         _ => (Value::Null, None),
     };
     if let Some(Value::Str(method)) = method

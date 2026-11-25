@@ -43,11 +43,13 @@ fn count(value: Option<&Value>) -> Option<i64> {
 fn expiry(value: Option<&Value>) -> Py<Result<Option<Value>, ()>> {
     match value {
         None | Some(Value::Null) => Ok(Ok(None)),
-        Some(found) => Ok(if epoch(found, EPOCH_USAGE.0, EPOCH_USAGE.1, true, false)? {
-            Ok(Some(found.clone()))
-        } else {
-            Err(())
-        }),
+        Some(found) => Ok(
+            if epoch(found, EPOCH_USAGE.0, EPOCH_USAGE.1, true, false)? {
+                Ok(Some(found.clone()))
+            } else {
+                Err(())
+            },
+        ),
     }
 }
 
@@ -93,7 +95,8 @@ fn soonest(count: Option<i64>, listed: Option<&Value>) -> Py<(bool, Option<Value
 pub fn parse(reply: &Value) -> Py<Value> {
     let parsed = car_codex::usage::parse_usage(reply)?;
     let windows = car_machine::domain::usage::windows_of(&Value::Object(parsed))?;
-    let summary = get(reply, "rateLimitResetCredits").filter(|summary| matches!(summary, Value::Object(_)));
+    let summary =
+        get(reply, "rateLimitResetCredits").filter(|summary| matches!(summary, Value::Object(_)));
     let credits = summary.and_then(|summary| count(get(summary, "availableCount")));
     let (known, nearest) = soonest(credits, summary.and_then(|summary| get(summary, "credits")))?;
     let allowed = match get(reply, "ordinaryUsageAllowed") {
@@ -111,7 +114,10 @@ pub fn parse(reply: &Value) -> Py<Value> {
 
 /// `details_listed(reply)`: whether the reply carries the credits' details, a list.
 pub fn details_listed(reply: &Value) -> bool {
-    matches!(get(reply, "rateLimitResetCredits").and_then(|summary| get(summary, "credits")), Some(Value::Array(_)))
+    matches!(
+        get(reply, "rateLimitResetCredits").and_then(|summary| get(summary, "credits")),
+        Some(Value::Array(_))
+    )
 }
 
 /// `outcome(reply)`: what a consume came to, or UNKNOWN for a reply of any other shape.
@@ -134,7 +140,9 @@ pub fn full(windows: &[Value]) -> Py<Vec<Value>> {
     for window in windows {
         let used = get(window, "used_percent").ok_or("KeyError")?;
         let reset = get(window, "reset_at").ok_or("KeyError")?;
-        if car_machine::pyval::less_or_equal(&Value::from(100), used)? && !matches!(reset, Value::Null) {
+        if car_machine::pyval::less_or_equal(&Value::from(100), used)?
+            && !matches!(reset, Value::Null)
+        {
             found.push(window.clone());
         }
     }

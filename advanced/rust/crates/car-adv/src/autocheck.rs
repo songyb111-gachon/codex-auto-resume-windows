@@ -24,8 +24,8 @@ use std::time::{Duration, Instant};
 
 use car_codex::system::System;
 use car_codex::transport::Backend;
-use car_machine::compat::{LoadsError, loads};
 use car_machine::compat::model::{parse_version, safe_version};
+use car_machine::compat::{LoadsError, loads};
 use car_machine::json::{Map, Str, Value};
 use car_machine::pytext::is_space;
 use car_machine::pyval::{self, Py};
@@ -44,13 +44,26 @@ pub const TRIES: i64 = 3;
 pub const CHILD_SECONDS: f64 = 60.0;
 pub const MAX_BYTES: u64 = 64 * 1024;
 pub const SCHEMA_FILE: &str = "codex_app_server_protocol.schemas.json";
-pub const SCHEMA_ARGUMENTS: [&str; 4] = ["app-server", "generate-json-schema", "--experimental", "--out"];
+pub const SCHEMA_ARGUMENTS: [&str; 4] = [
+    "app-server",
+    "generate-json-schema",
+    "--experimental",
+    "--out",
+];
 pub const SCHEMA_BYTES: u64 = 16 * 1024 * 1024;
 pub const FEATURE_ARGUMENTS: [&str; 2] = ["features", "list"];
 pub const SANE_METHODS: [&str; 3] = ["initialize", "thread/resume", "turn/start"];
 pub const SANE_COUNT: usize = 50;
 pub const RECORD_KEYS: [&str; 9] = [
-    "format", "revision", "key", "tries", "tried_at", "engine", "checked_at", "results", "gone",
+    "format",
+    "revision",
+    "key",
+    "tries",
+    "tried_at",
+    "engine",
+    "checked_at",
+    "results",
+    "gone",
 ];
 /// codex/authfile.py's `NAME`: the sign-in file a Codex home keeps (MAUTO asks whether the scratch home holds one).
 pub const AUTH_FILE: &str = "auth.json";
@@ -104,7 +117,12 @@ const QUEUE_ADD: Row = Row {
 const USAGE: &str = "account/rateLimits/read";
 const CONSUME: &str = "account/rateLimitResetCredit/consume";
 const OUTCOME: &str = "ConsumeAccountRateLimitResetCreditOutcome";
-const TURN_CALLS: &[&str] = &["thread/resume", "turn/start", "turn/interrupt", "thread/unsubscribe"];
+const TURN_CALLS: &[&str] = &[
+    "thread/resume",
+    "turn/start",
+    "turn/interrupt",
+    "thread/unsubscribe",
+];
 const STOP_WORD: &[(&str, &str)] = &[("HookEventName", "stop")];
 /// `tuple(DECLINE_ANSWERS)`: codex/protocol.py's refused requests.
 const REQUESTS: &[&str] = &crate::codex::protocol::DECLINED_REQUESTS;
@@ -264,7 +282,11 @@ pub const CHECKS: &[(Measurement, Row)] = &[
         Measurement::Mx,
         Row {
             reach: CheckReach::Part,
-            methods: &["thread/resume", "thread/compact/start", "thread/unsubscribe"],
+            methods: &[
+                "thread/resume",
+                "thread/compact/start",
+                "thread/unsubscribe",
+            ],
             params: &[("thread/compact/start", "threadId")],
             words: &[("ThreadItem", "contextCompaction")],
             ..NONE
@@ -302,7 +324,10 @@ pub const CHECKS: &[(Measurement, Row)] = &[
         Row {
             reach: CheckReach::FailsOnly,
             methods: &["thread/goal/set"],
-            params: &[("thread/goal/set", "threadId"), ("thread/goal/set", "status")],
+            params: &[
+                ("thread/goal/set", "threadId"),
+                ("thread/goal/set", "status"),
+            ],
             ..NONE
         },
     ),
@@ -338,7 +363,10 @@ pub const CHECKS: &[(Measurement, Row)] = &[
     (Measurement::Ma, fails_only(&["account/read"])),
     (Measurement::Malr, fails_only(&["account/read"])),
     (Measurement::Manchor, fails_only(&[USAGE])),
-    (Measurement::Mb2, fails_only(&["config/read", "account/read"])),
+    (
+        Measurement::Mb2,
+        fails_only(&["config/read", "account/read"]),
+    ),
     (Measurement::Mprofile, fails_only(&["account/read", USAGE])),
     (Measurement::Mswap, fails_only(&["account/read", USAGE])),
 ];
@@ -395,7 +423,11 @@ fn definition<'a>(document: &'a Value, name: &[u8]) -> Option<&'a Value> {
     let Value::Object(map) = table else {
         return None;
     };
-    let lookup = |map: &'a Map| map.iter().find(|(key, _)| key.as_bytes() == name).map(|(_, value)| value);
+    let lookup = |map: &'a Map| {
+        map.iter()
+            .find(|(key, _)| key.as_bytes() == name)
+            .map(|(_, value)| value)
+    };
     let mut found = lookup(map);
     if !is_dict(found) {
         found = match map.get("v2") {
@@ -521,7 +553,15 @@ fn split_lines(text: &str) -> Vec<&str> {
     while let Some((at, c)) = chars.next() {
         let boundary = matches!(
             c,
-            '\n' | '\r' | '\u{0b}' | '\u{0c}' | '\u{1c}' | '\u{1d}' | '\u{1e}' | '\u{85}' | '\u{2028}' | '\u{2029}'
+            '\n' | '\r'
+                | '\u{0b}'
+                | '\u{0c}'
+                | '\u{1c}'
+                | '\u{1d}'
+                | '\u{1e}'
+                | '\u{85}'
+                | '\u{2028}'
+                | '\u{2029}'
         );
         if boundary {
             lines.push(&text[start..at]);
@@ -545,7 +585,10 @@ fn split_lines(text: &str) -> Vec<&str> {
 pub fn feature_words(text: &str, name: &str) -> Option<Vec<String>> {
     for line in split_lines(text) {
         let replaced = line.replace('|', " ");
-        let words: Vec<&str> = replaced.split(is_space).filter(|word| !word.is_empty()).collect();
+        let words: Vec<&str> = replaced
+            .split(is_space)
+            .filter(|word| !word.is_empty())
+            .collect();
         if words.first() == Some(&name) {
             return Some(words[1..].iter().map(|word| (*word).to_owned()).collect());
         }
@@ -645,7 +688,10 @@ pub fn judge(document: &Value, features: Option<&str>) -> Py<Answer> {
     let mut answer = Vec::new();
     for (measurement, row) in CHECKS {
         if row.reach != CheckReach::None {
-            answer.push((*measurement, judge_row(row, document, &client, &server, features)?));
+            answer.push((
+                *measurement,
+                judge_row(row, document, &client, &server, features)?,
+            ));
         }
     }
     Ok(answer)
@@ -679,7 +725,12 @@ impl Settled {
 pub type Results = BTreeMap<Measurement, AutoResult>;
 
 /// `settled(measurement, version, table, results)`: how one measurement stands for the Codex `version`.
-pub fn settled(measurement: Measurement, version: Option<&str>, table: &Table, results: &Results) -> Settled {
+pub fn settled(
+    measurement: Measurement,
+    version: Option<&str>,
+    table: &Table,
+    results: &Results,
+) -> Settled {
     let (verdict, measured_on) = match table.get(&measurement) {
         Some((verdict, engine)) => (Some(*verdict), Some(engine.as_str())),
         None => (None, None),
@@ -694,7 +745,9 @@ pub fn settled(measurement: Measurement, version: Option<&str>, table: &Table, r
         Some(AutoResult::Fail) => return Settled::Gone,
         Some(AutoResult::Pass) => {
             let reach = reach(measurement);
-            if reach == CheckReach::Whole || (reach == CheckReach::Part && verdict == Some(Verdict::Pass)) {
+            if reach == CheckReach::Whole
+                || (reach == CheckReach::Part && verdict == Some(Verdict::Pass))
+            {
                 return Settled::StandsIn;
             }
         }
@@ -732,7 +785,10 @@ pub fn grade(
     }
     let has = |wanted: Settled| each.iter().any(|(_, word)| *word == wanted);
     if has(Settled::Failed) {
-        if measurements.iter().any(|m| results.get(m) == Some(&AutoResult::Fail)) {
+        if measurements
+            .iter()
+            .any(|m| results.get(m) == Some(&AutoResult::Fail))
+        {
             return (CheckGrade::Failed, None);
         }
         let offered = each
@@ -749,9 +805,9 @@ pub fn grade(
         return (CheckGrade::CheckFailed, None);
     }
     if has(Settled::Unsettled) {
-        let offered = each
-            .iter()
-            .all(|(m, word)| *word != Settled::Unsettled || results.get(m) == Some(&AutoResult::Pass));
+        let offered = each.iter().all(|(m, word)| {
+            *word != Settled::Unsettled || results.get(m) == Some(&AutoResult::Pass)
+        });
         let grade = if offered {
             CheckGrade::OfferedOnly
         } else {
@@ -767,7 +823,10 @@ pub fn grade(
         .filter(|(_, word)| *word == Settled::StandsIn)
         .filter_map(|(m, _)| table.get(m).map(|(_, engine)| engine.as_str()))
         .collect();
-    let oldest = earlier.into_iter().min_by_key(|version| order(version)).map(str::to_owned);
+    let oldest = earlier
+        .into_iter()
+        .min_by_key(|version| order(version))
+        .map(str::to_owned);
     (CheckGrade::AutoChecked, oldest)
 }
 
@@ -795,13 +854,17 @@ fn shaped(value: Value) -> Py<Option<Value>> {
     let Value::Object(record) = &value else {
         return Ok(None);
     };
-    if record.len() != RECORD_KEYS.len() || !RECORD_KEYS.iter().all(|key| record.contains_key(*key)) {
+    if record.len() != RECORD_KEYS.len() || !RECORD_KEYS.iter().all(|key| record.contains_key(*key))
+    {
         return Ok(None);
     }
     if !matches!(&record["format"], Value::Str(format) if format.as_bytes() == FORMAT.as_bytes()) {
         return Ok(None);
     }
-    if !pyval::is_int(&record["revision"]) || !pyval::is_int(&record["tries"]) || !number(&record["tried_at"])? {
+    if !pyval::is_int(&record["revision"])
+        || !pyval::is_int(&record["tries"])
+        || !number(&record["tried_at"])?
+    {
         return Ok(None);
     }
     if !matches!(record["engine"], Value::Null)
@@ -809,15 +872,26 @@ fn shaped(value: Value) -> Py<Option<Value>> {
     {
         return Ok(None);
     }
-    let (Value::Object(results), Value::Object(gone)) = (&record["results"], &record["gone"]) else {
+    let (Value::Object(results), Value::Object(gone)) = (&record["results"], &record["gone"])
+    else {
         return Ok(None);
     };
-    let known = |name: &Str| name.as_str().and_then(parse::<Measurement>).is_some_and(|m| CHECKS.iter().any(|(each, _)| *each == m));
-    if !results.iter().all(|(name, word)| known(name) && is_word::<AutoResult>(word)) {
+    let known = |name: &Str| {
+        name.as_str()
+            .and_then(parse::<Measurement>)
+            .is_some_and(|m| CHECKS.iter().any(|(each, _)| *each == m))
+    };
+    if !results
+        .iter()
+        .all(|(name, word)| known(name) && is_word::<AutoResult>(word))
+    {
         return Ok(None);
     }
     let listed = |names: &Value| matches!(names, Value::Array(items) if items.iter().all(|each| matches!(each, Value::Str(_))));
-    if !gone.iter().all(|(name, names)| known(name) && listed(names)) {
+    if !gone
+        .iter()
+        .all(|(name, names)| known(name) && listed(names))
+    {
         return Ok(None);
     }
     Ok(Some(value))
@@ -853,7 +927,8 @@ pub fn results_for(advanced_dir: &Path, engine: Option<&str>) -> Py<Results> {
     let Some(Value::Object(record)) = read_record(advanced_dir)? else {
         return Ok(Results::new());
     };
-    let same_engine = matches!(&record["engine"], Value::Str(found) if found.as_bytes() == engine.as_bytes());
+    let same_engine =
+        matches!(&record["engine"], Value::Str(found) if found.as_bytes() == engine.as_bytes());
     if !same_engine || record["revision"] != Value::from(REVISION) {
         return Ok(Results::new());
     }
@@ -894,7 +969,9 @@ pub enum WriteError {
 
 /// `_write(paths, record)`: the record, whole, in config/advanced/, made and marked as ours first.
 pub fn write(paths: &car_config::Paths, record: &Value) -> Result<(), WriteError> {
-    paths.ensure().map_err(|error| WriteError::Config(error.0))?;
+    paths
+        .ensure()
+        .map_err(|error| WriteError::Config(error.0))?;
     let folder = PathBuf::from(&paths.advanced_dir);
     let text = folder.to_string_lossy().into_owned();
     if car_config::paths::is_link(&text) || (folder.exists() && !paths.confined(&text)) {
@@ -907,10 +984,15 @@ pub fn write(paths: &car_config::Paths, record: &Value) -> Result<(), WriteError
     }
     let marker = folder.join(car_config::paths::OWNER_MARKER);
     if !marker.exists() {
-        std::fs::write(&marker, crate::state::session::owner_text().as_bytes()).map_err(|_| WriteError::Os)?;
+        std::fs::write(&marker, crate::state::session::owner_text().as_bytes())
+            .map_err(|_| WriteError::Os)?;
     }
-    car_codex::compat::files::write_json_atomic(&record_path(&folder).to_string_lossy(), record, "autocheck")
-        .map_err(|_| WriteError::Os)
+    car_codex::compat::files::write_json_atomic(
+        &record_path(&folder).to_string_lossy(),
+        record,
+        "autocheck",
+    )
+    .map_err(|_| WriteError::Os)
 }
 
 // --------------------------------------------------------------------------------------------------------- the one run
@@ -988,11 +1070,17 @@ fn decode_text(bytes: &[u8]) -> String {
 
 /// `subprocess.run(argv, stdin=DEVNULL, stdout=PIPE or DEVNULL, stderr=DEVNULL, cwd=..., env=..., timeout=60,
 /// creationflags=NO_WINDOW)`: the exit code and what it printed, or none where it could not start or ran out of time.
-fn run_child(argv: Vec<String>, cwd: &Path, env: Vec<(std::ffi::OsString, std::ffi::OsString)>, keep: bool) -> Option<(i64, Vec<u8>)> {
-    let spawn = Spawn::new(argv)
-        .with_env(env)
-        .with_cwd(cwd)
-        .with_streams(Stream::Null, if keep { Stream::Piped } else { Stream::Null }, Stream::Null);
+fn run_child(
+    argv: Vec<String>,
+    cwd: &Path,
+    env: Vec<(std::ffi::OsString, std::ffi::OsString)>,
+    keep: bool,
+) -> Option<(i64, Vec<u8>)> {
+    let spawn = Spawn::new(argv).with_env(env).with_cwd(cwd).with_streams(
+        Stream::Null,
+        if keep { Stream::Piped } else { Stream::Null },
+        Stream::Null,
+    );
     let mut child = SystemStarter.start(&spawn).ok()?;
     let reading = child.stdout.take().map(|mut stdout| {
         std::thread::spawn(move || {
@@ -1015,8 +1103,13 @@ fn run_child(argv: Vec<String>, cwd: &Path, env: Vec<(std::ffi::OsString, std::f
         }
         std::thread::sleep(Duration::from_millis(5));
     };
-    let bytes = reading.and_then(|thread| thread.join().ok()).unwrap_or_default();
-    Some((status.code().map_or(-1, |code| i64::from(code as u32)), bytes))
+    let bytes = reading
+        .and_then(|thread| thread.join().ok())
+        .unwrap_or_default();
+    Some((
+        status.code().map_or(-1, |code| i64::from(code as u32)),
+        bytes,
+    ))
 }
 
 /// `_child(backend, arguments, scratch)`: what the engine printed to one set of arguments, or none.
@@ -1090,7 +1183,10 @@ pub fn ask_engine(world: &World, exe: &str, scratch: &Path) -> Result<Asked, Ask
     if asked.version.is_none() {
         return Ok(asked);
     }
-    let mut arguments: Vec<String> = SCHEMA_ARGUMENTS.iter().map(|each| (*each).to_owned()).collect();
+    let mut arguments: Vec<String> = SCHEMA_ARGUMENTS
+        .iter()
+        .map(|each| (*each).to_owned())
+        .collect();
     arguments.push(asked.out.to_string_lossy().into_owned());
     asked.schema_answered = child(&asked.backend, &arguments, scratch).is_some();
     let document = if asked.schema_answered {
@@ -1102,7 +1198,10 @@ pub fn ask_engine(world: &World, exe: &str, scratch: &Path) -> Result<Asked, Ask
         return Ok(asked);
     };
     asked.schema_written = true;
-    let features_arguments: Vec<String> = FEATURE_ARGUMENTS.iter().map(|each| (*each).to_owned()).collect();
+    let features_arguments: Vec<String> = FEATURE_ARGUMENTS
+        .iter()
+        .map(|each| (*each).to_owned())
+        .collect();
     let features = child(&asked.backend, &features_arguments, scratch);
     asked.features_answered = features.is_some();
     asked.answer = judge(&document, features.as_deref()).map_err(AskError::Raised)?;
@@ -1110,10 +1209,16 @@ pub fn ask_engine(world: &World, exe: &str, scratch: &Path) -> Result<Asked, Ask
 }
 
 /// `run_engine(exe, scratch)`: (the version the engine names, judge's answer), or none for no answer.
-pub fn run_engine(world: &World, exe: &str, scratch: &Path) -> Result<Option<(String, Answer)>, AskError> {
+pub fn run_engine(
+    world: &World,
+    exe: &str,
+    scratch: &Path,
+) -> Result<Option<(String, Answer)>, AskError> {
     let asked = ask_engine(world, exe, scratch)?;
     Ok(match asked.version {
-        Some(version) if !version.is_empty() && !asked.answer.is_empty() => Some((version, asked.answer)),
+        Some(version) if !version.is_empty() && !asked.answer.is_empty() => {
+            Some((version, asked.answer))
+        }
         _ => None,
     })
 }
@@ -1202,16 +1307,42 @@ pub fn probe_engine(world: &World, exe: &str) -> Value {
     if let Ok(scratch) = mkdtemp("car-mauto-") {
         if let Ok(asked) = ask_engine(world, exe, &scratch) {
             set(&mut found, "engine_accepted", Value::Bool(true));
-            set(&mut found, "version", asked.version.clone().map_or(Value::Null, Value::from));
-            set(&mut found, "schema_answered", Value::Bool(asked.schema_answered));
-            set(&mut found, "experimental_taken", Value::Bool(asked.schema_answered));
-            set(&mut found, "schema_written", Value::Bool(asked.schema_written));
-            set(&mut found, "schema_whole", Value::Bool(!asked.answer.is_empty()));
-            set(&mut found, "features_answered", Value::Bool(asked.features_answered));
+            set(
+                &mut found,
+                "version",
+                asked.version.clone().map_or(Value::Null, Value::from),
+            );
+            set(
+                &mut found,
+                "schema_answered",
+                Value::Bool(asked.schema_answered),
+            );
+            set(
+                &mut found,
+                "experimental_taken",
+                Value::Bool(asked.schema_answered),
+            );
+            set(
+                &mut found,
+                "schema_written",
+                Value::Bool(asked.schema_written),
+            );
+            set(
+                &mut found,
+                "schema_whole",
+                Value::Bool(!asked.answer.is_empty()),
+            );
+            set(
+                &mut found,
+                "features_answered",
+                Value::Bool(asked.features_answered),
+            );
             let results: Map = asked
                 .answer
                 .iter()
-                .map(|(measurement, (word, _))| (measurement.as_str().into(), Value::from(word.as_str())))
+                .map(|(measurement, (word, _))| {
+                    (measurement.as_str().into(), Value::from(word.as_str()))
+                })
                 .collect();
             set(&mut found, "results", Value::Object(results));
             if !asked.schema_answered {
@@ -1223,17 +1354,38 @@ pub fn probe_engine(world: &World, exe: &str) -> Value {
                         .filter(|word| **word != "--experimental")
                         .map(|word| (*word).to_owned()),
                 );
-                set(&mut found, "options_without_flag", Value::Bool(bare_schema(&asked.backend, without_flag, &scratch)));
+                set(
+                    &mut found,
+                    "options_without_flag",
+                    Value::Bool(bare_schema(&asked.backend, without_flag, &scratch)),
+                );
                 let mut flag_only: Vec<String> = options.iter().take(1).cloned().collect();
                 flag_only.extend(SCHEMA_ARGUMENTS.iter().map(|word| (*word).to_owned()));
-                set(&mut found, "flag_without_options", Value::Bool(bare_schema(&asked.backend, flag_only, &scratch)));
+                set(
+                    &mut found,
+                    "flag_without_options",
+                    Value::Bool(bare_schema(&asked.backend, flag_only, &scratch)),
+                );
             }
-            set(&mut found, "scratch_home_files", Value::from(files_under(&asked.home) as i64));
-            set(&mut found, "scratch_home_signed_in", Value::Bool(asked.home.join(AUTH_FILE).exists()));
+            set(
+                &mut found,
+                "scratch_home_files",
+                Value::from(files_under(&asked.home) as i64),
+            );
+            set(
+                &mut found,
+                "scratch_home_signed_in",
+                Value::Bool(asked.home.join(AUTH_FILE).exists()),
+            );
         }
         let _ = std::fs::remove_dir_all(&scratch);
     }
-    Value::Object(found.into_iter().map(|(key, value)| (key.into(), value)).collect())
+    Value::Object(
+        found
+            .into_iter()
+            .map(|(key, value)| (key.into(), value))
+            .collect(),
+    )
 }
 
 /// `_attempt(paths, key, tries, now)`.
@@ -1249,7 +1401,12 @@ pub fn attempt(key: &Value, tries: i64, now: f64) -> Value {
         ("results", Value::Object(Map::new())),
         ("gone", Value::Object(Map::new())),
     ];
-    Value::Object(pairs.into_iter().map(|(key, value)| (key.into(), value)).collect())
+    Value::Object(
+        pairs
+            .into_iter()
+            .map(|(key, value)| (key.into(), value))
+            .collect(),
+    )
 }
 
 /// A clock the run reads (`time.time`).
@@ -1257,7 +1414,13 @@ pub type Clock = Arc<dyn Fn() -> f64 + Send + Sync>;
 
 /// `run_once(paths, exe, record, clock=clock)`: one run for `exe`, whose attempt `record` is already written: the answer
 /// written over it, and the scratch folder gone. Nothing raises out of it but the ConfigError of the home's own folders.
-pub fn run_once(world: &World, paths: &car_config::Paths, exe: &str, record: &Value, clock: &Clock) -> Result<(), String> {
+pub fn run_once(
+    world: &World,
+    paths: &car_config::Paths,
+    exe: &str,
+    record: &Value,
+    clock: &Clock,
+) -> Result<(), String> {
     let mut found = None;
     if let Ok(scratch) = mkdtemp("car-autocheck-") {
         found = run_engine(world, exe, &scratch).ok().flatten();
@@ -1281,7 +1444,12 @@ pub fn run_once(world: &World, paths: &car_config::Paths, exe: &str, record: &Va
         .map(|(measurement, (_, names))| {
             (
                 measurement.as_str().into(),
-                Value::Array(names.iter().map(|name| Value::from(name.as_str())).collect()),
+                Value::Array(
+                    names
+                        .iter()
+                        .map(|name| Value::from(name.as_str()))
+                        .collect(),
+                ),
             )
         })
         .collect();
@@ -1326,12 +1494,21 @@ pub fn tend(world: &World, paths: &car_config::Paths, clock: Clock) -> Result<bo
         running: HashMap::new(),
         looked: HashMap::new(),
     });
-    let since = now - tended.looked.get(&home).copied().unwrap_or(f64::NEG_INFINITY);
+    let since = now
+        - tended
+            .looked
+            .get(&home)
+            .copied()
+            .unwrap_or(f64::NEG_INFINITY);
     if (0.0..LOOK_EVERY).contains(&since) {
         return Ok(false);
     }
     tended.looked.insert(home.clone(), now);
-    if tended.running.get(&home).is_some_and(|thread| !thread.is_finished()) {
+    if tended
+        .running
+        .get(&home)
+        .is_some_and(|thread| !thread.is_finished())
+    {
         return Ok(false);
     }
     let key = engine_key(world.system.as_ref(), &exe).map_err(TendError::Raised)?;
@@ -1346,7 +1523,10 @@ pub fn tend(world: &World, paths: &car_config::Paths, clock: Clock) -> Result<bo
         get(record, "key").is_some_and(|held| pyval::eq(held, &key))
             && get(record, "revision") == Some(&Value::from(REVISION))
     });
-    let tries = match (same, record.as_ref().and_then(|record| get(record, "tries"))) {
+    let tries = match (
+        same,
+        record.as_ref().and_then(|record| get(record, "tries")),
+    ) {
         (true, Some(Value::Int(tries))) => tries.as_i64().unwrap_or(i64::MAX).saturating_add(1),
         _ => 1,
     };

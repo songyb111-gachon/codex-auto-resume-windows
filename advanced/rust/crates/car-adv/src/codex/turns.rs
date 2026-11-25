@@ -31,13 +31,16 @@ pub const LATEST: &str = "SELECT turn_id, status, error_json IS NOT NULL AND err
 pub const KINDS: &str = "SELECT item_type, count(*) FROM thread_items WHERE thread_id=? AND turn_id=? GROUP BY item_type";
 pub const RECENT: &str = "SELECT thread_id FROM thread_turns WHERE status='completed' AND completed_at >= ? GROUP BY thread_id ORDER BY max(completed_at) DESC LIMIT ?";
 pub const PLAN_ITEM_TYPE: &str = "plan";
-pub const HAS_PLAN: &str = "SELECT EXISTS(SELECT 1 FROM thread_items WHERE thread_id=? AND item_type=?)";
+pub const HAS_PLAN: &str =
+    "SELECT EXISTS(SELECT 1 FROM thread_items WHERE thread_id=? AND item_type=?)";
 pub const PLAN: &str = "SELECT json_extract(step.value, '$.status') FROM (SELECT item_json FROM thread_items WHERE thread_id=? AND item_type=? ORDER BY rollout_ordinal DESC LIMIT 1) AS newest, json_each(newest.item_json, '$.steps') AS step";
 pub const BETWEEN: &str = "SELECT count(*) FROM thread_turns WHERE thread_id=? AND rollout_ordinal > ? AND rollout_ordinal < ?";
 pub const RUNNING: &str = "SELECT t.thread_id, t.started_at FROM thread_turns t WHERE t.status='inProgress' AND NOT EXISTS (SELECT 1 FROM thread_turns n WHERE n.thread_id=t.thread_id AND n.rollout_ordinal > t.rollout_ordinal) ORDER BY t.started_at DESC LIMIT ?";
 pub const ERROR: &str = "SELECT error_json FROM thread_turns WHERE thread_id=? AND turn_id=?";
 pub const STATUS: &str = "SELECT status FROM thread_turns WHERE thread_id=? AND turn_id=?";
-pub const STATEMENTS: [&str; 9] = [LATEST, KINDS, RECENT, HAS_PLAN, PLAN, BETWEEN, RUNNING, ERROR, STATUS];
+pub const STATEMENTS: [&str; 9] = [
+    LATEST, KINDS, RECENT, HAS_PLAN, PLAN, BETWEEN, RUNNING, ERROR, STATUS,
+];
 pub const TURN_COLUMNS: &[&str] = &[
     "thread_id",
     "turn_id",
@@ -48,7 +51,13 @@ pub const TURN_COLUMNS: &[&str] = &[
     "final_agent_item_id",
     "started_at",
 ];
-pub const ITEM_COLUMNS: &[&str] = &["thread_id", "turn_id", "item_type", "item_json", "rollout_ordinal"];
+pub const ITEM_COLUMNS: &[&str] = &[
+    "thread_id",
+    "turn_id",
+    "item_type",
+    "item_json",
+    "rollout_ordinal",
+];
 pub const TURN_STATUSES: [&str; 4] = ["completed", "failed", "interrupted", "inProgress"];
 pub const STEP_STATUSES: [&str; 3] = ["pending", "in_progress", "completed"];
 pub const UNKNOWN: &str = "unknown";
@@ -94,7 +103,12 @@ pub type SharedOs = Arc<dyn Os + Send + Sync>;
 
 /// `connect(home, kind, tables)`: a read-only connection to the newest generation of core's `kind` database in the Codex
 /// home, its `tables` (`{name: columns}`) required - or TurnsUnavailable.
-pub fn connect(os: &dyn Os, home: &str, kind: &str, tables: &[(&str, &[&str])]) -> Read<Connection> {
+pub fn connect(
+    os: &dyn Os,
+    home: &str,
+    kind: &str,
+    tables: &[(&str, &[&str])],
+) -> Read<Connection> {
     let root = safe_path(os, home).map_err(raised)?;
     let path = match newest_generation(os, &root, kind) {
         Ok(path) => path,
@@ -112,8 +126,13 @@ pub fn connect(os: &dyn Os, home: &str, kind: &str, tables: &[(&str, &[&str])]) 
     let connection = sql::connect(Path::new(&path)).map_err(|_| cannot())?;
     for (table, columns) in tables {
         let found = sql::columns(&connection, table).map_err(|_| cannot())?;
-        if !columns.iter().all(|column| found.iter().any(|each| each == column)) {
-            return Err(Failure::Unavailable(format!("the {table} table has moved on")));
+        if !columns
+            .iter()
+            .all(|column| found.iter().any(|each| each == column))
+        {
+            return Err(Failure::Unavailable(format!(
+                "the {table} table has moved on"
+            )));
         }
     }
     Ok(connection)
@@ -131,7 +150,9 @@ pub fn raised(error: Error) -> Failure {
 /// `_kind(value)`: a kind word as Codex spells one, or "other".
 pub fn kind_word(cell: &Cell) -> String {
     match cell {
-        Cell::Text(text) if (1..=KIND_MAX).contains(&text.chars().count()) && is_alpha(text) => text.clone(),
+        Cell::Text(text) if (1..=KIND_MAX).contains(&text.chars().count()) && is_alpha(text) => {
+            text.clone()
+        }
         _ => "other".to_owned(),
     }
 }
@@ -205,7 +226,10 @@ impl Turns {
             self.os.as_ref(),
             &self.home,
             "history",
-            &[("thread_turns", TURN_COLUMNS), ("thread_items", ITEM_COLUMNS)],
+            &[
+                ("thread_turns", TURN_COLUMNS),
+                ("thread_items", ITEM_COLUMNS),
+            ],
         )?;
         run(&connection)
     }
@@ -221,7 +245,9 @@ impl Turns {
             let failed = caught("the turn history cannot be read");
             let mut found = None;
             for index in (0..chain.len()).rev() {
-                if let Some(row) = sql::first(connection, LATEST, &[text_param(&chain[index])]).map_err(&failed)? {
+                if let Some(row) =
+                    sql::first(connection, LATEST, &[text_param(&chain[index])]).map_err(&failed)?
+                {
                     found = Some((index, row));
                     break;
                 }
@@ -239,7 +265,13 @@ impl Turns {
             };
             let turn_id = thread_id_text(&turn_id);
             let mut kinds: Vec<(String, i64)> = Vec::new();
-            for each in sql::query(connection, KINDS, &[text_param(&chain[index]), text_param(&turn_id)]).map_err(&failed)? {
+            for each in sql::query(
+                connection,
+                KINDS,
+                &[text_param(&chain[index]), text_param(&turn_id)],
+            )
+            .map_err(&failed)?
+            {
                 let word = kind_word(each.at(0));
                 let count = match each.at(1) {
                     Cell::Int(number) => *number,
@@ -283,9 +315,11 @@ impl Turns {
         }
         let (thread, turn) = (thread_id_text(thread_id), thread_id_text(turn_id));
         let raw = self.read(|connection| {
-            Ok(sql::first(connection, ERROR, &[text_param(&thread), text_param(&turn)])
-                .map_err(caught("the turn history cannot be read"))?
-                .map(|row| row.at(0).value()))
+            Ok(
+                sql::first(connection, ERROR, &[text_param(&thread), text_param(&turn)])
+                    .map_err(caught("the turn history cannot be read"))?
+                    .map(|row| row.at(0).value()),
+            )
         })?;
         let error = match raw {
             Some(text @ Value::Str(_)) => car_codex::values::json_of(&text),
@@ -327,8 +361,12 @@ impl Turns {
     /// `recent(since)`: the conversations with a turn completed at `since` or later, the latest first.
     pub fn recent(&self, since: i64) -> Read<Vec<String>> {
         let rows = self.read(|connection| {
-            sql::query(connection, RECENT, &[Param::Int(since), Param::Int(RECENT_LIMIT)])
-                .map_err(caught("the turn history cannot be read"))
+            sql::query(
+                connection,
+                RECENT,
+                &[Param::Int(since), Param::Int(RECENT_LIMIT)],
+            )
+            .map_err(caught("the turn history cannot be read"))
         })?;
         self.named(rows.iter().map(|row| row.at(0).value()).collect())
     }
@@ -341,7 +379,10 @@ impl Turns {
                 continue;
             }
             let text = thread_id_text(&id);
-            let named = self.owner_of(&text)?.filter(|owner| !owner.is_empty()).unwrap_or(text);
+            let named = self
+                .owner_of(&text)?
+                .filter(|owner| !owner.is_empty())
+                .unwrap_or(text);
             if !found.contains(&named) {
                 found.push(named);
             }
@@ -353,7 +394,8 @@ impl Turns {
     /// left out.
     pub fn running(&self, booted: &Value) -> Read<Vec<String>> {
         let rows = self.read(|connection| {
-            sql::query(connection, RUNNING, &[Param::Int(RECENT_LIMIT)]).map_err(caught("the turn history cannot be read"))
+            sql::query(connection, RUNNING, &[Param::Int(RECENT_LIMIT)])
+                .map_err(caught("the turn history cannot be read"))
         })?;
         let mut kept = Vec::new();
         for row in rows {
@@ -373,7 +415,10 @@ impl Turns {
             return Err(unavailable("not a conversation"));
         }
         // An ordinal is a whole number of any size in the reference; past 128 bits is no ordinal `latest` makes.
-        let (Ok(after), Ok(before)) = (after.to_string().parse::<i128>(), before.to_string().parse::<i128>()) else {
+        let (Ok(after), Ok(before)) = (
+            after.to_string().parse::<i128>(),
+            before.to_string().parse::<i128>(),
+        ) else {
             return Err(Failure::Raised("OverflowError"));
         };
         let thread = thread_id_text(thread_id);
@@ -411,8 +456,12 @@ impl Turns {
         self.read(|connection| {
             let mut total = 0i64;
             for (id, low, high) in &spans {
-                let row = sql::first(connection, BETWEEN, &[text_param(id), Param::Int(*low), Param::Int(*high)])
-                    .map_err(caught("the turn history cannot be read"))?;
+                let row = sql::first(
+                    connection,
+                    BETWEEN,
+                    &[text_param(id), Param::Int(*low), Param::Int(*high)],
+                )
+                .map_err(caught("the turn history cannot be read"))?;
                 total += match row.as_ref().map(|row| row.at(0)) {
                     Some(Cell::Int(count)) => *count,
                     _ => 0,
@@ -434,7 +483,12 @@ impl Turns {
             let failed = caught("the turn history cannot be read");
             let mut held: Vec<&String> = Vec::new();
             for other in &chain {
-                let row = sql::first(connection, HAS_PLAN, &[text_param(other), text_param(PLAN_ITEM_TYPE)]).map_err(&failed)?;
+                let row = sql::first(
+                    connection,
+                    HAS_PLAN,
+                    &[text_param(other), text_param(PLAN_ITEM_TYPE)],
+                )
+                .map_err(&failed)?;
                 if row.is_some_and(|row| row.at(0).truthy()) {
                     held.push(other);
                 }
@@ -442,14 +496,18 @@ impl Turns {
             let Some(newest) = held.last() else {
                 return Ok(None);
             };
-            let statuses: Vec<String> = sql::query(connection, PLAN, &[text_param(newest), text_param(PLAN_ITEM_TYPE)])
-                .map_err(&failed)?
-                .iter()
-                .map(|row| match row.at(0) {
-                    Cell::Text(text) if STEP_STATUSES.contains(&text.as_str()) => text.clone(),
-                    _ => UNKNOWN.to_owned(),
-                })
-                .collect();
+            let statuses: Vec<String> = sql::query(
+                connection,
+                PLAN,
+                &[text_param(newest), text_param(PLAN_ITEM_TYPE)],
+            )
+            .map_err(&failed)?
+            .iter()
+            .map(|row| match row.at(0) {
+                Cell::Text(text) if STEP_STATUSES.contains(&text.as_str()) => text.clone(),
+                _ => UNKNOWN.to_owned(),
+            })
+            .collect();
             if statuses.is_empty() {
                 return Err(unavailable("a plan item with no steps this reads"));
             }

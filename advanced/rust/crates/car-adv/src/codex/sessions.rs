@@ -18,8 +18,15 @@ use car_machine::json::{Map, Value};
 
 use super::turns::{Failure, Read, SharedOs, connect, is_alpha, thread_id_text, unavailable};
 
-pub const THREAD_COLUMNS: &[&str] = &["id", "rollout_path", "source", "thread_source", "history_mode"];
-pub const ORIGIN: &str = "SELECT rollout_path, source, thread_source, history_mode FROM threads WHERE id=?";
+pub const THREAD_COLUMNS: &[&str] = &[
+    "id",
+    "rollout_path",
+    "source",
+    "thread_source",
+    "history_mode",
+];
+pub const ORIGIN: &str =
+    "SELECT rollout_path, source, thread_source, history_mode FROM threads WHERE id=?";
 pub const STATEMENTS: [&str; 1] = [ORIGIN];
 pub const FIRST_LINE_BYTES: usize = 64 * 1024;
 pub const TAIL_BYTES: u64 = 64 * 1024;
@@ -45,7 +52,8 @@ fn regular(path: &str) -> bool {
 
 /// `bytes.strip()` is empty.
 fn blank(line: &[u8]) -> bool {
-    line.iter().all(|b| matches!(b, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c))
+    line.iter()
+        .all(|b| matches!(b, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c))
 }
 
 /// `json.loads(line.decode("utf-8"))`: the event, none for a line that is no JSON or no UTF-8, or the RecursionError.
@@ -93,7 +101,12 @@ impl Origins {
             return Err(unavailable("not a conversation"));
         }
         let thread = thread_id_text(thread_id);
-        let connection = connect(self.os.as_ref(), &self.home, "state", &[("threads", THREAD_COLUMNS)])?;
+        let connection = connect(
+            self.os.as_ref(),
+            &self.home,
+            "state",
+            &[("threads", THREAD_COLUMNS)],
+        )?;
         let found = sql::first(&connection, ORIGIN, &[Param::Text(&thread)])
             .map_err(|_| unavailable("the conversation cannot be read"))?;
         Ok(found.map(|row| {
@@ -116,7 +129,10 @@ impl Origins {
         };
         let path = self.safe(&String::from_utf8_lossy(raw.as_bytes()))?;
         let sessions = self.safe(&winpath::join(&self.home, "sessions"))?;
-        if !winpath::is_relative_to(&path, &sessions) || suffix(&path) != ".jsonl" || !name_of(&path).contains(thread_id) {
+        if !winpath::is_relative_to(&path, &sessions)
+            || suffix(&path) != ".jsonl"
+            || !name_of(&path).contains(thread_id)
+        {
             return Ok(None);
         }
         Ok(Some(path))
@@ -131,7 +147,11 @@ impl Origins {
     }
 
     /// `find(thread_id, names)`: (the rollout, how it was found) - "row", "archived", "name" - or (none, "missing").
-    pub fn find(&self, thread_id: &Value, names: Option<&[(String, String)]>) -> Read<(Option<String>, &'static str)> {
+    pub fn find(
+        &self,
+        thread_id: &Value,
+        names: Option<&[(String, String)]>,
+    ) -> Read<(Option<String>, &'static str)> {
         if !ids::is_uuid(thread_id) {
             return Ok((None, "missing"));
         }
@@ -174,7 +194,13 @@ impl Origins {
                 continue;
             };
             paths.retain(|path| regular(path));
-            paths.sort_by_key(|path| winpath::path_str(path).to_lowercase().split('\\').map(str::to_owned).collect::<Vec<_>>());
+            paths.sort_by_key(|path| {
+                winpath::path_str(path)
+                    .to_lowercase()
+                    .split('\\')
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>()
+            });
             for path in paths {
                 let name = name_of(&path);
                 let stem = match name.rfind('.') {
@@ -182,8 +208,12 @@ impl Origins {
                     _ => name.as_str(),
                 };
                 let chars: Vec<char> = stem.chars().collect();
-                let tail: String = chars[chars.len().saturating_sub(36)..].iter().collect::<String>().to_lowercase();
-                let separated = chars.len() == 36 || (chars.len() > 36 && matches!(chars[chars.len() - 37], '-' | '_'));
+                let tail: String = chars[chars.len().saturating_sub(36)..]
+                    .iter()
+                    .collect::<String>()
+                    .to_lowercase();
+                let separated = chars.len() == 36
+                    || (chars.len() > 36 && matches!(chars[chars.len() - 37], '-' | '_'));
                 if ids::is_uuid(&Value::from(tail.as_str())) && separated {
                     let safe = self.safe(&path)?;
                     match found.iter_mut().find(|(id, _)| *id == tail) {
@@ -235,7 +265,10 @@ impl Origins {
             {
                 let mut said = Map::new();
                 for key in ["originator", "source", "cli_version"] {
-                    said.insert(key.into(), get(payload, key).cloned().unwrap_or(Value::Null));
+                    said.insert(
+                        key.into(),
+                        get(payload, key).cloned().unwrap_or(Value::Null),
+                    );
                 }
                 first = Some(said);
             }
@@ -245,7 +278,11 @@ impl Origins {
 
     /// `events_since(thread_id, offset)`: the payload type of each complete line the rollout gained after `offset`, and
     /// the offset to look from next.
-    pub fn events_since(&self, thread_id: &Value, offset: Option<i64>) -> Read<(Vec<String>, Option<i64>)> {
+    pub fn events_since(
+        &self,
+        thread_id: &Value,
+        offset: Option<i64>,
+    ) -> Read<(Vec<String>, Option<i64>)> {
         let path = match self.row(thread_id)? {
             Some(row) => self.rollout_of(&thread_id_text(thread_id), row.get("rollout_path"))?,
             None => None,
@@ -264,9 +301,14 @@ impl Origins {
         if start < 0 {
             return Err(cannot());
         }
-        stream.seek(SeekFrom::Start(start as u64)).map_err(|_| cannot())?;
+        stream
+            .seek(SeekFrom::Start(start as u64))
+            .map_err(|_| cannot())?;
         let mut data = Vec::new();
-        stream.take((size - start) as u64).read_to_end(&mut data).map_err(|_| cannot())?;
+        stream
+            .take((size - start) as u64)
+            .read_to_end(&mut data)
+            .map_err(|_| cannot())?;
         let complete = match data.iter().rposition(|b| *b == b'\n') {
             Some(at) => &data[..=at],
             None => &data[..0],
@@ -278,7 +320,9 @@ impl Origins {
             }
             match event(line)? {
                 None => kinds.push("other".to_owned()),
-                Some(found) => kinds.push(word(get(&found, "payload").and_then(|payload| get(payload, "type")))),
+                Some(found) => kinds.push(word(
+                    get(&found, "payload").and_then(|payload| get(payload, "type")),
+                )),
             }
         }
         Ok((kinds, Some(start + complete.len() as i64)))
@@ -296,16 +340,22 @@ impl Origins {
         let cannot = || unavailable("the rollout cannot be read");
         let mut stream = car_machine::pyfile::open(&path).map_err(|_| cannot())?;
         let size = stream.seek(SeekFrom::End(0)).map_err(|_| cannot())?;
-        stream.seek(SeekFrom::Start(size.saturating_sub(TAIL_BYTES))).map_err(|_| cannot())?;
+        stream
+            .seek(SeekFrom::Start(size.saturating_sub(TAIL_BYTES)))
+            .map_err(|_| cannot())?;
         let mut tail = Vec::new();
         stream.read_to_end(&mut tail).map_err(|_| cannot())?;
         let parts: Vec<&[u8]> = tail.split(|b| *b == b'\n').collect();
         let skip = usize::from(size > TAIL_BYTES);
         let end = parts.len().saturating_sub(1);
-        let lines: Vec<&[u8]> = if skip < end { parts[skip..end].to_vec() } else { Vec::new() }
-            .into_iter()
-            .filter(|line| !blank(line))
-            .collect();
+        let lines: Vec<&[u8]> = if skip < end {
+            parts[skip..end].to_vec()
+        } else {
+            Vec::new()
+        }
+        .into_iter()
+        .filter(|line| !blank(line))
+        .collect();
         let Some(last) = lines.last() else {
             return Ok(None);
         };

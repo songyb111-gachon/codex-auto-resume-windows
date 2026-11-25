@@ -45,9 +45,18 @@ impl Lineage {
             return Err(unavailable("not a conversation"));
         }
         let parent = thread_id_text(parent);
-        let connection = connect(self.os.as_ref(), &self.home, "state", &[("thread_spawn_edges", EDGE_COLUMNS)])?;
-        let rows = sql::query(&connection, CHILDREN, &[Param::Text(&parent), Param::Int(CHILDREN_LIMIT)])
-            .map_err(|_| unavailable("the spawn edges cannot be read"))?;
+        let connection = connect(
+            self.os.as_ref(),
+            &self.home,
+            "state",
+            &[("thread_spawn_edges", EDGE_COLUMNS)],
+        )?;
+        let rows = sql::query(
+            &connection,
+            CHILDREN,
+            &[Param::Text(&parent), Param::Int(CHILDREN_LIMIT)],
+        )
+        .map_err(|_| unavailable("the spawn edges cannot be read"))?;
         drop(connection);
         let found: Vec<String> = rows
             .iter()
@@ -58,7 +67,12 @@ impl Lineage {
         if found.is_empty() {
             return Ok(Vec::new());
         }
-        let connection = connect(self.os.as_ref(), &self.home, "history", &[("thread_turns", TURN_COLUMNS)])?;
+        let connection = connect(
+            self.os.as_ref(),
+            &self.home,
+            "history",
+            &[("thread_turns", TURN_COLUMNS)],
+        )?;
         let failed = |_| unavailable("the turn history cannot be read");
         let mut children = Vec::new();
         for child in found {
@@ -68,19 +82,32 @@ impl Lineage {
                 status: Value::Null,
                 category: Value::Null,
             };
-            let Some(row) = sql::first(&connection, CHILD_TURN, &[Param::Text(&child)]).map_err(failed)? else {
+            let Some(row) =
+                sql::first(&connection, CHILD_TURN, &[Param::Text(&child)]).map_err(failed)?
+            else {
                 children.push(none(&child));
                 continue;
             };
-            let names = ["thread_id", "turn_id", "status", "error_json", "started_at", "completed_at", "rollout_ordinal"];
+            let names = [
+                "thread_id",
+                "turn_id",
+                "status",
+                "error_json",
+                "started_at",
+                "completed_at",
+                "rollout_ordinal",
+            ];
             let mut dict = Map::new();
             for (index, name) in names.iter().enumerate() {
                 dict.insert((*name).into(), cell_value(row.at(index)));
             }
-            let turn = car_codex::values::normalize(&Value::Object(dict)).map_err(|class| match class {
-                "ValueError" => unavailable("the turn history cannot be read"),
-                other => Failure::Raised(other),
-            })?;
+            let turn =
+                car_codex::values::normalize(&Value::Object(dict)).map_err(
+                    |class| match class {
+                        "ValueError" => unavailable("the turn history cannot be read"),
+                        other => Failure::Raised(other),
+                    },
+                )?;
             match turn {
                 None => children.push(none(&child)),
                 Some(turn) => children.push(Child {

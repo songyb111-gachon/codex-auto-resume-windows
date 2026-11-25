@@ -7,15 +7,16 @@ use std::path::Path;
 use car_codex::paths::{child, parent_of, safe_path};
 use car_codex::sql::{self, Cell, Param};
 use car_config::winpath;
-use car_machine::pytext::decimal_value;
 use car_machine::json::Value;
+use car_machine::pytext::decimal_value;
 
 use super::turns::{Failure, Read, SharedOs, raised, unavailable};
 use crate::vocabulary::{GoalStatus, parse};
 
 pub const TABLE: &str = "thread_goals";
 pub const COLUMNS: &[&str] = &["thread_id", "goal_id", "status", "updated_at_ms"];
-pub const SELECT: &str = "SELECT goal_id, status, updated_at_ms FROM thread_goals WHERE thread_id=?";
+pub const SELECT: &str =
+    "SELECT goal_id, status, updated_at_ms FROM thread_goals WHERE thread_id=?";
 pub const MAX_GOAL_ID: usize = 128;
 
 /// A conversation's goal: its id, its status, when it last changed.
@@ -53,7 +54,8 @@ impl Goals {
 
     /// `_path()`: the newest generation's file.
     fn path(&self) -> Read<String> {
-        let entries = std::fs::read_dir(&self.home).map_err(|_| unavailable("the Codex home cannot be listed"))?;
+        let entries = std::fs::read_dir(&self.home)
+            .map_err(|_| unavailable("the Codex home cannot be listed"))?;
         let mut best: Option<(u128, String)> = None;
         for entry in entries {
             let entry = entry.map_err(|_| unavailable("the Codex home cannot be listed"))?;
@@ -85,14 +87,19 @@ impl Goals {
         let path = self.path()?;
         let connection = sql::connect(Path::new(&path)).map_err(|_| cannot())?;
         let found = sql::columns(&connection, TABLE).map_err(|_| cannot())?;
-        if !COLUMNS.iter().all(|column| found.iter().any(|each| each == column)) {
+        if !COLUMNS
+            .iter()
+            .all(|column| found.iter().any(|each| each == column))
+        {
             return Err(unavailable("the goals table has moved on"));
         }
         // Bound as Python's `sqlite3` binds a value: half a surrogate pair cannot be encoded (a ValueError) and a list or
         // a dict is no parameter (a sqlite3.Error), both caught; an int past 64 bits is the OverflowError it lets out.
         let parameter = match thread_id {
             Value::Str(id) => Param::Text(id.as_str().ok_or_else(cannot)?),
-            Value::Int(number) => Param::Int(number.as_i64().ok_or(Failure::Raised("OverflowError"))?),
+            Value::Int(number) => {
+                Param::Int(number.as_i64().ok_or(Failure::Raised("OverflowError"))?)
+            }
             Value::Bool(on) => Param::Int(i64::from(*on)),
             Value::Float(number) => Param::Real(*number),
             Value::Null => Param::Null,

@@ -5,12 +5,12 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use car_adv::codex::conversation::Conversation;
+use car_adv::codex::credits;
 use car_adv::codex::goals::Goals;
 use car_adv::codex::lineage::Lineage;
 use car_adv::codex::sessions::Origins;
 use car_adv::codex::threads::Threads;
 use car_adv::codex::turns::{Failure as ReadFailure, SharedOs, Turns, is_alpha};
-use car_adv::codex::credits;
 use car_codex::system::PolicyOs;
 use car_machine::json::{Int, Map, Value};
 
@@ -45,7 +45,9 @@ pub fn run(_context: &Context, op: &str, args: &[Value]) -> Out {
     match op {
         "rd.alpha" => Ok(Value::Bool(is_alpha(&text(arg(args, 0))?))),
         "rd.turns.latest" => {
-            let found = Turns::new(&home()?, os()).latest(arg(args, 1)).map_err(&turns_failed)?;
+            let found = Turns::new(&home()?, os())
+                .latest(arg(args, 1))
+                .map_err(&turns_failed)?;
             Ok(match found {
                 None => Value::Null,
                 Some(turn) => Value::Array(vec![
@@ -55,13 +57,22 @@ pub fn run(_context: &Context, op: &str, args: &[Value]) -> Out {
                     turn.completed_at.map_or(Value::Null, Value::from),
                     Value::Bool(turn.final_agent),
                     Value::Int(Int::parse(&turn.ordinal.to_string()).ok_or_else(crate::bad)?),
-                    Value::Object(turn.kinds.into_iter().map(|(kind, count)| (kind.into(), Value::from(count))).collect()),
+                    Value::Object(
+                        turn.kinds
+                            .into_iter()
+                            .map(|(kind, count)| (kind.into(), Value::from(count)))
+                            .collect(),
+                    ),
                     turn.started_at.unwrap_or(Value::Null),
                 ]),
             })
         }
-        "rd.turns.turn_code" => Turns::new(&home()?, os()).turn_code(arg(args, 1), arg(args, 2)).map_err(&turns_failed),
-        "rd.turns.status" => Ok(opt(Turns::new(&home()?, os()).status(arg(args, 1), arg(args, 2)).map_err(&turns_failed)?)),
+        "rd.turns.turn_code" => Turns::new(&home()?, os())
+            .turn_code(arg(args, 1), arg(args, 2))
+            .map_err(&turns_failed),
+        "rd.turns.status" => Ok(opt(Turns::new(&home()?, os())
+            .status(arg(args, 1), arg(args, 2))
+            .map_err(&turns_failed)?)),
         "rd.turns.recent" => Ok(Value::Array(
             Turns::new(&home()?, os())
                 .recent(int(arg(args, 1))?)
@@ -84,24 +95,40 @@ pub fn run(_context: &Context, op: &str, args: &[Value]) -> Out {
                 .map_err(&turns_failed)?,
         )),
         "rd.turns.plan_statuses" => Ok(
-            match Turns::new(&home()?, os()).plan_statuses(arg(args, 1)).map_err(&turns_failed)? {
+            match Turns::new(&home()?, os())
+                .plan_statuses(arg(args, 1))
+                .map_err(&turns_failed)?
+            {
                 None => Value::Null,
                 Some(found) => Value::Array(found.into_iter().map(Value::from).collect()),
             },
         ),
         "rd.lineage.children" => {
-            let reader = Lineage { home: home()?, os: os() };
+            let reader = Lineage {
+                home: home()?,
+                os: os(),
+            };
             Ok(Value::Array(
                 reader
                     .children(arg(args, 1))
                     .map_err(&turns_failed)?
                     .into_iter()
-                    .map(|child| Value::Array(vec![Value::from(child.thread_id), child.turn_id, child.status, child.category]))
+                    .map(|child| {
+                        Value::Array(vec![
+                            Value::from(child.thread_id),
+                            child.turn_id,
+                            child.status,
+                            child.category,
+                        ])
+                    })
                     .collect(),
             ))
         }
         "rd.threads.own" => {
-            let reader = Threads { home: home()?, os: os() };
+            let reader = Threads {
+                home: home()?,
+                os: os(),
+            };
             let skip: BTreeSet<String> = match arg(args, 2) {
                 Value::Array(items) => items.iter().filter_map(|item| text(item).ok()).collect(),
                 _ => BTreeSet::new(),
@@ -111,51 +138,90 @@ pub fn run(_context: &Context, op: &str, args: &[Value]) -> Out {
                     .own(int(arg(args, 1))?, &skip)
                     .map_err(&turns_failed)?
                     .into_iter()
-                    .map(|(thread, name)| Value::Array(vec![Value::from(thread), Value::from(name)]))
+                    .map(|(thread, name)| {
+                        Value::Array(vec![Value::from(thread), Value::from(name)])
+                    })
                     .collect(),
             ))
         }
         "rd.conversation.view" => {
-            let reader = Conversation { home: home()?, os: os() };
-            Ok(Value::Array(reader.view(arg(args, 1)).map_err(&turns_failed)?))
+            let reader = Conversation {
+                home: home()?,
+                os: os(),
+            };
+            Ok(Value::Array(
+                reader.view(arg(args, 1)).map_err(&turns_failed)?,
+            ))
         }
         "rd.sessions.rollout" => {
-            let reader = Origins { home: home()?, os: os() };
+            let reader = Origins {
+                home: home()?,
+                os: os(),
+            };
             Ok(opt(reader.rollout(arg(args, 1)).map_err(&turns_failed)?))
         }
         "rd.sessions.find" => {
-            let reader = Origins { home: home()?, os: os() };
+            let reader = Origins {
+                home: home()?,
+                os: os(),
+            };
             let (path, how) = reader.find(arg(args, 1), None).map_err(&turns_failed)?;
             Ok(Value::Array(vec![opt(path), Value::from(how)]))
         }
         "rd.sessions.names" => {
-            let reader = Origins { home: home()?, os: os() };
+            let reader = Origins {
+                home: home()?,
+                os: os(),
+            };
             let found = reader.names().map_err(&turns_failed)?;
-            Ok(Value::Object(found.into_iter().map(|(id, path)| (id.into(), Value::from(path))).collect::<Map>()))
+            Ok(Value::Object(
+                found
+                    .into_iter()
+                    .map(|(id, path)| (id.into(), Value::from(path)))
+                    .collect::<Map>(),
+            ))
         }
         "rd.sessions.origin" => {
-            let reader = Origins { home: home()?, os: os() };
+            let reader = Origins {
+                home: home()?,
+                os: os(),
+            };
             let (row, first) = reader.origin(arg(args, 1)).map_err(&turns_failed)?;
-            Ok(Value::Array(vec![row.map_or(Value::Null, Value::Object), first.map_or(Value::Null, Value::Object)]))
+            Ok(Value::Array(vec![
+                row.map_or(Value::Null, Value::Object),
+                first.map_or(Value::Null, Value::Object),
+            ]))
         }
         "rd.sessions.events_since" => {
-            let reader = Origins { home: home()?, os: os() };
+            let reader = Origins {
+                home: home()?,
+                os: os(),
+            };
             let offset = match arg(args, 2) {
                 Value::Null => None,
                 other => Some(int(other)?),
             };
-            let (kinds, next) = reader.events_since(arg(args, 1), offset).map_err(&turns_failed)?;
+            let (kinds, next) = reader
+                .events_since(arg(args, 1), offset)
+                .map_err(&turns_failed)?;
             Ok(Value::Array(vec![
                 Value::Array(kinds.into_iter().map(Value::from).collect()),
                 next.map_or(Value::Null, Value::from),
             ]))
         }
         "rd.sessions.newest_event" => {
-            let reader = Origins { home: home()?, os: os() };
-            Ok(match reader.newest_event(arg(args, 1)).map_err(&turns_failed)? {
-                None => Value::Null,
-                Some((kind, payload)) => Value::Array(vec![Value::from(kind), Value::from(payload)]),
-            })
+            let reader = Origins {
+                home: home()?,
+                os: os(),
+            };
+            Ok(
+                match reader.newest_event(arg(args, 1)).map_err(&turns_failed)? {
+                    None => Value::Null,
+                    Some((kind, payload)) => {
+                        Value::Array(vec![Value::from(kind), Value::from(payload)])
+                    }
+                },
+            )
         }
         "rd.goals.read" => {
             let goals_failed = failed("GoalsUnavailable");

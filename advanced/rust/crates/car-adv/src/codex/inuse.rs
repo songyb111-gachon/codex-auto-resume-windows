@@ -160,15 +160,26 @@ fn adapter(error: car_codex::errors::Error) -> String {
 /// `backend(paths)`: core's Backend for the Codex the installation drives, checked: the one its watcher told, else the
 /// one the watcher would find (the `codex_exe` setting or CODEX_AR_CODEX_EXE, discovery otherwise, the app's own engine
 /// where several pass).
-pub fn backend(installation: Option<&str>, settings_file: Option<&Path>, world: &Discovery) -> Result<Backend, BackendError> {
+pub fn backend(
+    installation: Option<&str>,
+    settings_file: Option<&Path>,
+    world: &Discovery,
+) -> Result<Backend, BackendError> {
     let (exe, where_) = match told(installation) {
         Some(found) => found,
         None => {
-            let where_ = car_config::codex::codex_home(world.env, world.os).map_err(BackendError::Raised)?;
+            let where_ =
+                car_config::codex::codex_home(world.env, world.os).map_err(BackendError::Raised)?;
             let pinned = installation.and(pinned(settings_file));
             let system = Arc::clone(&world.system);
             let compatible = |path: &str| -> Result<(), String> {
-                let mut made = Backend::new(Arc::clone(&system), &where_, path, false, &world.product_version);
+                let mut made = Backend::new(
+                    Arc::clone(&system),
+                    &where_,
+                    path,
+                    false,
+                    &world.product_version,
+                );
                 made.compatible().map_err(adapter)
             };
             let running = || car_codex::pairing::app_engines(world.system.as_ref()).ok();
@@ -188,8 +199,15 @@ pub fn backend(installation: Option<&str>, settings_file: Option<&Path>, world: 
             (exe, where_)
         }
     };
-    let mut made = Backend::new(Arc::clone(&world.system), &where_, &exe, false, &world.product_version);
-    made.compatible().map_err(|error| BackendError::Adapter(adapter(error)))?;
+    let mut made = Backend::new(
+        Arc::clone(&world.system),
+        &where_,
+        &exe,
+        false,
+        &world.product_version,
+    );
+    made.compatible()
+        .map_err(|error| BackendError::Adapter(adapter(error)))?;
     Ok(made)
 }
 

@@ -129,11 +129,16 @@ fn main() {
         };
         let op = op.as_str().unwrap_or("");
         // D15: a panic is caught at the boundary; a case that panics is an error of its own class.
-        let done = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| dispatch(&context, op, args)));
+        let done = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            dispatch(&context, op, args)
+        }));
         results.push(match done {
             Ok(Ok(value)) => object([("ok", value)]),
             Ok(Err(Failure { class, code: None })) => object([("error", class.into())]),
-            Ok(Err(Failure { class, code: Some(code) })) => object([("error", class.into()), ("code", code.into())]),
+            Ok(Err(Failure {
+                class,
+                code: Some(code),
+            })) => object([("error", class.into()), ("code", code.into())]),
             Err(_) => object([("error", "Panic".into())]),
         });
     }

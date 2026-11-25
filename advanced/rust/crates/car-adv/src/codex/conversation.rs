@@ -14,9 +14,26 @@ pub const TURNS: i64 = 20;
 pub const ITEM_BYTES: usize = 16 * 1024;
 pub const VIEW_BYTES: i64 = 256 * 1024;
 pub const TEXT_KINDS: [&str; 2] = ["userMessage", "agentMessage"];
-pub const COUNTED: [(&str, &str); 3] = [("commandExecution", "commands"), ("fileChange", "files"), ("mcpToolCall", "tools")];
-pub const TURN_COLUMNS: &[&str] = &["thread_id", "turn_id", "status", "rollout_ordinal", "started_at", "completed_at"];
-pub const ITEM_COLUMNS: &[&str] = &["thread_id", "turn_id", "item_type", "item_json", "rollout_ordinal"];
+pub const COUNTED: [(&str, &str); 3] = [
+    ("commandExecution", "commands"),
+    ("fileChange", "files"),
+    ("mcpToolCall", "tools"),
+];
+pub const TURN_COLUMNS: &[&str] = &[
+    "thread_id",
+    "turn_id",
+    "status",
+    "rollout_ordinal",
+    "started_at",
+    "completed_at",
+];
+pub const ITEM_COLUMNS: &[&str] = &[
+    "thread_id",
+    "turn_id",
+    "item_type",
+    "item_json",
+    "rollout_ordinal",
+];
 pub const LAST_TURNS: &str = "SELECT turn_id, status, started_at, completed_at FROM thread_turns WHERE thread_id=? ORDER BY rollout_ordinal DESC LIMIT ?";
 pub const TEXTS: &str = "SELECT item_type, item_json FROM thread_items WHERE thread_id=? AND turn_id=? AND item_type IN (?, ?) ORDER BY rollout_ordinal";
 pub const COUNTS: &str = "SELECT item_type, count(*) FROM thread_items WHERE thread_id=? AND turn_id=? GROUP BY item_type";
@@ -40,7 +57,9 @@ fn without_marker(words: &[u32]) -> Vec<u32> {
         }
         let rest = &rest[prefix.len()..];
         if rest.len() < 17
-            || !rest[..16].iter().all(|point| matches!(char::from_u32(*point), Some('0'..='9' | 'a'..='f')))
+            || !rest[..16]
+                .iter()
+                .all(|point| matches!(char::from_u32(*point), Some('0'..='9' | 'a'..='f')))
             || rest[16] != u32::from(b']')
         {
             continue;
@@ -101,7 +120,10 @@ pub fn text(kind: &str, raw: &Value) -> Result<Option<String>, &'static str> {
     if words.iter().any(|point| (0xD800..0xE000).contains(point)) {
         return Err("ValueError");
     }
-    let mut words: String = words.iter().filter_map(|point| char::from_u32(*point)).collect();
+    let mut words: String = words
+        .iter()
+        .filter_map(|point| char::from_u32(*point))
+        .collect();
     if words.len() > ITEM_BYTES {
         let mut cut = ITEM_BYTES;
         while !words.is_char_boundary(cut) {
@@ -129,10 +151,18 @@ impl Conversation {
             self.os.as_ref(),
             &self.home,
             "history",
-            &[("thread_turns", TURN_COLUMNS), ("thread_items", ITEM_COLUMNS)],
+            &[
+                ("thread_turns", TURN_COLUMNS),
+                ("thread_items", ITEM_COLUMNS),
+            ],
         )?;
         let failed = |_| unavailable("the conversation cannot be read");
-        let turns = sql::query(&connection, LAST_TURNS, &[Param::Text(&thread), Param::Int(TURNS)]).map_err(failed)?;
+        let turns = sql::query(
+            &connection,
+            LAST_TURNS,
+            &[Param::Text(&thread), Param::Int(TURNS)],
+        )
+        .map_err(failed)?;
         let mut shown = Vec::new();
         let mut budget = VIEW_BYTES;
         for turn in &turns {
@@ -141,7 +171,12 @@ impl Conversation {
             let texts = sql::query(
                 &connection,
                 TEXTS,
-                &[Param::Text(&thread), turn_id.param(), Param::Text(TEXT_KINDS[0]), Param::Text(TEXT_KINDS[1])],
+                &[
+                    Param::Text(&thread),
+                    turn_id.param(),
+                    Param::Text(TEXT_KINDS[0]),
+                    Param::Text(TEXT_KINDS[1]),
+                ],
             )
             .map_err(failed)?;
             for item in texts {
@@ -158,12 +193,25 @@ impl Conversation {
                 }
                 budget -= words.len() as i64;
                 let mut message = Map::new();
-                message.insert("from".into(), Value::from(if kind == "userMessage" { "you" } else { "codex" }));
+                message.insert(
+                    "from".into(),
+                    Value::from(if kind == "userMessage" {
+                        "you"
+                    } else {
+                        "codex"
+                    }),
+                );
                 message.insert("words".into(), Value::from(words));
                 messages.push(Value::Object(message));
             }
             let mut counts: Vec<(&str, i64)> = COUNTED.iter().map(|(_, name)| (*name, 0)).collect();
-            for row in sql::query(&connection, COUNTS, &[Param::Text(&thread), turn_id.param()]).map_err(failed)? {
+            for row in sql::query(
+                &connection,
+                COUNTS,
+                &[Param::Text(&thread), turn_id.param()],
+            )
+            .map_err(failed)?
+            {
                 if let Cell::Text(kind) = row.at(0)
                     && let Some((_, name)) = COUNTED.iter().find(|(each, _)| each == kind)
                     && let Some(slot) = counts.iter_mut().find(|(each, _)| each == name)
@@ -176,11 +224,16 @@ impl Conversation {
             }
             let mut out = Map::new();
             let id = turn_id.value();
-            out.insert("turn_id".into(), if ids::is_uuid(&id) { id } else { Value::Null });
+            out.insert(
+                "turn_id".into(),
+                if ids::is_uuid(&id) { id } else { Value::Null },
+            );
             out.insert(
                 "status".into(),
                 match turn.at(1) {
-                    Cell::Text(status) if STATUSES.contains(&status.as_str()) => Value::from(status.as_str()),
+                    Cell::Text(status) if STATUSES.contains(&status.as_str()) => {
+                        Value::from(status.as_str())
+                    }
                     _ => Value::from("other"),
                 },
             );
@@ -196,7 +249,12 @@ impl Conversation {
             out.insert("messages".into(), Value::Array(messages));
             out.insert(
                 "counts".into(),
-                Value::Object(counts.into_iter().map(|(name, count)| (name.into(), Value::from(count))).collect()),
+                Value::Object(
+                    counts
+                        .into_iter()
+                        .map(|(name, count)| (name.into(), Value::from(count)))
+                        .collect(),
+                ),
             );
             shown.push(Value::Object(out));
         }

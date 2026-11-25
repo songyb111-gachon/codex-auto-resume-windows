@@ -1049,3 +1049,56 @@ keep - so three cases of exactly 4,096, 4,097 and 9,000 bytes were added, and it
   UTF-8; a reply or id holding half of a surrogate pair), after answering the lines before it.
 * **P6**: the set-aside sweep (`controlcli.sweep_soon`) is the watcher's (`setaside.py`); `serve` here does not start it.
 * The re-diff for the final: `python -X utf8 tests/rustdiff/rediff_control.py --reference v0.6.26`.
+
+## S7.2c: the advanced edition's codex parts, autocheck, compatdata and inuse (branch `car-v0627-adv72c`, 2026-11-26)
+
+Ported into `car-adv` (D19) from the **v0.6.26 final** itself (D17; `codex/inuse.py` is the final's, FINAL-DELTA rows 20-23):
+
+| Python (`advanced/src/codex_auto_resume_advanced/`) | car-adv |
+|---|---|
+| `compatdata.py` | `compatdata` (validate, `_read`, adopt, in_force, overlay, table_for, summary, dumps; the five trust rules) |
+| `autocheck.py` | `autocheck` (the whole `CHECKS` table by hand, judge, settled, grade, the record, due, `_write`, ask/run/probe_engine, run_once, tend); S7.1b's `seam_autocheck*.rs` are gone, `arming` and `advprobe` name `autocheck` |
+| `codex/inuse.py` (final) | `codex::inuse` (tell/told/forget, **saw/elsewhere**, home, `_pinned`, backend over car-codex's `Backend` and car-config's discovery; `Looked` is what `saw` reads of a backend) |
+| `codex/protocol.py` (tables, refusals) | `codex::protocol` (MEASUREMENT_/CAPABILITY_METHODS, FORBIDDEN, DECLINE_ANSWERS, ACCEPTING_WORDS, reply_to, methods_for, methods_for_capability) |
+| `codex/turns.py`, `lineage.py`, `threads.py`, `conversation.py`, `sessions.py`, `goals.py`, `credits.py` | `codex::{turns, lineage, threads, conversation, sessions, goals, credits}` over car-codex's `paths`, `sql`, `LocalSource`, `values`, `labels`, `eligibility`, `usage` |
+| `time.strptime` + `calendar.timegm` for the forms read | `pytime` (CPython's `_strptime` expressions, Unicode digits, backtracking) |
+| `str.isalpha` | `codex/alpha_gen.rs` (`tests/rustdiff/gen_advcodex.py --write/--check`, from the reference interpreter) |
+
+**Not ported (left for the next seat, named):** `codex/protocol.Session` and `submitted` (the one-turn app-server helper: the
+runtime's channel, S7.2a/S7.2e1, opened only when a person measures or core hands a capability a send), `codex/headless.py`
+(450, over `Session`), `codex/ipc.py` (490, the Desktop's named pipe: needs car-platform `ipc_pipe` and a pipe of the test's
+own name), `codex/tokens.py` (320, rollouts' token counts, local days), `codex/wmi_escape.py` (287, MW; never run), `win/stopflag.py`
+and `win/waketimer.py`, and `turns.booted_of` (core's store read: `Turns::running` takes the boot time as a value). S7.2c's
+time ran out before them; nothing in this seat's modules waits on them.
+
+### The seams
+
+* `seam::Edges::table_for` is `compatdata::table_for(Some(state_dir), engine, &measured::table(), now, this_product(version))`;
+  `Edges::checked_for` is `autocheck::results_for(advanced_dir, engine)` (an `Err` is Unavailable). A host's `Edges` delegates
+  to them as it delegates the views to `compat_views`.
+* `codex::inuse::elsewhere(Some(home))` is what `AdvancedPlug.served_elsewhere` answers (S7.2a; any failure the empty set);
+  the usage meter (S7.2d) calls `inuse::saw(Some(home), &backend)` after `app_identity()`; the plug's `codex` hook calls
+  `inuse::tell`; `autocheck::tend` is the runtime's tick's (S7.2a) and reads `inuse::told`.
+* `autocheck::World { system, product_version }` and `inuse::Discovery` are what the entry points hand in: car-codex's
+  `Platform` and `config.version()`. Module state (inuse's told/elsewhere, autocheck's looked/running) is per process;
+  `inuse::reset`, `autocheck::reset`/`join` are for the harness.
+
+### The diffs (`tests/rustdiff/advcodex.py`, `diffs_advcodex_{compatdata,autocheck,inuse,readers}.py`)
+
+The Rust side is car-adv's example `advcodex` (one request of cases, the world's signers and process list stand in for
+Windows: `examples/advcodex/world.rs`); fake engines are car-adv's example `advfake` (a codex.exe stand-in answering
+`--version`, `queue --help`, `app-server generate-json-schema` and `features list` from a script, logging every call). The
+reference is the tag's advanced edition (`advref.run`, tag `v0.6.26` unless CODEX_AR_REFERENCE names another) with
+`authenticode.signer`, `processes_named`, `resource_users`, `process_identity` and `os.getpid` replaced. Cases that write run
+the reference then the probe on the same folders (`Scene`): the answers, every file left (byte for byte: the autocheck
+record, the adopted data) and every child the engine was asked for are held equal. `core.build_rest` builds both examples.
+
+The re-diff for the final: `python -X utf8 tests/rustdiff/rediff_adv72c.py --reference v0.6.26`.
+
+### For later seats
+
+* S7.2a: `served_elsewhere` = `inuse::elsewhere`; `Plug::codex` = `inuse::tell`; the tick calls `autocheck::tend`; fill
+  `Edges::table_for`/`checked_for` as above. `protocol::methods_for_capability` is the allow-list a channel's session checks.
+* S7.2b: `inuse::backend`, `protocol`, `turns`, `threads` are here; `autocheck::AUTH_FILE` names codex/authfile's file.
+* S7.2d: `credits::parse`/`outcome`/`full`, `turns::Turns::running`, `inuse::saw`.
+* The next S7.2c seat: `Session`, `headless`, `ipc`, `tokens`, `wmi_escape`, `win/stopflag`, `win/waketimer` (above).
