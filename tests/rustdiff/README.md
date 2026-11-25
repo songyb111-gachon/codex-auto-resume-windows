@@ -353,4 +353,6 @@ CODEX_AR_CORE=rust python scripts/test_parts.py --worker tests --report rs.json 
 python scripts/test_parts.py --compare py.json rs.json
 ```
 
-(`PYTHONPATH="src;tests"`, the harness built first.) Run 2026-11-25: 456 test ids, all pass on both, 0 differ.
+(`PYTHONPATH="src;tests"`, the harness built first.) Run 2026-11-25: 456 test ids, all pass on both, 0 differ. Three
+broken engine rules (the day's cap, the settle, the queue launch retries) each turned two frozen tests red on the Rust
+lane (rust/GROUNDWORK.md, "The scenario proxy").

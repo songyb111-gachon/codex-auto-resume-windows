@@ -637,6 +637,12 @@ builds an engine (a test's Harness, `runtime/app.py`, `rescan.py`, `checkup.py`)
 included, run on car-engine. The LEDGER stays empty: no frozen test needed P12's pool, P2's record channel, an errand's
 guards or anything else not ported, because the standard edition never reaches them.
 
+Mutation check (each rule broken alone in car-engine, the harness rebuilt, test_engine and test_outcomes run on the Rust
+lane, the file restored): the day's cap one claim late (`>=` to `>`, dispatch.rs) failed test_engine T24 and test_outcomes
+T24; the settle five seconds short (outcome.rs) failed test_engine T14 and test_outcomes T14; one more queue launch
+before `queue_launch_retry_limit` (delivery.rs) failed test_engine 15 and test_outcomes T29. The Python lane is green on
+all three, so the proxy really runs car-engine.
+
 ### For the next seats
 
 * The watcher (S6.1) builds its engines from car-store and car-codex directly; the proxy is the test lane's only.
