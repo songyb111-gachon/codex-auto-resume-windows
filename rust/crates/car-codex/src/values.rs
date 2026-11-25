@@ -90,10 +90,10 @@ pub fn turn_status(value: &Value) -> Py<Option<&'static str>> {
     ))
 }
 
-/// `_turn_status(row["status"])` for a value read from a column: a BLOB, which this crate carries as an empty list, is
-/// Python's `bytes` - hashable, and no status of Codex's.
+/// `_turn_status(row["status"])` for a value read from a column: a BLOB, which this crate carries as car-machine's
+/// `pybytes` value, is Python's `bytes` - hashable, and no status of Codex's.
 pub fn row_status(value: &Value) -> Py<Option<&'static str>> {
-    if matches!(value, Value::Array(items) if items.is_empty()) {
+    if car_machine::pybytes::blob_bytes(value).is_some() {
         return Ok(Some("other"));
     }
     turn_status(value)
