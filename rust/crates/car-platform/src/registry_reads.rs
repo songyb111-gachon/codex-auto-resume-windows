@@ -131,7 +131,7 @@ pub fn codex_home(registry: &dyn Registry) -> Option<String> {
         TYPE_SZ => text,
         _ => return None,
     };
-    let trimmed = text.trim();
+    let trimmed = car_machine::pytext::strip(&text);
     (!trimmed.is_empty()).then(|| trimmed.to_string())
 }
 
