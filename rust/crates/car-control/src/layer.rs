@@ -159,7 +159,7 @@ impl Control {
         let saved = managed::clamp(&saved, &held);
         let named = matches!(&changes, Value::Object(map) if map.contains_key("observe_only"));
         if named || held.force_observe_only {
-            self.observe_only(&saved);
+            self.observe_only(&saved)?;
         }
         Ok(saved)
     }
@@ -246,10 +246,18 @@ impl Control {
 
     /// `_observe_only(values)`: Observe only written into the state as the settings now say it, where the claim
     /// itself refuses every send while it is on. A state that cannot take it now is left to the watcher.
-    fn observe_only(&self, values: &Map) {
+    ///
+    /// `except (ControlError, StoreError): pass` and nothing more: any other exception leaves the save as the
+    /// generic refusal, after the settings were written.
+    fn observe_only(&self, values: &Map) -> Res<()> {
         let on = values.get("observe_only").is_some_and(pyval::truthy);
-        if let Ok(State::Current(store)) = self.open(false) {
-            let _ = store.set_observe_only(on);
+        match self.open(false) {
+            Ok(State::Current(store)) => match store.set_observe_only(on) {
+                Ok(_) | Err(StoreError::Store(..)) => Ok(()),
+                Err(error) => Err(from_store(error)),
+            },
+            Ok(State::Legacy(_)) | Err(Failure::Control(_)) => Ok(()),
+            Err(other) => Err(other),
         }
     }
 
@@ -340,7 +348,7 @@ impl Control {
         }
         let saved = settings::save(&*os, &path, &Value::Object(values)).map_err(refused)?;
         let saved = managed::clamp(&saved, &self.managed());
-        self.observe_only(&saved);
+        self.observe_only(&saved)?;
         Ok(saved)
     }
 }
