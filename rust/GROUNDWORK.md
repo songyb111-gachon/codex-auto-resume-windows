@@ -929,3 +929,15 @@ plugin_setup's EXIT_UNCONFIRMED 2 -> 1 (`SetupDiff`, 8 cases).
 
 `python -X utf8 tests/rustdiff/rediff_cli.py --reference v0.6.26`: the ported files changed since the final (`git diff
 --stat`), `gen_cli.py --check` (car-bin's parser tables are the tag's), then `-k diffs_mcp -k diffs_cli -k diffs_legacy`.
+
+### Gates (HEAD of this section's commit, `. tools/rustflags.sh`)
+
+`rust/`: fmt --check rc=0; clippy --locked --all-targets -D warnings rc=0; test --locked --no-fail-fast: every result ok but the
+known red `review_bridge.rs` `a_failure_seen_file_replaced_by_another_of_the_same_size_and_time_is_read_again` (car-platform's
+`files::file_index`, a later integration); cargo deny --locked --offline check: all four ok. `advanced/rust/`: fmt, clippy,
+test (5 x 0 tests), deny ok; its lock gained car-bin's new path edges. `check_groundwork.py`: OK (car-bin's and car-harness's
+new edges in EXPECTED). `check_rebuild.sh`: all eight binaries the same with and without `advanced/`
+(codex-auto-resume.exe, -setup.exe, -mcp.exe, python.exe, pythonw.exe, car_core.dll, car-core-stub.exe, car-harness.exe); its
+profile-path scan now reports `songy` in codex-auto-resume.exe and car-core-stub.exe - the publisher `songyb111-gachon`
+(car-platform `addremove::PUBLISHER`, linked now that the CLI registers the entry), not a path: the scan needs an allowance for
+that constant (the main session's call).
