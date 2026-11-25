@@ -24,7 +24,8 @@ PORTED = ("codex_link.py", "notice_card.py", "notice_inbox.py", "notice_presence
           "notify.py", "ui/popup/model.py", "ui/tray/model.py", "ui/tray/stored.py")
 READ = ("ui/popup/words.py", "ui/popup/placement.py", "ui/popup/layout.py", "ui/popup/window.py", "ui/words.py",
         "l10n.py", "locales", "brand", "reasons.py", "failures.py", "needsyou.py", "notice_kinds.py", "demo.py",
-        "settings.py", "domain/ids.py", "domain/public.py", "domain/states.py", "domain/usage.py", "machine.py",
+        "settings.py", "domain/ids.py", "domain/public.py", "domain/states.py", "domain/usage.py", "domain/vocabulary.py",
+        "domain/plug.py", "domain/gates.py", "ownvalues.py", "machine.py",
         "pwsh.py", "startup.py")
 BASE = "v0.6.26"
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
