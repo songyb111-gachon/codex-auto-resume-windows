@@ -87,7 +87,8 @@ cases += [["brand.css_variables", {}], ["brand.css_variables", {"on_accent": "#F
 for dot in list(brand.STATUS_DOT.values()) + [0, 1, 2.5, 3.3, 7, 10.25, 12.345678, 100]:
     cases.append(["brand.css_glow_geometry", dot])
 values = [0, 0.0, -0.0, 1, -1, 14, 12.5, 0.3, 0.1 + 0.2, 1 / 3, 2 / 3, 0.00005, 0.00004999, 0.00015, 0.123456, 99.99995, 1e15, 1e16, 1e17,
-          1e300, -1e300, 2 ** 53, 0.5, 1.5, 2.5, 0.00025, 0.00035, 1e-5, 123456.78915, 67.00000000000001, 1.57 * 16, 1.57 * 7]
+          1e300, -1e300, 2 ** 53, 0.5, 1.5, 2.5, 0.00025, 0.00035, 1e-5, 123456.78915, 67.00000000000001, 1.57 * 16, 1.57 * 7,
+          float("nan"), float("inf"), float("-inf")]
 values += [rng.uniform(-1000, 1000) for _ in range(400)] + [round(rng.uniform(0, 100), rng.randint(0, 6)) for _ in range(400)]
 values += [rng.randint(-10 ** 6, 10 ** 6) for _ in range(50)] + [k / 1000.0 for k in range(-2000, 2001, 7)] + [k * 2.5 for k in range(41)]
 for value in values:

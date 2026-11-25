@@ -144,6 +144,11 @@ fn cache() -> &'static Mutex<HashMap<String, Catalog>> {
 /// that is missing, malformed or truncated is a packaging or translation fault the tests fail on, not a reason to take
 /// a window down, so the English underneath is what a person gets.
 pub fn catalog(locale: &str) -> Catalog {
+    with_catalog(locale, Catalog::clone)
+}
+
+/// `body` of the cached catalog of `locale` (`catalog`'s, without a copy: `text` reads one key of it).
+fn with_catalog<R>(locale: &str, body: impl FnOnce(&Catalog) -> R) -> R {
     let locale = if LOCALES.contains(&locale) {
         locale
     } else {
@@ -161,7 +166,7 @@ pub fn catalog(locale: &str) -> Catalog {
         }
         kept.insert(locale.to_owned(), found);
     }
-    kept[locale].clone()
+    body(&kept[locale])
 }
 
 // ---------------------------------------------------------------- which language
@@ -361,7 +366,10 @@ pub fn fill(value: &str, fields: &[(&str, String)]) -> String {
 
 /// `text(key, locale, **fields)`: one string, formatted; a key the catalog lacks is a KeyError (`None`).
 pub fn text(key: &str, locale: &str, fields: &[(&str, String)]) -> Option<String> {
-    catalog(locale).get(key).map(|value| fill(value, fields))
+    // The reference copies the whole catalog for each key (`dict(_CACHE[locale])`); one key is read from the cache.
+    with_catalog(locale, |found| {
+        found.get(key).map(|value| fill(value, fields))
+    })
 }
 
 /// `messages(locale)`: the plugin's own sentences in one locale, keyed without their `msg.` prefix.
