@@ -578,13 +578,14 @@ pub fn leaving(elapsed_ms: f64, start_alpha: f64, reduced: bool, duration: f64) 
 }
 
 /// `rise_vector(edge)`: toward the taskbar, so the card rises out of it.
-pub fn rise_vector(edge: &Value) -> (i64, i64) {
-    match pyval::text(edge) {
+pub fn rise_vector(edge: &Value) -> Py<(i64, i64)> {
+    pyval::hashable(edge)?;
+    Ok(match pyval::text(edge) {
         Some("top") => (0, -1),
         Some("left") => (-1, 0),
         Some("right") => (1, 0),
         _ => (0, 1),
-    }
+    })
 }
 
 /// `CardMotion`: one card's life on a clock it is given - enter, hold, exit, gone.
@@ -679,6 +680,11 @@ impl CardMotion {
             },
             _ => SETTLED,
         })
+    }
+
+    /// `_slide`: (from, to, when it began), while the card glides.
+    pub fn slide(&self) -> Option<(Vec<i64>, Vec<i64>, f64)> {
+        self.slide.clone()
     }
 
     /// `gone`.
@@ -1119,11 +1125,21 @@ pub fn premultiply(
     } else {
         0
     };
-    if (places as i64) != (width * band).max(0) {
+    let filled = (width * band).max(0);
+    if filled == 0 {
+        // A bytearray given no bytes for an extended slice deletes the slice's places.
+        let mut index = 0usize;
+        data.retain(|_| {
+            let keep = index < 3 || (index - 3) % 4 != 0;
+            index += 1;
+            keep
+        });
+    } else if (places as i64) != filled {
         return Err("ValueError");
-    }
-    for index in (3..data.len()).step_by(4) {
-        data[index] = 0xff;
+    } else {
+        for index in (3..data.len()).step_by(4) {
+            data[index] = 0xff;
+        }
     }
     let rows = corner_coverage(radius, smoothing)?;
     let size = rows.len() as i64;
@@ -1191,5 +1207,6 @@ mod tests {
         assert_eq!(cut[4 * (20 * 40 + 20) + 3], 255);
         assert!(premultiply(&[1, 2, 3, 4, 5], 1, 1, 4.0, 0, None).is_ok());
         assert!(premultiply(&[0; 12], 2, 1, 4.0, 0, None).is_err());
+        assert_eq!(premultiply(&[0; 8], 0, 2, 4.0, 0, None).unwrap().len(), 6);
     }
 }

@@ -151,11 +151,12 @@ impl Default for Toast {
     }
 }
 
-/// `_toast_xml(title, body, button, uri, extra, more, silent, sound, launch, stays)`, as `show` calls it: `silent`
-/// and `stays` already `is True`, `sound` a bool or None, `launch` a text or None.
+/// `_toast_xml(title, body, button, uri, extra, more, silent, sound, launch, stays)`: `silent`, `stays` and `launch` by
+/// their truth, `sound` only as exactly True or False (`show` hands it `silent is True`, `stays is True`, a bool or
+/// None for `sound` and a text or None for `launch`).
 pub fn toast_xml(title: &Value, body: &Value, toast: &Toast) -> Py<String> {
     let pairs = action_pairs(&toast.button, &toast.uri, &toast.more, false)?;
-    let stays = matches!(toast.stays, Value::Bool(true));
+    let stays = pyval::truthy(&toast.stays);
     let mut actions = String::new();
     if !pairs.is_empty() {
         let mut each = Vec::new();
@@ -184,7 +185,7 @@ pub fn toast_xml(title: &Value, body: &Value, toast: &Toast) -> Py<String> {
     for line in &lines {
         text.push_str(&format!("<text>{}</text>", escape_text(line)?));
     }
-    let silent = matches!(toast.silent, Value::Bool(true));
+    let silent = pyval::truthy(&toast.silent);
     let mut audio = if silent || matches!(toast.sound, Value::Bool(false)) {
         "<audio silent=\"true\"/>".to_owned()
     } else if matches!(toast.sound, Value::Bool(true)) {

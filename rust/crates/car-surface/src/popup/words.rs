@@ -22,19 +22,24 @@ pub fn say(strings: &Map, key: &str, fields: &[(&str, String)]) -> String {
     value
 }
 
-/// `one_line(text, limit)`: a conversation name as a single, bounded line.
-pub fn one_line(text: &Value, limit: usize) -> String {
+/// `one_line(text, limit)`: a conversation name as a single, bounded line - `flat[:limit - 1]` and an ellipsis past
+/// the limit, a slice end below zero counted from the end, as Python's is.
+pub fn one_line(text: &Value, limit: i64) -> String {
     let words: Vec<String> = str_of(text)
         .split(pytext::is_space)
         .filter(|word| !word.is_empty())
         .map(str::to_owned)
         .collect();
     let flat = words.join(" ");
-    let length = flat.chars().count();
+    let length = flat.chars().count() as i64;
     if length <= limit {
         return flat;
     }
-    let kept: String = flat.chars().take(limit.saturating_sub(1)).collect();
+    let mut end = limit - 1;
+    if end < 0 {
+        end = (length + end).max(0);
+    }
+    let kept: String = flat.chars().take(end.min(length) as usize).collect();
     format!("{kept}\u{2026}")
 }
 

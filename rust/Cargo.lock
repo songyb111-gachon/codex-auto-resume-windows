@@ -76,6 +76,7 @@ dependencies = [
  "car-platform",
  "car-policy",
  "car-store",
+ "car-surface",
  "car-words",
  "serde_json",
 ]

@@ -1027,6 +1027,11 @@ impl PopupModel {
         }
     }
 
+    /// The actions under way (`busy`), in the order they began.
+    pub fn busy(&self) -> &[Vec<Value>] {
+        &self.busy
+    }
+
     fn is_busy(&self, key: &[Value]) -> bool {
         self.busy.iter().any(|each| same_key(each, key))
     }
