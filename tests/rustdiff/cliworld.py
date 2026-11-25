@@ -35,6 +35,8 @@ if mode in ("cli", "dispatch"):
     import logging as _logging
     # logging takes time.localtime when it is imported, after the world's patch: as a plain function it would be bound.
     _logging.Formatter.converter = staticmethod(time.localtime)
+    # A record's time is time.time_ns() since 3.13: the world's clock.
+    time.time_ns = lambda: int(world["now"] * 1_000_000_000)
     _status.WakeEvent = _event("wake")
 
     def _world_raise(found, default_class):
@@ -241,6 +243,12 @@ if mode in ("cli", "dispatch"):
     argv = list(spec["argv"])
     if mode == "cli":
         sys.exit(_cli.main(argv))
+    # car-bin's own roles: `bridge` is controlcli.main's, `mcp` mcpserver.main's.
+    if argv[:1] == ["bridge"]:
+        sys.exit(controlcli.main(argv[1:]))
+    if argv[:1] == ["mcp"]:
+        from codex_auto_resume import mcpserver as _mcpserver_main
+        sys.exit(_mcpserver_main.main(argv[1:]))
     commands = [name for action in _plugin_setup.build_parser()._actions if hasattr(action, "choices")
                 and isinstance(action.choices, dict) for name in action.choices]
     if argv and argv[0] in commands:

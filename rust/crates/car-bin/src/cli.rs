@@ -1664,7 +1664,7 @@ pub fn note_edition_left(paths: &Paths, io: &mut Io, pid: u32) {
         return;
     }
     let temporary = Path::new(&paths.state_dir).join(format!("edition-left.{pid}.tmp"));
-    let written = std::fs::write(&temporary, b"standard\n")
+    let written = std::fs::write(&temporary, b"standard\r\n")
         .and_then(|_| std::fs::rename(&temporary, Path::new(target)));
     if written.is_err() {
         io.say("warning: could not note which edition was uninstalled; reinstalling it starts its features off");
