@@ -528,3 +528,62 @@ python build/rust_edition_audit.py --dist build/dist/rust --version 0.6.27-alpha
   handed on (`run`, `--home <home> run`), started with `CREATE_NO_WINDOW` and not waited for. The MCP launcher's retarget (D18) makes
   `codex-auto-resume.exe mcp --home <home>` what car-legacy already hands on. Set the budget's binaries keys from the first full build.
   `test_rust_release.AuditTests` runs the whole audit once on stand-ins (about four minutes: (c) over the real plugin tree).
+
+## The advanced store (seat S7.1a, branch `car-v0627-advstore`, 2026-11-25)
+
+PLAN 5.3 row P7 / S7.1, the store half, into `car-adv` (D19: one crate): `advanced/src/codex_auto_resume_advanced/state/`
+(all 19 modules), `ledger.py` (P11), `profiles.py`, `watchlog.py`, `images.py`, ported from v0.6.26-beta.2; none of them
+moved on dev after it. Seat S7.1b ports `registry.py`, `arming.py`, the statement, `vocabulary.py` and the policy into the
+same crate at the same time: this seat's `lib.rs` lines are `pub mod state; images; ledger; profiles; watchlog;`.
+
+| Python | car-adv |
+|---|---|
+| `state/session.py`, `schema.py` | `state::session` (`AdvancedState`, the opening, every upgrade step, `_carry_windows`, `attach`, the transactions), `state::schema` (+ `schema_gen.rs`: every statement and table list generated from the tag, so `sqlite_master` is the tag's bytes) |
+| `state/arming.py` ... `steers.py` | `state::{arming, spend, records, journal, choices, resets, continuations, prompts, meter, runs, chat, analytics}`, `state::small` (restarts, opens, account, steers) |
+| `Scoped` and the eleven handles | `state::scoped` (`Scoped`, `Handle`) |
+| the call surface by name | `state::calls::{call, scoped_call}`: every method with Python's positional/keyword binding, the answers as the reference's runner writes them |
+| `ledger.py`, `watchlog.py`, `profiles.py`, `images.py` | `ledger` (`ClaimLedger`, `Answer`), `watchlog`, `profiles` (`Profiles`, base64 of Python's `validate=True`), `images` |
+
+The methods take Python-model values (`car_machine::json::Value`) wherever the reference checks a value's type itself,
+so a wrong type is refused with the same class and sentence; values are read and bound as car-store reads and binds
+them (`state::sql`), plus Python's own pre-binding errors (OverflowError for an int past 64 bits, UnicodeEncodeError
+for half a surrogate pair). `rusqlite` is a direct dependency of car-adv now (already in the lock through car-store).
+
+### The seams (`state/seam/`), for the integration
+
+| Seam | Stands in for | Replace with |
+|---|---|---|
+| `registry.rs` + `registry_gen.rs` (`Registry` trait, `Definition`, `OptionDef`, `Shipped`, `Listed`; `GLOBAL_HOURLY`, `CORE_DAILY_CAP`, `CORE_COOLDOWN_SECONDS`) | `registry.py`'s REGISTRY, generated from the tag | S7.1b's registry: implement `Registry` over it, delete `registry_gen.rs` |
+| `words_gen.rs` (36 StrEnums, `KEPT_NOTICES`) | `vocabulary.py` | S7.1b's vocabulary (same member names, upper case) |
+| `hooks.rs` (`held`, `spent_on`, `fresh`) | `engine/hookclaims.py`, `control/sendnow.py` | S7.2 / S7.3 |
+| `accounts.rs` (`Host`: seal/open = DPAPI, the saved accounts' mutex, `private` = the folder's DACL, `authfile.sweep`, `swap.unwind`, `token`; plus `check`, `confined`, `own_folder`, `write_atomic`, `mask` as the tag has them) | `codex/authfile.py`, `codex/account.py`, `codex/swap.py`, `win/dpapi.py`, `win/sync.Mutex` | S7.2's codex modules; car-platform's DPAPI and mutex at the entry points |
+| `Tokens` (`secrets.token_hex`) | the OS random source | car-platform has none yet: a `BCryptGenRandom` there, handed in by the entry points |
+
+`gen_advstore.py --write|--check --ref TAG` makes the three generated files. Not here: `Scoped.outbox` and `Scoped.feed`
+(the courier's, S7.3).
+
+### The diffs (`tests/rustdiff/diffs_advstore.py`, `advstore.py`, `advreference.py`)
+
+The Rust side is car-adv's `examples/advstore.rs` (never shipped; `cargo build --release --locked -p car-adv --example advstore`
+in `advanced/rust`, built by the diffs when missing; `CODEX_AR_ADVSTORE_EXE` names another build). The reference is the tag's
+core **and** advanced trees (`advreference.py`, PYTHONPATH `src;advanced/src`, `CODEX_AR_EDITION=advanced`). Both run one request
+(scratch home, pinned clock, the token counter both use for `secrets.token_hex`) on two copies of one home; every answer and
+every file left is compared (SQLite files dumped, sealed profiles unsealed - the seal is a stand-in both use, never DPAPI and
+never compared as sealed bytes). Answers by class, and by sentence and word for the store's own errors.
+
+Alone: `cd tests && PYTHONPATH="../src;." python -X utf8 -m unittest rustdiff.diffs_advstore`; or `run.py --build -k diffs_advstore`.
+Re-diff at the final: `python -X utf8 tests/rustdiff/rediff_advstore.py --reference v0.6.26`.
+
+### Found and not fixed (another seat's crate)
+
+car-config's `Paths.ensure()` writes the provenance marker `\n`-ended; Python's `write_text` writes it `\r\n` on Windows. car-adv
+writes its own markers (`config/advanced/`, `accounts/`) as Python does (`session::owner_text`); the diffs fold only the two
+car-config markers' line ends (`advstore.KNOWN`). For S1.1/the integration: car-config's two `fs::write(OWNER_TEXT)`.
+
+### For the later seats
+
+* S7.1b: `arming.py` reads `state.arming()`, `meta()`, `move_capability`/`move_set`/`all_off`/`set_keep_on`/... (`state::arming::Move`
+  for `move`'s keywords); `registry.py`'s `Option.takes` and `CapabilityDef.option`/`code` are mirrored in `seam::registry`.
+* S7.2/S7.3: a capability's code gets `state::scoped::Scoped`; the ledger is `ledger::ClaimLedger { state }.claim(core_connection, ...)`
+  inside car-store's claim (core's `BEGIN IMMEDIATE`; car-store's claim still has only the NULL plug's ledger: the plug's P11 call
+  is the integration's).

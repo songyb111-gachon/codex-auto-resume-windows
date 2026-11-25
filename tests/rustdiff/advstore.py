@@ -110,7 +110,9 @@ def raised(exc):
     word = getattr(exc, "refusal", None)
     if word is None:
         word = getattr(exc, "reason", None)
-    return {"raised": type(exc).__name__, "message": str(exc), "word": None if word is None else str(word)}
+    import traceback
+    return {"raised": type(exc).__name__, "message": str(exc), "word": None if word is None else str(word),
+            "trace": traceback.format_exc()[-1500:]}
 
 def bytes_in(arguments, keywords):
     arguments = [bytes(item) if isinstance(item, list) and all(isinstance(x, int) for x in item) else item
@@ -144,7 +146,11 @@ def operate(op):
         return target(*args, **kwargs)
     if "ledger" in op:
         from codex_auto_resume_advanced.ledger import ClaimLedger
+        # As core's store opens its connection (store/session.py): rows by name, the same PRAGMAs.
         connection = sqlite3.connect(str(home / "config" / "state.sqlite"), timeout=10, isolation_level=None)
+        connection.row_factory = sqlite3.Row
+        for pragma in ("trusted_schema=OFF", "foreign_keys=ON", "synchronous=FULL"):
+            connection.execute("PRAGMA " + pragma)
         try:
             connection.execute("BEGIN IMMEDIATE")
             try:

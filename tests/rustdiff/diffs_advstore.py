@@ -216,7 +216,7 @@ class MigrationDiff(Base):
             "newer marked from 10": historic("STATEMENTS", "PRAGMA user_version=10", "PRAGMA application_id=1128333322"),
             "newer unmarked": historic("STATEMENTS", "PRAGMA user_version=10", "PRAGMA application_id=0"),
             "a table too many": historic("STATEMENTS", "CREATE TABLE extra (x)"),
-            "a column too few": historic("STATEMENTS", "ALTER TABLE steers DROP COLUMN finished_at"),
+            "a column too few": historic("STATEMENTS", "ALTER TABLE token_files DROP COLUMN read_at"),
             "no meta row": historic("STATEMENTS", "DELETE FROM meta"),
             "empty schema": historic("STATEMENTS", "DROP TABLE meta"),
             "ceiling 12 at 12": historic("STATEMENTS_V7", "UPDATE meta SET global_hourly=12"),
@@ -727,7 +727,7 @@ class LedgerDiff(Base):
                         out, err = process.communicate(timeout=120)
                         self.assertEqual(process.returncode, 0, err.decode("utf-8", "replace")[-2000:])
                         answers.append(json.loads(out.decode("utf-8").splitlines()[0]))
-                    words = sorted(answer.get("ok") for answer in answers)
+                    words = sorted(str(answer.get("ok")) for answer in answers)
                     self.assertEqual(words, ["DEFER", "hold"], "%s+%s round %d: %r" % (first, second, round_,
                                                                                       answers))
                     results.append(words)
@@ -793,10 +793,10 @@ class ImagesDiff(Base):
     def test_images(self):
         def setup(home: Path) -> None:
             folder = _advanced_folder(home)
-            (folder / "image-7-1-1-%s.png" % ("c" * 32)).write_bytes(bytes(PNG))
-            (folder / "image-8-1-2-%s.gif" % ("d" * 32)).write_bytes(bytes(GIF))
-            (folder / "image-08-1-1-%s.png" % ("e" * 32)).write_bytes(bytes(PNG))
-            (folder / "image-9-%s.webp" % ("f" * 32)).write_bytes(b"RIFF0000WEBPxxxx")
+            (folder / ("image-7-1-1-%s.png" % ("c" * 32))).write_bytes(bytes(PNG))
+            (folder / ("image-8-1-2-%s.gif" % ("d" * 32))).write_bytes(bytes(GIF))
+            (folder / ("image-08-1-1-%s.png" % ("e" * 32))).write_bytes(bytes(PNG))
+            (folder / ("image-9-%s.webp" % ("f" * 32))).write_bytes(b"RIFF0000WEBPxxxx")
             (folder / "unrelated.txt").write_bytes(b"x")
             (home / "picture.png").write_bytes(bytes(PNG))
             (home / "text.txt").write_bytes(b"hello")
