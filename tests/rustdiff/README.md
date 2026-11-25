@@ -336,3 +336,17 @@ differs by side; that one folder is named the same for both.
 **The final re-diff, one command:** `python -X utf8 tests/rustdiff/rediff_appserver.py --reference v0.6.26`. It lists
 which of the ported files and the modules they read changed between v0.6.26-beta.2 and the tag, then runs these six
 modules with the tag as the reference. `rediff_codex.py` (S3.2) runs them too (`-k diffs_codex`).
+
+## The advanced edition (S7.1a, S7.1b, Integration 5; car-adv)
+
+Two seats' diffs, run through one reference. `advref.py` takes a tag's core **and** advanced trees out of git once (`package`,
+`trees`, `locales`), runs a script under them with every home in a scratch folder (`run`, `popen`), and builds and asks car-adv's
+`advprobe` example (`ask`); `diffs_advstore.py` (S7.1a, the store: its own `advstore` example) and `diffs_advpolicy_*.py`
+(S7.1b: vocabulary, standards, measured, policy, registry, statement and `Arming`, through `advprobe`) both use it
+(`advreference.py` was S7.1a's copy of the same). `gen_advstore.py --check` holds `state/schema_gen.rs` to the tag and
+`gen_advpolicy.py --check` the vocabulary and registry tables the store now reads (`GeneratedDiff` runs both).
+
+`ArmingScenarioDiff.test_over_the_real_state` is the diff that holds `Arming` to the tag over the **real** state: the scenarios
+of the stand-in diff, run by the tag's `Arming` over the tag's `AdvancedState` and by car-adv's `Arming` over car-adv's, each on a
+home of its own (`<home>/py`, `<home>/rs`, begun empty), every step's answer, the edges' calls and the state left - as the
+state's own readers say it - equal (`CODEX_AR_ARMING_REAL` sets how many scenarios; 240 by default).
