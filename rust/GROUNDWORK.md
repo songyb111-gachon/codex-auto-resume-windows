@@ -688,3 +688,22 @@ all three, so the proxy really runs car-engine.
   `app_look` "unmatched", `protocol_results` of a broken usage probe, `engine_version`, `session_holder`, `holder`),
   `activity` and `last_usage` (in `facts`, a reading with windows), a clock set back over a cached usage reading and a
   cached loaded state, and Note 1's fractional options. All equal at the first run: nothing to fix in car-engine.
+* **S3 (not done in this seat)**: the plug's answer paths are still traced only with the NULL plug. What a scripted test
+  plug over car-policy's `Plug` (and the reference's `domain/plug.Plug`, the same script on both sides, handed through
+  `engine.open`'s and enginerun's `plug`) would hold, and needs no advanced store: P7 `schedule` (`resend.rs`'s
+  `_resend`/`watch_resent`, `relaxed.rs`'s EARLY and SEND_NOW), P17 `admission` (ADMIT, CAPACITY, `known_failure`'s
+  relaxations, `_refused`'s held and capacity branches), P16 `unloaded` answering QUEUE_FOR_OPEN and TO_SESSION
+  (`foropen.rs`, `tosession.rs`, with `holder`/`session_holder` now askable), P6 `outcome` in `transition`, P14 `moved`
+  and the claim's `carried` set. What needs S7.2's real plug: a P16 `Route` (`routes.rs`: `route.resume` takes no launch
+  guard yet, `Channel::send` neither), P2's records and P11's ledger, P8/P22 errands, P12's pool.
+
+### Checks (2026-11-26, HEAD of this section's parent `fbe947a8b`)
+
+```
+## rust            fmt --check rc=0; clippy --locked --all-targets -D warnings rc=0; test --locked rc=0; cargo deny: all four ok
+## advanced/rust   fmt --check rc=0; clippy rc=0; test --locked rc=0; cargo deny: all four ok
+check_groundwork OK (17 standard crates, 3 advanced); check_rebuild.sh rc=0 (identical, no profile path)
+run.py -k EngineTraceDiff -k EngineReview6 -k EnginePanicDiff -k EngineInputsDiff -k LaunchGuardHeld: 17 tests OK
+  (1 expected failure, B1), 676 s; corpus 81 scenarios / 1,023 steps and walks 60 / 5,153 steps equal
+the 15 frozen modules on CODEX_AR_CORE=rust after every fix: 456 test ids, 0 differ from the Python lane
+```
