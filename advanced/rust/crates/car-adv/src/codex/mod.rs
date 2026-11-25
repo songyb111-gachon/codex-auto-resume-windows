@@ -13,6 +13,7 @@ pub mod goals;
 pub mod inuse;
 pub mod lineage;
 pub mod protocol;
+pub mod session;
 pub mod sessions;
 pub mod threads;
 pub mod tokens;

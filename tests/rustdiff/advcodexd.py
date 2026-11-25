@@ -360,6 +360,79 @@ OPS.update({
                              wmi_escape._SETTLE_SECONDS, list(_startup.NO_REMOTE_DEBUG)],
 })
 
+# ------------------------------------------------------------------------------------------------ Session, submitted
+from codex_auto_resume.codex import pairing as _pairing, transport as _transport  # noqa: E402
+from codex_auto_resume.win import authenticode as _authenticode  # noqa: E402
+from codex_auto_resume.domain.errors import AdapterError as _AdapterError  # noqa: E402
+from codex_auto_resume_advanced.codex import protocol as protocol_  # noqa: E402
+
+
+def _fake_signer(path):
+    for name, value in (WORLD.get("signers") or {}).items():
+        if name.lower() == str(path).lower():
+            if isinstance(value, str):
+                return value
+            raise RuntimeError("stand-in")
+    raise _AdapterError("unsigned")
+
+
+def _no_identity(pid):
+    raise _AdapterError("process_exited")
+
+
+_authenticode.signer = _fake_signer
+_pairing.processes_named = lambda names, families: json.loads(json.dumps(WORLD.get("processes") or []))
+_pairing.resource_users = lambda *paths: []
+_pairing.process_identity = _no_identity
+
+
+def session_error(error):
+    found = {"error": type(error).__name__}
+    if isinstance(error, (_AdapterError, protocol_.SessionRefused)):
+        found["text"] = str(error)
+    if hasattr(error, "method"):
+        found["method"], found["code"] = error.method, error.code
+    return found
+
+
+def session_run(exe, measurement, capability, config, steps):
+    backend = _transport.Backend(Path(os.environ["CODEX_HOME"]), Path(exe))
+    try:
+        session = protocol_.Session(backend, measurement, capability=capability,
+                                    config=[tuple(pair) for pair in config])
+    except Exception as error:
+        return {"new": session_error(error)}
+    try:
+        session.__enter__()
+    except Exception as error:
+        return {"enter": session_error(error)}
+    out, pending = [], []
+    for step in steps:
+        try:
+            if step[0] == "call":
+                out.append({"ok": session.call(step[1], step[2])})
+            elif step[0] == "submit":
+                out.append({"ok": session.submit(step[1], step[2])})
+            elif step[0] == "receive":
+                out.append({"ok": session.receive(step[1], step[2], step[3], seconds=step[4])})
+            elif step[0] == "submitted":
+                pending.append(protocol_.submitted(session, step[1], step[2]))
+                out.append({"ok": len(pending) - 1})
+            elif step[0] == "answer":
+                out.append({"ok": pending[step[1]]()})
+            elif step[0] == "events":
+                out.append({"ok": session.drain_events()})
+            elif step[0] == "declined":
+                out.append({"ok": session.declined_count()})
+        except Exception as error:
+            out.append(session_error(error))
+    session.__exit__()
+    return {"steps": out, "declined": dict(sorted(session.declined.items())),
+            "refused": dict(sorted(session.refused.items()))}
+
+
+OPS["ss.run"] = session_run
+
 # The later families add themselves below this line (EXTRA).
 #EXTRA#
 
