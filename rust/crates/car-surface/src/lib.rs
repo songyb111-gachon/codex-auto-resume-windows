@@ -32,4 +32,4 @@ pub mod pyurl;
 pub mod seam;
 pub mod speech;
 pub mod tray;
-pub mod usage;
+pub use car_machine::domain::usage;
