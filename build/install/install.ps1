@@ -952,18 +952,54 @@ function Invoke-Codex {
 }
 
 function Get-CodexCli {
-    # The desktop app keeps its engine in a content-addressed directory and does not put
-    # it on PATH, so look there rather than relying on the environment.
+    param([string]$RuntimePython, [string]$RuntimeSource)
+    # The desktop app may keep its engine in a content-addressed directory or in its own Store package (#58).
+    # Keep the existing bin preference. Every path is literal (v0.6.23 audit, N7).
     $root = Join-Path $env:LOCALAPPDATA 'OpenAI\Codex\bin'
-    # Every path literally: a profile or temp folder with a [ or ] in its name made the wildcard forms find nothing
-    # (v0.6.23 audit, N7), and the install was refused with "the ChatGPT/Codex desktop app was not found".
-    if (-not (Test-Path -LiteralPath $root)) { return $null }
-    $found = @(Get-ChildItem -LiteralPath $root -Directory -ErrorAction SilentlyContinue |
-        ForEach-Object { Join-Path $_.FullName 'codex.exe' } |
-        Where-Object { Test-Path -LiteralPath $_ } |
-        Sort-Object { (Get-Item -LiteralPath $_).LastWriteTime } -Descending)
-    if ($found.Count -eq 0) { return $null }
-    return $found[0]
+    if (Test-Path -LiteralPath $root -PathType Container) {
+        $found = @(Get-ChildItem -LiteralPath $root -Directory -ErrorAction SilentlyContinue |
+            ForEach-Object { Join-Path $_.FullName 'codex.exe' } |
+            Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
+            Sort-Object { (Get-Item -LiteralPath $_).LastWriteTime } -Descending)
+        if ($found.Count -gt 0) { return $found[0] }
+    }
+
+    # Ask Windows for the registered package of this user, not PATH, a disk search or a guessed version.
+    # Its bundled engine can be present even when bin has never been provisioned.
+    try {
+        $packages = @(Get-AppxPackage -Name 'OpenAI.Codex' -ErrorAction Stop |
+            Where-Object { $_.PackageFamilyName -ceq 'OpenAI.Codex_2p2nqsd0c76g0' -and
+                $_.Status -eq 'Ok' -and $_.SignatureKind -eq 'Store' -and -not $_.IsDevelopmentMode -and
+                -not [string]::IsNullOrWhiteSpace($_.InstallLocation) })
+        if ($packages.Count -ne 1) { return $null }
+        $engine = Join-Path $packages[0].InstallLocation 'app\resources\codex.exe'
+        if (-not (Test-Path -LiteralPath $engine -PathType Leaf)) { return $null }
+        # The ordinary caller still supplies no arguments. Use the same shipped source as the
+        # installation, or the interpreter and verifier already checked by the uninstall path.
+        if (-not $PSBoundParameters.ContainsKey('RuntimePython') -and -not $PSBoundParameters.ContainsKey('RuntimeSource')) {
+            if (-not $Uninstall) {
+                $RuntimePython = Join-Path $Payload 'runtime\python.exe'
+                $RuntimeSource = Join-Path $Payload 'app\src'
+            } else {
+                $RuntimePython = $interpreter
+                $RuntimeSource = Join-Path (Split-Path -Parent (Split-Path -Parent $verifier)) 'src'
+            }
+        }
+        if (-not $RuntimePython -or -not $RuntimeSource -or
+            -not (Test-Path -LiteralPath $RuntimePython -PathType Leaf) -or
+            -not (Test-Path -LiteralPath $RuntimeSource -PathType Container)) { return $null }
+
+        # Use the watcher's existing offline WinVerifyTrust check (C2), including the exact OpenAI signer.
+        # Do not launch a candidate unless that check succeeds. The caller still probes plugin support.
+        $probe = "import sys;sys.path.insert(0,sys.argv[1]);from codex_auto_resume.codex.pairing import official_engine;sys.exit(0 if official_engine(sys.argv[2]) == (True,'openai_signature') else 1)"
+        $ErrorActionPreference = 'Continue'
+        $global:LASTEXITCODE = 1
+        $null = & $RuntimePython -X disable-remote-debug -I -B -c $probe $RuntimeSource $engine 2>$null
+        if ($LASTEXITCODE -eq 0) { return $engine }
+    } catch {
+        # No trustworthy answer: leave the existing install/uninstall refusal in place.
+    }
+    return $null
 }
 
 function Get-MarketplaceRoot {
