@@ -589,7 +589,8 @@ class InstallerShapeTests(unittest.TestCase):
         ours, theirs = self.functions(self.rust), self.functions(self.reference)
         self.assertEqual(set(theirs) - set(ours), {"Get-ChosenPython", "Get-CompilePythons", "Invoke-Precompile"})
         self.assertEqual(set(ours) - set(theirs),
-                         {"Invoke-InstalledEngine", "Save-MigratedFile", "Undo-Migration", "Complete-Migration"})
+                         {"Invoke-InstalledEngine", "Save-MigratedFile", "Undo-Migration", "Complete-Migration",
+                          "Test-KnowsWatcherWasStopped", "Wait-WatcherEnded"})
         changed = {name for name in theirs if name in ours and ours[name] != theirs[name]}
         self.assertEqual(changed, {"Get-CodexCli", "Get-OwnedWatcherProcess", "Invoke-Setup", "Start-StoppedWatcher"})
 
