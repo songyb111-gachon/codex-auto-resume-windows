@@ -879,7 +879,45 @@ and `cliworld.HOOK` puts only these shapes into the tag for the diffs. AUDIT-v06
 
 ### The proofs (reference the v0.6.26 final; `run.py --build --reference v0.6.26`)
 
-PROOFS-PENDING
+```
+python -X utf8 tests/rustdiff/run.py --build --reference v0.6.26 -v -k diffs_mcp        12 tests OK (the last fixes re-run alone)
+  GoldenMcpDiff 2   every case of wiregolden.MCP_CASES (20 tool files), tools-list.json and _protocol.json (16 cases): Rust
+                    equal to the reference AND, canonicalised as wiregolden does, to the committed tests/golden/mcp (D12)
+  FramingDiff 2     117 streams: BOMs, CRLF, a lone CR (and at the 8192-byte boundary), Unicode padding, bad bytes in the first
+                    and a later chunk, json's own nesting limit, batches nested 980-1000 deep (Python's RecursionError at 995,
+                    3.13 and 3.14), 18 ids x 3 envelopes, 31 malformed envelopes, batches of every kind; 600 requests
+  ToolsDiff 5       every tool over arguments of every shape (175 calls), 11 watcher worlds (start_watcher's every outcome), 4
+                    homes x 4 administrators' keys x 2 damaged states, 17 compatibility views (mcp_view's every refusal), 3 clocks
+  PanelDiff 3       the assets; _STYLE, _SCRIPT, panel_keys, FONT_STACK, tiles and rules; 30 pages (themes, designs, text sizes,
+                    UI fonts, seeds, every special day) x 8 worlds (languages, RTL, faces that lack letters) byte for byte;
+                    resources/read over 8 worlds and every special day
+  in all: 169 streams, 1046 response lines, every Host call equal
+python -X utf8 tests/rustdiff/run.py --build --reference v0.6.26 -v -k diffs_cli -k diffs_legacy      8 tests OK
+  ParserDiff 1      43 command lines over the four parsers: abbreviations, --name=value, -n5, --, negative numbers, every
+                    argparse error and -h, as stdout, stderr and the code
+  CommandsDiff 4    every CLI command (pending/enable/disable/cancel/logs/stop/run, status and doctor over 8 engine worlds and
+                    the Restart Manager, compat 7 ways, install and uninstall 11 ways, activate over 13 URIs x 2, diagnostics,
+                    downgrade-state 7 ways), on the golden, empty and fresh homes
+  SetupDiff 1       every plugin_setup.py command: setup through each of its exits and environment words, watcher-running,
+                    status, pending, enable, disable, cancel, stop, doctor, logs, verify-home, claim-home, remove-entry,
+                    desktop-shortcut, downgrade-state, uninstall [--purge], on fresh and empty homes too
+                    stdout, stderr (but Python's tracebacks), code, every file (logs, runtime.json, the markers, the bundle),
+                    the state, every Host and Outside call (4,210 in SetupDiff alone) equal
+  LegacyShapesDiff 1   all 44 published lines: car-legacy's python.exe/pythonw.exe hand each to the core (car-core-world) with
+                    the words its table says, once; the answer (python.exe) and the code are the reference's for the same
+                    words; downgrade-state's one closed line, watcher-running 0/2, setup 0/1/2/4/5 hold
+cargo test -p car-bin (tests/table.rs 6), cargo test -p car-control --test mcp_panel 1
+```
+
+Found by the diffs and fixed here: the panel's palette and shadows are soft's where the reference's defaults are; a batch's
+depth limit; a home's ownership marker, `edition-left.txt` and `runtime.json` are CRLF on disk (Python's text mode -
+car-config's `ensure`/`claim_home` marker was LF, a fault of that crate the CLI diffs caught); a compatibility view the
+reference cannot index ends the command as its traceback does; `--out` naming a folder is the reference's
+`refusing to overwrite <name>`. Faults of the diffs themselves: logging's `converter` and `time.time_ns` on the world's clock,
+`format_local` asked in UTC (`TZ=UTC0`), the reference's role dispatch for `bridge`/`mcp`, stand-in names apart from
+actworld's, a `face=None` page asking the host.
+
+MUTATIONS-PENDING
 
 ### The re-diff
 
