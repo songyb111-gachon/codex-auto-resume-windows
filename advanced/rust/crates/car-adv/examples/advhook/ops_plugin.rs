@@ -147,18 +147,19 @@ pub fn run(op: &str, args: &[Value]) -> Out {
             }
             "put" => {
                 let path = Path::new(&base).join(text(arg(parts, 1)?)?);
-                match maybe_text(arg(parts, 2)?)? {
+                let done = match maybe_text(arg(parts, 2)?)? {
                     Some(content) => {
                         if let Some(parent) = path.parent() {
                             let _ = std::fs::create_dir_all(parent);
                         }
-                        let _ = std::fs::write(&path, content);
+                        std::fs::write(&path, content)
                     }
-                    None => {
-                        let _ = std::fs::remove_file(&path);
-                    }
+                    None => std::fs::remove_file(&path),
+                };
+                match done {
+                    Ok(()) => Value::Null,
+                    Err(_) => object([("error", Value::from("OSError"))]),
                 }
-                Value::Null
             }
             "dump" => dump(Path::new(&base)),
             _ => return Err(Failure::new("BadArgument")),

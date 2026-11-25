@@ -267,6 +267,9 @@ fn home_argument(argv: &[String]) -> Option<Option<String>> {
     Some(home)
 }
 
+/// What makes the live hands of a `--home`.
+pub type HandsFor<'a> = &'a dyn Fn(&str) -> Option<Arc<dyn Hands>>;
+
 /// `main(argv, stdin=, stdout=, hands=)`: the handler, as the launcher runs it: `--home <installation home>`. Always 0; the
 /// block on standard output only where `decide` granted one. Past the budget with no claim begun it passes at once, whatever
 /// is still being read. `hands_for` makes the live hands of a `--home` (S7.3d's); a test hands `hands` instead.
@@ -275,7 +278,7 @@ pub fn main(
     stdin: Box<dyn Read + Send>,
     stdout: &mut dyn Write,
     hands: Option<Arc<dyn Hands>>,
-    hands_for: Option<&dyn Fn(&str) -> Option<Arc<dyn Hands>>>,
+    hands_for: Option<HandsFor<'_>>,
 ) -> i32 {
     let Some(home) = home_argument(argv) else {
         return 0;
@@ -354,10 +357,10 @@ pub fn main(
             &answer(&reason, &FORMAT),
             &Options::new().ensure_ascii(false),
         );
-        if let Ok(text) = text {
-            if stdout.write_all(text.as_bytes()).is_err() || stdout.flush().is_err() {
-                return 0;
-            }
+        if let Ok(text) = text
+            && (stdout.write_all(text.as_bytes()).is_err() || stdout.flush().is_err())
+        {
+            return 0;
         }
     }
     0

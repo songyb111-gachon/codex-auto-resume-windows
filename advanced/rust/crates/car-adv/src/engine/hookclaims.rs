@@ -162,7 +162,7 @@ fn core_holds(
     let rows = sql::tuples(
         connection,
         "SELECT state, max(attempt_count, 1), coalesce(submitted_at, last_claim_at) FROM main.interruptions WHERE thread_id=?",
-        &[thread_id.clone()],
+        std::slice::from_ref(thread_id),
     )?;
     let settled = |state: &Value| {
         pyval::text(state).is_some_and(|word| WAITING.contains(&word) || TERMINAL.contains(&word))
@@ -260,7 +260,7 @@ fn core_refuses(connection: &Connection, key: &Value, limits: &Limits, now: f64)
     let rows = sql::all(
         connection,
         "SELECT * FROM main.interruptions WHERE interruption_id=?",
-        &[key.clone()],
+        std::slice::from_ref(key),
     )?;
     let Some(row) = rows.into_iter().next() else {
         return Ok(false);
@@ -288,6 +288,7 @@ fn core_refuses(connection: &Connection, key: &Value, limits: &Limits, now: f64)
 }
 
 /// `_decide(...)`: the outcome to write, inside the claim's transaction, or None for nothing written.
+#[allow(clippy::too_many_arguments)]
 fn decide(
     connection: &Connection,
     state: &AdvancedState,
@@ -310,7 +311,7 @@ fn decide(
     if let Some(on) = sql::first(
         connection,
         "SELECT enabled FROM main.threads WHERE thread_id=?",
-        &[thread.clone()],
+        std::slice::from_ref(thread),
     )? && !sql::truthy(&on[0])
     {
         return Ok(None);
@@ -318,7 +319,7 @@ fn decide(
     if sql::exists(
         connection,
         &format!("SELECT 1 FROM {ATTACHED}.hook_claims WHERE interruption_id=?"),
-        &[key.clone()],
+        std::slice::from_ref(key),
     )? {
         return Ok(None);
     }
@@ -340,7 +341,7 @@ fn decide(
     let core = sql::first(
         connection,
         "SELECT state FROM main.interruptions WHERE interruption_id=?",
-        &[key.clone()],
+        std::slice::from_ref(key),
     )?;
     if let Some(row) = core
         && !pyval::text(&row[0]).is_some_and(|word| WAITING.contains(&word))
