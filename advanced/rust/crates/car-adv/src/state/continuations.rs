@@ -182,7 +182,7 @@ impl AdvancedState {
         let reason = py::closed(reason, continuation_reason::ALL, "reason")?;
         let now = self.now(at)?;
         self.writing(|connection| {
-            if sql::exists(connection, "SELECT 1 FROM continuations WHERE answer_id=?", &[key.clone()])? {
+            if sql::exists(connection, "SELECT 1 FROM continuations WHERE answer_id=?", std::slice::from_ref(key))? {
                 return Ok(false);
             }
             sql::exec(
@@ -213,7 +213,7 @@ impl AdvancedState {
             Some(connection) => sql::one(
                 connection,
                 &format!("{SELECT} WHERE n.answer_id=?"),
-                &[key.clone()],
+                std::slice::from_ref(key),
             ),
         })
     }
@@ -282,7 +282,7 @@ impl AdvancedState {
                 connection,
                 "SELECT n.capability, n.finished_at, c.state AS record_state FROM continuations n \
                  JOIN records c ON c.record_id = n.record_id WHERE n.record_id=?",
-                &[record_id.clone()],
+                std::slice::from_ref(record_id),
             )?;
             let Some(row) = row else { return Ok(None) };
             if !matches!(sql::get(&row, "finished_at"), Value::Null) {
@@ -293,7 +293,7 @@ impl AdvancedState {
                 sql::exec(
                     connection,
                     "UPDATE continuations SET words=NULL WHERE record_id=?",
-                    &[record_id.clone()],
+                    std::slice::from_ref(record_id),
                 )?;
                 if py::length(queue_id) == Some(36) {
                     sql::exec(
@@ -311,7 +311,7 @@ impl AdvancedState {
                 sql::exec(
                     connection,
                     "UPDATE continuations SET launching_at=NULL WHERE record_id=?",
-                    &[record_id.clone()],
+                    std::slice::from_ref(record_id),
                 )?;
             } else if let Some((reason, state)) = ends(&movement) {
                 sql::exec(
@@ -328,7 +328,7 @@ impl AdvancedState {
                 sql::exec(
                     connection,
                     "UPDATE records SET withdraw=0 WHERE record_id=?",
-                    &[record_id.clone()],
+                    std::slice::from_ref(record_id),
                 )?;
             } else if movement != "waiting" {
                 return Ok(None);

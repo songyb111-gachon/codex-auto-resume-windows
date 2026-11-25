@@ -80,7 +80,7 @@ impl AdvancedState {
         py::thread(thread_id)?;
         let now = self.now(at)?;
         self.writing(|connection| {
-            if sql::exists(connection, "SELECT 1 FROM records WHERE record_id=?", &[record_id.clone()])? {
+            if sql::exists(connection, "SELECT 1 FROM records WHERE record_id=?", std::slice::from_ref(record_id))? {
                 return Ok(false);
             }
             sql::exec(
@@ -110,7 +110,7 @@ impl AdvancedState {
             let row = sql::one(
                 connection,
                 "SELECT state FROM records WHERE record_id=?",
-                &[record_id.clone()],
+                std::slice::from_ref(record_id),
             )?;
             let Some(row) = row else { return Ok(false) };
             if !allowed(sql::get(&row, "state"), state) {
@@ -151,7 +151,7 @@ impl AdvancedState {
         let row = sql::first(
             connection,
             &format!("SELECT state, thread_id FROM {ATTACHED}.records WHERE record_id=?"),
-            &[record_id.clone()],
+            std::slice::from_ref(record_id),
         )?;
         let Some(row) = row else { return Ok(false) };
         if !sql::py_eq(&row[0], &string(record_state::WAITING)) {
@@ -161,7 +161,7 @@ impl AdvancedState {
         for core in sql::tuples(
             connection,
             "SELECT state, queue_id FROM main.interruptions WHERE thread_id=?",
-            &[thread_id.clone()],
+            std::slice::from_ref(&thread_id),
         )? {
             if states::may_be_queued(&core[0], &core[1])
                 .map_err(|class| Error::python(class, "unhashable"))?
@@ -231,7 +231,7 @@ impl AdvancedState {
             Some(connection) => sql::all(
                 connection,
                 "SELECT * FROM records WHERE thread_id=? ORDER BY created_at",
-                &[thread_id.clone()],
+                std::slice::from_ref(thread_id),
             ),
         })?;
         Ok(rows
@@ -278,7 +278,7 @@ impl AdvancedState {
             Some(connection) => sql::all(
                 connection,
                 "SELECT * FROM overrides WHERE interruption_id=? AND used_at IS NULL ORDER BY created_at",
-                &[interruption_id.clone()],
+                std::slice::from_ref(interruption_id),
             ),
         })?;
         Ok(rows

@@ -144,9 +144,12 @@ pub fn tag_problem(tag: &Value) -> Option<&'static str> {
     None
 }
 
+/// A sample's (tag, status, form).
+type Shape = (Value, Value, Value);
+
 /// `aggregated(samples, day=DAY)`: one entry for each code, status number and form, most seen first.
 pub fn aggregated(samples: &[Row], day: f64) -> Result<Vec<Row>> {
-    let mut found: Vec<((Value, Value, Value), (i64, Value))> = Vec::new();
+    let mut found: Vec<(Shape, (i64, Value))> = Vec::new();
     for sample in samples {
         let key = (
             sample.get("tag").cloned().unwrap_or(Value::Null),
@@ -335,7 +338,7 @@ impl AdvancedState {
             Some(connection) => sql::all(
                 connection,
                 "SELECT choice, value FROM options WHERE capability=?",
-                &[capability.clone()],
+                std::slice::from_ref(capability),
             ),
         })?;
         for row in rows {
@@ -476,7 +479,7 @@ impl AdvancedState {
             Some(connection) => sql::all(
                 connection,
                 "SELECT choice, words FROM wordings WHERE capability=?",
-                &[capability.clone()],
+                std::slice::from_ref(capability),
             ),
         })?;
         let mut found = Row::new();
@@ -627,7 +630,7 @@ impl AdvancedState {
             if sql::exec(
                 connection,
                 "DELETE FROM rules WHERE rule_id=?",
-                &[rule_id.clone()],
+                std::slice::from_ref(rule_id),
             )? == 0
             {
                 return Err(Error::refused(refusal::UNKNOWN_RULE));
@@ -659,7 +662,7 @@ impl AdvancedState {
                 connection,
                 "SELECT rule_id, count(*) FROM admissions WHERE rule_id IS NOT NULL AND sampled=1 \
                  AND created_at>=? GROUP BY rule_id",
-                &[since.clone()],
+                std::slice::from_ref(since),
             ),
         })?;
         let mut found = Vec::new();
@@ -679,7 +682,7 @@ impl AdvancedState {
             Some(connection) => sql::one(
                 connection,
                 "SELECT * FROM admissions WHERE interruption_id=?",
-                &[interruption_id.clone()],
+                std::slice::from_ref(interruption_id),
             ),
         })?;
         Ok(row
@@ -826,7 +829,7 @@ impl AdvancedState {
             Some(connection) => sql::all(
                 connection,
                 "SELECT * FROM samples WHERE at>=? ORDER BY sample_id",
-                &[since.clone()],
+                std::slice::from_ref(since),
             ),
         })?;
         Ok(rows

@@ -219,7 +219,7 @@ impl AdvancedState {
             Some(connection) => sql::tuples(
                 connection,
                 "SELECT capability, at FROM spend WHERE interruption_id=? ORDER BY spend_id DESC LIMIT 500",
-                &[interruption_id.clone()],
+                std::slice::from_ref(interruption_id),
             ),
         })?;
         let mut kept = Vec::new();

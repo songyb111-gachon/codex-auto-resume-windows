@@ -278,7 +278,7 @@ impl AdvancedState {
             Some(connection) => sql::one(
                 connection,
                 &format!("{RULE_SELECT} WHERE r.rule_id=?"),
-                &[rule_id.clone()],
+                std::slice::from_ref(rule_id),
             ),
         })?;
         Ok(row.map(rule))
@@ -351,7 +351,7 @@ impl AdvancedState {
                 )? {
                     return Err(Error::refused(refusal::ALREADY_SCHEDULED));
                 }
-                if sql::exists(connection, "SELECT 1 FROM records WHERE record_id=?", &[record_id.clone()])? {
+                if sql::exists(connection, "SELECT 1 FROM records WHERE record_id=?", std::slice::from_ref(record_id))? {
                     return Err(Error::state("record id taken"));
                 }
                 sql::exec(
@@ -644,7 +644,7 @@ impl AdvancedState {
                 "SELECT r.rule_id, r.capability, r.state, r.gate, r.gate_reason, r.words, r.launching_at, \
                  c.state AS record_state FROM reset_rules r JOIN records c ON c.record_id = r.record_id \
                  WHERE r.record_id=?",
-                &[record_id.clone()],
+                std::slice::from_ref(record_id),
             )?;
             let Some(row) = row else { return Ok(None) };
             if !py::is_word(sql::get(&row, "state"), PENDING) {
@@ -739,7 +739,7 @@ impl AdvancedState {
                     sql::exec(
                         connection,
                         "UPDATE records SET withdraw=0 WHERE record_id=?",
-                        &[record_id.clone()],
+                        std::slice::from_ref(record_id),
                     )?;
                 }
                 "delivered" | "unproven" => {
@@ -876,7 +876,7 @@ impl AdvancedState {
                 sql::exec(
                     connection,
                     "UPDATE reset_rules SET launching_at=NULL WHERE rule_id=?",
-                    &[original.clone()],
+                    std::slice::from_ref(&original),
                 )?;
             }
             Ok(true)
@@ -965,7 +965,7 @@ impl AdvancedState {
             Some(connection) => Ok(sql::exec(
                 connection,
                 "UPDATE credit_spends SET tries=2 WHERE spend_id=? AND tries=1 AND outcome IS NULL",
-                &[spend_id.clone()],
+                std::slice::from_ref(spend_id),
             )? == 1),
         })
     }
@@ -977,7 +977,7 @@ impl AdvancedState {
             Some(connection) => Ok(sql::exec(
                 connection,
                 "DELETE FROM credit_spends WHERE spend_id=? AND outcome IS NULL AND tries=1",
-                &[spend_id.clone()],
+                std::slice::from_ref(spend_id),
             )? == 1),
         })
     }

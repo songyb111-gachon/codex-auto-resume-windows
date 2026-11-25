@@ -338,7 +338,7 @@ impl AdvancedState {
             Some(connection) => sql::tuples(
                 connection,
                 "SELECT code, sum(count) FROM sampler WHERE capability=? GROUP BY code",
-                &[capability.clone()],
+                std::slice::from_ref(capability),
             ),
         })?;
         let definition = self.registry.get(capability);
@@ -378,7 +378,7 @@ pub fn prune(connection: &Connection, now: f64) -> Result<()> {
     for row in sql::tuples(
         connection,
         "SELECT DISTINCT capability FROM journal WHERE code=?",
-        &[watched.clone()],
+        std::slice::from_ref(&watched),
     )? {
         sql::exec(
             connection,

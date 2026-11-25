@@ -140,7 +140,7 @@ fn row_of(connection: &Connection, capability: &Value) -> Result<Option<Row>> {
     sql::one(
         connection,
         "SELECT * FROM arming WHERE capability=?",
-        &[capability.clone()],
+        std::slice::from_ref(capability),
     )
 }
 
@@ -258,7 +258,7 @@ impl AdvancedState {
             Some(connection) => sql::exists(
                 connection,
                 "SELECT 1 FROM arming WHERE capability=?",
-                &[capability.clone()],
+                std::slice::from_ref(capability),
             ),
         })
     }
@@ -291,7 +291,7 @@ impl AdvancedState {
                 sql::exec(
                     connection,
                     &format!("DELETE FROM options WHERE capability=? AND {}", kept_clause()),
-                    &[capability.clone()],
+                    std::slice::from_ref(capability),
                 )?;
             }
             let (revision, engine_version, warnings) = if state == arming_state::OFF {
@@ -581,7 +581,7 @@ impl AdvancedState {
                     "SELECT choice FROM options WHERE capability=? AND {}",
                     kept_clause()
                 ),
-                &[capability.clone()],
+                std::slice::from_ref(capability),
             )?
             .into_iter()
             .map(|row| py::py_str(&row[0]))
@@ -598,7 +598,7 @@ impl AdvancedState {
             let row = sql::one(
                 connection,
                 "SELECT state FROM arming WHERE capability=?",
-                &[capability.clone()],
+                std::slice::from_ref(capability),
             )?;
             if on
                 && row
@@ -613,7 +613,7 @@ impl AdvancedState {
                     "DELETE FROM options WHERE capability=? AND {}",
                     kept_clause()
                 ),
-                &[capability.clone()],
+                std::slice::from_ref(capability),
             )?;
             for word in &wanted {
                 sql::exec(
@@ -683,7 +683,7 @@ impl AdvancedState {
             let held = sql::one(
                 connection,
                 "SELECT state, reason FROM arming WHERE capability=?",
-                &[capability.clone()],
+                std::slice::from_ref(capability),
             )?;
             if let Some(held) = held {
                 let reason_rank = KEPT_NOTICES.iter().position(|each| *each == reason);
@@ -729,7 +729,7 @@ impl AdvancedState {
             let row = sql::one(
                 connection,
                 "SELECT state, reason FROM arming WHERE capability=?",
-                &[capability.clone()],
+                std::slice::from_ref(capability),
             )?;
             let Some(row) = row else { return Ok(false) };
             if py::is_word(sql::get(&row, "state"), &[arming_state::OFF]) {
@@ -778,7 +778,7 @@ impl AdvancedState {
             sql::exec(
                 connection,
                 "UPDATE meta SET global_hourly=?, generation = generation + 1",
-                &[value.clone()],
+                std::slice::from_ref(value),
             )?;
             self.note_in(
                 connection,

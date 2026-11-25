@@ -48,7 +48,7 @@ impl AdvancedState {
         py::key(record_id, "record id")?;
         let now = self.now(at)?;
         self.writing(|connection| {
-            if sql::exists(connection, "SELECT 1 FROM records WHERE record_id=?", &[record_id.clone()])? {
+            if sql::exists(connection, "SELECT 1 FROM records WHERE record_id=?", std::slice::from_ref(record_id))? {
                 return Err(Error::state("record id taken"));
             }
             sql::exec(
@@ -122,7 +122,7 @@ impl AdvancedState {
             Some(connection) => sql::one(
                 connection,
                 &format!("SELECT {COLUMNS} FROM chat_messages WHERE record_id=?"),
-                &[record_id.clone()],
+                std::slice::from_ref(record_id),
             ),
         })
     }

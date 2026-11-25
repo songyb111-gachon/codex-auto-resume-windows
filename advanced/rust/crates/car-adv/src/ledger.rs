@@ -240,13 +240,13 @@ impl ClaimLedger<'_> {
         )?;
         let mut paid: Vec<i64> = Vec::new();
         let mut at: Option<f64> = None;
-        acted.sort_by(|a, b| py::py_str(&a.0).cmp(&py::py_str(&b.0)));
+        acted.sort_by_key(|a| py::py_str(&a.0));
         for (capability, words) in &acted {
             let definition = self.state.registry.get(capability).copied();
             let row = sql::first(
                 connection,
                 &format!("SELECT state, since FROM {ATTACHED}.arming WHERE capability=?"),
-                &[capability.clone()],
+                std::slice::from_ref(capability),
             )?;
             let (Some(definition), Some(row)) = (definition, row) else {
                 return Ok(Answer::Hold);
@@ -309,7 +309,7 @@ impl ClaimLedger<'_> {
         let armed = sql::first(
             connection,
             &format!("SELECT state FROM {ATTACHED}.arming WHERE capability=?"),
-            &[found.capability.clone()],
+            std::slice::from_ref(&found.capability),
         )?;
         let (Some(definition), Some(armed)) = (definition, armed) else {
             return Ok(Answer::Hold);
@@ -490,7 +490,7 @@ fn owned(connection: &Connection, key: &Value) -> Result<Option<Owned>> {
                  FROM {ATTACHED}.records c JOIN {ATTACHED}.{table} {alias} ON {alias}.record_id = c.record_id \
                  WHERE c.record_id=?"
             ),
-            &[key.clone()],
+            std::slice::from_ref(key),
         )
     };
     let make = |found: Vec<Value>, launch: &'static str| Owned {

@@ -48,6 +48,13 @@ pub struct AdvancedState {
     connection: Mutex<Option<Connection>>,
 }
 
+/// One upgrade step: the version it starts from, the tables it needs, its statements.
+type Step = (
+    i64,
+    &'static [(&'static str, &'static [&'static str])],
+    &'static [&'static str],
+);
+
 /// The connection, held for one transaction.
 pub(crate) type Held<'a> = MutexGuard<'a, Option<Connection>>;
 
@@ -236,7 +243,7 @@ impl AdvancedState {
                 return Err(Error::state("unsupported or malformed advanced state"));
             }
         } else {
-            let steps: [(i64, &[(&str, &[&str])], &[&str]); 9] = [
+            let steps: [Step; 9] = [
                 (1, schema::TABLES_V1, schema::UPGRADE_FROM_1),
                 (2, schema::TABLES_V2, schema::UPGRADE_FROM_2),
                 (3, schema::TABLES_V3_BEFORE_RESETS, schema::ADD_RESETS),

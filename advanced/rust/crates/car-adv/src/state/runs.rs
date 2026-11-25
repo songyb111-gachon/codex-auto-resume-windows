@@ -93,7 +93,7 @@ impl AdvancedState {
             Ok(sql::exec(
                 connection,
                 "UPDATE headless_runs SET restore_model=NULL WHERE interruption_id=? AND restore_model IS NOT NULL",
-                &[key.clone()],
+                std::slice::from_ref(key),
             )? == 1)
         })
     }
@@ -109,7 +109,7 @@ impl AdvancedState {
                     "SELECT {COLUMNS} FROM headless_runs WHERE capability=? AND restore_model IS NOT NULL \
                      ORDER BY started_at"
                 ),
-                &[capability.clone()],
+                std::slice::from_ref(capability),
             ),
         })
     }
