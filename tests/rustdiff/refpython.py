@@ -154,8 +154,15 @@ def _resolve(value: str) -> Path:
     return path
 
 
-def interpreter() -> Path:
-    """The python.exe the reference runs on, resolved (and unpacked) once per process, once per run across children."""
+def interpreter(value: str | None = None) -> Path:
+    """The python.exe the reference runs on, resolved (and unpacked) once per process, once per run across children.
+    `value` names another runtime (the twin of reftwin.py: `system`, a path); the choice itself when it is None."""
+    if value is not None and value != choice():
+        if ("exe", value) not in _CACHE:
+            exe = _resolve(value)
+            check(exe)
+            _CACHE[("exe", value)] = exe
+        return _CACHE[("exe", value)]
     if "exe" in _CACHE:
         return _CACHE["exe"]
     handed = os.environ.get(RESOLVED_VARIABLE)
@@ -200,10 +207,11 @@ def boot(paths) -> str:
             % ([str(each) for each in paths],))
 
 
-def command(script: str, *arguments, paths=()) -> list:
+def command(script: str, *arguments, paths=(), which: str | None = None) -> list:
     """The argv that runs `script` with `arguments` as sys.argv[1:] on the reference Python, `paths` first on sys.path
-    (also given as PYTHONPATH by the caller, which a runtime that honours it needs and one that does not ignores)."""
-    exe = interpreter()
+    (also given as PYTHONPATH by the caller, which a runtime that honours it needs and one that does not ignores).
+    `which` names another runtime than the chosen one (reftwin.py)."""
+    exe = interpreter(which)
     if ignores_environment(exe):
         return [str(exe), "-X", "utf8", "-c", boot(paths), script, *map(str, arguments)]
     return [str(exe), "-X", "utf8", "-c", script, *map(str, arguments)]

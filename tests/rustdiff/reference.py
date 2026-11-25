@@ -20,7 +20,7 @@ import sys
 import tempfile
 
 import released
-from rustdiff import refpython
+from rustdiff import refpython, reftwin
 
 # D17's tag. Until v0.6.26 is tagged, its last pre-release stands in (change this line, not the callers). The tag
 # that `run.py --reference` (CODEX_AR_REFERENCE) names is the one every run uses; this is only what no one named.
@@ -40,10 +40,10 @@ def scratch_environment(profile: Path, **extra) -> dict:
     return environment
 
 
-def command(script: str, *arguments, paths) -> list:
+def command(script: str, *arguments, paths, which=None) -> list:
     """The argv of the reference's process: `script` as sys.argv[1:] has it, `paths` first on its sys.path, on the Python
     refpython.py chose. Other callers that start the reference themselves (advref, the claim race) use this."""
-    return refpython.command(script, *arguments, paths=paths)
+    return refpython.command(script, *arguments, paths=paths, which=which)
 
 
 def run(script: str, *arguments, profile: Path | None = None, tag: str | None = None,
@@ -54,8 +54,15 @@ def run(script: str, *arguments, profile: Path | None = None, tag: str | None = 
     with tempfile.TemporaryDirectory(prefix="rustdiff-reference-") as own:
         home = Path(profile) if profile is not None else Path(own)
         environment = scratch_environment(home, PYTHONPATH=str(source))
-        return subprocess.run(command(script, *arguments, paths=[source]), input=stdin, capture_output=True,
-                              env=environment, cwd=str(home), creationflags=NO_WINDOW, timeout=300)
+
+        def start(which):
+            return subprocess.run(command(script, *arguments, paths=[source], which=which), input=stdin,
+                                  capture_output=True, env=environment, cwd=str(home), creationflags=NO_WINDOW,
+                                  timeout=300)
+
+        if reftwin.twin():  # the same script on a second Python too (reftwin.py); the answer is the chosen one's
+            return reftwin.twinned(start, home, script, arguments)
+        return start(None)
 
 
 # The bridge as the tag's own entry point runs it - controlcli.main with the argv given - on a source tree,

@@ -61,6 +61,13 @@ else the `build/cache/` of another worktree of the repository (the cache is not 
 (`python build/make_release.py` downloads and checks it into `build/cache/` the same way; an `actions/cache` step on
 `build/cache` could keep it between runs); off CI a missing zip is an error that says where it looked, and `run.py` exits 2.
 
+The twin check (`reftwin.py`): a diff stops at its first mismatch, and a mismatch between Rust and one Python says
+nothing of the other. With `CODEX_AR_REFERENCE_TWIN=system` (or a path) and `CODEX_AR_REFERENCE_TWIN_LOG=<folder>`, every
+`reference.run` also runs its script on the twin Python, with the profile folder put back as it was, and compares exit code,
+stdout, stderr and the profile's files; each call that differs is appended to `<folder>/calls.jsonl` with both answers as
+files. The run's own verdict is the chosen Python's alone. For readers only (a store that writes where it reads sees the first
+run's files outside the profile).
+
 Not routed yet, because other seats own them: the advanced reference (`advref.py` lines 81, 83, 91, hence `advstore.py`'s
 claim race), the claim race of `diffs_store.reference_process` (:266) and the generators (`gen_*.py`, which make the
 Unicode and other tables from `sys.executable`) still start `sys.executable`. They can call `reference.command(...)`. What

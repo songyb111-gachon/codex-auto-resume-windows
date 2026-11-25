@@ -22,7 +22,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "tests")]
 
-from rustdiff import refpython  # noqa: E402
+from rustdiff import refpython, reftwin  # noqa: E402
 
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
@@ -179,6 +179,67 @@ class Bundled(unittest.TestCase):
         self.assertFalse(Path(exe).parent.exists(), "the unpacked runtime was left behind")
         self.assertIn("python 3.14", described)
         self.assertIn("embeddable", described)
+
+
+class Twin(unittest.TestCase):
+    """reftwin.py: the same script on a second Python, what differs logged, the run left as the chosen one made it."""
+    SCRIPT = (
+        "import sys, pathlib" + '\n' +
+        "pathlib.Path('made.txt').write_text('python %d.%d' % sys.version_info[:2])" + '\n' +
+        "print('same line')" + '\n' +
+        "print(tuple(sys.version_info[:2]) if sys.argv[1:] == ['version'] else 'x')")
+
+    def setUp(self):
+        patcher = mock.patch.dict(os.environ)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        for name in (refpython.VARIABLE, refpython.RESOLVED_VARIABLE, reftwin.VARIABLE, reftwin.LOG_VARIABLE):
+            os.environ.pop(name, None)
+        refpython._CACHE.clear()
+        self.addCleanup(refpython._CACHE.clear)
+        scratch = tempfile.TemporaryDirectory(prefix="refpython-twin-")
+        self.addCleanup(scratch.cleanup)
+        self.scratch = Path(scratch.name)
+        self.home = self.scratch / "home"
+        self.home.mkdir()
+        (self.home / "given.txt").write_text("laid down by the case", encoding="utf-8")
+        refpython.select("system")
+
+    def twinned(self, *arguments):
+        def start(which):
+            return subprocess.run(refpython.command(self.SCRIPT, *arguments, paths=[], which=which), capture_output=True,
+                                  cwd=str(self.home), creationflags=NO_WINDOW, timeout=120)
+
+        return reftwin.twinned(start, self.home, self.SCRIPT, arguments)
+
+    def test_no_twin_is_no_twin(self):
+        self.assertIsNone(reftwin.twin())
+        os.environ[reftwin.VARIABLE] = "system"
+        self.assertEqual(reftwin.twin(), "system")
+
+    def test_the_same_python_twice_differs_in_nothing_and_logs_nothing(self):
+        os.environ[reftwin.VARIABLE] = sys.executable
+        os.environ[reftwin.LOG_VARIABLE] = str(self.scratch / "log")
+        done = self.twinned()
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual((self.home / "made.txt").read_text(), "python %d.%d" % sys.version_info[:2])
+        self.assertEqual((self.home / "given.txt").read_text(), "laid down by the case")
+        self.assertFalse((self.scratch / "log" / "calls.jsonl").exists())
+
+    @unittest.skipUnless(find_zip(), "the bundled runtime's zip is in no build/cache here (CI's lanes fetch none)")
+    def test_another_python_is_found_out_and_the_run_is_the_chosen_ones(self):
+        os.environ[reftwin.VARIABLE] = "bundled"
+        os.environ[reftwin.LOG_VARIABLE] = str(self.scratch / "log")
+        done = self.twinned("version")
+        self.assertIn("(%d, %d)" % sys.version_info[:2], done.stdout.decode())
+        self.assertEqual((self.home / "made.txt").read_text(), "python %d.%d" % sys.version_info[:2],
+                         "the twin's file must not be what is left")
+        import json
+
+        entries = [json.loads(line) for line in (self.scratch / "log" / "calls.jsonl").read_text(encoding="utf-8").splitlines()]
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]["differs"], ["stdout", "files"])
+        self.assertIn(b"(3, 14)", (self.scratch / "log" / "00001-twin.out").read_bytes())
 
 
 if __name__ == "__main__":
