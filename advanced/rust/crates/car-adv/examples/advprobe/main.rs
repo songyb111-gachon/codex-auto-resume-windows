@@ -58,7 +58,12 @@ fn main() {
         results.push(match done {
             Ok(Ok(value)) => object([("ok", value)]),
             Ok(Err(failure)) => object([("error", failure.class.into())]),
-            Err(_) => object([("error", "Panic".into())]),
+            Err(payload) => object([(
+                "error",
+                car_adv::state::port::raised(&*payload)
+                    .map_or("Panic", |raised| raised.class)
+                    .into(),
+            )]),
         });
     }
     let answer = object([("results", Value::Array(results))]);
