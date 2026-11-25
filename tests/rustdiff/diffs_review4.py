@@ -48,7 +48,7 @@ def skill_commands(tag: str) -> list[list[str]]:
     for line in text.splitlines():
         cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
         if len(cells) == 2 and cells[1].startswith("`") and cells[1].endswith("`"):
-            words.append(cells[1].strip("`").replace("<thread-uuid>", "123e4567-e89b-42d3-a456-426614174000").split())
+            words.append(cells[1].strip("`").replace("<thread-uuid>", "0a1b2c3d-0001-7000-8000-00000000000a").split())
     return words
 
 
