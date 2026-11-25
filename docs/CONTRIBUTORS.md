@@ -87,6 +87,8 @@ Everyone below is a person outside the project who helped it, in the order they 
   with the shape of its records and a fix they had checked themselves ([#66](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/66)).
 - [@a115599663322](https://github.com/a115599663322) reported that every recovery waited when the Codex app started its server under one of its
   own helper processes, with the cause read out of the code and a patch ([#67](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/67)).
+- [@harshespop](https://github.com/harshespop) reported the same wait at a usage-limit reset on a version before that fix, with the process tree, the watcher's
+  timeline and the rule read out of the code ([#68](https://github.com/songyb111-gachon/codex-auto-resume-windows/issues/68)).
 
 ## A note on the AI contributors
 

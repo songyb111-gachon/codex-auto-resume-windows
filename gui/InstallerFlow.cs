@@ -58,6 +58,9 @@ namespace CodexAutoResume
         internal const int NotStarted = -1;
         /// The window's own code for an update the person put off on the Notes page: nothing was installed.
         internal const int Later = -3;
+        /// The window's own code for a run the bootstrap handed over to the release's own setup program (v0.6.26,
+        /// `handover`): that program's window said how it went, so this one has nothing to add.
+        internal const int HandedOver = -4;
 
         /// The package whose presence makes a tree the advanced edition (src/codex_auto_resume/edition.py).
         internal const string AdvancedPackage = "codex_auto_resume_advanced";

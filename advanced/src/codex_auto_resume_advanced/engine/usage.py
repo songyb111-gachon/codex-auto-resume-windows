@@ -255,11 +255,14 @@ class _Errand:
 # backend for that engine at all (its checks failed, or none was found).
 SKIP_CLOSED, SKIP_UNMATCHED, SKIP_NO_ENGINE = "app_closed", "unmatched", "no_engine"
 SKIPS = (SKIP_CLOSED, SKIP_UNMATCHED, SKIP_NO_ENGINE)
+# v0.6.26 final: after a look that did not read, the next look waits this long - not the poll spacing, so a meter still
+# reads within about a minute of the app opening or of core taking up the engine it serves from; never every core tick.
+SKIP_WAIT = 60
 
 
 class UsageMeter:
     """usage_meter's code: its P8 errand. `session` and `app_running` are seams a test fills."""
-    __slots__ = ("paths", "_scoped", "_session", "_app_running", "_looked", "_why", "_said")
+    __slots__ = ("paths", "_scoped", "_session", "_app_running", "_looked", "_why", "_said", "_skipped_at", "_held")
 
     def __init__(self, paths, *, session=None, app_running=None):
         self.paths = paths
@@ -269,6 +272,8 @@ class UsageMeter:
         self._looked = None
         self._why = None              # why the last look did not read (SKIPS), or None
         self._said = None             # the last such word journalled: once for each change, again after a read
+        self._skipped_at = None       # when the last look that did not read was made (SKIP_WAIT), or None
+        self._held = None             # (the told codex.exe and home, its checked backend), kept until told another
 
     def bind(self, scoped):
         self._scoped = scoped
@@ -282,6 +287,9 @@ class UsageMeter:
             now = scoped.now()
             read = [row["read_at"] for row in scoped.meter.rows().values()]
         except Exception:
+            return DEFER
+        skipped = self._skipped_at
+        if skipped is not None and 0 <= now - skipped < SKIP_WAIT:
             return DEFER
         last = max([*read, self._looked or 0]) if (read or self._looked) else None
         if last is not None and 0 <= now - last < spacing and not self._changed_since(last):
@@ -301,18 +309,33 @@ class UsageMeter:
         if self._app_running is not None:
             return self._app_running() is True
         try:
-            backend = inuse.backend(self.paths)
+            backend = self._backend()
         except Exception:
+            self._held = None
             self._why = SKIP_NO_ENGINE
             return False
         try:
             paired = backend.app_identity()
         except Exception:
             paired = None
+        # v0.6.26 final (S5): what this look found the app serving from instead, for core's next tick to decide on.
+        inuse.saw(self.paths, backend)
         if paired is None:
             self._why = SKIP_UNMATCHED if getattr(backend, "app_look", None) == "unmatched" else SKIP_CLOSED
             return False
         return True
+
+    def _backend(self):
+        """inuse.backend, kept for the codex.exe and home the watcher told until it tells another: its engine checks
+        are run again on every look, and probe the engine again only where its file changed (core's engine_checks)."""
+        told = inuse.told(self.paths)
+        held = self._held
+        if told is not None and held is not None and held[0] == told:
+            held[1]._compatible()
+            return held[1]
+        made = inuse.backend(self.paths)
+        self._held = (told, made) if told is not None else None
+        return made
 
     def _skipped(self) -> None:
         """A look that did not read, journalled once for each change of why (O1: from 2026-11-20 the meter read nothing
@@ -340,8 +363,10 @@ class UsageMeter:
             return None
         now = scoped.now()
         if not self._running():
+            self._skipped_at = now
             self._skipped()
             return None
+        self._skipped_at = None
         self._said = None
         self._looked = now
         try:

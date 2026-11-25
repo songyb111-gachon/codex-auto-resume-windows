@@ -12,6 +12,7 @@ from pathlib import Path
 import time
 
 from .. import chosen_runtime, config, edition, homes, machine, managed, settings, startup, windows
+from ..domain import usage as usage_rule
 from ..domain.plug import DEFER, EXTRA, Surface
 from ..domain.public import self_check
 from ..domain.vocabulary import WatcherEnd
@@ -490,4 +491,10 @@ class WatcherMixin:
         added = self.plug.surface(Surface.STATUS, dict(status))
         if added is not DEFER:
             status[EXTRA] = added
+            # v0.6.26 final: the last usage reading is the newest of the watcher's and the meter's (domain/usage.newest),
+            # the one every surface says - the Dashboard, the panel, the popup and the checkup read it here alike. Only a
+            # plug's meter can make it another, so the standard edition's status is exactly what it was.
+            newest = usage_rule.newest(watcher.get("usage"), added)
+            if newest is not watcher.get("usage"):
+                status["watcher"] = dict(watcher, usage=newest)
         return status

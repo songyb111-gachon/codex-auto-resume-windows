@@ -12,7 +12,7 @@ import json
 from pathlib import Path
 import re
 import sqlite3
-from .errors import SourceError
+from .errors import HistoryNotYet, SourceError
 from .chains import memory as chain_memory
 from .paths import DB_KINDS, _safe_path, newest_generation
 
@@ -64,7 +64,18 @@ class SchemaMixin:
             finally:
                 if connection is not None:
                     connection.close()
+        elif kind == "history" and self._history_not_made():
+            raise HistoryNotYet("No Codex history database yet")
         raise SourceError("No Codex %s database with the required schema" % kind)
+
+    def _history_not_made(self) -> bool:
+        """v0.6.26 final: whether a home with no history database is one Codex has not made it in yet - its newest state
+        database read, and holding no conversation (HistoryNotYet). Anything that cannot be read is no: the refusal as
+        it always was."""
+        try:
+            return self._no_conversation()
+        except Exception:
+            return False
 
     @contextmanager
     def _db(self, kind):

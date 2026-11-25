@@ -450,9 +450,13 @@ class BootstrapTests(unittest.TestCase):
                 self.assertEqual(calls, [], "%s calls Get-FileHash" % script.name)
 
     def test_it_never_asks_for_administrator_rights(self):
+        # v0.6.26: RunAsInvoker is the one exception, and the opposite of a request: the setup handover's program is
+        # started with the caller's own rights, never elevated - and only in that one assignment.
+        self.assertIn("$env:__COMPAT_LAYER = 'RunAsInvoker'", self.text)
+        text = self.text.replace("RunAsInvoker", "")
         for forbidden in ("RunAs", "Set-ExecutionPolicy", "Set-MpPreference",
                           "Add-MpPreference", "netsh "):
-            self.assertNotIn(forbidden, self.text, forbidden)
+            self.assertNotIn(forbidden, text, forbidden)
 
     def test_it_verifies_before_it_executes(self):
         # Order matters more than presence: extraction and the installer call both have
@@ -571,6 +575,9 @@ class BootstrapTests(unittest.TestCase):
         # update question nor any refusal above.
         later = codes.pop("ExitLater")
         self.assertNotIn(later, list(codes.values()) + [refused, other, picked], "putting it off shares a code")
+        # v0.6.26: handed over to a release's own setup program, which is neither an install nor any answer above.
+        handed = codes.pop("ExitHandedOver")
+        self.assertNotIn(handed, list(codes.values()) + [refused, other, picked, later], "the handover shares a code")
         self.assertEqual(set(codes), {"ExitCurrent", "ExitAvailable", "ExitLocalNewer",
                                       "ExitUnavailable"})
         self.assertEqual(len(set(codes.values())), 4, "two answers share a code")

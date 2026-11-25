@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from .. import failures, guards, ladder, machine, needsyou
 from ..machine import OBSERVING, TERMINAL, WAITING, WATCHED
-from ..codex import admissible as admissible_failure, detect
+from ..codex import HistoryNotYet, admissible as admissible_failure, detect
 from ..domain import ids, skips
 from ..domain.plug import DEFER, PACED_AS, Alternative, Point
 from .compaction import COMPACTED
@@ -204,8 +204,13 @@ class DetectMixin:
         asking = (self.plug.wants(Point.ADMISSION) and not self.observing(settings)
                   and not self.managed.disable_auto_resume)
         extra = {"admissible": True, "shapes": True} if asking else {}
-        found = (self.source.latest_failures(since, needs_you=kinds, **extra) if kinds
-                 else self.source.latest_failures(since, **extra))
+        try:
+            found = (self.source.latest_failures(since, needs_you=kinds, **extra) if kinds
+                     else self.source.latest_failures(since, **extra))
+        except HistoryNotYet:
+            # v0.6.26 final: a fresh home - its state holds no conversation, and Codex makes its history with the first
+            # one it saves - has nothing to detect yet: a detection that read nothing, not one that could not read.
+            return
         for raw in found:
             shape, admissible = raw.pop("shape", None), raw.pop("admissible", False)
             record = self._keyed(detect(raw))

@@ -118,8 +118,11 @@ def _binding_holds(report, explicit=None) -> bool:
         if not engine["path_digest"] or engine["signature"] is None:
             return False
         # v0.6.21 (#58): the engine the watcher drives can be the app's, outside bin and signed by OpenAI; the app
-        # is asked only where no candidate in bin is the report's.
-        for candidate in itertools.chain(_candidate_paths(explicit), probes._served_engines()):
+        # is asked only where no candidate in bin is the report's. v0.6.26 final (live acceptance R2b): and before the
+        # app, the engines of its package on disk, so the report on the app's engine stays bound while that very file
+        # is there, whether or not the app runs now - with the app closed every capability read UNKNOWN.
+        for candidate in itertools.chain(_candidate_paths(explicit), probes._package_engines(),
+                                         probes._served_engines()):
             if path_digest(candidate) == engine["path_digest"]:
                 return _signature(candidate) == engine["signature"]
         return False

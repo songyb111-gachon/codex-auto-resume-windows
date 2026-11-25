@@ -952,18 +952,54 @@ function Invoke-Codex {
 }
 
 function Get-CodexCli {
-    # The desktop app keeps its engine in a content-addressed directory and does not put
-    # it on PATH, so look there rather than relying on the environment.
+    param([string]$RuntimePython, [string]$RuntimeSource)
+    # The desktop app may keep its engine in a content-addressed directory or in its own Store package (#58).
+    # Keep the existing bin preference. Every path is literal (v0.6.23 audit, N7).
     $root = Join-Path $env:LOCALAPPDATA 'OpenAI\Codex\bin'
-    # Every path literally: a profile or temp folder with a [ or ] in its name made the wildcard forms find nothing
-    # (v0.6.23 audit, N7), and the install was refused with "the ChatGPT/Codex desktop app was not found".
-    if (-not (Test-Path -LiteralPath $root)) { return $null }
-    $found = @(Get-ChildItem -LiteralPath $root -Directory -ErrorAction SilentlyContinue |
-        ForEach-Object { Join-Path $_.FullName 'codex.exe' } |
-        Where-Object { Test-Path -LiteralPath $_ } |
-        Sort-Object { (Get-Item -LiteralPath $_).LastWriteTime } -Descending)
-    if ($found.Count -eq 0) { return $null }
-    return $found[0]
+    if (Test-Path -LiteralPath $root -PathType Container) {
+        $found = @(Get-ChildItem -LiteralPath $root -Directory -ErrorAction SilentlyContinue |
+            ForEach-Object { Join-Path $_.FullName 'codex.exe' } |
+            Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
+            Sort-Object { (Get-Item -LiteralPath $_).LastWriteTime } -Descending)
+        if ($found.Count -gt 0) { return $found[0] }
+    }
+
+    # Ask Windows for the registered package of this user, not PATH, a disk search or a guessed version.
+    # Its bundled engine can be present even when bin has never been provisioned.
+    try {
+        $packages = @(Get-AppxPackage -Name 'OpenAI.Codex' -ErrorAction Stop |
+            Where-Object { $_.PackageFamilyName -ceq 'OpenAI.Codex_2p2nqsd0c76g0' -and
+                $_.Status -eq 'Ok' -and $_.SignatureKind -eq 'Store' -and -not $_.IsDevelopmentMode -and
+                -not [string]::IsNullOrWhiteSpace($_.InstallLocation) })
+        if ($packages.Count -ne 1) { return $null }
+        $engine = Join-Path $packages[0].InstallLocation 'app\resources\codex.exe'
+        if (-not (Test-Path -LiteralPath $engine -PathType Leaf)) { return $null }
+        # The ordinary caller still supplies no arguments. Use the same shipped source as the
+        # installation, or the interpreter and verifier already checked by the uninstall path.
+        if (-not $PSBoundParameters.ContainsKey('RuntimePython') -and -not $PSBoundParameters.ContainsKey('RuntimeSource')) {
+            if (-not $Uninstall) {
+                $RuntimePython = Join-Path $Payload 'runtime\python.exe'
+                $RuntimeSource = Join-Path $Payload 'app\src'
+            } else {
+                $RuntimePython = $interpreter
+                $RuntimeSource = Join-Path (Split-Path -Parent (Split-Path -Parent $verifier)) 'src'
+            }
+        }
+        if (-not $RuntimePython -or -not $RuntimeSource -or
+            -not (Test-Path -LiteralPath $RuntimePython -PathType Leaf) -or
+            -not (Test-Path -LiteralPath $RuntimeSource -PathType Container)) { return $null }
+
+        # Use the watcher's existing offline WinVerifyTrust check (C2), including the exact OpenAI signer.
+        # Do not launch a candidate unless that check succeeds. The caller still probes plugin support.
+        $probe = "import sys;sys.path.insert(0,sys.argv[1]);from codex_auto_resume.codex.pairing import official_engine;sys.exit(0 if official_engine(sys.argv[2]) == (True,'openai_signature') else 1)"
+        $ErrorActionPreference = 'Continue'
+        $global:LASTEXITCODE = 1
+        $null = & $RuntimePython -X disable-remote-debug -I -B -c $probe $RuntimeSource $engine 2>$null
+        if ($LASTEXITCODE -eq 0) { return $engine }
+    } catch {
+        # No trustworthy answer: leave the existing install/uninstall refusal in place.
+    }
+    return $null
 }
 
 function Get-MarketplaceRoot {
@@ -2288,6 +2324,20 @@ try {
         & $Python -X disable-remote-debug -c 'import sys;print(str(sys.version_info[0])+chr(46)+str(sys.version_info[1]))'
     }) | Where-Object { $_ -is [string] } | Select-Object -First 1
     Ok ('Bundled Python ' + $runtimeVersion + ' (no system Python needed)')
+    # v0.6.26 final: where the advanced edition has a chosen Python every launcher would take, the log says so beside
+    # the bundled one, which still runs setup - the line above alone read as if the watcher ran on the bundled one
+    # (2026-11-24 acceptance). Which one is the program's own rule (chosen_runtime.chosen: the record, and every file
+    # its version requires), asked of the program just copied; the edition still takes the choice back at the
+    # watcher's start where its switch is off, so the line says what is in place, not what will run.
+    if ([string](Get-Variable -Name edition -ValueOnly -ErrorAction SilentlyContinue) -eq 'advanced') {
+        $chosenVersion = @(& {
+            $ErrorActionPreference = 'Continue'
+            & $Python -X disable-remote-debug -I -c 'import sys;sys.path.insert(0,sys.argv[1]);from codex_auto_resume import chosen_runtime;print(chosen_runtime.chosen(sys.argv[2]) or chr(45))' ([string](Get-Variable -Name compileSource -ValueOnly -ErrorAction SilentlyContinue)) $InstallHome
+        }) | Where-Object { $_ -is [string] } | Select-Object -First 1
+        if ([string]$chosenVersion -cmatch '^3\.[1-9][0-9]\.(0|[1-9][0-9]{0,2})$') {
+            Ok ('Chosen Python ' + $chosenVersion + ' in place; the watcher uses it while that choice is on')
+        }
+    }
 
     # The payload is itself a valid local marketplace, so the plugin installs from the bytes
     # already on disk rather than from GitHub, with no network access. Nothing *here*

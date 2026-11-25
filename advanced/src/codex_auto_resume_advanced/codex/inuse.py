@@ -20,6 +20,7 @@ app_engines), both of which a test replaces.
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from codex_auto_resume import config
@@ -27,6 +28,10 @@ from codex_auto_resume import config
 # {an installation's home: (codex.exe, Codex home)}, as its watcher told them, for the life of the
 # process - as core keeps one plug for each home (edition.plug).
 _TOLD = {}
+# v0.6.26 final (S5): {an installation's home: the codex.exe paths the app main ran instead of the told one}, as a
+# capability's own pairing look last found them (`saw`) - forgotten whenever the watcher tells a Codex. Core reads them
+# through the plug (AdvancedPlug.served_elsewhere) and alone decides whether one is taken up (runtime/app.py).
+_ELSEWHERE = {}
 
 
 def _key(paths) -> Path:
@@ -36,6 +41,7 @@ def _key(paths) -> Path:
 def tell(paths, codex_exe, codex_home) -> None:
     """What the watcher of the installation at `paths` drives (AdvancedPlug.codex)."""
     _TOLD[_key(paths)] = (Path(codex_exe).resolve(), Path(codex_home).resolve())
+    _ELSEWHERE.pop(_key(paths), None)
 
 
 def told(paths):
@@ -46,6 +52,22 @@ def told(paths):
 def forget(paths) -> None:
     """What was told for `paths` forgotten: a test's cleanup."""
     _TOLD.pop(_key(paths), None)
+    _ELSEWHERE.pop(_key(paths), None)
+
+
+def saw(paths, backend) -> None:
+    """What a look through `backend` (one `backend(paths)` made) found the app main running instead of the told engine:
+    its `served_elsewhere`, kept only where it was made on the told codex.exe, and nothing where that look found none."""
+    found = told(paths)
+    exe = getattr(backend, "codex_exe", None)
+    if found is None or exe is None or os.path.normcase(str(exe)) != os.path.normcase(str(found[0])):
+        return
+    _ELSEWHERE[_key(paths)] = frozenset(getattr(backend, "served_elsewhere", None) or ())
+
+
+def elsewhere(paths) -> frozenset:
+    """The paths `saw` last kept for `paths`, or nothing."""
+    return _ELSEWHERE.get(_key(paths), frozenset()) if paths is not None else frozenset()
 
 
 def home(paths=None) -> Path:

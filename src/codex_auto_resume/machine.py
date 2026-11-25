@@ -49,6 +49,8 @@ from .domain.states import (CLAIMED, EPOCH_CODEX, EPOCH_STORE, EPOCH_USAGE, EXHA
                             IN_FLIGHT, OBSERVING, OUTCOMES, PLAIN_MOVES, POSSIBLY_SENT, STATES,
                             TERMINAL, V2_STATES, WAITING, WATCHED, epoch, may_be_queued,
                             plain_move_allowed, still_followed, waiting_state)
+# v0.6.26 final: the one rule for which usage reading every surface says, for the popup (ui/popup/model.py).
+from .domain.usage import newest as newest_usage
 
 __all__ = ["ACTORS", "BLOCK", "CLAIMED", "EPOCH_CODEX", "EPOCH_STORE", "EPOCH_USAGE", "EVENT_CODES",
            "EXHAUSTED", "FORCEABLE", "FLAG_AFTER_USER_WORK", "FLAG_LEGACY", "FLAG_USER_JOINED",
@@ -64,7 +66,7 @@ __all__ = ["ACTORS", "BLOCK", "CLAIMED", "EPOCH_CODEX", "EPOCH_STORE", "EPOCH_US
            "encode_gates", "epoch", "event_code", "first_refusal", "gate", "gate_budgets",
            "gate_consent", "gate_schedule", "gate_submission_safe", "hold_for_tier", "inherited", "is_interruption_id",
            "is_uuid",
-           "may_be_queued",
+           "may_be_queued", "newest_usage",
            "over_ceiling", "overlays", "own_budget_only", "own_postponement",
            "plain_move_allowed", "public_code", "public_reason", "reason_code", "resend_candidate",
            "still_followed", "turn_status", "waited_aside", "waiting_state", "was_resent", "would_send_at"]

@@ -1409,9 +1409,10 @@ namespace CodexAutoResume
 
         private void Ended(int ended)
         {
-            if (ended == InstallerFlow.Later)
+            if (ended == InstallerFlow.Later || ended == InstallerFlow.HandedOver)
             {
-                // Put off on the Notes page: nothing was installed, and there is nothing more to say.
+                // Put off on the Notes page: nothing was installed, and there is nothing more to say. Or handed over to
+                // the release's own setup program, whose window said it all.
                 running = false;
                 code = ended;
                 Close();

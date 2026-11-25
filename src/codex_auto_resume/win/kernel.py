@@ -185,6 +185,48 @@ def app_name(family) -> str:
     return family[:cut] if cut > 0 else family
 
 
+ERROR_INSUFFICIENT_BUFFER = 122
+
+
+def package_roots(family) -> list:
+    """The folder of every package of the family `family` installed for this account, as Windows' package manager
+    names it (GetPackagesByPackageFamily, then GetPackagePathByFullName for each full name), whether or not any process
+    of the package runs. Nothing is opened, read or started - the two calls ask the account's package repository - and
+    nothing is answered where Windows has no packages, the family has none, or the list changed between the calls.
+    Raises AdapterError only off Windows.
+
+    v0.6.26 final (live acceptance R2b): what a compatibility reader asks to name the Codex app's own engine while the
+    app is closed (codex/pairing.py package_engines); `WindowsApps` itself is not listed for an account."""
+    k = _kernel()
+    try:
+        by_family, path_of = k.GetPackagesByPackageFamily, k.GetPackagePathByFullName
+    except AttributeError:
+        return []                                   # a Windows with no packages at all
+    by_family.argtypes = [W.LPCWSTR, C.POINTER(C.c_uint32), C.POINTER(W.LPWSTR), C.POINTER(C.c_uint32), W.LPWSTR]
+    by_family.restype = C.c_long
+    path_of.argtypes = [W.LPCWSTR, C.POINTER(C.c_uint32), W.LPWSTR]
+    path_of.restype = C.c_long
+    count, length = C.c_uint32(0), C.c_uint32(0)
+    if by_family(str(family), C.byref(count), None, C.byref(length), None) != ERROR_INSUFFICIENT_BUFFER:
+        return []
+    if not count.value or not length.value:
+        return []
+    names, buffer = (W.LPWSTR * count.value)(), C.create_unicode_buffer(length.value)
+    if by_family(str(family), C.byref(count), names, C.byref(length), buffer) != 0:
+        return []
+    found = []
+    for name in names[:count.value]:
+        if not name:
+            continue
+        size = C.c_uint32(0)
+        if path_of(name, C.byref(size), None) != ERROR_INSUFFICIENT_BUFFER or not size.value:
+            continue
+        path = C.create_unicode_buffer(size.value)
+        if path_of(name, C.byref(size), path) == 0 and path.value:
+            found.append(path.value)
+    return found
+
+
 def running_images():
     """The program file of every process this account may look at, each a full path in lower case - or None where
     the list cannot be made. One Toolhelp snapshot for the process ids, then each process opened for limited query

@@ -246,8 +246,13 @@ class App(WatchLoop, PlugNotices):
         """The official engines (E1, codex/pairing.py official_engine: in bin, or v0.6.21 signed by OpenAI) the app
         main ran as its children the last time the pairing found none at the held path, each with its file's stamp;
         nothing where an engine was named (--codex-exe, the setting or the environment), which is never
-        second-guessed, and nothing that is not there or cannot be read."""
+        second-guessed, and nothing that is not there or cannot be read. v0.6.26 final (S5): where core's own pairing
+        looked at none - nothing waits - those the edition plug's own looks found (its `served_elsewhere`; NULL none)."""
         served = getattr(self._backend, "served_elsewhere", None)
+        try:
+            served = served or getattr(getattr(getattr(self, "_plug", None), "plug", None), "served_elsewhere", None)
+        except Exception:
+            served = None
         if not served or self._codex_exe_override or os.environ.get(config.ENV_CODEX_EXE):
             return frozenset()
         stamps = {os.path.normcase(str(path)): _file_stamp(path) for path in served if official_engine(path)[0]}
