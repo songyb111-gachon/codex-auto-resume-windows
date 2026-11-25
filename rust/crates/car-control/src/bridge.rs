@@ -147,14 +147,84 @@ pub fn payload(raw: &Value) -> Result<Map, ControlError> {
     let Value::Str(text) = raw else {
         unreachable!()
     };
-    let Some(text) = text.as_str() else {
-        // A text holding half of a pair is not UTF-8: `json.loads` reads it as the text it is, and it is not JSON.
-        return Err(ControlError::plain("argument must be JSON"));
-    };
-    match loads(text) {
+    // `json.loads(text)`: a text holding half of a pair is read like any other text.
+    match loads_text(text) {
         Ok(Value::Object(map)) => Ok(map),
         Ok(_) => Err(ControlError::plain("argument must be a JSON object")),
         Err(_) => Err(ControlError::plain("argument must be JSON")),
+    }
+}
+
+/// `json.loads(text)` over a Python `str`, lone surrogates and all. car-machine's reader takes a `&str`, which
+/// cannot hold one, so each lone surrogate stands in as a private-use character the text holds neither raw nor
+/// as an escape (no `\u` of its high half), and the stand-ins are turned back in what was read. A surrogate
+/// outside a string is a syntax error as a stand-in is, and a raw high half beside a raw low half stays two
+/// characters, as Python's scanner keeps them (only two escapes join).
+fn loads_text(text: &Str) -> Result<Value, car_machine::compat::LoadsError> {
+    if let Some(plain) = text.as_str() {
+        return loads(plain);
+    }
+    let lowered = text.as_bytes().to_ascii_lowercase();
+    let taken: std::collections::HashSet<u32> = text.code_points().collect();
+    let mut standing: Vec<(u32, char)> = Vec::new();
+    let mut next = 0xF0000_u32;
+    let mut plain = String::new();
+    for point in text.code_points() {
+        if let Some(character) = char::from_u32(point) {
+            plain.push(character);
+            continue;
+        }
+        if let Some((_, known)) = standing.iter().find(|(each, _)| *each == point) {
+            plain.push(*known);
+            continue;
+        }
+        let character = loop {
+            let candidate = next;
+            next += 1;
+            let high = 0xD800 + ((candidate - 0x10000) >> 10);
+            let escape = format!("\\u{high:04x}");
+            if !taken.contains(&candidate)
+                && !lowered
+                    .windows(escape.len())
+                    .any(|window| window == escape.as_bytes())
+            {
+                break char::from_u32(candidate).expect("a private-use plane");
+            }
+        };
+        standing.push((point, character));
+        plain.push(character);
+    }
+    let mut value = loads(&plain)?;
+    restore(&mut value, &standing);
+    Ok(value)
+}
+
+fn restore_text(text: &Str, standing: &[(u32, char)]) -> Str {
+    let is_standing = |point: u32| standing.iter().any(|(_, each)| *each as u32 == point);
+    if !text.code_points().any(is_standing) {
+        return text.clone();
+    }
+    let points = text.code_points().map(|point| {
+        standing
+            .iter()
+            .find(|(_, each)| *each as u32 == point)
+            .map_or(point, |(lone, _)| *lone)
+    });
+    Str::from_code_points(points).expect("code points read from a Str")
+}
+
+fn restore(value: &mut Value, standing: &[(u32, char)]) {
+    match value {
+        Value::Str(text) => *text = restore_text(text, standing),
+        Value::Array(items) => items.iter_mut().for_each(|item| restore(item, standing)),
+        Value::Object(map) => {
+            let old = std::mem::take(map);
+            for (key, mut each) in old {
+                restore(&mut each, standing);
+                map.insert(restore_text(&key, standing), each);
+            }
+        }
+        _ => {}
     }
 }
 

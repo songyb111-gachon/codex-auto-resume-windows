@@ -215,3 +215,58 @@ fn a_panic_under_the_one_shot_form_is_the_generic_refusal_and_exit_one() {
     );
     assert_eq!(code, 1);
 }
+
+fn text_of(points: &[u32]) -> car_machine::json::Str {
+    car_machine::json::Str::from_code_points(points.iter().copied()).unwrap()
+}
+
+fn points(value: Option<&Value>) -> Vec<u32> {
+    match value {
+        Some(Value::Str(text)) => text.code_points().collect(),
+        other => panic!("not a text: {other:?}"),
+    }
+}
+
+/// The text of `{"<key>": "<value>"}` with the given code points, as the request's argument.
+fn argument_of(key: &[u32], value: &[u32]) -> Value {
+    let mut all: Vec<u32> = "{\"".chars().map(u32::from).collect();
+    all.extend_from_slice(key);
+    all.extend("\": \"".chars().map(u32::from));
+    all.extend_from_slice(value);
+    all.extend("\"}".chars().map(u32::from));
+    Value::Str(text_of(&all))
+}
+
+#[test]
+fn an_argument_text_with_a_lone_surrogate_in_a_string_is_parsed_as_the_text_it_is() {
+    let argument = argument_of(&[0x78, 0xD800], &[0xDC00, 0x79]);
+    let body = car_control::bridge::payload(&argument).expect("json.loads reads it");
+    let (key, value) = body.iter().next().unwrap();
+    assert_eq!(key.code_points().collect::<Vec<_>>(), vec![0x78, 0xD800]);
+    assert_eq!(points(Some(value)), vec![0xDC00, 0x79]);
+}
+
+#[test]
+fn a_raw_high_half_beside_a_raw_low_half_stays_two_characters() {
+    let argument = argument_of(&[0x6B], &[0xD83D, 0xDE00]);
+    let body = car_control::bridge::payload(&argument).unwrap();
+    assert_eq!(points(body.get("k")), vec![0xD83D, 0xDE00]);
+}
+
+#[test]
+fn a_stand_in_never_meets_a_character_the_text_holds_or_an_escape_makes() {
+    // U+F0000 raw, and U+F0001 by an escape pair, beside a lone surrogate: each is read as itself.
+    let mut value = vec![0xD800, 0xF0000];
+    value.extend("\\udb80\\udc01".chars().map(u32::from));
+    let body = car_control::bridge::payload(&argument_of(&[0x6B], &value)).unwrap();
+    assert_eq!(points(body.get("k")), vec![0xD800, 0xF0000, 0xF0001]);
+}
+
+#[test]
+fn a_lone_surrogate_outside_a_string_is_not_json() {
+    let mut all: Vec<u32> = "{\"k\": ".chars().map(u32::from).collect();
+    all.push(0xD800);
+    all.push(u32::from('}'));
+    let error = car_control::bridge::payload(&Value::Str(text_of(&all))).unwrap_err();
+    assert_eq!(error.message.as_str(), Some("argument must be JSON"));
+}
