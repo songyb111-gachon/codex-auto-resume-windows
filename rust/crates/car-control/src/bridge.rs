@@ -466,9 +466,9 @@ fn line_done(control: &Control, raw: &str, output: &mut dyn Write) -> bool {
         Ok(line) => line,
         Err(_) => return false,
     };
+    // `stream_out.write(line + "\n")`: one write, as the reference makes it.
     output
-        .write_all(line.as_bytes())
-        .and_then(|_| output.write_all(b"\n"))
+        .write_all(format!("{line}\n").as_bytes())
         .and_then(|_| output.flush())
         .is_ok()
 }
@@ -487,11 +487,7 @@ pub fn emit(reply: Value, output: &mut dyn Write) -> i32 {
         }
         Err(_) => return CRASHED,
     };
-    if output
-        .write_all(line.as_bytes())
-        .and_then(|_| output.write_all(b"\n"))
-        .is_err()
-    {
+    if output.write_all(format!("{line}\n").as_bytes()).is_err() {
         return CRASHED;
     }
     match &reply {
