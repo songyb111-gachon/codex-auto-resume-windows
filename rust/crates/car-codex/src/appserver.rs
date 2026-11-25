@@ -519,16 +519,47 @@ pub fn oversize(head: &[char], tail: &[char], size: usize, log: &mut dyn FnMut(&
 /// What a protocol session writes to: the helper's input, shared by the caller and the reader.
 type Input = Arc<Mutex<Option<ChildStdin>>>;
 
+/// What a text-mode pipe opened with `errors="replace"` writes of a value's texts: each lone surrogate as `?`.
+fn replaced(value: &Value) -> Value {
+    let text = |text: &Str| {
+        if text.has_surrogate() {
+            let kept: String = text
+                .code_points()
+                .map(|point| char::from_u32(point).unwrap_or('?'))
+                .collect();
+            Str::new(&kept)
+        } else {
+            text.clone()
+        }
+    };
+    match value {
+        Value::Str(each) => Value::Str(text(each)),
+        Value::Array(items) => Value::Array(items.iter().map(replaced).collect()),
+        Value::Object(map) => Value::Object(
+            map.iter()
+                .map(|(key, each)| (text(key), replaced(each)))
+                .collect(),
+        ),
+        other => other.clone(),
+    }
+}
+
+/// `_write(payload)`: `json.dumps(payload, ensure_ascii=False, allow_nan=False)` and a new line, through the
+/// helper's text-mode input (UTF-8, `errors="replace"`): a lone surrogate - an echoed request id can hold one - is
+/// written as `?`, never refused.
 fn write_line(input: &Input, payload: &Value) -> Result<()> {
-    let text = to_string(payload, &Options::wire()).map_err(|_| Error::Python("ValueError"))?;
+    let text = match to_string(payload, &Options::wire()) {
+        Ok(text) => text,
+        Err(car_machine::json::Error::Surrogate) => to_string(&replaced(payload), &Options::wire())
+            .map_err(|_| Error::Python("ValueError"))?,
+        Err(_) => return Err(Error::Python("ValueError")),
+    };
     let mut held = input
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
     let stream = held.as_mut().ok_or(Error::Os)?;
-    // A text-mode pipe on Windows writes "\n" as "\r\n", and replaces what UTF-8 cannot carry.
-    let bytes = String::from_utf8_lossy(text.as_bytes())
-        .replace('\n', "\r\n")
-        .into_bytes();
+    // A text-mode pipe on Windows writes "\n" as "\r\n".
+    let bytes = text.replace('\n', "\r\n").into_bytes();
     stream.write_all(&bytes)?;
     stream.write_all(b"\r\n")?;
     stream.flush()?;
@@ -860,5 +891,28 @@ fn wait(process: &mut Child, seconds: f64) -> bool {
             return false;
         }
         std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `errors="replace"` on the helper's input: a lone surrogate of an echoed id is `?`, the rest as it is.
+    #[test]
+    fn a_lone_surrogate_is_written_as_a_question_mark() {
+        let lone = Str::from_code_points([0x61, 0xD800, 0x62, 0xDC00, 0x1F600]).unwrap();
+        let mut payload = Map::new();
+        payload.insert(Str::from("id"), Value::Str(lone));
+        payload.insert(Str::from("n"), Value::from(1));
+        let payload = Value::Object(payload);
+        assert!(matches!(
+            to_string(&payload, &Options::wire()),
+            Err(car_machine::json::Error::Surrogate)
+        ));
+        assert_eq!(
+            to_string(&replaced(&payload), &Options::wire()).unwrap(),
+            "{\"id\": \"a?b?\u{1F600}\", \"n\": 1}"
+        );
     }
 }

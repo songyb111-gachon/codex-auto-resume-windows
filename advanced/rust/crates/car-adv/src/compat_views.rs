@@ -46,8 +46,14 @@ impl CompatViews {
     /// `_live_view_of(paths)`.
     pub fn default_live_view(&self) -> Result<Value, Unavailable> {
         let settings = self.settings()?;
+        // `settings.get("codex_exe") or ...`: a non-empty text wins over CODEX_EXE, a lone surrogate in it too (the
+        // path then names no file, as the reference's does).
         let named = match settings.get("codex_exe") {
-            Some(Value::Str(text)) if !text.is_empty() => text.as_str().map(str::to_owned),
+            Some(Value::Str(text)) if !text.is_empty() => Some(
+                text.as_str()
+                    .map(str::to_owned)
+                    .unwrap_or_else(|| String::from_utf8_lossy(text.as_bytes()).into_owned()),
+            ),
             _ => None,
         };
         let explicit = named.or_else(|| {
