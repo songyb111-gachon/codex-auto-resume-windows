@@ -528,3 +528,39 @@ python build/rust_edition_audit.py --dist build/dist/rust --version 0.6.27-alpha
   handed on (`run`, `--home <home> run`), started with `CREATE_NO_WINDOW` and not waited for. The MCP launcher's retarget (D18) makes
   `codex-auto-resume.exe mcp --home <home>` what car-legacy already hands on. Set the budget's binaries keys from the first full build.
   `test_rust_release.AuditTests` runs the whole audit once on stand-ins (about four minutes: (c) over the real plugin tree).
+
+## Review 4's fixes, and review 5's S2 (seat fix4, branch `car-v0627-fix4`, 2026-11-25)
+
+What `outputs/plans/v0627-rust/REVIEW-int4.md` found and REVIEW-int5's S2, each fixed with a diff that failed before
+(`tests/rustdiff/diffs_review4.py`, seven; `car-policy tests/review5_replace.rs`), plus `diffs_policy_hive.py`.
+
+* **car-legacy** takes 44 lines (was 26): `legacy_lines.py` also reads every tag's shipped documents that tell someone to
+  run `runtime\python.exe ...\plugin_setup.py` (today only the skill's Commands table) and takes each command in the shapes
+  that tag's `build_parser` takes it (read with `ast`: positionals as `{value}`, choices listed, each option alone in each
+  spelling), the `install` shortcut made without a settings window (`pythonw.exe [-X ...] watcher-launcher.py|auto_resume.py
+  --home <home> status`, shape `shortcut`), and an old settings window's Repair and Desktop-shortcut box (`desktop-shortcut
+  make|remove`). `{value}` is what argparse takes as a value (`value_word`). New shapes `command` and `shortcut` in
+  `CODEX_AUTO_RESUME_LEGACY_ENTRY`. A `\\?\` spelling of the home is the same script; `codex-auto-resume:` alone is a URI;
+  stderr writes never panic and `main_for` catches a panic (exit 1, never 101). The window's bridge and the advanced hook
+  launcher (`-c` lines) are listed as never taken. **For S8.2/P6:** the core must answer `enable`, `disable`, `status`,
+  `pending`, `cancel <id>`, `stop`, `doctor`, `logs [-n|--lines N]`, `uninstall [--purge]`, `desktop-shortcut make|remove`
+  and `--home <home> status`; the shipped SKILL.md still names `runtime\python.exe ... plugin_setup.py` (car-legacy carries it).
+* **The bootstrap proof (c)** (`build/rust_legacy_bootstraps.py`, `--entry-from rust/target/release` alone): every tag's
+  own runtime\python.exe lines, by its `Invoke-InstalledSetup` (or the repair branch's call operator), against car-legacy and
+  the core in a home whose name holds a space, with and without a trailing separator; `test_rust_release.EntryRunTests`.
+* **car-machine** gains `pyfile` (Python's share mode READ|WRITE for every open; `replace`/`rename` = MoveFileExW alone, the
+  one extern outside car-platform, AUDIT) and `winpath` (moved from car-config, which re-exports it): the one
+  `os.path.realpath`, 3.14.10's, behind the `NtOs` trait. car-platform's `paths::realpath` asks natively (CreateFileW as
+  CPython, FindFirstFileW, `links::is_symlink`, LongPathsEnabled); car-config's `Links` gained `readlink` and
+  `find_first_file` (defaults: std's read_link, and "cannot ask"; the harness's probe asks car-platform).
+* **car-platform**: `homelock` and the other opens through `pyfile`; `registry_reads::policy_places` (the product's
+  conversion; the harness calls it); the reader pads a short DWORD/QWORD and retries ERROR_MORE_DATA; FakeRegistry records
+  QWORD/BINARY types; `pytext::strip` for CODEX_HOME and the typeface; `addremove::display_name` answers a `Str`
+  (`str(value).strip()`, repr of a list or dict, `printable_gen.rs` written by `gen_codex.py` with car-codex's);
+  `powerdown::{NO_POWER_ACTION, refuses}`; the probe's `hive_policy`.
+* **car-config**: `owns_home` reads with `compat::loads`; the log holds its stream (as FileHandler) and rotates with
+  `pyfile::rename`. **car-policy**: settings and status-file saves with `pyfile::replace`. **car-codex**: chains'
+  `write_atomically` only (its rollout and workspace opens still share delete: for the seat that owns car-codex).
+* **The suite's power guard**: `tests/sitecustomize.py`, `scripts/test_parts.py` and `tests/rustdiff/core.py` set
+  `CAR_NO_POWER_ACTION`; `tests/test_rust_power_guard.py`, car-platform `tests/power_guard.rs`.
+* Re-diff for the final: `python -X utf8 tests/rustdiff/rediff_review4.py --reference v0.6.26`.
