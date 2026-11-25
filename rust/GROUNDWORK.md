@@ -1782,3 +1782,41 @@ Conflicts, each resolved by keeping both sides:
 | three panic catchers (car-scheduler's `caught` under car-engine's `caught.rs`, car-surface's `seam::caught`, car-adv's `port::Raised`) | one, car-machine `caught` (`61b92acb7`), the lowest crate all of them may name: `catch`, `caught(body, as_error)`, `Raised {class, message}` + `raised`, `class_of` (a `Raised`'s class, a `ClassName: ...` text's, else `Exception`). Each boundary keeps its answer: car-scheduler `Err("Exception")`, car-engine's attributes `Null`/`Some(Err("Exception"))`, car-surface its own `Raised` (with its `code`) first and `class_of` for any other payload, car-adv's `port::{Raised, raised}` re-exported, so the probes answer as before |
 | car-surface `usage.rs` (the final's `domain/usage.newest`, `meter_windows`) | car-machine `domain/usage.rs` (`36686d496`), unchanged, with the small Python helpers it read as private functions; car-surface re-exports `car_machine::domain::usage`, so the popup and the harness name it as before |
 | car-engine's Backend inside the launch guard | checked, nothing to change: car-engine `transport::Transport::send` is car-codex's `send_within`, its scope the guard's `enter` body (the process starts inside it); the harness's `AskBackend::send` (S4.3's traces) asks the stand-in from inside `enter`'s body; the scenario proxy (S4.2) hands the Python backend `SubmissionGuard::key()` and it enters the test store's own `submission_guard(key)`, as before |
+
+### Checks (`CARGO_BUILD_JOBS=4`; reference v0.6.26-beta.2 on the system Python 3.13.15, rustc 1.100.0; HEAD `4ad7f6569`)
+
+```
+## rust            fmt --check rc=0; clippy --locked --all-targets -D warnings rc=0; test --locked --no-fail-fast rc=0 (review_bridge 7 of 7
+                   with the file index, review7_replace, the l10n poison test, car-machine caught 2); cargo deny --locked check: all four ok
+## advanced/rust   fmt --check rc=0; clippy rc=0; test --locked rc=0 (car-adv 5 + review7_attach 1); cargo deny: all four ok
+python -X utf8 rust/tools/check_groundwork.py        rust groundwork: OK (17 standard crates, 3 advanced crates)
+bash advanced/rust/tools/check_rebuild.sh HEAD       rc=0, every binary the same with and without advanced/; profile-path scan: none
+python -X utf8 tests/rustdiff/run.py --build --reference-python system -v
+                                                     Ran 286 tests in 4,265 s: 277 OK, 1 expected failure (diffs_review6's fresh-home
+                                                     test, N1: the final's, not beta.2's), 8 FAIL, no skip. FAIL: ShippedInterpreterDiff
+                                                     .test_edges_shipped (6 of 1,437 cases: the bundled 3.14's Unicode 16 digits, REVIEW-surface
+                                                     S1, the unicode16 seat's, known); and 7 that start an old tag's store or settings
+                                                     (diffs_store Legacy/Migration x2/OpenState, diffs_store_values Blob/NoSettings,
+                                                     diffs_settings_files): ModuleNotFoundError codex_auto_resume in the tag's process.
+                                                     Alone (`-k diffs_store -k diffs_settings_files`, same reference): Ran 22 in 158 s, OK.
+the 15 frozen modules (test_parts --worker, Python lane, then CODEX_AR_CORE=rust; the Engine is rustdiff_engineproxy's)
+                                                     456 test ids, 456 pass on both, 0 differ (Python 186 s, Rust 195 s)
+Python guards (standard lane, wait_quiet.sh): test_repo_hygiene test_privacy_claims test_privacy_bare_hosts test_edition_audit
+  test_srcscan test_stack test_layers test_structural_invariants test_rust_release test_rust_power_guard test_rust_install
+  test_rustdiff_reference_python                     Ran 164 in 1,101 s, OK (skipped=7)
+```
+
+The 7 old-tag reds are not explained yet: they pass alone and after `diffs_bridge_commands` (which extracts v0.6.10 and v0.6.13 first;
+`-k diffs_bridge_commands -k diffs_settings_files -k diffs_store`: Ran 47 in 352 s, OK). In the full run v0.6.10/v0.6.13 were
+extracted by `diffs_bridge_commands` about an hour before `diffs_settings_files`, and the tag's process then found no
+`codex_auto_resume` on its path: the shape of `released.package`'s `%TEMP%\released-<tag>-*` folder gone while its cache entry stays
+(a sweep of %TEMP% by another run on this PC, or a family between them that removes it). The next full run should say which:
+`released.package` could check that the folder is still there before answering its cache.
+
+### For the next seats
+
+* **Integration 8** (fix9, mcp, unicode16, adv72c, adv73c): the merges above changed car-control's file calls (the Host's), car-codex's
+  `receipt`, car-machine (`caught`, `domain::usage`'s `newest`/`meter_windows`) and car-platform (`files::file_index`); a branch cut before
+  them that edits those places conflicts there. unicode16's S1 turns `ShippedInterpreterDiff` green.
+* **Any new D15 boundary**: car-machine `caught` (`catch`, `caught`, `class_of`, `Raised`/`raised`), not a new `catch_unwind`.
+* **S6.1 (car-watcher)**: unchanged from Integration 6's notes; car-surface's popup reads `car_machine::domain::usage::newest`.
