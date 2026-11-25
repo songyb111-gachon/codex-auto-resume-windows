@@ -802,3 +802,60 @@ test_the_shipped_list_above_is_not_behind_the_tags` ("add these to `shipped`": `
 
 `rediff_appserver.py`, `rediff_advstore.py` (it now checks `gen_advstore.py` and `gen_advpolicy.py`) and `rediff_advpolicy.py`, each with `--reference v0.6.26`. The arming
 real-state diff runs with `rediff_advpolicy.py` (it runs the three `diffs_advpolicy_*` modules).
+
+## Fix 7: review 7's findings in car-codex and car-adv (branch `car-v0627-fix7`, 2026-11-26)
+
+Cut from `car-v0627-review7` at `233a90ffd` (Integration 5 plus the reviewer's failing tests). Fixed: S1, S2 and notes 3, 4, 5, 6, 8 (two of three), 9 of
+`outputs/plans/v0627-rust/REVIEW-int5b.md`; that file's end says per finding what was fixed and what was not, and why.
+
+### The lock shape of advanced.sqlite (S1)
+
+The reference's one connection is guarded by a re-entrant lock held for a whole transaction, and `_open` reads `self._connection` WITHOUT that lock where it is already set,
+so core's claim (`ClaimLedger::claim` and `record`, inside core's `BEGIN IMMEDIATE`) attaches the file while another thread's transaction on the advanced connection waits
+for the reservation that very claim holds. car-adv keeps the `Mutex<Option<Connection>>` (a Rust `Connection` is not `Sync`; the mutex is what gives each transaction the
+connection whole, as the RLock does) and adds `open: AtomicBool`, written under the mutex when the connection is opened and when `close` drops it, read without it by
+`attach`. `attach` never touches the advanced connection once it is open - it reads `PRAGMA database_list` of core's connection and attaches there - so the flag is all the
+unlocked read needs. Thread safety is unchanged: every use of the advanced connection itself still holds the mutex. `begin` also rolls back on a panic (a drop guard, as
+car-store's has; D15), and a ROLLBACK that fails goes out as SQLite's own error (the reference raises the raw `sqlite3.Error` from its `except`).
+
+### One bound for a child's output and its exit (S2)
+
+`transport::Output` reads a child's stdout on a thread of its own and `transport::communicate(child, output, until)` is `Popen.communicate(timeout=)` on Windows: the reader
+joined with the time, then the exit waited for with what is left of it. `run_to_end` is `subprocess.run(timeout=)`: on the time's end the child is killed and the pipe read to
+its end (Windows' `run` calls `communicate()` after `kill()`), and the answer is the timeout. Used by `codex --version` (10 s), `codex queue --help` (20 s), the send (45 s;
+then kill, 5 s more, `queue_timeout`) and `compat::evaluator::SystemRunner` (the refresh's PowerShell). Every way out reads the pipe to its end - an `Output` that is dropped
+finishes itself - so no reader thread and no child is left behind; like the reference, a process the engine started that holds the pipe holds the caller as long as it lives.
+The App Server helper's `close` does the same at its end: after its 1 s join it marks the helper's stdout closed (`appserver::Closable`), the read in progress ends as it would,
+the next one fails, and the reader is joined (the reference's `process.stdout.close()` waits for the read in progress).
+
+### For the hosts of `Arming` (S7.3's surfaces, the watcher, P4)
+
+* `state/port.rs` raises an exception the state does not wrap (a `TypeError` of the wire) as a panic carrying `port::Raised {class, message}`. Every entry point that calls
+  `Arming` - each surface's command, the watcher's tick, the MCP tool - calls it inside `std::panic::catch_unwind` and reads the payload with `state::port::raised(&*payload)`:
+  `Some(raised)` is the reference's exception of that class (answer it as that entry point answers that exception: the bridge's generic refusal, the tick's caught error),
+  `None` a panic of the port's own (D15's generic answer). The panics come after the state's call returned, outside any transaction. Hosts today: the `advprobe` example
+  (both its boundaries now answer the class, as the reference's runner does).
+* The compatibility evaluator keys a backend engine by `Backend::object_id()` (`id(backend)`), a number each Backend takes at `new()` and keeps wherever it moves; a Backend
+  does not need pinning any more. A Backend made anew is a new key (a recompute), as a new Python object is unless it reuses a freed one's id.
+
+### Left (not this seat's)
+
+* S3 (`std::fs::rename` in `compat/files.rs`, `layout.rs`, car-adv `images.rs`, `state/seam/accounts.rs`): car-platform's `files::replace` (fix4), at the integration;
+  `review7_replace` stays red until then.
+* A prompt's lone surrogate in `transport::send`: car-platform's `Spawn` takes UTF-8 arguments only, so it goes out as three U+FFFD (and counts three units); a wide
+  argument in `Spawn` is car-platform's.
+* N1 and N2 (the v0.6.26 final's fresh-home probe and package engines): the seat that brings the port to the final.
+
+### Checks
+
+```
+## rust            fmt --check rc=0; clippy --locked --all-targets -D warnings rc=0; cargo deny --locked check: all four ok
+                    test --locked --no-fail-fast: every target passes but review7_replace (S3, red on purpose); review7_send_receipt ok, fix7_engine_checks ok
+## advanced/rust   fmt --check rc=0; clippy rc=0; test --locked rc=0 (car-adv 5 + review7_attach 1); cargo deny: all four ok
+python -X utf8 rust/tools/check_groundwork.py        OK (17 standard crates, 3 advanced crates)
+bash advanced/rust/tools/check_rebuild.sh            rc=0, every binary the same with and without advanced/; profile-path scan: none
+python -X utf8 tests/rustdiff/run.py --build -k diffs_codex -k diffs_adv    Ran 76 tests in 5,575 s, OK (reference v0.6.26-beta.2)
+```
+
+Revert proofs, each its diff reverse-applied, the test run, the diff re-applied: `attach` through the mutex (review7_attach: 10.8 s), `begin` without the guard
+(`a_panic_in_a_body_rolls_back`), the helper's close without `Closable` (fix7_engine_checks: 2.1 s); S2's own red at the base is the reviewer's (accepted in 76.4 s).
