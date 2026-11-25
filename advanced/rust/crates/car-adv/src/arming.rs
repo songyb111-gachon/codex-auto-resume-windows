@@ -691,9 +691,10 @@ impl<'a> Arming<'a> {
     /// `verdict(measurement)`: "pass" where it passed on the Codex in force, "fail" where it failed - on whichever Codex - and
     /// `None` for neither.
     pub fn verdict(&self, measurement: &str) -> Result<Option<&'static str>, Unavailable> {
-        let measurement: Measurement = parse(measurement).ok_or(Unavailable)?;
         let view = self.view();
         let table = self.table(&view);
+        // `Measurement(measurement)` is made after the view and the table are read.
+        let measurement: Measurement = parse(measurement).ok_or(Unavailable)?;
         let Some((found, measured_on)) = table.get(&measurement) else {
             return Ok(None);
         };
