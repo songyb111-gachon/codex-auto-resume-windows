@@ -12,6 +12,7 @@ pub mod credits;
 pub mod goals;
 pub mod headless;
 pub mod inuse;
+pub mod ipc;
 pub mod lineage;
 pub mod protocol;
 pub mod session;
