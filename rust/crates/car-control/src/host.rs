@@ -307,6 +307,19 @@ pub trait Host: Windows + Send + Sync {
         let _ = file;
         false
     }
+    /// `textsize.read()`: Windows' text size, a factor from 1 to 2.25 (S5.2, the panel).
+    fn text_size(&self) -> Value {
+        Value::Float(1.0)
+    }
+    /// `typeface.ui_face()`: the face of Windows' message font, or None where Windows cannot be asked.
+    fn ui_face(&self) -> Option<String> {
+        None
+    }
+    /// `typeface.lacks(face, text)`: the characters of `text` the face has no glyph of its own for.
+    fn face_lacks(&self, face: &str, text: &str) -> String {
+        let _ = (face, text);
+        String::new()
+    }
 }
 
 /// A held named mutex, released when dropped.
@@ -401,6 +414,17 @@ impl Windows for SystemHost {
 impl Host for SystemHost {
     fn now(&self) -> f64 {
         car_store::session::wall_clock()
+    }
+    fn text_size(&self) -> Value {
+        Value::Float(car_platform::registry_reads::text_size(
+            &car_platform::registry::WinRegistry::current_user(),
+        ))
+    }
+    fn ui_face(&self) -> Option<String> {
+        car_platform::typeface::ui_face()
+    }
+    fn face_lacks(&self, face: &str, text: &str) -> String {
+        car_platform::typeface::lacks(face, text)
     }
 
     fn os(&self) -> Arc<dyn Os + Send + Sync> {

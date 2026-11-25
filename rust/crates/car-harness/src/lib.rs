@@ -10,6 +10,7 @@ pub mod codex;
 pub mod defaults;
 pub mod leaves;
 pub mod links;
+pub mod mcp;
 pub mod policy;
 pub mod store;
 

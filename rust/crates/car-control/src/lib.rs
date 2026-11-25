@@ -24,6 +24,7 @@ pub mod host;
 pub mod layer;
 pub mod lifecycle;
 pub mod localclock;
+pub mod mcp;
 pub mod oncewords;
 pub mod ownreport;
 pub mod power;

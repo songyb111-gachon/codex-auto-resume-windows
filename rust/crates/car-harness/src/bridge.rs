@@ -46,6 +46,10 @@ pub struct WorldHost {
     boot: Boot,
     /// S5.1b: the acting calls' answers, and the record of the calls made.
     pub acts: Arc<crate::acting::Acts>,
+    /// S5.2: what the panel asks of Windows - the text size, the UI font, and which letters each face lacks.
+    text_size: Value,
+    ui_face: Option<String>,
+    lacks: Map,
 }
 
 fn text_of(map: &Map, name: &str) -> Option<String> {
@@ -161,6 +165,12 @@ impl WorldHost {
             app_homes: strings("app_homes"),
             boot,
             acts: Arc::new(crate::acting::Acts::from_world(world)),
+            text_size: world.get("text_size").cloned().unwrap_or(Value::Float(1.0)),
+            ui_face: text_of(world, "ui_face"),
+            lacks: match world.get("lacks") {
+                Some(Value::Object(map)) => map.clone(),
+                _ => Map::new(),
+            },
         }
     }
 }
@@ -375,6 +385,19 @@ impl Host for WorldHost {
     fn note_turn(&self, _file: &std::fs::File) -> bool {
         self.acts.note_turn()
     }
+    fn text_size(&self) -> Value {
+        self.text_size.clone()
+    }
+    fn ui_face(&self) -> Option<String> {
+        self.ui_face.clone()
+    }
+    fn face_lacks(&self, face: &str, text: &str) -> String {
+        let lacking = match self.lacks.get(face) {
+            Some(Value::Str(letters)) => letters.as_str().unwrap_or_default().to_owned(),
+            _ => String::new(),
+        };
+        text.chars().filter(|c| lacking.contains(*c)).collect()
+    }
 }
 
 fn unhex(text: &str) -> Vec<u8> {
@@ -417,6 +440,10 @@ pub fn run(home: &Path, request: &Map) -> Value {
     let code = match request.get("mode") {
         Some(Value::Str(mode)) if mode.as_str() == Some("serve") => {
             car_control::bridge::serve(&control, &mut input.as_slice(), &mut output)
+        }
+        // S5.2: the MCP server's loop over the same control, as `mcpserver.Server(control).serve()`.
+        Some(Value::Str(mode)) if mode.as_str() == Some("mcp") => {
+            car_control::mcp::Server::new(&control).serve(&mut input.as_slice(), &mut output)
         }
         _ => {
             let argv: Vec<String> = match request.get("argv") {
