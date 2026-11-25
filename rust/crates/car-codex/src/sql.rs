@@ -26,16 +26,17 @@ pub enum Cell {
 static NULL_CELL: Cell = Cell::Null;
 
 impl Cell {
-    /// The cell as a JSON-shaped value. A BLOB is Python's `bytes`, which no check of the reader ever accepts as a
-    /// number, a text, a list or a time; it is carried as an empty list, which none accepts either. (The one place
-    /// where `bytes` and a list differ - `skips.kind` of a source - reads the cell itself: [`Cell::kind`].)
+    /// The cell as a JSON-shaped value. A BLOB is Python's `bytes`, carried as car-store carries it (car-machine's
+    /// `pybytes::blob`: a one-key object of its hex, equal only to the same bytes), which no check of the reader ever
+    /// accepts as a number, a text, a list or a time. (`skips.kind` and truth read the cell itself: [`Cell::kind`],
+    /// [`Cell::truthy`].)
     pub fn value(&self) -> Value {
         match self {
             Cell::Null => Value::Null,
             Cell::Int(number) => Value::Int(Int::from(*number)),
             Cell::Real(number) => Value::Float(*number),
             Cell::Text(text) => Value::from(text.as_str()),
-            Cell::Blob(_) => Value::Array(Vec::new()),
+            Cell::Blob(bytes) => car_machine::pybytes::blob(bytes),
         }
     }
 

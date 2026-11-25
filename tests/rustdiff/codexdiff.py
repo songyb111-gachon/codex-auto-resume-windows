@@ -68,7 +68,7 @@ def plain(value):
     if isinstance(value, Path):
         return str(value)
     if isinstance(value, bytes):
-        return []                      # a BLOB: car-codex carries it as an empty list (sql::Cell::value)
+        return {chr(0) + "bytes": value.hex()}  # a BLOB, as car-codex's sql::Cell::value carries it (car-machine pybytes)
     return value
 
 

@@ -9,6 +9,7 @@ pub mod domain;
 pub mod hash;
 pub mod json;
 pub mod localclock;
+pub mod pybytes;
 pub mod pyfile;
 pub mod pytext;
 #[rustfmt::skip]
