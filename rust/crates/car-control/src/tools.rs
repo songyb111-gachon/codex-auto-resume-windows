@@ -144,7 +144,7 @@ impl Control {
         let mut found: Vec<(String, String)> = Vec::new();
         let mut total: i64 = 0;
         for path in self.log_files() {
-            let Ok(mut stream) = std::fs::File::open(&path) else {
+            let Ok(mut stream) = self.host.open_file(&path) else {
                 continue;
             };
             use std::io::{Read, Seek, SeekFrom};

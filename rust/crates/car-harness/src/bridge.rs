@@ -260,6 +260,24 @@ impl Host for WorldHost {
         self.inner.is_symlink(path)
     }
 
+    fn file_id(&self, path: &Path) -> Option<u128> {
+        self.inner.file_id(path)
+    }
+    fn read_file(&self, path: &Path) -> std::io::Result<Vec<u8>> {
+        self.inner.read_file(path)
+    }
+    fn open_file(&self, path: &Path) -> std::io::Result<std::fs::File> {
+        self.inner.open_file(path)
+    }
+    fn create_file(&self, path: &Path) -> std::io::Result<std::fs::File> {
+        self.inner.create_file(path)
+    }
+    fn replace(&self, from: &Path, to: &Path) -> std::io::Result<()> {
+        self.inner.replace(from, to)
+    }
+    fn rename(&self, from: &Path, to: &Path) -> std::io::Result<()> {
+        self.inner.rename(from, to)
+    }
     fn lock(&self, name: &str, timeout: f64) -> Result<Box<dyn std::any::Any>, AdapterError> {
         self.inner.lock(name, timeout)
     }

@@ -328,7 +328,8 @@ impl Control {
             }
             Err(SettingsError::Unreadable { .. }) => {
                 // A file it cannot read at all is the one way out of a save it refuses: kept beside it first.
-                crate::aside::set_aside(&*os, &path, self.host.now()).map_err(refused)?;
+                crate::aside::set_aside(&*self.host, &*os, &path, self.host.now())
+                    .map_err(refused)?;
                 Map::new()
             }
             Err(error) => return Err(other(error)),

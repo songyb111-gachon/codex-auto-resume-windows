@@ -83,7 +83,7 @@ pub fn entries(document: &Value) -> Result<Held, &'static str> {
 }
 
 /// `read_file(path)`: (why, entries).
-pub fn read_file(path: &Path) -> Result<(&'static str, Held), &'static str> {
+pub fn read_file(host: &dyn Host, path: &Path) -> Result<(&'static str, Held), &'static str> {
     if car_config::paths::is_link(&path.to_string_lossy()) {
         return Ok((READ_INVALID, Vec::new()));
     }
@@ -97,7 +97,7 @@ pub fn read_file(path: &Path) -> Result<(&'static str, Held), &'static str> {
     if info.len() > FILE_LIMIT {
         return Ok((READ_INVALID, Vec::new()));
     }
-    let bytes = match std::fs::read(path) {
+    let bytes = match host.read_file(path) {
         Ok(bytes) => bytes,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             return Ok((READ_MISSING, Vec::new()));
@@ -126,10 +126,10 @@ fn written_bytes(held: &Held) -> Option<String> {
     to_string(&Value::Object(map), &Options::wire().sort_keys(true)).ok()
 }
 
-fn replace(temporary: &Path, path: &Path) -> std::io::Result<()> {
+fn replace(host: &dyn Host, temporary: &Path, path: &Path) -> std::io::Result<()> {
     let mut last = None;
     for attempt in 0..REPLACE_TRIES {
-        match std::fs::rename(temporary, path) {
+        match host.replace(temporary, path) {
             Ok(()) => return Ok(()),
             Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => {
                 last = Some(error);
@@ -145,7 +145,7 @@ fn replace(temporary: &Path, path: &Path) -> std::io::Result<()> {
 
 /// `_write(path, held)`: `held` to `path` whole, or the file removed when it holds nothing: false where Windows
 /// refused, with nothing left behind.
-fn write(path: &Path, held: &Held) -> bool {
+fn write(host: &dyn Host, path: &Path, held: &Held) -> bool {
     if held.is_empty() {
         let present = path.exists() || car_config::paths::is_link(&path.to_string_lossy());
         if !present {
@@ -157,7 +157,7 @@ fn write(path: &Path, held: &Held) -> bool {
         };
     }
     let folder = path.parent().unwrap_or(Path::new("."));
-    let Ok((temp, mut file)) = temporary(folder, "once-words.", ".tmp") else {
+    let Ok((temp, mut file)) = temporary(host, folder, "once-words.", ".tmp") else {
         return false;
     };
     let ok = written_bytes(held)
@@ -169,7 +169,7 @@ fn write(path: &Path, held: &Held) -> bool {
         })
         .unwrap_or(false);
     drop(file);
-    if ok && replace(&temp, path).is_ok() {
+    if ok && replace(host, &temp, path).is_ok() {
         return true;
     }
     let _ = std::fs::remove_file(&temp);
@@ -192,7 +192,7 @@ impl<'a> OnceWords<'a> {
 
     /// `held()`: every entry that may be believed now.
     pub fn held(&self) -> Result<Held, &'static str> {
-        Ok(read_file(&self.path)?.1)
+        Ok(read_file(self.host, &self.path)?.1)
     }
 
     /// `words(key)`: this interruption's words, checked again as they are read, or None.
@@ -219,7 +219,7 @@ impl<'a> OnceWords<'a> {
             return (None, false);
         };
         let outcome = (|| {
-            let Ok((why, mut held)) = read_file(&self.path) else {
+            let Ok((why, mut held)) = read_file(self.host, &self.path) else {
                 return (None, false);
             };
             if why == READ_UNREADABLE {
@@ -230,7 +230,7 @@ impl<'a> OnceWords<'a> {
             if held == before && why != READ_INVALID {
                 return (Some(answer), true);
             }
-            let written = write(&self.path, &held);
+            let written = write(self.host, &self.path, &held);
             (Some(answer), written)
         })();
         drop(lock);
@@ -327,7 +327,7 @@ impl<'a> OnceWords<'a> {
 
     /// `prune(keep)`: every entry whose interruption `keep` no longer keeps taken away; how many.
     pub fn prune(&self, keep: impl Fn(&str) -> bool) -> usize {
-        let Ok((why, held)) = read_file(&self.path) else {
+        let Ok((why, held)) = read_file(self.host, &self.path) else {
             return 0;
         };
         if why == READ_MISSING || (why == READ_OK && held.iter().all(|(key, _)| keep(key))) {

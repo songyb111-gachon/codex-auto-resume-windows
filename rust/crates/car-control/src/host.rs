@@ -8,6 +8,7 @@
 //!
 //! Every method says which Python call it answers.
 
+use std::fs::{File, OpenOptions};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -73,6 +74,23 @@ pub trait Host: Windows + Send + Sync {
     }
     /// `os.path.islink`, the way the store and the settings ask it.
     fn is_symlink(&self, path: &Path) -> bool;
+    /// `os.stat(path).st_ino`: the file's identity, which a replaced file does not keep (`Control._seen_file`'s
+    /// stamp). None where Windows will not say.
+    fn file_id(&self, path: &Path) -> Option<u128>;
+    /// `open(path, "rb").read()`: the whole file, opened as Python opens it (shared for reading and writing, never
+    /// for delete: a file this holds cannot be deleted or renamed while it is read).
+    fn read_file(&self, path: &Path) -> std::io::Result<Vec<u8>>;
+    /// `open(path, "rb")`: a file to read in pieces, shared as `read_file` shares it.
+    fn open_file(&self, path: &Path) -> std::io::Result<File>;
+    /// `tempfile.mkstemp`'s open: a new file, made exclusively (FileExistsError for a name taken), shared as Python
+    /// shares.
+    fn create_file(&self, path: &Path) -> std::io::Result<File>;
+    /// `os.replace(from, to)`: MoveFileExW with REPLACE_EXISTING alone - a target another handle holds open, or a
+    /// folder or a junction, is refused (PermissionError, 5), whatever std's own rename would do.
+    fn replace(&self, from: &Path, to: &Path) -> std::io::Result<()>;
+    /// `os.rename(from, to)`: MoveFileExW with no flag - an existing name, a dangling link included, is refused
+    /// (FileExistsError, 183).
+    fn rename(&self, from: &Path, to: &Path) -> std::io::Result<()>;
     /// `win.sync.Mutex(name, timeout)` entered: a guard that holds it until dropped, or why it could not be had.
     fn lock(&self, name: &str, timeout: f64) -> Result<Box<dyn std::any::Any>, AdapterError>;
 }
@@ -258,11 +276,63 @@ impl Host for SystemHost {
     }
 
     fn app_homes(&self) -> Vec<String> {
-        crate::homefind::app_homes(std::env::var("LOCALAPPDATA").ok().as_deref())
+        crate::homefind::app_homes(self, std::env::var("LOCALAPPDATA").ok().as_deref())
     }
 
     fn is_symlink(&self, path: &Path) -> bool {
         car_platform::links::is_symlink(path)
+    }
+
+    fn file_id(&self, path: &Path) -> Option<u128> {
+        // std's stable surface has no file index (`windows_by_handle` is unstable) and D3 keeps the Windows call in
+        // car-platform: the creation time stands in until the integration hands car-platform's file index in
+        // (GROUNDWORK, Integration 6). It is a new file's own, but a rename onto a name just deleted may carry the
+        // old file's (NTFS tunnelling), where st_ino would not.
+        #[cfg(windows)]
+        {
+            use std::os::windows::fs::MetadataExt;
+            std::fs::metadata(path)
+                .ok()
+                .map(|info| u128::from(info.creation_time()))
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = path;
+            None
+        }
+    }
+
+    fn read_file(&self, path: &Path) -> std::io::Result<Vec<u8>> {
+        use std::io::Read;
+        let mut bytes = Vec::new();
+        self.open_file(path)?.read_to_end(&mut bytes)?;
+        Ok(bytes)
+    }
+
+    fn open_file(&self, path: &Path) -> std::io::Result<File> {
+        python_options().read(true).open(path)
+    }
+
+    fn create_file(&self, path: &Path) -> std::io::Result<File> {
+        python_options()
+            .read(true)
+            .write(true)
+            .create_new(true)
+            .open(path)
+    }
+
+    fn replace(&self, from: &Path, to: &Path) -> std::io::Result<()> {
+        if held_or_folder(to) {
+            return Err(std::io::Error::from_raw_os_error(5));
+        }
+        std::fs::rename(from, to)
+    }
+
+    fn rename(&self, from: &Path, to: &Path) -> std::io::Result<()> {
+        if std::fs::symlink_metadata(to).is_ok() {
+            return Err(std::io::Error::from_raw_os_error(183));
+        }
+        std::fs::rename(from, to)
     }
 
     fn lock(&self, name: &str, timeout: f64) -> Result<Box<dyn std::any::Any>, AdapterError> {
@@ -272,6 +342,53 @@ impl Host for SystemHost {
             .enter()
             .map_err(|error| AdapterError(error.0.to_owned()))?;
         Ok(Box::new(Held(mutex)))
+    }
+}
+
+/// `FILE_SHARE_READ | FILE_SHARE_WRITE`: the C runtime's `_SH_DENYNO`, which every Python open uses. std's own opens
+/// share delete too, so a file the reference holds cannot be deleted or renamed and one std holds can.
+#[cfg(windows)]
+const PYTHON_SHARE: u32 = 0x1 | 0x2;
+
+/// `OpenOptions::new()` with Python's share mode.
+fn python_options() -> OpenOptions {
+    let mut options = OpenOptions::new();
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        options.share_mode(PYTHON_SHARE);
+    }
+    options
+}
+
+/// Whether `os.replace` onto `path` would be refused (error 5) where std's rename would go through: a folder or a
+/// junction (std's POSIX-semantics retry replaces a junction), or a file another handle holds open (std's retry
+/// replaces it when that handle shares delete). An open asking DELETE access and sharing nothing fails with a
+/// sharing violation (32) while any other handle with any access is open, whatever that handle shares. The product
+/// hands car-platform's `files::replace` in instead (integration 6); this is the std-only rule it answers by.
+fn held_or_folder(path: &Path) -> bool {
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::{MetadataExt, OpenOptionsExt};
+        const DELETE: u32 = 0x0001_0000;
+        const FILE_ATTRIBUTE_DIRECTORY: u32 = 0x10;
+        const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
+        if let Ok(info) = std::fs::symlink_metadata(path)
+            && info.file_attributes() & FILE_ATTRIBUTE_DIRECTORY != 0
+        {
+            return true;
+        }
+        let probe = OpenOptions::new()
+            .access_mode(DELETE)
+            .share_mode(0)
+            .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
+            .open(path);
+        matches!(probe, Err(error) if error.raw_os_error() == Some(32))
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = path;
+        false
     }
 }
 
