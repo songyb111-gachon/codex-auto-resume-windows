@@ -135,10 +135,11 @@ fn install_launcher(machine: &Machine, home: &str, mode: &str) -> Result<(), Cli
     let text = to_string(&Value::Object(payload), &Options::new().indent(2))
         .map_err(|_| CliError("ValueError".to_owned()))?;
     // `write_text` in text mode: each line ends CRLF on disk.
-    std::fs::write(Path::new(home).join(RUNTIME_CONFIG), text.replace('
-', "
-").as_bytes())
-        .map_err(|error| CliError(error.to_string()))?;
+    std::fs::write(
+        Path::new(home).join(RUNTIME_CONFIG),
+        text.replace('\n', "\r\n").as_bytes(),
+    )
+    .map_err(|error| CliError(error.to_string()))?;
     let paths = machine.paths(Some(home)).map_err(CliError)?;
     paths.claim_home();
     Ok(())
