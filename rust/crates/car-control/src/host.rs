@@ -300,6 +300,13 @@ pub trait Host: Windows + Send + Sync {
         let _ = home;
         Err(Raised::refused("rescan.judge_for"))
     }
+    /// `codexstart._note_turn(stream)`: this writer's turn at codex-start.log - one byte locked past any end the
+    /// file can have, within two seconds. A byte-range lock is a Windows call car-platform does not have yet, so the
+    /// default (and `SystemHost`) answers no turn: the line is appended and the file is not cut.
+    fn note_turn(&self, file: &File) -> bool {
+        let _ = file;
+        false
+    }
 }
 
 /// A held named mutex, released when dropped.

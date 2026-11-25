@@ -14,6 +14,7 @@
 pub mod actions;
 pub mod aside;
 pub mod bridge;
+pub mod codexstart;
 pub mod commands;
 pub mod compat;
 pub mod diagnostics;
