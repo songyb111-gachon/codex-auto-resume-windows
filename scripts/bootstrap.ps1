@@ -2248,6 +2248,35 @@ function Test-CurrentWatcherStopped {
     return $null
 }
 
+function Stop-WatcherBeforeOlder {
+    <#
+        v0.6.27 (PLAN 6.10): before the installer of a Python version - v0.6.26 or an earlier one - runs over a Rust
+        installation, the Rust watcher is stopped here. That installer looks for a running watcher only as
+        runtime\pythonw.exe running watcher-launcher.py, so it would not see the Rust one (app\bin\CodexAutoResume.exe):
+        it would move the program aside under a running watcher, whose mutex its own watcher would then find held. The
+        installed core is asked itself - `stop`, then `watcher-running` until it answers that the watcher does not run,
+        for a minute at most - and nothing is ever ended any other way. Not through runtime\python.exe: car-legacy takes
+        only the lines earlier versions used, and no earlier version asked `stop` so. 'not-needed' - the installation is
+        not a Rust one, or the archive is itself a Rust one, whose installer sees the host - 'stopped', or
+        'watcher-running'.
+    #>
+    param([string]$Home_, [string]$Unpacked)
+    $core = Join-Path $Home_ 'app\bin\codex-auto-resume.exe'
+    if (-not (Test-Path -LiteralPath $core -PathType Leaf)) { return 'not-needed' }
+    if (Test-Path -LiteralPath (Join-Path $Unpacked 'payload\app\bin\codex-auto-resume.exe') -PathType Leaf) { return 'not-needed' }
+    $ErrorActionPreference = 'Continue'
+    $null = @(& $core 'stop' 2>$null)
+    $deadline = (Get-Date).AddSeconds(60)
+    while ($true) {
+        # Running until the core says otherwise: one that cannot be started leaves the last native call's code here.
+        $global:LASTEXITCODE = 0
+        $null = @(& $core 'watcher-running' 2>$null)
+        if ($LASTEXITCODE -ne 0) { return 'stopped' }
+        if ((Get-Date) -ge $deadline) { return 'watcher-running' }
+        Start-Sleep -Milliseconds 500
+    }
+}
+
 function Restore-AfterFailedPick {
     <#
         After Install another version...'s installer failed (-Pick, a non-zero exit) while the version that was
@@ -2911,6 +2940,15 @@ try {
     }
 
     if ($Pick) {
+        # v0.6.27 (PLAN 6.10): a Rust watcher the older version's installer cannot see is stopped before it runs.
+        $older = Stop-WatcherBeforeOlder -Home_ $installHome -Unpacked $unpacked
+        if ($older -ceq 'watcher-running') {
+            Fail 'The watcher did not stop within a minute; it was asked to, and was not stopped any other way.'
+            Write-Host 'pick: refused watcher-running'
+            Step 'Nothing was installed.'
+            exit $ExitPickRefused
+        }
+        if ($older -ceq 'stopped') { Ok 'The watcher was stopped, so the older version''s installer can replace it' }
         $entry = Remove-EntryBeforeOlder -Home_ $installHome -Installed ([string]$installed) -Target $target
         if ($entry -ceq 'removed') { Step 'The entry in Add or remove programs and its uninstaller were removed; that version has neither.' }
         elseif ($entry -ceq 'failed') { Fail 'The entry in Add or remove programs could not be removed first; it may name a version that is no longer installed.' }
