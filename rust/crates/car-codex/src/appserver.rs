@@ -8,6 +8,7 @@
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::process::{Child, ChildStdin};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, RecvTimeoutError, SyncSender, TrySendError, sync_channel};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -537,7 +538,24 @@ fn write_line(input: &Input, payload: &Value) -> Result<()> {
 /// Lines the reader's logger was told, for whoever asks (the reference logs them at INFO).
 pub static SAID: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
-fn reader(stdout: std::process::ChildStdout, input: Input, answers: SyncSender<Map>) {
+/// The helper's stdout as the reader thread reads it, with the reference's `process.stdout.close()`: once `closed`
+/// is set, the read in progress ends as it would and the next one fails (`ValueError: I/O operation on closed
+/// file`), so the reader returns, as Python's buffered reader lets a close in only between two reads.
+struct Closable {
+    inner: std::process::ChildStdout,
+    closed: Arc<AtomicBool>,
+}
+
+impl Read for Closable {
+    fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+        if self.closed.load(Ordering::SeqCst) {
+            return Err(std::io::Error::other("I/O operation on closed file"));
+        }
+        self.inner.read(buffer)
+    }
+}
+
+fn reader(stdout: Closable, input: Input, answers: SyncSender<Map>) {
     let mut stream = TextReader::new(stdout);
     let mut log = |line: &str| {
         SAID.lock()
@@ -586,6 +604,8 @@ pub struct Protocol<'a> {
     input: Input,
     answers: Option<Receiver<Map>>,
     reader: Option<std::thread::JoinHandle<()>>,
+    /// `process.stdout.close()`, as the reader sees it.
+    closed: Arc<AtomicBool>,
     sequence: i64,
     /// What the last error answer was: METHOD_UNKNOWN or REFUSED.
     pub refusal: Option<&'static str>,
@@ -601,6 +621,7 @@ impl<'a> Protocol<'a> {
             input: Arc::new(Mutex::new(None)),
             answers: None,
             reader: None,
+            closed: Arc::new(AtomicBool::new(false)),
             sequence: 0,
             refusal: None,
         };
@@ -640,6 +661,10 @@ impl<'a> Protocol<'a> {
         self.answers = Some(receive);
         if let Some(stdout) = stdout {
             let input = Arc::clone(&self.input);
+            let stdout = Closable {
+                inner: stdout,
+                closed: Arc::clone(&self.closed),
+            };
             self.reader = Some(std::thread::spawn(move || reader(stdout, input, send)));
         }
         let version = self.backend.product_version.clone();
@@ -787,7 +812,9 @@ impl<'a> Protocol<'a> {
         Err(Error::Adapter("protocol_timeout"))
     }
 
-    /// `__exit__`: close the helper's input, give it EXIT_SECONDS to end, end it, then let the reader go.
+    /// `__exit__`: close the helper's input, give it EXIT_SECONDS to end, end it, give the reader JOIN_SECONDS, then
+    /// close its stdout: the close waits for the read in progress (a process the helper started can hold the pipe
+    /// open after the helper ended), the next read fails, and the reader thread is joined - none is left running.
     pub fn close(&mut self) {
         let Some(mut process) = self.process.take() else {
             return;
@@ -807,9 +834,8 @@ impl<'a> Protocol<'a> {
             while !reader.is_finished() && Instant::now() < until {
                 std::thread::sleep(Duration::from_millis(5));
             }
-            if reader.is_finished() {
-                let _ = reader.join();
-            }
+            self.closed.store(true, Ordering::SeqCst);
+            let _ = reader.join();
         }
         self.answers = None;
     }

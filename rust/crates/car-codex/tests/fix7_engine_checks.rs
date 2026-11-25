@@ -5,12 +5,14 @@
 //! `subprocess.run(timeout=10)` / `timeout=20`: the time covers the output's end as well as the exit, so where a
 //! grandchild holds the pipe past it the run is `TimeoutExpired` (after the kill, Windows' `run` reads to the pipe's
 //! end, so it returns when the grandchild ends) and the check is UNAVAILABLE. car-codex read PASS once the pipe
-//! closed.
+//! closed. And the App Server helper's close (note 3): the reference's `__exit__` joins the reader 1 s and then
+//! `process.stdout.close()`, which waits for the reader's read in progress - as long as the grandchild holds the
+//! pipe; car-codex returned after 1 s and left the reader thread running.
 //!
 //! Its own harness (`harness = false`), as review7_send_receipt is: run with no arguments it is the test; started as
-//! `codex.exe` (a copy in a scratch bin folder) it answers `--version` and `queue --help`, starting one copy of itself
+//! `codex.exe` (a copy in a scratch bin folder) it answers `--version`, `queue --help` and `app-server --stdio`'s initialize, starting one copy of itself
 //! (`--fix7-linger N`, CREATE_NO_WINDOW) that sleeps N seconds holding the pipe, where the scratch folder's name says
-//! so. Run: `cargo test --locked -p car-codex --test fix7_engine_checks` (in rust/; about 35 s).
+//! so. Run: `cargo test --locked -p car-codex --test fix7_engine_checks` (in rust/; about 45 s).
 
 use std::os::windows::process::CommandExt;
 use std::sync::Arc;
@@ -25,6 +27,8 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 /// Past `codex --version`'s 10 s, and past `codex queue --help`'s 20 s.
 const VERSION_LINGER: u64 = 12;
 const HELP_LINGER: u64 = 22;
+/// Past the App Server helper's close (4 s for the exit, then 1 s for the reader).
+const APPSERVER_LINGER: u64 = 8;
 
 struct Stand;
 
@@ -94,6 +98,22 @@ fn engine(args: &[String]) {
         std::thread::sleep(Duration::from_secs(seconds));
         return;
     }
+    if args.iter().any(|each| each == "app-server") {
+        if lingering("linger-appserver") {
+            linger(APPSERVER_LINGER);
+        }
+        let home = std::env::current_dir().unwrap_or_default();
+        let home = home.to_string_lossy().replace('\\', "\\\\");
+        for line in std::io::stdin().lines() {
+            let Ok(line) = line else { break };
+            if line.contains("\"initialize\"") {
+                println!(
+                    "{{\"id\": 1, \"result\": {{\"codexHome\": \"{home}\", \"platformOs\": \"windows\"}}}}"
+                );
+            }
+        }
+        return;
+    }
     if args.iter().any(|each| each == "--version") {
         if lingering("linger-version") {
             linger(VERSION_LINGER);
@@ -109,8 +129,8 @@ fn engine(args: &[String]) {
     }
 }
 
-/// `engine_checks()` with the engine copied into `<scratch>-<which>/bin`: the checks and how long they took.
-fn checks(which: &str) -> (Value, Value, Duration) {
+/// The engine copied into `<scratch>-<which>/bin`, and a Backend on it.
+fn backend(which: &str) -> (std::path::PathBuf, Backend) {
     let scratch = std::env::temp_dir().join(format!(
         "car-v0627-fix7-checks-{}-{which}",
         std::process::id()
@@ -121,13 +141,35 @@ fn checks(which: &str) -> (Value, Value, Duration) {
     std::fs::create_dir_all(&home).expect("a scratch home");
     let exe = bin.join("codex.exe");
     std::fs::copy(std::env::current_exe().expect("this test"), &exe).expect("the engine copy");
-    let mut backend = Backend::new(
+    let backend = Backend::new(
         Arc::new(Stand),
         &home.to_string_lossy(),
         &exe.to_string_lossy(),
         false,
         "0.6.27-alpha",
     );
+    (scratch, backend)
+}
+
+/// The App Server helper opened and closed: whether it opened, and how long open and close took together.
+fn helper(which: &str) -> (bool, Duration) {
+    let (scratch, mut backend) = backend(which);
+    let started = Instant::now();
+    let opened = match car_codex::appserver::Protocol::open(&mut backend) {
+        Ok(mut client) => {
+            client.close();
+            true
+        }
+        Err(_) => false,
+    };
+    let took = started.elapsed();
+    let _ = std::fs::remove_dir_all(&scratch);
+    (opened, took)
+}
+
+/// `engine_checks()` with the engine copied into `<scratch>-<which>/bin`: the checks and how long they took.
+fn checks(which: &str) -> (Value, Value, Duration) {
+    let (scratch, mut backend) = backend(which);
     let started = Instant::now();
     let found = backend.engine_checks();
     let took = started.elapsed();
@@ -140,7 +182,7 @@ fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args
         .iter()
-        .any(|each| ["--version", "--help", "--fix7-linger"].contains(&each.as_str()))
+        .any(|each| ["--version", "--help", "--fix7-linger", "app-server"].contains(&each.as_str()))
     {
         engine(&args);
         return;
@@ -164,6 +206,16 @@ fn main() {
     println!("--help's grandchild: version_runs {runs:?}, queue_flags {flags:?}");
     if runs != Value::from("PASS") || flags != Value::from("UNAVAILABLE") {
         failed.push("queue --help past its 20 s is UNAVAILABLE, as subprocess.run(timeout=20) is");
+    }
+    let (opened, took) = helper("linger-appserver");
+    println!("the helper's grandchild: opened {opened}, open and close in {took:?}");
+    if !opened {
+        failed.push("the App Server helper opens on the stand-in");
+    }
+    if took < Duration::from_secs(APPSERVER_LINGER - 1) {
+        failed.push(
+            "the helper's close waits for the read in progress, as the reference's stdout.close() does",
+        );
     }
     if !failed.is_empty() {
         for each in &failed {
