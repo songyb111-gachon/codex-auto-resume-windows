@@ -599,3 +599,46 @@ them first survived and are what the four edge scenarios were added for.
   asks (the keys, then the verdicts); not built yet, so no trace uses them (test_once_words_engine is S4.2's to run).
 * car-policy's `Channel::send` and `Route::resume` take no launch guard; the reference hands both one. S7.2 adds it with
   the advanced plug.
+
+## The scenario proxy (seat S4.2, branch `car-v0627-proxy`, 2026-11-25)
+
+PLAN 4.3's row "Frozen scenario modules" and 5.3's P4: the fifteen modules of `tests/neutral.py` MODULES run, unedited,
+on car-engine. With `CODEX_AR_CORE=rust` the shim's finder (`tests/rustdiff/shim.py`) also passes
+`codex_auto_resume.engine`, and as it loads its `Engine` becomes `tests/rustdiff/engineproxy.py`'s: every module that
+builds an engine (a test's Harness, `runtime/app.py`, `rescan.py`, `checkup.py`) builds car-engine.
+
+* **One `car-harness serve` per test process, one session per engine** (`car-harness/src/proxy.rs`: `proxy.open`,
+  `proxy.call`, `proxy.close`). The store, the source and the backend stay the test's own Python objects; car-engine's
+  `Store`, `Source`, `Backend` and `OnceWords` seams, the clock, the log, the notifier, `home_lock`, `engine_state`,
+  `connectivity`, jitter's draw (`engine._random`), `time.localtime`/`mktime`, `os.environ` and the Windows languages
+  are all asked back over the pipe (`AskStore`, `AskSource`, `AskBackend`, `AskOnceWords`, `AskLocal`), each call with
+  the reference's own arguments and keywords (`reserve_detailed(..., ledger=plug, carried=frozenset(Point...))`,
+  `hold_changed(..., actor="engine")`, `latest_failures(since[, needs_you=...][, admissible=True, shapes=True])`).
+* **A send is handed the reference's own guard**: `LaunchGuard::key()` (new, a default method) names the record, and the
+  Python side passes `launch_guard=store.submission_guard(key)` of the test's store, which the backend enters as it
+  enters the reference's. `with store.submission_guard(key)` inside car-engine (routes) is `store.guard_enter`/`_exit`.
+* **Callbacks and nesting**: `once_words.prune(keep)` is asked with `keep` kept on the Rust side; each
+  `{"callback": [key]}` line is `keep(key)`, which may ask again. A request line read while an answer is awaited is
+  another engine's call made from inside that answer (test_engine 16: a backend that ticks a second engine during the
+  first one's send) and is answered nested; the same engine re-entered answers `RecursionError`.
+* **The attributes the modules read** are the proxy's own (`store`, `source`, `backend`, `clock`, `log`, `notify`,
+  `plug`, `home_lock`, `engine_state`, `connectivity`, `once_words`, `retiring`, `home_key`, `language`, `options`,
+  `policy_values`, `managed`, `detection_failed`, `handed_waits`); `options`, `retiring`, `once_words` and `home_key`
+  go to car-engine before each call and what it holds comes back after it, so `engine.options` starts as car-engine's
+  own defaults. `_usage_cache = None` is `Engine::clear_usage_cache()` (new); `_random` is the draw.
+* **Panics as a test's input**: a seam object that raises `engineproxy.Panic` makes car-harness panic at that call, so
+  D15's boundaries inside the engine can be held (the review's S1 diffs).
+
+### The proof
+
+`python scripts/test_parts.py --worker tests --report X.json <the 15 modules>` on the Python engine and again with
+`CODEX_AR_CORE=rust`, one process at a time, then `--compare`: **456 test ids, 456 pass on both, 0 differ** (Python
+530 s, Rust 863 s, 2026-11-25). `test_once_words_engine` (S4.1's) is among them: the words for this time, their prune
+included, run on car-engine. The LEDGER stays empty: no frozen test needed P12's pool, P2's record channel, an errand's
+guards or anything else not ported, because the standard edition never reaches them.
+
+### For the next seats
+
+* The watcher (S6.1) builds its engines from car-store and car-codex directly; the proxy is the test lane's only.
+* `rediff_engine.py --reference v0.6.26` re-diffs the engine; the frozen modules themselves are held byte for byte by
+  test_released_calls, so the proxy's proof is re-run as is against a new tag's engine (the two `--worker` runs above).

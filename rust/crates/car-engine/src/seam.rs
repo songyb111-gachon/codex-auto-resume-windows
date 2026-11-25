@@ -159,6 +159,11 @@ pub trait Source: car_scheduler::Source {
 /// launch is permitted, inside the store's write lock.
 pub trait LaunchGuard {
     fn enter(&self, body: &mut dyn FnMut(bool) -> Value) -> Py<Value>;
+    /// The record whose `store.submission_guard(key)` this is, where there is one: what a backend that is handed the
+    /// reference's own guard object (the scenario proxy's, asked back over a pipe) builds it from.
+    fn key(&self) -> Option<&str> {
+        None
+    }
 }
 
 /// The Codex processes: `codex queue`, the App Server's queue delete, the loaded-thread inventory and the usage probe

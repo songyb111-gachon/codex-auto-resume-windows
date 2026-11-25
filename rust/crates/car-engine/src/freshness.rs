@@ -24,6 +24,16 @@ use crate::{Engine, Row};
 pub const USAGE_CHECK_LONGEST: f64 = 120.0;
 
 impl Engine {
+    /// `engine._usage_cache = None`: the next look reads usage again (what a scenario does between two readings).
+    pub fn clear_usage_cache(&mut self) {
+        self.usage_cache = None;
+    }
+
+    /// `engine._usage_cache`: the time and the reading this engine reuses, if any.
+    pub fn usage_cached(&self) -> Option<(f64, Value)> {
+        self.usage_cache.clone()
+    }
+
     /// `_no_app_reason()`: why a record waits where the backend's last look paired no app (#58's follow-up).
     pub fn no_app_reason(&self) -> String {
         if !pyval::is(&self.backend.app_look(), "unmatched") {

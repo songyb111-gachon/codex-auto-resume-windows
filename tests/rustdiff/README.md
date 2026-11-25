@@ -12,7 +12,8 @@ of git by `tests/released.py` and run in a process of its own on scratch homes.
 | Rust, from Python | `core.py` | where the binaries are (`CODEX_AR_CORE_EXE`, `CODEX_AR_HARNESS_EXE`, `CARGO_TARGET_DIR`, else the crate's release build), `build()`, `stub()`, `Harness` |
 | shim | `shim.py` | `CODEX_AR_CORE=rust`: the entry points' `main` runs the Rust binary (below) |
 | diffs | `diffs.py`, `diffs_*.py` (each seat's own: `diffs_store.py`, S1.2) | the comparisons, as unittest cases; run.py loads `diffs.py` and then every `diffs_*.py` in name order. The folder has no `__init__.py` (a namespace package) and no `test*.py`, so the lanes' discovery never enters it: it imports nothing of it and runs none of it |
-| ledger | `LEDGER` | tests that fail on Rust only for reading a Python internal, each with its reason; only shrinks; empty |
+| ledger | `LEDGER` | tests that fail on Rust only for reading a Python internal, each with its reason; only shrinks; empty (S4.2: the 15 frozen modules need no entry) |
+| scenario proxy | `engineproxy.py` | `CODEX_AR_CORE=rust`: the `Engine` the frozen modules build, as car-engine (S4.2) |
 | entry point | `run.py` | the one command CI and a person run |
 
 ## The entry point
@@ -43,7 +44,10 @@ the same gap, which `no_real_toast()` closes), so `work()` calls `rust_core()`, 
 same variable. Without the variable sitecustomize looks at `os.environ` once (already imported by `site`)
 and `rust_core()` returns False: no module loaded, nothing patched.
 
-Not here yet: the `Engine`, `Store` and `LocalSource` proxies over car-harness (S4.2); a `serve` that streams
+S4.2: `codex_auto_resume.engine`'s `Engine` becomes `engineproxy.py`'s - car-engine in a session of one `car-harness
+serve` per test process, its store, source and backend the test's own objects asked back over the pipe
+(rust/GROUNDWORK.md, "The scenario proxy"). The `Store` and `LocalSource` stay Python's: their proxies are not needed,
+because what the frozen modules hold is what the engine decides. Not here yet: a `serve` that streams
 a live pipe (the shim reads the whole input first, as a test's StringIO allows); `python -m
 codex_auto_resume.<entry>`, which runs as `__main__` and never passes the finder (no test does that today);
 the child Pythons of a test_parts lane, which start with `PYTHONPATH=src` and so run Python.
@@ -340,3 +344,13 @@ conversations). The final's re-diff: `python -X utf8 tests/rustdiff/rediff_engin
 Run 2026-11-25 (`run.py --build --reference v0.6.26-beta.2 -k EngineTraceDiff -v`, 926 s, OK): corpus 81 scenarios, 1,023
 steps equal (63 sends); random walks 60 scenarios, 5,153 steps equal (122 sends). Eight broken rules each failed a trace
 (rust/GROUNDWORK.md, "The engine").
+
+## The scenario proxy (S4.2)
+
+```
+python scripts/test_parts.py --worker tests --report py.json <the 15 modules of tests/neutral.py MODULES>
+CODEX_AR_CORE=rust python scripts/test_parts.py --worker tests --report rs.json <the same>
+python scripts/test_parts.py --compare py.json rs.json
+```
+
+(`PYTHONPATH="src;tests"`, the harness built first.) Run 2026-11-25: 456 test ids, all pass on both, 0 differ.

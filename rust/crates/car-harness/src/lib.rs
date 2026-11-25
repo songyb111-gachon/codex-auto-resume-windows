@@ -10,6 +10,7 @@ pub mod engine;
 pub mod leaves;
 pub mod links;
 pub mod policy;
+pub mod proxy;
 pub mod store;
 
 use car_machine::json::{Map, Value};

@@ -94,6 +94,9 @@ impl LaunchGuard for SubmissionGuard<'_> {
     fn enter(&self, body: &mut dyn FnMut(bool) -> Value) -> Py<Value> {
         self.store.submission_guard(&self.key, body)
     }
+    fn key(&self) -> Option<&str> {
+        Some(&self.key)
+    }
 }
 
 impl Engine {
