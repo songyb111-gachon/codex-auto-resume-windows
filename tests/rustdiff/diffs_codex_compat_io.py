@@ -59,8 +59,9 @@ class FilesDiff(AppBase):
         for path in (small, exact, over, still, folder / "absent.json", folder / "a\0b"):
             ops += [op("registry.read_capped", str(path), 100), op("registry.stamp", str(path)),
                     op("registry.path_digest", str(path))]
-        ops += [op("registry.path_digest", text) for text in ("", "C:\\", str(folder).upper(), str(folder) + "\\.\\x",
-                                                               "relative\\name", "C:/Users/ExampleUser/x")]
+        # (a relative path resolves against the process's own working folder, which differs by side: not asked)
+        ops += [op("registry.path_digest", text) for text in ("C:\\", str(folder).upper(), str(folder) + "\\.\\x",
+                                                               "C:/Users/ExampleUser/x")]
         for text in ("0.6.26", "0.6.26-beta", "0.6.26-beta.2", "0.6.26-beta.1", "0.6.26-beta.10", "0.6.26-beta.999",
                      "0.6.26-beta.1000", "0.6.26-beta.02", "0.6.26-alpha.9", "0.6.26-rc.1", "0.6.26 ", " 0.6.26",
                      "0.6", "1234567.0.0", "123456.0.0", "0.6.26\n", "unknown", "", "\u0660.6.26", "0.6.26-beta."):

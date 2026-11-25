@@ -48,7 +48,8 @@ def server(**answers):
 
 
 def bucket(seconds: float) -> str:
-    return "none" if seconds < 2 else "end wait" if seconds < 15 else "call wait" if seconds < 40 else "longer"
+    # under load a prompt end takes a second or three; the end wait is EXIT_SECONDS (4 s) at the least
+    return "none" if seconds < 3.8 else "end wait" if seconds < 15 else "call wait" if seconds < 40 else "longer"
 
 
 def timed(operation, answer):
