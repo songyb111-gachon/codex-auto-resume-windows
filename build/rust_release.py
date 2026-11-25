@@ -22,12 +22,19 @@ and in the advanced edition, besides: payload/app/src/codex_auto_resume_advanced
 sentinel line, which old Test-Archives and edition readers look for), the package's data files at their paths, and
 payload/app/skills/codex-auto-resume-advanced/.
 
-`install/install.ps1` is a placeholder until seat S8.2 writes the migration: it changes nothing and ends with 1, so a
-Python version's updater that accepts this archive reports that nothing was installed. The window and the MCP launcher
+`install/install.ps1` is build/rust_install/install.ps1 (seat S8.2): v0.6.26's installer on the Rust core, with the
+migration from a Python installation (PLAN 6.2-6.5). Every route ends in it - an earlier version's updater that accepted
+the archive, the one-file Setup exe's Install.cmd, and v0.6.26's setup handover through codex-auto-resume-setup.exe.
+The window and the MCP launcher
 are the C# ones build/make_gui.ps1 compiles (`--window` and `--mcp-launcher` take others); the watcher host
 (CodexAutoResume.exe, seat S6.2) is not built yet and is not in the archive.
 
-    python build/rust_release.py --edition standard [--version 0.6.27-alpha] [--build] [--output DIR]
+    python build/rust_release.py --edition standard [--version 0.6.27-alpha] [--build] [--setup] [--output DIR]
+
+`--setup` also builds the one-file Setup exe around the archive just written (seat S8.2's choice): build/make_setup.py's,
+unchanged - the C# setup window around the archive's bytes, which runs the archive's Install.cmd and so the same
+install\\install.ps1 every other route ends in. The setup program inside the archive (codex-auto-resume-setup.exe) is
+v0.6.26's handover's; the one-file Setup exe is what a person downloads, as for every Python release.
 
 `--build` builds the edition's workspace first, the way every checked build is made (tools/rustflags.sh release,
 --locked); otherwise the binaries are taken from each workspace's target/release. The same inputs give the same bytes:
@@ -95,16 +102,9 @@ STUBS = {
 ADVANCED_STUB = ("payload/app/src/%s/__init__.py" % make_release.ADVANCED_PACKAGE,
                  "# ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.\n" + STUB_NOTE)
 
-# install/install.ps1 until seat S8.2 writes the migration: an earlier version's updater runs it after it accepted the
-# archive. It reads no argument and changes nothing, so such an update ends saying nothing was installed.
-INSTALL_PLACEHOLDER = """\
-# Codex Auto Resume from v0.6.27 is installed by its own setup program, payload\\app\\bin\\codex-auto-resume-setup.exe
-# (setup-handover.json beside Install.cmd). This file is what the updater of an earlier version runs instead; in this
-# build it is a placeholder that changes nothing.
-Write-Host '[x] This build cannot be installed by the updater of an earlier version yet.'
-Write-Host 'Nothing was installed.'
-exit 1
-"""
+# The installer (seat S8.2): every route into a Rust archive ends in it, and an earlier version's updater runs it after
+# its Test-Archive accepted the archive. Shipped as the working tree has it (CRLF, as .gitattributes checks *.ps1 out).
+INSTALLER = ROOT / "build" / "rust_install" / "install.ps1"
 LAUNCHERS = ("Install.cmd", "Uninstall.cmd", "README.txt")
 
 
@@ -248,7 +248,7 @@ def collect_window(stage: Path, edition: str, window: Path | None, launcher: Pat
 def collect_launchers(stage: Path) -> None:
     for name in LAUNCHERS:
         copy(ROOT / "build" / "install" / name, stage, name)
-    write(stage, "install/install.ps1", INSTALL_PLACEHOLDER.replace("\n", "\r\n").encode("utf-8"))
+    copy(INSTALLER, stage, "install/install.ps1")
 
 
 def declare(stage: Path, edition: str, release: str) -> None:
@@ -316,6 +316,8 @@ def main(argv=None) -> int:
     parser.add_argument("--legacy-bins", default=None, help="car-legacy's (default: rust/target/release)")
     parser.add_argument("--window", default=None, help="a settings window other than make_gui.ps1's")
     parser.add_argument("--mcp-launcher", default=None, help="an MCP launcher other than make_gui.ps1's")
+    parser.add_argument("--setup", action="store_true",
+                        help="also build the one-file Setup exe around the archive (build/make_setup.py's)")
     args = parser.parse_args(argv)
     release = args.version or version()
     if args.build:
@@ -328,12 +330,19 @@ def main(argv=None) -> int:
                   launcher=Path(args.mcp_launcher) if args.mcp_launcher else None)
     target = make_release.write_archive(stage, Path(args.output) / archive_name(args.edition, release))
     digest = make_release.write_sidecar(target)
+    setup = None
+    if args.setup:
+        import make_setup  # noqa: E402  (the C# compiler, only where it is asked for)
+        setup = make_setup.build(target, Path(args.output), args.edition, release)
+        make_release.write_sidecar(setup)
     groups = weights(stage)
     print("version        : %s" % release)
     print("edition        : %s" % args.edition)
     print("archive        : %s" % target)
     print("size           : %d bytes" % target.stat().st_size)
     print("sha256         : %s" % digest)
+    if setup is not None:
+        print("setup program  : %s (%d bytes)" % (setup, setup.stat().st_size))
     for group, size in groups.items():
         print("packed %-8s: %d bytes (%.3f MiB)" % (group, size, size / 1024 / 1024))
     return 0

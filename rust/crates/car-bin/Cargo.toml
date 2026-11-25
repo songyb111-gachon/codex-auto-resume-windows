@@ -23,4 +23,5 @@ path = "src/bin/setup.rs"
 
 [dependencies]
 car-control = { path = "../car-control" }
+car-platform = { path = "../car-platform" }
 car-watcher = { path = "../car-watcher" }

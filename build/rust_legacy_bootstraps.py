@@ -17,11 +17,13 @@
       reach the core: the stub core ends with 3, car-legacy's refusal with 2 and a missing program with 1.
 
 Every tag from v0.5.2 below the version built is asked, and each bootstrap that has Read-SetupHandover is asked (b) as
-well; `--ref` adds a branch tip after the tags (the v0.6.26 final's updater before its tag exists). Only the bootstraps'
+well; `--ref` adds a branch tip or a tag after the tags. The release check names the v0.6.26 final's tag
+(`--ref v0.6.26`, seat S8.2): from the tag on it is among the published ones, and a ref whose commit a listed tag has is
+asked once, under the tag's name - so the check holds both before the tag is fetched and after. Only the bootstraps'
 own function definitions run, from git, in Windows PowerShell 5.1 as the settings window starts them, with no network
 and against nothing but the archives and a temporary folder: no installation, no registry, nothing started.
 
-    python build/rust_legacy_bootstraps.py --dist build/dist/rust --version 0.6.27-alpha [--ref dev]
+    python build/rust_legacy_bootstraps.py --dist build/dist/rust --version 0.6.27-alpha --ref v0.6.26
     python build/rust_legacy_bootstraps.py --entry-from rust/target/release      # (c) alone, from a cargo build
 """
 from __future__ import annotations
@@ -144,6 +146,22 @@ def lift_ref(ref: str) -> legacy.Bootstrap:
                             legacy._git(ROOT, "show", ref + ":scripts/release.json"))
 
 
+def commit_of(ref: str) -> str:
+    return legacy._git(ROOT, "rev-parse", "%s^{commit}" % ref).decode("utf-8").strip()
+
+
+def lift_refs(refs, tags) -> tuple[list, list]:
+    """The bootstraps of `refs` that no tag in `tags` already is (by commit), and the refs that were, said once."""
+    listed = {commit_of(tag) for tag in tags}
+    lifted, already = [], []
+    for ref in refs:
+        if commit_of(ref) in listed:
+            already.append(ref)
+        else:
+            lifted.append(lift_ref(ref))
+    return lifted, already
+
+
 def check_handover(bootstraps, version: str, standard: Path, advanced: Path) -> list:
     """Every finding of (b), as a sentence: none means each bootstrap given hands both archives over to their setup
     program after its Test-Archive accepted them."""
@@ -258,7 +276,7 @@ def entry_from_archive(standard: Path, work: Path) -> tuple[Path, Path]:
     return paths[0], paths[1]
 
 
-def run(dist: Path, version: str, refs=(), entry: bool = True) -> tuple[list, dict]:
+def run(dist: Path, version: str, refs=(), entry: bool = True, already: list | None = None) -> tuple[list, dict]:
     """(findings, the means each bootstrap takes the archives by). `entry` False leaves (c) out: for archives of
     stand-in binaries, which cannot run."""
     standard = dist / rust_release.archive_name("standard", version)
@@ -269,7 +287,10 @@ def run(dist: Path, version: str, refs=(), entry: bool = True) -> tuple[list, di
     tags = legacy.published(ROOT, version)
     if not tags:
         raise SystemExit("no tag from v0.5.2 on is in this checkout; fetch the tags (fetch-depth: 0)")
-    bootstraps = [legacy.lift(ROOT, tag) for tag in tags] + [lift_ref(ref) for ref in refs]
+    lifted, repeated = lift_refs(refs, tags)
+    if already is not None:
+        already.extend(repeated)
+    bootstraps = [legacy.lift(ROOT, tag) for tag in tags] + lifted
     found = legacy.check(bootstraps, version, standard, advanced)
     bridged = [bootstrap for bootstrap in bootstraps if knows_handover(bootstrap)]
     found += check_handover(bridged, version, standard, advanced)
@@ -293,7 +314,10 @@ def main(argv=None) -> int:
     if args.entry_from:
         folder = Path(args.entry_from)
         tags = legacy.published(ROOT, args.version or rust_release.version())
-        bootstraps = [legacy.lift(ROOT, tag) for tag in tags] + [lift_ref(ref) for ref in args.ref]
+        lifted, repeated = lift_refs(args.ref, tags)
+        for ref in repeated:
+            print("--ref %s is a published tag's commit, asked once among the tags" % ref)
+        bootstraps = [legacy.lift(ROOT, tag) for tag in tags] + lifted
         found = check_entry(bootstraps, folder / "python.exe", folder / "codex-auto-resume.exe")
         print("(c) the compatibility entry run: the bootstraps of %s to %s" % (bootstraps[0].tag, bootstraps[-1].tag))
         for line in found:
@@ -303,7 +327,10 @@ def main(argv=None) -> int:
         print("  every line of all %d reaches the core" % len(bootstraps))
         return 0
     version = args.version or rust_release.version()
-    found, means = run(Path(args.dist), version, args.ref)
+    repeated: list = []
+    found, means = run(Path(args.dist), version, args.ref, already=repeated)
+    for ref in repeated:
+        print("--ref %s is a published tag's commit, asked once among the tags" % ref)
     tags = list(means)
     by = {kind: [tag for tag in tags if means[tag] == kind] for kind in ("a", "b")}
     print("the bootstraps of %s to %s, on the Rust-shaped archives of v%s" % (tags[0], tags[-1], version))

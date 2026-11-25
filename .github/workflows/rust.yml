@@ -101,3 +101,47 @@ jobs:
       - name: Rebuild with and without the advanced folder
         shell: bash
         run: bash advanced/rust/tools/check_rebuild.sh HEAD
+
+  package:
+    # The release check of the Rust payload (seat S8.2): both editions' archives and one-file Setup exes built from the
+    # cargo build, the edition audit with (h), every published updater against them (and the v0.6.26 final's,
+    # `--ref v0.6.26`, asked once among the tags), and the installer's proofs on scratch homes: install, the update
+    # from v0.6.26, repair, uninstall, purge and the way back to v0.6.26, both editions. Nothing is published.
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14.10"
+      - name: Install the pinned toolchain
+        working-directory: rust
+        shell: bash
+        run: rustup toolchain install
+      - name: Build both workspaces (release, the checked flags)
+        shell: bash
+        run: |
+          (cd rust && . tools/rustflags.sh release && cargo build --release --locked)
+          (cd advanced/rust && . tools/rustflags.sh release && cargo build --release --locked)
+      - name: Build each edition's settings window and the MCP launcher
+        shell: pwsh
+        run: |
+          ./build/make_gui.ps1
+          ./build/make_gui.ps1 -Edition advanced
+      - name: Build both Rust archives and their Setup exes
+        run: |
+          python build/rust_release.py --edition standard --version 0.6.27-alpha --setup
+          python build/rust_release.py --edition advanced --version 0.6.27-alpha --setup
+      - name: Prove the standard archive and Setup exe hold none of the advanced edition
+        run: python build/rust_edition_audit.py --dist build/dist/rust --version 0.6.27-alpha --setups
+      - name: Check every published bootstrap takes the archives
+        run: python build/rust_legacy_bootstraps.py --dist build/dist/rust --version 0.6.27-alpha --ref v0.6.26
+      - name: The installer's proofs on scratch homes
+        shell: bash
+        env:
+          PYTHONPATH: "src;tests"
+        run: python -m unittest test_rust_release test_rust_install
