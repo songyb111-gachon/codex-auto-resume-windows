@@ -90,7 +90,9 @@ fn attach_does_not_wait_for_another_threads_transaction() {
             state
                 .set_global_hourly(
                     &Value::from(4),
-                    &Value::from(2),
+                    // The generation after the first move (meta 0, the first answers 1): the reference's steps
+                    // pass 1 and answer 2; with 2 both sides answer StaleGeneration (fix7, measured 2026-11-26).
+                    &Value::from(1),
                     &Value::from("dashboard"),
                     &Value::Null,
                 )

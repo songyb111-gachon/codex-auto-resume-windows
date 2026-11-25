@@ -9,9 +9,12 @@
 //! never creates the file.
 //!
 //! The one connection serves every thread of its process: a mutex gives each transaction the connection whole,
-//! as the reference's re-entrant lock does.
+//! as the reference's re-entrant lock does. Whether it is open is also kept outside the mutex (`open`), so the
+//! claim's `attach` asks it without waiting for another thread's transaction, as the reference's `_open` reads
+//! `self._connection` without its lock.
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use car_config::paths::{OWNER_MARKER, OWNER_TEXT, Paths, is_link};
@@ -47,6 +50,9 @@ pub struct AdvancedState {
     /// `secrets.token_hex`, where a write makes an id of its own.
     pub tokens: Arc<dyn Tokens>,
     connection: Mutex<Option<Connection>>,
+    /// Set while `connection` holds an open, checked connection: written under the mutex, read without it
+    /// (`_open`'s unlocked read of `self._connection`).
+    open: AtomicBool,
 }
 
 /// One upgrade step: the version it starts from, the tables it needs, its statements.
@@ -77,6 +83,7 @@ impl AdvancedState {
             clock,
             tokens,
             connection: Mutex::new(None),
+            open: AtomicBool::new(false),
         }
     }
 
@@ -145,7 +152,10 @@ impl AdvancedState {
     ) -> Result<Option<&'a Connection>> {
         if held.is_none() {
             match self.open_connection(create)? {
-                Some(connection) => **held = Some(connection),
+                Some(connection) => {
+                    **held = Some(connection);
+                    self.open.store(true, Ordering::SeqCst);
+                }
                 None => return Ok(None),
             }
         }
@@ -371,7 +381,9 @@ impl AdvancedState {
 
     /// `close()`.
     pub fn close(&self) {
-        *self.lock() = None;
+        let mut held = self.lock();
+        self.open.store(false, Ordering::SeqCst);
+        *held = None;
     }
 
     // ---------------------------------------------------------------- transactions
@@ -425,8 +437,11 @@ impl AdvancedState {
     /// `attach(connection)`: this file attached to `connection` - core's, inside its one claim - as ATTACHED, once
     /// per connection. The file is opened and checked on its own connection first, so a file that would be refused
     /// is never attached; one that is not there is not made, and false says so.
+    ///
+    /// An already-open connection is answered without the mutex: the claim attaches the file from core's
+    /// transaction, which must not wait for a transaction of this connection's on another thread (`_open`).
     pub fn attach(&self, connection: &Connection) -> Result<bool> {
-        {
+        if !self.open.load(Ordering::SeqCst) {
             let mut held = self.lock();
             if self.opened(&mut held, false)?.is_none() {
                 return Ok(false);
