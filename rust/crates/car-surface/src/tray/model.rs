@@ -41,8 +41,8 @@ pub fn snapshot_from(store: &dyn TrayStore) -> Py<Value> {
                 let error = str_of(py::or(pyval::get(&row, "last_error")?, &Value::from("")));
                 if error.split(':').next() == Some("app_server_unmatched") {
                     let thread = item(&row, "thread_id")?;
-                    pyval::hashable(&thread)?;
                     let disabled = store.disabled_threads()?;
+                    pyval::hashable(&thread)?;
                     if !disabled.iter().any(|each| pyval::eq(each, &thread)) {
                         unmatched += 1;
                     }
