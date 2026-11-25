@@ -140,7 +140,7 @@ pub fn uninstall_command(home: &Path, silent: bool) -> String {
 /// The name the installed manifest gives this edition (another edition's carries its word).
 pub fn display_name(manifest_path: &Path) -> String {
     let read = || -> Option<String> {
-        let bytes = std::fs::read(manifest_path).ok()?;
+        let bytes = car_machine::pyfile::read(manifest_path).ok()?;
         let body = String::from_utf8(bytes).ok()?;
         let body = body.strip_prefix('\u{feff}').unwrap_or(&body);
         let manifest: serde_json::Value = serde_json::from_str(body).ok()?;

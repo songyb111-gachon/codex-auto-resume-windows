@@ -8,6 +8,7 @@ pub mod compat;
 pub mod domain;
 pub mod hash;
 pub mod json;
+pub mod pyfile;
 pub mod pytext;
 #[rustfmt::skip]
 mod pytext_tables;

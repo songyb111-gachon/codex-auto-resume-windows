@@ -255,7 +255,7 @@ pub fn ours(os: &dyn Os, target: &Path) -> Py<bool> {
     if !found.is_file() || found.len() > MAX_BYTES {
         return Ok(false);
     }
-    let Ok(bytes) = std::fs::read(target) else {
+    let Ok(bytes) = car_machine::pyfile::read(target) else {
         return Ok(false);
     };
     let Ok(text) = std::str::from_utf8(&bytes) else {

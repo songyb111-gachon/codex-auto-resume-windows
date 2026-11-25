@@ -9,7 +9,7 @@
 //! No `LockFileEx`/byte-lock probe exists anywhere in this tool on a file of Codex's, by design: acquiring the
 //! thread writer lock, even for microseconds, could make the ChatGPT app's own try-lock fail.
 
-use std::fs::{File, OpenOptions};
+use std::fs::File;
 use std::os::windows::io::AsRawHandle;
 use std::path::{Path, PathBuf};
 
@@ -103,7 +103,8 @@ impl Held {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).map_err(|_| AdapterError("home_lock_unavailable"))?;
         }
-        let file = OpenOptions::new()
+        // Shared for reading and writing only, as os.open shares: a held lock cannot be deleted (Remove-HomeLocks).
+        let file = car_machine::pyfile::options()
             .read(true)
             .write(true)
             .create(true)
