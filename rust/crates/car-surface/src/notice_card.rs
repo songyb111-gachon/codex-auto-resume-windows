@@ -1130,7 +1130,7 @@ pub fn premultiply(
         // A bytearray given no bytes for an extended slice deletes the slice's places.
         let mut index = 0usize;
         data.retain(|_| {
-            let keep = index < 3 || (index - 3) % 4 != 0;
+            let keep = index < 3 || !(index - 3).is_multiple_of(4);
             index += 1;
             keep
         });
