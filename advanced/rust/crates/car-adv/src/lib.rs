@@ -19,6 +19,7 @@ mod measured_gen;
 pub mod policy;
 pub mod profiles;
 pub mod registry;
+pub mod report;
 #[rustfmt::skip]
 mod registry_gen;
 pub mod seam;
