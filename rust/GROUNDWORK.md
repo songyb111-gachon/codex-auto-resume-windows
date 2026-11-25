@@ -1049,3 +1049,109 @@ keep - so three cases of exactly 4,096, 4,097 and 9,000 bytes were added, and it
   UTF-8; a reply or id holding half of a surrogate pair), after answering the lines before it.
 * **P6**: the set-aside sweep (`controlcli.sweep_soon`) is the watcher's (`setaside.py`); `serve` here does not start it.
 * The re-diff for the final: `python -X utf8 tests/rustdiff/rediff_control.py --reference v0.6.26`.
+
+## Integration 6 (branch `car-v0627-rust`, 2026-11-26)
+
+Four branches merged with `git merge --no-ff`, in this order, then the seams the merged code allows wired.
+
+| Merge | Branch | What came in |
+|---|---|---|
+| `767fa6855` | car-v0627-fix4 `80a2bf01a` | REVIEW-int4's fixes and REVIEW-int5's S2: car-legacy's 44 lines, car-machine `pyfile` (Python's share mode; std-only `replace`/`rename` defaults), car-platform `files::{replace, rename}` (MoveFileExW) handed to car-policy (`Os::replace`) and car-config (`Logbook::with_rename`), one realpath, the power-action guard, the policy places, the registry notes, CRLF markers, check_groundwork's D3 rule |
+| `6f9a21c20` | car-v0627-fix5 `64b8fee59` | REVIEW-int5's S1, S3, S4 and notes: Python's float repr, the `{"$float": ...}` tag, car-words' share and countdown, car-store BLOBs, the sign-in newline, `begin()`'s rollback, the product's `LocalClock` (`Crt`) |
+| `84270b023` | car-v0627-engine `018e7679d` | S4.1: car-engine and car-scheduler, car-harness `engine.rs`, `diffs_engine.py`, `enginerun.py`, `rediff_engine.py` |
+| `501dc8b4a` | car-v0627-bridge5 `3c4434ca3` | S5.1a: car-control's quiet bridge commands and `serve`, car-harness `bridge.rs`, `diffs_bridge*.py`, `bridgeworld.py`, `rediff_control.py` |
+
+Conflicts, each resolved by keeping both sides:
+
+* `rust/GROUNDWORK.md` and `tests/rustdiff/README.md` in merges 2-4 (every seat appended a section; all kept, in merge order). fix5's README
+  had been committed with CRLF and a raw NUL byte (the BLOB key), so git took it for binary and the whole file conflicted; it is LF text
+  again and the key is written `\u0000bytes`, as the GROUNDWORK and the code write it.
+* car-harness `main.rs` (merge 3): S3.3's `codexapp.script` arm and S4.1's `engine.*` arm at the same place; both arms.
+* car-harness `Cargo.toml`, `lib.rs`, its `Cargo.lock` entry and check_groundwork's car-harness edge list (merge 4): S4.1's car-engine and
+  car-scheduler beside S5.1a's car-control; the edge list is the union.
+* fix4 and fix5 touched the same crates (car-machine, car-policy, the harness, tests/rustdiff) but no function on both sides; the one
+  shared file, `car-policy/tests/review5_replace.rs`, was the same on both. Both reviews' tests pass on the merge (`review5_replace`,
+  `review5_float_repr`, `review5_watcher_status` and the rest of the `review5_*` and `diffs_review4` tests).
+
+### The seams, wired
+
+| Seam | Now |
+|---|---|
+| fix5's `LocalClock` (`classify::clock::Crt` in car-policy, `extern "C"` there) | the trait and `Tm` are car-machine's `localclock` (car-policy's `classify::clock` re-exports them, so every path stays); `Crt` is car-platform's `localclock::Crt`, unchanged (D3: the C runtime's reading of Windows' zone is a Windows call). car-policy takes it as a parameter as before, car-engine through `Given::local`, car-control through `Host::local_clock` (no default now: `SystemHost` answers `Crt`, the harness's `WorldHost` the UTC zone bridgeworld.py pins); car-harness's zone `"local"` is car-platform's `Crt`. check_groundwork: only car-platform declares `extern "C"` too; the C library's pure math is named in `C_MATH` by file and linked function (car-brand's `erfc`) |
+| car-control's file writes and opens (`std::fs`) | once-words and failure-seen replace with car-platform's `files::replace` (os.replace), the settings' set-aside renames with `files::rename` (os.rename: a name taken meanwhile is refused, never replaced), their temporaries opened as `mkstemp` opens them, every read through car-machine's `pyfile`; `PlatformOs::replace` is `files::replace`, so a settings save through `SystemHost` is os.replace |
+| car-control `Host::compat_view` (null) | `SystemHost`: `compatio.reader_view(paths, settings=...)` over car-codex `compat::views` (the bundled data beside the package, `src/codex_auto_resume/data/` until P6 places it; the report and the cache in the state folder; a failure is no view, as `homes_view`'s `except Exception`) |
+| car-control `Host::startup_value`, `Host::managed` (none) | `startup::current_value` (an unreadable Run key is none, as `startup_enabled`'s `except StartupError`); `managed.parse(policykeys.read())` for an installed copy only, over `registry_reads::policy_places` |
+| car-engine `Backend` (S3.3's) | `car_engine::transport::Transport` over car-codex's `transport::Backend`: every call and every `getattr` attribute is the backend's own (None where Python's attribute is unset; `protocol_results` `{method: (code, seq)}`; `session_holder` the pair). The reference enters `store.submission_guard(key)` around its one Popen; the engine's guard runs a body inside the store's lock, so car-codex's `send` is split (preflight, the one start, the receipt) and gains `send_within(thread, prompt, scope)`, which starts the process inside the guard's body and answers every case as `send` |
+| car-codex's opens (fix4 left them) | the rollout, workspace, layout, chains, source and compatibility-file reads through `pyfile`; the layout and compatibility files' atomic writes replace with `files::replace`; `PolicyOs::replace` is `files::replace` |
+| car-codex `sql::Cell` (a BLOB as an empty list) | fix5's `value::blob` is car-machine's `pybytes` (car-store re-exports it); a BLOB cell is that value, equal only to the same bytes; `row_status` reads it as bytes (hashable, "other"); codexdiff writes the reference's `bytes` the same way |
+| S7.1a's line-end fold of car-config's two markers (`advstore.KNOWN`) | gone: fix4 writes them CRLF |
+
+### The seams that stay
+
+* car-engine `Store` (+ car-scheduler's): car-watcher's adapter over car-store (S6.1); the harness's `EngineStore` is the model.
+* car-engine `OnceWords`: car-control's `oncewords` answers it, but car-control may not be named by car-engine and car-engine not by
+  car-control (PLAN 1.3); car-watcher, which sees both, implements the trait over `car_control::oncewords::OnceWords`.
+* car-engine `Given` (jitter's draw, `local`, `environ`, `windows_languages`, `os`): car-watcher builds it, `local` being car-platform's
+  `Crt` and `os` car-control's `PlatformOs`.
+* car-control `Host::windows_languages` (none): `GetUserPreferredUILanguages` is not in car-platform yet. `Host::superseded` (false) and
+  `version` (the manifest at `project_root`): the entry point's (S5.2).
+* The engine's launch guard on car-policy's `Channel::send` and `Route::resume` (S7.2), P11's ledger inside car-store's claim, the advanced
+  plug's errands: as S4.1 and Integration 5 left them.
+* The BLOB in car-codex is `bytes` where it is compared, bound back, told by kind and by status; `pyval::hashable` and `pyval::truthy`
+  read it as the dict it is carried as (a BLOB of no bytes reads true; `hash()` of a BLOB raises; the empty list it was
+  carried as before read false and raised too). No diff reaches either; a later seat that needs them asks `pybytes::blob_bytes` first.
+
+### Found by the full run and fixed here
+
+* `diffs_advstore` (8 of 16 failed, `config/.owned-by-codex-auto-resume` LF on the Rust side) and `diffs_advpolicy_*` compared car-adv's
+  `advstore` and `advprobe` examples as built on 2026-11-25, before these merges: both modules built them only when missing, and
+  `run.py --build` built the harness alone. `diffs_review4.LegacySkillLines` skipped (no `python.exe`). `run.py --build` now also runs
+  `core.build_rest()`: the standard workspace's release binaries and car-adv's two examples. With fresh binaries all 31 tests of those
+  three modules are equal, none skipped.
+* `diffs_codex_homes.test_odd_rows` (after the BLOB change): `values::row_status` told a BLOB by the empty list it used to be carried
+  as; it asks `pybytes::blob_bytes` now.
+* `test_repo_hygiene.test_every_uuid_is_obviously_synthetic`: fix4's `diffs_review4` used the RFC's example UUID; a fixture one now.
+* fix4's `diffs_review4` docstring `homes\*.lock` (a SyntaxWarning) is raw.
+
+### Checks (`CARGO_BUILD_JOBS=4`; reference v0.6.26-beta.2, rustc 1.100.0)
+
+```
+## rust            fmt --check rc=0; clippy --locked --all-targets -D warnings rc=0; test --locked rc=0 (67 test binaries ok, among them
+                   review5_float_repr x2, review5_replace, review5_watcher_status, review5_share, files_replace, power_guard; car-engine's
+                   transport tests 2); cargo deny --locked check: advisories ok, bans ok, licenses ok, sources ok
+## advanced/rust   fmt --check rc=0; clippy rc=0; test --locked rc=0; cargo deny: all four ok
+python -X utf8 rust/tools/check_groundwork.py        rust groundwork: OK (17 standard crates, 3 advanced crates)
+bash advanced/rust/tools/check_rebuild.sh HEAD       rc=0, every binary the same in both folders, with and without advanced/;
+                                                     "profile-path scan: none in any .exe, .dll or .pdb"
+python -X utf8 tests/rustdiff/run.py --build -v      Ran 220 tests in 7,053 s: 211 OK, 8 FAIL and 1 skip, all from the stale advanced
+                                                     examples and python.exe (above); after `build_rest`, `-k diffs_advstore -k diffs_advpolicy
+                                                     -k diffs_review4`: Ran 31 in 1,123 s, OK, no skip. By family (220): diffs 4; leaves
+                                                     (machine 5, domain 4, words 5, brand 8, config 2, log 2, codex 1, floats 1, config_text 1)
+                                                     29; store 15 + store_values 5; S2.1 classify 14 (clock 1, continuation 3, failures 3,
+                                                     policy 3, vocab 4); S2.2 settings 11; policy_hive 1; S3.1 platform 27; S3.2 codex 28 (homes
+                                                     20, pure 8); S3.3 24 (appserver_lines 2, pairing 5, transport 4, compat_io 8,
+                                                     compat_registry 5); S4.1 engine 2 (corpus 81 scenarios, random walks 60); S5.1a bridge 29
+                                                     (bridge 4, commands 25); S7.1a advstore 16; S7.1b advpolicy 8; review4 7
+```
+
+Mutation checks, each alone on the release harness, its diff run, restored: car-codex `send_within` answering `queue_consent_refused`
+for a guard that raised before the start (`(_, None)`) failed `TransportDiff.test_sends` (case 36, `{"enter": "raise"}`: the
+reference `queue_spawn_failed`); `row_status` without its BLOB arm (the state before its fix) failed `HomeDiff.test_odd_rows`
+(`passed_over` raised TypeError where the reference answers).
+
+Python guards (standard lane through `wait_quiet.sh`): `test_repo_hygiene test_privacy_claims test_privacy_bare_hosts test_edition_audit
+test_srcscan test_stack test_layers test_structural_invariants test_rust_release test_rust_power_guard`: Ran 136, 1 failure
+(`test_every_uuid_is_obviously_synthetic`, fixed above; `test_repo_hygiene` then OK alone), 1 skip. Integration 5's two reds are green:
+`test_privacy_claims`' `shipped` has v0.6.26, and `legacy_lines.py --write` read 65 refs to v0.6.26 - no new line, so car-legacy's 44 and
+its ACCEPTED stay and only `published.txt`'s ranges and counts moved.
+
+### For the next seats
+
+* **S6.1 (car-watcher)**: builds `Engine::new(store, Codex(LocalSource), Transport::new(car_codex Backend), Given)`; implements car-engine's
+  `Store` over car-store (the harness's `EngineStore`) and `OnceWords` over car-control's; `Given::local` is car-platform's `Crt`, `os`
+  car-control's `PlatformOs`.
+* **S4.2 (the scenario proxy)**: `backend.send_scoped` in car-harness `appserver.rs` is the model of a send through the engine's guard.
+* **S5.2 / P6**: `SystemHost::compat_view` reads the bundled data at `<project_root>/src/codex_auto_resume/data/`; the archive's layout
+  decides where it is.
+* **The final's port**: `rediff_*.py --reference v0.6.26` as each seat named; nothing of this integration needs one of its own (the
+  wiring is held by the existing diffs, and `test_sends` covers `send_within`).
