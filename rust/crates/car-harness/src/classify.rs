@@ -58,7 +58,7 @@ fn yday(y: i64, m: i64, d: i64) -> i64 {
 }
 
 impl Zone {
-    fn of(value: &Value) -> Zone {
+    pub fn of(value: &Value) -> Zone {
         let at = |index: usize| match value {
             Value::Array(items) => items.get(index).and_then(|each| match each {
                 Value::Int(n) => n.as_i64(),

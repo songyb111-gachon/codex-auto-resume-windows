@@ -879,3 +879,74 @@ share-mode question of car-platform and car-config; its review test (`car-policy
   tag's LF archive bytes, so a CRLF checkout is no difference).
 
 The re-diff for the final: `python -X utf8 tests/rustdiff/rediff_review5.py --reference v0.6.26`.
+
+## The engine (seat S4.1, branch `car-v0627-engine`, 2026-11-25)
+
+`src/codex_auto_resume/engine/` of v0.6.26-beta.2 (nothing in it moved on dev after the tag; `rediff_engine.py` says so
+for the final) into car-engine, and `engine/reconcile.py` into car-scheduler (PLAN 1.2 rows 9 and 10, crate-map).
+
+### What is ported, and how it is shaped
+
+* **car-engine**: one struct, `Engine`, and one `impl Engine` block per mixin, in a module named as the mixin's file:
+  `options`, `detect`, `freshness`, `dispatch`, `delivery`, `routes`, `tosession`, `foropen`, `kinds`, `compaction`,
+  `announce`, `outcome`, `guard`, `relaxed`, `resend`, `notices`, `impossible` (the watcher's judge, pure), `storeview`,
+  `plugrecords` (the part core reads) and `lib.rs`'s `tick`. A record is the store's `dict` (car-machine's `Map`), read with
+  Python's operators (`py.rs`); an error is the class the reference raises (`Py<T>`), caught exactly where it catches one.
+  The plug is car-policy's `Guarded`, asked at every point the reference asks it; the standard edition's is `Guarded::null()`.
+* **car-scheduler**: `Host`, the engine as `ReconcileMixin` sees its `self` (car-engine's `host.rs` implements it), and
+  `watch.rs` - `watch_needed`, `watch`, `watch_record`, `guard_queued`, `withdraw_reason`, `withdraw`, `settle`,
+  `correlate` - generic over it. Its `Store` and `Source` traits are the part of car-engine's seams the watch reads (the
+  graph gives car-scheduler only car-machine and car-policy); car-engine's are their subtraits.
+* **Not ported, and why**: `launches.py` (P12's pool: `_workers` asks P12 and every send stays inline, which is what the
+  reference does for every answer but the advanced plug's), `recordchannel.py` and plugrecords' record flow (P2: a record
+  handed over costs itself as one that raised, `plug_record_check_failed`), and an errand's guards (P8/P22:
+  `store.errand_guard` is the advanced store's; an errand is logged `plug_errand_failed`). All three need the advanced
+  store (`store/plugclaims.py`, P11's ledger), which car-store does not have; they come with S7.2.
+
+### The seams (`car-engine/src/seam.rs`)
+
+| Seam | What | Replaced by |
+|---|---|---|
+| `Store` (+ car-scheduler's) | every store call the engine makes, keyword for keyword; `Claim`, `Register`, `Correlate`, `Withdrawn` mirror car-store's option structs | car-watcher's adapter over car-store (the harness's `EngineStore` is the model: car-engine may not name car-store) |
+| `Source` (+ car-scheduler's) | `LocalSource`'s calls, implemented for `Codex(LocalSource)` here | as is |
+| `Backend` | S3.3's: `app_identity`, `loaded`, `usage`, `send` (with a `LaunchGuard`), `delete_queue`, and the attributes read with `getattr` (`app_look`, `app_unmatched_reason`, `protocol_results`, `session_holder`, `engine_version`, `holder`) as methods whose defaults are the defaults | the integration seat, over car-v0627-appserver's transport |
+| `OnceWords` | `control/oncewords.py` (car-control's) | car-control |
+| `Given` | the reference's keywords, and what Python reads of the process: `draw` (jitter), `local` (`time.localtime`/`mktime`), `environ` and `windows_languages` (a continuation's language), `os` (the settings' coercion) | car-watcher |
+
+### The proof
+
+`tests/rustdiff/diffs_engine.py` (README, "The engine"). Run 2026-11-25, `run.py --build --reference v0.6.26-beta.2 -k
+EngineTraceDiff -v`, release build, 926 s, OK:
+
+```
+engine corpus (the frozen modules' flows): 81 scenarios, 1023 steps equal (63 sends, 767 log lines), 201 s
+engine random walks: 60 scenarios, 5153 steps equal (122 sends, 2530 log lines), 725 s
+```
+
+Equal at every step: the answer, every log line and notification, every backend call with its words, and the whole
+`state.sqlite`. The traces reached 40 log events (detection, every wait, the claim, queued, correlated, every outcome,
+withdrawals and releases, budgets, needs-you, held after sleep, would_send, a failing notifier).
+
+Mutation check (each rule broken alone in car-engine or car-scheduler, the harness rebuilt, the traces run, restored):
+`SETTLED["expired"]` to `cancelled` (e_queued_withdrawn_after_timeout), a settle one second late (o_settle_boundary), a
+reset's first look 31 s away instead of 30 (e_reset_inside_half_minute), no `failed` notification
+(e_queued_then_not_loaded_withdraws), the delivery window one second longer (e_crash_unknown_then_receipt), a usage
+reading reused 31 s (f_usage_cache_boundary), the day's cap wait one second longer (e_daily_cap_wait), one more
+withdraw attempt before `queue_cleanup_unconfirmed` (e_cleanup_unconfirmed): all eight failed their traces. Four of
+them first survived and are what the four edge scenarios were added for.
+
+### For S4.2 (the scenario proxy) and the watcher
+
+* `Engine::new(store, source, backend, Given)`; public: `tick`, `watch`, `watch_needed`, `apply_policy(values, managed)`,
+  `after_sleep`, `activity`, `last_usage`, `limits`, `capacity_limits`, `caps`, `recovers`, `delay_for`, `first_delay`,
+  `quiet_until`, `tier`, `allowed`, `observing`, `admission`, `detection_since`, `not_taken_up`, `valid_interruption`,
+  `presend_problem`, `collect`, `attempt`, `dispatch`, `transition`, `observe`, `observe_all`; fields `options` (a struct:
+  `Options::apply(map)` sets names as `engine.options[...] = v` does), `policy_values`, `managed`, `retiring`,
+  `detection_failed`, `handed_waits`, `home_key`, `once_words`, `home_lock`, `engine_state`.
+* The frozen modules read two private attributes: `engine._usage_cache` (test_engine 520/525, set to None) and
+  `engine._random` (test_ladder_and_guards 290): the proxy needs a way to clear the usage cache and a `draw` it controls.
+* `car-harness/src/engine.rs` is the model for the proxy: the backend asked back over the pipe, the launch guard entered on
+  the Rust store before the stand-in is told. Words for this time need an asked-back `OnceWords` whose `prune(keep)` is two
+  asks (the keys, then the verdicts); not built yet, so no trace uses them (test_once_words_engine is S4.2's to run).
+* car-policy's `Channel::send` and `Route::resume` take no launch guard; the reference hands both one. S7.2 adds it with
+  the advanced plug.

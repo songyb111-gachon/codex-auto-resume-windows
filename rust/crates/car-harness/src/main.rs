@@ -7,7 +7,7 @@
 //! `not_ported`. Later seats add their calls here, and the calls that need the outside world (the backend,
 //! the registry) are asked back over the same pipe.
 
-use std::io::{BufRead, Write};
+use std::io::Write;
 use std::path::Path;
 
 use car_harness::{NOT_PORTED, leaves, object, rejected, store};
@@ -63,6 +63,10 @@ fn answer(request: &serde_json::Value, line: &str) -> Value {
                 _ => rejected("cases are required", "request_failed"),
             }
         }
+        // S4.1: car-engine's sessions (src/engine.rs), whose backend is asked back over this pipe.
+        (Some(call), _) if call.starts_with("engine.") => {
+            ok("value", car_harness::engine::answer(call, &whole()))
+        }
         (Some("codex.script"), _) => match request.get("cases").and_then(|_| leaves::read(request))
         {
             Some(Value::Object(parsed)) => ok(
@@ -76,10 +80,9 @@ fn answer(request: &serde_json::Value, line: &str) -> Value {
 }
 
 fn serve() -> i32 {
-    let stdin = std::io::stdin();
     let mut stdout = std::io::stdout().lock();
-    for line in stdin.lock().lines() {
-        let Ok(line) = line else { break };
+    // One line at a time, stdin locked only while a line is read: an engine step asks back on the same pipe.
+    while let Some(line) = car_harness::engine::read_line() {
         let line = line.trim_start_matches('\u{feff}').trim();
         if line.is_empty() {
             continue;

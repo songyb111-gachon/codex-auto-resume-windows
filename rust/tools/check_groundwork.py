@@ -60,8 +60,9 @@ STANDARD = {
     # S1.2: it runs the store's calls through car-store, which replaced its state.rs stand-in;
     # Integration 2: it wires car-platform's link probe (the one `Path.is_symlink()`) into car-store's and car-config's `Links`;
     # S3.2: it runs car-codex's readers (src/codex.rs: `codex.script` and the `codex.*` cases of `leaves.batch`)
-    "car-harness": {"car-brand", "car-codex", "car-config", "car-machine", "car-platform", "car-policy", "car-store",
-                    "car-words"},
+    # S4.1: it drives car-engine's engine and car-scheduler's watch (src/engine.rs: `engine.open`, `engine.step`)
+    "car-harness": {"car-brand", "car-codex", "car-config", "car-engine", "car-machine", "car-platform", "car-policy",
+                    "car-scheduler", "car-store", "car-words"},
 }
 # The advanced workspace: its three crates, and for car-adv every library of the standard one, the superset the
 # alpha's single advanced crate may reach through the plug; the S7 seats trim it to what is used.

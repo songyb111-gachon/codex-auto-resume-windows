@@ -369,3 +369,31 @@ car-store carries it, `{"\u0000bytes": hex}`.
 The re-enabled cases (`diffs_classify_policy.py`'s four `if False`), and NaN and the infinities added to the words, domain
 and brand families, are equal to v0.6.26-beta.2. The re-diff at the final: `python -X utf8 tests/rustdiff/rediff_review5.py
 --reference v0.6.26`.
+
+## The engine (S4.1, car-engine and car-scheduler)
+
+`diffs_engine.py` (alone: `python -X utf8 tests/rustdiff/run.py --build -k EngineTraceDiff`), over `enginerun.py`, which is
+run in two interpreters and so imports nothing of the product or of this checkout's tests. A scenario is a list of steps -
+the clock, codexsim's own calls on the Codex home (`home`), test_engine's helpers (`helper`: fail_turn, dispatch_and_fail,
+archive, raw_turn, edit_head, duplicate_head, ...), the stand-in backend's moods (`backend`), a person's store calls
+(`store`, `{"$key": thread}` naming that conversation's newest record), `policy`, `tick`, `watch`, `after_sleep`, `facts`.
+It runs once in the reference tag's Python (its Engine, Store and LocalSource; `SCRIPT`, TZ=UTC0) and once through
+`car-harness serve`'s engine session (`engine.open` / `engine.step` / `engine.close`, `car-harness/src/engine.rs`), whose
+backend calls and jitter's draw come back as `{"ask": name, "args": [...]}` lines answered by this side's
+`codexsim.SimBackend` and a `random.Random` of the same seed. The launch guard of a send is entered on each side's own store
+before its stand-in is told. Both worlds are built by the tag's own `tests/codexsim.py`, with `new_id` a counter, so every
+id is the same; a continuation's language is named (`CODEX_AUTO_RESUME_LANG`, `en` unless a scenario says), so neither
+side reads this PC's Windows languages.
+
+After every step the two traces must be equal: the step's answer (or the class it raised), the engine's log lines and
+notifications, every backend call with its arguments (the words sent among them), and the whole `state.sqlite` - every
+table, every row in rowid order, each value with its type, floats by `repr` - and the other files the store keeps.
+
+The corpus is the frozen scenario modules' flows (test_engine 01-18, the crash and uncertainty tests, T01-T47,
+test_outcomes, test_pause_unknown, test_ladder_and_guards, test_skip_reasons, ...) written as step lists, never the modules
+themselves; then `generated(seed)`'s random walks (CODEX_AR_ENGINE_WALKS, 60 by default, 60 steps each, one to three
+conversations). The final's re-diff: `python -X utf8 tests/rustdiff/rediff_engine.py --reference v0.6.26`.
+
+Run 2026-11-25 (`run.py --build --reference v0.6.26-beta.2 -k EngineTraceDiff -v`, 926 s, OK): corpus 81 scenarios, 1,023
+steps equal (63 sends); random walks 60 scenarios, 5,153 steps equal (122 sends). Eight broken rules each failed a trace
+(rust/GROUNDWORK.md, "The engine").

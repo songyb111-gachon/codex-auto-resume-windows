@@ -45,5 +45,8 @@ car-policy = { path = "../car-policy" }
 car-codex = { path = "../car-codex" }
 # S3.1: the one link probe (`links::is_symlink`), which the harness wires into car-store's and car-config's `Links`.
 car-platform = { path = "../car-platform" }
+# S4.1: car-engine's engine and car-scheduler's watch (src/engine.rs: `engine.open`, `engine.step`).
+car-engine = { path = "../car-engine" }
+car-scheduler = { path = "../car-scheduler" }
 # D5: serde to read (the harness's requests).
 serde_json = "1"
