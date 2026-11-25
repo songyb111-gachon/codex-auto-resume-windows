@@ -484,13 +484,29 @@ fn cannot_open() -> Error {
     Error::state("cannot open the advanced state")
 }
 
+/// Rolls back the open transaction when a panic unwinds through `begin` (D15 catches panics at the host, and a state
+/// that outlives one must not keep its transaction and advanced.sqlite RESERVED, as Python, whose `except
+/// BaseException` always rolls back, never does). car-store's `begin` has the same guard.
+struct RollbackOnUnwind<'a>(&'a Connection);
+
+impl Drop for RollbackOnUnwind<'_> {
+    fn drop(&mut self) {
+        if std::thread::panicking() && !self.0.is_autocommit() {
+            let _ = self.0.execute_batch("ROLLBACK");
+        }
+    }
+}
+
 /// `_begin(connection, statement)`: the statement, the body, COMMIT; on any error ROLLBACK where a transaction is
-/// open, and SQLite's own error as `StateError("advanced state transaction failed")`.
+/// open, and SQLite's own error as `StateError("advanced state transaction failed")`. A panic in the body rolls
+/// back too. A ROLLBACK that fails goes out as SQLite's own error, as the reference's `connection.execute
+/// ("ROLLBACK")` inside its `except` raises the raw `sqlite3.Error`.
 pub(crate) fn begin<T>(
     connection: &Connection,
     statement: &str,
     body: impl FnOnce(&Connection) -> Result<T>,
 ) -> Result<T> {
+    let _guard = RollbackOnUnwind(connection);
     let outcome = (|| {
         sql::exec(connection, statement, &[])?;
         let value = body(connection)?;
@@ -501,13 +517,43 @@ pub(crate) fn begin<T>(
         Ok(value) => Ok(value),
         Err(error) => {
             if !connection.is_autocommit() {
-                sql::exec(connection, "ROLLBACK", &[])
-                    .map_err(|_| Error::state("advanced state transaction failed"))?;
+                sql::exec(connection, "ROLLBACK", &[])?;
             }
             match error {
                 Error::Sqlite(_) => Err(Error::state("advanced state transaction failed")),
                 other => Err(other),
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_panic_in_a_body_rolls_back() {
+        let connection = Connection::open_in_memory().unwrap();
+        connection
+            .execute_batch("CREATE TABLE t (x INTEGER)")
+            .unwrap();
+        let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _ = begin(&connection, "BEGIN IMMEDIATE", |connection| -> Result<()> {
+                connection
+                    .execute_batch("INSERT INTO t VALUES (1)")
+                    .unwrap();
+                panic!("a body that panics");
+            });
+        }));
+        assert!(caught.is_err());
+        assert!(
+            connection.is_autocommit(),
+            "the transaction was rolled back"
+        );
+        let count: i64 = connection
+            .query_row("SELECT count(*) FROM t", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 0);
+        begin(&connection, "BEGIN IMMEDIATE", |_| Ok(())).unwrap();
     }
 }
