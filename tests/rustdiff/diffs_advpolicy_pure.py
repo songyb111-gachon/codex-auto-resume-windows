@@ -2,7 +2,7 @@
 
 `engine_version`, `compat_warning`, `warnings_for`, `standing` (the order of what overrides what), `departs`, `held_word`,
 `offers_send_again`, `kept_words`, `_rises`, `_confirmed`, `_claimed_at`, `_carried`, and autocheck's `settled` and `grade`
-(which arming reads: car-adv's `seam_autocheck` holds them until S7.2's autocheck port replaces it), over generated views of the
+(which arming reads: car-adv's `autocheck`, S7.2c's port), over generated views of the
 Compatibility Registry (every state, a state of the wrong type, a missing engine), rows (every state, keep on, send again,
 the revision a person read or not), policies and tables of measurements, for every capability the edition has - the shipped
 ones, the hidden ones and the installation's.

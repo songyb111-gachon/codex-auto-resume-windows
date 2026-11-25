@@ -19,7 +19,7 @@ use car_adv::seam::{
     ArmRow, ContinuationRow, Edges, Meta, Move, OverrideRow, ResetRule, StateFault, StatePort,
     StateResult, Unavailable,
 };
-use car_adv::seam_autocheck::Results;
+use car_adv::autocheck::Results;
 use car_adv::state::seam::Tokens;
 use car_adv::state::session::AdvancedState;
 use car_adv::statement::Catalogs;

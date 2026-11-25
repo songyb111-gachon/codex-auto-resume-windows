@@ -7,8 +7,15 @@
 //! Seat S7.1b: the capabilities' registry, arming, statements, vocabulary and policy - `registry`, `arming`,
 //! `statement`, `vocabulary`, `policy`, `standards`, `measured` - and the seams they reach the rest through
 //! (`seam`). The `_gen` files are written by `tests/rustdiff/gen_advpolicy.py` from the reference tag's own package.
+//!
+//! Seat S7.2c: reading and talking to Codex - [`codex`] (`protocol`, `inuse` and the readers), [`autocheck`] (the
+//! automatic compatibility check; it replaced S7.1b's `seam_autocheck`), [`compatdata`] (the advanced compatibility data)
+//! and [`pytime`] (`time.strptime` for the forms they read).
 
 pub mod arming;
+pub mod autocheck;
+pub mod codex;
+pub mod compatdata;
 pub mod compat_views;
 pub mod images;
 pub mod jsonx;
@@ -18,13 +25,11 @@ pub mod measured;
 mod measured_gen;
 pub mod policy;
 pub mod profiles;
+pub mod pytime;
 pub mod registry;
 #[rustfmt::skip]
 mod registry_gen;
 pub mod seam;
-pub mod seam_autocheck;
-#[rustfmt::skip]
-mod seam_autocheck_gen;
 pub mod standards;
 #[rustfmt::skip]
 mod standards_gen;

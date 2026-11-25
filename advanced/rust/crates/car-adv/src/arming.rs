@@ -28,7 +28,7 @@ use crate::seam::{
     Move, PAUSE, POWER_TASKS_CAPABILITY, PROMPT_QUEUE, RECENT_DAYS, RULES_LIMIT, STEER_SEND,
     StateFault, StatePort, StateResult, Unavailable, WRAP_UP,
 };
-use crate::seam_autocheck::{self, Results, Settled};
+use crate::autocheck::{self, Results, Settled};
 use crate::statement::{Catalogs, Undecodable};
 use crate::vocabulary::{
     Actor, ArmingState, ArmingWarning, AutoResult, CapabilityKind, ContinuationReason,
@@ -141,7 +141,7 @@ pub fn warnings_for(
     let version = engine_version(view);
     let mut found: BTreeSet<ArmingWarning> = BTreeSet::new();
     for measurement in rests_on(definition, parts) {
-        match seam_autocheck::settled(measurement, version.as_deref(), measured, checked) {
+        match autocheck::settled(measurement, version.as_deref(), measured, checked) {
             Settled::Failed => {
                 found.insert(ArmingWarning::MeasurementFailed);
                 if checked.get(&measurement) == Some(&AutoResult::Fail) {
@@ -755,7 +755,7 @@ impl<'a> Arming<'a> {
                 &own_checked
             }
         };
-        let (word, earlier) = seam_autocheck::grade(
+        let (word, earlier) = autocheck::grade(
             &rests_on(definition, true),
             version.as_deref(),
             table,
