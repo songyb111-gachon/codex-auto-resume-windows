@@ -226,6 +226,25 @@ impl Tokens for Counter {
     }
 }
 
+/// `$dir` in every text of an argument: the folder this side's homes are in.
+fn put_in(value: &Value, root: &str) -> Value {
+    match value {
+        Value::Str(text) => text.as_str().map_or_else(
+            || value.clone(),
+            |text| Value::from(text.replace("$dir", root)),
+        ),
+        Value::Array(items) => Value::Array(items.iter().map(|each| put_in(each, root)).collect()),
+        Value::Object(map) => {
+            let mut found = Map::new();
+            for (name, each) in map {
+                found.insert(name.clone(), put_in(each, root));
+            }
+            Value::Object(found)
+        }
+        other => other.clone(),
+    }
+}
+
 pub fn run(op: &str, args: &[Value]) -> Out {
     if op != "flow.run" {
         return Err(Failure::new("UnknownOp"));
@@ -310,6 +329,7 @@ pub fn run(op: &str, args: &[Value]) -> Out {
         ))),
         unsafe_extra: Vec::new(),
     };
+    let root = text(field(case, "root"))?.to_owned();
     let flow = Flow::new(paths, config);
     let mut steps = Vec::new();
     let mut last: Option<String> = None;
@@ -317,9 +337,9 @@ pub fn run(op: &str, args: &[Value]) -> Out {
         let parts = list(step)?;
         match text(arg(parts, 0)?)? {
             "answer" => {
+                let argument = put_in(arg(parts, 2)?, &root);
                 let shown =
-                    match flow.answer(&runtime, &definition, text(arg(parts, 1)?)?, arg(parts, 2)?)
-                    {
+                    match flow.answer(&runtime, &definition, text(arg(parts, 1)?)?, &argument) {
                         Ok(found) => {
                             if let Value::Object(map) = &found
                                 && matches!(map.get("done"), Some(Value::Bool(true)))
@@ -356,7 +376,7 @@ pub fn run(op: &str, args: &[Value]) -> Out {
                 }
             }
             "file" => {
-                let bytes = std::fs::read(text(arg(parts, 1)?)?);
+                let bytes = std::fs::read(text(arg(parts, 1)?)?.replace("$dir", &root));
                 steps.push(match bytes {
                     Ok(bytes) => object([
                         ("exists", Value::Bool(true)),
