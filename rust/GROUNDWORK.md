@@ -528,3 +528,67 @@ python build/rust_edition_audit.py --dist build/dist/rust --version 0.6.27-alpha
   handed on (`run`, `--home <home> run`), started with `CREATE_NO_WINDOW` and not waited for. The MCP launcher's retarget (D18) makes
   `codex-auto-resume.exe mcp --home <home>` what car-legacy already hands on. Set the budget's binaries keys from the first full build.
   `test_rust_release.AuditTests` runs the whole audit once on stand-ins (about four minutes: (c) over the real plugin tree).
+
+## S3.3: car-codex's app-server half and the registry (branch `car-v0627-appserver`, 2026-11-25)
+
+Ported from v0.6.26-beta.2 (`git log v0.6.26-beta.2..origin/dev` empty for every file below), the implementation replaced and
+not the behaviour (odd reference behaviour kept, each recorded in `plans/v0627-rust/AUDIT-v0628.md`):
+
+| Python | Rust |
+|---|---|
+| `codex/pairing.py` | `car-codex/src/pairing.rs` (rows are the dicts the inventory lists, read as Python reads a dict) |
+| `codex/layout.py` | `car-codex/src/layout.rs` (`snapshot`, `read`, `Watch`; a look's snapshot is an `Arc`, its identity the reference's `is`) |
+| `codex/appserver.py` | `car-codex/src/appserver.rs` (`Protocol`, `next_message`, `TextReader` - a text-mode pipe's decoding and newlines) |
+| `codex/transport.py` | `car-codex/src/transport.rs` (`Backend`, every child through car-platform's `Spawn`: CREATE_NO_WINDOW) |
+| `compat/{standing,report,reported,files,cache,probes,views,evaluator}.py` | `car-codex/src/compat/` (same names) |
+| `compat/__init__.py`, `compatio.py` | `compat/mod.rs`, `compatio.rs` (fronts: `pub use`) |
+| `compat/model.py`, `compat/permits.py` | already car-machine's (S1.1) and car-policy's (S2.1); re-exported by `compat/mod.rs` |
+
+`car-codex/src/system.rs` is the one trait the half asks Windows through (`System`: the process list, holders,
+identities, signers, the environment, the pid, the monotonic clock, `Path.resolve`, the Restart Manager), with
+`Platform` over car-platform and `PolicyOs` (car-policy's `Os` over car-platform, for `paths::newest_generation`).
+`refold.rs` is `re.IGNORECASE` and `str.casefold()` as the reference's interpreter has them. car-machine gained
+`compat::raw_decode` (`json.JSONDecoder().raw_decode`). No new dependency; no new crate edge.
+
+### The diffs (`tests/rustdiff/diffs_codex_appserver_*.py`, `diffs_codex_compat_*.py`, `README.md` "S3.3")
+
+Through `car-harness serve`'s `codexapp.script` (`src/appserver.rs`, `src/registry.rs`), each case a stand-in world, the
+reference patched to the same world. Processes started: only `car-fake-codex` (a new bin of car-harness, dev only)
+copies in scratch bin folders. Results of the last full runs (release build, reference v0.6.26-beta.2, rustc 1.100.0):
+
+```
+pairing   19 known layouts x 4 worlds 2,680 calls; 900 generated row lists 46,729 calls; official_engine 29 worlds 1,032;
+          the inventory's 3 s and our own servers 165
+layout    120 Watch sequences (kept files in 12 forms) 3,150 calls, the files left equal
+appserver next_message over 36 streams (at and past LINE_LIMIT, oversize answers, errors, requests, notifications);
+          _unknown, last_result, offers 5,246 cases; usage and queue delete through 29 fake helpers 147 calls, every
+          request byte equal (CRLF included), the 25 s call wait and the 4 s end wait as the reference's
+transport engine checks over 16 fake engines 80 calls; 38 sends; app_identity, loaded and holder over 36 layouts 540 calls
+registry  41 documents (19 data sequences in history, the frozen and advanced data, the community fixture, 11 broken
+          copies, 8 bad files) 19,721 standing cases; evidence, evaluate, accepted_word over 99 pairs 28,545; the
+          grids 3,484; reports and views 1,861; reported over 29 files 378
+compatio  files; 585 cache files read and judged 8,655; imports over 41 documents 401; probes over 13 homes 660;
+          views over 14 report files 268; live_report's discovery over 4 fake bins; the evaluator over 40 tick
+          sequences 605; run_refresh over 68 stubbed answers 71
+```
+
+The re-diff for the final: `python -X utf8 tests/rustdiff/rediff_appserver.py --reference v0.6.26`.
+
+### For P4 and P7
+
+* **car-engine / car-scheduler (P4)** take the backend as `car_codex::transport::Backend` (built with an
+  `Arc<dyn System>`, the Codex home and engine, `require_holder`, and `config.version()`; set `bundled` to the data
+  file so `engine_verified` reads it): `compatible()`, `engine_checks()`, `app_identity()` (and `app_look`,
+  `app_looked_at`, `served_elsewhere`, `server_holds`, `layout`, `app_unmatched_reason()`), `loaded()`, `holder()`,
+  `usage()`, `send(thread, prompt, launch_guard)` (the guard is `transport::LaunchGuard`; the dispatch lock goes
+  there), `delete_queue()`, `session_holder`, `protocol_results` (the engine's usage wait reads it with
+  `appserver::last_result(method, Some(&backend.protocol_results))`). The gate's word is
+  `compat::evaluator::Evaluator::tick(Some(&mut backend), &[])`, its report written by it alone; the watcher builds one
+  `Evaluator` (a `views::Registry` naming the data files and the home's two config files) and one `layout::Watch`
+  (`look(backend.layout.as_ref(), stamp, engine_version)`). Module state the reference keeps per process is per process
+  here too (`pairing::reset`, `appserver::reset`, `transport::reset` are for tests and the harness only).
+* **The advanced meter (P7, `engine/usage.py` and `codex/inuse.py` from the final tag)** will call `pairing::inventory`
+  / `app_running_now` / `own_server` / `own_server_gone` / `own_holder` for who runs, `Backend::usage()` and
+  `appserver::last_result` / `BROKEN` for why a read broke, `usage::parse_usage` (S3.2), and `Protocol::open` +
+  `call` only for the three `PROTOCOL_METHODS` (anything else is `protocol_method_not_allowed`, as the reference).
+  An advanced helper of its own (advanced `codex/protocol.py`) is not this one: it is ported with car-adv.
