@@ -5,11 +5,16 @@
 //! settings save then answers "cannot save settings"). These are the product's: car-codex calls them, and the binaries
 //! hand them to car-policy (`settings::os::Os::replace`) and car-config (`Logbook::with_rename`), which cannot reach
 //! this crate (PLAN 1.3); car-machine's `pyfile::{replace, rename}` are the std-only defaults where nothing is handed in.
+//! `file_index` is `os.stat(path).st_ino`, which std's stable surface cannot read (car-control's `SystemHost::file_id`).
 
 use std::path::Path;
 
+use windows::Win32::Foundation::CloseHandle;
 use windows::Win32::Storage::FileSystem::{
-    MOVE_FILE_FLAGS, MOVEFILE_REPLACE_EXISTING, MoveFileExW,
+    BY_HANDLE_FILE_INFORMATION, CreateFileW, FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAGS_AND_ATTRIBUTES,
+    FILE_READ_ATTRIBUTES, FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE,
+    GetFileInformationByHandle, MOVE_FILE_FLAGS, MOVEFILE_REPLACE_EXISTING, MoveFileExW,
+    OPEN_EXISTING,
 };
 use windows::core::PCWSTR;
 
@@ -31,4 +36,36 @@ pub fn replace(from: &Path, to: &Path) -> std::io::Result<()> {
 /// `os.rename(from, to)`: MoveFileExW with no flag - an existing target is not replaced (FileExistsError 183).
 pub fn rename(from: &Path, to: &Path) -> std::io::Result<()> {
     move_file(from, to, MOVE_FILE_FLAGS(0))
+}
+
+/// `os.stat(path).st_ino`: the file index of what `path` names (links followed, as `stat` follows them),
+/// `nFileIndexHigh << 32 | nFileIndexLow` - read the way `homelock::folder_identity` reads a folder's (CreateFileW for
+/// FILE_READ_ATTRIBUTES with every share, GetFileInformationByHandle). A new file is a new index, even where NTFS
+/// tunnelling hands it the old file's creation time. None where Windows will not say (no such file, no access).
+pub fn file_index(path: &Path) -> Option<u128> {
+    let name = wide_os(path.as_os_str());
+    // SAFETY: `name` is NUL-terminated and outlives the call.
+    let handle = unsafe {
+        CreateFileW(
+            PCWSTR(name.as_ptr()),
+            FILE_READ_ATTRIBUTES.0,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            None,
+            OPEN_EXISTING,
+            FILE_FLAGS_AND_ATTRIBUTES(FILE_FLAG_BACKUP_SEMANTICS.0),
+            None,
+        )
+    }
+    .ok()?;
+    let mut found = BY_HANDLE_FILE_INFORMATION::default();
+    // SAFETY: the handle is ours and the structure too.
+    let asked = unsafe { GetFileInformationByHandle(handle, &mut found) };
+    // SAFETY: the handle was just opened.
+    unsafe {
+        let _ = CloseHandle(handle);
+    }
+    asked.ok()?;
+    Some(u128::from(
+        (u64::from(found.nFileIndexHigh) << 32) | u64::from(found.nFileIndexLow),
+    ))
 }

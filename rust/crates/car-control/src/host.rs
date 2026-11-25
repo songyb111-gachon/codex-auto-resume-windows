@@ -531,22 +531,8 @@ impl Host for SystemHost {
     }
 
     fn file_id(&self, path: &Path) -> Option<u128> {
-        // std's stable surface has no file index (`windows_by_handle` is unstable) and D3 keeps the Windows call in
-        // car-platform: the creation time stands in until the integration hands car-platform's file index in
-        // (GROUNDWORK, Integration 6). It is a new file's own, but a rename onto a name just deleted may carry the
-        // old file's (NTFS tunnelling), where st_ino would not.
-        #[cfg(windows)]
-        {
-            use std::os::windows::fs::MetadataExt;
-            std::fs::metadata(path)
-                .ok()
-                .map(|info| u128::from(info.creation_time()))
-        }
-        #[cfg(not(windows))]
-        {
-            let _ = path;
-            None
-        }
+        // `os.stat(path).st_ino`: car-platform's file index (D3: the Windows call is car-platform's).
+        car_platform::files::file_index(path)
     }
 
     fn read_file(&self, path: &Path) -> std::io::Result<Vec<u8>> {
