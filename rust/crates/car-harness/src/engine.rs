@@ -182,6 +182,8 @@ impl car_engine::Store for EngineStore {
     }
     fn reserve_detailed(&self, interruption_id: &str, now: f64, claim: &Claim) -> Py<Claimed> {
         let options = car_store::claims::Claim {
+            plugged: claim.plugged,
+            carried: claim.carried.clone(),
             limits: Some(claim.limits.clone()),
             gates: Some(claim.gates.clone()),
             quiet_until: claim.quiet_until,

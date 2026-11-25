@@ -190,6 +190,7 @@ impl Engine {
             None
         }));
         let claim = Claim {
+            plugged: !self.plug.is_null(),
             limits: limits_of(&if forced {
                 self.forced_limits(limits)
             } else {
