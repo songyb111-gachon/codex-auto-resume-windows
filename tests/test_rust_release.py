@@ -232,7 +232,8 @@ class PublishedUpdaterTests(unittest.TestCase):
 
     def test_every_published_bootstrap_takes_both_archives(self):
         bridge = self.bridge()
-        found, means = rust_legacy_bootstraps.run(self.dist, VERSION)
+        # Stand-in binaries cannot run: (c) is EntryRunTests', on the cargo build.
+        found, means = rust_legacy_bootstraps.run(self.dist, VERSION, entry=False)
         self.assertEqual(found, [])
         self.assertEqual(set(means), set(legacy.published(ROOT, VERSION)))
         if bridge is not None:
@@ -266,6 +267,29 @@ class PublishedUpdaterTests(unittest.TestCase):
             found = rust_legacy_bootstraps.check_handover([bridge], VERSION, console, self.advanced)
             self.assertEqual(len(found), 1)
             self.assertIn("is not a Windows program", found[0])
+
+
+class EntryRunTests(unittest.TestCase):
+    """(c) of the bootstrap proof on the cargo build: each published bootstrap's own runtime\\python.exe lines, run by
+    its own Invoke-InstalledSetup (or its repair branch's call operator), reach the core through car-legacy."""
+
+    @classmethod
+    def setUpClass(cls):
+        release = ROOT / "rust" / "target" / "release"
+        cls.legacy, cls.core = release / "python.exe", release / "codex-auto-resume.exe"
+        if not (cls.legacy.is_file() and cls.core.is_file()):
+            raise unittest.SkipTest("not built: cargo build --release --manifest-path rust/Cargo.toml")
+        if not tags_present():
+            raise unittest.SkipTest("no published tag in this checkout")
+        cls.bootstraps = [legacy.lift(ROOT, tag) for tag in legacy.published(ROOT, VERSION)]
+
+    def test_every_bootstrap_line_reaches_the_core(self):
+        self.assertEqual(rust_legacy_bootstraps.check_entry(self.bootstraps, self.legacy, self.core), [])
+
+    def test_a_refusing_entry_is_found(self):
+        # car-legacy given as the core too refuses every line handed to it (it is not in a runtime folder): code 2.
+        found = rust_legacy_bootstraps.check_entry(self.bootstraps[-1:], self.legacy, self.legacy)
+        self.assertTrue(found and all("refused by car-legacy" in line for line in found), found)
 
 
 class AuditTests(unittest.TestCase):

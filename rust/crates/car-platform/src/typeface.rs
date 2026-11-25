@@ -85,8 +85,8 @@ pub fn letters<S: AsRef<str>>(texts: &[S]) -> String {
 /// Segoe UI lacks one too (a script with a face of its own); Segoe UI otherwise. `lacks` answers which characters a
 /// face has no glyph for. Pure, given `lacks`.
 pub fn face_for(face: &str, text: &str, lacks: &dyn Fn(&str, &str) -> String) -> String {
-    if face.trim().is_empty()
-        || face.trim().to_lowercase() == SEGOE.to_lowercase()
+    if car_machine::pytext::strip(face).is_empty()
+        || car_machine::pytext::strip(face).to_lowercase() == SEGOE.to_lowercase()
         || text.is_empty()
     {
         return face.to_string();
@@ -174,7 +174,7 @@ fn lacking_cache() -> &'static Mutex<HashMap<(String, String), String>> {
 /// name, or - a face Windows reports by its localized name - anything but what a face that does not exist is
 /// realized as. False when Windows cannot be asked. Asked once per face.
 pub fn installed(face: &str) -> bool {
-    if face.trim().is_empty() {
+    if car_machine::pytext::strip(face).is_empty() {
         return false;
     }
     let mut cache = installed_cache()
@@ -203,7 +203,7 @@ pub fn installed(face: &str) -> bool {
 /// The characters of `text` the face `face` has no glyph of its own for - not one it would borrow through a font
 /// link. "" when Windows cannot be asked. Asked once per face and text.
 pub fn lacks(face: &str, text: &str) -> String {
-    if face.trim().is_empty() || text.is_empty() {
+    if car_machine::pytext::strip(face).is_empty() || text.is_empty() {
         return String::new();
     }
     let key = (face.to_string(), text.to_string());
@@ -276,7 +276,7 @@ pub fn ui_face() -> Option<String> {
     }
     .ok()?;
     let face = from_wide(&metrics.lfMessageFont.lfFaceName);
-    (!face.trim().is_empty()).then_some(face)
+    (!car_machine::pytext::strip(&face).is_empty()).then_some(face)
 }
 
 #[allow(dead_code)]

@@ -8,10 +8,12 @@ pub mod compat;
 pub mod domain;
 pub mod hash;
 pub mod json;
+pub mod pyfile;
 pub mod pytext;
 #[rustfmt::skip]
 mod pytext_tables;
 pub mod pyval;
 pub mod vocab;
+pub mod winpath;
 #[rustfmt::skip]
 pub mod vocab_gen;

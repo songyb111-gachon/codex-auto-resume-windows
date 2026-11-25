@@ -11,7 +11,8 @@ use std::fs;
 use std::path::Path;
 use std::sync::Arc;
 
-use car_machine::json::{Value, from_str};
+use car_machine::compat::loads;
+use car_machine::json::Value;
 
 use crate::winpath::{self, Env};
 
@@ -53,6 +54,37 @@ pub struct Os {
 pub trait Links: Send + Sync + std::fmt::Debug {
     /// `Path(path).is_symlink()`.
     fn is_symlink(&self, path: &Path) -> bool;
+    /// `os.readlink(path)` for `Path.resolve()`'s walk (std reads the reparse data as CPython does).
+    fn readlink(&self, path: &str) -> winpath::Readlink {
+        winpath::os_readlink(path)
+    }
+    /// `nt._findfirstfile(path)`: the last component's real name. Only a probe of the platform can ask it; without one
+    /// the walk splits the name off as written (the error a FindFirstFileW that fails would give).
+    fn find_first_file(&self, path: &str) -> Result<String, i32> {
+        let _ = path;
+        Err(50)
+    }
+}
+
+/// The questions `Path.resolve()` asks, through this `Os`: the final path by std, links and real names by the probe.
+struct Asked<'a>(&'a Os);
+
+impl winpath::NtOs for Asked<'_> {
+    fn final_path(&self, path: &str) -> Result<String, i32> {
+        winpath::os_final_path(path)
+    }
+    fn readlink(&self, path: &str) -> winpath::Readlink {
+        self.0.links.readlink(path)
+    }
+    fn is_symlink(&self, path: &str) -> bool {
+        self.0.links.is_symlink(Path::new(path))
+    }
+    fn find_first_file(&self, path: &str) -> Result<String, i32> {
+        self.0.links.find_first_file(path)
+    }
+    fn long_paths(&self) -> bool {
+        self.0.long_paths
+    }
 }
 
 impl Os {
@@ -70,7 +102,7 @@ impl Os {
     /// `Path(p).resolve()`: the path made absolute and real as far as it exists; `Err` is the Windows error number.
     pub fn resolve(&self, path: &str) -> Result<String, i32> {
         let normal = winpath::path_str(path);
-        winpath::realpath(&normal, &self.cwd, &winpath::os_final_path, self.long_paths)
+        winpath::realpath_os(&normal, &self.cwd, &Asked(self))
     }
 }
 
@@ -252,7 +284,7 @@ impl Paths {
             let marker = child(directory, OWNER_MARKER);
             if !Path::new(&marker).exists() {
                 // A missing marker only makes uninstall MORE conservative.
-                let _ = fs::write(&marker, OWNER_TEXT);
+                let _ = car_machine::pyfile::write_text(&marker, OWNER_TEXT);
             }
         }
         Ok(())
@@ -279,7 +311,7 @@ impl Paths {
             return false;
         }
         let marker = child(&self.home, OWNER_MARKER);
-        Path::new(&marker).exists() || fs::write(&marker, OWNER_TEXT).is_ok()
+        Path::new(&marker).exists() || car_machine::pyfile::write_text(&marker, OWNER_TEXT).is_ok()
     }
 
     /// `owns_home()`: whether this installation root is one we created: its marker, `config/`'s marker, or a
@@ -295,13 +327,15 @@ impl Paths {
         if !is_file(&record) || self.is_symlink(&record) || !self.confined(&record) {
             return false;
         }
-        let Ok(raw) = fs::read(&record) else {
+        let Ok(raw) = car_machine::pyfile::read(&record) else {
             return false;
         };
         let Ok(text) = String::from_utf8(raw) else {
             return false;
         };
-        let Ok(Value::Object(document)) = from_str(&text.replace("\r\n", "\n")) else {
+        // json.loads, which takes NaN, Infinity, a lone surrogate escape and deep nesting (review 4, S1); a file nested
+        // past its depth raises RecursionError out of the reference's owns_home, and is no record here (AUDIT).
+        let Ok(Value::Object(document)) = loads(&text.replace("\r\n", "\n")) else {
             return false;
         };
         let Some(Value::Str(declared)) = document.get("home") else {

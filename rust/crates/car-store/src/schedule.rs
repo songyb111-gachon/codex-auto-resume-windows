@@ -44,7 +44,7 @@ fn float_repr(now: f64) -> String {
 
 /// A file's text read as ASCII, or None (an OSError or a UnicodeDecodeError).
 fn read_ascii(path: &std::path::Path) -> Option<String> {
-    let bytes = std::fs::read(path).ok()?;
+    let bytes = car_machine::pyfile::read(path).ok()?;
     bytes
         .is_ascii()
         .then(|| String::from_utf8(bytes).expect("ascii"))
@@ -281,7 +281,7 @@ impl Store {
                 } else {
                     ""
                 };
-            std::fs::write(folder.join(interruption_id), said)
+            car_machine::pyfile::write(folder.join(interruption_id), said)
         })();
         Ok(written.is_ok())
     }
@@ -391,7 +391,7 @@ impl Store {
                 }
                 _ => {}
             }
-            std::fs::write(folder.join(EARLY_CHECK), float_repr(now))
+            car_machine::pyfile::write(folder.join(EARLY_CHECK), float_repr(now))
         })();
         Ok(written.is_ok())
     }

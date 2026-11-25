@@ -58,7 +58,7 @@ pub fn project_root(module: &str, levels: usize, package: &str) -> Result<String
 
 /// `read_version(manifest)`: the version a plugin manifest declares, or the one sentence that says why it cannot be read.
 pub fn read_version(manifest: &str) -> Result<String, ConfigError> {
-    let raw = match fs::read(manifest) {
+    let raw = match car_machine::pyfile::read(manifest) {
         Ok(bytes) => bytes,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             return Err(ConfigError("the plugin manifest is missing".into()));

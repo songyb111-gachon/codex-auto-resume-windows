@@ -872,12 +872,8 @@ pub fn read(os: &dyn Os, path: &Path) -> Result<Map, SettingsError> {
     }
     let bytes = {
         use std::io::Read;
-        use std::os::windows::fs::OpenOptionsExt;
         // Python's open(): shared for reading and writing, not for deleting.
-        let opened = std::fs::OpenOptions::new()
-            .read(true)
-            .share_mode(0x1 | 0x2)
-            .open(path);
+        let opened = car_machine::pyfile::open(path);
         let mut bytes = Vec::new();
         match opened.and_then(|mut file| file.read_to_end(&mut bytes)) {
             Ok(_) => bytes,
@@ -967,7 +963,8 @@ pub(crate) fn temporary_named(
             })
             .collect();
         let path = folder.join(format!("{prefix}{name}.json.tmp"));
-        match std::fs::OpenOptions::new()
+        // tempfile.mkstemp's os.open(O_CREAT | O_EXCL): shared as the C runtime shares.
+        match car_machine::pyfile::options()
             .write(true)
             .create_new(true)
             .open(&path)
@@ -1001,10 +998,7 @@ pub fn save(os: &dyn Os, path: &Path, values: &Value) -> Result<Map, SettingsErr
         .and_then(|_| file.flush())
         .and_then(|_| file.sync_all());
     drop(file);
-    if written
-        .and_then(|_| std::fs::rename(&temporary, path))
-        .is_err()
-    {
+    if written.and_then(|_| os.replace(&temporary, path)).is_err() {
         let _ = std::fs::remove_file(&temporary);
         return Err(SettingsError::refused("cannot save settings"));
     }

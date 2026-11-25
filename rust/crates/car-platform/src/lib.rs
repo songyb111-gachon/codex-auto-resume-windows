@@ -21,6 +21,7 @@ pub mod acl;
 pub mod addremove;
 pub mod authenticode;
 pub mod cmdline;
+pub mod files;
 pub mod handover;
 pub mod homelock;
 pub mod inventory;
@@ -32,6 +33,8 @@ pub mod ownprocess;
 pub mod paths;
 pub mod power;
 pub mod powerdown;
+#[rustfmt::skip]
+mod printable_gen;
 pub mod pwsh;
 pub mod registry;
 pub mod registry_reads;

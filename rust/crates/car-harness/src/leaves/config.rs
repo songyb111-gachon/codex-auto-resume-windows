@@ -299,7 +299,7 @@ fn write_log(a: &Args) -> Py<Value> {
         _ => Vec::new(),
     };
     let codes: Vec<&str> = codes.iter().map(String::as_str).collect();
-    let mut log = Logbook::open(file, marks, &codes);
+    let mut log = Logbook::open(file, marks, &codes).with_rename(car_platform::files::rename);
     let mut at = car_machine::pytext::to_float(a.get(4)).unwrap_or(0.0);
     let step = car_machine::pytext::to_float(a.get(6)).unwrap_or(1.0);
     let Value::Array(events) = a.get(3) else {

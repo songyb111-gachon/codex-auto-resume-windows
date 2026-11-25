@@ -49,6 +49,10 @@ impl os::Os for PlatformOs {
             Err(_) => Ok(text.to_vec()),
         }
     }
+
+    fn replace(&self, from: &Path, to: &Path) -> std::io::Result<()> {
+        car_platform::files::replace(from, to)
+    }
 }
 
 static OS: PlatformOs = PlatformOs;
@@ -189,7 +193,7 @@ fn as_map(value: &Value) -> Map {
 /// The policy values car-platform reads from a stand-in registry, as `policykeys.read()` hands them to `parse`.
 fn registry_places(request: &Value) -> Value {
     use car_platform::registry::{FakeRegistry, Root, Value as Reg};
-    use car_platform::registry_reads::{PolicyValue, read_policies};
+    use car_platform::registry_reads::policy_places;
     let root = |name: &Value| {
         if text(name) == "HKLM" {
             Root::LocalMachine
@@ -239,33 +243,8 @@ fn registry_places(request: &Value) -> Value {
         let Value::Array(parts) = deny else { continue };
         registry.deny_value(root(&parts[0]), text(&parts[1]), text(&parts[2]));
     }
-    Value::Array(
-        read_policies(&registry)
-            .into_iter()
-            .map(|place| {
-                let mut entries = Map::new();
-                for (name, found) in place {
-                    let pair = match found {
-                        PolicyValue::Data((Reg::Str(data), kind)) => {
-                            vec![Value::from(data), Value::from(kind)]
-                        }
-                        PolicyValue::Data((Reg::Qword(data), kind)) => {
-                            vec![Value::from(data), Value::from(kind)]
-                        }
-                        PolicyValue::Data((Reg::Int(data), kind)) => {
-                            vec![Value::from(data), Value::from(kind)]
-                        }
-                        PolicyValue::Data((Reg::Bytes(_), kind)) => {
-                            vec![Value::Null, Value::from(kind)]
-                        }
-                        PolicyValue::Unreadable => vec![Value::Null, Value::from(-1)],
-                    };
-                    entries.insert(Str::from(name.as_str()), Value::Array(pair));
-                }
-                Value::Object(entries)
-            })
-            .collect(),
-    )
+    // The product's own conversion (car-platform registry_reads::policy_places), so this diff sees it.
+    Value::Array(policy_places(&registry))
 }
 
 // ------------------------------------------------------------------------------------------ files

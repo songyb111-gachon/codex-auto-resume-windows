@@ -7,9 +7,12 @@
 //!
 //! The local time zone is the platform's (car-platform), so every call that needs one takes a [`Clock`].
 
-use std::fs::{self, OpenOptions};
+use std::fs::{self, File};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::Path;
+use std::sync::Mutex;
+
+use car_machine::pyfile;
 
 use car_machine::domain::ids;
 use car_machine::json::Value;
@@ -242,7 +245,7 @@ pub fn skipped(thread_id: &Value, turn_id: &Value, reason: &Value, kind: &Value)
 
 /// `tail(path, count)`: the last `count` lines of a file, line ends dropped; none where it cannot be read.
 pub fn tail(path: &Path, count: i64) -> Vec<String> {
-    let Ok(raw) = fs::read(path) else {
+    let Ok(raw) = pyfile::read(path) else {
         return Vec::new();
     };
     let decoded = String::from_utf8_lossy(&raw).replace("\r\n", "\n");
@@ -299,10 +302,24 @@ fn skip_lines(text: &str) -> Vec<(String, String)> {
     found
 }
 
+/// `os.rename(from, to)`, as the rollover asks it.
+pub type Rename = fn(&Path, &Path) -> std::io::Result<()>;
+
+/// The log opened for appending (created where it is not), shared as Python's `open(..., "a")` shares.
+fn append(path: &str) -> Option<File> {
+    pyfile::options().create(true).append(true).open(path).ok()
+}
+
 /// The rotating log: `logging.RotatingFileHandler` with `maxBytes=1_000_000`, `backupCount=5`, UTF-8, on Windows
 /// (a line ends `\r\n` on disk, and the size rule counts a line as the text and one character).
 pub struct Logbook {
     file: String,
+    /// The handler's stream: opened by `open` and held, as `FileHandler` holds it (shared for reading and writing,
+    /// never for deleting, so nobody renames or deletes the log under it); closed and opened again by a rollover.
+    stream: Mutex<Option<File>>,
+    /// `os.rename` for the rollover: car-platform's `files::rename` where the binary hands it in
+    /// ([`Logbook::with_rename`]), else car-machine's std-only `pyfile::rename`.
+    rename: Rename,
     mark: String,
     said: Option<Vec<(String, String)>>,
     state_codes: Vec<String>,
@@ -314,17 +331,27 @@ impl Logbook {
         if let Some(parent) = Path::new(log_file).parent() {
             let _ = fs::create_dir_all(parent);
         }
-        // The handler opens the file as it is made, so a log with no line yet exists.
-        let _ = OpenOptions::new().create(true).append(true).open(log_file);
+        // The handler opens the file as it is made, so a log with no line yet exists, and holds it.
+        let stream = append(log_file);
         Logbook {
             file: log_file.to_owned(),
+            stream: Mutex::new(stream),
+            rename: |from, to| pyfile::rename(from, to),
             mark: mark.to_owned(),
             said: None,
             state_codes: state_codes.iter().map(|each| (*each).to_owned()).collect(),
         }
     }
 
-    fn rollover(&self) {
+    /// The `os.rename` the rollover moves files with: car-platform's `files::rename`, handed in by the binary.
+    pub fn with_rename(mut self, rename: Rename) -> Logbook {
+        self.rename = rename;
+        self
+    }
+
+    /// `doRollover`: the stream closed, the files moved down, the stream opened again.
+    fn rollover(&self, stream: &mut Option<File>) {
+        *stream = None;
         for i in (1..BACKUP_COUNT).rev() {
             let (from, to) = (
                 format!("{}.{i}", self.file),
@@ -332,12 +359,13 @@ impl Logbook {
             );
             if Path::new(&from).exists() {
                 let _ = fs::remove_file(&to);
-                let _ = fs::rename(&from, &to);
+                let _ = (self.rename)(Path::new(&from), Path::new(&to));
             }
         }
         let first = format!("{}.1", self.file);
         let _ = fs::remove_file(&first);
-        let _ = fs::rename(&self.file, &first);
+        let _ = (self.rename)(Path::new(&self.file), Path::new(&first));
+        *stream = append(&self.file);
     }
 
     /// `logger.info(line)`: one formatted line, rolled over first where it would reach the cap.
@@ -351,17 +379,23 @@ impl Logbook {
             })
             .unwrap_or_else(|| "0000-00-00 00:00:00".to_owned());
         let message = format!("[{stamp}] {}{line}", self.mark);
+        let mut stream = self
+            .stream
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        // `emit` opens a stream the handler does not hold (one a failed rollover closed).
+        if stream.is_none() {
+            *stream = append(&self.file);
+        }
         let size = fs::metadata(&self.file).map_or(0, |found| found.len());
         if Path::new(&self.file).is_file() && size + message.chars().count() as u64 + 1 >= MAX_BYTES
         {
-            self.rollover();
+            self.rollover(&mut stream);
         }
-        if let Ok(mut stream) = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&self.file)
-        {
-            let _ = stream.write_all(format!("{message}\r\n").as_bytes());
+        if let Some(open) = stream.as_mut() {
+            // The handler's text stream: every "\n" of the record and its terminator written as "\r\n".
+            let _ = open.write_all(format!("{message}\n").replace('\n', "\r\n").as_bytes());
+            let _ = open.flush();
         }
     }
 
@@ -369,7 +403,7 @@ impl Logbook {
         if self.said.is_none() {
             let mut said = Vec::new();
             for path in [format!("{}.1", self.file), self.file.clone()] {
-                let Ok(mut stream) = fs::File::open(&path) else {
+                let Ok(mut stream) = pyfile::open(&path) else {
                     continue;
                 };
                 let end = stream.seek(SeekFrom::End(0)).unwrap_or(0);

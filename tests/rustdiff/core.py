@@ -15,6 +15,10 @@ from pathlib import Path
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[2]
+# Every Rust process a diff starts (the harness, the stub core, a probe) inherits the core's power-action guard, as
+# tests/sitecustomize.py gives every interpreter of the suite: the reference refuses under unittest, Rust by this.
+POWER_GUARD = "CAR_NO_POWER_ACTION"
+os.environ.setdefault(POWER_GUARD, "1")
 CRATE = ROOT / "rust" / "crates" / "car-harness"
 MANIFEST = CRATE / "Cargo.toml"
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)

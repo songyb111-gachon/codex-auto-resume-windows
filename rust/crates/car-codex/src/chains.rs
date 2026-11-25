@@ -244,7 +244,7 @@ fn write_atomically(path: &Path, text: &str) -> std::io::Result<()> {
         .unwrap_or_default();
     let temporary = path.with_file_name(format!("{stem}.{}.tmp", std::process::id()));
     std::fs::write(&temporary, text.as_bytes())?;
-    std::fs::rename(&temporary, path)
+    car_platform::files::replace(&temporary, path)
 }
 
 type Key = (Option<String>, bool);

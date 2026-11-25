@@ -8,6 +8,13 @@
       (BRIDGE.md section 2.3), then reads the marker - its format, the version and edition the run picked, a program of
       the archive by that exact name - and, unpacked, finds that program inside the folder with no link on the way, a
       PE image of the Windows GUI subsystem (Resolve-SetupProgram). It would then start it.
+  (c) The compatibility entry run: every runtime\\python.exe line a bootstrap starts against the INSTALLED home (its
+      repair branch, Invoke-InstalledSetup and what calls it: rust/tools/legacy_lines.py's bootstrap_lines of that
+      tag) is run for real, by the tag's own Invoke-InstalledSetup where it has one (lifted from git, as (b) lifts its
+      functions; without -Outside) or by the call operator over the same argument array where it has none, against a
+      scratch installation made of the archive's runtime\\python.exe (car-legacy) and app\\bin\\codex-auto-resume.exe (the
+      core), in a folder whose name holds a space, the home given with and without a trailing separator. Each line must
+      reach the core: the stub core ends with 3, car-legacy's refusal with 2 and a missing program with 1.
 
 Every tag from v0.5.2 below the version built is asked, and each bootstrap that has Read-SetupHandover is asked (b) as
 well; `--ref` adds a branch tip after the tags (the v0.6.26 final's updater before its tag exists). Only the bootstraps'
@@ -15,6 +22,7 @@ own function definitions run, from git, in Windows PowerShell 5.1 as the setting
 and against nothing but the archives and a temporary folder: no installation, no registry, nothing started.
 
     python build/rust_legacy_bootstraps.py --dist build/dist/rust --version 0.6.27-alpha [--ref dev]
+    python build/rust_legacy_bootstraps.py --entry-from rust/target/release      # (c) alone, from a cargo build
 """
 from __future__ import annotations
 
@@ -22,9 +30,11 @@ import argparse
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
+import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 _HERE = str(Path(__file__).resolve().parent)
@@ -33,6 +43,55 @@ if _HERE not in sys.path:
 
 import legacy_bootstraps as legacy  # noqa: E402
 import rust_release  # noqa: E402
+
+sys.path.insert(0, str(ROOT / "rust" / "tools"))
+import legacy_lines  # noqa: E402
+
+# What the stub core ends every command with (car-bin's NOT_PORTED): a line car-legacy handed on.
+REACHED = 3
+
+ENTRY = r"""
+$ErrorActionPreference = 'Stop'
+Set-StrictMode -Version 2.0
+$lifted = @{}
+$answers = @()
+foreach ($case in (ConvertFrom-Json (Get-Content -LiteralPath $env:CAR_CASES -Raw -Encoding UTF8))) {
+    $answers += & {
+        param($case)
+        $answer = [ordered]@{ index = $case.index; line = $case.line; home = $case.home; code = $null; error = $null }
+        try {
+            if ($case.function) {
+                if (-not $lifted.ContainsKey($case.script)) {
+                    $errors = $null
+                    $ast = [System.Management.Automation.Language.Parser]::ParseFile($case.script, [ref]$null, [ref]$errors)
+                    if ($errors -and $errors.Count) { throw 'its bootstrap.ps1 does not parse' }
+                    $node = $ast.Find({ param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+                                       $n.Name -eq 'Invoke-InstalledSetup' }, $true)
+                    $lifted[$case.script] = $node.Extent.Text
+                }
+                Invoke-Expression $lifted[$case.script]
+                $done = Invoke-InstalledSetup -Home_ $case.home -Arguments @($case.words)
+                $answer.code = $done.Code
+            } else {
+                # The repair branch of v0.5.2-v0.6.11: `& $python @arguments` over $setup and the words.
+                $python = Join-Path $case.home 'runtime\python.exe'
+                $setup = Join-Path $case.home 'app\scripts\plugin_setup.py'
+                $arguments = @()
+                if ($case.x) { $arguments += @('-X', 'disable-remote-debug') }
+                $arguments += @($setup) + @($case.words)
+                $ErrorActionPreference = 'Continue'
+                $global:LASTEXITCODE = $null
+                $null = @(& $python @arguments)
+                $answer.code = $LASTEXITCODE
+            }
+        } catch {
+            $answer.error = [string]$_.Exception.Message
+        }
+        [pscustomobject]$answer
+    } $case
+}
+ConvertTo-Json -InputObject @($answers) -Depth 4 -Compress
+"""
 
 HANDOVER = r"""
 $ErrorActionPreference = 'Stop'
@@ -125,8 +184,83 @@ def check_handover(bootstraps, version: str, standard: Path, advanced: Path) -> 
     return found
 
 
-def run(dist: Path, version: str, refs=()) -> tuple[list, dict]:
-    """(findings, the means each bootstrap takes the archives by)."""
+def entry_cases(bootstraps, homes: list[str], scripts: Path) -> list[dict]:
+    """One case per (bootstrap, python.exe line its own code starts against the installed home, spelling of the home)."""
+    cases = []
+    for index, bootstrap in enumerate(bootstraps):
+        text = bootstrap.script.decode("utf-8-sig", "replace")
+        lines, _ = legacy_lines.bootstrap_lines(text)
+        if not lines:
+            continue
+        script = scripts / ("%d.ps1" % index)
+        script.write_bytes(bootstrap.script)
+        function = "function Invoke-InstalledSetup" in text
+        for line in lines:
+            x = line[:2] == legacy_lines.X
+            words = line[(2 if x else 0):]
+            if words[0] != legacy_lines.SETUP:
+                raise SystemExit("%s starts runtime\\python.exe with %r; read it again" % (bootstrap.tag, line))
+            for home in homes:
+                cases.append({"index": index, "line": " ".join(line), "home": home, "words": words[1:], "x": x,
+                              "function": function, "script": str(script)})
+    return cases
+
+
+def check_entry(bootstraps, runtime: Path, core: Path) -> list:
+    """Every finding of (c), as a sentence: none means each bootstrap's own runtime\\python.exe lines reach the core
+    through car-legacy, in a home whose name holds a space, with and without a trailing separator."""
+    if not legacy.POWERSHELL.is_file():
+        raise SystemExit("the published bootstraps are Windows PowerShell; %s is missing" % legacy.POWERSHELL)
+    found = []
+    with tempfile.TemporaryDirectory(prefix="rust-entry-") as work:
+        home = Path(work) / "install home"
+        for folder in ("runtime", "app\\bin", "app\\scripts", "app\\src", "profile", "local", "codex"):
+            (home / folder if folder not in ("profile", "local", "codex") else Path(work) / folder).mkdir(parents=True)
+        shutil.copy2(runtime, home / "runtime" / "python.exe")
+        shutil.copy2(core, home / "app" / "bin" / "codex-auto-resume.exe")
+        (home / "app" / "scripts" / "plugin_setup.py").write_text("# stub\n", encoding="utf-8")
+        scripts = Path(work) / "scripts"
+        scripts.mkdir()
+        cases = entry_cases(bootstraps, [str(home), str(home) + "\\"], scripts)
+        if not cases:
+            raise SystemExit("no bootstrap starts runtime\\python.exe: nothing to prove")
+        (Path(work) / "cases.json").write_text(json.dumps(cases), encoding="utf-8")
+        # A scratch profile, local data and Codex home for whatever the core is: nothing real is read or written.
+        environment = dict(os.environ, CAR_CASES=str(Path(work) / "cases.json"), USERPROFILE=str(Path(work) / "profile"),
+                           LOCALAPPDATA=str(Path(work) / "local"), APPDATA=str(Path(work) / "local"),
+                           CODEX_HOME=str(Path(work) / "codex"), CODEX_AUTO_RESUME_HOME=str(home),
+                           CODEX_AUTO_RESUME_PLUGIN_HOME=str(home))
+        done = subprocess.run([str(legacy.POWERSHELL), "-NoProfile", "-NonInteractive", "-Command", ENTRY],
+                              capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=1800,
+                              creationflags=legacy.NO_WINDOW, env=environment, cwd=work)
+    if done.returncode != 0 or not done.stdout.strip():
+        raise SystemExit("the bootstraps' lines could not be run:\n%s" % (done.stderr or done.stdout)[-2000:])
+    answers = json.loads(done.stdout)
+    if len(answers) != len(cases):
+        raise SystemExit("asked about %d lines and heard about %d" % (len(cases), len(answers)))
+    for answer in answers:
+        if answer["error"] is not None or answer["code"] != REACHED:
+            what = {2: "refused by car-legacy", 1: "missing the core"}.get(answer["code"], "code %r" % answer["code"])
+            found.append("%s: `%s` (home %s) does not reach the core: %s%s"
+                         % (bootstraps[answer["index"]].tag, answer["line"], answer["home"], what,
+                            "" if answer["error"] is None else " (%s)" % answer["error"]))
+    return found
+
+
+def entry_from_archive(standard: Path, work: Path) -> tuple[Path, Path]:
+    """The archive's runtime\\python.exe and app\\bin\\codex-auto-resume.exe, unpacked into `work`."""
+    with zipfile.ZipFile(standard) as archive:
+        paths = []
+        for name in ("payload/runtime/python.exe", "payload/app/bin/codex-auto-resume.exe"):
+            target = work / name.rsplit("/", 1)[1]
+            target.write_bytes(archive.read(name))
+            paths.append(target)
+    return paths[0], paths[1]
+
+
+def run(dist: Path, version: str, refs=(), entry: bool = True) -> tuple[list, dict]:
+    """(findings, the means each bootstrap takes the archives by). `entry` False leaves (c) out: for archives of
+    stand-in binaries, which cannot run."""
     standard = dist / rust_release.archive_name("standard", version)
     advanced = dist / rust_release.archive_name("advanced", version)
     for archive in (standard, advanced):
@@ -139,6 +273,10 @@ def run(dist: Path, version: str, refs=()) -> tuple[list, dict]:
     found = legacy.check(bootstraps, version, standard, advanced)
     bridged = [bootstrap for bootstrap in bootstraps if knows_handover(bootstrap)]
     found += check_handover(bridged, version, standard, advanced)
+    if entry:
+        with tempfile.TemporaryDirectory(prefix="rust-entry-bin-") as work:
+            runtime, core = entry_from_archive(standard, Path(work))
+            found += check_entry(bootstraps, runtime, core)
     means = {bootstrap.tag: ("b" if knows_handover(bootstrap) else "a") for bootstrap in bootstraps}
     return found, means
 
@@ -149,7 +287,21 @@ def main(argv=None) -> int:
     parser.add_argument("--version", default=None)
     parser.add_argument("--ref", action="append", default=[],
                         help="a branch or commit whose bootstrap is asked after the tags (e.g. dev)")
+    parser.add_argument("--entry-from", default=None,
+                        help="(c) alone: python.exe and codex-auto-resume.exe from this folder (a cargo target\\release)")
     args = parser.parse_args(argv)
+    if args.entry_from:
+        folder = Path(args.entry_from)
+        tags = legacy.published(ROOT, args.version or rust_release.version())
+        bootstraps = [legacy.lift(ROOT, tag) for tag in tags] + [lift_ref(ref) for ref in args.ref]
+        found = check_entry(bootstraps, folder / "python.exe", folder / "codex-auto-resume.exe")
+        print("(c) the compatibility entry run: the bootstraps of %s to %s" % (bootstraps[0].tag, bootstraps[-1].tag))
+        for line in found:
+            print("  " + line)
+        if found:
+            return 1
+        print("  every line of all %d reaches the core" % len(bootstraps))
+        return 0
     version = args.version or rust_release.version()
     found, means = run(Path(args.dist), version, args.ref)
     tags = list(means)
@@ -168,7 +320,7 @@ def main(argv=None) -> int:
     if found:
         print("an installed copy would not update to this release")
         return 1
-    print("  both editions taken by all %d" % len(tags))
+    print("  both editions taken by all %d, and every runtime\\python.exe line of each reaches the core (c)" % len(tags))
     return 0
 
 

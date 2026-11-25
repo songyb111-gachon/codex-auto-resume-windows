@@ -4,20 +4,21 @@
 //! Every named object, lock file and registration the product derives from a home or a user is named from
 //! `normcase(str(Path.home().resolve()))` and a SHA-256 of it. Rust spells the same text here so a name made by
 //! this crate and a name made by the Python reference are the same name - a watcher of either one must find the
-//! other's mutex (PLAN 6.2). The reference is Python 3.13's `ntpath` (`normcase` is LCMapStringEx on the
-//! invariant locale, `realpath` is the final path name of what exists and the rest of the path as written).
+//! other's mutex (PLAN 6.2). The reference is the bundled Python's (3.14.10) `ntpath` (`normcase` is LCMapStringEx on
+//! the invariant locale, `realpath` is car-machine's `winpath::realpath_os` asked natively).
 
 use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 
-use windows::Win32::Foundation::{CloseHandle, HANDLE, LPARAM};
+use windows::Win32::Foundation::{CloseHandle, GetLastError, HANDLE, LPARAM};
 use windows::Win32::Globalization::{LCMAP_LOWERCASE, LCMapStringEx};
 use windows::Win32::Security::Cryptography::{BCRYPT_SHA256_ALG_HANDLE, BCryptHash};
 use windows::Win32::Storage::FileSystem::{
-    CreateFileW, FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAGS_AND_ATTRIBUTES, FILE_SHARE_MODE,
-    GetFinalPathNameByHandleW, OPEN_EXISTING, VOLUME_NAME_DOS,
+    CreateFileW, FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAGS_AND_ATTRIBUTES, FILE_SHARE_MODE, FindClose,
+    FindFirstFileW, GetFinalPathNameByHandleW, OPEN_EXISTING, VOLUME_NAME_DOS, WIN32_FIND_DATAW,
 };
+use windows::Win32::System::Registry::{HKEY_LOCAL_MACHINE, RRF_RT_REG_DWORD, RegGetValueW};
 use windows::core::{PCWSTR, w};
 
 /// A NUL-terminated UTF-16 copy of `text`, for a call that takes `PCWSTR`.
@@ -156,9 +157,17 @@ fn is_absolute(text: &str) -> bool {
     prefix.ends_with('\\') && prefix != "\\"
 }
 
-/// The final path name Windows gives an existing file or folder (`\\?\C:\...`), or None.
-fn final_path(path: &str) -> Option<String> {
-    let name = wide(path);
+/// `nt._getfinalpathname(path)`: the final path name Windows gives an existing file or folder (`\\?\C:\...`), or the
+/// Windows error number. Opened as CPython opens it (no access, no sharing, backup semantics). A path past 260
+/// characters is opened through its `\\?\` form where long paths are on, as the long-path-aware python.exe opens it.
+fn final_path(path: &str) -> Result<String, i32> {
+    let long =
+        !path.starts_with("\\\\") && path.encode_utf16().count() >= 260 && long_paths_enabled();
+    let name = wide(&if long {
+        format!("\\\\?\\{path}")
+    } else {
+        path.to_string()
+    });
     // SAFETY: `name` outlives the call; the handle is closed below.
     let handle: HANDLE = unsafe {
         CreateFileW(
@@ -171,20 +180,21 @@ fn final_path(path: &str) -> Option<String> {
             None,
         )
     }
-    .ok()?;
+    .map_err(|error| error.code().0 & 0xFFFF)?;
     let mut buffer = vec![0u16; 1024];
     let result = loop {
         // SAFETY: the buffer is ours.
         let length =
             unsafe { GetFinalPathNameByHandleW(handle, &mut buffer, VOLUME_NAME_DOS) } as usize;
         if length == 0 {
-            break None;
+            // SAFETY: no call between.
+            break Err(unsafe { GetLastError() }.0 as i32);
         }
         if length > buffer.len() {
             buffer = vec![0u16; length + 1];
             continue;
         }
-        break Some(String::from_utf16_lossy(&buffer[..length]));
+        break Ok(String::from_utf16_lossy(&buffer[..length]));
     };
     // SAFETY: opened above.
     unsafe {
@@ -193,60 +203,78 @@ fn final_path(path: &str) -> Option<String> {
     result
 }
 
-/// `os.path.realpath` for a path: what exists is spelled as Windows spells it (long names, the real case, links
-/// followed); what does not exist is kept as written after the part that does.
+/// `nt._findfirstfile(path)`: the name FindFirstFileW gives the last component (its real case, its long name), or
+/// the Windows error number.
+pub fn find_first_file(path: &str) -> Result<String, i32> {
+    let name = wide(path);
+    let mut data = WIN32_FIND_DATAW::default();
+    // SAFETY: `name` is NUL-terminated; `data` is a writable WIN32_FIND_DATAW; the search handle is closed below.
+    let search = unsafe { FindFirstFileW(PCWSTR(name.as_ptr()), &mut data) }
+        .map_err(|error| error.code().0 & 0xFFFF)?;
+    // SAFETY: FindFirstFileW gave `search`.
+    unsafe {
+        let _ = FindClose(search);
+    }
+    Ok(from_wide(&data.cFileName))
+}
+
+/// `HKLM\SYSTEM\CurrentControlSet\Control\FileSystem\LongPathsEnabled` is 1: python.exe (whose manifest is long-path
+/// aware) then opens a path past 260 characters without its prefix. Read once.
+pub fn long_paths_enabled() -> bool {
+    static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ENABLED.get_or_init(|| {
+        let mut value: u32 = 0;
+        let mut size = std::mem::size_of::<u32>() as u32;
+        // SAFETY: `value` and `size` are ours and sized for a DWORD; the names are NUL-terminated literals.
+        let read = unsafe {
+            RegGetValueW(
+                HKEY_LOCAL_MACHINE,
+                w!("SYSTEM\\CurrentControlSet\\Control\\FileSystem"),
+                w!("LongPathsEnabled"),
+                RRF_RT_REG_DWORD,
+                None,
+                Some((&mut value as *mut u32).cast()),
+                Some(&mut size),
+            )
+        };
+        read.is_ok() && value == 1
+    })
+}
+
+/// What `os.path.realpath` asks of Windows, answered natively.
+struct Native;
+
+impl car_machine::winpath::NtOs for Native {
+    fn final_path(&self, path: &str) -> Result<String, i32> {
+        final_path(path)
+    }
+    fn is_symlink(&self, path: &str) -> bool {
+        crate::links::is_symlink(Path::new(path))
+    }
+    fn find_first_file(&self, path: &str) -> Result<String, i32> {
+        find_first_file(path)
+    }
+    fn long_paths(&self) -> bool {
+        long_paths_enabled()
+    }
+}
+
+/// `os.path.realpath` for a path (non-strict, the bundled 3.14.10's: car-machine's `winpath::realpath_os`, the one
+/// implementation car-config resolves with too): what exists is spelled as Windows spells it (long names, the real
+/// case, links followed, a link the OS cannot open followed by hand); what does not exist is kept as written after the
+/// part that does. Where the reference would raise an OSError (an error the walk does not pass over), the path made
+/// absolute is answered, as this crate always has.
 pub fn realpath(text: &str) -> String {
     let normal = normpath(text);
+    let cwd = std::env::current_dir()
+        .map(|p| p.display().to_string())
+        .unwrap_or_default();
     let absolute = if is_absolute(&normal) {
-        normal
+        normal.clone()
     } else {
-        let cwd = std::env::current_dir()
-            .map(|p| p.display().to_string())
-            .unwrap_or_default();
         normpath(&format!("{cwd}\\{normal}"))
     };
-    let had_prefix = absolute.starts_with("\\\\?\\");
-    let mut head = absolute.clone();
-    let mut tail: Vec<String> = Vec::new();
-    let found = loop {
-        if let Some(path) = final_path(&head) {
-            break Some(path);
-        }
-        let (root, rest) = split_root(&head);
-        if rest.is_empty() {
-            break None;
-        }
-        let Some(cut) = head.rfind('\\') else {
-            break None;
-        };
-        tail.push(head[cut + 1..].to_string());
-        head = if cut < root.len() {
-            root.clone()
-        } else {
-            head[..cut].to_string()
-        };
-    };
-    let Some(mut resolved) = found else {
-        return absolute;
-    };
-    if !had_prefix && resolved.starts_with("\\\\?\\") {
-        if let Some(unc) = resolved.strip_prefix("\\\\?\\UNC\\") {
-            resolved = format!("\\\\{unc}");
-        } else {
-            let short = resolved[4..].to_string();
-            let drive = short.as_bytes().get(1) == Some(&b':');
-            if drive && final_path(&short).as_deref() == Some(resolved.as_str()) {
-                resolved = short;
-            }
-        }
-    }
-    for part in tail.iter().rev() {
-        if !resolved.ends_with('\\') {
-            resolved.push('\\');
-        }
-        resolved.push_str(part);
-    }
-    resolved
+    car_machine::winpath::realpath_os(&normal, &cwd, &Native).unwrap_or(absolute)
 }
 
 /// `Path.home()` as text, from the environment as Python reads it: USERPROFILE, else HOMEDRIVE and HOMEPATH.

@@ -23,6 +23,12 @@ pub trait Os {
     fn abspath(&self, text: &[u16]) -> Vec<u16>;
     /// `str(Path(text).resolve())`; the class of the exception it raises.
     fn resolve(&self, text: &[u16]) -> Result<Vec<u16>, &'static str>;
+    /// `os.replace(from, to)`: MoveFileExW(MOVEFILE_REPLACE_EXISTING) alone, so a target another handle holds open
+    /// is refused (PermissionError 5); the binaries hand car-platform's `files::replace` in. The default is
+    /// car-machine's std-only `pyfile::replace`, which refuses a held target the same way.
+    fn replace(&self, from: &Path, to: &Path) -> std::io::Result<()> {
+        car_machine::pyfile::replace(from, to)
+    }
 }
 
 /// A Python `str` as the UTF-16 Windows takes: a lone surrogate as itself.

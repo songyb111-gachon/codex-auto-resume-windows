@@ -8,6 +8,9 @@
 use std::path::{Path, PathBuf};
 
 use crate::cmdline::{parse_command, quote_all};
+use car_machine::json::{Str, Value as Json};
+use car_machine::pytext::{float_repr, is_space};
+
 use crate::registry::{Registry, Value};
 use crate::startup::{self, StartupError};
 
@@ -137,27 +140,145 @@ pub fn uninstall_command(home: &Path, silent: bool) -> String {
     quote_all(&argv)
 }
 
-/// The name the installed manifest gives this edition (another edition's carries its word).
-pub fn display_name(manifest_path: &Path) -> String {
-    let read = || -> Option<String> {
-        let bytes = std::fs::read(manifest_path).ok()?;
+/// The name the installed manifest gives this edition (another edition's carries its word):
+/// `str(json.loads(read_text("utf-8-sig"))["interface"]["displayName"]).strip()`, or the default name where the file
+/// cannot be read or decoded or holds no such key (OSError, ValueError, KeyError, TypeError) or the name is empty. A
+/// Python `str` (a lone surrogate is kept); a document nested past the reader's depth is the default name, where the
+/// reference's RecursionError would leave the call (AUDIT).
+pub fn display_name(manifest_path: &Path) -> Str {
+    use car_machine::compat::loads;
+    let read = || -> Option<Str> {
+        let bytes = car_machine::pyfile::read(manifest_path).ok()?;
         let body = String::from_utf8(bytes).ok()?;
         let body = body.strip_prefix('\u{feff}').unwrap_or(&body);
-        let manifest: serde_json::Value = serde_json::from_str(body).ok()?;
-        let name = match manifest.get("interface")?.get("displayName")? {
-            serde_json::Value::String(text) => text.clone(),
-            serde_json::Value::Null => "None".to_string(),
-            serde_json::Value::Bool(true) => "True".to_string(),
-            serde_json::Value::Bool(false) => "False".to_string(),
-            serde_json::Value::Number(number) => number.to_string(),
-            _ => return None,
+        // read_text's universal newlines: a line end is "\n" whatever it was.
+        let body = body.replace("\r\n", "\n").replace('\r', "\n");
+        let manifest = loads(&body).ok()?;
+        let Json::Object(top) = manifest else {
+            return None;
         };
-        Some(name.trim().to_string())
+        let Some(Json::Object(interface)) = top.get("interface") else {
+            return None;
+        };
+        let name = interface.get("displayName")?;
+        Some(py_strip(&py_text(name)))
     };
     match read() {
         Some(name) if !name.is_empty() => name,
-        _ => DEFAULT_DISPLAY_NAME.to_string(),
+        _ => Str::new(DEFAULT_DISPLAY_NAME),
     }
+}
+
+/// `str(value)` of a JSON value: a text as it is, every other value as Python writes it.
+fn py_text(value: &Json) -> Str {
+    match value {
+        Json::Str(text) => text.clone(),
+        other => {
+            let mut points = Vec::new();
+            py_repr(other, &mut points);
+            Str::from_code_points(points).expect("repr writes code points")
+        }
+    }
+}
+
+fn push_text(points: &mut Vec<u32>, text: &str) {
+    points.extend(text.chars().map(u32::from));
+}
+
+/// `repr(value)` as code points: `None`, `True`, an int, a float's shortest repr, a text quoted as `repr` quotes it,
+/// `[a, b]` and `{'k': v}` in their order.
+fn py_repr(value: &Json, points: &mut Vec<u32>) {
+    match value {
+        Json::Null => push_text(points, "None"),
+        Json::Bool(true) => push_text(points, "True"),
+        Json::Bool(false) => push_text(points, "False"),
+        Json::Int(int) => push_text(points, &int.to_string()),
+        Json::Float(x) => push_text(points, &float_repr(*x)),
+        Json::Str(text) => str_repr(text, points),
+        Json::Array(items) => {
+            points.push(u32::from('['));
+            for (index, item) in items.iter().enumerate() {
+                if index > 0 {
+                    push_text(points, ", ");
+                }
+                py_repr(item, points);
+            }
+            points.push(u32::from(']'));
+        }
+        Json::Object(map) => {
+            points.push(u32::from('{'));
+            for (index, (key, item)) in map.iter().enumerate() {
+                if index > 0 {
+                    push_text(points, ", ");
+                }
+                str_repr(key, points);
+                push_text(points, ": ");
+                py_repr(item, points);
+            }
+            points.push(u32::from('}'));
+        }
+    }
+}
+
+/// `repr(text)`: single quotes unless the text holds one and no double quote; the quote, the backslash, `\t`, `\n`
+/// and `\r` escaped; any other code point `str.isprintable` is false of as `\xhh`, `\uhhhh` or `\Uhhhhhhhh`.
+fn str_repr(text: &Str, points: &mut Vec<u32>) {
+    let all: Vec<u32> = text.code_points().collect();
+    let single = u32::from('\'');
+    let double = u32::from('"');
+    let quote = if all.contains(&single) && !all.contains(&double) {
+        double
+    } else {
+        single
+    };
+    points.push(quote);
+    for &point in &all {
+        match point {
+            _ if point == quote || point == u32::from('\\') => {
+                points.push(u32::from('\\'));
+                points.push(point);
+            }
+            0x09 => push_text(points, "\\t"),
+            0x0A => push_text(points, "\\n"),
+            0x0D => push_text(points, "\\r"),
+            _ if is_printable(point) => points.push(point),
+            _ if point < 0x100 => push_text(points, &format!("\\x{point:02x}")),
+            _ if point < 0x10000 => push_text(points, &format!("\\u{point:04x}")),
+            _ => push_text(points, &format!("\\U{point:08x}")),
+        }
+    }
+    points.push(quote);
+}
+
+/// `str.isprintable()` of one code point (the reference interpreter's table, `printable_gen.rs`).
+fn is_printable(point: u32) -> bool {
+    use crate::printable_gen::PRINTABLE;
+    PRINTABLE
+        .binary_search_by(|&(low, high)| {
+            if high < point {
+                std::cmp::Ordering::Less
+            } else if low > point {
+                std::cmp::Ordering::Greater
+            } else {
+                std::cmp::Ordering::Equal
+            }
+        })
+        .is_ok()
+}
+
+/// `str.strip()`: Python's whitespace off both ends (U+001C to U+001F among it), surrogates kept.
+fn py_strip(text: &Str) -> Str {
+    let all: Vec<u32> = text.code_points().collect();
+    let space = |point: &u32| char::from_u32(*point).is_some_and(is_space);
+    let start = all
+        .iter()
+        .position(|point| !space(point))
+        .unwrap_or(all.len());
+    let end = all
+        .iter()
+        .rposition(|point| !space(point))
+        .map_or(start, |at| at + 1);
+    Str::from_code_points(all[start..end.max(start)].iter().copied()).expect("code points of a str")
 }
 
 /// The installed program's icon, for Settings > Apps: the icon file the installer puts in the home, else the
