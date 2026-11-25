@@ -14,13 +14,21 @@ pub fn repr(x: f64) -> String {
     if x.is_infinite() {
         return if x > 0.0 { "inf" } else { "-inf" }.to_owned();
     }
-    // `{:e}` gives the shortest length; where two forms of that length are equally near it takes the upper one and
-    // Python the even one, so the digits are x rounded to that length, exactly and half to even (`{:.*e}`).
+    // `{:e}` gives the shortest length and a form that reads back; in a tie it takes the upper form and Python the
+    // even one, so x is rounded to that length exactly and half to even (`{:.*e}`). Where that form does not read
+    // back - at a power of two the interval below x is half as wide, and for 46 of them the nearest form lies below
+    // it - exactly one form of that length does, the one `{:e}` wrote (car-machine's `push_repr` says more).
     let shortest = format!("{x:e}");
     let length = shortest.split_once('e').map_or(1, |(mantissa, _)| {
         mantissa.bytes().filter(u8::is_ascii_digit).count()
     });
-    let (negative, digits, exponent) = scientific(x, length);
+    let nearest = format!("{x:.*e}", length.max(1) - 1);
+    let chosen = if nearest == shortest || nearest.parse::<f64>().ok() == Some(x) {
+        nearest
+    } else {
+        shortest
+    };
+    let (negative, digits, exponent) = split_scientific(&chosen);
     let point = exponent + 1;
     let mut out = String::new();
     if negative {
@@ -55,10 +63,14 @@ pub fn repr(x: f64) -> String {
 
 /// `x` to `count` significant digits, rounded half to even on its exact value: (negative, digits, exponent).
 fn scientific(x: f64, count: usize) -> (bool, String, i32) {
-    let text = format!("{x:.*e}", count.max(1) - 1);
+    split_scientific(&format!("{x:.*e}", count.max(1) - 1))
+}
+
+/// The parts of a `{:e}` text: (negative, digits, exponent).
+fn split_scientific(text: &str) -> (bool, String, i32) {
     let (negative, rest) = match text.strip_prefix('-') {
         Some(rest) => (true, rest),
-        None => (false, text.as_str()),
+        None => (false, text),
     };
     let (mantissa, exponent) = rest.split_once('e').expect("`{:e}` writes an exponent");
     let digits: String = mantissa.chars().filter(|c| *c != '.').collect();

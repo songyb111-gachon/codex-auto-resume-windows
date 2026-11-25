@@ -60,6 +60,14 @@ pub fn case(name: &str, a: &Args) -> Option<Py<Value>> {
                 ])),
             }),
         "pytext.float_hex" => a.float(0).map(|each| Value::from(pytext::float_hex(each))),
+        // A float given by its bits (16 hex digits), written as text: the JSON writer's (finite only) and
+        // `pytext::float_repr`, so the diff compares the writer's characters, not a number re-read from them.
+        "pytext.float_texts" => a.bits(0).map(|x| {
+            let json =
+                car_machine::json::to_string(&Value::Float(x), &car_machine::json::Options::new())
+                    .map_or(Value::Null, Value::from);
+            array(vec![json, Value::from(pytext::float_repr(x))])
+        }),
         "pytext.float_from_text" => a
             .text(0)
             .and_then(pytext::float_from_text)

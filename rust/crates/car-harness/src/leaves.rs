@@ -55,6 +55,14 @@ impl<'a> Args<'a> {
         car_machine::pytext::to_float(self.get(at))
     }
 
+    /// A float sent as its bits, 16 hex digits (`struct.pack(">d", x).hex()`): every f64, NaN payloads included.
+    pub fn bits(&self, at: usize) -> Py<f64> {
+        let hex = self.text(at)?;
+        u64::from_str_radix(hex, 16)
+            .map(f64::from_bits)
+            .map_err(|_| "ValueError")
+    }
+
     /// A `bytes` argument, sent as hex.
     pub fn bytes(&self, at: usize) -> Py<Vec<u8>> {
         let hex = self.text(at)?;

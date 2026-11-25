@@ -2,23 +2,32 @@
 
 use std::fmt::Write as _;
 
-/// Appends `repr(x)` for a finite `x`: the shortest digits that read back as `x`, in fixed
-/// notation while the decimal point falls within 16 digits of the start (`1e-05` and `1e+16`
-/// are the first in exponent form), with `.0` added to a whole number and an exponent of at
-/// least two digits with its sign (`1e-05`, `1.5e+300`).
+/// Appends `repr(x)` for a finite `x`: the shortest digits that read back as `x` (the nearest
+/// such, a tie to the even one), in fixed notation while the decimal point falls within 16
+/// digits of the start (`1e-05` and `1e+16` are the first in exponent form), with `.0` added
+/// to a whole number and an exponent of at least two digits with its sign (`1e-05`,
+/// `1.5e+300`).
 pub(crate) fn push_repr(out: &mut String, x: f64) {
     debug_assert!(x.is_finite());
-    // Rust's `{:e}` finds how many digits the shortest round-trip form takes (`d.ddde-5`,
-    // `0e0` for zero), but where two forms of that length are equally near - x exactly half
-    // way, as 224335367548872.625 is - it takes the upper one, and Python's dtoa the even one.
-    // So those digits are only the length: the digits are x rounded to that many places,
-    // exactly and half to even, which is what `{:.*e}` does; a form of that length reads back
-    // as x, so the nearest one does too.
+    // Python's repr is dtoa's mode 0: the fewest digits that read back as x and, of the forms of
+    // that length that do, the nearest to x, a tie going to the even one. Rust's `{:e}` gives the
+    // same length and a form that reads back, but in a tie - x exactly half way between two
+    // forms, as 224335367548872.625 is - it takes the upper one. So x is rounded exactly, half
+    // to even, to that length (`{:.*e}`); where that form reads back as x it is Python's. It
+    // does not always: at a power of two the doubles below x are twice as close as those above,
+    // so the interval that reads back is narrower below, and the nearest form can lie below it
+    // (2^-24 = 5.960464477539063e-08, 46 powers of two in all). Then exactly one form of that
+    // length reads back (the one above), and that is the one `{:e}` wrote.
     let shortest = format!("{x:e}");
-    let length = shortest.split_once('e').map_or(0, |(mantissa, _)| {
+    let length = shortest.split_once('e').map_or(1, |(mantissa, _)| {
         mantissa.bytes().filter(u8::is_ascii_digit).count()
     });
-    let scientific = format!("{x:.*e}", length - 1);
+    let nearest = format!("{x:.*e}", length.max(1) - 1);
+    let scientific = if nearest == shortest || nearest.parse::<f64>().ok() == Some(x) {
+        nearest
+    } else {
+        shortest
+    };
     debug_assert_eq!(scientific.parse::<f64>().ok(), Some(x));
     let (negative, rest) = match scientific.strip_prefix('-') {
         Some(rest) => (true, rest),
