@@ -22,8 +22,10 @@ and in the advanced edition, besides: payload/app/src/codex_auto_resume_advanced
 sentinel line, which old Test-Archives and edition readers look for), the package's data files at their paths, and
 payload/app/skills/codex-auto-resume-advanced/.
 
-`install/install.ps1` is a placeholder until seat S8.2 writes the migration: it changes nothing and ends with 1, so a
-Python version's updater that accepts this archive reports that nothing was installed. The window and the MCP launcher
+`install/install.ps1` is build/rust_install/install.ps1 (seat S8.2): v0.6.26's installer on the Rust core, with the
+migration from a Python installation (PLAN 6.2-6.5). Every route ends in it - an earlier version's updater that accepted
+the archive, the one-file Setup exe's Install.cmd, and v0.6.26's setup handover through codex-auto-resume-setup.exe.
+The window and the MCP launcher
 are the C# ones build/make_gui.ps1 compiles (`--window` and `--mcp-launcher` take others); the watcher host
 (CodexAutoResume.exe, seat S6.2) is not built yet and is not in the archive.
 
@@ -95,16 +97,9 @@ STUBS = {
 ADVANCED_STUB = ("payload/app/src/%s/__init__.py" % make_release.ADVANCED_PACKAGE,
                  "# ADVANCED-EDITION-CODE: in the advanced edition's archive, never the standard one's.\n" + STUB_NOTE)
 
-# install/install.ps1 until seat S8.2 writes the migration: an earlier version's updater runs it after it accepted the
-# archive. It reads no argument and changes nothing, so such an update ends saying nothing was installed.
-INSTALL_PLACEHOLDER = """\
-# Codex Auto Resume from v0.6.27 is installed by its own setup program, payload\\app\\bin\\codex-auto-resume-setup.exe
-# (setup-handover.json beside Install.cmd). This file is what the updater of an earlier version runs instead; in this
-# build it is a placeholder that changes nothing.
-Write-Host '[x] This build cannot be installed by the updater of an earlier version yet.'
-Write-Host 'Nothing was installed.'
-exit 1
-"""
+# The installer (seat S8.2): every route into a Rust archive ends in it, and an earlier version's updater runs it after
+# its Test-Archive accepted the archive. Shipped as the working tree has it (CRLF, as .gitattributes checks *.ps1 out).
+INSTALLER = ROOT / "build" / "rust_install" / "install.ps1"
 LAUNCHERS = ("Install.cmd", "Uninstall.cmd", "README.txt")
 
 
@@ -248,7 +243,7 @@ def collect_window(stage: Path, edition: str, window: Path | None, launcher: Pat
 def collect_launchers(stage: Path) -> None:
     for name in LAUNCHERS:
         copy(ROOT / "build" / "install" / name, stage, name)
-    write(stage, "install/install.ps1", INSTALL_PLACEHOLDER.replace("\n", "\r\n").encode("utf-8"))
+    copy(INSTALLER, stage, "install/install.ps1")
 
 
 def declare(stage: Path, edition: str, release: str) -> None:
