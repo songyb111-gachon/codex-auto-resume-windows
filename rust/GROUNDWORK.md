@@ -770,3 +770,35 @@ stand-in and by S7.1a's own diff of the state's methods. `reading()` with no fil
 * S7.1b `registry`'s `make` (the factory of a capability's code): S7.2's plug. `arming::CoreView` (core's records `sweep` is told of): car-store, at the engine's integration.
 * P11: `ledger::ClaimLedger` inside car-store's claim: car-store's claim still has only the NULL plug's ledger; the plug's P11 call is the engine integration's.
 * The engine's and the control's seams are not touched here.
+
+### Checks (`CARGO_BUILD_JOBS=4`; reference v0.6.26-beta.2, rustc 1.100.0; the Rust code did not change after the full run)
+
+```
+## rust            fmt --check rc=0; clippy --locked --all-targets -D warnings rc=0; test --locked rc=0; cargo deny --locked check: advisories ok, bans ok, licenses ok, sources ok
+## advanced/rust   fmt --check rc=0; clippy rc=0; test --locked rc=0 (car-adv 3: the pattern test, compat_views, port; the rest 0); cargo deny: all four ok
+python -X utf8 rust/tools/check_groundwork.py        rust groundwork: OK (17 standard crates, 3 advanced crates)
+bash advanced/rust/tools/check_rebuild.sh HEAD       rc=0: car-core-stub, car-fake-codex, car-harness, car_core.dll, codex-auto-resume-setup, codex-auto-resume, python, pythonw
+                                                     the same with and without advanced/; "profile-path scan: none in any .exe, .dll or .pdb"
+python -X utf8 tests/rustdiff/run.py --build -v      Ran 173 tests in 4,116 s, OK, no skip; by family: diffs 4; S1.1/S1.2 leaves 27 + store 15; S2.1 13; S2.2 11; S3.1 27;
+                                                     S3.2 28 (homes 20, pure 8); S3.3 24 (appserver_lines 2, pairing 5, transport 4, compat_io 8, compat_registry 5);
+                                                     S7.1a diffs_advstore 16; S7.1b diffs_advpolicy 8 (arming 3, pure 1, words 4)
+   then, after the last two additions to the diffs (no Rust code changed): test_over_the_real_state 1 test OK (240 scenarios, 3,531 steps, 167 writing the journal, Keep on
+   done 140 times, 86 with Send again); diffs_advstore.LedgerDiff 2 tests OK (21 claims and records, with who paid and whether a channel did)
+gen_advstore.py --check, gen_advpolicy.py --check    current (v0.6.26-beta.2)
+```
+
+Mutation checks, each made alone on a debug build of the probe or of the `advstore` example, its diff run, restored; every one failed its diff: `StatePort::set_keep_on` drops
+Send again (real-state arming); `move_to` drops the revision (real-state arming); `meta` swaps the ceiling for the generation (real-state arming); `takes` ignores a custom range
+(`ChoicesDiff`); `keeps_wording` accepts any word (`ScriptDiff`); `CHANNELS` without the unloaded point (`LedgerDiff`'s `channel_paid`). Three first attempts survived and the diffs were
+made to catch them: Send again (the real-state scenarios now include ones armed and kept on with it), `CHANNELS` (the ledger diff asks `payers` and `channel_paid`), and `keeps_wording`
+(`ChoicesDiff` has no refused word; `ScriptDiff` has).
+
+Python guards (standard lane through `wait_quiet.sh`): `test_repo_hygiene test_privacy_claims test_privacy_bare_hosts test_edition_audit test_srcscan test_stack test_layers
+test_structural_invariants test_rust_release`: Ran 130, 2 failures that are not this integration's, both because the tag `v0.6.26` now exists: `test_privacy_claims.WordingTests.
+test_the_shipped_list_above_is_not_behind_the_tags` ("add these to `shipped`": `v0.6.26`) and `test_rust_release.PublishedLinesTests.test_car_legacys_list_is_what_the_tags_say`
+(`rust/crates/car-legacy/tests/data/published.txt`: run `rust/tools/legacy_lines.py --write`). Left for the main session; the other 128 pass (1 skip).
+
+### Re-diff commands at the final
+
+`rediff_appserver.py`, `rediff_advstore.py` (it now checks `gen_advstore.py` and `gen_advpolicy.py`) and `rediff_advpolicy.py`, each with `--reference v0.6.26`. The arming
+real-state diff runs with `rediff_advpolicy.py` (it runs the three `diffs_advpolicy_*` modules).
