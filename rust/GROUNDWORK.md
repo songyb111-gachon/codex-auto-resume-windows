@@ -788,3 +788,100 @@ integration), and two inherited `diffs_review_bridge` cases (`ReplaceDiff.test_s
   `checkup_for_bundle` and `rescan_judge`; the watcher's own power-action writers are `Control::power_batch_end`,
   `power_batch_finish`, `power_refused` and `power_show`, and a notice's stop is `stop_power_countdown`.
 * **The MCP server (S5.3)**: `start_for_codex(confirm_seconds)` and `launch_ends_with_job()` are here.
+
+## The MCP server, the panel, the command line and car-bin (seat S5.2, branch `car-v0627-mcp`, 2026-11-26)
+
+PLAN 5.3 row P5 / S5.2, ported from the **v0.6.26 final** and held to it by `tests/rustdiff/diffs_mcp.py`, `diffs_cli.py`
+and `diffs_legacy.py` (worlds: `cliworld.py` over bridgeworld's and actworld's). Nothing under `src/`, `advanced/`, `gui/`,
+`build/`, `scripts/` or `docs/` changes; car-engine, car-codex, car-adv, car-surface and car-platform are untouched.
+car-legacy and `rust/tools/legacy_lines.py` are car-v0627-fix9's files, taken as they are (the 44-shape table), so the
+integration merges them without a conflict.
+
+### What is where
+
+| Python | Rust |
+|---|---|
+| `mcp/tools.py` (TOOLS, `settings_schema`, `own_words`, RESOURCES, `plugged_tools`) | car-control `mcp/tools.rs` |
+| `mcp/server.py` (`Server`: transport, envelope, every tool's body, `_no_homes`, START_WORDING, ENDS_WITH_CODEX) | car-control `mcp/server.rs` |
+| `mcp/panel.py` and `mcp/assets/` | car-control `mcp/panel.rs` and `assets/panel.css`, `assets/panel.js` (the shipped files read with universal newlines; `PanelDiff.test_assets` holds them to the tree's and the tag's) |
+| `compat.mcp_view` (S3.3's `compat/report.py`) | car-control `mcp/seam.rs`, a seam: the integration replaces it with car-codex's |
+| `mcpserver.main` (argv, streams, the start with Codex beside the handshake, `STARTER_GRACE_SECONDS`) | car-bin `roles::mcp` |
+| `controlcli.main` (argparse, `--home`, `serve`, one-shot) | car-bin `roles::bridge` (over S5.1's `bridge::serve` / `one_shot`) |
+| `cli.py`, `commands/{base,records,status,watcher,install}.py` | car-bin `cli.rs` (+ `uris.rs` for `notice_uris`/`codex_link` parsing, behind a module the integration replaces with car-surface's) |
+| `scripts/plugin_setup.py`'s commands | car-bin `setup.rs` |
+| argparse, the four parsers | car-bin `argparse.rs` over `parsers_gen.rs` (written by `tests/rustdiff/gen_cli.py` from the tag's own parsers; `--check` says whether it is stale) |
+| `gui/McpLauncher.cs` (D18) | car-bin `launcher.rs`, the bin `codex-auto-resume-mcp` (std + car-platform's starter; the core with `CREATE_NO_WINDOW`, the three streams relayed, the core's exit code once stdin closed) |
+
+### How `codex-auto-resume.exe` reads its first word (car-bin `roles::dispatch`)
+
+1. a **role of the edition's own** - the table the edition's `main` hands `main_with(&[Role])`, looked at first. This is
+   the **role registry seam** of P7-DESIGN: `car-adv-bin`'s `main` passes its roles (the courier and the Stop-hook
+   launcher's target among them, S7.3); the standard `main` passes `&[]`, so no advanced role's name or code is in the
+   standard binary and `check_rebuild.sh` sees the same bytes with `advanced/` deleted. A `Role` is `{word, run: fn(&Machine,
+   &[String], &mut Io, &mut dyn Read) -> i32}`;
+2. `bridge` (`controlcli.main`) and `mcp` (`mcpserver.main`), car-bin's own two roles (`roles::STANDARD`);
+3. a **`plugin_setup.py` command** (its parser's choices: setup, status, pending, enable, disable, cancel, stop, doctor,
+   watcher-running, verify-home, claim-home, uninstall, remove-entry, desktop-shortcut, logs, downgrade-state) - the words
+   car-legacy hands on from `plugin_setup.py <words>`, the skill's lines and S8.2's install.ps1 calls;
+4. anything else is **the command line** (`cli.main`, prog `auto_resume`): the shortcut's `--home H status`, the link
+   handler's `--home H activate <uri>`, `run`, `install`, `compat`, `diagnostics`. A word that is both (`status`) is
+   plugin_setup's when it comes first and the CLI's after the CLI's own options, as every published line has it.
+
+The CODEX_AR_CORE=rust shim's `cli` entry is the CLI whatever its first word (car-harness `car-core-stub`).
+
+### The seams
+
+* **`car_control::host::Host`** grew three methods for the panel, with defaults: `text_size` (`textsize.read()`),
+  `ui_face` (`typeface.ui_face()`), `face_lacks` (`typeface.lacks`). `SystemHost` answers them over car-platform
+  (`registry_reads::text_size`, `typeface::ui_face`, `typeface::lacks`).
+* **`car_control::mcp::seam::mcp_view`**: `compat.mcp_view`, written over car-machine's generated compatibility
+  vocabulary (its `except Exception` kept as `Err(Unsummarised)`). **The integration replaces it with S3.3's** and
+  `Host::compat_view` with `compatio.reader_view` (still `null` in `SystemHost`, so the summary is the invalid view's).
+* **`car_bin::seam::Outside`**: what the command line asks beyond the Host. The registrations (`register_aumid`,
+  `unregister_aumid`, `install_protocol`, `uninstall_protocol`, `shortcut_*`, `desktop_*`, `addremove_*`) and
+  `watcher_mutex(state_dir, timeout)` are real in `SystemOutside` (car-platform over `HKCU`). **Refused until the
+  integration hands them in:** `backend` (`App.backend()`: discovery, the engine's checks - S3.3 and P6's App),
+  `engine_word` (`compatio.engine_word`), `app_paired` (`_app_paired`: `backend.app_identity()`, `App.engine_moved()`),
+  `app_running_now` (`codex.pairing`), `resource_users` (the Restart Manager), `history` (`LocalSource.latest_failures`,
+  car-codex), `doctor_live_view` (`compatio.live_view` with the backend), `run_watcher` (`App.run`: the host is the
+  watcher, P6), `announce_cancelled` (`notifier.build_cancelled`/`deliver`, car-surface), `open_dashboard`/`open_chat`
+  (`ui.tray`, cut C6), `power_stop` (`notifier.activate`). With them refused, `status` says `codex engine : unavailable
+  (engine_discovery_not_ported)`, `doctor` fails its engine line where the app is not known closed, `run` ends 1.
+* **`car_bin::uris`**: `notice_uris.parse_*` and `codex_link.parse_chat_uri` over a port of `urlsplit`/`parse_qs`, for
+  `activate`; car-surface owns `notice_uris` (another seat) and the integration takes one of the two.
+
+### What is Rust's own (PLAN 6.4, S8.2) and what the reference keeps
+
+The registrations the core writes: the sign-in value `"<home>\app\bin\CodexAutoResume.exe" "--home" "<home>" "run"` (the
+`--home` S8.2 requires), the link handler `"<home>\app\bin\codex-auto-resume.exe" "--home" "<home>" "activate" "%1"`, a
+Start-menu entry with no settings window opening `codex-auto-resume.exe --home <home> status`; `setup` starts the host
+(`app\bin\CodexAutoResume.exe --home <home> run`, `not-started` where it is missing, as the reference says where there is no
+pythonw.exe), copies no `watcher-launcher.py` and has no Python-version check. `setup`'s `installed()` is the reference's
+test, which a Rust archive passes (car-legacy's two programs and the package folder). `engine-trusted <path>` (S8.2's
+install.ps1) is a role answering 0 only for `official_engine == (True, "openai_signature")` - refused (1) until the
+integration hands `Outside::official_engine` in. Everything else - every line, word, code and file - is the reference's,
+and `cliworld.HOOK` puts only these shapes into the tag for the diffs. AUDIT-v0628 has the six lines.
+
+### What P6's host and the integration must hand in
+
+* **P6 (the host):** the watcher is `app\bin\CodexAutoResume.exe --home <home> run` (what `setup` starts and the Run value
+  names); `Outside::run_watcher` (`codex-auto-resume.exe --home H run` reaches it only by hand: car-legacy hands `run` to the
+  host); the sign-in value and protocol re-registration when `CODEX_AUTO_RESUME_LEGACY_ENTRY` is `run` or `activate`
+  (car-bin does not look at the variable); `announce_cancelled`, `open_dashboard`, `open_chat` and `power_stop` (the
+  notifier and the tray, car-surface/C#); the set-aside sweep of `bridge serve` (`controlcli.sweep_soon`).
+* **The integration:** the Outside's engine calls (S3.3 car-codex `codex/pairing`, `compat/*`, P6's App:
+  `backend`, `engine_word`, `app_paired`, `app_running_now`, `official_engine`, `doctor_live_view`, `resource_users`,
+  `history`); `mcp::seam::mcp_view` -> car-codex's; `Host::compat_view`/`compat_live_view`/`compat_import` (S5.1's list);
+  car-surface's `notice_uris` for `uris.rs`; the account's time zone for `Host::local_clock` (the CLI's `format_local`
+  and the log's stamps are written on it: UTC until then); S8.2's `codex-auto-resume-setup.exe` (`setup_main` on
+  car-v0627-fix9) over this branch's car-bin, keeping `core_stub` only for its test double; `rust_release.py` gains
+  `codex-auto-resume-mcp.exe` from car-bin at `payload/app/mcp/` in place of the C# launcher.
+
+### The proofs (reference the v0.6.26 final; `run.py --build --reference v0.6.26`)
+
+PROOFS-PENDING
+
+### The re-diff
+
+`python -X utf8 tests/rustdiff/rediff_cli.py --reference v0.6.26`: the ported files changed since the final (`git diff
+--stat`), `gen_cli.py --check` (car-bin's parser tables are the tag's), then `-k diffs_mcp -k diffs_cli -k diffs_legacy`.
