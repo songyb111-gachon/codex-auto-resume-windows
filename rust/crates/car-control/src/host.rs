@@ -51,7 +51,7 @@ pub trait Host: Windows + Send + Sync {
     fn startup_value(&self) -> Option<String>;
     /// `ownprocess.sign_in()` and `ownprocess.booted_at()`.
     fn boot(&self) -> Boot;
-    /// `compatio.reader_view(paths, settings=...)`: the Compatibility card's view (S3.3's, behind this seam).
+    /// `compatio.reader_view(paths, settings=...)`: the Compatibility card's view (S3.3's `compat::views`).
     fn compat_view(&self, state_dir: &Path, settings: &Map) -> Value;
     /// `acl.state_access(path)`: owner_only, shared or unknown.
     fn state_access(&self, path: &Path) -> String;
@@ -189,9 +189,15 @@ impl Host for SystemHost {
     }
 
     fn managed(&self) -> Managed {
-        // Only an installed copy asks Windows (`control/policy.managed_policy`); the registry reader that makes
-        // the places is car-platform's, wired in by the entry point that knows it is installed.
-        Managed::default()
+        // `control/policy.managed_policy()`: only an installed copy asks Windows (`config.installed_home()`); a copy
+        // run from a checkout is managed by nothing. `managed.parse(policykeys.read())`: car-platform reads the places.
+        if !self.installed() {
+            return Managed::default();
+        }
+        let registry = car_platform::registry::WinRegistry::current_user();
+        car_policy::settings::managed::parse(&Value::Array(
+            car_platform::registry_reads::policy_places(&registry),
+        ))
     }
 
     fn environ(&self, name: &str) -> Option<String> {
@@ -215,7 +221,10 @@ impl Host for SystemHost {
     }
 
     fn startup_value(&self) -> Option<String> {
-        None
+        // `startup.current_value()`; a Run key that cannot be read (StartupError) is no value, as the seam says.
+        car_platform::startup::current_value(&car_platform::registry::WinRegistry::current_user())
+            .ok()
+            .flatten()
     }
 
     fn boot(&self) -> Boot {
@@ -225,8 +234,28 @@ impl Host for SystemHost {
         }
     }
 
-    fn compat_view(&self, _state_dir: &Path, _settings: &Map) -> Value {
-        Value::Null
+    fn compat_view(&self, state_dir: &Path, settings: &Map) -> Value {
+        // `compatio.reader_view(paths, settings=...)` over S3.3's registry (car-codex `compat::views`): the bundled data
+        // beside the package (`compat/files.BUNDLED`, `compat/reported.BUNDLED`), the report and the cache in the state
+        // folder (`Paths.compat_report_file`, `compat_cache_file`). Any failure is no view, as `homes_view`'s
+        // `except Exception` makes it.
+        let text = |path: PathBuf| path.to_string_lossy().into_owned();
+        let data = Path::new(&self.project_root)
+            .join("src")
+            .join("codex_auto_resume")
+            .join("data");
+        let registry = car_codex::compat::views::Registry {
+            system: Arc::new(car_codex::system::Platform::new()),
+            config: car_config::Os::here(false, Arc::new(Probe)),
+            bundled: text(data.join("codex_compat.json")),
+            reported: text(data.join("reported.json")),
+            cache_file: text(state_dir.join("compat-cache.json")),
+            report_file: text(state_dir.join("compatibility.json")),
+            version: self.version(),
+        };
+        let settings = Value::Object(settings.clone());
+        car_codex::compat::views::reader_view(&registry, self.now(), &settings)
+            .unwrap_or(Value::Null)
     }
 
     fn state_access(&self, path: &Path) -> String {
