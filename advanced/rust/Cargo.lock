@@ -159,6 +159,7 @@ dependencies = [
  "car-platform",
  "car-policy",
  "car-words",
+ "indexmap",
 ]
 
 [[package]]

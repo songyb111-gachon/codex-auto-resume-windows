@@ -14,3 +14,5 @@ car-machine = { path = "../car-machine" }
 car-platform = { path = "../car-platform" }
 car-policy = { path = "../car-policy" }
 car-words = { path = "../car-words" }
+# The query's fields keep the order they came in (a dict's order); the same crate and version car-machine reads JSON with.
+indexmap = "2"
