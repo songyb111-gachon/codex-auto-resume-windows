@@ -345,6 +345,39 @@ impl Backend for AskBackend {
             vec![Value::from(thread_id), Value::from(queue_id)],
         )
     }
+    // The attributes read with getattr(backend, name, None), asked of the stand-in (review 6, S4).
+    fn app_look(&self) -> Value {
+        attribute("app_look")
+    }
+    fn app_unmatched_reason(&self) -> Value {
+        attribute("app_unmatched_reason")
+    }
+    fn protocol_results(&self) -> Value {
+        attribute("protocol_results")
+    }
+    fn session_holder(&self) -> Value {
+        attribute("session_holder")
+    }
+    fn engine_version(&self) -> Value {
+        attribute("engine_version")
+    }
+    fn holder(&self, thread_id: &str) -> Option<Py<Value>> {
+        match ask("backend.holder", vec![Value::from(thread_id)]) {
+            Ok(Value::Array(pair))
+                if pair
+                    .first()
+                    .is_some_and(car_policy::classify::value::truthy) =>
+            {
+                Some(Ok(pair.get(1).cloned().unwrap_or(Value::Null)))
+            }
+            Ok(_) => None,
+            Err(raised) => Some(Err(raised)),
+        }
+    }
+}
+
+fn attribute(name: &str) -> Value {
+    ask("backend.getattr", vec![Value::from(name)]).unwrap_or(Value::Null)
 }
 
 /// One engine kept across requests.
@@ -499,7 +532,8 @@ fn step(session: &mut Session, request: &Map) -> Value {
         "watch" => unit(engine.watch()),
         "policy" => {
             let values = request.get("values").cloned().unwrap_or(Value::Null);
-            engine.apply_policy(&values, None);
+            let managed = request.get("managed").and_then(crate::proxy::managed);
+            engine.apply_policy(&values, managed);
             Value::Null
         }
         "store" => crate::store::call(&session.store, request),
@@ -525,7 +559,26 @@ fn step(session: &mut Session, request: &Map) -> Value {
                     Err(class) => raised(class),
                 },
             ),
+            ("activity", {
+                let threads: Vec<String> = match request.get("threads") {
+                    Some(Value::Array(items)) => items
+                        .iter()
+                        .filter_map(|item| {
+                            car_policy::classify::value::text(item).map(str::to_owned)
+                        })
+                        .collect(),
+                    _ => Vec::new(),
+                };
+                Value::Object(engine.activity(&threads))
+            }),
+            (
+                "last_usage",
+                engine.last_usage().map_or(Value::Null, |(at, windows)| {
+                    Value::Array(vec![Value::Float(at), Value::Array(windows)])
+                }),
+            ),
         ]),
+        "judge" => crate::judge::run(request),
         _ => raised("not_ported"),
     }
 }

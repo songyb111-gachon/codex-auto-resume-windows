@@ -163,6 +163,21 @@ class Recorder:
 
     def __init__(self, sim, calls):
         self.sim, self.calls = sim, calls
+        # The attributes the engine reads with getattr(backend, name, default) (review 6, S4): absent until a scenario
+        # names one (`backend` step, `attrs`); `holder` is a conversation -> answer map, called as backend.holder(t).
+        self.attrs = {}
+
+    def __getattr__(self, name):
+        attrs = self.__dict__.get("attrs") or {}
+        if name not in attrs:
+            raise AttributeError(name)
+        value = attrs[name]
+        if name == "holder":
+            return lambda thread_id: value.get(thread_id)
+        if name == "protocol_results" and isinstance(value, dict):
+            # The transport's own shape: method -> (result, time).
+            return {method: tuple(found) if isinstance(found, list) else found for method, found in value.items()}
+        return value
 
     def app_identity(self):
         self.calls.append(["app_identity"])
@@ -185,6 +200,30 @@ class Recorder:
     def delete_queue(self, thread_id, queue_id):
         self.calls.append(["delete_queue", thread_id, queue_id])
         return self.sim.delete_queue(thread_id, queue_id)
+
+
+def judge(step) -> dict:
+    """engine/impossible.py, pure (review 6, S4): a fresh Judge run through `script` - ["look", now, app_runs, facts],
+    ["tick", app_runs, facts], ["word", now] - and `usage_reason` / `recovery_facts` over their cases."""
+    from codex_auto_resume.engine import impossible
+    found, words = impossible.Judge(), []
+    for each in step.get("script", []):
+        if each[0] == "look":
+            found.look(each[1], each[2], each[3])
+        elif each[0] == "tick":
+            found.tick(each[1], each[2])
+        else:
+            words.append(found.word(each[1]))
+    usage = []
+    for limits, results in step.get("usage", []):
+        if isinstance(results, dict):
+            results = {method: tuple(value) if isinstance(value, list) else value for method, value in results.items()}
+        usage.append(impossible.usage_reason(limits, results))
+    facts = []
+    for case in step.get("facts", []):
+        case = dict(case, reasons=set(case["reasons"]))
+        facts.append(impossible.recovery_facts(**case))
+    return {"words": words, "usage": usage, "facts": facts}
 
 
 def raised(error) -> dict:
@@ -225,7 +264,11 @@ class ReferenceSide:
             elif op == "watch":
                 self.engine.watch()
             elif op == "policy":
-                self.engine.apply_policy(step.get("values"))
+                managed = step.get("managed")
+                if managed is not None:
+                    from codex_auto_resume import managed as admin
+                    managed = admin.Managed(**dict(managed, quiet_hours=tuple(managed.get("quiet_hours") or ())))
+                self.engine.apply_policy(step.get("values"), managed)
             elif op == "store":
                 return plain(getattr(self.store, step["method"])(*step.get("args", []), **step.get("kwargs", {})))
             elif op == "after_sleep":
@@ -234,7 +277,11 @@ class ReferenceSide:
                 self.engine.retiring = bool(step["value"])
             elif op == "facts":
                 return {"detection_failed": self.engine.detection_failed,
-                        "watch_needed": self.engine.watch_needed()}
+                        "watch_needed": self.engine.watch_needed(),
+                        "activity": self.engine.activity(step.get("threads") or ()),
+                        "last_usage": self.engine.last_usage()}
+            elif op == "judge":
+                return judge(step)
             return None
         except Exception as error:      # what raised, by class: the Rust side answers the same
             return raised(error)
@@ -283,6 +330,11 @@ class RustSide:
                 return {"value": self.rng.random()}
             if name == "backend.send":
                 return {"value": plain(self.backend.send(args[0], args[1], permitted=args[2]))}
+            if name == "backend.getattr":
+                return {"value": plain(getattr(self.backend, args[0], None))}
+            if name == "backend.holder":
+                holder = getattr(self.backend, "holder", None)
+                return {"value": [False, None] if holder is None else [True, plain(holder(args[0]))]}
             method = getattr(self.backend, name.split(".", 1)[1])
             return {"value": plain(method(*args))}
         except Exception as error:
@@ -357,6 +409,7 @@ def run(spec, codexsim, root: Path, side, **side_options):
                     sim.loaded_map[thread] = value
                 for thread, value in step.get("outcomes", {}).items():
                     sim.outcomes[thread] = value
+                backend.attrs.update(step.get("attrs", {}))
                 result = None
             else:
                 result = engine.call(resolved(step, state_dir))

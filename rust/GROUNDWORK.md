@@ -680,3 +680,11 @@ all three, so the proxy really runs car-engine.
   every update, `hold_changed`/`hold_waiting`'s actor, every option struct mapped to car-store's, the launch guard), lives
   only in car-harness. car-watcher writes the product's over car-store; it should move this one into a crate that may
   name both (or a car-store feature) and have the harness call it, so the traces hold the product's adapter.
+* **S4**: `diffs_engine_inputs.py` (EngineInputsDiff, 12 scenarios, equal): an administrator's policy (the `policy` step's
+  `managed`: DisableAutoResume, ForceObserveOnly, quiet hours beside a person's, MaxRecoveryAttempts' clamp ending a chain
+  `retry_budget_exhausted`), `impossible.rs` (the `judge` step, `car-harness/src/judge.rs`: the recovery rules' looks,
+  gaps and clock going back, the detection rules' ticks, the words, `usage_reason` and `recovery_facts` over their edges),
+  the backend's getattr attributes (`backend` step's `attrs`, asked back as `backend.getattr`/`backend.holder`:
+  `app_look` "unmatched", `protocol_results` of a broken usage probe, `engine_version`, `session_holder`, `holder`),
+  `activity` and `last_usage` (in `facts`, a reading with windows), a clock set back over a cached usage reading and a
+  cached loaded state, and Note 1's fractional options. All equal at the first run: nothing to fix in car-engine.

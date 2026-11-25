@@ -856,7 +856,8 @@ fn number(value: Option<&Value>) -> f64 {
     value.and_then(arithmetic).unwrap_or(0.0)
 }
 
-fn managed(value: &Value) -> Option<Managed> {
+/// An administrator's policy keys, as `managed.Managed`'s fields name them.
+pub fn managed(value: &Value) -> Option<Managed> {
     let Value::Object(fields) = value else {
         return None;
     };
