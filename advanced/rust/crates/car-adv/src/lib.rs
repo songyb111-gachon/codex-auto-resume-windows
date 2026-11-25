@@ -11,6 +11,9 @@
 //! Seat S7.2c: reading and talking to Codex - [`codex`] (`protocol`, `inuse` and the readers), [`autocheck`] (the
 //! automatic compatibility check; it replaced S7.1b's `seam_autocheck`), [`compatdata`] (the advanced compatibility data)
 //! and [`pytime`] (`time.strptime` for the forms they read).
+//!
+//! Seat S7.2c remainder (adv72d): [`win`] (`stopflag`, `waketimer`; their Windows calls are car-platform's `wake`),
+//! `codex::{tokens, wmi_escape, headless, ipc}`, `protocol::Session` and `turns::booted_of`.
 
 pub mod arming;
 pub mod autocheck;
@@ -41,3 +44,4 @@ pub mod vocabulary;
 #[rustfmt::skip]
 mod vocabulary_gen;
 pub mod watchlog;
+pub mod win;

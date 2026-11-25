@@ -11,6 +11,7 @@ mod ops_compat;
 mod ops_inuse;
 mod ops_protocol;
 mod ops_read;
+mod ops_win;
 mod world;
 
 use std::io::{Read, Write};
@@ -87,6 +88,7 @@ fn dispatch(context: &Context, op: &str, args: &[Value]) -> Out {
         "iu" => ops_inuse::run(context, op, args),
         "pr" => ops_protocol::run(context, op, args),
         "rd" => ops_read::run(context, op, args),
+        "wn" => ops_win::run(context, op, args),
         "world" => {
             *context
                 .world
