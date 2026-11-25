@@ -262,6 +262,12 @@ def state_file(data):
     return tune
 
 
+def sized_seen(size):
+    """A failure-seen.json of exactly `size` bytes whose seen_at is 100 s after the golden clock."""
+    head = '{"seen_at": %r, "pad": "' % (golden_now() + 100)
+    return head + "a" * (size - len(head) - 2) + '"}'
+
+
 def seen_file(data):
     def tune(workspace: Path):
         target = workspace / "home" / "config" / "failure-seen.json"
@@ -399,6 +405,10 @@ class DamagedDiff(QuietBase):
                  "text": '{"seen_at": "5"}', "a list": "[1]", "garbage": "{", "empty": "",
                  "far ahead": '{"seen_at": 99999999999.0}', "huge int": '{"seen_at": %s}' % ("9" * 400),
                  "past the limit": '{"seen_at": 1, "pad": "%s"}' % ("a" * 5000),
+                 # A seen time just ahead of the clock is believed (SEEN_SKEW) and the next acknowledgement keeps it:
+                 # only a file the reader takes whole shows it, so these three hold the 4,096-byte limit.
+                 "at the limit, just ahead": sized_seen(4096), "one past the limit, just ahead": sized_seen(4097),
+                 "well past the limit, just ahead": sized_seen(9000),
                  "nested 4096": "[" * 4096, "not UTF-8": b'{"seen_at": "\xff"}'}
         for name, data in cases.items():
             with self.subTest(name):

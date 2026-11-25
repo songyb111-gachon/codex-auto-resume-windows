@@ -106,10 +106,7 @@ fn days_and_flags_are_checked_as_the_reference_checks_them() {
     );
     assert_eq!(DAYS, (1, 3650));
     assert!(statistics_days(&Map::new()).unwrap().is_none());
-    assert_eq!(
-        flag(&object(&[("enabled", Value::Bool(true))])).unwrap(),
-        true
-    );
+    assert!(flag(&object(&[("enabled", Value::Bool(true))])).unwrap());
     let Err(Failure::Control(error)) = flag(&object(&[("enabled", Value::from("false"))])) else {
         panic!("a text is not a switch")
     };
@@ -139,7 +136,9 @@ fn identities_are_read_as_the_reference_reads_them() {
     }
     let thread = "11111111-1111-7111-8111-111111111111";
     assert_eq!(thread_id(&Value::from(thread)).unwrap(), thread);
-    let Err(Failure::Control(error)) = thread_id(&Value::from("0A1B2C3D-0001-7000-8000-000000000001")) else {
+    let Err(Failure::Control(error)) =
+        thread_id(&Value::from("0A1B2C3D-0001-7000-8000-000000000001"))
+    else {
         panic!("capitals are not canonical")
     };
     assert_eq!(
