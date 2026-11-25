@@ -78,6 +78,9 @@ EDITION_BINARIES = {"codex-auto-resume.exe": "payload/app/bin/codex-auto-resume.
 # car-legacy, from the standard workspace in both editions: one stand-in for every installation (D9).
 LEGACY_BINARIES = {"python.exe": "payload/runtime/python.exe", "pythonw.exe": "payload/runtime/pythonw.exe"}
 BINARIES = tuple(EDITION_BINARIES.values()) + tuple(LEGACY_BINARIES.values())
+# The installer proofs' test forward, by the variable it reads, and the stub core, by the line only it says (car-bin).
+TEST_HOOK = b"CODEX_AUTO_RESUME_TEST_CORE"
+STUB_CORE = b"is not ported yet (stub core); nothing was done"
 
 # The Python trees' files the Rust product still ships: the data the core reads at their paths (PLAN 6.1), and the
 # plugin tree Codex reads. Every .py file is left out; the stubs below take the places old updaters require.
@@ -175,6 +178,15 @@ def collect_binaries(stage: Path, edition: str, bins: Path | None, legacy: Path 
         found = subsystem((stage / entry).read_bytes())
         if found != kind:
             raise SystemExit("%s is of subsystem %s, not %d" % (entry, found, kind))
+    # The installer proofs' test forward (car-bin `test_double`, CODEX_AUTO_RESUME_TEST_CORE) is the stub core's alone
+    # (review 9, note 8): the stub never ships as a release (it answers every command with 3), and the real core (P5)
+    # has no forward. A core that names the forward but is not the stub stops the build, so a test hook can never reach
+    # a release archive.
+    for name, entry in EDITION_BINARIES.items():
+        data = (stage / entry).read_bytes()
+        if TEST_HOOK in data and STUB_CORE not in data:
+            raise SystemExit("%s carries the installer proofs' test forward (%s) and is not the stub core"
+                             % (entry, TEST_HOOK.decode("ascii")))
 
 
 def collect_tree(stage: Path, source: str, placed: str, data_only: bool) -> int:

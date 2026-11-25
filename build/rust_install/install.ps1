@@ -1156,7 +1156,9 @@ function Invoke-Setup {
     # The command's stdout must not leak into the return value: a bare call would make
     # the function return every printed line AND the exit code as an array, and any
     # comparison against 0 would then be true no matter how well setup went.
-    param([string[]]$Arguments)
+    # -Program: another copy of the core to ask - the archive's, where the installed one is gone (Invoke-InstalledEngine).
+    param([string[]]$Arguments, [string]$Program)
+    $Core = if ($Program) { $Program } else { $Core }
     # The setup step and the health check count their own steps for the setup window's bar (Progress): the variable
     # is set for those two calls alone, as the other hints to setup are.
     $counted = $script:ProgressLines -and @($Arguments).Count -gt 0 -and
@@ -1193,6 +1195,16 @@ function Invoke-InstalledEngine {
     #>
     param([string[]]$Arguments)
     if (Test-Path -LiteralPath $Core -PathType Leaf) { return (Invoke-Setup $Arguments) }
+    # A Rust installation whose core is gone (an antivirus quarantine of the unsigned binary, PLAN risk 8; a removal cut
+    # short) while its host may run (review 9, S4): runtime\python.exe is car-legacy there, which takes no `stop` line
+    # (no earlier version asked it so; its table is not widened), so the archive's own core is asked instead - the
+    # same version line, the same named objects (PLAN 6.2), acting on the home this run installs into, as it answers
+    # claim-home for it. A Rust installation is one with app\bin and without the Python package.
+    if ((Test-Path -LiteralPath (Join-Path $AppDir 'bin') -PathType Container) -and
+        -not (Test-Path -LiteralPath (Join-Path $AppDir 'src\codex_auto_resume\__init__.py') -PathType Leaf) -and
+        (Test-Path -LiteralPath $PayloadCore -PathType Leaf)) {
+        return (Invoke-Setup $Arguments -Program $PayloadCore)
+    }
     $setup = Join-Path $AppDir 'scripts\plugin_setup.py'
     if (-not (Test-Path -LiteralPath $Python -PathType Leaf) -or -not (Test-Path -LiteralPath $setup -PathType Leaf)) { return 1 }
     $ErrorActionPreference = 'Continue'
@@ -1549,11 +1561,12 @@ function Restore-InterruptedCopy {
 function Save-MigratedFile {
     <#
         Before a migration replaces a file at the root that the Python version had - the window, its icon, the kept
-        uninstaller - a copy of it beside it (`<name>.migrating`), for Undo-Migration to put back. Nothing where the
-        file is not there.
+        uninstaller - a copy of it beside it (`<name>.migrating`), for Undo-Migration to put back. Where the file is
+        not there (a Python version before v0.6.17 kept no uninstaller), the path is written down instead: what this
+        run adds there, Undo-Migration takes away again, and nothing is left naming it (review 9, B1).
     #>
     param([string]$Path)
-    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return }
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { $script:MigrationAdded += $Path; return }
     $copy = $Path + '.migrating'
     try {
         Copy-Item -LiteralPath $Path -Destination $copy -Force -ErrorAction Stop
@@ -1569,42 +1582,162 @@ function Undo-Migration {
         it was, so a failed update never leaves less than there was. The new core is asked to stop a watcher it may have
         started; the new trees are cleared and the old ones moved back from where this run set them aside (the journal
         still names them, so a run cut short here finds them again); the window, its icon and the kept uninstaller are
-        put back from their copies; and the Python version's own engine starts its watcher again where one was stopped
-        for this update (`setup --keep-state`, which writes its own start at sign-in back over the Rust one). Returns
-        $true when every tree is back.
+        put back from their copies, and what the migration added where the Python version had nothing is taken away
+        (the kept uninstaller of a version before v0.6.17, with the entry in Add or remove programs that names it).
+        Then the Python version's own engine runs its `setup --keep-state` - always, whether or not a watcher ran
+        before (review 9, B1): the Rust setup may have written the start at sign-in, the link handler and the entry
+        onto app\bin before it failed, and only that setup writes them back onto the Python programs (its
+        startup.belongs_to knows the Rust Run value by its --home). Where no watcher ran, `--watcher-was-stopped` is
+        passed to a version that knows it (v0.6.16 on), so a stopped watcher stays stopped; an older version starts
+        its watcher, as its own setup always did. Returns what was done, for the last word: 'restored' (every tree
+        back and its setup ran), 'unregistered' (every tree back, its setup did not complete), 'partial' (a tree
+        could not be put back: this version left in place, the Python trees aside), 'kept-new' (the new watcher
+        did not end, so nothing was put back and the migration was finished instead).
     #>
     param($Moved, [bool]$WasRunning)
-    $null = Invoke-Setup @('stop')
-    $notBack = @()
+    $script:PendingMigration = $null
+    # Undo starts the Python watcher itself (its setup, below); the `finally`'s Start-StoppedWatcher must not again.
+    $script:WatcherStoppedForUpdate = $false
+    # The new watcher has ended before anything is moved (review 9, B2): by its process and by its mutex, with the
+    # hand-over's own minute. A put-back under a host still running deleted what it could of app\ around it - the
+    # core, the scripts, the data - and could not move the Python tree back: neither version was left. Where it does
+    # not end, nothing is put back: the new version is whole and running, so the migration is finished instead.
+    if (Test-Path -LiteralPath $Core -PathType Leaf) { $null = Invoke-Setup @('stop') }
+    if (-not (Wait-WatcherEnded)) {
+        Fail 'The new version''s watcher did not stop within a minute, so the Python version was not put back.'
+        Write-Host '       It was asked to stop, and was not stopped any other way. Putting the Python version back under it'
+        Write-Host '       would have left neither version whole, so this version stays installed.'
+        Complete-Migration -Moved $Moved
+        return 'kept-new'
+    }
+    # Then the trees change places by renames alone, all or nothing: each new tree aside first (`.old-<stamp>-new`,
+    # which the next run's sweep takes), then each Python tree back. A rename either happens or does not, so a file
+    # still held can never leave half a tree; where one does not happen, every rename made is turned back, and the
+    # Python trees stay aside under the names the journal keeps for them.
+    $stamp = Get-Date -Format 'yyyyMMddHHmmss'
+    $asideNew = @()
+    $back = @()
+    $failed = $null
     foreach ($undo in $Moved) {
-        if (Test-Path -LiteralPath $undo.to) { $null = Remove-OwnedItem $undo.to }
-        if (Test-Path -LiteralPath $undo.to) { $notBack += $undo; continue }
-        Move-Item -LiteralPath $undo.from -Destination $undo.to -Force -ErrorAction SilentlyContinue
-        if (-not (Test-Path -LiteralPath $undo.to)) { $notBack += $undo }
+        if (-not (Test-Path -LiteralPath $undo.to)) { continue }
+        $rename = $undo.to + '.old-' + $stamp + '-new'
+        try {
+            Move-Item -LiteralPath $undo.to -Destination $rename -ErrorAction Stop
+            $asideNew += @{ from = $rename; to = $undo.to }
+        } catch { $failed = $undo; break }
     }
-    if ($notBack.Count -gt 0) {
-        Fail 'The Python version that was installed could not be put back completely:'
-        foreach ($undo in $notBack) { Write-Host ('       ' + $undo.from + ' could not be put back at ' + $undo.to) }
-        Write-Host '       It is kept under that name until an installation completes.'
-        return $false
+    if ($null -eq $failed) {
+        foreach ($undo in $Moved) {
+            try {
+                Move-Item -LiteralPath $undo.from -Destination $undo.to -ErrorAction Stop
+                $back += $undo
+            } catch { $failed = $undo; break }
+        }
     }
+    if ($null -ne $failed) {
+        foreach ($undo in $back) { Move-Item -LiteralPath $undo.to -Destination $undo.from -ErrorAction SilentlyContinue }
+        foreach ($new in $asideNew) { Move-Item -LiteralPath $new.from -Destination $new.to -ErrorAction SilentlyContinue }
+        Fail 'The Python version that was installed could not be put back:'
+        Write-Host ('       ' + $failed.from + ' could not be put back at ' + $failed.to)
+        Write-Host '       It is kept under that name until an installation completes, and this version was left in place.'
+        Write-Host '       Close the ChatGPT/Codex app and run this installer again.'
+        return 'partial'
+    }
+    foreach ($new in $asideNew) { $null = Remove-OwnedItem $new.from }
     foreach ($kept in @($script:MigrationKept)) {
         try { Move-Item -LiteralPath $kept.Copy -Destination $kept.Path -Force -ErrorAction Stop }
         catch { Warn ('Could not put back ' + $kept.Path + ': ' + $_.Exception.Message) }
     }
     $script:MigrationKept = @()
+    $keptUninstaller = Join-Path (Join-Path $OwnedHome 'uninstall') 'install.ps1'
+    foreach ($added in @($script:MigrationAdded)) {
+        # The entry this run's setup wrote names the kept uninstaller; it goes first, while the file it names is there
+        # for Remove-OwnUninstallEntry to know it by.
+        if ([string]$added -ieq $keptUninstaller) { Remove-OwnUninstallEntry -Root $OwnedHome }
+        $null = Remove-OwnedItem $added
+    }
+    $script:MigrationAdded = @()
     if (Test-Path -LiteralPath $Journal) { $null = Remove-OwnedItem $Journal }
     Ok 'The Python version that was installed here was put back as it was'
-    if ($WasRunning) {
-        $restartArgs = @('setup', '--keep-state')
-        if ($SkipStartup) { $restartArgs += '--no-startup' }
-        if ((Invoke-InstalledEngine $restartArgs) -eq 0) { Ok 'Its watcher was started again' }
-        else {
-            Warn 'Its watcher, stopped for this update, is not running, so nothing is being recovered now.'
+    $restartArgs = @('setup', '--keep-state')
+    if ($SkipStartup) { $restartArgs += '--no-startup' }
+    if (-not $WasRunning -and (Test-KnowsWatcherWasStopped (Get-AppVersion -Root $AppDir))) { $restartArgs += '--watcher-was-stopped' }
+    $code = Invoke-InstalledEngine $restartArgs
+    # 2: everything done, the watcher only not confirmed (plugin_setup.py EXIT_UNCONFIRMED).
+    if ($code -eq 0 -or $code -eq 2) {
+        Ok 'Its own setup wrote its start at sign-in, its link handler and its entry onto its programs again'
+        if ($WasRunning -and $code -eq 0) { Ok 'Its watcher was started again' }
+        elseif ($WasRunning) {
+            Warn 'Its watcher, stopped for this update, could not be confirmed running, so nothing may be recovered now.'
             Write-Host '       Open Start Menu > Codex Auto Resume and use Start watcher, or sign out and back in.'
         }
+        return 'restored'
     }
-    return $true
+    Warn 'Its own setup did not complete: its start at sign-in and its link handler may still name the programs that were removed.'
+    if ($WasRunning) { Write-Host '       Its watcher, stopped for this update, is not running, so nothing is being recovered now.' }
+    Write-Host '       Install that version again (the Dashboard''s Install another version, or its own installer) to write them back.'
+    return 'unregistered'
+}
+
+function Resolve-MigratingCopies {
+    <#
+        The `<name>.migrating` copies a migration that was cut short left (Save-MigratedFile: the window, its icon, the
+        kept uninstaller). Where the installation is a Python version (-PythonInstalled: the trees are its own again,
+        put back by Restore-InterruptedCopy or never replaced), each copy is that version's own file and goes back
+        over the one there; beside a Rust installation the copy is a leftover and is removed. Each one only inside the
+        verified root, as every other change here.
+    #>
+    param([bool]$PythonInstalled)
+    $copies = @(Get-ChildItem -LiteralPath $OwnedHome -File -Filter '*.migrating' -Force -ErrorAction SilentlyContinue)
+    $copies += @(Get-ChildItem -LiteralPath (Join-Path $OwnedHome 'uninstall') -File -Filter '*.migrating' -Force -ErrorAction SilentlyContinue)
+    foreach ($copy in $copies) {
+        if ($copy.Attributes -band [IO.FileAttributes]::ReparsePoint) { continue }
+        $target = $copy.FullName.Substring(0, $copy.FullName.Length - '.migrating'.Length)
+        if (-not (Test-PathInside $copy.FullName $OwnedHome) -or -not (Test-PathInside $target $OwnedHome)) { continue }
+        if ($PythonInstalled) {
+            try {
+                Move-Item -LiteralPath $copy.FullName -Destination $target -Force -ErrorAction Stop
+                Ok ('Put back ' + $target + ', which an interrupted update had replaced')
+            } catch { Warn ('Could not put back ' + $target + ': ' + $_.Exception.Message) }
+        } else {
+            $null = Remove-OwnedItem $copy.FullName
+        }
+    }
+}
+
+function Test-KnowsWatcherWasStopped {
+    # Whether a Python version's plugin_setup.py takes `setup --watcher-was-stopped`: from the v0.6.16 final on (no
+    # v0.6.16 pre-release has it, and argparse refuses a word it does not know with 2).
+    param([string]$Version)
+    if ([string]$Version -notmatch '^(\d+)\.(\d+)\.(\d+)(-.+)?$') { return $false }
+    $number = [version]('{0}.{1}.{2}' -f $Matches[1], $Matches[2], $Matches[3])
+    if ($number -gt [version]'0.6.16') { return $true }
+    return ($number -eq [version]'0.6.16' -and -not $Matches[4])
+}
+
+function Wait-WatcherEnded {
+    <#
+        Whether this installation's watcher has ended, waiting up to the hand-over's minute: no process of it is left
+        (Get-OwnedWatcherProcess, by its image) and its mutex is let go (the installed core's `watcher-running` answers
+        anything but 0 - 2 is "not running" in plugin_setup.py's contract, which the core keeps). Both, because a
+        process can outlive its mutex by the moments it takes to end, and its files are held until it has. A core that
+        cannot be started leaves the process alone to decide. Only waits: nothing is ever ended here.
+    #>
+    $deadline = (Get-Date).AddSeconds(60)
+    while ($true) {
+        if ((Get-OwnedWatcherProcess).Count -eq 0) {
+            $free = $true
+            if (Test-Path -LiteralPath $Core -PathType Leaf) {
+                $ErrorActionPreference = 'Continue'
+                $global:LASTEXITCODE = 1
+                $null = @(& $Core 'watcher-running' 2>$null)
+                $free = $LASTEXITCODE -ne 0
+            }
+            if ($free) { return $true }
+        }
+        if ((Get-Date) -ge $deadline) { return $false }
+        Start-Sleep -Milliseconds 500
+    }
 }
 
 function Complete-Migration {
@@ -1614,11 +1747,13 @@ function Complete-Migration {
         and the next run sweeps it - and so do the copies kept for Undo-Migration and the journal.
     #>
     param($Moved)
+    $script:PendingMigration = $null
     if (Test-Path -LiteralPath $Journal) { $null = Remove-OwnedItem $Journal }
     $left = 0
     foreach ($old in $Moved) { if (-not (Remove-OwnedItem $old.from)) { $left++ } }
     foreach ($kept in @($script:MigrationKept)) { $null = Remove-OwnedItem $kept.Copy }
     $script:MigrationKept = @()
+    $script:MigrationAdded = @()
     if ($left -gt 0) { Step 'Part of the Python version is still in use; it is removed by the next update or repair' }
     else { Ok 'The Python runtime of the version this replaced was removed' }
 }
@@ -2090,6 +2225,10 @@ $script:DashboardsReopened = $false
 $script:DashboardsFallback = @()
 # A migration's copies of the files at the root it replaces, for Undo-Migration (Save-MigratedFile).
 $script:MigrationKept = @()
+# And the files at the root it adds where the Python version had none, for Undo-Migration to take away again.
+$script:MigrationAdded = @()
+# Set once a migration's copy is done, until Undo-Migration or Complete-Migration has run (the `finally` reads it).
+$script:PendingMigration = $null
 try {
     $upgrade = Test-Path -LiteralPath $AppDir
 
@@ -2146,6 +2285,10 @@ try {
         }
         $null = Remove-OwnedItem $stale.FullName
     }
+    # And the copies a migration cut short left of the files at the root (Save-MigratedFile; review 9, note 1): beside a
+    # Python version they are its own files, which the run never got to put back, so they go back; beside a Rust one
+    # they are leftovers, which nothing else sweeps.
+    Resolve-MigratingCopies -PythonInstalled $fromPython
 
     # Hand over from a running watcher before its files are replaced.
     #
@@ -2319,6 +2462,10 @@ try {
     # Both trees are in place, so nothing is waiting to be put back and the copies moved
     # aside are leftovers again rather than the last good ones - except in a migration, where they are the Python
     # version, kept with the journal until the new setup has run (Complete-Migration, Undo-Migration).
+    # In a migration, every way out from here goes through Undo-Migration or Complete-Migration (review 9, note 2): the
+    # setup's own outcome below calls one of them, and any other way out - the core missing after the copy (an
+    # antivirus), a throw - reaches the `finally` at the end, which puts the Python version back while this is set.
+    if ($fromPython) { $script:PendingMigration = @{ Moved = $moved; WasRunning = $watcherWasRunning } }
     if (-not $fromPython) {
         if (Test-Path -LiteralPath $Journal) { $null = Remove-OwnedItem $Journal }
         foreach ($old in $moved) { $null = Remove-OwnedItem $old.from }
@@ -2499,8 +2646,15 @@ try {
     if ($watcherStartedAgain) { $code = 0 }
     if ($code -ne 0 -and -not $watcherUnconfirmed -and -not $watcherLeftStopped -and $fromPython) {
         Fail 'Setup did not complete, so the Python version that was installed is put back; read the message above.'
-        if (Undo-Migration -Moved $moved -WasRunning $watcherWasRunning) {
+        # The last word says what was put back, and only that (review 9, B1).
+        $undone = Undo-Migration -Moved $moved -WasRunning $watcherWasRunning
+        if ($undone -ceq 'restored') {
             Write-Host 'Nothing was changed: the version that was installed is installed again.'
+        } elseif ($undone -ceq 'unregistered') {
+            Write-Host 'The version that was installed is installed again, but its own setup did not complete; read the messages above.'
+        } elseif ($undone -ceq 'kept-new') {
+            Write-Host 'This version stays installed, but its setup did not complete, and its watcher was asked to stop; read the messages above.'
+            Write-Host 'Run this installer again to repair it and start the watcher again.'
         }
         exit 1
     }
@@ -2516,6 +2670,12 @@ try {
 
     # The new setup has run: the Python version this replaced goes now (PLAN 6.5).
     if ($fromPython) { Complete-Migration -Moved $moved }
+    # The trees an interrupted run left aside that its journal still claimed (Restore-InterruptedCopy) were kept until
+    # this run had a complete installation; it has one now, set up, so they go too, as Complete-Migration's do - one a
+    # migration cut off at its setup left was the Python version, and stayed through this run (review 9, note 1).
+    foreach ($aside in @($claimedAside)) {
+        if ($aside -and (Test-Path -LiteralPath $aside)) { $null = Remove-OwnedItem $aside }
+    }
     # D8: the Pythons a person chose in the advanced edition (runtimes\ and runtimes\chosen.json) - this version runs
     # none, in either edition, and has no card to delete them on.
     if (Test-Path -LiteralPath $ChosenRuntimes) {
@@ -2597,6 +2757,16 @@ try {
     exit 0
 } finally {
     # Every way out before the setup step - a put-back installation, a stop, an error - starts the stopped watcher again.
+    # A migration that left by any way but its setup's outcome puts the Python version back first (Undo-Migration),
+    # which starts its watcher itself.
+    if ($null -ne $script:PendingMigration) {
+        try {
+            $pending = $script:PendingMigration
+            Fail 'The update stopped before its setup ran, so the Python version that was installed is put back.'
+            $undone = Undo-Migration -Moved $pending.Moved -WasRunning $pending.WasRunning
+            if ($undone -ceq 'restored') { Write-Host 'Nothing was changed: the version that was installed is installed again.' }
+        } catch { }
+    }
     try { Start-StoppedWatcher } catch { }
     # Every way out once the Dashboard was asked to close - a stop, a put-back installation, an error - opens it again.
     try { Open-ClosedDashboard } catch { }
