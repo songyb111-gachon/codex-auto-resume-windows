@@ -92,7 +92,7 @@ pub struct SystemHost {
     os: Arc<dyn Os + Send + Sync>,
 }
 
-/// `Os` over car-platform: the one link probe, LCMapStringEx, GetFullPathNameW and `realpath`.
+/// `Os` over car-platform: the one link probe, LCMapStringEx, GetFullPathNameW, `realpath` and `os.replace`.
 pub struct PlatformOs;
 
 impl Os for PlatformOs {
@@ -120,6 +120,10 @@ impl Os for PlatformOs {
                 .collect()),
             Err(_) => Ok(text.to_vec()),
         }
+    }
+
+    fn replace(&self, from: &Path, to: &Path) -> std::io::Result<()> {
+        car_platform::files::replace(from, to)
     }
 }
 

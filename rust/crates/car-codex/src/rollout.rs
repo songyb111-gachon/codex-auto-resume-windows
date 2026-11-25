@@ -432,7 +432,7 @@ fn readline<R: BufRead>(stream: &mut R, limit: usize) -> std::io::Result<Vec<u8>
 /// `session_meta(path)`: the payload of the file's first line where it is a session_meta event, or None. An OSError is
 /// the caller's: a file that cannot be opened now is not a file that says nothing.
 pub fn session_meta(path: &str) -> Result<Option<Map>> {
-    let mut stream = BufReader::new(std::fs::File::open(path)?);
+    let mut stream = BufReader::new(car_machine::pyfile::open(path)?);
     let first = readline(&mut stream, MAX_META_BYTES + 1)?;
     if first.len() > MAX_META_BYTES || !first.ends_with(b"\n") {
         return Ok(None);
@@ -519,7 +519,7 @@ fn read_scan(path: &str, end: u64, turn_id: &str, completed_at: &Value) -> pyval
     let data = (|| -> std::io::Result<Option<Vec<u8>>> {
         // The verified end offset is immediately after the failure event. Never include a subsequent turn's
         // unrelated rate-limit snapshot.
-        let mut stream = BufReader::new(std::fs::File::open(path)?);
+        let mut stream = BufReader::new(car_machine::pyfile::open(path)?);
         let start = end.saturating_sub(MAX_SCAN_BYTES as u64);
         stream.seek(SeekFrom::Start(start))?;
         if start != 0 {
@@ -606,7 +606,7 @@ pub fn superseded_in(path: &str, turn_id: &str, limit: Option<u64>) -> &'static 
             return Ok((true, false, false, false));
         }
         let (mut anchored, mut later, mut doubt, mut read) = (false, false, false, 0u64);
-        let mut stream = BufReader::new(std::fs::File::open(path)?);
+        let mut stream = BufReader::new(car_machine::pyfile::open(path)?);
         while read < size {
             let mut line = readline(&mut stream, MAX_ITEM_BYTES + 1)?;
             if line.is_empty() {
@@ -709,7 +709,7 @@ pub fn turn_trigger(path: &str, turn_id: Option<&str>) -> Result<Option<String>>
     }
     let wanted = turn_id.map(str::as_bytes);
     let mut found: Option<String> = None;
-    let mut stream = BufReader::new(std::fs::File::open(path)?);
+    let mut stream = BufReader::new(car_machine::pyfile::open(path)?);
     if size > RESCAN_BYTES {
         // From RESCAN_BYTES before the end, the line cut there dropped unless the cut falls on a line's start.
         stream.seek(SeekFrom::Start(size - RESCAN_BYTES - 1))?;

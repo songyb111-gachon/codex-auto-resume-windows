@@ -291,7 +291,7 @@ impl LocalSource {
         if size > MAX_GLOBAL_STATE {
             return None;
         }
-        let text = String::from_utf8(std::fs::read(&path).ok()?).ok()?;
+        let text = String::from_utf8(car_machine::pyfile::read(&path).ok()?).ok()?;
         let data = car_machine::compat::loads(&text).ok()?;
         let (mut count, mut stack) = (0i64, vec![(&data, 0u32)]);
         while let Some((value, depth)) = stack.pop() {

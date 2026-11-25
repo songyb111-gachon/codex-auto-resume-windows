@@ -103,7 +103,7 @@ fn small_file(path: &str) -> Option<Vec<u8>> {
         return None;
     }
     let mut data = Vec::new();
-    std::fs::File::open(path)
+    car_machine::pyfile::open(path)
         .ok()?
         .take(MAX_HEAD_BYTES as u64 + 1)
         .read_to_end(&mut data)

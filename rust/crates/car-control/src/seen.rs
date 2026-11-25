@@ -58,7 +58,9 @@ pub(crate) fn temporary(
             })
             .collect();
         let path = folder.join(format!("{prefix}{name}{suffix}"));
-        match std::fs::OpenOptions::new()
+        // `mkstemp`'s `os.open(O_RDWR | O_CREAT | O_EXCL)`: shared as Python shares (car-machine's pyfile).
+        match car_machine::pyfile::options()
+            .read(true)
             .write(true)
             .create_new(true)
             .open(&path)
@@ -88,8 +90,8 @@ fn replace_seen(path: &Path, value: f64) -> bool {
                 .and_then(|_| file.sync_all())
         });
     drop(file);
-    if matches!(written, Some(Ok(()))) && std::fs::rename(&temporary, path).is_ok() {
-        // `os.replace` over an existing file: std's rename replaces on Windows too.
+    if matches!(written, Some(Ok(()))) && car_platform::files::replace(&temporary, path).is_ok() {
+        // `os.replace`: MoveFileExW alone (car-platform), which refuses a target another handle holds open.
         return true;
     }
     let _ = std::fs::remove_file(&temporary);
@@ -183,7 +185,7 @@ impl Control {
         }
         let mut value = None;
         if info.len() <= SEEN_LIMIT {
-            let bytes = match std::fs::read(&path) {
+            let bytes = match car_machine::pyfile::read(&path) {
                 Ok(bytes) => bytes,
                 Err(_) => return Ok((None, "unreadable")),
             };

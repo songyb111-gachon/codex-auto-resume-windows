@@ -210,4 +210,8 @@ impl car_policy::settings::os::Os for PolicyOs {
             Err(_) => Ok(text.to_vec()),
         }
     }
+
+    fn replace(&self, from: &std::path::Path, to: &std::path::Path) -> std::io::Result<()> {
+        car_platform::files::replace(from, to)
+    }
 }

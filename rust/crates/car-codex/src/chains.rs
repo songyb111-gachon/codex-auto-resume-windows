@@ -87,7 +87,7 @@ impl ChainMemory {
         if found.len() > MAX_BYTES {
             return Ok(None);
         }
-        let Ok(bytes) = std::fs::read(path) else {
+        let Ok(bytes) = car_machine::pyfile::read(path) else {
             return Ok(None);
         };
         let Ok(text) = String::from_utf8(bytes) else {
@@ -243,7 +243,7 @@ fn write_atomically(path: &Path, text: &str) -> std::io::Result<()> {
         .map(|each| each.to_string_lossy().into_owned())
         .unwrap_or_default();
     let temporary = path.with_file_name(format!("{stem}.{}.tmp", std::process::id()));
-    std::fs::write(&temporary, text.as_bytes())?;
+    car_machine::pyfile::write(&temporary, text.as_bytes())?;
     car_platform::files::replace(&temporary, path)
 }
 

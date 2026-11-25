@@ -97,7 +97,7 @@ pub fn read_file(path: &Path) -> Result<(&'static str, Held), &'static str> {
     if info.len() > FILE_LIMIT {
         return Ok((READ_INVALID, Vec::new()));
     }
-    let bytes = match std::fs::read(path) {
+    let bytes = match car_machine::pyfile::read(path) {
         Ok(bytes) => bytes,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             return Ok((READ_MISSING, Vec::new()));
@@ -129,7 +129,8 @@ fn written_bytes(held: &Held) -> Option<String> {
 fn replace(temporary: &Path, path: &Path) -> std::io::Result<()> {
     let mut last = None;
     for attempt in 0..REPLACE_TRIES {
-        match std::fs::rename(temporary, path) {
+        // `os.replace`: MoveFileExW alone (car-platform), never std's POSIX retry over a held target.
+        match car_platform::files::replace(temporary, path) {
             Ok(()) => return Ok(()),
             Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => {
                 last = Some(error);

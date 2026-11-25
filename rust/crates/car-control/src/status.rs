@@ -79,7 +79,7 @@ fn read_self_check(control: &Control, status: Option<&Map>) -> Res<Value> {
     if !info.is_file() || control.host.is_symlink(&path) || info.len() > 4096 {
         return Ok(Value::Null);
     }
-    let Ok(bytes) = std::fs::read(&path) else {
+    let Ok(bytes) = car_machine::pyfile::read(&path) else {
         return Ok(Value::Null);
     };
     let Ok(text) = String::from_utf8(bytes) else {
@@ -246,7 +246,7 @@ impl Control {
         if info.len() > POWER_FILE_LIMIT {
             return Ok((poweraction::READ_INVALID, Value::Null));
         }
-        let bytes = match std::fs::read(&path) {
+        let bytes = match car_machine::pyfile::read(&path) {
             Ok(bytes) => bytes,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                 return Ok((poweraction::READ_MISSING, Value::Null));

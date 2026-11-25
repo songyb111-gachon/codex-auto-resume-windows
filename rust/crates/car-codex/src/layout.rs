@@ -266,7 +266,7 @@ fn kept_layout(value: &Value) -> Value {
 pub fn read(path: &str) -> Option<Value> {
     use std::io::Read;
     let mut data = Vec::new();
-    std::fs::File::open(path)
+    car_machine::pyfile::open(path)
         .ok()?
         .take(READ_MOST as u64 + 1)
         .read_to_end(&mut data)
@@ -323,8 +323,8 @@ fn write(path: &str, value: &Value, pid: u32) {
         let stem = target.file_stem()?.to_string_lossy().into_owned();
         let temporary = target.with_file_name(format!("{stem}.{pid}.tmp"));
         let text = to_string(value, &Options::new().sort_keys(true)).ok()?;
-        std::fs::write(&temporary, text.as_bytes()).ok()?;
-        std::fs::rename(&temporary, target).ok()
+        car_machine::pyfile::write(&temporary, text.as_bytes()).ok()?;
+        car_platform::files::replace(&temporary, target).ok()
     })();
 }
 

@@ -71,7 +71,7 @@ pub fn app_homes(base: Option<&str>) -> Vec<String> {
         packaged.push(part);
     }
     for place in [direct, packaged] {
-        let Ok(raw) = std::fs::read(&place) else {
+        let Ok(raw) = car_machine::pyfile::read(&place) else {
             continue;
         };
         if raw.len() > APP_FILE_MAX {

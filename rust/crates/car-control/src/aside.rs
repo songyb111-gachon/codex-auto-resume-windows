@@ -120,7 +120,8 @@ pub fn set_aside(os: &dyn Os, path: &Path, now: f64) -> Result<Option<PathBuf>, 
         if aside.exists() {
             continue;
         }
-        match std::fs::rename(path, &aside) {
+        // `os.rename`: MoveFileExW with no flag (car-platform) - a name taken meanwhile is refused, never replaced.
+        match car_platform::files::rename(path, &aside) {
             Ok(()) => {
                 prune(path.parent().unwrap_or(Path::new(".")), &aside);
                 return Ok(Some(aside));
