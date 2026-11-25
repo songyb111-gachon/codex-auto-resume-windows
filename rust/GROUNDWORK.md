@@ -1136,37 +1136,82 @@ made the very minute of publication and catches it.
 
 ## S7.2c remainder (seat adv72d, branch `car-v0627-adv72d`, 2026-11-26)
 
-From the **v0.6.26 final**'s `advanced/src/codex_auto_resume_advanced/` (reference `v0.6.26`, `tests/rustdiff/advref.py`):
+Everything S7.2c's section names under "Not ported", from the **v0.6.26 final**'s `advanced/src/codex_auto_resume_advanced/`
+(reference `v0.6.26`, `tests/rustdiff/advref.py`):
 
 | Python | Rust |
 |---|---|
 | `win/waketimer.py` | car-adv `win::waketimer` (`WakeTimer`, `filetime`: half-even rounding, the c_longlong's low 64 bits) |
 | `win/stopflag.py` | car-adv `win::stopflag` (`StopFlag`, `event_name`: core's StopEvent name of the folder as pathlib writes it) |
-| their ctypes calls | car-platform `wake` (new, D3): `TimerKernel`, `PowerSettings`, `EventKernel` traits; `SystemTimer`, `SystemPower`, `SystemEvents` the real ones, built only by the product's entry points |
-| `codex/turns.booted_of` | car-adv `codex::turns::booted_of(state_dir)` (core's `Store::open` as `Store(paths.state_dir)` opens it, made and migrated where missing, car-control's link probe) |
-| `codex/tokens.py` | car-adv `codex::tokens` (`file_key`, `watched_homes`, `rollouts`, `unchanged`, `read` with the local day from a `LocalClock`: the product hands car-platform's `Crt`) |
-| `codex/wmi_escape.py` | car-adv `codex::wmi_escape` (`probe` over a `Chain` trait, `helper_argv`, `heartbeat_command_line`, `helper_plan`, `heartbeat_record`, the script and bootstrap constants). **Never run**: nothing implements `Chain` but the diff's stand-in |
+| their ctypes calls | car-platform `wake` (new, D3): `TimerKernel`, `PowerSettings`, `EventKernel`; `SystemTimer`, `SystemPower`, `SystemEvents` the real ones, built only by the product's entry points |
+| `codex/turns.booted_of` | car-adv `codex::turns::booted_of(state_dir)` (core's `Store::open` as `Store(paths.state_dir)` opens it, made and migrated where missing; car-control's link probe) |
+| `codex/tokens.py` | car-adv `codex::tokens` (`file_key`, `watched_homes`, `rollouts`, `unchanged`, `read`; the local day from a `LocalClock`: the product hands car-platform's `Crt`) |
+| `codex/wmi_escape.py` | car-adv `codex::wmi_escape` (`probe` over a `Chain`, `helper_argv`, `heartbeat_command_line`, `helper_plan`, `heartbeat_record`, the script and bootstrap). **Never run**: nothing implements `Chain` but the diff's stand-in |
+| `codex/protocol.Session`, `submitted` | car-adv `codex::session` (`Session`, `Channel` - what `submitted` and `headless` need of a session -, `SessionError`, `Submitted`); over car-codex's `TextReader`/`next_message`, `Backend::{compatible, argv, environment}`, `pairing::own_server[_gone]` and car-platform's starter |
+| `codex/headless.py` | car-adv `codex::headless` (`HeadlessRun`, `Follower`, `follower()` - the process's one -, `stop_all`, `live_session`, `settings_allowed`, the readers, `EMPTY_REFUSED`, the retry settings) |
+| `codex/ipc.py` | car-adv `codex::ipc` (`stop_turn`, `start_turn`, `steer_turn`, `Channel`, `Gate`, `request_shape`, `filled`, `stopped`); its pipe calls car-platform `ipc_pipe` (new: `open`, `server_trusted`, `Pipe::io`, `uuid4`; the windows crate gained the `Win32_System_Pipes` feature, no new crate) |
 
 car-adv's `win::tests::car_adv_names_no_suspend_or_shutdown_call` holds P7-DESIGN 3.5's rule at the source: no
 `SetSuspendState`, `ExitWindowsEx`, `InitiateSystemShutdown*`, `SetSystemPowerState` and no `windows::Win32` anywhere in
-car-adv (src and examples); car-platform's `wake` test holds that it writes no power setting.
+car-adv (src and examples); car-platform's `wake` test holds that it writes no power setting. `ipc_pipe::open` refuses
+the Desktop's own pipe name in car-platform's own tests and wherever `CAR_NO_REAL_IPC` is set (the ipc diff sets it).
 
-### The diffs (`tests/rustdiff/advcodexd.py` + `diffs_advcodex_{win,booted,tokens,wmi}.py`)
+### The seams
+
+* `headless`: `HeadlessRun::new(capability, key, opener, follower())`, the opener `live_session(backend)` (a closure
+  making `inuse::backend(...)`); `resume(thread, launch_guard, still_unloaded, words, client_id)` takes core's guard and
+  look as closures answering what the reference's `__enter__`/callable gives. `stop_all(follower(), 20.0)` is the
+  runtime's to call as the watcher leaves (S7.2a): the reference registers it with `atexit`. `seconds` is an `f64`:
+  `owe(thread, model, seconds)` gets `8.0` where the reference passes the int it was given (see AUDIT).
+* `session::Session` owns its `Backend` (the follower thread takes the session); `Channel::call` is submit + receive.
+* `ipc`: the pipe name is a parameter (None = the Desktop's), the request ids a closure (`ipc_pipe::uuid4` in the
+  product), the guard a `Gate` (enter gives `permitted`, exit may fail).
+* `wmi_escape::Chain` has no real implementation: MW's live run needs the Rust edition's own helper and heartbeat roles
+  (S7.3d's `car-adv-bin`) and car-platform's job-object calls; until then the measurement is the main session's.
+* `tokens::read(rollout, known, budget, &Crt)`; `watched_homes(installation, settings_file, env, config_os, os)`.
+* `WakeTimer::new(Box::new(SystemTimer), Box::new(SystemPower))`, `StopFlag::new(state_dir, Box::new(SystemEvents))`
+  in the product; never in a test.
+
+### The diffs (`tests/rustdiff/advcodexd.py` + `diffs_advcodex_{win,booted,tokens,wmi,session,headless,ipc}.py`)
 
 `advcodexd.py` is S7.2c's harness with its own reference script (the same `advcodex` probe; op families `wn.`, `bt.`,
-`tk.`, `wm.`); its `scene` compares a SQLite file by its dump. Nothing real is asked of Windows: the timer, the power
-settings, the stop event and the WMI chain are scripted stand-ins on both sides that log each call, compared in order.
+`tk.`, `wm.`, `ss.`, `hl.`, `ip.`); its `scene` compares a SQLite file by its dump. Nothing real is asked of Windows: the
+timer, the power settings, the stop event and the WMI chain are scripted stand-ins on both sides that log each call,
+compared in order; the session's engine is car-harness's `car-fake-codex`; the IPC pipe is the test's own (fakeipc).
 
-* `win`: 1,507 timer walks (create/set/cancel/close/allowed/on_battery, every call answering otherwise or raising), 160
-  `filetime` values (half-even ties, 2**80, inf, nan), 806 stop-flag walks and the event names of six folders.
-* `booted`: 11 state folders x 2 (none, empty, heartbeats with every boot time, damaged, a file), files left as dumps.
-* `tokens`: `read` over 220 generated rollouts x 11 `known` rows and budgets plus LOOK_BACK cases (2,447 reads and
-  `unchanged`), each under TZ unset, `JST-9` and `EST5EDT`; `rollouts` over 7 home lists x 6 clocks (nested folders, a
-  junction, `.JSONL`, a folder named `x.jsonl`, files older than `keep_days`); `file_key`; `watched_homes` told and not,
-  with 8 `codex_homes` settings.
-* `wmi`: the constants, 1,511 probe walks (no launcher, no job, the limit refused, the start raising, assign refused,
-  every heartbeat shape, alive or not, the helper's wait timing out), the helper's `pwsh.run` plan over 150 inputs, the
-  pwsh argument variables, the heartbeat record.
+* `win`: 1,507 timer walks, 160 `filetime` values (half-even ties, 2**80, inf, nan), 806 stop-flag walks, 6 names.
+* `booted`: 11 state folders x 2 (none, empty, heartbeats with every boot time, damaged, a file), files as dumps.
+* `tokens`: `read` over 220 generated rollouts x 11 `known` rows and budgets plus LOOK_BACK cases, and `unchanged`
+  (~4,900 cases), each under TZ unset, `JST-9` and `EST5EDT`; `rollouts` over 7 home lists x 6 clocks (nested folders,
+  a junction, `.JSONL`, a folder named `x.jsonl`, files past `keep_days`); `file_key`; `watched_homes` told and not x 8
+  `codex_homes` settings.
+* `wmi`: the constants, 1,511 probe walks, the helper's `pwsh.run` plan over 150 inputs, the pwsh variables, the
+  heartbeat record.
+* `session`: 20 sessions on 20 fake engines (measurements, capabilities, both, neither, an unknown word; requests Codex
+  makes of every kind, notifications, no-JSON lines, refusals with every code shape, a float id, another call's id, a
+  wait that runs out, submitted answered later, initialize answering another home / no home / a non-text home / no
+  object / an error, engines that fail the checks): answers, counts and every byte sent (stdin.bin) equal.
+* `headless`: 266 runs (turn, compact, fallback; app look, owe, guard, look again; every answer and raise; stops from
+  inside a drain) with every call, look, drain and clock reading logged; the pure readers over ~70 shapes.
+* `ipc`: 38 calls on fresh scratch pipes (every word: stopped, not_stopped, no_client, version_mismatch, no_pipe,
+  no_answer, unconfirmed, refused, broken, held, started, steered) with every request the app saw; the shapes.
 
-Kept and recorded (AUDIT-v0628.md): `tokens.read` takes a `known` row whose `offset` is an integer (the analytics store's
-column); the reference would carry another type into its arithmetic.
+Mutation checks (each alone, its diff, restored): the timer's `LocalFree` skipped when the read raises; the stop
+flag's handle left open when its wait raises; `booted_of` refusing a missing state folder; a token pass counting a
+repeat of the same totals; the probe reading the helper's life after the job closed first; the session counting a
+declined request twice; the session's exit not unsubscribing; headless's app look every 5 s; the steer's broken pipe
+taken as broken instead of unconfirmed: all caught. One survived and is equivalent: headless's interrupt asking for a
+compaction's turn (a compaction never has one: its `turn_id` is always None).
+
+The re-diff for the final: `python -X utf8 tests/rustdiff/rediff_adv72d.py --reference v0.6.26`.
+
+### For later seats
+
+* S7.2a: the runtime calls `headless::stop_all(headless::follower(), 20.0)` at exit; capability channels open
+  `session::Session::new(backend, None, Some(capability), config)`; the supervisor (crash_restart) holds a `StopFlag`
+  and the wake capability a `WakeTimer`, over car-platform `wake`'s `System*` types.
+* S7.2d / S7.2e: `ipc::{stop_turn, start_turn, steer_turn}` with `ipc_pipe::uuid4` as the ids and core's errand guard
+  as the `Gate`; `headless::HeadlessRun` for headless_run, compact_continue, model_fallback (`owe` gets f64 seconds);
+  `turns::booted_of(state_dir)` for `Turns::running`; `tokens` for usage_analytics (the store's `token_files` rows are
+  the `known` maps).
+* S7.3d: `wmi_escape::Chain` over car-platform job objects and the edition's own helper/heartbeat roles.
