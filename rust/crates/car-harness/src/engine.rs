@@ -320,17 +320,24 @@ impl Backend for AskBackend {
         ask("backend.usage", Vec::new())
     }
     fn send(&self, thread_id: &str, prompt: &Str, launch_guard: &dyn LaunchGuard) -> Py<Value> {
-        // `with launch_guard as permitted:` - entered on car-store's own write lock, as SimBackend enters the
-        // reference's; the stand-in is told what it found, and refuses as SimBackend refuses.
-        let permitted = launch_guard.enter(&mut Value::Bool)?;
-        ask(
-            "backend.send",
-            vec![
-                Value::from(thread_id),
-                Value::Str(prompt.clone()),
-                Value::Bool(matches!(permitted, Value::Bool(true))),
-            ],
-        )
+        // `with launch_guard as permitted: <launch>` - the launch is the guard's body, as codex/transport.py starts
+        // `codex queue` inside it (store/claims.py: a Cancel, a Pause and a conversation switched off take the same
+        // write lock, so a launch never uses consent withdrawn a moment before). The stand-in is asked while car-store's
+        // write lock is held, told what the guard found, and refuses as SimBackend refuses. A product backend does the
+        // same: its launch inside `enter`'s body, never after it.
+        let mut sent: Py<Value> = Ok(Value::Null);
+        launch_guard.enter(&mut |permitted| {
+            sent = ask(
+                "backend.send",
+                vec![
+                    Value::from(thread_id),
+                    Value::Str(prompt.clone()),
+                    Value::Bool(permitted),
+                ],
+            );
+            Value::Null
+        })?;
+        sent
     }
     fn delete_queue(&self, thread_id: &str, queue_id: &str) -> Py<Value> {
         ask(

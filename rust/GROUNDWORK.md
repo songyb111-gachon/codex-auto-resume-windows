@@ -668,3 +668,15 @@ all three, so the proxy really runs car-engine.
   ladder's steps as the numbers given (`int` or `float`), so `max_queue_retries` 2.5 fails at the third launch that never
   started, not the second; `delay_for`/`first_delay` answer the step as given (`max(60, step)`). Proof: review 6's
   `r6_queue_retries_fraction`, and `s4_fraction_options` (below).
+* **S2**: the harness's engine session launches **inside** the launch guard. `AskBackend::send` (car-harness/src/engine.rs)
+  asks the stand-in to launch from within `launch_guard.enter`'s body, while car-store's write lock is held, as
+  codex/transport.py runs `Popen(... queue ...)` inside `with launch_guard as permitted:`. Before, it entered the guard,
+  let it go, and launched after: a Cancel, a Pause or a conversation switched off committed in between would have been
+  launched past. **This file is the model for the product backend: a Backend launches inside `enter`'s body, never
+  after it** (seam.rs `LaunchGuard` says so). Proof: `diffs_launch_guard.py` (the stand-in finds the write lock held at the
+  launch; it found it free before the fix). The scenario proxy needs none of this: it hands the backend the
+  reference's own guard object.
+* **S5** (left to car-watcher, S6.1): the store adapter car-engine is traced through, `EngineStore` (actor "engine" on
+  every update, `hold_changed`/`hold_waiting`'s actor, every option struct mapped to car-store's, the launch guard), lives
+  only in car-harness. car-watcher writes the product's over car-store; it should move this one into a crate that may
+  name both (or a car-store feature) and have the harness call it, so the traces hold the product's adapter.

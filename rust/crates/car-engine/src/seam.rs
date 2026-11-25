@@ -156,7 +156,10 @@ pub trait Source: car_scheduler::Source {
 }
 
 /// The launch guard a send is handed (`store.submission_guard(key)`): entered once, `body` run with whether the
-/// launch is permitted, inside the store's write lock.
+/// launch is permitted, inside the store's write lock. The launch itself is the body: a backend starts `codex queue`
+/// inside it, as codex/transport.py does inside `with launch_guard as permitted:`, so a Cancel, a Pause or a
+/// conversation switched off that commits a moment before cannot be launched past. A backend that reads the permission
+/// and launches after `enter` returns sends under a doubt the reference holds.
 pub trait LaunchGuard {
     fn enter(&self, body: &mut dyn FnMut(bool) -> Value) -> Py<Value>;
     /// The record whose `store.submission_guard(key)` this is, where there is one: what a backend that is handed the
