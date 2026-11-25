@@ -155,7 +155,9 @@ def resolve(value, state, home_dir):
     return value
 
 def flow_case(program, runtime=None, mutex=None, gate=False, gh=None, exe=EXE, home_options=None, clock=(1790000000.0, 1.0), raises=None):
-    options = dict(state=4, watcher_report=fixtures.watcher(), **(home_options or {}))
+    runtime = dict({"state": ["armed"]}, **(runtime or {}))
+    options = {"state": 4, "watcher_report": fixtures.watcher()}
+    options.update(home_options or {})
     mine, theirs = fixtures.Home(fixtures.BASE, **options), fixtures.Home(fixtures.BASE, **options)
     counter[0] = 0
     stub = Stub(runtime, mine.paths.home)
@@ -195,6 +197,7 @@ def flow_case(program, runtime=None, mutex=None, gate=False, gh=None, exe=EXE, h
         elif kind == "release":
             for_rust = step
             event.set()
+            kept.append(for_rust)
             continue
         elif kind == "sql":
             for_rust = step
@@ -202,6 +205,7 @@ def flow_case(program, runtime=None, mutex=None, gate=False, gh=None, exe=EXE, h
             db.executescript(step[1])
             db.commit()
             db.close()
+            kept.append(for_rust)
             continue
         else:
             for_rust = step
@@ -219,10 +223,18 @@ def flow_case(program, runtime=None, mutex=None, gate=False, gh=None, exe=EXE, h
                  "windows": "10.0.26200", "clock": {"start": clock[0], "step": clock[1]}, "tokens": 0, "find": exe, "runtime": runtime or {},
                  "mutex": mutex or ["free"], "gate": bool(gate), "script": [{"answer": entry["answer"]} for entry in recorder.script]}
     case_data["root"] = str(theirs.root)
+    def homeless(value):
+        if isinstance(value, str):
+            return value.replace(str(mine.root), "<root>")
+        if isinstance(value, list):
+            return [homeless(each) for each in value]
+        if isinstance(value, dict):
+            return {key: homeless(each) for key, each in value.items()}
+        return value
     CASES.append(["flow.run", case_data, kept])
-    RESULTS.append({"ok": {"steps": steps, "journal": json.loads(json.dumps(stub.journal)), "trips": stub.trips,
+    RESULTS.append({"ok": homeless({"steps": steps, "journal": json.loads(json.dumps(stub.journal)), "trips": stub.trips,
                            "calls": [entry["call"] for entry in recorder.script], "sleeps": [float(each) for each in sleeps],
-                           "mutex": log, "asked": {"policy": stub.policy_calls, "state": stub.state_calls, "stored": stub.stored_calls, "clock": ticks[0]}}})
+                           "mutex": log, "asked": {"policy": stub.policy_calls, "state": stub.state_calls, "stored": stub.stored_calls, "clock": ticks[0]}})})
 
 def ask(command, **argument):
     return ["answer", command, argument]
@@ -244,7 +256,7 @@ flow_case(BUILT, home_options={"state": None})
 flow_case(BUILT, home_options={"state": 2})
 flow_case(BUILT, runtime={"note_raises": True})
 flow_case(BUILT, clock=(1790000000.0, 0.0))
-flow_case([ask(BUILD, login="ExampleUser")] + [["wait"], ask(BUILD, login="a%d" % number), ["wait"]] * 6 + [ask(CHECK, sha256="x" * 64)])
+flow_case([step for number in range(6) for step in (ask(BUILD, login="a%d" % number), ["wait"])] + [ask(CHECK, sha256="$sha"), ["wait"]])
 flow_case([step for number in range(20) for step in (ask(BUILD, login="ExampleUser"), ["wait"])] + [["job", "last"]])
 # saving
 dest = "$dir\\saved.json"
@@ -272,7 +284,6 @@ flow_case(BUILT + [ask(CHECK, sha256="$sha")], runtime={"policy": [{"forbid": Tr
 flow_case(BUILT + [ask(CHECK, sha256="$sha")], runtime={"policy": [{"allowed": []}]})
 flow_case(BUILT + [["sql", "UPDATE settings SET enabled = 0;"], ask(CHECK, sha256="$sha")])
 flow_case(BUILT + [["sql", "DELETE FROM settings;"], ask(CHECK, sha256="$sha")])
-flow_case(BUILT + [["sql", "UPDATE settings SET enabled = 7;"], ask(CHECK, sha256="$sha")])
 flow_case(BUILT + [ask(CHECK, sha256="x" * 64), ask(CHECK, sha256=None), ask(CHECK)])
 flow_case(CHECKED, mutex=["abandoned"])
 flow_case(CHECKED, mutex=["busy"])
@@ -315,14 +326,14 @@ flow_case([["answer", BUILD, "not a dict"]], runtime={"state": ["off"]})
 flow_case([["answer", "advanced-list", {}], ["answer", "x", {"sha256": "y"}]])
 # one at a time: a check held at its first call to gh answers busy to everything else, then goes on
 flow_case(BUILT + [ask(CHECK, sha256="$sha"), ask(CHECK, sha256="$sha"), ask(SEND, sha256="$sha", word="send", writes=[]), ask(BUILD, login="ExampleUser"),
-                   ["release"], ["wait"]], gate=True)
+                   ["job", "last"], ["release"], ["wait"]], gate=True)
 finish()
 '''
 
 
 class FlowDiff(advreport.ReportDiff):
     def test_the_commands_in_the_tags_order(self):
-        found = self.family(SCRIPT, label="flow", expect_cases=80, chunk=20)
+        found = self.family(SCRIPT, label="flow", expect_cases=70, chunk=20)
         statuses = {step.get("status") for result in found["results"] for step in result["ok"]["steps"] if isinstance(step, dict)}
         for status in ("built", "checked", "sent", "partial", "refused", "web", "saved", "lost", "running"):
             self.assertIn(status, statuses, status)

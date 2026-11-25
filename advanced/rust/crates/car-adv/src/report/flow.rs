@@ -580,11 +580,11 @@ impl Flow {
             ("login", Value::from(build.login.as_str())),
             ("who", found.who.as_deref().map_or(Value::Null, Value::from)),
             ("branch", Value::from(branch)),
+            ("target", Value::from(target.as_str())),
             (
                 "file_name",
                 Value::from(target.rsplit('/').next().unwrap_or_default()),
             ),
-            ("target", Value::from(target)),
             ("project_page", Value::from(github::PROJECT_PAGE)),
         ]))
     }

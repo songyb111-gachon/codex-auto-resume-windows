@@ -1094,7 +1094,7 @@ Each family runs a script under the tag's own advanced edition (`advref.run`) - 
 * hook declaration: 6 formats over 15 trees (complete, one root, none, junctions, ours / foreign / damaged / mixed declarations): every step and the whole tree equal, bytes included - **the tag writes the declaration in text mode, so with Windows line ends (`\r\n`)**; kept.
 * hook handler: `read_input` and `pick` over every shape of input, `stop_of`, `turn_key`, `continues`, `decide` over every failure kind, language and claim answer, `main` with its budget and its commit grace.
 * hook claim: the claim over real `state.sqlite` + `advanced.sqlite` twins: granted, answered, once a turn, not armed, paused, observe only, the thread's switch, the administrator's keys and quiet hours, core's record in flight / cancelled / held / postponed / over its budgets, the day's caps, this edition's ceilings, no file, no id, a lock not had; every answer and every table equal.
-* flow: ported and compiled; **its diff is not written** (see "Left undone").
+* flow: the Dashboard's commands - build, save, check, send, job - over a scripted runtime (policy, where the capability stands, what the state stores, changes between the questions of a send, a pause flipped mid-send), a scripted home mutex (free, abandoned, busy, one that cannot be made), the recorded gh, a clock that steps, tokens and a gate that holds a job open (one at a time): 75 programs, every status and refusal, and the journal, the trips, gh's calls, its sleeps and how many times each seam was asked, all equal. The diff found one fault of the port's own (the web status's keys in the wrong order).
 
 ### Odd reference behaviour kept (also in AUDIT-v0628.md)
 
@@ -1105,8 +1105,8 @@ Each family runs a script under the tag's own advanced edition (`advref.run`) - 
 
 ### Left undone
 
-* `diffs_advreport_flow.py` (the flow's jobs against the tag over a scripted runtime, mutex and gh): `Flow` and the `flow.run` op of the `advreport` example are written and compile; no diff holds them yet. Its seams are named above.
-* A gate or a mutation check listed in the return as not run.
+* The real home mutex, the job object around gh, `Hands.live`, the plug-side `StopHook`, and the hook launcher binary are seams (above), not diffed: each needs Windows state or the plug of S7.2a.
+* The tag's own default `find_gh` and `inuse.home` (the process's PATH and Codex home) are the cases' to name; the diffs name them.
 
 ### For later seats
 

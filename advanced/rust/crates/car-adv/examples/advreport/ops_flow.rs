@@ -421,5 +421,29 @@ pub fn run(op: &str, args: &[Value]) -> Out {
             ("clock", numbers(&clock_calls)),
         ]),
     );
-    Ok(Value::Object(shown))
+    Ok(put_in_reverse(&Value::Object(shown), &root))
+}
+
+/// The folder this side's homes are in, written `<root>`.
+fn put_in_reverse(value: &Value, root: &str) -> Value {
+    match value {
+        Value::Str(text) => text.as_str().map_or_else(
+            || value.clone(),
+            |text| Value::from(text.replace(root, "<root>")),
+        ),
+        Value::Array(items) => Value::Array(
+            items
+                .iter()
+                .map(|each| put_in_reverse(each, root))
+                .collect(),
+        ),
+        Value::Object(map) => {
+            let mut found = Map::new();
+            for (name, each) in map {
+                found.insert(name.clone(), put_in_reverse(each, root));
+            }
+            Value::Object(found)
+        }
+        other => other.clone(),
+    }
 }
