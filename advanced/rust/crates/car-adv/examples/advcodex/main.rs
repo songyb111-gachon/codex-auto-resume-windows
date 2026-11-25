@@ -90,7 +90,7 @@ fn dispatch(context: &Context, op: &str, args: &[Value]) -> Out {
         "pr" => ops_protocol::run(context, op, args),
         "rd" => ops_read::run(context, op, args),
         "wn" => ops_win::run(context, op, args),
-        "bt" => ops_rest::run(context, op, args),
+        "bt" | "tk" => ops_rest::run(context, op, args),
         "world" => {
             *context
                 .world

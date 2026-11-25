@@ -195,6 +195,28 @@ OPS = {
 from codex_auto_resume_advanced.codex import turns as turns_  # noqa: E402
 OPS["bt.booted_of"] = lambda state_dir: turns_.booted_of(types.SimpleNamespace(state_dir=Path(state_dir)))
 
+from codex_auto_resume_advanced.codex import inuse as inuse_, tokens as tokens_  # noqa: E402
+
+
+def P(home):
+    if home is None:
+        return None
+    return types.SimpleNamespace(home=home, settings_file=Path(home) / "config" / "settings.json")
+
+
+def rollout_of(parts):
+    return tokens_.Rollout(Path(parts[0]), Path(parts[1]), parts[2], parts[3], parts[4])
+
+
+OPS.update({
+    "tk.file_key": lambda path: tokens_.file_key(path),
+    "tk.tell": lambda home, exe, where: inuse_.tell(P(home), exe, where),
+    "tk.watched_homes": lambda home: tokens_.watched_homes(P(home)),
+    "tk.rollouts": lambda homes, now, keep: [list(each) for each in tokens_.rollouts(homes, now, keep_days=keep)],
+    "tk.unchanged": lambda rollout, known: tokens_.unchanged(rollout_of(rollout), known),
+    "tk.read": lambda rollout, known, budget: list(tokens_.read(rollout_of(rollout), known, budget)),
+})
+
 # The later families add themselves below this line (EXTRA).
 #EXTRA#
 
