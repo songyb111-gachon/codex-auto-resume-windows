@@ -112,6 +112,18 @@ def finish():
 '''
 
 
+def untag(value):
+    """`value` with every {"$float": ...} tag (rustdiff.diffs.FLOAT_TAG) turned back into its float, the way `diffs.encode`
+    wants a value: it tags a NaN or an infinity itself, and refuses a value that already is one."""
+    if isinstance(value, list):
+        return [untag(each) for each in value]
+    if isinstance(value, dict):
+        if list(value) == ["$float"]:
+            return float(value["$float"])
+        return {key: untag(each) for key, each in value.items()}
+    return value
+
+
 def snapshot(folder: Path) -> dict:
     """Every file and folder under `folder` but the profile: its size, modification time and the SHA-256 of its bytes."""
     import hashlib
@@ -139,36 +151,49 @@ class ReportDiff(unittest.TestCase):
         cls.scratch = tempfile.mkdtemp(prefix="advreport-")
         cls.addClassCleanup(shutil.rmtree, cls.scratch, True)
 
-    def family(self, script: str, *, label: str, expect_cases: int = 1, chunk: int = 400, compare=None,
-               readonly: bool = False) -> dict:
+    def reference(self, script: str, *, label: str, arguments=()) -> tuple:
+        """(folder, cases, the tag's answers): the script run under the tag's advanced edition, its homes left on disk."""
         folder = Path(tempfile.mkdtemp(prefix="%s-" % label, dir=self.scratch))
         profile = folder / "profile"
         profile.mkdir()
-        made = advref.run(PRELUDE + script, str(folder), str(tests_folder()), profile=profile)
+        made = advref.run(PRELUDE + script, str(folder), str(tests_folder()), *map(str, arguments), profile=profile)
         self.assertEqual(made.returncode, 0, made.stderr[-3000:].decode("utf-8", "replace"))
         done = json.loads(made.stdout.decode("utf-8"))
-        cases, expected = done["cases"], done["results"]
-        self.assertGreaterEqual(len(cases), expect_cases, label)
+        return folder, done["cases"], done["results"]
+
+    def rust(self, folder: Path, cases: list, *, chunk: int = 400) -> list:
+        """car-adv's answers to `cases`, `advreport` run on the scratch environment of the folder's profile."""
         actual = []
-        before = snapshot(folder) if readonly else None
-        environment = advref.reference.scratch_environment(profile)
+        environment = advref.reference.scratch_environment(folder / "profile")
         for start in range(0, len(cases), chunk):
             request = json.dumps({"cases": cases[start:start + chunk]}, ensure_ascii=False).encode("utf-8")
             ran = subprocess.run([str(binary())], input=request, capture_output=True, env=environment,
-                                 cwd=str(profile), creationflags=NO_WINDOW, timeout=900)
+                                 cwd=str(folder / "profile"), creationflags=NO_WINDOW, timeout=900)
             if ran.returncode != 0:
                 raise AssertionError("advreport failed (%d): %s" % (ran.returncode,
                                                                     ran.stderr[-3000:].decode("utf-8", "replace")))
             actual += json.loads(ran.stdout.decode("utf-8"))["results"]
+        return actual
+
+    def same(self, label: str, cases: list, expected: list, actual: list) -> None:
         self.assertEqual(len(actual), len(expected), label)
-        if readonly:
-            self.assertEqual(snapshot(folder), before, "%s: the Rust side wrote, made or left something in a home" % label)
         for index, (want, got) in enumerate(zip(expected, actual)):
+            want, got = untag(want), untag(got)
             if diffs.encode(want) != diffs.encode(got):
                 self.fail("%s: case %d differs at %s\n  case      %s\n  reference %s\n  rust      %s" % (
                     label, index, advdiff.first_difference(want, got),
                     json.dumps(cases[index], ensure_ascii=False)[:300],
                     json.dumps(want, ensure_ascii=False)[:600], json.dumps(got, ensure_ascii=False)[:600]))
+
+    def family(self, script: str, *, label: str, expect_cases: int = 1, chunk: int = 400, compare=None,
+               readonly: bool = False) -> dict:
+        folder, cases, expected = self.reference(script, label=label)
+        self.assertGreaterEqual(len(cases), expect_cases, label)
+        before = snapshot(folder) if readonly else None
+        actual = self.rust(folder, cases, chunk=chunk)
+        if readonly:
+            self.assertEqual(snapshot(folder), before, "%s: the Rust side wrote, made or left something in a home" % label)
+        self.same(label, cases, expected, actual)
         if compare is not None:
             compare(cases, expected, actual)
         return {"cases": cases, "results": expected, "folder": folder}

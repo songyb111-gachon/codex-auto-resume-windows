@@ -36,7 +36,7 @@ pub fn run(op: &str, args: &[Value]) -> Out {
                 arg(args, 0)?,
                 arg(args, 1)?,
                 maybe_text(arg(args, 2)?)?,
-                Some(maybe_text(arg(args, 3)?)?),
+                maybe_text(arg(args, 3)?)?,
                 tagged_float(arg(args, 4)?)?,
                 &Named,
             )
@@ -56,7 +56,7 @@ pub fn run(op: &str, args: &[Value]) -> Out {
                 &found.body,
                 arg(args, 5)?,
                 maybe_text(arg(args, 6)?)?,
-                Some(maybe_text(arg(args, 7)?)?),
+                maybe_text(arg(args, 7)?)?,
                 tagged_float(arg(args, 3)?)?,
                 &Named,
             )

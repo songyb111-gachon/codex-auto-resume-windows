@@ -368,20 +368,20 @@ fn put(map: &mut Map, name: &str, value: Value) {
 }
 
 /// `assemble(body, login, product_version=..., windows=..., now=...)`: the whole report for `body` (`records.read`'s),
-/// filed under `login`, checked (`check`). `product_version` and `windows` are `None` for "ask the process" (`facts`);
-/// `Some(None)` is a Windows build that is none.
+/// filed under `login`, checked (`check`). `product_version` and `windows` are `None` for "ask the process" (`facts`),
+/// as the tag's `None` is.
 pub fn assemble(
     body: &Value,
     login: &Value,
     product_version: Option<&str>,
-    windows: Option<Option<&str>>,
+    windows: Option<&str>,
     now: f64,
     facts: &dyn Facts,
 ) -> Checked<Value> {
     let login = check_login(login)?;
     let version = product_version.map_or_else(|| facts.product_version(), str::to_owned);
     let windows: Option<String> = match windows {
-        Some(given) => given.map(str::to_owned),
+        Some(given) => Some(given.to_owned()),
         None => facts.windows_version(),
     };
     let recorded = evidence::iso(now).map_err(Fault::Error)?;
