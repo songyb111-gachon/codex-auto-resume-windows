@@ -9,8 +9,8 @@ use car_machine::json::{Map, Str, Value};
 use car_machine::{pytext, pyval};
 use car_policy::settings::homes::casefold;
 
-use crate::error::{Failure, Res, refuse};
-use crate::layer::{Control, State};
+use crate::error::{Res, refuse};
+use crate::layer::Control;
 
 /// The most lines one answer carries, the longest search, and the most of each file read.
 pub const LOG_LIMIT: i64 = 500;
@@ -280,12 +280,4 @@ impl Control {
             ("bridge", walk(None, None)),
         ]))
     }
-
-    /// An older watcher's store asked for what only a current one answers.
-    pub fn is_legacy(state: &State) -> bool {
-        matches!(state, State::Legacy(_))
-    }
 }
-
-#[allow(dead_code)]
-fn unused(_: Failure) {}

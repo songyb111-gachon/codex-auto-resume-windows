@@ -20,7 +20,7 @@ import tempfile
 import unittest
 
 from rustdiff import bridgeworld as bw
-from rustdiff import core
+from rustdiff import core, reference
 from rustdiff.diffs import RECORD, Base
 
 ROOT = core.ROOT
@@ -31,7 +31,7 @@ def lines(*requests) -> bytes:
     """Request lines as a stream: each a JSON object (or the text as given) and a newline."""
     out = []
     for request in requests:
-        out.append(request if isinstance(request, str) else json.dumps(request, ensure_ascii=False))
+        out.append(request if isinstance(request, str) else json.dumps(request))
     return ("\n".join(out) + "\n").encode("utf-8")
 
 
@@ -50,12 +50,16 @@ def request(command, argument=None, ident=1, **more) -> dict:
 
 
 class BridgeBase(Base):
-    """A pair of scratch installations copied from one template, one for each side."""
+    """Each side runs in a copy of one template at one and the same path: a home's key is a hash of its path, so two
+    folders of different names would differ in every reply that names a Codex home."""
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.harness = core.Harness({}).__enter__()
+        profile = Path(tempfile.mkdtemp(prefix="rustdiff-bridge-profile-"))
+        cls.addClassCleanup(shutil.rmtree, profile, True)
+        # The harness is started as the reference is: every home variable points into a scratch profile.
+        cls.harness = core.Harness(reference.scratch_environment(profile)).__enter__()
         cls.addClassCleanup(cls.harness.__exit__, None, None, None)
 
     def template(self, kind: str) -> Path:
@@ -65,50 +69,46 @@ class BridgeBase(Base):
             TEMPLATES[kind] = folder
         return TEMPLATES[kind]
 
-    def pair(self, kind: str, tune=None) -> tuple:
-        """(reference workspace, rust workspace): two copies of the `kind` template, `tune(workspace)` applied to each."""
-        made = []
-        self.counter = getattr(self, "counter", 0) + 1
-        for name in ("reference", "rust"):
-            target = self.scratch / ("%s-%d" % (name, self.counter))
-            shutil.copytree(self.template(kind), target)
-            (target / "profile").mkdir(exist_ok=True)
-            if tune is not None:
-                tune(target)
-            made.append(target)
-        return tuple(made)
+    def workspace(self, kind: str, tune=None) -> Path:
+        """A fresh copy of the `kind` template at the one path both sides use, `tune` applied."""
+        target = self.scratch / "ws"
+        shutil.rmtree(target, ignore_errors=True)
+        shutil.copytree(self.template(kind), target)
+        (target / "profile").mkdir(exist_ok=True)
+        if tune is not None:
+            tune(target)
+        return target
 
-    @staticmethod
-    def plain(data: bytes, *spaces: Path) -> bytes:
-        """The wire's bytes with each workspace written as <ws>, in the JSON-escaped form and as it is."""
-        for space in spaces:
-            for form in (json.dumps(str(space))[1:-1], str(space)):
-                data = data.replace(form.encode("utf-8"), b"<ws>")
-        return data
-
-    def same(self, kind: str, stdin: bytes = b"", *, mode="serve", argv=(), world=None, tune=None, files=True,
-             label=""):
-        """Run one stream on both sides; assert the output, the exit code and the written files equal. Returns the
+    def same(self, kind: str, stdin=b"", *, mode="serve", argv=(), world=None, tune=None, files=True, label=""):
+        """Run one stream on both sides, each in a fresh copy at the same path; assert the output, the exit code and
+        the files written equal. `stdin` is bytes, or a function of the workspace giving them. Returns the
         reference's output."""
-        theirs, mine = self.pair(kind, tune)
-        changes = dict(world or {})
-        theirs_world = bw.world_for(theirs, **changes)
-        mine_world = bw.world_for(mine, **changes)
-        code, expected, stderr = bw.ask_reference(theirs / "home", theirs_world, mode=mode, stdin=stdin, argv=argv)
-        actual_code, actual = bw.ask_rust(self.harness, mine / "home", mine_world, mode=mode, stdin=stdin,
-                                          argv=argv)
-        expected = self.plain(expected, theirs)
-        actual = self.plain(actual, mine)
-        self.assertEqual(actual.decode("utf-8", "replace"), expected.decode("utf-8", "replace"),
-                         "%s: the output differs (reference exit %d, rust exit %d; reference stderr %r)"
-                         % (label or stdin[:120], code, actual_code, stderr[-300:]))
-        self.assertEqual(actual_code, code, "%s: the exit code differs" % (label or stdin[:120]))
+        label = label or "a stream"
+        ran = []
+        for side in ("reference", "rust"):
+            target = self.workspace(kind, tune)
+            asked = stdin(target) if callable(stdin) else stdin
+            asked_world = bw.world_for(target, **dict((world(target) if callable(world) else world) or {}))
+            if side == "reference":
+                code, out, stderr = bw.ask_reference(target / "home", asked_world, mode=mode, stdin=asked, argv=argv)
+            else:
+                code, out = bw.ask_rust(self.harness, target / "home", asked_world, mode=mode, stdin=asked, argv=argv)
+                stderr = b""
+            ran.append((code, out, stderr, bw.files_of(target / "home")))
+        (code, expected, stderr, theirs), (actual_code, actual, _, mine) = ran
+        if actual != expected:
+            at = next((index for index, (a, b) in enumerate(zip(actual, expected)) if a != b),
+                      min(len(actual), len(expected)))
+            self.fail("%s: the output differs at byte %d (reference exit %d, rust exit %d; reference stderr %r)\n"
+                      "reference: ...%s\nrust:      ...%s" % (
+                          label, at, code, actual_code, stderr[-300:],
+                          expected[max(0, at - 200):at + 200].decode("utf-8", "replace"),
+                          actual[max(0, at - 200):at + 200].decode("utf-8", "replace")))
+        self.assertEqual(actual_code, code, "%s: the exit code differs" % label)
         if files:
-            self.assertEqual(sorted(bw.files_of(mine / "home")), sorted(bw.files_of(theirs / "home")),
-                             "%s: the files written differ" % (label or stdin[:120]))
-            for name, data in bw.files_of(theirs / "home").items():
-                other = bw.files_of(mine / "home")[name]
-                self.assertEqual(self.plain(other, mine), self.plain(data, theirs), "%s: %s differs" % (label, name))
+            self.assertEqual(sorted(mine), sorted(theirs), "%s: the files written differ" % label)
+            for name, data in theirs.items():
+                self.assertEqual(mine[name], data, "%s: %s differs" % (label, name))
         return expected
 
 

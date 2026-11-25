@@ -201,8 +201,7 @@ impl Control {
             let text = path.as_str()?;
             car_platform::homelock::folder_identity(std::path::Path::new(text)).map(Value::from)
         };
-        homes::strict(&*os, written, Some(&default_home), &identity)
-            .map_err(|text| SettingsError::Refused(text))
+        homes::strict(&*os, written, Some(&default_home), &identity).map_err(SettingsError::Refused)
     }
 
     /// `_keep_unlisted_kinds(changes)`: the kinds of notice that stay on screen as written, with every stored id

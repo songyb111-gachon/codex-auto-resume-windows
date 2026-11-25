@@ -312,3 +312,30 @@ The diffs catch a broken rule (each broken alone, the harness rebuilt, its diff 
 a window exhausted past 100 instead of at 100 (usage), a first line allowed one byte more (rollout first lines: the line of
 `256 KiB + 1` bytes), `codex_work_desktop` no desktop originator (eligibility matrix), a rollback after the anchor no doubt
 (superseded and trigger).
+
+### 4. car-control's quiet bridge (S5.1a, `diffs_bridge.py`, `diffs_bridge_commands.py`, `bridgeworld.py`)
+
+`car-harness serve` answers `bridge.run` {home, world, mode, input (hex), argv}: car-control's `serve` over request lines, or its
+one-shot form, on a scratch home, for a **world** - the answers of the machine the commands ask for (the clock, the
+watcher's mutex, the Run value, an administrator's keys, the install lock, the Codex home, the languages, who may open the state
+folder, where the watcher runs, the compatibility view, the Codex homes of an installed copy). `bridgeworld.SCRIPT` patches the
+same world into the tag's own modules and runs its `controlcli.serve` (or `main`); each side runs on a fresh copy of one template
+at **one and the same path** (a home's key is a hash of its path), and the reply bytes, the exit code and every small file the
+commands wrote (settings.json, failure-seen.json, once-words.json, a set-aside copy) must be equal. The harness is started with
+the reference's scratch environment (every home variable in a scratch profile), as the reference is: the real mutex is named
+from the user's home folder.
+
+The installation is the wire goldens' own (`make_screenshots.pinned_installation`), an empty home, or none at all; the damaged
+and the huge ones are made from it (`tune`).
+
+| Diff | What |
+|---|---|
+| `FramingDiff` | the goldens' framing cases; 60 request streams: no final newline, two requests in one write, CRLF, a lone CR, padding by spaces / no-break space / `\x1c`-`\x1f`, a byte order mark (start, twice, mid-stream), ids of 30 and 5,000 digits, NaN, Infinity, `1e999`, an object, a lone and a paired surrogate, commands that are not text, arguments of every wrong type, JSON text with NaN and surrogates, duplicate and trailing-comma keys, nesting of 1,000 and 100,000, lines of exactly and one past 1 MiB (padded too), invalid UTF-8 first / after a good line / cut at the end / past an 8 KiB chunk, 400 requests |
+| `GoldenCasesDiff` | all 122 cases `wiregolden.BRIDGE_CASES` asks of the 23 quiet commands, in order, the watcher running and not |
+| `WorldDiff` | the watcher (3 states x 3 Run values; 4 Run values that belong to the home), 7 sets of the administrator's keys over status/settings/describe/update/defaults, the install lock (3) x superseded (2), 11 language and environment worlds, host-app and access (36), the compatibility view over configured Codex homes (6), the installed copy's home suggestion with the registry and the Codex app's list |
+| `DamagedDiff` | no home / no state (6), a state that is garbage, empty, a header only, schemas 0, 4, 6 and 99, v0.6.10 and v0.6.13 states under and without the install lock, 17 settings files (garbage, empty, a list, a folder, nested, 5 MB, NaN, a lone surrogate, wrong types, older/newer `config_version`, not UTF-8, a BOM), 14 failure-seen files, 9 logs x 17 queries (Unicode digits, casefold, 2 MB, rotated copies, not UTF-8), 20 once-words files, a state of 1,500 records |
+| `WriterDiff` | `update` in 33 shapes, `check-setting` (20), `conversation-message` (66, past the 50 limit), `preview-continuation` in every kind of change in 8 languages |
+| `EdgesDiff` | `statistics` days (20), `timeline` ids (24), the lists with the watcher in each state, the one-shot form (24 argument and stdin shapes) |
+
+`python -X utf8 tests/rustdiff/rediff_control.py --reference v0.6.26` lists any ported file that changed after v0.6.26-beta.2 and
+reruns every `diffs_bridge*` diff against the tag.

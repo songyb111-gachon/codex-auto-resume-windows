@@ -13,7 +13,7 @@ use car_policy::settings::homes;
 use car_store::Store;
 use car_store::value::{Row, get, number, text_of};
 
-use crate::error::{MAX_BUDGET_RESETS, Res, identifier, interruption_id, refuse};
+use crate::error::{MAX_BUDGET_RESETS, Res, interruption_id, refuse};
 use crate::layer::{Control, from_store};
 use crate::oncewords::OnceWords;
 use crate::status::other_class;
@@ -436,10 +436,5 @@ impl Control {
             days.cloned().unwrap_or(Value::Null),
         );
         Ok(Value::Object(result))
-    }
-
-    /// `identifier(value)` for a caller outside this module.
-    pub fn id_of(&self, value: &Value, name: &str) -> Res<String> {
-        identifier(value, name)
     }
 }
