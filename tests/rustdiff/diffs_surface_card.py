@@ -24,7 +24,7 @@ RECORD: list[str] = []
 
 CARD = r'''
 from codex_auto_resume import l10n, notifier, notice_card
-UUID = "019a1b2c-3d4e-7f80-9a0b-1c2d3e4f5a6b"
+UUID = "0a1b2c3d-3d4e-7f80-9a0b-1c2d3e4f5a6b"
 KEY = "1" * 64
 T = 1_800_000_000
 EVENTS = [("interruption", {"thread_id": UUID, "interruption_id": KEY, "reset_at": T, "category": "usage_limit"}),

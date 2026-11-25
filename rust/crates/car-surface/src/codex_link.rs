@@ -90,7 +90,7 @@ pub fn open_in_codex(link: &Value, system_root: Option<&str>, launch: &dyn Launc
 mod tests {
     use super::*;
 
-    const ID: &str = "019a0000-0000-7000-8000-000000000001";
+    const ID: &str = "0a1b2c3d-0000-7000-8000-000000000001";
 
     #[test]
     fn links() {

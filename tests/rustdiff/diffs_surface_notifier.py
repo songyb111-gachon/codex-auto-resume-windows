@@ -23,7 +23,7 @@ RECORD: list[str] = []
 SETUP = r'''
 from codex_auto_resume import l10n, notifier, notify, failures
 from codex_auto_resume.notice_inbox import Inbox
-UUID = "019a1b2c-3d4e-7f80-9a0b-1c2d3e4f5a6b"
+UUID = "0a1b2c3d-3d4e-7f80-9a0b-1c2d3e4f5a6b"
 KEY = "1" * 64
 NONCE = "0123456789abcdef"
 T = 1_800_000_000

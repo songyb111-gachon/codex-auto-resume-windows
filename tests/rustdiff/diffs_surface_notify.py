@@ -20,7 +20,7 @@ RECORD: list[str] = []
 
 CONTENT = r'''
 from codex_auto_resume import l10n, notify, failures
-UUID = "019a1b2c-3d4e-7f80-9a0b-1c2d3e4f5a6b"
+UUID = "0a1b2c3d-3d4e-7f80-9a0b-1c2d3e4f5a6b"
 NONCE = "0123456789abcdef"
 T = 1_800_000_000
 identities = [None, {}, {"name": "example-project"}, {"name": "  "}, {"project": "example-service"},

@@ -94,7 +94,7 @@ import sys
 from codex_auto_resume import codex_link
 recorder = Recorder()
 codex_link.subprocess = recorder
-UUID = "019a1b2c-3d4e-7f80-9a0b-1c2d3e4f5a6b"
+UUID = "0a1b2c3d-3d4e-7f80-9a0b-1c2d3e4f5a6b"
 values = [UUID, UUID.upper(), "{" + UUID + "}", UUID + " ", "", None, 5, [UUID], "019a1b2c3d4e7f809a0b1c2d3e4f5a6b",
           "00000000-0000-0000-0000-000000000000", "019a1b2c-3d4e-7f80-9a0b-1c2d3e4f5a6g"]
 uris = []
