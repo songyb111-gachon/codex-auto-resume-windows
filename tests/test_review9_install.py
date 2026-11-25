@@ -90,7 +90,7 @@ class Review9Proofs(unittest.TestCase):
     def test_b1_a_failed_migration_with_the_watcher_stopped_leaves_no_registration_on_a_removed_program(self):
         """The watcher was not running before the update (stopped by the person, or ended); the start at sign-in is
         on. The Rust setup registers the start at sign-in and the link handler on app\\bin and fails; Undo-Migration
-        puts v0.6.26 back but runs no setup of its own where no watcher ran (install.ps1:1600), so both stay on the
+        puts v0.6.26 back but runs no setup of its own where no watcher ran (install.ps1:1598-1606), so both stay on the
         Rust programs it just removed: nothing starts at the next sign-in, and a notification's button opens nothing."""
         self.v0626_installed("standard")
         self.scratch.stop()
@@ -123,8 +123,8 @@ class Review9Proofs(unittest.TestCase):
     # ---------------------------------------------------------------- B2: the put-back path itself failing
     def test_b2_a_put_back_under_a_watcher_that_has_not_ended_leaves_no_working_version(self):
         """The Rust setup started the host and failed; Undo-Migration asks the core to stop and removes app\\ at once
-        (install.ps1:1613-1620), without waiting for the host to end as the update's own hand-over does
-        (install.ps1:2174-2177). Remove-OwnedItem deletes all it can (Remove-Item -Recurse -Force, SilentlyContinue):
+        (install.ps1:1577-1590), without waiting for the host to end as the update's own hand-over does
+        (install.ps1:2173-2177). Remove-OwnedItem deletes all it can (Remove-Item -Recurse -Force, SilentlyContinue):
         the core, the scripts and the data go, the running host's own files stay, the Python tree cannot be moved back,
         and Undo returns before it puts the window back or starts anything. Neither version is left."""
         self.v0626_installed("standard")
@@ -177,7 +177,7 @@ class Review9Proofs(unittest.TestCase):
     # ---------------------------------------------------------------- B7: a Rust installation that lost its core
     def test_b7_a_repair_of_an_installation_whose_core_is_gone_stops_the_running_host(self):
         """app\\bin\\codex-auto-resume.exe is gone (an antivirus quarantine of the unsigned binary - PLAN risk 8 - or a
-        cut-off removal) while the host runs. Invoke-InstalledEngine (install.ps1:1195-1205) then asks
+        cut-off removal) while the host runs. Invoke-InstalledEngine (install.ps1:1195-1203) then asks
         runtime\\python.exe - car-legacy - `-X disable-remote-debug plugin_setup.py stop`, a line car-legacy refuses
         (GROUNDWORK S8.2), though the archive's own core (`$PayloadCore`) is at hand. The repair waits its minute, moves
         app\\ aside under the running host, and its setup finds the mutex held: the old host runs on from
