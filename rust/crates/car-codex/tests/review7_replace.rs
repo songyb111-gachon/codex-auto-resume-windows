@@ -6,7 +6,7 @@
 //! temporary is removed, and the watcher logs that the report could not be written. car-codex's `write_json_atomic`
 //! ends in `std::fs::rename`, which retries with POSIX semantics and replaces the file under the open handle.
 //! Measured on the reference (2026-11-26, the same steps): `PermissionError 5`, the old text kept.
-//! The layout watch's `_write` (`layout.rs:327`) and car-adv's `images.rs:256` and `state/seam/accounts.rs:133` take the
+//! The layout watch's `_write` (`layout.rs:327`) and the advanced edition's `images.rs:256` and `state/seam/accounts.rs:133` take the
 //! same `std::fs::rename`. Fails today. Run: `cargo test --locked -p car-codex --test review7_replace` (in rust/).
 
 use car_machine::json::Value;
