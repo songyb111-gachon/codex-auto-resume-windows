@@ -32,9 +32,8 @@ class HistoryMixin:
         if not ids.is_uuid(thread_id):
             return None, (skips.UNKNOWN_CONVERSATION, None)
         with self._db("state") as connection:
-            row = connection.execute(
-                "SELECT rollout_path,source,thread_source,archived,history_mode "
-                "FROM threads WHERE id=?", (thread_id,)).fetchone()
+            row = connection.execute("SELECT rollout_path,source,thread_source,archived,history_mode "
+                                     "FROM threads WHERE id=?", (thread_id,)).fetchone()
         if row is None:
             return None, (skips.UNKNOWN_CONVERSATION, None)
         word = eligibility.row_problem(dict(row), kinds, widened, self._composed(thread_id, row, turn_id, strict))
@@ -158,6 +157,11 @@ class HistoryMixin:
         with self._db("state") as connection:
             row = connection.execute("SELECT rollout_path FROM threads WHERE id=?", (thread_id,)).fetchone()
         return None if row is None else rollout.confined(self.home, thread_id, row["rollout_path"])
+
+    def _no_conversation(self) -> bool:
+        """Whether the newest state database holds no conversation (schema.py `_history_not_made`): a row's being only."""
+        with self._db("state") as connection:
+            return connection.execute("SELECT 1 FROM threads LIMIT 1").fetchone() is None
 
     def latest(self, thread_id: str) -> dict | None:
         if not ids.is_uuid(thread_id):
@@ -382,9 +386,8 @@ class HistoryMixin:
             with self._db("history") as connection:
                 columns = {row[1] for row in connection.execute("PRAGMA table_info(thread_turns)")}
                 final = "final_agent_item_id" in columns
-                rows = connection.execute(
-                    "SELECT status, completed_at%s FROM thread_turns WHERE %s"
-                    % (", final_agent_item_id" if final else "", where), parameters).fetchall()
+                rows = connection.execute("SELECT status, completed_at%s FROM thread_turns WHERE %s"
+                                          % (", final_agent_item_id" if final else "", where), parameters).fetchall()
         except (SourceError, sqlite3.Error, OSError, ValueError):
             return empty
         result = dict(empty, later_turn=bool(rows))
@@ -461,9 +464,8 @@ class HistoryMixin:
         self._identity(thread_id, marker)
         found = []
         with self._db("queue") as connection:
-            rows = connection.execute(
-                "SELECT id,payload_json FROM queued_items WHERE thread_id=? "
-                "AND instr(payload_json,?)>0", (thread_id, marker))
+            rows = connection.execute("SELECT id,payload_json FROM queued_items WHERE thread_id=? "
+                                      "AND instr(payload_json,?)>0", (thread_id, marker))
             for row in rows:
                 payload = _json(row["payload_json"])
                 if ids.is_uuid(row["id"]) and _queue_has_marker(payload, marker):
@@ -478,9 +480,8 @@ class HistoryMixin:
         if not ids.is_uuid(queue_id):
             raise SourceError("Invalid queue identity")
         with self._db("queue") as connection:
-            row = connection.execute(
-                "SELECT instr(payload_json,?)>0 AS has_marker FROM queued_items "
-                "WHERE thread_id=? AND id=?", (marker, thread_id, queue_id)).fetchone()
+            row = connection.execute("SELECT instr(payload_json,?)>0 AS has_marker FROM queued_items "
+                                     "WHERE thread_id=? AND id=?", (marker, thread_id, queue_id)).fetchone()
         return {"exists": row is not None, "has_marker": bool(row["has_marker"]) if row else False}
 
     def foreign_queued(self, thread_id: str, marker: str) -> int:
