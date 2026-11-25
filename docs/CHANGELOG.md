@@ -61,6 +61,16 @@ continuation's words with its doubt, so v0.6.25 starts nothing beside the messag
   no longer Python, a release can name its setup program in its verified archive. Check for updates and *Install another version...*
   then hand over to that program, after every check an archive passes today, and say so; an archive like this release's is installed
   as before.
+- **Setup finds the Codex app installed from the Microsoft Store when there is no engine folder of Codex's own.** Where Codex came only
+  from the Store, `%LOCALAPPDATA%\OpenAI\Codex\bin` does not exist, and setup stopped with "The ChatGPT/Codex desktop app was not
+  found.". It now asks Windows for the one healthy Store registration of the official Codex package and takes the engine inside it only
+  after the offline OpenAI signature check the watcher makes; the engine folder is still preferred where it exists (contributed by
+  [@Kdevaulo](https://github.com/Kdevaulo), [#69](https://github.com/songyb111-gachon/codex-auto-resume-windows/pull/69)).
+- **The compatibility answer for the engine in the Codex app's own package holds while the app is closed.** The watcher keeps driving
+  that engine after the app closes, but every reader - Diagnostics, the command line, the Codex panel and the edition's own reads -
+  bound the watcher's report only to an engine in Codex's engine folder or one the app ran at that moment, so with the app closed every
+  capability read as unknown. The readers now also find the package's engines on disk through Windows' package manager, with the same
+  file and signature checks, and start no process for it (found at this release's live acceptance).
 - **The health check tells a closed ChatGPT app from a broken one.** A closed app reads "not running (not a problem: recoveries wait
   until it opens)" instead of failing the check, a Run value whose interpreter or launcher is gone is a failure, and the installer's last
   word names what it found instead of "Nothing else to do.". A usage read that broke, an error code Codex reported that this version
@@ -173,6 +183,9 @@ continuation's words with its doubt, so v0.6.25 starts nothing beside the messag
   then - the watcher took up the engine the app runs only through a waiting record's look - so the popup kept a reading days old (found
   at this release's live acceptance). A look that does not read now waits a minute before the next, on the engine it already checked,
   instead of checking the engine again every 30 seconds.
+- **Capabilities kept on stay on while the Codex app is closed.** With the compatibility answer unknown once the app closed, every
+  capability standing on Codex read as off until the app opened again - the usage meter, the wake for a reset and the early start of
+  the five-hour window among them - and the popup fell back to a reading days old (found at this release's live acceptance).
 - **The Dashboard's Overview and Diagnostics say the same usage reading as the popup**: the newer of the watcher's own and the usage
   meter's, in the shape the watcher's has. The Dashboard used to show the watcher's older one.
 - **An update's log says when a chosen Python is in place for the watcher**, beside the bundled one that runs setup.
