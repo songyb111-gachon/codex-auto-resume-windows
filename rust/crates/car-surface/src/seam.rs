@@ -151,10 +151,15 @@ impl Launch for SystemLaunch {
         SystemStarter
             .start(spawn)
             .map(|_| ())
-            .map_err(|error| match error {
-                SpawnError::Os(_) => "OSError",
-                SpawnError::Timeout => "TimeoutExpired",
-            })
+            .map_err(|error| launch_error(&error))
+    }
+}
+
+/// The class of the exception `subprocess.Popen` raises for what car-platform's starter answered.
+pub fn launch_error(error: &SpawnError) -> &'static str {
+    match error {
+        SpawnError::Os(_) => "OSError",
+        SpawnError::Timeout => "TimeoutExpired",
     }
 }
 
