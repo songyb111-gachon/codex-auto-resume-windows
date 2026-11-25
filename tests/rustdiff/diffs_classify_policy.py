@@ -4,7 +4,8 @@ generated settings, records and times.
 
 Quiet hours and a postponement read the local clock; both sides are handed the same test zone (`ZONE`, below, and
 `car-harness`'s `Zone`): a fixed offset, and summer time between two days of the UTC year, so a window is walked
-across midnight and across both changes of the clock as the Python's own tests walk it.
+across midnight and across both changes of the clock as the Python's own tests walk it. The zone `"local"` is the
+product's own clock: the reference's `time.localtime` and `time.mktime`, and car-policy's `Crt` (the same C runtime).
 """
 from __future__ import annotations
 
@@ -40,6 +41,11 @@ def yday(y, m, d):
 
 class Zone:
     def __init__(self, spec):
+        if spec == "local":
+            # The product's clock: this interpreter's own, Windows' C runtime (car-policy's `Crt`).
+            self.localtime = time.localtime
+            self.mktime = lambda parts: time.mktime(tuple(parts[:6]) + (0, 0, -1))
+            return
         self.offset, self.dst, self.start, self.end = (list(spec) + [0, 0, 0, 0])[:4]
     def in_dst(self, t):
         if not self.dst:
@@ -74,7 +80,7 @@ class Zone:
         return float(t)
 
 ZONES = [[0, 0, 0, 0], [32400, 0, 0, 0], [-18000, 3600, 70, 308], [3600, 3600, 86, 301], [19800, 0, 0, 0],
-         [-36000, 1800, 1, 60]]
+         [-36000, 1800, 1, 60], "local"]
 '''
 
 GATES = r'''
@@ -412,6 +418,29 @@ for spec in ZONES:
     for preset in list(quiet.PRESETS) + ["bogus", None, ["x"]]:
         for now in [base, base + 86400 * 100 + 0.5, "123", True, None, -5]:
             cases.append(["quiet.postpone_time", now, preset, spec])
+# The product's clock against the interpreter's own time.localtime and time.mktime at their edges: before 1970, the
+# C runtime's last second (3000-12-31 23:59:59 UTC) and past it, time_t's end, the numbers JSON cannot carry, every
+# hour of the year, and fields that carry over or do not fit a C int.
+for value in [0, 1, -1, -0.5, 0.5, 0.999, 86399, 86400, 32535215999, 32535215999.9, 32535216000, 32535244799,
+              32535244800, 9.2e18, 9.3e18, -9.3e18, 9223372036854775808.0, -9223372036854775808.0, 2 ** 63, -2 ** 63,
+              2 ** 70, 1e308, -1e308,
+              float("nan"), float("inf"), float("-inf"), True, False]:
+    cases.append(["quiet.zone", value, "local"])
+for hour in range(0, 366 * 24, 7):
+    cases.append(["quiet.zone", base + hour * 3600 + rng.choice([0, 0.5, 1799, 3599.999]), "local"])
+for _ in range(1500):
+    cases.append(["quiet.zone", rng.uniform(-1e5, 3.3e10), "local"])
+for parts in [[1970, 1, 1, 0, 0, 0], [1970, 1, 1, 9, 0, 0], [1969, 12, 31, 23, 59, 59], [3000, 12, 31, 23, 59, 59],
+              [3001, 1, 1, 0, 0, 0], [2026, 0, 1, 0, 0, 0], [2026, 13, 1, 0, 0, 0], [2026, -1, 1, 0, 0, 0],
+              [2026, 25, 1, 0, 0, 0], [2026, 1, 0, 0, 0, 0], [2026, 1, 32, 0, 0, 0], [2026, 1, -400, 0, 0, 0],
+              [2026, 1, 1, 25, 0, 0], [2026, 1, 1, -1, 0, 0], [2026, 1, 1, 0, 90, 0], [2026, 1, 1, 0, 0, -3600],
+              [2026, 1, 1, 0, 0, 2 ** 31 - 1], [2026, 1, 1, 0, 0, 2 ** 31], [2026, 1, 1, 0, 0, -2 ** 31],
+              [2 ** 31, 1, 1, 0, 0, 0], [-2 ** 31 + 1899, 1, 1, 0, 0, 0], [-2 ** 31 + 1900, 1, 1, 0, 0, 0],
+              [1900, 1, 1, 0, 0, 0], [0, 1, 1, 0, 0, 0], [2026, 2, 29, 12, 0, 0], [2024, 2, 29, 12, 0, 0]]:
+    cases.append(["quiet.zone", parts, "local"])
+for _ in range(1500):
+    cases.append(["quiet.zone", [rng.randrange(1960, 3010), rng.randrange(-2, 15), rng.randrange(-40, 70),
+                                 rng.randrange(-30, 50), rng.randrange(-100, 200), rng.randrange(-5000, 5000)], "local"])
 for until in [None, True, 5, 100, 100.0, 101, 100 + 7 * 86400, 101 + 7 * 86400, 100.5 + 7 * 86400, 1e300, float("inf"), float("-inf"), float("nan"),
               2 ** 70, "200", [1]]:
     for now in [100, 100.5, True]:

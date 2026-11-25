@@ -3,12 +3,13 @@
 //! Each case is `[name, arg, ...]` as `tests/rustdiff/diffs_classify_*.py` writes it, and the answer is what the
 //! family script's reference side writes for the same case: a set as a sorted list, a tuple as a list, a refusal
 //! (`CustomMessageError`, `PromptError`) as `["refused", ...]`. Nothing here decides anything: every answer is
-//! car-policy's own function's. The clock is a test zone ([`Zone`]) that the reference side defines alike.
+//! car-policy's own function's. The clock is a test zone ([`Zone`]) that the reference side defines alike, or `"local"`,
+//! the product's own ([`Clock`], car-policy's `Crt`), which the reference answers with its own `time` module.
 
 use car_machine::json::{Map, Value};
 use car_machine::pyval::Py;
 use car_machine::vocab;
-use car_policy::classify::clock::{LocalClock, Tm};
+use car_policy::classify::clock::{Crt, LocalClock, Tm};
 use car_policy::classify::continuation::{self, Environ, Settings};
 use car_policy::classify::gates::{self, Limits, Vector};
 use car_policy::classify::{
@@ -83,6 +84,11 @@ impl Zone {
 }
 
 impl LocalClock for Zone {
+    /// The test zone's `localtime(None)` is a TypeError, as its Python twin's is (it takes numbers only).
+    fn localtime_now(&self) -> Py<Tm> {
+        Err("TypeError")
+    }
+
     fn localtime(&self, t: f64) -> Py<Tm> {
         if t.is_nan() {
             return Err("ValueError");
@@ -123,6 +129,45 @@ impl LocalClock for Zone {
             return Err("OverflowError");
         }
         Ok(t as f64)
+    }
+}
+
+/// The clock a case names: a test zone, or `"local"`, the product's own (car-policy's `Crt`, the C runtime's
+/// `localtime` and `mktime`), which the reference side answers with its interpreter's own `time` module.
+pub enum Clock {
+    Zone(Zone),
+    Local(Crt),
+}
+
+impl Clock {
+    fn of(value: &Value) -> Clock {
+        match value {
+            Value::Str(name) if name.as_str() == Some("local") => Clock::Local(Crt),
+            other => Clock::Zone(Zone::of(other)),
+        }
+    }
+}
+
+impl LocalClock for Clock {
+    fn localtime_now(&self) -> Py<Tm> {
+        match self {
+            Clock::Zone(zone) => zone.localtime_now(),
+            Clock::Local(crt) => crt.localtime_now(),
+        }
+    }
+
+    fn localtime(&self, seconds: f64) -> Py<Tm> {
+        match self {
+            Clock::Zone(zone) => zone.localtime(seconds),
+            Clock::Local(crt) => crt.localtime(seconds),
+        }
+    }
+
+    fn mktime(&self, year: i64, mon: i64, mday: i64, hour: i64, min: i64, sec: i64) -> Py<f64> {
+        match self {
+            Clock::Zone(zone) => zone.mktime(year, mon, mday, hour, min, sec),
+            Clock::Local(crt) => crt.mktime(year, mon, mday, hour, min, sec),
+        }
     }
 }
 
@@ -279,7 +324,7 @@ fn accepted(said: String) -> Value {
 
 fn continuation_case(name: &str, a: &Args) -> Option<Py<Value>> {
     let settings = |at: usize, body: &dyn Fn(&Settings) -> Py<Value>| -> Py<Value> {
-        let zone = Zone::of(a.get(at + 4));
+        let zone = Clock::of(a.get(at + 4));
         with_environ(a.get(at + 3), |environ| {
             body(&Settings {
                 values: a.get(at),
@@ -358,7 +403,7 @@ fn continuation_case(name: &str, a: &Args) -> Option<Py<Value>> {
         "continuation.custom_from" => continuation::custom_from(a.get(0), a.get(1)),
         "continuation.format_reset_time" => Ok(continuation::format_reset_time(
             a.get(0),
-            &Zone::of(a.get(1)),
+            &Clock::of(a.get(1)),
         )),
         "continuation.source_for" => {
             settings(1, &|at| continuation::source_for(a.get(0), at).map(option))
@@ -680,16 +725,16 @@ pub fn case(name: &str, a: &Args) -> Option<Py<Value>> {
             None => Value::Null,
         }),
         "quiet.quiet_until" => {
-            quiet::quiet_until(a.get(0), a.get(1), &Zone::of(a.get(2))).map(option)
+            quiet::quiet_until(a.get(0), a.get(1), &Clock::of(a.get(2))).map(option)
         }
         "quiet.postpone_time" => {
-            quiet::postpone_time(a.get(0), a.get(1), &Zone::of(a.get(2))).map(option)
+            quiet::postpone_time(a.get(0), a.get(1), &Clock::of(a.get(2))).map(option)
         }
         "quiet.postponement_problem" => {
             quiet::postponement_problem(a.get(0), a.get(1), a.get(2)).map(option)
         }
         "quiet.zone" => {
-            let zone = Zone::of(a.get(1));
+            let zone = Clock::of(a.get(1));
             match a.get(0) {
                 Value::Array(parts) if parts.len() == 6 => {
                     let n = |at: usize| match &parts[at] {
@@ -699,6 +744,15 @@ pub fn case(name: &str, a: &Args) -> Option<Py<Value>> {
                     zone.mktime(n(0), n(1), n(2), n(3), n(4), n(5))
                         .map(Value::Float)
                 }
+                // A bool is the number it is, as `time.localtime(True)` reads it.
+                Value::Bool(on) => zone.localtime(f64::from(u8::from(*on))).map(|tm| {
+                    Value::Array(
+                        [tm.year, tm.mon, tm.mday, tm.hour, tm.min, tm.sec, tm.wday]
+                            .into_iter()
+                            .map(Value::from)
+                            .collect(),
+                    )
+                }),
                 other => zone.localtime(float(other)).map(|tm| {
                     Value::Array(
                         [tm.year, tm.mon, tm.mday, tm.hour, tm.min, tm.sec, tm.wday]
