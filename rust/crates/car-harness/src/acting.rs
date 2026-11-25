@@ -260,6 +260,9 @@ impl Acts {
 
     pub fn power_available(&self, action: &str) -> Result<(bool, Option<String>), Raised> {
         self.call("power_available", vec![Value::from(action)]);
+        if let Some(raised) = raised_of(self.get("power")) {
+            return Err(raised);
+        }
         match self.get("power") {
             Value::Object(map) => match map.get(action) {
                 None | Some(Value::Null) => Ok((true, None)),

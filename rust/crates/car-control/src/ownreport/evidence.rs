@@ -125,18 +125,21 @@ pub fn moment(value: &Value) -> Option<f64> {
 }
 
 /// `iso(when)`: `datetime.fromtimestamp(when, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")`. The error is the class
-/// Python raises: Windows' `gmtime` takes no time past the year 3000.
+/// Python raises: OverflowError past `time_t`, OSError past the C runtime's `gmtime` (measured on 3.13.15 here: its
+/// last second is 32536850399, 3001-01-19T21:59:59Z), the microseconds rounded half to even first.
 pub fn iso(when: f64) -> Result<String, &'static str> {
     if !when.is_finite() {
         return Err("ValueError");
     }
     let mut seconds = when.floor();
+    if !(-9.223_372_036_854_775_808e18..9.223_372_036_854_775_808e18).contains(&seconds) {
+        return Err("OverflowError");
+    }
     let micro = ((when - seconds) * 1e6).round_ties_even();
     if micro >= 1e6 {
         seconds += 1.0;
     }
-    // _gmtime64_s's last second: 3000-12-31T23:59:59Z.
-    if !(-43200.0..=32_535_215_999.0).contains(&seconds) {
+    if !(-43200.0..=32_536_850_399.0).contains(&seconds) {
         return Err("OSError");
     }
     let total = seconds as i64;

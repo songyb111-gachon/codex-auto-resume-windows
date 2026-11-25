@@ -168,17 +168,20 @@ impl Control {
             ),
             Err(_) => return,
         };
+        // `open(path, "a+b")`: read and write, each write at the end (the C runtime seeks there first). Not std's
+        // append mode, which opens without FILE_WRITE_DATA and so could never cut the file.
         let Ok(mut stream) = std::fs::OpenOptions::new()
             .read(true)
-            .append(true)
+            .write(true)
             .create(true)
+            .truncate(false)
             .open(path)
         else {
             return;
         };
         let turn = self.host.note_turn(&stream);
         let line = format!("{stamp}{text}\n");
-        if stream.write_all(line.as_bytes()).is_err() {
+        if stream.seek(SeekFrom::End(0)).is_err() || stream.write_all(line.as_bytes()).is_err() {
             return;
         }
         if turn {
@@ -189,7 +192,7 @@ impl Control {
             let lines = byte_lines(&data);
             if lines.len() > CODEX_START_LOG_LINES {
                 let kept: Vec<u8> = lines[lines.len() - CODEX_START_LOG_LINES..].concat();
-                if stream.set_len(0).is_ok() {
+                if stream.set_len(0).is_ok() && stream.seek(SeekFrom::Start(0)).is_ok() {
                     let _ = stream.write_all(&kept);
                 }
             }

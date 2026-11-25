@@ -1,4 +1,5 @@
-"""Re-diff car-control's quiet bridge commands (S5.1a) against a tag: the one command the v0.6.26 final is checked with.
+"""Re-diff car-control's bridge (S5.1a's quiet commands, S5.1b's acting ones) against a tag: the one command the v0.6.26
+final is checked with.
 
     python -X utf8 tests/rustdiff/rediff_control.py --reference v0.6.26
     python -X utf8 tests/rustdiff/rediff_control.py                    # reference.TAG (v0.6.26-beta.2 until the final)
@@ -9,6 +10,11 @@ ported, its starting and stopping is S5.1b's). This says, in order: which of the
 v0.6.26-beta.2 and the tag (`git diff --stat`, so a change is seen even where no diff reaches it); and then runs every
 `diffs_bridge*` diff with the tag as the reference (`run.py --build --reference TAG -k diffs_bridge`). Exit 0 only when
 the diffs are equal; a file that changed is printed, not failed on - the diffs decide.
+
+S5.1b (seat bridge6) added the acting half: `control/actions.py`, `control/codexstart.py`, `control/poweraction.py` and
+`controlcli.py`'s compat, rescan, check and diagnostics glue, held by `diffs_bridge_acting.py` (which `-k diffs_bridge`
+runs too). Its diffs follow the v0.6.26 final, whose `control/watcher.py` changed (`get_status`'s meter reading, which
+the standard edition's null plug never reaches).
 """
 from __future__ import annotations
 
@@ -22,7 +28,10 @@ ROOT = HERE.parents[1]
 PORTED = ("controlcli.py", "control/__init__.py", "control/errors.py", "control/layer.py", "control/state.py",
           "control/policy.py", "control/seen.py", "control/records.py", "control/preview.py", "control/tools.py",
           "control/wire.py", "control/watcher.py", "oncewords.py", "homefind.py", "openstate.py", "ownreport/__init__.py",
-          "ownreport/document.py", "ownreport/evidence.py", "ownreport/reading.py", "diagnostics.py")
+          "ownreport/document.py", "ownreport/evidence.py", "ownreport/reading.py", "diagnostics.py",
+          # S5.1b
+          "control/actions.py", "control/codexstart.py", "control/poweraction.py", "poweraction.py", "startup.py",
+          "demo.py", "projects.py", "quiet.py", "domain/gates.py")
 BASE = "v0.6.26-beta.2"
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
