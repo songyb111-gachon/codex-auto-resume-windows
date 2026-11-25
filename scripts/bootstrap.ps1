@@ -2257,14 +2257,31 @@ function Stop-WatcherBeforeOlder {
         installed core is asked itself - `stop`, then `watcher-running` until it answers that the watcher does not run,
         for a minute at most - and nothing is ever ended any other way. Not through runtime\python.exe: car-legacy takes
         only the lines earlier versions used, and no earlier version asked `stop` so. 'not-needed' - the installation is
-        not a Rust one, or the archive is itself a Rust one, whose installer sees the host - 'stopped', or
-        'watcher-running'.
+        not a Rust one, or the archive is itself a Rust one, whose installer sees the host - 'not-running' (no watcher
+        ran, so nothing was asked), 'stopped' (one ran and has stopped: Start-WatcherAfterOlder starts it again on the
+        older version once its installer is done), or 'watcher-running'. On every route whose archive is a Python one,
+        not only Install another version (review 9, S2): -ArchivePath with -Force installs an older archive too.
+        'no-core' (review 9, S4): a Rust installation whose core is gone while its host runs - nothing here can ask that
+        host to stop (car-legacy hands every line to the core that is missing), so the older installer must not run
+        over it; the caller refuses, and a repair by the installed version's own installer (whose archive carries the
+        core) stops it.
     #>
     param([string]$Home_, [string]$Unpacked)
-    $core = Join-Path $Home_ 'app\bin\codex-auto-resume.exe'
-    if (-not (Test-Path -LiteralPath $core -PathType Leaf)) { return 'not-needed' }
     if (Test-Path -LiteralPath (Join-Path $Unpacked 'payload\app\bin\codex-auto-resume.exe') -PathType Leaf) { return 'not-needed' }
+    $core = Join-Path $Home_ 'app\bin\codex-auto-resume.exe'
+    if (-not (Test-Path -LiteralPath $core -PathType Leaf)) {
+        # The host of this installation, by its image's folder (as install.ps1's Get-OwnedWatcherProcess finds it).
+        $bin = (Join-Path $Home_ 'app\bin').TrimEnd('\') + '\'
+        $hosts = @(Get-CimInstance Win32_Process -Filter "Name='CodexAutoResume.exe'" -ErrorAction SilentlyContinue |
+                   Where-Object { $_.ExecutablePath -and ([string]$_.ExecutablePath).StartsWith($bin, [StringComparison]::OrdinalIgnoreCase) })
+        if ($hosts.Count -gt 0) { return 'no-core' }
+        return 'not-needed'
+    }
     $ErrorActionPreference = 'Continue'
+    # Whether one runs at all: an answer of 0 is the only "running" (2 is "not running" in plugin_setup.py's contract).
+    $global:LASTEXITCODE = 0
+    $null = @(& $core 'watcher-running' 2>$null)
+    if ($LASTEXITCODE -ne 0) { return 'not-running' }
     $null = @(& $core 'stop' 2>$null)
     $deadline = (Get-Date).AddSeconds(60)
     while ($true) {
@@ -2275,6 +2292,25 @@ function Stop-WatcherBeforeOlder {
         if ((Get-Date) -ge $deadline) { return 'watcher-running' }
         Start-Sleep -Milliseconds 500
     }
+}
+
+function Start-WatcherAfterOlder {
+    <#
+        v0.6.27 (PLAN 6.10; review 9, S1): after the older version's installer ended 0 over the Rust installation whose
+        watcher Stop-WatcherBeforeOlder stopped, that watcher runs again - now the older version's. That installer saw
+        no watcher (it looks only for pythonw.exe), so it told its setup none ran (--watcher-was-stopped), and where the
+        start at sign-in is off its setup left recovery off: an Install another version nobody asked to stop anything
+        turned it off. The now-installed version is asked whether its watcher runs (`watcher-running` 0), and where it
+        does not, its own `setup --keep-state` (Start-CurrentWatcher without -WasStopped: one did run) starts it, as the
+        repair branch does. 'running' (its setup started it already), 'started', or 'not-started'.
+    #>
+    param([string]$Home_, [switch]$NoStartup)
+    $running = $null
+    try { $running = (Invoke-InstalledSetup -Home_ $Home_ -Arguments @('watcher-running')).Code } catch { $running = $null }
+    if ($running -eq 0) { return 'running' }
+    Start-CurrentWatcher -Home_ $Home_ -NoStartup:$NoStartup
+    if ($script:CurrentWatcherCode -eq 0) { return 'started' }
+    return 'not-started'
 }
 
 function Restore-AfterFailedPick {
@@ -2939,17 +2975,23 @@ try {
         }
     }
 
-    if ($Pick) {
-        # v0.6.27 (PLAN 6.10): a Rust watcher the older version's installer cannot see is stopped before it runs.
-        $older = Stop-WatcherBeforeOlder -Home_ $installHome -Unpacked $unpacked
+    # v0.6.27 (PLAN 6.10): a Rust watcher the older version's installer cannot see is stopped before it runs - on every
+    # route whose archive is a Python one, not only Install another version (review 9, S2: -ArchivePath with -Force).
+    $older = Stop-WatcherBeforeOlder -Home_ $installHome -Unpacked $unpacked
+    if ($older -ceq 'watcher-running' -or $older -ceq 'no-core') {
         if ($older -ceq 'watcher-running') {
             Fail 'The watcher did not stop within a minute; it was asked to, and was not stopped any other way.'
-            Write-Host 'pick: refused watcher-running'
-            Step 'Nothing was installed.'
-            exit $ExitPickRefused
+        } else {
+            Fail 'The installed program is incomplete (its core is missing) while its watcher runs, so the watcher cannot be asked to stop.'
+            Write-Host '       Repair the installed version first (Start Menu > Codex Auto Resume, or its own installer), then try again.'
         }
-        if ($older -ceq 'stopped') { Ok 'The watcher was stopped, so the older version''s installer can replace it' }
+        # The Dashboard knows a fixed list of reasons (DashboardVersions.cs); both are a watcher that runs and was not stopped.
+        if ($Pick) { Write-Host 'pick: refused watcher-running' }
+        Step 'Nothing was installed.'
+        if ($Pick) { exit $ExitPickRefused }
+        exit 1
     }
+    if ($older -ceq 'stopped') { Ok 'The watcher was stopped, so the older version''s installer can replace it' }
 
     if ($Pick) {
         $entry = Remove-EntryBeforeOlder -Home_ $installHome -Installed ([string]$installed) -Target $target
@@ -2999,11 +3041,23 @@ try {
     if ($Pick -and $code -eq 0) { Write-Host ('pick: installed ' + $target + ' ' + $targetEdition) }
     # A failed pick leaves the version that was installed as it was: its state, its entry in Add or remove programs
     # and its watcher (v0.6.18 installer audit, R4). The exit code stays the installer's.
+    $restored = $null
     if ($Pick -and $code -ne 0) {
         Write-Host ''
-        $null = Restore-AfterFailedPick -Home_ $installHome -Installed ([string]$installed) -Converted $converted `
-                                        -Since $pickSince -KeptCopy $pickKeptCopy -NoStartup:$NoStartup `
-                                        -WasStopped:($pickWatcherStopped -eq $true)
+        $restored = Restore-AfterFailedPick -Home_ $installHome -Installed ([string]$installed) -Converted $converted `
+                                            -Since $pickSince -KeptCopy $pickKeptCopy -NoStartup:$NoStartup `
+                                            -WasStopped:($pickWatcherStopped -eq $true)
+    }
+    # The Rust watcher stopped for the older installer runs again (review 9, S1), on whichever version is installed now:
+    # the older one after its installer ended 0, or the one left after it failed - except where a failed pick's
+    # put-back above already started the version that was installed.
+    if ($older -ceq 'stopped' -and -not ($restored -ceq 'restored')) {
+        $after = Start-WatcherAfterOlder -Home_ $installHome -NoStartup:$NoStartup
+        if ($after -ceq 'started') { Ok 'The watcher that was stopped for the older version''s installer was started again' }
+        elseif ($after -ceq 'not-started') {
+            Warn 'The watcher that was stopped for the older version''s installer is not running, so nothing is being recovered now.'
+            Write-Host '       Open Start Menu > Codex Auto Resume and use Start watcher, or sign out and back in.'
+        }
     }
     exit $code
 } catch {

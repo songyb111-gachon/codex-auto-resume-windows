@@ -154,6 +154,15 @@ class Review9Proofs(unittest.TestCase):
         self.assertEqual(step.stdout.strip().splitlines()[-1:], ["stopped"], self.said(step))
         done = self.scratch.install(python, "-Silent")
         self.assertEqual(done.returncode, 0, self.said(done))
+        # fix9: v0.6.26 is frozen, so nothing between these two calls can keep that watcher; the 6.10 step's second
+        # half does, after the older installer ends 0 (bootstrap.ps1 Start-WatcherAfterOlder, the review's direction),
+        # as the bootstrap runs it: through the now-installed version's own setup, the outside gate stood in.
+        after = self.scratch.powershell(
+            "$ErrorActionPreference = 'Stop'\nSet-StrictMode -Version 2.0\n" + proofs.STAND_INS["Resolve-OutsideRun"]
+            + "".join(proofs.function_text(bootstrap, name) + "\n"
+                      for name in ("Invoke-InstalledSetup", "Start-CurrentWatcher", "Start-WatcherAfterOlder"))
+            + "Start-WatcherAfterOlder -Home_ '%s'\n" % self.scratch.home)
+        self.assertEqual(after.stdout.strip().splitlines()[-1:], ["started"], self.said(after))
         self.assertEqual(self.scratch.running_as(), "python",
                          "the watcher that ran before going back is not running after it:\n" + self.said(done))
 

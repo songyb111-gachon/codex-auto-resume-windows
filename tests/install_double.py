@@ -21,7 +21,8 @@ Three roles, one file:
   set. Each flavour names them by its own rule (review 9, S5): the Python one by the tag's win/sync.py, the Rust one
   by car-platform's `names` (asked of its dev-only probe, CAR_DOUBLE_PROBE), each made test-only by CAR_DOUBLE_NAMES
   in place of the product's prefix - so the two exclude each other only because the two rules agree, as PLAN 6.2's
-  handover needs. `--role names` prints both. The Python one
+  handover needs. The Rust one also ends once its own program is no longer where it started (an installer that cannot
+  see it moved app\\ aside: PLAN 6.10, the host's contract for P6). `--role names` prints both. The Python one
   runs as runtime\\pythonw.exe <home>\\watcher-launcher.py run (a shim), the Rust one as app\\bin\\CodexAutoResume.exe
   (a copy of pythonw.exe the test puts there for P6's host), so install.ps1 finds each by what it is.
 
@@ -304,6 +305,15 @@ def stop_watcher(role: str, home: Path, seconds: float = 30) -> bool:
     return False
 
 
+def own_image(path: str):
+    """The file at `path` as (volume, file index), or None where nothing is there: which file a name holds now."""
+    try:
+        found = os.stat(path)
+    except OSError:
+        return None
+    return (found.st_dev, found.st_ino)
+
+
 def watch(words: list) -> int:
     flavour = words[words.index("--flavour") + 1] if "--flavour" in words else "python"
     home = Path(words[words.index("--home") + 1]).resolve() if "--home" in words else home_path()
@@ -323,9 +333,19 @@ def watch(words: list) -> int:
     lifetime = float(os.environ.get("CAR_DOUBLE_LIFETIME", "600"))
     deadline = time.monotonic() + lifetime
     outcome = "lifetime"
+    # The host's contract for P6 (PLAN 6.10; review 9, S2): it ends, as on its stop event, once its own program is no
+    # longer at the path it was started from - an installer that cannot see it (v0.6.26's, run by hand) moved app\
+    # aside under it, or another file is there now - so it never runs on from app.old-<stamp> holding the mutex that
+    # installer's watcher needs. Looked at with every wait, five times a second. The Python watcher (v0.6.26, frozen)
+    # does not.
+    image = sys.executable
+    started_as = own_image(image) if flavour == "rust" else None
     while time.monotonic() < deadline:
         if _kernel.WaitForSingleObject(stop, 200) == WAIT_OBJECT_0:
             outcome = "stopped"
+            break
+        if started_as is not None and own_image(image) != started_as:
+            outcome = "moved aside"
             break
     _kernel.ReleaseMutex(mutex)
     _kernel.CloseHandle(mutex)
