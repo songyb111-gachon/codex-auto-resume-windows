@@ -9,6 +9,7 @@
 //! (`seam`). The `_gen` files are written by `tests/rustdiff/gen_advpolicy.py` from the reference tag's own package.
 
 pub mod arming;
+pub mod compat_views;
 pub mod images;
 pub mod jsonx;
 pub mod ledger;

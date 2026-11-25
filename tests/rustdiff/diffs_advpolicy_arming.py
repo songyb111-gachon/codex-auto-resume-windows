@@ -34,6 +34,7 @@ from codex_auto_resume_advanced import arming, registry, measured, statement, au
 from codex_auto_resume_advanced.vocabulary import ArmingWarning, OffReason, Measurement, Verdict, AutoResult
 real, scratch = Path(sys.argv[1]), Path(sys.argv[2])
 seed, count = int(sys.argv[3]), int(sys.argv[4])
+real_count = int(sys.argv[5]) if len(sys.argv) > 5 else 0
 rng = random.Random(seed)
 exec(SCENARIO_RUNNER_SOURCE)
 
@@ -263,6 +264,12 @@ for _ in range(count):
     sc = scenario()
     sc["directory"] = scratch_dirs[sc["catalogs"]]
     cases.append(["arming.scenario", sc])
+for index in range(real_count):
+    # Integration 5: the same steps over the real AdvancedState (the tag's and car-adv's), each on a home of its own.
+    sc = scenario()
+    sc["directory"] = scratch_dirs[sc["catalogs"]]
+    sc.update({"real": True, "home": str(scratch / "real-homes" / ("%d" % index)), "state": {}})
+    cases.append(["arming.scenario", sc])
 ops["arming.scenario"] = run_scenario
 finish(cases, ops)
 '''
@@ -273,12 +280,12 @@ def source() -> str:
 
 
 class ArmingScenarioDiff(AdvDiff):
-    def run_one(self, label: str, seed: int, count: int, minimum: int):
+    def run_one(self, label: str, seed: int, count: int, minimum: int, real: int = 0):
         scratch = Path(self.reference_scratch) / ("arming-%s" % label)
         scratch.mkdir()
         # the generator needs `made_registry` (a module-level name its arm_step reads), and the runner is exec'd into it
-        done = self.family(source(), str(advref.locales()), str(scratch), str(seed), str(count), label="arming-" + label,
-                           expect_ops=minimum, chunk=100)
+        done = self.family(source(), str(advref.locales()), str(scratch), str(seed), str(count), str(real),
+                           label="arming-" + label, expect_ops=minimum, chunk=100)
         shutil.rmtree(scratch, ignore_errors=True)
         return done
 
@@ -296,6 +303,19 @@ class ArmingScenarioDiff(AdvDiff):
                       "left equal; arm answered %s" % (len(done["cases"]), steps,
                                                        sum(len(result["ok"]["log"]) for result in done["results"]),
                                                        ", ".join("%s %d" % item for item in sorted(refusals.items()))))
+
+    def test_over_the_real_state(self):
+        """Arming over `AdvancedState` itself, the tag's and car-adv's (Integration 5): each side on a home of its own, begun
+        empty, every step's answer and the state's own readers after them (arming, meta, options, wordings, rules, the
+        journal, the last reading) equal; the edges' calls too (the state's calls are not logged, they are the state's)."""
+        scale = int(os.environ.get("CODEX_AR_ARMING_REAL", "240"))
+        done = self.run_one("real", 20261201, 0, scale, real=scale)
+        steps = sum(len(case[1]["steps"]) for case in done["cases"])
+        moved = sum(1 for result in done["results"]
+                    if any(row for row in result["ok"]["state"]["journal"]))
+        RECORD.append("advpolicy arming over the real state: %d scenarios, %d steps, every answer and the state left (arming, "
+                      "meta, options, wordings, rules, journal, reading) equal; %d scenarios wrote the journal"
+                      % (len(done["cases"]), steps, moved))
 
     def test_more_scenarios(self):
         scale = int(os.environ.get("CODEX_AR_ARMING_SCENARIOS", "360"))

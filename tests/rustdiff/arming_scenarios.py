@@ -23,6 +23,10 @@ A scenario (JSON):
                "samples": [...], "ever": [...]},
      "steps": [[name, arg, ...], ...]}
 
+A real-state scenario (`"real": true`, `"home": folder`) runs the same steps over the tag's own `AdvancedState` on a
+home of its own (`<home>/py`; car-adv's probe uses `<home>/rs`), the state begins empty, and the state left is what the
+state's own readers say (`arming`, `meta`, the options and wordings of every capability, `rules`, `journal`, `reading`).
+
 A step's argument `"@gen"` is the generation the state holds now, `"@rev:<id>"` a capability's revision, `"@warn:<id>"` the
 warnings that hold now (the pure `warnings_for` over the environment), `"@ver"` the engine version of the view, `"@now"` the
 clock's next reading; a list or dict of them is resolved inside.
@@ -353,7 +357,27 @@ def run_scenario(sc):
         made_registry = registry.Registry(registry.DEFINITIONS + registry.offered(table_of(sc.get("shipped_table", []))))
     else:
         made_registry = registry.Registry([build_def(each) for each in made_definitions(shipped)])
-    state = FakeState(sc, made_registry, log)
+    real = bool(sc.get("real"))
+    if real:
+        # Integration 5: the same Arming over the tag's own AdvancedState on a home of its own (never this machine's).
+        from pathlib import Path
+        from codex_auto_resume import config
+        from codex_auto_resume_advanced.state import AdvancedState
+        home = Path(sc["home"]) / "py"
+        home.mkdir(parents=True, exist_ok=True)
+        fixed = env.get("clock", 1800000000.0)
+        state = AdvancedState(config.Paths(str(home)), registry=made_registry, clock=lambda: fixed)
+    else:
+        state = FakeState(sc, made_registry, log)
+    def generation_now():
+        return state.meta()["generation"] if real else state.generation
+    def real_dump():
+        ids = [d.id for d in made_registry]
+        return {"arming": state.arming(), "meta": state.meta(), "options": {c: dict(state.options(c)) for c in ids},
+                "wordings": {c: dict(state.wordings(c)) for c in ids}, "rules": state.rules(),
+                "journal": state.journal(limit=500),
+                # READING is a frozenset: with no file its keys come in the interpreter's hash order, which no run repeats.
+                "reading": dict(sorted(state.reading().items()))}
 
     def view_fn():
         log.append(["view"])
@@ -448,7 +472,8 @@ def run_scenario(sc):
             patch.object(powertasks, "follow", power_follow), patch.object(account, "forget", forget), \
             patch.object(usage, "touched", touched), patch.object(usage, "order_problem", order_problem), \
             patch.object(usage, "previews", previews), patch.object(wrapwords, "check_custom", check_custom), \
-            patch.object(arming, "aggregated", aggregated), patch.object(arming, "tag_problem", tag_problem):
+            patch.object(arming, "aggregated", arming.aggregated if real else aggregated), \
+            patch.object(arming, "tag_problem", arming.tag_problem if real else tag_problem):
         engine = arming.Arming(state, catalogs=catalogs, policy=policy_fn,
                                view=view_fn if sc["view_given"] else None,
                                measured=measured_fn if sc["measured_given"] else None, clock=clock,
@@ -466,11 +491,11 @@ def run_scenario(sc):
         def resolve(value):
             if isinstance(value, str) and value.startswith("@"):
                 if value == "@gen":
-                    return state.generation
+                    return generation_now()
                 if value == "@gen+1":
-                    return state.generation + 1
+                    return generation_now() + 1
                 if value == "@gen-1":
-                    return state.generation - 1
+                    return generation_now() - 1
                 if value == "@ver":
                     return arming.engine_version(plain_view())
                 if value == "@now":
@@ -581,5 +606,5 @@ def run_scenario(sc):
                 results.append({"ok": norm(step(name, args))})
             except Exception as error:
                 results.append({"error": type(error).__name__})
-    return {"results": results, "log": norm(log), "state": norm(state.dump())}
+    return {"results": results, "log": norm(log), "state": norm(real_dump() if real else state.dump())}
 '''

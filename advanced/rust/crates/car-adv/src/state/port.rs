@@ -553,3 +553,17 @@ impl StatePort for AdvancedState {
         choices::tag_problem(&py::word(tag)).is_none()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::seam;
+    use crate::state::choices;
+
+    /// `seam.rs` carries the numbers `arming.py` imports from `state/choices.py`; the state has them too. They are one.
+    #[test]
+    fn the_seams_numbers_are_the_states() {
+        assert_eq!(seam::RULES_LIMIT, choices::RULES_LIMIT as i64);
+        assert_eq!(seam::RECENT_DAYS, choices::RECENT_DAYS);
+        assert_eq!(seam::DAY as f64, choices::DAY);
+    }
+}

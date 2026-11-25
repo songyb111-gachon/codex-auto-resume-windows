@@ -4,7 +4,9 @@
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use std::sync::Arc;
 
 use car_adv::arming::{
     self, ArmRequest, Arming, CoreView, KeepRequest, Setup, States, engine_version,
@@ -18,6 +20,8 @@ use car_adv::seam::{
     StateResult, Unavailable,
 };
 use car_adv::seam_autocheck::Results;
+use car_adv::state::seam::Tokens;
+use car_adv::state::session::AdvancedState;
 use car_adv::statement::Catalogs;
 use car_adv::vocabulary::{
     Actor, ArmingState, ArmingWarning, AutoResult, ContinuationReason, Measurement, OffReason,
@@ -478,6 +482,150 @@ impl FakeState {
 
 fn f(value: f64) -> Value {
     Value::from(value)
+}
+
+/// What a scenario's runner asks of the state it runs over: the port `Arming` is given, the generation `@gen` means, and
+/// the state left.
+trait Probe {
+    fn port(&self) -> &dyn StatePort;
+    fn generation(&self) -> i64;
+    fn dump(&self) -> Value;
+}
+
+impl Probe for FakeState {
+    fn port(&self) -> &dyn StatePort {
+        self
+    }
+
+    fn generation(&self) -> i64 {
+        self.inner.borrow().generation
+    }
+
+    fn dump(&self) -> Value {
+        FakeState::dump(self)
+    }
+}
+
+#[derive(Debug)]
+struct Links;
+
+impl car_config::Links for Links {
+    fn is_symlink(&self, path: &Path) -> bool {
+        car_platform::links::is_symlink(path)
+    }
+}
+
+/// The tokens `Arming` never asks the state for: a counter, as the diffs of the store stand them in.
+struct Counter(std::sync::Mutex<u64>);
+
+impl Tokens for Counter {
+    fn hex(&self, count: usize) -> String {
+        let mut held = self
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        *held += 1;
+        format!("{:0>width$x}", *held, width = count * 2)
+    }
+}
+
+/// Integration 5: the real `AdvancedState` on a home of its own (`<home>/rs`, where the reference uses `<home>/py`),
+/// `Arming` over it as the tag's runs over the tag's, and the state left as the state's own readers say it.
+struct Real {
+    state: AdvancedState,
+    ids: Vec<String>,
+}
+
+impl Real {
+    fn new(home: &str, registry: &Registry, clock: f64) -> Result<Real, Failure> {
+        let home = PathBuf::from(home).join("rs");
+        std::fs::create_dir_all(&home).map_err(|_| Failure::new("OSError"))?;
+        let no_env = |_: &str| None;
+        let paths = car_config::Paths::new(
+            Some(&home.to_string_lossy()),
+            &home.to_string_lossy(),
+            &no_env,
+            car_config::Os::here(false, Arc::new(Links)),
+        )
+        .map_err(|_| Failure::new("ConfigError"))?;
+        let state = AdvancedState::new(
+            paths,
+            Arc::new(registry.clone()),
+            Box::new(move || clock),
+            Arc::new(Counter(std::sync::Mutex::new(0))),
+        );
+        let ids = registry
+            .definitions
+            .iter()
+            .map(|each| each.id.clone())
+            .collect();
+        Ok(Real { state, ids })
+    }
+}
+
+impl Probe for Real {
+    fn port(&self) -> &dyn StatePort {
+        &self.state
+    }
+
+    fn generation(&self) -> i64 {
+        match self.state.meta() {
+            Ok(row) => match row.get("generation") {
+                Some(Value::Int(each)) => each.as_i64().unwrap_or(0),
+                _ => 0,
+            },
+            Err(_) => 0,
+        }
+    }
+
+    fn dump(&self) -> Value {
+        let state = &self.state;
+        let one = |name: &str, found: Result<Map, car_adv::state::errors::Error>| {
+            (
+                name.to_owned(),
+                found.map_or_else(|error| text(error.class()), Value::Object),
+            )
+        };
+        let many = |found: Result<Vec<Map>, car_adv::state::errors::Error>| {
+            found.map_or_else(
+                |error| text(error.class()),
+                |rows| Value::Array(rows.into_iter().map(Value::Object).collect()),
+            )
+        };
+        let keyed = |each: &dyn Fn(&Value) -> Result<Map, car_adv::state::errors::Error>| {
+            Value::Object(
+                self.ids
+                    .iter()
+                    .map(|id| {
+                        (
+                            Str::from(id.as_str()),
+                            each(&text(id)).map_or_else(|error| text(error.class()), Value::Object),
+                        )
+                    })
+                    .collect(),
+            )
+        };
+        let (_, arming) = one("arming", state.arming());
+        let (_, meta) = one("meta", state.meta());
+        // READING is a frozenset in the reference: with no file its keys come in a hash order no run repeats.
+        let (_, reading) = one(
+            "reading",
+            state.reading().map(|row| {
+                let mut sorted: Vec<(Str, Value)> = row.into_iter().collect();
+                sorted.sort_by(|a, b| a.0.cmp(&b.0));
+                sorted.into_iter().collect()
+            }),
+        );
+        obj(vec![
+            ("arming", arming),
+            ("meta", meta),
+            ("options", keyed(&|id| state.options(id))),
+            ("wordings", keyed(&|id| state.wordings(id))),
+            ("rules", many(state.rules())),
+            ("journal", many(state.journal(&Value::Null, &int(500)))),
+            ("reading", reading),
+        ])
+    }
 }
 
 impl StatePort for FakeState {
@@ -1219,7 +1367,7 @@ impl CoreView for Core {
 // ------------------------------------------------------------------------------------------------ the interpreter
 struct Run<'r> {
     env: Shared,
-    state: &'r FakeState,
+    state: &'r dyn Probe,
     registry: &'r Registry,
     view_given: bool,
     measured_given: bool,
@@ -1275,7 +1423,7 @@ impl Run<'_> {
         match value {
             Value::Str(word) if word.as_str().is_some_and(|w| w.starts_with('@')) => {
                 let word = word.as_str().unwrap_or("");
-                let generation = self.state.inner.borrow().generation;
+                let generation = self.state.generation();
                 match word {
                     "@gen" => int(generation),
                     "@gen+1" => int(generation + 1),
@@ -1498,38 +1646,46 @@ fn scenario(sc: &Map) -> Out {
         Value::Object(each) => each.clone(),
         _ => Map::new(),
     };
-    let state = FakeState {
-        inner: RefCell::new(Inner {
-            rows,
-            generation: match get(spec, "generation") {
-                Value::Int(each) => each.as_i64().unwrap_or(1),
-                _ => 1,
-            },
-            hourly: match get(spec, "global_hourly") {
-                Value::Int(each) => each.as_i64().unwrap_or(24),
-                _ => 24,
-            },
-            faults,
-            spends,
-            overrides: objects("overrides"),
-            resent: strings("resent").into_iter().collect(),
-            payers,
-            reset_rules: objects("reset_rules"),
-            credits: matches!(get(spec, "credits"), Value::Bool(true)),
-            continuations: objects("continuations"),
-            options: object_of("options"),
-            wordings: object_of("wordings"),
-            rules: objects("rules"),
-            hits,
-            samples: match get(spec, "samples") {
-                Value::Array(items) => items.clone(),
-                _ => Vec::new(),
-            },
-            ever: strings("ever").into_iter().collect(),
-            next_rule: 100,
-        }),
-        registry: Rc::clone(&registry),
-        log: Rc::clone(&log),
+    let real_state;
+    let fake_state;
+    let state: &dyn Probe = if flag("real") {
+        real_state = Real::new(as_text(get(sc, "home"))?, &registry, clock)?;
+        &real_state
+    } else {
+        fake_state = FakeState {
+            inner: RefCell::new(Inner {
+                rows,
+                generation: match get(spec, "generation") {
+                    Value::Int(each) => each.as_i64().unwrap_or(1),
+                    _ => 1,
+                },
+                hourly: match get(spec, "global_hourly") {
+                    Value::Int(each) => each.as_i64().unwrap_or(24),
+                    _ => 24,
+                },
+                faults,
+                spends,
+                overrides: objects("overrides"),
+                resent: strings("resent").into_iter().collect(),
+                payers,
+                reset_rules: objects("reset_rules"),
+                credits: matches!(get(spec, "credits"), Value::Bool(true)),
+                continuations: objects("continuations"),
+                options: object_of("options"),
+                wordings: object_of("wordings"),
+                rules: objects("rules"),
+                hits,
+                samples: match get(spec, "samples") {
+                    Value::Array(items) => items.clone(),
+                    _ => Vec::new(),
+                },
+                ever: strings("ever").into_iter().collect(),
+                next_rule: 100,
+            }),
+            registry: Rc::clone(&registry),
+            log: Rc::clone(&log),
+        };
+        &fake_state
     };
     let edges = FakeEdges {
         env: Rc::clone(&env),
@@ -1586,7 +1742,7 @@ fn scenario(sc: &Map) -> Out {
         })
     };
     let engine = Arming::new(
-        &state,
+        state.port(),
         &edges,
         &registry,
         &catalogs,
@@ -1600,7 +1756,7 @@ fn scenario(sc: &Map) -> Out {
     );
     let run = Run {
         env: Rc::clone(&env),
-        state: &state,
+        state,
         registry: &registry,
         view_given,
         measured_given,
