@@ -134,7 +134,9 @@ def reported_files(folder: Path) -> list[tuple[str, Path]]:
                          ("bool", dict(entry, reports=True)), ("negative", dict(entry, neither=-1)),
                          ("huge", dict(entry, reports=100001)), ("zero", dict(entry, reports=0, worked=0, failed=0)),
                          ("not a version", dict(entry, version="0.171.0")), ("no prefix", dict(entry, version="x")),
-                         ("extra key", dict(entry, extra=1)), ("float", dict(entry, worked=2.0))):
+                         ("extra key", dict(entry, extra=1)), ("float", dict(entry, worked=2.0)),
+                         # the sum holds and `both` passes min(worked, failed): only that rule refuses it
+                         ("both past the smaller", dict(entry, reports=1, worked=1, failed=0, neither=1, both=1))):
         write(name, dict(good, versions=[change]))
     write("duplicate version", dict(good, versions=[entry, entry]))
     write("duplicate key", '{"format": "codex-auto-resume-reported/1", "versions": [], "versions": []}')

@@ -74,6 +74,11 @@ def streams():
                                  + tail).encode()
     yield "oversize, a newline in a tail piece", ('{"id": 16, "result": "' + "F" * (LIMIT * 2) + '"}\r\n'
                                                   + tail).encode()
+    # the head is KEPT characters: a value that ends past half of it, its id after it, is read from the head
+    yield "oversize, the id after a long value in the head", ('{"result": "' + "G" * 40000 + '", "id": 17, "x": "'
+                                                              + "H" * LIMIT + '"}\n' + tail).encode()
+    yield "oversize request, its method after a long id", ('{"id": "' + "I" * 50000 + '", "method": "item/x", "p": "'
+                                                           + "J" * LIMIT + '"}\n' + tail).encode()
 
 
 class LinesDiff(AppBase):
