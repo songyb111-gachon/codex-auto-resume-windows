@@ -119,9 +119,10 @@ class LegacyShapesDiff(CliBase):
                                       env=environment, cwd=str(workspace), creationflags=NO_WINDOW, timeout=600)
                 records = [json.loads(line) for line in (spec.with_name("world.json.calls").read_text(
                     encoding="utf-8").splitlines() if spec.with_name("world.json.calls").is_file() else [])]
-                self.assertNotEqual(done.returncode, 2, "%s: car-legacy refused a published line (%r)" % (
-                    label, done.stderr[-400:]))
-                self.assertEqual(len(records), 1, "%s: the core was not reached exactly once" % label)
+                # Refused lines end 2 with nothing run; the core's own 2 (setup unconfirmed, watcher-running stopped) is
+                # told apart by the core having been reached.
+                self.assertEqual(len(records), 1, "%s: car-legacy did not hand the line to the core exactly once (code %d, "
+                                 "%r)" % (label, done.returncode, done.stderr[-400:]))
                 handed = core_words(program, argv, home)
                 self.assertEqual(records[0]["argv"], handed, "%s: car-legacy handed other words" % label)
                 if handed[:1] == ["run"] or handed[-1:] == ["run"]:
