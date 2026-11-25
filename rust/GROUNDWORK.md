@@ -627,3 +627,33 @@ keep - so three cases of exactly 4,096, 4,097 and 9,000 bytes were added, and it
   UTF-8; a reply or id holding half of a surrogate pair), after answering the lines before it.
 * **P6**: the set-aside sweep (`controlcli.sweep_soon`) is the watcher's (`setaside.py`); `serve` here does not start it.
 * The re-diff for the final: `python -X utf8 tests/rustdiff/rediff_control.py --reference v0.6.26`.
+
+### The bridge review's fixes (seat bridgefix, branch `car-v0627-bridgefix`, 2026-11-25; REVIEW-bridge.md)
+
+* **B1, D15**: `bridge.rs` `unwound` is the unwind boundary of a request: `serve` answers a panic under a command (or under the
+  reading of the line, with a null id) with the generic refusal and reads the next line; `one_shot` answers it with the generic
+  refusal's JSON and exit 1, as `dispatch`'s `except Exception` and `_emit` do. The tests (`tests/review_bridge.rs`) panic through a
+  test host's policy-key read, not through any product path. car-words' `lock().expect` (`l10n.rs` 152, 290, 296) is not changed
+  here (another branch changed `l10n.rs`): the integration must make those process locks survive a poison
+  (`unwrap_or_else(PoisonError::into_inner)`), or the first panic caught while one is held makes every later `strings`/`describe`
+  panic (and so answer the generic refusal).
+* **S1**: an argument given as JSON text is read over the text's code points (`loads_text`: each lone surrogate stands in as a
+  private-use character the text holds neither raw nor as an escape, and is turned back in the result), so it parses and answers
+  as `json.loads` does. car-machine's `loads` takes a `&str`; a `loads` over a `Str` there would replace the stand-in.
+* **S2, the Host seam grew six methods**, one per operation: `file_id` (`st_ino`), `read_file` / `open_file` (Python's share mode,
+  `FILE_SHARE_READ | FILE_SHARE_WRITE`, never delete), `create_file` (`mkstemp`'s exclusive create), `replace` (`os.replace`) and
+  `rename` (`os.rename`). Every read and write of a file car-control makes goes through them (`seen.rs`, `oncewords.rs`,
+  `aside.rs`, `status.rs`, `tools.rs`, `homefind.rs`). `SystemHost`'s `replace` is std-only: a held target answers error 5, a folder
+  or junction at the name answers 5, and `rename` answers 183 for any existing name (a dangling junction included), the rule
+  car-machine's `pyfile` follows on car-v0627-fix4.
+  **Integration 6 must hand car-platform's `files::replace` and `files::rename` (fix4) to `SystemHost`'s `replace` and `rename`**
+  (the std-only versions stay for a host without them), and **car-platform needs one function this seat could not add**
+  (D3: std has no stable file index, and this seat may not touch car-platform): `files::file_index(path) -> Option<u128>`
+  (CreateFileW with FILE_READ_ATTRIBUTES and all shares, GetFileInformationByHandle, `nFileIndexHigh << 32 | nFileIndexLow`,
+  as `homelock::folder_identity` reads a folder's). `SystemHost::file_id` answers the file's creation time until then: a new file is
+  a new creation time, except that NTFS tunnelling gives a file renamed onto a name just deleted the old file's, which
+  `review_bridge.rs` `a_failure_seen_file_replaced_by_another_of_the_same_size_and_time_is_read_again` does, so that one test
+  stays red until `file_id` is the file index.
+* Notes fixed: the failure-seen stamp now holds the file id; `_observe_only` swallows `ControlError` and `StoreError` only; the
+  reply and its newline are one write; the diff harness resets the Interface-language preference for every stream.
+
