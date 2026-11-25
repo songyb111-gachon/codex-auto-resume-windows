@@ -48,5 +48,7 @@ car-platform = { path = "../car-platform" }
 # S4.1: car-engine's engine and car-scheduler's watch (src/engine.rs: `engine.open`, `engine.step`).
 car-engine = { path = "../car-engine" }
 car-scheduler = { path = "../car-scheduler" }
+# S5.1a: car-control's bridge (src/bridge.rs: `bridge.run`).
+car-control = { path = "../car-control" }
 # D5: serde to read (the harness's requests).
 serde_json = "1"

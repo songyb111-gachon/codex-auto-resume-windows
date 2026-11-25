@@ -4,6 +4,7 @@
 //! through car-machine's Python-compatible writer. Every later port seat adds its calls to `serve` and moves the real code into its own crate.
 
 pub mod appserver;
+pub mod bridge;
 pub mod classify;
 pub mod codex;
 pub mod defaults;

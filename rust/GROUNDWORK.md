@@ -950,3 +950,102 @@ them first survived and are what the four edge scenarios were added for.
   asks (the keys, then the verdicts); not built yet, so no trace uses them (test_once_words_engine is S4.2's to run).
 * car-policy's `Channel::send` and `Route::resume` take no launch guard; the reference hands both one. S7.2 adds it with
   the advanced plug.
+
+## The quiet bridge commands (seat S5.1a, branch `car-v0627-bridge5`, 2026-11-25)
+
+PLAN 5.3 row P5 / S5.1, first half: `car-control`'s quiet bridge commands and `serve`'s framing, ported from
+v0.6.26-beta.2 (`tests/rustdiff/reference.py`) and held to it by `tests/rustdiff/diffs_bridge*.py`. Nothing under `src/`,
+`advanced/`, `gui/`, `build/`, `scripts/` or `docs/` changes.
+
+### Which commands are quiet
+
+Quiet = the answer is read from the state, the settings, the store, Codex's files and the vocabulary, without the engine
+acting, the watcher running or a process starting. The few that write, write the settings file or a small file beside the
+state, never a recovery.
+
+| | commands |
+|---|---|
+| **ported** (14 of the 23 plain) | `status`, `settings`, `describe`, `defaults`, `pending`, `pending-all`, `history`, `dashboard`, `strings`, `failure-seen`, `plugin-copy`, `state-access`, `host-app`, `home-suggestion` |
+| **ported** (9 of the 28 with an argument) | `update`, `check-setting`, `conversation-message`, `home-dismiss`, `timeline`, `statistics`, `logs`, `preview-continuation`, `once-words` (its read form: no `text`) |
+| not quiet, S5.1b | plain: `start-watcher`, `stop-watcher` (start or signal a process), `clear-history`, `cancel-all` (`control.actions` write a recovery), `demo` (signals the icon's event), `power-action` (`control.poweraction`), `detection-check` and `rescan` (the watcher's own rules over Codex's files), `own-report` (below). With an argument: `enabled`, `cancel`, `reset-budget`, `retry-now`, `thread-enabled`, `cancel-thread`, `interruption-recovery`, `postpone`, `unpostpone`, `release-hold`, `thread-tier`, `project-rule`, `once-words` with `text` (all `control.actions`), `startup` (the Run key), `power-arm`, `power-disarm`, `compatibility`, `compat-import`, `compat-refresh` (S3.3's registry; the last starts a process), `diagnostics` (the checkup and the report) |
+| in scope, **not yet ported** | `own-report` and `diagnostics`' bundle: `ownreport/{document,evidence,reading}` (about 930 Python lines) and `diagnostics.py`. Both read only; they need `compat.SEND_GATE`, `VERIFIED`, `CHECKED` (car-machine has them), the compatibility view (S3.3, behind `Host::compat_view`) and, for the bundle, the checkup (the watcher's). A command not ported answers `unknown command` (the refusal for any command the bridge has none of), so a build of this crate must not be wired into the window until S5.1b and the two above are in |
+
+`control.wire` (`control/wire.py`) is types only: nothing imports it at run time, and `tests/test_wire_types.py` holds its
+keys to the goldens. Its Rust counterpart is the order and kind of every key in the replies built here, held by the 122 golden
+cases below; no struct is declared for it.
+
+### What is where
+
+| Python | `rust/crates/car-control/src/` |
+|---|---|
+| `controlcli.py`: `PLAIN`, `WITH_ARGUMENT`, `encode`, `_payload`, `_argument`, `_emit`, `statistics_days`, `_flag`, `dispatch`, `_plugged`, `serve`, the one-shot `main` after argparse | `bridge.rs`, `commands.rs` |
+| `control/errors.py` | `error.rs` (`ControlError`, `Failure::{Control, Other(class)}`, the five refusal tables, `identifier`, `thread_id`) |
+| `control/layer.py`, `state.py`, `policy.py` (`set_aside` too) | `layer.rs`, `aside.rs` |
+| `control/seen.py` | `seen.rs` |
+| `control/records.py` | `records.rs` |
+| `control/preview.py` | `preview.rs` |
+| `control/tools.py` (`search_logs`, `state_access`, `host_app`; not `show_demo`) | `tools.rs` |
+| `control/watcher.py`, its reading half (`_watcher`, `how_it_ended`, `get_status`, `plugin_copy`, `startup_enabled`, `homes_view`) and `control/poweraction.py`'s `read_file`/`power_view` | `status.rs` |
+| `oncewords.py` (all of it, writers too) | `oncewords.rs` |
+| `homefind.py` (the parts the control layer asks) | `homefind.rs` |
+
+### The seam: `host::Host`
+
+The control layer holds no Windows call (D3). Everything it asks of the machine is one trait, `Host` (a supertrait of
+car-store's `open::Windows`): `now`, `store_clock`, `os` (the settings' path questions), `version`, `codex_home`, `managed`
+(the policy keys), `environ`, `windows_languages`, `watcher_running`, `startup_value`, `boot`, `compat_view`, `state_access`,
+`host_app`, `edition_name`, `superseded`, `installed`, `account_codex_home`, `app_homes`, `local_clock`, `is_symlink`, `lock`.
+`SystemHost` answers them over car-platform and car-config; the entry point (car-bin, S5.2) builds one. What it does not
+answer yet, and the integration seat must:
+
+* `compat_view` returns `null`: `compatio.reader_view` is S3.3's (`car-codex` `compat/*`). `homes_view` reads the Codex
+  version out of it only while another Codex home is configured; with `null` it is as if no report could be read.
+* `managed` returns none: the policy keys (`registry_reads::read_policies` into `managed::parse`, only for an installed
+  copy) are wired in the harness's `policy.rs` `registry_places`, not here.
+* `startup_value` returns none: `startup::current_value(&WinRegistry::current_user())`.
+* `local_clock` is `localclock::UtcClock`: car-platform has no reader of the account's time zone yet. A `{reset_time}` in a
+  previewed message is written on it; the reference writes it on the zone Windows reports.
+* `windows_languages` returns none: the user's preferred UI languages (`GetUserPreferredUILanguages`) are not in car-platform.
+* `superseded` returns false and `version` reads the plugin manifest at `project_root`.
+
+The harness's `WorldHost` (`car-harness/src/bridge.rs`) answers all of them from a JSON world, and
+`tests/rustdiff/bridgeworld.py` patches the same answers into the tag's modules (`SCRIPT`), so both sides answer for one machine.
+
+### The proofs (reference v0.6.26-beta.2, release harness, `run.py -k diffs_bridge`)
+
+```
+python -X utf8 tests/rustdiff/run.py -v -k diffs_bridge     Ran 29 tests in 1450 s, OK
+  FramingDiff 4        the goldens' 11 framing cases, 60 request streams, 400 requests, a bad byte past the first 8 KiB chunk
+  GoldenCasesDiff 1    122 of the wire goldens' cases, 23 quiet commands, the watcher running and not
+  WorldDiff 8          watcher x Run value, Run values that belong to the home, 7 sets of administrator's keys, install lock x superseded,
+                       11 language/environment worlds, host-app x access (36), the compatibility view with Codex homes (6), the installed copy's home suggestion
+  DamagedDiff 10       no home / no state, unreadable states, other schemas, v0.6.10 and v0.6.13 states with and without the install lock,
+                       17 settings files, 14 failure-seen files, 9 logs x 17 queries, 20 once-words files, 1,500 records
+  WriterDiff 3         update (33 shapes), check-setting, conversation-message (past the limit of 50), preview-continuation (8 languages)
+  EdgesDiff 4          statistics days, timeline ids, the lists in each watcher state, the one-shot form (24 shapes)
+cargo test -p car-control   8 unit tests (command lists, the set-aside stamp, splitlines, payload, the wire's candidates, days and flags, ids, refusals)
+```
+
+Found by the diffs and fixed here (not in the reference): none in car-control's answers; four faults of the diffs themselves (a home's key hashes its path, so
+each side now runs at one path; the harness needs the reference's scratch environment because the real mutex is named from the user's home folder; a lone
+surrogate cannot be encoded into a request stream; the one-shot form of a plain command takes no argument).
+
+Mutation checks (a rule broken in car-control, the dev harness rebuilt, the named diff run; each one fails it, the source restored after): the
+byte order mark no longer stripped from a request line and an empty text argument no longer "no argument" (`FramingDiff`); the log search
+folding case with `lower()` instead of `casefold()` (`DamagedDiff.test_logs`); the failure-seen file's size limit 4096 -> 8192
+(`DamagedDiff.test_failure_seen_files`; the first run did NOT catch it - no file past the limit held a seen time the next acknowledgement would
+keep - so three cases of exactly 4,096, 4,097 and 9,000 bytes were added, and it then failed); the administrator's refusal sentence changed
+(`WorldDiff.test_managed_keys`); the heartbeat's staleness 180 s -> 0.5 s (`GoldenCasesDiff`); the statistics bound 3650 -> 3651
+(`EdgesDiff`).
+
+
+### For the next seats
+
+* **S5.1b** (the rest of `controlcli`): add each command to `commands.rs::run` and the actions to `layer.rs`'s `Control`; the
+  `Host` has what they need except the registry writer, the process starter and the icon's events. Nothing here sends.
+* **S5.2 / car-bin**: `bridge::serve(&control, &mut stdin, &mut stdout)` and `bridge::one_shot(&control, argv, stdin, stdout)` are
+  `bridge serve` and `bridge <command> [-]`; argparse (usage errors, `--home`) and the choice of `SystemHost` are the binary's.
+  `serve` reads 8192-byte chunks like Python's text stream and ends with code 1 where Python's loop would die (bytes that are not
+  UTF-8; a reply or id holding half of a surrogate pair), after answering the lines before it.
+* **P6**: the set-aside sweep (`controlcli.sweep_soon`) is the watcher's (`setaside.py`); `serve` here does not start it.
+* The re-diff for the final: `python -X utf8 tests/rustdiff/rediff_control.py --reference v0.6.26`.
