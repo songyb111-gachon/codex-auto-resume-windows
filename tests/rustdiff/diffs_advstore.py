@@ -828,6 +828,78 @@ class ProfilesDiff(Base):
             twin.close()
 
 
+def sealed_profiles(texts: dict):
+    """Profiles written as a hand or another build could leave them: sealed with the stand-in, JSON as given."""
+    def make(home: Path) -> None:
+        folder = home / "accounts"
+        folder.mkdir(parents=True, exist_ok=True)
+        for name, text in texts.items():
+            (folder / name).write_bytes(b"SEALED:" + text.encode("utf-8"))
+    return make
+
+
+def _auth(text: str) -> str:
+    import base64
+    return base64.b64encode(text.encode("utf-8")).decode("ascii")
+
+
+LENIENT = {
+    "0000000000000a01.dat": '{"auth": "%s", "email": "nan@example.com", "plan": "plus", "used_at": NaN, '
+                            '"exhausted_until": Infinity, "failed_at": null, "seen_at": -Infinity, "unread_at": 1e999, '
+                            '"usage": {"read_at": 5, "available": true, "most_used": NaN, "five_hour": {"used": NaN, '
+                            '"resets_at": Infinity}, "weekly": {"used": -Infinity}}}' % _auth('{"tokens": {"id": "x"}}'),
+    "0000000000000a02.dat": '{"auth": "%s", "email": "a\\ud800b@ex\\udc00ample.com", "plan": "\\udfff", "used_at": 5}'
+                            % _auth('{"tokens": "\\ud83d"}'),
+    "0000000000000a03.dat": '{"auth": "%s", "email": "deep@example.com", "plan": "plus", "usage": %s1%s}'
+                            % (_auth('{"a": %s1%s}' % ("[" * 1500, "]" * 1500)), "[" * 900, "]" * 900),
+    "0000000000000a05.dat": '{"auth": "%s", "email": "big@example.com", "used_at": %s}' % (_auth('{"a": 1}'), "9" * 5000),
+    "0000000000000a06.dat": '{"auth": "%s", "email": "auth-nan@example.com"}' % _auth('{"tokens": NaN, "n": -Infinity}'),
+    "switch.intent": '{"from": "0000000000000a01", "to": "0000000000000a02", "at": NaN, "step": "swap", "tries": Infinity}',
+    "switch.last": '{"email": "a\\ud800b@ex\\udc00ample.com", "at": 5}',
+}
+DEEP = {
+    "0000000000000a01.dat": LENIENT["0000000000000a01.dat"],
+    "0000000000000a04.dat": '{"auth": "%s", "email": "deeper@example.com", "usage": %s1%s}'
+                            % (_auth('{"a": 1}'), "[" * 100000, "]" * 100000),
+    "usage.read": '{"at": %s1%s}' % ("[" * 100000, "]" * 100000),
+    "switch.intent": '{"at": %s1%s}' % ("[" * 100000, "]" * 100000),
+}
+
+
+class LenientProfilesDiff(Base):
+    """What `json.loads` reads that serde would not: NaN, the infinities, half a surrogate pair, an int past the
+    float's range and of 5,000 digits, deep nesting - read, shown, found, rewritten and refused as the tag does."""
+
+    def test_lenient(self):
+        ids = ["0000000000000a0%d" % index for index in (1, 2, 3, 5, 6)]
+        ops = [profiles("ids"), profiles("view"), profiles("intent"), profiles("last_switch_at")]
+        ops += [profiles("get", each) for each in ids]
+        ops += [profiles("find", "NAN@example.com"), profiles("find", "A\ud800B@EX\udc00AMPLE.COM"),
+                profiles("find", "nobody@example.com"), profiles("switched_to", "A\ud800B@EX\udc00AMPLE.COM", 0),
+                profiles("fn.mask", "a\ud800b@ex\udc00ample.com"),
+                profiles("update", "0000000000000a01", seen_at=7), profiles("get", "0000000000000a01"),
+                profiles("update", "0000000000000a02", plan="pro"), profiles("get", "0000000000000a02"),
+                profiles("save", list(b'{"tokens": NaN}'), "fresh@example.com", None), profiles("view")]
+        ops = [json.loads(json.dumps(entry).replace("\\ud800", "\ud800").replace("\\udc00", "\udc00"))
+               for entry in ops]
+        twin = Twin(sealed_profiles(LENIENT))
+        try:
+            self.same(twin, request(ops), "lenient profiles")
+        finally:
+            twin.close()
+        deep = [profiles("ids"), profiles("view"), profiles("get", "0000000000000a04"), profiles("find", "x@y.z"),
+                profiles("read_now_at"), profiles("intent"), profiles("delete_all"),
+                profiles("save", list(b'{"a": %s1%s}' % (b"[" * 100000, b"]" * 100000)), "x@y.z", None)]
+        twin = Twin(sealed_profiles(DEEP))
+        try:
+            self.same(twin, request(deep), "deep profiles")
+        finally:
+            twin.close()
+        RECORD.append("lenient profiles: %d calls over sealed files holding NaN, the infinities, half surrogate pairs, "
+                      "5,000-digit ints and nesting of 900 and 1,500 levels, and %d more where the nesting is too "
+                      "deep (RecursionError): equal" % (len(ops), len(deep)))
+
+
 PNG = list(b"\x89PNG\r\n\x1a\n" + b"\0" * 20)
 GIF = list(b"GIF89a" + b"\1" * 10)
 

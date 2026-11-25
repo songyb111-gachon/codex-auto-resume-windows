@@ -23,7 +23,7 @@ use car_adv::state::seam::accounts::{Failure, Host};
 use car_adv::state::seam::registry::{Listed, Registry, Shipped};
 use car_adv::state::{AdvancedState, Error};
 use car_adv::watchlog;
-use car_machine::json::{Map, Options, Str, Value, from_str, to_string};
+use car_machine::json::{Map, Str, Value};
 
 #[derive(Debug)]
 struct Links;
@@ -146,7 +146,7 @@ fn profiles_call(store: &Profiles, name: &str, call: Call<'_>) -> Value {
             "ids" => Value::Array(store.ids().iter().map(|id| text(id)).collect()),
             "get" => Value::Object(store.get(&arg(0, "profile_id"))?),
             "find" => store
-                .find(&arg(0, "email"))
+                .find(&arg(0, "email"))?
                 .map_or(Value::Null, |id| text(&id)),
             "save" => {
                 text(&store.save(&bytes(arg(0, "data")), &arg(1, "email"), &arg(2, "plan"))?)
@@ -157,13 +157,13 @@ fn profiles_call(store: &Profiles, name: &str, call: Call<'_>) -> Value {
             }
             "delete" => Value::Bool(store.delete(&arg(0, "profile_id"))),
             "delete_all" => car_adv::state::py::int(store.delete_all(None)?),
-            "view" => rows(store.view()),
-            "read_now_at" => store.read_now_at(),
+            "view" => rows(store.view()?),
+            "read_now_at" => store.read_now_at()?,
             "note_read_now" => {
                 store.note_read_now(car_adv::state::py::as_f64(&arg(0, "at")).unwrap_or(0.0))?;
                 Value::Null
             }
-            "intent" => store.intent(),
+            "intent" => store.intent()?,
             "begin" => {
                 store.begin(
                     &arg(0, "source"),
@@ -180,7 +180,7 @@ fn profiles_call(store: &Profiles, name: &str, call: Call<'_>) -> Value {
                 store.end();
                 Value::Null
             }
-            "last_switch_at" => store.last_switch_at(),
+            "last_switch_at" => store.last_switch_at()?,
             "attempts" => store.attempts()?,
             "note_attempts" => {
                 let times: Vec<i64> = match arg(0, "times") {
@@ -198,7 +198,7 @@ fn profiles_call(store: &Profiles, name: &str, call: Call<'_>) -> Value {
                 )?;
                 Value::Null
             }
-            "switched_to" => Value::Bool(store.switched_to(&arg(0, "identity"), &arg(1, "after"))),
+            "switched_to" => Value::Bool(store.switched_to(&arg(0, "identity"), &arg(1, "after"))?),
             "state" => match arg(0, "found") {
                 Value::Object(found) => text(store.state(
                     &found,
@@ -208,7 +208,7 @@ fn profiles_call(store: &Profiles, name: &str, call: Call<'_>) -> Value {
             },
             "fn.reading" => profiles::reading(&arg(0, "value")),
             "fn.mask" => car_adv::state::seam::accounts::mask(&arg(0, "email"))
-                .map_or(Value::Null, |m| text(&m)),
+                .map_or(Value::Null, Value::Str),
             "fn.is_id" => {
                 Value::Bool(car_adv::state::py::text(&arg(0, "text")).is_some_and(profiles::is_id))
             }
@@ -334,9 +334,22 @@ fn ledger_call(state: &AdvancedState, home: &Path, op: &Map) -> Value {
 }
 
 fn main() {
+    // Values nest as deep as Python's json.loads takes them (about 3,000 levels): the work runs on a stack of its own
+    // with room for that, as a watcher thread of the product would be given.
+    let worker = std::thread::Builder::new()
+        .stack_size(256 * 1024 * 1024)
+        .spawn(run)
+        .expect("the harness thread");
+    if worker.join().is_err() {
+        std::process::exit(101);
+    }
+}
+
+fn run() {
     let request_path = std::env::args().nth(1).expect("a request file");
     let request = std::fs::read_to_string(&request_path).expect("the request");
-    let Value::Object(request) = from_str(&request).expect("a JSON request") else {
+    let Value::Object(request) = car_machine::compat::loads(&request).expect("a JSON request")
+    else {
         panic!("the request is a JSON object");
     };
     let home = PathBuf::from(car_machine::pytext::py_str(get(&request, "home")));
@@ -484,7 +497,7 @@ fn main() {
             raised("AttributeError", "no such operation", None)
         }));
         let line = result.unwrap_or_else(|_| raised("Panic", "the harness panicked", None));
-        out.push_str(&to_string(&line, &Options::wire()).unwrap_or_default());
+        out.push_str(&profiles::dumps(&line, false).unwrap_or_default());
         out.push('\n');
     }
     state.close();

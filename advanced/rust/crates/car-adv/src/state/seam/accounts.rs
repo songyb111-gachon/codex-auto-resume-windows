@@ -8,7 +8,7 @@
 
 use std::path::{Path, PathBuf};
 
-use car_machine::json::Value;
+use car_machine::json::{Str, Value};
 
 /// `authfile.LIMIT`.
 pub const LIMIT: usize = 64 * 1024;
@@ -46,11 +46,16 @@ pub fn check(data: &[u8]) -> Result<Vec<u8>, Failure> {
     let Ok(text) = std::str::from_utf8(data) else {
         return Err(Failure("not a sign-in file".into()));
     };
-    match car_machine::json::from_str(text) {
+    match car_machine::compat::loads(text) {
         Ok(Value::Object(map)) if !map.is_empty() => Ok(data.to_vec()),
+        Err(car_machine::compat::LoadsError::Recursion) => Err(Failure(RECURSION.into())),
         _ => Err(Failure("not a sign-in file".into())),
     }
 }
+
+/// The sentence of a [`Failure`] that is Python's RecursionError (a document nested past the interpreter's limit),
+/// which no `except` of the reference's catches.
+pub const RECURSION: &str = "maximum recursion depth exceeded";
 
 /// `authfile.confined(directory)`: no link or junction, and it resolves where it stands under its own parent.
 pub fn confined(directory: &Path) -> bool {
@@ -131,26 +136,43 @@ pub fn write_atomic(host: &dyn Host, path: &Path, data: &[u8]) -> Result<(), Fai
     outcome.map_err(|error| Failure(error.to_string()))
 }
 
-/// `account.mask(email)`: the address as the card shows it, or None for anything that is not one.
-pub fn mask(email: &Value) -> Option<String> {
-    let text = match email {
-        Value::Str(text) => text.as_str()?,
-        _ => return None,
+/// `account.mask(email)`: the address as the card shows it, or None for anything that is not one - by code points,
+/// so half a surrogate pair is kept as Python keeps it.
+pub fn mask(email: &Value) -> Option<Str> {
+    let Value::Str(text) = email else {
+        return None;
     };
-    if text.matches('@').count() != 1 {
+    let points: Vec<u32> = text.code_points().collect();
+    let at = u32::from(b'@');
+    if points.iter().filter(|point| **point == at).count() != 1 {
         return None;
     }
-    let stripped = car_machine::pytext::strip(text);
-    let (local, domain) = stripped.split_once('@')?;
-    if local.is_empty() || domain.is_empty() || domain.starts_with('.') || domain.ends_with('.') {
+    let space = |point: &u32| char::from_u32(*point).is_some_and(car_machine::pytext::is_space);
+    let start = points
+        .iter()
+        .position(|point| !space(point))
+        .unwrap_or(points.len());
+    let end = points
+        .iter()
+        .rposition(|point| !space(point))
+        .map_or(start, |index| index + 1);
+    let stripped = &points[start..end.max(start)];
+    let split = stripped.iter().position(|point| *point == at)?;
+    let (local, domain) = (&stripped[..split], &stripped[split + 1..]);
+    let dot = u32::from(b'.');
+    if local.is_empty() || domain.is_empty() || domain[0] == dot || domain[domain.len() - 1] == dot
+    {
         return None;
     }
-    let labels: Vec<&str> = domain.split('.').collect();
-    let first = |text: &str| text.chars().next().map(String::from).unwrap_or_default();
-    let mut shown = format!("{}{HIDDEN}@{}{HIDDEN}", first(local), first(labels[0]));
+    let labels: Vec<&[u32]> = domain.split(|point| *point == dot).collect();
+    let mut shown: Vec<u32> = vec![local[0]];
+    shown.extend(HIDDEN.chars().map(u32::from));
+    shown.push(at);
+    shown.extend(labels[0].iter().take(1));
+    shown.extend(HIDDEN.chars().map(u32::from));
     if labels.len() > 1 {
-        shown.push('.');
-        shown.push_str(labels[labels.len() - 1]);
+        shown.push(dot);
+        shown.extend(labels[labels.len() - 1]);
     }
-    Some(shown)
+    Str::from_code_points(shown)
 }

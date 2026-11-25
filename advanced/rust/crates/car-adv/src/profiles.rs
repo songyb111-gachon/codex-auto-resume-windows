@@ -67,9 +67,83 @@ impl std::error::Error for ProfileError {}
 pub type Result<T> = std::result::Result<T, ProfileError>;
 
 fn auth_error(failure: Failure) -> ProfileError {
+    if failure.0 == accounts::RECURSION {
+        return recursion();
+    }
     ProfileError {
         class: "AuthFileError",
         message: failure.0,
+    }
+}
+
+/// `except ProfileError`: what the reference catches - never the RecursionError or TypeError that pass through it.
+fn caught(error: &ProfileError) -> bool {
+    !matches!(error.class, "RecursionError" | "TypeError")
+}
+
+fn recursion() -> ProfileError {
+    ProfileError {
+        class: "RecursionError",
+        message: accounts::RECURSION.into(),
+    }
+}
+
+/// Stand-ins for the floats `json.dumps` writes as `NaN`, `Infinity` and `-Infinity` (its default `allow_nan=True`),
+/// which car-machine's writer refuses: written as these words, then put back as Python's literals.
+const NOT_FINITE: [(&str, &str); 3] = [
+    ("\u{e000}car-adv NaN\u{e000}", "NaN"),
+    ("\u{e000}car-adv Infinity\u{e000}", "Infinity"),
+    ("\u{e000}car-adv -Infinity\u{e000}", "-Infinity"),
+];
+
+fn finite(value: &Value) -> Value {
+    match value {
+        Value::Float(number) if !number.is_finite() => {
+            let index = if number.is_nan() {
+                0
+            } else if *number > 0.0 {
+                1
+            } else {
+                2
+            };
+            string(NOT_FINITE[index].0)
+        }
+        Value::Array(items) => Value::Array(items.iter().map(finite).collect()),
+        Value::Object(map) => Value::Object(
+            map.iter()
+                .map(|(key, item)| (key.clone(), finite(item)))
+                .collect(),
+        ),
+        other => other.clone(),
+    }
+}
+
+/// `json.dumps(value, sort_keys=True)`: ASCII only, keys sorted, NaN and the infinities as Python writes them.
+pub fn dumps_sorted(value: &Value) -> Result<String> {
+    dumps(value, true)
+}
+
+/// `json.dumps(value, sort_keys=...)` with its default `allow_nan=True`.
+pub fn dumps(value: &Value, sort: bool) -> Result<String> {
+    let failed = |error: car_machine::json::Error| ProfileError {
+        class: "ValueError",
+        message: error.to_string(),
+    };
+    let mut text = car_machine::json::to_string(&finite(value), &Options::new().sort_keys(sort))
+        .map_err(failed)?;
+    for (stand_in, literal) in NOT_FINITE {
+        let written =
+            car_machine::json::to_string(&string(stand_in), &Options::new()).map_err(failed)?;
+        text = text.replace(&written, literal);
+    }
+    Ok(text)
+}
+
+/// `text.lower()` of a `str`, by code points.
+fn lowered(value: &Value) -> Option<Vec<u32>> {
+    match value {
+        Value::Str(text) => Some(car_policy::classify::text::lower(text)),
+        _ => None,
     }
 }
 
@@ -199,12 +273,7 @@ impl Profiles {
     // ------------------------------------------------------------------ sealed files
     fn write(&self, name: &str, value: &Value) -> Result<()> {
         accounts::own_folder(self.host.as_ref(), &self.directory).map_err(auth_error)?;
-        let text = car_machine::json::to_string(value, &Options::new().sort_keys(true)).map_err(
-            |error| ProfileError {
-                class: "ValueError",
-                message: error.to_string(),
-            },
-        )?;
+        let text = dumps_sorted(value)?;
         let sealed = self
             .host
             .seal(text.as_bytes())
@@ -235,8 +304,11 @@ impl Profiles {
             .map_err(|_| ProfileError::new("a profile cannot be opened"))?;
         let text = std::str::from_utf8(&opened)
             .map_err(|_| ProfileError::new("a profile cannot be opened"))?;
-        match car_machine::json::from_str(text) {
+        // `json.loads` as Python reads it: NaN, Infinity, half a surrogate pair and an int of any size are values; a
+        // document nested past the interpreter's limit is the RecursionError the reference does not catch.
+        match car_machine::compat::loads(text) {
             Ok(Value::Object(map)) => Ok(Some(map)),
+            Err(car_machine::compat::LoadsError::Recursion) => Err(recursion()),
             _ => Err(ProfileError::new("a profile cannot be opened")),
         }
     }
@@ -292,39 +364,45 @@ impl Profiles {
         let Some(decoded) = decoded else {
             return Err(ProfileError::new("a profile cannot be opened"));
         };
-        let checked = accounts::check(&decoded)
-            .map_err(|_| ProfileError::new("a profile cannot be opened"))?;
+        let checked = accounts::check(&decoded).map_err(|failure| {
+            if failure.0 == accounts::RECURSION {
+                recursion()
+            } else {
+                ProfileError::new("a profile cannot be opened")
+            }
+        })?;
         value.insert(Str::new("auth"), bytes_value(&checked));
         value.insert(Str::new("id"), string(id));
         Ok(value)
     }
 
     /// `find(email)`: the id of the profile saved for `email` (any case), or None.
-    pub fn find(&self, email: &Value) -> Option<String> {
-        let wanted = py::text(email).map(str::to_lowercase);
+    pub fn find(&self, email: &Value) -> Result<Option<String>> {
+        let wanted = lowered(email);
         for id in self.ids() {
-            let Ok(found) = self.get(&string(&id)) else {
-                continue;
+            let found = match self.get(&string(&id)) {
+                Ok(found) => found,
+                Err(error) if caught(&error) => continue,
+                Err(error) => return Err(error),
             };
-            if let (Some(wanted), Some(Value::Str(saved))) = (&wanted, found.get("email"))
+            if let Some(wanted) = &wanted
                 && !wanted.is_empty()
-                && saved
-                    .as_str()
-                    .is_some_and(|saved| saved.to_lowercase() == *wanted)
+                && found.get("email").and_then(lowered).as_ref() == Some(wanted)
             {
-                return Some(id);
+                return Ok(Some(id));
             }
         }
-        None
+        Ok(None)
     }
 
     /// `save(data, email, plan)`: `data` kept as the profile of `email`; its id.
     pub fn save(&self, data: &[u8], email: &Value, plan: &Value) -> Result<String> {
         accounts::check(data).map_err(auth_error)?;
-        if !py::text(email).is_some_and(|email| email.contains('@')) {
+        if !matches!(email, Value::Str(text) if text.code_points().any(|point| point == u32::from(b'@')))
+        {
             return Err(ProfileError::new("an account is saved by its address"));
         }
-        let (id, kept) = match self.find(email) {
+        let (id, kept) = match self.find(email)? {
             None => {
                 if self.ids().len() >= MOST {
                     return Err(ProfileError::new("too many profiles"));
@@ -383,7 +461,7 @@ impl Profiles {
     /// `delete_all(codex_home=None)`: every saved account taken away, with the intent, the last switch's stamp and
     /// whatever plain sign-in file a kill left; how many accounts went. PutBackWaits where a put-back waits.
     pub fn delete_all(&self, codex_home: Option<&Path>) -> Result<i64> {
-        if !self.host.unwind(&self.intent(), codex_home) {
+        if !self.host.unwind(&self.intent()?, codex_home) {
             return Err(ProfileError {
                 class: "PutBackWaits",
                 message: "a put-back waits".into(),
@@ -420,12 +498,13 @@ impl Profiles {
     }
 
     /// `view()`: what a person may see of each profile.
-    pub fn view(&self) -> Vec<Row> {
+    pub fn view(&self) -> Result<Vec<Row>> {
         let mut shown = Vec::new();
         for id in self.ids() {
             let mut entry = Row::new();
             entry.insert(Str::new("id"), string(&id));
             match self.get(&string(&id)) {
+                Err(error) if !caught(&error) => return Err(error),
                 Err(_) => {
                     entry.insert(Str::new("mask"), Value::Null);
                     entry.insert(Str::new("plan"), Value::Null);
@@ -451,7 +530,7 @@ impl Profiles {
                     };
                     entry.insert(
                         Str::new("mask"),
-                        accounts::mask(&field("email")).map_or(Value::Null, |m| string(&m)),
+                        accounts::mask(&field("email")).map_or(Value::Null, Value::Str),
                     );
                     entry.insert(Str::new("plan"), field("plan"));
                     entry.insert(Str::new("state"), string(self.state(&found, None)));
@@ -463,14 +542,16 @@ impl Profiles {
             }
             shown.push(entry);
         }
-        shown
+        Ok(shown)
     }
 
     /// `read_now_at()`: when the card's Read usage last began, or None.
-    pub fn read_now_at(&self) -> Value {
+    pub fn read_now_at(&self) -> Result<Value> {
         match self.read(READS) {
-            Ok(Some(found)) => whole(found.get("at").unwrap_or(&Value::Null)),
-            _ => Value::Null,
+            Ok(Some(found)) => Ok(whole(found.get("at").unwrap_or(&Value::Null))),
+            Ok(None) => Ok(Value::Null),
+            Err(error) if caught(&error) => Ok(Value::Null),
+            Err(error) => Err(error),
         }
     }
 
@@ -483,14 +564,15 @@ impl Profiles {
 
     // ------------------------------------------------------------------ a switch under way, and the last one
     /// `intent()`: the switch under way, None, or {"damaged": True}.
-    pub fn intent(&self) -> Value {
+    pub fn intent(&self) -> Result<Value> {
         match self.read(INTENT) {
-            Ok(found) => found.map_or(Value::Null, Value::Object),
-            Err(_) => {
+            Ok(found) => Ok(found.map_or(Value::Null, Value::Object)),
+            Err(error) if caught(&error) => {
                 let mut damaged = Map::new();
                 damaged.insert(Str::new("damaged"), Value::Bool(true));
-                Value::Object(damaged)
+                Ok(Value::Object(damaged))
             }
+            Err(error) => Err(error),
         }
     }
 
@@ -538,10 +620,12 @@ impl Profiles {
     }
 
     /// `last_switch_at()`.
-    pub fn last_switch_at(&self) -> Value {
+    pub fn last_switch_at(&self) -> Result<Value> {
         match self.read(LAST) {
-            Ok(Some(found)) => whole(found.get("at").unwrap_or(&Value::Null)),
-            _ => Value::Null,
+            Ok(Some(found)) => Ok(whole(found.get("at").unwrap_or(&Value::Null))),
+            Ok(None) => Ok(Value::Null),
+            Err(error) if caught(&error) => Ok(Value::Null),
+            Err(error) => Err(error),
         }
     }
 
@@ -581,21 +665,26 @@ impl Profiles {
     }
 
     /// `switched_to(identity, after)`.
-    pub fn switched_to(&self, identity: &Value, after: &Value) -> bool {
-        let Ok(Some(last)) = self.read(LAST) else {
-            return false;
+    pub fn switched_to(&self, identity: &Value, after: &Value) -> Result<bool> {
+        let last = match self.read(LAST) {
+            Ok(Some(last)) => last,
+            Ok(None) => return Ok(false),
+            Err(error) if caught(&error) => return Ok(false),
+            Err(error) => return Err(error),
         };
-        let Some(identity) = py::text(identity) else {
-            return false;
-        };
-        let (Some(Value::Str(email)), Some(at @ Value::Int(_))) =
+        let (Some(email @ Value::Str(_)), Some(at @ Value::Int(_))) =
             (last.get("email"), last.get("at"))
         else {
-            return false;
+            return Ok(false);
         };
-        email.as_str() == Some(identity.to_lowercase().as_str())
-            && py::is_number(after)
-            && car_machine::pyval::less_or_equal(after, at).unwrap_or(false)
+        let Some(identity) = lowered(identity) else {
+            return Ok(false);
+        };
+        Ok(
+            email == &Value::Str(Str::from_code_points(identity).unwrap_or_default())
+                && py::is_number(after)
+                && car_machine::pyval::less_or_equal(after, at).unwrap_or(false),
+        )
     }
 }
 

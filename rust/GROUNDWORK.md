@@ -542,7 +542,7 @@ same crate at the same time: this seat's `lib.rs` lines are `pub mod state; imag
 | `state/arming.py` ... `steers.py` | `state::{arming, spend, records, journal, choices, resets, continuations, prompts, meter, runs, chat, analytics}`, `state::small` (restarts, opens, account, steers) |
 | `Scoped` and the eleven handles | `state::scoped` (`Scoped`, `Handle`) |
 | the call surface by name | `state::calls::{call, scoped_call}`: every method with Python's positional/keyword binding, the answers as the reference's runner writes them |
-| `ledger.py`, `watchlog.py`, `profiles.py`, `images.py` | `ledger` (`ClaimLedger`, `Answer`), `watchlog`, `profiles` (`Profiles`, base64 of Python's `validate=True`), `images` |
+| `ledger.py`, `watchlog.py`, `profiles.py`, `images.py` | `ledger` (`ClaimLedger`, `Answer`), `watchlog`, `profiles` (`Profiles`, base64 of Python's `validate=True`; read with car-machine's `compat::loads` - `json.loads` exactly: NaN, the infinities, lone surrogates, any int, the nesting limit's RecursionError - and written as `json.dumps` writes NaN; addresses compared and masked by code points), `images` |
 
 The methods take Python-model values (`car_machine::json::Value`) wherever the reference checks a value's type itself,
 so a wrong type is refused with the same class and sentence; values are read and bound as car-store reads and binds
@@ -596,7 +596,7 @@ car-config markers' line ends (`advstore.KNOWN`). For S1.1/the integration: car-
 python -X utf8 rust/tools/check_groundwork.py        rust groundwork: OK (17 standard crates, 3 advanced crates)
 bash advanced/rust/tools/check_rebuild.sh HEAD       all 7 standard binaries the same with and without advanced/; profile-path scan: none
 python -X utf8 tests/rustdiff/gen_advstore.py --check   generated files (schema, words, registry) match v0.6.26-beta.2
-diffs_advstore (release advstore.exe)                Ran 15 tests in 724 s, OK
+diffs_advstore (release advstore.exe)                Ran 15 tests in 724 s, OK; then LenientProfilesDiff added (16), run with ProfilesDiff: OK
 ```
 
 The 15 diffs: generated 1; fresh (50 reads with no file, nothing made, then the first write); migrations (files made by the own
@@ -612,3 +612,5 @@ Mutation checks (each broken alone on a debug build, its diff run, restored): th
 choice of the default stored instead of its row taken away (ChoicesDiff, the file); a second resend allowed (LedgerDiff, op 4);
 the old words bound read as 8193 (MigrationDiff, v0.6.11-alpha's file); a profile id in capitals (ProfilesDiff, op 41); webp not a
 picture (ImagesDiff, op 2); WATCH_LIMIT 96 (ChoicesDiff.test_watch_limit). Each failed; all pass restored.
+
+The harness runs on a 256 MiB stack: values nest as deep as `json.loads` takes them (about 3,000 levels) and Value's clone and drop recurse; the entry points must give the threads that read profiles a stack with that room.

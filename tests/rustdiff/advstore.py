@@ -218,7 +218,7 @@ for op in request.get("ops", []):
     except Exception as exc:
         lines.append(raised(exc))
 state.close()
-sys.stdout.write("".join(json.dumps(line, ensure_ascii=False) + "\n" for line in lines))
+sys.stdout.write("".join(json.dumps(line) + "\n" for line in lines))
 '''
 
 
@@ -337,7 +337,7 @@ def dump_home(home: Path) -> dict:
         elif data.startswith(b"SEALED:"):
             try:
                 found[relative] = {"unsealed": json.loads(data[len(b"SEALED:"):].decode("utf-8"))}
-            except ValueError:
+            except (ValueError, RecursionError):
                 found[relative] = {"unsealed bytes": data[len(b"SEALED:"):].hex()}
         else:
             found[relative] = hashlib.sha256(data).hexdigest()
