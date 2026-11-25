@@ -10,6 +10,7 @@ pub mod engine;
 pub mod judge;
 pub mod leaves;
 pub mod links;
+pub mod plugscript;
 pub mod policy;
 pub mod proxy;
 pub mod store;

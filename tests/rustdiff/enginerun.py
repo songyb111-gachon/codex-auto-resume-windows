@@ -202,6 +202,147 @@ class Recorder:
         return self.sim.delete_queue(thread_id, queue_id)
 
 
+class ScriptRaise(Exception):
+    """A scripted hook that fails: the reference's `consult` and car-policy's `Guarded` both give NULL's answer in its
+    place."""
+
+
+class ScriptPanic(Exception):
+    """A scripted hook that panics (D15): on the reference's side it is an exception like any other."""
+
+
+def norm(value):
+    """What a hook was handed, as the trace holds it: sets as sorted lists, enums as their words, tuples as lists."""
+    if isinstance(value, dict):
+        return {str(key): norm(each) for key, each in value.items()}
+    if isinstance(value, (set, frozenset)):
+        return sorted(norm(each) for each in value)
+    if isinstance(value, (list, tuple)):
+        return [norm(each) for each in value]
+    if isinstance(value, str) and type(value) is not str:
+        return str(getattr(value, "value", value))          # a str enum's word
+    return value
+
+
+class Script:
+    """The scripted plug's answers (review 6, S3), one object for both sides: the reference's Engine is handed a
+    `domain.plug.Plug` that asks it, and car-engine's plug asks it back over the pipe (`plug.<hook>`).
+
+    `spec` = {"wants": [point words the plug wants], "rules": {hook: [rule, ...]}}; a hook is one of gate, text, outcome,
+    schedule, moved, delivery, unloaded, admission, sessions, eligibility, notice, sender. A rule is
+    {"when": {fact: value, ...}, "answer": A, "skip": k, "times": n}: the first rule whose `when` all hold - the facts
+    are the record's fields beside `name` (gate), `to` (moved), `outcome` (outcome) and `due_at` (schedule) - and whose
+    `times` is not used up answers; no rule is DEFER (null). A is a word, a text, a list, null, "raise" (the hook fails)
+    or "panic" (it panics). Every question is written down in `calls`, with its answer, so the two sides' questions are
+    compared as the backend's calls are."""
+
+    def __init__(self, spec, calls):
+        self.calls, self.wants_, self.rules = calls, set(), {}
+        self.set(spec)
+
+    def set(self, spec):
+        if "wants" in spec:
+            self.wants_ = set(spec["wants"])
+        if "rules" in spec:
+            self.rules = {hook: [dict(rule, seen=0) for rule in rules] for hook, rules in spec["rules"].items()}
+
+    @staticmethod
+    def facts(hook, args):
+        record = args[1] if hook == "gate" else args[0] if args else None
+        found = dict(record) if isinstance(record, dict) else {}
+        if hook == "gate":
+            found["name"] = args[0]
+        elif hook == "moved":
+            found["to"] = args[1]
+        elif hook == "outcome":
+            found["outcome"] = args[1]
+        elif hook == "schedule":
+            found["due_at"] = args[1]
+        return found
+
+    def wants(self, point):
+        return str(getattr(point, "value", point)) in self.wants_
+
+    def answer(self, hook, args):
+        args = norm(list(args))
+        if hook == "admission" and isinstance(args[0], dict) and isinstance(args[0].get("takes"), list):
+            args[0]["takes"] = sorted(args[0]["takes"])
+        found, given = self.facts(hook, args), None
+        for rule in self.rules.get(hook, ()):
+            if any(found.get(name, "<absent>") != wanted for name, wanted in rule.get("when", {}).items()):
+                continue
+            rule["seen"] += 1
+            used = rule["seen"] - 1 - rule.get("skip", 0)
+            if used < 0 or (rule.get("times") is not None and used >= rule["times"]):
+                continue
+            given = rule["answer"]
+            break
+        self.calls.append(["plug", hook, *args, given])
+        if given == "raise":
+            raise ScriptRaise(hook)
+        if given == "panic":
+            raise ScriptPanic(hook)
+        return given
+
+
+def scripted_plug(script):
+    """The reference's side of the script: a `domain.plug.Plug` whose every hook asks `script`."""
+    from codex_auto_resume.domain.plug import DEFER, Plug
+
+    def said(value):
+        return DEFER if value is None else value
+
+    class Scripted(Plug):
+        def gate(self, name, record, facts):
+            return said(script.answer("gate", [name, record, facts]))
+
+        def text(self, record, text):
+            return said(script.answer("text", [record, text]))
+
+        def sender(self, record, backend):
+            script.answer("sender", [record])
+            return backend
+
+        def outcome(self, record, outcome):
+            return said(script.answer("outcome", [record, outcome]))
+
+        def schedule(self, record, due):
+            return said(script.answer("schedule", [record, due]))
+
+        def moved(self, record, state):
+            script.answer("moved", [record, state])
+            return DEFER
+
+        def delivery(self, record):
+            return said(script.answer("delivery", [record]))
+
+        def unloaded(self, record):
+            return said(script.answer("unloaded", [record]))
+
+        def admission(self, failure):
+            return said(script.answer("admission", [failure]))
+
+        def sessions(self):
+            return said(self.words("sessions"))
+
+        def eligibility(self):
+            return said(self.words("eligibility"))
+
+        @staticmethod
+        def words(hook):
+            found = script.answer(hook, [])
+            return tuple(found) if isinstance(found, list) else found       # the reference takes a tuple, not a list
+
+        def notice(self, facts):
+            script.answer("notice", [facts])
+            return DEFER
+
+        def wants(self, point):
+            return script.wants(point)
+
+    return Scripted()
+
+
 def judge(step) -> dict:
     """engine/impossible.py, pure (review 6, S4): a fresh Judge run through `script` - ["look", now, app_runs, facts],
     ["tick", app_runs, facts], ["word", now] - and `usage_reason` / `recovery_facts` over their cases."""
@@ -234,7 +375,7 @@ def raised(error) -> dict:
 class ReferenceSide:
     """The tag's own Engine, Store and LocalSource, in this process (the tag's Python)."""
 
-    def __init__(self, spec, state_dir, home, backend, now, notes, logs):
+    def __init__(self, spec, state_dir, home, backend, now, notes, logs, *, plug=None):
         from codex_auto_resume.codex import LocalSource
         from codex_auto_resume.engine import Engine
         from codex_auto_resume.store import Store
@@ -250,7 +391,23 @@ class ReferenceSide:
                              log=lambda *args: logs.append(list(args)), options=spec.get("options") or {},
                              notify=notify, home_key=spec.get("home_key", ""),
                              engine_state=lambda: engine_state, home_lock=lambda: home_lock,
-                             connectivity=lambda: connectivity)
+                             connectivity=lambda: connectivity, plug=None if plug is None else scripted_plug(plug))
+        self.scripted = plug is not None
+        if self.scripted:
+            # What the claim is told of the plug's answers (`carried`, `relaxed`, `resend`, `forced`, `caps`) is what
+            # P11's ledger would pay for, and nothing else shows it: written down as a call, so both sides' are compared.
+            reserve = self.store.reserve_detailed
+
+            def noting(interruption_id, now, **options):
+                number = lambda found: None if found is None else float(found)
+                pair = lambda found: None if found is None else [float(each) for each in found]
+                backend.calls.append(["claim", sorted(str(getattr(point, "value", point))
+                                                      for point in options.get("carried", ())),
+                                      options.get("relaxed"), pair(options.get("resend")), bool(options.get("forced")),
+                                      pair(options.get("caps")), number(options.get("quiet_until")),
+                                      not options["ledger"].null if options.get("ledger") is not None else False])
+                return reserve(interruption_id, now, **options)
+            self.store.reserve_detailed = noting
         self.engine._random = random.Random(spec.get("seed", 7))
 
     def clock(self, now):
@@ -276,10 +433,13 @@ class ReferenceSide:
             elif op == "retiring":
                 self.engine.retiring = bool(step["value"])
             elif op == "facts":
-                return {"detection_failed": self.engine.detection_failed,
-                        "watch_needed": self.engine.watch_needed(),
-                        "activity": self.engine.activity(step.get("threads") or ()),
-                        "last_usage": self.engine.last_usage()}
+                found = {"detection_failed": self.engine.detection_failed,
+                         "watch_needed": self.engine.watch_needed(),
+                         "activity": self.engine.activity(step.get("threads") or ()),
+                         "last_usage": self.engine.last_usage()}
+                if self.scripted:
+                    found["plug_failures"] = self.engine.plug.failures
+                return found
             elif op == "judge":
                 return judge(step)
             return None
@@ -296,15 +456,16 @@ class ReferenceSide:
 class RustSide:
     """car-engine through `car-harness serve`, its backend and jitter's draw asked back to this side's stand-ins."""
 
-    def __init__(self, spec, state_dir, home, backend, now, notes, logs, *, harness, session=1):
-        self.backend, self.notes, self.logs, self.session = backend, notes, logs, session
+    def __init__(self, spec, state_dir, home, backend, now, notes, logs, *, harness, session=1, plug=None):
+        self.backend, self.notes, self.logs, self.session, self.script = backend, notes, logs, session, plug
         self.rng = random.Random(spec.get("seed", 7))
         self.process = harness
         environ = {LANG: os.environ.get(LANG, "")} if os.environ.get(LANG) else {}
         self.request("engine.open", state=str(state_dir), codex=str(home.root), clock=now[0],
                      options=spec.get("options") or {}, home_key=spec.get("home_key", ""), environ=environ,
                      notify_raises=bool(spec.get("notify_raises")), engine_state=spec.get("engine_state", "verified"),
-                     home_lock=spec.get("home_lock", True), connectivity=spec.get("connectivity"))
+                     home_lock=spec.get("home_lock", True), connectivity=spec.get("connectivity"),
+                     plug=plug is not None)
 
     def request(self, call, **fields):
         line = json.dumps(dict(fields, id=self.session, call=call, session=self.session), ensure_ascii=False)
@@ -328,6 +489,14 @@ class RustSide:
         try:
             if name == "draw":
                 return {"value": self.rng.random()}
+            if name == "note.claim":
+                self.backend.calls.append(["claim", sorted(args[0]), *args[1:]])
+                return {"value": None}
+            if name.startswith("plug."):
+                hook = name.split(".", 1)[1]
+                if hook == "wants":
+                    return {"value": self.script.wants(args[0])}
+                return {"value": plain(self.script.answer(hook, args))}
             if name == "backend.send":
                 return {"value": plain(self.backend.send(args[0], args[1], permitted=args[2]))}
             if name == "backend.getattr":
@@ -383,10 +552,11 @@ def run(spec, codexsim, root: Path, side, **side_options):
     sim = codexsim.SimBackend(home)
     calls, notes, logs = [], [], []
     backend = Recorder(sim, calls)
+    script = Script(spec["plug"], calls) if spec.get("plug") is not None else None
     state_dir = root / "state"
     # The language a continuation is written in, named, so neither side reads this PC's Windows languages.
     os.environ[LANG] = spec.get("lang") or "en"
-    engine = side(spec, state_dir, home, backend, now, notes, logs, **side_options)
+    engine = side(spec, state_dir, home, backend, now, notes, logs, plug=script, **side_options)
     trace = []
     try:
         for index, step in enumerate(spec["steps"]):
@@ -410,6 +580,9 @@ def run(spec, codexsim, root: Path, side, **side_options):
                 for thread, value in step.get("outcomes", {}).items():
                     sim.outcomes[thread] = value
                 backend.attrs.update(step.get("attrs", {}))
+                result = None
+            elif op == "plug":
+                script.set(step)
                 result = None
             else:
                 result = engine.call(resolved(step, state_dir))

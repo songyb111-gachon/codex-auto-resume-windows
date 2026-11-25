@@ -345,6 +345,24 @@ Run 2026-11-25 (`run.py --build --reference v0.6.26-beta.2 -k EngineTraceDiff -v
 steps equal (63 sends); random walks 60 scenarios, 5,153 steps equal (122 sends). Eight broken rules each failed a trace
 (rust/GROUNDWORK.md, "The engine").
 
+## The plug's answer paths (review 6, S3: `diffs_engine_plug.py`)
+
+`python -X utf8 tests/rustdiff/run.py --build -k EnginePlugDiff` (alone). A scenario with a `plug` key - a script, `enginerun.Script`:
+the points the plug wants and, per hook, rules (`when` facts of the record, `answer`, `skip`, `times`) - runs on both sides with
+the same script. The reference's Engine is handed a `domain.plug.Plug` whose hooks ask the script; car-engine's plug is
+car-harness's `plugscript.rs`, a test double of car-policy's `Plug` trait that asks the very same Python object back over the pipe
+(`plug.<hook>`), so both engines get the same answer to the same question. Every question the engine puts to the plug (the hook,
+what it was handed, the answer), every claim's `carried`/`relaxed`/`resend`/`forced`/`caps` (what P11's ledger would pay for) and
+how many hooks failed (`facts`' `plug_failures`) are part of the trace, in order, with the log, the notifications, the backend's
+calls and the state. A `plug` step changes the script mid-scenario. An answer is a word, a text, a list, `null` (DEFER), `raise` or
+`panic`. Three tests: `scripted_paths` (hand-written scenarios for P3 holds at every gate, P4, P5/P15 asked, P6, P7's EARLY, SEND_NOW
+and RESEND, P14, P16's QUEUE_FOR_OPEN and TO_SESSION, P17's ADMIT, CAPACITY and AS_* with P3's known_failure, P18 and P19, a hook that
+raises or panics); `corpus_with_a_deferring_plug` (the 81 corpus scenarios again, each with a plug that wants every point and
+defers: the engine's questions at every call site, compared as asked); `random_walks_with_a_plug` (the engine walks with a script
+drawn from the seed, CODEX_AR_PLUG_WALKS). `CODEX_AR_PLUG_ONLY=name,name` runs the scenarios whose name starts with one. Not
+held here, because they need the advanced plug (S7.2): P2's records, P5's channel, P8's and P22's errands, P11's ledger itself (a
+hold or a failure at the claim), P12's pool, P16's route, P9, P13, P20 and P21 (runtime's, not the engine's).
+
 ## The scenario proxy (S4.2)
 
 ```
