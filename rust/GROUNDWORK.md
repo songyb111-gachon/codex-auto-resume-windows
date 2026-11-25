@@ -688,7 +688,7 @@ all three, so the proxy really runs car-engine.
   `app_look` "unmatched", `protocol_results` of a broken usage probe, `engine_version`, `session_holder`, `holder`),
   `activity` and `last_usage` (in `facts`, a reading with windows), a clock set back over a cached usage reading and a
   cached loaded state, and Note 1's fractional options. All equal at the first run: nothing to fix in car-engine.
-* **S3 (not done in this seat)**: the plug's answer paths are still traced only with the NULL plug. What a scripted test
+* **S3 (done by the section below, seat plugtrace)**: the plug's answer paths were traced only with the NULL plug. What a scripted test
   plug over car-policy's `Plug` (and the reference's `domain/plug.Plug`, the same script on both sides, handed through
   `engine.open`'s and enginerun's `plug`) would hold, and needs no advanced store: P7 `schedule` (`resend.rs`'s
   `_resend`/`watch_resent`, `relaxed.rs`'s EARLY and SEND_NOW), P17 `admission` (ADMIT, CAPACITY, `known_failure`'s
@@ -706,4 +706,83 @@ check_groundwork OK (17 standard crates, 3 advanced); check_rebuild.sh rc=0 (ide
 run.py -k EngineTraceDiff -k EngineReview6 -k EnginePanicDiff -k EngineInputsDiff -k LaunchGuardHeld: 17 tests OK
   (1 expected failure, B1), 676 s; corpus 81 scenarios / 1,023 steps and walks 60 / 5,153 steps equal
 the 15 frozen modules on CODEX_AR_CORE=rust after every fix: 456 test ids, 0 differ from the Python lane
+```
+
+## The plug's answer paths in the engine's traces (seat plugtrace, branch `car-v0627-plugtrace`, 2026-11-26)
+
+`outputs/plans/v0627-rust/REVIEW-engine.md` S3, which the section above left open: every trace asked the NULL plug alone, so none of
+P3-P22 was ever answered. Now a scripted plug, the same on both sides, answers; `python -X utf8 tests/rustdiff/run.py --build -k
+EnginePlugDiff` (README, "The plug's answer paths"; `diffs_engine_plug.py`).
+
+### What is built
+
+* **The script** (`tests/rustdiff/enginerun.py`, `Script`): one object on the test's side - the points the plug `wants` and, per hook,
+  rules (`when` facts of the record and of the hook - `name` at a gate, `to` at a move, `outcome`, `due_at` - then `answer`, `skip`,
+  `times`). An answer is a word, a text, a list, `null` (DEFER), `raise` or `panic`. A `plug` step changes it mid-scenario. Every
+  question it is asked is written down in the trace (`["plug", hook, what it was handed..., answer]`), beside the backend's calls.
+* **Both sides ask that one object**: the reference's Engine is handed a `domain.plug.Plug` (`scripted_plug`) whose hooks call the script;
+  car-engine is handed car-harness's `plugscript.rs`, a test double of car-policy's `Plug` trait (`Scripted`) whose hooks ask the same
+  script back over the harness pipe (`plug.<hook>`; its asker is a closure, so a native script can replace the pipe later). P4 words,
+  P6, P7, P14, P15, P16's two queued answers, P17, P18, P19, P3 and `wants` are answered; P5 is asked and DEFERs, a hook that raises is
+  an `Err` and one that panics unwinds (D15, caught in `Guarded`, counted in `failures`; `facts` carries `plug_failures` on both sides).
+* **What the claim is told** (`note.claim`): `carried`, `relaxed`, `resend`, `forced`, `caps`, `quiet_until` and whether the plug is not
+  NULL's, of every claim, on both sides - P11's ledger would pay for exactly these, and nothing else of a trace shows them.
+* **Three tests**: `scripted_paths` (63 scenarios, 878 steps, named `pl_*`: P3 HOLD at each of the seven gates, P4's words, P15 and P5
+  asked, P7's EARLY (a record waiting for its reset, for usage), SEND_NOW (a retry's wait, a postponement, the spacing, an attempt budget
+  of the person's own, never quiet hours or a reset ahead) and RESEND (a lost send found no trace of, a gate that holds it, a duplicate
+  proof afterwards), P7 HOLD and unknown words, P14 and P6 (every move; outcomes; none while paused), P16 QUEUE_FOR_OPEN and TO_SESSION
+  (kept, taken back, expired, no holder), the app closed with a holder, P17 ADMIT/AS_TIMEOUT/CAPACITY/VERIFIED_RESET with known_failure,
+  an answer outside `takes`, P18 and P19 gone and cancelling, bad answers, a hook that raises or panics);
+  `corpus_with_a_deferring_plug` (the 81 corpus scenarios again with a plug that wants every point and defers: every call site's
+  question and the claim's `carried` compared as asked); `random_walks_with_a_plug` (40 of `generated`'s walks with a script drawn from
+  the seed, `CODEX_AR_PLUG_WALKS`). `CODEX_AR_PLUG_ONLY=name,name` runs the scenarios starting with one.
+* `rediff_engine.py --reference v0.6.26` runs both trace sets, and lists the plug's and the store's claim files beside the engine's.
+
+### What the first run found: car-store's claim, not car-engine
+
+The first run of `scripted_paths` differed in 11 of 58 scenarios, every one a relaxed claim (EARLY, SEND_NOW, RESEND, ADMIT, CAPACITY):
+car-engine asked the plug and carried out its answers exactly as the reference does, but car-store's `reserve_detailed` was the NULL
+plug's alone (`ledger.null` decides every plug branch in `store/ledger.py`, `validate.reset_refused`), so each relaxation was refused
+where the reference grants it. Fixed in car-store (commit `f8a1c71cb`): `Claim` carries `plugged` (`not ledger.null`) and `carried`, and
+`claims.rs` has `_early_claim`, `_forced_claim`, `reset_refused`, the full `_relaxation_refused` (capacity's 24 hours, admitted) and a
+granted `_resend_claim`; car-engine's seam `Claim` says `plugged` (dispatch and routes). Nothing in car-engine itself differed: every
+other scenario was equal at the first run, the corpus and the walks included. **P11 itself is still not asked**: a claim whose plug is
+not NULL's treats the ledger as one that always answers DEFER and never raises - no savepoint, no authorizer, no hold, no `broke` -
+because that needs `store/ledger.py`'s connection and the advanced store (S7.2: `Ledger` is an empty trait in car-policy today).
+
+### What needs the advanced plug (S7.2), by name
+
+* **P11, the ledger's hold and its failure** (`_ledger_holds`: HOLD, a raise on a claim that `carried` something, `_refused`'s held
+  branch) and what the ledger reads on the claim's connection; `Claim.carried` is compared, but nothing pays for it.
+* **P2** records (`recordchannel.py`, `plugrecords.py`'s flow: a handed record costs itself as one that raised), **P5** a channel
+  (`Channel::send` takes no launch guard; CLIENT_ID at P15 and a channel's `pools()` are taken only with one; the scripted plug asks P5 and
+  P15 and they cannot be carried out), **P8** and **P22** errands (`store.errand_guard`), **P12**'s pool (`launches.py`), **P16**'s
+  `Route` (`routes.rs`'s `route.resume`, `still_unloaded`; `Route::resume` takes no launch guard; SILENT), **P9**, **P13**.
+* **P20** (notices told to the plug) is `runtime/app.py`'s - the watcher's - and **P21** the power action's, neither the engine's:
+  `Guarded::notice` and `power` are car-watcher's to trace. The engine's own notices (`notify` calls, the needs-you notices) are in
+  every trace already.
+* The scripted plug answers an array where the reference takes a `tuple`, `set` or `frozenset` (P18, P19: `kinds_of` refuses a
+  `list`); `hands::kinds_of` takes any array, which is right for a Rust plug (it has no list/tuple), so the double's Python side hands the
+  reference a tuple. S7.2's plug returns a set either way.
+
+### The mutation check (a build with the broken rule behind an environment switch, run, restored; the tree is the committed one)
+
+Each rule broken alone in car-engine, `scripted_paths` of the scenario that holds it: EARLY's claim not carrying `schedule`
+(`relaxed_points`: `pl_early_looks_before_reset`, the log 8 lines on the reference, 5 on Rust), an answer outside P17's `takes` taken
+(`pl_admit_answer_outside_takes`, a record registered where the reference registers none), P14 told for a move to the state the record
+is in (`pl_send_now_passes_retry_wait`, 10 calls against 11), a resend's P3 hold ignored (`pl_resend_gate_hold`, 0 log lines
+against 2): all four failed their trace, and the four together with nothing broken were equal (46 steps).
+
+### Checks (2026-11-26; `CARGO_BUILD_JOBS=3`, `. tools/rustflags.sh` not sourced for the dev builds)
+
+```
+## rust            fmt --check rc=0; clippy --locked --all-targets -D warnings rc=0; test --locked rc=0; cargo deny: advisories, bans, licenses, sources ok
+## advanced/rust   fmt --check rc=0; clippy rc=0; test --locked rc=0; cargo deny: all four ok
+check_groundwork OK (17 standard crates, 3 advanced); check_rebuild.sh rc=0 (identical, no profile path)
+run.py -k EngineTraceDiff -k EngineReview6 -k EnginePanicDiff -k EngineInputsDiff -k LaunchGuardHeld -k EnginePlugDiff
+  -k ScriptDiff -k RefusalDiff: 23 tests OK (1 expected failure, B1), 1,256 s; corpus 81 / 1,023 steps and walks 60 / 5,153 equal;
+  plug: scripted 63 scenarios / 878 steps (52 sends, 1,687 questions), the corpus with a deferring plug 81 / 1,023 (2,022 questions),
+  walks with a scripted plug 40 / 3,429 (86 sends, 5,114 questions), all equal
+the 15 frozen modules, test_parts --worker on the Python lane and with CODEX_AR_CORE=rust, after the car-engine and car-store change:
+  456 test ids, 456 pass on both (Python 567 s, Rust 681 s), 0 differ
 ```
