@@ -1102,3 +1102,11 @@ The re-diff for the final: `python -X utf8 tests/rustdiff/rediff_adv72c.py --ref
 * S7.2b: `inuse::backend`, `protocol`, `turns`, `threads` are here; `autocheck::AUTH_FILE` names codex/authfile's file.
 * S7.2d: `credits::parse`/`outcome`/`full`, `turns::Turns::running`, `inuse::saw`.
 * The next S7.2c seat: `Session`, `headless`, `ipc`, `tokens`, `wmi_escape`, `win/stopflag`, `win/waketimer` (above).
+
+### Found and not fixed (another seat's crate)
+
+car-config's `Paths::ensure()` ignores `create_dir_all`'s error (`let _ =`): where `config` is a file, Python's
+`directory.mkdir(parents=True, exist_ok=True)` raises FileExistsError and stops before `logs/`; car-config goes on, makes
+`logs\` and its marker, and answers Ok. `autocheck::write` still answers OSError there (its own folder cannot be made), but
+the files left differ, so `diffs_advcodex_autocheck.test_write` leaves that home out. For S1.1/the integration: raise on
+the mkdir as the reference does.

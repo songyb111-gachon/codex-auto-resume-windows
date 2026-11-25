@@ -412,7 +412,8 @@ class AdvCodexDiff(unittest.TestCase):
         cls.addClassCleanup(shutil.rmtree, cls.root, True)
 
     def fresh(self, label: str) -> Path:
-        return Path(tempfile.mkdtemp(prefix="%s-" % label, dir=self.root))
+        short = re.sub(r"[^A-Za-z0-9]+", "-", label)[:40]
+        return Path(tempfile.mkdtemp(prefix="%s-" % short, dir=self.root))
 
     def compare(self, label, cases, want, got):
         self.assertEqual(len(want), len(got), label)
