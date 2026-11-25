@@ -87,6 +87,7 @@ dependencies = [
  "car-store",
  "car-surface",
  "car-words",
+ "rusqlite",
 ]
 
 [[package]]

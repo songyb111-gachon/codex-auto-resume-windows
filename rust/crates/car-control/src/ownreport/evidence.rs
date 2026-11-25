@@ -132,7 +132,9 @@ pub fn iso(when: f64) -> Result<String, &'static str> {
         return Err("ValueError");
     }
     let mut seconds = when.floor();
-    if !(-9.223_372_036_854_775_808e18..9.223_372_036_854_775_808e18).contains(&seconds) {
+    // `time_t`'s range, 2^63 either side.
+    let limit = (1u64 << 63) as f64;
+    if !(-limit..limit).contains(&seconds) {
         return Err("OverflowError");
     }
     let micro = ((when - seconds) * 1e6).round_ties_even();
