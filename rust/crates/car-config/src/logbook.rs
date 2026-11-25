@@ -346,12 +346,12 @@ impl Logbook {
             );
             if Path::new(&from).exists() {
                 let _ = fs::remove_file(&to);
-                let _ = fs::rename(&from, &to);
+                let _ = pyfile::rename(&from, &to);
             }
         }
         let first = format!("{}.1", self.file);
         let _ = fs::remove_file(&first);
-        let _ = fs::rename(&self.file, &first);
+        let _ = pyfile::rename(&self.file, &first);
         *stream = append(&self.file);
     }
 

@@ -44,6 +44,58 @@ pub fn write(path: impl AsRef<Path>, contents: impl AsRef<[u8]>) -> std::io::Res
     file.write_all(contents.as_ref())
 }
 
+// os.replace and os.rename are MoveFileExW and nothing more. `std::fs::rename` retries MoveFileExW's
+// ERROR_ACCESS_DENIED with a POSIX-semantics rename, which replaces a target another handle holds open with
+// FILE_SHARE_DELETE where Python stops with PermissionError 5 (review 5, S2). D3 puts every Windows call in
+// car-platform, but car-policy and car-config cannot reach it (PLAN 1.3's graph) and car-machine is the one crate every
+// caller reaches: this one extern declaration (kernel32, which std links already) is the exception, as car-brand's
+// erfc is, and every save and rotation of the product goes through it.
+#[cfg(windows)]
+#[link(name = "kernel32")]
+unsafe extern "system" {
+    fn MoveFileExW(existing: *const u16, new: *const u16, flags: u32) -> i32;
+}
+
+#[cfg(windows)]
+const MOVEFILE_REPLACE_EXISTING: u32 = 0x1;
+
+#[cfg(windows)]
+fn move_file(from: &Path, to: &Path, flags: u32) -> std::io::Result<()> {
+    use std::os::windows::ffi::OsStrExt;
+    let wide = |path: &Path| -> Vec<u16> { path.as_os_str().encode_wide().chain(Some(0)).collect() };
+    let (from, to) = (wide(from), wide(to));
+    // SAFETY: both names are NUL-terminated and outlive the call.
+    if unsafe { MoveFileExW(from.as_ptr(), to.as_ptr(), flags) } == 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    Ok(())
+}
+
+/// `os.replace(from, to)`: `MoveFileExW(MOVEFILE_REPLACE_EXISTING)` alone - a target another handle holds open is not
+/// replaced (PermissionError 5), whatever that handle shares.
+pub fn replace(from: impl AsRef<Path>, to: impl AsRef<Path>) -> std::io::Result<()> {
+    #[cfg(windows)]
+    {
+        move_file(from.as_ref(), to.as_ref(), MOVEFILE_REPLACE_EXISTING)
+    }
+    #[cfg(not(windows))]
+    {
+        std::fs::rename(from, to)
+    }
+}
+
+/// `os.rename(from, to)`: `MoveFileExW` with no flag - an existing target is not replaced (FileExistsError 183).
+pub fn rename(from: impl AsRef<Path>, to: impl AsRef<Path>) -> std::io::Result<()> {
+    #[cfg(windows)]
+    {
+        move_file(from.as_ref(), to.as_ref(), 0)
+    }
+    #[cfg(not(windows))]
+    {
+        std::fs::rename(from, to)
+    }
+}
+
 #[cfg(all(test, windows))]
 mod tests {
     use super::*;
@@ -71,4 +123,31 @@ mod tests {
         let _ = std::fs::remove_dir_all(&folder);
     }
 
+    /// `replace` refuses a target held open with share-delete, as os.replace does, where std's rename replaces it;
+    /// `rename` refuses an existing target.
+    #[test]
+    fn a_held_target_is_not_replaced() {
+        use std::os::windows::fs::OpenOptionsExt;
+        let folder = std::env::temp_dir().join(format!("car-machine-replace-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&folder);
+        std::fs::create_dir_all(&folder).unwrap();
+        let (from, to) = (folder.join("new"), folder.join("target"));
+        std::fs::write(&from, b"new").unwrap();
+        std::fs::write(&to, b"old").unwrap();
+        {
+            let _held = OpenOptions::new()
+                .read(true)
+                .share_mode(0x1 | 0x2 | 0x4)
+                .open(&to)
+                .unwrap();
+            let refused = replace(&from, &to).unwrap_err();
+            assert_eq!(refused.raw_os_error(), Some(5));
+        }
+        assert_eq!(std::fs::read(&to).unwrap(), b"old");
+        assert_eq!(rename(&from, &to).unwrap_err().raw_os_error(), Some(183));
+        replace(&from, &to).unwrap();
+        assert_eq!(std::fs::read(&to).unwrap(), b"new");
+        assert!(!from.exists());
+        let _ = std::fs::remove_dir_all(&folder);
+    }
 }

@@ -999,7 +999,7 @@ pub fn save(os: &dyn Os, path: &Path, values: &Value) -> Result<Map, SettingsErr
         .and_then(|_| file.sync_all());
     drop(file);
     if written
-        .and_then(|_| std::fs::rename(&temporary, path))
+        .and_then(|_| car_machine::pyfile::replace(&temporary, path))
         .is_err()
     {
         let _ = std::fs::remove_file(&temporary);

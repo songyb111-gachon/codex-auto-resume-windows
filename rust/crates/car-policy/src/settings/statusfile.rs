@@ -291,7 +291,7 @@ pub fn write(os: &dyn Os, target: &Path, value: &Value) -> Py<()> {
         .and_then(|_| file.flush())
         .and_then(|_| file.sync_all());
     drop(file);
-    if let Err(error) = written.and_then(|_| std::fs::rename(&temporary, target)) {
+    if let Err(error) = written.and_then(|_| car_machine::pyfile::replace(&temporary, target)) {
         let _ = std::fs::remove_file(&temporary);
         return Err(os_error_class(&error));
     }
