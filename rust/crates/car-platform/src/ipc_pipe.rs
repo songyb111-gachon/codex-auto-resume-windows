@@ -3,7 +3,7 @@
 //! ([`server_trusted`]), and one overlapped read or write at a time with its own deadline ([`Pipe::io`]); and the
 //! random request ids (`uuid.uuid4()`, [`uuid4`]).
 //!
-//! The pipe's name is the caller's: car-adv's `codex::ipc` names `\\.\pipe\codex-ipc` (the Codex Desktop's) only in
+//! The pipe's name is the caller's: the caller names `\\.\pipe\codex-ipc` (the Codex Desktop's) only in
 //! the product. A test names a pipe of its own; [`open`] refuses the Desktop's own name in this crate's tests and
 //! wherever `CAR_NO_REAL_IPC` is set (the diffs set it), as if no app ran.
 

@@ -3,7 +3,7 @@
 //! The reference makes these calls through ctypes with a `kernel`/`power` seam a test fills with a fake that records
 //! its calls. Here the seams are three traits - [`TimerKernel`], [`PowerSettings`] and [`EventKernel`] - each with
 //! the one real implementation over the `windows` crate ([`SystemTimer`], [`SystemPower`], [`SystemEvents`]) and
-//! whatever stand-in a test brings. car-adv's `win::{waketimer, stopflag}` hold the logic and take the traits; they
+//! whatever stand-in a test brings. The caller's timer and stop flag hold the logic and take the traits; they
 //! name no Windows call of their own.
 //!
 //! A test never builds the `System*` types: a real timer set with `fResume` wakes a sleeping PC, and the stop event
