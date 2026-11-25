@@ -196,6 +196,11 @@ def corpus() -> dict:
     for index in range(7):
         s.home("fail_transient", T1, completed=int(s.now)).tick().adv(6).tick().adv(1).tick().adv(11).tick()
         s.adv(901 if index % 2 else 120)
+    s = new("e_daily_cap_wait", options={"max_submissions_per_thread_per_day": 2, "thread_cooldown_seconds": 60})
+    s.loaded(T1)
+    for _ in range(3):
+        s.home("fail_transient", T1, completed=int(s.now)).tick().adv(6).tick().adv(1).tick().adv(11).tick().adv(70)
+    s.tick().adv(61).tick()
     s = new("e_history_unavailable").home("fail_usage", T1, TURN_A).loaded(T1).tick().at(RESET + 61)
     s.helper("history_aside", True).tick().facts().helper("history_aside", False).tick().facts()
     s = new("e_no_reset_conservative").home("fail_usage", T1, TURN_A, reset=None).loaded(T1).tick()
@@ -227,6 +232,26 @@ def corpus() -> dict:
         s.backend(turn_status=status, turn_progress=progress)
         ready_after_reset(s).tick().adv(5).tick().adv(11).tick().home("add_turn", T1, TURN_C).adv(11).tick()
         s.adv(86400).tick()
+    # The edges a whole-second scenario steps over: a settle that ends on the very second, a reset already past.
+    s = new("o_settle_boundary")
+    ready_after_reset(s).tick()
+    for _ in range(13):
+        s.adv(1).tick()
+    s = new("e_reset_already_past").home("fail_usage", T1, TURN_A, reset=BASE - 100).loaded(T1)
+    for _ in range(9):
+        s.tick().adv(5)
+    # A reset just ahead, with no grace: the first look is half a minute away all the same.
+    s = new("e_reset_inside_half_minute", options={"reset_grace_seconds": 0})
+    s.home("fail_usage", T1, TURN_A, reset=BASE + 20).loaded(T1)
+    for _ in range(8):
+        s.tick().adv(5)
+    # A usage reading reused for 30 seconds and not one more (C9): the second conversation falls due 31 s after the
+    # first one's read, with usage gone meanwhile.
+    s = new("f_usage_cache_boundary").loaded(T1).loaded(T2)
+    s.home("fail_transient", T1, TURN_A, completed=int(s.now)).tick().adv(6).tick().adv(25)
+    s.home("fail_transient", T2, TURN_B, completed=int(s.now)).tick()
+    s.backend(usage_result={"available": False, "reset_at": None, "limit_type": "x", "reason": "ok"}).adv(6).tick()
+    s.adv(1).tick()
     s = new("o_dispatch_then_usage_child").backend(after_accept="queue")
     ready_after_reset(s).tick().helper("dispatch_and_fail", T1, usage=True, progress=True, reset=RESET + 7200)
     s.watch().tick().adv(11).tick().at(RESET + 7300).tick(2)
