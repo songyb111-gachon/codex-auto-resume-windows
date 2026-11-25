@@ -23,7 +23,10 @@ import tarfile
 import tempfile
 import unittest
 
-import reference
+try:
+    from rustdiff import reference
+except ImportError:  # run as a script beside it (gen_advstore.py)
+    import reference
 
 ROOT = Path(__file__).resolve().parents[2]
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)

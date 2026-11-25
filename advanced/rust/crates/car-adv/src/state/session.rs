@@ -109,7 +109,7 @@ impl AdvancedState {
         let marker = self.directory.join(OWNER_MARKER);
         self.checked()?;
         if !marker.exists() {
-            std::fs::write(&marker, OWNER_TEXT.as_bytes()).map_err(|_| cannot_open())?;
+            std::fs::write(&marker, owner_text().as_bytes()).map_err(|_| cannot_open())?;
         }
         Ok(())
     }
@@ -445,6 +445,15 @@ impl AdvancedState {
     /// The directory, as a path.
     pub fn folder(&self) -> &Path {
         &self.directory
+    }
+}
+
+/// `OWNER_TEXT` as Python's `write_text` writes it: in text mode, so a line ends CR LF on Windows.
+pub fn owner_text() -> String {
+    if cfg!(windows) {
+        OWNER_TEXT.replace('\n', "\r\n")
+    } else {
+        OWNER_TEXT.to_string()
     }
 }
 

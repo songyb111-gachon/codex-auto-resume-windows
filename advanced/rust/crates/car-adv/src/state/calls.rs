@@ -68,6 +68,9 @@ pub fn maybe(found: Option<Row>) -> Value {
 /// `{"__pairs__": [[key, value], ...]}`.
 pub fn pairs(found: Vec<(Value, Value)>) -> Value {
     let mut map = Map::new();
+    if found.is_empty() {
+        return Value::Object(map);
+    }
     map.insert(
         Str::new("__pairs__"),
         Value::Array(

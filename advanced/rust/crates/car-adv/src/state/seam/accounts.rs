@@ -102,7 +102,7 @@ pub fn own_folder(host: &dyn Host, directory: &Path) -> Result<(), Failure> {
     }
     let marker = directory.join(car_config::paths::OWNER_MARKER);
     if !marker.exists() {
-        let _ = std::fs::write(&marker, car_config::paths::OWNER_TEXT.as_bytes());
+        let _ = std::fs::write(&marker, crate::state::session::owner_text().as_bytes());
         host.private(directory);
     }
     Ok(())
