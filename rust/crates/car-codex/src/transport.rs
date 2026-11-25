@@ -158,6 +158,10 @@ pub trait LaunchGuard {
     fn exit(&mut self) -> std::result::Result<(), Raised>;
 }
 
+/// A launch guard of the engine's shape (`send_within`): it enters the guard, runs the body with whether it permits,
+/// and leaves it; an `Err` is an exception it raised entering or leaving.
+pub type LaunchScope<'a> = dyn FnMut(&mut dyn FnMut(bool)) -> std::result::Result<(), Raised> + 'a;
+
 /// An exception a launch guard raised.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Raised;
@@ -698,7 +702,7 @@ impl Backend {
         &mut self,
         thread_id: &str,
         prompt: &Value,
-        scope: &mut dyn FnMut(&mut dyn FnMut(bool)) -> std::result::Result<(), Raised>,
+        scope: &mut LaunchScope<'_>,
     ) -> Map {
         let (text, remote) = match self.send_preflight(thread_id, prompt) {
             Ok(found) => found,
