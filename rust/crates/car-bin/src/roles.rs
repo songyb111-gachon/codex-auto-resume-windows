@@ -8,7 +8,7 @@
 //! | a `plugin_setup.py` command | `plugin_setup.main(argv)` | [`crate::setup`] |
 //! | anything else | `cli.main(argv)` (`auto_resume.py`) | [`crate::cli`] |
 //!
-//! The role registry is the seam the advanced edition fills (P7-DESIGN): `car-adv-bin`'s `main` passes its own roles,
+//! The role registry is the seam the other edition fills (P7-DESIGN): that edition's binary passes its own roles,
 //! and they are looked at first; the standard build passes none, so no advanced role's name is in its binary.
 
 use std::io::Read;
