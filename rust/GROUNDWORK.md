@@ -1110,3 +1110,26 @@ car-config's `Paths::ensure()` ignores `create_dir_all`'s error (`let _ =`): whe
 `logs\` and its marker, and answers Ok. `autocheck::write` still answers OSError there (its own folder cannot be made), but
 the files left differ, so `diffs_advcodex_autocheck.test_write` leaves that home out. For S1.1/the integration: raise on
 the mkdir as the reference does.
+
+### S7.2c's checks (reference v0.6.26, rustc 1.100.0, `CARGO_BUILD_JOBS=4`)
+
+```
+diffs_advcodex_compatdata  4 tests OK: ~2,300 validate/summary cases over the advanced data's history, the test file's
+                           shapes and their mutants (5 products); 41 tables x 24 documents x 5 engines overlaid; 160 homes
+                           adopted and read, the files left byte for byte
+diffs_advcodex_autocheck   6 tests OK: CHECKS row by row; judge over ~560 schemas; 64 record files; 600 due cases; _write over
+                           4 homes; run_engine/probe_engine over 12 fake engines and tend over 5 x 17 ticks, the record and
+                           every child equal
+diffs_advcodex_inuse       4 tests OK: 1,500-step walks of tell/told/forget/saw/elsewhere/home; backend told, pinned and
+                           discovered under a scratch LOCALAPPDATA; protocol's tables and ~300 replies
+diffs_advcodex_readers     3 tests OK: 5 full homes and 10 homes wrong as a whole (every reader), credits, str.isalpha over
+                           every code point
+advanced/rust, rust        fmt --check, clippy -D warnings, test --locked, deny: all ok
+check_groundwork.py OK; gen_advcodex.py / gen_advpolicy.py --check current; check_rebuild.sh: the standard binaries the
+same with and without advanced/, no profile path
+```
+
+Mutation checks (each alone, release probe, its diff, restored): compatdata rule 1 (a build fail no longer wins), autocheck
+SANE_COUNT 49, `inuse.saw` comparing paths as written, `inuse.tell` keeping what was seen elsewhere, turns keeping a
+`completed_at` of 0: all caught. A sixth, a `recorded_at` equal to publication refused, survived; the diff now holds a record
+made the very minute of publication and catches it.
