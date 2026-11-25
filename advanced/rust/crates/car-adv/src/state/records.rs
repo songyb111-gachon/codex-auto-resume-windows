@@ -8,25 +8,25 @@ use car_machine::domain::states;
 use car_machine::json::Value;
 use rusqlite::Connection;
 
+use super::ask::{DefinitionAsked, RegistryAsked};
 use super::errors::{Error, Result};
 use super::py;
 use super::schema::ATTACHED;
-use super::seam::registry::Registry;
-use super::seam::registry_gen::{CORE_COOLDOWN_SECONDS, CORE_DAILY_CAP};
-use super::seam::words_gen::{override_kind, record_state};
 use super::session::AdvancedState;
 use super::sql::{self, Row, float, string};
+use crate::registry::{CORE_COOLDOWN_SECONDS, CORE_DAILY_CAP, Registry};
+use crate::vocabulary::{OverrideKind, RecordState};
 
 pub const DAY: f64 = 86400.0;
 
 /// `_MOVES`: where `move_record` may take a record from where it is.
 fn allowed(from: &Value, to: &str) -> bool {
-    match py::text(from) {
-        Some(record_state::WAITING) => to == record_state::CANCELLED,
-        Some(record_state::IN_FLIGHT) => [
-            record_state::WAITING,
-            record_state::FINISHED,
-            record_state::CANCELLED,
+    match py::text(from).and_then(RecordState::parse) {
+        Some(RecordState::Waiting) => to == RecordState::Cancelled.as_str(),
+        Some(RecordState::InFlight) => [
+            RecordState::Waiting.as_str(),
+            RecordState::Finished.as_str(),
+            RecordState::Cancelled.as_str(),
         ]
         .contains(&to),
         _ => false,
@@ -35,12 +35,12 @@ fn allowed(from: &Value, to: &str) -> bool {
 
 /// `own_paced(registry)`: the capabilities whose records keep a pace of their own (those that depart from A20),
 /// sorted.
-pub fn own_paced(registry: &dyn Registry) -> Vec<&'static str> {
-    let mut found: Vec<&'static str> = registry
-        .definitions()
+pub fn own_paced(registry: &Registry) -> Vec<&str> {
+    let mut found: Vec<&str> = registry
+        .definitions
         .iter()
         .filter(|definition| definition.departs("A20"))
-        .map(|definition| definition.id)
+        .map(|definition| definition.id.as_str())
         .collect();
     found.sort_unstable();
     found
@@ -61,7 +61,7 @@ fn number_or_none(value: &Value) -> Option<f64> {
 
 impl AdvancedState {
     fn known(&self, capability: &Value) -> Result<()> {
-        if self.registry.get(capability).is_none() {
+        if self.registry.get_value(capability).is_none() {
             return Err(Error::state("unknown capability"));
         }
         Ok(())
@@ -90,7 +90,7 @@ impl AdvancedState {
                     record_id.clone(),
                     capability.clone(),
                     thread_id.clone(),
-                    string(record_state::WAITING),
+                    string(RecordState::Waiting.as_str()),
                     float(now),
                 ],
             )?;
@@ -101,7 +101,7 @@ impl AdvancedState {
     /// `move_record(record_id, state, at=None)`: back to waiting, finished or cancelled, along `_MOVES`.
     pub fn move_record(&self, record_id: &Value, state: &Value, at: &Value) -> Result<bool> {
         py::key(record_id, "record id")?;
-        let state = py::closed(state, record_state::ALL, "record state")?;
+        let state = py::closed(state, RecordState::ALL, "record state")?;
         let now = self.now(at)?;
         self.transaction(false, |connection| {
             let Some(connection) = connection else {
@@ -116,7 +116,9 @@ impl AdvancedState {
             if !allowed(sql::get(&row, "state"), state) {
                 return Ok(false);
             }
-            let finished = if state == record_state::FINISHED || state == record_state::CANCELLED {
+            let finished = if state == RecordState::Finished.as_str()
+                || state == RecordState::Cancelled.as_str()
+            {
                 float(now)
             } else {
                 Value::Null
@@ -154,7 +156,7 @@ impl AdvancedState {
             std::slice::from_ref(record_id),
         )?;
         let Some(row) = row else { return Ok(false) };
-        if !sql::py_eq(&row[0], &string(record_state::WAITING)) {
+        if !sql::py_eq(&row[0], &string(RecordState::Waiting.as_str())) {
             return Ok(false);
         }
         let thread_id = row[1].clone();
@@ -170,7 +172,7 @@ impl AdvancedState {
             }
         }
         let own = own_paced(self.registry.as_ref());
-        let mut parameters = vec![string(record_state::IN_FLIGHT), float(now - DAY)];
+        let mut parameters = vec![string(RecordState::InFlight.as_str()), float(now - DAY)];
         parameters.extend(own.iter().map(|id| string(id)));
         parameters.extend(own.iter().map(|id| string(id)));
         parameters.push(thread_id.clone());
@@ -215,7 +217,7 @@ impl AdvancedState {
                 "UPDATE {ATTACHED}.records SET state=?, claimed_at=?, claims=claims+1 WHERE record_id=?"
             ),
             &[
-                string(record_state::IN_FLIGHT),
+                string(RecordState::InFlight.as_str()),
                 float(now),
                 record_id.clone(),
             ],
@@ -236,7 +238,11 @@ impl AdvancedState {
         })?;
         Ok(rows
             .into_iter()
-            .filter(|row| self.registry.get(sql::get(row, "capability")).is_some())
+            .filter(|row| {
+                self.registry
+                    .get_value(sql::get(row, "capability"))
+                    .is_some()
+            })
             .collect())
     }
 
@@ -251,7 +257,7 @@ impl AdvancedState {
     ) -> Result<bool> {
         py::key(interruption_id, "interruption id")?;
         self.known(capability)?;
-        let kind = py::closed(kind, override_kind::ALL, "override kind")?;
+        let kind = py::closed(kind, OverrideKind::ALL, "override kind")?;
         let now = self.now(at)?;
         self.writing(|connection| {
             if sql::exists(
@@ -284,8 +290,10 @@ impl AdvancedState {
         Ok(rows
             .into_iter()
             .filter(|row| {
-                self.registry.get(sql::get(row, "capability")).is_some()
-                    && py::is_word(sql::get(row, "kind"), override_kind::ALL)
+                self.registry
+                    .get_value(sql::get(row, "capability"))
+                    .is_some()
+                    && py::is_word(sql::get(row, "kind"), OverrideKind::ALL)
             })
             .collect())
     }
@@ -319,7 +327,7 @@ impl AdvancedState {
     ) -> Result<()> {
         py::key(interruption_id, "interruption id")?;
         self.known(capability)?;
-        let kind = py::closed(kind, override_kind::ALL, "override kind")?;
+        let kind = py::closed(kind, OverrideKind::ALL, "override kind")?;
         let now = self.now(at)?;
         self.writing(|connection| {
             sql::exec(
@@ -343,7 +351,7 @@ impl AdvancedState {
                 &[interruption_id.clone(), capability.clone()],
             ),
         })?;
-        Ok(row.filter(|row| py::is_word(sql::get(row, "kind"), override_kind::ALL)))
+        Ok(row.filter(|row| py::is_word(sql::get(row, "kind"), OverrideKind::ALL)))
     }
 
     /// `resent(interruption_id)`: whether this edition sent it once more, by any capability.
@@ -354,14 +362,17 @@ impl AdvancedState {
             Some(connection) => sql::exists(
                 connection,
                 "SELECT 1 FROM overrides WHERE interruption_id=? AND kind=?",
-                &[interruption_id.clone(), string(override_kind::RESEND_ONCE)],
+                &[
+                    interruption_id.clone(),
+                    string(OverrideKind::ResendOnce.as_str()),
+                ],
             ),
         })
     }
 
     /// `open_overrides(kind, capability=None)`: every unused override of `kind`, oldest first.
     pub fn open_overrides(&self, kind: &Value, capability: &Value) -> Result<Vec<Row>> {
-        let kind = py::closed(kind, override_kind::ALL, "override kind")?;
+        let kind = py::closed(kind, OverrideKind::ALL, "override kind")?;
         let (clause, mut arguments) = if matches!(capability, Value::Null) {
             ("", vec![string(kind)])
         } else {
@@ -378,7 +389,11 @@ impl AdvancedState {
         })?;
         Ok(rows
             .into_iter()
-            .filter(|row| self.registry.get(sql::get(row, "capability")).is_some())
+            .filter(|row| {
+                self.registry
+                    .get_value(sql::get(row, "capability"))
+                    .is_some()
+            })
             .collect())
     }
 }

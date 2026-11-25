@@ -8,8 +8,8 @@ use rusqlite::Connection;
 
 use crate::state::errors::Result;
 use crate::state::py;
-use crate::state::seam::words_gen::{hook_outcome, override_kind};
 use crate::state::sql;
+use crate::vocabulary::{HookOutcome, OverrideKind};
 
 /// `hookclaims.CAPABILITY`.
 pub const HOOK_CAPABILITY: &str = "stop_hook_continuation";
@@ -30,7 +30,10 @@ pub fn held(
     let row = sql::first(
         connection,
         &format!("SELECT at FROM {schema}.hook_claims WHERE interruption_id=? AND outcome=?"),
-        &[interruption_id.clone(), py::word(hook_outcome::BLOCKED)],
+        &[
+            interruption_id.clone(),
+            py::word(HookOutcome::Blocked.as_str()),
+        ],
     )?;
     Ok(match row {
         None => false,
@@ -74,7 +77,7 @@ pub fn fresh(kind: &Value, created_at: &Value, used_at: &Value, since: &Value, n
     if !matches!(used_at, Value::Null) {
         return false;
     }
-    if !py::is_word(kind, &[override_kind::FORCE_ONCE]) {
+    if !py::is_word(kind, &[OverrideKind::ForceOnce.as_str()]) {
         return false;
     }
     if !(py::is_number(created_at) && py::is_number(since)) {

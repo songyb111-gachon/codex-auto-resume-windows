@@ -8,23 +8,24 @@
 use car_machine::json::{Str, Value};
 use rusqlite::Connection;
 
+use super::ask::RegistryAsked;
 use super::errors::{Error, Result};
 use super::py;
 use super::schema::{CONTINUATION_CAPABILITIES, RESET_CAPABILITIES};
-use super::seam::registry_gen::GLOBAL_HOURLY;
-use super::seam::words_gen::{
-    KEPT_NOTICES, actor, arming_state, arming_warning, journal_code, keep_on, off_reason, refusal,
-};
 use super::session::AdvancedState;
 use super::sql::{self, Row, float, int, py_eq, string};
+use crate::registry::GLOBAL_HOURLY;
+use crate::vocabulary::{
+    Actor, ArmingState, ArmingWarning, JournalCode, KEPT_NOTICES, KeepOn, OffReason, Refusal,
+};
 
 /// `_KEPT`: Keep on's rows in `options`, as SQL.
 fn kept_clause() -> String {
     format!(
         "choice IN ({})",
-        keep_on::ALL
+        KeepOn::ALL
             .iter()
-            .map(|word| format!("'{word}'"))
+            .map(|word| format!("'{}'", word.as_str()))
             .collect::<Vec<_>>()
             .join(", ")
     )
@@ -39,11 +40,11 @@ pub(crate) fn joined(warnings: &Value) -> Result<Value> {
     };
     let mut chosen = Vec::new();
     for item in items {
-        chosen.push(py::closed(item, arming_warning::ALL, "warning")?);
+        chosen.push(py::closed(item, ArmingWarning::ALL, "warning")?);
     }
-    let words: Vec<&str> = arming_warning::ALL
+    let words: Vec<&str> = ArmingWarning::ALL
         .iter()
-        .copied()
+        .map(|word| word.as_str())
         .filter(|word| chosen.contains(word))
         .collect();
     Ok(if words.is_empty() {
@@ -60,16 +61,17 @@ fn confirmed(value: &Value) -> Value {
         None => Vec::new(),
     };
     py::word_list(
-        arming_warning::ALL
+        ArmingWarning::ALL
             .iter()
-            .copied()
+            .map(|word| word.as_str())
             .filter(|word| words.contains(word)),
     )
 }
 
 /// The state of a row as the edition reads it: a word the vocabulary does not hold is off.
 fn state_of(row: &Row) -> &'static str {
-    py::closed(sql::get(row, "state"), arming_state::ALL, "state").unwrap_or(arming_state::OFF)
+    py::closed(sql::get(row, "state"), ArmingState::ALL, "state")
+        .unwrap_or(ArmingState::Off.as_str())
 }
 
 /// `_row(row)`: an arming row as the rest of the edition reads it.
@@ -81,7 +83,7 @@ fn read_row(row: &Row) -> Row {
     found.insert(sql::key("since"), sql::get(row, "since").clone());
     found.insert(
         sql::key("actor"),
-        if py::is_word(sql::get(row, "actor"), actor::ALL) {
+        if py::is_word(sql::get(row, "actor"), Actor::ALL) {
             sql::get(row, "actor").clone()
         } else {
             Value::Null
@@ -89,7 +91,7 @@ fn read_row(row: &Row) -> Row {
     );
     found.insert(
         sql::key("reason"),
-        if py::is_word(sql::get(row, "reason"), off_reason::ALL) {
+        if py::is_word(sql::get(row, "reason"), OffReason::ALL) {
             sql::get(row, "reason").clone()
         } else {
             Value::Null
@@ -146,7 +148,7 @@ fn row_of(connection: &Connection, capability: &Value) -> Result<Option<Row>> {
 
 /// `KEPT_NOTICES.index(word)`.
 fn rank(word: &Value) -> Option<usize> {
-    py::text(word).and_then(|text| KEPT_NOTICES.iter().position(|each| *each == text))
+    py::text(word).and_then(|text| KEPT_NOTICES.iter().position(|each| each.as_str() == text))
 }
 
 /// The arguments of one move (`move`'s keywords).
@@ -223,25 +225,25 @@ impl AdvancedState {
         let mut found = Row::new();
         for row in rows {
             let capability = sql::get(&row, "capability");
-            if self.registry.get(capability).is_none() {
+            if self.registry.get_value(capability).is_none() {
                 continue;
             }
-            let words: Vec<&Value> = if !py_eq(sql::get(&row, "state"), &string(arming_state::OFF))
-            {
-                kept.iter()
-                    .filter(|pair| py_eq(&pair[0], capability))
-                    .map(|pair| &pair[1])
-                    .collect()
-            } else {
-                Vec::new()
-            };
+            let words: Vec<&Value> =
+                if !py_eq(sql::get(&row, "state"), &string(ArmingState::Off.as_str())) {
+                    kept.iter()
+                        .filter(|pair| py_eq(&pair[0], capability))
+                        .map(|pair| &pair[1])
+                        .collect()
+                } else {
+                    Vec::new()
+                };
             let has = |word: &str| words.iter().any(|each| py::is_word(each, &[word]));
-            let keep = has(keep_on::KEEP_ON);
+            let keep = has(KeepOn::KeepOn.as_str());
             let mut entry = read_row(&row);
             entry.insert(sql::key("keep_on"), Value::Bool(keep));
             entry.insert(
                 sql::key("send_again"),
-                Value::Bool(keep && has(keep_on::SEND_AGAIN)),
+                Value::Bool(keep && has(KeepOn::SendAgain.as_str())),
             );
             found.insert(
                 Str::new(py::text(capability).unwrap_or_default()),
@@ -270,15 +272,15 @@ impl AdvancedState {
         state: &Value,
         options: &Move,
     ) -> Result<(bool, Value)> {
-        let state = py::closed(state, arming_state::ALL, "state")?;
-        let actor_word = py::closed(&options.actor, actor::ALL, "actor")?;
-        let reason = py::closed_or_none(&options.reason, off_reason::ALL, "reason")?;
+        let state = py::closed(state, ArmingState::ALL, "state")?;
+        let actor_word = py::closed(&options.actor, Actor::ALL, "actor")?;
+        let reason = py::closed_or_none(&options.reason, OffReason::ALL, "reason")?;
         let warnings = joined(&options.warnings)?;
-        if self.registry.get(capability).is_none() {
+        if self.registry.get_value(capability).is_none() {
             return Err(Error::state("unknown capability"));
         }
         let now = self.now(&options.at)?;
-        self.transaction(state != arming_state::OFF, |connection| {
+        self.transaction(state != ArmingState::Off.as_str(), |connection| {
             let Some(connection) = connection else {
                 return Ok((false, int(0)));
             };
@@ -287,15 +289,15 @@ impl AdvancedState {
                 return Err(Error::stale());
             }
             let before = row_of(connection, capability)?;
-            if state != arming_state::ARMED {
+            if state != ArmingState::Armed.as_str() {
                 sql::exec(
                     connection,
                     &format!("DELETE FROM options WHERE capability=? AND {}", kept_clause()),
                     std::slice::from_ref(capability),
                 )?;
             }
-            let (revision, engine_version, warnings) = if state == arming_state::OFF {
-                if before.as_ref().is_none_or(|before| state_of(before) == arming_state::OFF) {
+            let (revision, engine_version, warnings) = if state == ArmingState::Off.as_str() {
+                if before.as_ref().is_none_or(|before| state_of(before) == ArmingState::Off.as_str()) {
                     return Ok((false, current));
                 }
                 (Value::Null, Value::Null, Value::Null)
@@ -323,26 +325,26 @@ impl AdvancedState {
                 ],
             )?;
             let one = std::slice::from_ref(capability);
-            if state == arming_state::OFF {
+            if state == ArmingState::Off.as_str() {
                 super::resets::end_pending(connection, one, now)?;
                 super::prompts::end_pending(connection, one, now)?;
             }
-            if state != arming_state::ARMED {
-                super::continuations::end_pending(connection, one, now, state == arming_state::OFF)?;
+            if state != ArmingState::Armed.as_str() {
+                super::continuations::end_pending(connection, one, now, state == ArmingState::Off.as_str())?;
                 if py::is_word(capability, &[super::meter::METER]) {
                     super::meter::end_meter(connection)?;
                 }
                 super::chat::end_pending(connection, one, now)?;
             }
             sql::exec(connection, "UPDATE meta SET generation = generation + 1", &[])?;
-            let code = match state {
-                arming_state::ARMED => journal_code::ARMED,
-                arming_state::SHADOW => journal_code::WATCHED,
-                _ if actor_word == actor::TRIPWIRE => journal_code::TRIPPED,
-                _ if actor_word == actor::EDITION_ENTRY || actor_word == actor::ENGINE_CHANGE => {
-                    journal_code::RESET
+            let code = match ArmingState::parse(state) {
+                Some(ArmingState::Armed) => JournalCode::Armed.as_str(),
+                Some(ArmingState::Shadow) => JournalCode::Watched.as_str(),
+                _ if actor_word == Actor::Tripwire.as_str() => JournalCode::Tripped.as_str(),
+                _ if actor_word == Actor::EditionEntry.as_str() || actor_word == Actor::EngineChange.as_str() => {
+                    JournalCode::Reset.as_str()
                 }
-                _ => journal_code::DISARMED,
+                _ => JournalCode::Disarmed.as_str(),
             };
             self.note_in(
                 connection,
@@ -377,8 +379,8 @@ impl AdvancedState {
                     "wrong number of values to unpack",
                 ));
             }
-            let state = py::closed(&parts[1], arming_state::ALL, "state")?;
-            if state == arming_state::OFF || self.registry.get(&parts[0]).is_none() {
+            let state = py::closed(&parts[1], ArmingState::ALL, "state")?;
+            if state == ArmingState::Off.as_str() || self.registry.get_value(&parts[0]).is_none() {
                 return Err(Error::state("a set only turns capabilities on"));
             }
             prepared.push((
@@ -398,7 +400,7 @@ impl AdvancedState {
         }
         let armed: Vec<&Value> = prepared
             .iter()
-            .filter(|(_, state, ..)| *state == arming_state::ARMED)
+            .filter(|(_, state, ..)| *state == ArmingState::Armed.as_str())
             .map(|(capability, ..)| capability)
             .collect();
         if !keep
@@ -409,7 +411,7 @@ impl AdvancedState {
                 "only a capability turned on in the set is kept on",
             ));
         }
-        let actor_word = py::closed(actor_word, actor::ALL, "actor")?;
+        let actor_word = py::closed(actor_word, Actor::ALL, "actor")?;
         let now = self.now(at)?;
         self.writing(|connection| {
             let current = generation(connection)?;
@@ -440,10 +442,10 @@ impl AdvancedState {
                         warnings.clone(),
                     ],
                 )?;
-                let code = if *state == arming_state::ARMED {
-                    string(journal_code::ARMED)
+                let code = if *state == ArmingState::Armed.as_str() {
+                    string(JournalCode::Armed.as_str())
                 } else {
-                    string(journal_code::WATCHED)
+                    string(JournalCode::Watched.as_str())
                 };
                 self.note_in(
                     connection,
@@ -461,18 +463,18 @@ impl AdvancedState {
                 let held = sql::exists(
                     connection,
                     "SELECT 1 FROM options WHERE capability=? AND choice=?",
-                    &[capability.clone(), string(keep_on::KEEP_ON)],
+                    &[capability.clone(), string(KeepOn::KeepOn.as_str())],
                 )?;
                 if !held {
                     sql::exec(
                         connection,
                         "INSERT INTO options (capability, choice, value) VALUES (?,?,1)",
-                        &[capability.clone(), string(keep_on::KEEP_ON)],
+                        &[capability.clone(), string(KeepOn::KeepOn.as_str())],
                     )?;
                     self.note_in(
                         connection,
                         now,
-                        &string(journal_code::KEEP_ON),
+                        &string(JournalCode::KeepOn.as_str()),
                         &capability,
                         &Value::Null,
                         &string(actor_word),
@@ -492,8 +494,8 @@ impl AdvancedState {
 
     /// `all_off(actor=..., reason=..., at=...)`: every capability off at once. (how many were on, generation).
     pub fn all_off(&self, actor_word: &Value, reason: &Value, at: &Value) -> Result<(i64, Value)> {
-        let actor_word = py::closed(actor_word, actor::ALL, "actor")?;
-        let reason = py::closed(reason, off_reason::ALL, "reason")?;
+        let actor_word = py::closed(actor_word, Actor::ALL, "actor")?;
+        let reason = py::closed(reason, OffReason::ALL, "reason")?;
         let now = self.now(at)?;
         self.transaction(false, |connection| {
             let Some(connection) = connection else {
@@ -518,10 +520,10 @@ impl AdvancedState {
             super::meter::end_meter(connection)?;
             super::chat::end_pending(connection, &words(&[super::chat::CAPABILITY]), now)?;
             sql::exec(connection, "UPDATE meta SET generation = generation + 1", &[])?;
-            let code = if actor_word == actor::EDITION_ENTRY {
-                journal_code::RESET
+            let code = if actor_word == Actor::EditionEntry.as_str() {
+                JournalCode::Reset.as_str()
             } else {
-                journal_code::ALL_OFF
+                JournalCode::AllOff.as_str()
             };
             self.note_in(
                 connection,
@@ -547,27 +549,27 @@ impl AdvancedState {
         generation_seen: &Value,
         at: &Value,
     ) -> Result<Value> {
-        let actor_word = py::closed(actor_word, actor::ALL, "actor")?;
+        let actor_word = py::closed(actor_word, Actor::ALL, "actor")?;
         let (Value::Bool(on), Value::Bool(send_again)) = (on, send_again) else {
             return Err(Error::state("invalid keep on"));
         };
-        if self.registry.get(capability).is_none() || (*send_again && !*on) {
+        if self.registry.get_value(capability).is_none() || (*send_again && !*on) {
             return Err(Error::state("invalid keep on"));
         }
         let (on, send_again) = (*on, *send_again);
         let mut wanted: Vec<&str> = Vec::new();
         if on {
-            wanted.push(keep_on::KEEP_ON);
+            wanted.push(KeepOn::KeepOn.as_str());
         }
         if send_again {
-            wanted.push(keep_on::SEND_AGAIN);
+            wanted.push(KeepOn::SendAgain.as_str());
         }
         wanted.sort_unstable();
         let now = self.now(at)?;
         self.transaction(false, |connection| {
             let Some(connection) = connection else {
                 if on {
-                    return Err(Error::refused(refusal::NOT_ON));
+                    return Err(Error::refused(Refusal::NotOn.as_str()));
                 }
                 return Ok(int(0));
             };
@@ -601,11 +603,11 @@ impl AdvancedState {
                 std::slice::from_ref(capability),
             )?;
             if on
-                && row
-                    .as_ref()
-                    .is_none_or(|row| py::is_word(sql::get(row, "state"), &[arming_state::OFF]))
+                && row.as_ref().is_none_or(|row| {
+                    py::is_word(sql::get(row, "state"), &[ArmingState::Off.as_str()])
+                })
             {
-                return Err(Error::refused(refusal::NOT_ON));
+                return Err(Error::refused(Refusal::NotOn.as_str()));
             }
             sql::exec(
                 connection,
@@ -628,11 +630,11 @@ impl AdvancedState {
                 &[],
             )?;
             let code = if !on {
-                journal_code::KEEP_ON_OFF
+                JournalCode::KeepOnOff.as_str()
             } else if adding {
-                journal_code::KEEP_ON
+                JournalCode::KeepOn.as_str()
             } else {
-                journal_code::SEND_AGAIN_OFF
+                JournalCode::SendAgainOff.as_str()
             };
             self.note_in(
                 connection,
@@ -651,7 +653,7 @@ impl AdvancedState {
     /// `send_again_off(capability, reason=..., at=None)`: a kept-on capability's Send again taken away by a
     /// tripwire. Whether anything was taken away.
     pub fn send_again_off(&self, capability: &Value, reason: &Value, at: &Value) -> Result<bool> {
-        let reason = py::closed(reason, off_reason::ALL, "reason")?;
+        let reason = py::closed(reason, OffReason::ALL, "reason")?;
         let now = self.now(at)?;
         self.transaction(false, |connection| {
             let Some(connection) = connection else {
@@ -660,7 +662,7 @@ impl AdvancedState {
             if sql::exec(
                 connection,
                 "DELETE FROM options WHERE capability=? AND choice=?",
-                &[capability.clone(), string(keep_on::SEND_AGAIN)],
+                &[capability.clone(), string(KeepOn::SendAgain.as_str())],
             )? != 1
             {
                 return Ok(false);
@@ -673,10 +675,10 @@ impl AdvancedState {
             self.note_in(
                 connection,
                 now,
-                &string(journal_code::SEND_AGAIN_OFF),
+                &string(JournalCode::SendAgainOff.as_str()),
                 capability,
                 &string(reason),
-                &string(actor::TRIPWIRE),
+                &string(Actor::Tripwire.as_str()),
                 &Value::Null,
                 &Value::Null,
             )?;
@@ -686,14 +688,14 @@ impl AdvancedState {
                 std::slice::from_ref(capability),
             )?;
             if let Some(held) = held {
-                let reason_rank = KEPT_NOTICES.iter().position(|each| *each == reason);
+                let reason_rank = KEPT_NOTICES.iter().position(|each| each.as_str() == reason);
                 let held_rank = rank(sql::get(&held, "reason"));
                 let rises = match (reason_rank, held_rank) {
                     (None, _) => false,
                     (Some(_), None) => true,
                     (Some(new), Some(old)) => old > new,
                 };
-                if !py::is_word(sql::get(&held, "state"), &[arming_state::OFF]) && rises {
+                if !py::is_word(sql::get(&held, "state"), &[ArmingState::Off.as_str()]) && rises {
                     sql::exec(
                         connection,
                         "UPDATE arming SET reason=? WHERE capability=?",
@@ -702,10 +704,10 @@ impl AdvancedState {
                     self.note_in(
                         connection,
                         now,
-                        &string(journal_code::KEPT),
+                        &string(JournalCode::Kept.as_str()),
                         capability,
                         &string(reason),
-                        &string(actor::TRIPWIRE),
+                        &string(Actor::Tripwire.as_str()),
                         &Value::Null,
                         &Value::Null,
                     )?;
@@ -717,8 +719,8 @@ impl AdvancedState {
 
     /// `note_kept(capability, reason, at=None)`: what would have turned a kept-on capability off, noted on its row.
     pub fn note_kept(&self, capability: &Value, reason: &Value, at: &Value) -> Result<bool> {
-        let reason = py::closed(reason, off_reason::ALL, "reason")?;
-        let Some(new) = KEPT_NOTICES.iter().position(|each| *each == reason) else {
+        let reason = py::closed(reason, OffReason::ALL, "reason")?;
+        let Some(new) = KEPT_NOTICES.iter().position(|each| each.as_str() == reason) else {
             return Err(Error::state("not a notice"));
         };
         let now = self.now(at)?;
@@ -732,7 +734,7 @@ impl AdvancedState {
                 std::slice::from_ref(capability),
             )?;
             let Some(row) = row else { return Ok(false) };
-            if py::is_word(sql::get(&row, "state"), &[arming_state::OFF]) {
+            if py::is_word(sql::get(&row, "state"), &[ArmingState::Off.as_str()]) {
                 return Ok(false);
             }
             if rank(sql::get(&row, "reason")).is_some_and(|old| old <= new) {
@@ -746,10 +748,10 @@ impl AdvancedState {
             self.note_in(
                 connection,
                 now,
-                &string(journal_code::KEPT),
+                &string(JournalCode::Kept.as_str()),
                 capability,
                 &string(reason),
-                &string(actor::TRIPWIRE),
+                &string(Actor::Tripwire.as_str()),
                 &Value::Null,
                 &Value::Null,
             )?;
@@ -768,7 +770,7 @@ impl AdvancedState {
         if !py::small(value).is_some_and(|value| (1..=GLOBAL_HOURLY).contains(&value)) {
             return Err(Error::state("invalid ceiling"));
         }
-        let actor_word = py::closed(actor_word, actor::ALL, "actor")?;
+        let actor_word = py::closed(actor_word, Actor::ALL, "actor")?;
         let now = self.now(at)?;
         self.writing(|connection| {
             let current = generation(connection)?;
@@ -783,7 +785,7 @@ impl AdvancedState {
             self.note_in(
                 connection,
                 now,
-                &string(journal_code::CEILING_CHANGED),
+                &string(JournalCode::CeilingChanged.as_str()),
                 &Value::Null,
                 &Value::Null,
                 &string(actor_word),

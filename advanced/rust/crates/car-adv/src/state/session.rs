@@ -18,13 +18,14 @@ use car_config::paths::{OWNER_MARKER, OWNER_TEXT, Paths, is_link};
 use car_machine::json::Value;
 use rusqlite::Connection;
 
+use super::ask::DefinitionAsked;
 use super::errors::{Error, Result};
 use super::py;
 use super::schema::{self, Shape};
 use super::seam::Tokens;
-use super::seam::registry::Registry;
-use super::seam::registry_gen::GLOBAL_HOURLY;
 use super::sql;
+use crate::registry::GLOBAL_HOURLY;
+use crate::registry::Registry;
 
 /// The state's clock: seconds since 1970 (`time.time`), or what a test pins.
 pub type Clock = Box<dyn Fn() -> f64 + Send + Sync>;
@@ -37,7 +38,7 @@ pub fn wall_clock() -> f64 {
 /// One installation's advanced state, for one process: opened when first needed (`AdvancedState`).
 pub struct AdvancedState {
     pub paths: Paths,
-    pub registry: Arc<dyn Registry>,
+    pub registry: Arc<Registry>,
     /// `config/advanced/`.
     pub directory: PathBuf,
     /// `config/advanced/advanced.sqlite`.
@@ -62,7 +63,7 @@ impl AdvancedState {
     /// `AdvancedState(paths, registry=..., clock=...)`.
     pub fn new(
         paths: Paths,
-        registry: Arc<dyn Registry>,
+        registry: Arc<Registry>,
         clock: Clock,
         tokens: Arc<dyn Tokens>,
     ) -> Self {
@@ -316,10 +317,10 @@ impl AdvancedState {
     fn carry_windows(&self, connection: &Connection) -> Result<()> {
         let mut wanted: Vec<(&str, &str)> = Vec::new();
         for capability in schema::WINDOW_FOLLOWERS {
-            let definition = self.registry.by_id(capability);
+            let definition = self.registry.get(capability);
             for choice in schema::WINDOW_CHOICES {
                 if definition
-                    .is_some_and(|definition| definition.option(&py::word(choice)).is_some())
+                    .is_some_and(|definition| definition.option_of(&py::word(choice)).is_some())
                 {
                     wanted.push((capability, choice));
                 }

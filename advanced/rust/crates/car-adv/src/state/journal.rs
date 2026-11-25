@@ -9,11 +9,12 @@ use car_machine::json::Value;
 use car_policy::plug::vocab_gen::domain_plug::POINTS;
 use rusqlite::Connection;
 
+use super::ask::{DefinitionAsked, RegistryAsked};
 use super::errors::Result;
 use super::py;
-use super::seam::words_gen::{actor, arming_warning, journal_code, off_reason, record_state};
 use super::session::AdvancedState;
 use super::sql::{self, Row, float, int, string};
+use crate::vocabulary::{Actor, ArmingWarning, JournalCode, OffReason, RecordState};
 
 pub const EVENT_LIMIT: i64 = 5000;
 pub const WATCH_LIMIT: i64 = 95;
@@ -46,7 +47,7 @@ pub fn prune_every_value(row_id: &Value) -> bool {
 }
 
 /// `_closed(value, words)`.
-fn closed(value: &Value, words: &[&str]) -> Value {
+fn closed<'a, W: py::Word<'a>>(value: &Value, words: &[W]) -> Value {
     if py::is_word(value, words) {
         value.clone()
     } else {
@@ -56,11 +57,11 @@ fn closed(value: &Value, words: &[&str]) -> Value {
 
 /// `_reason(value)`: an off reason, or a statement's warning word.
 fn reason(value: &Value) -> Value {
-    let found = closed(value, off_reason::ALL);
+    let found = closed(value, OffReason::ALL);
     if sql::truthy(&found) {
         return found;
     }
-    closed(value, arming_warning::ALL)
+    closed(value, ArmingWarning::ALL)
 }
 
 /// `_answer(value)` (the module's): an alternative, or a point's name.
@@ -86,7 +87,7 @@ pub fn day_number(now: f64) -> i64 {
 impl AdvancedState {
     /// `_answer(value)` (the mixin's): the module's word, or the id of a capability the registry holds.
     fn answer(&self, value: &Value) -> Value {
-        if py::is_str(value) && self.registry.get(value).is_some() {
+        if py::is_str(value) && self.registry.get_value(value).is_some() {
             return value.clone();
         }
         answer_word(value)
@@ -94,17 +95,18 @@ impl AdvancedState {
 
     /// `_code(code, capability)`: `code` if it is the journal's own or one of `capability`'s, else "other".
     pub(crate) fn code(&self, code: &Value, capability: &Value) -> Value {
-        if py::is_word(code, journal_code::ALL) {
+        if py::is_word(code, JournalCode::ALL) {
             return code.clone();
         }
-        if let (Some(definition), Some(text)) = (self.registry.get(capability), py::text(code))
+        if let (Some(definition), Some(text)) =
+            (self.registry.get_value(capability), py::text(code))
             && let Some((prefix, word)) = text.split_once('.')
             && prefix == definition.journal_prefix
-            && definition.codes.contains(&word)
+            && definition.codes.iter().any(|each| each == word)
         {
             return code.clone();
         }
-        string(journal_code::OTHER)
+        string(JournalCode::Other.as_str())
     }
 
     /// `_note(connection, at, code, ...)`: one journal line inside the caller's transaction.
@@ -120,7 +122,7 @@ impl AdvancedState {
         point: &Value,
         answer: &Value,
     ) -> Result<()> {
-        let capability = if self.registry.get(capability).is_some() {
+        let capability = if self.registry.get_value(capability).is_some() {
             capability.clone()
         } else {
             Value::Null
@@ -133,7 +135,7 @@ impl AdvancedState {
                 capability.clone(),
                 self.code(code, &capability),
                 reason(reason_word),
-                closed(actor_word, actor::ALL),
+                closed(actor_word, Actor::ALL),
                 closed(point, POINTS),
                 self.answer(answer),
             ],
@@ -201,7 +203,7 @@ impl AdvancedState {
                 line.insert(sql::key("at"), sql::get(&row, "at").clone());
                 line.insert(
                     sql::key("capability"),
-                    if self.registry.get(capability).is_some() {
+                    if self.registry.get_value(capability).is_some() {
                         capability.clone()
                     } else {
                         Value::Null
@@ -214,7 +216,7 @@ impl AdvancedState {
                 line.insert(sql::key("reason"), reason(sql::get(&row, "reason")));
                 line.insert(
                     sql::key("actor"),
-                    closed(sql::get(&row, "actor"), actor::ALL),
+                    closed(sql::get(&row, "actor"), Actor::ALL),
                 );
                 line.insert(sql::key("point"), closed(sql::get(&row, "point"), POINTS));
                 line.insert(sql::key("answer"), self.answer(sql::get(&row, "answer")));
@@ -232,8 +234,8 @@ impl AdvancedState {
     ) -> Result<Vec<Value>> {
         let Some(code) = self
             .registry
-            .get(capability)
-            .and_then(|definition| definition.code(word))
+            .get_value(capability)
+            .and_then(|definition| definition.code_of(word))
         else {
             return Ok(Vec::new());
         };
@@ -259,7 +261,7 @@ impl AdvancedState {
     pub fn sample(&self, capability: &Value, code: &Value, at: &Value) -> Result<bool> {
         let Some(_definition) = self
             .registry
-            .get(capability)
+            .get_value(capability)
             .filter(|definition| definition.has_code(code))
         else {
             return Ok(false);
@@ -278,12 +280,12 @@ impl AdvancedState {
     pub fn counted(&self, capability: &Value, code: &Value, at: &Value) -> Result<bool> {
         let Some(definition) = self
             .registry
-            .get(capability)
+            .get_value(capability)
             .filter(|definition| definition.has_code(code))
         else {
             return Ok(false);
         };
-        let line = definition.code(code).unwrap_or_default();
+        let line = definition.code_of(code).unwrap_or_default();
         let now = self.now(at)?;
         self.transaction(false, |connection| {
             let Some(connection) = connection else {
@@ -308,7 +310,7 @@ impl AdvancedState {
     pub fn counted_since(&self, capability: &Value, code: &Value, since: &Value) -> Result<i64> {
         let Some(definition) = self
             .registry
-            .get(capability)
+            .get_value(capability)
             .filter(|definition| definition.has_code(code))
         else {
             return Ok(0);
@@ -316,7 +318,7 @@ impl AdvancedState {
         if !py::is_number(since) {
             return Ok(0);
         }
-        let line = definition.code(code).unwrap_or_default();
+        let line = definition.code_of(code).unwrap_or_default();
         self.read(|connection| match connection {
             None => Ok(0),
             Some(connection) => sql::number(
@@ -341,7 +343,7 @@ impl AdvancedState {
                 std::slice::from_ref(capability),
             ),
         })?;
-        let definition = self.registry.get(capability);
+        let definition = self.registry.get_value(capability);
         let mut found = Row::new();
         for row in rows {
             if definition.is_some_and(|definition| definition.has_code(&row[0])) {
@@ -374,7 +376,7 @@ pub fn prune(connection: &Connection, now: f64) -> Result<()> {
         "DELETE FROM journal WHERE at < ?",
         &[float(old)],
     )?;
-    let watched = string(journal_code::WOULD_HAVE);
+    let watched = string(JournalCode::WouldHave.as_str());
     for row in sql::tuples(
         connection,
         "SELECT DISTINCT capability FROM journal WHERE code=?",
@@ -410,8 +412,8 @@ pub fn prune(connection: &Connection, now: f64) -> Result<()> {
     }
     let settled = format!(
         "state IN ('{}', '{}')",
-        record_state::FINISHED,
-        record_state::CANCELLED
+        RecordState::Finished.as_str(),
+        RecordState::Cancelled.as_str()
     );
     sql::exec(
         connection,

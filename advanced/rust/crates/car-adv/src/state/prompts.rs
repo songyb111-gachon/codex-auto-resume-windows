@@ -9,17 +9,17 @@ use super::errors::{Error, Result};
 use super::py;
 use super::resets::{gate_word, paced_wait};
 use super::schema::{PROMPT_SPAN, WORDS_MOST};
-use super::seam::words_gen::{
-    prompt_every, prompt_reason, prompt_state, prompt_trigger, record_state, refusal, while_running,
-};
 use super::session::AdvancedState;
 use super::sql::{self, Row, float, int, py_eq, string};
+use crate::vocabulary::{
+    PromptEvery, PromptReason, PromptState, PromptTrigger, RecordState, Refusal, WhileRunning,
+};
 
 pub const PROMPT_QUEUE: &str = "prompt_queue";
 pub const PENDING: &[&str] = &[
-    prompt_state::WAITING,
-    prompt_state::READY,
-    prompt_state::HELD,
+    PromptState::Waiting.as_str(),
+    PromptState::Ready.as_str(),
+    PromptState::Held.as_str(),
 ];
 pub const PROMPTS_LIMIT: usize = 50;
 pub const PER_CONVERSATION: usize = 20;
@@ -36,15 +36,18 @@ pub const CHANGES: &[&str] = &[
     "finished_at",
     "sent_count",
 ];
-pub const COMPLETED: &[&str] = &[prompt_reason::DELIVERED, prompt_reason::HANDED_OVER];
+pub const COMPLETED: &[&str] = &[
+    PromptReason::Delivered.as_str(),
+    PromptReason::HandedOver.as_str(),
+];
 pub const CLEAR_MOST: usize = 5000;
 pub const DAY: i64 = 86400;
 
 /// `PERIODS[PromptEvery(every)]`.
 fn period(every: &Value) -> Result<i64> {
-    match py::text(every) {
-        Some(prompt_every::DAY) => Ok(DAY),
-        Some(prompt_every::WEEK) => Ok(7 * DAY),
+    match py::text(every).and_then(PromptEvery::parse) {
+        Some(PromptEvery::Day) => Ok(DAY),
+        Some(PromptEvery::Week) => Ok(7 * DAY),
         _ => Err(Error::python("ValueError", "not a valid PromptEvery")),
     }
 }
@@ -52,10 +55,22 @@ fn period(every: &Value) -> Result<i64> {
 /// `_ENDS`: how a move of an occurrence's record ends that occurrence.
 fn ends(movement: &str) -> Option<(&'static str, &'static str)> {
     Some(match movement {
-        "delivered" => (prompt_reason::DELIVERED, record_state::FINISHED),
-        "unproven" => (prompt_reason::UNKNOWN, record_state::FINISHED),
-        "superseded" => (prompt_reason::SUPERSEDED, record_state::FINISHED),
-        "handed_over" => (prompt_reason::HANDED_OVER, record_state::FINISHED),
+        "delivered" => (
+            PromptReason::Delivered.as_str(),
+            RecordState::Finished.as_str(),
+        ),
+        "unproven" => (
+            PromptReason::Unknown.as_str(),
+            RecordState::Finished.as_str(),
+        ),
+        "superseded" => (
+            PromptReason::Superseded.as_str(),
+            RecordState::Finished.as_str(),
+        ),
+        "handed_over" => (
+            PromptReason::HandedOver.as_str(),
+            RecordState::Finished.as_str(),
+        ),
         _ => return None,
     })
 }
@@ -103,17 +118,16 @@ fn occasion(
         _ => false,
     };
     if !fits {
-        return Err(Error::refused(refusal::PROMPT_REFUSED));
+        return Err(Error::refused(Refusal::PromptRefused.as_str()));
     }
-    let invalid = || Error::refused(refusal::OCCASION_INVALID);
-    let trigger = py::closed(trigger, prompt_trigger::ALL, "trigger").map_err(|_| invalid())?;
-    let every = py::closed_or_none(every, prompt_every::ALL, "every").map_err(|_| invalid())?;
-    let running =
-        py::closed(running, while_running::ALL, "while_running").map_err(|_| invalid())?;
-    if trigger == prompt_trigger::AFTER_TURN && running != while_running::QUEUE {
+    let invalid = || Error::refused(Refusal::OccasionInvalid.as_str());
+    let trigger = py::closed(trigger, PromptTrigger::ALL, "trigger").map_err(|_| invalid())?;
+    let every = py::closed_or_none(every, PromptEvery::ALL, "every").map_err(|_| invalid())?;
+    let running = py::closed(running, WhileRunning::ALL, "while_running").map_err(|_| invalid())?;
+    if trigger == PromptTrigger::AfterTurn.as_str() && running != WhileRunning::Queue.as_str() {
         return Err(invalid());
     }
-    let (shaped, due) = if trigger == prompt_trigger::AFTER_TURN {
+    let (shaped, due) = if trigger == PromptTrigger::AfterTurn.as_str() {
         (
             matches!(at, Value::Null)
                 && every.is_none()
@@ -125,9 +139,9 @@ fn occasion(
         let count = py::small(occurrences).filter(|count| (1..31).contains(count));
         (
             !matches!(at, Value::Null)
-                && every.is_some() == (trigger == prompt_trigger::RECURRING)
+                && every.is_some() == (trigger == PromptTrigger::Recurring.as_str())
                 && count.is_some()
-                && (count == Some(1) || trigger == prompt_trigger::RECURRING),
+                && (count == Some(1) || trigger == PromptTrigger::Recurring.as_str()),
             at.clone(),
         )
     };
@@ -145,7 +159,7 @@ fn occasion(
         },
     };
     if !shaped
-        || (trigger != prompt_trigger::AFTER_TURN && due < current - 60.0)
+        || (trigger != PromptTrigger::AfterTurn.as_str() && due < current - 60.0)
         || until.is_some_and(|until| !(current < until && until <= current + PROMPT_SPAN as f64))
     {
         return Err(invalid());
@@ -174,7 +188,7 @@ impl Default for When {
             occurrences: int(1),
             until: Value::Null,
             depends: Value::Bool(false),
-            while_running: string(while_running::QUEUE),
+            while_running: string(WhileRunning::Queue.as_str()),
             now: Value::Null,
             held: Value::Bool(false),
         }
@@ -217,7 +231,7 @@ impl AdvancedState {
             )?;
             let mine = waiting.iter().filter(|row| py_eq(&row[0], thread_id)).count();
             if waiting.len() >= PROMPTS_LIMIT || mine >= PER_CONVERSATION {
-                return Err(Error::refused(refusal::QUEUE_FULL));
+                return Err(Error::refused(Refusal::QueueFull.as_str()));
             }
             let last = sql::scalar(
                 connection,
@@ -225,7 +239,7 @@ impl AdvancedState {
                 std::slice::from_ref(thread_id),
             )?;
             if sql::truthy(&when.depends) && matches!(last, Value::Null) {
-                return Err(Error::refused(refusal::DEPENDENCY_UNKNOWN));
+                return Err(Error::refused(Refusal::DependencyUnknown.as_str()));
             }
             let position = if matches!(last, Value::Null) {
                 int(0)
@@ -240,7 +254,7 @@ impl AdvancedState {
                     thread_id.clone(),
                     words.clone(),
                     string(trigger),
-                    if trigger == prompt_trigger::AFTER_TURN {
+                    if trigger == PromptTrigger::AfterTurn.as_str() {
                         Value::Null
                     } else {
                         float(due)
@@ -251,9 +265,9 @@ impl AdvancedState {
                     int(i64::from(sql::truthy(&when.depends))),
                     position,
                     string(if sql::truthy(&when.held) {
-                        prompt_state::HELD
+                        PromptState::Held.as_str()
                     } else {
-                        prompt_state::WAITING
+                        PromptState::Waiting.as_str()
                     }),
                     float(current),
                     float(due),
@@ -273,29 +287,29 @@ impl AdvancedState {
         when: &When,
     ) -> Result<()> {
         if !py::is_int(prompt_id) {
-            return Err(Error::refused(refusal::INVALID_REQUEST));
+            return Err(Error::refused(Refusal::InvalidRequest.as_str()));
         }
         if !py::is_int(generation) {
-            return Err(Error::refused(refusal::STALE_GENERATION));
+            return Err(Error::refused(Refusal::StaleGeneration.as_str()));
         }
         let current = self.now(&when.now)?;
         self.transaction(false, |connection| {
             let Some(connection) = connection else {
-                return Err(Error::refused(refusal::INVALID_REQUEST));
+                return Err(Error::refused(Refusal::InvalidRequest.as_str()));
             };
             if !py_eq(&sql::scalar(connection, "SELECT generation FROM meta", &[])?, generation) {
-                return Err(Error::refused(refusal::STALE_GENERATION));
+                return Err(Error::refused(Refusal::StaleGeneration.as_str()));
             }
             let row = sql::one(
                 connection,
                 "SELECT thread_id, position, until, sent_count FROM prompts WHERE prompt_id=? AND state=? \
                  AND record_id IS NULL AND launching_at IS NULL AND sent_at IS NULL",
-                &[prompt_id.clone(), string(prompt_state::WAITING)],
+                &[prompt_id.clone(), string(PromptState::Waiting.as_str())],
             )?;
             let Some(row) = row else {
-                return Err(Error::refused(refusal::INVALID_REQUEST));
+                return Err(Error::refused(Refusal::InvalidRequest.as_str()));
             };
-            let until = if py::py_str(trigger) == prompt_trigger::RECURRING {
+            let until = if py::py_str(trigger) == PromptTrigger::Recurring.as_str() {
                 sql::get(&row, "until").clone()
             } else {
                 Value::Null
@@ -312,8 +326,8 @@ impl AdvancedState {
             )?;
             let sent = sql::get(&row, "sent_count");
             let fewer = pyval::less(&when.occurrences, sent).map_err(|class| Error::python(class, "'<'"))?;
-            if fewer || (sql::truthy(sent) && trigger != prompt_trigger::RECURRING) {
-                return Err(Error::refused(refusal::OCCASION_INVALID));
+            if fewer || (sql::truthy(sent) && trigger != PromptTrigger::Recurring.as_str()) {
+                return Err(Error::refused(Refusal::OccasionInvalid.as_str()));
             }
             if sql::truthy(&when.depends)
                 && !sql::exists(
@@ -322,7 +336,7 @@ impl AdvancedState {
                     &[sql::get(&row, "thread_id").clone(), sql::get(&row, "position").clone()],
                 )?
             {
-                return Err(Error::refused(refusal::DEPENDENCY_UNKNOWN));
+                return Err(Error::refused(Refusal::DependencyUnknown.as_str()));
             }
             sql::exec(
                 connection,
@@ -331,7 +345,7 @@ impl AdvancedState {
                 &[
                     words.clone(),
                     string(trigger),
-                    if trigger == prompt_trigger::AFTER_TURN {
+                    if trigger == PromptTrigger::AfterTurn.as_str() {
                         Value::Null
                     } else {
                         float(due)
@@ -343,9 +357,9 @@ impl AdvancedState {
                     float(due),
                     string(running),
                     string(if sql::truthy(&when.held) {
-                        prompt_state::HELD
+                        PromptState::Held.as_str()
                     } else {
-                        prompt_state::WAITING
+                        PromptState::Waiting.as_str()
                     }),
                     prompt_id.clone(),
                 ],
@@ -365,9 +379,9 @@ impl AdvancedState {
                 connection,
                 "UPDATE prompts SET state=? WHERE prompt_id=? AND state=? AND reason IS NULL",
                 &[
-                    string(prompt_state::WAITING),
+                    string(PromptState::Waiting.as_str()),
                     prompt_id.clone(),
-                    string(prompt_state::HELD),
+                    string(PromptState::Held.as_str()),
                 ],
             )? == 1),
         })
@@ -435,9 +449,9 @@ impl AdvancedState {
         let mut values: Vec<(String, Value)> = changes.to_vec();
         for (name, value) in values.iter_mut() {
             match name.as_str() {
-                "state" => *value = string(py::closed(value, prompt_state::ALL, "state")?),
+                "state" => *value = string(py::closed(value, PromptState::ALL, "state")?),
                 "reason" if !matches!(value, Value::Null) => {
-                    *value = string(py::closed(value, prompt_reason::ALL, "reason")?)
+                    *value = string(py::closed(value, PromptReason::ALL, "reason")?)
                 }
                 _ => {}
             }
@@ -449,7 +463,11 @@ impl AdvancedState {
         }
         values.sort_by(|a, b| a.0.cmp(&b.0));
         let ending = values.iter().any(|(name, value)| {
-            name == "state" && py::is_word(value, &[prompt_state::DONE, prompt_state::CANCELLED])
+            name == "state"
+                && py::is_word(
+                    value,
+                    &[PromptState::Done.as_str(), PromptState::Cancelled.as_str()],
+                )
         });
         self.transaction(false, |connection| {
             let Some(connection) = connection else {
@@ -489,29 +507,29 @@ impl AdvancedState {
                 )?,
             };
             let (Some(connection), Some(row)) = (connection, row) else {
-                return Err(Error::refused(refusal::INVALID_REQUEST));
+                return Err(Error::refused(Refusal::InvalidRequest.as_str()));
             };
             if !py::is_word(sql::get(&row, "state"), PENDING) {
-                return Err(Error::refused(refusal::INVALID_REQUEST));
+                return Err(Error::refused(Refusal::InvalidRequest.as_str()));
             }
-            let in_flight = py::is_word(sql::get(&row, "record_state"), &[record_state::IN_FLIGHT]);
+            let in_flight = py::is_word(sql::get(&row, "record_state"), &[RecordState::InFlight.as_str()]);
             if in_flight && !matches!(sql::get(&row, "sent_at"), Value::Null) {
                 sql::exec(
                     connection,
                     "UPDATE records SET withdraw=1 WHERE record_id=? AND state=?",
-                    &[sql::get(&row, "record_id").clone(), string(record_state::IN_FLIGHT)],
+                    &[sql::get(&row, "record_id").clone(), string(RecordState::InFlight.as_str())],
                 )?;
                 return Ok("withdrawing");
             }
             if !matches!(sql::get(&row, "launching_at"), Value::Null) || in_flight {
-                return Err(Error::refused(refusal::BEING_SENT));
+                return Err(Error::refused(Refusal::BeingSent.as_str()));
             }
             sql::exec(
                 connection,
                 "UPDATE prompts SET state=?, reason=?, words=NULL, finished_at=? WHERE prompt_id=?",
                 &[
-                    string(prompt_state::CANCELLED),
-                    string(prompt_reason::BY_PERSON),
+                    string(PromptState::Cancelled.as_str()),
+                    string(PromptReason::ByPerson.as_str()),
                     float(now),
                     prompt_id.clone(),
                 ],
@@ -522,10 +540,10 @@ impl AdvancedState {
                     connection,
                     "UPDATE records SET state=?, finished_at=? WHERE record_id=? AND state=?",
                     &[
-                        string(record_state::CANCELLED),
+                        string(RecordState::Cancelled.as_str()),
                         float(now),
                         record.clone(),
-                        string(record_state::WAITING),
+                        string(RecordState::Waiting.as_str()),
                     ],
                 )?;
             }
@@ -547,7 +565,7 @@ impl AdvancedState {
                 connection,
                 "SELECT thread_id, position, due_at, record_id, trigger, every, sent_count, occurrences, until \
                  FROM prompts WHERE prompt_id=? AND state=?",
-                &[prompt_id.clone(), string(prompt_state::HELD)],
+                &[prompt_id.clone(), string(PromptState::Held.as_str())],
             )?;
             let Some(row) = row else { return Ok(false) };
             let mut parameters = vec![sql::get(&row, "thread_id").clone(), sql::get(&row, "position").clone()];
@@ -568,10 +586,10 @@ impl AdvancedState {
                 return Ok(sql::exec(
                     connection,
                     "UPDATE prompts SET state=?, reason=NULL, depends=0 WHERE prompt_id=? AND state=?",
-                    &[string(prompt_state::WAITING), prompt_id.clone(), string(prompt_state::HELD)],
+                    &[string(PromptState::Waiting.as_str()), prompt_id.clone(), string(PromptState::Held.as_str())],
                 )? == 1);
             }
-            if py::is_word(sql::get(&row, "trigger"), &[prompt_trigger::RECURRING])
+            if py::is_word(sql::get(&row, "trigger"), &[PromptTrigger::Recurring.as_str()])
                 && !matches!(sql::get(&row, "every"), Value::Null)
             {
                 let period = period(sql::get(&row, "every"))?;
@@ -592,12 +610,12 @@ impl AdvancedState {
                             "UPDATE prompts SET state=?, reason=?, sent_count=?, words=NULL, depends=0, finished_at=? \
                              WHERE prompt_id=? AND state=?",
                             &[
-                                string(prompt_state::DONE),
-                                string(prompt_reason::MISSED),
+                                string(PromptState::Done.as_str()),
+                                string(PromptReason::Missed.as_str()),
                                 int(used),
                                 float(now),
                                 prompt_id.clone(),
-                                string(prompt_state::HELD),
+                                string(PromptState::Held.as_str()),
                             ],
                         )? == 1);
                     }
@@ -616,7 +634,7 @@ impl AdvancedState {
                     string(&key),
                     string(PROMPT_QUEUE),
                     sql::get(&row, "thread_id").clone(),
-                    string(record_state::WAITING),
+                    string(RecordState::Waiting.as_str()),
                     float(now),
                 ],
             )?;
@@ -624,10 +642,10 @@ impl AdvancedState {
                 connection,
                 "UPDATE prompts SET state=?, reason=NULL, depends=0, record_id=? WHERE prompt_id=? AND state=?",
                 &[
-                    string(prompt_state::READY),
+                    string(PromptState::Ready.as_str()),
                     string(&key),
                     prompt_id.clone(),
-                    string(prompt_state::HELD),
+                    string(PromptState::Held.as_str()),
                 ],
             )? == 1)
         })
@@ -636,28 +654,28 @@ impl AdvancedState {
     /// `clear_done(prompt_ids, generation)`: a person's Delete completed - {"deleted", "skipped"}.
     pub fn clear_done(&self, prompt_ids: &Value, generation: &Value) -> Result<Row> {
         let Value::Array(ids) = prompt_ids else {
-            return Err(Error::refused(refusal::INVALID_REQUEST));
+            return Err(Error::refused(Refusal::InvalidRequest.as_str()));
         };
         let distinct = ids
             .iter()
             .enumerate()
             .all(|(index, one)| ids[..index].iter().all(|other| !py_eq(one, other)));
         if ids.is_empty() || ids.len() > CLEAR_MOST || !ids.iter().all(py::is_int) || !distinct {
-            return Err(Error::refused(refusal::INVALID_REQUEST));
+            return Err(Error::refused(Refusal::InvalidRequest.as_str()));
         }
         if !py::is_int(generation) {
-            return Err(Error::refused(refusal::STALE_GENERATION));
+            return Err(Error::refused(Refusal::StaleGeneration.as_str()));
         }
         let deleted = self.transaction(false, |connection| {
             let Some(connection) = connection else {
-                return Err(Error::refused(refusal::STALE_GENERATION));
+                return Err(Error::refused(Refusal::StaleGeneration.as_str()));
             };
             if !py_eq(&sql::scalar(connection, "SELECT generation FROM meta", &[])?, generation) {
-                return Err(Error::refused(refusal::STALE_GENERATION));
+                return Err(Error::refused(Refusal::StaleGeneration.as_str()));
             }
             let mut deleted = 0u64;
             for prompt in ids {
-                let mut parameters = vec![prompt.clone(), string(prompt_state::DONE)];
+                let mut parameters = vec![prompt.clone(), string(PromptState::Done.as_str())];
                 parameters.extend(sql::words(COMPLETED));
                 deleted += sql::exec(
                     connection,
@@ -679,11 +697,11 @@ impl AdvancedState {
     /// `end_prompts(reason, thread_id=None, at=None)`: every prompt still to go whose occurrence is not in flight,
     /// ended; how many.
     pub fn end_prompts(&self, reason: &Value, thread_id: &Value, at: &Value) -> Result<i64> {
-        let reason = py::closed(reason, prompt_reason::ALL, "reason")?;
+        let reason = py::closed(reason, PromptReason::ALL, "reason")?;
         let now = self.now(at)?;
         let mut clauses = vec!["p.state IN (?,?,?)", "(c.state IS NULL OR c.state=?)"];
         let mut values = pending_words();
-        values.push(string(record_state::WAITING));
+        values.push(string(RecordState::Waiting.as_str()));
         if !matches!(thread_id, Value::Null) {
             clauses.push("p.thread_id=?");
             values.push(py::word(py::thread(thread_id)?));
@@ -705,13 +723,13 @@ impl AdvancedState {
                 sql::exec(
                     connection,
                     "UPDATE prompts SET state=?, reason=?, words=NULL, finished_at=? WHERE prompt_id=?",
-                    &[string(prompt_state::CANCELLED), string(reason), float(now), row[0].clone()],
+                    &[string(PromptState::Cancelled.as_str()), string(reason), float(now), row[0].clone()],
                 )?;
                 if !matches!(row[1], Value::Null) {
                     sql::exec(
                         connection,
                         "UPDATE records SET state=?, finished_at=? WHERE record_id=?",
-                        &[string(record_state::CANCELLED), float(now), row[1].clone()],
+                        &[string(RecordState::Cancelled.as_str()), float(now), row[1].clone()],
                     )?;
                 }
             }
@@ -767,7 +785,7 @@ impl AdvancedState {
                 sql::exec(
                     connection,
                     "UPDATE records SET state=?, finished_at=NULL WHERE record_id=? AND state=?",
-                    &[string(record_state::WAITING), record_id.clone(), string(record_state::IN_FLIGHT)],
+                    &[string(RecordState::Waiting.as_str()), record_id.clone(), string(RecordState::InFlight.as_str())],
                 )?;
                 sql::exec(
                     connection,
@@ -794,7 +812,7 @@ impl AdvancedState {
                             connection,
                             "UPDATE prompts SET state=?, reason=?, words=NULL, sent_count=?, finished_at=? \
                              WHERE prompt_id=?",
-                            &[string(prompt_state::DONE), string(why), used, float(now), prompt.clone()],
+                            &[string(PromptState::Done.as_str()), string(why), used, float(now), prompt.clone()],
                         )?;
                     }
                     Some(following) => {
@@ -802,7 +820,7 @@ impl AdvancedState {
                             connection,
                             "UPDATE prompts SET state=?, reason=?, sent_count=?, record_id=NULL, due_at=?, \
                              launching_at=NULL, sent_at=NULL WHERE prompt_id=?",
-                            &[string(prompt_state::WAITING), string(why), used, following, prompt.clone()],
+                            &[string(PromptState::Waiting.as_str()), string(why), used, following, prompt.clone()],
                         )?;
                     }
                 }
@@ -810,15 +828,15 @@ impl AdvancedState {
                 sql::exec(
                     connection,
                     "UPDATE records SET state=?, finished_at=?, withdraw=0 WHERE record_id=?",
-                    &[string(record_state::CANCELLED), float(now), record_id.clone()],
+                    &[string(RecordState::Cancelled.as_str()), float(now), record_id.clone()],
                 )?;
                 if sql::truthy(sql::get(&row, "withdraw")) {
                     sql::exec(
                         connection,
                         "UPDATE prompts SET state=?, reason=?, words=NULL, finished_at=? WHERE prompt_id=?",
                         &[
-                            string(prompt_state::CANCELLED),
-                            string(prompt_reason::WITHDRAWN),
+                            string(PromptState::Cancelled.as_str()),
+                            string(PromptReason::Withdrawn.as_str()),
                             float(now),
                             prompt.clone(),
                         ],
@@ -828,14 +846,14 @@ impl AdvancedState {
                         connection,
                         "UPDATE prompts SET state=?, reason=?, record_id=NULL, launching_at=NULL, sent_at=NULL \
                          WHERE prompt_id=?",
-                        &[string(prompt_state::HELD), string(prompt_reason::WITHDRAWN), prompt.clone()],
+                        &[string(PromptState::Held.as_str()), string(PromptReason::Withdrawn.as_str()), prompt.clone()],
                     )?;
                 }
             } else if movement == "withdraw_refused" {
                 sql::exec(
                     connection,
                     "UPDATE prompts SET reason=? WHERE prompt_id=?",
-                    &[string(prompt_reason::WITHDRAW_REFUSED), prompt.clone()],
+                    &[string(PromptReason::WithdrawRefused.as_str()), prompt.clone()],
                 )?;
                 sql::exec(
                     connection,
@@ -864,7 +882,12 @@ impl AdvancedState {
         Ok(self
             .prompts(&Value::Null, &Value::Bool(true))?
             .into_iter()
-            .filter(|row| py::is_word(sql::get(row, "record_state"), &[record_state::IN_FLIGHT]))
+            .filter(|row| {
+                py::is_word(
+                    sql::get(row, "record_state"),
+                    &[RecordState::InFlight.as_str()],
+                )
+            })
             .collect())
     }
 
@@ -881,13 +904,13 @@ impl AdvancedState {
                 "SELECT c.record_id FROM prompts p JOIN records c ON c.record_id = p.record_id WHERE p.state=? \
                  AND p.launching_at IS NULL AND p.sent_at IS NULL AND c.state=? AND c.claimed_at IS NOT NULL \
                  AND c.claimed_at <= ?",
-                &[string(prompt_state::READY), string(record_state::IN_FLIGHT), float(now - after)],
+                &[string(PromptState::Ready.as_str()), string(RecordState::InFlight.as_str()), float(now - after)],
             )?;
             for key in &keys {
                 sql::exec(
                     connection,
                     "UPDATE records SET state=? WHERE record_id=? AND state=?",
-                    &[string(record_state::WAITING), key[0].clone(), string(record_state::IN_FLIGHT)],
+                    &[string(RecordState::Waiting.as_str()), key[0].clone(), string(RecordState::InFlight.as_str())],
                 )?;
             }
             Ok(keys.len() as i64)
@@ -897,7 +920,10 @@ impl AdvancedState {
 
 /// `next_slot(row)`: when a recurring prompt's next occurrence falls, or None where its series ends there.
 pub fn next_slot(row: &Row) -> Result<Option<Value>> {
-    if !py::is_word(sql::get(row, "trigger"), &[prompt_trigger::RECURRING]) {
+    if !py::is_word(
+        sql::get(row, "trigger"),
+        &[PromptTrigger::Recurring.as_str()],
+    ) {
         return Ok(None);
     }
     if pyval::less_or_equal(sql::get(row, "occurrences"), sql::get(row, "sent_count"))
@@ -928,8 +954,8 @@ pub fn next_slot(row: &Row) -> Result<Option<Value>> {
 pub fn prune(connection: &Connection, now: f64, max_age: f64, limit: i64) -> Result<()> {
     let finished = format!(
         "state IN ('{}', '{}')",
-        prompt_state::DONE,
-        prompt_state::CANCELLED
+        PromptState::Done.as_str(),
+        PromptState::Cancelled.as_str()
     );
     sql::exec(
         connection,
@@ -960,7 +986,7 @@ pub fn end_pending(connection: &Connection, capabilities: &[Value], now: f64) ->
         return Ok(());
     }
     let mut parameters = pending_words();
-    parameters.push(string(record_state::IN_FLIGHT));
+    parameters.push(string(RecordState::InFlight.as_str()));
     let rows = sql::tuples(
         connection,
         "SELECT p.prompt_id, p.record_id FROM prompts p LEFT JOIN records c ON c.record_id = p.record_id \
@@ -972,8 +998,8 @@ pub fn end_pending(connection: &Connection, capabilities: &[Value], now: f64) ->
             connection,
             "UPDATE prompts SET state=?, reason=?, words=NULL, finished_at=? WHERE prompt_id=?",
             &[
-                string(prompt_state::CANCELLED),
-                string(prompt_reason::TURNED_OFF),
+                string(PromptState::Cancelled.as_str()),
+                string(PromptReason::TurnedOff.as_str()),
                 float(now),
                 row[0].clone(),
             ],
@@ -983,10 +1009,10 @@ pub fn end_pending(connection: &Connection, capabilities: &[Value], now: f64) ->
                 connection,
                 "UPDATE records SET state=?, finished_at=? WHERE record_id=? AND state<>?",
                 &[
-                    string(record_state::CANCELLED),
+                    string(RecordState::Cancelled.as_str()),
                     float(now),
                     row[1].clone(),
-                    string(record_state::FINISHED),
+                    string(RecordState::Finished.as_str()),
                 ],
             )?;
         }

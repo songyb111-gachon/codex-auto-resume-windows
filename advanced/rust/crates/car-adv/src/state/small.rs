@@ -8,24 +8,24 @@ use rusqlite::Connection;
 use super::errors::{Error, Result};
 use super::py;
 use super::schema::STEER_WORDS;
-use super::seam::words_gen::{open_outcome, plan_word, steer_reason, steer_state};
 use super::session::AdvancedState;
 use super::sql::{self, Row, float, int, string};
+use crate::vocabulary::{OpenOutcome, PlanWord, SteerReason, SteerState};
 
 pub const RESTARTER: &str = "crash_restart";
 pub const ACCOUNT: &str = "account_switch";
 /// `opens.SETTLED`: what an open may settle as.
 pub const SETTLED: &[&str] = &[
-    open_outcome::LOADED,
-    open_outcome::NOT_LOADED,
-    open_outcome::REFUSED,
+    OpenOutcome::Loaded.as_str(),
+    OpenOutcome::NotLoaded.as_str(),
+    OpenOutcome::Refused.as_str(),
 ];
 /// `steers.WAITING` and `steers.SETTLED`.
-pub const STEER_WAITING: &[&str] = &[steer_state::REQUESTED, steer_state::SENDING];
+pub const STEER_WAITING: &[&str] = &[SteerState::Requested.as_str(), SteerState::Sending.as_str()];
 pub const STEER_SETTLED: &[&str] = &[
-    steer_state::ACCEPTED,
-    steer_state::UNCONFIRMED,
-    steer_state::REFUSED,
+    SteerState::Accepted.as_str(),
+    SteerState::Unconfirmed.as_str(),
+    SteerState::Refused.as_str(),
 ];
 const STEER_COLUMNS: &str =
     "steer_id, thread_id, words, client_id, state, reason, created_at, finished_at";
@@ -135,7 +135,7 @@ impl AdvancedState {
                     thread_id.clone(),
                     record_id.clone(),
                     float(now),
-                    string(open_outcome::OPENED),
+                    string(OpenOutcome::Opened.as_str()),
                 ],
             )
         })
@@ -146,7 +146,7 @@ impl AdvancedState {
         if !py::is_int(open_id) {
             return Err(Error::state("invalid open id"));
         }
-        let outcome = py::closed(outcome, open_outcome::ALL, "outcome")?;
+        let outcome = py::closed(outcome, OpenOutcome::ALL, "outcome")?;
         if !SETTLED.contains(&outcome) {
             return Err(Error::state("invalid outcome"));
         }
@@ -158,7 +158,7 @@ impl AdvancedState {
                 &[
                     string(outcome),
                     open_id.clone(),
-                    string(open_outcome::OPENED),
+                    string(OpenOutcome::Opened.as_str()),
                 ],
             )? == 1),
         })
@@ -187,7 +187,7 @@ impl AdvancedState {
         if !digest16(identity_digest) {
             return Err(Error::state("invalid digest"));
         }
-        if !matches!(plan, Value::Null) && !py::is_word(plan, plan_word::ALL) {
+        if !matches!(plan, Value::Null) && !py::is_word(plan, PlanWord::ALL) {
             return Err(Error::state("invalid plan"));
         }
         let now = self.now(at)?;
@@ -295,7 +295,7 @@ impl AdvancedState {
                     thread_id.clone(),
                     words.clone(),
                     client_id,
-                    string(steer_state::REQUESTED),
+                    string(SteerState::Requested.as_str()),
                     float(now),
                 ],
             )
@@ -313,9 +313,9 @@ impl AdvancedState {
                 connection,
                 "UPDATE steers SET state=? WHERE steer_id=? AND state=?",
                 &[
-                    string(steer_state::SENDING),
+                    string(SteerState::Sending.as_str()),
                     steer_id.clone(),
-                    string(steer_state::REQUESTED),
+                    string(SteerState::Requested.as_str()),
                 ],
             )? == 1),
         })
@@ -332,13 +332,13 @@ impl AdvancedState {
         if !py::is_int(steer_id) {
             return Err(Error::state("invalid steer id"));
         }
-        let state = py::closed(state, steer_state::ALL, "state")?;
+        let state = py::closed(state, SteerState::ALL, "state")?;
         if !STEER_SETTLED.contains(&state) {
             return Err(Error::state("invalid state"));
         }
-        let (reason, before) = if state == steer_state::REFUSED {
+        let (reason, before) = if state == SteerState::Refused.as_str() {
             (
-                string(py::closed(reason, steer_reason::ALL, "reason")?),
+                string(py::closed(reason, SteerReason::ALL, "reason")?),
                 STEER_WAITING.to_vec(),
             )
         } else {
@@ -347,7 +347,7 @@ impl AdvancedState {
             }
             (
                 Value::Null,
-                vec![steer_state::SENDING, steer_state::SENDING],
+                vec![SteerState::Sending.as_str(), SteerState::Sending.as_str()],
             )
         };
         let now = self.now(at)?;
@@ -367,7 +367,7 @@ impl AdvancedState {
 
     /// `end_requested_steers(reason, at=None)`: every steer still `requested` refused; how many.
     pub fn end_requested_steers(&self, reason: &Value, at: &Value) -> Result<i64> {
-        let reason = py::closed(reason, steer_reason::ALL, "reason")?;
+        let reason = py::closed(reason, SteerReason::ALL, "reason")?;
         let now = self.now(at)?;
         self.transaction(false, |connection| match connection {
             None => Ok(0),
@@ -375,10 +375,10 @@ impl AdvancedState {
                 connection,
                 "UPDATE steers SET state=?, reason=?, finished_at=? WHERE state=?",
                 &[
-                    string(steer_state::REFUSED),
+                    string(SteerState::Refused.as_str()),
                     string(reason),
                     float(now),
-                    string(steer_state::REQUESTED),
+                    string(SteerState::Requested.as_str()),
                 ],
             )? as i64),
         })
@@ -393,9 +393,9 @@ impl AdvancedState {
                 connection,
                 "UPDATE steers SET state=?, finished_at=? WHERE state=?",
                 &[
-                    string(steer_state::UNCONFIRMED),
+                    string(SteerState::Unconfirmed.as_str()),
                     float(now),
-                    string(steer_state::SENDING),
+                    string(SteerState::Sending.as_str()),
                 ],
             )? as i64),
         })
@@ -407,8 +407,8 @@ impl AdvancedState {
 pub fn prune_steers(connection: &Connection, now: f64, max_age: f64, limit: i64) -> Result<()> {
     let settled = format!(
         "state NOT IN ('{}', '{}')",
-        steer_state::REQUESTED,
-        steer_state::SENDING
+        SteerState::Requested.as_str(),
+        SteerState::Sending.as_str()
     );
     sql::exec(
         connection,

@@ -6,11 +6,11 @@ use rusqlite::Connection;
 use super::errors::{Error, Result};
 use super::py;
 use super::schema::CONTINUATION_CAPABILITIES;
-use super::seam::words_gen::{
-    continuation_kind, continuation_reason, keep_reason, keep_state, record_state, refusal,
-};
 use super::session::AdvancedState;
 use super::sql::{self, Row, float, int, string};
+use crate::vocabulary::{
+    ContinuationKind, ContinuationReason, KeepReason, KeepState, RecordState, Refusal,
+};
 
 pub const KEEP_GOING: &str = "keep_going";
 pub const CONTINUATION_WORDS: usize = 2000;
@@ -18,11 +18,26 @@ pub const CONTINUATION_WORDS: usize = 2000;
 /// `_ENDS`: how a record's move ends its continuation - the reason, and the record's state then.
 fn ends(movement: &str) -> Option<(&'static str, &'static str)> {
     Some(match movement {
-        "delivered" => (continuation_reason::DELIVERED, record_state::FINISHED),
-        "unproven" => (continuation_reason::UNKNOWN, record_state::FINISHED),
-        "superseded" => (continuation_reason::SUPERSEDED, record_state::FINISHED),
-        "handed_over" => (continuation_reason::HANDED_OVER, record_state::FINISHED),
-        "withdrawn" => (continuation_reason::WITHDRAWN, record_state::CANCELLED),
+        "delivered" => (
+            ContinuationReason::Delivered.as_str(),
+            RecordState::Finished.as_str(),
+        ),
+        "unproven" => (
+            ContinuationReason::Unknown.as_str(),
+            RecordState::Finished.as_str(),
+        ),
+        "superseded" => (
+            ContinuationReason::Superseded.as_str(),
+            RecordState::Finished.as_str(),
+        ),
+        "handed_over" => (
+            ContinuationReason::HandedOver.as_str(),
+            RecordState::Finished.as_str(),
+        ),
+        "withdrawn" => (
+            ContinuationReason::Withdrawn.as_str(),
+            RecordState::Cancelled.as_str(),
+        ),
         _ => return None,
     })
 }
@@ -80,7 +95,7 @@ impl AdvancedState {
     ) -> Result<bool> {
         py::key(key, "continuation key")?;
         capability_of(capability)?;
-        let kind = py::closed(kind, continuation_kind::ALL, "kind")?;
+        let kind = py::closed(kind, ContinuationKind::ALL, "kind")?;
         py::thread(thread_id)?;
         words_of(words)?;
         ordinal_chain(ordinal, chain)?;
@@ -92,7 +107,7 @@ impl AdvancedState {
             sql::exec(
                 connection,
                 "INSERT INTO records (record_id, capability, thread_id, state, created_at, claims) VALUES (?,?,?,?,?,0)",
-                &[key.clone(), capability.clone(), thread_id.clone(), string(record_state::WAITING), float(now)],
+                &[key.clone(), capability.clone(), thread_id.clone(), string(RecordState::Waiting.as_str()), float(now)],
             )?;
             sql::exec(
                 connection,
@@ -129,7 +144,7 @@ impl AdvancedState {
     ) -> Result<bool> {
         py::key(key, "continuation key")?;
         capability_of(capability)?;
-        let kind = py::closed(kind, continuation_kind::ALL, "kind")?;
+        let kind = py::closed(kind, ContinuationKind::ALL, "kind")?;
         py::thread(thread_id)?;
         ordinal_chain(ordinal, chain)?;
         let now = self.now(at)?;
@@ -140,7 +155,7 @@ impl AdvancedState {
             sql::exec(
                 connection,
                 "INSERT INTO records (record_id, capability, thread_id, state, created_at, claims) VALUES (?,?,?,?,?,0)",
-                &[key.clone(), capability.clone(), thread_id.clone(), string(record_state::WAITING), float(now)],
+                &[key.clone(), capability.clone(), thread_id.clone(), string(RecordState::Waiting.as_str()), float(now)],
             )?;
             sql::exec(
                 connection,
@@ -177,9 +192,9 @@ impl AdvancedState {
     ) -> Result<bool> {
         py::key(key, "continuation key")?;
         capability_of(capability)?;
-        let kind = py::closed(kind, continuation_kind::ALL, "kind")?;
+        let kind = py::closed(kind, ContinuationKind::ALL, "kind")?;
         py::thread(thread_id)?;
-        let reason = py::closed(reason, continuation_reason::ALL, "reason")?;
+        let reason = py::closed(reason, ContinuationReason::ALL, "reason")?;
         let now = self.now(at)?;
         self.writing(|connection| {
             if sql::exists(connection, "SELECT 1 FROM continuations WHERE answer_id=?", std::slice::from_ref(key))? {
@@ -306,7 +321,7 @@ impl AdvancedState {
                 sql::exec(
                     connection,
                     "UPDATE records SET state=?, finished_at=NULL WHERE record_id=? AND state=?",
-                    &[string(record_state::WAITING), record_id.clone(), string(record_state::IN_FLIGHT)],
+                    &[string(RecordState::Waiting.as_str()), record_id.clone(), string(RecordState::InFlight.as_str())],
                 )?;
                 sql::exec(
                     connection,
@@ -382,9 +397,9 @@ impl AdvancedState {
         thread_id: &Value,
         at: &Value,
     ) -> Result<i64> {
-        let reason = py::closed(reason, continuation_reason::ALL, "reason")?;
+        let reason = py::closed(reason, ContinuationReason::ALL, "reason")?;
         let mut clauses = vec!["n.finished_at IS NULL", "c.state=?"];
-        let mut values = vec![string(record_state::WAITING)];
+        let mut values = vec![string(RecordState::Waiting.as_str())];
         if !matches!(capability, Value::Null) {
             clauses.push("n.capability=?");
             values.push(capability_of(capability)?);
@@ -415,7 +430,7 @@ impl AdvancedState {
                 sql::exec(
                     connection,
                     "UPDATE records SET state=?, finished_at=? WHERE record_id=?",
-                    &[string(record_state::CANCELLED), float(now), key[0].clone()],
+                    &[string(RecordState::Cancelled.as_str()), float(now), key[0].clone()],
                 )?;
             }
             Ok(keys.len() as i64)
@@ -427,7 +442,12 @@ impl AdvancedState {
         Ok(self
             .continuations(&Value::Null, &Value::Null, &Value::Bool(true))?
             .into_iter()
-            .filter(|row| py::is_word(sql::get(row, "record_state"), &[record_state::IN_FLIGHT]))
+            .filter(|row| {
+                py::is_word(
+                    sql::get(row, "record_state"),
+                    &[RecordState::InFlight.as_str()],
+                )
+            })
             .collect())
     }
 
@@ -477,14 +497,14 @@ impl AdvancedState {
     pub fn set_keep_going(&self, thread_id: &Value, count: &Value, at: &Value) -> Result<()> {
         py::thread(thread_id)?;
         if !py::small(count).is_some_and(|count| (1..11).contains(&count)) {
-            return Err(Error::refused(refusal::KEEP_COUNT_INVALID));
+            return Err(Error::refused(Refusal::KeepCountInvalid.as_str()));
         }
         let now = self.now(at)?;
         self.writing(|connection| {
             sql::exec(
                 connection,
                 "INSERT OR REPLACE INTO keep_going (thread_id, count, used, armed_at, state) VALUES (?,?,0,?,?)",
-                &[thread_id.clone(), count.clone(), float(now), string(keep_state::ON)],
+                &[thread_id.clone(), count.clone(), float(now), string(KeepState::On.as_str())],
             )?;
             Ok(())
         })
@@ -501,7 +521,7 @@ impl AdvancedState {
             let row = sql::one(
                 connection,
                 "SELECT count, used FROM keep_going WHERE thread_id=? AND state=?",
-                &[thread_id.clone(), string(keep_state::ON)],
+                &[thread_id.clone(), string(KeepState::On.as_str())],
             )?;
             let Some(row) = row else { return Ok(false) };
             let (count, used) = (sql::get(&row, "count"), sql::get(&row, "used"));
@@ -519,12 +539,12 @@ impl AdvancedState {
                 &[
                     used,
                     string(if spent {
-                        keep_state::DONE
+                        KeepState::Done.as_str()
                     } else {
-                        keep_state::ON
+                        KeepState::On.as_str()
                     }),
                     if spent {
-                        string(keep_reason::COUNT_SPENT)
+                        string(KeepReason::CountSpent.as_str())
                     } else {
                         Value::Null
                     },
@@ -538,7 +558,7 @@ impl AdvancedState {
 
     /// `stop_keep_going(reason, thread_id=None, at=None)`: every conversation kept going - or one - stopped.
     pub fn stop_keep_going(&self, reason: &Value, thread_id: &Value, at: &Value) -> Result<i64> {
-        let reason = py::closed(reason, keep_reason::ALL, "reason")?;
+        let reason = py::closed(reason, KeepReason::ALL, "reason")?;
         let now = self.now(at)?;
         self.transaction(false, |connection| {
             let Some(connection) = connection else {
@@ -548,14 +568,14 @@ impl AdvancedState {
                 sql::exec(
                     connection,
                     "UPDATE keep_going SET state=?, reason=?, finished_at=? WHERE state=?",
-                    &[string(keep_state::DONE), string(reason), float(now), string(keep_state::ON)],
+                    &[string(KeepState::Done.as_str()), string(reason), float(now), string(KeepState::On.as_str())],
                 )?
             } else {
                 let thread = py::word(py::thread(thread_id)?);
                 sql::exec(
                     connection,
                     "UPDATE keep_going SET state=?, reason=?, finished_at=? WHERE state=? AND thread_id=?",
-                    &[string(keep_state::DONE), string(reason), float(now), string(keep_state::ON), thread],
+                    &[string(KeepState::Done.as_str()), string(reason), float(now), string(KeepState::On.as_str()), thread],
                 )?
             };
             Ok(count as i64)
@@ -583,7 +603,7 @@ pub fn prune(connection: &Connection, now: f64, max_age: f64, limit: i64) -> Res
     sql::exec(
         connection,
         "DELETE FROM keep_going WHERE state=? AND finished_at < ?",
-        &[string(keep_state::DONE), float(old)],
+        &[string(KeepState::Done.as_str()), float(old)],
     )?;
     Ok(())
 }
@@ -605,7 +625,7 @@ pub fn end_pending(
         return Ok(());
     }
     let mut parameters = ended.clone();
-    parameters.push(string(record_state::WAITING));
+    parameters.push(string(RecordState::Waiting.as_str()));
     let rows = sql::tuples(
         connection,
         &format!(
@@ -621,14 +641,18 @@ pub fn end_pending(
             "UPDATE continuations SET words=NULL, finished_at=?, reason=? WHERE record_id=?",
             &[
                 float(now),
-                string(continuation_reason::TURNED_OFF),
+                string(ContinuationReason::TurnedOff.as_str()),
                 row[0].clone(),
             ],
         )?;
         sql::exec(
             connection,
             "UPDATE records SET state=?, finished_at=? WHERE record_id=?",
-            &[string(record_state::CANCELLED), float(now), row[0].clone()],
+            &[
+                string(RecordState::Cancelled.as_str()),
+                float(now),
+                row[0].clone(),
+            ],
         )?;
     }
     if kept
@@ -640,10 +664,10 @@ pub fn end_pending(
             connection,
             "UPDATE keep_going SET state=?, reason=?, finished_at=? WHERE state=?",
             &[
-                string(keep_state::DONE),
-                string(keep_reason::TURNED_OFF),
+                string(KeepState::Done.as_str()),
+                string(KeepReason::TurnedOff.as_str()),
                 float(now),
-                string(keep_state::ON),
+                string(KeepState::On.as_str()),
             ],
         )?;
     }
@@ -659,16 +683,16 @@ pub fn release_unlaunched(connection: &Connection, now: f64, after: &Value) -> R
         "SELECT c.record_id FROM continuations n JOIN records c ON c.record_id = n.record_id WHERE n.finished_at IS NULL \
          AND n.launching_at IS NULL AND n.words IS NOT NULL AND c.state=? AND c.claimed_at IS NOT NULL \
          AND c.claimed_at <= ?",
-        &[string(record_state::IN_FLIGHT), float(now - after)],
+        &[string(RecordState::InFlight.as_str()), float(now - after)],
     )?;
     for key in &keys {
         sql::exec(
             connection,
             "UPDATE records SET state=? WHERE record_id=? AND state=?",
             &[
-                string(record_state::WAITING),
+                string(RecordState::Waiting.as_str()),
                 key[0].clone(),
-                string(record_state::IN_FLIGHT),
+                string(RecordState::InFlight.as_str()),
             ],
         )?;
     }

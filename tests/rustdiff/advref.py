@@ -52,6 +52,12 @@ def package(tag: str | None = None) -> Path:
     return folder
 
 
+def trees(tag: str | None = None) -> tuple:
+    """(core src, advanced src) of `tag`: the two folders the advanced lane puts on the path (`src;advanced/src`)."""
+    root = package(tag)
+    return root / "src", root / "advanced" / "src"
+
+
 def locales(tag: str | None = None) -> Path:
     """The tag's own advanced catalogs (advanced/src/codex_auto_resume_advanced/locales)."""
     return package(tag) / "advanced" / "src" / "codex_auto_resume_advanced" / "locales"
@@ -64,7 +70,7 @@ def environment(profile: Path, tag: str | None = None) -> dict:
 
 
 def run(script: str, *arguments, profile: Path | None = None, tag: str | None = None,
-        stdin: bytes | None = None) -> subprocess.CompletedProcess:
+        stdin: bytes | None = None, timeout: int = 900) -> subprocess.CompletedProcess:
     """Run `script` under the tag's advanced edition with `arguments` as sys.argv[1:]; stdout and stderr as bytes."""
     with tempfile.TemporaryDirectory(prefix="advref-run-") as own:
         home = Path(profile) if profile is not None else Path(own)
@@ -77,7 +83,14 @@ def run(script: str, *arguments, profile: Path | None = None, tag: str | None = 
             command = [sys.executable, "-X", "utf8", "-c", script]
         return subprocess.run([*command, *map(str, arguments)], input=stdin,
                               capture_output=True, env=environment(home, tag), cwd=str(home),
-                              creationflags=NO_WINDOW, timeout=900)
+                              creationflags=NO_WINDOW, timeout=timeout)
+
+
+def popen(script: str, *arguments, profile: Path, tag: str | None = None) -> subprocess.Popen:
+    """`run`, started and not waited for: the cross-process claim runs two at once."""
+    return subprocess.Popen([sys.executable, "-X", "utf8", "-c", script, *map(str, arguments)],
+                            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                            env=environment(Path(profile), tag), cwd=str(profile), creationflags=NO_WINDOW)
 
 
 # ------------------------------------------------------------------------------------------------ the Rust side

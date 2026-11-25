@@ -8,15 +8,19 @@ use rusqlite::Connection;
 use super::errors::{Error, Result};
 use super::py;
 use super::schema::{BUCKETS, RESET_CAPABILITIES, WORDS_MOST};
-use super::seam::words_gen::{record_state, refusal, rule_reason, rule_state, spend_outcome};
 use super::session::AdvancedState;
 use super::sql::{self, Row, float, int, py_eq, string};
+use crate::vocabulary::{RecordState, Refusal, RuleReason, RuleState, SpendOutcome};
 
 pub const CREDIT: &str = "reset_credit";
 pub const MESSAGE: &str = "reset_message";
 /// A rule still to act: counting, due, or held for a person.
-pub const PENDING: &[&str] = &[rule_state::COUNTING, rule_state::READY, rule_state::HELD];
-pub const FINISHED: &[&str] = &[rule_state::DONE, rule_state::CANCELLED];
+pub const PENDING: &[&str] = &[
+    RuleState::Counting.as_str(),
+    RuleState::Ready.as_str(),
+    RuleState::Held.as_str(),
+];
+pub const FINISHED: &[&str] = &[RuleState::Done.as_str(), RuleState::Cancelled.as_str()];
 pub const MESSAGES_LIMIT: i64 = 50;
 pub const CREDIT_RULES_LIMIT: i64 = 4;
 pub const WORDS_LIMIT: i64 = WORDS_MOST;
@@ -72,7 +76,11 @@ pub fn paced_wait(
         sql::exec(
             connection,
             "UPDATE records SET created_at=? WHERE record_id=? AND state=?",
-            &[float(now), record_id.clone(), string(record_state::WAITING)],
+            &[
+                float(now),
+                record_id.clone(),
+                string(RecordState::Waiting.as_str()),
+            ],
         )?;
     }
     Ok(())
@@ -306,7 +314,7 @@ impl AdvancedState {
         let is_credit = py::is_word(capability, &[CREDIT]);
         let ordinal_fits = py::small(ordinal).is_some_and(|ordinal| (0..10).contains(&ordinal));
         if !ordinal_fits || (py::small(ordinal) == Some(0) && !is_credit) {
-            return Err(Error::refused(refusal::OCCASION_INVALID));
+            return Err(Error::refused(Refusal::OccasionInvalid.as_str()));
         }
         let (Value::Bool(repeat), Value::Bool(ask_first)) = (repeat, ask_first) else {
             return Err(Error::state("invalid rule"));
@@ -318,7 +326,7 @@ impl AdvancedState {
             let fits =
                 py::length(words).is_some_and(|length| 0 < length && length as i64 <= WORDS_LIMIT);
             if !fits || *repeat {
-                return Err(Error::refused(refusal::MESSAGE_REFUSED));
+                return Err(Error::refused(Refusal::MessageRefused.as_str()));
             }
         } else if !matches!(thread_id, Value::Null)
             || !matches!(words, Value::Null)
@@ -338,7 +346,7 @@ impl AdvancedState {
                 &parameters,
             )?;
             if waiting >= if message { MESSAGES_LIMIT } else { CREDIT_RULES_LIMIT } {
-                return Err(Error::refused(refusal::RESETS_FULL));
+                return Err(Error::refused(Refusal::ResetsFull.as_str()));
             }
             if message {
                 let mut parameters = vec![thread_id.clone()];
@@ -349,7 +357,7 @@ impl AdvancedState {
                      AND r.state IN (?,?,?)",
                     &parameters,
                 )? {
-                    return Err(Error::refused(refusal::ALREADY_SCHEDULED));
+                    return Err(Error::refused(Refusal::AlreadyScheduled.as_str()));
                 }
                 if sql::exists(connection, "SELECT 1 FROM records WHERE record_id=?", std::slice::from_ref(record_id))? {
                     return Err(Error::state("record id taken"));
@@ -362,7 +370,7 @@ impl AdvancedState {
                         record_id.clone(),
                         string(MESSAGE),
                         thread_id.clone(),
-                        string(record_state::WAITING),
+                        string(RecordState::Waiting.as_str()),
                         float(now),
                     ],
                 )?;
@@ -381,7 +389,7 @@ impl AdvancedState {
                     record_id.clone(),
                     words.clone(),
                     float(now),
-                    string(rule_state::COUNTING),
+                    string(RuleState::Counting.as_str()),
                 ],
             )
         })
@@ -413,13 +421,13 @@ impl AdvancedState {
                 .map(|(_, value)| value.clone())
         };
         if let Some(state) = get(&values, "state") {
-            let word = py::closed(&state, rule_state::ALL, "rule state")?;
+            let word = py::closed(&state, RuleState::ALL, "rule state")?;
             set(&mut values, "state", string(word));
         }
         if let Some(reason) = get(&values, "reason")
             && !matches!(reason, Value::Null)
         {
-            let word = py::closed(&reason, rule_reason::ALL, "rule reason")?;
+            let word = py::closed(&reason, RuleReason::ALL, "rule reason")?;
             set(&mut values, "reason", string(word));
         }
         for name in ["gate", "gate_reason"] {
@@ -489,11 +497,11 @@ impl AdvancedState {
         reason: &Value,
         at: &Value,
     ) -> Result<bool> {
-        let state = py::closed(state, rule_state::ALL, "rule state")?;
+        let state = py::closed(state, RuleState::ALL, "rule state")?;
         if !FINISHED.contains(&state) {
             return Err(Error::state("not an end"));
         }
-        let reason = py::closed(reason, rule_reason::ALL, "rule reason")?;
+        let reason = py::closed(reason, RuleReason::ALL, "rule reason")?;
         let now = self.now(at)?;
         self.transaction(false, |connection| {
             let Some(connection) = connection else {
@@ -514,15 +522,15 @@ impl AdvancedState {
             )?;
             let record = sql::get(&row, "record_id");
             if !matches!(record, Value::Null) {
-                let to = if state == rule_state::DONE {
-                    record_state::FINISHED
+                let to = if state == RuleState::Done.as_str() {
+                    RecordState::Finished.as_str()
                 } else {
-                    record_state::CANCELLED
+                    RecordState::Cancelled.as_str()
                 };
                 sql::exec(
                     connection,
                     "UPDATE records SET state=?, finished_at=? WHERE record_id=? AND state<>?",
-                    &[string(to), float(now), record.clone(), string(record_state::FINISHED)],
+                    &[string(to), float(now), record.clone(), string(RecordState::Finished.as_str())],
                 )?;
             }
             Ok(true)
@@ -544,29 +552,29 @@ impl AdvancedState {
                 )?,
             };
             let (Some(connection), Some(row)) = (connection, row) else {
-                return Err(Error::refused(refusal::UNKNOWN_RULE));
+                return Err(Error::refused(Refusal::UnknownRule.as_str()));
             };
             if !py::is_word(sql::get(&row, "state"), PENDING) {
-                return Err(Error::refused(refusal::UNKNOWN_RULE));
+                return Err(Error::refused(Refusal::UnknownRule.as_str()));
             }
-            let in_flight = py::is_word(sql::get(&row, "record_state"), &[record_state::IN_FLIGHT]);
+            let in_flight = py::is_word(sql::get(&row, "record_state"), &[RecordState::InFlight.as_str()]);
             if in_flight && !matches!(sql::get(&row, "sent_at"), Value::Null) {
                 sql::exec(
                     connection,
                     "UPDATE records SET withdraw=1 WHERE record_id=? AND state=?",
-                    &[sql::get(&row, "record_id").clone(), string(record_state::IN_FLIGHT)],
+                    &[sql::get(&row, "record_id").clone(), string(RecordState::InFlight.as_str())],
                 )?;
                 return Ok("withdrawing");
             }
             if !matches!(sql::get(&row, "launching_at"), Value::Null) || in_flight {
-                return Err(Error::refused(refusal::BEING_SENT));
+                return Err(Error::refused(Refusal::BeingSent.as_str()));
             }
             sql::exec(
                 connection,
                 "UPDATE reset_rules SET state=?, reason=?, words=NULL, finished_at=? WHERE rule_id=?",
                 &[
-                    string(rule_state::CANCELLED),
-                    string(rule_reason::BY_PERSON),
+                    string(RuleState::Cancelled.as_str()),
+                    string(RuleReason::ByPerson.as_str()),
                     float(now),
                     rule_id.clone(),
                 ],
@@ -576,7 +584,7 @@ impl AdvancedState {
                 sql::exec(
                     connection,
                     "UPDATE records SET state=?, finished_at=? WHERE record_id=?",
-                    &[string(record_state::CANCELLED), float(now), record.clone()],
+                    &[string(RecordState::Cancelled.as_str()), float(now), record.clone()],
                 )?;
             }
             Ok("cancelled")
@@ -591,7 +599,7 @@ impl AdvancedState {
             let Some(connection) = connection else {
                 return Ok(0);
             };
-            let mut parameters = vec![string(MESSAGE), thread_id.clone(), string(record_state::WAITING)];
+            let mut parameters = vec![string(MESSAGE), thread_id.clone(), string(RecordState::Waiting.as_str())];
             parameters.extend(pending_words());
             let rows = sql::tuples(
                 connection,
@@ -604,8 +612,8 @@ impl AdvancedState {
                     connection,
                     "UPDATE reset_rules SET state=?, reason=?, words=NULL, finished_at=? WHERE rule_id=?",
                     &[
-                        string(rule_state::CANCELLED),
-                        string(rule_reason::CONVERSATION_OFF),
+                        string(RuleState::Cancelled.as_str()),
+                        string(RuleReason::ConversationOff.as_str()),
                         float(now),
                         row[0].clone(),
                     ],
@@ -613,7 +621,7 @@ impl AdvancedState {
                 sql::exec(
                     connection,
                     "UPDATE records SET state=?, finished_at=? WHERE record_id=?",
-                    &[string(record_state::CANCELLED), float(now), row[1].clone()],
+                    &[string(RecordState::Cancelled.as_str()), float(now), row[1].clone()],
                 )?;
             }
             Ok(rows.len() as i64)
@@ -685,13 +693,13 @@ impl AdvancedState {
                         connection,
                         "UPDATE records SET state=?, finished_at=NULL WHERE record_id=? AND state=?",
                         &[
-                            string(record_state::WAITING),
+                            string(RecordState::Waiting.as_str()),
                             record_id.clone(),
-                            string(record_state::IN_FLIGHT),
+                            string(RecordState::InFlight.as_str()),
                         ],
                     )?;
                     let why = if movement == "not_started" {
-                        string(rule_reason::NOT_STARTED)
+                        string(RuleReason::NotStarted.as_str())
                     } else {
                         Value::Null
                     };
@@ -718,23 +726,23 @@ impl AdvancedState {
                 }
                 "handed_over" | "superseded" => {
                     let why = if movement == "handed_over" {
-                        rule_reason::HANDED_OVER
+                        RuleReason::HandedOver.as_str()
                     } else {
-                        rule_reason::SUPERSEDED
+                        RuleReason::Superseded.as_str()
                     };
-                    done(rule_state::DONE, why, record_state::FINISHED, false)?;
+                    done(RuleState::Done.as_str(), why, RecordState::Finished.as_str(), false)?;
                 }
                 "withdrawn" => done(
-                    rule_state::CANCELLED,
-                    rule_reason::WITHDRAWN,
-                    record_state::CANCELLED,
+                    RuleState::Cancelled.as_str(),
+                    RuleReason::Withdrawn.as_str(),
+                    RecordState::Cancelled.as_str(),
                     true,
                 )?,
                 "withdraw_refused" => {
                     sql::exec(
                         connection,
                         "UPDATE reset_rules SET reason=? WHERE rule_id=?",
-                        &[string(rule_reason::WITHDRAW_REFUSED), rule_id.clone()],
+                        &[string(RuleReason::WithdrawRefused.as_str()), rule_id.clone()],
                     )?;
                     sql::exec(
                         connection,
@@ -744,11 +752,11 @@ impl AdvancedState {
                 }
                 "delivered" | "unproven" => {
                     let why = if movement == "delivered" {
-                        rule_reason::DELIVERED
+                        RuleReason::Delivered.as_str()
                     } else {
-                        rule_reason::UNKNOWN
+                        RuleReason::Unknown.as_str()
                     };
-                    done(rule_state::DONE, why, record_state::FINISHED, false)?;
+                    done(RuleState::Done.as_str(), why, RecordState::Finished.as_str(), false)?;
                 }
                 _ => return Ok(None),
             }
@@ -771,8 +779,8 @@ impl AdvancedState {
                  AND c.claimed_at IS NOT NULL AND c.claimed_at <= ?",
                 &[
                     string(MESSAGE),
-                    string(rule_state::READY),
-                    string(record_state::IN_FLIGHT),
+                    string(RuleState::Ready.as_str()),
+                    string(RecordState::InFlight.as_str()),
                     float(now - UNLAUNCHED_AFTER),
                 ],
             )?;
@@ -780,7 +788,7 @@ impl AdvancedState {
                 sql::exec(
                     connection,
                     "UPDATE records SET state=? WHERE record_id=? AND state=?",
-                    &[string(record_state::WAITING), key[0].clone(), string(record_state::IN_FLIGHT)],
+                    &[string(RecordState::Waiting.as_str()), key[0].clone(), string(RecordState::InFlight.as_str())],
                 )?;
             }
             Ok(keys.len() as i64)
@@ -808,8 +816,8 @@ impl AdvancedState {
                 &[
                     rule_id.clone(),
                     string(MESSAGE),
-                    string(rule_state::READY),
-                    string(record_state::WAITING),
+                    string(RuleState::Ready.as_str()),
+                    string(RecordState::Waiting.as_str()),
                 ],
             )?;
             let Some(row) = row else { return Ok(false) };
@@ -817,10 +825,10 @@ impl AdvancedState {
                 connection,
                 "UPDATE records SET state=?, claimed_at=?, claims=claims+1 WHERE record_id=? AND state=?",
                 &[
-                    string(record_state::IN_FLIGHT),
+                    string(RecordState::InFlight.as_str()),
                     float(now),
                     sql::get(&row, "record_id").clone(),
-                    string(record_state::WAITING),
+                    string(RecordState::Waiting.as_str()),
                 ],
             )?;
             sql::exec(
@@ -852,8 +860,8 @@ impl AdvancedState {
                 &[
                     rule_id.clone(),
                     string(MESSAGE),
-                    string(rule_state::READY),
-                    string(record_state::IN_FLIGHT),
+                    string(RuleState::Ready.as_str()),
+                    string(RecordState::InFlight.as_str()),
                 ],
             )?;
             let Some(row) = row else { return Ok(false) };
@@ -868,9 +876,9 @@ impl AdvancedState {
                     connection,
                     "UPDATE records SET state=?, finished_at=NULL WHERE record_id=? AND state=?",
                     &[
-                        string(record_state::WAITING),
+                        string(RecordState::Waiting.as_str()),
                         sql::get(&row, "record_id").clone(),
-                        string(record_state::IN_FLIGHT),
+                        string(RecordState::InFlight.as_str()),
                     ],
                 )?;
                 sql::exec(
@@ -888,7 +896,12 @@ impl AdvancedState {
         Ok(self
             .reset_rules(&string(MESSAGE), &Value::Bool(true))?
             .into_iter()
-            .filter(|rule| py::is_word(sql::get(rule, "record_state"), &[record_state::IN_FLIGHT]))
+            .filter(|rule| {
+                py::is_word(
+                    sql::get(rule, "record_state"),
+                    &[RecordState::InFlight.as_str()],
+                )
+            })
             .collect())
     }
 
@@ -946,7 +959,7 @@ impl AdvancedState {
         outcome: &Value,
         at: &Value,
     ) -> Result<bool> {
-        let outcome = py::closed(outcome, spend_outcome::ALL, "spend outcome")?;
+        let outcome = py::closed(outcome, SpendOutcome::ALL, "spend outcome")?;
         let now = self.now(at)?;
         self.transaction(false, |connection| match connection {
             None => Ok(false),
@@ -1044,7 +1057,7 @@ pub fn end_pending(connection: &Connection, capabilities: &[Value], now: f64) ->
     }
     let mut parameters = ended.clone();
     parameters.extend(pending_words());
-    parameters.push(string(record_state::IN_FLIGHT));
+    parameters.push(string(RecordState::InFlight.as_str()));
     let rows = sql::tuples(
         connection,
         &format!(
@@ -1060,8 +1073,8 @@ pub fn end_pending(connection: &Connection, capabilities: &[Value], now: f64) ->
             connection,
             "UPDATE reset_rules SET state=?, reason=?, words=NULL, finished_at=? WHERE rule_id=?",
             &[
-                string(rule_state::CANCELLED),
-                string(rule_reason::TURNED_OFF),
+                string(RuleState::Cancelled.as_str()),
+                string(RuleReason::TurnedOff.as_str()),
                 float(now),
                 row[0].clone(),
             ],
@@ -1071,10 +1084,10 @@ pub fn end_pending(connection: &Connection, capabilities: &[Value], now: f64) ->
                 connection,
                 "UPDATE records SET state=?, finished_at=? WHERE record_id=? AND state<>?",
                 &[
-                    string(record_state::CANCELLED),
+                    string(RecordState::Cancelled.as_str()),
                     float(now),
                     row[1].clone(),
-                    string(record_state::FINISHED),
+                    string(RecordState::Finished.as_str()),
                 ],
             )?;
         }
@@ -1096,8 +1109,8 @@ pub fn end_pending(connection: &Connection, capabilities: &[Value], now: f64) ->
 pub fn prune(connection: &Connection, now: f64, max_age: f64, limit: i64) -> Result<()> {
     let finished = format!(
         "state IN ('{}', '{}')",
-        rule_state::DONE,
-        rule_state::CANCELLED
+        RuleState::Done.as_str(),
+        RuleState::Cancelled.as_str()
     );
     sql::exec(
         connection,

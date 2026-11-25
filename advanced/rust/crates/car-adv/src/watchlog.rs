@@ -6,12 +6,13 @@
 use car_machine::json::{Str, Value};
 use car_policy::plug::vocab_gen::domain_plug::POINTS;
 
+use crate::state::ask::RegistryAsked;
 use crate::state::errors::Result;
 use crate::state::py;
-use crate::state::seam::words_gen::{arming_state, journal_code, refusal};
 use crate::state::session::AdvancedState;
 use crate::state::sql::{self, Row, int, string};
 use crate::state::{EVENT_LIMIT, WATCH_LIMIT};
+use crate::vocabulary::{ArmingState, JournalCode, Refusal};
 
 pub const WINDOW_DAYS: i64 = crate::state::choices::RECENT_DAYS;
 const DAY: f64 = 86400.0;
@@ -129,7 +130,7 @@ pub fn entries(lines: &[Row]) -> Vec<Row> {
 fn of(row: Option<&Row>, lines: &[Row], now: f64) -> Row {
     let watched: Vec<&Row> = lines
         .iter()
-        .filter(|line| py::is_word(sql::get(line, "code"), &[journal_code::WOULD_HAVE]))
+        .filter(|line| py::is_word(sql::get(line, "code"), &[JournalCode::WouldHave.as_str()]))
         .collect();
     let limit = WATCH_LIMIT as usize;
     let counted = &watched[watched.len().saturating_sub(limit)..];
@@ -141,7 +142,7 @@ fn of(row: Option<&Row>, lines: &[Row], now: f64) -> Row {
         .collect();
     let full = watched.len() >= limit && recent.len() == counted.len();
     let since = match row {
-        Some(row) if py::is_word(sql::get(row, "state"), &[arming_state::SHADOW]) => {
+        Some(row) if py::is_word(sql::get(row, "state"), &[ArmingState::Shadow.as_str()]) => {
             sql::get(row, "since").clone()
         }
         _ => Value::Null,
@@ -178,10 +179,10 @@ fn refused(word: &str) -> Row {
 
 /// `view(runtime, capability)`: the Dashboard's `advanced-watch-log`.
 pub fn view(state: &AdvancedState, capability: &Value, now: f64) -> Result<Row> {
-    let Some(definition) = state.registry.get(capability).copied() else {
-        return Ok(refused(refusal::UNKNOWN_CAPABILITY));
+    let Some(definition) = state.registry.get_value(capability).cloned() else {
+        return Ok(refused(Refusal::UnknownCapability.as_str()));
     };
-    let id = string(definition.id);
+    let id = string(&definition.id);
     let read = (|| -> Result<(Row, Vec<Row>)> {
         let rows = state.arming()?;
         let lines = state.journal(&id, &int(EVENT_LIMIT))?;
@@ -189,10 +190,10 @@ pub fn view(state: &AdvancedState, capability: &Value, now: f64) -> Result<Row> 
     })();
     let (rows, lines) = match read {
         Ok(found) => found,
-        Err(error) if error.is_state() => return Ok(refused(refusal::STATE_UNAVAILABLE)),
+        Err(error) if error.is_state() => return Ok(refused(Refusal::StateUnavailable.as_str())),
         Err(error) => return Err(error),
     };
-    let mut found = of(arming_row(&rows, definition.id).as_ref(), &lines, now);
+    let mut found = of(arming_row(&rows, &definition.id).as_ref(), &lines, now);
     found.insert(sql::key("done"), Value::Bool(true));
     found.insert(sql::key("capability"), id);
     found.insert(sql::key("days"), int(WINDOW_DAYS));
@@ -212,18 +213,18 @@ pub fn exported(state: &AdvancedState, now: f64) -> Result<Vec<Row>> {
         Err(error) => return Err(error),
     };
     let mut shown = Vec::new();
-    for definition in state.registry.definitions() {
+    for definition in state.registry.definitions.iter() {
         let own: Vec<Row> = lines
             .iter()
-            .filter(|line| py::is_word(sql::get(line, "capability"), &[definition.id]))
+            .filter(|line| py::is_word(sql::get(line, "capability"), &[definition.id.as_str()]))
             .cloned()
             .collect();
-        let found = of(arming_row(&rows, definition.id).as_ref(), &own, now);
+        let found = of(arming_row(&rows, &definition.id).as_ref(), &own, now);
         let has_entries =
             matches!(found.get("entries"), Some(Value::Array(items)) if !items.is_empty());
         if !matches!(sql::get(&found, "watched_since"), Value::Null) || has_entries {
             let mut entry = Row::new();
-            entry.insert(Str::new("capability"), string(definition.id));
+            entry.insert(Str::new("capability"), string(&definition.id));
             for (key, value) in found {
                 entry.insert(key, value);
             }

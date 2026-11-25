@@ -3,7 +3,8 @@
 Each case runs the same request through the reference tag's own advanced package and through car-adv's `advstore`
 example on two copies of one scratch home (advstore.py) and holds every answer and every file left equal:
 
-* GeneratedDiff - the statements, words and registry facts car-adv carries are the tag's (gen_advstore.py --check).
+* GeneratedDiff - the statements, words and registry facts car-adv carries are the tag's (gen_advstore.py and
+  gen_advpolicy.py --check).
 * FreshDiff - a file made by the first write, and every read of a home with none: equal answers, the same file.
 * MigrationDiff - files made by older releases' own code (v0.6.11-alpha's version 1 to v0.6.25's version 9, the
   ceiling of 12, the words' 8,192, `options` and `wordings` with their CHECKs) and by the tag's own historic
@@ -33,7 +34,7 @@ import sys
 import time
 import unittest
 
-from rustdiff import advreference, advstore, reference
+from rustdiff import advref, advstore, reference
 from rustdiff.advstore import CLOCK, OTHER, THREAD, Twin, key, thread
 
 RECORD = []
@@ -73,10 +74,13 @@ def request(ops, **extra):
 # ------------------------------------------------------------------------------------------- generated
 class GeneratedDiff(unittest.TestCase):
     def test_generated(self):
-        done = subprocess.run([sys.executable, "-X", "utf8", str(HERE / "gen_advstore.py"), "--check", "--ref",
-                               reference.TAG], capture_output=True, text=True)
-        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
-        RECORD.append("generated: schema_gen.rs, words_gen.rs, registry_gen.rs match %s" % reference.TAG)
+        # The store's statements are gen_advstore's; the closed words and the registry it reads are S7.1b's (Integration 5).
+        for script in ("gen_advstore.py", "gen_advpolicy.py"):
+            done = subprocess.run([sys.executable, "-X", "utf8", str(HERE / script), "--check", "--ref", reference.TAG],
+                                  capture_output=True, text=True)
+            self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        RECORD.append("generated: schema_gen.rs (gen_advstore) and the vocabulary and registry tables (gen_advpolicy) "
+                      "match %s" % reference.TAG)
 
 
 READS = [op("exists"), op("meta"), op("arming"), op("ever_moved", "usage_meter"), op("spent", "usage_meter", THREAD),
@@ -159,7 +163,7 @@ print(json.dumps(sorted(tables)))
 
 
 def old_home(tag: str, home: Path) -> None:
-    done = advreference.run(MAKE_OLD, str(home), profile=home.parent / "profile", tag=tag)
+    done = advref.run(MAKE_OLD, str(home), profile=home.parent / "profile", tag=tag)
     if done.returncode != 0:
         raise AssertionError("%s could not make its file:\n%s" % (tag, done.stderr.decode("utf-8", "replace")[-2000:]))
 
@@ -183,7 +187,7 @@ connection.close()
 
 def historic(name: str, *extra: str):
     def make(home: Path) -> None:
-        done = advreference.run(HISTORIC, str(home), name, *extra, profile=home.parent / "profile")
+        done = advref.run(HISTORIC, str(home), name, *extra, profile=home.parent / "profile")
         if done.returncode != 0:
             raise AssertionError(done.stderr.decode("utf-8", "replace")[-2000:])
     return make
@@ -221,7 +225,7 @@ class MigrationDiff(Base):
             "empty schema": historic("STATEMENTS", "DROP TABLE meta"),
             "ceiling 12 at 12": historic("STATEMENTS_V7", "UPDATE meta SET global_hourly=12"),
             "ceiling 12 at 7": historic("STATEMENTS_V7", "UPDATE meta SET global_hourly=7"),
-            "version 0 empty file": lambda home: (Path(advstore.advreference.ROOT) and _empty_file(home)),
+            "version 0 empty file": lambda home: (Path(advstore.advref.ROOT) and _empty_file(home)),
             "not a database": lambda home: _garbage_file(home),
         }
         for label, setup in cases.items():
@@ -676,7 +680,7 @@ store.close()
 
 def core_home(records, changes=(), advanced=()):
     def make(home: Path) -> None:
-        done = advreference.run(CORE, str(home), json.dumps(records), json.dumps(list(changes)),
+        done = advref.run(CORE, str(home), json.dumps(records), json.dumps(list(changes)),
                                 profile=home.parent / "profile")
         if done.returncode != 0:
             raise AssertionError(done.stderr.decode("utf-8", "replace")[-2000:])

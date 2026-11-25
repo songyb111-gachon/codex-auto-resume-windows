@@ -1,7 +1,7 @@
 """What the advanced store's diffs share (seat S7.1a): the reference runner, the Rust harness, the dump.
 
 One request - a scratch home, a pinned clock, the registry, a token counter and a list of operations - runs through
-the reference tag's own `codex_auto_resume_advanced` (advreference.py: the tag's core and advanced trees, the
+the reference tag's own `codex_auto_resume_advanced` (advref.py: the tag's core and advanced trees, the
 advanced lane's path and CODEX_AR_EDITION=advanced) and through car-adv's `advstore` example
 (advanced/rust/crates/car-adv/examples/advstore.rs), each on its own copy of the home; both write one JSON line per
 operation, and every file they leave is dumped in a stable order (`dump_home`). `secrets.token_hex` is a counter in
@@ -20,7 +20,7 @@ import subprocess
 import tempfile
 import urllib.parse
 
-from rustdiff import advreference
+from rustdiff import advref
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKSPACE = ROOT / "advanced" / "rust"
@@ -232,7 +232,7 @@ def run_reference(home: Path, request: dict, *, tag: str | None = None) -> list:
     """The reference's answers to `request` on `home` (one dict per operation)."""
     request = dict(request, home=str(home))
     path = _request_file(home.parent, request)
-    done = advreference.run(RUNNER, str(path), profile=home.parent / "profile", tag=tag)
+    done = advref.run(RUNNER, str(path), profile=home.parent / "profile", tag=tag)
     if done.returncode != 0:
         raise AssertionError("the reference failed:\n%s" % done.stderr.decode("utf-8", "replace")[-3000:])
     return [json.loads(line) for line in done.stdout.decode("utf-8").splitlines() if line.strip()]
@@ -242,7 +242,7 @@ def run_rust(home: Path, request: dict) -> list:
     """car-adv's answers to `request` on `home`."""
     request = dict(request, home=str(home))
     path = _request_file(home.parent, request)
-    environment = advreference.reference.scratch_environment(home.parent / "profile")
+    environment = advref.reference.scratch_environment(home.parent / "profile")
     done = subprocess.run([str(binary()), str(path)], capture_output=True, env=environment,
                           creationflags=NO_WINDOW, timeout=600)
     if done.returncode != 0:
@@ -254,13 +254,13 @@ def popen_reference(home: Path, request: dict) -> subprocess.Popen:
     request = dict(request, home=str(home))
     path = _request_file(home.parent, request)
     (home.parent / "profile").mkdir(exist_ok=True)
-    return advreference.popen(RUNNER, str(path), profile=home.parent / "profile")
+    return advref.popen(RUNNER, str(path), profile=home.parent / "profile")
 
 
 def popen_rust(home: Path, request: dict) -> subprocess.Popen:
     request = dict(request, home=str(home))
     path = _request_file(home.parent, request)
-    environment = advreference.reference.scratch_environment(home.parent / "profile")
+    environment = advref.reference.scratch_environment(home.parent / "profile")
     return subprocess.Popen([str(binary()), str(path)], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                             env=environment, creationflags=NO_WINDOW)
 

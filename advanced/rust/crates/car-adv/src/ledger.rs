@@ -11,19 +11,17 @@ use car_machine::json::Value;
 use car_policy::classify::ladder::RESET_PER_DAY;
 use rusqlite::Connection;
 
+use crate::registry::{CORE_COOLDOWN_SECONDS, CORE_DAILY_CAP, CapabilityDef};
+use crate::state::ask::{DefinitionAsked, RegistryAsked};
 use crate::state::errors::{Error, Result};
 use crate::state::py;
 use crate::state::records::{not_among, own_paced};
 use crate::state::schema::ATTACHED;
 use crate::state::seam::hooks;
-use crate::state::seam::registry::Definition;
-use crate::state::seam::registry_gen::{CORE_COOLDOWN_SECONDS, CORE_DAILY_CAP};
-use crate::state::seam::words_gen::{
-    arming_state, ceiling, keep_on, override_kind, record_state, rule_state,
-};
 use crate::state::session::AdvancedState;
 use crate::state::spend;
 use crate::state::sql::{self, Row, float, int, py_eq, string};
+use crate::vocabulary::{ArmingState, Ceiling, KeepOn, OverrideKind, RecordState, RuleState};
 
 pub const DAY: f64 = 86400.0;
 
@@ -48,7 +46,7 @@ impl Answer {
 /// unit, or None - the global one first.
 pub fn ceiling_reached(
     counts: &Row,
-    definition: &Definition,
+    definition: &CapabilityDef,
     global_hourly: &Value,
     verified: bool,
 ) -> Result<Option<&'static str>> {
@@ -57,21 +55,21 @@ pub fn ceiling_reached(
             .map_err(|class| Error::python(class, "'>='"))
     };
     if at_least("global_hour", global_hourly)? {
-        return Ok(Some(ceiling::GLOBAL_HOUR));
+        return Ok(Some(Ceiling::GlobalHour.as_str()));
     }
-    let Some((per_day, per_conversation)) = definition.ceilings else {
+    let Some(ceilings) = definition.ceilings else {
         return Err(Error::python(
             "AttributeError",
             "'NoneType' object has no attribute 'per_day'",
         ));
     };
-    if at_least("capability_day", &int(per_day))? {
-        return Ok(Some(ceiling::CAPABILITY_DAY));
+    if at_least("capability_day", &int(ceilings.per_day))? {
+        return Ok(Some(Ceiling::CapabilityDay.as_str()));
     }
-    if at_least("conversation_day", &int(per_conversation))?
+    if at_least("conversation_day", &int(ceilings.per_conversation))?
         && !(verified && definition.departs("A20"))
     {
-        return Ok(Some(ceiling::CONVERSATION_DAY));
+        return Ok(Some(Ceiling::ConversationDay.as_str()));
     }
     Ok(None)
 }
@@ -106,7 +104,7 @@ pub fn held_by_records(
     cap: i64,
 ) -> Result<bool> {
     let (hooks, hooked) = hooks::spent_on(connection, ATTACHED, thread_id, now)?;
-    let mut parameters = vec![string(record_state::IN_FLIGHT), float(now - DAY)];
+    let mut parameters = vec![string(RecordState::InFlight.as_str()), float(now - DAY)];
     parameters.extend(own.iter().map(|id| string(id)));
     parameters.extend(own.iter().map(|id| string(id)));
     parameters.push(thread_id.clone());
@@ -242,7 +240,7 @@ impl ClaimLedger<'_> {
         let mut at: Option<f64> = None;
         acted.sort_by_key(|a| py::py_str(&a.0));
         for (capability, words) in &acted {
-            let definition = self.state.registry.get(capability).copied();
+            let definition = self.state.registry.get_value(capability).cloned();
             let row = sql::first(
                 connection,
                 &format!("SELECT state, since FROM {ATTACHED}.arming WHERE capability=?"),
@@ -251,7 +249,7 @@ impl ClaimLedger<'_> {
             let (Some(definition), Some(row)) = (definition, row) else {
                 return Ok(Answer::Hold);
             };
-            if !py_eq(&row[0], &string(arming_state::ARMED)) {
+            if !py_eq(&row[0], &string(ArmingState::Armed.as_str())) {
                 return Ok(Answer::Hold);
             }
             let counts = spend::counts(connection, ATTACHED, capability, &thread_id, now, &paid)?;
@@ -305,7 +303,7 @@ impl ClaimLedger<'_> {
         if !py_eq(&found.thread, &field("thread_id")) {
             return Ok(Answer::Hold);
         }
-        let definition = self.state.registry.get(&found.capability).copied();
+        let definition = self.state.registry.get_value(&found.capability).cloned();
         let armed = sql::first(
             connection,
             &format!("SELECT state FROM {ATTACHED}.arming WHERE capability=?"),
@@ -314,11 +312,11 @@ impl ClaimLedger<'_> {
         let (Some(definition), Some(armed)) = (definition, armed) else {
             return Ok(Answer::Hold);
         };
-        if !py_eq(&armed[0], &string(arming_state::ARMED)) {
+        if !py_eq(&armed[0], &string(ArmingState::Armed.as_str())) {
             return Ok(Answer::Hold);
         }
         if py::is_word(&phase, &["claim"]) {
-            if !py_eq(&found.state, &string(record_state::WAITING)) {
+            if !py_eq(&found.state, &string(RecordState::Waiting.as_str())) {
                 return Ok(Answer::Hold);
             }
             let global_hourly = sql::scalar(
@@ -353,7 +351,8 @@ impl ClaimLedger<'_> {
             )?;
             return Ok(Answer::Defer);
         }
-        if py::is_word(&phase, &["launch"]) && py_eq(&found.state, &string(record_state::IN_FLIGHT))
+        if py::is_word(&phase, &["launch"])
+            && py_eq(&found.state, &string(RecordState::InFlight.as_str()))
         {
             sql::exec(
                 connection,
@@ -396,25 +395,30 @@ fn sent_now(
 }
 
 /// `_resend(connection, definition, key, now)`.
-fn resend(connection: &Connection, definition: &Definition, key: &Value, now: f64) -> Result<bool> {
+fn resend(
+    connection: &Connection,
+    definition: &CapabilityDef,
+    key: &Value,
+    now: f64,
+) -> Result<bool> {
     if !definition.resends {
         let kept: Vec<Value> = sql::tuples(
             connection,
             &format!("SELECT choice FROM {ATTACHED}.options WHERE capability=?"),
-            &[string(definition.id)],
+            &[string(&definition.id)],
         )?
         .into_iter()
         .filter_map(|row| row.into_iter().next())
         .collect();
         let has = |word: &str| kept.iter().any(|each| py::is_word(each, &[word]));
-        if !(has(keep_on::KEEP_ON) && has(keep_on::SEND_AGAIN)) {
+        if !(has(KeepOn::KeepOn.as_str()) && has(KeepOn::SendAgain.as_str())) {
             return Ok(false);
         }
     }
     if sql::exists(
         connection,
         &format!("SELECT 1 FROM {ATTACHED}.overrides WHERE interruption_id=? AND kind=?"),
-        &[key.clone(), string(override_kind::RESEND_ONCE)],
+        &[key.clone(), string(OverrideKind::ResendOnce.as_str())],
     )? {
         return Ok(false);
     }
@@ -426,8 +430,8 @@ fn resend(connection: &Connection, definition: &Definition, key: &Value, now: f6
         ),
         &[
             key.clone(),
-            string(definition.id),
-            string(override_kind::RESEND_ONCE),
+            string(&definition.id),
+            string(OverrideKind::ResendOnce.as_str()),
             float(now),
         ],
     )?;
@@ -437,14 +441,14 @@ fn resend(connection: &Connection, definition: &Definition, key: &Value, now: f6
 /// `_for_open(connection, definition, key, now)`.
 fn for_open(
     connection: &Connection,
-    definition: &Definition,
+    definition: &CapabilityDef,
     key: &Value,
     now: f64,
 ) -> Result<bool> {
     if sql::exists(
         connection,
         &format!("SELECT 1 FROM {ATTACHED}.overrides WHERE interruption_id=? AND capability=?"),
-        &[key.clone(), string(definition.id)],
+        &[key.clone(), string(&definition.id)],
     )? {
         return Ok(false);
     }
@@ -456,8 +460,8 @@ fn for_open(
         ),
         &[
             key.clone(),
-            string(definition.id),
-            string(override_kind::QUEUE_FOR_OPEN),
+            string(&definition.id),
+            string(OverrideKind::QueueForOpen.as_str()),
             float(now),
         ],
     )?;
@@ -501,7 +505,8 @@ fn owned(connection: &Connection, key: &Value) -> Result<Option<Owned>> {
         launch,
     };
     if let Some(found) = joined("reset_rules", "r", "rule_id", "state", "launching_at")? {
-        if !py_eq(&found[4], &string(rule_state::READY)) || !matches!(found[5], Value::Null) {
+        if !py_eq(&found[4], &string(RuleState::Ready.as_str())) || !matches!(found[5], Value::Null)
+        {
             return Ok(None);
         }
         return Ok(Some(make(

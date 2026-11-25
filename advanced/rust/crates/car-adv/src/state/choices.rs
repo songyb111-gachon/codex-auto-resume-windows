@@ -10,13 +10,14 @@ use car_policy::classify::vocab_gen::failures as failure_words;
 use car_policy::plug::vocab_gen::domain_plug::{FAILURE_FORMS, TAKE_UP};
 use rusqlite::Connection;
 
+use super::ask::{DefinitionAsked, RegistryAsked, takes};
 use super::errors::{Error, Result};
 use super::journal::{day_number, prune, prune_every};
 use super::py;
 use super::schema::{WINDOW_CHOICES, WINDOW_FOLLOWERS};
-use super::seam::words_gen::{actor, journal_code, option_key, refusal};
 use super::session::AdvancedState;
 use super::sql::{self, Row, float, int, py_eq, string};
+use crate::vocabulary::{Actor, JournalCode, OptionKey, Refusal};
 
 pub const RULES_LIMIT: usize = 10;
 pub const STATUS_RANGE: (i64, i64) = (100, 599);
@@ -35,52 +36,79 @@ pub const ITEM_COLUMNS: &[(&str, &str)] = &[
 /// `STAMPS`: the times a capability's own code keeps in `options` beside its choices.
 pub fn stamps(capability: &str) -> &'static [&'static str] {
     match capability {
-        "idle_update_check" => &[
-            option_key::LAST_CHECK,
-            option_key::OFFERED_VERSION,
-            option_key::OFFERED_AT,
-        ],
-        "usage_analytics" => &[option_key::LAST_INGEST],
-        "early_reset" => &[
-            option_key::CHECKED_AT,
-            option_key::AVAILABLE_AT,
-            option_key::LIFTED_AT,
-            option_key::CHECK_ASKED,
-            option_key::FOUND_AT,
-        ],
-        "window_anchor" => &[
-            option_key::ANCHOR_STARTED_AT,
-            option_key::ANCHOR_FIXED_AT,
-            option_key::ANCHOR_SEEN_RESET,
-            option_key::ANCHOR_SLOT_DONE,
-            option_key::ANCHOR_RESET_DONE,
-            option_key::ANCHOR_INPUT_TOKENS,
-            option_key::ANCHOR_OUTPUT_TOKENS,
-            option_key::ANCHOR_ACCOUNT_AT,
-            option_key::ANCHOR_RETRY_UNTIL,
-            option_key::ANCHOR_STOPPED_AT,
-            option_key::ANCHOR_NEXT_LOOK,
-        ],
-        "account_switch" => &[option_key::ACCOUNT_CHANGED_AT],
-        "account_auto_switch" => &[
-            option_key::AUTO_SWITCHED_AT,
-            option_key::AUTO_SWITCH_DAY,
-            option_key::AUTO_SWITCH_COUNT,
-        ],
-        "fleet_view" => &[
-            option_key::LAST_FLEET_WRITE,
-            option_key::FLEET_WAITING,
-            option_key::FLEET_WROTE_AT,
-        ],
-        "local_api" => &[
-            option_key::API_BOUND_AT,
-            option_key::API_TAKEN_AT,
-            option_key::API_LAN_1,
-            option_key::API_LAN_2,
-            option_key::API_LAN_3,
-            option_key::API_LAN_4,
-        ],
-        _ => &[],
+        "idle_update_check" => {
+            const LIST: &[&str] = &[
+                OptionKey::LastCheck.as_str(),
+                OptionKey::OfferedVersion.as_str(),
+                OptionKey::OfferedAt.as_str(),
+            ];
+            LIST
+        }
+        "usage_analytics" => {
+            const LIST: &[&str] = &[OptionKey::LastIngest.as_str()];
+            LIST
+        }
+        "early_reset" => {
+            const LIST: &[&str] = &[
+                OptionKey::CheckedAt.as_str(),
+                OptionKey::AvailableAt.as_str(),
+                OptionKey::LiftedAt.as_str(),
+                OptionKey::CheckAsked.as_str(),
+                OptionKey::FoundAt.as_str(),
+            ];
+            LIST
+        }
+        "window_anchor" => {
+            const LIST: &[&str] = &[
+                OptionKey::AnchorStartedAt.as_str(),
+                OptionKey::AnchorFixedAt.as_str(),
+                OptionKey::AnchorSeenReset.as_str(),
+                OptionKey::AnchorSlotDone.as_str(),
+                OptionKey::AnchorResetDone.as_str(),
+                OptionKey::AnchorInputTokens.as_str(),
+                OptionKey::AnchorOutputTokens.as_str(),
+                OptionKey::AnchorAccountAt.as_str(),
+                OptionKey::AnchorRetryUntil.as_str(),
+                OptionKey::AnchorStoppedAt.as_str(),
+                OptionKey::AnchorNextLook.as_str(),
+            ];
+            LIST
+        }
+        "account_switch" => {
+            const LIST: &[&str] = &[OptionKey::AccountChangedAt.as_str()];
+            LIST
+        }
+        "account_auto_switch" => {
+            const LIST: &[&str] = &[
+                OptionKey::AutoSwitchedAt.as_str(),
+                OptionKey::AutoSwitchDay.as_str(),
+                OptionKey::AutoSwitchCount.as_str(),
+            ];
+            LIST
+        }
+        "fleet_view" => {
+            const LIST: &[&str] = &[
+                OptionKey::LastFleetWrite.as_str(),
+                OptionKey::FleetWaiting.as_str(),
+                OptionKey::FleetWroteAt.as_str(),
+            ];
+            LIST
+        }
+        "local_api" => {
+            const LIST: &[&str] = &[
+                OptionKey::ApiBoundAt.as_str(),
+                OptionKey::ApiTakenAt.as_str(),
+                OptionKey::ApiLan1.as_str(),
+                OptionKey::ApiLan2.as_str(),
+                OptionKey::ApiLan3.as_str(),
+                OptionKey::ApiLan4.as_str(),
+            ];
+            LIST
+        }
+        _ => {
+            const LIST: &[&str] = &[];
+            LIST
+        }
     }
 }
 
@@ -133,13 +161,13 @@ fn known_code(tag: &Value) -> bool {
 /// `tag_problem(tag)`: why `tag` may not be a rule's code, or None.
 pub fn tag_problem(tag: &Value) -> Option<&'static str> {
     if !tag_shaped(tag) {
-        return Some(refusal::RULE_SHAPE);
+        return Some(Refusal::RuleShape.as_str());
     }
     if known_code(tag) {
-        return Some(refusal::RULE_KNOWN);
+        return Some(Refusal::RuleKnown.as_str());
     }
     if failures::decision_tag(tag) {
-        return Some(refusal::RULE_DECISION);
+        return Some(Refusal::RuleDecision.as_str());
     }
     None
 }
@@ -219,16 +247,16 @@ pub fn rule_problem(
                 && status(status_to)
                 && py::small(status_from) <= py::small(status_to)))
     {
-        return Ok(Some(refusal::RULE_RANGE));
+        return Ok(Some(Refusal::RuleRange.as_str()));
     }
     if matches!(category, Value::Array(_) | Value::Object(_)) {
         return Err(Error::type_error("unhashable type"));
     }
     if !py::is_word(category, failure_words::TRANSIENT) {
-        return Ok(Some(refusal::INVALID_REQUEST));
+        return Ok(Some(Refusal::InvalidRequest.as_str()));
     }
     if rules.len() >= RULES_LIMIT {
-        return Ok(Some(refusal::RULES_FULL));
+        return Ok(Some(Refusal::RulesFull.as_str()));
     }
     for rule in rules {
         if py_eq(sql::get(rule, "tag"), tag)
@@ -237,7 +265,7 @@ pub fn rule_problem(
                 (status_from, status_to),
             )?
         {
-            return Ok(Some(refusal::RULE_OVERLAP));
+            return Ok(Some(Refusal::RuleOverlap.as_str()));
         }
     }
     Ok(None)
@@ -323,15 +351,15 @@ impl AdvancedState {
     /// `options(capability)`: {key: value} for every choice it offers - the stored one where it is one it offers,
     /// its default otherwise.
     pub fn options(&self, capability: &Value) -> Result<Row> {
-        let Some(definition) = self.registry.get(capability) else {
+        let Some(definition) = self.registry.get_value(capability) else {
             return Ok(Row::new());
         };
         if definition.options.is_empty() {
             return Ok(Row::new());
         }
         let mut found = Row::new();
-        for option in definition.options {
-            found.insert(Str::new(option.key), int(option.default));
+        for option in &definition.options {
+            found.insert(Str::new(option.key.as_str()), int(option.default));
         }
         let rows = self.read(|connection| match connection {
             None => Ok(Vec::new()),
@@ -342,10 +370,13 @@ impl AdvancedState {
             ),
         })?;
         for row in rows {
-            if let Some(option) = definition.option(sql::get(&row, "choice"))
-                && option.takes(sql::get(&row, "value"))
+            if let Some(option) = definition.option_of(sql::get(&row, "choice"))
+                && takes(option, sql::get(&row, "value"))
             {
-                found.insert(Str::new(option.key), sql::get(&row, "value").clone());
+                found.insert(
+                    Str::new(option.key.as_str()),
+                    sql::get(&row, "value").clone(),
+                );
             }
         }
         Ok(found)
@@ -420,30 +451,32 @@ impl AdvancedState {
     ) -> Result<Value> {
         let option = self
             .registry
-            .get(capability)
-            .and_then(|definition| definition.option(key))
-            .copied();
-        let Some(option) =
-            option.filter(|option| option.takes(value) && option_key::ALL.contains(&option.key))
-        else {
-            return Err(Error::refused(refusal::OPTION_INVALID));
+            .get_value(capability)
+            .and_then(|definition| definition.option_of(key))
+            .cloned();
+        let Some(option) = option.filter(|option| takes(option, value)) else {
+            return Err(Error::refused(Refusal::OptionInvalid.as_str()));
         };
-        let actor_word = py::closed(actor_word, actor::ALL, "actor")?;
+        let actor_word = py::closed(actor_word, Actor::ALL, "actor")?;
         let now = self.now(at)?;
         self.writing(|connection| {
             let current = current_generation(connection, generation)?;
-            if py_eq(value, &int(option.default)) && !carried(capability, option.key) {
+            if py_eq(value, &int(option.default)) && !carried(capability, option.key.as_str()) {
                 sql::exec(
                     connection,
                     "DELETE FROM options WHERE capability=? AND choice=?",
-                    &[capability.clone(), string(option.key)],
+                    &[capability.clone(), string(option.key.as_str())],
                 )?;
             } else {
                 sql::exec(
                     connection,
                     "INSERT INTO options (capability, choice, value) VALUES (?,?,?) \
                      ON CONFLICT (capability, choice) DO UPDATE SET value=excluded.value",
-                    &[capability.clone(), string(option.key), value.clone()],
+                    &[
+                        capability.clone(),
+                        string(option.key.as_str()),
+                        value.clone(),
+                    ],
                 )?;
             }
             sql::exec(
@@ -454,7 +487,7 @@ impl AdvancedState {
             self.note_in(
                 connection,
                 now,
-                &string(journal_code::OPTION_CHANGED),
+                &string(JournalCode::OptionChanged.as_str()),
                 capability,
                 &Value::Null,
                 &string(actor_word),
@@ -468,7 +501,7 @@ impl AdvancedState {
     // ------------------------------------------------------------------ wordings
     /// `wordings(capability)`: {key: text} of its own wordings - only the keys it keeps.
     pub fn wordings(&self, capability: &Value) -> Result<Row> {
-        let Some(definition) = self.registry.get(capability) else {
+        let Some(definition) = self.registry.get_value(capability) else {
             return Ok(Row::new());
         };
         if definition.wordings.is_empty() {
@@ -507,12 +540,12 @@ impl AdvancedState {
     ) -> Result<Value> {
         let keeps = self
             .registry
-            .get(capability)
+            .get_value(capability)
             .is_some_and(|definition| definition.keeps_wording(key));
         if !keeps || !matches!(words, Value::Null | Value::Str(_)) {
-            return Err(Error::refused(refusal::WORDING_INVALID));
+            return Err(Error::refused(Refusal::WordingInvalid.as_str()));
         }
-        let actor_word = py::closed(actor_word, actor::ALL, "actor")?;
+        let actor_word = py::closed(actor_word, Actor::ALL, "actor")?;
         let now = self.now(at)?;
         let key = string(&key_text(key));
         self.writing(|connection| {
@@ -540,7 +573,7 @@ impl AdvancedState {
             self.note_in(
                 connection,
                 now,
-                &string(journal_code::OPTION_CHANGED),
+                &string(JournalCode::OptionChanged.as_str()),
                 capability,
                 &Value::Null,
                 &string(actor_word),
@@ -581,7 +614,7 @@ impl AdvancedState {
         actor_word: &Value,
         at: &Value,
     ) -> Result<(i64, Value)> {
-        let actor_word = py::closed(actor_word, actor::ALL, "actor")?;
+        let actor_word = py::closed(actor_word, Actor::ALL, "actor")?;
         let now = self.now(at)?;
         self.writing(|connection| {
             let current = current_generation(connection, generation)?;
@@ -598,7 +631,7 @@ impl AdvancedState {
             self.note_in(
                 connection,
                 now,
-                &string(journal_code::RULE_ADDED),
+                &string(JournalCode::RuleAdded.as_str()),
                 &Value::Null,
                 &Value::Null,
                 &string(actor_word),
@@ -617,14 +650,14 @@ impl AdvancedState {
         actor_word: &Value,
         at: &Value,
     ) -> Result<Value> {
-        let actor_word = py::closed(actor_word, actor::ALL, "actor")?;
+        let actor_word = py::closed(actor_word, Actor::ALL, "actor")?;
         let now = self.now(at)?;
         if !py::is_int(rule_id) {
-            return Err(Error::refused(refusal::UNKNOWN_RULE));
+            return Err(Error::refused(Refusal::UnknownRule.as_str()));
         }
         self.transaction(false, |connection| {
             let Some(connection) = connection else {
-                return Err(Error::refused(refusal::UNKNOWN_RULE));
+                return Err(Error::refused(Refusal::UnknownRule.as_str()));
             };
             let current = current_generation(connection, generation)?;
             if sql::exec(
@@ -633,7 +666,7 @@ impl AdvancedState {
                 std::slice::from_ref(rule_id),
             )? == 0
             {
-                return Err(Error::refused(refusal::UNKNOWN_RULE));
+                return Err(Error::refused(Refusal::UnknownRule.as_str()));
             }
             sql::exec(
                 connection,
@@ -643,7 +676,7 @@ impl AdvancedState {
             self.note_in(
                 connection,
                 now,
-                &string(journal_code::RULE_REMOVED),
+                &string(JournalCode::RuleRemoved.as_str()),
                 &Value::Null,
                 &Value::Null,
                 &string(actor_word),
@@ -687,7 +720,9 @@ impl AdvancedState {
         })?;
         Ok(row
             .filter(|row| {
-                self.registry.get(sql::get(row, "capability")).is_some()
+                self.registry
+                    .get_value(sql::get(row, "capability"))
+                    .is_some()
                     && py::is_word(sql::get(row, "answer"), TAKE_UP)
             })
             .map(|mut row| {
@@ -709,7 +744,7 @@ impl AdvancedState {
         at: &Value,
     ) -> Result<bool> {
         py::key(interruption_id, "interruption id")?;
-        if self.registry.get(capability).is_none() {
+        if self.registry.get_value(capability).is_none() {
             return Err(Error::state("unknown capability"));
         }
         let answer = py::closed(answer, &py::alternatives(), "answer")?;
@@ -760,7 +795,7 @@ impl AdvancedState {
         at: &Value,
     ) -> Result<bool> {
         py::key(interruption_id, "interruption id")?;
-        let Some(definition) = self.registry.get(capability) else {
+        let Some(definition) = self.registry.get_value(capability) else {
             return Err(Error::state("unknown capability"));
         };
         if !matches!(code, Value::Null) && !definition.has_code(code) {
@@ -772,7 +807,7 @@ impl AdvancedState {
         } else {
             None
         };
-        let line = definition.code(code);
+        let line = definition.code_of(code);
         self.transaction(false, |connection| {
             let Some(connection) = connection else {
                 return Ok(false);

@@ -6,9 +6,9 @@ use rusqlite::Connection;
 use super::errors::{Error, Result};
 use super::py;
 use super::schema::CHAT_WORDS;
-use super::seam::words_gen::{chat_reason, chat_state, record_state};
 use super::session::AdvancedState;
 use super::sql::{self, Row, float, string};
+use crate::vocabulary::{ChatReason, ChatState, RecordState};
 
 pub const CAPABILITY: &str = "codex_chat";
 const COLUMNS: &str =
@@ -17,12 +17,19 @@ const COLUMNS: &str =
 /// `_ENDS`: how a record's move ends its message.
 fn ends(movement: &str) -> Option<(&'static str, &'static str)> {
     Some(match movement {
-        "delivered" | "superseded" | "handed_over" => {
-            (chat_reason::DELIVERED, record_state::FINISHED)
-        }
-        "unproven" => (chat_reason::UNKNOWN, record_state::FINISHED),
-        "withdrawn" => (chat_reason::WITHDRAWN, record_state::CANCELLED),
-        "not_taken" => (chat_reason::NOT_TAKEN, record_state::CANCELLED),
+        "delivered" | "superseded" | "handed_over" => (
+            ChatReason::Delivered.as_str(),
+            RecordState::Finished.as_str(),
+        ),
+        "unproven" => (ChatReason::Unknown.as_str(), RecordState::Finished.as_str()),
+        "withdrawn" => (
+            ChatReason::Withdrawn.as_str(),
+            RecordState::Cancelled.as_str(),
+        ),
+        "not_taken" => (
+            ChatReason::NotTaken.as_str(),
+            RecordState::Cancelled.as_str(),
+        ),
         _ => return None,
     })
 }
@@ -58,7 +65,7 @@ impl AdvancedState {
                     record_id.clone(),
                     string(CAPABILITY),
                     thread_id.clone(),
-                    string(record_state::WAITING),
+                    string(RecordState::Waiting.as_str()),
                     float(now),
                 ],
             )?;
@@ -68,7 +75,7 @@ impl AdvancedState {
                 &[
                     thread_id.clone(),
                     words.clone(),
-                    string(chat_state::WAITING),
+                    string(ChatState::Waiting.as_str()),
                     record_id.clone(),
                     float(now),
                 ],
@@ -88,8 +95,8 @@ impl AdvancedState {
         if sql::truthy(pending) {
             clauses.push(format!(
                 "state IN ('{}', '{}')",
-                chat_state::WAITING,
-                chat_state::IN_FLIGHT
+                ChatState::Waiting.as_str(),
+                ChatState::InFlight.as_str()
             ));
         }
         let filter = if clauses.is_empty() {
@@ -136,17 +143,17 @@ impl AdvancedState {
                 connection,
                 "UPDATE chat_messages SET state=?, words=NULL, sent_at=? WHERE record_id=? AND state=?",
                 &[
-                    string(chat_state::IN_FLIGHT),
+                    string(ChatState::InFlight.as_str()),
                     float(now),
                     record_id.clone(),
-                    string(chat_state::WAITING),
+                    string(ChatState::Waiting.as_str()),
                 ],
             )? == 1;
             if moved {
                 sql::exec(
                     connection,
                     "UPDATE records SET state=?, claimed_at=? WHERE record_id=?",
-                    &[string(record_state::IN_FLIGHT), float(now), record_id.clone()],
+                    &[string(RecordState::InFlight.as_str()), float(now), record_id.clone()],
                 )?;
             }
             Ok(moved)
@@ -162,11 +169,11 @@ impl AdvancedState {
                 "UPDATE records SET state=? WHERE record_id=? AND state=? AND EXISTS \
                  (SELECT 1 FROM chat_messages WHERE record_id=? AND state=?)",
                 &[
-                    string(record_state::WAITING),
+                    string(RecordState::Waiting.as_str()),
                     record_id.clone(),
-                    string(record_state::IN_FLIGHT),
+                    string(RecordState::InFlight.as_str()),
                     record_id.clone(),
-                    string(chat_state::WAITING),
+                    string(ChatState::Waiting.as_str()),
                 ],
             )? == 1)
         })
@@ -188,16 +195,16 @@ impl AdvancedState {
                 "UPDATE chat_messages SET state=?, reason=?, words=NULL, finished_at=? WHERE record_id=? AND state IN \
                  (?, ?)",
                 &[
-                    string(if state == record_state::FINISHED {
-                        chat_state::DONE
+                    string(if state == RecordState::Finished.as_str() {
+                        ChatState::Done.as_str()
                     } else {
-                        chat_state::CANCELLED
+                        ChatState::Cancelled.as_str()
                     }),
                     string(reason),
                     float(now),
                     record_id.clone(),
-                    string(chat_state::WAITING),
-                    string(chat_state::IN_FLIGHT),
+                    string(ChatState::Waiting.as_str()),
+                    string(ChatState::InFlight.as_str()),
                 ],
             )? == 1;
             if ended {
@@ -256,7 +263,7 @@ impl AdvancedState {
         Ok(self
             .chats(&Value::Null, &Value::Bool(true), &py::int(50))?
             .into_iter()
-            .filter(|row| py::is_word(sql::get(row, "state"), &[chat_state::IN_FLIGHT]))
+            .filter(|row| py::is_word(sql::get(row, "state"), &[ChatState::InFlight.as_str()]))
             .collect())
     }
 
@@ -272,13 +279,13 @@ impl AdvancedState {
                 connection,
                 "SELECT c.record_id FROM chat_messages m JOIN records c ON c.record_id = m.record_id WHERE m.state=? \
                  AND m.sent_at IS NULL AND c.state=? AND c.claimed_at IS NOT NULL AND c.claimed_at <= ?",
-                &[string(chat_state::WAITING), string(record_state::IN_FLIGHT), float(now - after)],
+                &[string(ChatState::Waiting.as_str()), string(RecordState::InFlight.as_str()), float(now - after)],
             )?;
             for key in &keys {
                 sql::exec(
                     connection,
                     "UPDATE records SET state=? WHERE record_id=? AND state=?",
-                    &[string(record_state::WAITING), key[0].clone(), string(record_state::IN_FLIGHT)],
+                    &[string(RecordState::Waiting.as_str()), key[0].clone(), string(RecordState::InFlight.as_str())],
                 )?;
             }
             Ok(keys.len() as i64)
@@ -293,9 +300,9 @@ impl AdvancedState {
         thread_id: &Value,
         at: &Value,
     ) -> Result<i64> {
-        let reason = py::closed(reason, chat_reason::ALL, "reason")?;
+        let reason = py::closed(reason, ChatReason::ALL, "reason")?;
         let mut clauses = vec!["state=?"];
-        let mut values = vec![string(chat_state::WAITING)];
+        let mut values = vec![string(ChatState::Waiting.as_str())];
         if !matches!(record_id, Value::Null) {
             clauses.push("record_id=?");
             values.push(py::word(py::key(record_id, "record id")?));
@@ -318,12 +325,12 @@ impl AdvancedState {
                 sql::exec(
                     connection,
                     "UPDATE chat_messages SET state=?, reason=?, words=NULL, finished_at=? WHERE record_id=?",
-                    &[string(chat_state::CANCELLED), string(reason), float(now), key[0].clone()],
+                    &[string(ChatState::Cancelled.as_str()), string(reason), float(now), key[0].clone()],
                 )?;
                 sql::exec(
                     connection,
                     "UPDATE records SET state=?, finished_at=? WHERE record_id=?",
-                    &[string(record_state::CANCELLED), float(now), key[0].clone()],
+                    &[string(RecordState::Cancelled.as_str()), float(now), key[0].clone()],
                 )?;
             }
             Ok(keys.len() as i64)
@@ -342,15 +349,15 @@ pub fn end_pending(connection: &Connection, capabilities: &[Value], now: f64) ->
     let rows = sql::tuples(
         connection,
         "SELECT record_id FROM chat_messages WHERE state=?",
-        &[string(chat_state::WAITING)],
+        &[string(ChatState::Waiting.as_str())],
     )?;
     for row in rows {
         sql::exec(
             connection,
             "UPDATE chat_messages SET state=?, reason=?, words=NULL, finished_at=? WHERE record_id=?",
             &[
-                string(chat_state::CANCELLED),
-                string(chat_reason::TURNED_OFF),
+                string(ChatState::Cancelled.as_str()),
+                string(ChatReason::TurnedOff.as_str()),
                 float(now),
                 row[0].clone(),
             ],
@@ -359,10 +366,10 @@ pub fn end_pending(connection: &Connection, capabilities: &[Value], now: f64) ->
             connection,
             "UPDATE records SET state=?, finished_at=? WHERE record_id=? AND state<>?",
             &[
-                string(record_state::CANCELLED),
+                string(RecordState::Cancelled.as_str()),
                 float(now),
                 row[0].clone(),
-                string(record_state::FINISHED),
+                string(RecordState::Finished.as_str()),
             ],
         )?;
     }

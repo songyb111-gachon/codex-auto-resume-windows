@@ -6,9 +6,9 @@ use car_machine::json::Value;
 use super::errors::{Error, Result};
 use super::py;
 use super::schema::{HEADLESS_CAPABILITIES, MODEL_NAME};
-use super::seam::words_gen::run_end;
 use super::session::AdvancedState;
 use super::sql::{self, Row, float, string};
+use crate::vocabulary::RunEnd;
 
 const COLUMNS: &str = "interruption_id, capability, thread_id, started_at, ends_by, stop_requested_at, ended_at, end, restore_model";
 
@@ -117,7 +117,7 @@ impl AdvancedState {
     /// `run_ended(key, end, at=None)`.
     pub fn run_ended(&self, key: &Value, end: &Value, at: &Value) -> Result<bool> {
         py::key(key, "run key")?;
-        let end = py::closed(end, run_end::ALL, "end")?;
+        let end = py::closed(end, RunEnd::ALL, "end")?;
         let now = self.now(at)?;
         self.writing(|connection| {
             Ok(sql::exec(

@@ -9,14 +9,15 @@
 
 use car_machine::json::Value;
 
+use super::ask::RegistryAsked;
 use super::errors::{Error, Result};
 use super::py;
 use super::resets::{CREDIT, MESSAGE};
-use super::seam::words_gen::{
-    arming_state, chat_reason, prompt_state, record_state, rule_reason, rule_state,
-};
 use super::session::AdvancedState;
 use super::sql::{self, Row, string};
+use crate::vocabulary::{
+    ArmingState, ChatReason, PromptState, RecordState, RuleReason, RuleState, SteerState,
+};
 
 /// The runtime's `on()`: whether it has the capability on now (`on is not None and on() is True`).
 pub type On<'a> = Option<&'a dyn Fn() -> bool>;
@@ -64,7 +65,7 @@ impl<'a> Scoped<'a> {
         let editor = self
             .state
             .registry
-            .get(&self.capability)
+            .get_value(&self.capability)
             .is_some_and(|definition| definition.rules_editor);
         if editor {
             self.state.rules()
@@ -111,7 +112,8 @@ impl<'a> Scoped<'a> {
         Ok(match row {
             Some(Value::Object(row)) => {
                 let state = sql::get(row, "state");
-                if matches!(state, Value::Null) || py::is_word(state, &[arming_state::OFF]) {
+                if matches!(state, Value::Null) || py::is_word(state, &[ArmingState::Off.as_str()])
+                {
                     Value::Null
                 } else {
                     sql::get(row, "since").clone()
@@ -156,7 +158,9 @@ impl<'a> Scoped<'a> {
         Ok(py::text(&self.capability)
             .and_then(|capability| arming.get(capability))
             .is_some_and(|row| match row {
-                Value::Object(row) => py::is_word(sql::get(row, "state"), &[arming_state::ARMED]),
+                Value::Object(row) => {
+                    py::is_word(sql::get(row, "state"), &[ArmingState::Armed.as_str()])
+                }
                 _ => false,
             }))
     }
@@ -253,16 +257,19 @@ impl Handle<'_> {
         let rule = self.state.reset_rule(rule_id)?;
         let fits = rule.is_some_and(|rule| {
             py::is_word(sql::get(&rule, "capability"), &[MESSAGE])
-                && py::is_word(sql::get(&rule, "state"), &[rule_state::READY])
-                && py::is_word(sql::get(&rule, "record_state"), &[record_state::WAITING])
+                && py::is_word(sql::get(&rule, "state"), &[RuleState::Ready.as_str()])
+                && py::is_word(
+                    sql::get(&rule, "record_state"),
+                    &[RecordState::Waiting.as_str()],
+                )
         });
         if !fits {
             return Ok(false);
         }
         let done = self.state.end_rule(
             rule_id,
-            &string(rule_state::DONE),
-            &string(rule_reason::EXPIRED),
+            &string(RuleState::Done.as_str()),
+            &string(RuleReason::Expired.as_str()),
             &Value::Null,
         )?;
         if done {
@@ -313,7 +320,7 @@ impl Handle<'_> {
             self.state.change_prompt(
                 prompt_id,
                 &[
-                    ("state".into(), string(prompt_state::READY)),
+                    ("state".into(), string(PromptState::Ready.as_str())),
                     ("record_id".into(), key.clone()),
                     ("due_at".into(), due_at.clone()),
                 ],
@@ -327,7 +334,7 @@ impl Handle<'_> {
     pub fn prompts_drop(&self, key: &Value) -> Result<bool> {
         self.writing()?;
         self.state
-            .move_record(key, &string(record_state::CANCELLED), &Value::Null)
+            .move_record(key, &string(RecordState::Cancelled.as_str()), &Value::Null)
     }
 
     /// The prompts handle's other writes.
@@ -425,7 +432,7 @@ impl Handle<'_> {
             return Ok(0);
         }
         self.state.cancel_chat(
-            &string(chat_reason::CONVERSATION_OFF),
+            &string(ChatReason::ConversationOff.as_str()),
             record_id,
             &Value::Null,
             &Value::Null,
@@ -447,7 +454,7 @@ impl Handle<'_> {
         reason: &Value,
         at: &Value,
     ) -> Result<bool> {
-        if py::py_str(word) != super::seam::words_gen::steer_state::REFUSED && !self.is_on() {
+        if py::py_str(word) != SteerState::Refused.as_str() && !self.is_on() {
             return Err(not_on());
         }
         self.state.settle_steer(steer_id, word, reason, at)

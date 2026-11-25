@@ -44,8 +44,26 @@ pub fn text(value: &Value) -> Option<&str> {
 }
 
 /// `value in tuple(Enum)` for a StrEnum: only a `str` equal to a member's word is in it.
-pub fn is_word(value: &Value, words: &[&str]) -> bool {
-    text(value).is_some_and(|word| words.contains(&word))
+pub fn is_word<'a, W: Word<'a>>(value: &Value, words: &[W]) -> bool {
+    text(value).is_some_and(|found| words.iter().any(|word| word.word() == found))
+}
+
+/// A closed word as the store compares it: a member of one of `crate::vocabulary`'s enums (the one source of the
+/// edition's closed words), or a word a caller lists itself (an `Alternative`'s, a point's).
+pub trait Word<'a> {
+    fn word(&self) -> &'a str;
+}
+
+impl<'a, T: crate::vocabulary::ClosedWord> Word<'a> for T {
+    fn word(&self) -> &'a str {
+        crate::vocabulary::ClosedWord::word(*self)
+    }
+}
+
+impl<'a> Word<'a> for &'a str {
+    fn word(&self) -> &'a str {
+        self
+    }
 }
 
 /// An `int`'s value, where it fits 64 bits.
@@ -107,18 +125,18 @@ pub fn key<'a>(value: &'a Value, name: &str) -> Result<&'a str> {
 
 /// `_word(value, words, name)`: `value` if it is a member's word of the StrEnum `words`, else
 /// `StateError("invalid <name>")`.
-pub fn closed(value: &Value, words: &[&'static str], name: &str) -> Result<&'static str> {
+pub fn closed<'a, W: Word<'a>>(value: &Value, words: &[W], name: &str) -> Result<&'a str> {
     text(value)
-        .and_then(|found| words.iter().find(|word| **word == found).copied())
+        .and_then(|found| words.iter().map(Word::word).find(|word| *word == found))
         .ok_or_else(|| Error::state(format!("invalid {name}")))
 }
 
 /// `_word` where the value may be None and None is kept (`None if v is None else _word(v, ...)`).
-pub fn closed_or_none(
+pub fn closed_or_none<'a, W: Word<'a>>(
     value: &Value,
-    words: &[&'static str],
+    words: &[W],
     name: &str,
-) -> Result<Option<&'static str>> {
+) -> Result<Option<&'a str>> {
     if matches!(value, Value::Null) {
         return Ok(None);
     }

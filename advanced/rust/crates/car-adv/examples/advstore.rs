@@ -16,11 +16,11 @@ use std::sync::{Arc, Mutex};
 use car_adv::images::{self, ImageError};
 use car_adv::ledger::ClaimLedger;
 use car_adv::profiles::{self, ProfileError, Profiles};
+use car_adv::registry::{self, Registry};
 use car_adv::state::calls::{self, Call};
 use car_adv::state::scoped::Scoped;
 use car_adv::state::seam::Tokens;
 use car_adv::state::seam::accounts::{Failure, Host};
-use car_adv::state::seam::registry::{Listed, Registry, Shipped};
 use car_adv::state::{AdvancedState, Error};
 use car_adv::watchlog;
 use car_machine::json::{Map, Str, Value};
@@ -358,9 +358,11 @@ fn run() {
     ));
     let seed = car_adv::state::py::small(get(&request, "tokens")).unwrap_or(0) as u64;
     let counter = Arc::new(Counter(Mutex::new(seed)));
-    let registry: Arc<dyn Registry> = match get(&request, "registry") {
-        Value::Str(word) if word.as_str() == Some("none") => Arc::new(Listed(Vec::new())),
-        _ => Arc::new(Shipped),
+    let registry: Arc<Registry> = match get(&request, "registry") {
+        Value::Str(word) if word.as_str() == Some("none") => {
+            Arc::new(Registry::new(Vec::new()).expect("an empty registry"))
+        }
+        _ => Arc::new(registry::shipped(false).expect("the shipped registry")),
     };
     let no_env = |_: &str| None;
     let paths = car_config::Paths::new(

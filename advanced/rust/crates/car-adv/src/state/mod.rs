@@ -21,6 +21,7 @@
 
 pub mod analytics;
 pub mod arming;
+pub mod ask;
 pub mod calls;
 pub mod chat;
 pub mod choices;
@@ -28,6 +29,7 @@ pub mod continuations;
 pub mod errors;
 pub mod journal;
 pub mod meter;
+pub mod port;
 pub mod prompts;
 pub mod py;
 pub mod records;

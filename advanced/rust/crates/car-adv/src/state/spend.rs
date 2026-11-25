@@ -6,8 +6,10 @@
 //! schema name is one of those two constants and never anything else.
 
 use car_machine::json::{Str, Value};
+use car_policy::plug::Point;
 use rusqlite::Connection;
 
+use super::ask::{DefinitionAsked, RegistryAsked};
 use super::errors::{Error, Result};
 use super::journal::{prune_every, prune_spend};
 use super::py;
@@ -19,7 +21,7 @@ pub const DAY: f64 = 86400.0;
 pub const HOUR: f64 = 3600.0;
 /// The points that make a capability a channel or a route for the send it pays for (`Point.SENDER`,
 /// `Point.UNLOADED`).
-pub const CHANNELS: &[&str] = &["sender", "unloaded"];
+pub const CHANNELS: &[Point] = &[Point::Sender, Point::Unloaded];
 /// How far apart a unit's time and a claim's may be and still be the one claim.
 pub const SAME_CLAIM: f64 = 0.001;
 const CLAIM_GROUPS: (&str, &str) = (
@@ -168,7 +170,7 @@ impl AdvancedState {
         now: &Value,
     ) -> Result<i64> {
         let schema = schema_name(schema)?;
-        if self.registry.get(capability).is_none() {
+        if self.registry.get_value(capability).is_none() {
             return Err(Error::state("unknown capability"));
         }
         py::thread(thread_id)?;
@@ -224,7 +226,7 @@ impl AdvancedState {
         })?;
         let mut kept = Vec::new();
         for row in rows {
-            if self.registry.get(&row[0]).is_none() {
+            if self.registry.get_value(&row[0]).is_none() {
                 continue;
             }
             let near = match claimed_at {
@@ -249,8 +251,8 @@ impl AdvancedState {
         let payers = self.payers(interruption_id, claimed_at)?;
         Ok(payers.keys().any(|capability| {
             self.registry
-                .get(&Value::Str(capability.clone()))
-                .is_some_and(|definition| CHANNELS.iter().any(|point| definition.has_point(point)))
+                .get_value(&Value::Str(capability.clone()))
+                .is_some_and(|definition| CHANNELS.iter().any(|point| definition.has_point(*point)))
         }))
     }
 }
