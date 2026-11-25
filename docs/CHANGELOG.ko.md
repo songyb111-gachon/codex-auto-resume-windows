@@ -55,6 +55,10 @@ v0.6.26까지의 기록과 태그를 담은 저장소로 따로 남깁니다.
   `%LOCALAPPDATA%\OpenAI\Codex\bin`이 없어서, 설치 프로그램이 "The ChatGPT/Codex desktop app was not found."라며 멈췄습니다. 이제 Windows에
   공식 Codex 패키지의 정상적인 Store 등록 하나를 묻고, 워처가 하는 오프라인 OpenAI 서명 확인을 통과한 뒤에만 그 안의 엔진을 씁니다. 엔진 폴더가 있으면
   여전히 그쪽을 먼저 씁니다([@Kdevaulo](https://github.com/Kdevaulo) 님이 기여, [#69](https://github.com/songyb111-gachon/codex-auto-resume-windows/pull/69)).
+- **아직 기록 데이터베이스가 없는 Codex 홈은 고장이 아니라 아직 만들어지지 않았다고 말합니다.** Codex는 그 데이터베이스를 시작할 때가 아니라 처음 저장하는
+  대화와 함께 만들기 때문에, 막 설치한 곳에는 없습니다. 건강 점검은 "local history : FAIL"이라고 했고, 워처는 매 틱 감지가 읽지 못했다고 기록하며 주의
+  표시등을 켰고, 진단은 홈을 읽을 수 없다고 했습니다. 이제 홈의 상태에 대화가 하나도 없는 동안에는 모두 기록이 아직 만들어지지 않았다고 말합니다. 대화가
+  있는데 기록이 없는 홈은 여전히 실패입니다([#69](https://github.com/songyb111-gachon/codex-auto-resume-windows/pull/69)에서 찾았습니다).
 - **Codex 앱 자기 패키지의 엔진에 대한 호환성 답이 앱이 닫혀 있는 동안에도 유지됩니다.** 워처는 앱이 닫힌 뒤에도 그 엔진을 계속 쓰는데, 모든 읽는 쪽 -
   진단, 명령줄, Codex 패널, 판 자신의 읽기 - 은 워처의 보고서를 Codex 엔진 폴더의 엔진이나 그 순간 앱이 돌리는 엔진에만 묶었습니다. 그래서 앱이 닫히면
   모든 기능이 알 수 없음으로 읽혔습니다. 이제 읽는 쪽이 Windows 패키지 관리자로 디스크에 있는 패키지의 엔진도 찾고, 같은 파일·서명 검사를 거치며, 그 때문에

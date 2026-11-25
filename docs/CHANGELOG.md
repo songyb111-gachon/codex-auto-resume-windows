@@ -66,6 +66,11 @@ continuation's words with its doubt, so v0.6.25 starts nothing beside the messag
   found.". It now asks Windows for the one healthy Store registration of the official Codex package and takes the engine inside it only
   after the offline OpenAI signature check the watcher makes; the engine folder is still preferred where it exists (contributed by
   [@Kdevaulo](https://github.com/Kdevaulo), [#69](https://github.com/songyb111-gachon/codex-auto-resume-windows/pull/69)).
+- **A Codex home that has no history database yet is said to be not created yet, not broken.** Codex makes that database with the
+  first conversation it saves, never at start, so a fresh installation has none. The health check said "local history : FAIL", the
+  watcher logged that detection could not read every tick and lit the attention light, and Diagnostics said the home could not be
+  read. Now each says the history is not created yet, while the home's state holds no conversation; one that holds a conversation and
+  has no history is still a failure (found on [#69](https://github.com/songyb111-gachon/codex-auto-resume-windows/pull/69)).
 - **The compatibility answer for the engine in the Codex app's own package holds while the app is closed.** The watcher keeps driving
   that engine after the app closes, but every reader - Diagnostics, the command line, the Codex panel and the edition's own reads -
   bound the watcher's report only to an engine in Codex's engine folder or one the app ran at that moment, so with the app closed every

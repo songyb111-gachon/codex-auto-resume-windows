@@ -59,7 +59,7 @@
     "CI does not translate anything. A person decides what the Korean should say."
   ],
   "reviewed": {
-    "docs/CHANGELOG.md": "141b9cf2ecf65d29362da7de4f74892f34d555296c36f38cc1bf6be349598d91",
+    "docs/CHANGELOG.md": "bd6cd8dcb5fb184f41083793cc68e4c2ba99e2116fa679767657baf6042a05d0",
     "docs/CONTRIBUTING.md": "5e0c38ce04eeb32a373a50f38fa5a6a842ace39ab32104a2911f0f5c3a68d840",
     "docs/CONTRIBUTORS.md": "cc8685e7fa1f0c8b9b254c9792b6c980828ca5127d64421c2002d27b3e92725c",
     "docs/PRIVACY.md": "a45ccd967b62378898bb69af413a41c317b213e0e669fe90982d051ce942b68e",
