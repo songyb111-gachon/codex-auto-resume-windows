@@ -26,7 +26,7 @@ fn wrapped_ticks(seconds: f64) -> Option<i64> {
     if !ticks.is_finite() {
         return None;
     }
-    if ticks.abs() < 9.223_372_036_854_775_808e18 {
+    if ticks.abs() < 9_223_372_036_854_775_808.0 {
         return Some(ticks as i64);
     }
     // |ticks| >= 2**63: an integer m * 2**e with e >= 11; its low 64 bits.

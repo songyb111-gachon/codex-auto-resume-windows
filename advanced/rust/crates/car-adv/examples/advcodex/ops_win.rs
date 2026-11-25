@@ -352,7 +352,7 @@ fn stop(state_dir: &str, spec: &Value, list: &[Value]) -> Out {
             log: log.clone(),
         }),
     )
-    .map_err(|error| Failure::coded("AdapterError", &error.0))?;
+    .map_err(|error| Failure::coded("AdapterError", error.0))?;
     let mut answers = Vec::new();
     for step in list {
         let (word, value) = step_word(step);
@@ -385,7 +385,7 @@ pub fn run(_context: &Context, op: &str, args: &[Value]) -> Out {
         },
         "wn.event_name" => stopflag::event_name(&text(arg(args, 0))?)
             .map(Value::from)
-            .map_err(|error| Failure::coded("AdapterError", &error.0)),
+            .map_err(|error| Failure::coded("AdapterError", error.0)),
         _ => Err(Failure::new("UnknownOp")),
     }
 }

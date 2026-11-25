@@ -2,7 +2,7 @@
 //! Desktop's: refused here and by car-platform under CAR_NO_REAL_IPC), `ip.filled` and `ip.version` (the shapes). The
 //! request ids count up from 1, as the reference's `uuid4` is made to.
 
-use car_adv::codex::ipc::{self, Gate};
+use car_adv::codex::ipc::{self, Gate, GateRaised};
 use car_adv::jsonx::object;
 use car_machine::json::{Str, Value};
 
@@ -27,15 +27,19 @@ fn is_raise(value: &Value) -> bool {
 }
 
 impl Gate for Guard {
-    fn enter(&mut self) -> Result<Value, ()> {
+    fn enter(&mut self) -> Result<Value, GateRaised> {
         self.log.push("enter".into());
         let found = take(&mut self.enter, Value::Bool(true));
-        if is_raise(&found) { Err(()) } else { Ok(found) }
+        if is_raise(&found) {
+            Err(GateRaised)
+        } else {
+            Ok(found)
+        }
     }
-    fn exit(&mut self) -> Result<(), ()> {
+    fn exit(&mut self) -> Result<(), GateRaised> {
         self.log.push("exit".into());
         if is_raise(&take(&mut self.exit, "ok".into())) {
-            Err(())
+            Err(GateRaised)
         } else {
             Ok(())
         }

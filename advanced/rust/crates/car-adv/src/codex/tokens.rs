@@ -216,7 +216,7 @@ pub fn rollouts(
             }
         }
     }
-    found.sort_by(|a, b| b.changed_ns.cmp(&a.changed_ns));
+    found.sort_by_key(|rollout| std::cmp::Reverse(rollout.changed_ns));
     Ok(found)
 }
 

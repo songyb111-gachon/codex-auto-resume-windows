@@ -133,9 +133,13 @@ pub fn filled(shape: &Value, fields: &[(&str, Value)]) -> Value {
 }
 
 /// Core's errand guard around the one writing that cannot be taken back: `__enter__`'s `permitted` and `__exit__`.
+/// What a guard raised (any exception of its `__enter__` or `__exit__`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GateRaised;
+
 pub trait Gate {
-    fn enter(&mut self) -> Result<Value, ()>;
-    fn exit(&mut self) -> Result<(), ()>;
+    fn enter(&mut self) -> Result<Value, GateRaised>;
+    fn exit(&mut self) -> Result<(), GateRaised>;
 }
 
 /// One connection to the pipe.
@@ -233,13 +237,13 @@ fn request(
     match gate {
         None => channel.write(&message)?,
         Some(gate) => {
-            let permitted = gate.enter().map_err(|()| Fail::Raised)?;
+            let permitted = gate.enter().map_err(|GateRaised| Fail::Raised)?;
             let inner = if matches!(permitted, Value::Bool(true)) {
                 channel.write(&message)
             } else {
                 Err(Fail::Word(Stop::Held))
             };
-            gate.exit().map_err(|()| Fail::Raised)?;
+            gate.exit().map_err(|GateRaised| Fail::Raised)?;
             inner?;
         }
     }
