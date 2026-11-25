@@ -197,7 +197,7 @@ sys.stdout.write(json.dumps(answers))
 
 
 class HomeLockSharing(PlatformBase):
-    """The watcher's home lock files are held so that they cannot be deleted while held: build/install/install.ps1's
+    r"""The watcher's home lock files are held so that they cannot be deleted while held: build/install/install.ps1's
     Remove-HomeLocks (uninstall -Purge) deletes every `homes\*.lock` it can and counts on "a lock another installation's
     watcher holds is open and cannot be deleted". The reference opens them with os.open (the C runtime shares read and
     write, never delete); car-platform's `Held::take` opens with std's OpenOptions, which shares delete too, so the file

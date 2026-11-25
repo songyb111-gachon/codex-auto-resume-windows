@@ -276,12 +276,6 @@ def comparable(answer: dict) -> str:
     return json.dumps(answer, sort_keys=True, ensure_ascii=False)
 
 
-# A file another seat's crate writes, with a difference that is that crate's: car-config's Paths.ensure() writes the
-# marker without Python's text-mode line end (LF, where `write_text` writes CRLF on Windows) - reported, not hidden
-# elsewhere: only its line ends are folded here.
-KNOWN = {"config/.owned-by-codex-auto-resume", "logs/.owned-by-codex-auto-resume"}
-
-
 def _typed(value):
     if value is None:
         return None
@@ -330,8 +324,6 @@ def dump_home(home: Path) -> dict:
         if path.name.endswith("-journal"):
             continue
         data = path.read_bytes()
-        if relative in KNOWN:
-            data = data.replace(b"\r\n", b"\n")
         if data.startswith(b"SQLite format 3\x00"):
             found[relative] = dump(path)
         elif data.startswith(b"SEALED:"):
