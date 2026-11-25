@@ -336,3 +336,7 @@ The corpus is the frozen scenario modules' flows (test_engine 01-18, the crash a
 test_outcomes, test_pause_unknown, test_ladder_and_guards, test_skip_reasons, ...) written as step lists, never the modules
 themselves; then `generated(seed)`'s random walks (CODEX_AR_ENGINE_WALKS, 60 by default, 60 steps each, one to three
 conversations). The final's re-diff: `python -X utf8 tests/rustdiff/rediff_engine.py --reference v0.6.26`.
+
+Run 2026-11-25 (`run.py --build --reference v0.6.26-beta.2 -k EngineTraceDiff -v`, 926 s, OK): corpus 81 scenarios, 1,023
+steps equal (63 sends); random walks 60 scenarios, 5,153 steps equal (122 sends). Eight broken rules each failed a trace
+(rust/GROUNDWORK.md, "The engine").
