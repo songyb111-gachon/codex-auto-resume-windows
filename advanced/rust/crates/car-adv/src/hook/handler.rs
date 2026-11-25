@@ -217,6 +217,22 @@ pub fn decide(
     Ok((outcome == Some(HookOutcome::Blocked)).then_some(reason))
 }
 
+/// `argparse`'s `_negative_number_matcher`: `^-\d+$|^-\d*\.\d+$`; the parser has no option that looks like one, so such an
+/// argument is a value, not a flag.
+fn negative_number(text: &str) -> bool {
+    let Some(rest) = text.strip_prefix('-') else {
+        return false;
+    };
+    let digits = |part: &str| {
+        part.chars()
+            .all(|each| car_machine::pytext::decimal_value(each).is_some())
+    };
+    match rest.split_once('.') {
+        None => !rest.is_empty() && digits(rest),
+        Some((whole, fraction)) => digits(whole) && !fraction.is_empty() && digits(fraction),
+    }
+}
+
 /// `argparse`'s `parse_known_args` of `--home <path>` (no help, abbreviations of `--home` of at least `--h` taken), or None
 /// where argparse would exit: the option without its value.
 fn home_argument(argv: &[String]) -> Option<Option<String>> {
@@ -234,7 +250,11 @@ fn home_argument(argv: &[String]) -> Option<Option<String>> {
                 None => {
                     at += 1;
                     match argv.get(at) {
-                        Some(value) if !value.starts_with('-') || value.len() == 1 => {
+                        Some(value)
+                            if !value.starts_with('-')
+                                || value.len() == 1
+                                || negative_number(value) =>
+                        {
                             home = Some(value.clone());
                         }
                         _ => return None,

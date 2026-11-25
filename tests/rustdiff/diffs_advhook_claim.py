@@ -33,6 +33,7 @@ from pathlib import Path
 from codex_auto_resume import config, managed as admin
 from codex_auto_resume.control import policy as control
 from codex_auto_resume_advanced.engine import hookclaims
+from codex_auto_resume_advanced.registry import DEFINITIONS, REGISTRY, STOP_HOOK, Registry
 
 home = Path(sys.argv[1])
 ops = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
@@ -40,12 +41,13 @@ paths = config.Paths(str(home))
 out = []
 for op in ops:
     if op[0] == "claim":
-        _kind, failure, turn_key, now, managed, busy = op
+        _kind, failure, turn_key, now, managed, busy, which = op
+        registry = REGISTRY if which == "shipped" else Registry(DEFINITIONS + (STOP_HOOK,))
         held = admin.NONE if not managed else admin.Managed(
             disable_auto_resume=bool(managed.get("disable_auto_resume")), force_observe_only=bool(managed.get("force_observe_only")),
             max_recovery_attempts=managed.get("max_recovery_attempts"), quiet_hours=tuple(managed.get("quiet_hours") or ()))
         control.managed_policy = lambda held=held: held
-        found = hookclaims.claim(paths, failure, turn_key, now, busy=busy)
+        found = hookclaims.claim(paths, failure, turn_key, now, registry=registry, busy=busy)
         out.append({"ok": None if found is None else str(found)})
     elif op[0] == "blocked_at":
         out.append({"ok": hookclaims.blocked_at(paths, op[1])})
@@ -70,8 +72,8 @@ def record_of(index, thread=THREAD, **more):
     return dict(store.core_record(index, thread), category="network_transient", **more)
 
 
-def claim(index, turn="a" * 64, now=CLOCK, managed=None, busy=0.5, thread=THREAD):
-    return ["claim", failure_of(index, thread), turn, now, managed, busy]
+def claim(index, turn="a" * 64, now=CLOCK, managed=None, busy=0.5, thread=THREAD, registry="hook"):
+    return ["claim", failure_of(index, thread), turn, now, managed, busy, registry]
 
 
 def digest(text):
@@ -82,7 +84,7 @@ def digest(text):
 class ClaimDiff(advreport.ReportDiff):
     EXAMPLE = "advhook"
 
-    def run_case(self, label, records, ops, advanced=(ARMED,), changes=(), settings=None, core=True):
+    def run_case(self, label, records, ops, advanced=(ARMED,), changes=(("on", "UPDATE settings SET enabled = 1"),), settings=None, core=True):
         def setup(home: Path) -> None:
             if core:
                 store.core_home(records, changes, advanced)(home)
@@ -121,6 +123,9 @@ class ClaimDiff(advreport.ReportDiff):
                             [claim(0), claim(0), claim(1), claim(2, turn="b" * 64), ["blocked_at", key(100)], ["blocked_at", key(101)],
                              ["blocked_at", "nope"], ["blocked_at", None], ["blocked_at", key(999)]])
         self.assertEqual(got[0], {"ok": "blocked"})
+        count += 1
+        # the shipped registry has no such capability (it waits for its measurements): the claim answers nothing
+        self.run_case("shipped registry", [record_of(0)], [claim(0, registry="shipped"), ["blocked_at", key(100)]])
         count += 1
         # the capability not armed
         for label, advanced in (("shadow", (SHADOW,)), ("no row", ()), ("off", (SHADOW.replace("'shadow'", "'off'"),))):
@@ -178,7 +183,7 @@ class ClaimDiff(advreport.ReportDiff):
         self.run_case("no advanced file", [record_of(0)], [claim(0)], advanced=())
         for label, bad in (("bad id", dict(failure_of(0), interruption_id="nope")), ("no id", {"thread_id": THREAD}), ("no thread", {"interruption_id": key(100)}),
                            ("odd thread", dict(failure_of(0), thread_id="not-a-uuid")), ("unknown id", dict(failure_of(0), interruption_id=key(7777)))):
-            self.run_case(label, [record_of(0)], [["claim", bad, "d" * 64, CLOCK, None, 0.5]])
+            self.run_case(label, [record_of(0)], [["claim", bad, "d" * 64, CLOCK, None, 0.5, "hook"]])
             count += 1
         self.run_case("times", [record_of(0), record_of(1), record_of(2)],
                       [claim(0, now=CLOCK), claim(1, turn="e" * 64, now=CLOCK), claim(2, turn="f" * 64, now=CLOCK + 1000),

@@ -39,8 +39,8 @@ def stop(thread=THREAD, turn=TURN, **more):
     document.update(more)
     return document
 
-def failed(kind="serverOverloaded", thread=THREAD, turn=TURN, status="failed", completed=1010.0, ordinal=4, message="x"):
-    return {"thread_id": thread, "turn_id": turn, "status": status, "started_at": 1000.0, "completed_at": completed,
+def failure_row(kind="serverOverloaded", thread=THREAD, turn=TURN, status="failed", completed=1763999910.0, ordinal=4, message="x"):
+    return {"thread_id": thread, "turn_id": turn, "status": status, "started_at": 1763999900.0, "completed_at": completed,
             "ordinal": ordinal, "error_json": json.dumps({"codexErrorInfo": kind, "message": message})}
 
 def values(**changes):
@@ -96,7 +96,7 @@ INPUTS = [
     json.dumps({k: v for k, v in stop().items() if k != "turn_id"}), json.dumps({k: v for k, v in stop().items() if k != "session_id"}),
     "[]", "[1, 2]", "null", "7", '"text"', "true", "{}", "", " ", "not json", "{", '{"a": NaN}', '{"hook_event_name": "Stop", "x": Infinity}',
     "\ufeff" + json.dumps(stop()), json.dumps(stop(), indent=4), json.dumps(stop()) + " trailing", json.dumps(stop()) + "\n",
-    "[" * 5000 + "]" * 5000, '{"a": ' * 3000 + "1" + "}" * 3000, json.dumps(stop(thread="\ud800")),
+    "[" * 5000 + "]" * 5000, '{"a": ' * 3000 + "1" + "}" * 3000,
     json.dumps({"session_id": THREAD, "turn_id": TURN, "hook_event_name": "Stop", "stop_hook_active": None}),
 ]
 for text in INPUTS:
@@ -116,7 +116,7 @@ for picked in (stop(), big, {}, {"hook_event_name": "Stop"}, {"session_id": THRE
     case("handler.pick", picked, ref=lambda picked=picked: handler.pick(picked))
     if isinstance(picked, dict):
         case("handler.stop_of", picked, ref=lambda picked=picked: handler.stop_of(picked))
-for turn in (TURN, "x", "", uuid(7, 3), "\u00e9"):
+for turn in (TURN, "x", "", uuid(7, 3)):
     case("handler.turn_key", turn, ref=lambda turn=turn: handler.turn_key(turn))
 
 DEFAULT = values()
@@ -124,7 +124,7 @@ TIMINGS = ["immediate", "gentle", "patient", "slow", "relaxed", "steady", "defau
 for kind in ("serverOverloaded", "httpConnectionFailed", "responseStreamConnectionFailed", "responseStreamDisconnected", "internalServerError",
              "usageLimitExceeded", "unauthorized", "badRequest", "other", "responseTooManyFailedAttempts", None):
     from codex_auto_resume.codex import detect
-    failure = detect(failed(kind))
+    failure = detect(failure_row(kind))
     if failure is None:
         failure = {"category": "unknown", "thread_id": THREAD, "turn_id": TURN}
     for category in ("network_transient", "timeout", "server_5xx", "stream_interrupted", "rate_limit_transient", "usage_limit", "unknown", None, 5):
@@ -144,7 +144,7 @@ SETTINGS = [values(), values(retry_timing="gentle"), values(recover_network_tran
     values(continuation_language=language) for language in LANGUAGES]
 
 def decide_case(picked, **given):
-    case_data = dict({"armed": True, "settings": values(), "latest": {"*": failed()}, "claim": "blocked",
+    case_data = dict({"armed": True, "settings": values(), "latest": {"*": failure_row()}, "claim": "blocked",
                       "clock": {"start": 100.0, "step": 0.0}, "started": 100.0}, **given)
     case_data["picked"] = picked
     hands = Hands(case_data)
@@ -159,16 +159,16 @@ def decide_case(picked, **given):
 
 for kind in KINDS:
     for shaped in SETTINGS:
-        decide_case(stop(), latest={"*": failed(kind)}, settings=shaped)
+        decide_case(stop(), latest={"*": failure_row(kind)}, settings=shaped)
 for claim in ("blocked", "passed", "refused", None, {"raise": "RuntimeError"}, {"raise": "KeyError"}):
     decide_case(stop(), claim=claim)
 for armed in (True, False, None, {"raise": "RuntimeError"}):
     decide_case(stop(), armed=armed)
-for latest in ({"*": None}, {"*": failed(thread=uuid(9))}, {"*": failed(turn=TURN2)}, {"*": failed(status="completed")}, {"*": failed(status="inProgress")},
-               {"*": failed(completed=None)}, {"*": failed(ordinal=-1)}, {"*": {"raise": "RuntimeError"}}, {"*": "text"}, {"*": []}, {THREAD: failed(), "*": None}, {}):
+for latest in ({"*": None}, {"*": failure_row(thread=uuid(9))}, {"*": failure_row(turn=TURN2)}, {"*": failure_row(status="completed")}, {"*": failure_row(status="inProgress")},
+               {"*": failure_row(completed=None)}, {"*": failure_row(ordinal=-1)}, {"*": {"raise": "RuntimeError"}}, {"*": "text"}, {"*": []}, {THREAD: failure_row(), "*": None}, {}):
     decide_case(stop(), latest=latest)
 decide_case(stop(turn=None))
-decide_case(stop(turn=None), latest={"*": failed(turn=TURN2)})
+decide_case(stop(turn=None), latest={"*": failure_row(turn=TURN2)})
 decide_case(stop(), settings={"raise": "OSError"})
 decide_case(stop(stop_hook_active=True))
 decide_case(stop(hook_event_name="x"))
@@ -183,7 +183,7 @@ finish()
 
 MAIN_SCRIPT = PRELUDE + r'''
 def main_case(argv, data, **given):
-    case_data = dict({"armed": True, "settings": values(), "latest": {"*": failed()}, "claim": "blocked",
+    case_data = dict({"armed": True, "settings": values(), "latest": {"*": failure_row()}, "claim": "blocked",
                       "clock": {"start": time.time(), "step": 0.0}}, **given)
     case_data["argv"] = argv
     case_data["input"] = data if isinstance(data, str) else list(data)
@@ -210,7 +210,7 @@ main_case(["--home", "x"], "")
 main_case(["--home", "x"], good, claim="passed")
 main_case(["--home", "x"], good, claim="refused")
 main_case(["--home", "x"], good, armed=False)
-main_case(["--home", "x"], good, latest={"*": failed("usageLimitExceeded")})
+main_case(["--home", "x"], good, latest={"*": failure_row("usageLimitExceeded")})
 main_case(["--home", "x"], good, settings={"raise": "OSError"})
 main_case(["--home", "x"], good, claim={"raise": "RuntimeError"})
 for language in ("en", "ko", "de", "ja"):

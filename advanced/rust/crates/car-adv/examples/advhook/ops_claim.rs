@@ -71,6 +71,20 @@ pub fn run(op: &str, args: &[Value]) -> Out {
                 let now = tagged_float(arg(parts, 3)?)?;
                 let given = managed_of(arg(parts, 4)?);
                 let busy = tagged_float(arg(parts, 5)?)?;
+                let registry = if text(arg(parts, 6)?)? == "shipped" {
+                    Arc::clone(&registry)
+                } else {
+                    let mut all = registry::definitions();
+                    all.extend(
+                        registry::waiting()
+                            .into_iter()
+                            .map(|(each, _)| each)
+                            .filter(|each| each.id == hookclaims::CAPABILITY),
+                    );
+                    Arc::new(
+                        registry::Registry::new(all).map_err(|_| Failure::new("RegistryError"))?,
+                    )
+                };
                 let managed = move || Ok(given.clone());
                 let world = World {
                     managed: &managed,
