@@ -186,18 +186,19 @@ class LayoutTests(unittest.TestCase):
             again = build(Path(work) / "elsewhere", "standard")
             self.assertEqual(again.read_bytes(), self.standard.read_bytes())
 
-    def test_the_installer_placeholder_changes_nothing_and_says_so(self):
-        with tempfile.TemporaryDirectory(prefix="car-rust-install-") as work:
-            script = Path(work) / "install.ps1"
-            script.write_bytes(read(self.standard, "install/install.ps1"))
-            before = sorted(Path(work).rglob("*"))
-            done = subprocess.run([str(legacy.POWERSHELL), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
-                                   "-File", str(script), "-SkipStartup", "-KeepState"], cwd=work, capture_output=True,
-                                  text=True, encoding="utf-8", errors="replace", timeout=120, creationflags=NO_WINDOW,
-                                  stdin=subprocess.DEVNULL)
-            self.assertEqual(done.returncode, 1, done.stderr)
-            self.assertIn("Nothing was installed.", done.stdout)
-            self.assertEqual(sorted(Path(work).rglob("*")), before)
+    def test_the_installer_is_the_rust_payloads_and_parses(self):
+        # S8.2's installer, as the tree has it; it is run only with its reach outside the home stood in
+        # (tests/test_rust_install.py): run whole here it would look for this PC's Codex.
+        for archive in (self.standard, self.advanced):
+            self.assertEqual(read(archive, "install/install.ps1"), rust_release.INSTALLER.read_bytes())
+        check = ("$errors = $null; $null = [System.Management.Automation.Language.Parser]::ParseFile($env:CAR_SCRIPT, "
+                 "[ref]$null, [ref]$errors); if ($errors -and $errors.Count) { $errors | ForEach-Object { $_.Message }; "
+                 "exit 1 }")
+        done = subprocess.run([str(legacy.POWERSHELL), "-NoProfile", "-NonInteractive", "-Command", check],
+                              capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120,
+                              creationflags=NO_WINDOW, stdin=subprocess.DEVNULL,
+                              env=dict(os.environ, CAR_SCRIPT=str(rust_release.INSTALLER)))
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
 
 
 @unittest.skipUnless(legacy.POWERSHELL.is_file(), "the published bootstraps are Windows PowerShell")
