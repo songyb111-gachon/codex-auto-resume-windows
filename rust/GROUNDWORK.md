@@ -1116,7 +1116,7 @@ Conflicts, each resolved by keeping both sides:
 ### Checks (`CARGO_BUILD_JOBS=4`; reference v0.6.26-beta.2, rustc 1.100.0)
 
 ```
-## rust            fmt --check rc=0; clippy --locked --all-targets -D warnings rc=0; test --locked rc=0 (67 test binaries ok, among them
+## rust            fmt --check rc=0; clippy --locked --all-targets -D warnings rc=0; test --locked rc=0 (62 test binaries ok, among them
                    review5_float_repr x2, review5_replace, review5_watcher_status, review5_share, files_replace, power_guard; car-engine's
                    transport tests 2); cargo deny --locked check: advisories ok, bans ok, licenses ok, sources ok
 ## advanced/rust   fmt --check rc=0; clippy rc=0; test --locked rc=0; cargo deny: all four ok
