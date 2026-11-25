@@ -379,7 +379,7 @@ impl Engine {
             }
             let retry = py::plus_one(get(&reserved, "retry_count"))?;
             let count = py::int_of(&retry)?;
-            if count >= self.options.max_queue_retries {
+            if (count as f64) >= self.options.max_queue_retries {
                 return self.transition(
                     &reserved,
                     "failed",
@@ -390,15 +390,15 @@ impl Engine {
                 );
             }
             let delay = if text_of(&reserved, "category") != Some(USAGE_LIMIT) {
-                self.delay_for(py::int_of(get(&reserved, "recovery_attempts"))?)
+                py::num(&self.delay_for(py::int_of(get(&reserved, "recovery_attempts"))?))?
             } else {
-                backoff_delay(count)
+                backoff_delay(count) as f64
             };
             return self.transition(
                 &reserved,
                 "waiting_retry",
                 Some("queue_process_not_started"),
-                Some(delay as f64),
+                Some(delay),
                 None,
                 row_pairs(vec![("retry_count", retry), ("submitted_at", Value::Null)]),
             );

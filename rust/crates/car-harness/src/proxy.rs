@@ -899,10 +899,10 @@ fn options_map(options: &Options) -> Value {
         "delivery_timeout_seconds",
         whole(options.delivery_timeout_seconds),
     );
-    put("max_queue_retries", Value::from(options.max_queue_retries));
+    put("max_queue_retries", whole(options.max_queue_retries));
     put(
         "max_submissions_per_thread_per_day",
-        Value::from(options.max_submissions_per_thread_per_day),
+        whole(options.max_submissions_per_thread_per_day),
     );
     put(
         "thread_cooldown_seconds",
@@ -918,12 +918,12 @@ fn options_map(options: &Options) -> Value {
     );
     put(
         "max_recovery_attempts",
-        Value::from(options.max_recovery_attempts),
+        options.max_recovery_attempts.clone(),
     );
-    put("max_no_progress", Value::from(options.max_no_progress));
+    put("max_no_progress", options.max_no_progress.clone());
     put(
         "max_chain_continuations",
-        Value::from(options.max_chain_continuations),
+        options.max_chain_continuations.clone(),
     );
     put("settle_seconds", whole(options.settle_seconds));
     put(
@@ -941,20 +941,11 @@ fn options_map(options: &Options) -> Value {
     put("loaded_check_seconds", whole(options.loaded_check_seconds));
     put(
         "max_withdraw_attempts",
-        Value::from(options.max_withdraw_attempts),
+        whole(options.max_withdraw_attempts),
     );
     put("delete_retry_seconds", whole(options.delete_retry_seconds));
     put("watch_budget_seconds", whole(options.watch_budget_seconds));
-    put(
-        "retry_ladder",
-        Value::Array(
-            options
-                .retry_ladder
-                .iter()
-                .map(|n| Value::from(*n))
-                .collect(),
-        ),
-    );
+    put("retry_ladder", Value::Array(options.retry_ladder.clone()));
     put(
         "recoverable_categories",
         options
@@ -964,10 +955,7 @@ fn options_map(options: &Options) -> Value {
     );
     put("resend_after_seconds", whole(options.resend_after_seconds));
     put("resend_until_seconds", whole(options.resend_until_seconds));
-    put(
-        "max_chain_seconds",
-        options.max_chain_seconds.map_or(Value::Null, Value::from),
-    );
+    put("max_chain_seconds", options.max_chain_seconds.clone());
     Value::Object(map)
 }
 
@@ -1169,14 +1157,12 @@ fn call(engine: &mut Engine, method: &str, args: &[Value]) -> Value {
         "allowed" => result(engine.allowed(&row(args, 0)).map(Value::Bool)),
         "observing" => result(Ok(Value::Bool(engine.observing(&row(args, 0))))),
         "quiet_until" => result(engine.quiet_until(number(args.first())).map(opt_f)),
-        "delay_for" => result(Ok(Value::from(
-            engine.delay_for(
-                args.first()
-                    .and_then(|value| car_engine::py::int_of(value).ok())
-                    .unwrap_or(0),
-            ),
+        "delay_for" => result(Ok(engine.delay_for(
+            args.first()
+                .and_then(|value| car_engine::py::int_of(value).ok())
+                .unwrap_or(0),
         ))),
-        "first_delay" => result(Ok(Value::from(engine.first_delay(&word(args, 0))))),
+        "first_delay" => result(Ok(engine.first_delay(&word(args, 0)))),
         "caps" => {
             let relaxed = args.first().and_then(text).map(str::to_owned);
             let (a, b) = engine.caps(relaxed.as_deref());

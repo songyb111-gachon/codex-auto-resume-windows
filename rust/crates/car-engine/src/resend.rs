@@ -202,7 +202,7 @@ impl Engine {
                 Some(py::num(car_machine::pyval::max(&refs)?)?)
             }
         };
-        if self.store.recent_claim_count(&thread, now - 86400.0)?
+        if self.store.recent_claim_count(&thread, now - 86400.0)? as f64
             >= self.options.max_submissions_per_thread_per_day
             || latest.is_some_and(|latest| now - latest < self.options.thread_cooldown_seconds)
             || self.holds("attempt_budget", &row, &vector)

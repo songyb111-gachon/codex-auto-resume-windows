@@ -663,3 +663,8 @@ all three, so the proxy really runs car-engine.
   deadline, a negative one ends the pass at once (`Duration::from_secs_f64` panicked). Proof: `diffs_engine_panics.py`
   (EnginePanicDiff, 6 cases: the reference's seam raises where car-harness panics, through the scenario proxy; 5 failed
   before the fix) and review 6's `r6_watch_budget_huge`.
+* **Note 1**: `Options` holds what `Engine(options=...)` was given as the reference does: the counts it only compares
+  with (`max_queue_retries`, the day's cap, the withdraw attempts) as floats, the budgets, `max_chain_seconds` and the
+  ladder's steps as the numbers given (`int` or `float`), so `max_queue_retries` 2.5 fails at the third launch that never
+  started, not the second; `delay_for`/`first_delay` answer the step as given (`max(60, step)`). Proof: review 6's
+  `r6_queue_retries_fraction`, and `s4_fraction_options` (below).
