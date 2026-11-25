@@ -4,15 +4,17 @@
   225%, 350%, 450%) with names of 1,000 characters, `CardMotion` at clocks near 10**12 and holds of NaN and infinity,
   corners and `premultiply` at radii and bands no diff feeds, the stack at sizes and gaps no screen has, the readers
   over the white space, separators and digits of other scripts the URI generator never mixes in, the local clock at the
-  C runtime's edges, `int()` of texts in the near-limit, sleep and memory notices - all equal - and the icon's
-  `snapshot_from` over a row whose conversation id cannot be hashed beside a store whose disabled list fails: the
-  reference raises the store's OSError (it calls `disabled_threads()` before `in` hashes the id), car-surface
-  TypeError (tray/model.rs hashes first). REVIEW-surface N1.
+  C runtime's edges, `int()` of texts in the near-limit, sleep and memory notices - all equal - but for two: the
+  icon's `snapshot_from` over a row whose conversation id cannot be hashed beside a store whose disabled list fails
+  (the reference raises the store's OSError, as it calls `disabled_threads()` before `in` hashes the id; car-surface
+  TypeError, tray/model.rs hashing first: REVIEW-surface N1), and `corner_coverage` of a NaN radius (ValueError in
+  the reference, `int(math.ceil(nan))`; an empty corner in car-surface: N2). 7 cases differ.
 * ShippedInterpreterDiff - the same cases with the tag run by the interpreter the product ships (3.14; 3.14.10 is
   bundled, build/make_release.py PYTHON_VERSION; Unicode 16.0 against 3.13's 15.1): `int()` reads the eight digit
-  blocks Unicode 16 added (Garay, Ol Onal, ...), so "\\U0001e5f9\\U0001e5f5" (Ol Onal 8, 4) is a near-limit share of 84 used ("16% left")
-  and car-surface, whose digits are car-machine's 3.13 table (pytext_tables.rs), says no share at all. Found with
-  `py -3.14`; CAR_REVIEW8_PYTHON names another interpreter. REVIEW-surface S1.
+  blocks Unicode 16 added (Garay, Ol Onal, ...), so "\\U0001e5f9\\U0001e5f5" (Ol Onal 8, 4) is a near-limit share
+  of 84 used ("16% left") and car-surface, whose digits are car-machine's 3.13 table (pytext_tables.rs), says no
+  share at all. 13 cases differ (S1's 6 and EdgeDiff's 7). Found with `py -3.14`; CAR_REVIEW8_PYTHON names another
+  interpreter. REVIEW-surface S1.
 """
 from __future__ import annotations
 
@@ -54,7 +56,7 @@ for elapsed in (float("-inf"), -0.0, 1e-300, 339.99999999999994):
     cases.append(["card.entrance", elapsed, False])
     cases.append(["card.leaving", elapsed, 0.6, False, 220])
 # corners and premultiply at radii no diff feeds
-for radius in (0.5, 2.5, 5.25, 36, 60, 100.5, -1, -0.5):
+for radius in (0.5, 2.5, 5.25, 36, 60, 100.5, -1, -0.5, float("nan")):
     for smoothing in (None, 0.0, 2.0, -0.5, 0.999):
         cases.append(["card.corner", radius, smoothing])
 cases.append(["card.premultiply", "ab" * (4 * 30 * 10), 30, 40, 12, -5, None])
