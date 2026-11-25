@@ -49,6 +49,10 @@ impl os::Os for PlatformOs {
             Err(_) => Ok(text.to_vec()),
         }
     }
+
+    fn replace(&self, from: &Path, to: &Path) -> std::io::Result<()> {
+        car_platform::files::replace(from, to)
+    }
 }
 
 static OS: PlatformOs = PlatformOs;

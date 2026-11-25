@@ -58,57 +58,52 @@ pub fn write_text(path: impl AsRef<Path>, text: &str) -> std::io::Result<()> {
     }
 }
 
-// os.replace and os.rename are MoveFileExW and nothing more. `std::fs::rename` retries MoveFileExW's
+// os.replace and os.rename are MoveFileExW and nothing more; `std::fs::rename` retries MoveFileExW's
 // ERROR_ACCESS_DENIED with a POSIX-semantics rename, which replaces a target another handle holds open with
-// FILE_SHARE_DELETE where Python stops with PermissionError 5 (review 5, S2). D3 puts every Windows call in
-// car-platform, but car-policy and car-config cannot reach it (PLAN 1.3's graph) and car-machine is the one crate every
-// caller reaches: this one extern declaration (kernel32, which std links already) is the exception, as car-brand's
-// erfc is, and every save and rotation of the product goes through it.
-#[cfg(windows)]
-#[link(name = "kernel32")]
-unsafe extern "system" {
-    fn MoveFileExW(existing: *const u16, new: *const u16, flags: u32) -> i32;
-}
+// FILE_SHARE_DELETE where Python stops with PermissionError 5 (review 5, S2). The real ones are car-platform's
+// `files::{replace, rename}` (D3: every Windows call there), which the binaries hand to car-policy (`settings::os::Os`)
+// and car-config (`Logbook::with_rename`). These are the std-only defaults where nothing was handed in: they never let
+// std's POSIX retry replace a held target, answering as os.replace and os.rename answer on those cases.
 
-#[cfg(windows)]
-const MOVEFILE_REPLACE_EXISTING: u32 = 0x1;
-
-#[cfg(windows)]
-fn move_file(from: &Path, to: &Path, flags: u32) -> std::io::Result<()> {
-    use std::os::windows::ffi::OsStrExt;
-    let wide =
-        |path: &Path| -> Vec<u16> { path.as_os_str().encode_wide().chain(Some(0)).collect() };
-    let (from, to) = (wide(from), wide(to));
-    // SAFETY: both names are NUL-terminated and outlive the call.
-    if unsafe { MoveFileExW(from.as_ptr(), to.as_ptr(), flags) } == 0 {
-        return Err(std::io::Error::last_os_error());
+/// Whether another handle holds `path` open: an open asking DELETE access and sharing nothing fails with a sharing
+/// violation (32) while any other handle with any access is open, whatever that handle shares.
+fn held(path: &Path) -> bool {
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        const DELETE: u32 = 0x0001_0000;
+        const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
+        let probe = OpenOptions::new()
+            .access_mode(DELETE)
+            .share_mode(0)
+            .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
+            .open(path);
+        matches!(probe, Err(error) if error.raw_os_error() == Some(32))
     }
-    Ok(())
+    #[cfg(not(windows))]
+    {
+        let _ = path;
+        false
+    }
 }
 
-/// `os.replace(from, to)`: `MoveFileExW(MOVEFILE_REPLACE_EXISTING)` alone - a target another handle holds open is not
-/// replaced (PermissionError 5), whatever that handle shares.
+/// `os.replace(from, to)` with std alone: a target another handle holds open is refused with PermissionError 5, as
+/// MoveFileExW(MOVEFILE_REPLACE_EXISTING) refuses it; otherwise std's rename, which then has no held target to retry
+/// over. The product's binaries hand car-platform's `files::replace` in instead.
 pub fn replace(from: impl AsRef<Path>, to: impl AsRef<Path>) -> std::io::Result<()> {
-    #[cfg(windows)]
-    {
-        move_file(from.as_ref(), to.as_ref(), MOVEFILE_REPLACE_EXISTING)
+    if held(to.as_ref()) {
+        return Err(std::io::Error::from_raw_os_error(5));
     }
-    #[cfg(not(windows))]
-    {
-        std::fs::rename(from, to)
-    }
+    std::fs::rename(from, to)
 }
 
-/// `os.rename(from, to)`: `MoveFileExW` with no flag - an existing target is not replaced (FileExistsError 183).
+/// `os.rename(from, to)` with std alone: an existing target is refused with FileExistsError 183, as MoveFileExW with
+/// no flag refuses it; otherwise std's rename. The product's binaries hand car-platform's `files::rename` in instead.
 pub fn rename(from: impl AsRef<Path>, to: impl AsRef<Path>) -> std::io::Result<()> {
-    #[cfg(windows)]
-    {
-        move_file(from.as_ref(), to.as_ref(), 0)
+    if std::fs::symlink_metadata(to.as_ref()).is_ok() {
+        return Err(std::io::Error::from_raw_os_error(183));
     }
-    #[cfg(not(windows))]
-    {
-        std::fs::rename(from, to)
-    }
+    std::fs::rename(from, to)
 }
 
 #[cfg(all(test, windows))]

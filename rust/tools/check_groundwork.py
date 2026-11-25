@@ -238,8 +238,41 @@ def check_locks() -> None:
             fail("Cargo.lock: %s is %s in rust/ and %s in advanced/rust/" % (name, standard[name], advanced[name]))
 
 
+# D3 (the owner's): every Windows call lives in car-platform. Only it may declare an `extern "system"` function or depend
+# on the `windows` or `windows-sys` crate; a tiny binary where size and build time matter may take `windows-sys`, and is
+# named here when there is one (none yet).
+WINDOWS_CALLERS = {"car-platform"}
+TINY_BINARIES: set[str] = set()
+EXTERN_SYSTEM = re.compile(r'extern\s+"system"')
+WINDOWS_DEPENDENCY = re.compile(r'^\s*(windows|windows-sys)\s*[=.]', re.M)
+
+
+def check_windows_calls_in_platform() -> None:
+    """D3: no crate but car-platform declares a Windows function or links a Windows API crate."""
+    for root in (STD, ADV):
+        crates = root / "crates"
+        if not crates.is_dir():
+            continue
+        for crate in sorted(path for path in crates.iterdir() if (path / "Cargo.toml").is_file()):
+            name = crate.name
+            if name in WINDOWS_CALLERS:
+                continue
+            manifest = read(crate / "Cargo.toml")
+            for found in WINDOWS_DEPENDENCY.finditer(manifest):
+                if not (found.group(1) == "windows-sys" and name in TINY_BINARIES):
+                    fail("%s depends on %s: Windows calls live in car-platform (D3)" % (name, found.group(1)))
+            for source in sorted(crate.rglob("*.rs")):
+                if "target" in source.parts:
+                    continue
+                for number, line in enumerate(read(source).splitlines(), 1):
+                    if EXTERN_SYSTEM.search(line) and not line.lstrip().startswith("//"):
+                        fail('%s:%d declares extern "system": Windows calls live in car-platform (D3)'
+                             % (source.relative_to(ROOT).as_posix(), number))
+
+
 def main() -> int:
     check_rustflags()
+    check_windows_calls_in_platform()
     check_standard_never_names_advanced()
     check_graph(STD, set(STANDARD), STANDARD)
     if ADV.is_dir():

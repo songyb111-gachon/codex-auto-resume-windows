@@ -998,10 +998,7 @@ pub fn save(os: &dyn Os, path: &Path, values: &Value) -> Result<Map, SettingsErr
         .and_then(|_| file.flush())
         .and_then(|_| file.sync_all());
     drop(file);
-    if written
-        .and_then(|_| car_machine::pyfile::replace(&temporary, path))
-        .is_err()
-    {
+    if written.and_then(|_| os.replace(&temporary, path)).is_err() {
         let _ = std::fs::remove_file(&temporary);
         return Err(SettingsError::refused("cannot save settings"));
     }

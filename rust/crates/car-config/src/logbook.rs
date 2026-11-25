@@ -302,6 +302,9 @@ fn skip_lines(text: &str) -> Vec<(String, String)> {
     found
 }
 
+/// `os.rename(from, to)`, as the rollover asks it.
+pub type Rename = fn(&Path, &Path) -> std::io::Result<()>;
+
 /// The log opened for appending (created where it is not), shared as Python's `open(..., "a")` shares.
 fn append(path: &str) -> Option<File> {
     pyfile::options().create(true).append(true).open(path).ok()
@@ -314,6 +317,9 @@ pub struct Logbook {
     /// The handler's stream: opened by `open` and held, as `FileHandler` holds it (shared for reading and writing,
     /// never for deleting, so nobody renames or deletes the log under it); closed and opened again by a rollover.
     stream: Mutex<Option<File>>,
+    /// `os.rename` for the rollover: car-platform's `files::rename` where the binary hands it in
+    /// ([`Logbook::with_rename`]), else car-machine's std-only `pyfile::rename`.
+    rename: Rename,
     mark: String,
     said: Option<Vec<(String, String)>>,
     state_codes: Vec<String>,
@@ -330,10 +336,17 @@ impl Logbook {
         Logbook {
             file: log_file.to_owned(),
             stream: Mutex::new(stream),
+            rename: |from, to| pyfile::rename(from, to),
             mark: mark.to_owned(),
             said: None,
             state_codes: state_codes.iter().map(|each| (*each).to_owned()).collect(),
         }
+    }
+
+    /// The `os.rename` the rollover moves files with: car-platform's `files::rename`, handed in by the binary.
+    pub fn with_rename(mut self, rename: Rename) -> Logbook {
+        self.rename = rename;
+        self
     }
 
     /// `doRollover`: the stream closed, the files moved down, the stream opened again.
@@ -346,12 +359,12 @@ impl Logbook {
             );
             if Path::new(&from).exists() {
                 let _ = fs::remove_file(&to);
-                let _ = pyfile::rename(&from, &to);
+                let _ = (self.rename)(Path::new(&from), Path::new(&to));
             }
         }
         let first = format!("{}.1", self.file);
         let _ = fs::remove_file(&first);
-        let _ = pyfile::rename(&self.file, &first);
+        let _ = (self.rename)(Path::new(&self.file), Path::new(&first));
         *stream = append(&self.file);
     }
 

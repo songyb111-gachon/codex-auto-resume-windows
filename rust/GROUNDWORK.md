@@ -548,8 +548,9 @@ What `outputs/plans/v0627-rust/REVIEW-int4.md` found and REVIEW-int5's S2, each 
 * **The bootstrap proof (c)** (`build/rust_legacy_bootstraps.py`, `--entry-from rust/target/release` alone): every tag's
   own runtime\python.exe lines, by its `Invoke-InstalledSetup` (or the repair branch's call operator), against car-legacy and
   the core in a home whose name holds a space, with and without a trailing separator; `test_rust_release.EntryRunTests`.
-* **car-machine** gains `pyfile` (Python's share mode READ|WRITE for every open; `replace`/`rename` = MoveFileExW alone, the
-  one extern outside car-platform, AUDIT) and `winpath` (moved from car-config, which re-exports it): the one
+* **car-machine** gains `pyfile` (Python's share mode READ|WRITE for every open; std-only `replace`/`rename` defaults that refuse a held
+  target or an existing one as os.replace/os.rename do; the real MoveFileExW pair is car-platform's `files`, handed to
+  car-policy's `Os::replace` and car-config's `Logbook::with_rename` by the binaries, D3 held by check_groundwork.py) and `winpath` (moved from car-config, which re-exports it): the one
   `os.path.realpath`, 3.14.10's, behind the `NtOs` trait. car-platform's `paths::realpath` asks natively (CreateFileW as
   CPython, FindFirstFileW, `links::is_symlink`, LongPathsEnabled); car-config's `Links` gained `readlink` and
   `find_first_file` (defaults: std's read_link, and "cannot ask"; the harness's probe asks car-platform).
@@ -559,8 +560,8 @@ What `outputs/plans/v0627-rust/REVIEW-int4.md` found and REVIEW-int5's S2, each 
   (`str(value).strip()`, repr of a list or dict, `printable_gen.rs` written by `gen_codex.py` with car-codex's);
   `powerdown::{NO_POWER_ACTION, refuses}`; the probe's `hive_policy`.
 * **car-config**: `owns_home` reads with `compat::loads`; the log holds its stream (as FileHandler) and rotates with
-  `pyfile::rename`. **car-policy**: settings and status-file saves with `pyfile::replace`. **car-codex**: chains'
-  `write_atomically` only (its rollout and workspace opens still share delete: for the seat that owns car-codex).
+  the handed-in rename (`with_rename`; the harness hands `files::rename`). **car-policy**: settings and status-file saves with `Os::replace`. **car-codex**: chains'
+  `write_atomically` (`files::replace`) only (its rollout and workspace opens still share delete: for the seat that owns car-codex).
 * **The suite's power guard**: `tests/sitecustomize.py`, `scripts/test_parts.py` and `tests/rustdiff/core.py` set
   `CAR_NO_POWER_ACTION`; `tests/test_rust_power_guard.py`, car-platform `tests/power_guard.rs`.
 * Re-diff for the final: `python -X utf8 tests/rustdiff/rediff_review4.py --reference v0.6.26`.
