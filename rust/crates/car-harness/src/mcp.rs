@@ -1,7 +1,7 @@
 //! `mcp.panel` (seat S5.2): car-control's panel pieces over a world, for `tests/rustdiff/diffs_mcp.py` `PanelDiff`.
 //!
 //! Request: `{"call": "mcp.panel", "world": {...}, "preference": text|null, "pages": [{"data", "theme", "design",
-//! "text", "face", "day"}, ...]}` (a key left out is the reference's default; `"face": null` is a face Windows would
+//! "text", "face", "day"}, ...]}` (a key left out is the reference's default; `"face": null` asks the Host, as `face=None` does; a face Windows would
 //! not name). Reply value: `{"style", "script", "names", "prefixes", "font_stack", "pages": [text or {"raised": class}],
 //! "tile": [...], "rules": [...]}`.
 
@@ -56,7 +56,7 @@ pub fn panel(request: &Map) -> Value {
                 theme: text(each.get("theme")),
                 design: text(each.get("design")),
                 text: each.get("text").cloned(),
-                face: each.get("face").map(|face| text(Some(face))),
+                face: text(each.get("face")).map(Some),
                 day: text(each.get("day")),
             };
             pages.push(match panel::settings_page(&host, &page) {
