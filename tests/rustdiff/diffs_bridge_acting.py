@@ -785,6 +785,8 @@ class OwnReportDiff(ActingBase):
                 try:
                     columns = [row[1] for row in connection.execute("PRAGMA table_info(interruptions)")]
                     base = connection.execute("SELECT * FROM interruptions LIMIT 1").fetchone()
+                    # Exactly `count` records, so the report's bound (500 on one version) is met and passed by one.
+                    connection.execute("DELETE FROM interruptions")
                     rows = []
                     for index in range(count):
                         row = dict(zip(columns, base))
@@ -801,9 +803,9 @@ class OwnReportDiff(ActingBase):
             return tune
         logged = log_file("[2026-01-01 00:00:00] engine codex-cli 0.130.0 passes its local checks (`codex queue` "
                           "still offers --thread/--message).")
-        for count in (495, 501):
+        for count in (500, 501):
             with self.subTest(count=count):
-                self.report(chained(logged, many(count)), "%d more records" % count)
+                self.report(chained(logged, many(count)), "%d records on one version" % count)
 
 
 # ------------------------------------------------------------------------------ the diagnostics bundle
