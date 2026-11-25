@@ -295,6 +295,12 @@ pub fn run(home: &Path, request: &Map) -> Value {
         Some(Value::Object(map)) => map.clone(),
         _ => return rejected("a world is required", "request_failed"),
     };
+    // The reference starts a fresh interpreter for every stream, whose Interface-language preference is "system";
+    // this process answers every stream, and car-words keeps the preference in a process global a `strings` sets.
+    car_words::l10n::set_preference(None, &|_: &str| None, &Vec::new);
+    // The reference starts a fresh interpreter for every stream, whose Interface-language preference is "system";
+    // this process answers every stream, and car-words keeps the preference in a process global a `strings` sets.
+    car_words::l10n::set_preference(None, &|_: &str| None, &Vec::new);
     let host = Arc::new(WorldHost::from_world(&world, &home.to_string_lossy()));
     let links = car_config::Os::here(false, crate::links::for_config());
     let no_env = |_: &str| None;
