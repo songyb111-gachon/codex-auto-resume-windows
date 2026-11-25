@@ -206,9 +206,7 @@ impl Engine {
     pub(crate) fn capacity_wait(&mut self, parent: Option<&Row>) -> Py<f64> {
         let steps = ladder::CAPACITY_WAITS;
         let index = match parent {
-            Some(parent) => {
-                (py::int_of(get(parent, "recovery_attempts"))?).clamp(0, steps.len() as i64 - 1)
-            }
+            Some(parent) => py_index(py::int_of(get(parent, "recovery_attempts"))?, steps.len())?,
             None => 0,
         };
         let wait = Value::from(steps[index as usize]);
@@ -227,9 +225,7 @@ impl Engine {
     ) -> Py<f64> {
         let steps = ladder::ADMITTED_WAITS;
         let index = match parent {
-            Some(parent) => {
-                (py::int_of(get(parent, "recovery_attempts"))?).clamp(0, steps.len() as i64 - 1)
-            }
+            Some(parent) => py_index(py::int_of(get(parent, "recovery_attempts"))?, steps.len())?,
             None => 0,
         };
         let mut wait = Value::from(steps[index as usize]);
@@ -502,5 +498,16 @@ impl Engine {
             Row::new(),
         )?;
         Ok(Known::Stopped)
+    }
+}
+
+/// `steps[min(n, len(steps) - 1)]`'s index, as Python takes it: a negative count counts from the end.
+fn py_index(n: i64, len: usize) -> Py<i64> {
+    let index = n.min(len as i64 - 1);
+    let index = if index < 0 { index + len as i64 } else { index };
+    if index < 0 {
+        Err("IndexError")
+    } else {
+        Ok(index)
     }
 }

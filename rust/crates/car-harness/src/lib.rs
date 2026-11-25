@@ -6,6 +6,7 @@
 pub mod classify;
 pub mod codex;
 pub mod defaults;
+pub mod engine;
 pub mod leaves;
 pub mod links;
 pub mod policy;

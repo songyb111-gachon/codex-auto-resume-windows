@@ -678,6 +678,12 @@ fn timed(operation: &Map, run: impl FnOnce() -> Value) -> Value {
     Value::Object(map)
 }
 
+/// One store call named as the Python's method (`{"method", "args", "kwargs"}`), answered as `store.script` answers
+/// each: the value, or `{"raised", "message"}` (S4.1's engine sessions make a person's actions through it).
+pub fn call(store: &Store, operation: &Map) -> Value {
+    settle(operate(store, &method_of(operation), &Call::of(operation)))
+}
+
 /// `store.script`: {open, migrated_from, results}.
 pub fn script(home: &Path, request: &Map) -> Value {
     let open = match request.get("open") {
