@@ -25,9 +25,13 @@ is made of, and each difference is the same allowance the Python audit already m
   * (e) builds the standard archive again from `git archive HEAD` with advanced/ deleted - the Rust workspace, the C#
     window and this archive - in another folder, and needs the same bytes (`--rebuild`; slow). That is also the
     reproducibility proof: two builds, two folders, one archive.
-  * (h) has nothing to read yet: the one-file Setup exe around a Rust archive is not built by the skeleton.
+  * (h) reads the one-file Setup exes around the two archives where they are in the dist folder (S8.2's choice:
+    build/make_setup.py's C# program, unchanged, which `rust_release.py --setup` builds): each carries its own
+    edition's archive byte for byte with its SHA-256, and the standard one holds nothing of the advanced edition
+    outside it - edition_audit.check_setups, as the Python audit reads them; with --rebuild, the standard one is built
+    again around (e)'s rebuilt archive and must be the same file. `--setups` makes them required.
 
-    python build/rust_edition_audit.py --dist build/dist/rust --version 0.6.27-alpha [--rebuild]
+    python build/rust_edition_audit.py --dist build/dist/rust --version 0.6.27-alpha [--rebuild] [--setups]
 """
 from __future__ import annotations
 
@@ -49,6 +53,7 @@ if _HERE not in sys.path:
 
 import edition_audit as audit  # noqa: E402
 import make_release  # noqa: E402
+import make_setup  # noqa: E402
 import rust_release  # noqa: E402
 
 CORE = "payload/app/bin/codex-auto-resume.exe"
@@ -133,7 +138,7 @@ def check_superset(standard: dict, advanced: dict) -> list:
     return found
 
 
-def rebuild_standard(root: Path, work: Path, release: str) -> Path:
+def rebuild_standard(root: Path, work: Path, release: str, setup: bool = False) -> Path:
     """(e): the standard Rust-shaped archive built again from `git archive HEAD` with advanced/ deleted first, in
     another folder: its Rust workspace, its window, its archive."""
     tree = work / "tree"
@@ -149,7 +154,8 @@ def rebuild_standard(root: Path, work: Path, release: str) -> Path:
              ("make_gui.ps1", [audit._powershell(), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
                                "-File", str(tree / "build" / "make_gui.ps1"), "-Root", str(tree)], tree),
              ("rust_release.py", [sys.executable, str(tree / "build" / "rust_release.py"), "--edition", "standard",
-                                  "--version", release, "--output", str(work / "dist")], tree))
+                                  "--version", release, "--output", str(work / "dist")] + (["--setup"] if setup else []),
+              tree))
     for step, command, folder in steps:
         done = subprocess.run(command, cwd=folder, env=environment, capture_output=True, text=True, encoding="utf-8",
                               errors="replace", timeout=3600, creationflags=audit.NO_WINDOW)
@@ -159,9 +165,9 @@ def rebuild_standard(root: Path, work: Path, release: str) -> Path:
 
 
 def run(standard: Path, advanced: Path, release: str, rebuild: bool, root: Path = ROOT,
-        tree: audit.Inventory | None = None) -> tuple[list, set]:
+        tree: audit.Inventory | None = None, setups: tuple | None = None) -> tuple[list, set]:
     """Every finding, and the allowances that were needed. `tree` is the repository's advanced inventory, when the
-    caller has it already."""
+    caller has it already; `setups`, the standard and the advanced one-file Setup exe for (h)."""
     tree = tree or audit.inventory(root)
     ours, theirs = audit.entries(standard), audit.entries(advanced)
     opened = audit.expand(ours)
@@ -172,9 +178,15 @@ def run(standard: Path, advanced: Path, release: str, rebuild: bool, root: Path 
     found += executables
     found += audit.check_binaries({name: data for name, data in opened.items() if name not in RUST_EXECUTABLES})
     found += check_superset(ours, theirs)
+    if setups:
+        found += audit.check_setups(standard.read_bytes(), advanced.read_bytes(), setups[0].read_bytes(),
+                                    setups[1].read_bytes(), tree)
     if rebuild:
         with tempfile.TemporaryDirectory(prefix="rust-edition-audit-") as work:
-            found += audit.check_rebuild(standard, rebuild_standard(root, Path(work), release))
+            rebuilt = rebuild_standard(root, Path(work), release, setup=bool(setups))
+            found += audit.check_rebuild(standard, rebuilt)
+            if setups:
+                found += audit.check_setup_rebuild(setups[0], rebuilt.parent / setups[0].name)
     return found, used | used_names
 
 
@@ -183,6 +195,7 @@ def main(argv=None) -> int:
     parser.add_argument("--dist", default=str(rust_release.OUT))
     parser.add_argument("--version", default=None)
     parser.add_argument("--rebuild", action="store_true", help="(e): build the standard archive again without advanced/")
+    parser.add_argument("--setups", action="store_true", help="(h): the two one-file Setup exes must be there")
     args = parser.parse_args(argv)
     release = args.version or rust_release.version()
     standard = Path(args.dist) / rust_release.archive_name("standard", release)
@@ -190,8 +203,15 @@ def main(argv=None) -> int:
     for archive in (standard, advanced):
         if not archive.is_file():
             raise SystemExit("missing %s - build both editions with build/rust_release.py" % archive)
-    print("edition audit of %s and %s%s" % (standard.name, advanced.name, " (with (e)'s rebuild)" if args.rebuild else ""))
-    found, used = run(standard, advanced, release, args.rebuild)
+    setups = tuple(Path(args.dist) / make_setup.setup_name(edition, release) for edition in ("standard", "advanced"))
+    if not all(setup.is_file() for setup in setups):
+        if args.setups:
+            raise SystemExit("missing %s - build them with build/rust_release.py --setup" % " or ".join(map(str, setups)))
+        setups = None
+    print("edition audit of %s and %s%s%s" % (standard.name, advanced.name,
+                                            ", and their Setup exes" if setups else "",
+                                            " (with (e)'s rebuild)" if args.rebuild else ""))
+    found, used = run(standard, advanced, release, args.rebuild, setups=setups)
     for entry, name in sorted(used):
         print("  allowed: %s spells %s" % (entry, name))
     for line in found:
@@ -199,8 +219,8 @@ def main(argv=None) -> int:
     if found:
         print("the standard archive is not proven free of the advanced edition")
         return 1
-    print("  (a)-(g)%s found nothing: the standard archive holds none of the advanced edition"
-          % ("" if args.rebuild else " but (e)"))
+    print("  (a)-(%s)%s found nothing: the standard archive holds none of the advanced edition"
+          % ("h" if setups else "g", "" if args.rebuild else " but (e)"))
     return 0
 
 

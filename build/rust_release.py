@@ -29,7 +29,12 @@ The window and the MCP launcher
 are the C# ones build/make_gui.ps1 compiles (`--window` and `--mcp-launcher` take others); the watcher host
 (CodexAutoResume.exe, seat S6.2) is not built yet and is not in the archive.
 
-    python build/rust_release.py --edition standard [--version 0.6.27-alpha] [--build] [--output DIR]
+    python build/rust_release.py --edition standard [--version 0.6.27-alpha] [--build] [--setup] [--output DIR]
+
+`--setup` also builds the one-file Setup exe around the archive just written (seat S8.2's choice): build/make_setup.py's,
+unchanged - the C# setup window around the archive's bytes, which runs the archive's Install.cmd and so the same
+install\\install.ps1 every other route ends in. The setup program inside the archive (codex-auto-resume-setup.exe) is
+v0.6.26's handover's; the one-file Setup exe is what a person downloads, as for every Python release.
 
 `--build` builds the edition's workspace first, the way every checked build is made (tools/rustflags.sh release,
 --locked); otherwise the binaries are taken from each workspace's target/release. The same inputs give the same bytes:
@@ -311,6 +316,8 @@ def main(argv=None) -> int:
     parser.add_argument("--legacy-bins", default=None, help="car-legacy's (default: rust/target/release)")
     parser.add_argument("--window", default=None, help="a settings window other than make_gui.ps1's")
     parser.add_argument("--mcp-launcher", default=None, help="an MCP launcher other than make_gui.ps1's")
+    parser.add_argument("--setup", action="store_true",
+                        help="also build the one-file Setup exe around the archive (build/make_setup.py's)")
     args = parser.parse_args(argv)
     release = args.version or version()
     if args.build:
@@ -323,12 +330,19 @@ def main(argv=None) -> int:
                   launcher=Path(args.mcp_launcher) if args.mcp_launcher else None)
     target = make_release.write_archive(stage, Path(args.output) / archive_name(args.edition, release))
     digest = make_release.write_sidecar(target)
+    setup = None
+    if args.setup:
+        import make_setup  # noqa: E402  (the C# compiler, only where it is asked for)
+        setup = make_setup.build(target, Path(args.output), args.edition, release)
+        make_release.write_sidecar(setup)
     groups = weights(stage)
     print("version        : %s" % release)
     print("edition        : %s" % args.edition)
     print("archive        : %s" % target)
     print("size           : %d bytes" % target.stat().st_size)
     print("sha256         : %s" % digest)
+    if setup is not None:
+        print("setup program  : %s (%d bytes)" % (setup, setup.stat().st_size))
     for group, size in groups.items():
         print("packed %-8s: %d bytes (%.3f MiB)" % (group, size, size / 1024 / 1024))
     return 0

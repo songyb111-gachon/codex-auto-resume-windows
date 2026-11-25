@@ -139,9 +139,7 @@ pub fn parse_setup(words: &[String]) -> Result<Handover, String> {
                     handover.mode = Some(value);
                 } else {
                     if !matches!(value.as_str(), "standard" | "advanced") {
-                        return Err(format!(
-                            "-Edition takes standard or advanced, not {value}"
-                        ));
+                        return Err(format!("-Edition takes standard or advanced, not {value}"));
                     }
                     handover.edition = Some(value);
                 }
@@ -153,10 +151,7 @@ pub fn parse_setup(words: &[String]) -> Result<Handover, String> {
             "-deletesavedaccounts" => handover.delete_saved_accounts = true,
             "-silent" => handover.silent = true,
             _ => {
-                return Err(format!(
-                    "{} is not a word this program takes",
-                    words[index]
-                ));
+                return Err(format!("{} is not a word this program takes", words[index]));
             }
         }
         index += 1;
@@ -280,15 +275,17 @@ type Sink = Arc<Mutex<Option<std::fs::File>>>;
 fn run_logged(argv: Vec<String>, folder: &Path) -> i32 {
     let log = std::env::temp_dir().join(SETUP_LOG);
     let sink: Sink = Arc::new(Mutex::new(std::fs::File::create(log).ok()));
-    let spawn = Spawn::new(argv).with_cwd(folder).with_streams(
-        Stream::Null,
-        Stream::Piped,
-        Stream::Piped,
-    );
+    let spawn =
+        Spawn::new(argv)
+            .with_cwd(folder)
+            .with_streams(Stream::Null, Stream::Piped, Stream::Piped);
     let mut child = match SystemStarter.start(&spawn) {
         Ok(child) => child,
         Err(error) => {
-            keep(&sink, &format!("The installer could not be started: {error}"));
+            keep(
+                &sink,
+                &format!("The installer could not be started: {error}"),
+            );
             return FAILED;
         }
     };
@@ -392,7 +389,9 @@ mod tests {
         assert_eq!(handover.mode.as_deref(), Some("another"));
         assert_eq!(handover.edition.as_deref(), Some("advanced"));
         assert!(
-            handover.skip_startup && handover.allow_edition_change && handover.delete_saved_accounts
+            handover.skip_startup
+                && handover.allow_edition_change
+                && handover.delete_saved_accounts
         );
         assert_eq!(
             installer_switches(&handover),
