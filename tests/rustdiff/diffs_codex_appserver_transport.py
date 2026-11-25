@@ -187,6 +187,16 @@ class TransportDiff(AppBase):
                       {"enter": False, "exit": "raise"}):
             made.append(self.case(script(), [op("backend.send", THREAD, "keep going", guard)] + later))
         made.append(self.case(script(), [op("backend.send", "not-a-uuid", "keep going", None)] + later))
+        # Integration 6: the engine's send (car-engine's Transport, a guard that runs its body inside), every guard,
+        # a refused prompt and id, and the receipts it then reads.
+        for guard in ({"enter": True}, {"enter": False}, {"enter": 1}, {"enter": "raise"}, {"enter": True, "exit": "raise"},
+                      {"enter": False, "exit": "raise"}):
+            made.append(self.case(script(), [op("backend.send_scoped", THREAD, "keep going", guard)] + later))
+        for thread, prompt in ((THREAD, ""), (THREAD, "x" * 30001), (THREAD, "nul\0here"), ("not-a-uuid", "keep going")):
+            made.append(self.case(script(), [op("backend.send_scoped", thread, prompt, {"enter": True})] + later))
+        for stdout, code in receipts[:4]:
+            made.append(self.case(script(queue={"stdout": stdout, "code": code}),
+                                  [op("backend.send_scoped", THREAD, "keep going", {"enter": True})] + later))
         # the daemon route: --remote offered, and a daemon of this home in the process list (or none, or no list)
         def daemon(fake, home, *, raised=False, pid=31):
             path = str(home / "packages" / "app-server-daemon" / "releases" / "1.2.3" / "bin" / "codex.exe")

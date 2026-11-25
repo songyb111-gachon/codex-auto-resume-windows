@@ -657,16 +657,73 @@ impl Backend {
         prompt: &Value,
         launch_guard: Option<&mut dyn LaunchGuard>,
     ) -> Map {
-        let answer = |pairs: Vec<(&str, Value)>| match object(pairs) {
-            Value::Object(map) => map,
-            _ => Map::new(),
+        let (text, remote) = match self.send_preflight(thread_id, prompt) {
+            Ok(found) => found,
+            Err(refused) => return refused,
         };
-        let not_started = |code: &str| {
-            answer(vec![
-                ("outcome", Value::from("not_started")),
-                ("error_code", Value::from(code)),
-            ])
+        let mut guard = launch_guard;
+        if let Some(guard) = guard.as_mut() {
+            let permitted = match guard.enter() {
+                Ok(permitted) => permitted,
+                Err(Raised) => return not_started("queue_spawn_failed"),
+            };
+            if !matches!(permitted, Value::Bool(true)) {
+                return match guard.exit() {
+                    Ok(()) => not_started("queue_consent_refused"),
+                    Err(Raised) => not_started("queue_spawn_failed"),
+                };
+            }
+        }
+        let started = self.send_start(thread_id, &text, remote);
+        if let Some(guard) = guard.as_mut() {
+            // A guard exit can fail after Popen; the process then already exists, and its receipt is read below.
+            let _ = guard.exit();
+            if started.is_err() {
+                return not_started("queue_spawn_failed");
+            }
+        }
+        let Ok(process) = started else {
+            return not_started("queue_spawn_failed");
         };
+        receipt(thread_id, process)
+    }
+
+    /// `send(...)` with a launch guard of the other shape (Integration 6, for car-engine's `store.submission_guard`):
+    /// `scope(body)` enters the guard, runs `body(permitted)` inside it and leaves it - an `Err` is an exception the
+    /// guard raised entering or leaving. The process is started inside `body`, where `with launch_guard as permitted:`
+    /// starts it; every answer is `send`'s: refused before the guard is asked, `queue_consent_refused` where it did not
+    /// permit, `queue_spawn_failed` where it raised before a process existed or the start failed, and a process that
+    /// exists has its receipt read even where the guard raised leaving.
+    pub fn send_within(
+        &mut self,
+        thread_id: &str,
+        prompt: &Value,
+        scope: &mut dyn FnMut(&mut dyn FnMut(bool)) -> std::result::Result<(), Raised>,
+    ) -> Map {
+        let (text, remote) = match self.send_preflight(thread_id, prompt) {
+            Ok(found) => found,
+            Err(refused) => return refused,
+        };
+        let mut started: Option<std::result::Result<std::process::Child, ()>> = None;
+        let entered = scope(&mut |permitted: bool| {
+            if permitted {
+                started = Some(self.send_start(thread_id, &text, remote).map_err(|_| ()));
+            }
+        });
+        match (entered, started) {
+            (_, Some(Ok(process))) => receipt(thread_id, process),
+            (Ok(()), None) => not_started("queue_consent_refused"),
+            _ => not_started("queue_spawn_failed"),
+        }
+    }
+
+    /// `send`'s checks before the guard: a canonical id, a prompt that fits, a compatible engine, a command line
+    /// that fits; the prompt as text and whether the managed daemon is spoken to, or the answer that refuses.
+    fn send_preflight(
+        &mut self,
+        thread_id: &str,
+        prompt: &Value,
+    ) -> std::result::Result<(String, bool), Map> {
         let preflight = (|| -> Result<(String, bool)> {
             canonical_uuid(thread_id)?;
             let text = match prompt {
@@ -688,106 +745,22 @@ impl Backend {
             }
             Ok((text, remote))
         })();
-        let Ok((text, remote)) = preflight else {
-            return not_started("queue_preflight_failed");
-        };
-        let mut guard = launch_guard;
-        if let Some(guard) = guard.as_mut() {
-            let permitted = match guard.enter() {
-                Ok(permitted) => permitted,
-                Err(Raised) => return not_started("queue_spawn_failed"),
-            };
-            if !matches!(permitted, Value::Bool(true)) {
-                return match guard.exit() {
-                    Ok(()) => not_started("queue_consent_refused"),
-                    Err(Raised) => not_started("queue_spawn_failed"),
-                };
-            }
-        }
-        let spawn = Spawn::new(self.send_argv(thread_id, &text, remote))
+        preflight.map_err(|_| not_started("queue_preflight_failed"))
+    }
+
+    /// The one place that starts a send: `codex queue --thread <id> --message=<text>` (`--remote unix://` for the
+    /// managed daemon), console-less, its output piped.
+    fn send_start(
+        &self,
+        thread_id: &str,
+        text: &str,
+        remote: bool,
+    ) -> std::result::Result<std::process::Child, car_platform::spawn::SpawnError> {
+        let spawn = Spawn::new(self.send_argv(thread_id, text, remote))
             .with_env(self.environment())
             .with_cwd(&self.codex_home)
             .with_streams(Stream::Null, Stream::Piped, Stream::Null);
-        let started = SystemStarter.start(&spawn);
-        if let Some(guard) = guard.as_mut() {
-            // A guard exit can fail after Popen; the process then already exists, and its receipt is read below.
-            let _ = guard.exit();
-            if started.is_err() {
-                return not_started("queue_spawn_failed");
-            }
-        }
-        let Ok(mut process) = started else {
-            return not_started("queue_spawn_failed");
-        };
-        let unknown = |code: &str| {
-            answer(vec![
-                ("outcome", Value::from("unknown")),
-                ("error_code", Value::from(code)),
-            ])
-        };
-        let Some(mut stdout) = process.stdout.take() else {
-            return unknown("queue_result_unknown");
-        };
-        let reading = std::thread::spawn(move || {
-            let mut bytes = Vec::new();
-            let _ = stdout.read_to_end(&mut bytes);
-            bytes
-        });
-        let until = Instant::now() + Duration::from_secs_f64(SEND_SECONDS);
-        let status = loop {
-            match process.try_wait() {
-                Ok(Some(status)) => break status,
-                Ok(None) => {}
-                Err(_) => return unknown("queue_result_unknown"),
-            }
-            if Instant::now() >= until {
-                let _ = process.kill(); // only this helper; accepted delivery is still possible
-                let _ = wait_for(&mut process, KILLED_SECONDS);
-                return unknown("queue_timeout");
-            }
-            std::thread::sleep(Duration::from_millis(5));
-        };
-        let stdout = decode(&reading.join().unwrap_or_default());
-        let code = exit_code(status);
-        let receipt = strip(&stdout);
-        let queue_id = receipt
-            .strip_prefix("Queued message ")
-            .and_then(|rest| rest.strip_suffix(&format!(" for thread {thread_id}.")))
-            .filter(|id| {
-                id.chars().count() == 36
-                    && id
-                        .chars()
-                        .all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c) || c == '-')
-            });
-        if code == 0
-            && let Some(queue_id) = queue_id
-        {
-            if canonical_uuid(queue_id).is_err() {
-                return unknown("queue_result_unknown");
-            }
-            return answer(vec![
-                ("outcome", Value::from("accepted")),
-                ("queue_id", Value::from(queue_id)),
-            ]);
-        }
-        let unconfirmed = |detail: &str, exit: Option<i64>| {
-            let mut pairs = vec![
-                ("outcome", Value::from("unknown")),
-                ("error_code", Value::from("queue_response_unconfirmed")),
-                ("receipt_detail", Value::from(detail)),
-            ];
-            if let Some(exit) = exit {
-                pairs.push(("exit_code", Value::from(exit)));
-            }
-            answer(pairs)
-        };
-        if code != 0 {
-            return unconfirmed("nonzero_exit", (0..=255).contains(&code).then_some(code));
-        }
-        if receipt.is_empty() {
-            return unconfirmed("empty_stdout", None);
-        }
-        unconfirmed("unrecognized_stdout", None)
+        SystemStarter.start(&spawn)
     }
 
     /// `delete_queue(thread_id, queue_id)`: whether the App Server says it deleted our queued message.
@@ -818,6 +791,94 @@ impl Backend {
     pub fn rows(&self) -> Option<&[Value]> {
         self.rows.as_deref()
     }
+}
+
+/// The answer of a send no process was started for.
+fn not_started(code: &str) -> Map {
+    answer(vec![
+        ("outcome", Value::from("not_started")),
+        ("error_code", Value::from(code)),
+    ])
+}
+
+fn answer(pairs: Vec<(&str, Value)>) -> Map {
+    match object(pairs) {
+        Value::Object(map) => map,
+        _ => Map::new(),
+    }
+}
+
+/// What a started send answers: its receipt, read within `SEND_SECONDS`, or why it is unknown.
+fn receipt(thread_id: &str, mut process: std::process::Child) -> Map {
+    let unknown = |code: &str| {
+        answer(vec![
+            ("outcome", Value::from("unknown")),
+            ("error_code", Value::from(code)),
+        ])
+    };
+    let Some(mut stdout) = process.stdout.take() else {
+        return unknown("queue_result_unknown");
+    };
+    let reading = std::thread::spawn(move || {
+        let mut bytes = Vec::new();
+        let _ = stdout.read_to_end(&mut bytes);
+        bytes
+    });
+    let until = Instant::now() + Duration::from_secs_f64(SEND_SECONDS);
+    let status = loop {
+        match process.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) => {}
+            Err(_) => return unknown("queue_result_unknown"),
+        }
+        if Instant::now() >= until {
+            let _ = process.kill(); // only this helper; accepted delivery is still possible
+            let _ = wait_for(&mut process, KILLED_SECONDS);
+            return unknown("queue_timeout");
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    };
+    let stdout = decode(&reading.join().unwrap_or_default());
+    let code = exit_code(status);
+    let receipt = strip(&stdout);
+    let queue_id = receipt
+        .strip_prefix("Queued message ")
+        .and_then(|rest| rest.strip_suffix(&format!(" for thread {thread_id}.")))
+        .filter(|id| {
+            id.chars().count() == 36
+                && id
+                    .chars()
+                    .all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c) || c == '-')
+        });
+    if code == 0
+        && let Some(queue_id) = queue_id
+    {
+        if canonical_uuid(queue_id).is_err() {
+            return unknown("queue_result_unknown");
+        }
+        return answer(vec![
+            ("outcome", Value::from("accepted")),
+            ("queue_id", Value::from(queue_id)),
+        ]);
+    }
+    let unconfirmed = |detail: &str, exit: Option<i64>| {
+        let mut pairs = vec![
+            ("outcome", Value::from("unknown")),
+            ("error_code", Value::from("queue_response_unconfirmed")),
+            ("receipt_detail", Value::from(detail)),
+        ];
+        if let Some(exit) = exit {
+            pairs.push(("exit_code", Value::from(exit)));
+        }
+        answer(pairs)
+    };
+    if code != 0 {
+        return unconfirmed("nonzero_exit", (0..=255).contains(&code).then_some(code));
+    }
+    if receipt.is_empty() {
+        return unconfirmed("empty_stdout", None);
+    }
+    unconfirmed("unrecognized_stdout", None)
 }
 
 /// `st_mtime_ns` of a FILETIME, as Python's `os.stat` gives it.

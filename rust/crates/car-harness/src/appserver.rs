@@ -307,6 +307,26 @@ impl LaunchGuard for Guard {
     }
 }
 
+/// The same stand-in guard in the engine's shape (`store.submission_guard`, car-engine's `LaunchGuard`): entered, the
+/// body run with whether it permits (`enter` is True), left. `"raise"` raises entering or leaving, as `Guard` does.
+struct ScopeGuard {
+    spec: Value,
+}
+
+impl car_engine::LaunchGuard for ScopeGuard {
+    fn enter(&self, body: &mut dyn FnMut(bool) -> Value) -> car_machine::pyval::Py<Value> {
+        let raises = |name: &str| matches!(field(&self.spec, name), Value::Str(text) if text.as_str() == Some("raise"));
+        if raises("enter") {
+            return Err("RuntimeError");
+        }
+        let found = body(matches!(field(&self.spec, "enter"), Value::Bool(true)));
+        if raises("exit") {
+            return Err("RuntimeError");
+        }
+        Ok(found)
+    }
+}
+
 /// A case's state between its operations.
 pub struct Case {
     pub world: Arc<World>,
@@ -744,6 +764,26 @@ impl Case {
                     Err(error) => failed(&error),
                 }
             }
+            // Integration 6: the send as the engine makes it, through car-engine's `Transport` over this backend and
+            // a guard of the engine's shape; the reference answers it with the same `send` and `Guard`.
+            "backend.send_scoped" => match self.backend.take() {
+                Some(backend) => {
+                    use car_engine::Backend as _;
+                    let transport = car_engine::transport::Transport::new(backend);
+                    let guard = ScopeGuard { spec: arg(2) };
+                    let prompt = match arg(1) {
+                        Value::Str(text) => text,
+                        _ => Str::from(""),
+                    };
+                    let answered = transport.send(&text_of(&arg(0)), &prompt, &guard);
+                    self.backend = Some(transport.into_inner());
+                    match answered {
+                        Ok(value) => ok(value),
+                        Err(class) => object([("error", Value::from(class))]),
+                    }
+                }
+                None => failed(&Error::Python("AttributeError")),
+            },
             "backend.queue_daemon_remote" => match self.backend() {
                 Ok(backend) => answer(backend.queue_daemon_remote().map(Value::Bool)),
                 Err(error) => failed(&error),

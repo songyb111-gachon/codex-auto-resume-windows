@@ -345,6 +345,10 @@ def run(state, name, args):
         return state.backend.delete_queue(a[0], a[1])
     if name == "backend.send":
         return state.backend.send(a[0], a[1], launch_guard=None if a[2] is None else Guard(a[2]))
+    if name == "backend.send_scoped":
+        # Integration 6: Rust sends through car-engine's Transport with a guard of the engine's shape; the reference
+        # has one shape, so it answers with the same send and the same stand-in guard.
+        return state.backend.send(a[0], a[1], launch_guard=Guard(a[2]))
     if name == "backend.queue_daemon_remote":
         return state.backend._queue_daemon_remote()
     # --------------------------------------------------------------------------------------------- the registry

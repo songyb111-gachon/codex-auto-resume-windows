@@ -48,6 +48,7 @@ pub mod routes;
 pub mod seam;
 pub mod storeview;
 pub mod tosession;
+pub mod transport;
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::{Arc, Mutex};
