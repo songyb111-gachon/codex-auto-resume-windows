@@ -531,6 +531,7 @@ fn handle(request: &Json) -> Result<Json, String> {
         )),
         "display_name" => json!(addremove::display_name(Path::new(text(request, "path")))),
         "registry" => registry_scenario(request),
+        "hive_policy" => hive_policy(request)?,
         "shortcut" => shortcut_scenario(request),
         "pwsh" => pwsh_scenario(request),
         "pwsh_names" => {
@@ -912,6 +913,41 @@ fn hold(request: &Json) -> Result<Json, String> {
         },
         other => return Err(format!("unknown hold kind {other}")),
     })
+}
+
+/// The policy values of a private hive (a scratch file, RegLoadAppKey; never HKCU or HKLM) read by the real reader
+/// (`WinRegistry` over the hive for both roots): each value as `query` gives it, and `policy_places` - what
+/// `policykeys.read()` hands `managed.parse`.
+fn hive_policy(request: &Json) -> Result<Json, String> {
+    use car_platform::registry::{KEY_READ, PrivateHive};
+    let hive = PrivateHive::load(Path::new(text(request, "hive"))).ok_or("the hive did not load")?;
+    let registry = hive.registry();
+    let mut raw = serde_json::Map::new();
+    if let Ok(key) = car_platform::registry::Open::read(
+        &registry,
+        Root::LocalMachine,
+        registry_reads::POLICY_KEY,
+        KEY_READ,
+    ) {
+        for name in registry_reads::POLICY_NAMES {
+            raw.insert(
+                name.to_string(),
+                match key.query(name) {
+                    Ok(typed) => typed_json(&typed),
+                    Err(error) => json!({"error": format!("{error:?}")}),
+                },
+            );
+        }
+    }
+    let places: Vec<Json> = registry_reads::policy_places(&registry)
+        .iter()
+        .map(|place| {
+            let written = car_machine::json::to_string(place, &car_machine::json::Options::new())
+                .unwrap_or_default();
+            serde_json::from_str(&written).unwrap_or(Json::Null)
+        })
+        .collect();
+    Ok(json!({"raw": raw, "places": places}))
 }
 
 fn main() {

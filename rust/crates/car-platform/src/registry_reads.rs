@@ -65,6 +65,37 @@ pub fn read_policies(registry: &dyn Registry) -> Vec<Vec<(String, PolicyValue)>>
     places
 }
 
+/// `policykeys.read()` as `managed.parse` takes it: one object per place, each value's name to `[data, type]` -
+/// text as text, a REG_DWORD or REG_QWORD as its number, any other data (bytes, a list of texts) as null, which
+/// `parse` passes over as it passes over every type but those three - and `[null, -1]` for one that is there and
+/// could not be read (UNREADABLE). The product's one conversion: the engine's policy read and the harness both call it.
+pub fn policy_places(registry: &dyn Registry) -> Vec<car_machine::json::Value> {
+    use car_machine::json::{Map, Str, Value as Json};
+    read_policies(registry)
+        .into_iter()
+        .map(|place| {
+            let mut entries = Map::new();
+            for (name, found) in place {
+                let pair = match found {
+                    PolicyValue::Data((Value::Str(data), kind)) => {
+                        vec![Json::from(data), Json::from(kind)]
+                    }
+                    PolicyValue::Data((Value::Qword(data), kind)) => {
+                        vec![Json::from(data), Json::from(kind)]
+                    }
+                    PolicyValue::Data((Value::Int(data), kind)) => {
+                        vec![Json::from(data), Json::from(kind)]
+                    }
+                    PolicyValue::Data((Value::Bytes(_), kind)) => vec![Json::Null, Json::from(kind)],
+                    PolicyValue::Unreadable => vec![Json::Null, Json::from(UNREADABLE_KIND)],
+                };
+                entries.insert(Str::from(name.as_str()), Json::Array(pair));
+            }
+            Json::Object(entries)
+        })
+        .collect()
+}
+
 // ------------------------------------------------------------------------------------------------ CODEX_HOME
 
 pub const ENVIRONMENT_KEY: &str = "Environment";
