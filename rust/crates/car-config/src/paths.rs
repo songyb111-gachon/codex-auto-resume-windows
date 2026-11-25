@@ -54,6 +54,37 @@ pub struct Os {
 pub trait Links: Send + Sync + std::fmt::Debug {
     /// `Path(path).is_symlink()`.
     fn is_symlink(&self, path: &Path) -> bool;
+    /// `os.readlink(path)` for `Path.resolve()`'s walk (std reads the reparse data as CPython does).
+    fn readlink(&self, path: &str) -> winpath::Readlink {
+        winpath::os_readlink(path)
+    }
+    /// `nt._findfirstfile(path)`: the last component's real name. Only a probe of the platform can ask it; without one
+    /// the walk splits the name off as written (the error a FindFirstFileW that fails would give).
+    fn find_first_file(&self, path: &str) -> Result<String, i32> {
+        let _ = path;
+        Err(50)
+    }
+}
+
+/// The questions `Path.resolve()` asks, through this `Os`: the final path by std, links and real names by the probe.
+struct Asked<'a>(&'a Os);
+
+impl winpath::NtOs for Asked<'_> {
+    fn final_path(&self, path: &str) -> Result<String, i32> {
+        winpath::os_final_path(path)
+    }
+    fn readlink(&self, path: &str) -> winpath::Readlink {
+        self.0.links.readlink(path)
+    }
+    fn is_symlink(&self, path: &str) -> bool {
+        self.0.links.is_symlink(Path::new(path))
+    }
+    fn find_first_file(&self, path: &str) -> Result<String, i32> {
+        self.0.links.find_first_file(path)
+    }
+    fn long_paths(&self) -> bool {
+        self.0.long_paths
+    }
 }
 
 impl Os {
@@ -71,7 +102,7 @@ impl Os {
     /// `Path(p).resolve()`: the path made absolute and real as far as it exists; `Err` is the Windows error number.
     pub fn resolve(&self, path: &str) -> Result<String, i32> {
         let normal = winpath::path_str(path);
-        winpath::realpath(&normal, &self.cwd, &winpath::os_final_path, self.long_paths)
+        winpath::realpath_os(&normal, &self.cwd, &Asked(self))
     }
 }
 

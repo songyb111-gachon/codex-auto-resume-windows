@@ -19,6 +19,9 @@ impl car_config::Links for Probe {
     fn is_symlink(&self, path: &Path) -> bool {
         car_platform::links::is_symlink(path)
     }
+    fn find_first_file(&self, path: &str) -> Result<String, i32> {
+        car_platform::paths::find_first_file(path)
+    }
 }
 
 /// The probe, for car-store.
