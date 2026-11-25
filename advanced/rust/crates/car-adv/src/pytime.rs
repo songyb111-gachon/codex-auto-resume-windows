@@ -198,7 +198,7 @@ mod tests {
         );
         assert_eq!(
             timegm("2026-10-30T00:00Z", "%Y-%m-%dT%H:%MZ"),
-            Some(1_761_782_400)
+            Some(1_793_318_400)
         );
         assert_eq!(timegm("2024-02-30T00:00:00Z", "%Y-%m-%dT%H:%M:%SZ"), None);
         assert_eq!(timegm("0000-01-01T00:00:00Z", "%Y-%m-%dT%H:%M:%SZ"), None);
