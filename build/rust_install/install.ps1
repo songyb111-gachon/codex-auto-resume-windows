@@ -1156,7 +1156,9 @@ function Invoke-Setup {
     # The command's stdout must not leak into the return value: a bare call would make
     # the function return every printed line AND the exit code as an array, and any
     # comparison against 0 would then be true no matter how well setup went.
-    param([string[]]$Arguments)
+    # -Program: another copy of the core to ask - the archive's, where the installed one is gone (Invoke-InstalledEngine).
+    param([string[]]$Arguments, [string]$Program)
+    $Core = if ($Program) { $Program } else { $Core }
     # The setup step and the health check count their own steps for the setup window's bar (Progress): the variable
     # is set for those two calls alone, as the other hints to setup are.
     $counted = $script:ProgressLines -and @($Arguments).Count -gt 0 -and
@@ -1193,6 +1195,16 @@ function Invoke-InstalledEngine {
     #>
     param([string[]]$Arguments)
     if (Test-Path -LiteralPath $Core -PathType Leaf) { return (Invoke-Setup $Arguments) }
+    # A Rust installation whose core is gone (an antivirus quarantine of the unsigned binary, PLAN risk 8; a removal cut
+    # short) while its host may run (review 9, S4): runtime\python.exe is car-legacy there, which takes no `stop` line
+    # (no earlier version asked it so; its table is not widened), so the archive's own core is asked instead - the
+    # same version line, the same named objects (PLAN 6.2), acting on the home this run installs into, as it answers
+    # claim-home for it. A Rust installation is one with app\bin and without the Python package.
+    if ((Test-Path -LiteralPath (Join-Path $AppDir 'bin') -PathType Container) -and
+        -not (Test-Path -LiteralPath (Join-Path $AppDir 'src\codex_auto_resume\__init__.py') -PathType Leaf) -and
+        (Test-Path -LiteralPath $PayloadCore -PathType Leaf)) {
+        return (Invoke-Setup $Arguments -Program $PayloadCore)
+    }
     $setup = Join-Path $AppDir 'scripts\plugin_setup.py'
     if (-not (Test-Path -LiteralPath $Python -PathType Leaf) -or -not (Test-Path -LiteralPath $setup -PathType Leaf)) { return 1 }
     $ErrorActionPreference = 'Continue'
