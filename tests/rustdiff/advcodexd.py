@@ -555,6 +555,63 @@ OPS["hl.pure"] = lambda kind, value: {
     "completed": lambda: headless_._completed(value[0], value[1], value[2]),
 }[kind]()
 
+# ------------------------------------------------------------------------------------------------ ipc (a test's own pipe)
+from codex_auto_resume_advanced.codex import ipc as ipc_  # noqa: E402
+
+
+class _Id:
+    def __init__(self, number):
+        self.number = number
+
+    def __str__(self):
+        return "00000000-0000-4000-8000-%012x" % self.number
+
+
+def ipc_run(kind, name, thread, extra, message, gate_spec):
+    if not isinstance(name, str) or "codex-ipc" in name.lower():
+        raise AssertionError("never the Desktop's own pipe")
+    ipc_.PIPE = name
+    counter = {"n": 0}
+
+    def uuid4():
+        counter["n"] += 1
+        return _Id(counter["n"])
+
+    ipc_.uuid = types.SimpleNamespace(uuid4=uuid4)
+    log = []
+    gate = None
+    if gate_spec is not None:
+        answers = Answers({"enter": gate_spec.get("enter") or [True], "exit": gate_spec.get("exit") or ["ok"]})
+
+        class Guard:
+            def __enter__(self):
+                log.append("enter")
+                found = answers.take("enter", True)
+                if found == "raise":
+                    raise RuntimeError("stand-in")
+                return found
+
+            def __exit__(self, *unused):
+                log.append("exit")
+                if answers.take("exit", "ok") == "raise":
+                    raise RuntimeError("stand-in")
+                return False
+
+        gate = Guard
+    if kind == "stop":
+        word = ipc_.stop_turn(thread, extra, gate=gate)
+    elif kind == "start":
+        word = ipc_.start_turn(thread, extra, gate=gate)
+    else:
+        word = ipc_.steer_turn(thread, extra, message=message, gate=gate)
+    return {"word": str(word), "gate": log}
+
+
+OPS["ip.run"] = ipc_run
+OPS["ip.filled"] = lambda method, expecting, fields: ipc_._filled(
+    (ipc_.INTERRUPT_EXPECTING if expecting else ipc_.REQUESTS[method])[1], fields)
+OPS["ip.version"] = lambda method, expecting: (ipc_.INTERRUPT_EXPECTING if expecting else ipc_.REQUESTS[method])[0]
+
 # The later families add themselves below this line (EXTRA).
 #EXTRA#
 

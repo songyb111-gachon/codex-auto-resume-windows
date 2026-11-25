@@ -10,6 +10,7 @@ mod ops_check;
 mod ops_compat;
 mod ops_headless;
 mod ops_inuse;
+mod ops_ipc;
 mod ops_protocol;
 mod ops_read;
 mod ops_rest;
@@ -97,6 +98,7 @@ fn dispatch(context: &Context, op: &str, args: &[Value]) -> Out {
         "wm" => ops_wmi::run(context, op, args),
         "ss" => ops_session::run(context, op, args),
         "hl" => ops_headless::run(context, op, args),
+        "ip" => ops_ipc::run(context, op, args),
         "world" => {
             *context
                 .world
