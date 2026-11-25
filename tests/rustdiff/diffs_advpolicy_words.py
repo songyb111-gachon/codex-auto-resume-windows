@@ -374,6 +374,12 @@ def not_object(directory):
     write(directory, "pl", '["a"]')
 def bom(directory):
     (directory / "tr.json").write_bytes(b"\xef\xbb\xbf" + (directory / "tr.json").read_bytes())
+def undecodable_en(directory):
+    (directory / "en.json").write_bytes(b'{"page.one": "caf\xe9"}')
+def undecodable_layer(directory):
+    (directory / "ko.json").write_bytes(b'{"page.one": "\xff\xfe"}')
+def undecodable_late(directory):
+    (directory / "hu.json").write_bytes(b"\x80")
 def tiny(directory):
     write(directory, "en", json.dumps({"page.one": "1 {n}", "name.x": "X", "state.on": "on", "continue.keep_going": "k", "other": "o",
                                        "edition.summary": "{n} on {n}", "edition.not_loaded": "none", "warning.title": "T", "warning.note": "N",
@@ -385,7 +391,8 @@ def tiny(directory):
 variants = {"real": str(real), "drop": copy_of("drop", drop), "missing_file": copy_of("missing_file", missing_file),
             "broken_en": copy_of("broken_en", broken_en), "broken_layer": copy_of("broken_layer", broken_layer),
             "duplicate_key": copy_of("duplicate_key", duplicate_key), "not_object": copy_of("not_object", not_object),
-            "bom": copy_of("bom", bom), "tiny": copy_of("tiny", tiny), "absent": str(scratch / "nowhere")}
+            "bom": copy_of("bom", bom), "tiny": copy_of("tiny", tiny), "undecodable_en": copy_of("undecodable_en", undecodable_en),
+            "undecodable_layer": copy_of("undecodable_layer", undecodable_layer), "undecodable_late": copy_of("undecodable_late", undecodable_late), "absent": str(scratch / "nowhere")}
 LANGS = list(l10n.LOCALES) + ["xx", "KO"]
 locales = LANGS + [None]
 
@@ -407,7 +414,7 @@ ops["statement.catalog"] = lambda directory, language, locale: (lambda found: {
 
 keys = ["page.one", "name.x", "state.on", "edition.summary", "edition.badge", "edition.not_loaded", "warning.title", "nothing.here",
         "statement.test_cap.does", "field.does", "page.nav", "name." + cap, "continue.keep_going"]
-for directory in (variants["real"], variants["tiny"], variants["broken_en"], variants["absent"]):
+for directory in (variants["real"], variants["tiny"], variants["broken_en"], variants["absent"], variants["undecodable_en"], variants["undecodable_layer"]):
     for key in keys:
         for locale in ("en", "ko", "xx", None):
             cases.append(["statement.text", directory, "ja", key, locale, [["n", "7"], ["x", "{n}"]]])
@@ -423,7 +430,7 @@ for directory in (variants["real"], variants["tiny"], variants["broken_en"], var
 ops["statement.badge"] = lambda directory, language, on, locale, loaded: catalogs(directory, language).badge(on, locale, loaded=loaded)
 
 test_cap = copy.deepcopy(shipped[0]); test_cap["id"] = "test_cap"
-for name in ("drop", "missing_file", "broken_en", "broken_layer", "tiny", "absent"):
+for name in ("drop", "missing_file", "broken_en", "broken_layer", "tiny", "absent", "undecodable_en", "undecodable_layer", "undecodable_late"):
     for definition in (test_cap, shipped[0]):
         cases.append(["statement.missing", variants[name], "en", definition])
 for definition in shipped:
@@ -438,7 +445,7 @@ for definition in shipped:
     for locale in ["en", "ko", "ja", "ar", "xx", None]:
         cases.append(["statement.statement", variants["real"], "de", definition, locale, rng.choice(warning_sets)])
 for definition in (test_cap, shipped[0], shipped[5]):
-    for name in ("drop", "tiny", "broken_en", "absent", "missing_file"):
+    for name in ("drop", "tiny", "broken_en", "absent", "missing_file", "undecodable_en", "undecodable_layer", "undecodable_late"):
         for locale in ("en", "ko", "ja", None):
             for warnings in warning_sets:
                 cases.append(["statement.statement", variants[name], "fr", definition, locale, warnings])
@@ -488,6 +495,6 @@ class StatementDiff(AdvDiff):
         scratch.mkdir()
         done = self.family(STATEMENT, str(advref.locales()), str(scratch), label="statement", expect_ops=1400)
         statements = sum(1 for case in done["cases"] if case[0] == "statement.statement")
-        RECORD.append("advpolicy statement: %d cases equal over the tag's own catalogs (22 languages) and 9 damaged copies; "
+        RECORD.append("advpolicy statement: %d cases equal over the tag's own catalogs (22 languages) and 12 damaged copies (3 of them not UTF-8); "
                       "%d statements, every definition in six languages" % (len(done["cases"]), statements))
         shutil.rmtree(scratch, ignore_errors=True)

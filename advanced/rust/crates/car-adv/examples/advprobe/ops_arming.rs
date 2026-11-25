@@ -1319,6 +1319,11 @@ impl Run<'_> {
     }
 }
 
+/// The class the reference raises for a catalog that is not UTF-8.
+fn error_class(_: car_adv::statement::Undecodable) -> &'static str {
+    car_adv::statement::Undecodable::CLASS
+}
+
 fn fault_class(fault: &StateFault) -> &'static str {
     match fault {
         StateFault::State => "StateError",
@@ -1670,17 +1675,19 @@ fn step(
     Ok(match name {
         "arm" => {
             let body = first_map();
-            engine.arm(&ArmRequest {
-                capability: get(&body, "capability").clone(),
-                state: get(&body, "state").clone(),
-                revision: get(&body, "revision").clone(),
-                generation: get(&body, "generation").clone(),
-                acknowledged_version: get(&body, "acknowledged_version").clone(),
-                warnings: get(&body, "warnings").clone(),
-                also: get(&body, "also").clone(),
-                keep_on: body.get("keep_on").cloned().unwrap_or(Value::Bool(false)),
-                actor: actor_default(&body, "actor"),
-            })
+            engine
+                .arm(&ArmRequest {
+                    capability: get(&body, "capability").clone(),
+                    state: get(&body, "state").clone(),
+                    revision: get(&body, "revision").clone(),
+                    generation: get(&body, "generation").clone(),
+                    acknowledged_version: get(&body, "acknowledged_version").clone(),
+                    warnings: get(&body, "warnings").clone(),
+                    also: get(&body, "also").clone(),
+                    keep_on: body.get("keep_on").cloned().unwrap_or(Value::Bool(false)),
+                    actor: actor_default(&body, "actor"),
+                })
+                .map_err(|error| Failure::new(error_class(error)))?
         }
         "disarm" => engine.disarm(&a(0), &a(1)),
         "all_off" => engine.all_off(&a(0)),
@@ -1715,7 +1722,9 @@ fn step(
                 Some(Value::Str(word)) => word.as_str(),
                 _ => None,
             };
-            engine.statement(&definition_of(registry, &a(0))?, locale)
+            engine
+                .statement(&definition_of(registry, &a(0))?, locale)
+                .map_err(|error| Failure::new(error_class(error)))?
         }
         "check" => engine.check(&definition_of(registry, &a(0))?, None, None, None),
         "warnings" => words_of(&engine.warnings(&definition_of(registry, &a(0))?, None)),

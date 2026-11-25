@@ -49,6 +49,9 @@ def statements_into(directory, ids):
         path.write_text(json.dumps(table, ensure_ascii=False, indent=1), encoding="utf-8")
 made_dir, incomplete_dir = scratch / "made", scratch / "incomplete"
 shutil.copytree(real, made_dir); statements_into(made_dir, MADE)
+undecodable_dir = scratch / "undecodable"
+shutil.copytree(real, undecodable_dir)
+(undecodable_dir / "ru.json").write_bytes(b"\xff\xfe not text")
 shutil.copytree(real, incomplete_dir)
 table = json.loads((incomplete_dir / "en.json").read_text(encoding="utf-8"))
 table.pop(statement.key(shipped[0]["id"], "does"), None); table.pop(statement.key(shipped[5]["id"], "stop"), None)
@@ -248,13 +251,13 @@ def scenario():
     steps = [step() for _ in range(rng.randint(5, 22))]
     if rng.random() < 0.1:
         steps.insert(rng.randint(0, len(steps)), ["constants"])
-    return {"registry": kind, "shipped_table": shipped_table, "catalogs": "made" if kind == "made" else rng.choices(["real", "incomplete"], [92, 8])[0],
+    return {"registry": kind, "shipped_table": shipped_table, "catalogs": "made" if kind == "made" else rng.choices(["real", "incomplete", "undecodable"], [88, 7, 5])[0],
             "directory": None, "locale": rng.choice(["en", "ko", "ja"]), "view_given": view_given, "live_given": live_given, "measured_given": measured_given,
             "env": env, "state": state, "steps": steps}
 '''
 
 RUN = r'''
-scratch_dirs = {"real": str(real), "made": str(made_dir), "incomplete": str(incomplete_dir)}
+scratch_dirs = {"real": str(real), "made": str(made_dir), "incomplete": str(incomplete_dir), "undecodable": str(undecodable_dir)}
 cases, ops = [], {}
 for _ in range(count):
     sc = scenario()

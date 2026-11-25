@@ -61,6 +61,15 @@ pub fn name_key(capability: &str) -> String {
     format!("{NAME_PREFIX}{capability}")
 }
 
+/// Python's `UnicodeDecodeError`, which the tag lets out of every call that reads a catalog (kept: AUDIT-v0628.md).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Undecodable;
+
+impl Undecodable {
+    /// The class the reference raises.
+    pub const CLASS: &'static str = "UnicodeDecodeError";
+}
+
 /// The locale this process renders in right now (`l10n.current()`), which only the host can say.
 pub type Current = Box<dyn Fn() -> String + Send + Sync>;
 
@@ -85,12 +94,19 @@ impl Catalogs {
         &self.directory
     }
 
-    /// `own(locale)`: one language's own entries, exactly as its file has them.
-    pub fn own(&self, locale: &str) -> Result<Catalog, CatalogError> {
+    /// `own(locale)`: one language's own entries, exactly as its file has them. The outer error is what the tag lets
+    /// through: a file that is not UTF-8 raises `UnicodeDecodeError` out of `Path.read_text`, which `read_catalog` does not
+    /// catch (it catches `OSError` only), and no caller in `statement.py` catches it either. The inner one is `CatalogError`.
+    pub fn own(&self, locale: &str) -> Result<Result<Catalog, CatalogError>, Undecodable> {
         let name = format!("{locale}.json");
-        let raw = std::fs::read(self.directory.join(&name))
-            .map_err(|error| CatalogError(format!("{name} is unreadable ({error})")))?;
-        l10n::read_catalog(&name, &raw)
+        let raw = match std::fs::read(self.directory.join(&name)) {
+            Ok(raw) => raw,
+            Err(error) => return Ok(Err(CatalogError(format!("{name} is unreadable ({error})")))),
+        };
+        if std::str::from_utf8(&raw).is_err() {
+            return Err(Undecodable);
+        }
+        Ok(l10n::read_catalog(&name, &raw))
     }
 
     fn locale_of(&self, locale: Option<&str>) -> String {
@@ -102,7 +118,7 @@ impl Catalogs {
 
     /// `catalog(locale)`: every key, in `locale` where it has one and in English where it does not. A catalog that cannot
     /// be read is English, as core's are: the tests fail on it, the runtime keeps working.
-    pub fn catalog(&self, locale: &str) -> Catalog {
+    pub fn catalog(&self, locale: &str) -> Result<Catalog, Undecodable> {
         let locale = if l10n::LOCALES.contains(&locale) {
             locale
         } else {
@@ -110,9 +126,9 @@ impl Catalogs {
         };
         let mut kept = self.cache.lock().expect("the catalog cache");
         if !kept.contains_key(locale) {
-            let mut table = self.own(l10n::DEFAULT).unwrap_or_default();
+            let mut table = self.own(l10n::DEFAULT)?.unwrap_or_default();
             if locale != l10n::DEFAULT
-                && let Ok(layer) = self.own(locale)
+                && let Ok(layer) = self.own(locale)?
             {
                 for (key, value) in layer {
                     table.insert(key, value);
@@ -120,7 +136,7 @@ impl Catalogs {
             }
             kept.insert(locale.to_owned(), table);
         }
-        kept[locale].clone()
+        Ok(kept[locale].clone())
     }
 
     /// `text(name, locale, **fields)`: one entry, filled in; `None` when no catalog has it.
@@ -129,17 +145,23 @@ impl Catalogs {
         name: &str,
         locale: Option<&str>,
         fields: &[(&str, String)],
-    ) -> Option<String> {
+    ) -> Result<Option<String>, Undecodable> {
         let locale = self.locale_of(locale);
-        self.catalog(&locale)
+        Ok(self
+            .catalog(&locale)?
             .get(name)
-            .map(|value| l10n::fill(value, fields))
+            .map(|value| l10n::fill(value, fields)))
     }
 
     /// `badge(on, locale, loaded=)`: the edition badge for a surface to show beside the version: the word for a loaded
     /// installation followed by how many capabilities are armed, or the not-loaded word for one whose package could not be
     /// taken.
-    pub fn badge(&self, on: i64, locale: Option<&str>, loaded: bool) -> Option<String> {
+    pub fn badge(
+        &self,
+        on: i64,
+        locale: Option<&str>,
+        loaded: bool,
+    ) -> Result<Option<String>, Undecodable> {
         if !loaded {
             return self.text(NOT_LOADED_KEY, locale, &[]);
         }
@@ -148,9 +170,9 @@ impl Catalogs {
 
     /// `words(locale)`: the Advanced features page's words in `locale`, English underneath: every `page.*` and `name.*`
     /// entry, the three states', and the edition's own continuations. Unfilled.
-    pub fn words(&self, locale: Option<&str>) -> Catalog {
-        let table = self.catalog(&self.locale_of(locale));
-        table
+    pub fn words(&self, locale: Option<&str>) -> Result<Catalog, Undecodable> {
+        let table = self.catalog(&self.locale_of(locale))?;
+        Ok(table
             .into_iter()
             .filter(|(name, _)| {
                 name.starts_with(PAGE_PREFIX)
@@ -158,15 +180,18 @@ impl Catalogs {
                     || name.starts_with("state.")
                     || CONTINUATION_KEYS.contains(&name.as_str())
             })
-            .collect()
+            .collect())
     }
 
     /// `missing(definition)`: `(locale, field)` for every field of `definition`'s statement a language does not have in its
     /// own words. A statement is complete when this is empty.
-    pub fn missing(&self, definition: &CapabilityDef) -> Vec<(String, String)> {
+    pub fn missing(
+        &self,
+        definition: &CapabilityDef,
+    ) -> Result<Vec<(String, String)>, Undecodable> {
         let mut found = Vec::new();
         for locale in l10n::LOCALES {
-            let table = self.own(locale).unwrap_or_default();
+            let table = self.own(locale)?.unwrap_or_default();
             for field in fields() {
                 let held = table
                     .get(&key(&definition.id, *field))
@@ -176,14 +201,19 @@ impl Catalogs {
                 }
             }
         }
-        found
+        Ok(found)
     }
 
     /// `complete_in(definition, locale)`: whether one language has every field of `definition`'s statement in its own words.
-    pub fn complete_in(&self, definition: &CapabilityDef, locale: &str) -> bool {
-        self.missing(definition)
+    pub fn complete_in(
+        &self,
+        definition: &CapabilityDef,
+        locale: &str,
+    ) -> Result<bool, Undecodable> {
+        Ok(self
+            .missing(definition)?
             .iter()
-            .all(|(found, _)| found != locale)
+            .all(|(found, _)| found != locale))
     }
 
     /// `statement(definition, locale, warnings=)`: what the Dashboard shows before the choice: the five fields, each with
@@ -193,37 +223,36 @@ impl Catalogs {
         definition: &CapabilityDef,
         locale: Option<&str>,
         warnings: &[ArmingWarning],
-    ) -> Value {
+    ) -> Result<Value, Undecodable> {
         let locale = self.locale_of(locale);
         let shown = if l10n::LOCALES.contains(&locale.as_str()) {
             locale.as_str()
         } else {
             l10n::DEFAULT
         };
-        let line = |name: &str| match self.text(name, Some(&locale), &[]) {
-            Some(found) => text(&found),
-            None => Value::Null,
+        let line = |name: &str| -> Result<Value, Undecodable> {
+            Ok(match self.text(name, Some(&locale), &[])? {
+                Some(found) => text(&found),
+                None => Value::Null,
+            })
         };
-        let items: Vec<Value> = warnings
-            .iter()
-            .map(|word| {
-                object([
-                    ("warning", text(word.as_str())),
-                    ("text", line(&warning_key(*word))),
-                ])
-            })
-            .collect();
-        let fields_shown: Vec<Value> = fields()
-            .iter()
-            .map(|field| {
-                object([
-                    ("field", text(field.as_str())),
-                    ("title", line(&title_key(*field))),
-                    ("text", line(&key(&definition.id, *field))),
-                ])
-            })
-            .collect();
-        object([
+        let (title, note) = (line(WARNING_TITLE_KEY)?, line(WARNING_NOTE_KEY)?);
+        let mut items: Vec<Value> = Vec::new();
+        for word in warnings {
+            items.push(object([
+                ("warning", text(word.as_str())),
+                ("text", line(&warning_key(*word))?),
+            ]));
+        }
+        let mut fields_shown: Vec<Value> = Vec::new();
+        for field in fields() {
+            fields_shown.push(object([
+                ("field", text(field.as_str())),
+                ("title", line(&title_key(*field))?),
+                ("text", line(&key(&definition.id, *field))?),
+            ]));
+        }
+        Ok(object([
             ("capability", text(&definition.id)),
             ("revision", int(definition.revision)),
             ("locale", text(shown)),
@@ -232,12 +261,12 @@ impl Catalogs {
             (
                 "warnings",
                 object([
-                    ("title", line(WARNING_TITLE_KEY)),
-                    ("note", line(WARNING_NOTE_KEY)),
+                    ("title", title),
+                    ("note", note),
                     ("items", Value::Array(items)),
                 ]),
             ),
             ("fields", Value::Array(fields_shown)),
-        ])
+        ]))
     }
 }

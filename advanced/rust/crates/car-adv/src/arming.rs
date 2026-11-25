@@ -13,7 +13,7 @@
 //! refused the way the tag refuses it. Every method makes the same calls of the state and the edges, in the same order, as
 //! the tag's: the diffs hold the whole call log equal.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet};
 
 use car_machine::json::Value;
@@ -29,7 +29,7 @@ use crate::seam::{
     StateFault, StatePort, StateResult, Unavailable, WRAP_UP,
 };
 use crate::seam_autocheck::{self, Results, Settled};
-use crate::statement::Catalogs;
+use crate::statement::{Catalogs, Undecodable};
 use crate::vocabulary::{
     Actor, ArmingState, ArmingWarning, AutoResult, CapabilityKind, ContinuationReason,
     KEPT_NOTICES, KeepOn, Measurement, OffReason, OptionKey, OverrideKind, PromptReason,
@@ -1280,7 +1280,20 @@ impl<'a> Arming<'a> {
 
     /// `arm(capability, state=, revision=, generation=, acknowledged_version=, warnings=, also=, keep_on=, actor=)`: move
     /// `capability` to watched (SHADOW) or on (ARMED), for a person in the Dashboard.
-    pub fn arm(&self, request: &ArmRequest) -> Value {
+    ///
+    /// A statement catalog that is not UTF-8 ends the call with `UnicodeDecodeError`, where the tag's `complete_in` raises it:
+    /// nothing is written and nothing more is asked of the state or the edges (kept: AUDIT-v0628.md).
+    pub fn arm(&self, request: &ArmRequest) -> Result<Value, Undecodable> {
+        let undecodable = Cell::new(false);
+        let answer = self.arm_value(request, &undecodable);
+        if undecodable.get() {
+            Err(Undecodable)
+        } else {
+            Ok(answer)
+        }
+    }
+
+    fn arm_value(&self, request: &ArmRequest, undecodable: &Cell<bool>) -> Value {
         let mut shown: Vec<ArmingWarning> = Vec::new();
         let refuse = |why: Refusal, shown: &[ArmingWarning]| {
             record([
@@ -1334,28 +1347,28 @@ impl<'a> Arming<'a> {
                      target_revision: Option<i64>,
                      target_confirmed: &BTreeSet<ArmingWarning>,
                      target_version: &Option<String>|
-         -> Option<Refusal> {
+         -> Result<Option<Refusal>, Undecodable> {
             if policy.forbid {
-                return Some(Refusal::ForbiddenByPolicy);
+                return Ok(Some(Refusal::ForbiddenByPolicy));
             }
             if !policy.admits(&target.id) {
-                return Some(Refusal::NotAllowedByPolicy);
+                return Ok(Some(Refusal::NotAllowedByPolicy));
             }
             if policy.force_shadow {
-                return Some(Refusal::ShadowForcedByPolicy);
+                return Ok(Some(Refusal::ShadowForcedByPolicy));
             }
             if target_revision != Some(target.revision) {
-                return Some(Refusal::StaleRevision);
+                return Ok(Some(Refusal::StaleRevision));
             }
-            if !self.catalogs.complete_in(target, "en") {
-                return Some(Refusal::StatementIncomplete);
+            if !self.catalogs.complete_in(target, "en")? {
+                return Ok(Some(Refusal::StatementIncomplete));
             }
             let now: BTreeSet<ArmingWarning> =
                 self.warnings(target, Some(&view)).into_iter().collect();
             if target_confirmed != &now || *target_version != engine_version(&view) {
-                return Some(Refusal::StaleConfirmation);
+                return Ok(Some(Refusal::StaleConfirmation));
             }
-            None
+            Ok(None)
         };
 
         // Watching needs no requirement and forces none on: the single move.
@@ -1374,7 +1387,14 @@ impl<'a> Arming<'a> {
             if revision != Some(definition.revision) {
                 return refuse(Refusal::StaleRevision, &shown);
             }
-            if !self.catalogs.complete_in(definition, "en") {
+            let complete = match self.catalogs.complete_in(definition, "en") {
+                Ok(complete) => complete,
+                Err(Undecodable) => {
+                    undecodable.set(true);
+                    return Value::Null;
+                }
+            };
+            if !complete {
                 return refuse(Refusal::StatementIncomplete, &shown);
             }
             shown = self.warnings(definition, Some(&view));
@@ -1449,7 +1469,13 @@ impl<'a> Arming<'a> {
             return refuse(Refusal::RequirementRefused, &shown);
         }
 
-        let reason = check(definition, revision, &confirmed, &acknowledged);
+        let reason = match check(definition, revision, &confirmed, &acknowledged) {
+            Ok(reason) => reason,
+            Err(Undecodable) => {
+                undecodable.set(true);
+                return Value::Null;
+            }
+        };
         shown = self.warnings(definition, Some(&view));
         if let Some(reason) = reason {
             return refuse(reason, &shown);
@@ -1489,12 +1515,19 @@ impl<'a> Arming<'a> {
                 return refuse(Refusal::RequirementRefused, &shown);
             };
             let version = str_of(other_version).map(str::to_owned);
-            if let Some(reason) = check(
+            let reason = match check(
                 other_def,
                 int_of(other_revision),
                 &other_confirmed,
                 &version,
             ) {
+                Ok(reason) => reason,
+                Err(Undecodable) => {
+                    undecodable.set(true);
+                    return Value::Null;
+                }
+            };
+            if let Some(reason) = reason {
                 // A policy on the required one keeps the dependent off; a stale confirmation can be asked again.
                 return refuse(reason, &shown);
             }
@@ -2121,12 +2154,17 @@ impl<'a> Arming<'a> {
     // ------------------------------------------------------------------------------------------------ shown
     /// `statement(definition, locale)`: what the Dashboard shows before the choice: the five fields, and above them the
     /// warnings that hold now, with the Codex version an "on" acknowledges.
-    pub fn statement(&self, definition: &CapabilityDef, locale: Option<&str>) -> Value {
+    pub fn statement(
+        &self,
+        definition: &CapabilityDef,
+        locale: Option<&str>,
+    ) -> Result<Value, Undecodable> {
         let view = self.view();
         let warnings = self.warnings(definition, Some(&view));
-        let Value::Object(mut statement) = self.catalogs.statement(definition, locale, &warnings)
+        let Value::Object(mut statement) =
+            self.catalogs.statement(definition, locale, &warnings)?
         else {
-            return Value::Null;
+            return Ok(Value::Null);
         };
         statement.insert(
             "engine_version".into(),
@@ -2134,7 +2172,7 @@ impl<'a> Arming<'a> {
         );
         let check = self.check(definition, Some(&view), None, None);
         statement.insert("check".into(), check);
-        Value::Object(statement)
+        Ok(Value::Object(statement))
     }
 
     /// `listing()`: every capability as a surface shows it, in `registry.SHOWN_ORDER`.
