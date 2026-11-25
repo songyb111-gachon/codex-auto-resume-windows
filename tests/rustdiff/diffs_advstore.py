@@ -730,7 +730,9 @@ class LedgerDiff(Base):
                     "now": CLOCK + 1},
                    {"ledger": "record", "record": {"record_id": key(51), "thread_id": OTHER, "phase": "claim"},
                     "now": CLOCK},
-                   op("spent", "send_now", THREAD), op("journal"), op("overrides_for", key(100))]
+                   op("spent", "send_now", THREAD), op("journal"), op("overrides_for", key(100)),
+                   # who paid for the send, and whether a channel or a route did (CHANNELS: P5 and P16)
+                   op("payers", key(100), None), op("channel_paid", key(100), None)]
         twin = Twin(core_home([core_record(0)], advanced=armed))
         try:
             self.same(twin, request(ledger), "ledger")
