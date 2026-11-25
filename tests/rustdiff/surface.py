@@ -103,12 +103,22 @@ class Recorder:
 '''
 
 
+# S6.0 was ported from the v0.6.26 final (D17): ui/popup/model.py changed after beta.2 and the final added
+# domain/usage.newest, so where the harness's reference is still the beta.2 stand-in these diffs read the final.
+FINAL = "v0.6.26"
+
+
+def surface_tag() -> str:
+    """The reference these diffs run against: the harness's, or the final where that is the beta.2 stand-in."""
+    return FINAL if reference.TAG == reference.STAND_IN else reference.TAG
+
+
 class Surface(Leaves):
     """A diff of car-surface: `family(script)` runs the script in the reference and the same cases in Rust."""
 
     def family(self, script: str, *arguments, label: str, expect_ops: int = 1, chunk: int = 2000) -> dict:
         profile = self.profile("reference-%s" % label)
-        made = reference.run(PRELUDE + SURFACE + script, *arguments, profile=profile)
+        made = reference.run(PRELUDE + SURFACE + script, *arguments, profile=profile, tag=surface_tag())
         self.assertEqual(made.returncode, 0, made.stderr[-3000:].decode("utf-8", "replace"))
         done = json.loads(made.stdout.decode("utf-8"))
         cases, expected = done["cases"], done["results"]

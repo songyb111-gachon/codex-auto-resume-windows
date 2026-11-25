@@ -331,3 +331,21 @@ car-store carries it, `{" bytes": hex}`.
 The re-enabled cases (`diffs_classify_policy.py`'s four `if False`), and NaN and the infinities added to the words, domain
 and brand families, are equal to v0.6.26-beta.2. The re-diff at the final: `python -X utf8 tests/rustdiff/rediff_review5.py
 --reference v0.6.26`.
+
+## car-surface (seat S6.0)
+
+`surface.py` is the family base (`Surface.family`, the call `surface.batch`) and `SURFACE` the stand-ins both sides use:
+PowerShell and explorer.exe recorders (nothing started), the presence answers and the card host's wakes from the case,
+Windows' languages `["en-US"]`, this PC's clock (`Crt`), and the renderer's `measure`. The answers are compared as the
+JSON each side wrote (both already carry the float tag). S6.0 was ported from the v0.6.26 final, so where `reference.TAG`
+is the beta.2 stand-in these diffs read v0.6.26 (`surface_tag`); `CAR_SURFACE_DUMP=<file>` writes a differing case whole.
+
+| Module | Proves |
+|---|---|
+| `diffs_surface_uris.py` | `urlsplit`/`parse_qs` as the readers use them, `notice_uris`' readers and writers, the Codex and chat links and `open_in_codex`, `card_allowed`, `Inbox` |
+| `diffs_surface_notify.py` | every toast's content and sentence in 22 languages, `_toast_xml`, and what `show` hands PowerShell (`-Command`, the variables, the flags) |
+| `diffs_surface_notifier.py` | `build` for every notice kind, the demo, Open Codex, clicks, `deliver`, `complete`, `show_demo`, `told`, `activate` |
+| `diffs_surface_card.py` | `view`, `layout` (scales, right to left, special days), `CardMotion`, the stack, the floating shadow, the corner, `premultiply` |
+| `diffs_surface_popup.py` | ui/popup/model.py (the final's) and its words, `PopupModel`, `perform`, ui/tray/model.py and stored.py |
+
+The re-diff: `python -X utf8 tests/rustdiff/rediff_surface.py --reference v0.6.26`.

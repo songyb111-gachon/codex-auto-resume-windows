@@ -568,3 +568,90 @@ share-mode question of car-platform and car-config; its review test (`car-policy
   tag's LF archive bytes, so a CRLF checkout is no difference).
 
 The re-diff for the final: `python -X utf8 tests/rustdiff/rediff_review5.py --reference v0.6.26`.
+
+## car-surface (seat S6.0, branch `car-v0627-surface`, 2026-11-25)
+
+The pure halves of the tray, the popup, the notice card and the notifications (PLAN 1.2 row 13, 1.5 "the surface port"),
+ported from the **v0.6.26 final tag** (D17; `ui/popup/model.py` changed after beta.2 and the final added
+`domain/usage.newest`), on car-v0627-fix5 at `64b8fee59`.
+
+| Python (v0.6.26) | car-surface | what |
+|---|---|---|
+| `codex_link.py` | `codex_link` | the Codex app's link and the chat's, read and written; `open_in_codex` through the `Launch` seam |
+| `notice_uris.py` | `notice_uris` + `pyurl` | the four readers and three writers; `urllib.parse.urlsplit`/`parse_qs` as CPython 3.13 has them (the C0 strip, tab and line-break removal, the scheme's characters, brackets and IPv6/IPvFuture hosts, the NFKC check of a non-ASCII authority by a table read from the interpreter, `%XX` decoded per ASCII run with U+FFFD) |
+| `notice_inbox.py` | `notice_inbox` | `Inbox<T>`: the same limit, wake outside the lock, a wake that panics is a wake that failed (D15) |
+| `notice_presence.py` | `notice_presence` | `card_allowed` and every number of the probes; the probes themselves are the `Presence` seam |
+| `notify.py` | `notify` + `speech` | every `*_content`, the sentences, `_toast_xml`, `SCRIPT`, `show`/`show_content`; `str.format` of the three catalog keys that use it |
+| `notifier.py` | `notifier` | `Notice`, `build` (every kind), the demo, the cancel's and power stop's notices, Open Codex, clicks, `deliver`, `complete`, `show_demo`, `told`, `activate` |
+| `notice_card.py` | `notice_card` | `view`, `texts`, `layout` (+ `mirror`), the curves and `CardMotion`, the stack, `float_shadows`/`shadow_at`/`shadow_margin`, `corner_coverage` (circle and squircle), `premultiply` |
+| `ui/popup/model.py` | `popup::model` | every function and `PopupModel`; with the pure part of `ui/popup/words.py` (`say`, `one_line`, `locale_of`, `kept`, `vocabulary`) and `placement.py` (`taskbar_edge`, `place`) they and the card read (`popup::words`, `popup::placement`) |
+| `ui/tray/model.py`, `ui/tray/stored.py` | `tray::model`, `tray::stored` | `popup_attention`, `snapshot_from`; `StoredMixin` as `Stored` |
+| (helpers) | `py` | `str()`/`repr()` of a list or a dict, `list()`, `dict()`, `in`, unpacking, unbounded `int()`, `sorted` with a fallible `<` |
+
+Not ported here (crate-map: C# host): `notice_window.py`, `ui/card/*`, the popup's window, renderer, motion, theme and
+accessibility, `ui/popup/words.unbroken`, `layout.layout`/`share_columns`, the tray's icon, menu, tip and motion.
+
+### The seams (`car-surface/src/seam.rs`, `usage.rs`)
+
+| Seam | Implemented by | Stands for |
+|---|---|---|
+| **`CardHost`** (`wake`, `measure`) | **the C# watcher host** (D1, S6.2/S6.3) | `notice_window.Card`'s host: the one message that makes the icon's thread call `Inbox::take`, and the renderer's `measure(role, text, width, wrap)` that `notice_card::layout` lays the card out with. The card's window, its paint, its stack's windows and their motion clock are the host's; it asks `CardMotion` for each frame and `stack_positions` for each place |
+| **`Presence`** (`snapshot(aumid)`, `battery_saver`, `message_duration_ms`) | car-platform (D3) | `notice_presence`'s probes: `SHQueryUserNotificationState`, WinRT `NotificationMode` and `ToastNotifier.Setting` by vtable slot (the IIDs and slots are in `notice_presence`), `SPI_GETSCREENREADER`, `SM_REMOTESESSION`, the input desktop's name, `GetSystemPowerStatus`, `SPI_GETMESSAGEDURATION`; each answer a closed value or `Null` |
+| `PowerShell` (`available`, `run`) | done: `SystemPowerShell` over car-platform's `pwsh::run` and a `Starter` | the toast's constant script, `-Command` plain text (issue #65), its values as `CODEX_AUTO_RESUME_ARG_*` variables, `CREATE_NO_WINDOW`, 20 s |
+| `Launch` (`is_file`, `start`) | done: `SystemLaunch` over car-platform's `SystemStarter` | explorer.exe for `open_in_codex` |
+| `CardControl`, `PopupControl` | car-control's `Control` (S5.1) | the card's buttons (`cancel_interruption`, `stop_power_countdown`, actor `toast`) and the popup's `CONTROL_CALLS`, in process |
+| `TrayStore` | car-store's `Store` (via car-watcher) | `snapshot_from`'s four reads |
+| `StoredSettings`, `TraySurface` | car-watcher (the control layer's `get_settings`/`settings_path`, `os.stat`) and the C# host (adopting the theme and Reduce motion, the strings, the log) | `StoredMixin` |
+| `usage::{newest, meter_windows}` | car-machine `domain::usage` (the integration moves the two functions there unchanged and deletes `usage.rs`) | the v0.6.26 final's `domain/usage.newest`, which car-machine's beta.2 port lacks |
+
+`Speech { locale, clock }` hands in what the reference reads from process globals: `l10n.current()` (car-words'
+`resolve` with the platform's languages) and `time.localtime` (car-policy's `LocalClock`, `Crt` in the product).
+
+### The diffs (`tests/rustdiff/diffs_surface_*.py`, `surface.py`; car-harness `src/surface.rs`, `surface.batch`)
+
+Eighteen diffs in five modules, every one run by the reference interpreter (the v0.6.26 tag through
+`tests/released.py`) and by car-harness on the same cases, answers compared as the JSON they are, byte for byte. The
+stand-ins are written once in `surface.py`'s `SURFACE` and once in car-harness `surface.rs`: nothing is started, raised
+or shown (PowerShell's argv, argument variables, flags, streams and timeout recorded; explorer.exe's argv and flags
+recorded; the presence answers and the card host's wakes the case's).
+
+| Module | Diffs | Cases (all equal to v0.6.26) |
+|---|---|---|
+| `diffs_surface_uris.py` | UriDiff, LinkDiff, PresenceDiff, InboxDiff | 2,552 `urlsplit`, 1,330 `parse_qs`, 12,883 reader/writer cases; the NFKC table (19 code points) is the interpreter's; 100 link and `open_in_codex` cases; 1,441 presence; 303 inbox scripts (4,500 steps) |
+| `diffs_surface_notify.py` | ContentDiff, ToastDiff | 15,796 contents and sentences in all 22 languages (1,012 raise, alike); 1,514 XML documents; 340 `show`/`show_content` with 274 PowerShell requests recorded (`-Command` and the script whole, `XML`/`AUMID`/`SILENT`, `CREATE_NO_WINDOW`, NUL streams, 20 s) |
+| `diffs_surface_notifier.py` | BuildDiff, RouteDiff, ActivateDiff | 1,910 builds (every kind, 22 languages, each destination and kept kind), 216 Open Codex, 696 click/page/actions/status; 546 `deliver`, 36 `complete`, 72 `show_demo`, 240 `told`; 198 `activate` (word, log lines, announced notices, calls) |
+| `diffs_surface_card.py` | ViewDiff, MotionDiff, StackDiff, ShadowDiff | 242 views, 242 texts, 3,244 layouts (5 scales, Arabic/Hebrew/Persian mirrored, the five special days, 0-5 buttons); 147 curve cases and 400 `CardMotion` lives (17,538 steps); 1,920 placement/stack cases; 124 shadow/corner/premultiply |
+| `diffs_surface_popup.py` | WordsDiff, HeaderDiff, ViewDiff, ModelDiff, TrayDiff | 332 word cases; 7,048 header cases; 645 `view_model`, 643 `task_item`, 528 `row_menu` in 22 languages over the picture inputs' rows (build/make_screenshots.py `popup_rows`/`popup_status`, rebuilt) and generated ones, 32 `newest`; 523 `PopupModel` scripts (6,909 steps), 850 `perform`, 36 `select_action`, 19 `busy_key`; 509 `snapshot_from`, 400 `StoredMixin` scripts |
+
+`python -X utf8 tests/rustdiff/run.py --build --reference v0.6.26 -k diffs_surface -v`: Ran 18, OK. The left/used rule
+(glance surfaces say LEFT) is held by the near-limit toast's share (`notify.near`) and the popup's usage line.
+
+**Mutation check** (each rule broken alone, the harness rebuilt, its diff run, the file restored; every one FAILED):
+M1 `card_allowed` takes a float 5.0 (PresenceDiff), M2 `quoteattr` always writes double quotes (ToastDiff), M3 a
+resumed notice wears the waiting light (BuildDiff), M4 the header ignores a row held for a person (HeaderDiff), M5 the
+card's fade ends at 40% of the entrance (MotionDiff), M6 `parse_qs` keeps blank values always (UriDiff), M7 the icon
+counts an unmatched record of a switched-off conversation (TrayDiff), M8 the usage meter's toast says the share USED
+(ContentDiff).
+
+The reference found one aliasing of its own: `PopupModel.rows` changes in place, so a recorded state is deep-copied
+(`diffs_surface_popup.state`); Rust's answers are copies already.
+
+### The re-diff
+
+`python -X utf8 tests/rustdiff/rediff_surface.py --reference v0.6.26` (or a later tag of the archived repository): the
+ported and the read files that changed from v0.6.26, then every `diffs_surface_*` with the tag as the reference.
+run.py's default reference (beta.2) cannot run these diffs: `newest` and the final's model are not in it.
+
+### For the next seats
+
+* **S6.2/S6.3 (the C# host and the surfaces):** implement `CardHost` (post one message, then `Inbox::take` on the icon's
+  thread; measure with the renderer) and draw `notice_card::layout`'s items, `popup::model::view_model`'s values and
+  `PopupModel::menu_for`'s menus; the popup's clicks go through `PopupModel::action_for`/`begin`/`apply_outcome`
+  and `perform` on a worker thread. A card's button is `notifier::activate`; its end is `notifier::complete`.
+  `layout`'s measure returns ints (GDI's); the stand-in's numbers are not the renderer's.
+* **car-platform:** implement `Presence` (the probes listed above; every failure is `Null`, never a guess).
+* **car-control / car-watcher:** implement `CardControl`, `PopupControl`, `TrayStore`, `StoredSettings`; the watcher
+  builds with `notifier::build`, routes with `notifier::deliver` (its `show` is `notify::show_content` over
+  `SystemPowerShell::system()`), and answers the icon with `tray::model::snapshot_from` and
+  `popup::model::snapshot_activity`.
+* **Integration:** move `usage.rs` into car-machine; `check_groundwork.py` EXPECTED has car-harness -> car-surface.

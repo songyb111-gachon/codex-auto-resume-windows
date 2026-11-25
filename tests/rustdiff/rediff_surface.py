@@ -4,12 +4,12 @@
     python -X utf8 tests/rustdiff/rediff_surface.py --reference <a later tag of the archived repository>
 
 S6.0 was ported from the v0.6.26 final itself (D17; ui/popup/model.py changed after beta.2 and the final's
-`domain/usage.newest` is new), so its diffs need the final or a later tag: run.py's default reference (beta.2) lacks
-both. This says which of the ten ported modules - and the Python they read that another crate holds (the words,
-the catalogs, the brand's tables, the reasons, the notice kinds, the demo, the ids, the usage reading) - differ
-between v0.6.26 and the tag (`git diff --stat`, so a change is seen even where no diff reaches it), and then runs every
-`diffs_surface_*` diff with the tag as the reference (`run.py --build --reference TAG -k diffs_surface`). Exit 0 only
-when the diffs are equal; a changed file is printed, not failed on - the diffs decide.
+`domain/usage.newest` is new), so its diffs need the final or a later tag: where run.py's reference is still the beta.2
+stand-in they read v0.6.26 (`surface.surface_tag`). This says which of the ten ported modules - and the Python they read
+that another crate holds (the words, the catalogs, the brand's tables, the reasons, the notice kinds, the demo, the ids,
+the usage reading) - differ between v0.6.26 and the tag (`git diff --stat`, so a change is seen even where no diff
+reaches it), and then runs every `diffs_surface_*` diff with the tag as the reference (`run.py --build --reference TAG
+-k diffs_surface`). Exit 0 only when the diffs are equal; a changed file is printed, not failed on - the diffs decide.
 """
 from __future__ import annotations
 
