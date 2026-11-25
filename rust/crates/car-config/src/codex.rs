@@ -7,7 +7,7 @@
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Mutex, OnceLock, PoisonError};
 
 use car_machine::compat::loads;
 use car_machine::json::Value;
@@ -101,7 +101,10 @@ fn reported() -> &'static Mutex<BTreeSet<String>> {
 
 /// Forget which sentences `version` has told (the Python's `_reported.clear()`), for tests and the harness.
 pub fn reset_warnings() {
-    reported().lock().expect("the reported set").clear();
+    reported()
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clear();
 }
 
 /// `version()`: the product version, read from the manifest at the installation root. `unknown` in two cases: no
@@ -117,7 +120,7 @@ pub fn version(project_root: &str, warn: &mut dyn FnMut(&str)) -> String {
         Err(refused) => {
             if reported()
                 .lock()
-                .expect("the reported set")
+                .unwrap_or_else(PoisonError::into_inner)
                 .insert(refused.0.clone())
             {
                 warn(&format!(

@@ -12,7 +12,7 @@
 //! Python's, held to them by `tests/rustdiff/diffs_leaves_words.py`). Nothing here reaches the network.
 
 use std::collections::HashMap;
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Mutex, OnceLock, PoisonError};
 
 use car_machine::compat::decode;
 use car_machine::json::Value;
@@ -154,7 +154,7 @@ fn with_catalog<R>(locale: &str, body: impl FnOnce(&Catalog) -> R) -> R {
     } else {
         DEFAULT
     };
-    let mut kept = cache().lock().expect("the catalog cache");
+    let mut kept = cache().lock().unwrap_or_else(PoisonError::into_inner);
     if !kept.contains_key(locale) {
         let mut found = read(DEFAULT).unwrap_or_default();
         if locale != DEFAULT
@@ -292,13 +292,18 @@ pub fn set_preference(
         .filter(|each| CHOICES.contains(each))
         .unwrap_or(SYSTEM)
         .to_owned();
-    *preference_cell().lock().expect("the preference") = adopted;
+    *preference_cell()
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner) = adopted;
     current(environ, windows)
 }
 
 /// `preference()`.
 pub fn preference() -> String {
-    preference_cell().lock().expect("the preference").clone()
+    preference_cell()
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clone()
 }
 
 /// `current(environ)`: the locale this process renders in right now.
@@ -515,5 +520,20 @@ mod tests {
         assert!(read_catalog("x.json", b"[]").is_err());
         assert!(read_catalog("x.json", b"\xEF\xBB\xBF{}").is_err());
         assert!(read_catalog("x.json", b"{\"a\": \"1\"}").is_ok());
+    }
+
+    #[test]
+    fn a_panic_while_a_process_lock_is_held_leaves_the_words_readable() {
+        // D15: a panic caught at a boundary while the catalog cache or the preference is held poisons the lock; the
+        // next `strings`/`describe` must still read them (bridgefix B1), never panic in turn.
+        let poisoned = std::panic::catch_unwind(|| {
+            let _cache = cache().lock();
+            let _preference = preference_cell().lock();
+            panic!("a panic under both locks");
+        });
+        assert!(poisoned.is_err());
+        assert!(cache().is_poisoned() && preference_cell().is_poisoned());
+        assert!(text("app.name", "en", &[]).is_some() || catalog("en").len() > 1000);
+        let _ = preference();
     }
 }

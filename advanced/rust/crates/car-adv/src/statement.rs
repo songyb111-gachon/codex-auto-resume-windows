@@ -11,7 +11,7 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Mutex, PoisonError};
 
 use car_machine::json::Value;
 use car_machine::pytext::strip;
@@ -124,7 +124,7 @@ impl Catalogs {
         } else {
             l10n::DEFAULT
         };
-        let mut kept = self.cache.lock().expect("the catalog cache");
+        let mut kept = self.cache.lock().unwrap_or_else(PoisonError::into_inner);
         if !kept.contains_key(locale) {
             let mut table = self.own(l10n::DEFAULT)?.unwrap_or_default();
             if locale != l10n::DEFAULT
