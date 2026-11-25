@@ -655,3 +655,23 @@ run.py's default reference (beta.2) cannot run these diffs: `newest` and the fin
   `SystemPowerShell::system()`), and answers the icon with `tray::model::snapshot_from` and
   `popup::model::snapshot_activity`.
 * **Integration:** move `usage.rs` into car-machine; `check_groundwork.py` EXPECTED has car-harness -> car-surface.
+
+### The review8 fixes (seat fix8, branch `car-v0627-fix8`, 2026-11-26)
+
+* **A seam's panic is the exception the reference catches (D15, REVIEW-surface S2).** `seam::caught(body)` is
+  `try: ... except Exception` for a panic as well as an `Err`: a panic answers as `Raised` (the payload's own, else
+  the class a `"ClassName: ..."` text names, else `Exception`). It wraps `popup::model::perform`'s whole body, every
+  seam call of `notifier::activate`/`power_stop` (the control, `open_link`, `open_chat`, `open_dashboard`,
+  `announce`, `log`), `deliver`/`show_demo`'s probe and `told`'s store. **The integration seat should share one
+  helper:** this one, car-engine's `caught.rs` over car-scheduler's `caught` (which answers `Err("Exception")`, a
+  `&'static str`) and car-adv's `port::Raised` are three spellings of the same rule; one function in car-machine
+  taking a body that returns the crate's own error type would serve all three.
+* **A corner of a radius that is no number** raises ValueError (NaN) or OverflowError (infinity, 2**63 and past) as
+  `int(math.ceil(radius))` and `bytearray(size)` do; a size past 2**15 cells answers MemoryError (no card has one:
+  the radius is `brand.RADII["card"]` times the scale) instead of allocating.
+* **The icon's snapshot** asks `disabled_threads()` before it hashes a row's id (REVIEW-surface N1).
+* `rediff_surface.py` also reads `domain/vocabulary.py`, `domain/plug.py`, `domain/gates.py` and `ownvalues.py`.
+* Tests with no diff: `tests/fix8_probe_panics.rs`, `tests/fix8_uncovered.rs` (`seam::launch_error`, the presence
+  snapshot, `CardMotion::slide`, `notify::shown`).
+* Still open, not this seat's: S1 (the Unicode 16 tables of car-machine, car-words, car-policy); `ShippedInterpreterDiff`
+  stays red on its six digit cases until they are regenerated.
