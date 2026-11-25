@@ -1103,6 +1103,19 @@ Each family runs a script under the tag's own advanced edition (`advref.run`) - 
 * `gh api --paginate`'s pages are read with `raw_decode` (NaN and Infinity accepted, a recursion past the limit a `RecursionError` that goes on); `car_machine::compat::raw_decode` has the same grammar.
 * `github.spelling` uses `str.casefold()`: only `ſ K ß ẞ ﬀ ﬁ ﬂ ﬃ ﬄ ﬅ ﬆ` fold into a login's ASCII; every other non-ASCII character cannot, so `ascii_fold` is exact.
 
+### Checks and mutations (`CARGO_BUILD_JOBS=2..4`; reference v0.6.26, rustc 1.100.0)
+
+```
+## advanced/rust   fmt --check rc=0; clippy --locked --all-targets -D warnings rc=0; test --locked rc=0 (car-adv 3 unit tests); cargo deny --locked check: all four ok
+## rust            fmt --check rc=0; cargo deny rc=0 (the standard workspace's code is not touched by this seat: only this file)
+python -X utf8 rust/tools/check_groundwork.py            -> rust groundwork: OK (17 standard crates, 3 advanced crates)
+bash advanced/rust/tools/check_rebuild.sh HEAD           -> see the return (a long run; its log is named there)
+```
+
+The diffs, one `unittest` module each, all equal on the last run: `diffs_advreport_goldens` (2), `diffs_advreport_records` (7: Read, Locked, Damaged, Ledger, Evidence, Document ...), `diffs_advreport_github` (3), `diffs_advreport_flow` (1, 77 programs), `diffs_advhook_plugin` (1, 240 programs over 15 trees), `diffs_advhook_handler` (3), `diffs_advhook_claim` (2).
+
+Mutation checks (a rule broken in car-adv, the example rebuilt, the named diff run; each fails it, the source restored with `git checkout -- file`): the ledger's paid times no longer mark a record another route's (`diffs_advreport_goldens`: the two ledger scenarios' bodies and counts change); the long s no longer folds into a login's letters (`diffs_advreport_github.InspectDiff`: `gh_spelling` becomes `web`); a declaration with a command that is not ours removed all the same (`diffs_advhook_plugin`); a rate limit is a kind a hook may continue (`diffs_advhook_handler.InputDiff`, the `continues` grid); a second claim in a turn that has had a block passed, not refused (`diffs_advhook_claim.ClaimDiff`); the flow keeping five reports instead of four - **survived** the first time (no case checked the oldest of five builds), so two programs were added (four builds then the first checked; five builds then the first checked), and it then failed.
+
 ### Left undone
 
 * The real home mutex, the job object around gh, `Hands.live`, the plug-side `StopHook`, and the hook launcher binary are seams (above), not diffed: each needs Windows state or the plug of S7.2a.
