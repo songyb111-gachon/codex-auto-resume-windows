@@ -23,3 +23,9 @@ indexmap = "2"
 name = "review7_send_receipt"
 path = "tests/review7_send_receipt.rs"
 harness = false
+
+# Fix 7: the same for `--version` and `queue --help` (S2's other reads).
+[[test]]
+name = "fix7_engine_checks"
+path = "tests/fix7_engine_checks.rs"
+harness = false

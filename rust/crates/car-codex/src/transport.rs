@@ -7,7 +7,10 @@
 use std::ffi::OsString;
 use std::io::Read;
 use std::os::windows::fs::MetadataExt;
+use std::process::Child;
+use std::sync::mpsc::{Receiver, RecvTimeoutError, channel};
 use std::sync::{Arc, Mutex};
+use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use car_config::winpath;
@@ -97,7 +100,7 @@ struct Ran {
 }
 
 /// Why a run gave nothing.
-enum RunError {
+pub(crate) enum RunError {
     /// `OSError`: it could not be started or read.
     Os,
     /// `subprocess.TimeoutExpired`: it was killed when its time ran out.
@@ -105,7 +108,7 @@ enum RunError {
 }
 
 /// Bytes as a text-mode pipe decodes them: UTF-8 with replacement, universal newlines.
-fn decode(bytes: &[u8]) -> String {
+pub(crate) fn decode(bytes: &[u8]) -> String {
     let mut text = String::new();
     let mut whole = crate::appserver::TextReader::new(bytes);
     while let Ok(line) = whole.readline(1 << 20) {
@@ -117,37 +120,142 @@ fn decode(bytes: &[u8]) -> String {
     text
 }
 
-fn exit_code(status: std::process::ExitStatus) -> i64 {
+pub(crate) fn exit_code(status: std::process::ExitStatus) -> i64 {
     status.code().map_or(-1, |code| i64::from(code as u32))
+}
+
+/// A child's output, read to its end on a thread of its own: `Popen.communicate`'s reader thread on Windows.
+///
+/// Its end comes when every handle on the pipe is closed, so a process the child started that inherited the pipe
+/// holds it open after the child exits. `finish` waits for that end however long it takes, as the reference's
+/// `stdout.close()` waits for its reader thread, and dropping the reader finishes it: no reader thread is left
+/// behind.
+pub(crate) struct Output {
+    ended: Receiver<Vec<u8>>,
+    thread: Option<JoinHandle<()>>,
+    bytes: Option<Vec<u8>>,
+}
+
+impl Output {
+    pub(crate) fn start(mut stdout: impl Read + Send + 'static) -> Output {
+        let (send, ended) = channel();
+        let thread = std::thread::spawn(move || {
+            let mut bytes = Vec::new();
+            let _ = stdout.read_to_end(&mut bytes);
+            let _ = send.send(bytes);
+        });
+        Output {
+            ended,
+            thread: Some(thread),
+            bytes: None,
+        }
+    }
+
+    /// `stdout_thread.join(remaining)` and `is_alive()`: whether the output's end was read by `until`.
+    fn ended_by(&mut self, until: Instant) -> bool {
+        if self.bytes.is_some() {
+            return true;
+        }
+        match self
+            .ended
+            .recv_timeout(until.saturating_duration_since(Instant::now()))
+        {
+            Ok(bytes) => self.bytes = Some(bytes),
+            Err(RecvTimeoutError::Timeout) => return false,
+            Err(RecvTimeoutError::Disconnected) => self.bytes = Some(Vec::new()),
+        }
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
+        }
+        true
+    }
+
+    /// The output whole, once the pipe's every handle is closed (however long that takes).
+    pub(crate) fn finish(&mut self) -> Vec<u8> {
+        if self.bytes.is_none() {
+            self.bytes = Some(self.ended.recv().unwrap_or_default());
+        }
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
+        }
+        self.bytes.take().unwrap_or_default()
+    }
+}
+
+impl Drop for Output {
+    fn drop(&mut self) {
+        if self.thread.is_some() {
+            self.finish();
+        }
+    }
+}
+
+/// How `communicate(timeout=)` ended.
+pub(crate) enum Communicated {
+    /// The output's end read and the exit seen, both within the time.
+    Done(std::process::ExitStatus, Vec<u8>),
+    /// `subprocess.TimeoutExpired`: the output's end or the exit did not come in time.
+    Timeout,
+    /// `OSError`: the process could not be waited for.
+    Os,
+}
+
+/// `process.communicate(timeout=seconds)` on Windows: the reader thread joined with the time, then the process
+/// waited for with what is left of it - one bound for the output's end AND the exit.
+pub(crate) fn communicate(child: &mut Child, output: &mut Output, until: Instant) -> Communicated {
+    if !output.ended_by(until) {
+        return Communicated::Timeout;
+    }
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => return Communicated::Done(status, output.finish()),
+            Ok(None) => {}
+            Err(_) => return Communicated::Os,
+        }
+        if Instant::now() >= until {
+            return Communicated::Timeout;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+pub(crate) fn deadline(seconds: f64) -> Instant {
+    Instant::now() + Duration::from_secs_f64(seconds)
+}
+
+/// `subprocess.run(argv, stdout=PIPE, ..., timeout=...)` of a spawn whose streams are set: its exit code and its
+/// output bytes. On the time's end it is killed and then read to its end (Windows' `run` calls `communicate()`
+/// after `kill()`, with no time), and the answer is `TimeoutExpired`; on any other error killed, read and waited
+/// for (`run`'s bare `except: kill(); raise`, then `Popen.__exit__`).
+pub(crate) fn run_to_end(
+    spawn: &Spawn,
+    seconds: f64,
+) -> std::result::Result<(i64, Vec<u8>), RunError> {
+    let mut child = SystemStarter.start(spawn).map_err(|_| RunError::Os)?;
+    let Some(stdout) = child.stdout.take() else {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(RunError::Os);
+    };
+    let mut output = Output::start(stdout);
+    let ended = communicate(&mut child, &mut output, deadline(seconds));
+    let error = match ended {
+        Communicated::Done(status, bytes) => return Ok((exit_code(status), bytes)),
+        Communicated::Timeout => RunError::Timeout,
+        Communicated::Os => RunError::Os,
+    };
+    let _ = child.kill();
+    output.finish();
+    let _ = child.wait();
+    Err(error)
 }
 
 /// `subprocess.run(argv, stdout=PIPE, stderr=DEVNULL, text=True, timeout=...)`.
 fn run(spawn: Spawn, seconds: f64) -> std::result::Result<Ran, RunError> {
     let spawn = spawn.with_streams(Stream::Inherit, Stream::Piped, Stream::Null);
-    let mut child = SystemStarter.start(&spawn).map_err(|_| RunError::Os)?;
-    let mut stdout = child.stdout.take().ok_or(RunError::Os)?;
-    let reading = std::thread::spawn(move || {
-        let mut bytes = Vec::new();
-        let _ = stdout.read_to_end(&mut bytes);
-        bytes
-    });
-    let until = Instant::now() + Duration::from_secs_f64(seconds);
-    let status = loop {
-        match child.try_wait() {
-            Ok(Some(status)) => break status,
-            Ok(None) => {}
-            Err(_) => return Err(RunError::Os),
-        }
-        if Instant::now() >= until {
-            let _ = child.kill();
-            let _ = child.wait();
-            return Err(RunError::Timeout);
-        }
-        std::thread::sleep(Duration::from_millis(5));
-    };
-    let bytes = reading.join().unwrap_or_default();
+    let (code, bytes) = run_to_end(&spawn, seconds)?;
     Ok(Ran {
-        code: exit_code(status),
+        code,
         stdout: decode(&bytes),
     })
 }
@@ -725,29 +833,26 @@ impl Backend {
                 ("error_code", Value::from(code)),
             ])
         };
-        let Some(mut stdout) = process.stdout.take() else {
+        let Some(stdout) = process.stdout.take() else {
             return unknown("queue_result_unknown");
         };
-        let reading = std::thread::spawn(move || {
-            let mut bytes = Vec::new();
-            let _ = stdout.read_to_end(&mut bytes);
-            bytes
-        });
-        let until = Instant::now() + Duration::from_secs_f64(SEND_SECONDS);
-        let status = loop {
-            match process.try_wait() {
-                Ok(Some(status)) => break status,
-                Ok(None) => {}
-                Err(_) => return unknown("queue_result_unknown"),
-            }
-            if Instant::now() >= until {
+        // `finally: process.stdout.close()`: every way out waits for the reader, as `output`'s drop does.
+        let mut output = Output::start(stdout);
+        let (status, stdout) = match communicate(&mut process, &mut output, deadline(SEND_SECONDS))
+        {
+            Communicated::Done(status, bytes) => (status, decode(&bytes)),
+            Communicated::Timeout => {
                 let _ = process.kill(); // only this helper; accepted delivery is still possible
-                let _ = wait_for(&mut process, KILLED_SECONDS);
+                // `process.communicate(timeout=5)`, its TimeoutExpired passed over.
+                let _ = communicate(&mut process, &mut output, deadline(KILLED_SECONDS));
+                output.finish();
                 return unknown("queue_timeout");
             }
-            std::thread::sleep(Duration::from_millis(5));
+            Communicated::Os => {
+                output.finish();
+                return unknown("queue_result_unknown");
+            }
         };
-        let stdout = decode(&reading.join().unwrap_or_default());
         let code = exit_code(status);
         let receipt = strip(&stdout);
         let queue_id = receipt
@@ -832,18 +937,5 @@ fn index<'a>(value: &'a Value, key: &str) -> Result<&'a Value> {
     match value {
         Value::Object(map) => map.get(key).ok_or(Error::Python("KeyError")),
         _ => Err(Error::Python("TypeError")),
-    }
-}
-
-fn wait_for(process: &mut std::process::Child, seconds: f64) -> bool {
-    let until = Instant::now() + Duration::from_secs_f64(seconds);
-    loop {
-        if let Ok(Some(_)) = process.try_wait() {
-            return true;
-        }
-        if Instant::now() >= until {
-            return false;
-        }
-        std::thread::sleep(Duration::from_millis(10));
     }
 }

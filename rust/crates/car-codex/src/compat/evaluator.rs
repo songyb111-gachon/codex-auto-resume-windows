@@ -348,8 +348,9 @@ pub trait Runner {
 pub struct SystemRunner;
 
 impl Runner for SystemRunner {
+    /// `subprocess.run(..., timeout=timeout)`: one bound for the output's end and the exit, as `communicate`
+    /// gives it (transport's `run_to_end`), so a process PowerShell started that holds the pipe is a timeout.
     fn run(&self, argv: &[String], env: &[(OsString, OsString)], timeout: f64) -> Ran {
-        use std::io::Read;
         let spawn = car_platform::spawn::Spawn::new(argv.to_vec())
             .with_env(env.to_vec())
             .with_streams(
@@ -357,43 +358,13 @@ impl Runner for SystemRunner {
                 car_platform::spawn::Stream::Piped,
                 car_platform::spawn::Stream::Null,
             );
-        let Ok(mut child) = car_platform::spawn::SystemStarter.start(&spawn) else {
-            return Ran::Failed;
-        };
-        let Some(mut stdout) = child.stdout.take() else {
-            return Ran::Failed;
-        };
-        let reading = std::thread::spawn(move || {
-            let mut bytes = Vec::new();
-            let _ = stdout.read_to_end(&mut bytes);
-            bytes
-        });
-        let until = std::time::Instant::now() + std::time::Duration::from_secs_f64(timeout);
-        let status = loop {
-            match child.try_wait() {
-                Ok(Some(status)) => break status,
-                Ok(None) => {}
-                Err(_) => return Ran::Failed,
-            }
-            if std::time::Instant::now() >= until {
-                let _ = child.kill();
-                let _ = child.wait();
-                return Ran::Timeout;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(10));
-        };
-        let bytes = reading.join().unwrap_or_default();
-        let mut text = String::new();
-        let mut reader = crate::appserver::TextReader::new(&bytes[..]);
-        while let Ok(line) = reader.readline(1 << 20) {
-            if line.is_empty() {
-                break;
-            }
-            text.extend(line);
-        }
-        Ran::Done {
-            code: status.code().map_or(-1, |code| i64::from(code as u32)),
-            stdout: Some(text),
+        match crate::transport::run_to_end(&spawn, timeout) {
+            Ok((code, bytes)) => Ran::Done {
+                code,
+                stdout: Some(crate::transport::decode(&bytes)),
+            },
+            Err(crate::transport::RunError::Timeout) => Ran::Timeout,
+            Err(crate::transport::RunError::Os) => Ran::Failed,
         }
     }
 }
