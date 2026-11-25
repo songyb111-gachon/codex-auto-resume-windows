@@ -119,15 +119,15 @@ pub fn reset() {
 }
 
 /// `read(path)`: (standing, table) - `ok`, `missing` or `rejected` - parsed once per version of the file.
-pub fn read(path: &str) -> (&'static str, Table) {
-    let Some(found) = stamp(path) else {
-        return ("missing", Vec::new());
+pub fn read(path: &str) -> car_machine::pyval::Py<(&'static str, Table)> {
+    let Some(found) = stamp(path)? else {
+        return Ok(("missing", Vec::new()));
     };
     let mut held = HELD.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     if let Some((_, (at, result))) = held.iter().find(|(key, _)| key == path)
         && *at == Some(found)
     {
-        return result.clone();
+        return Ok(result.clone());
     }
     let result = match read_capped(path, MAX_BYTES).and_then(|raw| parse(&raw)) {
         Ok(table) => ("ok", table),
@@ -137,7 +137,7 @@ pub fn read(path: &str) -> (&'static str, Table) {
         Some(slot) => slot.1 = (Some(found), result.clone()),
         None => held.push((path.to_owned(), (Some(found), result.clone()))),
     }
-    result
+    Ok(result)
 }
 
 /// `_named(version)`: `codex-cli X` for an engine version given with or without its prefix, or None.
@@ -156,7 +156,7 @@ fn named(version: &Value) -> Option<String> {
 }
 
 /// `lookup(version, path=)`: {"state", "reports", "worked", "failed", "neither", "both"} for one engine version.
-pub fn lookup(version: &Value, path: &str) -> Value {
+pub fn lookup(version: &Value, path: &str) -> car_machine::pyval::Py<Value> {
     let answer = |state: &str, counts: Counts| {
         let mut map = Map::new();
         map.insert(Str::from("state"), Value::from(state));
@@ -166,15 +166,15 @@ pub fn lookup(version: &Value, path: &str) -> Value {
         Value::Object(map)
     };
     let Some(name) = named(version) else {
-        return answer("unavailable", [0; 5]);
+        return Ok(answer("unavailable", [0; 5]));
     };
-    let (standing, table) = read(path);
-    match standing {
+    let (standing, table) = read(path)?;
+    Ok(match standing {
         "missing" => answer("unavailable", [0; 5]),
         "rejected" => answer("rejected", [0; 5]),
         _ => match table.iter().find(|(each, _)| *each == name) {
             None => answer("none_yet", [0; 5]),
             Some((_, counts)) => answer("reported", *counts),
         },
-    }
+    })
 }

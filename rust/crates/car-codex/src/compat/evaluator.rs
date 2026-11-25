@@ -109,7 +109,7 @@ impl Evaluator {
         if let Some(backend) = backend {
             return EngineKey::Backend(
                 backend as *const Backend as usize,
-                stamp(&backend.codex_exe),
+                stamp(&backend.codex_exe).ok().flatten(),
                 server_check(backend),
             );
         }
@@ -144,7 +144,7 @@ impl Evaluator {
         discovery: &[(String, Value)],
     ) -> Result<&'static str> {
         let now = (self.clock)();
-        let found = stamp(&self.registry.cache_file);
+        let found = stamp(&self.registry.cache_file).map_err(Error::Python)?;
         let mut cache_changed = self.cache_stamp != Some(found);
         if cache_changed {
             self.cache = read_cache(
@@ -180,7 +180,10 @@ impl Evaluator {
                     engine_from_discovery(self.registry.system.as_ref(), discovery, Some(count))?
                 }
             };
-            let mut other = source_checks(self.registry.system.as_ref(), &self.codex_home);
+            let mut other = source_checks(
+                self.registry.system.as_ref(),
+                &super::probes::source_home(&self.codex_home),
+            );
             for (key, value) in api_checks(self.registry.system.as_ref()) {
                 other.insert(key, value);
             }

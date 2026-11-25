@@ -129,6 +129,12 @@ pub fn source_checks(system: &dyn System, home: &str) -> Map {
     checks
 }
 
+/// `LocalSource(codex_home).home`: the home as the source reader holds it (`rollout._safe_path`), or the text where
+/// that cannot be made.
+pub fn source_home(codex_home: &str) -> String {
+    crate::paths::safe_path(&PolicyOs, codex_home).unwrap_or_else(|_| winpath::path_str(codex_home))
+}
+
 /// `protocol_check(method)`: FAIL where the helper last met a broken answer for `method`, PASS otherwise.
 pub fn protocol_check(method: &str) -> &'static str {
     if !PROTOCOL_METHODS.contains(&method) {

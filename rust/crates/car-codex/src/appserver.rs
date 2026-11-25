@@ -84,6 +84,13 @@ pub fn results() -> Results {
     noted().results.clone()
 }
 
+/// Replace this process's `RESULTS` (for the harness and tests, as a test assigns the reference's dict).
+pub fn set_results(results: Results) {
+    let mut held = noted();
+    held.sequence = results.iter().map(|(_, (_, at))| *at).max().unwrap_or(0);
+    held.results = results;
+}
+
 fn put(results: &mut Results, method: &str, entry: (String, u64)) {
     match results.iter_mut().find(|(each, _)| each == method) {
         Some(slot) => slot.1 = entry,

@@ -3,12 +3,14 @@
 //! It holds S0.4's skeleton (the bridge's `defaults`) and car-store's calls (S1.2, `store`), writing JSON
 //! through car-machine's Python-compatible writer. Every later port seat adds its calls to `serve` and moves the real code into its own crate.
 
+pub mod appserver;
 pub mod classify;
 pub mod codex;
 pub mod defaults;
 pub mod leaves;
 pub mod links;
 pub mod policy;
+pub mod registry;
 pub mod store;
 
 use car_machine::json::{Map, Value};

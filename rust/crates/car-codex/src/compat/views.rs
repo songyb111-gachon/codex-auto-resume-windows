@@ -168,12 +168,18 @@ pub fn binding_holds(registry: &Registry, report: &Value, explicit: Option<&str>
         let matches = |candidate: &str| path_digest(system, candidate).as_deref() == Some(wanted);
         for candidate in candidate_paths(system, &registry.config, explicit) {
             if matches(&candidate) {
-                return pyval::eq(&signature(&candidate), get(engine, "signature"));
+                return pyval::eq(
+                    &signature(&candidate).unwrap_or(Value::Null),
+                    get(engine, "signature"),
+                );
             }
         }
         for candidate in served_engines(system) {
             if matches(&candidate) {
-                return pyval::eq(&signature(&candidate), get(engine, "signature"));
+                return pyval::eq(
+                    &signature(&candidate).unwrap_or(Value::Null),
+                    get(engine, "signature"),
+                );
             }
         }
         return false;
@@ -187,7 +193,7 @@ pub fn binding_holds(registry: &Registry, report: &Value, explicit: Option<&str>
 }
 
 /// `reported_for(view)`: what other people's filed reports add up to for the version a view names.
-pub fn reported_for(registry: &Registry, view: &Value) -> Value {
+pub fn reported_for(registry: &Registry, view: &Value) -> Py<Value> {
     let engine = match get(view, "engine") {
         found @ Value::Object(_) => found.clone(),
         _ => Value::Object(Map::new()),
@@ -226,7 +232,7 @@ pub fn read_view(registry: &Registry, now: f64, explicit: Option<&str>) -> Py<Va
             }
         }
     };
-    let reported = reported_for(registry, &view);
+    let reported = reported_for(registry, &view)?;
     Ok(with(view, false, reported))
 }
 
@@ -301,7 +307,10 @@ pub fn live_report(
     }
     let (bundled, bundled_state) = load_bundled(&registry.bundled, &product);
     let cache = read_cache(&registry.cache_file, bundled.as_ref(), &product, now);
-    let mut other = source_checks(registry.system.as_ref(), codex_home);
+    let mut other = source_checks(
+        registry.system.as_ref(),
+        &super::probes::source_home(codex_home),
+    );
     for (key, value) in api_checks(registry.system.as_ref()) {
         other.insert(key, value);
     }
@@ -331,6 +340,6 @@ pub fn live_view(
     let view = view_of(&live_report(
         registry, codex_home, backend, discovery, explicit, now,
     )?);
-    let reported = reported_for(registry, &view);
+    let reported = reported_for(registry, &view).map_err(Error::Python)?;
     Ok(with(view, true, reported))
 }

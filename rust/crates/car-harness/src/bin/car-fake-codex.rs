@@ -226,4 +226,3 @@ fn main() {
     };
     std::process::exit(code);
 }
-

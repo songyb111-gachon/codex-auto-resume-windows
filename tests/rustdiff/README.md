@@ -312,3 +312,27 @@ The diffs catch a broken rule (each broken alone, the harness rebuilt, its diff 
 a window exhausted past 100 instead of at 100 (usage), a first line allowed one byte more (rollout first lines: the line of
 `256 KiB + 1` bytes), `codex_work_desktop` no desktop originator (eligibility matrix), a rollback after the anchor no doubt
 (superseded and trigger).
+
+## The app server's half and the registry (S3.3, car-codex)
+
+Six modules, `diffs_codex_appserver_{pairing,lines,transport}.py` and `diffs_codex_compat_{registry,io}.py` (with
+`appserverdiff.py` and `compatdata.py`, what they share, not loaded on their own), alone:
+`python -X utf8 tests/rustdiff/run.py --build -k diffs_codex_appserver -k diffs_codex_compat`. A case is a stand-in
+world - the process list, who holds which file, live processes' identities, files' signers, LOCALAPPDATA /
+ProgramW6432 / ProgramFiles / USERPROFILE, this process's pid, the clock, the Restart Manager - and a list of operations
+named as the reference script names them; car-harness answers them as one `codexapp.script` call (`src/appserver.rs`,
+`src/registry.rs`). The reference has `processes_named`, `resource_users`, `process_identity`, `authenticode.signer`,
+`os.getpid`, `windows.restart_manager_available` and the pairing's clock replaced by the same world, so neither side
+reads this machine's processes, holders or signatures. Files are real, in the scratch folder; a file an operation
+writes is put back before the Rust side runs, and both must leave the same bytes.
+
+Processes are started only by the transport, the helper and discovery, and only `car-fake-codex` (a bin of
+car-harness, never shipped) copied into a case's scratch `OpenAI\Codex\bin\<hex>\`, always with no window. It answers
+from `fake.json` beside it and keeps what it was asked: every argument list, its working folder, `CODEX_HOME`,
+`OTEL_SDK_DISABLED`, and every byte written to the helper (`stdin.bin`), which must be equal for both sides - the
+JSON-RPC requests byte for byte, CRLF included. A child started with no working folder inherits its parent's, which
+differs by side; that one folder is named the same for both.
+
+**The final re-diff, one command:** `python -X utf8 tests/rustdiff/rediff_appserver.py --reference v0.6.26`. It lists
+which of the ported files and the modules they read changed between v0.6.26-beta.2 and the tag, then runs these six
+modules with the tag as the reference. `rediff_codex.py` (S3.2) runs them too (`-k diffs_codex`).
