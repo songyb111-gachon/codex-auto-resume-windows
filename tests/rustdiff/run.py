@@ -23,7 +23,8 @@ ROOT = HERE.parents[1]
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="tests/rustdiff/run.py", description=__doc__.split("\n\n")[0])
-    parser.add_argument("--build", action="store_true", help="cargo build --release --locked the harness crate first")
+    parser.add_argument("--build", action="store_true",
+                        help="cargo build --release --locked the harness crate, the workspace's binaries and the advanced examples first")
     parser.add_argument("--reference", metavar="TAG", help="the reference tag (default: reference.TAG)")
     parser.add_argument("-v", "--verbose", action="store_true")
     parser.add_argument("-k", dest="pattern", action="append", help="only tests whose name matches (unittest's -k)")
@@ -48,6 +49,7 @@ def main(argv=None) -> int:
 
     if args.build:
         core.build()
+        core.build_rest()
     absent = core.missing()
     if absent:
         print("not built: %s; run with --build" % ", ".join(absent), file=sys.stderr)
