@@ -198,8 +198,8 @@ impl Control {
 
     /// `startup_enabled()`.
     pub fn startup_enabled(&self) -> bool {
-        match self.host.startup_value() {
-            Some(value) if !value.is_empty() => {
+        match self.host.startup_read() {
+            Ok(Some(value)) if !value.is_empty() => {
                 car_platform::startup::belongs_to(&value, &self.paths.home)
             }
             _ => false,
@@ -232,6 +232,11 @@ impl Control {
 
     /// `read_power_action(now)`'s `read_file`: (why, document).
     pub fn read_power_action(&self) -> Res<(&'static str, Value)> {
+        self.read_power_action_at(self.host.now())
+    }
+
+    /// `read_file(path, now)`: (why, document) as of `now`.
+    pub fn read_power_action_at(&self, now: f64) -> Res<(&'static str, Value)> {
         let path = PathBuf::from(&self.paths.power_action_file);
         if car_config::paths::is_link(&path.to_string_lossy()) {
             return Ok((poweraction::READ_INVALID, Value::Null));
@@ -260,8 +265,8 @@ impl Control {
             Ok(parsed) => parsed,
             Err(_) => return Ok((poweraction::READ_INVALID, Value::Null)),
         };
-        let document = poweraction::read_document(&parsed, &Value::Float(self.host.now()))
-            .map_err(other_class)?;
+        let document =
+            poweraction::read_document(&parsed, &Value::Float(now)).map_err(other_class)?;
         if matches!(document, Value::Null) {
             Ok((poweraction::READ_INVALID, Value::Null))
         } else {

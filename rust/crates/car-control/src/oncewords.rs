@@ -41,6 +41,13 @@ pub struct OnceWordsError {
     pub code: String,
 }
 
+/// What `put` raises: its own refusal, or what the caller's guard raised.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Put<E> {
+    Words(OnceWordsError),
+    Guard(E),
+}
+
 /// `entries(document)`: the entries of a document that may be believed, each checked again (A27). `Err` is the
 /// Python exception class a number too large for a float raises.
 pub fn entries(document: &Value) -> Result<Held, &'static str> {
@@ -212,82 +219,93 @@ impl<'a> OnceWords<'a> {
     /// `_change(change)`: take the lock, reread, `change` the entries (which returns the answer), and write them
     /// back if they moved. `(answer, written)`: written is false where the lock or Windows refused.
     fn change<T>(&self, change: impl FnOnce(&mut Held) -> T) -> (Option<T>, bool) {
+        self.change_or(|held| Ok::<T, ()>(change(held)))
+            .unwrap_or((None, false))
+    }
+
+    /// `_change(change)` where `change` may raise: what it raises leaves the file exactly as it was, and is raised
+    /// on, after the lock is let go.
+    fn change_or<T, E>(
+        &self,
+        change: impl FnOnce(&mut Held) -> Result<T, E>,
+    ) -> Result<(Option<T>, bool), E> {
         if !self.path.parent().is_some_and(Path::is_dir) {
-            return (None, false);
+            return Ok((None, false));
         }
         let Ok(lock) = self.host.lock(&self.path.to_string_lossy(), LOCK_SECONDS) else {
-            return (None, false);
+            return Ok((None, false));
         };
         let outcome = (|| {
             let Ok((why, mut held)) = read_file(self.host, &self.path) else {
-                return (None, false);
+                return Ok((None, false));
             };
             if why == READ_UNREADABLE {
-                return (None, false);
+                return Ok((None, false));
             }
             let before = held.clone();
-            let answer = change(&mut held);
+            let answer = change(&mut held)?;
             if held == before && why != READ_INVALID {
-                return (Some(answer), true);
+                return Ok((Some(answer), true));
             }
             let written = write(self.host, &self.path, &held);
-            (Some(answer), written)
+            Ok((Some(answer), written))
         })();
         drop(lock);
         outcome
     }
 
-    /// `put(key, text, now=None, guard=None)`: words for interruption `key`, replacing any it had.
-    pub fn put(
+    /// `put(key, text, now=None, guard=None)`: words for interruption `key`, replacing any it had (in its place, as
+    /// a dict's key keeps its place). What `guard` raises, under the lock, leaves the file as it was and is raised on
+    /// as [`Put::Guard`].
+    pub fn put<E>(
         &self,
         key: &str,
         text: &Value,
         now: Option<f64>,
-        guard: impl FnOnce() -> Result<(), String>,
-    ) -> Result<bool, OnceWordsError> {
+        guard: impl FnOnce() -> Result<(), E>,
+    ) -> Result<bool, Put<E>> {
         if ids::read_interruption_id(key).as_deref() != Some(key) {
-            return Err(OnceWordsError {
+            return Err(Put::Words(OnceWordsError {
                 message: "invalid interruption id".into(),
                 code: "invalid_id".into(),
-            });
+            }));
         }
-        let text = validate_custom(text).map_err(|refused| OnceWordsError {
-            message: refused.message,
-            code: "request_failed".into(),
+        let text = validate_custom(text).map_err(|refused| {
+            Put::Words(OnceWordsError {
+                message: refused.message,
+                code: "request_failed".into(),
+            })
         })?;
         let moment = now.unwrap_or_else(|| self.host.now());
-        let mut refusal: Option<String> = None;
-        let (answer, written) = self.change(|held| {
-            if let Err(message) = guard() {
-                refusal = Some(message);
-                return "guard";
-            }
-            if !held.iter().any(|(each, _)| each == key) && held.len() >= MAX_ENTRIES {
-                return "too_many";
-            }
-            held.retain(|(each, _)| each != key);
-            held.push((key.to_owned(), (Str::from(text.as_str()), moment)));
-            "set"
-        });
-        if let Some(message) = refusal {
-            return Err(OnceWordsError {
+        let (answer, written) = self
+            .change_or(|held| {
+                guard()?;
+                let entry = (Str::from(text.as_str()), moment);
+                if let Some(at) = held.iter().position(|(each, _)| each == key) {
+                    held[at].1 = entry;
+                    return Ok("set");
+                }
+                if held.len() >= MAX_ENTRIES {
+                    return Ok("too_many");
+                }
+                held.push((key.to_owned(), entry));
+                Ok("set")
+            })
+            .map_err(Put::Guard)?;
+        let fail = |message: String, code: &str| {
+            Err(Put::Words(OnceWordsError {
                 message,
-                code: "guard".into(),
-            });
-        }
+                code: code.into(),
+            }))
+        };
         if answer == Some("too_many") {
-            return Err(OnceWordsError {
-                message: format!(
-                    "at most {MAX_ENTRIES} waiting recoveries can have words for this time"
-                ),
-                code: "too_many_messages".into(),
-            });
+            return fail(
+                format!("at most {MAX_ENTRIES} waiting recoveries can have words for this time"),
+                "too_many_messages",
+            );
         }
         if !written {
-            return Err(OnceWordsError {
-                message: "the state is busy".into(),
-                code: "state_busy".into(),
-            });
+            return fail("the state is busy".into(), "state_busy");
         }
         Ok(true)
     }

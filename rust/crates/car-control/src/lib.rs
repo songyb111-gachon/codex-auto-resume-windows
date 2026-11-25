@@ -11,15 +11,21 @@
 //! | `control/seen.py` | [`seen`] |
 //! | the outside world (clock, Windows, policy keys) | [`host`] |
 
+pub mod actions;
 pub mod aside;
 pub mod bridge;
 pub mod commands;
+pub mod compat;
+pub mod diagnostics;
 pub mod error;
 pub mod homefind;
 pub mod host;
 pub mod layer;
+pub mod lifecycle;
 pub mod localclock;
 pub mod oncewords;
+pub mod ownreport;
+pub mod power;
 pub mod preview;
 pub mod records;
 pub mod seen;

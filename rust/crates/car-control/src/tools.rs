@@ -281,3 +281,22 @@ impl Control {
         ]))
     }
 }
+
+impl Control {
+    /// `show_demo()`: the made-up rows the Dashboard plays, and whether the watcher's icon was asked to draw the
+    /// made-up card (False when no watcher holds the event). Nothing is read from the state or written to it.
+    pub fn show_demo(&self) -> Res<Value> {
+        let asked = self
+            .host
+            .signal(crate::host::Event::Demo, &self.state_dir())
+            .unwrap_or(false);
+        let rows = car_policy::settings::demo::rows(&Value::Float(self.host.now()))
+            .map_err(|class| crate::error::Failure::Other(class.to_owned()))?;
+        let mut map = match rows {
+            Value::Object(map) => map,
+            _ => Map::new(),
+        };
+        map.insert(Str::from("asked"), Value::Bool(asked));
+        Ok(Value::Object(map))
+    }
+}

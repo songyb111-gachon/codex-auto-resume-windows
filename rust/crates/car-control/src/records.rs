@@ -171,7 +171,7 @@ pub fn describe_record(
 }
 
 /// `_other_homes(configured)`: home_key -> (alias, folder) for each Codex home Settings add.
-fn other_homes(control: &Control, configured: &Value) -> Vec<(String, (Value, Str))> {
+pub(crate) fn other_homes(control: &Control, configured: &Value) -> Vec<(String, (Value, Str))> {
     let os = control.host.os();
     let configured = if pyval::truthy(configured) {
         configured.clone()
