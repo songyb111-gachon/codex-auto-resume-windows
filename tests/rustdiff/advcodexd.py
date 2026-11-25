@@ -433,6 +433,128 @@ def session_run(exe, measurement, capability, config, steps):
 
 OPS["ss.run"] = session_run
 
+# ------------------------------------------------------------------------------------------------ headless
+from codex_auto_resume_advanced.codex import headless as headless_  # noqa: E402
+
+
+class Answers:
+    """Per kind, answers taken in order (the last repeated)."""
+    def __init__(self, script):
+        self.script = {key: list(value) for key, value in (script or {}).items()}
+
+    def take(self, kind, default):
+        found = self.script.get(kind)
+        if not found:
+            return default
+        return found.pop(0) if len(found) > 1 else found[0]
+
+
+def raised(marker, method):
+    kind = marker.get("raise")
+    if kind == "SessionRefused":
+        return protocol_.SessionRefused("method not permitted for this session")
+    if kind == "RefusedByCodex":
+        return protocol_._refused_by_codex(marker.get("method", method), marker.get("code"))
+    if kind == "protocol_timeout":
+        return _AdapterError("protocol_timeout")
+    return RuntimeError("stand-in")
+
+
+def headless_case(spec):
+    log = []
+    tick = {"t": float(spec.get("clock0", 100.0))}
+
+    def clock():
+        tick["t"] += float(spec.get("tick", 1.0))
+        log.append(["clock"])
+        return tick["t"]
+
+    follower = headless_.Follower(clock=clock, poll=0)
+    answers = Answers(spec.get("session"))
+    events = list(spec.get("events") or [])
+
+    class Fake:
+        def __enter__(self):
+            log.append(["enter"])
+            if spec.get("enter") == "raise":
+                raise RuntimeError("stand-in")
+            return self
+
+        def __exit__(self, *unused):
+            log.append(["exit"])
+
+        def call(self, method, params=None):
+            log.append(["call", method, params])
+            found = answers.take(method, {})
+            if isinstance(found, dict) and "raise" in found:
+                raise raised(found, method)
+            return found
+
+        def drain_events(self):
+            log.append(["drain"])
+            entry = events.pop(0) if events else []
+            if isinstance(entry, dict) and "stop" in entry:
+                log.append(["stopped", follower.stop(*entry["stop"])])
+                return []
+            return entry
+
+    def opener(capability):
+        log.append(["open", capability])
+        if spec.get("open") == "raise":
+            raise RuntimeError("stand-in")
+        return Fake()
+
+    looks = Answers({"app": spec.get("app") or [False], "owe": spec.get("owe") or [True],
+                     "still": spec.get("still") or [True], "guard": spec.get("guard") or [True],
+                     "guard_exit": spec.get("guard_exit") or ["ok"]})
+
+    def look(kind, *arguments):
+        log.append([kind, *arguments])
+        found = looks.take(kind, True)
+        if found == "raise":
+            raise RuntimeError("stand-in")
+        return found
+
+    class Guard:
+        def __enter__(self):
+            return look("guard")
+
+        def __exit__(self, *unused):
+            if look("guard_exit") == "raise":
+                raise RuntimeError("stand-in")
+            return False
+
+    run = headless_.HeadlessRun(spec.get("capability", "headless_run"), key=spec.get("key", "k1"), session=opener,
+                                follower=follower, seconds=float(spec.get("seconds", 8)), mode=spec.get("mode", "turn"),
+                                app_running=(lambda: look("app")) if spec.get("app") else None,
+                                owe=(lambda thread, model, seconds: look("owe", thread, model, seconds))
+                                if spec.get("owe") else None)
+    out = []
+    for step in spec["resumes"]:
+        answer = run.resume(step.get("thread"), launch_guard=Guard() if step.get("guard") else None,
+                            still_unloaded=(lambda: look("still")) if step.get("still") else None,
+                            words=step.get("words"), client_id=step.get("client_id"))
+        deadline = time.monotonic() + 20
+        while follower.live() is not None and time.monotonic() < deadline:
+            time.sleep(0.002)
+        out.append({"answer": answer, "refused": None if run.refused is None else str(run.refused),
+                    "on_default": run.on_default, "model": run.model, "live": follower.live() is not None,
+                    "ends": [dict(end) for end in follower.drain(run.capability)],
+                    "others": [dict(end) for end in follower.drain("other")],
+                    "empty_refused": headless_.EMPTY_REFUSED})
+    return {"steps": out, "log": log}
+
+
+import time  # noqa: E402
+OPS["hl.case"] = headless_case
+OPS["hl.pure"] = lambda kind, value: {
+    "settings_allowed": lambda: headless_.settings_allowed(value),
+    "model": lambda: headless_._model(value),
+    "default_model": lambda: headless_._default_model(value),
+    "turn_id": lambda: headless_._turn_id(value),
+    "completed": lambda: headless_._completed(value[0], value[1], value[2]),
+}[kind]()
+
 # The later families add themselves below this line (EXTRA).
 #EXTRA#
 

@@ -8,6 +8,7 @@
 
 mod ops_check;
 mod ops_compat;
+mod ops_headless;
 mod ops_inuse;
 mod ops_protocol;
 mod ops_read;
@@ -95,6 +96,7 @@ fn dispatch(context: &Context, op: &str, args: &[Value]) -> Out {
         "bt" | "tk" => ops_rest::run(context, op, args),
         "wm" => ops_wmi::run(context, op, args),
         "ss" => ops_session::run(context, op, args),
+        "hl" => ops_headless::run(context, op, args),
         "world" => {
             *context
                 .world
