@@ -23,7 +23,6 @@ Nothing here shows a window, touches the real install, its registry values or it
 """
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -55,6 +54,8 @@ POWERSHELL = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "W
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 RELEASE = {"standard": ROOT / "rust" / "target" / "release", "advanced": ROOT / "advanced" / "rust" / "target" / "release"}
 DOUBLE = ROOT / "tests" / "install_double.py"
+# car-platform's probe (a dev-only example, never shipped): the Rust watcher's object names, by car-platform's own rule.
+PROBE = RELEASE["standard"] / "examples" / "probe.exe"
 BASE = Path(sys.base_prefix)
 PYTHON_FILES = ("python.exe", "pythonw.exe", "python3.dll", "python%d%d.dll" % sys.version_info[:2], "vcruntime140.dll",
                 "vcruntime140_1.dll")
@@ -128,6 +129,8 @@ def missing_build() -> str | None:
         for name in names:
             if not (folder / name).is_file():
                 return "not built: %s (cargo build --release in both workspaces)" % (folder / name)
+    if not PROBE.is_file():
+        return "not built: %s (cargo build --release --locked -p car-platform --example probe in rust/)" % PROBE
     for name in PYTHON_FILES:
         if not (BASE / name).is_file():
             return "this Python has no %s to copy into a scratch runtime" % name
@@ -180,7 +183,7 @@ class Scratch:
             "CAR_DOUBLE_SCRATCH": str(self.folder), "CAR_DOUBLE_REGISTRY": str(self.registry),
             "CAR_DOUBLE_NAMES": self.names, "CAR_DOUBLE_REFERENCE": str(self.reference),
             "CAR_DOUBLE_LOG": str(self.log), "CAR_DOUBLE_CODEX_LOG": str(self.codex_log),
-            "CAR_DOUBLE_LIFETIME": "900"})
+            "CAR_DOUBLE_LIFETIME": "900", "CAR_DOUBLE_PROBE": str(PROBE)})
         environment.update(extra)
         return environment
 
@@ -208,9 +211,20 @@ class Scratch:
     def watches(self) -> list:
         return [record for record in self.records() if record["role"] == "watch"]
 
+    def object_names(self) -> dict:
+        """Both watchers' mutex and stop event for this home, each by its own rule (the double's `--role names`):
+        {"python": [mutex, stop], "rust": [mutex, stop]}."""
+        if not hasattr(self, "_object_names"):
+            done = subprocess.run([sys.executable, str(DOUBLE), "--role", "names"], env=self.env(),
+                                  cwd=str(self.folder), capture_output=True, encoding="utf-8", timeout=120,
+                                  creationflags=NO_WINDOW, stdin=subprocess.DEVNULL)
+            if done.returncode != 0:
+                raise AssertionError("the double could not name the objects: %s" % done.stderr)
+            self._object_names = json.loads(done.stdout)
+        return self._object_names
+
     def mutex(self) -> str:
-        digest = hashlib.sha256(os.path.normcase(str(self.home.resolve())).encode("utf-8")).hexdigest()[:16]
-        return self.names + "-watcher-" + digest
+        return self.object_names()["python"][0]
 
     def running(self) -> bool:
         return install_double.held(self.mutex())
@@ -227,8 +241,7 @@ class Scratch:
         return json.loads(self.registry.read_text(encoding="utf-8-sig")) if self.registry.is_file() else {}
 
     def stop(self) -> None:
-        digest = self.mutex().rsplit("-", 1)[1]
-        install_double.signal_stop(self.names + "-stop-" + digest)
+        install_double.signal_stop(self.object_names()["python"][1])
         for _ in range(150):
             if not self.running():
                 break
@@ -430,6 +443,17 @@ class InstallerProofs(unittest.TestCase):
         self.assertIn("watcher-launcher.py", registry["protocol"])
         self.assertIn(ENTRY[edition], registry["entries"])
         self.assertEqual(self.scratch.snapshot(), kept, "nothing of the person's is lost on the way back")
+
+    def test_both_watchers_name_their_objects_by_their_own_rules_and_the_names_agree(self):
+        """PLAN 6.2's handover (review 9, S5): the Python watcher's mutex and stop event by the tag's win/sync.py, the
+        Rust one's by car-platform's names, each made test-only by the prefix alone - the same two names, so the two
+        watchers exclude each other. Every handover proof below rests on this."""
+        names = self.scratch.object_names()
+        self.assertEqual(names["python"], names["rust"])
+        self.assertEqual(len(set(names["python"])), 2)
+        for name in names["python"]:
+            self.assertTrue(name.startswith(self.scratch.names + "-"), name)
+            self.assertRegex(name[len(self.scratch.names):], r"^-(stop-)?[0-9a-f]{64}$")
 
     def test_the_standard_edition_updates_from_v0626_repairs_and_goes_back(self):
         self.round_trip("standard")

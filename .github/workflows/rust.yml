@@ -126,6 +126,7 @@ jobs:
         shell: bash
         run: |
           (cd rust && . tools/rustflags.sh release && cargo build --release --locked)
+          (cd rust && . tools/rustflags.sh release && cargo build --release --locked -p car-platform --example probe)
           (cd advanced/rust && . tools/rustflags.sh release && cargo build --release --locked)
       - name: Build each edition's settings window and the MCP launcher
         shell: pwsh

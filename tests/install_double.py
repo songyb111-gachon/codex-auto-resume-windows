@@ -17,8 +17,11 @@ Three roles, one file:
   test's app\\scripts\\plugin_setup.py is a shim to this role). The same commands, registering v0.6.26's own shapes
   (its startup.command_line and notification_command) and writing watcher-launcher.py and runtime.json as its
   install_launcher does.
-* `watch --flavour python|rust` - a watcher: it takes the home's watcher mutex - one name for both flavours, so the
-  two exclude each other as PLAN 6.2's handover needs - and ends when the home's stop event is set. The Python one
+* `watch --flavour python|rust` - a watcher: it takes the home's watcher mutex and ends when the home's stop event is
+  set. Each flavour names them by its own rule (review 9, S5): the Python one by the tag's win/sync.py, the Rust one
+  by car-platform's `names` (asked of its dev-only probe, CAR_DOUBLE_PROBE), each made test-only by CAR_DOUBLE_NAMES
+  in place of the product's prefix - so the two exclude each other only because the two rules agree, as PLAN 6.2's
+  handover needs. `--role names` prints both. The Python one
   runs as runtime\\pythonw.exe <home>\\watcher-launcher.py run (a shim), the Rust one as app\\bin\\CodexAutoResume.exe
   (a copy of pythonw.exe the test puts there for P6's host), so install.ps1 finds each by what it is.
 
@@ -28,8 +31,8 @@ the tag (CAR_DOUBLE_REFERENCE, tests/released.py's package). Nothing real is tou
 * a home outside CAR_DOUBLE_SCRATCH is refused (exit 1) before anything is read;
 * the registry is a JSON file (CAR_DOUBLE_REGISTRY): {"run", "protocol", "entries": {name: {InstallLocation,
   UninstallString}}} - never HKCU;
-* the mutex and the stop event are named after CAR_DOUBLE_NAMES, a test-only prefix, never the product's
-  `Local\\codex-auto-resume-<digest>`; a watcher ends by itself after CAR_DOUBLE_LIFETIME seconds (600);
+* the mutex and the stop event carry CAR_DOUBLE_NAMES, a test-only prefix, in place of the product's
+  `Local\\codex-auto-resume-` (the digest after it is the naming rule's own); a watcher ends by itself after CAR_DOUBLE_LIFETIME seconds (600);
 * every child is started with CREATE_NO_WINDOW and no inherited handle.
 
 CAR_DOUBLE_FAIL lists `role:command` pairs that end with 1 (a setup that does not complete). CAR_DOUBLE_RUN_NO_HOME=1
@@ -42,7 +45,6 @@ from __future__ import annotations
 
 import ctypes
 from ctypes import wintypes
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -121,12 +123,58 @@ def log(role: str, words: list, **said) -> None:
         stream.write(json.dumps(record) + "\n")
 
 
-def names(home: Path) -> tuple:
-    digest = hashlib.sha256(os.path.normcase(str(home)).encode("utf-8")).hexdigest()[:16]
+PRODUCT_PREFIX = "Local\\codex-auto-resume-"
+FLAVOURS = {"engine": "python", "core": "rust", "python": "python", "rust": "rust"}
+_NAMES: dict = {}
+
+
+def test_only(name: str) -> str:
+    """A product object name made test-only: its `Local\\codex-auto-resume-` replaced by CAR_DOUBLE_NAMES and `-`, so the
+    digest the naming rule worked out is kept whole and nothing of the product's can ever be opened."""
     prefix = environment("CAR_DOUBLE_NAMES")
     if not prefix.startswith("Local\\car-double-"):
         raise Refused("CAR_DOUBLE_NAMES must be a test-only name")
-    return prefix + "-watcher-" + digest, prefix + "-stop-" + digest
+    if not name.startswith(PRODUCT_PREFIX):
+        raise Refused("%r is not a product object name" % name)
+    return prefix + "-" + name[len(PRODUCT_PREFIX):]
+
+
+def python_names(home: Path) -> tuple:
+    """v0.6.26's watcher mutex and stop event for `home`: the tag's own win/sync.py, given the state folder the tag's
+    config.Paths names, as its runtime/app.py makes them."""
+    config, _ = reference()
+    from codex_auto_resume.win import sync  # noqa: E402  (the tag's)
+    state = str(config.Paths(home).state_dir)
+    return test_only(sync.Mutex(state).name), test_only(sync.StopEvent(state).name)
+
+
+def rust_names(home: Path) -> tuple:
+    """The Rust watcher's: car-platform's `names::watcher_names`, asked of its probe (CAR_DOUBLE_PROBE, a dev-only
+    example that is never shipped) for the same state folder and the same profile."""
+    config, _ = reference()
+    probe = Path(environment("CAR_DOUBLE_PROBE"))
+    if not probe.is_file():
+        raise Refused("CAR_DOUBLE_PROBE names %s, which is not a file" % probe)
+    request = {"op": "names", "userprofile": os.environ.get("USERPROFILE", ""),
+               "state": str(config.Paths(home).state_dir), "codex_home": os.environ.get("CODEX_HOME", "")}
+    done = subprocess.run([str(probe)], input=(json.dumps(request) + "\n").encode("utf-8"), capture_output=True,
+                          timeout=60, creationflags=NO_WINDOW)
+    lines = done.stdout.decode("utf-8", "replace").splitlines()
+    reply = json.loads(lines[0]) if lines else {"error": "no answer (exit %s)" % done.returncode}
+    if "error" in reply:
+        raise Refused("the probe: %s" % reply["error"])
+    return test_only(reply["ok"]["mutex"]), test_only(reply["ok"]["stop"])
+
+
+def names(home: Path, flavour: str) -> tuple:
+    """The watcher mutex and stop event of `flavour` - 'python' (v0.6.26's engine and watcher) or 'rust' (the core and
+    the host) - each by its own naming rule (review 9, S5): never one name the two share by construction, so a
+    handover proof holds only where the two rules agree, as PLAN 6.2 needs them to."""
+    flavour = FLAVOURS[flavour]
+    key = (flavour, os.path.normcase(str(home)))
+    if key not in _NAMES:
+        _NAMES[key] = python_names(home) if flavour == "python" else rust_names(home)
+    return _NAMES[key]
 
 
 def held(mutex_name: str) -> bool:
@@ -222,7 +270,7 @@ def shim(target: Path, *role: str) -> None:
 # ------------------------------------------------------------------------------------------------ the watcher
 def start_watcher(role: str, home: Path) -> str:
     """'already-running', 'running', 'failed' or 'no-host'."""
-    mutex, _ = names(home)
+    mutex, _ = names(home, role)
     if held(mutex):
         return "already-running"
     if role == "engine":
@@ -243,8 +291,8 @@ def start_watcher(role: str, home: Path) -> str:
     return "failed"
 
 
-def stop_watcher(home: Path, seconds: float = 30) -> bool:
-    mutex, stop = names(home)
+def stop_watcher(role: str, home: Path, seconds: float = 30) -> bool:
+    mutex, stop = names(home, role)
     if not held(mutex):
         return True
     signal_stop(stop)
@@ -262,7 +310,7 @@ def watch(words: list) -> int:
     scratch = Path(environment("CAR_DOUBLE_SCRATCH")).resolve()
     if not inside(home, scratch):
         raise Refused("%s is outside the scratch folder" % home)
-    mutex_name, stop_name = names(home)
+    mutex_name, stop_name = names(home, flavour)
     mutex = _kernel.CreateMutexW(None, False, mutex_name)
     if not mutex:
         return 1
@@ -338,11 +386,11 @@ def command(role: str, words: list) -> int:
     if name == "setup":
         return setup(role, home, rest, paths, startup)
     if name == "stop":
-        stopped = stop_watcher(home, 60)
+        stopped = stop_watcher(role, home, 60)
         print("watcher: stopped" if stopped else "watcher: still running")
         return 0
     if name == "watcher-running":
-        running = held(names(home)[0])
+        running = held(names(home, role)[0])
         print("watcher: running" if running else "watcher: stopped")
         return 0 if running else 2
     if name == "doctor":
@@ -358,7 +406,7 @@ def command(role: str, words: list) -> int:
         print("entry: removed" if removed else "entry: none")
         return 0
     if name == "downgrade-state":
-        if "--stop-watcher" in rest and not stop_watcher(home, 60):
+        if "--stop-watcher" in rest and not stop_watcher(role, home, 60):
             print("downgrade: watcher-running")
             return 3
         print("downgrade: nothing")
@@ -411,7 +459,7 @@ def setup(role: str, home: Path, words: list, paths, startup) -> int:
 
 
 def uninstall(role: str, home: Path, words: list, startup) -> int:
-    if not stop_watcher(home, 60):
+    if not stop_watcher(role, home, 60):
         print("error: the watcher could not be stopped")
         return 1
     registry = load_registry()
@@ -440,6 +488,11 @@ def main(argv: list) -> int:
             raise Refused("no role: started by neither the stub core nor a shim")
         if role == "watch":
             return watch(words)
+        if role == "names":
+            # The two watchers' names for the home, each by its own rule, for the test that holds them to each other.
+            home = home_path()
+            print(json.dumps({flavour: list(names(home, flavour)) for flavour in ("python", "rust")}))
+            return 0
         if role not in ("core", "engine"):
             raise Refused("no such role %r" % role)
         return command(role, words)
