@@ -33,7 +33,7 @@ impl Scripted {
 
     /// A plug whose script is the test's object, asked back over the harness pipe (`engine::ask`).
     pub fn asking() -> Scripted {
-        Scripted::new(Box::new(|name, args| crate::engine::ask(name, args)))
+        Scripted::new(Box::new(crate::engine::ask))
     }
 
     fn call(&self, hook: &str, args: Vec<Value>) -> Result<Value, HookFailed> {
