@@ -270,8 +270,14 @@ pub trait LaunchGuard {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Raised;
 
+/// Every Backend's own number, from 1: `id(backend)` as the compatibility evaluator keys an engine by it.
+static IDENTITIES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
 /// The engine this product drives, and everything it asks of it.
 pub struct Backend {
+    /// `id(self)`: this Backend's own number, the same wherever the value is moved and never another Backend's
+    /// (Python's `id` is the object's while it lives; a Rust value's address changes when it moves).
+    identity: u64,
     pub system: Arc<dyn System>,
     /// `Path(codex_home).resolve()`, as text.
     pub codex_home: String,
@@ -315,6 +321,7 @@ impl Backend {
         };
         let (codex_home, codex_exe) = (resolve(codex_home), resolve(codex_exe));
         Backend {
+            identity: IDENTITIES.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             system,
             codex_home,
             codex_exe,
@@ -919,6 +926,11 @@ impl Backend {
         }
     }
 
+    /// `id(backend)`: this Backend's own number, kept wherever the value moves.
+    pub fn object_id(&self) -> u64 {
+        self.identity
+    }
+
     /// The rows the last `app_identity()` read (in memory only).
     pub fn rows(&self) -> Option<&[Value]> {
         self.rows.as_deref()
@@ -937,5 +949,32 @@ fn index<'a>(value: &'a Value, key: &str) -> Result<&'a Value> {
     match value {
         Value::Object(map) => map.get(key).ok_or(Error::Python("KeyError")),
         _ => Err(Error::Python("TypeError")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn backend() -> Backend {
+        let home = std::env::temp_dir().join("car-v0627-fix7-identity");
+        Backend::new(
+            Arc::new(crate::system::Platform::new()),
+            &home.to_string_lossy(),
+            &home.join("codex.exe").to_string_lossy(),
+            false,
+            "0.6.27-alpha",
+        )
+    }
+
+    /// `id(backend)`: the evaluator's engine key holds while the Backend is moved, and two Backends differ.
+    #[test]
+    fn a_backends_identity_survives_a_move() {
+        let first = backend();
+        let before = (first.object_id(), &first as *const Backend as usize);
+        let moved = vec![first];
+        let held = Box::new(moved);
+        assert_eq!(held[0].object_id(), before.0);
+        assert_ne!(backend().object_id(), before.0);
     }
 }

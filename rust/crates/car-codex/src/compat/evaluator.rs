@@ -34,7 +34,7 @@ fn get<'a>(value: &'a Value, key: &str) -> &'a Value {
 /// record of discovery.
 #[derive(Clone, Debug, PartialEq)]
 enum EngineKey {
-    Backend(usize, Option<(u64, u64)>, &'static str),
+    Backend(u64, Option<(u64, u64)>, &'static str),
     Discovery(Vec<(String, String, [&'static str; 3])>),
 }
 
@@ -108,7 +108,7 @@ impl Evaluator {
     fn engine_key_of(&self, backend: Option<&Backend>, discovery: &[(String, Value)]) -> EngineKey {
         if let Some(backend) = backend {
             return EngineKey::Backend(
-                backend as *const Backend as usize,
+                backend.object_id(),
                 stamp(&backend.codex_exe).ok().flatten(),
                 server_check(backend),
             );
