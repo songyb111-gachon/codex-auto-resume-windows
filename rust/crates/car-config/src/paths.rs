@@ -284,7 +284,7 @@ impl Paths {
             let marker = child(directory, OWNER_MARKER);
             if !Path::new(&marker).exists() {
                 // A missing marker only makes uninstall MORE conservative.
-                let _ = car_machine::pyfile::write(&marker, OWNER_TEXT);
+                let _ = car_machine::pyfile::write_text(&marker, OWNER_TEXT);
             }
         }
         Ok(())
@@ -311,7 +311,7 @@ impl Paths {
             return false;
         }
         let marker = child(&self.home, OWNER_MARKER);
-        Path::new(&marker).exists() || car_machine::pyfile::write(&marker, OWNER_TEXT).is_ok()
+        Path::new(&marker).exists() || car_machine::pyfile::write_text(&marker, OWNER_TEXT).is_ok()
     }
 
     /// `owns_home()`: whether this installation root is one we created: its marker, `config/`'s marker, or a

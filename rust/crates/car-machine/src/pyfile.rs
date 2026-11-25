@@ -48,6 +48,16 @@ pub fn write(path: impl AsRef<Path>, contents: impl AsRef<[u8]>) -> std::io::Res
     file.write_all(contents.as_ref())
 }
 
+/// `Path.write_text(text, encoding="utf-8")` on Windows: text mode writes every `\n` as `\r\n` (os.linesep; a `\r\n`
+/// in the text becomes `\r\r\n`, as Python writes it), held as `write` holds the file.
+pub fn write_text(path: impl AsRef<Path>, text: &str) -> std::io::Result<()> {
+    if cfg!(windows) {
+        write(path, text.replace('\n', "\r\n"))
+    } else {
+        write(path, text)
+    }
+}
+
 // os.replace and os.rename are MoveFileExW and nothing more. `std::fs::rename` retries MoveFileExW's
 // ERROR_ACCESS_DENIED with a POSIX-semantics rename, which replaces a target another handle holds open with
 // FILE_SHARE_DELETE where Python stops with PermissionError 5 (review 5, S2). D3 puts every Windows call in

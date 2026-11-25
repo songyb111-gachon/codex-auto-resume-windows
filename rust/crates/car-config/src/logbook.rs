@@ -380,7 +380,8 @@ impl Logbook {
             self.rollover(&mut stream);
         }
         if let Some(open) = stream.as_mut() {
-            let _ = open.write_all(format!("{message}\r\n").as_bytes());
+            // The handler's text stream: every "\n" of the record and its terminator written as "\r\n".
+            let _ = open.write_all(format!("{message}\n").replace('\n', "\r\n").as_bytes());
             let _ = open.flush();
         }
     }
