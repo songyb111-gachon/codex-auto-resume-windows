@@ -146,7 +146,7 @@ def corpus() -> dict:
     new("e02_interrupted_no_action").home("add_turn", T1, TURN_A, "interrupted").tick(2)
     new("e03_ordinary_failure_no_action").home("add_turn", T1, TURN_A, "failed",
                                                error_json='{"codexErrorInfo": "badRequest"}').tick(2)
-    new("e04_malformed_entry").helper("raw_turn", error_json="not json").tick().helper("raw_turn", ordinal="x").tick()
+    new("e04_malformed_entry").helper("raw_turn", error_json="not json").tick().helper("raw_turn", rollout_ordinal="x").tick()
     new("e05_usage_registers").home("fail_usage", T1, TURN_A).tick(2).facts()
     s = new("e08_after_reset_loaded_resumes")
     ready_after_reset(s).tick().adv(11).tick(2).adv(60).tick()
@@ -298,7 +298,7 @@ def corpus() -> dict:
     ready_after_reset(s).tick(2)
     s = new("s_notifier_raises", notify_raises=True)
     ready_after_reset(s).tick().adv(11).tick(2)
-    s = new("s_extra_home", home_key="b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6")
+    s = new("s_extra_home", home_key="b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6" * 2)
     ready_after_reset(s).tick().adv(11).tick(2)
     s = new("s_language_korean", lang="ko").policy(continuation_style="detailed")
     ready_after_reset(s).tick().adv(11).tick()
@@ -331,55 +331,56 @@ def generated(seed: int) -> tuple:
                                {"max_recovery_attempts": 2}, {"recover_server_5xx": False},
                                {"continuation_style": "minimal"}, {"max_chain_continuations": 2}]))
     for thread in threads:
-        if rng.random() < 0.7:
+        s.home("add_thread", thread)
+        if rng.random() < 0.85:
             s.loaded(thread)
     for _ in range(WALK_STEPS):
         thread = rng.choice(threads)
         roll = rng.random()
-        if roll < 0.12:
-            s.home("fail_usage", thread, completed=int(s.now), reset=rng.choice([None, s.now + 60, s.now + 3600]))
-        elif roll < 0.24:
+        if roll < 0.08:
+            s.home("fail_usage", thread, completed=int(s.now), reset=rng.choice([None, s.now + 60, s.now + 600]))
+        elif roll < 0.18:
             s.home("fail_transient", thread, completed=int(s.now), code=rng.choice(CODES))
-        elif roll < 0.28:
+        elif roll < 0.21:
             s.home("add_turn", thread)
-        elif roll < 0.34:
+        elif roll < 0.27:
             s.home("dispatch", thread, status=rng.choice(["completed", "failed", "inProgress"]),
                    progress=rng.random() < 0.6)
-        elif roll < 0.38:
+        elif roll < 0.31:
             s.helper("dispatch_and_fail", thread, usage=rng.random() < 0.5, progress=rng.random() < 0.5,
                      reset=s.now + 120)
-        elif roll < 0.43:
-            s.loaded(thread, rng.choice(["loaded", "loaded", "notLoaded", "unknown"]))
-        elif roll < 0.48:
-            s.backend(**rng.choice([{"default_outcome": "accepted"}, {"default_outcome": "not_started"},
-                                    {"default_outcome": "unknown"}, {"after_accept": "queue"},
-                                    {"after_accept": "dispatch"}, {"turn_status": "failed"},
-                                    {"turn_status": "completed"}, {"turn_progress": False},
-                                    {"delete_result": False}, {"delete_result": None}, {"app": None},
-                                    {"app": "APP"},
+        elif roll < 0.35:
+            s.loaded(thread, rng.choice(["loaded", "loaded", "loaded", "notLoaded", "unknown"]))
+        elif roll < 0.39:
+            s.backend(**rng.choice([{"default_outcome": "accepted"}, {"default_outcome": "accepted"},
+                                    {"default_outcome": "not_started"}, {"default_outcome": "unknown"},
+                                    {"after_accept": "queue"}, {"after_accept": "dispatch"},
+                                    {"turn_status": "failed"}, {"turn_status": "completed"},
+                                    {"turn_progress": False}, {"turn_progress": True},
+                                    {"delete_result": False}, {"delete_result": None}, {"app": None}, {"app": "APP"},
                                     {"usage_result": {"available": False, "reset_at": None, "limit_type": "x",
                                                       "reason": "ok"}},
                                     {"usage_result": {"available": True, "reset_at": None,
                                                       "limit_type": "exposed_windows", "reason": "ok"}}]))
-        elif roll < 0.52:
+        elif roll < 0.42:
             choice = rng.random()
             if choice < 0.3:
-                s.store("set_enabled", rng.random() < 0.6, s.now)
+                s.store("set_enabled", rng.random() < 0.7, s.now)
             elif choice < 0.55:
-                s.store("set_thread_enabled", thread, rng.random() < 0.6)
+                s.store("set_thread_enabled", thread, rng.random() < 0.7)
             elif choice < 0.75:
                 s.store("set_observe_only", rng.random() < 0.3)
             else:
                 s.store("cancel_thread", thread, s.now)
-        elif roll < 0.55:
+        elif roll < 0.44:
             s.home(rng.choice(["make_stale", "catch_up"]), thread)
-        elif roll < 0.58:
+        elif roll < 0.46:
             s.home("enqueue", thread, "the person's own words")
-        elif roll < 0.61:
+        elif roll < 0.48:
             s.helper(rng.choice(["edit_head", "remove_head"]), thread)
-        elif roll < 0.75:
-            s.adv(rng.choice([1, 5, 11, 31, 61, 181, 301, 901, 3700]))
-        elif roll < 0.82:
+        elif roll < 0.83:
+            s.adv(rng.choice([1, 6, 11, 31, 61, 181, 301, 901, 3700])).tick()
+        elif roll < 0.91:
             s.watch()
         else:
             s.tick()
