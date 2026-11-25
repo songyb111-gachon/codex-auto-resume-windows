@@ -16,6 +16,8 @@ expectation). Scratch folders only; nothing here reads or writes the real instal
 * RealpathDangling,
   ConfigRealpathDangling - car-platform's `paths::realpath` (every object name's identity) and car-config's `winpath::realpath`, through a junction
                        whose target is gone: 3.13's `os.path.realpath` follows it (`_readlink_deep`), Rust keeps it.
+* HomeLockSharing    - car-platform's `homelock::Held` opens the watcher's lock files sharing delete (std's default), so
+                       install.ps1's Remove-HomeLocks deletes them under a running Rust watcher; the reference's cannot be.
 """
 from __future__ import annotations
 
@@ -173,3 +175,49 @@ class ConfigRealpathDangling(ConfigBase):
         template = [["paths.build", "@/link", "@/root", ENV, "@/", False], ["paths.build", "@/link/home", "@/root", ENV, "@/", False]]
         # The junction's target never exists, so the scratch folder's removal has nothing to follow.
         self.pair("dangling", template, tree=tree)
+
+
+# ------------------------------------------------------------------------------------------ 6. the home lock's sharing
+
+HOLD_AND_DELETE = r'''
+import json, os, sys
+from pathlib import Path
+from codex_auto_resume.win.homelock import HomeLock
+request = json.load(sys.stdin)
+answers = {}
+with HomeLock(request["home"], request["base"]):
+    for name in sorted(os.listdir(request["base"])):
+        try:
+            os.remove(os.path.join(request["base"], name))
+            answers[name.split("-")[0] if name.startswith("id-") else "path"] = "deleted"
+        except OSError:
+            answers[name.split("-")[0] if name.startswith("id-") else "path"] = "held"
+sys.stdout.write(json.dumps(answers))
+'''
+
+
+class HomeLockSharing(PlatformBase):
+    """The watcher's home lock files are held so that they cannot be deleted while held: build/install/install.ps1's
+    Remove-HomeLocks (uninstall -Purge) deletes every `homes\*.lock` it can and counts on "a lock another installation's
+    watcher holds is open and cannot be deleted". The reference opens them with os.open (the C runtime shares read and
+    write, never delete); car-platform's `Held::take` opens with std's OpenOptions, which shares delete too, so the file
+    is deleted under a Rust watcher and the next watcher of that home makes a new one and locks it as well."""
+
+    def test_a_held_lock_file_cannot_be_deleted(self):
+        home = self.scratch / "codex home"
+        home.mkdir(exist_ok=True)
+        ours, theirs = self.scratch / "homes-ref", self.scratch / "homes-rust"
+        want = ref(HOLD_AND_DELETE, {"home": str(home), "base": str(ours)}, self.profile)
+        with self.probe() as probe:
+            taken = probe.ask("hold", kind="homelock", action="take", userprofile=str(self.profile), codex_home=str(home), base=str(theirs))
+            self.assertEqual(taken["result"], {"ok": True}, taken)
+            got = {}
+            for name in sorted(os.listdir(theirs)):
+                try:
+                    os.remove(theirs / name)
+                    got["id" if name.startswith("id-") else "path"] = "deleted"
+                except OSError:
+                    got["id" if name.startswith("id-") else "path"] = "held"
+            probe.ask("hold", kind="homelock", action="release", userprofile=str(self.profile))
+        self.assertEqual(want, {"id": "held", "path": "held"})
+        self.assertEqual(got, want, "a lock file car-platform holds can be deleted")
