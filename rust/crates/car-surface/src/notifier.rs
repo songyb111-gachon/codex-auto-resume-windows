@@ -23,7 +23,7 @@ use crate::notice_uris::{
 };
 use crate::notify::{self, MAX_TOAST_ACTIONS};
 use crate::py::{self, str_of};
-use crate::seam::{CardControl, Raised};
+use crate::seam::{CardControl, Raised, caught};
 use crate::speech::Speech;
 
 /// The setting that turns the card off.
@@ -591,7 +591,7 @@ pub fn build_demo(speech: &Speech, now: &Value) -> Py<Notice> {
 
 /// What Windows says now, as `deliver` reads it: `dict((probe or _presence)() or {})`, `{}` where it raised.
 fn presence_answers(probe: &dyn Fn() -> Result<Value, Raised>) -> Map {
-    match probe() {
+    match caught(probe) {
         Ok(value) => py::dict(py::or(&value, &Value::Object(Map::new()))).unwrap_or_default(),
         Err(_) => Map::new(),
     }
@@ -724,7 +724,7 @@ fn place_of(
     key: &Value,
     thread: &Value,
 ) -> Option<Value> {
-    let pending = opened().ok()?;
+    let pending = caught(opened).ok()?;
     for (place, record) in py::items(&pending).ok()?.iter().enumerate() {
         let matched = if pyval::truthy(key) {
             pyval::eq(pyval::get(record, "interruption_id").ok()?, key)
@@ -835,14 +835,14 @@ fn refusal(raised: &Raised) -> Option<String> {
 pub fn activate(speech: &Speech, uri: &Value, with: &Activation) -> Py<String> {
     let say = |line: &str| {
         if let Some(log) = with.log {
-            let _ = log(line);
+            let _ = caught(|| log(line));
         }
     };
     if let Some(thread_id) = parse_codex_thread_uri(uri) {
         let link = codex_thread_uri(&Value::from(thread_id.as_str())).unwrap_or_default();
         let opened = match with.open_link {
             None => false,
-            Some(open) => match open(&link) {
+            Some(open) => match caught(|| open(&link)) {
                 Ok(answer) => matches!(answer, Value::Bool(true)),
                 Err(raised) => {
                     say(&format!(
@@ -863,7 +863,7 @@ pub fn activate(speech: &Speech, uri: &Value, with: &Activation) -> Py<String> {
     if let Some(chat_thread) = parse_chat_uri(uri) {
         let opened = match with.open_chat {
             None => false,
-            Some(open) => match open(&chat_thread) {
+            Some(open) => match caught(|| open(&chat_thread)) {
                 Ok(answer) => matches!(answer, Value::Bool(true)),
                 Err(raised) => {
                     say(&format!(
@@ -886,7 +886,7 @@ pub fn activate(speech: &Speech, uri: &Value, with: &Activation) -> Py<String> {
             say("notification card: the Dashboard is not installed here");
             return Ok("not_installed".into());
         };
-        let opened = match open(&page) {
+        let opened = match caught(|| open(&page)) {
             Ok(answer) => pyval::truthy(&answer),
             Err(raised) => {
                 say(&format!(
@@ -918,7 +918,7 @@ pub fn activate(speech: &Speech, uri: &Value, with: &Activation) -> Py<String> {
         ));
         return Ok("ignored".into());
     };
-    let result = match control.cancel_interruption(interruption_id, "toast") {
+    let result = match caught(|| control.cancel_interruption(interruption_id, "toast")) {
         Ok(result) => result,
         Err(raised) => {
             if let Some(code) = refusal(&raised) {
@@ -958,7 +958,7 @@ pub fn activate(speech: &Speech, uri: &Value, with: &Activation) -> Py<String> {
         && pyval::truthy(&thread_id)
         && let Ok(found) = build_cancelled(speech, &thread_id, &with.stay)
     {
-        let _ = announce(found);
+        let _ = caught(|| announce(found));
     }
     Ok("cancelled".into())
 }
@@ -969,7 +969,7 @@ fn power_stop(speech: &Speech, nonce: &str, with: &Activation, say: &dyn Fn(&str
         say("notification: a power action's stop was ignored (no control layer)");
         return Ok("ignored".into());
     };
-    let result = match control.stop_power_countdown(nonce, "toast") {
+    let result = match caught(|| control.stop_power_countdown(nonce, "toast")) {
         Ok(result) => result,
         Err(raised) => {
             if let Some(code) = refusal(&raised) {
@@ -993,7 +993,7 @@ fn power_stop(speech: &Speech, nonce: &str, with: &Activation, say: &dyn Fn(&str
     if let Some(announce) = with.announce
         && let Ok(found) = build_power_stopped(speech, &with.stay)
     {
-        let _ = announce(found);
+        let _ = caught(|| announce(found));
     }
     Ok("stopped".into())
 }

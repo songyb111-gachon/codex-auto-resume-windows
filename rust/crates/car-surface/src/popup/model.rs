@@ -15,7 +15,7 @@ use car_words::words::{countdown, usage_line};
 
 use super::words::{kept, one_line, say};
 use crate::py::{self, object, str_of};
-use crate::seam::{PopupControl, Raised};
+use crate::seam::{PopupControl, Raised, caught};
 use crate::usage;
 
 pub const MAX_TASKS: usize = 3;
@@ -928,7 +928,7 @@ pub fn perform(
         }
         Ok(None)
     };
-    match run() {
+    match caught(run) {
         Ok(Some(payload)) => ("ok".into(), payload),
         Ok(None) => ("failed".into(), Value::from("unknown_action")),
         Err(error) => match &error.code {
