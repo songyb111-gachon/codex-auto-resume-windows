@@ -587,3 +587,28 @@ car-config markers' line ends (`advstore.KNOWN`). For S1.1/the integration: car-
 * S7.2/S7.3: a capability's code gets `state::scoped::Scoped`; the ledger is `ledger::ClaimLedger { state }.claim(core_connection, ...)`
   inside car-store's claim (core's `BEGIN IMMEDIATE`; car-store's claim still has only the NULL plug's ledger: the plug's P11 call
   is the integration's).
+
+### Checks (`CARGO_BUILD_JOBS=4`, `. tools/rustflags.sh` first; reference v0.6.26-beta.2, rustc 1.100.0, SQLite 3.54.1 bundled)
+
+```
+## rust            fmt --check rc=0; clippy --locked --all-targets -D warnings rc=0; test --locked rc=0; cargo deny --locked check: all four ok
+## advanced/rust   fmt --check rc=0; clippy rc=0; test --locked rc=0 (car-adv's pattern test 1, the rest 0); cargo deny: all four ok
+python -X utf8 rust/tools/check_groundwork.py        rust groundwork: OK (17 standard crates, 3 advanced crates)
+bash advanced/rust/tools/check_rebuild.sh HEAD       all 7 standard binaries the same with and without advanced/; profile-path scan: none
+python -X utf8 tests/rustdiff/gen_advstore.py --check   generated files (schema, words, registry) match v0.6.26-beta.2
+diffs_advstore (release advstore.exe)                Ran 15 tests in 724 s, OK
+```
+
+The 15 diffs: generated 1; fresh (50 reads with no file, nothing made, then the first write); migrations (files made by the own
+code of 17 releases, v0.6.11-alpha's version 1 to v0.6.25's version 9, each opened by a read and by a write, 50 reads each); 16
+historic and refused files (versions 1, 2, 3, 6, 7, three newer, a table too many, a column too few, no meta row, the old
+ceiling at 12 and at 7, empty, not SQLite); the script (279 calls over every method, 81 refused alike; then each implementation
+reads the other's file, 56 reads); choices against their generations (27); the watch limit through a prune; 136 calls of Scoped and
+the eleven handles on, off and unset; 2 damaged files x 55 calls; prune (563 lines, two passes); the ledger (19 claims and records
+on a schema-5 core state from the tag's own store, and 3 with no advanced file); the claim race (12 rounds, every pairing of Python
+and Rust: one granted each round); profiles 43; images 24; the watch log.
+
+Mutation checks (each broken alone on a debug build, its diff run, restored): the generation moved by two (ScriptDiff, op 1); a
+choice of the default stored instead of its row taken away (ChoicesDiff, the file); a second resend allowed (LedgerDiff, op 4);
+the old words bound read as 8193 (MigrationDiff, v0.6.11-alpha's file); a profile id in capitals (ProfilesDiff, op 41); webp not a
+picture (ImagesDiff, op 2); WATCH_LIMIT 96 (ChoicesDiff.test_watch_limit). Each failed; all pass restored.
