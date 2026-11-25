@@ -2949,6 +2949,9 @@ try {
             exit $ExitPickRefused
         }
         if ($older -ceq 'stopped') { Ok 'The watcher was stopped, so the older version''s installer can replace it' }
+    }
+
+    if ($Pick) {
         $entry = Remove-EntryBeforeOlder -Home_ $installHome -Installed ([string]$installed) -Target $target
         if ($entry -ceq 'removed') { Step 'The entry in Add or remove programs and its uninstaller were removed; that version has neither.' }
         elseif ($entry -ceq 'failed') { Fail 'The entry in Add or remove programs could not be removed first; it may name a version that is no longer installed.' }
