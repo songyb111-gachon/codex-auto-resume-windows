@@ -1,10 +1,25 @@
-//! car-bin: the shared half of the binaries, so the other edition's build can reuse it.
+//! car-bin: the shared half of the binaries, so the other edition's build can reuse it (seat S5.2).
 //!
-//! Until the core is ported (S5.1/S5.2) this is the **stub core** the packaging skeleton (S8.1) ships: every command
-//! of `codex-auto-resume.exe` and every start of `codex-auto-resume-setup.exe` is refused with [`NOT_PORTED`], so an
-//! old updater that reaches it through car-legacy (D9) ends on a code it already reads as "did not finish" and changes
-//! nothing, and v0.6.26's setup handover reports "it ended with code 3" and keeps the installation it had. The stub
-//! never answers success for work it did not do.
+//! `codex-auto-resume.exe` is [`roles::main_with`]: the bridge (`bridge`), the MCP server (`mcp`), `plugin_setup.py`'s
+//! commands ([`setup`]) and the command line ([`cli`]), every word parsed as the reference's argparse parses it
+//! ([`argparse`] over the tag's own tables, `parsers_gen.rs`). The advanced edition's binary passes its own [`Role`]s
+//! to [`main_with`]: the role registry seam (P7-DESIGN).
+//!
+//! `codex-auto-resume-setup.exe` is still the stub S8.1 made ([`setup_stub`], [`NOT_PORTED`]): the setup program is
+//! S8.2's (branch car-v0627-package2/fix9), and its integration replaces it. [`core_stub`] stays for that branch's test
+//! double.
+
+pub mod argparse;
+pub mod cli;
+pub mod launcher;
+#[rustfmt::skip]
+pub mod parsers_gen;
+pub mod roles;
+pub mod seam;
+pub mod setup;
+pub mod uris;
+
+pub use roles::{Role, main_with};
 
 /// The code a command that is not ported yet ends with (as `car-core-stub` and the shim lane answer it).
 pub const NOT_PORTED: i32 = 3;

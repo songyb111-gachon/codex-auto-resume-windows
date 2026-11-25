@@ -21,6 +21,17 @@ path = "src/main.rs"
 name = "codex-auto-resume-setup"
 path = "src/bin/setup.rs"
 
+# D18: the MCP launcher at app\mcp\codex-auto-resume-mcp.exe, starting this installation's core.
+[[bin]]
+name = "codex-auto-resume-mcp"
+path = "src/bin/mcp.rs"
+
 [dependencies]
 car-control = { path = "../car-control" }
 car-watcher = { path = "../car-watcher" }
+car-config = { path = "../car-config" }
+car-machine = { path = "../car-machine" }
+car-platform = { path = "../car-platform" }
+car-policy = { path = "../car-policy" }
+car-store = { path = "../car-store" }
+car-words = { path = "../car-words" }
