@@ -201,10 +201,10 @@ fn powershell() -> Option<PathBuf> {
 /// The installation home, as install.ps1 reads it: CODEX_AUTO_RESUME_PLUGIN_HOME where it is set, else
 /// `.codex-auto-resume` in the profile.
 fn install_home() -> Option<PathBuf> {
-    if let Some(home) = std::env::var_os("CODEX_AUTO_RESUME_PLUGIN_HOME") {
-        if !home.to_string_lossy().trim().is_empty() {
-            return Some(PathBuf::from(home));
-        }
+    if let Some(home) = std::env::var_os("CODEX_AUTO_RESUME_PLUGIN_HOME")
+        && !home.to_string_lossy().trim().is_empty()
+    {
+        return Some(PathBuf::from(home));
     }
     std::env::var_os("USERPROFILE")
         .filter(|value| !value.is_empty())
@@ -326,10 +326,10 @@ fn run_logged(argv: Vec<String>, folder: &Path) -> i32 {
 }
 
 fn keep(sink: &Sink, line: &str) {
-    if let Ok(mut guard) = sink.lock() {
-        if let Some(file) = guard.as_mut() {
-            let _ = writeln!(file, "{line}");
-        }
+    if let Ok(mut guard) = sink.lock()
+        && let Some(file) = guard.as_mut()
+    {
+        let _ = writeln!(file, "{line}");
     }
 }
 

@@ -565,3 +565,81 @@ What `outputs/plans/v0627-rust/REVIEW-int4.md` found and REVIEW-int5's S2, each 
 * **The suite's power guard**: `tests/sitecustomize.py`, `scripts/test_parts.py` and `tests/rustdiff/core.py` set
   `CAR_NO_POWER_ACTION`; `tests/test_rust_power_guard.py`, car-platform `tests/power_guard.rs`.
 * Re-diff for the final: `python -X utf8 tests/rustdiff/rediff_review4.py --reference v0.6.26`.
+
+## The installer, the migration and the way back (seat S8.2, branch `car-v0627-package2`, 2026-11-25)
+
+PLAN 6.1-6.10 on the stub core, with the v0.6.26 final's tag as the reference (D17). What is built:
+
+* **`build/rust_install/install.ps1`** (shipped as the archive's `install/install.ps1`; `rust_release.INSTALLER` replaces S8.1's
+  placeholder): v0.6.26's installer, function by function (`test_rust_install.InstallerShapeTests` holds the list), with
+  `app\bin\codex-auto-resume.exe` where v0.6.26 ran `runtime\python.exe app\scripts\plugin_setup.py` - `claim-home` and
+  `verify-home` from the payload's core, every other command from the installed one (`Invoke-Setup`), the Store engine's
+  signature asked as `engine-trusted <path>` (0 only for `official_engine == (True, 'openai_signature')`). Removed: the
+  precompile and the chosen-Python line (nothing compiles). Kept byte for byte: the outside gate, the lock, the journal,
+  the rollback, the Dashboard close/reopen, the edition rule (14), repair/update wording, uninstall keeping data, purge.
+  `runtime\python.exe`/`pythonw.exe` (car-legacy) and `app\scripts\plugin_setup.py` (stub) are required in the payload
+  and stay in the home. The line `[ok] Bundled Python ...` keeps its start for the setup window's milestone (S6.2 renames it).
+* **The migration from a Python version** (`$fromPython`: no core, and `app\src\codex_auto_resume\__init__.py` there):
+  `Get-OwnedWatcherProcess` also finds `app\bin\CodexAutoResume.exe` of this home by its image; the version being
+  replaced stops its own watcher (`Invoke-InstalledEngine`: its core, or its own `runtime\python.exe plugin_setup.py stop`),
+  so the Rust host takes the same mutex only once the Python one let go (6.2). State and settings are never touched (D13).
+  The Python trees, the window, its icon and the kept uninstaller stay aside (`.old-<stamp>`, `.migrating`, the journal)
+  until the new `setup --keep-state` has run (`Complete-Migration`, 6.5), and the advanced edition's `runtimes\` goes then
+  (D8). Where that setup does not complete, `Undo-Migration` asks the new core to stop, puts every tree and file back and
+  starts the Python watcher again through the Python engine: a failed migration leaves exactly what was there.
+* **Registrations (6.4), as the real core must write them:** the Run value `"<home>\app\bin\CodexAutoResume.exe" "--home"
+  "<home>" "run"` (every word quoted, as `startup.quote_argument` writes) and the link handler
+  `"<home>\app\bin\codex-auto-resume.exe" "--home" "<home>" "activate" "%1"`. **The `--home` is required**: v0.6.26's
+  `setup --keep-state` re-registers the start at sign-in only where `startup.belongs_to` knows the value, and without
+  `--home` it does not (`RunValueContractTests`, against the tag's own function) - going back would leave the sign-in start
+  on a host that is gone.
+* **The way back (6.10):** `scripts/bootstrap.ps1` `Stop-WatcherBeforeOlder`, in the pick path before the older installer
+  runs: over a Rust installation and an archive with no core (a Python one) it asks the installed core `stop`, then
+  `watcher-running` until non-zero (60 s; `pick: refused watcher-running` otherwise, nothing ended by force). It calls the
+  core directly: car-legacy refuses `-X disable-remote-debug plugin_setup.py stop`, a line no earlier version used (found by
+  the proof; the table is not widened). v0.6.26's own installer then lays its Python runtime over car-legacy and its app over
+  the Rust one, and its `setup --keep-state --watcher-was-stopped` starts the Python watcher because the Rust Run value is
+  its installation's.
+* **`codex-auto-resume-setup.exe`** (car-bin `setup_main`, BRIDGE.md 4): `-Handover update|another|install -Edition E
+  [-SkipStartup] [-AllowEditionChange] [-DeleteSavedAccounts] [-Silent]`, names and values case-insensitive; another edition
+  14, no `-Handover` or an unknown word 2 (nothing run: the Welcome window is P6's); it runs `<archive>\install\install.ps1
+  -Silent [switches]` in Windows PowerShell by the system folder through car-platform's starter (`CREATE_NO_WINDOW`), keeps
+  both streams in `%TEMP%\CodexAutoResume-Setup.log`, waits, ends with the installer's code and after a 0 opens
+  `<home>\CodexAutoResumeSettings.exe` (without `CODEX_AUTO_RESUME_UPDATING_DASHBOARD`). The install lock is install.ps1's:
+  a mutex cannot be handed to a child, and a setup that held it would make its own installer refuse. car-bin now reaches
+  car-platform (check_groundwork's graph has the edge).
+* **The test double (`tests/install_double.py`)**: the stub core forwards every command to `CODEX_AUTO_RESUME_TEST_CORE`
+  (+ `_SCRIPT`), setting `CODEX_AUTO_RESUME_TEST_CORE_EXE`; nothing else changed in the stub (3 and a stderr line otherwise).
+  The double answers plugin_setup.py's codes and lines (`setup` 0/2/4/5, `watcher-running` 0 or 2 as v0.6.26's does, `stop`,
+  `doctor`, `uninstall [--purge]`, `remove-entry`, `downgrade-state ... --stop-watcher`, `desktop-shortcut`, `claim-home` and
+  `verify-home` by the tag's `config.Paths`), stands in for v0.6.26's engine (`--role engine`) and for both watchers
+  (`--role watch`), refuses any home outside the scratch, writes a JSON registry, and names its mutex and stop event
+  `Local\car-double-<id>-...`.
+* **make_setup and (h), decided:** the one-file Setup exe around a Rust archive is `build/make_setup.py`'s C# program,
+  unchanged (it carries the archive and runs its Install.cmd, so the same install.ps1): `rust_release.py --setup` builds it;
+  `rust_edition_audit.py` reads (h) with `edition_audit.check_setups` where both are in the dist folder (`--setups` makes them
+  required; `--rebuild` builds the standard one again around (e)'s archive). `rust_legacy_bootstraps.py --ref v0.6.26`: a ref
+  whose commit a listed tag has is asked once, under the tag. The release check is `.github/workflows/rust.yml`'s `package` job.
+
+### The proofs (`tests/test_rust_install.py`; cargo release build of both workspaces; Windows PowerShell 5.1 under Set-StrictMode 2.0)
+
+Scratch homes only (profile, LOCALAPPDATA, APPDATA, TEMP, CODEX_HOME in a temporary folder; the JSON registry; the install
+lock renamed; the outside gate, Codex and the two registry functions stood in; real car-legacy, stub core and setup program;
+a real Python copied in as v0.6.26's runtime and as P6's host stand-in). Each edition: v0.6.26 installed by its own
+installer -> the Rust installer (update: the Python watcher stopped by its engine, the host started, Run/protocol on the
+Rust programs, config/logs/accounts byte-identical, the runtime only car-legacy, no `.old-`/`.migrating`/journal, D8's
+`runtimes\` gone) -> again (Repaired) -> the bootstrap's 6.10 step and v0.6.26's installer (the Python watcher running,
+the Run value Python's again, nothing of the person's lost). Also: a migration whose setup fails puts v0.6.26 back with its
+watcher; another edition is refused with 14; the setup program installs what it is handed (14 and 2 before it runs
+anything); a fresh install, uninstall keeping data, reinstall picking it up, purge. Re-diff:
+`python -X utf8 tests/rustdiff/rediff_package.py --reference v0.6.26`.
+
+### What waits for the real core and host
+
+* **P5 (core):** the commands and lines the double answers, with the registrations above; `engine-trusted`; `stop` and
+  `uninstall` waiting for the watcher as plugin_setup.py does; the MCP server ending on EOF (an uninstall kills the launchers
+  only); `claim-home`/`verify-home` printing the canonical root on the second/last line; `desktop-shortcut` 0/3.
+* **P6 (host):** `app\bin\CodexAutoResume.exe` (add it to `rust_release.EDITION_BINARIES`; the tests copy a Python in its
+  place), taking the watcher mutex and stop event of `win/sync.py`; the setup program's window (BRIDGE 4 "show its own
+  window", the Welcome question without -Handover); the setup window's `[ok] Bundled Python` milestone; and a host that
+  stops when a v0.6.26 installer run by hand (not through our bootstrap) moves app\ aside under it, which v0.6.26 cannot see.
