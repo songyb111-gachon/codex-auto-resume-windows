@@ -49,12 +49,12 @@ fn errors_are_argparse_s_with_the_subparser_s_usage() {
 }
 
 #[test]
-fn the_standard_edition_has_no_roles_of_its_own_beyond_the_bridge_and_mcp() {
+fn the_standard_edition_s_roles_are_the_bridge_the_mcp_server_and_the_engine_check() {
     let words: Vec<&str> = car_bin::roles::STANDARD
         .iter()
         .map(|role| role.word)
         .collect();
-    assert_eq!(words, ["bridge", "mcp"]);
+    assert_eq!(words, ["bridge", "mcp", "engine-trusted"]);
     let setup = car_bin::roles::setup_commands();
     for each in [
         "setup",

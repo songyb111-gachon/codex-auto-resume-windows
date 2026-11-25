@@ -184,6 +184,11 @@ pub trait Outside: Send + Sync {
         let _ = (home, uri);
         "refused".to_owned()
     }
+    /// `codex.pairing.official_engine(path)`: (official, reason), or None where it cannot be told (S3.3's).
+    fn official_engine(&self, path: &Path) -> Option<(bool, String)> {
+        let _ = path;
+        None
+    }
     /// `compatio.live_view(app.paths, app.codex_home, backend=backend, discovery={}, source=app.source())`.
     fn doctor_live_view(
         &self,

@@ -42,7 +42,29 @@ pub const STANDARD: &[Role] = &[
         word: "mcp",
         run: mcp,
     },
+    Role {
+        word: "engine-trusted",
+        run: engine_trusted,
+    },
 ];
+
+/// `engine-trusted <path>` (S8.2's install.ps1, the Store engine's signature): 0 only where `codex.pairing`'s
+/// `official_engine(path)` is `(True, "openai_signature")`, 1 otherwise, 2 for a command line without one path.
+pub fn engine_trusted(
+    machine: &Machine,
+    argv: &[String],
+    io: &mut Io,
+    _stdin: &mut dyn Read,
+) -> i32 {
+    let [path] = argv else {
+        io.warn("usage: codex-auto-resume engine-trusted PATH");
+        return 2;
+    };
+    match machine.outside.official_engine(Path::new(path)) {
+        Some((true, reason)) if reason == "openai_signature" => 0,
+        _ => 1,
+    }
+}
 
 /// The commands `plugin_setup.py` has (its parser's choices): a first word that is one of these is `plugin_setup`'s.
 pub fn setup_commands() -> Vec<&'static str> {
@@ -157,9 +179,10 @@ pub fn bridge(machine: &Machine, argv: &[String], io: &mut Io, stdin: &mut dyn R
 
 /// `mcpserver.main(argv)`: the server over this process's streams, and the start with Codex beside the handshake.
 pub fn mcp(machine: &Machine, argv: &[String], io: &mut Io, stdin: &mut dyn Read) -> i32 {
+    // `mcpserver.main` parses before it says UTF-8 and LF on its streams: argparse's own lines end CRLF.
     let args = match argparse::parse_args(PARSERS, MCP, argv) {
         Ok(args) => args,
-        Err(exit) => return shown_lf(exit, io),
+        Err(exit) => return shown(exit, io),
     };
     let home = args
         .get("home")

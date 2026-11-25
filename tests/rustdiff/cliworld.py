@@ -29,9 +29,13 @@ if mode in ("cli", "dispatch"):
     from codex_auto_resume import addremove as _ar, config as _config, shortcut as _sc, startup as _st, windows as _win
     from codex_auto_resume import notifier as _notifier
     from codex_auto_resume.codex import errors as _codex_errors
-    from codex_auto_resume.commands import base as _base, install as _install, status as _status
+    from codex_auto_resume.commands import base as _base, install as _install_cmds, status as _status
     from codex_auto_resume.runtime import app as _app_module
     from codex_auto_resume import cli as _cli
+    import logging as _logging
+    # logging takes time.localtime when it is imported, after the world's patch: as a plain function it would be bound.
+    _logging.Formatter.converter = staticmethod(time.localtime)
+    _status.WakeEvent = _event("wake")
 
     def _world_raise(found, default_class):
         said = found.get("raise")
@@ -76,7 +80,7 @@ if mode in ("cli", "dispatch"):
         return {"target": paths.home / "app" / "bin" / "codex-auto-resume.exe",
                 "arguments": _quote_all(["--home", str(paths.home), "status"]), "icon": icon,
                 "description": "Codex Auto Resume"}
-    _install._what_the_entry_opens = _opens
+    _install_cmds._what_the_entry_opens = _opens
 
     def _opened(opens):
         return {"target": str(opens["target"]), "arguments": opens.get("arguments"),
@@ -184,10 +188,10 @@ if mode in ("cli", "dispatch"):
         _log("doctor_live_view", str(codex_home), backend.codex_exe)
         return _world("doctor_live")
     compatio.live_view = _live_any
-    def _run(self, once=False, poll=None):
+    def _run_watcher(self, once=False, poll=None):
         _log("run_watcher", str(self.paths.home), bool(once), poll)
         return 0
-    _app_module.App.run = _run
+    _app_module.App.run = _run_watcher
     _app_module.App.watcher_running = _running
     _app_module.App.stop_event = lambda self: _event("stop")(None)
     @_contextlib.contextmanager
@@ -256,7 +260,8 @@ def run_reference(home: Path, world: dict, argv, *, mode="dispatch", stdin: byte
                 "result_path": str(folder / "result.json"), "method": None, "args": [],
                 "plugin_setup": str(tree / "scripts" / "plugin_setup.py")}
         (folder / "spec.json").write_text(json.dumps(spec), encoding="utf-8")
-        environment = reference.scratch_environment(home.parent / "profile", PYTHONPATH=str(tree / "src"))
+        # The world's zone is UTC (car-harness's local clock); `format_local` asks the C runtime's, which TZ sets.
+        environment = reference.scratch_environment(home.parent / "profile", PYTHONPATH=str(tree / "src"), TZ="UTC0")
         done = subprocess.run([sys.executable, "-X", "utf8", "-c", bw.SCRIPT, str(folder / "spec.json")],
                               input=stdin, capture_output=True, env=environment, cwd=str(home.parent),
                               creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0), timeout=600)

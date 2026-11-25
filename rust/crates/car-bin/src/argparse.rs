@@ -714,7 +714,12 @@ impl Run<'_> {
             }
         }
         let used = counts.len();
-        for (index, count) in self.positionals[..used].to_vec().iter().copied().zip(counts) {
+        for (index, count) in self.positionals[..used]
+            .to_vec()
+            .iter()
+            .copied()
+            .zip(counts)
+        {
             let mut strings: Vec<String> = self.args[start..start + count].to_vec();
             let action = &self.parser.actions[index];
             if action.nargs == Nargs::Parser {

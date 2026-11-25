@@ -252,7 +252,9 @@ impl Paths {
             let marker = child(directory, OWNER_MARKER);
             if !Path::new(&marker).exists() {
                 // A missing marker only makes uninstall MORE conservative.
-                let _ = fs::write(&marker, OWNER_TEXT);
+                let _ = fs::write(&marker, OWNER_TEXT.replace('
+', "
+"));
             }
         }
         Ok(())
@@ -279,7 +281,9 @@ impl Paths {
             return false;
         }
         let marker = child(&self.home, OWNER_MARKER);
-        Path::new(&marker).exists() || fs::write(&marker, OWNER_TEXT).is_ok()
+        Path::new(&marker).exists() || fs::write(&marker, OWNER_TEXT.replace('
+', "
+")).is_ok()
     }
 
     /// `owns_home()`: whether this installation root is one we created: its marker, `config/`'s marker, or a
