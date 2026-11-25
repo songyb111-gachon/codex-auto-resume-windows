@@ -14,17 +14,25 @@
 //! Everything is read-only: the connections are opened `mode=ro` with `query_only`, and nothing here writes to Codex.
 //! Held to the reference by `tests/rustdiff/diffs_codex_*.py` against v0.6.26-beta.2.
 
+pub mod appserver;
 pub mod chains;
+pub mod compat;
+pub mod compatio;
 pub mod eligibility;
 pub mod errors;
 pub mod labels;
+pub mod layout;
+pub mod pairing;
 pub mod paths;
 pub mod payload;
 #[rustfmt::skip]
 mod printable_gen;
+pub mod refold;
 pub mod rollout;
 pub mod source;
 pub mod sql;
+pub mod system;
+pub mod transport;
 pub mod usage;
 pub mod values;
 pub mod workspace;

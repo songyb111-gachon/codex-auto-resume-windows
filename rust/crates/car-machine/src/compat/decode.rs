@@ -199,8 +199,14 @@ impl Scanner<'_> {
     }
 
     fn parse(&self) -> Result<Value, Failure> {
+        self.parse_at(self.skip_ws(0), true).map(|(value, _)| value)
+    }
+
+    /// One value from `start` (no white space skipped before it): the value and the index after it; with `whole`,
+    /// only white space may follow it.
+    fn parse_at(&self, start: usize, whole: bool) -> Result<(Value, usize), Failure> {
         let mut stack: Vec<Frame> = Vec::new();
-        let mut i = self.skip_ws(0);
+        let mut i = start;
         loop {
             let mut done = match self.at(i).ok_or(Failure::Syntax)? {
                 '[' => {
@@ -277,8 +283,8 @@ impl Scanner<'_> {
             };
             loop {
                 let Some(top) = stack.last_mut() else {
-                    return if self.skip_ws(i) == self.chars.len() {
-                        Ok(done)
+                    return if !whole || self.skip_ws(i) == self.chars.len() {
+                        Ok((done, i))
                     } else {
                         Err(Failure::Syntax)
                     };
@@ -375,6 +381,22 @@ pub fn loads(text: &str) -> Result<Value, LoadsError> {
     .parse()
     {
         Ok(value) => Ok(value),
+        Err(Failure::TooDeep) => Err(LoadsError::Recursion),
+        Err(Failure::IntTooLong) => Err(LoadsError::IntTooLong),
+        Err(_) => Err(LoadsError::Value),
+    }
+}
+
+/// `json.JSONDecoder().raw_decode(text, at)`: one value starting exactly at `at` (a code point index), and the index
+/// after it. Nothing may be skipped before it; anything may follow it.
+pub fn raw_decode(chars: &[char], at: usize) -> Result<(Value, usize), LoadsError> {
+    match (Scanner {
+        chars,
+        strict: false,
+    })
+    .parse_at(at, false)
+    {
+        Ok(found) => Ok(found),
         Err(Failure::TooDeep) => Err(LoadsError::Recursion),
         Err(Failure::IntTooLong) => Err(LoadsError::IntTooLong),
         Err(_) => Err(LoadsError::Value),

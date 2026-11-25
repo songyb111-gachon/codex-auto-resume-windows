@@ -42,6 +42,8 @@ pub enum Error {
     /// An `sqlite3.Error` (any of its subclasses). Inside a statement's scope it is turned into [`SourceError`] as
     /// the reference's `_db` does; where a call catches it itself, it never leaves.
     Sqlite,
+    /// `AdapterError(code)` (`domain/errors.py`): the platform's and the app server's refusals, a reason code only.
+    Adapter(&'static str),
 }
 
 impl Error {
@@ -60,6 +62,7 @@ impl Error {
             Error::Os => "OSError",
             Error::Python(class) => class,
             Error::Sqlite => "Error",
+            Error::Adapter(_) => "AdapterError",
         }
     }
 
@@ -67,6 +70,7 @@ impl Error {
     pub fn message(&self) -> String {
         match self {
             Error::Source(refused) => refused.0.clone(),
+            Error::Adapter(code) => (*code).to_owned(),
             other => other.class().to_owned(),
         }
     }
@@ -95,6 +99,12 @@ impl From<rusqlite::Error> for Error {
 impl From<std::io::Error> for Error {
     fn from(_error: std::io::Error) -> Error {
         Error::Os
+    }
+}
+
+impl From<car_machine::domain::errors::AdapterError> for Error {
+    fn from(refused: car_machine::domain::errors::AdapterError) -> Error {
+        Error::Adapter(refused.0)
     }
 }
 

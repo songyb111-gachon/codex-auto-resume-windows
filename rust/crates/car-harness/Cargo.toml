@@ -23,6 +23,11 @@ path = "src/main.rs"
 name = "car-core-stub"
 path = "src/bin/car-core-stub.rs"
 
+# S3.3: the stand-in codex.exe the app-server and transport diffs copy into a scratch bin folder (it starts nothing).
+[[bin]]
+name = "car-fake-codex"
+path = "src/bin/car-fake-codex.rs"
+
 [dependencies]
 # D5: JSON is written by car-machine's Python-compatible writer.
 car-machine = { path = "../car-machine" }
