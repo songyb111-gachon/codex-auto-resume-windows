@@ -17,7 +17,7 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 
 use windows::Win32::Foundation::{
-    ERROR_FILE_NOT_FOUND, ERROR_PATH_NOT_FOUND, ERROR_SUCCESS, WIN32_ERROR,
+    ERROR_FILE_NOT_FOUND, ERROR_MORE_DATA, ERROR_PATH_NOT_FOUND, ERROR_SUCCESS, WIN32_ERROR,
 };
 use windows::Win32::System::Registry::{
     HKEY, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, REG_DWORD, REG_EXPAND_SZ, REG_OPTION_NON_VOLATILE,
@@ -34,6 +34,9 @@ pub const KEY_WOW64_64KEY: u32 = 0x0100;
 pub const TYPE_SZ: u32 = 1;
 pub const TYPE_EXPAND_SZ: u32 = 2;
 pub const TYPE_DWORD: u32 = 4;
+/// `winreg.REG_BINARY` and `winreg.REG_QWORD`.
+pub const TYPE_BINARY: u32 = 3;
+pub const TYPE_QWORD: u32 = 11;
 
 /// Which hive a path is under.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -311,10 +314,12 @@ impl Registry for FakeRegistry {
     fn set_value(&self, key: KeyId, name: &str, value: &Value) -> Result<(), RegError> {
         let mut store = self.store.borrow_mut();
         let path = store.open.get(&key.0).cloned().unwrap_or_default();
-        let kind = if matches!(value, Value::Int(_)) {
-            TYPE_DWORD
-        } else {
-            TYPE_SZ
+        // The type WinRegistry::set_value writes each kind of value as (review 4, note 3).
+        let kind = match value {
+            Value::Int(_) => TYPE_DWORD,
+            Value::Qword(_) => TYPE_QWORD,
+            Value::Bytes(_) => TYPE_BINARY,
+            Value::Str(_) => TYPE_SZ,
         };
         store.calls.push(Call::SetValueEx {
             key: path.clone(),
@@ -491,22 +496,32 @@ impl Registry for WinRegistry {
         if code != ERROR_SUCCESS {
             return Err(failure(code));
         }
-        let mut data = vec![0u8; size as usize + 2];
-        let mut got = size;
-        // SAFETY: `data` is as long as the size told, plus room for a terminator.
-        let code = unsafe {
-            RegQueryValueExW(
-                handle,
-                PCWSTR(name.as_ptr()),
-                None,
-                Some(&mut kind),
-                Some(data.as_mut_ptr()),
-                Some(&mut got),
-            )
+        // winreg's QueryValueEx: a value that grew since the size was asked (ERROR_MORE_DATA) is asked again with
+        // more room, until it fits (review 4, note 2).
+        let mut room = size as usize + 2;
+        let (mut data, got) = loop {
+            let mut data = vec![0u8; room];
+            let mut got = u32::try_from(room).unwrap_or(u32::MAX);
+            // SAFETY: `data` is `got` bytes long.
+            let code = unsafe {
+                RegQueryValueExW(
+                    handle,
+                    PCWSTR(name.as_ptr()),
+                    None,
+                    Some(&mut kind),
+                    Some(data.as_mut_ptr()),
+                    Some(&mut got),
+                )
+            };
+            if code == ERROR_MORE_DATA {
+                room = (got as usize).max(room.saturating_mul(2)) + 2;
+                continue;
+            }
+            if code != ERROR_SUCCESS {
+                return Err(failure(code));
+            }
+            break (data, got);
         };
-        if code != ERROR_SUCCESS {
-            return Err(failure(code));
-        }
         data.truncate(got as usize);
         let value = match kind {
             REG_SZ | REG_EXPAND_SZ => {
@@ -522,12 +537,10 @@ impl Registry for WinRegistry {
                     .unwrap_or(units.len());
                 Value::Str(String::from_utf16_lossy(&units[..end]))
             }
-            REG_DWORD if data.len() >= 4 => {
-                Value::Int(u32::from_le_bytes([data[0], data[1], data[2], data[3]]))
-            }
-            REG_QWORD if data.len() >= 8 => Value::Qword(u64::from_le_bytes([
-                data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7],
-            ])),
+            // winreg reads a REG_DWORD or REG_QWORD of any length as the number its first 4 or 8 bytes make: none
+            // is 0, and a short one is read past its end (whatever winreg's buffer holds there; zero here, AUDIT).
+            REG_DWORD => Value::Int(u32::from_le_bytes(padded::<4>(&data))),
+            REG_QWORD => Value::Qword(u64::from_le_bytes(padded::<8>(&data))),
             _ => Value::Bytes(data),
         };
         Ok((value, kind.0))
@@ -621,4 +634,13 @@ impl Drop for PrivateHive {
             let _ = RegCloseKey(self.handle);
         }
     }
+}
+
+/// The first `N` bytes of `data`, zero past its end.
+fn padded<const N: usize>(data: &[u8]) -> [u8; N] {
+    let mut bytes = [0u8; N];
+    for (slot, byte) in bytes.iter_mut().zip(data) {
+        *slot = *byte;
+    }
+    bytes
 }

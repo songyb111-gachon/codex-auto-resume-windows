@@ -96,7 +96,24 @@ SCENARIOS = {
         "QuietHours": (REG_BINARY, text("22:00-06:00")),
         "ForceObserveOnly": (REG_SZ, text("1")),
     },
+    # Review 4, note 1: winreg reads a REG_DWORD or REG_QWORD of any length - none is 0, a short one the number its
+    # first bytes make (read past its end: the bytes past what was written are whatever winreg's buffer holds, so only
+    # the written bytes are compared). A 1-byte DisableAutoResume of 01 is honoured by the reference.
+    "short-numbers": {
+        "DisableAutoResume": (REG_DWORD, "01"),
+        "DisableUpdateCheck": (REG_DWORD, ""),
+        "ForceObserveOnly": (REG_QWORD, ""),
+        "MaxRecoveryAttempts": (REG_QWORD, "03"),
+    },
 }
+
+
+def written_bytes(answer, kind: int, data: str):
+    """A short number's value cut to the bytes that were written (the rest is winreg's buffer)."""
+    if isinstance(answer, list) and isinstance(answer[0], int) and kind in (REG_DWORD, REG_QWORD) \
+            and len(data) // 2 < (4 if kind == REG_DWORD else 8):
+        return [answer[0] & ((1 << (4 * len(data))) - 1), answer[1]]
+    return answer
 
 
 class PolicyHive(Base):
@@ -113,8 +130,12 @@ class PolicyHive(Base):
                 continue
             if isinstance(answer, list) and answer[1] == REG_BINARY and answer[0] in (None, []):
                 answer = [[], REG_BINARY]
-            kept[name] = answer
+            kept[name] = written_bytes(answer, *values[name])
         return kept
+
+    def places(self, places: list, values: dict) -> list:
+        return [{name: written_bytes(entry, *values[name]) if name in values else entry
+                 for name, entry in place.items()} for place in places]
 
     def test_the_policy_values_read_as_winreg_reads_them(self):
         for label, values in self.scenarios.items():
@@ -124,7 +145,8 @@ class PolicyHive(Base):
                            self.profile)
                 with self.probe() as probe:
                     got = probe.ask("hive_policy", hive=str(hive))
-                self.assertEqual(got["places"], want["places"], "policy_places differs from policykeys.read()")
+                self.assertEqual(self.places(got["places"], values), self.places(want["places"], values),
+                                 "policy_places differs from policykeys.read()")
                 self.assertEqual(self.comparable(got["raw"], values), self.comparable(want["raw"], values),
                                  "the real reader differs from winreg")
         RECORD.append("policy hive: %d scenarios, places and raw values equal to winreg's" % len(self.scenarios))
