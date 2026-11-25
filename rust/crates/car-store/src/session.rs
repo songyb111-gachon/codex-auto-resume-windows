@@ -354,13 +354,27 @@ fn integer_text(connection: &Connection, sql: &str) -> Result<String> {
     })
 }
 
+/// Rolls back the open transaction when a panic unwinds through `begin` (D15 catches panics at the thread, and a
+/// Store that outlives one must not keep its transaction and its RESERVED lock, as Python, whose `except Exception`
+/// always rolls back, never does).
+struct RollbackOnUnwind<'a>(&'a Connection);
+
+impl Drop for RollbackOnUnwind<'_> {
+    fn drop(&mut self) {
+        if std::thread::panicking() && !self.0.is_autocommit() {
+            let _ = self.0.execute_batch("ROLLBACK");
+        }
+    }
+}
+
 /// `_begin(statement)`: the statement, the body, COMMIT; on any error ROLLBACK where a transaction is open,
-/// and SQLite's own error as `StoreError("State transaction failed")`.
+/// and SQLite's own error as `StoreError("State transaction failed")`. A panic in the body rolls back too.
 pub(crate) fn begin<T>(
     connection: &Connection,
     statement: &str,
     body: impl FnOnce(&Connection) -> Result<T>,
 ) -> Result<T> {
+    let _guard = RollbackOnUnwind(connection);
     let outcome = (|| {
         execute(connection, statement, &[])?;
         let value = body(connection)?;
@@ -442,6 +456,32 @@ fn civil(days: i64) -> (i64, i64, i64) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_panic_in_a_body_rolls_back() {
+        let connection = Connection::open_in_memory().unwrap();
+        connection
+            .execute_batch("CREATE TABLE t (x INTEGER)")
+            .unwrap();
+        let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _ = begin(&connection, "BEGIN IMMEDIATE", |connection| -> Result<()> {
+                connection
+                    .execute_batch("INSERT INTO t VALUES (1)")
+                    .unwrap();
+                panic!("a body that panics");
+            });
+        }));
+        assert!(caught.is_err());
+        assert!(
+            connection.is_autocommit(),
+            "the transaction was rolled back"
+        );
+        let count: i64 = connection
+            .query_row("SELECT count(*) FROM t", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 0);
+        begin(&connection, "BEGIN IMMEDIATE", |_| Ok(())).unwrap();
+    }
 
     #[test]
     fn stamps() {

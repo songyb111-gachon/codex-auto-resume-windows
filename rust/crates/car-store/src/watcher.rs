@@ -44,15 +44,21 @@ fn bytes(value: &Value) -> Value {
     }
 }
 
+/// `_sign_in(value)`: `re.compile(r"^[0-9a-f]{16}$").match`, whose `$` also matches before a final newline: a
+/// sign-in of 16 digits and a `\n` is kept as it is, as the reference keeps it (Windows' value never ends in one).
 fn sign_in(value: &Value) -> Value {
     match text(value) {
-        Some(found)
-            if found.len() == 16
-                && found
+        Some(found) => {
+            let digits = found.strip_suffix('\n').unwrap_or(found);
+            if digits.len() == 16
+                && digits
                     .bytes()
-                    .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')) =>
-        {
-            value.clone()
+                    .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+            {
+                value.clone()
+            } else {
+                Value::Null
+            }
         }
         _ => Value::Null,
     }

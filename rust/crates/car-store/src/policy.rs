@@ -337,6 +337,10 @@ pub fn sorted_set(mut values: Vec<Value>) -> Vec<Value> {
 }
 
 fn sort_key(value: &Value) -> (u8, Vec<u8>) {
+    if let Some(bytes) = crate::value::blob_bytes(value) {
+        // `bytes` sort by their bytes.
+        return (3, bytes);
+    }
     match value {
         Value::Str(text) => (1, text.as_bytes().to_vec()),
         Value::Null => (0, Vec::new()),

@@ -16,7 +16,8 @@ use car_machine::json::{Map, Options, Value, from_str, to_string};
 fn answer(request: &serde_json::Value, line: &str) -> Value {
     let text = |name: &str| request.get(name).and_then(|value| value.as_str());
     let ok = |name: &str, value: Value| object([("ok", Value::Bool(true)), (name, value)]);
-    let whole = || match from_str(line) {
+    // The store's calls read the whole line, each `{"$float": ...}` tag as its float (leaves::untag).
+    let whole = || match from_str(line).map(leaves::untag) {
         Ok(Value::Object(map)) => map,
         _ => Map::new(),
     };

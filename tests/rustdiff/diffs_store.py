@@ -44,7 +44,7 @@ import urllib.parse
 
 import released
 from rustdiff import core, reference
-from rustdiff.diffs import RECORD, Base, encode
+from rustdiff.diffs import RECORD, Base, encode, tagged
 
 ROOT = core.ROOT
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
@@ -125,9 +125,13 @@ def plain(value):
     if isinstance(value, tuple) or isinstance(value, list):
         return [plain(item) for item in value]
     if isinstance(value, (set, frozenset)):
-        return sorted(plain(item) for item in value)
+        # bytes sort by their bytes before they are written as car-store's BLOB value
+        return [plain(item) for item in sorted(value)]
     if isinstance(value, dict):
         return {name: plain(item) for name, item in value.items()}
+    if isinstance(value, bytes):
+        # a BLOB, as car-store's value.rs carries it: {"\u0000bytes": hex}
+        return {"\x00bytes": value.hex()}
     return value
 
 
@@ -288,7 +292,9 @@ class StoreBase(Base):
         theirs, mine = homes
         expected = reference_call(kind, theirs, self.reference_profile, **request).decode("utf-8").strip()
         value = json.loads(expected)
-        number, line = self.harness.call(CALLS[kind], home=str(mine), **request)
+        # A NaN or an infinity goes to car-harness as its {"$float": ...} tag (diffs.TAGGING); the reference reads it
+        # from its request file with json.loads, which takes NaN as it is.
+        number, line = self.harness.call(CALLS[kind], home=str(mine), **tagged(request))
         reply = json.loads(line)
         if reply.get("reply", {}).get("ok") is not True:
             self.fail("car-harness refused %s: %s" % (kind, line[-2000:]))
