@@ -4,7 +4,7 @@
 //! `ui/popup/model.perform` wraps every control call in `except Exception` ("a front end reports; it never raises into
 //! the loop") and answers `("failed", type(exc).__name__)`; `notifier.activate` answers "failed" with one log line
 //! (`notification card: the cancel failed (<class>)`). The port's convention for an exception a seam's `Result` cannot
-//! carry is a panic (car-adv `port::Raised`, REVIEW-int5b N6), and D15 catches panics only at thread and DLL
+//! carry is a panic (another port's `Raised`, REVIEW-int5b N6), and D15 catches panics only at thread and DLL
 //! boundaries: `perform` and `activate` here let the panic leave, so the popup's worker loses its outcome (its busy key
 //! is never discarded by `apply_outcome`) and the card's press leaves no log line, where the reference reports and
 //! goes on.
