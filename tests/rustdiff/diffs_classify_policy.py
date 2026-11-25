@@ -4,7 +4,8 @@ generated settings, records and times.
 
 Quiet hours and a postponement read the local clock; both sides are handed the same test zone (`ZONE`, below, and
 `car-harness`'s `Zone`): a fixed offset, and summer time between two days of the UTC year, so a window is walked
-across midnight and across both changes of the clock as the Python's own tests walk it.
+across midnight and across both changes of the clock as the Python's own tests walk it. The zone `"local"` is the
+product's own clock: the reference's `time.localtime` and `time.mktime`, and car-policy's `Crt` (the same C runtime).
 """
 from __future__ import annotations
 
@@ -40,6 +41,11 @@ def yday(y, m, d):
 
 class Zone:
     def __init__(self, spec):
+        if spec == "local":
+            # The product's clock: this interpreter's own, Windows' C runtime (car-policy's `Crt`).
+            self.localtime = time.localtime
+            self.mktime = lambda parts: time.mktime(tuple(parts[:6]) + (0, 0, -1))
+            return
         self.offset, self.dst, self.start, self.end = (list(spec) + [0, 0, 0, 0])[:4]
     def in_dst(self, t):
         if not self.dst:
@@ -74,7 +80,7 @@ class Zone:
         return float(t)
 
 ZONES = [[0, 0, 0, 0], [32400, 0, 0, 0], [-18000, 3600, 70, 308], [3600, 3600, 86, 301], [19800, 0, 0, 0],
-         [-36000, 1800, 1, 60]]
+         [-36000, 1800, 1, 60], "local"]
 '''
 
 GATES = r'''
@@ -275,7 +281,7 @@ for _ in range(2500):
                  "power.keep_awake", "power.awake_cap", "power.sleep_threshold", "power.waits_for_network", "power.listens"]:
         cases.append([name, values])
     cases.append(["guards.over", values, rng.choice([None, 0, 99999, 100001, 250000, 250001, 2 ** 53, 2 ** 53 + 1, True, -1, 1.5e6])])
-    cases.append(["ladder.wait_before", values, rng.choice([1, 2, 3, 5, 6, 0, -2, 10 ** 30, 2.9, True, "3", " 4 ", "x", None, float("inf") if False else 7]),
+    cases.append(["ladder.wait_before", values, rng.choice([1, 2, 3, 5, 6, 0, -2, 10 ** 30, 2.9, True, "3", " 4 ", "x", None, 7, float("inf"), float("-inf"), float("nan")]),
                   rng.choice(["rate_limit_transient", "timeout", None])])
     cases.append(["ladder.jittered", rng.choice([5, 60, 900, 100, 3600, 7.5, True, "x", None]), values,
                   rng.choice([0.0, 0.5, 0.999999, 0.5000005, 1.0, -0.1, 0.25, 0.123456789, 1, None, "0.5"])])
@@ -304,7 +310,8 @@ for seconds in [0, 59, 60, 61, 3600, -120, 59.9, "120", True, None, "x"]:
     cases.append(["needsyou.minutes", seconds])
 # power
 readings = [[100, 50], [200, 60], [1000, 80], [100.5, 50], [400, 340], ["160", "50"], ["x", 1], [1], [], None, "12",
-            {"a": 1}, [float("inf") if False else 1e308, 0], [10 ** 400, 0], [True, False]]
+            {"a": 1}, [1e308, 0], [float("inf"), 0], [0, float("inf")], [float("nan"), 0], [100, float("nan")], [float("-inf"), 0],
+            [10 ** 400, 0], [True, False]]
 for before in readings:
     for after in readings:
         cases.append(["power.asleep", before, after])
@@ -392,7 +399,7 @@ for _ in range(6000):
     if chosen != "MISSING":
         values["quiet_hours_days"] = chosen
     now = rng.choice([base + rng.randrange(0, 366 * 86400), base + rng.randrange(0, 366 * 86400) + 0.5,
-                      rng.choice([0, -5, 10 ** 30, True, "x", None, float("nan") if False else 1e18, 2 ** 70])])
+                      rng.choice([0, -5, 10 ** 30, True, "x", None, 1e18, float("nan"), float("inf"), float("-inf"), 2 ** 70])])
     cases.append(["quiet.window", values])
     cases.append(["quiet.quiet_until", now, values, rng.choice(ZONES)])
 for spec in ZONES:
@@ -411,7 +418,30 @@ for spec in ZONES:
     for preset in list(quiet.PRESETS) + ["bogus", None, ["x"]]:
         for now in [base, base + 86400 * 100 + 0.5, "123", True, None, -5]:
             cases.append(["quiet.postpone_time", now, preset, spec])
-for until in [None, True, 5, 100, 100.0, 101, 100 + 7 * 86400, 101 + 7 * 86400, 100.5 + 7 * 86400, float("inf") if False else 1e400 if False else 1e300,
+# The product's clock against the interpreter's own time.localtime and time.mktime at their edges: before 1970, the
+# C runtime's last second (3000-12-31 23:59:59 UTC) and past it, time_t's end, the numbers JSON cannot carry, every
+# hour of the year, and fields that carry over or do not fit a C int.
+for value in [0, 1, -1, -0.5, 0.5, 0.999, 86399, 86400, 32535215999, 32535215999.9, 32535216000, 32535244799,
+              32535244800, 9.2e18, 9.3e18, -9.3e18, 9223372036854775808.0, -9223372036854775808.0, 2 ** 63, -2 ** 63,
+              2 ** 70, 1e308, -1e308,
+              float("nan"), float("inf"), float("-inf"), True, False]:
+    cases.append(["quiet.zone", value, "local"])
+for hour in range(0, 366 * 24, 7):
+    cases.append(["quiet.zone", base + hour * 3600 + rng.choice([0, 0.5, 1799, 3599.999]), "local"])
+for _ in range(1500):
+    cases.append(["quiet.zone", rng.uniform(-1e5, 3.3e10), "local"])
+for parts in [[1970, 1, 1, 0, 0, 0], [1970, 1, 1, 9, 0, 0], [1969, 12, 31, 23, 59, 59], [3000, 12, 31, 23, 59, 59],
+              [3001, 1, 1, 0, 0, 0], [2026, 0, 1, 0, 0, 0], [2026, 13, 1, 0, 0, 0], [2026, -1, 1, 0, 0, 0],
+              [2026, 25, 1, 0, 0, 0], [2026, 1, 0, 0, 0, 0], [2026, 1, 32, 0, 0, 0], [2026, 1, -400, 0, 0, 0],
+              [2026, 1, 1, 25, 0, 0], [2026, 1, 1, -1, 0, 0], [2026, 1, 1, 0, 90, 0], [2026, 1, 1, 0, 0, -3600],
+              [2026, 1, 1, 0, 0, 2 ** 31 - 1], [2026, 1, 1, 0, 0, 2 ** 31], [2026, 1, 1, 0, 0, -2 ** 31],
+              [2 ** 31, 1, 1, 0, 0, 0], [-2 ** 31 + 1899, 1, 1, 0, 0, 0], [-2 ** 31 + 1900, 1, 1, 0, 0, 0],
+              [1900, 1, 1, 0, 0, 0], [0, 1, 1, 0, 0, 0], [2026, 2, 29, 12, 0, 0], [2024, 2, 29, 12, 0, 0]]:
+    cases.append(["quiet.zone", parts, "local"])
+for _ in range(1500):
+    cases.append(["quiet.zone", [rng.randrange(1960, 3010), rng.randrange(-2, 15), rng.randrange(-40, 70),
+                                 rng.randrange(-30, 50), rng.randrange(-100, 200), rng.randrange(-5000, 5000)], "local"])
+for until in [None, True, 5, 100, 100.0, 101, 100 + 7 * 86400, 101 + 7 * 86400, 100.5 + 7 * 86400, 1e300, float("inf"), float("-inf"), float("nan"),
               2 ** 70, "200", [1]]:
     for now in [100, 100.5, True]:
         for not_before in [None, 50, 150, 100.0, "x"]:

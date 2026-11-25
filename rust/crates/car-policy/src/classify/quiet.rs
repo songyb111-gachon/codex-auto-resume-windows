@@ -109,7 +109,11 @@ pub fn postpone_time(now: &Value, preset: &Value, clock: &dyn LocalClock) -> Py<
         return Ok(Some(pytext::to_float(now)? + *ahead as f64));
     }
     if word == Some("tomorrow_morning") {
-        let today = clock.localtime(seconds(now)?)?;
+        // `localtime(now)`: None is the time now, as `time.localtime(None)` reads it.
+        let today = match now {
+            Value::Null => clock.localtime_now()?,
+            _ => clock.localtime(seconds(now)?)?,
+        };
         return local(clock, (today.year, today.mon, today.mday + 1), 9 * 60).map(Some);
     }
     Ok(None)

@@ -45,9 +45,36 @@ def golden_line(command: str, case: int = 0) -> bytes:
     return (json.dumps(document["cases"][case]["reply"], ensure_ascii=False) + "\n").encode("utf-8")
 
 
+# The channel's floats (REVIEW-int5 S3). The wire writes JSON with allow_nan=False and car-harness reads requests with
+# serde, so a NaN or an infinity cannot cross as itself: each goes as a one-key object, {"$float": "nan"}, {"$float":
+# "inf"} or {"$float": "-inf"}, both ways - the reference's family scripts tag their cases and answers (`TAGGING` is in
+# leaves.PRELUDE and codexdiff.SCRIPT), car-harness turns a tag into the float before a case runs and its own NaN and
+# infinities into tags in the answer (`leaves::untag`, `leaves::tag`). Every finite value goes as before, so a diff that
+# never meets a non-finite float writes the same bytes. A dict whose only key is "$float" is the tag's, never a case's.
+FLOAT_TAG = "$float"
+TAGGING = r'''
+def tagged(value):
+    """`value` with every NaN and infinity as its {"$float": ...} tag (rustdiff.diffs.FLOAT_TAG)."""
+    if isinstance(value, float):
+        if value != value:
+            return {"$float": "nan"}
+        if value in (float("inf"), float("-inf")):
+            return {"$float": "inf" if value > 0 else "-inf"}
+        return value
+    if isinstance(value, (list, tuple)):
+        return [tagged(each) for each in value]
+    if isinstance(value, dict):
+        if list(value) == ["$float"]:
+            raise ValueError("a dict whose only key is $float is the channel's float tag")
+        return {key: tagged(each) for key, each in value.items()}
+    return value
+'''
+exec(TAGGING)
+
+
 def encode(value) -> bytes:
-    """controlcli.encode's line for `value`, the bytes the reference's wire writes."""
-    return (json.dumps(value, ensure_ascii=False, allow_nan=False) + "\n").encode("utf-8")
+    """controlcli.encode's line for `value`, the bytes the reference's wire writes (a NaN or an infinity as its tag)."""
+    return (json.dumps(tagged(value), ensure_ascii=False, allow_nan=False) + "\n").encode("utf-8")
 
 
 class Base(unittest.TestCase):

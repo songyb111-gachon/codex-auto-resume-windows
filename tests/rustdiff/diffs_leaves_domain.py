@@ -46,7 +46,8 @@ for value in values + others:
     cases.append(["ids.uuid_problem", value, True])
     cases.append(["ids.is_uuid", value])
 cases += [["ids.uuid_pattern", False], ["ids.uuid_pattern", True]]
-completed = [0, 1, 1.0, 1.5, 1700000000, 1700000000.123456, -0.0, 5e-324, 1e300, True, "12.5", " 3 ", "inf", "nan", "1e400", None, [1], 10 ** 400, 2 ** 70, "x", 2 ** 53 + 1, 0.1 + 0.2]
+completed = [0, 1, 1.0, 1.5, 1700000000, 1700000000.123456, -0.0, 5e-324, 1e300, True, "12.5", " 3 ", "inf", "nan", "1e400", None, [1], 10 ** 400, 2 ** 70, "x", 2 ** 53 + 1, 0.1 + 0.2,
+             float("nan"), float("inf"), float("-inf")]
 names = ["0a1b2c3d-0001-7000-8000-000000000001", "t", "é中", "\U0001f600", "", None, 7, 1.5, ["a", 1], {"k": "v"}, "q\"uote\\"]
 for thread in names:
     for turn in names[:5]:
@@ -110,7 +111,7 @@ for old in all_states:
     for new in all_states:
         cases.append(["states.plain_move_allowed", old, new])
 nums = [0, 1, -1, 946684800, 946684799, 4102444800, 4102444801, 253402300799, 253402300800, 1700000000, 1700000000.5, 1e18, 1e308,
-        True, False, None, "1", [1], 2 ** 70, 10 ** 400, 1.5e9, 0.0, -0.0]
+        True, False, None, "1", [1], 2 ** 70, 10 ** 400, 1.5e9, 0.0, -0.0, float("nan"), float("inf"), float("-inf")]
 windows = [(0, 253402300799), (946684800, 4102444800), (1, 4102444800)]
 for value in nums:
     for low, high in windows:
@@ -131,8 +132,8 @@ for category in ["usage_limit", "server_5xx", None, 5, []]:
         for now in [1000, 1000.0, 999, "x"]:
             cases.append(["states.waiting_state", {"category": category, "reset_at": reset}, now])
 cases.append(["states.waiting_state", [], 1])
-for started in [1700000000, 1700000000.0, 0, -5, True, None, "x", 2 ** 70, 1e30]:
-    for booted in [1700000000, 1700000005, 1700000005.5, 1700000006, 1700000100, 0, None, 253402300800, 10 ** 400]:
+for started in [1700000000, 1700000000.0, 0, -5, True, None, "x", 2 ** 70, 1e30, float("nan"), float("inf"), float("-inf")]:
+    for booted in [1700000000, 1700000005, 1700000005.5, 1700000006, 1700000100, 0, None, 253402300800, 10 ** 400, float("nan"), float("inf"), float("-inf")]:
         cases.append(["states.ended_by_boot", started, booted])
 
 def window(**changes):
@@ -142,6 +143,8 @@ def window(**changes):
 variants = [window(), window(bucket="premium", window="secondary", window_minutes=None, reset_at=None), window(used_percent=0),
             window(used_percent=10000), window(used_percent=10000.5), window(used_percent=-0.1),
             window(used_percent=True), window(used_percent="5"), window(used_percent=None), window(used_percent=10 ** 400),
+            window(used_percent=float("nan")), window(used_percent=float("inf")), window(reset_at=float("nan")),
+            window(reset_at=float("inf")), window(window_minutes=float("nan")),
             window(bucket="x"), window(bucket=None), window(window="tertiary"), window(window_minutes=0), window(window_minutes=100800),
             window(window_minutes=100801), window(window_minutes=1.5), window(window_minutes=True), window(window_minutes=-1),
             window(reset_at=1.5), window(reset_at=1700000000.0), window(reset_at=True), window(reset_at=0), window(reset_at=1),

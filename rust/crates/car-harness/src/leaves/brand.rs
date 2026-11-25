@@ -342,6 +342,7 @@ fn glow_value(found: Option<light::Glow>) -> Value {
 pub fn case(name: &str, a: &Args) -> Option<Py<Value>> {
     Some(match name {
         // ---------------------------------------------------------------- colour and tokens
+        "pyfmt.repr_bits" => a.bits(0).map(|x| Value::from(pyfmt::repr(x))),
         "brand.rgb" => text_of(a.get(0))
             .and_then(colour::rgb)
             .map(|triple| ints(&triple)),

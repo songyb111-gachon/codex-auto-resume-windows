@@ -182,7 +182,10 @@ from codex_auto_resume.ui import words
 def say_for(locale):
     return lambda key, **fields: l10n.text(key, locale, **fields)
 cases = []
-seconds = [0, 1, 4, 5, 59, 60, 61, 3599, 3600, 3661, 86399, 86400, 90000, 400000, 12345678, -1, -100, 0.5, 4.99, 59.99, 724.9, 11100, True, False, 10 ** 12, None, [1], {}]
+seconds = [0, 1, 4, 5, 59, 60, 61, 3599, 3600, 3661, 86399, 86400, 90000, 400000, 12345678, -1, -100, 0.5, 4.99, 59.99, 724.9, 11100, True, False, 10 ** 12, None, [1], {},
+           # past an i64 and the numbers JSON cannot carry (REVIEW-int5 S3, note 2): Python's int has no bound, and int() reads a text
+           2 ** 63, 2 ** 64 + 7, 10 ** 30, -10 ** 30, 1e19, 1e300, -1e300, 1.7976931348623157e308, float("nan"), float("inf"), float("-inf"), -0.0,
+           "45", " 45 ", "4_5", "+45", "-45", "٤٥", "4.5", "", "x", "45" * 30, "9" * 4301, "1_0" * 2, "4__5", "  7　"]
 for value in seconds:
     cases.append(["words.countdown", value])
     for locale in l10n.LOCALES:
@@ -193,7 +196,10 @@ for value in minutes:
         cases.append(["words.window_name", value, locale])
 windows = [{}, {"used_percent": 0}, {"used_percent": 0.0}, {"used_percent": 1}, {"used_percent": 12.5}, {"used_percent": 49.99}, {"used_percent": 99.6}, {"used_percent": 99.999}, {"used_percent": 100},
            {"used_percent": 100.0}, {"used_percent": 100.5}, {"used_percent": 250}, {"used_percent": -0.5}, {"used_percent": -5}, {"used_percent": None}, {"used_percent": True},
-           {"used_percent": "5"}, {"used_percent": [5]}, {"used_percent": 1e-9}, {"used_percent": 89.9}, {"used_percent": 90}, {"used_percent": 10 ** 30}, 5, None, []]
+           {"used_percent": "5"}, {"used_percent": [5]}, {"used_percent": 1e-9}, {"used_percent": 89.9}, {"used_percent": 90}, {"used_percent": 10 ** 30}, 5, None, [],
+           {"used_percent": float("nan")}, {"used_percent": float("inf")}, {"used_percent": float("-inf")}, {"used_percent": -10 ** 30},
+           {"used_percent": -1e300}, {"used_percent": -1e-300}, {"used_percent": -0.0}, {"used_percent": -2 ** 63}, {"used_percent": -2 ** 63 - 1},
+           {"used_percent": 99.99999999999999}, {"used_percent": 100 - 2 ** -46}]
 for window in windows:
     cases += [["words.share", window], ["words.left", window]]
 now = 1700000000.0

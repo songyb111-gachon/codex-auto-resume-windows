@@ -118,12 +118,15 @@ impl LegacyStore {
     pub fn set_enabled(&self, enabled: bool, now: f64) -> Result<()> {
         check_now(now)?;
         self.transaction(|connection| {
+            // `row[0]` of no row is Python's TypeError, which the transaction rolls back and lets through.
             let row = first(
                 connection,
                 "SELECT enabled, armed_at FROM settings WHERE singleton=1",
                 &[],
             )?
-            .unwrap_or_default();
+            .ok_or_else(|| {
+                Error::Python("TypeError", "'NoneType' object is not subscriptable".into())
+            })?;
             let was = row.first().is_some_and(crate::value::truthy);
             let armed = if enabled && !was {
                 Value::Float(now)

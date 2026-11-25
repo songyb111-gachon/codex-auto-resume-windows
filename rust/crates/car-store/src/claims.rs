@@ -144,8 +144,15 @@ fn caps_refusal(
             "SELECT max(coalesce(submitted_at, last_claim_at)) FROM interruptions WHERE thread_id=? AND coalesce(submitted_at, last_claim_at)>?",
             &[thread, since],
         )?;
+        // `forced or latest is None or now - latest >= cooldown` passes: a NaN spacing is never reached, so it refuses.
+        let spaced = |latest: f64| {
+            matches!(
+                (now - latest).partial_cmp(&cooldown),
+                Some(std::cmp::Ordering::Greater | std::cmp::Ordering::Equal)
+            )
+        };
         match finite_value(&latest, None) {
-            Some(latest) if !forced && now - latest < cooldown => "thread_submission_cooldown",
+            Some(latest) if !forced && !spaced(latest) => "thread_submission_cooldown",
             _ => return Ok(None),
         }
     };

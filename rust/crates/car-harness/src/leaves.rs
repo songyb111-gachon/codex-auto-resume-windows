@@ -55,6 +55,14 @@ impl<'a> Args<'a> {
         car_machine::pytext::to_float(self.get(at))
     }
 
+    /// A float sent as its bits, 16 hex digits (`struct.pack(">d", x).hex()`): every f64, NaN payloads included.
+    pub fn bits(&self, at: usize) -> Py<f64> {
+        let hex = self.text(at)?;
+        u64::from_str_radix(hex, 16)
+            .map(f64::from_bits)
+            .map_err(|_| "ValueError")
+    }
+
     /// A `bytes` argument, sent as hex.
     pub fn bytes(&self, at: usize) -> Py<Vec<u8>> {
         let hex = self.text(at)?;
@@ -102,7 +110,85 @@ pub fn batch(cases: &Value) -> Value {
     Value::Array(answers)
 }
 
-/// Reads the request line as the Python reads it (arbitrary-size ints, floats as floats).
+/// Reads the request line as the Python reads it (arbitrary-size ints, floats as floats), each `{"$float": ...}`
+/// tag turned into its float (`untag`).
 pub fn read(request: &serde_json::Value) -> Option<Value> {
-    from_str(&serde_json::to_string(request).ok()?).ok()
+    from_str(&serde_json::to_string(request).ok()?)
+        .ok()
+        .map(untag)
+}
+
+/// The key of the channel's float tag (`tests/rustdiff/diffs.py`, `FLOAT_TAG`): a NaN or an infinity, which JSON
+/// written with `allow_nan=False` and serde cannot carry, crosses as `{"$float": "nan" | "inf" | "-inf"}`.
+pub const FLOAT_TAG: &str = "$float";
+
+/// `value` with every float tag turned into its float. A one-key object of any other value is left as it is.
+pub fn untag(value: Value) -> Value {
+    match value {
+        Value::Object(map) => {
+            if map.len() == 1
+                && let Some(Value::Str(word)) = map.get(FLOAT_TAG)
+            {
+                match word.as_str() {
+                    Some("nan") => return Value::Float(f64::NAN),
+                    Some("inf") => return Value::Float(f64::INFINITY),
+                    Some("-inf") => return Value::Float(f64::NEG_INFINITY),
+                    _ => {}
+                }
+            }
+            Value::Object(
+                map.into_iter()
+                    .map(|(key, each)| (key, untag(each)))
+                    .collect(),
+            )
+        }
+        Value::Array(items) => Value::Array(items.into_iter().map(untag).collect()),
+        other => other,
+    }
+}
+
+/// `value` with every NaN and infinity written as its float tag, as the reference's family scripts write theirs.
+pub fn tag(value: Value) -> Value {
+    match value {
+        Value::Float(x) if x.is_nan() => float_tag("nan"),
+        Value::Float(x) if x.is_infinite() => float_tag(if x > 0.0 { "inf" } else { "-inf" }),
+        Value::Object(map) => Value::Object(
+            map.into_iter()
+                .map(|(key, each)| (key, tag(each)))
+                .collect(),
+        ),
+        Value::Array(items) => Value::Array(items.into_iter().map(tag).collect()),
+        other => other,
+    }
+}
+
+fn float_tag(word: &str) -> Value {
+    let mut map = Map::new();
+    map.insert(Str::from(FLOAT_TAG), Value::from(word));
+    Value::Object(map)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{tag, untag};
+    use car_machine::json::{Options, from_str, to_string};
+
+    #[test]
+    fn a_tag_is_a_float_and_a_float_a_tag() {
+        let sent = from_str(
+            r#"[{"$float": "nan"}, {"$float": "inf"}, {"x": {"$float": "-inf"}}, {"$float": "other"}, {"$float": "nan", "y": 1}, 1.5]"#,
+        )
+        .unwrap();
+        let read = untag(sent);
+        let car_machine::json::Value::Array(items) = &read else {
+            panic!("an array")
+        };
+        assert!(matches!(items[0], car_machine::json::Value::Float(x) if x.is_nan()));
+        assert!(matches!(items[1], car_machine::json::Value::Float(x) if x == f64::INFINITY));
+        let back = to_string(&tag(read), &Options::wire()).unwrap();
+        assert_eq!(
+            back,
+            r#"[{"$float": "nan"}, {"$float": "inf"}, {"x": {"$float": "-inf"}}, {"$float": "other"}, {"$float": "nan", "y": 1}, 1.5]"#
+        );
+    }
 }

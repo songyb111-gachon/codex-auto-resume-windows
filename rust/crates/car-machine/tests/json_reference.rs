@@ -326,12 +326,21 @@ impl Generator {
     fn float(&mut self) -> f64 {
         match self.rng.below(1000) {
             0..=2 => [f64::NAN, f64::INFINITY, f64::NEG_INFINITY][self.rng.below(3) as usize],
-            3..=299 => loop {
+            3..=249 => loop {
                 let x = f64::from_bits(self.rng.next());
                 if x.is_finite() {
                     break x;
                 }
             },
+            // A power of two and the doubles around it: random bits reach one once in 2^52 draws, and the
+            // shortest-digits rule once wrote 46 of them a digit low (REVIEW-int5 S1).
+            250..=299 => {
+                let exponent = self.rng.below(2046) + 1;
+                let step = self.rng.below(5) as i64 - 2;
+                let x = f64::from_bits((exponent << 52).wrapping_add_signed(step));
+                let x = if x.is_finite() { x } else { f64::MAX };
+                if self.rng.chance(50) { x } else { -x }
+            }
             300..=449 => SPECIAL_FLOATS[self.rng.below(SPECIAL_FLOATS.len() as u64) as usize],
             450..=599 => {
                 let anchor = SPECIAL_FLOATS[self.rng.below(SPECIAL_FLOATS.len() as u64) as usize];

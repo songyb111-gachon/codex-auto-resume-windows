@@ -126,8 +126,10 @@ for case in request["cases"]:
         except Exception as error:
             results.append(raised(error))
     answers.append({"open": None, "results": results})
-sys.stdout.write(json.dumps(answers, ensure_ascii=False, allow_nan=False))
+sys.stdout.write(json.dumps(tagged(answers), ensure_ascii=False, allow_nan=False))
 '''
+# A NaN or an infinity in an answer crosses as its {"$float": ...} tag (diffs.TAGGING), as car-harness writes it.
+SCRIPT = SCRIPT.replace("\nanswers = []\n", diffs.TAGGING + "\n\nanswers = []\n", 1)
 
 
 class Home:

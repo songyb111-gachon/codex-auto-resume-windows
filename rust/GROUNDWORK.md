@@ -839,3 +839,43 @@ What `outputs/plans/v0627-rust/REVIEW-int4.md` found and REVIEW-int5's S2, each 
 * **The suite's power guard**: `tests/sitecustomize.py`, `scripts/test_parts.py` and `tests/rustdiff/core.py` set
   `CAR_NO_POWER_ACTION`; `tests/test_rust_power_guard.py`, car-platform `tests/power_guard.rs`.
 * Re-diff for the final: `python -X utf8 tests/rustdiff/rediff_review4.py --reference v0.6.26`.
+
+## The second review's fixes (seat fix5, branch `car-v0627-fix5`, 2026-11-25)
+
+REVIEW-int5 (outputs/plans/v0627-rust) found four "should fix" and ten notes; this seat took S1, S3, S4 and the notes in
+car-store, car-words, car-machine and car-policy. S2 (atomic replace with share-delete) is the fix4 seat's, with every
+share-mode question of car-platform and car-config; its review test (`car-policy --test review5_replace`) stays red here.
+
+* **The float repr (S1).** car-machine's `json/float.rs` (the writer, so `pytext::float_repr` and car-store's schedule texts)
+  and car-brand's `pyfmt::repr` take x rounded exactly to the shortest length only where that form reads back as x, and
+  otherwise `{:e}`'s form (at 46 powers of two the nearest form lies below the narrower half of the interval). Held by
+  `tests/support/float_corpus.rs` (both crates' `float_repr_reference` tests: every power of two and the doubles around
+  it, the subnormals, the doubles around every decimal exponent, a million random values, against `python -I`'s repr;
+  `CAR_FLOAT_COUNT`, `CAR_FLOAT_SEED`), json_reference now draws powers of two, and `diffs_leaves_floats.py` compares the
+  texts themselves through car-harness (`pytext.float_texts`, `pyfmt.repr_bits`: a float sent as its bits).
+* **The channel's floats (S3).** A NaN or an infinity crosses as `{"$float": "nan" | "inf" | "-inf"}` both ways:
+  `tests/rustdiff/diffs.py` `TAGGING` (`tagged`, in `leaves.PRELUDE`, `codexdiff.SCRIPT`, `diffs.encode`, and the store
+  diffs' requests), car-harness `leaves::untag` on `leaves.batch`, `codex.script` and the store calls' line and
+  `leaves::tag` on the leaves and codex answers. Finite values are written as before, so every existing diff sends the same
+  bytes; a dict whose only key is `$float` is the tag's. `policy.batch` (settingsdiff) keeps its own loose reading.
+* **BLOBs (S4).** car-store's `value::blob` carries a BLOB as `bytes`: a one-key object `{"\u0000bytes": hex}` whose truth,
+  equality, binding (back as a BLOB) and sort are `bytes`'; no check that wants a number or a text takes it. The reference's
+  store runner writes `bytes` the same way. car-codex's `Cell` is untouched (another seat's).
+* **Notes fixed:** the sign-in's `$` (a final newline kept); `begin()`'s unwind guard (a panic rolls back); `set_enabled`
+  with no settings row (TypeError); a NaN caps spacing refuses; car-store's `py_eq` compares an int and a float exactly;
+  car-words' `share` is Python's unbounded int and a ValueError on NaN and -inf, `countdown` and `age` read a digit string as
+  `int()` does and write every digit of a huge count; `l10n::text` reads its key from the cache without copying the catalog.
+* **The product's clock (note 3).** car-policy `classify::clock::Crt` is `LocalClock` over the UCRT's `_localtime64_s` and
+  `_mktime64`, the functions CPython's `time.localtime` and `time.mktime` call on Windows, with CPython's own range checks
+  (`_PyTime_ObjectToTime_t`, `gettmarg`, `time_mktime`'s sentinel). It is in car-policy, beside the trait and the policy
+  that reads it (crate-map: `quiet` is car-policy's), declared as car-brand declares `erfc`; car-platform (D3) was another
+  seat's when this was written: the integration may move it there unchanged. `LocalClock::localtime_now` is
+  `time.localtime(None)` (`postpone_time(None, ...)` reads the time now). car-harness's `Clock` answers the zone `"local"`
+  with `Crt`; the diffs hold it to the interpreter's `time` in this PC's zone (diffs_classify_policy, every edge: before
+  1970, the C runtime's last second, time_t's end, fields that carry over or do not fit an int) and in six `TZ` zones with
+  summer time, half hours and UTC (diffs_classify_clock.py).
+* **Not changed:** lone surrogates in projects/chains/sql (signatures car-codex calls, recorded in the AUDIT); the LF
+  catalogs (CatalogsDiff already compares `read_text`'s text and the parsed catalogs, and `gen_catalogs.py --check` the
+  tag's LF archive bytes, so a CRLF checkout is no difference).
+
+The re-diff for the final: `python -X utf8 tests/rustdiff/rediff_review5.py --reference v0.6.26`.
