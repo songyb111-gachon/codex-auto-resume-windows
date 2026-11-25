@@ -1779,7 +1779,12 @@ fn scenario(sc: &Map) -> Out {
         results.push(match done {
             Ok(Ok(value)) => obj(vec![("ok", value)]),
             Ok(Err(failure)) => obj(vec![("error", text(&failure.class))]),
-            Err(_) => obj(vec![("error", text("Panic"))]),
+            Err(payload) => obj(vec![(
+                "error",
+                text(
+                    car_adv::state::port::raised(&*payload).map_or("Panic", |raised| raised.class),
+                ),
+            )]),
         });
     }
     Ok(obj(vec![

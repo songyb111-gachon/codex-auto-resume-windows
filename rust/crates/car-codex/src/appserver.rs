@@ -8,6 +8,7 @@
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::process::{Child, ChildStdin};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, RecvTimeoutError, SyncSender, TrySendError, sync_channel};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -518,16 +519,47 @@ pub fn oversize(head: &[char], tail: &[char], size: usize, log: &mut dyn FnMut(&
 /// What a protocol session writes to: the helper's input, shared by the caller and the reader.
 type Input = Arc<Mutex<Option<ChildStdin>>>;
 
+/// What a text-mode pipe opened with `errors="replace"` writes of a value's texts: each lone surrogate as `?`.
+fn replaced(value: &Value) -> Value {
+    let text = |text: &Str| {
+        if text.has_surrogate() {
+            let kept: String = text
+                .code_points()
+                .map(|point| char::from_u32(point).unwrap_or('?'))
+                .collect();
+            Str::new(&kept)
+        } else {
+            text.clone()
+        }
+    };
+    match value {
+        Value::Str(each) => Value::Str(text(each)),
+        Value::Array(items) => Value::Array(items.iter().map(replaced).collect()),
+        Value::Object(map) => Value::Object(
+            map.iter()
+                .map(|(key, each)| (text(key), replaced(each)))
+                .collect(),
+        ),
+        other => other.clone(),
+    }
+}
+
+/// `_write(payload)`: `json.dumps(payload, ensure_ascii=False, allow_nan=False)` and a new line, through the
+/// helper's text-mode input (UTF-8, `errors="replace"`): a lone surrogate - an echoed request id can hold one - is
+/// written as `?`, never refused.
 fn write_line(input: &Input, payload: &Value) -> Result<()> {
-    let text = to_string(payload, &Options::wire()).map_err(|_| Error::Python("ValueError"))?;
+    let text = match to_string(payload, &Options::wire()) {
+        Ok(text) => text,
+        Err(car_machine::json::Error::Surrogate) => to_string(&replaced(payload), &Options::wire())
+            .map_err(|_| Error::Python("ValueError"))?,
+        Err(_) => return Err(Error::Python("ValueError")),
+    };
     let mut held = input
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
     let stream = held.as_mut().ok_or(Error::Os)?;
-    // A text-mode pipe on Windows writes "\n" as "\r\n", and replaces what UTF-8 cannot carry.
-    let bytes = String::from_utf8_lossy(text.as_bytes())
-        .replace('\n', "\r\n")
-        .into_bytes();
+    // A text-mode pipe on Windows writes "\n" as "\r\n".
+    let bytes = text.replace('\n', "\r\n").into_bytes();
     stream.write_all(&bytes)?;
     stream.write_all(b"\r\n")?;
     stream.flush()?;
@@ -537,7 +569,24 @@ fn write_line(input: &Input, payload: &Value) -> Result<()> {
 /// Lines the reader's logger was told, for whoever asks (the reference logs them at INFO).
 pub static SAID: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
-fn reader(stdout: std::process::ChildStdout, input: Input, answers: SyncSender<Map>) {
+/// The helper's stdout as the reader thread reads it, with the reference's `process.stdout.close()`: once `closed`
+/// is set, the read in progress ends as it would and the next one fails (`ValueError: I/O operation on closed
+/// file`), so the reader returns, as Python's buffered reader lets a close in only between two reads.
+struct Closable {
+    inner: std::process::ChildStdout,
+    closed: Arc<AtomicBool>,
+}
+
+impl Read for Closable {
+    fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+        if self.closed.load(Ordering::SeqCst) {
+            return Err(std::io::Error::other("I/O operation on closed file"));
+        }
+        self.inner.read(buffer)
+    }
+}
+
+fn reader(stdout: Closable, input: Input, answers: SyncSender<Map>) {
     let mut stream = TextReader::new(stdout);
     let mut log = |line: &str| {
         SAID.lock()
@@ -586,6 +635,8 @@ pub struct Protocol<'a> {
     input: Input,
     answers: Option<Receiver<Map>>,
     reader: Option<std::thread::JoinHandle<()>>,
+    /// `process.stdout.close()`, as the reader sees it.
+    closed: Arc<AtomicBool>,
     sequence: i64,
     /// What the last error answer was: METHOD_UNKNOWN or REFUSED.
     pub refusal: Option<&'static str>,
@@ -601,6 +652,7 @@ impl<'a> Protocol<'a> {
             input: Arc::new(Mutex::new(None)),
             answers: None,
             reader: None,
+            closed: Arc::new(AtomicBool::new(false)),
             sequence: 0,
             refusal: None,
         };
@@ -640,6 +692,10 @@ impl<'a> Protocol<'a> {
         self.answers = Some(receive);
         if let Some(stdout) = stdout {
             let input = Arc::clone(&self.input);
+            let stdout = Closable {
+                inner: stdout,
+                closed: Arc::clone(&self.closed),
+            };
             self.reader = Some(std::thread::spawn(move || reader(stdout, input, send)));
         }
         let version = self.backend.product_version.clone();
@@ -787,7 +843,9 @@ impl<'a> Protocol<'a> {
         Err(Error::Adapter("protocol_timeout"))
     }
 
-    /// `__exit__`: close the helper's input, give it EXIT_SECONDS to end, end it, then let the reader go.
+    /// `__exit__`: close the helper's input, give it EXIT_SECONDS to end, end it, give the reader JOIN_SECONDS, then
+    /// close its stdout: the close waits for the read in progress (a process the helper started can hold the pipe
+    /// open after the helper ended), the next read fails, and the reader thread is joined - none is left running.
     pub fn close(&mut self) {
         let Some(mut process) = self.process.take() else {
             return;
@@ -807,9 +865,8 @@ impl<'a> Protocol<'a> {
             while !reader.is_finished() && Instant::now() < until {
                 std::thread::sleep(Duration::from_millis(5));
             }
-            if reader.is_finished() {
-                let _ = reader.join();
-            }
+            self.closed.store(true, Ordering::SeqCst);
+            let _ = reader.join();
         }
         self.answers = None;
     }
@@ -834,5 +891,28 @@ fn wait(process: &mut Child, seconds: f64) -> bool {
             return false;
         }
         std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `errors="replace"` on the helper's input: a lone surrogate of an echoed id is `?`, the rest as it is.
+    #[test]
+    fn a_lone_surrogate_is_written_as_a_question_mark() {
+        let lone = Str::from_code_points([0x61, 0xD800, 0x62, 0xDC00, 0x1F600]).unwrap();
+        let mut payload = Map::new();
+        payload.insert(Str::from("id"), Value::Str(lone));
+        payload.insert(Str::from("n"), Value::from(1));
+        let payload = Value::Object(payload);
+        assert!(matches!(
+            to_string(&payload, &Options::wire()),
+            Err(car_machine::json::Error::Surrogate)
+        ));
+        assert_eq!(
+            to_string(&replaced(&payload), &Options::wire()).unwrap(),
+            "{\"id\": \"a?b?\u{1F600}\", \"n\": 1}"
+        );
     }
 }

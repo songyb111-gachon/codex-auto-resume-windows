@@ -9,9 +9,12 @@
 //! never creates the file.
 //!
 //! The one connection serves every thread of its process: a mutex gives each transaction the connection whole,
-//! as the reference's re-entrant lock does.
+//! as the reference's re-entrant lock does. Whether it is open is also kept outside the mutex (`open`), so the
+//! claim's `attach` asks it without waiting for another thread's transaction, as the reference's `_open` reads
+//! `self._connection` without its lock.
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use car_config::paths::{OWNER_MARKER, OWNER_TEXT, Paths, is_link};
@@ -47,6 +50,9 @@ pub struct AdvancedState {
     /// `secrets.token_hex`, where a write makes an id of its own.
     pub tokens: Arc<dyn Tokens>,
     connection: Mutex<Option<Connection>>,
+    /// Set while `connection` holds an open, checked connection: written under the mutex, read without it
+    /// (`_open`'s unlocked read of `self._connection`).
+    open: AtomicBool,
 }
 
 /// One upgrade step: the version it starts from, the tables it needs, its statements.
@@ -77,6 +83,7 @@ impl AdvancedState {
             clock,
             tokens,
             connection: Mutex::new(None),
+            open: AtomicBool::new(false),
         }
     }
 
@@ -145,7 +152,10 @@ impl AdvancedState {
     ) -> Result<Option<&'a Connection>> {
         if held.is_none() {
             match self.open_connection(create)? {
-                Some(connection) => **held = Some(connection),
+                Some(connection) => {
+                    **held = Some(connection);
+                    self.open.store(true, Ordering::SeqCst);
+                }
                 None => return Ok(None),
             }
         }
@@ -371,7 +381,9 @@ impl AdvancedState {
 
     /// `close()`.
     pub fn close(&self) {
-        *self.lock() = None;
+        let mut held = self.lock();
+        self.open.store(false, Ordering::SeqCst);
+        *held = None;
     }
 
     // ---------------------------------------------------------------- transactions
@@ -425,8 +437,11 @@ impl AdvancedState {
     /// `attach(connection)`: this file attached to `connection` - core's, inside its one claim - as ATTACHED, once
     /// per connection. The file is opened and checked on its own connection first, so a file that would be refused
     /// is never attached; one that is not there is not made, and false says so.
+    ///
+    /// An already-open connection is answered without the mutex: the claim attaches the file from core's
+    /// transaction, which must not wait for a transaction of this connection's on another thread (`_open`).
     pub fn attach(&self, connection: &Connection) -> Result<bool> {
-        {
+        if !self.open.load(Ordering::SeqCst) {
             let mut held = self.lock();
             if self.opened(&mut held, false)?.is_none() {
                 return Ok(false);
@@ -469,13 +484,29 @@ fn cannot_open() -> Error {
     Error::state("cannot open the advanced state")
 }
 
+/// Rolls back the open transaction when a panic unwinds through `begin` (D15 catches panics at the host, and a state
+/// that outlives one must not keep its transaction and advanced.sqlite RESERVED, as Python, whose `except
+/// BaseException` always rolls back, never does). car-store's `begin` has the same guard.
+struct RollbackOnUnwind<'a>(&'a Connection);
+
+impl Drop for RollbackOnUnwind<'_> {
+    fn drop(&mut self) {
+        if std::thread::panicking() && !self.0.is_autocommit() {
+            let _ = self.0.execute_batch("ROLLBACK");
+        }
+    }
+}
+
 /// `_begin(connection, statement)`: the statement, the body, COMMIT; on any error ROLLBACK where a transaction is
-/// open, and SQLite's own error as `StateError("advanced state transaction failed")`.
+/// open, and SQLite's own error as `StateError("advanced state transaction failed")`. A panic in the body rolls
+/// back too. A ROLLBACK that fails goes out as SQLite's own error, as the reference's `connection.execute
+/// ("ROLLBACK")` inside its `except` raises the raw `sqlite3.Error`.
 pub(crate) fn begin<T>(
     connection: &Connection,
     statement: &str,
     body: impl FnOnce(&Connection) -> Result<T>,
 ) -> Result<T> {
+    let _guard = RollbackOnUnwind(connection);
     let outcome = (|| {
         sql::exec(connection, statement, &[])?;
         let value = body(connection)?;
@@ -486,13 +517,43 @@ pub(crate) fn begin<T>(
         Ok(value) => Ok(value),
         Err(error) => {
             if !connection.is_autocommit() {
-                sql::exec(connection, "ROLLBACK", &[])
-                    .map_err(|_| Error::state("advanced state transaction failed"))?;
+                sql::exec(connection, "ROLLBACK", &[])?;
             }
             match error {
                 Error::Sqlite(_) => Err(Error::state("advanced state transaction failed")),
                 other => Err(other),
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_panic_in_a_body_rolls_back() {
+        let connection = Connection::open_in_memory().unwrap();
+        connection
+            .execute_batch("CREATE TABLE t (x INTEGER)")
+            .unwrap();
+        let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _ = begin(&connection, "BEGIN IMMEDIATE", |connection| -> Result<()> {
+                connection
+                    .execute_batch("INSERT INTO t VALUES (1)")
+                    .unwrap();
+                panic!("a body that panics");
+            });
+        }));
+        assert!(caught.is_err());
+        assert!(
+            connection.is_autocommit(),
+            "the transaction was rolled back"
+        );
+        let count: i64 = connection
+            .query_row("SELECT count(*) FROM t", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 0);
+        begin(&connection, "BEGIN IMMEDIATE", |_| Ok(())).unwrap();
     }
 }

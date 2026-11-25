@@ -186,6 +186,15 @@ def schema_variants(root: Path) -> list[Path]:
             connection.close()
         except sqlite3.Error:
             pass
+    # Review 7 (REVIEW-int5b.md N1): a home whose state holds no conversation and that has no history database yet -
+    # every new Codex home before its first conversation. The v0.6.26 final reads its history checks NOT_APPLICABLE
+    # (compat/probes.py source_checks), beta.2 UNAVAILABLE; with a conversation both UNAVAILABLE. No other home here
+    # lacks the history file, so `rediff_appserver.py --reference v0.6.26` passed without these two.
+    fresh = home("no threads, no history yet")
+    (fresh.root / "thread_history_1.sqlite").unlink(missing_ok=True)
+    lost = home("a thread, no history")
+    lost.thread("0a1b2c3d-0001-7000-8000-00000000000c")
+    (lost.root / "thread_history_1.sqlite").unlink(missing_ok=True)
     for name, db, data in (("state not sqlite", "state_5.sqlite", b"not a database at all" * 10),
                            ("history empty", "thread_history_1.sqlite", b""),
                            ("newer queue", "queue_2.sqlite", b"")):

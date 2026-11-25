@@ -34,6 +34,15 @@ pub struct Raised {
     pub message: String,
 }
 
+/// D15's boundary for every host of `Arming` (the probes today; S7.3's surfaces and the watcher later): a host calls
+/// `Arming` inside `std::panic::catch_unwind` and reads the payload with this - a [`Raised`] is the exception the
+/// reference raises out of `arming.py` (its class and text, to be answered as that host answers that exception),
+/// anything else a panic of the port's own. The panics come after the state's call returned, outside any
+/// transaction, so the state is left as the reference leaves it.
+pub fn raised(payload: &(dyn std::any::Any + Send)) -> Option<&Raised> {
+    payload.downcast_ref::<Raised>()
+}
+
 /// An error of the state as `arming.py` meets it.
 fn fault(error: Error) -> StateFault {
     match error {
@@ -565,5 +574,23 @@ mod tests {
         assert_eq!(seam::RULES_LIMIT, choices::RULES_LIMIT as i64);
         assert_eq!(seam::RECENT_DAYS, choices::RECENT_DAYS);
         assert_eq!(seam::DAY as f64, choices::DAY);
+    }
+
+    /// A host's boundary reads the exception a port panic carries, and nothing from any other panic.
+    #[test]
+    fn a_host_reads_the_raised_class() {
+        let carried = std::panic::catch_unwind(|| {
+            std::panic::panic_any(super::Raised {
+                class: "TypeError",
+                message: "unhashable type: 'list'".into(),
+            })
+        })
+        .expect_err("it panics");
+        assert_eq!(
+            super::raised(&*carried).map(|raised| raised.class),
+            Some("TypeError")
+        );
+        let other = std::panic::catch_unwind(|| panic!("the port's own")).expect_err("it panics");
+        assert!(super::raised(&*other).is_none());
     }
 }
