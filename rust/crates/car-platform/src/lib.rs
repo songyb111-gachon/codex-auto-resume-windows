@@ -32,6 +32,7 @@ pub mod ownprocess;
 pub mod paths;
 pub mod power;
 pub mod powerdown;
+#[rustfmt::skip]
 mod printable_gen;
 pub mod pwsh;
 pub mod registry;

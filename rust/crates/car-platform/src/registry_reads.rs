@@ -86,7 +86,9 @@ pub fn policy_places(registry: &dyn Registry) -> Vec<car_machine::json::Value> {
                     PolicyValue::Data((Value::Int(data), kind)) => {
                         vec![Json::from(data), Json::from(kind)]
                     }
-                    PolicyValue::Data((Value::Bytes(_), kind)) => vec![Json::Null, Json::from(kind)],
+                    PolicyValue::Data((Value::Bytes(_), kind)) => {
+                        vec![Json::Null, Json::from(kind)]
+                    }
                     PolicyValue::Unreadable => vec![Json::Null, Json::from(UNREADABLE_KIND)],
                 };
                 entries.insert(Str::from(name.as_str()), Json::Array(pair));

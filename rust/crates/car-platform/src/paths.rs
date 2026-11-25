@@ -161,8 +161,13 @@ fn is_absolute(text: &str) -> bool {
 /// Windows error number. Opened as CPython opens it (no access, no sharing, backup semantics). A path past 260
 /// characters is opened through its `\\?\` form where long paths are on, as the long-path-aware python.exe opens it.
 fn final_path(path: &str) -> Result<String, i32> {
-    let long = !path.starts_with("\\\\") && path.encode_utf16().count() >= 260 && long_paths_enabled();
-    let name = wide(&if long { format!("\\\\?\\{path}") } else { path.to_string() });
+    let long =
+        !path.starts_with("\\\\") && path.encode_utf16().count() >= 260 && long_paths_enabled();
+    let name = wide(&if long {
+        format!("\\\\?\\{path}")
+    } else {
+        path.to_string()
+    });
     // SAFETY: `name` outlives the call; the handle is closed below.
     let handle: HANDLE = unsafe {
         CreateFileW(

@@ -154,7 +154,9 @@ pub fn display_name(manifest_path: &Path) -> Str {
         // read_text's universal newlines: a line end is "\n" whatever it was.
         let body = body.replace("\r\n", "\n").replace('\r', "\n");
         let manifest = loads(&body).ok()?;
-        let Json::Object(top) = manifest else { return None };
+        let Json::Object(top) = manifest else {
+            return None;
+        };
         let Some(Json::Object(interface)) = top.get("interface") else {
             return None;
         };
@@ -268,8 +270,14 @@ fn is_printable(point: u32) -> bool {
 fn py_strip(text: &Str) -> Str {
     let all: Vec<u32> = text.code_points().collect();
     let space = |point: &u32| char::from_u32(*point).is_some_and(is_space);
-    let start = all.iter().position(|point| !space(point)).unwrap_or(all.len());
-    let end = all.iter().rposition(|point| !space(point)).map_or(start, |at| at + 1);
+    let start = all
+        .iter()
+        .position(|point| !space(point))
+        .unwrap_or(all.len());
+    let end = all
+        .iter()
+        .rposition(|point| !space(point))
+        .map_or(start, |at| at + 1);
     Str::from_code_points(all[start..end.max(start)].iter().copied()).expect("code points of a str")
 }
 

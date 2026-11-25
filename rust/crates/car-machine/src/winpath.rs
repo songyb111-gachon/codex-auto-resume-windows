@@ -395,7 +395,13 @@ fn nonstrict(mut path: String, os: &dyn NtOs) -> Result<String, i32> {
     let mut tail = String::new();
     while !path.is_empty() {
         let code = match os.final_path(&path) {
-            Ok(found) => return Ok(if tail.is_empty() { found } else { glue(&found, &tail) }),
+            Ok(found) => {
+                return Ok(if tail.is_empty() {
+                    found
+                } else {
+                    glue(&found, &tail)
+                });
+            }
             Err(code) => code,
         };
         if !ALLOWED.contains(&code) {
@@ -405,7 +411,11 @@ fn nonstrict(mut path: String, os: &dyn NtOs) -> Result<String, i32> {
         if let Ok(followed) = readlink_deep(path.clone(), os)
             && followed != path
         {
-            return Ok(if tail.is_empty() { followed } else { glue(&followed, &tail) });
+            return Ok(if tail.is_empty() {
+                followed
+            } else {
+                glue(&followed, &tail)
+            });
         }
         let name;
         if FIND_FIRST.contains(&code) {
@@ -422,7 +432,11 @@ fn nonstrict(mut path: String, os: &dyn NtOs) -> Result<String, i32> {
         if !path.is_empty() && name.is_empty() {
             return Ok(format!("{path}{tail}"));
         }
-        tail = if tail.is_empty() { name } else { glue(&name, &tail) };
+        tail = if tail.is_empty() {
+            name
+        } else {
+            glue(&name, &tail)
+        };
     }
     Ok(tail)
 }
@@ -457,7 +471,11 @@ pub fn realpath_os(path: &str, cwd: &str, os: &dyn NtOs) -> Result<String, i32> 
         };
         // `_getfinalpathname(spath)`: the unprefixed form resolves where this system takes it as it is.
         let reachable = os.long_paths() || spath.chars().count() < 260;
-        match if reachable { os.final_path(&spath) } else { Err(206) } {
+        match if reachable {
+            os.final_path(&spath)
+        } else {
+            Err(206)
+        } {
             Ok(found) if found == path => path = spath,
             Ok(_) => {}
             Err(code) if code == initial => path = spath,

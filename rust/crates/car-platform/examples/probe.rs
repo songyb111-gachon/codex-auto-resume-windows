@@ -930,7 +930,8 @@ fn display_name_line(request: &Json) -> Result<String, String> {
 /// `policykeys.read()` hands `managed.parse`.
 fn hive_policy(request: &Json) -> Result<Json, String> {
     use car_platform::registry::{KEY_READ, PrivateHive};
-    let hive = PrivateHive::load(Path::new(text(request, "hive"))).ok_or("the hive did not load")?;
+    let hive =
+        PrivateHive::load(Path::new(text(request, "hive"))).ok_or("the hive did not load")?;
     let registry = hive.registry();
     let mut raw = serde_json::Map::new();
     if let Ok(key) = car_platform::registry::Open::read(
