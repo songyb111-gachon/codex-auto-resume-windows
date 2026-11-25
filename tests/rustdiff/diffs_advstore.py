@@ -475,6 +475,53 @@ class ScriptDiff(Base):
             twin.close()
 
 
+class ChoicesDiff(Base):
+    """The writes that need the generation the page read, each against the right one (the script's are mostly stale)."""
+
+    def test_choices(self):
+        ops = [op("move", "usage_meter", "shadow", actor="dashboard"),
+               op("set_option", "usage_meter", "poll_minutes", 30, generation=1, actor="dashboard"),
+               op("set_option", "usage_meter", "poll_minutes", 30, generation=2, actor="dashboard"),
+               op("options", "usage_meter"),
+               op("set_option", "usage_meter", "poll_minutes", 15, generation=3, actor="dashboard"),
+               op("set_option", "usage_meter", "poll_minutes", 31, generation=4, actor="dashboard"),
+               op("set_option", "usage_wrap_up", "window_weekly", 1, generation=5, actor="dashboard"),
+               op("set_option", "usage_wrap_up", "window_weekly", 1, generation=5, actor="dashboard"),
+               op("set_wording", "usage_wrap_up", "wrap_custom_weekly", "Wrap up", generation=6, actor="dashboard"),
+               op("add_rule", "weirdCode", 500, 503, "server_5xx", generation=7, actor="dashboard"),
+               op("add_rule", "weirdCode", 503, 504, "server_5xx", generation=8, actor="dashboard"),
+               op("add_rule", "otherCode", None, None, "timeout", generation=8, actor="dashboard"),
+               op("remove_rule", 1, generation=9, actor="dashboard"),
+               op("move", "usage_meter", "armed", actor="dashboard", generation=10),
+               op("set_keep_on", "usage_meter", True, actor="dashboard", generation=11),
+               op("set_keep_on", "usage_meter", True, send_again=True, actor="dashboard", generation=12),
+               op("set_keep_on", "usage_meter", False, actor="dashboard"),
+               op("set_global_hourly", 7, generation=14, actor="dashboard"),
+               op("move_set", [["usage_wrap_up", "armed", 1, "0.130.0", None]], actor="dashboard", generation=15,
+                  keep=["usage_wrap_up"]),
+               op("meta"), op("options", "usage_meter"), op("options", "usage_wrap_up"), op("wordings", "usage_wrap_up"),
+               op("rules"), op("arming"), op("journal"),
+               op("set_option", "usage_meter", "poll_minutes", 15, generation=16, actor="dashboard")]
+        twin = Twin()
+        try:
+            answers = self.same(twin, request(ops), "choices")
+            self.assertEqual(answers[-8]["ok"]["generation"], 16, "the case's generations went stale")
+            RECORD.append("choices: %d writes against the generation each read, and the reads after: equal" % len(ops))
+        finally:
+            twin.close()
+
+    def test_watch_limit(self):
+        ops = [op("move", "usage_meter", "shadow", actor="dashboard")]
+        ops += [op("note", "would_have", capability="usage_meter", answer="hold", at=CLOCK + index) for index in range(300)]
+        ops += [op("journal", limit=5000), {"watchlog": "view", "args": ["usage_meter"]}]
+        twin = Twin()
+        try:
+            self.same(twin, request(ops), "watch limit")
+            RECORD.append("watch limit: 300 would_have lines of one capability through a prune pass: equal")
+        finally:
+            twin.close()
+
+
 # ------------------------------------------------------------------------------------------- views
 def scoped(capability, name, *args, on=True, verdict=None, armed=None, **kwargs):
     return {"scoped": {"capability": capability, "on": on, "verdict": verdict, "armed": armed}, "name": name,
