@@ -13,6 +13,7 @@ mod ops_protocol;
 mod ops_read;
 mod ops_rest;
 mod ops_win;
+mod ops_wmi;
 mod world;
 
 use std::io::{Read, Write};
@@ -91,6 +92,7 @@ fn dispatch(context: &Context, op: &str, args: &[Value]) -> Out {
         "rd" => ops_read::run(context, op, args),
         "wn" => ops_win::run(context, op, args),
         "bt" | "tk" => ops_rest::run(context, op, args),
+        "wm" => ops_wmi::run(context, op, args),
         "world" => {
             *context
                 .world

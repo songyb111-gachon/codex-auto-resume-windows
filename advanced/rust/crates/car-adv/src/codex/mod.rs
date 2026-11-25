@@ -17,3 +17,4 @@ pub mod sessions;
 pub mod threads;
 pub mod tokens;
 pub mod turns;
+pub mod wmi_escape;

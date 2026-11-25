@@ -217,6 +217,149 @@ OPS.update({
     "tk.read": lambda rollout, known, budget: list(tokens_.read(rollout_of(rollout), known, budget)),
 })
 
+# ------------------------------------------------------------------------------------------------ wmi_escape (never run)
+import ctypes as _ctypes  # noqa: E402
+import subprocess as _subprocess  # noqa: E402
+from codex_auto_resume import pwsh as _pwsh, startup as _startup  # noqa: E402
+from codex_auto_resume.win import kernel as _wkernel  # noqa: E402
+from codex_auto_resume_advanced.codex import wmi_escape  # noqa: E402
+
+_REAL_WINDLL = _ctypes.WinDLL
+
+
+class WmiChain(Script):
+    """Every effect of wmi_escape.probe, scripted and logged; nothing is started, opened or written."""
+
+    def __init__(self, script):
+        super().__init__(script)
+        chain = self
+
+        class RecPath(type(Path())):
+            def write_text(self, text, encoding=None, errors=None, newline=None):
+                chain.calls.append(["write", str(self), text])
+                chain.answer("write", None)
+                return len(text)
+
+        self.RecPath = RecPath
+
+        class Popen:
+            def __init__(self, argv, creationflags=0, **unused):
+                chain.calls.append(["spawn", [str(each) for each in argv], creationflags])
+                self.pid = chain.answer("spawn", 4100)
+
+            def wait(self, timeout=None):
+                chain.calls.append(["wait_child", self.pid, float(timeout)])
+                chain.answer("wait_child", None)
+
+        self.Popen = Popen
+
+    # kernel32 as _kernel() gives it
+    def CreateJobObjectW(self, attributes, name):
+        self.calls.append(["job"])
+        return self.answer("job", 300)
+
+    def SetInformationJobObject(self, job, klass, info, size):
+        self.calls.append(["setinfo", job, klass, info._obj.basic.flags])
+        return self.answer("setinfo", 1)
+
+    def AssignProcessToJobObject(self, job, process):
+        self.calls.append(["assign", job, process])
+        return self.answer("assign", 1)
+
+    def OpenProcess(self, access, inherit, pid):
+        self.calls.append(["open", access, bool(inherit), int(pid)])
+        return self.answer("open", 77)
+
+    def TerminateProcess(self, handle, code):
+        self.calls.append(["terminate", handle, code])
+        return self.answer("terminate", 1)
+
+    def WaitForSingleObject(self, handle, millis):
+        self.calls.append(["wait", handle, millis])
+        return self.answer("wait", 0x102)
+
+    def CloseHandle(self, handle):
+        self.calls.append(["close", handle])
+        return self.answer("close", 1)
+
+    def NtResumeProcess(self, handle):
+        self.calls.append(["resume", handle.value])
+
+
+def wmi_probe(script, src_paths):
+    chain = WmiChain(script)
+
+    def launcher():
+        chain.calls.append(["launcher"])
+        return chain.answer("launcher", "C:/Python/pythonw.exe")
+
+    def mkdtemp(prefix=None):
+        chain.calls.append(["mkdtemp", prefix])
+        return chain.answer("workdir", "C:/Temp/car-mw-abc")
+
+    def await_json(path, timeout):
+        chain.calls.append(["await", str(path), float(timeout)])
+        return chain.answer("heartbeat", None)
+
+    held = (_startup.python_launcher, wmi_escape.tempfile, wmi_escape._src_paths, wmi_escape._kernel,
+            wmi_escape.subprocess, wmi_escape._await_json, wmi_escape.time, wmi_escape._remove, wmi_escape.Path)
+    _startup.python_launcher = launcher
+    wmi_escape.tempfile = types.SimpleNamespace(mkdtemp=mkdtemp)
+    wmi_escape._src_paths = lambda: src_paths
+    wmi_escape._kernel = lambda: chain
+    wmi_escape.subprocess = types.SimpleNamespace(Popen=chain.Popen, DEVNULL=_subprocess.DEVNULL)
+    wmi_escape._await_json = await_json
+    wmi_escape.time = types.SimpleNamespace(sleep=lambda seconds: chain.calls.append(["sleep", float(seconds)]))
+    wmi_escape._remove = lambda directory: chain.calls.append(["remove", str(directory)])
+    wmi_escape.Path = chain.RecPath
+    _ctypes.WinDLL = lambda name, *a, **k: chain if name == "ntdll" else _REAL_WINDLL(name, *a, **k)
+    try:
+        try:
+            facts = wmi_escape.probe()
+        except Exception as error:
+            return {"raised": type(error).__name__, "calls": chain.calls}
+        return {"facts": facts, "calls": chain.calls}
+    finally:
+        (_startup.python_launcher, wmi_escape.tempfile, wmi_escape._src_paths, wmi_escape._kernel,
+         wmi_escape.subprocess, wmi_escape._await_json, wmi_escape.time, wmi_escape._remove, wmi_escape.Path) = held
+        _ctypes.WinDLL = _REAL_WINDLL
+
+
+def wmi_helper(src_paths, workdir, launcher, bootstrap, fails):
+    log = []
+
+    def run(script, values, *, timeout):
+        log.append(["pwsh", script, dict(values), float(timeout)])
+        if fails:
+            raise _pwsh.PowerShellError("stand-in")
+        return 0
+
+    held = (_pwsh.run, wmi_escape.time)
+    _pwsh.run = run
+    wmi_escape.time = types.SimpleNamespace(sleep=lambda seconds: log.append(["sleep", float(seconds)]))
+    try:
+        wmi_escape._helper_main(src_paths, workdir, launcher, bootstrap)
+    finally:
+        _pwsh.run, wmi_escape.time = held
+    return log
+
+
+def wmi_env(values):
+    found = _pwsh.environment(values)
+    return sorted([key, value] for key, value in found.items() if key.upper().startswith(_pwsh.PREFIX))
+
+
+OPS.update({
+    "wm.probe": wmi_probe,
+    "wm.helper": wmi_helper,
+    "wm.env": wmi_env,
+    "wm.record": lambda pid, in_job, kill: json.dumps({"pid": pid, "in_job": in_job, "kill_on_close": kill}),
+    "wm.constants": lambda: [wmi_escape._WMI_SCRIPT, wmi_escape._BOOTSTRAP, wmi_escape.CREATE_SUSPENDED,
+                             _wkernel.NO_WINDOW, _wkernel.JOB_KILL_ON_CLOSE, wmi_escape._JOB_EXTENDED_LIMIT_INFORMATION,
+                             wmi_escape._HEARTBEAT_SECONDS, wmi_escape._HELPER_SECONDS, wmi_escape._WMI_TIMEOUT,
+                             wmi_escape._SETTLE_SECONDS, list(_startup.NO_REMOTE_DEBUG)],
+})
+
 # The later families add themselves below this line (EXTRA).
 #EXTRA#
 

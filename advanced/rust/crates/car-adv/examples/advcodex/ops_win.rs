@@ -51,12 +51,12 @@ fn push(log: &Log, entry: Vec<Value>) {
 
 /// The answers per call kind, taken in order (the last repeated); "raise" raises.
 #[derive(Clone)]
-struct Script {
+pub struct Script {
     answers: Arc<Mutex<BTreeMap<String, Vec<Value>>>>,
 }
 
 impl Script {
-    fn new(spec: &Value) -> Script {
+    pub fn new(spec: &Value) -> Script {
         let mut answers = BTreeMap::new();
         if let Value::Object(map) = spec {
             for (key, value) in map.iter() {
@@ -70,7 +70,7 @@ impl Script {
         }
     }
 
-    fn answer(&self, kind: &str, default: Value) -> Call<Value> {
+    pub fn answer(&self, kind: &str, default: Value) -> Call<Value> {
         let mut answers = self.answers.lock().unwrap_or_else(PoisonError::into_inner);
         let value = match answers.get_mut(kind) {
             None => default,
@@ -85,7 +85,7 @@ impl Script {
     }
 }
 
-fn int_of(value: &Value) -> i64 {
+pub fn int_of(value: &Value) -> i64 {
     match value {
         Value::Int(n) => n.as_i64().unwrap_or(0),
         Value::Bool(b) => i64::from(*b),
