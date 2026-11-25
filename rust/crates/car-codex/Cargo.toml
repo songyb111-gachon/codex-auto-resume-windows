@@ -17,3 +17,9 @@ car-policy = { path = "../car-policy" }
 rusqlite = { version = "0.43", features = ["bundled"] }
 # A dict that keeps its insertion order (the reader's caches evict the oldest, as the Python's dicts do).
 indexmap = "2"
+
+# Review 7: its own harness, as the test binary is also the stand-in engine it starts.
+[[test]]
+name = "review7_send_receipt"
+path = "tests/review7_send_receipt.rs"
+harness = false
