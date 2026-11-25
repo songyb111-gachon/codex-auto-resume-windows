@@ -114,6 +114,13 @@ def mutants(base: dict) -> list:
     put(engines=[{"version": ENGINE, "measurements": {"m%d" % n: entry(ENGINE, "m%d" % n) for n in range(128)}}])
     put(engines=[{"version": ENGINE, "measurements": {"m%d" % n: entry(ENGINE, "m%d" % n) for n in range(129)}}])
     put(engines=[{"version": ENGINE, "measurements": []}])
+    published = base.get("published_at")
+    if isinstance(published, str) and len(published) == 20:
+        # A record made the very minute of publication (allowed), and one a minute after (refused).
+        same = published[:16] + "Z"
+        later = time.strftime("%Y-%m-%dT%H:%MZ", time.gmtime(calendar.timegm(time.strptime(same, "%Y-%m-%dT%H:%MZ")) + 60))
+        for recorded in (same, later):
+            put(engines=[{"version": ENGINE, "measurements": {"mopen": entry(ENGINE, "mopen", recorded=recorded)}}])
     return out
 
 
