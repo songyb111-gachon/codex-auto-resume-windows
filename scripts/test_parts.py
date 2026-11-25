@@ -93,6 +93,10 @@ import time
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
+# The Rust core's power-action guard (car-platform powerdown), for every worker and every child of one: the lanes put
+# only src on the path, so tests/sitecustomize.py, which sets it too, is not loaded there. The reference refuses a
+# power action whenever "unittest" is in sys.modules; a Rust child has none, and refuses by this variable.
+os.environ.setdefault("CAR_NO_POWER_ACTION", "1")
 DURATIONS = ROOT / "tests" / "data" / "durations.json"
 # `unittest discover`'s own defaults: the pattern it matches file names against, and the rule a file
 # name must pass to be a module it imports (unittest.loader.VALID_MODULE_NAME).

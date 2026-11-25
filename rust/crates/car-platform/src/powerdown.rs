@@ -59,8 +59,18 @@ pub fn refuse_power_actions() {
     REFUSE.store(true, Ordering::SeqCst);
 }
 
+/// The variable every test runner of this repository sets (tests/sitecustomize.py, scripts/test_parts.py,
+/// tests/rustdiff/core.py): the reference refuses whenever "unittest" is in sys.modules, and a Rust process the
+/// Python suite starts has no sys.modules, so the suite says it this way.
+pub const NO_POWER_ACTION: &str = "CAR_NO_POWER_ACTION";
+
 fn refused() -> bool {
-    cfg!(test) || REFUSE.load(Ordering::SeqCst) || std::env::var_os("CAR_NO_POWER_ACTION").is_some()
+    cfg!(test) || REFUSE.load(Ordering::SeqCst) || std::env::var_os(NO_POWER_ACTION).is_some()
+}
+
+/// Whether `act` would refuse now, asked without acting (the guard's own test).
+pub fn refuses() -> bool {
+    refused()
 }
 
 fn close(handle: HANDLE) {
