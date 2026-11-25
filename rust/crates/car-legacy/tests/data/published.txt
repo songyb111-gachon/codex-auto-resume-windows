@@ -1,15 +1,25 @@
-python.exe	v0.6.19-beta.3	v0.6.26-beta.2	21	-I	-X	disable-remote-debug	-c	import sys;sys.path.insert(0,sys.argv[1]);from codex_auto_resume.mcpserver import main;sys.exit(main(sys.argv[2:]))	{home}\app\src	--home	{home}
+python.exe	v0.6.19-beta.3	v0.6.26	22	-I	-X	disable-remote-debug	-c	import sys;sys.path.insert(0,sys.argv[1]);from codex_auto_resume.mcpserver import main;sys.exit(main(sys.argv[2:]))	{home}\app\src	--home	{home}
 python.exe	v0.5.2	v0.6.19-beta.2	43	-I	-c	import sys;sys.path.insert(0,sys.argv[1]);from codex_auto_resume.mcpserver import main;sys.exit(main(sys.argv[2:]))	{home}\app\src	--home	{home}
-python.exe	v0.6.19-beta.3	v0.6.26-beta.2	21	-X	disable-remote-debug	{home}\app\scripts\plugin_setup.py	downgrade-state	--to	3	--stop-watcher
-python.exe	v0.6.19-beta.3	v0.6.26-beta.2	21	-X	disable-remote-debug	{home}\app\scripts\plugin_setup.py	downgrade-state	--to	4	--stop-watcher
-python.exe	v0.6.19-beta.3	v0.6.26-beta.2	21	-X	disable-remote-debug	{home}\app\scripts\plugin_setup.py	remove-entry
-python.exe	v0.6.19-beta.3	v0.6.26-beta.2	21	-X	disable-remote-debug	{home}\app\scripts\plugin_setup.py	setup	--keep-state
-python.exe	v0.6.19-beta.3	v0.6.26-beta.2	21	-X	disable-remote-debug	{home}\app\scripts\plugin_setup.py	setup	--keep-state	--no-startup
-python.exe	v0.6.19-beta.3	v0.6.26-beta.2	21	-X	disable-remote-debug	{home}\app\scripts\plugin_setup.py	setup	--keep-state	--no-startup	--watcher-was-stopped
-python.exe	v0.6.19-beta.3	v0.6.26-beta.2	21	-X	disable-remote-debug	{home}\app\scripts\plugin_setup.py	setup	--keep-state	--watcher-was-stopped
-python.exe	v0.6.19-beta.3	v0.6.26-beta.2	21	-X	disable-remote-debug	{home}\app\scripts\plugin_setup.py	watcher-running
+python.exe	v0.6.22-beta.2	v0.6.26	12	-X	disable-remote-debug	{home}\app\scripts\plugin_setup.py	desktop-shortcut	make
+python.exe	v0.6.22-beta.2	v0.6.26	12	-X	disable-remote-debug	{home}\app\scripts\plugin_setup.py	desktop-shortcut	remove
+python.exe	v0.6.19-beta.3	v0.6.26	22	-X	disable-remote-debug	{home}\app\scripts\plugin_setup.py	downgrade-state	--to	3	--stop-watcher
+python.exe	v0.6.19-beta.3	v0.6.26	22	-X	disable-remote-debug	{home}\app\scripts\plugin_setup.py	downgrade-state	--to	4	--stop-watcher
+python.exe	v0.6.19-beta.3	v0.6.26	22	-X	disable-remote-debug	{home}\app\scripts\plugin_setup.py	remove-entry
+python.exe	v0.6.19-beta.3	v0.6.26	22	-X	disable-remote-debug	{home}\app\scripts\plugin_setup.py	setup	--keep-state
+python.exe	v0.6.19-beta.3	v0.6.26	22	-X	disable-remote-debug	{home}\app\scripts\plugin_setup.py	setup	--keep-state	--no-startup
+python.exe	v0.6.19-beta.3	v0.6.26	22	-X	disable-remote-debug	{home}\app\scripts\plugin_setup.py	setup	--keep-state	--no-startup	--watcher-was-stopped
+python.exe	v0.6.19-beta.3	v0.6.26	22	-X	disable-remote-debug	{home}\app\scripts\plugin_setup.py	setup	--keep-state	--watcher-was-stopped
+python.exe	v0.6.19-beta.3	v0.6.26	22	-X	disable-remote-debug	{home}\app\scripts\plugin_setup.py	watcher-running
+python.exe	v0.5.2	v0.6.26	65	{home}\app\scripts\plugin_setup.py	cancel	{value}
+python.exe	v0.5.2	v0.6.26	65	{home}\app\scripts\plugin_setup.py	disable
+python.exe	v0.5.2	v0.6.26	65	{home}\app\scripts\plugin_setup.py	doctor
 python.exe	v0.6.12	v0.6.19-beta.2	15	{home}\app\scripts\plugin_setup.py	downgrade-state	--to	3	--stop-watcher
 python.exe	v0.6.15-beta	v0.6.19-beta.2	10	{home}\app\scripts\plugin_setup.py	downgrade-state	--to	4	--stop-watcher
+python.exe	v0.5.2	v0.6.26	65	{home}\app\scripts\plugin_setup.py	enable
+python.exe	v0.5.2	v0.6.26	65	{home}\app\scripts\plugin_setup.py	logs
+python.exe	v0.5.2	v0.6.26	65	{home}\app\scripts\plugin_setup.py	logs	--lines	{value}
+python.exe	v0.5.2	v0.6.26	65	{home}\app\scripts\plugin_setup.py	logs	-n	{value}
+python.exe	v0.5.2	v0.6.26	65	{home}\app\scripts\plugin_setup.py	pending
 python.exe	v0.6.16	v0.6.19-beta.2	5	{home}\app\scripts\plugin_setup.py	remove-entry
 python.exe	v0.5.2	v0.5.7	6	{home}\app\scripts\plugin_setup.py	setup
 python.exe	v0.6.0	v0.6.19-beta.2	37	{home}\app\scripts\plugin_setup.py	setup	--keep-state
@@ -17,10 +27,18 @@ python.exe	v0.6.0	v0.6.19-beta.2	37	{home}\app\scripts\plugin_setup.py	setup	--k
 python.exe	v0.6.18	v0.6.19-beta.2	3	{home}\app\scripts\plugin_setup.py	setup	--keep-state	--no-startup	--watcher-was-stopped
 python.exe	v0.6.18	v0.6.19-beta.2	3	{home}\app\scripts\plugin_setup.py	setup	--keep-state	--watcher-was-stopped
 python.exe	v0.5.2	v0.5.7	6	{home}\app\scripts\plugin_setup.py	setup	--no-startup
+python.exe	v0.5.2	v0.6.26	65	{home}\app\scripts\plugin_setup.py	status
+python.exe	v0.5.2	v0.6.26	65	{home}\app\scripts\plugin_setup.py	stop
+python.exe	v0.5.2	v0.6.26	65	{home}\app\scripts\plugin_setup.py	uninstall
+python.exe	v0.5.2	v0.6.26	65	{home}\app\scripts\plugin_setup.py	uninstall	--purge
 python.exe	v0.6.17	v0.6.19-beta.2	4	{home}\app\scripts\plugin_setup.py	watcher-running
-pythonw.exe	v0.6.19-beta.3	v0.6.26-beta.2	21	-X	disable-remote-debug	{home}\app\src\auto_resume.py	--home	{home}	--quiet	activate	{uri}
-pythonw.exe	v0.6.19-beta.3	v0.6.26-beta.2	21	-X	disable-remote-debug	{home}\watcher-launcher.py	activate	{uri}
+pythonw.exe	v0.6.19-beta.3	v0.6.26	22	-X	disable-remote-debug	{home}\app\src\auto_resume.py	--home	{home}	--quiet	activate	{uri}
+pythonw.exe	v0.6.19-beta.3	v0.6.26	22	-X	disable-remote-debug	{home}\app\src\auto_resume.py	--home	{home}	status
+pythonw.exe	v0.6.19-beta.3	v0.6.26	22	-X	disable-remote-debug	{home}\watcher-launcher.py	--home	{home}	status
+pythonw.exe	v0.6.19-beta.3	v0.6.26	22	-X	disable-remote-debug	{home}\watcher-launcher.py	activate	{uri}
 pythonw.exe	v0.5.2	v0.6.19-beta.2	43	{home}\app\src\auto_resume.py	--home	{home}	--quiet	activate	{uri}
-pythonw.exe	v0.5.2	v0.6.26-beta.2	64	{home}\app\src\auto_resume.py	--home	{home}	run
+pythonw.exe	v0.5.2	v0.6.26	65	{home}\app\src\auto_resume.py	--home	{home}	run
+pythonw.exe	v0.5.2	v0.6.19-beta.2	43	{home}\app\src\auto_resume.py	--home	{home}	status
+pythonw.exe	v0.5.2	v0.6.19-beta.2	43	{home}\watcher-launcher.py	--home	{home}	status
 pythonw.exe	v0.5.2	v0.6.19-beta.2	43	{home}\watcher-launcher.py	activate	{uri}
-pythonw.exe	v0.5.2	v0.6.26-beta.2	64	{home}\watcher-launcher.py	run
+pythonw.exe	v0.5.2	v0.6.26	65	{home}\watcher-launcher.py	run

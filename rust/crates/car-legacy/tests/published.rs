@@ -11,6 +11,8 @@ use car_legacy::{ACCEPTED, MCP_CODE, Plan, Program, Refusal, Shape, Target, plan
 
 const PUBLISHED: &str = include_str!("data/published.txt");
 const URI: &str = "codex-auto-resume:dismiss?conversation=00000000-0000-0000-0000-000000000000";
+/// What a `{value}` (a thread id, a number of lines) is filled with.
+const VALUE: &str = "123e4567-e89b-42d3-a456-426614174000";
 
 /// A scratch installation: `<temp>\car-legacy-<name>-<pid>\home` with a `runtime` folder, and the files the lines name.
 struct Scratch {
@@ -37,6 +39,9 @@ impl Scratch {
     fn fill(&self, word: &str) -> String {
         if word == "{uri}" {
             return URI.to_string();
+        }
+        if word == "{value}" {
+            return VALUE.to_string();
         }
         word.replace("{home}", &self.home.to_string_lossy())
     }
@@ -93,7 +98,7 @@ fn planned(scratch: &Scratch, program: Program, args: &[String]) -> Result<Plan,
 fn every_published_line_is_accepted_and_handed_on_with_the_words_after_the_script() {
     let scratch = Scratch::new("published");
     let rows = published();
-    assert!(rows.len() >= 26, "published.txt has {} lines", rows.len());
+    assert!(rows.len() >= 44, "published.txt has {} lines", rows.len());
     for (program, template, first, last) in rows {
         let args: Vec<String> = template.iter().map(|word| scratch.fill(word)).collect();
         let found = planned(&scratch, program, &args)
@@ -169,8 +174,30 @@ fn a_line_one_step_away_from_a_published_one_is_refused() {
         words(&[&setup, "setup", "--no-startup", "--keep-state"]),
         words(&[&setup, "setup", "--watcher-was-stopped"]),
         words(&[&setup, "install"]),
-        words(&[&setup, "uninstall"]),
         words(&[&setup, "verify-home"]),
+        words(&[&setup, "claim-home"]),
+        // The skill's commands, one step away from a shape their parser takes.
+        words(&[&setup, "Status"]),
+        words(&[&setup, "status", "--json"]),
+        words(&[&setup, "status", "extra"]),
+        words(&[&setup, "cancel"]),
+        words(&[&setup, "cancel", "-x"]),
+        words(&[&setup, "cancel", "--", "a"]),
+        words(&[&setup, "cancel", "a", "b"]),
+        words(&[&setup, "logs", "-n"]),
+        words(&[&setup, "logs", "--lines", "--purge"]),
+        words(&[&setup, "uninstall", "--purge", "extra"]),
+        words(&[&setup, "uninstall", "--force"]),
+        words(&[&setup, "desktop-shortcut", "make"]),
+        words(&[
+            "-X",
+            "disable-remote-debug",
+            &setup,
+            "desktop-shortcut",
+            "open",
+        ]),
+        words(&["-X", "disable-remote-debug", &setup, "status"]),
+        words(&[&other, "status"]),
         words(&[&setup, "downgrade-state", "--to", "2", "--stop-watcher"]),
         words(&[&setup, "downgrade-state", "--to", "3"]),
         words(&[&setup, "watcher-running", "--home", &home]),
@@ -228,7 +255,10 @@ fn a_line_one_step_away_from_a_published_one_is_refused() {
         words(&[&launcher, "run", "--home", &home]),
         words(&["-X", "disable-remote-debug", &launcher, "run"]),
         words(&[&launcher, "activate", "https://example.com/"]),
-        words(&[&launcher, "activate", "codex-auto-resume:"]),
+        words(&[&launcher, "activate", "codex-auto-resume"]),
+        words(&[&launcher, "--home", &home, "status", "--json"]),
+        words(&[&launcher, "--home", &format!("{home}-other"), "status"]),
+        words(&[&entry, "status"]),
         words(&[&launcher, "activate"]),
         words(&[&entry, "--home", &format!("{home}-other"), "run"]),
         words(&[&entry, "--home", &home, "activate", URI]),
@@ -243,6 +273,51 @@ fn a_line_one_step_away_from_a_published_one_is_refused() {
             "{args:?}"
         );
     }
+}
+
+/// A value is what argparse would take as one: not an option, or `-` alone, a negative number or a word with a space.
+#[test]
+fn a_value_is_what_the_parser_takes_as_one() {
+    let scratch = Scratch::new("values");
+    let setup = scratch.fill("{home}\\app\\scripts\\plugin_setup.py");
+    for value in [
+        "",
+        "-",
+        "-5",
+        "-1.5",
+        "-.5",
+        "- x",
+        "123",
+        "not-a-uuid",
+        "x y",
+    ] {
+        let args = vec![setup.clone(), "cancel".to_string(), value.to_string()];
+        let found = planned(&scratch, Program::Console, &args)
+            .unwrap_or_else(|refusal| panic!("{value:?}: {refusal:?}"));
+        assert_eq!(found.args, vec!["cancel".to_string(), value.to_string()]);
+        assert_eq!(found.shape, Shape::Command);
+    }
+    for value in ["-x", "--", "--purge", "-5a", "-1.", "-1.2.3"] {
+        let args = vec![
+            setup.clone(),
+            "logs".to_string(),
+            "-n".to_string(),
+            value.to_string(),
+        ];
+        assert_eq!(
+            planned(&scratch, Program::Console, &args),
+            Err(Refusal::Unknown),
+            "{value:?}"
+        );
+    }
+    // `codex-auto-resume:` alone is a URI of the scheme: the old handler handed it to its parser too.
+    let launcher = scratch.fill("{home}\\watcher-launcher.py");
+    let bare = vec![
+        launcher,
+        "activate".to_string(),
+        "codex-auto-resume:".to_string(),
+    ];
+    assert!(planned(&scratch, Program::Windowless, &bare).is_ok());
 }
 
 #[test]
@@ -263,6 +338,18 @@ fn the_home_is_the_folder_above_runtime_in_any_spelling() {
         "remove-entry".to_string(),
     ];
     assert!(planned(&scratch, Program::Console, &slashed).is_ok());
+    // The long-path prefix Windows and Python take a path with: the same script.
+    let prefixed = vec![
+        format!(
+            "\\\\?\\{}\\app\\scripts\\plugin_setup.py",
+            scratch.home.to_string_lossy()
+        ),
+        "status".to_string(),
+    ];
+    assert!(
+        planned(&scratch, Program::Console, &prefixed).is_ok(),
+        "{prefixed:?}"
+    );
     let elsewhere = scratch.root.join("python.exe");
     assert_eq!(
         plan(Program::Console, &elsewhere, &os(&args)),
@@ -346,4 +433,35 @@ fn the_windowless_stand_in_refuses_and_reports_by_its_code_alone() {
         .unwrap();
     assert_eq!(run.status.code(), Some(car_legacy::MISSING));
     assert!(run.stdout.is_empty() && run.stderr.is_empty());
+}
+
+/// A message the stand-in cannot write (its stderr a pipe whose reader is gone) leaves its code the answer: 2 refused
+/// and 1 missing, as argparse drops a message it cannot write; never 101, a panic's.
+#[test]
+fn a_stderr_that_cannot_be_written_changes_no_code() {
+    use std::process::Stdio;
+    let scratch = Scratch::new("stderr");
+    let built = Path::new(env!("CARGO_BIN_EXE_python"));
+    std::fs::copy(built, scratch.exe(Program::Console)).unwrap();
+    let cases: [(Vec<String>, i32); 2] = [
+        (vec!["-c".into(), "print(1)".into()], car_legacy::REFUSED),
+        (
+            vec![
+                scratch.fill("{home}\\app\\scripts\\plugin_setup.py"),
+                "status".into(),
+            ],
+            car_legacy::MISSING,
+        ),
+    ];
+    for (args, code) in cases {
+        let mut child = quiet(scratch.exe(Program::Console))
+            .args(&args)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        drop(child.stderr.take());
+        assert_eq!(child.wait().unwrap().code(), Some(code), "{args:?}");
+    }
 }

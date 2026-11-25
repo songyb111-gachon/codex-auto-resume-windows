@@ -49,7 +49,10 @@ pub fn panel(request: &Map) -> Value {
         for each in asked {
             let Value::Object(each) = each else { continue };
             let page = Page {
-                data: each.get("data").cloned(),
+                data: each
+                    .get("data")
+                    .filter(|value| !matches!(value, Value::Null))
+                    .cloned(),
                 theme: text(each.get("theme")),
                 design: text(each.get("design")),
                 text: each.get("text").cloned(),

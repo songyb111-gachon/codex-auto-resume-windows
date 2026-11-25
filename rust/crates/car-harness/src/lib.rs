@@ -6,6 +6,7 @@
 pub mod acting;
 pub mod bridge;
 pub mod classify;
+pub mod cli;
 pub mod codex;
 pub mod defaults;
 pub mod leaves;

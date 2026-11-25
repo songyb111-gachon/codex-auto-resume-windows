@@ -12,8 +12,14 @@ checksum = "3ded4057c258ba199e2d26386d3af3780957ecaee6c4ef4041c6b4b8b97c0b06"
 name = "car-bin"
 version = "0.0.0"
 dependencies = [
+ "car-config",
  "car-control",
+ "car-machine",
+ "car-platform",
+ "car-policy",
+ "car-store",
  "car-watcher",
+ "car-words",
 ]
 
 [[package]]
@@ -70,6 +76,7 @@ dependencies = [
 name = "car-harness"
 version = "0.0.0"
 dependencies = [
+ "car-bin",
  "car-brand",
  "car-codex",
  "car-config",
