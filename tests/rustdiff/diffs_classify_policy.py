@@ -275,7 +275,7 @@ for _ in range(2500):
                  "power.keep_awake", "power.awake_cap", "power.sleep_threshold", "power.waits_for_network", "power.listens"]:
         cases.append([name, values])
     cases.append(["guards.over", values, rng.choice([None, 0, 99999, 100001, 250000, 250001, 2 ** 53, 2 ** 53 + 1, True, -1, 1.5e6])])
-    cases.append(["ladder.wait_before", values, rng.choice([1, 2, 3, 5, 6, 0, -2, 10 ** 30, 2.9, True, "3", " 4 ", "x", None, float("inf") if False else 7]),
+    cases.append(["ladder.wait_before", values, rng.choice([1, 2, 3, 5, 6, 0, -2, 10 ** 30, 2.9, True, "3", " 4 ", "x", None, 7, float("inf"), float("-inf"), float("nan")]),
                   rng.choice(["rate_limit_transient", "timeout", None])])
     cases.append(["ladder.jittered", rng.choice([5, 60, 900, 100, 3600, 7.5, True, "x", None]), values,
                   rng.choice([0.0, 0.5, 0.999999, 0.5000005, 1.0, -0.1, 0.25, 0.123456789, 1, None, "0.5"])])
@@ -304,7 +304,8 @@ for seconds in [0, 59, 60, 61, 3600, -120, 59.9, "120", True, None, "x"]:
     cases.append(["needsyou.minutes", seconds])
 # power
 readings = [[100, 50], [200, 60], [1000, 80], [100.5, 50], [400, 340], ["160", "50"], ["x", 1], [1], [], None, "12",
-            {"a": 1}, [float("inf") if False else 1e308, 0], [10 ** 400, 0], [True, False]]
+            {"a": 1}, [1e308, 0], [float("inf"), 0], [0, float("inf")], [float("nan"), 0], [100, float("nan")], [float("-inf"), 0],
+            [10 ** 400, 0], [True, False]]
 for before in readings:
     for after in readings:
         cases.append(["power.asleep", before, after])
@@ -392,7 +393,7 @@ for _ in range(6000):
     if chosen != "MISSING":
         values["quiet_hours_days"] = chosen
     now = rng.choice([base + rng.randrange(0, 366 * 86400), base + rng.randrange(0, 366 * 86400) + 0.5,
-                      rng.choice([0, -5, 10 ** 30, True, "x", None, float("nan") if False else 1e18, 2 ** 70])])
+                      rng.choice([0, -5, 10 ** 30, True, "x", None, 1e18, float("nan"), float("inf"), float("-inf"), 2 ** 70])])
     cases.append(["quiet.window", values])
     cases.append(["quiet.quiet_until", now, values, rng.choice(ZONES)])
 for spec in ZONES:
@@ -411,7 +412,7 @@ for spec in ZONES:
     for preset in list(quiet.PRESETS) + ["bogus", None, ["x"]]:
         for now in [base, base + 86400 * 100 + 0.5, "123", True, None, -5]:
             cases.append(["quiet.postpone_time", now, preset, spec])
-for until in [None, True, 5, 100, 100.0, 101, 100 + 7 * 86400, 101 + 7 * 86400, 100.5 + 7 * 86400, float("inf") if False else 1e400 if False else 1e300,
+for until in [None, True, 5, 100, 100.0, 101, 100 + 7 * 86400, 101 + 7 * 86400, 100.5 + 7 * 86400, 1e300, float("inf"), float("-inf"), float("nan"),
               2 ** 70, "200", [1]]:
     for now in [100, 100.5, True]:
         for not_before in [None, 50, 150, 100.0, "x"]:

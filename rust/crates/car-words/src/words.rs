@@ -4,8 +4,10 @@
 //! not (the usage line) are said through `say`, the catalog lookup the caller holds (`l10n::text` in a locale), so
 //! the popup, the window and the panel say one example one way (`tests/test_usage_reading.py`).
 
-use car_machine::json::Value;
-use car_machine::pytext::py_str;
+use std::cmp::Ordering;
+
+use car_machine::json::{Int, Value};
+use car_machine::pytext::{self, py_str};
 use car_machine::pyval::{self, Num, Py};
 
 /// `say(key, **fields)`: one sentence of the catalog, formatted. Fields keep the order the sentence is filled in.
@@ -18,29 +20,89 @@ pub const WEEK_MINUTES: i64 = 7 * 24 * 60;
 /// At or under this much left a window reads as a warning.
 pub const LOW_LEFT: i64 = 10;
 
-/// `int(seconds)` for a number (a float truncates toward zero; a NaN or an infinity is an error).
-fn whole(seconds: &Value) -> Py<i64> {
-    match Num::of(seconds).ok_or("TypeError")? {
-        Num::Whole(n) => Ok(n.clamp(i64::MIN as i128, i64::MAX as i128) as i64),
-        Num::Huge(x) | Num::Real(x) => {
-            if x.is_nan() {
-                Err("ValueError")
-            } else if x.is_infinite() {
-                Err("OverflowError")
-            } else {
-                Ok(x.trunc().clamp(i64::MIN as f64, i64::MAX as f64) as i64)
+/// A non-negative Python int, `max(0, int(x))`, as its decimal digits (`"0"` for zero): Python's int has no
+/// bound, so `countdown(1e300)` writes every one of its 301 digits of hours.
+struct Whole(String);
+
+impl Whole {
+    /// `max(0, int(value))`: a bool or an int as it is, a float truncated toward zero (a NaN is a ValueError, an
+    /// infinity an OverflowError), a text as `int(text)` reads it (white space, a sign, underscores between digits
+    /// and any script's decimal digits; past 4,300 digits a ValueError); anything else a TypeError.
+    fn of(value: &Value) -> Py<Whole> {
+        let (negative, digits) = match value {
+            Value::Bool(on) => (false, u8::from(*on).to_string()),
+            Value::Int(int) => {
+                let text = int.to_string();
+                match text.strip_prefix('-') {
+                    Some(rest) => (true, rest.to_owned()),
+                    None => (false, text),
+                }
+            }
+            Value::Float(x) => {
+                if x.is_nan() {
+                    return Err("ValueError");
+                }
+                if x.is_infinite() {
+                    return Err("OverflowError");
+                }
+                // `{:.0}` of a whole f64 writes its exact digits.
+                let text = format!("{:.0}", x.trunc().abs());
+                (x.is_sign_negative(), text)
+            }
+            Value::Str(text) => {
+                let text = text.as_str().ok_or("ValueError")?;
+                pytext::parse_int(text, 10).ok_or("ValueError")?;
+                let digits: String = text
+                    .chars()
+                    .filter_map(|c| pytext::decimal_value(c).and_then(|d| char::from_digit(d, 10)))
+                    .collect();
+                if digits.len() > 4300 {
+                    return Err("ValueError");
+                }
+                let negative = pytext::strip(text).starts_with('-');
+                (negative, digits)
+            }
+            _ => return Err("TypeError"),
+        };
+        let digits = digits.trim_start_matches('0');
+        Ok(Whole(if negative || digits.is_empty() {
+            "0".to_owned()
+        } else {
+            digits.to_owned()
+        }))
+    }
+
+    /// The value, where it fits a u64.
+    fn small(&self) -> Option<u64> {
+        self.0.parse().ok()
+    }
+
+    /// `divmod(self, by)`.
+    fn divmod(&self, by: u64) -> (Whole, u64) {
+        let mut quotient = String::with_capacity(self.0.len());
+        let mut rest: u128 = 0;
+        for digit in self.0.bytes() {
+            rest = rest * 10 + u128::from(digit - b'0');
+            let place = rest / u128::from(by);
+            rest %= u128::from(by);
+            if !(quotient.is_empty() && place == 0) {
+                quotient.push(char::from(b'0' + place as u8));
             }
         }
+        if quotient.is_empty() {
+            quotient.push('0');
+        }
+        (Whole(quotient), rest as u64)
     }
 }
 
 /// `countdown(seconds)`: a short, locale-neutral duration: `45s`, `12:04`, `3:05:00`.
 pub fn countdown(seconds: &Value) -> Py<String> {
-    let seconds = whole(seconds)?.max(0);
-    let (hours, rest) = (seconds / 3600, seconds % 3600);
+    let seconds = Whole::of(seconds)?;
+    let (hours, rest) = seconds.divmod(3600);
     let (minutes, secs) = (rest / 60, rest % 60);
-    Ok(if hours > 0 {
-        format!("{hours}:{minutes:02}:{secs:02}")
+    Ok(if hours.0 != "0" {
+        format!("{}:{minutes:02}:{secs:02}", hours.0)
     } else if minutes > 0 {
         format!("{minutes}:{secs:02}")
     } else {
@@ -50,8 +112,13 @@ pub fn countdown(seconds: &Value) -> Py<String> {
 
 /// `age(seconds, say)`: how long ago, in the largest unit that is not zero.
 pub fn age(seconds: &Value, say: Say) -> Py<String> {
-    let total = whole(seconds)?.max(0);
-    if total < 5 {
+    let total = Whole::of(seconds)?;
+    let Some(small) = total.small() else {
+        // Past a u64 only the days are named.
+        let count = say("time.days", &[("n", total.divmod(86400).0.0)]);
+        return Ok(say("time.ago", &[("time", count)]));
+    };
+    if small < 5 {
         return Ok(say("time.just_now", &[]));
     }
     for (limit, key, unit) in [
@@ -60,8 +127,8 @@ pub fn age(seconds: &Value, say: Say) -> Py<String> {
         (Some(86400), "time.hours", 3600),
         (None, "time.days", 86400),
     ] {
-        if limit.is_none_or(|limit| total < limit) {
-            let count = say(key, &[("n", (total / unit).to_string())]);
+        if limit.is_none_or(|limit| small < limit) {
+            let count = say(key, &[("n", (small / unit).to_string())]);
             return Ok(say("time.ago", &[("time", count)]));
         }
     }
@@ -102,26 +169,42 @@ pub fn window_name(minutes: &Value, say: Say) -> String {
 }
 
 /// `share(window)`: the share used as a whole number, never rounded up to 100: 99.6% is not used up.
-pub fn share(window: &Value) -> Py<i64> {
+///
+/// `100 if used >= 100 else int(used // 1)`: a NaN is not >= 100 and `int(nan)` is a ValueError; `-inf // 1` is a
+/// NaN, so a ValueError too; an int is itself, of any size, and a float its exact floor.
+pub fn share(window: &Value) -> Py<Int> {
     let used = pyval::get(window, "used_percent")?;
     let used = if pyval::truthy(used) {
         used.clone()
     } else {
         Value::from(0)
     };
-    if pyval::less(&used, &Value::from(100))? {
-        let number = Num::of(&used).ok_or("TypeError")?;
-        return Ok(match number {
-            Num::Whole(n) => n as i64,
-            Num::Huge(x) | Num::Real(x) => (x / 1.0).floor() as i64,
-        });
+    if matches!(
+        pyval::order(&used, &Value::from(100))?,
+        Some(Ordering::Greater | Ordering::Equal)
+    ) {
+        return Ok(Int::from(100));
     }
-    Ok(100)
+    match used {
+        Value::Bool(on) => Ok(Int::from(i64::from(on))),
+        Value::Int(int) => Ok(int),
+        Value::Float(x) if x.is_finite() => {
+            Int::parse(&format!("{:.0}", x.floor())).ok_or("ValueError")
+        }
+        Value::Float(_) => Err("ValueError"),
+        _ => Err("TypeError"),
+    }
 }
 
-/// `left(window)`: the share LEFT as a whole number, 0 to 100.
+/// `left(window)`: the share LEFT as a whole number, 0 to 100: `max(0, min(100, 100 - share(window)))`.
 pub fn left(window: &Value) -> Py<i64> {
-    Ok((100 - share(window)?).clamp(0, 100))
+    let used = share(window)?;
+    Ok(match used.as_i64() {
+        Some(used) => (100 - i128::from(used)).clamp(0, 100) as i64,
+        // Past an i64: a used share far below zero leaves 100, one far above leaves nothing.
+        None if used.to_string().starts_with('-') => 100,
+        None => 0,
+    })
 }
 
 /// `usage_windows(windows, say, now, keep)`: each window of a reading: its length, the share left of it, and when it
@@ -208,7 +291,10 @@ mod tests {
 
     #[test]
     fn shares() {
-        assert_eq!(share(&v("{\"used_percent\": 99.6}")).unwrap(), 99);
+        assert_eq!(
+            share(&v("{\"used_percent\": 99.6}")).unwrap(),
+            Int::from(99)
+        );
         assert_eq!(left(&v("{\"used_percent\": 99.6}")).unwrap(), 1);
         assert_eq!(left(&v("{\"used_percent\": 250}")).unwrap(), 0);
         assert_eq!(left(&v("{}")).unwrap(), 100);

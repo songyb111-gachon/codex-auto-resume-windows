@@ -203,7 +203,7 @@ pub fn case(name: &str, a: &Args) -> Option<Py<Value>> {
             };
             Ok(Value::from(words::window_name(a.get(0), &say as Say)))
         })(),
-        "words.share" => words::share(a.get(0)).map(Value::from),
+        "words.share" => words::share(a.get(0)).map(Value::Int),
         "words.left" => words::left(a.get(0)).map(Value::from),
         "words.clock_time" => (|| {
             let (moment, today) = (tm(a.get(0))?, tm(a.get(1))?);

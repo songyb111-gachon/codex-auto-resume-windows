@@ -49,14 +49,17 @@ fn answer(request: &serde_json::Value, line: &str) -> Value {
         (Some("sqlite.version"), _) => ok("value", Value::from(car_store::sqlite_version())),
         (Some("leaves.batch"), _) => match request.get("cases").and_then(|_| leaves::read(request))
         {
-            Some(Value::Object(parsed)) => ok("value", leaves::batch(&parsed["cases"])),
+            Some(Value::Object(parsed)) => {
+                ok("value", leaves::tag(leaves::batch(&parsed["cases"])))
+            }
             _ => rejected("cases are required", "request_failed"),
         },
         (Some("codex.script"), _) => match request.get("cases").and_then(|_| leaves::read(request))
         {
-            Some(Value::Object(parsed)) => {
-                ok("value", car_harness::codex::script(&parsed["cases"]))
-            }
+            Some(Value::Object(parsed)) => ok(
+                "value",
+                leaves::tag(car_harness::codex::script(&parsed["cases"])),
+            ),
             _ => rejected("cases are required", "request_failed"),
         },
         _ => rejected("this call is not ported", NOT_PORTED),

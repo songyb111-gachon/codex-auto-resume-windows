@@ -5,7 +5,8 @@ A family is a script that runs under the reference tag's own Python (`reference.
 made and what the tag answered, each answer or each exception's class name. The same cases go to
 `car-harness serve` as one `leaves.batch` call, and the reply must be the same bytes the reference's
 answers write as (`encode`, the wire's `json.dumps(ensure_ascii=False, allow_nan=False)`). The first
-case that differs is named with both answers.
+case that differs is named with both answers. A NaN or an infinity, in a case or an answer, crosses as its
+`{"$float": ...}` tag (`diffs.TAGGING`): `finish` tags both, and car-harness reads and writes the same tags.
 
 `PRELUDE` is what every family script starts with: the case runner and the normaliser that turns the
 reference's tuples and sets into the lists and sorted lists a JSON answer has.
@@ -38,8 +39,10 @@ def run(cases, ops):
     return results
 
 def finish(cases, ops):
-    sys.stdout.write(json.dumps({"cases": cases, "results": run(cases, ops)}, ensure_ascii=False, allow_nan=False))
-'''
+    results = run(cases, ops)
+    sys.stdout.write(json.dumps({"cases": tagged(cases), "results": tagged(results)}, ensure_ascii=False,
+                                allow_nan=False))
+''' + diffs.TAGGING
 
 
 class Leaves(diffs.Base):
