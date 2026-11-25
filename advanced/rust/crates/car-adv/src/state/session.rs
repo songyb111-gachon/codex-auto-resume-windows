@@ -1,0 +1,481 @@
+//! advanced.sqlite: where it is, opening it, and the transaction everything is written in (`state/session.py`).
+//!
+//! It lives in `config/advanced/` (`Paths.advanced_dir`) with the provenance marker core's purge reads. The same
+//! rules as core's store: no link on the way, nothing outside the home, one connection opened the first time it
+//! is needed (Python's `sqlite3.connect(path, timeout=10, isolation_level=None)`, then `trusted_schema=OFF`,
+//! `foreign_keys=ON`, `synchronous=FULL`), `BEGIN IMMEDIATE` for every write; a file whose tables, columns or
+//! version are not exactly these is refused - but a file of an earlier version, exactly as it made it, is brought to
+//! this one at its opening, and a later version's file marked readable from this one is used as it is. A read
+//! never creates the file.
+//!
+//! The one connection serves every thread of its process: a mutex gives each transaction the connection whole,
+//! as the reference's re-entrant lock does.
+
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex, MutexGuard};
+
+use car_config::paths::{OWNER_MARKER, OWNER_TEXT, Paths, is_link};
+use car_machine::json::Value;
+use rusqlite::Connection;
+
+use super::errors::{Error, Result};
+use super::py;
+use super::schema::{self, Shape};
+use super::seam::Tokens;
+use super::seam::registry::Registry;
+use super::seam::registry_gen::GLOBAL_HOURLY;
+use super::sql;
+
+/// The state's clock: seconds since 1970 (`time.time`), or what a test pins.
+pub type Clock = Box<dyn Fn() -> f64 + Send + Sync>;
+
+/// `time.time()`.
+pub fn wall_clock() -> f64 {
+    car_store::session::wall_clock()
+}
+
+/// One installation's advanced state, for one process: opened when first needed (`AdvancedState`).
+pub struct AdvancedState {
+    pub paths: Paths,
+    pub registry: Arc<dyn Registry>,
+    /// `config/advanced/`.
+    pub directory: PathBuf,
+    /// `config/advanced/advanced.sqlite`.
+    pub path: PathBuf,
+    pub clock: Clock,
+    /// `secrets.token_hex`, where a write makes an id of its own.
+    pub tokens: Arc<dyn Tokens>,
+    connection: Mutex<Option<Connection>>,
+}
+
+/// The connection, held for one transaction.
+pub(crate) type Held<'a> = MutexGuard<'a, Option<Connection>>;
+
+impl AdvancedState {
+    /// `AdvancedState(paths, registry=..., clock=...)`.
+    pub fn new(
+        paths: Paths,
+        registry: Arc<dyn Registry>,
+        clock: Clock,
+        tokens: Arc<dyn Tokens>,
+    ) -> Self {
+        let directory = PathBuf::from(&paths.advanced_dir);
+        let path = directory.join(schema::FILE_NAME);
+        AdvancedState {
+            paths,
+            registry,
+            directory,
+            path,
+            clock,
+            tokens,
+            connection: Mutex::new(None),
+        }
+    }
+
+    fn lock(&self) -> Held<'_> {
+        self.connection
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    // ------------------------------------------------------------------ the file
+    /// `exists()`: the file is there, and neither it nor its directory is a link or a junction.
+    pub fn exists(&self) -> bool {
+        self.path.is_file()
+            && !is_link(&self.path.to_string_lossy())
+            && !is_link(&self.directory.to_string_lossy())
+    }
+
+    fn directory_text(&self) -> String {
+        self.directory.to_string_lossy().into_owned()
+    }
+
+    /// `_directory()`: config/advanced/, made and marked as ours, or a refusal.
+    fn make_directory(&self) -> Result<()> {
+        self.paths
+            .ensure()
+            .map_err(|error| Error::python("ConfigError", error.0))?;
+        let directory = self.directory_text();
+        if is_link(&directory) || (self.directory.exists() && !self.paths.confined(&directory)) {
+            return Err(Error::state(
+                "the advanced state directory is a link or escapes the home",
+            ));
+        }
+        match std::fs::create_dir(&self.directory) {
+            Ok(()) => {}
+            Err(_) if self.directory.is_dir() => {}
+            Err(_) => return Err(cannot_open()),
+        }
+        let marker = self.directory.join(OWNER_MARKER);
+        self.checked()?;
+        if !marker.exists() {
+            std::fs::write(&marker, OWNER_TEXT.as_bytes()).map_err(|_| cannot_open())?;
+        }
+        Ok(())
+    }
+
+    /// `_checked()`: the refusals `_directory` makes, and nothing it writes.
+    fn checked(&self) -> Result<()> {
+        let directory = self.directory_text();
+        if is_link(&directory) || !self.paths.confined(&directory) {
+            return Err(Error::state(
+                "the advanced state directory is a link or escapes the home",
+            ));
+        }
+        if is_link(&self.path.to_string_lossy()) {
+            return Err(Error::state("the advanced state is a link"));
+        }
+        Ok(())
+    }
+
+    /// `_open(create=...)` under the lock: the connection, opened and checked the first time; None where the file
+    /// is not there and `create` is false.
+    pub(crate) fn opened<'a>(
+        &self,
+        held: &'a mut Held<'_>,
+        create: bool,
+    ) -> Result<Option<&'a Connection>> {
+        if held.is_none() {
+            match self.open_connection(create)? {
+                Some(connection) => **held = Some(connection),
+                None => return Ok(None),
+            }
+        }
+        Ok(held.as_ref())
+    }
+
+    fn open_connection(&self, create: bool) -> Result<Option<Connection>> {
+        if !create && !self.exists() {
+            return Ok(None);
+        }
+        if create {
+            self.make_directory()?;
+        } else {
+            self.checked()?;
+        }
+        let was_present = self.path.exists();
+        let connection = car_store::session::connect(&self.path).map_err(|_| cannot_open())?;
+        let prepared = (|| -> Result<bool> {
+            sql::exec(&connection, "PRAGMA trusted_schema=OFF", &[])?;
+            sql::exec(&connection, "PRAGMA foreign_keys=ON", &[])?;
+            sql::exec(&connection, "PRAGMA synchronous=FULL", &[])?;
+            sql::exec(
+                &connection,
+                if create { "BEGIN IMMEDIATE" } else { "BEGIN" },
+                &[],
+            )?;
+            match self.prepare(&connection, was_present, create) {
+                Ok(prepared) => {
+                    sql::exec(&connection, "COMMIT", &[])?;
+                    Ok(prepared)
+                }
+                Err(error) => {
+                    sql::exec(&connection, "ROLLBACK", &[])?;
+                    Err(error)
+                }
+            }
+        })();
+        match prepared {
+            Ok(true) => Ok(Some(connection)),
+            Ok(false) => Ok(None),
+            Err(error @ Error::State { .. }) => Err(error),
+            Err(Error::Sqlite(_)) => Err(cannot_open()),
+            Err(other) => Err(other),
+        }
+    }
+
+    /// `_tables(connection)`: every table but SQLite's own, with its columns, in sqlite_master's order.
+    pub(crate) fn tables(connection: &Connection) -> Result<Shape> {
+        let names = sql::tuples(
+            connection,
+            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
+            &[],
+        )?;
+        let mut found = Shape::new();
+        for row in names {
+            let name = py::py_str(row.first().unwrap_or(&Value::Null));
+            let columns = sql::tuples(connection, &format!("PRAGMA table_info({name})"), &[])?
+                .into_iter()
+                .map(|column| py::py_str(column.get(1).unwrap_or(&Value::Null)))
+                .collect();
+            found.push((name, columns));
+        }
+        Ok(found)
+    }
+
+    /// `_prepare(connection, was_present, create)`: whether the file is this schema, made now where `create` and
+    /// there is none; every earlier version's step taken, a newer readable one used as it is.
+    fn prepare(&self, connection: &Connection, was_present: bool, create: bool) -> Result<bool> {
+        let mut version = sql::number(connection, "PRAGMA user_version", &[])?;
+        let mut tables = Self::tables(connection)?;
+        if version == 0 && tables.is_empty() {
+            if !create {
+                return Ok(false);
+            }
+            let size = std::fs::metadata(&self.path)
+                .map(|found| found.len())
+                .unwrap_or(0);
+            if was_present && size > 0 {
+                return Err(Error::state(
+                    "the advanced state is empty or uninitialized; refusing to reset it",
+                ));
+            }
+            for statement in schema::STATEMENTS {
+                sql::exec(connection, statement, &[])?;
+            }
+            tables = Self::tables(connection)?;
+            version = schema::SCHEMA_VERSION;
+        }
+        if version > schema::SCHEMA_VERSION {
+            if schema::readable_from(connection, version)? > schema::SCHEMA_VERSION {
+                return Err(Error::state(
+                    "the advanced state was written by a newer version",
+                ));
+            }
+            if !schema::holds(&tables, schema::TABLES) {
+                return Err(Error::state("unsupported or malformed advanced state"));
+            }
+        } else {
+            let steps: [(i64, &[(&str, &[&str])], &[&str]); 9] = [
+                (1, schema::TABLES_V1, schema::UPGRADE_FROM_1),
+                (2, schema::TABLES_V2, schema::UPGRADE_FROM_2),
+                (3, schema::TABLES_V3_BEFORE_RESETS, schema::ADD_RESETS),
+                (3, schema::TABLES_V3, schema::UPGRADE_FROM_3),
+                (4, schema::TABLES_V4, schema::UPGRADE_FROM_4),
+                (5, schema::TABLES_V5, schema::UPGRADE_FROM_5),
+                (
+                    schema::STAGE4_VERSION - 1,
+                    schema::TABLES_BEFORE_STAGE4,
+                    schema::UPGRADE_TO_STAGE4,
+                ),
+                (
+                    schema::STAGE4_VERSION,
+                    schema::TABLES_V7,
+                    schema::UPGRADE_TO_V019,
+                ),
+                (
+                    schema::V019_VERSION,
+                    schema::TABLES_V8,
+                    schema::UPGRADE_TO_V020,
+                ),
+            ];
+            for (old, shape, statements) in steps {
+                if version == old && schema::same(&tables, shape) {
+                    for statement in statements {
+                        sql::exec(connection, statement, &[])?;
+                    }
+                    tables = Self::tables(connection)?;
+                    version = sql::number(connection, "PRAGMA user_version", &[])?;
+                }
+            }
+            if version != schema::SCHEMA_VERSION || !schema::same(&tables, schema::TABLES) {
+                return Err(Error::state("unsupported or malformed advanced state"));
+            }
+            if schema::names_checked(connection)? {
+                for statement in schema::FREE_OPTIONS {
+                    sql::exec(connection, statement, &[])?;
+                }
+            } else if schema::readable_from(connection, version)? != schema::READABLE_FROM {
+                sql::exec(connection, schema::MARKED, &[])?;
+            }
+            if schema::wordings_checked(connection)? {
+                for statement in schema::FREE_WORDINGS {
+                    sql::exec(connection, statement, &[])?;
+                }
+            }
+            if let Some(old) = schema::hourly_bound(connection)?
+                && old < GLOBAL_HOURLY
+            {
+                for statement in schema::HOURLY_REMADE {
+                    sql::exec(connection, statement, &[])?;
+                }
+                sql::exec(
+                    connection,
+                    "UPDATE meta SET global_hourly=? WHERE global_hourly=?",
+                    &[py::int(GLOBAL_HOURLY), py::int(old)],
+                )?;
+            }
+            schema::widen_words(connection)?;
+        }
+        if sql::number(connection, "SELECT count(*) FROM meta", &[])? != 1 {
+            return Err(Error::state("malformed advanced state"));
+        }
+        self.carry_windows(connection)?;
+        Ok(true)
+    }
+
+    /// `_carry_windows(connection)`: the wrap-up's and the stop's window switches written once, as the usage
+    /// meter's switch for that window stands, for each one this registry's capability offers and has no row yet.
+    fn carry_windows(&self, connection: &Connection) -> Result<()> {
+        let mut wanted: Vec<(&str, &str)> = Vec::new();
+        for capability in schema::WINDOW_FOLLOWERS {
+            let definition = self.registry.by_id(capability);
+            for choice in schema::WINDOW_CHOICES {
+                if definition
+                    .is_some_and(|definition| definition.option(&py::word(choice)).is_some())
+                {
+                    wanted.push((capability, choice));
+                }
+            }
+        }
+        if wanted.is_empty() {
+            return Ok(());
+        }
+        let rows = sql::tuples(
+            connection,
+            "SELECT capability, choice, value FROM options WHERE choice IN (?, ?)",
+            &sql::words(schema::WINDOW_CHOICES),
+        )?;
+        let mut held: Vec<((String, String), Value)> = Vec::new();
+        for row in rows {
+            let pair = (py::py_str(&row[0]), py::py_str(&row[1]));
+            let value = row[2].clone();
+            match held.iter_mut().find(|(each, _)| *each == pair) {
+                Some(entry) => entry.1 = value,
+                None => held.push((pair, value)),
+            }
+        }
+        let find = |capability: &str, choice: &str| {
+            held.iter()
+                .find(|((one, two), _)| one == capability && two == choice)
+                .map(|(_, value)| value.clone())
+        };
+        for (capability, choice) in wanted {
+            if find(capability, choice).is_some() {
+                continue;
+            }
+            let value = find(schema::WINDOW_LEADER, choice).unwrap_or(py::int(schema::WINDOW_ON));
+            let value = if sql::py_eq(&value, &py::int(schema::WINDOW_ON))
+                || sql::py_eq(&value, &py::int(schema::WINDOW_OFF))
+            {
+                value
+            } else {
+                py::int(schema::WINDOW_ON)
+            };
+            sql::exec(
+                connection,
+                "INSERT INTO options (capability, choice, value) VALUES (?,?,?)",
+                &[py::word(capability), py::word(choice), value],
+            )?;
+        }
+        Ok(())
+    }
+
+    /// `close()`.
+    pub fn close(&self) {
+        *self.lock() = None;
+    }
+
+    // ---------------------------------------------------------------- transactions
+    /// `_transaction(create=...)`: a write transaction, or `body(None)` where the file is not there and nothing
+    /// asked to make it.
+    pub(crate) fn transaction<T>(
+        &self,
+        create: bool,
+        body: impl FnOnce(Option<&Connection>) -> Result<T>,
+    ) -> Result<T> {
+        let mut held = self.lock();
+        match self.opened(&mut held, create)? {
+            None => body(None),
+            Some(connection) => begin(connection, "BEGIN IMMEDIATE", |connection| {
+                body(Some(connection))
+            }),
+        }
+    }
+
+    /// `_transaction()` that always makes the file (the default `create=True`): the body sees the connection.
+    pub(crate) fn writing<T>(&self, body: impl FnOnce(&Connection) -> Result<T>) -> Result<T> {
+        self.transaction(true, |connection| match connection {
+            Some(connection) => body(connection),
+            None => Err(Error::state("cannot open the advanced state")),
+        })
+    }
+
+    /// `_read()`: one consistent snapshot, or `body(None)` where there is no file to read.
+    pub(crate) fn read<T>(&self, body: impl FnOnce(Option<&Connection>) -> Result<T>) -> Result<T> {
+        let mut held = self.lock();
+        match self.opened(&mut held, false)? {
+            None => body(None),
+            Some(connection) => begin(connection, "BEGIN", |connection| body(Some(connection))),
+        }
+    }
+
+    /// `_now(at)`: `at`, or the clock, as a time of the store's window.
+    pub fn now(&self, at: &Value) -> Result<f64> {
+        if matches!(at, Value::Null) {
+            return py::timestamp(&Value::Float((self.clock)()), "time");
+        }
+        py::timestamp(at, "time")
+    }
+
+    /// The clock's reading (`state.clock()`).
+    pub fn clock_now(&self) -> f64 {
+        (self.clock)()
+    }
+
+    // ---------------------------------------------------------------- the one claim
+    /// `attach(connection)`: this file attached to `connection` - core's, inside its one claim - as ATTACHED, once
+    /// per connection. The file is opened and checked on its own connection first, so a file that would be refused
+    /// is never attached; one that is not there is not made, and false says so.
+    pub fn attach(&self, connection: &Connection) -> Result<bool> {
+        {
+            let mut held = self.lock();
+            if self.opened(&mut held, false)?.is_none() {
+                return Ok(false);
+            }
+        }
+        let names: Vec<Value> = sql::tuples(connection, "PRAGMA database_list", &[])?
+            .into_iter()
+            .filter_map(|row| row.into_iter().nth(1))
+            .collect();
+        if !names
+            .iter()
+            .any(|name| py::is_word(name, &[schema::ATTACHED]))
+        {
+            let text = self.path.to_string_lossy().replace('\'', "''");
+            sql::exec(
+                connection,
+                &format!("ATTACH DATABASE '{text}' AS {}", schema::ATTACHED),
+                &[],
+            )?;
+        }
+        Ok(true)
+    }
+
+    /// The directory, as a path.
+    pub fn folder(&self) -> &Path {
+        &self.directory
+    }
+}
+
+fn cannot_open() -> Error {
+    Error::state("cannot open the advanced state")
+}
+
+/// `_begin(connection, statement)`: the statement, the body, COMMIT; on any error ROLLBACK where a transaction is
+/// open, and SQLite's own error as `StateError("advanced state transaction failed")`.
+pub(crate) fn begin<T>(
+    connection: &Connection,
+    statement: &str,
+    body: impl FnOnce(&Connection) -> Result<T>,
+) -> Result<T> {
+    let outcome = (|| {
+        sql::exec(connection, statement, &[])?;
+        let value = body(connection)?;
+        sql::exec(connection, "COMMIT", &[])?;
+        Ok(value)
+    })();
+    match outcome {
+        Ok(value) => Ok(value),
+        Err(error) => {
+            if !connection.is_autocommit() {
+                sql::exec(connection, "ROLLBACK", &[])
+                    .map_err(|_| Error::state("advanced state transaction failed"))?;
+            }
+            match error {
+                Error::Sqlite(_) => Err(Error::state("advanced state transaction failed")),
+                other => Err(other),
+            }
+        }
+    }
+}
