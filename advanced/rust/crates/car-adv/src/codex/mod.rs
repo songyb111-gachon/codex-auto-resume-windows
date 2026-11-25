@@ -10,6 +10,7 @@ mod alpha_gen;
 pub mod conversation;
 pub mod credits;
 pub mod goals;
+pub mod headless;
 pub mod inuse;
 pub mod lineage;
 pub mod protocol;
