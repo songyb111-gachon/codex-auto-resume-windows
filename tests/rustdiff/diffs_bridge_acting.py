@@ -191,16 +191,39 @@ class ActingBase(BridgeBase):
                           expected[max(0, at - 300):at + 300].decode("utf-8", "replace"),
                           actual[max(0, at - 300):at + 300].decode("utf-8", "replace")))
         self.assertEqual(code2, code, "%s: the exit code differs (reference stderr %r)" % (label, err[-600:]))
-        self.assertEqual(result2, result, "%s: the method's answer differs (reference stderr %r)" % (label, err[-600:]))
-        self.assertEqual(sorted(files2), sorted(files), "%s: the files written differ" % label)
-        for name, data in files.items():
-            self.assertEqual(files2[name], data, "%s: %s differs" % (label, name))
-        self.assertEqual(state2, state, "%s: the state written differs" % label)
-        self.assertEqual(calls2, calls, "%s: the Host calls differ (reference stderr %r)" % (label, err[-600:]))
+        # Compared without unittest's difflib, which takes hours over a list of a thousand calls.
+        for what, mine, theirs in (("the method's answer", result2, result), ("the files written", files2, files),
+                                   ("the state written", state2, state), ("the Host calls", calls2, calls)):
+            if mine != theirs:
+                self.fail("%s: %s differ at %s (reference stderr %r)" % (label, what, first_difference(theirs, mine),
+                                                                       err[-600:]))
         COUNTS["streams"] += 1
         COUNTS["requests"] += len(requests) if isinstance(requests, list) else 0
         COUNTS["calls"] += len(calls or [])
         return expected, result
+
+
+MISSING = object()
+
+
+def first_difference(theirs, mine, path="") -> str:
+    """Where two answers first differ, and how: the reference's value, then car-control's."""
+    if type(theirs) is not type(mine):
+        return ("%s: reference %r, rust %r" % (path or "the whole", theirs, mine))[:3000]
+    if isinstance(theirs, dict):
+        for key in sorted(set(theirs) | set(mine), key=str):
+            a, b = theirs.get(key, MISSING), mine.get(key, MISSING)
+            if a is MISSING or b is MISSING:
+                return "%s[%r]: present on %s only" % (path, key, "the reference" if b is MISSING else "rust")
+            if a != b:
+                return first_difference(a, b, "%s[%r]" % (path, key))
+    if isinstance(theirs, list):
+        for index, (a, b) in enumerate(zip(theirs, mine)):
+            if a != b:
+                return first_difference(a, b, "%s[%d]" % (path, index))
+        return "%s: %d items on the reference, %d on rust; next %r" % (
+            path, len(theirs), len(mine), (theirs[len(mine):] or mine[len(theirs):])[:3])
+    return ("%s: reference %r, rust %r" % (path or "the whole", theirs, mine))[:3000]
 
 
 def stream(command, *arguments, start=1):

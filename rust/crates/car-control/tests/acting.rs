@@ -64,6 +64,41 @@ fn the_stand_ins_refuse() {
     assert_ne!(host.token_hex(8), host.token_hex(8));
 }
 
+/// The watcher's mutex is named from the state folder it guards: a scratch home's is a name of its own, which no
+/// real watcher holds, so Start and Stop watcher asked over a scratch home never meet the running watcher.
+#[test]
+fn a_scratch_home_asks_a_watcher_mutex_of_its_own() {
+    let scratch = std::env::temp_dir().join(format!(
+        "car-v0627-bridge6-home-{}\\config",
+        std::process::id()
+    ));
+    let host = SystemHost::new(".");
+    assert_eq!(host.watcher_running(&scratch), Some(false));
+    // Held on a thread of its own: a named mutex is recursive for the thread that owns it.
+    let (took, taken) = std::sync::mpsc::channel();
+    let (leave, left) = std::sync::mpsc::channel::<()>();
+    let folder = scratch.clone();
+    let holder = std::thread::spawn(move || {
+        let host = SystemHost::new(".");
+        let guard = car_store::open::Windows::watcher_mutex(&host, &folder);
+        took.send(guard.is_ok()).expect("the test waits");
+        let _ = left.recv();
+        drop(guard);
+    });
+    assert!(
+        taken.recv().expect("the holder answers"),
+        "the scratch mutex is had"
+    );
+    assert_eq!(
+        host.watcher_running(&scratch),
+        Some(true),
+        "held by this test's thread"
+    );
+    leave.send(()).expect("the holder waits");
+    holder.join().expect("the holder ends");
+    assert_eq!(host.watcher_running(&scratch), Some(false));
+}
+
 /// A scratch file of this test's own, removed when dropped.
 struct Scratch(std::fs::File, std::path::PathBuf);
 
