@@ -194,3 +194,24 @@ fn a_failure_seen_file_replaced_by_another_of_the_same_size_and_time_is_read_aga
         "the reference's stamp holds st_ino, so a new file is a new read"
     );
 }
+
+#[test]
+fn a_panic_under_the_one_shot_form_is_the_generic_refusal_and_exit_one() {
+    let folder = scratch("panic-one-shot");
+    let control = control(&folder, true);
+    let mut input = Cursor::new(Vec::new());
+    let mut output: Vec<u8> = Vec::new();
+    let argv = vec!["settings".to_owned()];
+    let code = catch_unwind(AssertUnwindSafe(|| {
+        car_control::bridge::one_shot(&control, &argv, &mut input, &mut output)
+    }))
+    .expect(
+        "one_shot let a command's panic out: the process would exit 101 with nothing on stdout",
+    );
+    let _ = std::fs::remove_dir_all(&folder);
+    assert_eq!(
+        String::from_utf8(output).unwrap(),
+        "{\"ok\": false, \"error\": \"the request could not be completed\", \"error_code\": \"request_failed\"}\n"
+    );
+    assert_eq!(code, 1);
+}

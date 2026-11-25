@@ -288,7 +288,8 @@ fn answer(control: &Control, line: &str) -> (Value, Value) {
             .filter(|each| PLAIN.contains(each) || WITH_ARGUMENT.contains(each)),
         _ => None,
     };
-    let reply = match known {
+    // `serve`'s `except Exception`: whatever a command raises is the generic refusal, the id still echoed.
+    let reply = unwound(|| match known {
         Some(name) => match payload(&argument) {
             Ok(body) => dispatch(control, name, &body),
             Err(error) => refused(&error),
@@ -297,8 +298,18 @@ fn answer(control: &Control, line: &str) -> (Value, Value) {
             Ok(reply) => reply,
             Err(error) => refused(&error),
         },
-    };
+    });
     (id, reply)
+}
+
+/// D15's boundary for the bridge: Python's `except Exception` around a command (`dispatch`, :550-553, and `serve`,
+/// :607-611) is, for a panic, an unwind caught here. A panic is the generic refusal, as any exception the reference
+/// does not name is, and the caller goes on to read the next line (or to exit as the refusal does).
+fn unwound(work: impl FnOnce() -> Value) -> Value {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(work)) {
+        Ok(reply) => reply,
+        Err(_) => generic(),
+    }
 }
 
 fn refused(error: &ControlError) -> Value {
@@ -372,7 +383,10 @@ fn line_done(control: &Control, raw: &str, output: &mut dyn Write) -> bool {
     if line.is_empty() {
         return true;
     }
-    let (id, reply) = answer(control, line);
+    // Before the id is known (the reading of the line itself) a panic is the generic refusal with a null id.
+    let (id, reply) =
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| answer(control, line)))
+            .unwrap_or_else(|_| (Value::Null, generic()));
     let line = match encode(&[
         envelope(&id, &reply),
         envelope(&id, &generic()),
@@ -441,19 +455,22 @@ pub fn one_shot(
             _ => json = word.clone(),
         }
     }
-    let reply = match argument(&json, Some(stdin)).and_then(|raw| payload(&raw)) {
-        Ok(mut body) => {
-            if command == "compat-import"
-                && let Some(path) = file.filter(|each| !each.is_empty())
-            {
-                body.insert(Str::from("path"), Value::from(path));
-                if let Some(origin) = origin.filter(|each| !each.is_empty()) {
-                    body.insert(Str::from("origin"), Value::from(origin));
+    // `dispatch`'s `except Exception` answers a panic with the generic refusal, and `_emit` gives it exit 1.
+    let reply = unwound(
+        || match argument(&json, Some(stdin)).and_then(|raw| payload(&raw)) {
+            Ok(mut body) => {
+                if command == "compat-import"
+                    && let Some(path) = file.filter(|each| !each.is_empty())
+                {
+                    body.insert(Str::from("path"), Value::from(path));
+                    if let Some(origin) = origin.filter(|each| !each.is_empty()) {
+                        body.insert(Str::from("origin"), Value::from(origin));
+                    }
                 }
+                dispatch(control, command, &body)
             }
-            dispatch(control, command, &body)
-        }
-        Err(error) => refused(&error),
-    };
+            Err(error) => refused(&error),
+        },
+    );
     emit(reply, output)
 }
