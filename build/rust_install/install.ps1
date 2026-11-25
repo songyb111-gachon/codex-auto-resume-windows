@@ -1667,6 +1667,32 @@ function Undo-Migration {
     return 'unregistered'
 }
 
+function Resolve-MigratingCopies {
+    <#
+        The `<name>.migrating` copies a migration that was cut short left (Save-MigratedFile: the window, its icon, the
+        kept uninstaller). Where the installation is a Python version (-PythonInstalled: the trees are its own again,
+        put back by Restore-InterruptedCopy or never replaced), each copy is that version's own file and goes back
+        over the one there; beside a Rust installation the copy is a leftover and is removed. Each one only inside the
+        verified root, as every other change here.
+    #>
+    param([bool]$PythonInstalled)
+    $copies = @(Get-ChildItem -LiteralPath $OwnedHome -File -Filter '*.migrating' -Force -ErrorAction SilentlyContinue)
+    $copies += @(Get-ChildItem -LiteralPath (Join-Path $OwnedHome 'uninstall') -File -Filter '*.migrating' -Force -ErrorAction SilentlyContinue)
+    foreach ($copy in $copies) {
+        if ($copy.Attributes -band [IO.FileAttributes]::ReparsePoint) { continue }
+        $target = $copy.FullName.Substring(0, $copy.FullName.Length - '.migrating'.Length)
+        if (-not (Test-PathInside $copy.FullName $OwnedHome) -or -not (Test-PathInside $target $OwnedHome)) { continue }
+        if ($PythonInstalled) {
+            try {
+                Move-Item -LiteralPath $copy.FullName -Destination $target -Force -ErrorAction Stop
+                Ok ('Put back ' + $target + ', which an interrupted update had replaced')
+            } catch { Warn ('Could not put back ' + $target + ': ' + $_.Exception.Message) }
+        } else {
+            $null = Remove-OwnedItem $copy.FullName
+        }
+    }
+}
+
 function Test-KnowsWatcherWasStopped {
     # Whether a Python version's plugin_setup.py takes `setup --watcher-was-stopped`: from the v0.6.16 final on (no
     # v0.6.16 pre-release has it, and argparse refuses a word it does not know with 2).
@@ -2247,6 +2273,10 @@ try {
         }
         $null = Remove-OwnedItem $stale.FullName
     }
+    # And the copies a migration cut short left of the files at the root (Save-MigratedFile; review 9, note 1): beside a
+    # Python version they are its own files, which the run never got to put back, so they go back; beside a Rust one
+    # they are leftovers, which nothing else sweeps.
+    Resolve-MigratingCopies -PythonInstalled $fromPython
 
     # Hand over from a running watcher before its files are replaced.
     #
@@ -2628,6 +2658,12 @@ try {
 
     # The new setup has run: the Python version this replaced goes now (PLAN 6.5).
     if ($fromPython) { Complete-Migration -Moved $moved }
+    # The trees an interrupted run left aside that its journal still claimed (Restore-InterruptedCopy) were kept until
+    # this run had a complete installation; it has one now, set up, so they go too, as Complete-Migration's do - one a
+    # migration cut off at its setup left was the Python version, and stayed through this run (review 9, note 1).
+    foreach ($aside in @($claimedAside)) {
+        if ($aside -and (Test-Path -LiteralPath $aside)) { $null = Remove-OwnedItem $aside }
+    }
     # D8: the Pythons a person chose in the advanced edition (runtimes\ and runtimes\chosen.json) - this version runs
     # none, in either edition, and has no card to delete them on.
     if (Test-Path -LiteralPath $ChosenRuntimes) {
