@@ -718,3 +718,55 @@ The wire-typed arguments of `arm`, `set_keep_on`, `disarm`, `set_option`, ... ar
 **The final re-diff, one command:** `python -X utf8 tests/rustdiff/rediff_advpolicy.py --reference v0.6.26` lists which files the port reads changed since beta.2, checks the generated tables against the tag, and runs the three diff modules with the tag as the reference.
 
 **Kept oddity.** A statement catalog that is not UTF-8 raises `UnicodeDecodeError` in the tag (nothing catches it) and does so in car-adv (`statement::Undecodable`, through `Catalogs::{catalog, text, badge, words, missing, complete_in, statement}` and `Arming::{arm, statement}`, which therefore return `Result`); AUDIT-v0628.md carries the line ("kept: ...").
+
+## Integration 5 (branch `car-v0627-rust`, 2026-11-25)
+
+Three seats merged with `git merge --no-ff`, in this order, then the cross seams replaced.
+
+| Merge | Seat | What came in |
+|---|---|---|
+| `5facac3cd` (car-v0627-appserver `fd46204a3`) | S3.3 | car-codex's `pairing`, `layout`, `appserver`, `transport`, `compat/*`, `compatio`, `system`, `refold`; car-harness's `appserver.rs`, `registry.rs`, the `car-fake-codex` bin; car-machine's `compat::raw_decode`; `diffs_codex_appserver_*.py`, `diffs_codex_compat_*.py`, `rediff_appserver.py` |
+| `27315a82c` (car-v0627-advstore `ccd03234c`) | S7.1a | car-adv's `state/` (19 modules, `schema_gen.rs`, `seam/`), `ledger`, `profiles`, `watchlog`, `images`, the `advstore` example, `rusqlite` as a direct dependency (`advanced/rust/Cargo.lock` + one line), `diffs_advstore.py`, `advstore.py`, `advreference.py`, `gen_advstore.py`, `rediff_advstore.py` |
+| `5662c0892` (car-v0627-advpolicy `a58e0c3ae`) | S7.1b | car-adv's `vocabulary`, `standards`, `measured`, `policy`, `registry`, `statement`, `arming`, `jsonx`, `seam`, `seam_autocheck` (+ `_gen` files), the `advprobe` example, `diffs_advpolicy_*.py`, `advref.py`, `advdiff.py`, `arming_scenarios.py`, `gen_advpolicy.py`, `rediff_advpolicy.py` |
+
+Conflicts, each resolved by keeping both sides: `rust/GROUNDWORK.md` in the second and the third merge (every seat appended its section at the end; both kept, in merge
+order) and `car-adv/src/lib.rs` in the third (S7.1a's `images, ledger, profiles, state, watchlog` and S7.1b's `arming, jsonx, measured, policy, registry, seam, ...` are one list
+now, with both seats' module docs). The Cargo files, the Cargo locks, `tests/rustdiff/` and the AUDIT notes did not conflict: S7.1b changed no manifest, S7.1a's `car-adv/Cargo.toml`
+(`rusqlite = { version = "0.43", features = ["bundled"] }`) and `advanced/rust/Cargo.lock` (the `rusqlite` entry in car-adv's dependency list) came in as written; no new crate, no new edge.
+
+**One reference.** S7.1a's `advreference.py` and S7.1b's `advref.py` both took the tag's `src/codex_auto_resume` and `advanced/src/codex_auto_resume_advanced` out of git
+into one scratch folder and ran Python under them. `advref.py` is kept (S7.1b's: it also runs scripts too long for a command line, names the tag's `locales/` and builds and asks
+`advprobe`); it gained `trees(tag)`, `popen(...)` and `run(..., timeout=)`, which S7.1a's diffs used; `advreference.py` is gone and `advstore.py`, `diffs_advstore.py` and
+`gen_advstore.py` name `advref`.
+
+### The seams, replaced
+
+| Seam | Now |
+|---|---|
+| S7.1a's `state/seam/words_gen.rs` (36 StrEnums as `&str` constants, `KEPT_NOTICES`) | `crate::vocabulary` (S7.1b's), the one source of the closed words. The store names `Actor::Dashboard.as_str()` and `Actor::ALL`; `py::closed` and `py::is_word` take either an enum's `ALL` or a list of words (`py::Word`); `KEPT_NOTICES` is the enum list. A `match` on a word became a `match` on the parsed member. `gen_advstore.py` makes `schema_gen.rs` alone now |
+| S7.1a's `state/seam/registry.rs` + `registry_gen.rs` (`Registry` trait, `Definition`, `Shipped`, `Listed`, the three numbers) | `crate::registry` (S7.1b's `Registry`, `CapabilityDef`, `OptionDef`, `GLOBAL_HOURLY`, `CORE_DAILY_CAP`, `CORE_COOLDOWN_SECONDS`). `AdvancedState` holds an `Arc<Registry>`. The store asks the registry the reference's questions of a value of any type (`registry.get(x)`, `definition.option(key)`, `code(word)`, `takes(value)`, `word in codes`) in `state::ask` (`RegistryAsked`, `DefinitionAsked`, `takes`), so `registry.rs` stays the tag's module. `Shipped` is `registry::shipped(false)`, `Listed(vec![])` is `Registry::new(vec![])` |
+| S7.1b's `seam::StatePort` (a stand-in only) | `AdvancedState` implements it (`state/port.rs`): every call `arming.py` makes of the state, with the keywords and arguments it passes, read as it reads them. `Refused`, `StaleGeneration` and `StateError` are `StateFault::{Refused, Stale, State}`. A class the state does not wrap (a `TypeError` of an unhashable wire value) leaves `arming.py` untouched in the reference; a seam result cannot carry it, so it is a panic carrying `port::Raised {class, message}` (D15: the boundary turns it into the answer) |
+| S7.1b's `Edges::default_view` and `default_live_view` (`compatio.reader_view`, `compatio.live_view`) | `compat_views::CompatViews`: `_view_of` and `_live_view_of` over S3.3's `compat::views::{Registry, reader_view, live_view}` and car-policy's `settings::load` (the explicit engine is the setting's `codex_exe`, else `CODEX_EXE`). A host's `Edges` delegates to it |
+| S7.1b's numbers in `seam.rs` (`RULES_LIMIT`, `RECENT_DAYS`, `DAY`) | kept (typed for `Arming`); a test holds them equal to the state's (`state::port::tests`) |
+
+### The proof that Arming runs over the real state
+
+`diffs_advpolicy_arming.ArmingScenarioDiff.test_over_the_real_state`: the scenario generator of S7.1b's stand-in diff, each scenario run by the tag's `Arming` over the tag's own
+`AdvancedState` and by car-adv's `Arming` over car-adv's `AdvancedState` (`advprobe`'s `Real`), each on a home of its own (`<home>/py`, `<home>/rs`), begun empty (the steps make
+the rows, options, wordings, rules and journal). Equal: every step's answer, every call of the edges, and the state left as the state's own readers say it (`arming`, `meta`,
+`options` and `wordings` of every capability, `rules`, `journal`, `reading`). `arming.aggregated` and `tag_problem` are the real ones here (the stand-in diff patches them). The
+stand-in diff stays beside it and still proves what the real state cannot show: every call `Arming` makes of the state and the edges, with its arguments, in order, and the faults
+(`faults` in a scenario). 240 scenarios (every other one is made to get somewhere: nothing forbids, a good view and table, a capability that offers Send again armed and then kept on with or without it), 3,531 steps, 167 scenarios writing the journal, Keep on done 140 times, 86 of them with Send again. What the real-state scenarios do not reach: the rows other seats write (overrides, spends,
+reset rules, continuations, prompts), which `Arming` reads through `open_overrides`, `spends_since`, `payers`, `reset_rules` and `continuations_pending`; those stay proved by the
+stand-in and by S7.1a's own diff of the state's methods. `reading()` with no file answers its keys in a frozenset's hash order (already in AUDIT from S7.1a); the dump sorts them.
+
+### The seams that stay (for the seats named)
+
+* S7.1a `state/seam/hooks.rs` (`held`, `spent_on`, `fresh`): the engine's `hookclaims` and the control's `sendnow` - S7.2/S7.3.
+* S7.1a `state/seam/accounts.rs` (`Host`: DPAPI seal and open, the saved accounts' named mutex, the folder's access list, `authfile.sweep`, `swap.unwind`, `token`) and `seam::Tokens`
+  (`secrets.token_hex`): car-platform has no DPAPI, no mutex for it and no random source yet; S7.2's codex modules (`authfile`, `account`, `swap`) fill the rest.
+* S7.1b `seam::Edges`, but the two views: `table_for` (`compatdata`), `checked_for` (`autocheck.results_for`), `sending_points` (`runtime.SENDING`), `hook_follow`,
+  `power_tasks_follow`, `account_forget`, `usage_touched`, `usage_order_problem`, `usage_previews`, `wording_*` (`wrapwords`): S7.2. `seam_autocheck.rs` (`settled`, `grade`) is S7.2's autocheck port's.
+* S7.1b `registry`'s `make` (the factory of a capability's code): S7.2's plug. `arming::CoreView` (core's records `sweep` is told of): car-store, at the engine's integration.
+* P11: `ledger::ClaimLedger` inside car-store's claim: car-store's claim still has only the NULL plug's ledger; the plug's P11 call is the engine integration's.
+* The engine's and the control's seams are not touched here.
