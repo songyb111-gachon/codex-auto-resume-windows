@@ -21,6 +21,10 @@ pub const ENV_CODEX_EXE: &str = "CODEX_AUTO_RESUME_CODEX_EXE";
 pub const OWNER_MARKER: &str = ".owned-by-codex-auto-resume";
 pub const OWNER_TEXT: &str =
     "Created by codex-auto-resume. Deleting this file makes `uninstall` skip this directory.\n";
+/// What `write_text` puts on disk: the text with Windows' line end (text mode).
+pub const OWNER_TEXT_ON_DISK: &str =
+    "Created by codex-auto-resume. Deleting this file makes `uninstall` skip this directory.
+";
 const REPARSE_POINT: u32 = 0x400;
 
 /// Static reason only; never includes file contents.
@@ -252,9 +256,7 @@ impl Paths {
             let marker = child(directory, OWNER_MARKER);
             if !Path::new(&marker).exists() {
                 // A missing marker only makes uninstall MORE conservative.
-                let _ = fs::write(&marker, OWNER_TEXT.replace('
-', "
-"));
+                let _ = fs::write(&marker, OWNER_TEXT_ON_DISK);
             }
         }
         Ok(())
@@ -281,9 +283,7 @@ impl Paths {
             return false;
         }
         let marker = child(&self.home, OWNER_MARKER);
-        Path::new(&marker).exists() || fs::write(&marker, OWNER_TEXT.replace('
-', "
-")).is_ok()
+        Path::new(&marker).exists() || fs::write(&marker, OWNER_TEXT_ON_DISK).is_ok()
     }
 
     /// `owns_home()`: whether this installation root is one we created: its marker, `config/`'s marker, or a

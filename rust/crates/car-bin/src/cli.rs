@@ -1005,13 +1005,15 @@ fn capability_lines(view: &Value, only_problems: bool) -> Result<Vec<String>, Cl
     };
     for (name, entry) in capabilities {
         let Value::Object(entry) = entry else {
-            continue;
+            return Err(CliError(
+                "TypeError: an entry is not subscriptable".to_owned(),
+            ));
         };
-        let reason = text_of(entry.get("reason"));
+        let reason = text_of(Some(&index(&Value::Object(entry.clone()), "reason")?));
         if reason == "not_implemented" {
             continue;
         }
-        let state = text_of(entry.get("state"));
+        let state = text_of(Some(&index(&Value::Object(entry.clone()), "state")?));
         if only_problems && ["COMPATIBLE", "CHECKED", "VERIFIED"].contains(&state.as_str()) {
             continue;
         }
@@ -1030,6 +1032,19 @@ fn capability_lines(view: &Value, only_problems: bool) -> Result<Vec<String>, Cl
 
 fn compat_view(app: &App) -> Value {
     app.host().compat_view(&app.state_dir(), &app.settings)
+}
+
+/// `view[name]`: a TypeError for a view that is not a dict, a KeyError for a missing key (the reference's traceback).
+fn index(view: &Value, name: &str) -> Result<Value, CliError> {
+    match view {
+        Value::Object(map) => map
+            .get(name)
+            .cloned()
+            .ok_or_else(|| CliError(format!("KeyError: '{name}'"))),
+        _ => Err(CliError(
+            "TypeError: the view is not subscriptable".to_owned(),
+        )),
+    }
 }
 
 fn view_field(view: &Value, name: &str) -> Value {
@@ -1114,9 +1129,10 @@ fn cmd_status(machine: &Machine, global: &Global, io: &mut Io) -> Done {
         )),
     }
     let view = compat_view(&app);
+    let overall = index(&view, "overall")?;
     io.say(&format!(
         "compatibility    : {} ({})",
-        text_of(Some(&view_field(&view, "overall"))),
+        text_of(Some(&overall)),
         view_status(&app, &view)
     ));
     io.say(&format!("pending          : {}", pending.len()));
@@ -1216,6 +1232,7 @@ fn cmd_doctor(machine: &Machine, global: &Global, io: &mut Io) -> Done {
     if let Some(backend) = &backend {
         progress(machine, io, "check", 1, DOCTOR_CHECKS);
         let live = match outside.doctor_live_view(&app.state_dir(), &app.codex_home, backend) {
+            Ok(Value::Null) => None,
             Ok(view) => Some(view),
             Err(raised) => {
                 io.say(&format!(
@@ -1226,7 +1243,7 @@ fn cmd_doctor(machine: &Machine, global: &Global, io: &mut Io) -> Done {
             }
         };
         if let Some(live) = &live {
-            let overall = text_of(Some(&view_field(live, "overall")));
+            let overall = text_of(Some(&index(live, "overall")?));
             io.say(&format!("compatibility    : {overall} (checked now)"));
             for line in capability_lines(live, true)? {
                 io.say(&line);
@@ -1239,7 +1256,7 @@ fn cmd_doctor(machine: &Machine, global: &Global, io: &mut Io) -> Done {
         let report = compat_view(&app);
         io.say(&format!(
             "watcher's report : {} ({})",
-            text_of(Some(&view_field(&report, "overall"))),
+            text_of(Some(&index(&report, "overall")?)),
             view_status(&app, &report)
         ));
         io.say(&format!(
@@ -1407,17 +1424,18 @@ fn cmd_compat(machine: &Machine, global: &Global, args: &Namespace, io: &mut Io)
         }
         return Ok(EXIT_OK);
     }
+    let overall = index(&view, "overall")?;
     io.say(&format!(
         "compatibility    : {} ({})",
-        text_of(Some(&view_field(&view, "overall"))),
+        text_of(Some(&overall)),
         if pyval::truthy(&view_field(&view, "live")) {
             "checked now".to_owned()
         } else {
             view_status(&app, &view)
         }
     ));
-    let engine = view_field(&view, "engine");
-    let version = view_field(&engine, "version");
+    let engine = index(&view, "engine")?;
+    let version = index(&engine, "version")?;
     io.say(&format!(
         "engine version   : {}",
         if pyval::truthy(&version) {
@@ -1432,10 +1450,10 @@ fn cmd_compat(machine: &Machine, global: &Global, args: &Namespace, io: &mut Io)
         let sequence = view_field(&data, "cache_sequence");
         io.say(&format!(
             "registry data    : {} (bundled {} #{}, cache {}{})",
-            text_of(Some(&view_field(&data, "source"))),
-            text_of(Some(&view_field(&data, "bundled"))),
-            text_of(Some(&view_field(&data, "bundled_sequence"))),
-            text_of(Some(&view_field(&data, "cache"))),
+            text_of(Some(&index(&data, "source")?)),
+            text_of(Some(&index(&data, "bundled")?)),
+            text_of(Some(&index(&data, "bundled_sequence")?)),
+            text_of(Some(&index(&data, "cache")?)),
             if matches!(sequence, Value::Null) {
                 String::new()
             } else {
@@ -1849,6 +1867,13 @@ fn cmd_diagnostics(machine: &Machine, global: &Global, args: &Namespace, io: &mu
             stamp(&*machine.host, "%Y%m%d-%H%M%S")
         )),
     };
+    if target.exists() {
+        let name = target
+            .file_name()
+            .map(|each| each.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        return Err(CliError(format!("refusing to overwrite {name}")));
+    }
     let written = control.write_bundle(&target).map_err(failure)?;
     io.say(&format!("diagnostics written to {}", written.display()));
     io.say("ids are aliases and paths are removed; read the file before sharing it");
