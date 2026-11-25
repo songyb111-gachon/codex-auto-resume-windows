@@ -17,7 +17,7 @@ use std::io::{Read, Write};
 use std::sync::Arc;
 
 use car_adv::jsonx::object;
-use car_machine::json::{Options, Value, from_str, to_string};
+use car_machine::json::{Options, Value, to_string};
 
 /// An op's refusal: the class name of the reference's exception, and the code an AdapterError carries.
 #[derive(Debug)]
@@ -102,7 +102,7 @@ fn dispatch(context: &Context, op: &str, args: &[Value]) -> Out {
 fn main() {
     let mut raw = String::new();
     std::io::stdin().read_to_string(&mut raw).expect("stdin");
-    let Ok(Value::Object(request)) = from_str(&raw) else {
+    let Ok(Value::Object(request)) = car_machine::compat::loads(&raw) else {
         eprintln!("the request is not a JSON object");
         std::process::exit(2);
     };

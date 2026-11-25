@@ -114,10 +114,13 @@ pub fn run(context: &Context, op: &str, args: &[Value]) -> Out {
                 _ => None,
             };
             let found = autocheck::results_for(Path::new(&folder), engine.as_deref()).map_err(raised)?;
+            // A mapping its readers look up; written in its keys' order, as the reference's is sorted for the diff.
+            let mut pairs: Vec<(&str, &str)> = found.iter().map(|(m, word)| (m.as_str(), word.as_str())).collect();
+            pairs.sort_unstable();
             Ok(Value::Object(
-                found
-                    .iter()
-                    .map(|(m, word)| (m.as_str().into(), Value::from(word.as_str())))
+                pairs
+                    .into_iter()
+                    .map(|(m, word)| (m.into(), Value::from(word)))
                     .collect(),
             ))
         }
