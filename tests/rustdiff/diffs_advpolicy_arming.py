@@ -134,7 +134,7 @@ def scenario():
     env = {"view": view, "live": a_view(compat), "default_view": default_view, "default_live": a_view(compat), "policy": a_policy(),
            "measured": table if rng.random() < 0.9 else "raises", "table_for": table if rng.random() < 0.93 else "raises",
            "checked": checked if rng.random() < 0.95 else "raises", "order": rng.choice(["ok", "ok", "order", "warn"]),
-           "clock": 1800000000.0 + rng.randint(0, 100000), "sending": SENDING_POINTS, "wording_limit": 30, "placeholders": list(wrapwords.PLACEHOLDERS)}
+           "clock": 1800000000.0 + rng.randint(0, 100000), "sending": SENDING_POINTS, "wording_limit": wrapwords.continuation.MAX_CUSTOM_LENGTH, "placeholders": list(wrapwords.PLACEHOLDERS)}
     view_given, live_given, measured_given = rng.random() < 0.8, rng.random() < 0.35, rng.random() < 0.3
     rows = []
     for cap in rng.sample(ids, min(len(ids), rng.choice([0, 1, 2, 3, 5, 8]))):
