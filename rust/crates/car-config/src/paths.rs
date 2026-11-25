@@ -11,7 +11,8 @@ use std::fs;
 use std::path::Path;
 use std::sync::Arc;
 
-use car_machine::json::{Value, from_str};
+use car_machine::compat::loads;
+use car_machine::json::Value;
 
 use crate::winpath::{self, Env};
 
@@ -301,7 +302,9 @@ impl Paths {
         let Ok(text) = String::from_utf8(raw) else {
             return false;
         };
-        let Ok(Value::Object(document)) = from_str(&text.replace("\r\n", "\n")) else {
+        // json.loads, which takes NaN, Infinity, a lone surrogate escape and deep nesting (review 4, S1); a file nested
+        // past its depth raises RecursionError out of the reference's owns_home, and is no record here (AUDIT).
+        let Ok(Value::Object(document)) = loads(&text.replace("\r\n", "\n")) else {
             return false;
         };
         let Some(Value::Str(declared)) = document.get("home") else {
