@@ -8,6 +8,7 @@
 //! | [`hooks`] | `engine/hookclaims.py` `held`/`spent_on`, `control/sendnow.py` `fresh` | S7.2, S7.3 |
 //! | [`Tokens`] | `secrets.token_hex` | car-platform's random source (none yet), at the entry points |
 
+pub mod accounts;
 pub mod hooks;
 pub mod registry;
 #[rustfmt::skip]

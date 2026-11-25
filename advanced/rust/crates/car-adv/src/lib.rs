@@ -4,4 +4,8 @@
 //! (the saved accounts), [`watchlog`] (what a watched capability would have done) and [`images`] (a queued prompt's
 //! pictures). Seat S7.1b adds the registry, arming, the statement, the vocabulary and the policy beside them.
 
+pub mod images;
+pub mod ledger;
+pub mod profiles;
 pub mod state;
+pub mod watchlog;
