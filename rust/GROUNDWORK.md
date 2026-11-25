@@ -477,7 +477,8 @@ starter (`CREATE_NO_WINDOW`): `plugin_setup.py <words>` -> `app\bin\codex-auto-r
 code returned; streams inherited for python.exe, none for pythonw.exe), `run` -> `app\bin\CodexAutoResume.exe <same words>`
 (started, not waited for). Its own codes: 2 refused (argparse's code: an updater reads it as "no such command"), 1 the program
 missing. What the old updater needs to finish, by command: `setup` 0 (or 2, then `watcher-running` 0); `watcher-running` 0
-running / 1 stopped / else unknown; `downgrade-state` exactly one line `downgrade: converted a b c d e` or `downgrade: nothing`
+running, 2 not running or cannot tell (plugin_setup.py's EXIT_UNCONFIRMED, as v0.6.26 answers; the one contract, review 9
+note 6 - the bootstrap's Test-CurrentWatcherStopped, v0.6.26's, reads only 1 as stopped, so it hears "unknown"); `downgrade-state` exactly one line `downgrade: converted a b c d e` or `downgrade: nothing`
 with 0, or `downgrade: watcher-running` with 3, anything else is "failed" and the older version is not installed; `remove-entry`
 0 removed / 2 none / else failed. The stub core answers every command with code 3 and one stderr line naming it, so each of
 those ends as "did not finish / failed / unknown" and nothing is changed; the handover's setup stub ends with 3, which
@@ -642,4 +643,74 @@ anything); a fresh install, uninstall keeping data, reinstall picking it up, pur
 * **P6 (host):** `app\bin\CodexAutoResume.exe` (add it to `rust_release.EDITION_BINARIES`; the tests copy a Python in its
   place), taking the watcher mutex and stop event of `win/sync.py`; the setup program's window (BRIDGE 4 "show its own
   window", the Welcome question without -Handover); the setup window's `[ok] Bundled Python` milestone; and a host that
-  stops when a v0.6.26 installer run by hand (not through our bootstrap) moves app\ aside under it, which v0.6.26 cannot see.
+  stops when a v0.6.26 installer run by hand (not through our bootstrap) moves app\ aside under it, which v0.6.26 cannot see
+  (written out as a contract in the fix9 section below).
+
+## Review 9's fixes: the installer, the migration and the way back (seat fix9, branch `car-v0627-fix9`, 2026-11-26)
+
+What `outputs/plans/v0627-rust/REVIEW-install.md` found in S8.2, each fixed in its own commit and proved by the reviewer's
+test (`tests/test_review9_install.py`, seven) or one of `tests/test_rust_install.py`.
+
+* **Undo-Migration (B1, B2)** waits for the Rust host to end - no process of it (Get-OwnedWatcherProcess) and its mutex let
+  go (the core's `watcher-running` not 0), the hand-over's 60 s - before it moves anything (`Wait-WatcherEnded`). Where the
+  host does not end, nothing is put back: the Rust version is whole, so the migration is finished (`Complete-Migration`) and
+  the last word says setup did not complete and the version stays (`kept-new`). Otherwise the trees change places by renames
+  alone, all or nothing (new trees to `<tree>.old-<stamp>-new`, the Python ones back; a rename that fails turns every one
+  back, `partial`), so no half-deleted tree is left. Then the Python version's own `setup --keep-state` runs **always**
+  (with `--watcher-was-stopped` where no watcher ran and the version takes it: the v0.6.16 final on,
+  `Test-KnowsWatcherWasStopped`), which writes the Run value, the link handler and the entry back onto the Python programs;
+  what the migration added where the Python version had nothing (the kept uninstaller of a version before v0.6.17, and the
+  entry naming it) goes. The last word is what was done: `restored` (the old line), `unregistered`, `kept-new`, `partial`.
+* **Every exit after a migration's copy** goes through Undo or Complete (note 2): `$script:PendingMigration` is set after the
+  copy, and the `finally` puts the Python version back while it is still set (a core missing after the copy, a throw).
+* **Leftovers (note 1)**: `Resolve-MigratingCopies` puts the `.migrating` copies back beside a Python installation and
+  removes them beside a Rust one; the trees an interrupted run's journal claimed go once this run's setup has run.
+* **Repair without a core (S4)**: `Invoke-InstalledEngine` asks the archive's core (`Invoke-Setup -Program $PayloadCore`)
+  where the installation has `app\bin` and no Python package but no core; the core run from the payload acts on the home
+  the run installs into, as `claim-home` does. No route through car-legacy exists (it hands every line to the core that is
+  missing), so the bootstrap's `Stop-WatcherBeforeOlder` answers `no-core` where the host runs (by its image under
+  `app\bin`), and the pick or install is refused (`pick: refused watcher-running`, a reason the Dashboard knows).
+* **The way back (S1, S2)**: the 6.10 step runs on every bootstrap route whose archive has no core (also `-ArchivePath ...
+  -Force`), answers `not-running` where no watcher ran, and after the older installer `Start-WatcherAfterOlder` asks the
+  now-installed version `watcher-running` and, where it does not run, its own `setup --keep-state` (Start-CurrentWatcher
+  without -WasStopped): a watcher that ran before going back runs after it, whatever the start at sign-in. A failed pick
+  whose put-back restored the old version is left to Restore-AfterFailedPick.
+* **The test double (S5)** names each watcher's objects by its own rule - the Python ones by the tag's `win/sync.py`, the
+  Rust ones by car-platform's `names` (asked of `car-platform/examples/probe.rs`, built `--release` beside the binaries;
+  `CAR_DOUBLE_PROBE`) - made test-only by putting the test prefix where `Local\codex-auto-resume-` is, never by sharing one
+  name; `test_both_watchers_name_their_objects_by_their_own_rules_and_the_names_agree` holds them equal for the scratch
+  home. PLAN 6.2 now lists `win/homelock.py` HomeLock in the handover.
+* **The release build refuses the test forward (note 8)**: `rust_release.collect_binaries` stops a build whose core carries
+  `CODEX_AUTO_RESUME_TEST_CORE` without being the stub core (`test_rust_release`); the stub never ships as a release.
+
+### For P5 (the core)
+
+* `watcher-running`: 0 running, 2 not running or cannot tell - the one contract (S8.1's line corrected above).
+* `stop`, run from the archive (`<archive>\payload\app\bin\codex-auto-resume.exe stop`), acts on the home
+  `CODEX_AUTO_RESUME_PLUGIN_HOME` (or the default) names, as `claim-home` does, so a repair can stop a host whose installed
+  core is gone.
+* **S3, the schema put-back (needs the real core; no test before P5):** a migration from a version on an older state
+  schema (v0.6.0-v0.6.1x: 3/4) whose Rust setup starts the host and then fails leaves state.sqlite (and advanced.sqlite)
+  upgraded under a Python version that refuses it (exit 4, EXIT_SCHEMA_NEWER). The check P5 needs: a v0.6.10-shaped home
+  (schema 3, a pending row), the Rust installer with a setup that starts the host (which upgrades the schema) and then ends
+  1; after Undo-Migration, `PRAGMA user_version` of state.sqlite is the Python version's again (or its `downgrade-state --to
+  <N>` ran with a backup beside it, as Convert-StateForOlder keeps one), the row is there, and the put-back watcher starts
+  (not 4). The fix it proves: before the Rust setup, copy state.sqlite and advanced.sqlite where their schema is below the
+  current one; Undo puts the copies back only once `Wait-WatcherEnded` is true.
+* An edition change inside a failed migration (note 3): what `setup --edition-from` writes (features off,
+  edition-left.txt) is not undone by Undo; P5 says whether its install step must be undone, and how.
+
+### For P6 (the host)
+
+* **It ends when moved aside (S2; PLAN 6.10):** a v0.6.26 installer run by hand (its Setup exe, its Install.cmd) looks
+  only for `runtime\pythonw.exe` and moves `app\` aside under the host; its setup then finds the mutex held
+  ("already-running"), and the host would run on from `app.old-<stamp>` with its data deleted. The host looks, at least
+  once a second, at the file at the path it was started from (compared by volume and file index); once nothing is there,
+  or another file is, it ends as on its stop event (a turn in progress finished first), letting go of the mutex and the
+  HomeLock. The double's `watch --flavour rust` does exactly this (`own_image`), and the installer proofs rely on it
+  (`test_b5_*`). Only the host can: v0.6.26 is frozen.
+* It takes the watcher mutex and stop event of `win/sync.py` and the HomeLock files of `win/homelock.py` (both
+  `homes\<sha256>.lock` and `id-<volume>-<index>.lock`, the lock's range and share mode as the reference's): P6's diff of
+  both, and one installer proof with the real host and the real names (S5).
+* `-SkipStartup` on a migration keeps the Python-shaped Run value (note 4): PLAN 6.5's v0.6.28 removal of the stand-ins
+  must re-register such values first.
