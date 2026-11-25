@@ -2,8 +2,9 @@
 
 The Rust core port (v0.6.27, `PLAN.md` section 4) proves each piece it ports by running the same input through
 the reference and through Rust and comparing the outputs byte for byte (D12). The reference is a tag's own
-Python (D17: the v0.6.26 tag; until it exists, `v0.6.26-beta.2` stands in, `reference.STAND_IN`), taken out
-of git by `tests/released.py` and run in a process of its own on scratch homes.
+Python (D17: the v0.6.26 tag; until it exists, `v0.6.26-beta.2` stands in, `reference.STAND_IN`; `--reference` names the
+tag a run uses), taken out of git by `tests/released.py` and run in a process of its own on scratch homes, on the bundled
+Python 3.14.10 (`refpython.py`, below).
 
 | Piece | Where | What it does |
 |---|---|---|
@@ -26,6 +27,44 @@ rust/crates/car-harness/Cargo.toml` (CARGO_BUILD_JOBS 4 unless set), then every 
 difference or a failure, 2 binaries missing. `--reference TAG` names another reference; the tag must be in the
 checkout (CI fetches the tags; a missing one fails there, as in `tests/released.py`). The crate is a member of
 the `rust/` workspace: its build goes to `rust/target` and its lock is `rust/Cargo.lock`.
+
+## The reference's Python (`refpython.py`)
+
+The reference runs on the runtime the product ships, not on whatever `sys.executable` is. v0.6.26 bundles the
+embeddable CPython **3.14.10** (`build/make_release.py` `PYTHON_VERSION`, pinned by `PYTHON_SHA256` and
+`build/runtime_keep.json`); a person may choose python.org's newer one. Python's behaviour moves between versions (json's
+nesting depth, `ntpath.realpath` and a junction, Unicode tables, SQLite), and a reference on another Python hides every
+such place.
+
+```
+python -X utf8 tests/rustdiff/run.py --reference-python bundled   # the default
+python -X utf8 tests/rustdiff/run.py --reference-python system    # this interpreter (sys.executable), as before
+python -X utf8 tests/rustdiff/run.py --reference-python D:\py\python-3.15.2-embed-amd64.zip   # a python.exe, a folder, or an embeddable zip
+CODEX_AR_REFERENCE_PYTHON=system python -X utf8 tests/rustdiff/rediff_codex.py --reference v0.6.26
+```
+
+`run.py` prints which one it used: `reference v0.6.26-beta.2 on python 3.14.10 (bundled: embeddable); rust ...`. The
+variable is what `rediff_*.py` hand on to the `run.py` they start, and a child finds the already unpacked runtime
+(`CODEX_AR_REFERENCE_PYTHON_EXE`), so one run unpacks it once.
+
+How it runs: the zip is unpacked into a scratch folder of the run (removed when it ends; nothing goes into the
+repository), and `reference.run` starts its `python.exe` with `-X utf8 -c`. An embeddable runtime ignores PYTHONPATH and the
+working folder (its `python314._pth` makes it isolated), so the tag's `src` reaches it through `sys.path`, set by a
+three-line boot in front of the script (`refpython.boot`; the script runs in `__main__` as `-c` would, `sys.argv` the same);
+nothing of the person's environment is used. The runtime is stdlib only; `refpython.check` imports what the tag's code
+imports and names a module the runtime lacks. `reference.command(script, *arguments, paths=[...])` is the argv for a caller
+that starts the reference itself.
+
+Where the zip comes from (never a fetch of this harness's own): `CODEX_AR_RUNTIME_ZIP`, else this checkout's `build/cache/`,
+else the `build/cache/` of another worktree of the repository (the cache is not tracked); its sha256 is checked against
+`make_release.PYTHON_SHA256` every time. **On CI** a zip found nowhere is fetched by `make_release.fetch_runtime()` itself
+(`python build/make_release.py` downloads and checks it into `build/cache/` the same way; an `actions/cache` step on
+`build/cache` could keep it between runs); off CI a missing zip is an error that says where it looked, and `run.py` exits 2.
+
+Not routed yet, because other seats own them: the advanced reference (`advref.py` lines 81, 83, 91, hence `advstore.py`'s
+claim race), the claim race of `diffs_store.reference_process` (:266) and the generators (`gen_*.py`, which make the
+Unicode and other tables from `sys.executable`) still start `sys.executable`. They can call `reference.command(...)`. What
+differs between 3.13 and 3.14 for the diffs that are routed: `outputs/plans/v0627-rust/REFERENCE-314.md`.
 
 ## The shim's seam
 
