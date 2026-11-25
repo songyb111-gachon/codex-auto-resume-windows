@@ -7,6 +7,9 @@ that the answer is kept as the bytes the process wrote, not parsed, because the 
 
 Every home a release could look for points into a scratch folder, the process gets no console window, and
 neither the shim's variable nor this checkout's tests/ reach it: PYTHONPATH is the tag's src alone.
+
+The Python it runs on is the one the product ships, the bundled embeddable 3.14.10, not whatever `sys.executable` is
+(refpython.py: `bundled` by default, `system` or a path by CODEX_AR_REFERENCE_PYTHON / run.py --reference-python).
 """
 from __future__ import annotations
 
@@ -17,8 +20,10 @@ import sys
 import tempfile
 
 import released
+from rustdiff import refpython
 
-# D17's tag. Until v0.6.26 is tagged, its last pre-release stands in (change this line, not the callers).
+# D17's tag. Until v0.6.26 is tagged, its last pre-release stands in (change this line, not the callers). The tag
+# that `run.py --reference` (CODEX_AR_REFERENCE) names is the one every run uses; this is only what no one named.
 STAND_IN = "v0.6.26-beta.2"
 TAG = os.environ.get("CODEX_AR_REFERENCE") or STAND_IN
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
@@ -35,6 +40,12 @@ def scratch_environment(profile: Path, **extra) -> dict:
     return environment
 
 
+def command(script: str, *arguments, paths) -> list:
+    """The argv of the reference's process: `script` as sys.argv[1:] has it, `paths` first on its sys.path, on the Python
+    refpython.py chose. Other callers that start the reference themselves (advref, the claim race) use this."""
+    return refpython.command(script, *arguments, paths=paths)
+
+
 def run(script: str, *arguments, profile: Path | None = None, tag: str | None = None,
         stdin: bytes | None = None) -> subprocess.CompletedProcess:
     """Run `script` under the reference tag's package with `arguments` as sys.argv[1:]. Returns the finished
@@ -43,9 +54,8 @@ def run(script: str, *arguments, profile: Path | None = None, tag: str | None = 
     with tempfile.TemporaryDirectory(prefix="rustdiff-reference-") as own:
         home = Path(profile) if profile is not None else Path(own)
         environment = scratch_environment(home, PYTHONPATH=str(source))
-        return subprocess.run([sys.executable, "-X", "utf8", "-c", script, *map(str, arguments)],
-                              input=stdin, capture_output=True, env=environment, cwd=str(home),
-                              creationflags=NO_WINDOW, timeout=300)
+        return subprocess.run(command(script, *arguments, paths=[source]), input=stdin, capture_output=True,
+                              env=environment, cwd=str(home), creationflags=NO_WINDOW, timeout=300)
 
 
 # The bridge as the tag's own entry point runs it - controlcli.main with the argv given - on a source tree,

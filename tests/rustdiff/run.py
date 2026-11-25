@@ -4,6 +4,7 @@
     python -X utf8 tests/rustdiff/run.py              # every diff, on binaries already built
     python -X utf8 tests/rustdiff/run.py --reference v0.6.26 -v
     python -X utf8 tests/rustdiff/run.py -k Ids              # only the tests whose name has Ids (unittest's -k)
+    python -X utf8 tests/rustdiff/run.py --reference-python system   # the reference on this Python, not the bundled one
 
 From the repository root, on any PYTHONPATH (it sets its own). Exit 0 when every diff is identical, 1 when one
 differs or fails, 2 when the binaries are missing. The reference tag must be in the checkout (CI: fetch the
@@ -25,6 +26,9 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="tests/rustdiff/run.py", description=__doc__.split("\n\n")[0])
     parser.add_argument("--build", action="store_true", help="cargo build --release --locked the harness crate first")
     parser.add_argument("--reference", metavar="TAG", help="the reference tag (default: reference.TAG)")
+    parser.add_argument("--reference-python", metavar="bundled|system|PATH", default=None,
+                        help="the Python the reference runs on: the product's bundled embeddable runtime (default), "
+                             "this interpreter, or a python.exe / folder / embeddable .zip (refpython.py)")
     parser.add_argument("-v", "--verbose", action="store_true")
     parser.add_argument("-k", dest="pattern", action="append", help="only tests whose name matches (unittest's -k)")
     args = parser.parse_args(argv)
@@ -38,7 +42,9 @@ def main(argv=None) -> int:
             sys.path.insert(0, str(entry))
     import importlib
 
-    from rustdiff import core, reference
+    from rustdiff import core, refpython, reference
+    if args.reference_python:
+        refpython.select(args.reference_python)
     # `diffs` (S0.4's proof), every `diffs_*.py` beside it (S1.1, S1.2: diffs_leaves_machine, diffs_store, ...) and every
     # `*_diffs.py` (S3.1: platform_diffs, ...): each seat's cases are a module of their own with its own RECORD, and none
     # edits another's.
@@ -54,7 +60,12 @@ def main(argv=None) -> int:
         return 2
     built = core.binary("car-core-stub").parent
     shown = built.relative_to(ROOT).as_posix() if built.is_relative_to(ROOT) else built.name
-    print("reference %s; rust %s" % (reference.TAG, shown), flush=True)
+    try:
+        python = refpython.describe()
+    except RuntimeError as error:
+        print("reference Python: %s" % error, file=sys.stderr)
+        return 2
+    print("reference %s on %s; rust %s" % (reference.TAG, python, shown), flush=True)
     suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromModule(module) for module in modules)
     if args.pattern:
         unittest.defaultTestLoader.testNamePatterns = ["*%s*" % each for each in args.pattern]
