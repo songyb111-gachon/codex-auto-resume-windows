@@ -48,6 +48,9 @@ fn answer(request: &serde_json::Value, line: &str) -> Value {
             rejected("home is required", "request_failed")
         }
         (Some("bridge.run"), Some(home)) => ok("value", car_harness::bridge::run(home, &whole())),
+        (Some("control.call"), Some(home)) => {
+            ok("value", car_harness::bridge::call(home, &whole()))
+        }
         (Some("sqlite.version"), _) => ok("value", Value::from(car_store::sqlite_version())),
         (Some("leaves.batch"), _) => match request.get("cases").and_then(|_| leaves::read(request))
         {

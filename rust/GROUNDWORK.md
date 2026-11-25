@@ -1341,3 +1341,163 @@ run.py -k EngineTraceDiff -k EngineReview6 -k EnginePanicDiff -k EngineInputsDif
 the 15 frozen modules, test_parts --worker on the Python lane and with CODEX_AR_CORE=rust, after the car-engine and car-store change:
   456 test ids, 456 pass on both (Python 567 s, Rust 681 s), 0 differ
 ```
+### The bridge review's fixes (seat bridgefix, branch `car-v0627-bridgefix`, 2026-11-25; REVIEW-bridge.md)
+
+* **B1, D15**: `bridge.rs` `unwound` is the unwind boundary of a request: `serve` answers a panic under a command (or under the
+  reading of the line, with a null id) with the generic refusal and reads the next line; `one_shot` answers it with the generic
+  refusal's JSON and exit 1, as `dispatch`'s `except Exception` and `_emit` do. The tests (`tests/review_bridge.rs`) panic through a
+  test host's policy-key read, not through any product path. car-words' `lock().expect` (`l10n.rs` 152, 290, 296) is not changed
+  here (another branch changed `l10n.rs`): the integration must make those process locks survive a poison
+  (`unwrap_or_else(PoisonError::into_inner)`), or the first panic caught while one is held makes every later `strings`/`describe`
+  panic (and so answer the generic refusal).
+* **S1**: an argument given as JSON text is read over the text's code points (`loads_text`: each lone surrogate stands in as a
+  private-use character the text holds neither raw nor as an escape, and is turned back in the result), so it parses and answers
+  as `json.loads` does. car-machine's `loads` takes a `&str`; a `loads` over a `Str` there would replace the stand-in.
+* **S2, the Host seam grew six methods**, one per operation: `file_id` (`st_ino`), `read_file` / `open_file` (Python's share mode,
+  `FILE_SHARE_READ | FILE_SHARE_WRITE`, never delete), `create_file` (`mkstemp`'s exclusive create), `replace` (`os.replace`) and
+  `rename` (`os.rename`). Every read and write of a file car-control makes goes through them (`seen.rs`, `oncewords.rs`,
+  `aside.rs`, `status.rs`, `tools.rs`, `homefind.rs`). `SystemHost`'s `replace` is std-only: a held target answers error 5, a folder
+  or junction at the name answers 5, and `rename` answers 183 for any existing name (a dangling junction included), the rule
+  car-machine's `pyfile` follows on car-v0627-fix4.
+  **Integration 6 must hand car-platform's `files::replace` and `files::rename` (fix4) to `SystemHost`'s `replace` and `rename`**
+  (the std-only versions stay for a host without them), and **car-platform needs one function this seat could not add**
+  (D3: std has no stable file index, and this seat may not touch car-platform): `files::file_index(path) -> Option<u128>`
+  (CreateFileW with FILE_READ_ATTRIBUTES and all shares, GetFileInformationByHandle, `nFileIndexHigh << 32 | nFileIndexLow`,
+  as `homelock::folder_identity` reads a folder's). `SystemHost::file_id` answers the file's creation time until then: a new file is
+  a new creation time, except that NTFS tunnelling gives a file renamed onto a name just deleted the old file's, which
+  `review_bridge.rs` `a_failure_seen_file_replaced_by_another_of_the_same_size_and_time_is_read_again` does, so that one test
+  stays red until `file_id` is the file index.
+* Notes fixed: the failure-seen stamp now holds the file id; `_observe_only` swallows `ControlError` and `StoreError` only; the
+  reply and its newline are one write; the diff harness resets the Interface-language preference for every stream.
+
+## The acting bridge commands (seat S5.1b, branch `car-v0627-bridge6`, 2026-11-26)
+
+PLAN 5.3 row P5 / S5.1, second half: every `controlcli` command S5.1a left out, `control.actions`, `control.codexstart`,
+`control.poweraction`'s writers, `control/watcher.py`'s acting half, `ownreport/` and `diagnostics.py`, ported from the
+**v0.6.26 final** and held to it by `tests/rustdiff/diffs_bridge_acting.py` (with `actworld.py`). With S5.1a's 23 and these
+28, car-control answers all 51 of `PLAIN` and `WITH_ARGUMENT`; `unknown command` is again only for a command the bridge has
+none of. Nothing under `src/`, `advanced/`, `gui/`, `build/`, `scripts/` or `docs/` changes; car-engine, car-codex, car-adv,
+car-platform and car-words are untouched.
+
+### What is where
+
+| Python | `rust/crates/car-control/src/` |
+|---|---|
+| `control/actions.py` (every method; `rescan_pending` takes the judge through the Host) | `actions.rs` |
+| `control/watcher.py`'s acting half (`start_watcher`, `_launch_watcher`, `await_watcher`, `await_stopped`, `stop_watcher`, `set_startup_enabled`, `start_timeout`) and `startup.watcher_python` | `lifecycle.rs` |
+| `control/codexstart.py` (all of it: the decision, the note line, the look after the start) | `codexstart.rs` |
+| `control/poweraction.py`'s writers (`power_options`, `arm`, `disarm`, `stop_power_countdown`, `power_batch_end`, `power_batch_finish`, `power_refused`, `power_show`, `_power_change`, `_write`, `_replace`) | `power.rs` (`read_file` stays in `status.rs`, now `read_power_action_at(now)`) |
+| `control/tools.py` `show_demo` | `tools.rs` |
+| `controlcli.py` `_compatibility`, `_compat_import`, `_compat_refresh`, `detection-check` | `compat.rs` |
+| `ownreport/__init__.py`, `reading.py`, `evidence.py`, `document.py` | `ownreport/{mod,reading,evidence,document}.rs` (rusqlite, read-only, query_only, trusted_schema off, a 3 s busy timeout) |
+| `diagnostics.py` (`Redactor` and its five patterns matched by hand over code points, `_record`, `_installation`, `_compatibility`, `collect`, `write`) | `diagnostics.rs` |
+| `controlcli.dispatch`'s other 28 commands | `commands.rs` `acting` |
+
+Two writers of S5.1a's were fixed on the way (they were unreachable until `once-words` took `text`): `oncewords::put` keeps an
+existing entry in its place, and a guard that refuses under the lock leaves the file as it was (`change_or`).
+
+### The seam: `host::Host`, grown
+
+Every new method has a default that refuses (`Raised::refused`, a `NotImplementedError`) or answers nothing, so a host that
+answers only the quiet commands (S5.1a's review test host) still builds. What a call raised is `host::Raised` (the Python
+class and `str(exc)`); a launch is `host::Launched` (`pid`, `poll`); Rescan's judge is `host::Judge`.
+
+| Host method | Python | `SystemHost` |
+|---|---|---|
+| `monotonic`, `sleep` | `time.monotonic`, `time.sleep` | real (std) |
+| `signal(Event::{Wake,Stop,Demo}, state_dir)` | `WakeEvent/StopEvent/DemoEvent(...).signal()` | real (car-platform `sync`) |
+| `startup_read`, `startup_install`, `startup_uninstall`, `protocol_value`, `notification_identity_owner` | `startup.*` | real (car-platform `startup` over `WinRegistry::current_user()`); `startup_value` now reads through `startup_read` |
+| `python_launcher` | `startup.python_launcher` | the reference's rule (`pythonw.exe` beside the running program), which the Rust core never meets: **StartupError**, so `start-watcher` and `startup` answer `not_installed` / the sentence. **The integration must hand the Rust watcher's own launch** (what `_launch_watcher` starts: the program and its arguments) |
+| `launch(argv, cwd, flags)` | `subprocess.Popen(..., DETACHED_PROCESS \| CREATE_NEW_PROCESS_GROUP)` | real (car-platform `spawn`, which ORs `CREATE_NO_WINDOW` in); an OSError's text as Python writes it (`[WinError n] ...`) |
+| `power_available` | `win/powerdown.available` | real (car-platform `powerdown::available`); nothing here can act - `tests/acting.rs` holds that no source names an acting call |
+| `internet`, `process_context`, `process_there` | `win/network.internet`, `windows.process_context`, `windows.process_identity` | real (car-platform) |
+| `token_hex`, `token_bytes` | `secrets.*` | **std only** (`host::std_random`: SipHash under std's OS-seeded keys over a counter and the clock). **The integration must hand car-platform a `BCryptGenRandom`** |
+| `windows_version`, `system` | `sys.getwindowsversion()`, `diagnostics._system()` | **None, and `python: null`**: car-platform has no version reader (`RtlGetVersion`) yet, and the Rust core runs under no Python. The integration hands a version reader; the owner decides what `python` says |
+| `note_turn(&File)` | `codexstart._note_turn` (one byte locked at 2^40) | **no turn**: car-platform has no byte-range lock. A Rust writer appends and never cuts codex-start.log until the integration hands `LockFileEx` in |
+| `compat_live_view`, `compat_import`, `compat_refresh` | `compatio.live_view`, `import_document`, `run_refresh` | **refuse** (S3.3's `compat/*`, car-codex): the integration hands them |
+| `checkup`, `checkup_for_bundle(home, key)` | `checkup.run`, `checkup.for_bundle(control)(redact)` | **refuse** (car-watcher's `checkup.py`); `detection-check` answers the generic refusal and the bundle `{"error": "NotImplementedError"}` |
+| `rescan_judge(home)` | `rescan.judge_for(control)` | **refuses** before anything is read or written (car-watcher's `rescan.py`) |
+
+Still from S5.1a and unchanged: `compat_view` is null, `managed` none, `windows_languages` none, `local_clock` UTC (car-policy's
+`classify::clock::Crt` is the product clock to hand in).
+
+Safety, as the brief asks: nothing in a diff starts a process, writes the registry, signals an event or acts on the power - the
+world answers every such call, and `SystemHost` is never asked to write in a test. Start and Stop watcher in the diffs ask the
+world's mutex answers; the one real mutex a test takes (`tests/acting.rs`) is named from a scratch home, a name no real watcher
+holds. The power commands only arm, turn off and read `power-action.json` and ask whether an action is available; the harness
+runs with `CAR_NO_POWER_ACTION` set (fix4 S3) and every stream asserts it (`power_guard` in `bridge.run`'s answer). Nothing starts
+Codex: `start_for_codex` starts only the watcher's launcher, through the world's stand-in.
+
+Also for the integration: car-policy's `StartRoute` has no `told` (the reference tells a plug's route what core made of it,
+`_tell`); `start_for_codex` tells nothing until it has one. `StartRoute::start` takes `&[String]`; car-control hands the one
+command line as a single element, as the reference hands one `str`.
+
+### The diffs (`tests/rustdiff/diffs_bridge_acting.py`, reference the v0.6.26 final)
+
+Each stream runs on both sides in fresh copies of one scratch installation at one path (`acts`: the wire goldens' golden
+installation with `wiregolden._seed_exhausted`), under one world: bridgeworld's, with actworld's acting answers. The reference
+is the tag's `controlcli`, patched by `actworld.HOOK` to the same stand-ins (a `Popen` whose `poll` is the world's list, the
+Run key in memory, a stand-in monotonic clock that only a sleep moves, deterministic tokens, `time.mktime` and `strftime` on
+the world's UTC clock). Compared, byte for byte: the reply lines and the exit code, every file under the workspace (settings,
+power-action.json, once-words.json, the usage checks, codex-start.log, a diagnostics bundle), every row of every table of the
+state afterwards (`actworld.state_dump`), and **the Host calls each side made, in order, with their arguments**
+(car-harness `acting.rs` writes them down; `actworld.HOOK` does the same). `control.call` (car-harness) and `mode: "call"`
+(the hook) run one Control method for what no bridge command reaches.
+
+### The proofs (reference the v0.6.26 final, release harness)
+
+```
+python -X utf8 tests/rustdiff/run.py -v --build --reference v0.6.26 -k diffs_bridge_acting     Ran 23 tests in 886 s, OK
+  GoldenActsDiff 1     42 streams: every case wiregolden asks of the 29 acting commands (112 golden cases), stand-ins as the world
+  WatcherDiff 3        start over 12 worlds (the mutex in turn, a launch that exits or is refused, no launcher, a chosen Python's
+                       108 s, the install lock) and two homes; stop over 5; startup over 9 Run-key worlds (StartupError at each step)
+  ActionsDiff 6        11 actions x 19 keys of every kind, watcher running and not; 13 thread ids; 33 ways to postpone; Retry now and
+                       Rescan under 11 things that stop a usage reading; 5 judges x 2 + no judge; garbage, empty, older and absent states
+  PowerDiff 2          12 power-action.json files of every kind x 11 requests; a port that raises, every reason, the key
+  RegistryDiff 2       the registry and check stand-ins answering values, raising, not objects; the demo's event; the one-shot form (10)
+  OwnReportDiff 4      8 kinds of log (alpha, sub-alpha, Unicode digits, invalid dates, leap seconds, every line break, rotated, 8 MiB+1),
+                       10 kinds of state (absent, garbage, newer, older, schema 3, a column gone, paused, odd values, hidden, empty home),
+                       7 watcher views x 4 product versions, exactly 500 and 501 records on one version
+  DiagnosticsDiff 1    the bundle's bytes over 7 homes and worlds and 2 empty ones; names taken, upper-case, tidied, under a file
+  ControlCallDiff 3    start_for_codex over 6 job contexts x the setting x the process alive or gone, 8 refusals, the log cut to 50;
+                       launch_ends_with_job; 17 power-writer calls x 5 files; Retry now, Rescan, cancel, cancel-all, clear as 3 actors
+  PowerGuardDiff 1     the harness sees CAR_NO_POWER_ACTION (every stream also asserts it)
+                       270 streams, 598 requests, 1324 Host calls equal
+cargo test -p car-control   tests/acting.rs 5 (no source names an acting power call; the stand-ins refuse; iso's limits; versions; graded)
+```
+
+Found by the diffs and fixed here: `codex-start.log` was never cut (std's append mode has no FILE_WRITE_DATA, so `set_len` failed;
+now read and write, each write after a seek to the end, as the C runtime's `a+b`); `iso` failed at the wrong second (the C
+runtime's `gmtime` on 3.13.15 takes up to 3001-01-19T21:59:59Z, then OSError; OverflowError past `time_t`). Faults of the diffs
+themselves: the tag's `quiet.py` binds `time.mktime` as a default argument at import (the hook now rebinds every such default),
+the tag's entry script is its own tree's (the hook puts it where car-harness's Paths put it), a state that is not a database
+cannot be dumped (its bytes are compared instead).
+
+Mutation checks (a rule broken in car-control, the release harness rebuilt, the named diff run, the source put back; each one
+fails it): the watcher's start looked at every 0.2 s, not 0.1 s (`WatcherDiff.test_start`, by the Host calls: the sleeps); a cancel
+that changed nothing ending its sentence with a full stop (`GoldenActsDiff`); the power action's warning written as minutes times
+61 (`PowerDiff.test_files_of_every_kind`, by power-action.json); a report taking 501 records on one version
+(`OwnReportDiff.test_many_records` - MISSED at first, the golden home's own records carried both cases past the bound; the diff now
+holds exactly 500 and 501, and it fails); a user name of two letters redacted (`DiagnosticsDiff`, by the bundle's bytes); the look
+after a start for Codex waiting 3 s, not 4 s (`ControlCallDiff.test_start_for_codex`, by the calls). The first run of these found
+that unittest's difflib took hours over two lists of a thousand calls; a difference is now reported as its first place.
+
+The re-diff (`python -X utf8 tests/rustdiff/rediff_control.py --reference v0.6.26`, all of `-k diffs_bridge`: S5.1a's framing and
+quiet commands and this seat's acting ones): `control/watcher.py` the one ported file changed since beta.2; Ran 52 tests in 1672 s,
+OK - the goldens' 122 quiet and 112 acting cases, 270 acting streams and 1324 Host calls equal. `cargo test --locked` (both
+workspaces), clippy `-D warnings`, fmt, `cargo deny --locked --offline check` and `check_groundwork.py` pass but for the known red.
+
+KNOWN REDS on this base (left red, not this seat's): `review_bridge.rs`
+`a_failure_seen_file_replaced_by_another_of_the_same_size_and_time_is_read_again` (needs car-platform's `files::file_index`, a later
+integration), and two inherited `diffs_review_bridge` cases (`ReplaceDiff.test_settings_saved_over_a_dangling_junction`,
+`FloatTextDiff.test_a_heartbeat_time_that_is_a_power_of_two`), fixed on fix4 and fix5.
+
+### For the next seats
+
+* **S5.2 / car-bin**: every command is in `commands.rs`; `SystemHost` is the host to build, with the hand-ins above.
+* **The integration**: the bold rows of the table; `rediff_control.py --reference v0.6.26` runs these diffs too (`-k
+  diffs_bridge`), and lists `control/actions.py`, `codexstart.py`, `poweraction.py` and the domain files they read.
+* **car-watcher (P6)**: `checkup.run`, `checkup.for_bundle` and `rescan.judge_for` are this crate's `Host::checkup`,
+  `checkup_for_bundle` and `rescan_judge`; the watcher's own power-action writers are `Control::power_batch_end`,
+  `power_batch_finish`, `power_refused` and `power_show`, and a notice's stop is `stop_power_countdown`.
+* **The MCP server (S5.3)**: `start_for_codex(confirm_seconds)` and `launch_ends_with_job()` are here.

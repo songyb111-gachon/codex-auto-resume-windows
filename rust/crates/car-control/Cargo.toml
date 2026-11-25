@@ -18,3 +18,4 @@ car-policy = { path = "../car-policy" }
 car-store = { path = "../car-store" }
 car-surface = { path = "../car-surface" }
 car-words = { path = "../car-words" }
+rusqlite = { version = "0.43", features = ["bundled"] }

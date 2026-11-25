@@ -12,7 +12,9 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use car_control::host::{Boot, Host, PlatformOs, SystemHost};
+use std::path::PathBuf;
+
+use car_control::host::{Boot, Event, Host, Judge, Launched, PlatformOs, Raised, SystemHost};
 use car_machine::json::{Map, Str, Value};
 use car_policy::plug::Guarded;
 use car_policy::settings::managed::Managed;
@@ -42,6 +44,8 @@ pub struct WorldHost {
     account_codex_home: Option<String>,
     app_homes: Vec<String>,
     boot: Boot,
+    /// S5.1b: the acting calls' answers, and the record of the calls made.
+    pub acts: Arc<crate::acting::Acts>,
 }
 
 fn text_of(map: &Map, name: &str) -> Option<String> {
@@ -156,6 +160,7 @@ impl WorldHost {
             account_codex_home: text_of(world, "account_codex_home"),
             app_homes: strings("app_homes"),
             boot,
+            acts: Arc::new(crate::acting::Acts::from_world(world)),
         }
     }
 }
@@ -211,7 +216,7 @@ impl Host for WorldHost {
     }
 
     fn watcher_running(&self, _state_dir: &Path) -> Option<bool> {
-        self.watcher_running
+        self.acts.watcher_running(self.watcher_running)
     }
 
     fn startup_value(&self) -> Option<String> {
@@ -222,8 +227,9 @@ impl Host for WorldHost {
         self.boot.clone()
     }
 
-    fn compat_view(&self, _state_dir: &Path, _settings: &Map) -> Value {
-        self.compat_view.clone()
+    fn compat_view(&self, _state_dir: &Path, settings: &Map) -> Value {
+        let _ = &self.compat_view;
+        self.acts.compat_view(settings)
     }
 
     fn state_access(&self, _path: &Path) -> String {
@@ -265,8 +271,114 @@ impl Host for WorldHost {
         self.inner.is_symlink(path)
     }
 
+    fn file_id(&self, path: &Path) -> Option<u128> {
+        self.inner.file_id(path)
+    }
+    fn read_file(&self, path: &Path) -> std::io::Result<Vec<u8>> {
+        self.inner.read_file(path)
+    }
+    fn open_file(&self, path: &Path) -> std::io::Result<std::fs::File> {
+        self.inner.open_file(path)
+    }
+    fn create_file(&self, path: &Path) -> std::io::Result<std::fs::File> {
+        self.inner.create_file(path)
+    }
+    fn replace(&self, from: &Path, to: &Path) -> std::io::Result<()> {
+        self.inner.replace(from, to)
+    }
+    fn rename(&self, from: &Path, to: &Path) -> std::io::Result<()> {
+        self.inner.rename(from, to)
+    }
     fn lock(&self, name: &str, timeout: f64) -> Result<Box<dyn std::any::Any>, AdapterError> {
         self.inner.lock(name, timeout)
+    }
+    fn monotonic(&self) -> f64 {
+        self.acts.monotonic()
+    }
+    fn sleep(&self, seconds: f64) {
+        self.acts.sleep(seconds)
+    }
+    fn signal(&self, event: Event, _state_dir: &Path) -> Result<bool, Raised> {
+        self.acts.signal(event)
+    }
+    fn startup_read(&self) -> Result<Option<String>, Raised> {
+        self.acts.startup_read()
+    }
+    fn startup_install(&self, command: &str) -> Result<bool, Raised> {
+        self.acts.startup_install(command)
+    }
+    fn startup_uninstall(&self) -> Result<bool, Raised> {
+        self.acts.startup_uninstall()
+    }
+    fn protocol_value(&self) -> Result<Option<String>, Raised> {
+        self.acts.protocol_value()
+    }
+    fn notification_identity_owner(&self, home: &str) -> Result<Option<bool>, Raised> {
+        self.acts.notification_identity_owner(home)
+    }
+    fn python_launcher(&self) -> Result<PathBuf, Raised> {
+        self.acts.python_launcher()
+    }
+    fn launch(&self, argv: &[String], cwd: &Path, flags: u32) -> Result<Box<dyn Launched>, Raised> {
+        self.acts.launch(argv, cwd, flags)
+    }
+    fn power_available(&self, action: &str) -> Result<(bool, Option<String>), Raised> {
+        self.acts.power_available(action)
+    }
+    fn internet(&self) -> Result<Option<bool>, Raised> {
+        self.acts.internet()
+    }
+    fn token_hex(&self, count: usize) -> String {
+        self.acts.token_hex(count)
+    }
+    fn token_bytes(&self, count: usize) -> Vec<u8> {
+        self.acts.token_bytes(count)
+    }
+    fn process_context(&self) -> Result<Value, Raised> {
+        self.acts.process_context()
+    }
+    fn pid(&self) -> u32 {
+        self.acts.pid()
+    }
+    fn process_there(&self, pid: u32) -> bool {
+        self.acts.process_there(pid)
+    }
+    fn windows_version(&self) -> Option<String> {
+        self.acts.windows_version()
+    }
+    fn system(&self) -> Value {
+        self.acts.system()
+    }
+    fn compat_live_view(
+        &self,
+        _state_dir: &Path,
+        codex_home: &str,
+        explicit: &Value,
+    ) -> Result<Value, Raised> {
+        self.acts.compat_live_view(codex_home, explicit)
+    }
+    fn compat_import(
+        &self,
+        _state_dir: &Path,
+        target: &Str,
+        origin: &Value,
+    ) -> Result<Value, Raised> {
+        self.acts.compat_import(target, origin)
+    }
+    fn compat_refresh(&self, home: &Path) -> Result<Value, Raised> {
+        self.acts.compat_refresh(home)
+    }
+    fn checkup(&self, _home: &Path) -> Result<Value, Raised> {
+        self.acts.checkup()
+    }
+    fn checkup_for_bundle(&self, _home: &Path, key: &[u8]) -> Result<Value, Raised> {
+        self.acts.checkup_for_bundle(key)
+    }
+    fn rescan_judge(&self, _home: &Path) -> Result<Box<dyn Judge>, Raised> {
+        self.acts.rescan_judge()
+    }
+    fn note_turn(&self, _file: &std::fs::File) -> bool {
+        self.acts.note_turn()
     }
 }
 
@@ -282,6 +394,12 @@ pub fn run(home: &Path, request: &Map) -> Value {
         Some(Value::Object(map)) => map.clone(),
         _ => return rejected("a world is required", "request_failed"),
     };
+    // The reference starts a fresh interpreter for every stream, whose Interface-language preference is "system";
+    // this process answers every stream, and car-words keeps the preference in a process global a `strings` sets.
+    car_words::l10n::set_preference(None, &|_: &str| None, &Vec::new);
+    // The reference starts a fresh interpreter for every stream, whose Interface-language preference is "system";
+    // this process answers every stream, and car-words keeps the preference in a process global a `strings` sets.
+    car_words::l10n::set_preference(None, &|_: &str| None, &Vec::new);
     let host = Arc::new(WorldHost::from_world(&world, &home.to_string_lossy()));
     let links = car_config::Os::here(false, crate::links::for_config());
     let no_env = |_: &str| None;
@@ -294,6 +412,7 @@ pub fn run(home: &Path, request: &Map) -> Value {
         Ok(paths) => paths,
         Err(class) => return rejected(class, "request_failed"),
     };
+    let acts = Arc::clone(&host.acts);
     let control = car_control::Control::new(paths, host, Guarded::null());
     let input = match request.get("input") {
         Some(Value::Str(text)) => unhex(text.as_str().unwrap_or_default()),
@@ -324,5 +443,100 @@ pub fn run(home: &Path, request: &Map) -> Value {
             Value::Str(Str::from(String::from_utf8_lossy(&output).into_owned())),
         ),
         ("code", Value::from(i64::from(code))),
+        ("calls", acts.calls()),
+        (
+            "power_guard",
+            Value::Bool(std::env::var_os("CAR_NO_POWER_ACTION").is_some()),
+        ),
     ])
+}
+
+/// What a Control method answered, as `control.call` replies it: `{"value": v}`, `{"refusal": [sentence, code]}`
+/// for a ControlError, or `{"raised": class}` for any other exception.
+fn answered(result: Result<Value, car_control::Failure>) -> Value {
+    match result {
+        Ok(value) => object([("value", value)]),
+        Err(car_control::Failure::Control(error)) => object([(
+            "refusal",
+            Value::Array(vec![Value::Str(error.message), Value::from(error.code)]),
+        )]),
+        Err(car_control::Failure::Other(class)) => object([("raised", Value::from(class))]),
+    }
+}
+
+fn optional_text(value: Option<&str>) -> Value {
+    value.map_or(Value::Null, Value::from)
+}
+
+/// `control.call`: one Control method no bridge command reaches - the MCP server's start with Codex, the watcher's
+/// and a notice's power-action writers, Retry now and Rescan as another actor - over the same world as `bridge.run`.
+///
+/// Request: `{"call": "control.call", "home": H, "world": {...}, "method": name, "args": [...]}`. Reply value:
+/// `{"result": answered, "calls": [...]}`.
+pub fn call(home: &Path, request: &Map) -> Value {
+    let world = match request.get("world") {
+        Some(Value::Object(map)) => map.clone(),
+        _ => return rejected("a world is required", "request_failed"),
+    };
+    let host = Arc::new(WorldHost::from_world(&world, &home.to_string_lossy()));
+    let links = car_config::Os::here(false, crate::links::for_config());
+    let no_env = |_: &str| None;
+    let paths = match car_config::Paths::new(
+        Some(&home.to_string_lossy()),
+        &home.to_string_lossy(),
+        &no_env,
+        links,
+    ) {
+        Ok(paths) => paths,
+        Err(class) => return rejected(class, "request_failed"),
+    };
+    let acts = Arc::clone(&host.acts);
+    let control = car_control::Control::new(paths, host, Guarded::null());
+    let args: Vec<Value> = match request.get("args") {
+        Some(Value::Array(items)) => items.clone(),
+        _ => Vec::new(),
+    };
+    let arg = |index: usize| args.get(index).cloned().unwrap_or(Value::Null);
+    let word = |index: usize| match args.get(index) {
+        Some(Value::Str(text)) => text.as_str().unwrap_or_default().to_owned(),
+        _ => String::new(),
+    };
+    let number = |index: usize| number_of(args.get(index));
+    let method = match request.get("method") {
+        Some(Value::Str(text)) => text.as_str().unwrap_or_default().to_owned(),
+        _ => String::new(),
+    };
+    let result: Result<Value, car_control::Failure> = match method.as_str() {
+        "start_for_codex" => Ok(Value::from(
+            control.start_for_codex(number(0).unwrap_or(0.0)),
+        )),
+        "launch_ends_with_job" => Ok(control
+            .launch_ends_with_job()
+            .map_or(Value::Null, Value::Bool)),
+        "stop_power_countdown" => control
+            .stop_power_countdown(&arg(0), &word(1))
+            .map(Value::from),
+        "power_batch_end" => Ok(Value::Bool(control.power_batch_end(
+            &arg(0),
+            &arg(1),
+            number(2),
+        ))),
+        "power_batch_finish" => Ok(optional_text(
+            control.power_batch_finish(&arg(0), number(1)),
+        )),
+        "power_refused" => Ok(Value::Bool(control.power_refused(number(0)))),
+        "power_show" => Ok(Value::Bool(control.power_show(&arg(0), &arg(1), number(2)))),
+        "disarm_power_action" => control.disarm_power_action(&word(0)),
+        "arm_power_action" => {
+            control.arm_power_action(&arg(0), &word(1), matches!(arg(2), Value::Bool(true)))
+        }
+        "request_retry_now" => control.request_retry_now(&arg(0), &word(1)),
+        "rescan" => control.rescan(&word(0), matches!(arg(1), Value::Bool(true))),
+        "cancel_interruption" => control.cancel_interruption(&arg(0), &word(1)),
+        "cancel_all_pending" => control.cancel_all_pending(&word(0)),
+        "clear_history" => control.clear_history(&word(0)),
+        "own_report" => control.own_report(),
+        _ => return rejected("no such method", "request_failed"),
+    };
+    object([("result", answered(result)), ("calls", acts.calls())])
 }

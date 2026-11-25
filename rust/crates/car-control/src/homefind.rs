@@ -53,7 +53,7 @@ pub fn dismissed_with(os: &dyn Os, stored: &Value, path: &Str) -> Value {
 }
 
 /// `app_homes(local_appdata)`: each `paths.codexHome` the Codex app's list of where it has run names, in its order.
-pub fn app_homes(base: Option<&str>) -> Vec<String> {
+pub fn app_homes(host: &dyn Host, base: Option<&str>) -> Vec<String> {
     let Some(base) = base.filter(|each| !each.is_empty()) else {
         return Vec::new();
     };
@@ -71,7 +71,7 @@ pub fn app_homes(base: Option<&str>) -> Vec<String> {
         packaged.push(part);
     }
     for place in [direct, packaged] {
-        let Ok(raw) = car_machine::pyfile::read(&place) else {
+        let Ok(raw) = host.read_file(&place) else {
             continue;
         };
         if raw.len() > APP_FILE_MAX {

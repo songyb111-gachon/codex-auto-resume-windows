@@ -6,6 +6,8 @@ use std::path::{Path, PathBuf};
 use car_policy::settings::SettingsError;
 use car_policy::settings::os::Os;
 
+use crate::host::Host;
+
 pub const SET_ASIDE_PREFIX: &str = "settings.unreadable-";
 /// The newest few are kept and a new copy deletes the older ones (v0.6.26).
 pub const SET_ASIDE_KEEP: usize = 5;
@@ -105,7 +107,12 @@ fn refused() -> SettingsError {
 
 /// `set_aside(path)`: the settings file renamed to `settings.unreadable-<UTC time>.json` beside it: its new path,
 /// or None when there is no file (a link is never followed).
-pub fn set_aside(os: &dyn Os, path: &Path, now: f64) -> Result<Option<PathBuf>, SettingsError> {
+pub fn set_aside(
+    host: &dyn Host,
+    os: &dyn Os,
+    path: &Path,
+    now: f64,
+) -> Result<Option<PathBuf>, SettingsError> {
     if !path.is_file() || os.is_symlink(path) {
         return Ok(None);
     }
@@ -120,8 +127,7 @@ pub fn set_aside(os: &dyn Os, path: &Path, now: f64) -> Result<Option<PathBuf>, 
         if aside.exists() {
             continue;
         }
-        // `os.rename`: MoveFileExW with no flag (car-platform) - a name taken meanwhile is refused, never replaced.
-        match car_platform::files::rename(path, &aside) {
+        match host.rename(path, &aside) {
             Ok(()) => {
                 prune(path.parent().unwrap_or(Path::new(".")), &aside);
                 return Ok(Some(aside));

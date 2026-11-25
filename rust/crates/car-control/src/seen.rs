@@ -12,6 +12,7 @@ use car_machine::json::{Map, Options, Str, Value, to_string};
 use car_store::value::get;
 
 use crate::error::{Failure, Res};
+use crate::host::Host;
 use crate::layer::{Control, State};
 
 /// `SEEN_LIMIT`: the file holds one number.
@@ -25,12 +26,13 @@ pub type Why = &'static str;
 /// The file's identity as last read and what it said (`Control._seen`).
 #[derive(Clone, Debug)]
 pub struct Remembered {
-    stamp: (Option<u128>, u64),
+    stamp: (Option<u128>, Option<u128>, u64),
     answer: (Option<f64>, Why),
 }
 
 /// A new file in `folder` whose name starts `prefix` and ends `suffix`, made exclusively (`tempfile.mkstemp`).
 pub(crate) fn temporary(
+    host: &dyn Host,
     folder: &Path,
     prefix: &str,
     suffix: &str,
@@ -58,13 +60,7 @@ pub(crate) fn temporary(
             })
             .collect();
         let path = folder.join(format!("{prefix}{name}{suffix}"));
-        // `mkstemp`'s `os.open(O_RDWR | O_CREAT | O_EXCL)`: shared as Python shares (car-machine's pyfile).
-        match car_machine::pyfile::options()
-            .read(true)
-            .write(true)
-            .create_new(true)
-            .open(&path)
-        {
+        match host.create_file(&path) {
             Ok(file) => return Ok((path, file)),
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => last = Some(error),
             Err(error) => return Err(error),
@@ -75,9 +71,9 @@ pub(crate) fn temporary(
 
 /// `_replace_seen(path, value)`: write `{"seen_at": value}` to `path` whole: a temporary file, flushed to disk, then
 /// moved over it. False where Windows refused, with nothing left behind.
-fn replace_seen(path: &Path, value: f64) -> bool {
+fn replace_seen(host: &dyn Host, path: &Path, value: f64) -> bool {
     let folder = path.parent().unwrap_or(Path::new("."));
-    let Ok((temporary, mut file)) = temporary(folder, "failure-seen.", ".tmp") else {
+    let Ok((temporary, mut file)) = temporary(host, folder, "failure-seen.", ".tmp") else {
         return false;
     };
     let mut body = Map::new();
@@ -90,8 +86,7 @@ fn replace_seen(path: &Path, value: f64) -> bool {
                 .and_then(|_| file.sync_all())
         });
     drop(file);
-    if matches!(written, Some(Ok(()))) && car_platform::files::replace(&temporary, path).is_ok() {
-        // `os.replace`: MoveFileExW alone (car-platform), which refuses a target another handle holds open.
+    if matches!(written, Some(Ok(()))) && host.replace(&temporary, path).is_ok() {
         return true;
     }
     let _ = std::fs::remove_file(&temporary);
@@ -177,7 +172,7 @@ impl Control {
             }
             Err(_) => return Ok((None, "unreadable")),
         };
-        let stamp = (modified_ns(&info), info.len());
+        let stamp = (self.host.file_id(&path), modified_ns(&info), info.len());
         if let Some(kept) = self.seen.borrow().as_ref()
             && kept.stamp == stamp
         {
@@ -185,7 +180,7 @@ impl Control {
         }
         let mut value = None;
         if info.len() <= SEEN_LIMIT {
-            let bytes = match car_machine::pyfile::read(&path) {
+            let bytes = match self.host.read_file(&path) {
                 Ok(bytes) => bytes,
                 Err(_) => return Ok((None, "unreadable")),
             };
@@ -279,7 +274,7 @@ impl Control {
                 .flatten()
                 .reduce(f64::max)
                 .unwrap_or(now);
-            if !replace_seen(&path, value) {
+            if !replace_seen(&*self.host, &path, value) {
                 return Ok(reply(seen, false));
             }
             *self.seen.borrow_mut() = None;
