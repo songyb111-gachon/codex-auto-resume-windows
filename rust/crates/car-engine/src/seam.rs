@@ -25,10 +25,12 @@ use car_policy::plug::Point;
 
 pub use car_scheduler::{Correlate, Row, Withdrawn};
 
-/// `store.reserve_detailed(...)`'s keywords. `ledger` is the engine's plug and `carried` what the send carries of
-/// its answers (P11); car-store's claim is the NULL plug's, which reads neither.
+/// `store.reserve_detailed(...)`'s keywords. `ledger` is the engine's plug - here `plugged`, whether it is not NULL's
+/// (`not ledger.null`), which decides every plug branch of the claim - and `carried` what the send carries of its
+/// answers, which its ledger pays for (P11, which car-store does not ask: S7.2's).
 #[derive(Clone, Debug)]
 pub struct Claim {
+    pub plugged: bool,
     pub limits: Limits,
     pub gates: Vector,
     pub carried: BTreeSet<Point>,
@@ -156,9 +158,17 @@ pub trait Source: car_scheduler::Source {
 }
 
 /// The launch guard a send is handed (`store.submission_guard(key)`): entered once, `body` run with whether the
-/// launch is permitted, inside the store's write lock.
+/// launch is permitted, inside the store's write lock. The launch itself is the body: a backend starts `codex queue`
+/// inside it, as codex/transport.py does inside `with launch_guard as permitted:`, so a Cancel, a Pause or a
+/// conversation switched off that commits a moment before cannot be launched past. A backend that reads the permission
+/// and launches after `enter` returns sends under a doubt the reference holds.
 pub trait LaunchGuard {
     fn enter(&self, body: &mut dyn FnMut(bool) -> Value) -> Py<Value>;
+    /// The record whose `store.submission_guard(key)` this is, where there is one: what a backend that is handed the
+    /// reference's own guard object (the scenario proxy's, asked back over a pipe) builds it from.
+    fn key(&self) -> Option<&str> {
+        None
+    }
 }
 
 /// The Codex processes: `codex queue`, the App Server's queue delete, the loaded-thread inventory and the usage probe

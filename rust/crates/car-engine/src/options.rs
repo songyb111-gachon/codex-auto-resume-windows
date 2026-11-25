@@ -35,37 +35,39 @@ pub fn transient_delay(attempt: i64) -> i64 {
     TRANSIENT_BACKOFF[index as usize]
 }
 
-/// `self.options`: the engine's numbers. Durations are seconds; the counts and the ladder stay integers, as the
-/// continuation's words and the budgets read them.
+/// `self.options`: the engine's numbers. Durations are seconds. A count the engine only compares with is a float, as
+/// the reference compares whatever number it was given (`max_queue_retries` 2.5 fails at the third launch, not the
+/// second); the budgets, the ceiling and the ladder's steps are the numbers given, `int` or `float`, because the
+/// continuation's words, the claim and the waits read them as they are.
 #[derive(Clone, Debug)]
 pub struct Options {
     pub reset_grace_seconds: f64,
     pub conservative_poll_seconds: f64,
     pub state_poll_seconds: f64,
     pub delivery_timeout_seconds: f64,
-    pub max_queue_retries: i64,
-    pub max_submissions_per_thread_per_day: i64,
+    pub max_queue_retries: f64,
+    pub max_submissions_per_thread_per_day: f64,
     pub thread_cooldown_seconds: f64,
     pub detection_lookback_seconds: f64,
     pub unknown_reconcile_window_seconds: f64,
-    pub max_recovery_attempts: i64,
-    pub max_no_progress: i64,
-    pub max_chain_continuations: i64,
+    pub max_recovery_attempts: Value,
+    pub max_no_progress: Value,
+    pub max_chain_continuations: Value,
     pub settle_seconds: f64,
     pub projection_grace_seconds: f64,
     pub usage_never_available_seconds: f64,
     pub usage_after_reset_seconds: f64,
     pub loaded_check_seconds: f64,
-    pub max_withdraw_attempts: i64,
+    pub max_withdraw_attempts: f64,
     pub delete_retry_seconds: f64,
     pub watch_budget_seconds: f64,
-    pub retry_ladder: Vec<i64>,
+    pub retry_ladder: Vec<Value>,
     /// None: every category the classifier can produce.
     pub recoverable_categories: Option<BTreeSet<String>>,
     pub resend_after_seconds: f64,
     pub resend_until_seconds: f64,
-    /// v0.6.11: how long a task may keep failing with a temporary error; None is no ceiling.
-    pub max_chain_seconds: Option<i64>,
+    /// v0.6.11: how long a task may keep failing with a temporary error; None (`Value::Null`) is no ceiling.
+    pub max_chain_seconds: Value,
 }
 
 impl Default for Options {
@@ -75,27 +77,30 @@ impl Default for Options {
             conservative_poll_seconds: 900.0,
             state_poll_seconds: 60.0,
             delivery_timeout_seconds: 180.0,
-            max_queue_retries: 5,
-            max_submissions_per_thread_per_day: 5,
+            max_queue_retries: 5.0,
+            max_submissions_per_thread_per_day: 5.0,
             thread_cooldown_seconds: 900.0,
             detection_lookback_seconds: 6.0 * 3600.0,
             unknown_reconcile_window_seconds: 24.0 * 3600.0,
-            max_recovery_attempts: 4,
-            max_no_progress: 3,
-            max_chain_continuations: 6,
+            max_recovery_attempts: Value::from(4),
+            max_no_progress: Value::from(3),
+            max_chain_continuations: Value::from(6),
             settle_seconds: 10.0,
             projection_grace_seconds: 120.0,
             usage_never_available_seconds: 7.0 * 86400.0,
             usage_after_reset_seconds: 24.0 * 3600.0,
             loaded_check_seconds: 5.0,
-            max_withdraw_attempts: 5,
+            max_withdraw_attempts: 5.0,
             delete_retry_seconds: 10.0,
             watch_budget_seconds: 5.0,
-            retry_ladder: TRANSIENT_BACKOFF.to_vec(),
+            retry_ladder: TRANSIENT_BACKOFF
+                .iter()
+                .map(|step| Value::from(*step))
+                .collect(),
             recoverable_categories: None,
             resend_after_seconds: 900.0,
             resend_until_seconds: 6.0 * 3600.0,
-            max_chain_seconds: None,
+            max_chain_seconds: Value::Null,
         }
     }
 }
@@ -106,24 +111,24 @@ impl Options {
         for (name, value) in given {
             let Some(name) = name.as_str() else { continue };
             let seconds = py::arithmetic(value);
-            let count = py::int_of(value).ok();
+            let number = seconds.map(|_| value.clone());
             match name {
                 "reset_grace_seconds" => set(&mut self.reset_grace_seconds, seconds),
                 "conservative_poll_seconds" => set(&mut self.conservative_poll_seconds, seconds),
                 "state_poll_seconds" => set(&mut self.state_poll_seconds, seconds),
                 "delivery_timeout_seconds" => set(&mut self.delivery_timeout_seconds, seconds),
-                "max_queue_retries" => set(&mut self.max_queue_retries, count),
+                "max_queue_retries" => set(&mut self.max_queue_retries, seconds),
                 "max_submissions_per_thread_per_day" => {
-                    set(&mut self.max_submissions_per_thread_per_day, count)
+                    set(&mut self.max_submissions_per_thread_per_day, seconds)
                 }
                 "thread_cooldown_seconds" => set(&mut self.thread_cooldown_seconds, seconds),
                 "detection_lookback_seconds" => set(&mut self.detection_lookback_seconds, seconds),
                 "unknown_reconcile_window_seconds" => {
                     set(&mut self.unknown_reconcile_window_seconds, seconds)
                 }
-                "max_recovery_attempts" => set(&mut self.max_recovery_attempts, count),
-                "max_no_progress" => set(&mut self.max_no_progress, count),
-                "max_chain_continuations" => set(&mut self.max_chain_continuations, count),
+                "max_recovery_attempts" => set(&mut self.max_recovery_attempts, number),
+                "max_no_progress" => set(&mut self.max_no_progress, number),
+                "max_chain_continuations" => set(&mut self.max_chain_continuations, number),
                 "settle_seconds" => set(&mut self.settle_seconds, seconds),
                 "projection_grace_seconds" => set(&mut self.projection_grace_seconds, seconds),
                 "usage_never_available_seconds" => {
@@ -131,7 +136,7 @@ impl Options {
                 }
                 "usage_after_reset_seconds" => set(&mut self.usage_after_reset_seconds, seconds),
                 "loaded_check_seconds" => set(&mut self.loaded_check_seconds, seconds),
-                "max_withdraw_attempts" => set(&mut self.max_withdraw_attempts, count),
+                "max_withdraw_attempts" => set(&mut self.max_withdraw_attempts, seconds),
                 "delete_retry_seconds" => set(&mut self.delete_retry_seconds, seconds),
                 "watch_budget_seconds" => set(&mut self.watch_budget_seconds, seconds),
                 "resend_after_seconds" => set(&mut self.resend_after_seconds, seconds),
@@ -140,7 +145,8 @@ impl Options {
                     if let Value::Array(items) = value {
                         self.retry_ladder = items
                             .iter()
-                            .filter_map(|item| py::int_of(item).ok())
+                            .filter(|item| py::arithmetic(item).is_some())
+                            .cloned()
                             .collect();
                     }
                 }
@@ -155,7 +161,9 @@ impl Options {
                         _ => None,
                     }
                 }
-                "max_chain_seconds" => self.max_chain_seconds = count,
+                "max_chain_seconds" => {
+                    self.max_chain_seconds = number.unwrap_or(Value::Null);
+                }
                 _ => {}
             }
         }
@@ -171,7 +179,7 @@ impl Options {
             "unknown_reconcile_window_seconds" => self.unknown_reconcile_window_seconds,
             "watch_budget_seconds" => self.watch_budget_seconds,
             "delete_retry_seconds" => self.delete_retry_seconds,
-            "max_withdraw_attempts" => self.max_withdraw_attempts as f64,
+            "max_withdraw_attempts" => self.max_withdraw_attempts,
             "settle_seconds" => self.settle_seconds,
             "projection_grace_seconds" => self.projection_grace_seconds,
             "loaded_check_seconds" => self.loaded_check_seconds,
@@ -214,12 +222,14 @@ impl Engine {
         } else {
             managed::quiet_sources(&Value::Object(own.clone()), &self.managed)
         };
-        let count = |name: &str| py::int_of(get(&values, name)).unwrap_or(0);
-        self.options.max_recovery_attempts = count("max_recovery_attempts");
-        self.options.max_no_progress = count("max_no_progress");
-        self.options.max_chain_continuations = count("max_chain_continuations");
+        self.options.max_recovery_attempts = get(&values, "max_recovery_attempts").clone();
+        self.options.max_no_progress = get(&values, "max_no_progress").clone();
+        self.options.max_chain_continuations = get(&values, "max_chain_continuations").clone();
         let whole = Value::Object(values.clone());
-        self.options.retry_ladder = ladder::ladder(&whole).to_vec();
+        self.options.retry_ladder = ladder::ladder(&whole)
+            .iter()
+            .map(|step| Value::from(*step))
+            .collect();
         self.options.detection_lookback_seconds =
             py::arithmetic(get(&values, "detection_lookback_hours")).unwrap_or(0.0) * 3600.0;
         self.options.recoverable_categories = Some(
@@ -229,7 +239,7 @@ impl Engine {
                 .map(|category| (*category).to_owned())
                 .collect(),
         );
-        self.options.max_chain_seconds = ladder::ceiling(&whole);
+        self.options.max_chain_seconds = ladder::ceiling(&whole).map_or(Value::Null, Value::from);
         self.policy_values = values;
     }
 
@@ -243,16 +253,19 @@ impl Engine {
         let mut found = py::row(vec![
             (
                 "max_recovery_attempts",
-                Value::from(self.options.max_recovery_attempts),
+                self.options.max_recovery_attempts.clone(),
             ),
-            ("max_no_progress", Value::from(self.options.max_no_progress)),
+            ("max_no_progress", self.options.max_no_progress.clone()),
             (
                 "max_chain_continuations",
-                Value::from(self.options.max_chain_continuations),
+                self.options.max_chain_continuations.clone(),
             ),
         ]);
-        if let Some(ceiling) = self.options.max_chain_seconds {
-            found.insert(Str::from("max_chain_seconds"), Value::from(ceiling));
+        if !matches!(self.options.max_chain_seconds, Value::Null) {
+            found.insert(
+                Str::from("max_chain_seconds"),
+                self.options.max_chain_seconds.clone(),
+            );
         }
         found
     }
@@ -271,8 +284,11 @@ impl Engine {
                 Value::from(ladder::CAPACITY_PER_DAY.min(ceiling)),
             );
         }
-        if let Some(ceiling) = self.options.max_chain_seconds {
-            found.insert(Str::from("max_chain_seconds"), Value::from(ceiling));
+        if !matches!(self.options.max_chain_seconds, Value::Null) {
+            found.insert(
+                Str::from("max_chain_seconds"),
+                self.options.max_chain_seconds.clone(),
+            );
         }
         found
     }
@@ -290,7 +306,7 @@ impl Engine {
                 self.options.thread_cooldown_seconds,
             ),
             _ => (
-                self.options.max_submissions_per_thread_per_day as f64,
+                self.options.max_submissions_per_thread_per_day,
                 self.options.thread_cooldown_seconds,
             ),
         }
@@ -305,22 +321,29 @@ impl Engine {
         }
     }
 
-    /// `delay_for(attempt)`: the configured wait before the next attempt at a transient failure.
-    pub fn delay_for(&self, attempt: i64) -> i64 {
-        let ladder: &[i64] = if self.options.retry_ladder.is_empty() {
-            &TRANSIENT_BACKOFF
-        } else {
-            &self.options.retry_ladder
-        };
-        ladder[(attempt - 1).clamp(0, ladder.len() as i64 - 1) as usize]
+    /// `delay_for(attempt)`: the configured wait before the next attempt at a transient failure - the ladder's step as
+    /// it was given (`int` or `float`).
+    pub fn delay_for(&self, attempt: i64) -> Value {
+        if self.options.retry_ladder.is_empty() {
+            let index = attempt
+                .saturating_sub(1)
+                .clamp(0, TRANSIENT_BACKOFF.len() as i64 - 1);
+            return Value::from(TRANSIENT_BACKOFF[index as usize]);
+        }
+        let ladder = &self.options.retry_ladder;
+        ladder[attempt.saturating_sub(1).clamp(0, ladder.len() as i64 - 1) as usize].clone()
     }
 
-    /// `first_delay(category)`: Codex already retried a rate limit, so its first wait is a minute at least.
-    pub fn first_delay(&self, category: &str) -> i64 {
-        if category == "rate_limit_transient" {
-            return 60.max(self.delay_for(1));
+    /// `first_delay(category)`: Codex already retried a rate limit, so its first wait is a minute at least
+    /// (`max(60, delay)`: the step only where it is more than 60).
+    pub fn first_delay(&self, category: &str) -> Value {
+        let delay = self.delay_for(1);
+        if category == "rate_limit_transient"
+            && !py::arithmetic(&delay).is_some_and(|seconds| seconds > 60.0)
+        {
+            return Value::from(60);
         }
-        self.delay_for(1)
+        delay
     }
 
     /// `quiet_until(now)`: the end of the quiet hours `now` falls in, or None.

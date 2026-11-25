@@ -8,7 +8,8 @@ session's check: only advanced codex/inuse.py, advanced engine/usage.py, advance
 domain/usage.py, machine.py, runtime/app.py, ui/popup/model.py, gui/*, scripts/ and build/ moved). This says which of
 the ported Python files - every module of engine/, and codexsim, which builds the traces' worlds - differ between
 v0.6.26-beta.2 and the tag (`git diff --stat`, so a change is seen even where no scenario reaches it), then runs the
-engine traces with the tag as the reference (`run.py --build --reference TAG -k EngineTraceDiff`). Exit 0 only when the
+engine traces, and the plug's (a scripted plug on both sides, diffs_engine_plug.py), with the tag as the reference
+(`run.py --build --reference TAG -k EngineTraceDiff -k EnginePlugDiff`). Exit 0 only when the
 diffs are equal; a file that changed is printed, not failed on - the traces decide, and a changed file with equal traces
 is a file the corpus should learn a scenario for.
 """
@@ -24,7 +25,10 @@ ROOT = HERE.parents[1]
 ENGINE = ("__init__", "announce", "compaction", "delivery", "detect", "dispatch", "foropen", "freshness", "guard",
           "impossible", "kinds", "launches", "notices", "options", "outcome", "plugrecords", "reconcile",
           "recordchannel", "relaxed", "resend", "routes", "storeview", "tosession")
-PORTED = tuple("src/codex_auto_resume/engine/%s.py" % name for name in ENGINE) + ("tests/codexsim.py",)
+# And what the plug traces (diffs_engine_plug.py) lean on: the plug itself and the claim's plug branches in the store.
+PORTED = (tuple("src/codex_auto_resume/engine/%s.py" % name for name in ENGINE)
+          + ("tests/codexsim.py", "src/codex_auto_resume/domain/plug.py", "src/codex_auto_resume/store/claims.py",
+             "src/codex_auto_resume/store/ledger.py", "src/codex_auto_resume/store/validate.py"))
 BASE = "v0.6.26-beta.2"
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
@@ -46,7 +50,7 @@ def main(argv=None) -> int:
     print("ported files changed from %s to %s:\n%s" % (BASE, tag, changed.stdout.strip() or "  none"))
     sys.stdout.flush()
     diffs = subprocess.run([sys.executable, "-X", "utf8", str(HERE / "run.py"), "--build", "--reference", tag,
-                            "-k", "EngineTraceDiff"], cwd=ROOT, stdin=subprocess.DEVNULL,
+                            "-k", "EngineTraceDiff", "-k", "EnginePlugDiff"], cwd=ROOT, stdin=subprocess.DEVNULL,
                            creationflags=NO_WINDOW).returncode
     print("rediff against %s: engine traces %s" % (tag, "equal" if diffs == 0 else "DIFFER"))
     return 0 if diffs == 0 else 1

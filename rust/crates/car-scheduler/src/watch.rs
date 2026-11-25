@@ -6,7 +6,7 @@
 //! that one proof, so a marker-free continuation is followed, taken back and settled exactly as one with a marker is,
 //! and never sent twice.
 
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use car_machine::domain::states::{may_be_queued, still_followed};
 use car_machine::json::{Map, Str, Value};
@@ -120,10 +120,12 @@ pub fn watch<H: Host>(host: &mut H) -> Py<()> {
         rows.rotate_left(start);
         *offset += 1;
     }
+    // `deadline = time.monotonic() + budget; ... if time.monotonic() > deadline: break`, as elapsed seconds: a budget
+    // past what a Duration holds (1e300, inf) or NaN is never reached, a negative one at once, as in the reference.
     let budget = host.option("watch_budget_seconds");
-    let deadline = Instant::now().checked_add(Duration::from_secs_f64(budget.max(0.0)));
+    let started = Instant::now();
     for row in rows {
-        if deadline.is_some_and(|deadline| Instant::now() > deadline) {
+        if started.elapsed().as_secs_f64() > budget {
             break;
         }
         if text_of(&row, "state") == Some("submission_unknown")
@@ -140,7 +142,7 @@ pub fn watch<H: Host>(host: &mut H) -> Py<()> {
         if host.for_open_rests(&row)? {
             continue;
         }
-        let looked = (|| -> Py<()> {
+        let looked = crate::caught(|| -> Py<()> {
             let lock = host.dispatch_lock();
             let _held = lock.as_ref().map(|lock| lock.lock());
             let current = host.watch_store().get(&key_of(&row))?;
@@ -150,7 +152,7 @@ pub fn watch<H: Host>(host: &mut H) -> Py<()> {
                 watch_record(host, &current)?;
             }
             Ok(())
-        })();
+        });
         if looked.is_err() {
             host.log(
                 Some(&thread_of(&row)),

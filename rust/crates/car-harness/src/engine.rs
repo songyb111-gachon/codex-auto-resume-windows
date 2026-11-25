@@ -82,8 +82,9 @@ fn py<T>(found: car_store::Result<T>) -> Py<T> {
     found.map_err(|error| error.class())
 }
 
-/// car-store's `Store` as the engine holds it.
-pub struct EngineStore(pub Rc<Store>);
+/// car-store's `Store` as the engine holds it; with a scripted plug, every claim says what it was told of the plug's
+/// answers (`note.claim`), which nothing else of a trace shows.
+pub struct EngineStore(pub Rc<Store>, pub bool);
 
 impl car_scheduler::Store for EngineStore {
     fn get(&self, interruption_id: &str) -> Py<Option<Map>> {
@@ -181,7 +182,35 @@ impl car_engine::Store for EngineStore {
         py(self.0.others_in_flight(thread_id, exclude))
     }
     fn reserve_detailed(&self, interruption_id: &str, now: f64, claim: &Claim) -> Py<Claimed> {
+        if self.1 {
+            let number = |found: Option<f64>| found.map_or(Value::Null, Value::Float);
+            let pair = |found: Option<(f64, f64)>| {
+                found.map_or(Value::Null, |(a, b)| {
+                    Value::Array(vec![Value::Float(a), Value::Float(b)])
+                })
+            };
+            let _ = ask(
+                "note.claim",
+                vec![
+                    Value::Array(
+                        claim
+                            .carried
+                            .iter()
+                            .map(|point| Value::from(point.as_str()))
+                            .collect::<Vec<_>>(),
+                    ),
+                    claim.relaxed.as_deref().map_or(Value::Null, Value::from),
+                    pair(claim.resend),
+                    Value::Bool(claim.forced),
+                    pair(Some(claim.caps)),
+                    number(claim.quiet_until),
+                    Value::Bool(claim.plugged),
+                ],
+            );
+        }
         let options = car_store::claims::Claim {
+            plugged: claim.plugged,
+            carried: claim.carried.clone(),
             limits: Some(claim.limits.clone()),
             gates: Some(claim.gates.clone()),
             quiet_until: claim.quiet_until,
@@ -320,17 +349,24 @@ impl Backend for AskBackend {
         ask("backend.usage", Vec::new())
     }
     fn send(&self, thread_id: &str, prompt: &Str, launch_guard: &dyn LaunchGuard) -> Py<Value> {
-        // `with launch_guard as permitted:` - entered on car-store's own write lock, as SimBackend enters the
-        // reference's; the stand-in is told what it found, and refuses as SimBackend refuses.
-        let permitted = launch_guard.enter(&mut Value::Bool)?;
-        ask(
-            "backend.send",
-            vec![
-                Value::from(thread_id),
-                Value::Str(prompt.clone()),
-                Value::Bool(matches!(permitted, Value::Bool(true))),
-            ],
-        )
+        // `with launch_guard as permitted: <launch>` - the launch is the guard's body, as codex/transport.py starts
+        // `codex queue` inside it (store/claims.py: a Cancel, a Pause and a conversation switched off take the same
+        // write lock, so a launch never uses consent withdrawn a moment before). The stand-in is asked while car-store's
+        // write lock is held, told what the guard found, and refuses as SimBackend refuses. A product backend does the
+        // same: its launch inside `enter`'s body, never after it.
+        let mut sent: Py<Value> = Ok(Value::Null);
+        launch_guard.enter(&mut |permitted| {
+            sent = ask(
+                "backend.send",
+                vec![
+                    Value::from(thread_id),
+                    Value::Str(prompt.clone()),
+                    Value::Bool(permitted),
+                ],
+            );
+            Value::Null
+        })?;
+        sent
     }
     fn delete_queue(&self, thread_id: &str, queue_id: &str) -> Py<Value> {
         ask(
@@ -338,11 +374,46 @@ impl Backend for AskBackend {
             vec![Value::from(thread_id), Value::from(queue_id)],
         )
     }
+    // The attributes read with getattr(backend, name, None), asked of the stand-in (review 6, S4).
+    fn app_look(&self) -> Value {
+        attribute("app_look")
+    }
+    fn app_unmatched_reason(&self) -> Value {
+        attribute("app_unmatched_reason")
+    }
+    fn protocol_results(&self) -> Value {
+        attribute("protocol_results")
+    }
+    fn session_holder(&self) -> Value {
+        attribute("session_holder")
+    }
+    fn engine_version(&self) -> Value {
+        attribute("engine_version")
+    }
+    fn holder(&self, thread_id: &str) -> Option<Py<Value>> {
+        match ask("backend.holder", vec![Value::from(thread_id)]) {
+            Ok(Value::Array(pair))
+                if pair
+                    .first()
+                    .is_some_and(car_policy::classify::value::truthy) =>
+            {
+                Some(Ok(pair.get(1).cloned().unwrap_or(Value::Null)))
+            }
+            Ok(_) => None,
+            Err(raised) => Some(Err(raised)),
+        }
+    }
+}
+
+fn attribute(name: &str) -> Value {
+    ask("backend.getattr", vec![Value::from(name)]).unwrap_or(Value::Null)
 }
 
 /// One engine kept across requests.
 struct Session {
     engine: Engine,
+    /// Whether the engine's plug is the scripted one (`engine.open`'s `plug`): its failures are part of the facts.
+    scripted: bool,
     store: Rc<Store>,
     clock: Arc<AtomicU64>,
     logs: Rc<RefCell<Vec<Value>>>,
@@ -399,6 +470,7 @@ fn open(request: &Map) -> Result<Session, String> {
     let notes = Rc::new(RefCell::new(Vec::new()));
     let (log_into, note_into) = (logs.clone(), notes.clone());
     let notify_raises = matches!(request.get("notify_raises"), Some(Value::Bool(true)));
+    let scripted = matches!(request.get("plug"), Some(Value::Bool(true)));
     let engine_state = request
         .get("engine_state")
         .cloned()
@@ -438,7 +510,11 @@ fn open(request: &Map) -> Result<Session, String> {
         language: None,
         home_lock: Some(Box::new(move || Ok(home_lock))),
         engine_state: Some(Box::new(move || Ok(engine_state.clone()))),
-        plug: Guarded::null(),
+        plug: if matches!(request.get("plug"), Some(Value::Bool(true))) {
+            Guarded::new(Box::new(crate::plugscript::Scripted::asking()))
+        } else {
+            Guarded::null()
+        },
         connectivity: Some(Box::new(move || Ok(connectivity.clone()))),
         home_key: text(request, "home_key").to_owned(),
         open_store: false,
@@ -465,13 +541,14 @@ fn open(request: &Map) -> Result<Session, String> {
         os: Arc::new(PlatformOs),
     };
     let engine = Engine::new(
-        Box::new(EngineStore(store.clone())),
+        Box::new(EngineStore(store.clone(), scripted)),
         Box::new(Codex(source)),
         Box::new(AskBackend),
         given,
     );
     Ok(Session {
         engine,
+        scripted: matches!(request.get("plug"), Some(Value::Bool(true))),
         store,
         clock,
         logs,
@@ -492,7 +569,8 @@ fn step(session: &mut Session, request: &Map) -> Value {
         "watch" => unit(engine.watch()),
         "policy" => {
             let values = request.get("values").cloned().unwrap_or(Value::Null);
-            engine.apply_policy(&values, None);
+            let managed = request.get("managed").and_then(crate::proxy::managed);
+            engine.apply_policy(&values, managed);
             Value::Null
         }
         "store" => crate::store::call(&session.store, request),
@@ -506,19 +584,51 @@ fn step(session: &mut Session, request: &Map) -> Value {
             engine.retiring = matches!(request.get("value"), Some(Value::Bool(true)));
             Value::Null
         }
-        "facts" => object([
-            (
-                "detection_failed",
-                engine.detection_failed.map_or(Value::Null, Value::Bool),
-            ),
-            (
-                "watch_needed",
-                match engine.watch_needed() {
-                    Ok(found) => Value::Bool(found),
-                    Err(class) => raised(class),
-                },
-            ),
-        ]),
+        "facts" => {
+            let mut facts = match object([
+                (
+                    "detection_failed",
+                    engine.detection_failed.map_or(Value::Null, Value::Bool),
+                ),
+                (
+                    "watch_needed",
+                    match engine.watch_needed() {
+                        Ok(found) => Value::Bool(found),
+                        Err(class) => raised(class),
+                    },
+                ),
+                ("activity", {
+                    let threads: Vec<String> = match request.get("threads") {
+                        Some(Value::Array(items)) => items
+                            .iter()
+                            .filter_map(|item| {
+                                car_policy::classify::value::text(item).map(str::to_owned)
+                            })
+                            .collect(),
+                        _ => Vec::new(),
+                    };
+                    Value::Object(engine.activity(&threads))
+                }),
+                (
+                    "last_usage",
+                    engine.last_usage().map_or(Value::Null, |(at, windows)| {
+                        Value::Array(vec![Value::Float(at), Value::Array(windows)])
+                    }),
+                ),
+            ]) {
+                Value::Object(facts) => facts,
+                _ => Map::new(),
+            };
+            // How many of the scripted plug's hooks failed (an `Err` or a panic), as `Guarded.failures` counts them.
+            if session.scripted {
+                facts.insert(
+                    "plug_failures".into(),
+                    Value::from(i64::try_from(engine.plug.failures()).unwrap_or(i64::MAX)),
+                );
+            }
+            Value::Object(facts)
+        }
+        "judge" => crate::judge::run(request),
         _ => raised("not_ported"),
     }
 }

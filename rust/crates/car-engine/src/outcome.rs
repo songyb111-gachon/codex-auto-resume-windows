@@ -232,7 +232,7 @@ impl Engine {
     /// `observe_all()`: every record following its recovery turn, each one's failure its own.
     pub fn observe_all(&mut self) -> Py<()> {
         for row in self.records(OBSERVING)? {
-            if self.observe(&row).is_err() {
+            if car_scheduler::caught(|| self.observe(&row)).is_err() {
                 self.log(
                     Some(&s(&row, "thread_id")),
                     "outcome_check_unavailable",

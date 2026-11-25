@@ -50,7 +50,7 @@ impl Engine {
                 &Value::from(category),
             )?)
         } else {
-            Value::from(self.first_delay(category))
+            self.first_delay(category)
         };
         if let Value::Int(after) = retry_after
             && car_machine::pyval::greater(retry_after, &delay)?

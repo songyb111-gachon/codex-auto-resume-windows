@@ -94,6 +94,9 @@ impl LaunchGuard for SubmissionGuard<'_> {
     fn enter(&self, body: &mut dyn FnMut(bool) -> Value) -> Py<Value> {
         self.store.submission_guard(&self.key, body)
     }
+    fn key(&self) -> Option<&str> {
+        Some(&self.key)
+    }
 }
 
 impl Engine {
@@ -564,6 +567,7 @@ impl Engine {
         }
         let at = self.now();
         let claim = Claim {
+            plugged: !self.plug.is_null(),
             limits: limits_of(&if forced {
                 self.forced_limits(limits)
             } else {
@@ -640,12 +644,13 @@ impl Engine {
                 key: key.clone(),
             };
             let words = Str::from(words.as_str());
-            let sent = match &sender {
+            // `try: response = sender.send(...) except Exception: response = {"outcome": "unknown"}`: a panic too.
+            let sent = car_scheduler::caught(|| match &sender {
                 Sender::Backend => self.backend.send(&claimed_thread, &words, &guard),
                 Sender::Channel { channel, .. } => {
                     Ok(channel.send(&claimed_thread, &words, client.as_deref()))
                 }
-            };
+            });
             match sent {
                 Ok(Value::Object(response)) => response,
                 _ => py::row(vec![("outcome", Value::from("unknown"))]),

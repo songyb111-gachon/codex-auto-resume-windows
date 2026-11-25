@@ -27,6 +27,7 @@
 //! would raise, caught exactly where it catches one.
 
 pub mod announce;
+pub mod caught;
 pub mod compaction;
 pub mod delivery;
 pub mod detect;
@@ -202,10 +203,11 @@ impl Engine {
         let watching_since = clock();
         let mut options = Options::default();
         options.apply(&given.options);
+        // D15: a panic inside a seam is the exception the reference meets at that call (caught.rs).
         Engine {
-            store,
-            source,
-            backend,
+            store: Box::new(caught::Caught(store)),
+            source: Box::new(caught::Caught(source)),
+            backend: Box::new(caught::Caught(backend)),
             plug: given.plug,
             dispatch_lock: given.dispatch_lock,
             clock,
@@ -222,7 +224,9 @@ impl Engine {
             home_key: given.home_key,
             retiring: false,
             open_store: given.open_store,
-            once_words: given.once_words,
+            once_words: given
+                .once_words
+                .map(|words| Box::new(caught::Caught(words)) as Box<dyn OnceWords>),
             policy_values: car_policy::settings::defaults(),
             managed: Managed::default(),
             options,
@@ -285,9 +289,14 @@ impl Engine {
     pub fn tick(&mut self) -> Py<()> {
         let now = self.now();
         let before = self.store.usage_checks_asked(now).unwrap_or_default();
-        let result = self.tick_once();
+        // `try: self._tick() finally: self._usage_checks_left(before)`: run however the tick ends, a panic included,
+        // which then goes on to the caller as the exception would.
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.tick_once()));
         self.usage_checks_left(&before);
-        result
+        match result {
+            Ok(result) => result,
+            Err(panic) => std::panic::resume_unwind(panic),
+        }
     }
 
     fn tick_once(&mut self) -> Py<()> {
@@ -341,7 +350,7 @@ impl Engine {
         // which is what the reference does for the answer every plug but the advanced one gives (1).
         let _workers = self.workers(&due);
         for row in &due {
-            if self.attempt(row).is_err() {
+            if car_scheduler::caught(|| self.attempt(row)).is_err() {
                 let thread = py::s(row, "thread_id");
                 self.log(
                     Some(&thread),

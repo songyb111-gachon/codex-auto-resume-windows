@@ -12,7 +12,8 @@ of git by `tests/released.py` and run in a process of its own on scratch homes.
 | Rust, from Python | `core.py` | where the binaries are (`CODEX_AR_CORE_EXE`, `CODEX_AR_HARNESS_EXE`, `CARGO_TARGET_DIR`, else the crate's release build), `build()`, `stub()`, `Harness` |
 | shim | `shim.py` | `CODEX_AR_CORE=rust`: the entry points' `main` runs the Rust binary (below) |
 | diffs | `diffs.py`, `diffs_*.py` (each seat's own: `diffs_store.py`, S1.2) | the comparisons, as unittest cases; run.py loads `diffs.py` and then every `diffs_*.py` in name order. The folder has no `__init__.py` (a namespace package) and no `test*.py`, so the lanes' discovery never enters it: it imports nothing of it and runs none of it |
-| ledger | `LEDGER` | tests that fail on Rust only for reading a Python internal, each with its reason; only shrinks; empty |
+| ledger | `LEDGER` | tests that fail on Rust only for reading a Python internal, each with its reason; only shrinks; empty (S4.2: the 15 frozen modules need no entry) |
+| scenario proxy | `engineproxy.py` | `CODEX_AR_CORE=rust`: the `Engine` the frozen modules build, as car-engine (S4.2) |
 | entry point | `run.py` | the one command CI and a person run |
 
 ## The entry point
@@ -45,7 +46,10 @@ the same gap, which `no_real_toast()` closes), so `work()` calls `rust_core()`, 
 same variable. Without the variable sitecustomize looks at `os.environ` once (already imported by `site`)
 and `rust_core()` returns False: no module loaded, nothing patched.
 
-Not here yet: the `Engine`, `Store` and `LocalSource` proxies over car-harness (S4.2); a `serve` that streams
+S4.2: `codex_auto_resume.engine`'s `Engine` becomes `engineproxy.py`'s - car-engine in a session of one `car-harness
+serve` per test process, its store, source and backend the test's own objects asked back over the pipe
+(rust/GROUNDWORK.md, "The scenario proxy"). The `Store` and `LocalSource` stay Python's: their proxies are not needed,
+because what the frozen modules hold is what the engine decides. Not here yet: a `serve` that streams
 a live pipe (the shim reads the whole input first, as a test's StringIO allows); `python -m
 codex_auto_resume.<entry>`, which runs as `__main__` and never passes the finder (no test does that today);
 the child Pythons of a test_parts lane, which start with `PYTHONPATH=src` and so run Python.
@@ -426,3 +430,33 @@ and the huge ones are made from it (`tune`).
 
 `python -X utf8 tests/rustdiff/rediff_control.py --reference v0.6.26` lists any ported file that changed after v0.6.26-beta.2 and
 reruns every `diffs_bridge*` diff against the tag.
+
+## The plug's answer paths (review 6, S3: `diffs_engine_plug.py`)
+
+`python -X utf8 tests/rustdiff/run.py --build -k EnginePlugDiff` (alone). A scenario with a `plug` key - a script, `enginerun.Script`:
+the points the plug wants and, per hook, rules (`when` facts of the record, `answer`, `skip`, `times`) - runs on both sides with
+the same script. The reference's Engine is handed a `domain.plug.Plug` whose hooks ask the script; car-engine's plug is
+car-harness's `plugscript.rs`, a test double of car-policy's `Plug` trait that asks the very same Python object back over the pipe
+(`plug.<hook>`), so both engines get the same answer to the same question. Every question the engine puts to the plug (the hook,
+what it was handed, the answer), every claim's `carried`/`relaxed`/`resend`/`forced`/`caps` (what P11's ledger would pay for) and
+how many hooks failed (`facts`' `plug_failures`) are part of the trace, in order, with the log, the notifications, the backend's
+calls and the state. A `plug` step changes the script mid-scenario. An answer is a word, a text, a list, `null` (DEFER), `raise` or
+`panic`. Three tests: `scripted_paths` (hand-written scenarios for P3 holds at every gate, P4, P5/P15 asked, P6, P7's EARLY, SEND_NOW
+and RESEND, P14, P16's QUEUE_FOR_OPEN and TO_SESSION, P17's ADMIT, CAPACITY and AS_* with P3's known_failure, P18 and P19, a hook that
+raises or panics); `corpus_with_a_deferring_plug` (the 81 corpus scenarios again, each with a plug that wants every point and
+defers: the engine's questions at every call site, compared as asked); `random_walks_with_a_plug` (the engine walks with a script
+drawn from the seed, CODEX_AR_PLUG_WALKS). `CODEX_AR_PLUG_ONLY=name,name` runs the scenarios whose name starts with one. Not
+held here, because they need the advanced plug (S7.2): P2's records, P5's channel, P8's and P22's errands, P11's ledger itself (a
+hold or a failure at the claim), P12's pool, P16's route, P9, P13, P20 and P21 (runtime's, not the engine's).
+
+## The scenario proxy (S4.2)
+
+```
+python scripts/test_parts.py --worker tests --report py.json <the 15 modules of tests/neutral.py MODULES>
+CODEX_AR_CORE=rust python scripts/test_parts.py --worker tests --report rs.json <the same>
+python scripts/test_parts.py --compare py.json rs.json
+```
+
+(`PYTHONPATH="src;tests"`, the harness built first.) Run 2026-11-25: 456 test ids, all pass on both, 0 differ. Three
+broken engine rules (the day's cap, the settle, the queue launch retries) each turned two frozen tests red on the Rust
+lane (rust/GROUNDWORK.md, "The scenario proxy").

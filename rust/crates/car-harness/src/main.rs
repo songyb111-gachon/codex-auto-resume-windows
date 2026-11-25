@@ -89,10 +89,13 @@ fn serve() -> i32 {
             continue;
         }
         // S2.2's calls read the line as Python's json.loads does (NaN, lone surrogates), which serde refuses.
-        let loose = line
-            .contains("\"policy.batch\"")
-            .then(|| car_harness::policy::answer(line))
-            .flatten();
+        let loose = if line.contains("\"policy.batch\"") {
+            car_harness::policy::answer(line)
+        } else if line.contains("\"proxy.") {
+            car_harness::proxy::line(line)
+        } else {
+            None
+        };
         let (id, reply) = match serde_json::from_str::<serde_json::Value>(line) {
             _ if loose.is_some() => loose.unwrap_or((Value::Null, Value::Null)),
             Ok(request) if request.is_object() => {

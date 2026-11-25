@@ -9,9 +9,12 @@ pub mod classify;
 pub mod codex;
 pub mod defaults;
 pub mod engine;
+pub mod judge;
 pub mod leaves;
 pub mod links;
+pub mod plugscript;
 pub mod policy;
+pub mod proxy;
 pub mod registry;
 pub mod store;
 

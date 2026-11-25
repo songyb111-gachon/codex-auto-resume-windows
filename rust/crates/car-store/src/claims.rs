@@ -6,12 +6,20 @@
 //! claim: the second waits on the write lock (busy timeout 10 s), then reads the record already
 //! `submitting` and is refused `submission_safe`/`possibly_sent`.
 //!
-//! The edition's plug and its claim ledger (P11) are NOT PORTED here: the claim is the NULL plug's, the
-//! standard edition's, for which `ledger.null` decides every plug branch - no early look, no Send now past
-//! a gate, no relaxation paid for, no resend granted. The `Plug` trait is car-policy's (S2.2); the ledger's
-//! authorizer and savepoint come with it.
+//! The edition's plug is one thing the claim knows (`Claim::plugged`, `ledger.null` False) and one it does not: its
+//! claim ledger (P11) is NOT PORTED here - no authorizer, no savepoint, no `claim_ledger` asked. A plugged claim is
+//! one whose ledger always answers DEFER and never raises: every branch `ledger.null` decides is ported (an early
+//! look, a Send now past a gate, a relaxation paid for, a resend granted, each only for what the send `carried`), which
+//! is what a scripted plug in the engine's traces can hold. A ledger that holds or fails comes with the advanced plug
+//! (S7.2). With `plugged` False the claim is the NULL plug's, the standard edition's.
+
+use std::collections::BTreeSet;
 
 use car_machine::json::Value;
+use car_policy::classify::failures::{ADMISSIBLE, reset_verified};
+use car_policy::classify::gates::{FORCEABLE, SEND_NOW, own_budget_only};
+use car_policy::classify::ladder::{CAPACITY_MAX_SECONDS, EARLY_STATES};
+use car_policy::plug::Point;
 use rusqlite::Connection;
 
 use crate::errors::{Error, Result};
@@ -21,7 +29,7 @@ use crate::machine::policy::gates::{
     gate, gate_budgets, gate_consent, gate_schedule, gate_submission_safe, resend_candidate,
     was_resent,
 };
-use crate::machine::policy::is_recoverable;
+use crate::machine::policy::{USAGE_LIMIT, is_recoverable};
 use crate::machine::vocab::{RELEASABLE_WITHDRAWALS, WAITING, WATCHED};
 use crate::machine::{has, ids, may_be_queued, turn_status};
 use crate::policy::thread_enabled;
@@ -31,9 +39,12 @@ use crate::value::{
     Row, execute, get, int, integer, or, scalar, set, string, text_of, truthy, tuples,
 };
 
-/// `reserve_detailed`'s keywords (the NULL plug's: no `ledger`, no `carried`).
+/// `reserve_detailed`'s keywords. `plugged` is `not ledger.null` (the plug is not NULL's) and `carried` the points
+/// whose answers the send carries, which its ledger pays for; the ledger itself (P11) is not asked here.
 #[derive(Clone, Debug, Default)]
 pub struct Claim {
+    pub plugged: bool,
+    pub carried: BTreeSet<Point>,
     pub limits: Option<Limits>,
     pub gates: Option<Vector>,
     pub quiet_until: Option<f64>,
@@ -160,29 +171,116 @@ fn caps_refusal(
     Ok(Some(("attempt_budget".into(), reason.into())))
 }
 
-/// `_relaxation_refused` for the NULL plug's ledger: a kind core recovers passes unless a relaxation was
-/// asked for (which nothing pays for); any other kind is `known_failure`/`not_recoverable`.
-fn relaxation_refused(
+/// `_early_claim`: whether the claim skips a record's next look and its reset time (EARLY): only for one that waits
+/// for a usage limit to reset, or for usage, and only as a relaxation the plug's ledger pays for.
+fn early_claim(row: &Row, options: &Claim) -> bool {
+    options.relaxed.as_deref() == Some("early")
+        && text_of(row, "category") == Some(USAGE_LIMIT)
+        && has(EARLY_STATES, text_of(row, "state").unwrap_or_default())
+        && options.plugged
+        && options.carried.contains(&Point::Schedule)
+}
+
+/// `_forced_claim`: a person's Send now (SEND_NOW) as the claim takes it, written into `vector`.
+fn forced_claim(row: &Row, now: f64, vector: &mut Vector, options: &Claim) {
+    let Some(limits) = &options.limits else {
+        return;
+    };
+    if !has(WAITING, text_of(row, "state").unwrap_or_default())
+        || !options.plugged
+        || !options.carried.contains(&Point::Schedule)
+    {
+        return;
+    }
+    if vector
+        .get("schedule")
+        .is_some_and(|found| has(FORCEABLE, &found.1))
+    {
+        let again = gate_schedule(row, now, options.quiet_until, false, true);
+        vector.set(
+            "schedule",
+            if again.0 == PASS {
+                gate(PASS, SEND_NOW)
+            } else {
+                again
+            },
+        );
+    }
+    if vector
+        .get("attempt_budget")
+        .is_some_and(|found| found.0 == BLOCK && found.1 == "recovery_budget")
+        && own_budget_only(row, limits.managed_max_recovery_attempts)
+    {
+        vector.set("attempt_budget", gate(PASS, SEND_NOW));
+    }
+}
+
+/// `reset_refused` (v0.6.22, issue #59): a verified reset's day, claimed only while the recorded reset is behind `now`,
+/// the usage gate passed, and the plug's own channel or route carries it.
+fn reset_refused(
     row: &Row,
+    now: f64,
+    vector: &mut Vector,
+    options: &Claim,
+) -> Option<(String, String)> {
+    if options.relaxed.as_deref() != Some("reset") {
+        return None;
+    }
+    let usage_passed = vector.get("usage").is_some_and(|found| found.0 == PASS);
+    if reset_verified(row, now)
+        && options.plugged
+        && options.carried.contains(&Point::Gates)
+        && (options.carried.contains(&Point::Sender) || options.carried.contains(&Point::Unloaded))
+        && usage_passed
+    {
+        return None;
+    }
+    vector.set("submission_safe", gate(WAIT, HELD));
+    Some(("submission_safe".into(), HELD.into()))
+}
+
+/// `_relaxation_refused`: a kind core recovers passes unless a relaxation was asked for that the plug's ledger does
+/// not pay for; a kind it never recovers alone is claimed only as "admitted", with the gates among what is paid for.
+fn relaxation_refused(
+    connection: &Connection,
+    row: &Row,
+    now: f64,
     vector: &mut Vector,
     relaxed: Option<&str>,
-) -> Option<(String, String)> {
+    options: &Claim,
+) -> Result<Option<(String, String)>> {
     let category = text_of(row, "category").unwrap_or_default();
     if is_recoverable(category) {
-        match relaxed {
-            Some("capacity") => {
-                vector.set("chain_budget", gate(BLOCK, "capacity_window"));
-                return Some(("chain_budget".into(), "capacity_window".into()));
-            }
-            Some("reset") => {
-                vector.set("submission_safe", gate(WAIT, HELD));
-                return Some(("submission_safe".into(), HELD.into()));
-            }
-            _ => return None,
+        if relaxed != Some("capacity") {
+            return Ok(reset_refused(row, now, vector, options));
         }
+        let origin = scalar(
+            connection,
+            "SELECT detected_at FROM interruptions WHERE interruption_id=?",
+            &[get(row, "chain_origin_id").clone()],
+        )?;
+        let within = finite_value(&origin, None)
+            .is_some_and(|started| now - started < CAPACITY_MAX_SECONDS as f64);
+        if category != "server_5xx"
+            || !options.plugged
+            || !options.carried.contains(&Point::Gates)
+            || matches!(origin, Value::Null)
+            || !within
+        {
+            vector.set("chain_budget", gate(BLOCK, "capacity_window"));
+            return Ok(Some(("chain_budget".into(), "capacity_window".into())));
+        }
+        return Ok(None);
     }
-    vector.set("known_failure", gate(BLOCK, "not_recoverable"));
-    Some(("known_failure".into(), "not_recoverable".into()))
+    if relaxed != Some("admitted")
+        || !has(ADMISSIBLE, category)
+        || !options.plugged
+        || !options.carried.contains(&Point::Gates)
+    {
+        vector.set("known_failure", gate(BLOCK, "not_recoverable"));
+        return Ok(Some(("known_failure".into(), "not_recoverable".into())));
+    }
+    Ok(None)
 }
 
 impl Store {
@@ -282,11 +380,17 @@ impl Store {
             vector.set("consent", consent(connection, &settings, &row)?);
             let others = others_in_flight(connection, get(&row, "thread_id"), interruption_id)?;
             vector.set("submission_safe", gate_submission_safe(&row, others));
-            vector.set("schedule", gate_schedule(&row, now, options.quiet_until, false, false));
+            vector.set(
+                "schedule",
+                gate_schedule(&row, now, options.quiet_until, early_claim(&row, options), false),
+            );
             if let Some(limits) = &options.limits {
                 for (name, found) in gate_budgets(&row, limits, is_usage(&row)) {
                     vector.set(name, found);
                 }
+            }
+            if options.forced {
+                forced_claim(&row, now, &mut vector, options);
             }
             let mut refusal = ["consent", "submission_safe", "schedule", "chain_budget", "attempt_budget", "no_progress_budget"]
                 .iter()
@@ -297,7 +401,14 @@ impl Store {
                 refusal = caps_refusal(connection, &row, now, &mut vector, caps, options.forced)?;
             }
             if refusal.is_none() {
-                refusal = relaxation_refused(&row, &mut vector, options.relaxed.as_deref());
+                refusal = relaxation_refused(
+                    connection,
+                    &row,
+                    now,
+                    &mut vector,
+                    options.relaxed.as_deref(),
+                    options,
+                )?;
             }
             if options.gates.is_some() && refusal.is_none() {
                 refusal = first_refusal(&vector).map(|(name, found)| (name.to_string(), found.1));
@@ -340,8 +451,8 @@ impl Store {
         })
     }
 
-    /// `_resend_claim`, the NULL plug's: an uncertain submission is never claimed once more, and the answer
-    /// says which check held it.
+    /// `_resend_claim`: an uncertain submission claimed once more, only for a plugged claim that carries the schedule
+    /// (the NULL plug's never grants one, and the answer says which check held it).
     fn resend_claim(
         &self,
         connection: &Connection,
@@ -386,10 +497,37 @@ impl Store {
             refusal = caps_refusal(connection, row, now, &mut vector, caps, false)?;
         }
         if refusal.is_none() {
-            refusal = relaxation_refused(row, &mut vector, None);
+            refusal = relaxation_refused(connection, row, now, &mut vector, None, options)?;
         }
-        let (name, reason) = refusal.unwrap_or_else(|| ("submission_safe".into(), HELD.into()));
-        Ok(refused(&name, &reason))
+        if refusal.is_none() && (!options.plugged || !options.carried.contains(&Point::Schedule)) {
+            refusal = Some(("submission_safe".into(), HELD.into()));
+        }
+        if let Some((name, reason)) = refusal {
+            return Ok(refused(&name, &reason));
+        }
+        execute(
+            connection,
+            "UPDATE interruptions SET state='submitting', attempt_count=attempt_count+1, submitted_at=?, last_claim_at=?, last_error=NULL, gate_eval=?, gate_eval_at=? WHERE interruption_id=?",
+            &[
+                Value::Float(now),
+                Value::Float(now),
+                string(&encode_gates(&vector)),
+                Value::Float(now),
+                get(row, "interruption_id").clone(),
+            ],
+        )?;
+        event(
+            connection,
+            now,
+            "claim",
+            Event {
+                record: Some(row),
+                from_state: text_of(row, "state"),
+                to_state: Some("submitting"),
+                ..Event::default()
+            },
+        )?;
+        Ok((true, None, None))
     }
 
     /// `record_gates(interruption_id, gates, now)`: a due, unclaimable record's vector, its last wait ended.

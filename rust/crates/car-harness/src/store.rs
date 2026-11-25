@@ -204,6 +204,7 @@ impl<'a> Call<'a> {
             resend: self.pair(usize::MAX, "resend")?,
             forced: self.truthy(usize::MAX, "forced"),
             caps: self.pair(usize::MAX, "caps")?,
+            ..Claim::default()
         })
     }
 }

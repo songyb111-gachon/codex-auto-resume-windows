@@ -12,8 +12,12 @@ Installed by tests/sitecustomize.py (runs with tests/ on PYTHONPATH, and their c
 scripts/test_parts.py's lanes (PYTHONPATH=src: sitecustomize is not on their path). Without the variable
 neither imports this file: a strict no-op.
 
-Not yet here (later seats, PLAN 4.2): the Engine, Store and LocalSource proxies over car-harness (S4.2);
-a `serve` that streams a live pipe line by line (the whole input is read first, which a test's StringIO
+S4.2: `codex_auto_resume.engine` passes the same finder, and as it loads its `Engine` becomes engineproxy.py's
+(loaded by path, beside this file): car-engine in a `car-harness serve` of its own, whose store, source and backend
+are the test's own Python objects, asked back over the pipe. The Store and LocalSource stay Python's: what the
+engine decides is Rust's, what it reads and writes is the test's.
+
+Not yet here (later seats, PLAN 4.2): a `serve` that streams a live pipe line by line (the whole input is read first, which a test's StringIO
 allows); `python -m codex_auto_resume.<entry>`, which runs the module as __main__ and so never passes the
 finder (no test starts the product that way today). Self-contained: stdlib only, nothing else of rustdiff,
 so it loads by path before anything is on sys.path.
@@ -30,6 +34,8 @@ VARIABLE, VALUE = "CODEX_AR_CORE", "rust"
 # Module -> the stub's entry point. mcpserver re-exports mcp.server's main; both are replaced.
 ENTRY_POINTS = {"codex_auto_resume.controlcli": "bridge", "codex_auto_resume.mcpserver": "mcp",
                 "codex_auto_resume.mcp.server": "mcp", "codex_auto_resume.cli": "cli"}
+# S4.2: the package whose `Engine` becomes the proxy (engineproxy.py).
+ENGINE = "codex_auto_resume.engine"
 STDIN_ARGUMENT = "-"
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 CRATE = Path(__file__).resolve().parents[2] / "rust" / "crates" / "car-harness"
@@ -89,7 +95,23 @@ def rust_main(entry: str, python_main):
     return main
 
 
+def engine_proxy():
+    """engineproxy.py, loaded by path once."""
+    found = sys.modules.get("rustdiff_engineproxy")
+    if found is None:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("rustdiff_engineproxy", Path(__file__).resolve().with_name(
+            "engineproxy.py"))
+        found = importlib.util.module_from_spec(spec)
+        sys.modules["rustdiff_engineproxy"] = found
+        spec.loader.exec_module(found)
+    return found
+
+
 def patch(module) -> None:
+    if module.__name__ == ENGINE:
+        engine_proxy().install(module)
+        return
     entry = ENTRY_POINTS[module.__name__]
     current = getattr(module, "main", None)
     if current is not None and not getattr(current, "rust_core", None):
@@ -115,7 +137,7 @@ class _Loader(importlib.abc.Loader):
 
 class Finder(importlib.abc.MetaPathFinder):
     def find_spec(self, name, path, target=None):
-        if name not in ENTRY_POINTS:
+        if name not in ENTRY_POINTS and name != ENGINE:
             return None
         for finder in sys.meta_path:
             if finder is self or not hasattr(finder, "find_spec"):
@@ -134,7 +156,7 @@ def install() -> bool:
         return False
     if not any(isinstance(finder, Finder) for finder in sys.meta_path):
         sys.meta_path.insert(0, Finder())
-    for name in ENTRY_POINTS:
+    for name in (*ENTRY_POINTS, ENGINE):
         if name in sys.modules:
             patch(sys.modules[name])
     return True
