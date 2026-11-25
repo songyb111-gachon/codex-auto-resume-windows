@@ -253,7 +253,9 @@ pub fn place(folder: &Path, prompt_id: &str, images: &[String]) -> Result<(), Im
             name.ext
         ));
         if *path != target {
-            std::fs::rename(path, &target).map_err(|error| ImageError::Os(error.to_string()))?;
+            // `os.replace(path, target)`: MoveFileExW alone (car-platform), never std's POSIX retry.
+            car_platform::files::replace(path, &target)
+                .map_err(|error| ImageError::Os(error.to_string()))?;
         }
     }
     for (path, name) in &listed {

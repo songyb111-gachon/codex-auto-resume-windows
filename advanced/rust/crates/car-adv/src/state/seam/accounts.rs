@@ -122,7 +122,8 @@ pub fn write_atomic(host: &dyn Host, path: &Path, data: &[u8]) -> Result<(), Fai
     let temporary = path.with_file_name(format!("{name}.car-{}", host.token(4)));
     let outcome = (|| -> std::io::Result<()> {
         use std::io::Write;
-        let mut handle = std::fs::OpenOptions::new()
+        // `open(temporary, "xb")`: shared as Python shares (car-machine's pyfile).
+        let mut handle = car_machine::pyfile::options()
             .write(true)
             .create_new(true)
             .open(&temporary)?;
@@ -130,7 +131,8 @@ pub fn write_atomic(host: &dyn Host, path: &Path, data: &[u8]) -> Result<(), Fai
         handle.flush()?;
         handle.sync_all()?;
         drop(handle);
-        std::fs::rename(&temporary, path)
+        // `os.replace(temporary, path)`: MoveFileExW alone (car-platform), never std's POSIX retry.
+        car_platform::files::replace(&temporary, path)
     })();
     let _ = std::fs::remove_file(&temporary);
     outcome.map_err(|error| Failure(error.to_string()))
