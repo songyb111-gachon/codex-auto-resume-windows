@@ -3,8 +3,11 @@
 //! Every Python version published before the port started its installation through those two names, and some of what
 //! it left behind still does after the installation is Rust: a bootstrap Codex keeps in its plugin copy (its repair
 //! branch and `Invoke-InstalledSetup` run the INSTALLED `runtime\python.exe app\scripts\plugin_setup.py <command>`),
-//! a sign-in Run value or a notification-button handler an earlier version wrote, and the MCP launcher a Codex plugin
-//! copy holds. This program answers to those names, and to nothing else: it accepts only the exact command lines in
+//! a sign-in Run value or a notification-button handler an earlier version wrote, the MCP launcher a Codex plugin
+//! copy holds, the skill a Codex plugin copy holds (and the Rust archive ships again: `runtime\python.exe
+//! app\scripts\plugin_setup.py <command>` for `status`, `enable`, `cancel <thread-uuid>`, `uninstall --purge`, ...), the
+//! Start-menu shortcut `install` made where the home had no settings window, and a settings window of an earlier
+//! version still open across the update (its Repair and its Desktop-shortcut box). This program answers to those names, and to nothing else: it accepts only the exact command lines in
 //! [`ACCEPTED`], which `rust/tools/legacy_lines.py` collects from every tag (`tests/data/published.txt`; the test
 //! `published` holds the two to each other both ways). Any other command line is refused with nothing run.
 //!
@@ -23,9 +26,12 @@
 //! is started through car-platform's one starter, with `CREATE_NO_WINDOW` (brief rule 12).
 //!
 //! Exit codes of this program itself: [`REFUSED`] (2, argparse's: an updater reads it as "this version has no such
-//! command", which is what it is) and [`MISSING`] (1: the Rust program is not there or could not be started).
+//! command", which is what it is) and [`MISSING`] (1: the Rust program is not there or could not be started, or this
+//! program failed). A message it cannot write (no stderr, a closed pipe) changes neither: the code is the answer, as
+//! argparse's own `_print_message` drops a message it cannot write and still ends with 2.
 
 use std::ffi::OsString;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use car_platform::startup::{PROTOCOL_SCHEME, same_path};
@@ -68,6 +74,10 @@ pub enum Shape {
     Mcp,
     Run,
     Activate,
+    /// Any other `plugin_setup.py` command a published skill, document or settings window runs (`status`, `cancel`, ...).
+    Command,
+    /// The Start-menu or Desktop shortcut `install` made where the home had no settings window (`... status`).
+    Shortcut,
 }
 
 impl Shape {
@@ -80,6 +90,8 @@ impl Shape {
             Shape::Mcp => "mcp",
             Shape::Run => "run",
             Shape::Activate => "activate",
+            Shape::Command => "command",
+            Shape::Shortcut => "shortcut",
         }
     }
 }
@@ -103,7 +115,8 @@ impl Target {
 }
 
 /// One accepted command line: its arguments after the program, with `{home}` for the installation (any spelling of
-/// the same folder) and `{uri}` for a `codex-auto-resume:` URI; every other word exactly as written.
+/// the same folder), `{uri}` for a `codex-auto-resume:` URI and `{value}` for one value the script's parser takes (a
+/// thread id, a number of lines: [`value_word`]); every other word exactly as written.
 #[derive(Debug, Clone, Copy)]
 pub struct Line {
     pub program: Program,
@@ -251,6 +264,43 @@ pub const ACCEPTED: &[Line] = &[
         3,
         ["-X", "disable-remote-debug", SETUP, "remove-entry"]
     ),
+    // The skill's Commands table (every tag's skills/codex-auto-resume/SKILL.md, which the Rust archive ships too), in
+    // the shapes each tag's own build_parser takes those commands: positionals, and each option alone.
+    console!(Command, 1, [SETUP, "enable"]),
+    console!(Command, 1, [SETUP, "disable"]),
+    console!(Command, 1, [SETUP, "status"]),
+    console!(Command, 1, [SETUP, "pending"]),
+    console!(Command, 1, [SETUP, "cancel", "{value}"]),
+    console!(Command, 1, [SETUP, "stop"]),
+    console!(Command, 1, [SETUP, "doctor"]),
+    console!(Command, 1, [SETUP, "logs"]),
+    console!(Command, 1, [SETUP, "logs", "-n", "{value}"]),
+    console!(Command, 1, [SETUP, "logs", "--lines", "{value}"]),
+    console!(Command, 1, [SETUP, "uninstall"]),
+    console!(Command, 1, [SETUP, "uninstall", "--purge"]),
+    // A settings window of v0.6.19-beta.3 on, open across the update: its Desktop-shortcut box (gui/InstallerFlow.cs).
+    console!(
+        Command,
+        3,
+        [
+            "-X",
+            "disable-remote-debug",
+            SETUP,
+            "desktop-shortcut",
+            "make"
+        ]
+    ),
+    console!(
+        Command,
+        3,
+        [
+            "-X",
+            "disable-remote-debug",
+            SETUP,
+            "desktop-shortcut",
+            "remove"
+        ]
+    ),
     // The MCP launcher a Codex plugin copy keeps (gui/McpLauncher.cs): `-X disable-remote-debug` from v0.6.19-beta.3.
     Line {
         program: Program::Console,
@@ -280,6 +330,36 @@ pub const ACCEPTED: &[Line] = &[
     // The sign-in Run value: setup's (watcher-launcher.py, every version) and `install --startup`'s (auto_resume.py).
     windowless!(Run, Host, 1, [LAUNCHER, "run"]),
     windowless!(Run, Host, 1, [ENTRY, "--home", "{home}", "run"]),
+    // The Start-menu (and Desktop) shortcut `install` made with no settings window in the home: `-X ...` from
+    // v0.6.19-beta.3.
+    windowless!(Shortcut, Core, 1, [LAUNCHER, "--home", "{home}", "status"]),
+    windowless!(Shortcut, Core, 1, [ENTRY, "--home", "{home}", "status"]),
+    windowless!(
+        Shortcut,
+        Core,
+        3,
+        [
+            "-X",
+            "disable-remote-debug",
+            LAUNCHER,
+            "--home",
+            "{home}",
+            "status"
+        ]
+    ),
+    windowless!(
+        Shortcut,
+        Core,
+        3,
+        [
+            "-X",
+            "disable-remote-debug",
+            ENTRY,
+            "--home",
+            "{home}",
+            "status"
+        ]
+    ),
     // The notification button's protocol handler, setup's and `install`'s: `-X ...` from v0.6.19-beta.3.
     windowless!(Activate, Core, 1, [LAUNCHER, "activate", "{uri}"]),
     windowless!(
@@ -353,21 +433,58 @@ fn home_text(home: &Path) -> String {
     home.to_string_lossy().into_owned()
 }
 
+/// A path as written, without the `\\?\` (or `\\?\UNC\`) prefix Windows and Python take it with: the script it names is
+/// the same file either way, and an earlier version's Python ran it in both spellings.
+fn unprefixed(argument: &str) -> String {
+    if let Some(rest) = argument.strip_prefix("\\\\?\\UNC\\") {
+        return format!("\\\\{rest}");
+    }
+    argument
+        .strip_prefix("\\\\?\\")
+        .unwrap_or(argument)
+        .to_string()
+}
+
+/// Whether argparse would take `argument` as a value (a positional or an option's value) rather than as an option: it
+/// does not start with `-`, or is `-` alone, or looks like a negative number (`_negative_number_matcher`, none of these
+/// parsers having an option that looks like one), or holds a space. Anything else would be an option the parser does not
+/// have, which it refuses.
+pub fn value_word(argument: &str) -> bool {
+    if argument.len() > 32_768 {
+        return false;
+    }
+    let Some(rest) = argument.strip_prefix('-') else {
+        return true;
+    };
+    if rest.is_empty() || argument.contains(' ') {
+        return true;
+    }
+    let digits = |text: &str| !text.is_empty() && text.chars().all(|c| c.is_ascii_digit());
+    match rest.split_once('.') {
+        None => digits(rest),
+        Some((whole, fraction)) => whole.chars().all(|c| c.is_ascii_digit()) && digits(fraction),
+    }
+}
+
 /// Whether `argument` is the template `word` at `home`.
 fn matches(word: &str, argument: &str, home: &Path) -> bool {
     if word == "{uri}" {
         let scheme = format!("{PROTOCOL_SCHEME}:");
-        return argument.len() > scheme.len()
+        // `codex-auto-resume:` alone too: the old handler handed any URI of the scheme to its parser.
+        return argument.len() >= scheme.len()
             && argument.is_char_boundary(scheme.len())
             && argument[..scheme.len()].eq_ignore_ascii_case(&scheme)
             && argument.len() <= 32_768;
+    }
+    if word == "{value}" {
+        return value_word(argument);
     }
     if let Some(rest) = word.strip_prefix("{home}") {
         if argument.is_empty() {
             return false;
         }
         let wanted = format!("{}{}", home_text(home).trim_end_matches(['\\', '/']), rest);
-        return same_path(argument, &wanted);
+        return same_path(&unprefixed(argument), &unprefixed(&wanted));
     }
     word == argument
 }
@@ -417,11 +534,11 @@ pub fn run(program: Program, plan: &Plan) -> i32 {
 
     if !plan.program.is_file() {
         if program == Program::Console {
-            eprintln!(
+            say(&format!(
                 "codex-auto-resume: {} is not in this installation, so `{}` could not be run",
                 plan.program.display(),
                 plan.args.join(" ")
-            );
+            ));
         }
         return MISSING;
     }
@@ -445,10 +562,10 @@ pub fn run(program: Program, plan: &Plan) -> i32 {
         Ok(child) => child,
         Err(error) => {
             if program == Program::Console {
-                eprintln!(
+                say(&format!(
                     "codex-auto-resume: {} could not be started: {error}",
                     plan.program.display()
-                );
+                ));
             }
             return MISSING;
         }
@@ -464,8 +581,21 @@ pub fn run(program: Program, plan: &Plan) -> i32 {
     }
 }
 
-/// The whole of either stand-in's `main`: its exit code.
+/// One line to stderr, or nothing where it cannot be written: never a panic (exit 101), so the code stays the answer.
+fn say(line: &str) {
+    let mut stderr = std::io::stderr().lock();
+    let _ = writeln!(stderr, "{line}");
+    let _ = stderr.flush();
+}
+
+/// The whole of either stand-in's `main`: its exit code. A panic is caught here (D15) and ends with [`MISSING`], as an
+/// uncaught Python exception ends with 1; the default hook's message is not written (it could panic in turn).
 pub fn main_for(program: Program) -> i32 {
+    std::panic::set_hook(Box::new(|_| {}));
+    std::panic::catch_unwind(|| entry(program)).unwrap_or(MISSING)
+}
+
+fn entry(program: Program) -> i32 {
     let args: Vec<OsString> = std::env::args_os().skip(1).collect();
     let executable = match std::env::current_exe() {
         Ok(path) => path,
@@ -479,12 +609,12 @@ pub fn main_for(program: Program) -> i32 {
                     .iter()
                     .map(|argument| argument.to_string_lossy().into_owned())
                     .collect();
-                eprintln!(
+                say(&format!(
                     "codex-auto-resume: this {} is the compatibility entry of a Codex Auto Resume installation; it runs only \
                      the command lines earlier versions used, and `{}` is not one ({refusal:?}). Nothing was run.",
                     program.file_name(),
                     shown.join(" ")
-                );
+                ));
             }
             REFUSED
         }
